@@ -93,7 +93,38 @@ function validateBlueprint({ repoRoot, blueprintDir, gate }) {
   return { ok: failures.length === 0, failures };
 }
 
-// Placeholder replaced in Task 6.
-function checkGate() {}
+function statusOf(doc) {
+  return doc && doc.data && doc.data.sdd ? doc.data.sdd.status : undefined;
+}
 
-module.exports = { loadBlueprintDocs, checkStructural, validateBlueprint };
+function checkGate(gate, docs, rels, failures) {
+  const add = (code, message, fileKey) =>
+    failures.push({ code, message, file: rels[fileKey] });
+
+  if (gate === 'plan') {
+    if (statusOf(docs.epicIndex) !== 'approved') add('G1', 'epic.status != approved', 'epicIndex');
+    if (statusOf(docs.blueprintIndex) !== 'approved') add('G2', 'blueprint.status != approved', 'blueprintIndex');
+    if (statusOf(docs.tasks) !== 'ready') add('G3', 'tasks.status != ready', 'tasks');
+    const suggested = docs.tasks && docs.tasks.data.sdd && docs.tasks.data.sdd.graph
+      ? docs.tasks.data.sdd.graph.suggested_paths : undefined;
+    if (!Array.isArray(suggested)) add('G4', 'tasks.graph.suggested_paths missing', 'tasks');
+    const ap = docs.tasks && docs.tasks.data.sdd ? docs.tasks.data.sdd.affected_paths : undefined;
+    if (!Array.isArray(ap) || ap.length === 0) add('G5', 'tasks.affected_paths missing or empty', 'tasks');
+    return;
+  }
+  if (gate === 'execute') {
+    if (statusOf(docs.tasks) !== 'verified') add('G6', 'tasks.status != verified', 'tasks');
+    if (statusOf(docs.verification) !== 'passed') add('G7', 'verification.status != passed', 'verification');
+    const review = docs.review && docs.review.data.sdd ? docs.review.data.sdd.review : undefined;
+    const reviewOk = statusOf(docs.review) === 'accepted' || (review && review.required === false);
+    if (!reviewOk) add('G8', 'review not accepted and review.required != false', 'review');
+    return;
+  }
+  if (gate === 'finalize') {
+    if (statusOf(docs.distill) !== 'published') add('G9', 'distill.status != published', 'distill');
+    return;
+  }
+  throw new Error(`unknown gate: ${gate}`);
+}
+
+module.exports = { loadBlueprintDocs, checkStructural, checkGate, validateBlueprint };
