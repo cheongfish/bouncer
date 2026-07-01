@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+'use strict';
+const { runCli } = require('./lib/cli');
+process.exit(runCli(process.argv.slice(2)));
