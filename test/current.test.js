@@ -1,0 +1,36 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { readCurrent, writeCurrent } = require('../scripts/lib/current');
+
+function tmpRepo() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-current-'));
+}
+
+test('readCurrent returns null when absent', () => {
+  const repo = tmpRepo();
+  assert.strictEqual(readCurrent({ repoRoot: repo }), null);
+});
+
+test('writeCurrent then readCurrent round-trips', () => {
+  const repo = tmpRepo();
+  const rel = writeCurrent({
+    repoRoot: repo,
+    blueprint: 'context/epics/EPIC-001-x/blueprints/BP-001-y',
+    base: 'develop',
+  });
+  assert.strictEqual(rel, '.sdd/current');
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
+    blueprint: 'context/epics/EPIC-001-x/blueprints/BP-001-y',
+    base: 'develop',
+  });
+});
+
+test('writeCurrent normalizes backslashes to POSIX', () => {
+  const repo = tmpRepo();
+  writeCurrent({ repoRoot: repo, blueprint: 'context\\epics\\EPIC-001-x', base: 'main' });
+  assert.strictEqual(readCurrent({ repoRoot: repo }).blueprint, 'context/epics/EPIC-001-x');
+});
