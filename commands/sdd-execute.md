@@ -22,6 +22,13 @@ Implement the active blueprint. Follow this sequence.
    ```
    Re-write `.sdd/current` inside the worktree so the `commit-safety` hook can
    resolve the active blueprint there (`{ "blueprint": "<dir>", "base": "<base>" }`).
+   **`cd` into `.sdd/worktrees/<BP-id>` and stay there for every subsequent git
+   operation in this session** (`git add`, `git commit`, etc.). Do **not** run
+   `git -C .sdd/worktrees/<BP-id> ...` from the project root — the
+   `commit-safety` PreToolUse hook resolves the active blueprint from the
+   command's actual working directory (`cwd`), and a `-C`-qualified command
+   run from the root reports the root as `cwd`, so the hook would inspect the
+   wrong (likely empty) index and fail to guard the commit.
 
 3. **Implement.** Work the `tasks.md` checklist as the source of truth. You may
    make **one or more commits**. Every `git commit` is guarded by the

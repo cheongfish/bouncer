@@ -2,7 +2,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { isGitCommit, evaluateCommit } = require('../scripts/lib/commit-hook');
+const { isGitCommit, evaluateCommit, realMainRepoCurrent } = require('../scripts/lib/commit-hook');
 
 test('isGitCommit detects commit invocations', () => {
   assert.strictEqual(isGitCommit('git commit -m "x"'), true);
@@ -18,11 +18,14 @@ test('isGitCommit detects commit invocations', () => {
 
 const BP = 'context/epics/EPIC-001-x/blueprints/BP-001-y';
 
-function deps({ current, affected, staged }) {
+function deps({
+  current, affected, staged, mainCurrent = null,
+}) {
   return {
     readCurrent: () => current,
     readAffectedPaths: () => affected,
     stagedFiles: () => staged,
+    mainRepoCurrent: () => mainCurrent,
   };
 }
 
@@ -63,4 +66,48 @@ test('out-of-scope commit is blocked with a reason listing violations', () => {
   assert.strictEqual(r.block, true);
   assert.ok(r.reason.includes('src/other/b.js'));
   assert.ok(!r.reason.includes('src/feature/a.js'));
+});
+
+test('worktree pointer missing but main-repo pointer present → falls back and blocks out-of-scope commit', () => {
+  const r = evaluateCommit({
+    command: 'git commit -m x', repoRoot: '/r/.sdd/worktrees/BP-001-y',
+    deps: deps({
+      current: null,
+      mainCurrent: { blueprint: BP, base: 'develop' },
+      affected: ['src/feature'],
+      staged: ['src/feature/a.js', 'src/other/b.js'],
+    }),
+  });
+  assert.strictEqual(r.block, true);
+  assert.ok(r.reason.includes('src/other/b.js'));
+});
+
+test('worktree pointer missing and main-repo pointer also missing → no active blueprint, allowed', () => {
+  const r = evaluateCommit({
+    command: 'git commit -m x', repoRoot: '/r/.sdd/worktrees/BP-001-y',
+    deps: deps({
+      current: null,
+      mainCurrent: null,
+      affected: [],
+      staged: ['src/other/b.js'],
+    }),
+  });
+  assert.deepStrictEqual(r, { block: false });
+});
+
+test('worktree pointer present → used directly, main-repo fallback not needed', () => {
+  const r = evaluateCommit({
+    command: 'git commit -m x', repoRoot: '/r/.sdd/worktrees/BP-001-y',
+    deps: deps({
+      current: { blueprint: BP, base: 'develop' },
+      mainCurrent: { blueprint: 'context/epics/EPIC-999-z/blueprints/BP-999-z', base: 'main' },
+      affected: ['src/feature'],
+      staged: ['src/feature/a.js'],
+    }),
+  });
+  assert.strictEqual(r.block, false);
+});
+
+test('realMainRepoCurrent returns null when git commands fail (not a repo)', () => {
+  assert.strictEqual(realMainRepoCurrent({ repoRoot: '/nonexistent/path/xyz' }), null);
 });

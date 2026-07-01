@@ -14,7 +14,18 @@ process.stdin.on('end', () => {
   const command = payload.tool_input && payload.tool_input.command
     ? payload.tool_input.command : '';
   const repoRoot = payload.cwd || process.cwd();
-  const result = evaluateCommit({ command, repoRoot });
+  let result;
+  try {
+    result = evaluateCommit({ command, repoRoot });
+  } catch (e) {
+    // Fail closed: at this point evaluateCommit has already returned early
+    // for non-commit commands and for "no active blueprint" (both of which
+    // cannot throw), so a throw here means a genuine failure while
+    // inspecting a commit with an active blueprint — we cannot prove the
+    // commit is in-scope, so block it.
+    process.stderr.write(`commit-safety: internal error, blocking commit: ${e.message}\n`);
+    process.exit(2);
+  }
   if (result.block) {
     process.stderr.write(`${result.reason}\n`);
     process.exit(2);

@@ -34,3 +34,11 @@ test('writeCurrent normalizes backslashes to POSIX', () => {
   writeCurrent({ repoRoot: repo, blueprint: 'context\\epics\\EPIC-001-x', base: 'main' });
   assert.strictEqual(readCurrent({ repoRoot: repo }).blueprint, 'context/epics/EPIC-001-x');
 });
+
+test('readCurrent returns null when the pointer file is corrupt JSON', () => {
+  const repo = tmpRepo();
+  const abs = path.join(repo, '.sdd', 'current');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, '{ this is not json');
+  assert.strictEqual(readCurrent({ repoRoot: repo }), null);
+});

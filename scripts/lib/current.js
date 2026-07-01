@@ -10,7 +10,12 @@ function readCurrent({ repoRoot }) {
   if (!fs.existsSync(abs)) return null;
   const raw = fs.readFileSync(abs, 'utf8').trim();
   if (!raw) return null;
-  const data = JSON.parse(raw);
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (_e) {
+    return null;
+  }
   return { blueprint: toPosix(data.blueprint), base: data.base };
 }
 
