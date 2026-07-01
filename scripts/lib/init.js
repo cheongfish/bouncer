@@ -95,7 +95,6 @@ function init({ repoRoot, timestamp }) {
   if (fs.existsSync(configAbs)) return { created: [], skipped: true };
 
   const created = [];
-  writeFile(repoRoot, '.sdd/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
   writeFile(repoRoot, '.sdd/current', '', created);
   writeFile(repoRoot, '.sdd/governance.md', GOVERNANCE, created);
   writeFile(repoRoot, '.sdd/workflow.md', WORKFLOW, created);
@@ -105,6 +104,7 @@ function init({ repoRoot, timestamp }) {
   }
   writeFile(repoRoot, 'context/index.md', CONTEXT_INDEX, created);
   ensureGitignore(repoRoot);
+  writeFile(repoRoot, '.sdd/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
   return { created, skipped: false };
 }
 
