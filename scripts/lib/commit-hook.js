@@ -1,15 +1,31 @@
 // scripts/lib/commit-hook.js
 'use strict';
 const path = require('node:path');
-const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { checkCommitSafety } = require('./commit-guard');
 const { readCurrent } = require('./current');
 const { readDoc } = require('./frontmatter');
 
+function segmentIsGitCommit(segment) {
+  const tokens = segment.trim().split(/\s+/).filter(Boolean);
+  const gitIdx = tokens.indexOf('git');
+  if (gitIdx === -1) return false;
+  const consumesValue = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path']);
+  let i = gitIdx + 1;
+  while (i < tokens.length) {
+    const t = tokens[i];
+    if (t.startsWith('-')) {
+      i += consumesValue.has(t) ? 2 : 1;
+      continue;
+    }
+    return t === 'commit';
+  }
+  return false;
+}
+
 function isGitCommit(command) {
   if (typeof command !== 'string') return false;
-  return /\bgit\b(?:\s+-C\s+\S+)?[\s\S]*?\bcommit\b/.test(command);
+  return command.split(/&&|\|\||[;|\n]/).some(segmentIsGitCommit);
 }
 
 function readAffectedPaths({ repoRoot, blueprintDir }) {
@@ -49,4 +65,4 @@ function evaluateCommit({ command, repoRoot, deps }) {
   };
 }
 
-module.exports = { isGitCommit, readAffectedPaths, evaluateCommit, realStagedFiles, fs };
+module.exports = { isGitCommit, readAffectedPaths, evaluateCommit, realStagedFiles };

@@ -10,6 +10,10 @@ test('isGitCommit detects commit invocations', () => {
   assert.strictEqual(isGitCommit('git -C repo commit -m x'), true);
   assert.strictEqual(isGitCommit('git status'), false);
   assert.strictEqual(isGitCommit('echo commit'), false);
+  assert.strictEqual(isGitCommit('git log --grep commit'), false);
+  assert.strictEqual(isGitCommit('git branch commit-fix'), false);
+  assert.strictEqual(isGitCommit('git status && docker commit abc'), false);
+  assert.strictEqual(isGitCommit('git -c user.name=x commit -m y'), true);
 });
 
 const BP = 'context/epics/EPIC-001-x/blueprints/BP-001-y';
