@@ -1,6 +1,8 @@
 // scripts/lib/finalize.js
 'use strict';
+const { execFileSync } = require('node:child_process');
 const { epicDirOf, toPosix } = require('./paths');
+const { validateBlueprint, loadBlueprintDocs } = require('./validate');
 
 function isUnder(file, entry) {
   const f = toPosix(file);
@@ -56,4 +58,42 @@ function buildCommitMessage(docs) {
   return out.join('\n');
 }
 
-module.exports = { isUnder, makeAllowed, buildCommitMessage };
+function realGit(repoRoot) {
+  const run = (args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
+  const lines = (s) => s.split('\n').filter(Boolean);
+  return {
+    changedFiles: () => lines(run(['diff', '--name-only', 'HEAD'])),
+    untrackedFiles: () => lines(run(['ls-files', '--others', '--exclude-standard'])),
+    stage: (files) => { if (files.length) run(['add', '--', ...files]); },
+    commit: (msg) => { run(['commit', '-m', msg]); },
+  };
+}
+
+function finalize({ repoRoot, blueprintDir, yes = false, git }) {
+  const gitApi = git || realGit(repoRoot);
+
+  const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
+  if (!v.ok) return { ok: false, reason: 'validate', failures: v.failures };
+
+  const { docs } = loadBlueprintDocs({ repoRoot, blueprintDir });
+  const affectedPaths = docs.tasks && docs.tasks.data.sdd
+    ? docs.tasks.data.sdd.affected_paths : [];
+  const allowed = makeAllowed({ affectedPaths, blueprintDir });
+
+  const changed = gitApi.changedFiles();
+  const untracked = gitApi.untrackedFiles();
+  const all = [...new Set([...changed, ...untracked])];
+  const violations = all.filter((f) => !allowed(f));
+  if (violations.length) return { ok: false, reason: 'out-of-scope', violations };
+
+  const commitMessage = buildCommitMessage(docs);
+  if (!yes) return { ok: true, dryRun: true, staged: all, commitMessage };
+
+  gitApi.stage(all);
+  gitApi.commit(commitMessage);
+  return { ok: true, committed: true, staged: all, commitMessage };
+}
+
+module.exports = {
+  isUnder, makeAllowed, buildCommitMessage, realGit, finalize,
+};

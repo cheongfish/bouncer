@@ -1,6 +1,7 @@
 'use strict';
 const { validateBlueprint } = require('./validate');
 const { scaffoldEpic, scaffoldBlueprint } = require('./scaffold');
+const { finalize } = require('./finalize');
 
 function parseFlags(rest) {
   const flags = {};
@@ -50,6 +51,17 @@ function cmdScaffold(rest, io) {
   return 0;
 }
 
+function cmdFinalize(rest, io) {
+  const f = parseFlags(rest);
+  const result = finalize({
+    repoRoot: f.repo || process.cwd(),
+    blueprintDir: f.blueprint,
+    yes: f.yes === true,
+  });
+  io.out(`${JSON.stringify(result, null, 2)}\n`);
+  return result.ok ? 0 : 1;
+}
+
 function runCli(argv, io) {
   const out = io && io.out ? io.out : (s) => process.stdout.write(s);
   const err = io && io.err ? io.err : (s) => process.stderr.write(s);
@@ -60,6 +72,8 @@ function runCli(argv, io) {
       return cmdValidate(rest, sink);
     case 'scaffold':
       return cmdScaffold(rest, sink);
+    case 'finalize':
+      return cmdFinalize(rest, sink);
     default:
       err(`unknown command: ${cmd}\n`);
       return 2;
