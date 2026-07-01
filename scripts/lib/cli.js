@@ -1,5 +1,6 @@
 'use strict';
 const { validateBlueprint } = require('./validate');
+const { scaffoldEpic, scaffoldBlueprint } = require('./scaffold');
 
 function parseFlags(rest) {
   const flags = {};
@@ -29,6 +30,26 @@ function cmdValidate(rest, io) {
   return result.ok ? 0 : 1;
 }
 
+function cmdScaffold(rest, io) {
+  const [kind, ...flagArgs] = rest;
+  const f = parseFlags(flagArgs);
+  const repoRoot = f.repo || process.cwd();
+  const timestamp = typeof f.timestamp === 'string' ? f.timestamp : new Date().toISOString();
+  let created;
+  if (kind === 'epic') {
+    created = scaffoldEpic({ repoRoot, epicId: f.id, name: f.name, timestamp });
+  } else if (kind === 'blueprint') {
+    created = scaffoldBlueprint({
+      repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp,
+    });
+  } else {
+    io.err(`unknown scaffold kind: ${kind}\n`);
+    return 2;
+  }
+  io.out(`${JSON.stringify({ ok: true, created }, null, 2)}\n`);
+  return 0;
+}
+
 function runCli(argv, io) {
   const out = io && io.out ? io.out : (s) => process.stdout.write(s);
   const err = io && io.err ? io.err : (s) => process.stderr.write(s);
@@ -37,6 +58,8 @@ function runCli(argv, io) {
   switch (cmd) {
     case 'validate':
       return cmdValidate(rest, sink);
+    case 'scaffold':
+      return cmdScaffold(rest, sink);
     default:
       err(`unknown command: ${cmd}\n`);
       return 2;
