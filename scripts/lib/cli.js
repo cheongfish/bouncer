@@ -2,6 +2,7 @@
 const { validateBlueprint } = require('./validate');
 const { scaffoldEpic, scaffoldBlueprint } = require('./scaffold');
 const { finalize } = require('./finalize');
+const { init } = require('./init');
 
 function parseFlags(rest) {
   const flags = {};
@@ -70,6 +71,16 @@ function cmdFinalize(rest, io) {
   return result.ok ? 0 : 1;
 }
 
+function cmdInit(rest, io) {
+  const f = parseFlags(rest);
+  const result = init({
+    repoRoot: f.repo || process.cwd(),
+    timestamp: typeof f.timestamp === 'string' ? f.timestamp : new Date().toISOString(),
+  });
+  io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
+  return 0;
+}
+
 function runCli(argv, io) {
   const out = io && io.out ? io.out : (s) => process.stdout.write(s);
   const err = io && io.err ? io.err : (s) => process.stderr.write(s);
@@ -82,6 +93,8 @@ function runCli(argv, io) {
       return cmdScaffold(rest, sink);
     case 'finalize':
       return cmdFinalize(rest, sink);
+    case 'init':
+      return cmdInit(rest, sink);
     default:
       err(`unknown command: ${cmd}\n`);
       return 2;
