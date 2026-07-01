@@ -16,13 +16,18 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     distill: `${bp}/distill.md`,
   };
   const docs = {};
+  const parseErrors = [];
   for (const [key, rel] of Object.entries(rels)) {
     const abs = path.join(repoRoot, rel);
     if (fs.existsSync(abs)) {
-      docs[key] = { data: readDoc(abs).data, rel };
+      try {
+        docs[key] = { data: readDoc(abs).data, rel };
+      } catch (e) {
+        parseErrors.push({ code: 'S0', message: e.message, file: rel });
+      }
     }
   }
-  return { docs, rels };
+  return { docs, rels, parseErrors };
 }
 
 function checkStructural(doc, failures) {
@@ -75,8 +80,8 @@ function checkStructural(doc, failures) {
 }
 
 function validateBlueprint({ repoRoot, blueprintDir, gate }) {
-  const failures = [];
-  const { docs, rels } = loadBlueprintDocs({ repoRoot, blueprintDir });
+  const { docs, rels, parseErrors } = loadBlueprintDocs({ repoRoot, blueprintDir });
+  const failures = [...parseErrors];
 
   const anyLeaf = ['tasks', 'verification', 'review', 'distill'].some((k) => docs[k]);
   if (anyLeaf && !docs.blueprintIndex) {

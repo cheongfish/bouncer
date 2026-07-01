@@ -81,6 +81,18 @@ test('a fully valid blueprint passes structural checks', () => {
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
 
+test('S0: malformed frontmatter is collected as a failure, not thrown', () => {
+  const repo = mkRepo();
+  const abs = path.join(repo, `${BP_REL}/tasks.md`);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, '# no frontmatter here\n');
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, 'context/epics/EPIC-001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.failures.some((f) => f.code === 'S0'));
+});
+
 function blueprintDoc() {
   return {
     type: 'sdd.blueprint',

@@ -42,3 +42,20 @@ test('unknown command exits 2', () => {
   const { io } = capture();
   assert.strictEqual(runCli(['frobnicate'], io), 2);
 });
+
+test('validate without --blueprint exits 2 and does not report ok:true', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const { io, buf } = capture();
+  const code = runCli(['validate', '--repo', repo], io);
+  assert.strictEqual(code, 2);
+  assert.ok(!buf.out.includes('"ok": true'));
+  assert.ok(buf.err.length > 0);
+});
+
+test('finalize without --blueprint exits 2', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const { io, buf } = capture();
+  const code = runCli(['finalize', '--repo', repo], io);
+  assert.strictEqual(code, 2);
+  assert.ok(buf.err.length > 0);
+});

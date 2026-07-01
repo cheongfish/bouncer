@@ -22,6 +22,10 @@ function parseFlags(rest) {
 
 function cmdValidate(rest, io) {
   const f = parseFlags(rest);
+  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+    io.err('validate: --blueprint is required\n');
+    return 2;
+  }
   const result = validateBlueprint({
     repoRoot: f.repo || process.cwd(),
     blueprintDir: f.blueprint,
@@ -53,6 +57,10 @@ function cmdScaffold(rest, io) {
 
 function cmdFinalize(rest, io) {
   const f = parseFlags(rest);
+  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+    io.err('finalize: --blueprint is required\n');
+    return 2;
+  }
   const result = finalize({
     repoRoot: f.repo || process.cwd(),
     blueprintDir: f.blueprint,
