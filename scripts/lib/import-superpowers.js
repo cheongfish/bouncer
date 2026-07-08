@@ -1,4 +1,9 @@
 'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const { scaffoldEpic, scaffoldBlueprint } = require('./scaffold');
+const { readDoc } = require('./frontmatter');
+const { renderDoc } = require('./render');
 
 function parseSuperpowers(markdown) {
   const titleM = /^#\s+(.+?)\s*$/m.exec(markdown);
@@ -38,4 +43,75 @@ function suggestedPathsFrom(text, sourceDirs) {
   return [...found].sort();
 }
 
-module.exports = { parseSuperpowers, suggestedPathsFrom };
+function readSourceDirs(repoRoot) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.sdd/config.json'), 'utf8'));
+    return Array.isArray(cfg.source_dirs) ? cfg.source_dirs : ['src', 'test'];
+  } catch (_e) {
+    return ['src', 'test'];
+  }
+}
+
+function injectBody(repoRoot, rel, body) {
+  const abs = path.join(repoRoot, rel);
+  const { data } = readDoc(abs);
+  fs.writeFileSync(abs, renderDoc(data, body));
+}
+
+function injectTasks(repoRoot, rel, body, suggested) {
+  const abs = path.join(repoRoot, rel);
+  const { data } = readDoc(abs);
+  if (!data.sdd) data.sdd = {};
+  if (!data.sdd.graph) data.sdd.graph = {};
+  data.sdd.graph.suggested_paths = suggested;
+  fs.writeFileSync(abs, renderDoc(data, body));
+}
+
+function importSuperpowers(opts) {
+  const {
+    repoRoot, specPath, planPath, epicDir, epicId, epicName,
+    blueprintId, name, timestamp, deps,
+  } = opts;
+  const readFile = (deps && deps.readFile)
+    || ((rel) => fs.readFileSync(path.join(repoRoot, rel), 'utf8'));
+  const sourceDirs = (deps && deps.sourceDirs) || (() => readSourceDirs(repoRoot));
+
+  const specText = specPath ? readFile(specPath) : '';
+  const planText = planPath ? readFile(planPath) : '';
+  if (!specText && !planText) {
+    return { ok: false, reason: 'no-input', message: 'at least one of specPath/planPath is required' };
+  }
+
+  const spec = specText ? parseSuperpowers(specText) : null;
+  const plan = planText ? parseSuperpowers(planText) : null;
+  const title = (spec && spec.title) || (plan && plan.title) || 'Imported';
+  const blueprintBody = spec ? spec.blueprintBody : plan.blueprintBody;
+  const tasksBody = (plan && plan.hasTasks) ? plan.tasksBody
+    : (spec && spec.hasTasks ? spec.tasksBody : '# Tasks\n\n- [ ] TODO\n');
+
+  let created = [];
+  let ed = epicDir;
+  if (!ed) {
+    created = created.concat(scaffoldEpic({ repoRoot, epicId, name: epicName, timestamp }));
+    ed = `context/epics/${epicId}-${epicName}`;
+  }
+  created = created.concat(scaffoldBlueprint({ repoRoot, epicDir: ed, blueprintId, name, timestamp }));
+  const blueprintDir = `${ed}/blueprints/${blueprintId}-${name}`;
+
+  injectBody(repoRoot, `${blueprintDir}/index.md`, blueprintBody);
+  const suggested = suggestedPathsFrom(`${specText}\n${planText}`, sourceDirs());
+  injectTasks(repoRoot, `${blueprintDir}/tasks.md`, tasksBody, suggested);
+
+  return {
+    ok: true,
+    created,
+    blueprintDir,
+    epicDir: ed,
+    title,
+    suggested_paths: suggested,
+    proposed_affected_paths: suggested,
+    sources: { spec: specPath || null, plan: planPath || null },
+  };
+}
+
+module.exports = { parseSuperpowers, suggestedPathsFrom, importSuperpowers };
