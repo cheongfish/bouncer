@@ -38,4 +38,21 @@ function detectPhase({ repoRoot, deps }) {
   return { phase, blueprint: cur.blueprint };
 }
 
-module.exports = { readConfig, detectPhase };
+const BOUNDARY = 'SDD docs, tests, verification, review, and affected_paths remain required.';
+
+function recommendMode({ phase, config }) {
+  const adv = config && config.plugin_advisors && config.plugin_advisors.ponytail;
+  if (!adv || adv.enabled === false) return { phase, enabled: false };
+  const mode = adv[phase] || 'off';
+  const run = mode === 'review' ? '/ponytail-review' : `/ponytail ${mode}`;
+  return {
+    phase,
+    enabled: true,
+    mode,
+    run,
+    auto_switch: !!adv.auto_switch,
+    boundary: BOUNDARY,
+  };
+}
+
+module.exports = { readConfig, detectPhase, recommendMode };

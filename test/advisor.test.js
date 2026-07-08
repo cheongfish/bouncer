@@ -48,3 +48,34 @@ test('distill published means finalize phase', () => {
   const r = detectPhase({ repoRoot: '/x', deps: deps({ blueprint: 'b' }, { distill: 'published' }) });
   assert.strictEqual(r.phase, 'finalize');
 });
+
+const { recommendMode } = require('../scripts/lib/advisor');
+
+const CFG = {
+  plugin_advisors: {
+    ponytail: {
+      enabled: true, plan: 'lite', execute: 'full', verify: 'full',
+      review: 'review', finalize: 'lite', auto_switch: false,
+    },
+  },
+};
+
+test('recommendMode maps execute phase to /ponytail full', () => {
+  const r = recommendMode({ phase: 'execute', config: CFG });
+  assert.strictEqual(r.enabled, true);
+  assert.strictEqual(r.mode, 'full');
+  assert.strictEqual(r.run, '/ponytail full');
+  assert.strictEqual(r.auto_switch, false);
+  assert.ok(/affected_paths/.test(r.boundary));
+});
+
+test('recommendMode maps review phase to /ponytail-review', () => {
+  const r = recommendMode({ phase: 'review', config: CFG });
+  assert.strictEqual(r.mode, 'review');
+  assert.strictEqual(r.run, '/ponytail-review');
+});
+
+test('recommendMode reports disabled when advisor config absent', () => {
+  const r = recommendMode({ phase: 'plan', config: {} });
+  assert.strictEqual(r.enabled, false);
+});
