@@ -43,3 +43,19 @@ test('parseSuperpowers on a spec with no tasks uses a stub tasks body', () => {
   assert.ok(r.blueprintBody.includes('design prose'));
   assert.strictEqual(r.tasksBody, '# Tasks\n\n- [ ] TODO\n');
 });
+
+const { suggestedPathsFrom } = require('../scripts/lib/import-superpowers');
+
+test('suggestedPathsFrom keeps only source-dir file paths, stripping line refs', () => {
+  const text = [
+    'Touch `src/lib/foo.js` and `test/foo.test.js:12-20`.',
+    'Also `docs/notes.md`, `bareword`, and `src/lib/foo.js` again.',
+  ].join('\n');
+  const got = suggestedPathsFrom(text, ['src', 'test']);
+  assert.deepStrictEqual(got, ['src/lib/foo.js', 'test/foo.test.js']);
+});
+
+test('suggestedPathsFrom defaults sourceDirs to src and test', () => {
+  const got = suggestedPathsFrom('`src/a.js` `lib/b.js`', []);
+  assert.deepStrictEqual(got, ['src/a.js']);
+});

@@ -19,4 +19,23 @@ function parseSuperpowers(markdown) {
   };
 }
 
-module.exports = { parseSuperpowers };
+function looksLikePath(tok, dirs) {
+  const clean = tok.split(':')[0];
+  if (!clean.includes('/')) return false;
+  if (!/\.[A-Za-z0-9]+$/.test(clean)) return false;
+  return dirs.includes(clean.split('/')[0]);
+}
+
+function suggestedPathsFrom(text, sourceDirs) {
+  const dirs = Array.isArray(sourceDirs) && sourceDirs.length ? sourceDirs : ['src', 'test'];
+  const found = new Set();
+  const backtick = /`([^`\n]+)`/g;
+  let m;
+  while ((m = backtick.exec(text)) !== null) {
+    const tok = m[1].trim();
+    if (looksLikePath(tok, dirs)) found.add(tok.split(':')[0]);
+  }
+  return [...found].sort();
+}
+
+module.exports = { parseSuperpowers, suggestedPathsFrom };
