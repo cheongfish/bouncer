@@ -8,6 +8,34 @@ argument-hint: [epic or blueprint description]
 Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
 
+## Importing a Superpowers draft (`--from-superpowers`)
+
+When invoked as `/sdd-plan --from-superpowers <spec-or-plan path>`, seed the SDD
+docs from an existing Superpowers artifact instead of authoring from scratch:
+
+1. **Allocate ids** as in step 1 below (epic may already exist).
+2. **Import.** Run the adapter (it scaffolds the doc set, injects the spec/plan
+   into the blueprint and tasks bodies, seeds `sdd.graph.suggested_paths`, and
+   proposes `affected_paths` — without changing any status or the source file):
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-harness" import-superpowers \
+     --epic <EPIC-id> --epic-name <slug> \
+     --blueprint <BP-id> --name <slug> \
+     --plan <docs/superpowers/plans/...md>   # and/or --spec <...-design.md>
+   ```
+   (Use `--epic-dir <context/epics/EPIC-id-slug>` instead of `--epic/--epic-name`
+   to import into an existing epic.)
+3. **Review the draft.** Read the generated `blueprint.md` and `tasks.md`; refine
+   the bodies with the `okf-authoring` skill if the imported content needs
+   tightening. Do **not** hand-edit the harness-owned frontmatter.
+4. **Continue at step 5 below** using the printed `proposed_affected_paths` as the
+   seed for the user-confirmed `affected_paths`, then proceed through approval,
+   pointer, and the `plan` gate exactly as in the from-scratch flow.
+
+The source Superpowers file stays a draft and is never modified.
+
+---
+
 1. **ID allocation.** Scan `context/epics` for the next sequential id
    (`EPIC-002` after `EPIC-001`; `BP-002` within an epic). Show the suggested id
    and let the user override it.

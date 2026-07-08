@@ -20,3 +20,10 @@ test('sdd-plan wires scaffold, both skills, affected_paths confirm, pointer, and
   assert.ok(/validate --gate plan/.test(body));
   assert.ok(/approv/i.test(body));
 });
+
+test('sdd-plan documents the --from-superpowers import flow', () => {
+  const { body } = parseFrontmatter(md);
+  assert.ok(/--from-superpowers/.test(body));
+  assert.ok(/import-superpowers/.test(body));
+  assert.ok(/proposed_affected_paths|affected_paths/.test(body));
+});
