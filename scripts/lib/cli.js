@@ -4,6 +4,7 @@ const { scaffoldEpic, scaffoldBlueprint } = require('./scaffold');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
 const { importSuperpowers } = require('./import-superpowers');
+const { readConfig, detectPhase, recommendMode } = require('./advisor');
 
 function parseFlags(rest) {
   const flags = {};
@@ -114,6 +115,16 @@ function cmdImportSuperpowers(rest, io) {
   return result.ok ? 0 : 1;
 }
 
+function cmdAdvise(rest, io) {
+  const f = parseFlags(rest);
+  const repoRoot = f.repo || process.cwd();
+  const config = readConfig(repoRoot);
+  const { phase, blueprint } = detectPhase({ repoRoot });
+  const rec = recommendMode({ phase, config });
+  io.out(`${JSON.stringify({ ok: true, ...rec, blueprint }, null, 2)}\n`);
+  return 0;
+}
+
 function runCli(argv, io) {
   const out = io && io.out ? io.out : (s) => process.stdout.write(s);
   const err = io && io.err ? io.err : (s) => process.stderr.write(s);
@@ -130,6 +141,8 @@ function runCli(argv, io) {
       return cmdInit(rest, sink);
     case 'import-superpowers':
       return cmdImportSuperpowers(rest, sink);
+    case 'advise':
+      return cmdAdvise(rest, sink);
     default:
       err(`unknown command: ${cmd}\n`);
       return 2;

@@ -41,6 +41,8 @@ const WORKFLOW = `# Workflow
    verification-loop, review-loop, pass gate \`execute\` (G6–G8).
 4. \`/sdd-finalize\` — distill, pass gate \`finalize\` (G9), commit remainder,
    then push + draft PR (skipped gracefully with no remote / no \`gh\`).
+5. \`sdd-harness advise\` — at any point, print the recommended Ponytail mode for
+   the current SDD phase (advisory only; never switches modes automatically).
 `;
 
 const OKF = `# OKF
