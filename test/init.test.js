@@ -44,6 +44,17 @@ test('init writes the exact config.json shape', () => {
     verify: 'npm test',
     base_branch: 'develop',
     pr: { draft: true, base: 'develop', labels: ['sdd'] },
+    plugin_advisors: {
+      ponytail: {
+        enabled: true,
+        plan: 'lite',
+        execute: 'full',
+        verify: 'full',
+        review: 'review',
+        finalize: 'lite',
+        auto_switch: false,
+      },
+    },
   });
 });
 
