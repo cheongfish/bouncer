@@ -15,7 +15,7 @@ Bootstrap this project for SDD.
      were made (idempotent).
    - Otherwise, list the created files (`.sdd/config.json`, `.sdd/current`,
      `.sdd/governance.md`, `.sdd/workflow.md`, `.sdd/okf.md`,
-     `.sdd/templates/*`, `context/index.md`) and note that `.gitignore` gained
+     `.sdd/templates/*`, `.sdd/superpowers.md`, `context/index.md`) and note that `.gitignore` gained
      `.sdd/worktrees/`, `graphify-out/`, and `.sdd/current`.
 3. Point the user at `/sdd-plan` as the next step, and mention they can edit
    `.sdd/config.json` (`source_dirs`, `verify`, `base_branch`, `pr`) first.

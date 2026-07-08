@@ -21,9 +21,18 @@ test('init scaffolds the full .sdd tree and context index', () => {
     '.sdd/okf.md', '.sdd/templates/epic.md', '.sdd/templates/blueprint.md',
     '.sdd/templates/tasks.md', '.sdd/templates/verification.md', '.sdd/templates/review.md',
     '.sdd/templates/distill.md', '.sdd/templates/pr.md', 'context/index.md',
+    '.sdd/superpowers.md',
   ]) {
     assert.ok(exists(repo, rel), `missing ${rel}`);
   }
+});
+
+test('init writes a superpowers coexistence preference doc', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const doc = read(repo, '.sdd/superpowers.md');
+  assert.ok(/context\/epics/.test(doc));
+  assert.ok(/SDD gates/i.test(doc));
 });
 
 test('init writes the exact config.json shape', () => {

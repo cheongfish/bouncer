@@ -15,3 +15,8 @@ test('sdd-init command has a description and calls sdd-harness init', () => {
   assert.ok(/sdd-harness init/.test(body));
   assert.ok(/idempotent|already exists|no changes/i.test(body));
 });
+
+test('sdd-init lists the superpowers preference doc', () => {
+  const { body } = parseFrontmatter(md);
+  assert.ok(/superpowers\.md/.test(body));
+});

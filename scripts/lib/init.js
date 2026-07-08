@@ -41,6 +41,20 @@ Every \`context/**/*.md\` document carries OKF frontmatter
 fields live under \`sdd:\`. See the schema-gates design for the full schema.
 `;
 
+const SUPERPOWERS = `# Superpowers coexistence
+
+When using Superpowers in this repository:
+
+- During SDD-governed work, official specs and plans live in \`context/epics/**\`.
+- Superpowers docs under \`docs/superpowers/**\` are drafts or supporting notes.
+- Do not create a separate Superpowers worktree after \`/sdd-execute\` has started.
+- Do not edit SDD-owned frontmatter directly.
+- SDD gates decide official plan, execute, and finalize status.
+
+Import a Superpowers draft into official SDD docs with
+\`/sdd-plan --from-superpowers <path>\` (or \`sdd-harness import-superpowers\`).
+`;
+
 const PR_TEMPLATE = `<type>(<bp-id>): <summary>
 
 Epic: <epic-id>
@@ -99,6 +113,7 @@ function init({ repoRoot, timestamp }) {
   writeFile(repoRoot, '.sdd/governance.md', GOVERNANCE, created);
   writeFile(repoRoot, '.sdd/workflow.md', WORKFLOW, created);
   writeFile(repoRoot, '.sdd/okf.md', OKF, created);
+  writeFile(repoRoot, '.sdd/superpowers.md', SUPERPOWERS, created);
   for (const [name, content] of Object.entries(TEMPLATES)) {
     writeFile(repoRoot, `.sdd/templates/${name}`, content, created);
   }
