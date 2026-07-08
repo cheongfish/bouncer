@@ -33,6 +33,19 @@ test('import-superpowers CLI returns ok and writes docs', () => {
   assert.deepStrictEqual(res.suggested_paths, ['src/x.js']);
 });
 
+test('import-superpowers CLI returns 1 with a clean message when --plan file does not exist', () => {
+  const repo = tmpRepo();
+  const { io, chunks } = capture();
+  const code = runCli([
+    'import-superpowers', '--repo', repo,
+    '--epic', 'EPIC-001', '--epic-name', 'x',
+    '--blueprint', 'BP-001', '--name', 'core',
+    '--plan', 'docs/does-not-exist.md',
+  ], io);
+  assert.strictEqual(code, 1);
+  assert.ok(/import-superpowers/.test(chunks.err));
+});
+
 test('import-superpowers CLI errors (exit 2) when neither --spec nor --plan given', () => {
   const repo = tmpRepo();
   const { io } = capture();

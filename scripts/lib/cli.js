@@ -100,17 +100,23 @@ function cmdImportSuperpowers(rest, io) {
     io.err('import-superpowers: provide --epic-dir, or both --epic and --epic-name\n');
     return 2;
   }
-  const result = importSuperpowers({
-    repoRoot: f.repo || process.cwd(),
-    specPath: hasSpec ? f.spec : undefined,
-    planPath: hasPlan ? f.plan : undefined,
-    epicDir: hasEpicDir ? f['epic-dir'] : undefined,
-    epicId: f.epic,
-    epicName: f['epic-name'],
-    blueprintId: f.blueprint,
-    name: f.name,
-    timestamp: typeof f.timestamp === 'string' ? f.timestamp : new Date().toISOString(),
-  });
+  let result;
+  try {
+    result = importSuperpowers({
+      repoRoot: f.repo || process.cwd(),
+      specPath: hasSpec ? f.spec : undefined,
+      planPath: hasPlan ? f.plan : undefined,
+      epicDir: hasEpicDir ? f['epic-dir'] : undefined,
+      epicId: f.epic,
+      epicName: f['epic-name'],
+      blueprintId: f.blueprint,
+      name: f.name,
+      timestamp: typeof f.timestamp === 'string' ? f.timestamp : new Date().toISOString(),
+    });
+  } catch (e) {
+    io.err(`import-superpowers: ${e.message}\n`);
+    return 1;
+  }
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }

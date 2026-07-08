@@ -79,3 +79,11 @@ test('recommendMode reports disabled when advisor config absent', () => {
   const r = recommendMode({ phase: 'plan', config: {} });
   assert.strictEqual(r.enabled, false);
 });
+
+test('recommendMode reports disabled when ponytail.enabled is explicitly false', () => {
+  const r = recommendMode({
+    phase: 'plan',
+    config: { plugin_advisors: { ponytail: { enabled: false, plan: 'lite' } } },
+  });
+  assert.strictEqual(r.enabled, false);
+});

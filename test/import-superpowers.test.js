@@ -36,6 +36,11 @@ test('parseSuperpowers splits a plan into blueprint body and tasks body', () => 
   assert.ok(r.tasksBody.includes('### Task 2: Wire'));
 });
 
+test('parseSuperpowers defaults title to Imported when markdown has no level-1 heading', () => {
+  const r = parseSuperpowers('Some prose with no heading.\n');
+  assert.strictEqual(r.title, 'Imported');
+});
+
 test('parseSuperpowers on a spec with no tasks uses a stub tasks body', () => {
   const r = parseSuperpowers(SPEC);
   assert.strictEqual(r.title, 'Widget');

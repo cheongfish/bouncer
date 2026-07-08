@@ -24,7 +24,8 @@ docs from an existing Superpowers artifact instead of authoring from scratch:
      --plan <docs/superpowers/plans/...md>   # and/or --spec <...-design.md>
    ```
    (Use `--epic-dir <context/epics/EPIC-id-slug>` instead of `--epic/--epic-name`
-   to import into an existing epic.)
+   to import into an existing epic.) When both `--spec` and `--plan` are given,
+   the spec becomes the blueprint body and the plan supplies the tasks.
 3. **Review the draft.** Read the generated `blueprint.md` and `tasks.md`; refine
    the bodies with the `okf-authoring` skill if the imported content needs
    tightening. Do **not** hand-edit the harness-owned frontmatter.
