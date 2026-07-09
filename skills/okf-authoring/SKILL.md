@@ -28,8 +28,10 @@ and for tasks `affected_paths` + `graph`). Your job is the prose under it.
    - **epic**: goal, scope, what success looks like.
    - **blueprint**: what this unit delivers and why it fits one reviewable
      commit (see `.sdd/governance.md`).
-   - **tasks**: an ordered `- [ ]` checklist of implementation steps. This
-     checklist is the source of truth for `/sdd-execute`.
+   - **tasks**: fill all five implementation-ready sections before approval —
+     Goal & intent, Interface, Touch, Do not touch, Checklist. The checklist
+     plus those sections are the sole brief for `/sdd-execute`. Touch must
+     justify every `affected_paths` entry; Do not touch must not overlap them.
    - **verification / review / distill**: filled later by their loops/commands —
      only author these when a command sends you here.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").

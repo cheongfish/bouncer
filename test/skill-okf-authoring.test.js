@@ -19,3 +19,7 @@ test('okf-authoring documents the frontmatter ownership boundary', () => {
   assert.ok(/frontmatter/i.test(md));
   assert.ok(/sdd-harness|scaffold/i.test(md));
 });
+
+test('okf-authoring instructs five implementation-ready tasks sections', () => {
+  assert.ok(/Goal & intent|Interface|Touch|Do not touch|Checklist/i.test(md));
+});

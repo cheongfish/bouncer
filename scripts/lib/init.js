@@ -41,7 +41,7 @@ const WORKFLOW = `# Workflow
 2. \`/sdd-plan\` — author epic → blueprint → tasks, scaffold docs, inject
    \`graph.suggested_paths\`, confirm \`affected_paths\`, approve, write
    \`.sdd/current\`, pass gate \`plan\` (G1–G5, G10–G12).
-3. \`/sdd-execute\` — worktree + branch, implement (guarded multi-commit),
+3. \`/sdd-execute\` — preflight superpowers, worktree, implement from tasks brief,
    verification-adapter, review-adapter, pass gate \`execute\` (G6–G8).
 4. \`/sdd-finalize\` — distill, pass gate \`finalize\` (G9), commit remainder,
    then push + draft PR (skipped gracefully with no remote / no \`gh\`).
@@ -67,6 +67,8 @@ When using Superpowers in this repository:
 - Do not create a separate Superpowers worktree after \`/sdd-execute\` has started.
 - Do not edit SDD-owned frontmatter directly.
 - SDD gates decide official plan, execute, and finalize status.
+- \`/sdd-execute\` verify and review **requires** the superpowers plugin; if
+  those skills are not resolvable, execute fails closed (do not proceed).
 
 Import a Superpowers draft into official SDD docs with
 \`/sdd-plan --from-superpowers <path>\` (or \`sdd-harness import-superpowers\`).

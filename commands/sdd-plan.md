@@ -53,7 +53,9 @@ The source Superpowers file stays a draft and is never modified.
    review `pending`, distill `draft`.
 
 3. **Author.** Use the `okf-authoring` skill to write the epic, blueprint, and
-   tasks bodies. The `tasks.md` checklist is the execution source of truth.
+   tasks bodies. Fill all five implementation-ready sections in `tasks.md`
+   before approval — Goal & intent, Interface, Touch, Do not touch, Checklist.
+   Those sections (plus the checklist) are the sole brief for `/sdd-execute`.
 
 4. **Graph suggestions.** Use the `graphify-runner` skill to query the source
    graph and write `sdd.graph.suggested_paths` into `tasks.md`. If graphify is
@@ -79,6 +81,8 @@ The source Superpowers file stays a draft and is never modified.
    node "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-harness" validate --blueprint <blueprint dir> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G3 tasks ready,
-   G4 `graph.suggested_paths` present, G5 `affected_paths` non-empty. Fix any
-   reported failure and re-run until it passes. Then point the user at
+   G4 `graph.suggested_paths` present, G5 `affected_paths` non-empty, G10 all
+   five implementation-ready sections present, G11 Touch justifies every
+   `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.
+   Fix any reported failure and re-run until it passes. Then point the user at
    `/sdd-execute`.

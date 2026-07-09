@@ -1,5 +1,5 @@
 ---
-description: Execute the active SDD blueprint in an isolated worktree — implement, verify, review, and pass the execute gate.
+description: Execute the active SDD blueprint in an isolated worktree — implement from tasks.md, verify and review via superpowers adapters, and pass the execute gate.
 ---
 
 # /sdd-execute
@@ -13,7 +13,15 @@ Implement the active blueprint. Follow this sequence.
    ```
    If it is `null`, stop and tell the user to run `/sdd-plan` first.
 
-2. **Worktree.** Create a blueprint-level worktree + branch:
+2. **Preflight (superpowers required).** Confirm these skills are resolvable in
+   this session:
+   - `superpowers:verification-before-completion`
+   - `superpowers:requesting-code-review`
+   If either is missing, **fail closed**: stop now, tell the user to install or
+   enable the superpowers plugin, then re-run `/sdd-execute`. Do not start the
+   worktree implement/verify/review path and do not write success statuses.
+
+3. **Worktree.** Create a blueprint-level worktree + branch:
    - base = the branch checked out now (record it as `base` in `.sdd/current`),
    - branch `sdd/<BP-id>-<slug>`,
    - location `.sdd/worktrees/<BP-id>` (already gitignored):
@@ -30,23 +38,30 @@ Implement the active blueprint. Follow this sequence.
    run from the root reports the root as `cwd`, so the hook would inspect the
    wrong (likely empty) index and fail to guard the commit.
 
-3. **Implement.** Work the `tasks.md` checklist as the source of truth. You may
-   make **one or more commits**. Every `git commit` is guarded by the
-   `commit-safety` hook, which rejects any commit touching a file outside the
-   blueprint's `affected_paths` (plus this blueprint's own `context/**` docs).
-   Per-task path attribution is not required — all commits share the one
-   blueprint-level `affected_paths` set. If a commit is blocked, either edit
-   `affected_paths` via `/sdd-plan` intent or drop the stray file.
+4. **Implement (tasks.md is the sole brief).** Use only these `tasks.md`
+   sections as decision authority:
+   - Goal & intent
+   - Interface
+   - Touch
+   - Do not touch
+   - Checklist
+   You may read code/tests/repo context needed to implement. Do **not**
+   re-interpret epic/blueprint as a second requirements source. Modify only
+   within `affected_paths` (commit-safety enforces). Honor Do not touch. If
+   blocked by ambiguity or contradiction, stop and send the user back to
+   `/sdd-plan` — no speculative scope expansion. You may make **one or more
+   commits**; every `git commit` is guarded by `commit-safety`.
 
-4. **Verify.** Use the `verification-loop` skill: run `config.verify` until it
-   passes, fill `verification.md`, and set `verification → passed`,
-   `tasks → verified`.
+5. **Verify.** Use the `verification-adapter` skill (invokes
+   `superpowers:verification-before-completion`): fill existing
+   `verification.md`, set `verification → passed`, `tasks → verified`.
 
-5. **Review.** Use the `review-loop` skill: AI-review the worktree diff until
-   clean, update `review.md`, set `review → accepted`. If
-   `sdd.review.required === false`, the loop skips (G8 already satisfied).
+6. **Review.** Use the `review-adapter` skill (invokes
+   `superpowers:requesting-code-review` / receiving-code-review discipline):
+   update existing `review.md`, set `review → accepted`. If
+   `sdd.review.required === false`, the adapter skips (G8 already satisfied).
 
-6. **Gate.** Run `validate --gate execute` (with the blueprint dir bound in):
+7. **Gate.** Run `validate --gate execute`:
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-harness" validate --blueprint <blueprint dir> --gate execute
    ```
