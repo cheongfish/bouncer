@@ -177,7 +177,9 @@ function checkGate(gate, docs, rels, failures) {
     if (missing.length) {
       add('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`, 'tasks');
     } else {
-      const apList = Array.isArray(ap) ? ap.map((p) => toPosix(String(p))) : [];
+      const apList = Array.isArray(ap)
+        ? ap.map((p) => toPosix(String(p)).replace(/^\.\//, ''))
+        : [];
       const unjustified = apList.filter((p) => !pathJustifiedByTouch(p, sections.touch));
       if (unjustified.length) {
         add('G11', `affected_paths not justified by Touch: ${unjustified.join(', ')}`, 'tasks');

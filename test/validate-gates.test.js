@@ -1,7 +1,10 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { checkGate, parseTasksSections, extractPathCandidates } = require('../scripts/lib/validate');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { checkGate, parseTasksSections, extractPathCandidates, validateBlueprint } = require('../scripts/lib/validate');
 
 const rels = {
   epicIndex: 'context/epics/EPIC-001-auth/index.md',
@@ -165,4 +168,116 @@ test('finalize gate requires distill published', () => {
   const failures = [];
   checkGate('finalize', { distill: doc('draft') }, rels, failures);
   assert.deepStrictEqual(failures.map((f) => f.code), ['G9']);
+});
+
+const BP_REL = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+
+function mkRepo() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-gates-'));
+}
+
+function writeDoc(repo, rel, data, body = '# x\n') {
+  const yaml = require('js-yaml');
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
+}
+
+function epicDoc() {
+  return {
+    type: 'sdd.epic',
+    title: 'Auth epic',
+    description: 'EPIC-001',
+    resource: 'context/epics/EPIC-001-auth/index.md',
+    tags: ['sdd', 'epic'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    sdd: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
+  };
+}
+
+function blueprintDoc() {
+  return {
+    type: 'sdd.blueprint',
+    title: 'Login blueprint',
+    description: 'BP-001',
+    resource: `${BP_REL}/index.md`,
+    tags: ['sdd', 'blueprint'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    sdd: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved' },
+  };
+}
+
+function planReadyTasksBody() {
+  return `# Tasks
+
+## Goal & intent
+Ship login validation.
+
+## Interface
+\`validateLogin(input) -> Result\`
+
+## Touch
+- \`src/auth/\`
+- \`test/auth/\`
+
+## Do not touch
+- \`src/payments/\`
+
+## Checklist
+- [ ] implement validateLogin
+`;
+}
+
+function planReadyTasks() {
+  return {
+    type: 'sdd.tasks',
+    title: 'Login tasks',
+    description: 'Tasks for BP-001',
+    resource: `${BP_REL}/tasks.md`,
+    tags: ['sdd', 'tasks'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    sdd: {
+      id: 'TASKS-BP-001',
+      epic_id: 'EPIC-001',
+      blueprint_id: 'BP-001',
+      status: 'ready',
+      graph: { suggested_paths: ['src/'] },
+      affected_paths: ['./src/auth/login.js', './test/auth/login.test.js'],
+    },
+  };
+}
+
+function writePlanBlueprint(repo, tasksBody) {
+  writeDoc(repo, 'context/epics/EPIC-001-auth/index.md', epicDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/tasks.md`, planReadyTasks(), tasksBody);
+}
+
+test('validateBlueprint plan gate loads tasks body from disk for G10–G12 pass', () => {
+  const repo = mkRepo();
+  writePlanBlueprint(repo, planReadyTasksBody());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+  assert.deepStrictEqual(res, { ok: true, failures: [] });
+});
+
+test('validateBlueprint plan gate G10 fails via file-loaded body when section missing', () => {
+  const repo = mkRepo();
+  const body = `# Tasks
+
+## Goal & intent
+x
+
+## Interface
+y
+
+## Touch
+\`src/\`
+
+## Checklist
+- [ ] a
+`;
+  writePlanBlueprint(repo, body);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.failures.some((f) => f.code === 'G10'));
 });

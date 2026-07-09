@@ -32,7 +32,7 @@ and for tasks `affected_paths` + `graph`). Your job is the prose under it.
      Goal & intent, Interface, Touch, Do not touch, Checklist. The checklist
      plus those sections are the sole brief for `/sdd-execute`. Touch must
      justify every `affected_paths` entry; Do not touch must not overlap them.
-   - **verification / review / distill**: filled later by their loops/commands —
+   - **verification / review / distill**: filled later by their adapters/commands —
      only author these when a command sends you here.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
 4. After editing, the calling command runs `sdd-harness validate`; if it reports
