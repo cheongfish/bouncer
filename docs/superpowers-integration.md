@@ -128,9 +128,11 @@ Examples:
 
 - Worktree creation: `/sdd-execute` wins.
 - Source of truth for implementation tasks: `tasks.md` wins.
-- Review pass/fail state: `review.md` and `validate --gate execute` win.
-- Verification pass/fail state: `verification.md` and `validate --gate execute`
-  win.
+- Verify/review **methodology**: superpowers skills (`verification-before-completion`,
+  `requesting-code-review`, and related review discipline).
+- Verify/review **records + status**: SDD `verification.md` / `review.md`, written
+  via `verification-adapter` / `review-adapter`; `validate --gate execute` remains
+  authoritative for gate pass/fail.
 - Commit scope: `affected_paths` and the commit safety hook win.
 
 ## Collision Risks
@@ -146,8 +148,8 @@ Common collision points:
 | SessionStart hooks | Multiple plugins may run startup hooks. | Keep SDD startup hooks short and deterministic. |
 | Worktree creation | Superpowers and SDD can both create worktrees. | In SDD work, only `/sdd-execute` creates the worktree. |
 | Plan artifacts | Superpowers saves plans under `docs/superpowers/plans`; SDD uses `tasks.md`. | Treat Superpowers plans as drafts or import sources. |
-| Review loops | Superpowers review and SDD review can both run. | Use SDD review as the gate; Superpowers review is advisory. |
-| Verification claims | Both systems discourage unverified completion. | Use SDD verification as the recorded project state. |
+| Review loops | SDD and Superpowers both touch review. | SDD `review-adapter` invokes Superpowers methodology; SDD gates and `review.md` remain authoritative — no parallel self-contained SDD review loop. |
+| Verification claims | SDD and Superpowers both touch verification. | SDD `verification-adapter` invokes Superpowers methodology; SDD gates and `verification.md` remain authoritative — no parallel self-contained SDD verification loop. |
 | Commit scope | SDD commit guard may reject files outside `affected_paths`. | Add intentional doc paths to `affected_paths` or keep draft docs out of final commits. |
 
 ## Plugin Weight Policy
@@ -172,6 +174,8 @@ Domain/reference layer:
 
 - Avoid duplicating generic TDD, debugging, or planning methods already covered
   by Superpowers.
+- SDD no longer ships self-contained verify/review loops; Superpowers is
+  **required** for `/sdd-execute` verify and review (fail closed when absent).
 - Keep startup hooks short.
 - Lazy-load project context where possible.
 - Let deterministic harness commands own SDD validation.
@@ -385,7 +389,8 @@ by `/sdd-init`, but the deterministic behavior should still live in
 `sdd-plugin` should be developed with these constraints:
 
 ```text
-Must work without Superpowers.
+Harness validate, scaffold, and finalize still run without Superpowers.
+Execute verify/review require Superpowers (fail closed).
 Should compose cleanly with Superpowers.
 Must own SDD state transitions.
 Must not duplicate Superpowers as a generic methodology plugin.

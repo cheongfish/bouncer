@@ -1,7 +1,8 @@
 # SDD Plugin — Governance Simplification Design
 
 Date: 2026-07-09
-Status: Draft for review
+Status: Approved
+Implementation plan: docs/superpowers/plans/2026-07-09-sdd-governance-simplification.md
 Builds on:
 - `2026-07-01-sdd-plugin-schema-gates-design.md` (schema, gates G1–G9)
 - `2026-07-01-sdd-markdown-surface-design.md` (commands, skills, hooks)
