@@ -21,7 +21,8 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     const abs = path.join(repoRoot, rel);
     if (fs.existsSync(abs)) {
       try {
-        docs[key] = { data: readDoc(abs).data, rel };
+        const { data, body } = readDoc(abs);
+        docs[key] = { data, body, rel };
       } catch (e) {
         parseErrors.push({ code: 'S0', message: e.message, file: rel });
       }
@@ -102,6 +103,60 @@ function statusOf(doc) {
   return doc && doc.data && doc.data.sdd ? doc.data.sdd.status : undefined;
 }
 
+const SECTION_DEFS = [
+  { key: 'goal', re: /^##\s+(Goal\s*&\s*intent|목적[·・.]?의도)\s*$/i },
+  { key: 'interface', re: /^##\s+(Interface|인터페이스)\s*$/i },
+  { key: 'touch', re: /^##\s+(Touch|수정할\s*부분)\s*$/i },
+  { key: 'doNotTouch', re: /^##\s+(Do\s+not\s+touch|절대\s*수정\s*금지)\s*$/i },
+  { key: 'checklist', re: /^##\s+(Checklist|체크리스트)\s*$/i },
+];
+
+function parseTasksSections(body) {
+  const text = typeof body === 'string' ? body : '';
+  const lines = text.split('\n');
+  const starts = [];
+  for (let i = 0; i < lines.length; i++) {
+    for (const def of SECTION_DEFS) {
+      if (def.re.test(lines[i].trim())) starts.push({ key: def.key, line: i });
+    }
+  }
+  const out = { goal: null, interface: null, touch: null, doNotTouch: null, checklist: null };
+  for (let s = 0; s < starts.length; s++) {
+    const { key, line } = starts[s];
+    const end = s + 1 < starts.length ? starts[s + 1].line : lines.length;
+    out[key] = lines.slice(line + 1, end).join('\n').trim() || null;
+  }
+  return out;
+}
+
+function extractPathCandidates(text) {
+  const raw = typeof text === 'string' ? text : '';
+  const found = new Set();
+  for (const m of raw.matchAll(/`([^`]+)`/g)) {
+    const p = toPosix(m[1].trim()).replace(/^\.\//, '');
+    if (p) found.add(p);
+  }
+  for (const tok of raw.split(/[\s,;]+/)) {
+    const p = toPosix(tok.trim()).replace(/^\.\//, '');
+    if (!p || p.includes('`')) continue;
+    if (!/^[A-Za-z0-9_./-]+$/.test(p)) continue;
+    if (!p.includes('/') && !/\.[A-Za-z0-9]+$/.test(p)) continue;
+    found.add(p);
+  }
+  return [...found];
+}
+
+function pathsOverlap(a, b) {
+  return a === b || a.startsWith(b + '/') || b.startsWith(a + '/');
+}
+
+function pathJustifiedByTouch(ap, touchText) {
+  if (touchText.includes(ap)) return true;
+  return extractPathCandidates(touchText).some(
+    (c) => ap === c || ap.startsWith(c.endsWith('/') ? c : `${c}/`),
+  );
+}
+
 function checkGate(gate, docs, rels, failures) {
   const add = (code, message, fileKey) =>
     failures.push({ code, message, file: rels[fileKey] });
@@ -115,6 +170,24 @@ function checkGate(gate, docs, rels, failures) {
     if (!Array.isArray(suggested)) add('G4', 'tasks.graph.suggested_paths missing', 'tasks');
     const ap = docs.tasks && docs.tasks.data.sdd ? docs.tasks.data.sdd.affected_paths : undefined;
     if (!Array.isArray(ap) || ap.length === 0) add('G5', 'tasks.affected_paths missing or empty', 'tasks');
+    const tasksBody = docs.tasks && typeof docs.tasks.body === 'string' ? docs.tasks.body : '';
+    const sections = parseTasksSections(tasksBody);
+    const missing = ['goal', 'interface', 'touch', 'doNotTouch', 'checklist']
+      .filter((k) => !sections[k]);
+    if (missing.length) {
+      add('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`, 'tasks');
+    } else {
+      const apList = Array.isArray(ap) ? ap.map((p) => toPosix(String(p))) : [];
+      const unjustified = apList.filter((p) => !pathJustifiedByTouch(p, sections.touch));
+      if (unjustified.length) {
+        add('G11', `affected_paths not justified by Touch: ${unjustified.join(', ')}`, 'tasks');
+      }
+      const forbidden = extractPathCandidates(sections.doNotTouch);
+      const overlap = apList.filter((p) => forbidden.some((f) => pathsOverlap(p, f)));
+      if (overlap.length) {
+        add('G12', `do-not-touch intersects affected_paths: ${overlap.join(', ')}`, 'tasks');
+      }
+    }
     return;
   }
   if (gate === 'execute') {
@@ -132,4 +205,7 @@ function checkGate(gate, docs, rels, failures) {
   throw new Error(`unknown gate: ${gate}`);
 }
 
-module.exports = { loadBlueprintDocs, checkStructural, checkGate, validateBlueprint };
+module.exports = {
+  loadBlueprintDocs, checkStructural, checkGate, validateBlueprint,
+  parseTasksSections, extractPathCandidates,
+};

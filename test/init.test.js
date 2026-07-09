@@ -55,6 +55,31 @@ test('init writes the exact config.json shape', () => {
         auto_switch: false,
       },
     },
+    methodology: {
+      verification: 'superpowers',
+      review: 'superpowers',
+    },
+  });
+});
+
+test('init tasks template has five implementation-ready sections', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const tasks = read(repo, '.sdd/templates/tasks.md');
+  assert.ok(/## Goal & intent/.test(tasks));
+  assert.ok(/## Interface/.test(tasks));
+  assert.ok(/## Touch/.test(tasks));
+  assert.ok(/## Do not touch/.test(tasks));
+  assert.ok(/## Checklist/.test(tasks));
+});
+
+test('init config includes methodology stub', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfg = JSON.parse(read(repo, '.sdd/config.json'));
+  assert.deepStrictEqual(cfg.methodology, {
+    verification: 'superpowers',
+    review: 'superpowers',
   });
 });
 

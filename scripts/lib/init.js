@@ -19,6 +19,10 @@ const CONFIG = {
       auto_switch: false,
     },
   },
+  methodology: {
+    verification: 'superpowers',
+    review: 'superpowers',
+  },
 };
 
 const GOVERNANCE = `# Governance
@@ -36,9 +40,9 @@ const WORKFLOW = `# Workflow
 1. \`/sdd-init\` — bootstrap \`.sdd/\` once per project.
 2. \`/sdd-plan\` — author epic → blueprint → tasks, scaffold docs, inject
    \`graph.suggested_paths\`, confirm \`affected_paths\`, approve, write
-   \`.sdd/current\`, pass gate \`plan\` (G1–G5).
+   \`.sdd/current\`, pass gate \`plan\` (G1–G5, G10–G12).
 3. \`/sdd-execute\` — worktree + branch, implement (guarded multi-commit),
-   verification-loop, review-loop, pass gate \`execute\` (G6–G8).
+   verification-adapter, review-adapter, pass gate \`execute\` (G6–G8).
 4. \`/sdd-finalize\` — distill, pass gate \`finalize\` (G9), commit remainder,
    then push + draft PR (skipped gracefully with no remote / no \`gh\`).
 5. \`sdd-harness advise\` — at any point, print the recommended Ponytail mode for
@@ -86,7 +90,19 @@ Distilled:
 const TEMPLATES = {
   'epic.md': '# <EPIC-id> <name>\n\nGoal and scope of this epic.\n',
   'blueprint.md': '# <BP-id> <name>\n\nWhat this blueprint delivers and why it fits one reviewable commit.\n',
-  'tasks.md': '# Tasks\n\n- [ ] <task>\n',
+  'tasks.md': `# Tasks
+
+## Goal & intent
+
+## Interface
+
+## Touch
+
+## Do not touch
+
+## Checklist
+- [ ] <task>
+`,
   'verification.md': '# Verification\n\nCommand run and result.\n',
   'review.md': '# Review\n\nFindings and resolutions.\n',
   'distill.md': '# Distill\n\nWhat was learned; durable notes for future work.\n',
