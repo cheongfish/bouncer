@@ -153,15 +153,35 @@ y
   assert.ok(failures.some((f) => f.code === 'G12'));
 });
 
-test('execute gate: review optional satisfies G8', () => {
+const VERIFY_BODY_OK = `# Verification
+
+## Command
+\`npm test\`
+
+## Evidence
+All 42 tests passed. Exit code 0.
+`;
+
+test('execute gate: review optional satisfies G8 (with verification body)', () => {
   const docs = {
     tasks: doc('verified'),
-    verification: doc('passed'),
+    verification: doc('passed', {}, VERIFY_BODY_OK),
     review: doc('pending', { review: { required: false, reason: 'docs-only' } }),
   };
   const failures = [];
   checkGate('execute', docs, rels, failures);
   assert.deepStrictEqual(failures, []);
+});
+
+test('execute gate flags G13 when verification body lacks Command/Evidence', () => {
+  const docs = {
+    tasks: doc('verified'),
+    verification: doc('passed', {}, '# Verification\n\nno structured sections\n'),
+    review: doc('pending', { review: { required: false } }),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G13'));
 });
 
 test('finalize gate requires distill published', () => {

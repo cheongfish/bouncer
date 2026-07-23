@@ -111,22 +111,32 @@ const SECTION_DEFS = [
   { key: 'checklist', re: /^##\s+(Checklist|체크리스트)\s*$/i },
 ];
 
-function parseTasksSections(body) {
+const VERIFY_SECTION_DEFS = [
+  { key: 'command', re: /^##\s+(Command|명령(?:어)?)\s*$/i },
+  { key: 'evidence', re: /^##\s+(Evidence|증적|증거)\s*$/i },
+];
+
+function parseSections(body, defs) {
   const text = typeof body === 'string' ? body : '';
   const lines = text.split('\n');
   const starts = [];
   for (let i = 0; i < lines.length; i++) {
-    for (const def of SECTION_DEFS) {
+    for (const def of defs) {
       if (def.re.test(lines[i].trim())) starts.push({ key: def.key, line: i });
     }
   }
-  const out = { goal: null, interface: null, touch: null, doNotTouch: null, checklist: null };
+  const out = {};
+  for (const def of defs) out[def.key] = null;
   for (let s = 0; s < starts.length; s++) {
     const { key, line } = starts[s];
     const end = s + 1 < starts.length ? starts[s + 1].line : lines.length;
     out[key] = lines.slice(line + 1, end).join('\n').trim() || null;
   }
   return out;
+}
+
+function parseTasksSections(body) {
+  return parseSections(body, SECTION_DEFS);
 }
 
 function extractPathCandidates(text) {
@@ -198,6 +208,14 @@ function checkGate(gate, docs, rels, failures) {
     const review = docs.review && docs.review.data.sdd ? docs.review.data.sdd.review : undefined;
     const reviewOk = statusOf(docs.review) === 'accepted' || (review && review.required === false);
     if (!reviewOk) add('G8', 'review not accepted and review.required != false', 'review');
+    if (docs.verification) {
+      const vbody = typeof docs.verification.body === 'string' ? docs.verification.body : '';
+      const vs = parseSections(vbody, VERIFY_SECTION_DEFS);
+      const missingV = ['command', 'evidence'].filter((k) => !vs[k]);
+      if (missingV.length) {
+        add('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
+      }
+    }
     return;
   }
   if (gate === 'finalize') {
@@ -209,5 +227,5 @@ function checkGate(gate, docs, rels, failures) {
 
 module.exports = {
   loadBlueprintDocs, checkStructural, checkGate, validateBlueprint,
-  parseTasksSections, extractPathCandidates,
+  parseTasksSections, parseSections, extractPathCandidates,
 };
