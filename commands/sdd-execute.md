@@ -13,13 +13,19 @@ Implement the active blueprint. Follow this sequence.
    ```
    If it is `null`, stop and tell the user to run `/sdd-plan` first.
 
-2. **Preflight (superpowers required).** Confirm these skills are resolvable in
-   this session:
-   - `superpowers:verification-before-completion`
-   - `superpowers:requesting-code-review`
-   If either is missing, **fail closed**: stop now, tell the user to install or
-   enable the superpowers plugin, then re-run `/sdd-execute`. Do not start the
-   worktree implement/verify/review path and do not write success statuses.
+2. **Preflight (profile-aware).** Resolve the active methodology profile:
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-harness" profile
+   ```
+   - `native`: no external plugin is required. Proceed. The
+     `verification-adapter` and `review-adapter` run their self-contained
+     paths and record the real verify command, evidence, and review findings.
+   - `superpowers`: confirm these skills are resolvable in this session —
+     `superpowers:verification-before-completion` and
+     `superpowers:requesting-code-review`. If either is missing, **fail closed**:
+     stop, tell the user to install/enable the superpowers plugin or switch
+     `methodology.profile` to `native`, then re-run `/sdd-execute`. Do not
+     start the implement/verify/review path or write success statuses.
 
 3. **Worktree.** Create a blueprint-level worktree + branch:
    - base = the branch checked out now (record it as `base` in `.sdd/current`),
@@ -52,13 +58,15 @@ Implement the active blueprint. Follow this sequence.
    `/sdd-plan` — no speculative scope expansion. You may make **one or more
    commits**; every `git commit` is guarded by `commit-safety`.
 
-5. **Verify.** Use the `verification-adapter` skill (invokes
-   `superpowers:verification-before-completion`): fill existing
-   `verification.md`, set `verification → passed`, `tasks → verified`.
+5. **Verify.** Use the `verification-adapter` skill (native runs `config.verify`
+   directly; superpowers delegates to `superpowers:verification-before-completion`):
+   fill existing `verification.md` with `## Command` + `## Evidence`, set
+   `verification → passed`, `tasks → verified`.
 
-6. **Review.** Use the `review-adapter` skill (invokes
-   `superpowers:requesting-code-review` / receiving-code-review discipline):
-   update existing `review.md`, set `review → accepted`. If
+6. **Review.** Use the `review-adapter` skill (native reviews the diff directly;
+   superpowers delegates to `superpowers:requesting-code-review` /
+   receiving-code-review discipline): update existing `review.md` with
+   `## Findings` and `sdd.review.findings[]`, set `review → accepted`. If
    `sdd.review.required === false`, the adapter skips (G8 already satisfied).
 
 7. **Gate.** Run `validate --gate execute`:
