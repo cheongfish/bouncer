@@ -117,3 +117,27 @@ test('init config sets methodology.profile to native and keeps legacy engines', 
   assert.strictEqual(cfg.methodology.verification, 'superpowers');
   assert.strictEqual(cfg.methodology.review, 'superpowers');
 });
+
+test('init governance text frames superpowers as an optional profile', () => {
+  const os = require('node:os');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { init } = require('../scripts/lib/init');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-init-gov-'));
+  init({ repoRoot: repo, timestamp: '2026-07-23T00:00:00+09:00' });
+  // SUPERPOWERS → .sdd/superpowers.md; WORKFLOW → .sdd/workflow.md; GOVERNANCE → .sdd/governance.md
+  const govPath = path.join(repo, '.sdd', 'governance.md');
+  const gov = fs.existsSync(govPath) ? fs.readFileSync(govPath, 'utf8') : '';
+  const workflowPath = path.join(repo, '.sdd', 'workflow.md');
+  const workflow = fs.existsSync(workflowPath) ? fs.readFileSync(workflowPath, 'utf8') : '';
+  const superpowersPath = path.join(repo, '.sdd', 'superpowers.md');
+  const superpowers = fs.existsSync(superpowersPath)
+    ? fs.readFileSync(superpowersPath, 'utf8')
+    : '';
+  const all = gov + workflow + superpowers;
+  assert.ok(/profile/i.test(all), 'mentions profile');
+  assert.ok(
+    !/requires the superpowers plugin|execute fails closed \(do not proceed\)/i.test(all),
+    'no unconditional superpowers-required language',
+  );
+});
