@@ -56,6 +56,7 @@ test('init writes the exact config.json shape', () => {
       },
     },
     methodology: {
+      profile: 'native',
       verification: 'superpowers',
       review: 'superpowers',
     },
@@ -78,6 +79,7 @@ test('init config includes methodology stub', () => {
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfg = JSON.parse(read(repo, '.sdd/config.json'));
   assert.deepStrictEqual(cfg.methodology, {
+    profile: 'native',
     verification: 'superpowers',
     review: 'superpowers',
   });
@@ -101,4 +103,17 @@ test('init is idempotent (second call skips, no duplicate gitignore lines)', () 
   assert.deepStrictEqual(res2.created, []);
   const occurrences = read(repo, '.gitignore').split('graphify-out/').length - 1;
   assert.strictEqual(occurrences, 1);
+});
+
+test('init config sets methodology.profile to native and keeps legacy engines', () => {
+  const os = require('node:os');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { init } = require('../scripts/lib/init');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-init-profile-'));
+  init({ repoRoot: repo, timestamp: '2026-07-23T00:00:00+09:00' });
+  const cfg = JSON.parse(fs.readFileSync(path.join(repo, '.sdd/config.json'), 'utf8'));
+  assert.strictEqual(cfg.methodology.profile, 'native');
+  assert.strictEqual(cfg.methodology.verification, 'superpowers');
+  assert.strictEqual(cfg.methodology.review, 'superpowers');
 });

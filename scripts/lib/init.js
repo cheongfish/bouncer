@@ -20,6 +20,7 @@ const CONFIG = {
     },
   },
   methodology: {
+    profile: 'native',
     verification: 'superpowers',
     review: 'superpowers',
   },
