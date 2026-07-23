@@ -68,6 +68,8 @@ Implement the active blueprint. Follow this sequence.
    receiving-code-review discipline): update existing `review.md` with
    `## Findings` and `sdd.review.findings[]`, set `review → accepted`. If
    `sdd.review.required === false`, the adapter skips (G8 already satisfied).
+   While reviewing, you may run the `sdd-minimality` skill (advisory) to flag
+   unnecessary new dependencies or abstractions in the diff.
 
 7. **Gate.** Run `validate --gate execute`:
    ```bash

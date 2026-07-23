@@ -65,6 +65,9 @@ The source Superpowers file stays a draft and is never modified.
    `tasks.md` seeded from `suggested_paths`, then **have the user confirm or
    edit** it. It must be non-empty (gate G5). Write the confirmed value into
    `tasks.md` frontmatter.
+   Before finalizing `affected_paths` and the Checklist, you may run the
+   `sdd-minimality` skill (advisory, not a gate) to challenge new dependencies,
+   abstractions, or files and record the rationale.
 
 6. **Approval (explicit).** Ask the user to approve. On approval, transition
    `sdd.status`: epic `draft → approved`, blueprint `draft → approved`, tasks

@@ -29,3 +29,7 @@ test('sdd-execute wires profile-aware preflight, adapters, and execute gate', ()
   assert.ok(/commit-safety|affected_paths/.test(body));
   assert.ok(/validate --gate execute/.test(body));
 });
+
+test('sdd-execute review step recommends sdd-minimality', () => {
+  assert.ok(/sdd-minimality/.test(md));
+});

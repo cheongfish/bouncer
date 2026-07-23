@@ -33,3 +33,11 @@ test('sdd-plan requires implementation-ready tasks sections and mentions G10–G
   assert.ok(/Goal & intent|Interface|Touch|Do not touch|Checklist/i.test(body));
   assert.ok(/G10|G11|G12/.test(body));
 });
+
+test('sdd-plan recommends sdd-minimality (advisory)', () => {
+  const md = fs.readFileSync(
+    require('node:path').join(__dirname, '..', 'commands', 'sdd-plan.md'), 'utf8',
+  );
+  assert.ok(/sdd-minimality/.test(md));
+  assert.ok(/recommend|권장|advisory/i.test(md));
+});
