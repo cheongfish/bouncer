@@ -1,40 +1,51 @@
 ---
 name: verification-adapter
-description: Use during /sdd-execute to drive superpowers:verification-before-completion so it writes the existing verification.md, then assert verification→passed and tasks→verified. Fail closed; delegates to superpowers only.
+description: Use during /sdd-execute to fill the existing verification.md with the real verify command and evidence, then assert verification→passed and tasks→verified. Profile-aware — native runs the verify command directly; superpowers delegates. Never declares success without a real pass.
 ---
 
 # Verification Adapter
 
-Thin SDD adapter. Superpowers owns **how** to verify; this skill only binds the
-SDD document contract.
+SDD adapter binding the verification **deliverable contract**. The harness
+(gate `execute`, G7 + G13) judges the result; this skill only produces it.
 
-## Steps (exactly four)
+## Step 0 — Resolve profile
+
+Run `sdd-harness profile` (or read `.sdd/config.json` `methodology.profile`).
+- `native` → self-contained path (Steps 1–4a).
+- `superpowers` → delegated path (Steps 1–4b).
+
+## Steps
 
 1. **Load** — Read the existing scaffolded `verification.md` (do not create a
-   new file), `.sdd/templates/verification.md` if useful as a body skeleton,
-   `.sdd/config.json` `verify` (default `npm test`), worktree cwd, and the
+   new file), `.sdd/templates/verification.md` as a body skeleton if useful,
+   `.sdd/config.json` `verify` (default `npm test`), the worktree cwd, and the
    blueprint `tasks.md` path.
-2. **Inject** — When invoking the superpowers skill, pass as binding input:
-   - write **into this existing** `verification.md` only;
-   - keep OKF/`sdd:` frontmatter schema; only `sdd.status` may transition
-     `pending → passed` after a real pass;
-   - body must record the exact verify command and an evidence/exit summary;
-   - on unresolved failure: **do not** write success statuses.
-3. **Invoke** — Run `superpowers:verification-before-completion` with the
-   project `verify` command as the evidence command. Follow that skill until
-   verification truly passes or you must stop.
-4. **Assert** — Confirm `verification.md` still matches schema expectations
-   (existing file, command + evidence in body) and statuses:
-   - `verification.md`: `pending → passed`
-   - `tasks.md`: `→ verified`
-   On assert failure: report and stop with **no** success transitions left
-   half-applied. On success: the caller runs
-   `sdd-harness validate --gate execute`.
+2. **Contract** — Whatever the profile, `verification.md` must end with:
+   - `## Command` — the exact verify command that was run;
+   - `## Evidence` — the pass/fail summary and exit status.
+   Keep OKF/`sdd:` frontmatter; only `sdd.status` may transition
+   `pending → passed`, and only after a real pass.
+3a. **native — Verify directly.** Run the `verify` command in the worktree.
+    Capture the command and its output/exit code. Fix one logical failure at a
+    time; never weaken tests or the command to force a pass.
+3b. **superpowers — Delegate.** Run
+    `superpowers:verification-before-completion` with the `verify` command as
+    the evidence command; require it to write into this existing
+    `verification.md` and keep the same body contract. If the superpowers skill
+    is not resolvable, **fail closed**: stop and tell the user to install it or
+    switch `methodology.profile` to `native`.
+4a/4b. **Assert** — Confirm `verification.md` has `## Command` + `## Evidence`
+    populated, then set statuses:
+    - `verification.md`: `pending → passed`
+    - `tasks.md`: `→ verified`
+    On any unresolved failure: do **not** set `passed`/`verified`; report and
+    stop with no half-applied success transitions. On success: caller runs
+    `sdd-harness validate --gate execute`.
 
 ## Guardrails
 
-- Fail closed: if superpowers is unavailable or verification cannot pass, do
-  not set `passed` / `verified`.
-- No bundled local verify loop and no parallel artifact path.
-- One logical fix at a time when the verify command fails; do not weaken tests
-  or the verify command to force a pass.
+- Success requires a real pass in **either** profile. Never set
+  `passed`/`verified` otherwise.
+- Fail-closed applies **only** to the `superpowers` profile when its skills are
+  missing; `native` never blocks on external plugins.
+- One logical fix at a time; do not weaken tests or the verify command.
