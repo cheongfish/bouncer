@@ -15,14 +15,17 @@ test('review-adapter has valid frontmatter', () => {
   assert.ok(data.description.length > 0);
 });
 
-test('review-adapter injects template, invokes superpowers, honors required:false, fail-closed', () => {
+test('review-adapter is profile-aware and records findings schema', () => {
+  assert.ok(/profile/i.test(md));
+  assert.ok(/sdd-harness profile|methodology\.profile/.test(md));
+  assert.ok(/native/i.test(md));
   assert.ok(/superpowers:requesting-code-review/.test(md));
   assert.ok(/receiving-code-review/.test(md));
-  assert.ok(/Load|Inject|Invoke|Assert/i.test(md));
+  assert.ok(/##\s*Findings/.test(md), 'names Findings body section');
+  assert.ok(/severity/i.test(md) && /blocker|major|minor|nit/i.test(md), 'severity enum');
+  assert.ok(/resolved|accepted/i.test(md), 'status enum');
   assert.ok(/review[\s\S]*accepted/i.test(md));
   assert.ok(/required[\s\S]*false/i.test(md));
   assert.ok(/fail closed|do not.*accepted|unresolved/i.test(md));
-  assert.ok(!/self-contained/i.test(md));
-  assert.ok(!/fallback/i.test(md));
   assert.ok(/Do not touch|Checklist|Interface|tasks\.md/i.test(md));
 });
