@@ -95,6 +95,29 @@ context/epics/**/distill.md
 Superpowers-generated plans or specs may be useful as drafts, but they should
 not replace the SDD artifacts once a blueprint is active.
 
+## Methodology Profile
+
+SDD selects how verify and review work is performed via
+`.sdd/config.json` → `methodology.profile`. The default is `native`.
+
+```text
+methodology.profile:
+  native       — agent-native verify/review; no external plugin required
+  superpowers  — delegate verify/review methodology to Superpowers skills
+```
+
+`sdd-harness profile` (backed by `resolveProfile`) is the single source of truth
+for the active profile. Precedence:
+
+1. Explicit `methodology.profile` when it is a known value.
+2. Else legacy `methodology.verification` / `methodology.review` both set to
+   `superpowers` → treat as `superpowers`.
+3. Else default `native`.
+
+Adapters and `/sdd-execute` preflight resolve the profile before choosing a
+verify/review path. Fail-closed plugin absence applies only when the active
+profile is `superpowers`.
+
 ## Responsibility Boundaries
 
 `sdd-plugin` owns:
@@ -111,7 +134,7 @@ not replace the SDD artifacts once a blueprint is active.
 - plan, execute, and finalize gates
 - final commit and PR preparation flow
 
-Superpowers owns:
+Superpowers owns (when selected as the methodology profile):
 
 - brainstorming and design refinement
 - TDD discipline
@@ -128,12 +151,56 @@ Examples:
 
 - Worktree creation: `/sdd-execute` wins.
 - Source of truth for implementation tasks: `tasks.md` wins.
-- Verify/review **methodology**: superpowers skills (`verification-before-completion`,
-  `requesting-code-review`, and related review discipline).
-- Verify/review **records + status**: SDD `verification.md` / `review.md`, written
-  via `verification-adapter` / `review-adapter`; `validate --gate execute` remains
-  authoritative for gate pass/fail.
+- Verify/review **deliverable contracts**: `validate --gate execute` judges
+  status and body evidence — verification is G7 + G13 (`## Command` /
+  `## Evidence`); review is G8 + G14 (`## Findings` + finding schema). Skills
+  and adapters only write the documents; they do not declare gate success.
+- Verify/review **methodology path**: `verification-adapter` /
+  `review-adapter` follow `methodology.profile` — `native` is self-contained;
+  `superpowers` may delegate to Superpowers skills.
 - Commit scope: `affected_paths` and the commit safety hook win.
+
+## Status Transition Boundary (B.4)
+
+Human approval and agent execution stay on opposite sides of the same status
+model. Agents may record progress; they must not self-approve scope or accept
+review risk.
+
+Human-owned transitions (require explicit user judgment):
+
+```text
+epic / blueprint → approved
+review finding status → accepted (accepted risk)
+```
+
+Agent-performable transitions (progress and evidence only):
+
+```text
+tasks → in_progress
+verification → passed (only after real command evidence)
+```
+
+Gates and commands enforce this boundary: plan/execute/finalize gates check
+recorded state; agents write records and evidence, then run validate. They do
+not skip human approval of blueprint scope or accepted review findings.
+
+## Profile Quality Comparison (F.1)
+
+When comparing `native` and `superpowers` on representative feature tasks, use
+at least these metrics:
+
+| Metric | What it captures |
+| --- | --- |
+| Gate pass rate | plan / execute / finalize gate outcomes |
+| Test pass rate | project verification commands |
+| Review defects | actionable findings found or missed |
+| Change volume | diff size / files touched vs `affected_paths` |
+| Elapsed time | wall-clock from plan start to finalize-ready |
+| User interventions | approvals, corrections, and forced re-plans |
+
+Keep the comparison task-matched and report both profiles against the same
+blueprint scope so methodology differences are visible without changing the
+governance contract.
 
 ## Collision Risks
 
@@ -148,8 +215,8 @@ Common collision points:
 | SessionStart hooks | Multiple plugins may run startup hooks. | Keep SDD startup hooks short and deterministic. |
 | Worktree creation | Superpowers and SDD can both create worktrees. | In SDD work, only `/sdd-execute` creates the worktree. |
 | Plan artifacts | Superpowers saves plans under `docs/superpowers/plans`; SDD uses `tasks.md`. | Treat Superpowers plans as drafts or import sources. |
-| Review loops | SDD and Superpowers both touch review. | SDD `review-adapter` invokes Superpowers methodology; SDD gates and `review.md` remain authoritative — no parallel self-contained SDD review loop. |
-| Verification claims | SDD and Superpowers both touch verification. | SDD `verification-adapter` invokes Superpowers methodology; SDD gates and `verification.md` remain authoritative — no parallel self-contained SDD verification loop. |
+| Review loops | SDD and Superpowers both touch review. | Adapters follow `methodology.profile`; SDD gates (G8+G14) and `review.md` remain authoritative. |
+| Verification claims | SDD and Superpowers both touch verification. | Adapters follow `methodology.profile`; SDD gates (G7+G13) and `verification.md` remain authoritative. |
 | Commit scope | SDD commit guard may reject files outside `affected_paths`. | Add intentional doc paths to `affected_paths` or keep draft docs out of final commits. |
 
 ## Plugin Weight Policy
@@ -174,8 +241,9 @@ Domain/reference layer:
 
 - Avoid duplicating generic TDD, debugging, or planning methods already covered
   by Superpowers.
-- SDD no longer ships self-contained verify/review loops; Superpowers is
-  **required** for `/sdd-execute` verify and review (fail closed when absent).
+- Verify/review are deliverable contracts (G7+G13, G8+G14). The `native`
+  profile needs no external plugin; fail-closed plugin absence applies only
+  under the `superpowers` profile.
 - Keep startup hooks short.
 - Lazy-load project context where possible.
 - Let deterministic harness commands own SDD validation.
@@ -378,6 +446,9 @@ When using Superpowers in this repository:
 - Do not create a separate Superpowers worktree after /sdd-execute has started.
 - Do not edit SDD-owned frontmatter directly.
 - SDD gates decide official plan, execute, and finalize status.
+- /sdd-execute verify and review follow methodology.profile (default native).
+- With the superpowers profile, verify/review skills must be resolvable;
+  execute fails closed only if they are missing.
 ```
 
 This preference document can be referenced from project instructions or surfaced
@@ -389,10 +460,13 @@ by `/sdd-init`, but the deterministic behavior should still live in
 `sdd-plugin` should be developed with these constraints:
 
 ```text
-Harness validate, scaffold, and finalize still run without Superpowers.
-Execute verify/review require Superpowers (fail closed).
-Should compose cleanly with Superpowers.
-Must own SDD state transitions.
+Harness validate, scaffold, and finalize run without Superpowers.
+Default methodology.profile is native; resolveProfile is the single resolver.
+Execute verify/review are judged as deliverable contracts (G7+G13, G8+G14);
+skills write docs only.
+Fail-closed on missing Superpowers skills only when profile is superpowers.
+Should compose cleanly with Superpowers as an optional profile.
+Must own SDD state transitions (human approval vs agent progress — B.4).
 Must not duplicate Superpowers as a generic methodology plugin.
 Must keep SDD artifacts as the source of truth for SDD-governed work.
 ```
