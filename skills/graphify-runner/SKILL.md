@@ -25,8 +25,10 @@ source graph that the `session-graph` hook built at SessionStart into
    (repo-relative, POSIX). Deduplicate. Prefer directory granularity over
    individual files so the set stays stable as files move within a module.
 4. **Write frontmatter.** Set `sdd.graph.suggested_paths` in `tasks.md` to the
-   deduplicated directory list, and refresh `sdd.graph.generated_at` and
-   `sdd.graph.command` (`graphify query`). Leave every other field untouched.
+   deduplicated directory list, and refresh `sdd.graph.generated_at`,
+   `sdd.graph.command` (`graphify query`), and `sdd.graph.basis` (the query
+   string and a one-line note on why these paths were suggested). Leave every
+   other field untouched.
 5. **Hand back.** Return the suggested paths to `/sdd-plan`, which proposes
    `affected_paths` seeded from them for the user to confirm/edit.
 
@@ -35,3 +37,8 @@ source graph that the `session-graph` hook built at SessionStart into
 - `suggested_paths` is advisory input for `affected_paths`; the user always
   confirms the authoritative `affected_paths`.
 - Never write `affected_paths` here — that is `/sdd-plan`'s user-confirmed step.
+- Graph freshness is decided at SessionStart by the `session-graph` hook
+  (`planSessionGraph` rebuilds when source mtime exceeds the graph mtime). This
+  skill does not rebuild; it queries the current `graphify-out/`, which is a
+  local cache (gitignored). If the graph is missing or stale, skip gracefully
+  and let the user seed `affected_paths` manually.
