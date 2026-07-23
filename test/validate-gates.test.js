@@ -184,6 +184,60 @@ test('execute gate flags G13 when verification body lacks Command/Evidence', () 
   assert.ok(failures.some((f) => f.code === 'G13'));
 });
 
+const REVIEW_BODY_OK = `# Review
+
+## Findings
+- F1 (minor): naming — resolved by rename.
+`;
+
+test('execute gate accepts review with valid findings schema', () => {
+  const docs = {
+    tasks: doc('verified'),
+    verification: doc('passed', {}, VERIFY_BODY_OK),
+    review: doc('accepted', {
+      review: { findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }] },
+    }, REVIEW_BODY_OK),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures);
+  assert.deepStrictEqual(failures, []);
+});
+
+test('execute gate flags G14 when accepted finding has no note', () => {
+  const docs = {
+    tasks: doc('verified'),
+    verification: doc('passed', {}, VERIFY_BODY_OK),
+    review: doc('accepted', {
+      review: { findings: [{ id: 'F2', severity: 'major', status: 'accepted' }] },
+    }, REVIEW_BODY_OK),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G14'));
+});
+
+test('execute gate flags G14 when review body lacks Findings heading', () => {
+  const docs = {
+    tasks: doc('verified'),
+    verification: doc('passed', {}, VERIFY_BODY_OK),
+    review: doc('accepted', { review: { findings: [] } }, '# Review\n\nnothing structured\n'),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G14'));
+});
+
+test('execute gate skips G14 when review.required is false', () => {
+  const docs = {
+    tasks: doc('verified'),
+    verification: doc('passed', {}, VERIFY_BODY_OK),
+    review: doc('pending', { review: { required: false } }, '# Review\n'),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures);
+  assert.ok(!failures.some((f) => f.code === 'G14'));
+});
+
 test('finalize gate requires distill published', () => {
   const failures = [];
   checkGate('finalize', { distill: doc('draft') }, rels, failures);

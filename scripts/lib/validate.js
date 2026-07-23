@@ -116,6 +116,12 @@ const VERIFY_SECTION_DEFS = [
   { key: 'evidence', re: /^##\s+(Evidence|증적|증거)\s*$/i },
 ];
 
+const REVIEW_SECTION_DEFS = [
+  { key: 'findings', re: /^##\s+(Findings|발견사항|리뷰\s*결과)\s*$/i },
+];
+const REVIEW_SEVERITY = ['blocker', 'major', 'minor', 'nit'];
+const REVIEW_STATUS = ['resolved', 'accepted'];
+
 function parseSections(body, defs) {
   const text = typeof body === 'string' ? body : '';
   const lines = text.split('\n');
@@ -214,6 +220,26 @@ function checkGate(gate, docs, rels, failures) {
       const missingV = ['command', 'evidence'].filter((k) => !vs[k]);
       if (missingV.length) {
         add('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
+      }
+    }
+    const reviewMeta = docs.review && docs.review.data.sdd ? docs.review.data.sdd.review : undefined;
+    const reviewSkipped = reviewMeta && reviewMeta.required === false;
+    if (docs.review && !reviewSkipped) {
+      const rbody = typeof docs.review.body === 'string' ? docs.review.body : '';
+      const rs = parseSections(rbody, REVIEW_SECTION_DEFS);
+      if (!rs.findings) add('G14', 'review.md missing ## Findings body section', 'review');
+      const findings = Array.isArray(reviewMeta && reviewMeta.findings) ? reviewMeta.findings : [];
+      for (const fnd of findings) {
+        const id = fnd && fnd.id ? fnd.id : '(no id)';
+        if (!REVIEW_SEVERITY.includes(fnd && fnd.severity)) {
+          add('G14', `review finding ${id} severity invalid: ${fnd && fnd.severity}`, 'review');
+        }
+        if (!REVIEW_STATUS.includes(fnd && fnd.status)) {
+          add('G14', `review finding ${id} status invalid: ${fnd && fnd.status}`, 'review');
+        }
+        if (fnd && fnd.status === 'accepted' && (!fnd.note || String(fnd.note).trim() === '')) {
+          add('G14', `review finding ${id} accepted without note`, 'review');
+        }
       }
     }
     return;
