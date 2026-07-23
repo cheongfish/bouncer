@@ -5,6 +5,7 @@ const { finalize } = require('./finalize');
 const { init } = require('./init');
 const { importSuperpowers } = require('./import-superpowers');
 const { readConfig, detectPhase, recommendMode } = require('./advisor');
+const { resolveProfile } = require('./profile');
 
 function parseFlags(rest) {
   const flags = {};
@@ -131,6 +132,15 @@ function cmdAdvise(rest, io) {
   return 0;
 }
 
+function cmdProfile(rest, io) {
+  const f = parseFlags(rest);
+  const repoRoot = f.repo || process.cwd();
+  const config = readConfig(repoRoot);
+  const profile = resolveProfile(config);
+  io.out(`${JSON.stringify({ ok: true, profile }, null, 2)}\n`);
+  return 0;
+}
+
 function runCli(argv, io) {
   const out = io && io.out ? io.out : (s) => process.stdout.write(s);
   const err = io && io.err ? io.err : (s) => process.stderr.write(s);
@@ -149,6 +159,8 @@ function runCli(argv, io) {
       return cmdImportSuperpowers(rest, sink);
     case 'advise':
       return cmdAdvise(rest, sink);
+    case 'profile':
+      return cmdProfile(rest, sink);
     default:
       err(`unknown command: ${cmd}\n`);
       return 2;
