@@ -47,9 +47,10 @@ Superpowers는 기획, TDD, 디버깅, 검증, 코드 리뷰에 유용한 방법
 - `superpowers` 프로필: Superpowers의 관련 스킬을 이용해 같은 계약을 수행한다.
 - `team-custom` 프로필: 조직 고유 절차나 도메인 스킬을 연결한다.
 
-현재 구현과의 차이: 기존 `verification-adapter`와 `review-adapter`는
-Superpowers 부재 시 fail-closed 하도록 작성되어 있다. 이는 이번 방향과 충돌하므로,
-아래의 "미결 의사결정"을 확정한 후 변경 대상이다.
+마이그레이션 후: 기본 프로필은 `native`이다. `verification-adapter`와
+`review-adapter`는 프로필을 인식하며, Superpowers 부재 시 fail-closed는
+`superpowers` 프로필에서만 적용된다. `native`에서는 외부 플러그인 없이도
+자체 경로로 검증·리뷰 산출물을 기록한다.
 
 ### 3. 산출물 계약과 하네스 검증을 우선한다
 

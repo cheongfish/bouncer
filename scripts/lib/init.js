@@ -109,8 +109,8 @@ const TEMPLATES = {
 ## Checklist
 - [ ] <task>
 `,
-  'verification.md': '# Verification\n\nCommand run and result.\n',
-  'review.md': '# Review\n\nFindings and resolutions.\n',
+  'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
+  'review.md': '# Review\n\n## Findings\n- <finding>\n',
   'distill.md': '# Distill\n\nWhat was learned; durable notes for future work.\n',
   'pr.md': PR_TEMPLATE,
 };

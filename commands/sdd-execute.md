@@ -1,5 +1,5 @@
 ---
-description: Execute the active SDD blueprint in an isolated worktree — implement from tasks.md, verify and review via superpowers adapters, and pass the execute gate.
+description: Execute the active SDD blueprint in an isolated worktree — implement from tasks.md, verify and review via profile-aware adapters (native or superpowers), and pass the execute gate.
 ---
 
 # /sdd-execute
