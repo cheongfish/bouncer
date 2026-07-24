@@ -79,7 +79,7 @@ function cmdInit(rest, io) {
     timestamp: typeof f.timestamp === 'string' ? f.timestamp : new Date().toISOString(),
   });
   io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
-  return 0;
+  return result.ok ? 0 : 1;
 }
 
 function cmdAdvise(rest, io) {

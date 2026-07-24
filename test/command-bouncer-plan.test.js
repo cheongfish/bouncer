@@ -11,15 +11,15 @@ const md = fs.readFileSync(path.join(root, 'commands', 'bouncer-plan.md'), 'utf8
 test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gate', () => {
   const { data, body } = parseFrontmatter(md);
   assert.ok(data.description.length > 0);
-  assert.match(body, /scripts\/bouncer/);
-  assert.match(body, /scaffold/);
+  assert.match(body, /scripts\/bouncer"\s+scaffold\s+epic\b/);
+  assert.match(body, /scripts\/bouncer"\s+scaffold\s+blueprint\b/);
+  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<blueprint dir>\s+--gate\s+plan\b/);
   assert.match(body, /discovery/);
   assert.match(body, /spec-authoring/);
   assert.match(body, /graphify-runner/);
   assert.match(body, /minimality/);
   assert.match(body, /affected_paths/);
   assert.match(body, /\.bouncer\/current/);
-  assert.match(body, /validate --gate plan/);
   assert.match(body, /approv/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|--from-superpowers|import-superpowers|okf-authoring/i);
 });

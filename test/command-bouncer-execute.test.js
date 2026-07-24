@@ -11,7 +11,6 @@ const md = fs.readFileSync(path.join(root, 'commands', 'bouncer-execute.md'), 'u
 test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   const { data, body } = parseFrontmatter(md);
   assert.ok(data.description.length > 0);
-  assert.match(md, /scripts\/bouncer/);
   assert.match(md, /\.bouncer\/current/);
   assert.match(body, /worktree/i);
   assert.match(body, /bouncer\/<BP|bouncer\/\$\{|bouncer\//);
@@ -22,6 +21,6 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.match(body, /debugging/);
   assert.match(body, /Goal & intent|Interface|Touch|Do not touch|Checklist/i);
   assert.match(body, /commit-safety|affected_paths/);
-  assert.match(body, /validate --gate execute/);
+  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<blueprint dir>\s+--gate\s+execute\b/);
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });

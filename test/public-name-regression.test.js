@@ -20,6 +20,7 @@ const LEGACY_ALLOWLIST = new Set([
   'test/schema.test.js',
   'test/validate-structural.test.js',
   'test/cli-validate.test.js',
+  'test/cli-init.test.js',
   'scripts/lib/schema.js',
   'scripts/lib/validate.js',
   'test/public-name-regression.test.js',
