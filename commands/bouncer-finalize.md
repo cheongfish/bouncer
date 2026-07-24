@@ -1,24 +1,24 @@
 ---
-description: Finalize the active SDD blueprint — distill, validate, commit the remainder, then push and open a draft PR (skipped gracefully with no remote).
+description: Finalize the active Bouncer blueprint — distill, validate, commit the remainder, then push and open a draft PR (skipped gracefully with no remote).
 ---
 
-# /sdd-finalize
+# /bouncer-finalize
 
 Close out the active blueprint. Follow this sequence.
 
-1. **Distill.** Use the `okf-authoring` skill to write `distill.md` (durable
-   learnings), then set `distill.md` `sdd.status → published`.
+1. **Distill.** Use the `spec-authoring` skill to write `distill.md` (durable
+   learnings), then set `distill.md` `bouncer.status → published`.
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-harness" validate --blueprint <blueprint dir> --gate finalize
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <blueprint dir> --gate finalize
    ```
    Gate `finalize` checks G9 `distill.status == published`. Fix and re-run until
    it passes.
 
 3. **Commit the remainder (deterministic core).** Dry-run first:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-harness" finalize --blueprint <blueprint dir>
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" finalize --blueprint <blueprint dir>
    ```
    This checks every remaining uncommitted change (tracked or untracked) against
    the allowed-set. Anything out of scope is a **hard abort — nothing staged**;
@@ -26,7 +26,7 @@ Close out the active blueprint. Follow this sequence.
    files. On a clean dry-run, show the staged file list + generated commit
    message and ask for confirmation, then commit:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/sdd-harness" finalize --blueprint <blueprint dir> --yes
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" finalize --blueprint <blueprint dir> --yes
    ```
    (If there is nothing left to commit because execute already committed
    everything, `finalize` reports an empty staged set — that is fine.)
@@ -35,11 +35,11 @@ Close out the active blueprint. Follow this sequence.
    - If there is no git remote or `gh` is not installed, **skip gracefully**:
      stop after the local commit and tell the user push/PR was skipped. Worktree
      cleanup and merge are the user's responsibility.
-   - Otherwise push the branch and open a **draft** PR using `.sdd/config.json`
-     `base_branch`/`pr` and the §5.6 template (mirrored in `.sdd/templates/pr.md`),
+   - Otherwise push the branch and open a **draft** PR using `.bouncer/config.json`
+     `base_branch`/`pr` and the §5.6 template (mirrored in `.bouncer/templates/pr.md`),
      which is identical in shape to the commit message:
      ```bash
-     git push -u origin sdd/<BP-id>-<slug>
+     git push -u origin bouncer/<BP-id>-<slug>
      gh pr create --draft --base <config.base_branch> \
        --title "<type>(<bp-id>): <summary>" \
        --body-file <rendered pr body> \
