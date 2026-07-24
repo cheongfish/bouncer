@@ -121,3 +121,20 @@ test('governance retains execute gate and body-contract references', () => {
   assert.doesNotMatch(gov, SUPERPOWERS_RE);
   assert.doesNotMatch(gov, SDD_RE);
 });
+
+test('current documentation describes Bouncer native workflow without Superpowers profile', () => {
+  const gov = read('GOVERNANCE-ARCHITECTURE-DECISIONS.md');
+  assert.match(gov, /Bouncer/);
+  assert.doesNotMatch(gov, /Superpowers.*profile/i);
+  assert.ok(!fs.existsSync(path.join(root, 'docs/superpowers-integration.md')));
+  assert.match(gov, /네이티브 워크플로/);
+  assert.match(gov, /discovery/);
+  assert.match(gov, /spec-authoring/);
+  assert.match(gov, /implementation/);
+  assert.match(gov, /debugging/);
+  assert.match(gov, /verification/);
+  assert.match(gov, /review/);
+  assert.match(gov, /minimality/);
+  assert.match(gov, /Graphify/);
+  assert.match(gov, /Ponytail/);
+});
