@@ -106,6 +106,13 @@ test('inspectBootstrap distinguishes missing, ready, partial, and legacy without
 
   fs.mkdirSync(path.join(repo, '.bouncer'));
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{}\n');
+  assert.strictEqual(inspectBootstrap({ repoRoot: repo }), 'partial');
+
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    verify: 'npm test',
+    base_branch: 'develop',
+  }));
   assert.strictEqual(inspectBootstrap({ repoRoot: repo }), 'ready');
 
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{broken');

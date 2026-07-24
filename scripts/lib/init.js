@@ -114,7 +114,13 @@ function inspectBootstrap({ repoRoot }) {
   const configAbs = path.join(bouncerAbs, 'config.json');
   try {
     const config = JSON.parse(fs.readFileSync(configAbs, 'utf8'));
-    if (config && typeof config === 'object' && !Array.isArray(config)) return 'ready';
+    const valid = config
+      && typeof config === 'object'
+      && !Array.isArray(config)
+      && Array.isArray(config.source_dirs)
+      && typeof config.verify === 'string'
+      && typeof config.base_branch === 'string';
+    if (valid) return 'ready';
   } catch (_e) {
     // Existing Bouncer content is preserved when config is absent or invalid.
   }
