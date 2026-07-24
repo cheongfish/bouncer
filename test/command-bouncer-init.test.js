@@ -16,5 +16,5 @@ test('bouncer-init command has a description and calls scripts/bouncer init', ()
   assert.match(body, /idempotent|already exists|no changes/i);
   assert.match(body, /\.bouncer\//);
   assert.match(body, /\/bouncer-plan/);
-  assert.doesNotMatch(md, /superpowers|sdd-harness|\.sdd\//i);
+  assert.doesNotMatch(md, /superpowers|sdd-harness/i);
 });

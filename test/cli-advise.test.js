@@ -8,7 +8,7 @@ const { runCli } = require('../scripts/lib/cli');
 const { init } = require('../scripts/lib/init');
 
 test('advise CLI reports plan phase and its recommendation on a fresh repo', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-advise-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-advise-'));
   init({ repoRoot: repo, timestamp: '2026-07-08T00:00:00.000Z' });
   let out = '';
   const code = runCli(['advise', '--repo', repo], { out: (s) => { out += s; }, err: () => {} });
