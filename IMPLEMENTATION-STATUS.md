@@ -29,8 +29,3 @@ Bouncer 완전 리브랜딩과 Safe Auto Bootstrap 구현이 완료됐다. 공�
   해석한다.
 - finalize 허용 집합에는 영향받는 소스와 정식 Bouncer 문서만 포함되며 런타임
   산출물은 포함되지 않는다.
-
-## 검증
-
-Task 5의 전체 회귀 결과와 사용자 흐름별 증거는
-`.superpowers/sdd/task-5-report.md`에 기록한다.
