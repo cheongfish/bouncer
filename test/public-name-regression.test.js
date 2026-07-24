@@ -12,14 +12,17 @@ const root = path.resolve(__dirname, '..');
 const HISTORICAL_DIRS = ['docs/superpowers/plans', 'docs/superpowers/specs'];
 
 /**
- * Focused tests that prove legacy `.sdd` / `sdd.*` inputs are ignored or rejected.
- * Only these may contain those literals among test files.
+ * Focused tests + runtime detectors that intentionally reject legacy inputs.
+ * Only these may contain `\bsdd(?:-harness)?\b`, `.sdd`, or `sdd.*`.
  */
-const LEGACY_REJECTION_TESTS = new Set([
+const LEGACY_ALLOWLIST = new Set([
   'test/current.test.js',
   'test/schema.test.js',
   'test/validate-structural.test.js',
   'test/cli-validate.test.js',
+  'scripts/lib/schema.js',
+  'scripts/lib/validate.js',
+  'test/public-name-regression.test.js',
 ]);
 
 /**
@@ -41,26 +44,10 @@ const SUPERPOWERS_NEGATIVE_TESTS = new Set([
   'test/skill-verification.test.js',
 ]);
 
-/** Runtime detectors that reject legacy protocol shapes. */
-const LEGACY_RUNTIME_DETECTORS = new Set([
-  'scripts/lib/schema.js',
-  'scripts/lib/validate.js',
-]);
-
-const PUBLIC_SURFACE = (file) =>
-  file === 'package.json'
-  || file === 'package-lock.json'
-  || file.startsWith('commands/')
-  || file.startsWith('skills/')
-  || file.startsWith('.claude-plugin/')
-  || file === 'scripts/lib/init.js'
-  || file === 'scripts/lib/scaffold.js'
-  || file === 'scripts/lib/render.js';
-
 // Build patterns without contiguous forbidden literals in this file's source
 // so a self-scan of the suite cannot false-positive on the checker itself.
 const SUPERPOWERS_RE = new RegExp(['super', 'powers'].join(''), 'i');
-const SDD_PUBLIC_RE = new RegExp('\\b' + ['s', 'dd'].join('') + '(?:-harness)?\\b', 'i');
+const SDD_RE = new RegExp('\\b' + ['s', 'dd'].join('') + '(?:-harness)?\\b', 'i');
 const SDD_DIR_RE = new RegExp('\\.' + ['s', 'dd'].join('') + '\\b');
 const SDD_TYPE_RE = new RegExp('\\b' + ['s', 'dd'].join('') + '\\.');
 
@@ -97,25 +84,20 @@ test('active surfaces contain no Superpowers integration reference', () => {
   assert.deepStrictEqual(offenders, [], `Superpowers references in:\n${offenders.join('\n')}`);
 });
 
-test('public manifests, commands, skills, and templates omit sdd names', () => {
+test('active surfaces omit sdd names except legacy-rejection allowlist', () => {
   const offenders = [];
-  for (const file of activeFiles().filter(PUBLIC_SURFACE)) {
+  for (const file of activeFiles()) {
+    if (LEGACY_ALLOWLIST.has(file)) continue;
     const text = read(file);
-    if (SDD_PUBLIC_RE.test(text)) offenders.push(file);
+    if (SDD_RE.test(text)) offenders.push(file);
   }
-  assert.deepStrictEqual(offenders, [], `sdd public-name hits in:\n${offenders.join('\n')}`);
+  assert.deepStrictEqual(offenders, [], `sdd name hits in:\n${offenders.join('\n')}`);
 });
 
 test('only focused legacy-rejection tests and detectors mention .sdd / sdd.*', () => {
-  const allowed = new Set([
-    ...LEGACY_REJECTION_TESTS,
-    ...LEGACY_RUNTIME_DETECTORS,
-    'test/public-name-regression.test.js',
-  ]);
   const offenders = [];
   for (const file of activeFiles()) {
-    if (allowed.has(file)) continue;
-    if (PUBLIC_SURFACE(file)) continue; // covered by the public-surface test
+    if (LEGACY_ALLOWLIST.has(file)) continue;
     const text = read(file);
     if (SDD_DIR_RE.test(text) || SDD_TYPE_RE.test(text)) offenders.push(file);
   }
@@ -124,4 +106,18 @@ test('only focused legacy-rejection tests and detectors mention .sdd / sdd.*', (
     [],
     `Unexpected .sdd / sdd.* references in:\n${offenders.join('\n')}`,
   );
+});
+
+test('governance retains execute gate and body-contract references', () => {
+  const gov = read('GOVERNANCE-ARCHITECTURE-DECISIONS.md');
+  assert.match(gov, /Bouncer/);
+  assert.match(gov, /\bG7\b/);
+  assert.match(gov, /\bG13\b/);
+  assert.match(gov, /\bG8\b/);
+  assert.match(gov, /\bG14\b/);
+  assert.match(gov, /## Command/);
+  assert.match(gov, /## Evidence/);
+  assert.match(gov, /## Findings/);
+  assert.doesNotMatch(gov, SUPERPOWERS_RE);
+  assert.doesNotMatch(gov, SDD_RE);
 });

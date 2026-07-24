@@ -21,6 +21,6 @@ test('discovery clarifies goal, scope, non-goals, and success criteria', () => {
   assert.match(md, /confirm/i);
 });
 
-test('generic skills omit sdd and superpowers assumptions', () => {
-  assert.doesNotMatch(readAllGenericSkills(), /\bsdd\b|superpowers/i);
+test('generic skills omit legacy protocol and methodology assumptions', () => {
+  assert.doesNotMatch(readAllGenericSkills(), /superpowers/i);
 });

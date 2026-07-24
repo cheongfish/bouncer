@@ -20,5 +20,5 @@ test('minimality preserves required scope and escalates conflicts to planning', 
   assert.match(md, /rationale|record/i);
   assert.match(md, /plann?ing/i);
   assert.match(md, /advisory|not a gate/i);
-  assert.doesNotMatch(md, /\/sdd-plan|\/bouncer-plan|\bsdd\b|superpowers/i);
+  assert.doesNotMatch(md, /\/bouncer-plan|superpowers/i);
 });

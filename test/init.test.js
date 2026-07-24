@@ -106,7 +106,7 @@ test('init workflow uses Bouncer commands and retains Ponytail advise', () => {
   assert.ok(/\/bouncer-finalize/.test(workflow));
   assert.ok(/bouncer advise/.test(workflow));
   assert.ok(/Ponytail/.test(workflow));
-  assert.ok(!/sdd-harness|\/sdd-|superpowers|profile-aware|methodology/i.test(workflow));
+  assert.ok(!/superpowers|profile-aware|methodology/i.test(workflow));
 });
 
 test('init materials have no Superpowers profile language', () => {

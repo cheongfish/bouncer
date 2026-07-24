@@ -21,7 +21,7 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   assert.match(body, /\.bouncer\/current/);
   assert.match(body, /validate --gate plan/);
   assert.match(body, /approv/i);
-  assert.doesNotMatch(md, /superpowers|profile-aware|sdd-harness|--from-superpowers|import-superpowers|okf-authoring|sdd-minimality/i);
+  assert.doesNotMatch(md, /superpowers|profile-aware|--from-superpowers|import-superpowers|okf-authoring/i);
 });
 
 test('bouncer-plan requires implementation-ready tasks sections and mentions G10–G12', () => {

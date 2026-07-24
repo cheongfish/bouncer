@@ -20,5 +20,5 @@ test('bouncer-finalize wires distill, finalize gate, bouncer finalize, push+PR, 
   assert.match(body, /gh pr create/);
   assert.match(body, /no remote|without a remote|no `?gh`?|skip/i);
   assert.match(body, /bouncer\//);
-  assert.doesNotMatch(md, /superpowers|sdd-harness|okf-authoring/i);
+  assert.doesNotMatch(md, /superpowers|okf-authoring/i);
 });
