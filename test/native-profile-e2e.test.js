@@ -6,7 +6,6 @@ const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
 const { validateBlueprint } = require('../scripts/lib/validate');
-const { resolveProfile } = require('../scripts/lib/profile');
 
 const BP_REL = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
@@ -28,11 +27,10 @@ function base(type, id, status, extra) {
 test('native profile: execute gate passes on self-contained verification+review docs', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-native-e2e-'));
 
-  // native profile, no superpowers anywhere
+  // native Bouncer workflow: self-contained verification + review docs
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  const cfg = { methodology: { profile: 'native' }, verify: 'npm test' };
+  const cfg = { verify: 'npm test' };
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(cfg));
-  assert.strictEqual(resolveProfile(cfg), 'native');
 
   // epic + blueprint indexes
   writeDoc(repo, 'context/epics/EPIC-001-auth/index.md',

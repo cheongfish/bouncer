@@ -1,9 +1,9 @@
 {
-  "name": "sdd-harness",
+  "name": "bouncer",
   "version": "0.1.0",
   "private": true,
-  "description": "Deterministic core for the SDD plugin",
-  "bin": { "sdd-harness": "scripts/sdd-harness" },
+  "description": "Deterministic core for the Bouncer plugin",
+  "bin": { "bouncer": "scripts/bouncer" },
   "scripts": { "test": "node --test" },
   "dependencies": { "js-yaml": "^4.1.0" }
 }

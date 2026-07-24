@@ -1,6 +1,6 @@
 {
-  "name": "sdd",
-  "description": "Spec-Driven Development plugin",
+  "name": "bouncer",
+  "description": "Bouncer workflow plugin",
   "version": "0.1.0",
   "hooks": "./hooks/hooks.json"
 }

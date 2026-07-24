@@ -43,6 +43,12 @@ test('unknown command exits 2', () => {
   assert.strictEqual(runCli(['frobnicate'], io), 2);
 });
 
+test('profile and import-superpowers commands are unsupported', () => {
+  const { io } = capture();
+  assert.strictEqual(runCli(['profile'], io), 2);
+  assert.strictEqual(runCli(['import-superpowers'], io), 2);
+});
+
 test('validate without --blueprint exits 2 and does not report ok:true', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const { io, buf } = capture();

@@ -3,9 +3,7 @@ const { validateBlueprint } = require('./validate');
 const { scaffoldEpic, scaffoldBlueprint } = require('./scaffold');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
-const { importSuperpowers } = require('./import-superpowers');
 const { readConfig, detectPhase, recommendMode } = require('./advisor');
-const { resolveProfile } = require('./profile');
 
 function parseFlags(rest) {
   const flags = {};
@@ -84,44 +82,6 @@ function cmdInit(rest, io) {
   return 0;
 }
 
-function cmdImportSuperpowers(rest, io) {
-  const f = parseFlags(rest);
-  const hasSpec = typeof f.spec === 'string' && f.spec !== '';
-  const hasPlan = typeof f.plan === 'string' && f.plan !== '';
-  if (!hasSpec && !hasPlan) {
-    io.err('import-superpowers: at least one of --spec or --plan is required\n');
-    return 2;
-  }
-  if (typeof f.blueprint !== 'string' || typeof f.name !== 'string') {
-    io.err('import-superpowers: --blueprint and --name are required\n');
-    return 2;
-  }
-  const hasEpicDir = typeof f['epic-dir'] === 'string';
-  if (!hasEpicDir && (typeof f.epic !== 'string' || typeof f['epic-name'] !== 'string')) {
-    io.err('import-superpowers: provide --epic-dir, or both --epic and --epic-name\n');
-    return 2;
-  }
-  let result;
-  try {
-    result = importSuperpowers({
-      repoRoot: f.repo || process.cwd(),
-      specPath: hasSpec ? f.spec : undefined,
-      planPath: hasPlan ? f.plan : undefined,
-      epicDir: hasEpicDir ? f['epic-dir'] : undefined,
-      epicId: f.epic,
-      epicName: f['epic-name'],
-      blueprintId: f.blueprint,
-      name: f.name,
-      timestamp: typeof f.timestamp === 'string' ? f.timestamp : new Date().toISOString(),
-    });
-  } catch (e) {
-    io.err(`import-superpowers: ${e.message}\n`);
-    return 1;
-  }
-  io.out(`${JSON.stringify(result, null, 2)}\n`);
-  return result.ok ? 0 : 1;
-}
-
 function cmdAdvise(rest, io) {
   const f = parseFlags(rest);
   const repoRoot = f.repo || process.cwd();
@@ -129,15 +89,6 @@ function cmdAdvise(rest, io) {
   const { phase, blueprint } = detectPhase({ repoRoot });
   const rec = recommendMode({ phase, config });
   io.out(`${JSON.stringify({ ok: true, ...rec, blueprint }, null, 2)}\n`);
-  return 0;
-}
-
-function cmdProfile(rest, io) {
-  const f = parseFlags(rest);
-  const repoRoot = f.repo || process.cwd();
-  const config = readConfig(repoRoot);
-  const profile = resolveProfile(config);
-  io.out(`${JSON.stringify({ ok: true, profile }, null, 2)}\n`);
   return 0;
 }
 
@@ -155,12 +106,8 @@ function runCli(argv, io) {
       return cmdFinalize(rest, sink);
     case 'init':
       return cmdInit(rest, sink);
-    case 'import-superpowers':
-      return cmdImportSuperpowers(rest, sink);
     case 'advise':
       return cmdAdvise(rest, sink);
-    case 'profile':
-      return cmdProfile(rest, sink);
     default:
       err(`unknown command: ${cmd}\n`);
       return 2;

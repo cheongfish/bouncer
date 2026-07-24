@@ -8,7 +8,7 @@ const CONFIG = {
   source_dirs: ['src', 'test'],
   verify: 'npm test',
   base_branch: 'develop',
-  pr: { draft: true, base: 'develop', labels: ['sdd'] },
+  pr: { draft: true, base: 'develop', labels: ['bouncer'] },
   plugin_advisors: {
     ponytail: {
       enabled: true,
@@ -19,11 +19,6 @@ const CONFIG = {
       finalize: 'lite',
       auto_switch: false,
     },
-  },
-  methodology: {
-    profile: 'native',
-    verification: 'superpowers',
-    review: 'superpowers',
   },
 };
 
@@ -39,17 +34,17 @@ scope for v1.
 
 const WORKFLOW = `# Workflow
 
-1. \`/sdd-init\` — bootstrap \`.sdd/\` once per project.
-2. \`/sdd-plan\` — author epic → blueprint → tasks, scaffold docs, inject
+1. \`/bouncer-init\` — bootstrap \`.bouncer/\` once per project.
+2. \`/bouncer-plan\` — author epic → blueprint → tasks, scaffold docs, inject
    \`graph.suggested_paths\`, confirm \`affected_paths\`, approve, write
-   \`.sdd/current\`, pass gate \`plan\` (G1–G5, G10–G12).
-3. \`/sdd-execute\` — preflight (profile-aware), worktree, implement from tasks
-   brief, verification-adapter, review-adapter, pass gate \`execute\` (G6–G8,
+   \`.bouncer/current\`, pass gate \`plan\` (G1–G5, G10–G12).
+3. \`/bouncer-execute\` — preflight, worktree, implement from tasks
+   brief, verification, review, pass gate \`execute\` (G6–G8,
    G13–G14).
-4. \`/sdd-finalize\` — distill, pass gate \`finalize\` (G9), commit remainder,
+4. \`/bouncer-finalize\` — distill, pass gate \`finalize\` (G9), commit remainder,
    then push + draft PR (skipped gracefully with no remote / no \`gh\`).
-5. \`sdd-harness advise\` — at any point, print the recommended Ponytail mode for
-   the current SDD phase (advisory only; never switches modes automatically).
+5. \`bouncer advise\` — at any point, print the recommended Ponytail mode for
+   the current Bouncer phase (advisory only; never switches modes automatically).
 `;
 
 const OKF = `# OKF
@@ -59,24 +54,6 @@ Pinned OKF version: **0.x**.
 Every \`context/**/*.md\` document carries OKF frontmatter
 (\`type\`, \`title\`, \`description\`, \`resource\`, \`tags\`, \`timestamp\`); Bouncer
 fields live under \`bouncer:\`. See the schema-gates design for the full schema.
-`;
-
-const SUPERPOWERS = `# Superpowers coexistence
-
-When using Superpowers in this repository:
-
-- During SDD-governed work, official specs and plans live in \`context/epics/**\`.
-- Superpowers docs under \`docs/superpowers/**\` are drafts or supporting notes.
-- Do not create a separate Superpowers worktree after \`/sdd-execute\` has started.
-- Do not edit SDD-owned frontmatter directly.
-- SDD gates decide official plan, execute, and finalize status.
-- \`/sdd-execute\` verify and review run under the active
-  \`methodology.profile\`. With \`native\` no external plugin is required. With
-  the \`superpowers\` profile, the verify/review skills must be resolvable, and
-  execute fails closed only if they are missing.
-
-Import a Superpowers draft into official SDD docs with
-\`/sdd-plan --from-superpowers <path>\` (or \`sdd-harness import-superpowers\`).
 `;
 
 const PR_TEMPLATE = `<type>(<bp-id>): <summary>
@@ -121,7 +98,9 @@ const CONTEXT_INDEX = `# Context Index
 Root index of Bouncer epics and blueprints for this project.
 `;
 
-const GITIGNORE_ENTRIES = ['.bouncer/worktrees/', 'graphify-out/', '.bouncer/current'];
+const GITIGNORE_ENTRIES = [
+  '.bouncer/worktrees/', 'graphify-out/', '.bouncer/current',
+];
 
 function writeFile(repoRoot, rel, content, created) {
   const abs = path.join(repoRoot, rel);
@@ -154,7 +133,6 @@ function init({ repoRoot, timestamp }) {
   writeFile(repoRoot, '.bouncer/governance.md', GOVERNANCE, created);
   writeFile(repoRoot, '.bouncer/workflow.md', WORKFLOW, created);
   writeFile(repoRoot, '.bouncer/okf.md', OKF, created);
-  writeFile(repoRoot, '.bouncer/superpowers.md', SUPERPOWERS, created);
   for (const [name, content] of Object.entries(TEMPLATES)) {
     writeFile(repoRoot, `.bouncer/templates/${name}`, content, created);
   }

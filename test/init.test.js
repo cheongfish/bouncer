@@ -21,18 +21,17 @@ test('init scaffolds the full .bouncer tree and context index', () => {
     '.bouncer/okf.md', '.bouncer/templates/epic.md', '.bouncer/templates/blueprint.md',
     '.bouncer/templates/tasks.md', '.bouncer/templates/verification.md', '.bouncer/templates/review.md',
     '.bouncer/templates/distill.md', '.bouncer/templates/pr.md', 'context/index.md',
-    '.bouncer/superpowers.md',
   ]) {
     assert.ok(exists(repo, rel), `missing ${rel}`);
   }
+  assert.ok(exists(repo, '.bouncer/config.json'));
+  assert.ok(!exists(repo, '.bouncer/superpowers.md'));
 });
 
-test('init writes a superpowers coexistence preference doc', () => {
+test('init does not write a Superpowers preference document', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const doc = read(repo, '.bouncer/superpowers.md');
-  assert.ok(/context\/epics/.test(doc));
-  assert.ok(/SDD gates/i.test(doc));
+  assert.ok(!exists(repo, '.bouncer/superpowers.md'));
 });
 
 test('init writes the exact config.json shape', () => {
@@ -43,7 +42,7 @@ test('init writes the exact config.json shape', () => {
     source_dirs: ['src', 'test'],
     verify: 'npm test',
     base_branch: 'develop',
-    pr: { draft: true, base: 'develop', labels: ['sdd'] },
+    pr: { draft: true, base: 'develop', labels: ['bouncer'] },
     plugin_advisors: {
       ponytail: {
         enabled: true,
@@ -55,12 +54,15 @@ test('init writes the exact config.json shape', () => {
         auto_switch: false,
       },
     },
-    methodology: {
-      profile: 'native',
-      verification: 'superpowers',
-      review: 'superpowers',
-    },
   });
+});
+
+test('init config omits methodology and Superpowers profile fields', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.strictEqual(cfg.methodology, undefined);
+  assert.ok(!('methodology' in cfg));
 });
 
 test('init tasks template has five implementation-ready sections', () => {
@@ -72,17 +74,6 @@ test('init tasks template has five implementation-ready sections', () => {
   assert.ok(/## Touch/.test(tasks));
   assert.ok(/## Do not touch/.test(tasks));
   assert.ok(/## Checklist/.test(tasks));
-});
-
-test('init config includes methodology stub', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
-  assert.deepStrictEqual(cfg.methodology, {
-    profile: 'native',
-    verification: 'superpowers',
-    review: 'superpowers',
-  });
 });
 
 test('init appends gitignore entries once and current is empty', () => {
@@ -105,39 +96,26 @@ test('init is idempotent (second call skips, no duplicate gitignore lines)', () 
   assert.strictEqual(occurrences, 1);
 });
 
-test('init config sets methodology.profile to native and keeps legacy engines', () => {
-  const os = require('node:os');
-  const fs = require('node:fs');
-  const path = require('node:path');
-  const { init } = require('../scripts/lib/init');
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-init-profile-'));
+test('init workflow uses Bouncer commands and retains Ponytail advise', () => {
+  const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-23T00:00:00+09:00' });
-  const cfg = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
-  assert.strictEqual(cfg.methodology.profile, 'native');
-  assert.strictEqual(cfg.methodology.verification, 'superpowers');
-  assert.strictEqual(cfg.methodology.review, 'superpowers');
+  const workflow = read(repo, '.bouncer/workflow.md');
+  assert.ok(/\/bouncer-init/.test(workflow));
+  assert.ok(/\/bouncer-plan/.test(workflow));
+  assert.ok(/\/bouncer-execute/.test(workflow));
+  assert.ok(/\/bouncer-finalize/.test(workflow));
+  assert.ok(/bouncer advise/.test(workflow));
+  assert.ok(/Ponytail/.test(workflow));
+  assert.ok(!/sdd-harness|\/sdd-|superpowers|profile-aware|methodology/i.test(workflow));
 });
 
-test('init governance text frames superpowers as an optional profile', () => {
-  const os = require('node:os');
-  const fs = require('node:fs');
-  const path = require('node:path');
-  const { init } = require('../scripts/lib/init');
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-init-gov-'));
+test('init materials have no Superpowers profile language', () => {
+  const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-23T00:00:00+09:00' });
-  // SUPERPOWERS → .bouncer/superpowers.md; WORKFLOW → .bouncer/workflow.md; GOVERNANCE → .bouncer/governance.md
-  const govPath = path.join(repo, '.bouncer', 'governance.md');
-  const gov = fs.existsSync(govPath) ? fs.readFileSync(govPath, 'utf8') : '';
-  const workflowPath = path.join(repo, '.bouncer', 'workflow.md');
-  const workflow = fs.existsSync(workflowPath) ? fs.readFileSync(workflowPath, 'utf8') : '';
-  const superpowersPath = path.join(repo, '.bouncer', 'superpowers.md');
-  const superpowers = fs.existsSync(superpowersPath)
-    ? fs.readFileSync(superpowersPath, 'utf8')
-    : '';
-  const all = gov + workflow + superpowers;
-  assert.ok(/profile/i.test(all), 'mentions profile');
-  assert.ok(
-    !/requires the superpowers plugin|execute fails closed \(do not proceed\)/i.test(all),
-    'no unconditional superpowers-required language',
-  );
+  const gov = read(repo, '.bouncer/governance.md');
+  const workflow = read(repo, '.bouncer/workflow.md');
+  const okf = read(repo, '.bouncer/okf.md');
+  const all = gov + workflow + okf;
+  assert.ok(!exists(repo, '.bouncer/superpowers.md'));
+  assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(all));
 });
