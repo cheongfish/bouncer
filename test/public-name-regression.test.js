@@ -122,19 +122,63 @@ test('governance retains execute gate and body-contract references', () => {
   assert.doesNotMatch(gov, SDD_RE);
 });
 
+/** Approved first-release generic workflow skills (graphify-runner is not among them). */
+const APPROVED_GENERIC_SKILLS = [
+  'discovery',
+  'spec-authoring',
+  'implementation',
+  'debugging',
+  'verification',
+  'review',
+  'minimality',
+];
+
+/** Skill names listed in the §4 generic-skills markdown table (backtick cells). */
+function genericSkillsFromGovernance(gov) {
+  const section = gov.match(/### 4\.\s*일반 워크플로 스킬[\s\S]*?(?=\n## )/);
+  assert.ok(section, 'governance must include §4 generic workflow skills');
+  return [...section[0].matchAll(/^\| `([^`]+)` \|/gm)].map((m) => m[1]);
+}
+
 test('current documentation describes Bouncer native workflow without Superpowers profile', () => {
   const gov = read('GOVERNANCE-ARCHITECTURE-DECISIONS.md');
   assert.match(gov, /Bouncer/);
   assert.doesNotMatch(gov, /Superpowers.*profile/i);
   assert.ok(!fs.existsSync(path.join(root, 'docs/superpowers-integration.md')));
   assert.match(gov, /네이티브 워크플로/);
-  assert.match(gov, /discovery/);
-  assert.match(gov, /spec-authoring/);
-  assert.match(gov, /implementation/);
-  assert.match(gov, /debugging/);
-  assert.match(gov, /verification/);
-  assert.match(gov, /review/);
-  assert.match(gov, /minimality/);
   assert.match(gov, /Graphify/);
   assert.match(gov, /Ponytail/);
+
+  // Explicit no-compatibility / no-alias policy (not merely legacy-name absence).
+  assert.match(
+    gov,
+    /하위 호환(?:·별칭·자동 마이그레이션 없이| 별칭은 두지 않는다)/,
+    'governance must state no backward-compat / no-alias policy',
+  );
+
+  // graphify-runner is optional integration guidance with graceful manual-search fallback.
+  assert.match(gov, /`graphify-runner`/);
+  assert.match(
+    gov,
+    /`graphify-runner`[\s\S]{0,240}(?:선택|optional)/i,
+    'graphify-runner must be documented as optional/selective, not a core generic skill',
+  );
+  assert.match(
+    gov,
+    /(?:부재 시|없거나)[\s\S]{0,120}(?:수동 탐색|일반 검색)[\s\S]{0,40}폴백/,
+    'graphify-runner / Graphify absence must document manual-search fallback',
+  );
+
+  // Exactly the seven approved generic skills; graphify-runner stays outside that table.
+  const genericSkills = genericSkillsFromGovernance(gov);
+  assert.deepStrictEqual(
+    genericSkills,
+    APPROVED_GENERIC_SKILLS,
+    '§4 skills table must list exactly the seven approved generic skills',
+  );
+  assert.equal(
+    genericSkills.includes('graphify-runner'),
+    false,
+    'graphify-runner must not appear as an eighth generic skill in the §4 table',
+  );
 });
