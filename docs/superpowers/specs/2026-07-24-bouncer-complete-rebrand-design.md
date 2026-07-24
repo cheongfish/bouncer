@@ -52,13 +52,25 @@ Bouncer에 종속되지 않는 범용 작업 스킬 일곱 개를 제공한다.
 소스가 된다. `bouncer-harness validate`는 문서 스키마, 상태 전이, 변경 범위,
 검증과 리뷰 증적을 최종 판정한다.
 
+### 현재 부트스트랩 및 저장 경계
+
+- SessionStart는 Bouncer 트리가 완전히 없을 때만 자동 부트스트랩한다.
+- 일부만 존재하는 `.bouncer/` 또는 레거시 상태는 변경하지 않고 거부하며
+  `/bouncer-init`을 안내한다.
+- 거버넌스 문서는 `.bouncer/context/` 아래에 저장한다.
+- 활성 blueprint 포인터와 실행 worktree 같은 런타임 상태는 working tree 밖의
+  Git 공통 디렉터리 및 플랫폼별 상태 디렉터리에 저장한다.
+- 자동 그래프 갱신은 `.bouncer/config.json`에 `graphify.enabled: true`가 명시된
+  경우에만 수행한다.
+
 `/bouncer-plan`은 `discovery`, `spec-authoring`, `minimality`를 안내한다.
 `/bouncer-execute`는 `implementation`, `verification`, `review`, `minimality`를
 안내하고 실패 분석에는 `debugging`을 안내한다. 검증과 리뷰는 외부 플러그인
 위임 없이 범용 스킬의 증적 계약을 사용한다.
 
-Graphify는 선택적 경로 추천 도구로 유지한다. 그래프가 없거나 최신이 아니어도
-수동 경로 지정으로 계속 진행하며, 근거는 `bouncer.graph.basis`에 기록한다.
+Graphify는 명시적으로 활성화하는 선택적 경로 추천 도구로 유지한다. 그래프가
+없거나 최신이 아니어도 수동 경로 지정으로 계속 진행하며, 근거는
+`bouncer.graph.basis`에 기록한다.
 
 ## Superpowers 제거
 
