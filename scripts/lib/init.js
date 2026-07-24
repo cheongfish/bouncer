@@ -98,10 +98,6 @@ const CONTEXT_INDEX = `# Context Index
 Root index of Bouncer epics and blueprints for this project.
 `;
 
-const GITIGNORE_ENTRIES = [
-  '.bouncer/worktrees/', 'graphify-out/', '.bouncer/current',
-];
-
 function writeFile(repoRoot, rel, content, created) {
   const abs = path.join(repoRoot, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -109,37 +105,45 @@ function writeFile(repoRoot, rel, content, created) {
   created.push(rel);
 }
 
-function ensureGitignore(repoRoot) {
-  const abs = path.join(repoRoot, '.gitignore');
-  const existing = fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : '';
-  const lines = existing.split('\n');
-  const missing = GITIGNORE_ENTRIES.filter((e) => !lines.includes(e));
-  if (missing.length === 0) return;
-  const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
-  fs.writeFileSync(abs, `${existing}${prefix}${missing.join('\n')}\n`);
+function inspectBootstrap({ repoRoot }) {
+  if (detectLegacyFormat({ repoRoot }).legacy) return 'legacy';
+
+  const bouncerAbs = path.join(repoRoot, '.bouncer');
+  if (!fs.existsSync(bouncerAbs)) return 'missing';
+
+  const configAbs = path.join(bouncerAbs, 'config.json');
+  try {
+    const config = JSON.parse(fs.readFileSync(configAbs, 'utf8'));
+    if (config && typeof config === 'object' && !Array.isArray(config)) return 'ready';
+  } catch (_e) {
+    // Existing Bouncer content is preserved when config is absent or invalid.
+  }
+  return 'partial';
 }
 
 function init({ repoRoot, timestamp }) {
-  const legacy = detectLegacyFormat({ repoRoot });
-  if (legacy.legacy) {
-    return { ok: false, reason: legacy.reason, created: [], skipped: false };
+  const bootstrap = inspectBootstrap({ repoRoot });
+  if (bootstrap === 'legacy') {
+    const legacy = detectLegacyFormat({ repoRoot });
+    return { ok: false, created: [], skipped: true, reason: legacy.reason };
+  }
+  if (bootstrap === 'partial') {
+    return { ok: false, created: [], skipped: true, reason: 'partial-bouncer-state' };
+  }
+  if (bootstrap === 'ready') {
+    return { ok: true, created: [], skipped: true, reason: 'already-initialized' };
   }
 
-  const configAbs = path.join(repoRoot, '.bouncer/config.json');
-  if (fs.existsSync(configAbs)) return { ok: true, created: [], skipped: true };
-
   const created = [];
-  writeFile(repoRoot, '.bouncer/current', '', created);
   writeFile(repoRoot, '.bouncer/governance.md', GOVERNANCE, created);
   writeFile(repoRoot, '.bouncer/workflow.md', WORKFLOW, created);
   writeFile(repoRoot, '.bouncer/okf.md', OKF, created);
   for (const [name, content] of Object.entries(TEMPLATES)) {
     writeFile(repoRoot, `.bouncer/templates/${name}`, content, created);
   }
-  writeFile(repoRoot, 'context/index.md', CONTEXT_INDEX, created);
-  ensureGitignore(repoRoot);
+  writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
   writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
-  return { ok: true, created, skipped: false };
+  return { ok: true, created, skipped: false, reason: 'initialized' };
 }
 
-module.exports = { init };
+module.exports = { init, inspectBootstrap };

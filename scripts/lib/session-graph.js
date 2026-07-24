@@ -2,10 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-
-function realHasBouncer(repoRoot) {
-  return fs.existsSync(path.join(repoRoot, '.bouncer', 'config.json'));
-}
+const { init, inspectBootstrap } = require('./init');
 
 function realHasGraphify() {
   try {
@@ -58,7 +55,8 @@ function realGraphMtime(repoRoot) {
 
 function planSessionGraph({ repoRoot, deps }) {
   const d = {
-    hasBouncer: () => realHasBouncer(repoRoot),
+    inspectBootstrap: () => inspectBootstrap({ repoRoot }),
+    init: () => init({ repoRoot, timestamp: new Date().toISOString() }),
     hasGraphify: () => realHasGraphify(),
     sourceDirs: () => realSourceDirs(repoRoot),
     existingDirs: (dirs) => realExistingDirs(repoRoot, dirs),
@@ -66,14 +64,31 @@ function planSessionGraph({ repoRoot, deps }) {
     graphMtime: () => realGraphMtime(repoRoot),
     ...(deps || {}),
   };
-  if (!d.hasBouncer()) return { action: 'skip-no-bouncer', reason: 'no .bouncer/ in project' };
-  if (!d.hasGraphify()) return { action: 'skip-no-graphify', reason: 'graphify not on PATH' };
+  let bootstrap = d.inspectBootstrap();
+  if (bootstrap === 'missing') {
+    const initialized = d.init();
+    if (!initialized.ok) {
+      return { bootstrap: 'partial', action: 'skip-partial-bootstrap', reason: initialized.reason };
+    }
+    bootstrap = initialized.skipped ? 'ready' : 'created';
+  }
+  if (bootstrap === 'partial') {
+    return { bootstrap, action: 'skip-partial-bootstrap', reason: 'partial-bouncer-state' };
+  }
+  if (bootstrap === 'legacy') {
+    return { bootstrap, action: 'skip-legacy-bootstrap', reason: 'legacy-bootstrap-state' };
+  }
+  if (!d.hasGraphify()) {
+    return { bootstrap, action: 'skip-no-graphify', reason: 'graphify not on PATH' };
+  }
   const dirs = d.existingDirs(d.sourceDirs());
   const graphMtime = d.graphMtime();
-  if (graphMtime === null) return { action: 'build', dirs, reason: 'graph missing' };
+  if (graphMtime === null) return { bootstrap, action: 'build', dirs, reason: 'graph missing' };
   const newest = d.newestMtime(dirs);
-  if (newest <= graphMtime) return { action: 'skip-fresh', reason: 'graph is up to date' };
-  return { action: 'build', dirs, reason: 'sources changed since last build' };
+  if (newest <= graphMtime) {
+    return { bootstrap, action: 'skip-fresh', reason: 'graph is up to date' };
+  }
+  return { bootstrap, action: 'build', dirs, reason: 'sources changed since last build' };
 }
 
 module.exports = { planSessionGraph };

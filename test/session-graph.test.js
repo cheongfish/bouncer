@@ -1,11 +1,16 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { planSessionGraph } = require('../scripts/lib/session-graph');
 
 function base(over) {
   return {
-    hasBouncer: () => true,
+    inspectBootstrap: () => 'ready',
+    init: () => ({ ok: true, created: [], skipped: true, reason: 'already-initialized' }),
     hasGraphify: () => true,
     sourceDirs: () => ['src', 'test'],
     existingDirs: (dirs) => dirs,
@@ -16,12 +21,61 @@ function base(over) {
 }
 const plan = (over) => planSessionGraph({ repoRoot: '/r', deps: base(over) });
 
-test('skips when no .bouncer/', () => {
-  assert.strictEqual(plan({ hasBouncer: () => false }).action, 'skip-no-bouncer');
+test('bootstraps missing Bouncer state before graph planning', () => {
+  let initialized = false;
+  const result = plan({
+    inspectBootstrap: () => 'missing',
+    init: () => {
+      initialized = true;
+      return { ok: true, created: ['.bouncer/config.json'], skipped: false };
+    },
+    hasGraphify: () => false,
+  });
+  assert.strictEqual(initialized, true);
+  assert.strictEqual(result.bootstrap, 'created');
+  assert.strictEqual(result.action, 'skip-no-graphify');
+});
+
+test('real bootstrap creates only safe project-local state', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  const result = planSessionGraph({
+    repoRoot: repo,
+    deps: { hasGraphify: () => false },
+  });
+  assert.strictEqual(result.bootstrap, 'created');
+  assert.ok(fs.existsSync(path.join(repo, '.bouncer/config.json')));
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/current')));
+  assert.ok(!fs.existsSync(path.join(repo, '.gitignore')));
+  assert.ok(!fs.existsSync(path.join(repo, 'context')));
+});
+
+test('skips graph work for partial Bouncer state', () => {
+  let checkedGraphify = false;
+  const result = plan({
+    inspectBootstrap: () => 'partial',
+    hasGraphify: () => {
+      checkedGraphify = true;
+      return true;
+    },
+  });
+  assert.deepStrictEqual(result, {
+    bootstrap: 'partial',
+    action: 'skip-partial-bootstrap',
+    reason: 'partial-bouncer-state',
+  });
+  assert.strictEqual(checkedGraphify, false);
+});
+
+test('skips graph work for legacy bootstrap state', () => {
+  const result = plan({ inspectBootstrap: () => 'legacy' });
+  assert.strictEqual(result.bootstrap, 'legacy');
+  assert.strictEqual(result.action, 'skip-legacy-bootstrap');
 });
 
 test('skips when graphify is not on PATH', () => {
-  assert.strictEqual(plan({ hasGraphify: () => false }).action, 'skip-no-graphify');
+  const result = plan({ hasGraphify: () => false });
+  assert.strictEqual(result.bootstrap, 'ready');
+  assert.strictEqual(result.action, 'skip-no-graphify');
 });
 
 test('skips when the graph is fresher than every source dir', () => {
@@ -41,4 +95,36 @@ test('builds when a source dir is newer than the graph', () => {
 test('build dirs are limited to source dirs that exist', () => {
   const r = plan({ graphMtime: () => null, existingDirs: () => ['src'] });
   assert.deepStrictEqual(r.dirs, ['src']);
+});
+
+test('SessionStart reports partial state on stderr and exits zero', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/workflow.md'), '# custom\n');
+  const hook = path.join(__dirname, '../hooks/session-graph.js');
+
+  const result = spawnSync(process.execPath, [hook], {
+    input: JSON.stringify({ cwd: repo }),
+    encoding: 'utf8',
+  });
+
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stderr, /partial Bouncer state/i);
+  assert.strictEqual(result.stdout, '');
+});
+
+test('SessionStart reports legacy state with corrective command and exits zero', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  fs.mkdirSync(path.join(repo, ['.', 's', 'd', 'd'].join('')));
+  const hook = path.join(__dirname, '../hooks/session-graph.js');
+
+  const result = spawnSync(process.execPath, [hook], {
+    input: JSON.stringify({ cwd: repo }),
+    encoding: 'utf8',
+  });
+
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stderr, /legacy state/i);
+  assert.match(result.stderr, /\/bouncer-init/);
+  assert.strictEqual(result.stdout, '');
 });

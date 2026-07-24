@@ -15,6 +15,15 @@ process.stdin.on('end', () => {
   const repoRoot = payload.cwd || process.cwd();
   try {
     const decision = planSessionGraph({ repoRoot });
+    if (decision.bootstrap === 'partial') {
+      process.stderr.write(
+        'Bouncer: partial Bouncer state detected; preserving .bouncer and skipping SessionStart work.\n',
+      );
+    } else if (decision.bootstrap === 'legacy') {
+      process.stderr.write(
+        'Bouncer: legacy state detected; remove or migrate legacy files, then run /bouncer-init.\n',
+      );
+    }
     if (decision.action === 'build' && decision.dirs.length) {
       execFileSync('graphify', [...decision.dirs, '--update', '--no-viz'], {
         cwd: repoRoot, stdio: 'ignore',
