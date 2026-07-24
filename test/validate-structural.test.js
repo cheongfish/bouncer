@@ -129,6 +129,15 @@ test('tasks.graph.basis is required when graph is present', () => {
   assert.ok(res.failures.some((f) => /graph\.basis/.test(f.message)));
 });
 
+test('legacy root context blueprint is not a canonical validation target', () => {
+  const repo = mkRepo();
+  const legacyBp = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: legacyBp });
+  assert.strictEqual(res.ok, false);
+  assert.deepStrictEqual(res.failures.map((f) => f.code), ['S10']);
+  assert.match(res.failures[0].message, /must be under \.bouncer\/context\/epics/);
+});
+
 function blueprintDoc() {
   return {
     type: 'bouncer.blueprint',

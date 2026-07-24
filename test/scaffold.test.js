@@ -61,3 +61,13 @@ test('scaffoldBlueprint rejects a root context epic directory', () => {
   }), /epicDir must be under \.bouncer\/context\/epics/);
   assert.ok(!fs.existsSync(path.join(repo, 'context')));
 });
+
+test('scaffoldBlueprint rejects backslash traversal outside the canonical epic', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  assert.throws(() => scaffoldBlueprint({
+    repoRoot: repo,
+    epicDir: '.bouncer/context/epics/EPIC-001-auth\\..\\..\\escaped',
+    blueprintId: 'BP-001', name: 'login', timestamp: TS,
+  }), /epicDir must be under \.bouncer\/context\/epics/);
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer')));
+});

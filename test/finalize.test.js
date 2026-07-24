@@ -16,30 +16,31 @@ function writeDoc(repo, rel, data) {
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n# x\n`);
 }
 
-function fullBlueprint(repo, { distillStatus = 'published' } = {}) {
-  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', {
-    type: 'bouncer.epic', title: 'Auth', description: 'd', resource: '.bouncer/context/epics/EPIC-001-auth/index.md',
+function fullBlueprint(repo, { distillStatus = 'published', blueprintDir = BP_REL } = {}) {
+  const epicDir = blueprintDir.split('/blueprints/')[0];
+  writeDoc(repo, `${epicDir}/index.md`, {
+    type: 'bouncer.epic', title: 'Auth', description: 'd', resource: `${epicDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
   });
-  writeDoc(repo, `${BP_REL}/index.md`, {
-    type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${BP_REL}/index.md`,
+  writeDoc(repo, `${blueprintDir}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${blueprintDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved' },
   });
-  writeDoc(repo, `${BP_REL}/tasks.md`, {
-    type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${BP_REL}/tasks.md`,
+  writeDoc(repo, `${blueprintDir}/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'verified',
       affected_paths: ['src/auth/'] },
   });
-  writeDoc(repo, `${BP_REL}/verification.md`, {
-    type: 'bouncer.verification', title: 'Verified', description: 'd', resource: `${BP_REL}/verification.md`,
+  writeDoc(repo, `${blueprintDir}/verification.md`, {
+    type: 'bouncer.verification', title: 'Verified', description: 'd', resource: `${blueprintDir}/verification.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'VERIFY-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'passed' },
   });
-  writeDoc(repo, `${BP_REL}/distill.md`, {
-    type: 'bouncer.distill', title: 'Distill', description: 'd', resource: `${BP_REL}/distill.md`,
+  writeDoc(repo, `${blueprintDir}/distill.md`, {
+    type: 'bouncer.distill', title: 'Distill', description: 'd', resource: `${blueprintDir}/distill.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'DISTILL-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: distillStatus },
   });
@@ -98,4 +99,17 @@ test('--yes stages and commits', () => {
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/distill.md`]);
   assert.ok(g.calls.committed.startsWith('feat(BP-001): Login'));
+});
+
+test('legacy root context blueprint is rejected before staging', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const legacyBp = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+  fullBlueprint(repo, { blueprintDir: legacyBp });
+  const g = fakeGit([`${legacyBp}/tasks.md`], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: legacyBp, yes: true, git: g.api });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'validate');
+  assert.ok(res.failures.some((f) => /must be under \.bouncer\/context\/epics/.test(f.message)));
+  assert.strictEqual(g.calls.staged, null);
+  assert.strictEqual(g.calls.committed, null);
 });

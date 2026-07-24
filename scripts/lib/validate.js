@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat } = require('./schema');
 const { readDoc } = require('./frontmatter');
+const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
 const { parsePathIds, epicDirOf, toPosix } = require('./paths');
 
 function loadBlueprintDocs({ repoRoot, blueprintDir }) {
@@ -93,6 +94,17 @@ function checkStructural(doc, failures) {
 }
 
 function validateBlueprint({ repoRoot, blueprintDir, gate }) {
+  if (!isCanonicalBlueprintDir(blueprintDir)) {
+    return {
+      ok: false,
+      failures: [{
+        code: 'S10',
+        message: `blueprintDir must be under ${CONTEXT_ROOT}/epics`,
+        file: toPosix(blueprintDir),
+      }],
+    };
+  }
+
   const legacyRepo = detectLegacyFormat({ repoRoot });
   if (legacyRepo.legacy) {
     return {

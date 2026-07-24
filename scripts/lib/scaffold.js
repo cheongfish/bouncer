@@ -1,9 +1,8 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { CONTEXT_ROOT, normalizeRepoPath, isCanonicalEpicDir } = require('./layout');
 const { renderDoc } = require('./render');
-
-const CONTEXT_ROOT = '.bouncer/context';
 
 function writeRel(repoRoot, rel, data, body) {
   const abs = path.join(repoRoot, rel);
@@ -26,11 +25,12 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
 }
 
 function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) {
-  if (!new RegExp(`^${CONTEXT_ROOT.replace('.', '\\.')}/epics/EPIC-\\d+[^/]*$`).test(epicDir)) {
+  if (!isCanonicalEpicDir(epicDir)) {
     throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
   }
-  const epicId = /EPIC-\d+/.exec(epicDir)[0];
-  const dir = `${epicDir}/blueprints/${blueprintId}-${name}`;
+  const canonicalEpicDir = normalizeRepoPath(epicDir);
+  const epicId = /EPIC-\d+/.exec(canonicalEpicDir)[0];
+  const dir = `${canonicalEpicDir}/blueprints/${blueprintId}-${name}`;
   const created = [];
 
   const idx = `${dir}/index.md`;
