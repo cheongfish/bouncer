@@ -5,7 +5,7 @@ const { planSessionGraph } = require('../scripts/lib/session-graph');
 
 function base(over) {
   return {
-    hasSdd: () => true,
+    hasBouncer: () => true,
     hasGraphify: () => true,
     sourceDirs: () => ['src', 'test'],
     existingDirs: (dirs) => dirs,
@@ -16,8 +16,8 @@ function base(over) {
 }
 const plan = (over) => planSessionGraph({ repoRoot: '/r', deps: base(over) });
 
-test('skips when no .sdd/', () => {
-  assert.strictEqual(plan({ hasSdd: () => false }).action, 'skip-no-sdd');
+test('skips when no .bouncer/', () => {
+  assert.strictEqual(plan({ hasBouncer: () => false }).action, 'skip-no-bouncer');
 });
 
 test('skips when graphify is not on PATH', () => {

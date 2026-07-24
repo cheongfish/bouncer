@@ -45,7 +45,7 @@ function suggestedPathsFrom(text, sourceDirs) {
 
 function readSourceDirs(repoRoot) {
   try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.sdd/config.json'), 'utf8'));
+    const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer/config.json'), 'utf8'));
     return Array.isArray(cfg.source_dirs) ? cfg.source_dirs : ['src', 'test'];
   } catch (_e) {
     return ['src', 'test'];
@@ -61,9 +61,12 @@ function injectBody(repoRoot, rel, body) {
 function injectTasks(repoRoot, rel, body, suggested) {
   const abs = path.join(repoRoot, rel);
   const { data } = readDoc(abs);
-  if (!data.sdd) data.sdd = {};
-  if (!data.sdd.graph) data.sdd.graph = {};
-  data.sdd.graph.suggested_paths = suggested;
+  if (!data.bouncer) data.bouncer = {};
+  if (!data.bouncer.graph) data.bouncer.graph = {};
+  data.bouncer.graph.suggested_paths = suggested;
+  if (typeof data.bouncer.graph.basis !== 'string' || !data.bouncer.graph.basis.trim()) {
+    data.bouncer.graph.basis = 'import-superpowers: suggested from plan/spec paths';
+  }
   fs.writeFileSync(abs, renderDoc(data, body));
 }
 

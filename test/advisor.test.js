@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const { detectPhase } = require('../scripts/lib/advisor');
 
 function fakeDocs(statuses) {
-  const wrap = (status, extra) => ({ data: { sdd: { status, ...(extra || {}) } } });
+  const wrap = (status, extra) => ({ data: { bouncer: { status, ...(extra || {}) } } });
   const docs = {};
   if (statuses.tasks) docs.tasks = wrap(statuses.tasks);
   if (statuses.verification) docs.verification = wrap(statuses.verification);

@@ -9,7 +9,7 @@ const { validateBlueprint } = require('../scripts/lib/validate');
 const BP_REL = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
 function mkRepo() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
 }
 
 function writeDoc(repo, rel, data, body = '# x\n') {
@@ -21,13 +21,13 @@ function writeDoc(repo, rel, data, body = '# x\n') {
 
 function goodTasks() {
   return {
-    type: 'sdd.tasks',
+    type: 'bouncer.tasks',
     title: 'Login tasks',
     description: 'Tasks for BP-001',
     resource: `${BP_REL}/tasks.md`,
-    tags: ['sdd', 'tasks'],
+    tags: ['bouncer', 'tasks'],
     timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: {
+    bouncer: {
       id: 'TASKS-BP-001',
       epic_id: 'EPIC-001',
       blueprint_id: 'BP-001',
@@ -52,8 +52,8 @@ test('S3/S6/S7 detect resource, status, affected_paths problems', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.resource = 'context/wrong/path.md';
-  t.sdd.status = 'bogus';
-  t.sdd.affected_paths = [];
+  t.bouncer.status = 'bogus';
+  t.bouncer.affected_paths = [];
   writeDoc(repo, `${BP_REL}/tasks.md`, t);
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, 'context/epics/EPIC-001-auth/index.md', epicDoc());
@@ -93,25 +93,61 @@ test('S0: malformed frontmatter is collected as a failure, not thrown', () => {
   assert.ok(res.failures.some((f) => f.code === 'S0'));
 });
 
+test('legacy sdd frontmatter is rejected with bouncer-init guidance', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, {
+    type: 'sdd.tasks',
+    title: 'Legacy',
+    description: 'legacy',
+    resource: `${BP_REL}/tasks.md`,
+    tags: ['sdd', 'tasks'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    sdd: {
+      id: 'TASKS-BP-001',
+      epic_id: 'EPIC-001',
+      blueprint_id: 'BP-001',
+      status: 'ready',
+      affected_paths: ['src/auth/'],
+    },
+  });
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, 'context/epics/EPIC-001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.failures.some((f) => /bouncer-init/.test(f.message)));
+});
+
+test('tasks.graph.basis is required when graph is present', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.graph = { suggested_paths: ['src/'] };
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, 'context/epics/EPIC-001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.failures.some((f) => /graph\.basis/.test(f.message)));
+});
+
 function blueprintDoc() {
   return {
-    type: 'sdd.blueprint',
+    type: 'bouncer.blueprint',
     title: 'Login blueprint',
     description: 'BP-001',
     resource: `${BP_REL}/index.md`,
-    tags: ['sdd', 'blueprint'],
+    tags: ['bouncer', 'blueprint'],
     timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'draft' },
+    bouncer: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'draft' },
   };
 }
 function epicDoc() {
   return {
-    type: 'sdd.epic',
+    type: 'bouncer.epic',
     title: 'Auth epic',
     description: 'EPIC-001',
     resource: 'context/epics/EPIC-001-auth/index.md',
-    tags: ['sdd', 'epic'],
+    tags: ['bouncer', 'epic'],
     timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'draft' },
+    bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'draft' },
   };
 }

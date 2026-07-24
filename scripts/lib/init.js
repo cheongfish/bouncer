@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { detectLegacyFormat } = require('./schema');
 
 const CONFIG = {
   okf_version: '0.x',
@@ -56,8 +57,8 @@ const OKF = `# OKF
 Pinned OKF version: **0.x**.
 
 Every \`context/**/*.md\` document carries OKF frontmatter
-(\`type\`, \`title\`, \`description\`, \`resource\`, \`tags\`, \`timestamp\`); SDD
-fields live under \`sdd:\`. See the schema-gates design for the full schema.
+(\`type\`, \`title\`, \`description\`, \`resource\`, \`tags\`, \`timestamp\`); Bouncer
+fields live under \`bouncer:\`. See the schema-gates design for the full schema.
 `;
 
 const SUPERPOWERS = `# Superpowers coexistence
@@ -117,10 +118,10 @@ const TEMPLATES = {
 
 const CONTEXT_INDEX = `# Context Index
 
-Root index of SDD epics and blueprints for this project.
+Root index of Bouncer epics and blueprints for this project.
 `;
 
-const GITIGNORE_ENTRIES = ['.sdd/worktrees/', 'graphify-out/', '.sdd/current'];
+const GITIGNORE_ENTRIES = ['.bouncer/worktrees/', 'graphify-out/', '.bouncer/current'];
 
 function writeFile(repoRoot, rel, content, created) {
   const abs = path.join(repoRoot, rel);
@@ -140,22 +141,27 @@ function ensureGitignore(repoRoot) {
 }
 
 function init({ repoRoot, timestamp }) {
-  const configAbs = path.join(repoRoot, '.sdd/config.json');
-  if (fs.existsSync(configAbs)) return { created: [], skipped: true };
+  const legacy = detectLegacyFormat({ repoRoot });
+  if (legacy.legacy) {
+    return { ok: false, reason: legacy.reason, created: [], skipped: false };
+  }
+
+  const configAbs = path.join(repoRoot, '.bouncer/config.json');
+  if (fs.existsSync(configAbs)) return { ok: true, created: [], skipped: true };
 
   const created = [];
-  writeFile(repoRoot, '.sdd/current', '', created);
-  writeFile(repoRoot, '.sdd/governance.md', GOVERNANCE, created);
-  writeFile(repoRoot, '.sdd/workflow.md', WORKFLOW, created);
-  writeFile(repoRoot, '.sdd/okf.md', OKF, created);
-  writeFile(repoRoot, '.sdd/superpowers.md', SUPERPOWERS, created);
+  writeFile(repoRoot, '.bouncer/current', '', created);
+  writeFile(repoRoot, '.bouncer/governance.md', GOVERNANCE, created);
+  writeFile(repoRoot, '.bouncer/workflow.md', WORKFLOW, created);
+  writeFile(repoRoot, '.bouncer/okf.md', OKF, created);
+  writeFile(repoRoot, '.bouncer/superpowers.md', SUPERPOWERS, created);
   for (const [name, content] of Object.entries(TEMPLATES)) {
-    writeFile(repoRoot, `.sdd/templates/${name}`, content, created);
+    writeFile(repoRoot, `.bouncer/templates/${name}`, content, created);
   }
   writeFile(repoRoot, 'context/index.md', CONTEXT_INDEX, created);
   ensureGitignore(repoRoot);
-  writeFile(repoRoot, '.sdd/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
-  return { created, skipped: false };
+  writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
+  return { ok: true, created, skipped: false };
 }
 
 module.exports = { init };

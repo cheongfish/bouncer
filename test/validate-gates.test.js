@@ -35,7 +35,7 @@ Ship login validation.
 `;
 
 function doc(status, extra = {}, body) {
-  const d = { data: { sdd: { status, ...extra } }, rel: 'x' };
+  const d = { data: { bouncer: { status, ...extra } }, rel: 'x' };
   if (body !== undefined) d.body = body;
   return d;
 }
@@ -70,7 +70,7 @@ test('plan gate passes when all conditions met including G10–G12', () => {
     epicIndex: doc('approved'),
     blueprintIndex: doc('approved'),
     tasks: doc('ready', {
-      graph: { suggested_paths: ['src/'] },
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['src/auth/login.js', 'test/auth/login.test.js'],
     }, READY_BODY),
   };
@@ -99,7 +99,7 @@ test('plan gate G10 fails when a section is missing', () => {
     epicIndex: doc('approved'),
     blueprintIndex: doc('approved'),
     tasks: doc('ready', {
-      graph: { suggested_paths: ['src/'] },
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['src/a.js'],
     }, body),
   };
@@ -113,7 +113,7 @@ test('plan gate G11 fails when affected_paths not justified by Touch', () => {
     epicIndex: doc('approved'),
     blueprintIndex: doc('approved'),
     tasks: doc('ready', {
-      graph: { suggested_paths: ['src/'] },
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['src/auth/login.js', 'src/unrelated/x.js'],
     }, READY_BODY),
   };
@@ -144,7 +144,7 @@ y
     epicIndex: doc('approved'),
     blueprintIndex: doc('approved'),
     tasks: doc('ready', {
-      graph: { suggested_paths: ['src/'] },
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['src/auth/login.js'],
     }, body),
   };
@@ -247,7 +247,7 @@ test('finalize gate requires distill published', () => {
 const BP_REL = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
 function mkRepo() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-gates-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-gates-'));
 }
 
 function writeDoc(repo, rel, data, body = '# x\n') {
@@ -259,25 +259,25 @@ function writeDoc(repo, rel, data, body = '# x\n') {
 
 function epicDoc() {
   return {
-    type: 'sdd.epic',
+    type: 'bouncer.epic',
     title: 'Auth epic',
     description: 'EPIC-001',
     resource: 'context/epics/EPIC-001-auth/index.md',
-    tags: ['sdd', 'epic'],
+    tags: ['bouncer', 'epic'],
     timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
+    bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
   };
 }
 
 function blueprintDoc() {
   return {
-    type: 'sdd.blueprint',
+    type: 'bouncer.blueprint',
     title: 'Login blueprint',
     description: 'BP-001',
     resource: `${BP_REL}/index.md`,
-    tags: ['sdd', 'blueprint'],
+    tags: ['bouncer', 'blueprint'],
     timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved' },
+    bouncer: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved' },
   };
 }
 
@@ -304,18 +304,18 @@ Ship login validation.
 
 function planReadyTasks() {
   return {
-    type: 'sdd.tasks',
+    type: 'bouncer.tasks',
     title: 'Login tasks',
     description: 'Tasks for BP-001',
     resource: `${BP_REL}/tasks.md`,
-    tags: ['sdd', 'tasks'],
+    tags: ['bouncer', 'tasks'],
     timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: {
+    bouncer: {
       id: 'TASKS-BP-001',
       epic_id: 'EPIC-001',
       blueprint_id: 'BP-001',
       status: 'ready',
-      graph: { suggested_paths: ['src/'] },
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['./src/auth/login.js', './test/auth/login.test.js'],
     },
   };

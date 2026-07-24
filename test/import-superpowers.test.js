@@ -72,7 +72,7 @@ const { importSuperpowers } = require('../scripts/lib/import-superpowers');
 const { readDoc } = require('../scripts/lib/frontmatter');
 
 function tmpRepo() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-import-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-import-'));
 }
 
 test('importSuperpowers scaffolds docs, injects bodies, seeds graph, preserves frontmatter', () => {
@@ -106,16 +106,16 @@ test('importSuperpowers scaffolds docs, injects bodies, seeds graph, preserves f
   assert.ok(res.created.includes(`${base}/tasks.md`));
 
   const bp = readDoc(path.join(repo, `${base}/index.md`));
-  assert.strictEqual(bp.data.type, 'sdd.blueprint');
-  assert.strictEqual(bp.data.sdd.status, 'draft'); // frontmatter preserved, no transition
+  assert.strictEqual(bp.data.type, 'bouncer.blueprint');
+  assert.strictEqual(bp.data.bouncer.status, 'draft'); // frontmatter preserved, no transition
   assert.ok(bp.body.includes('**Goal:**'));
   assert.ok(!bp.body.includes('### Task'));
 
   const tasks = readDoc(path.join(repo, `${base}/tasks.md`));
-  assert.strictEqual(tasks.data.sdd.id, 'TASKS-BP-001'); // frontmatter preserved
+  assert.strictEqual(tasks.data.bouncer.id, 'TASKS-BP-001'); // frontmatter preserved
   assert.ok(tasks.body.includes('### Task 1: Core'));
-  assert.deepStrictEqual(tasks.data.sdd.graph.suggested_paths, ['src/widget.js', 'test/widget.test.js']);
-  assert.deepStrictEqual(tasks.data.sdd.affected_paths, []); // left for user confirmation
+  assert.deepStrictEqual(tasks.data.bouncer.graph.suggested_paths, ['src/widget.js', 'test/widget.test.js']);
+  assert.deepStrictEqual(tasks.data.bouncer.affected_paths, []); // left for user confirmation
   assert.deepStrictEqual(res.proposed_affected_paths, ['src/widget.js', 'test/widget.test.js']);
 
   // source file untouched

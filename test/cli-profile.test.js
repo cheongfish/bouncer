@@ -13,9 +13,9 @@ function capture() {
 
 test('profile prints native for a fresh config', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-cli-profile-'));
-  fs.mkdirSync(path.join(repo, '.sdd'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(
-    path.join(repo, '.sdd/config.json'),
+    path.join(repo, '.bouncer/config.json'),
     JSON.stringify({ methodology: { profile: 'native' } }),
   );
   const { io, chunks } = capture();
@@ -26,9 +26,9 @@ test('profile prints native for a fresh config', () => {
 
 test('profile resolves superpowers from legacy config', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-cli-profile-'));
-  fs.mkdirSync(path.join(repo, '.sdd'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(
-    path.join(repo, '.sdd/config.json'),
+    path.join(repo, '.bouncer/config.json'),
     JSON.stringify({ methodology: { verification: 'superpowers', review: 'superpowers' } }),
   );
   const { io, chunks } = capture();

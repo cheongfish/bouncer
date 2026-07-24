@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM } = require('./schema');
+const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat } = require('./schema');
 const { readDoc } = require('./frontmatter');
 const { parsePathIds, epicDirOf, toPosix } = require('./paths');
 
@@ -35,6 +35,12 @@ function checkStructural(doc, failures) {
   const { data, rel } = doc;
   const add = (code, message) => failures.push({ code, message, file: rel });
 
+  const legacy = detectLegacyFormat({ data });
+  if (legacy.legacy) {
+    add('S2', legacy.reason);
+    return;
+  }
+
   for (const f of OKF_REQUIRED) {
     const v = data[f];
     if (v === undefined || v === null || v === '') add('S1', `OKF field missing: ${f}`);
@@ -47,40 +53,54 @@ function checkStructural(doc, failures) {
     add('S3', `resource path mismatch: ${data.resource} != ${rel}`);
   }
 
-  const sdd = data.sdd || {};
+  const bouncer = data.bouncer || {};
   const prefix = ID_PREFIX[data.type];
-  if (typeof sdd.id !== 'string' || !sdd.id.startsWith(prefix)) {
-    add('S4', `id "${sdd.id}" missing prefix ${prefix}`);
+  if (typeof bouncer.id !== 'string' || !bouncer.id.startsWith(prefix)) {
+    add('S4', `id "${bouncer.id}" missing prefix ${prefix}`);
   }
 
   const parsed = parsePathIds(rel);
-  if (parsed.epicId && sdd.epic_id !== parsed.epicId) {
-    add('S5', `epic_id ${sdd.epic_id} != path ${parsed.epicId}`);
+  if (parsed.epicId && bouncer.epic_id !== parsed.epicId) {
+    add('S5', `epic_id ${bouncer.epic_id} != path ${parsed.epicId}`);
   }
-  if (data.type !== 'sdd.epic' && parsed.blueprintId && sdd.blueprint_id !== parsed.blueprintId) {
-    add('S5', `blueprint_id ${sdd.blueprint_id} != path ${parsed.blueprintId}`);
+  if (data.type !== 'bouncer.epic' && parsed.blueprintId && bouncer.blueprint_id !== parsed.blueprintId) {
+    add('S5', `blueprint_id ${bouncer.blueprint_id} != path ${parsed.blueprintId}`);
   }
   let expectedId = null;
-  if (data.type === 'sdd.epic') expectedId = parsed.epicId;
-  else if (data.type === 'sdd.blueprint') expectedId = parsed.blueprintId;
+  if (data.type === 'bouncer.epic') expectedId = parsed.epicId;
+  else if (data.type === 'bouncer.blueprint') expectedId = parsed.blueprintId;
   else if (parsed.blueprintId) expectedId = `${prefix}${parsed.blueprintId}`;
-  if (expectedId && sdd.id !== expectedId) {
-    add('S5', `id ${sdd.id} != expected ${expectedId} from path`);
+  if (expectedId && bouncer.id !== expectedId) {
+    add('S5', `id ${bouncer.id} != expected ${expectedId} from path`);
   }
 
-  if (!(STATUS_ENUM[data.type] || []).includes(sdd.status)) {
-    add('S6', `status "${sdd.status}" not in enum for ${data.type}`);
+  if (!(STATUS_ENUM[data.type] || []).includes(bouncer.status)) {
+    add('S6', `status "${bouncer.status}" not in enum for ${data.type}`);
   }
 
-  if (data.type === 'sdd.tasks') {
-    const ap = sdd.affected_paths;
+  if (data.type === 'bouncer.tasks') {
+    const ap = bouncer.affected_paths;
     if (!Array.isArray(ap) || ap.length === 0) {
       add('S7', 'tasks.affected_paths missing or empty');
+    }
+    if (bouncer.graph != null) {
+      const basis = bouncer.graph.basis;
+      if (typeof basis !== 'string' || !basis.trim()) {
+        add('S9', 'tasks.graph.basis missing or empty');
+      }
     }
   }
 }
 
 function validateBlueprint({ repoRoot, blueprintDir, gate }) {
+  const legacyRepo = detectLegacyFormat({ repoRoot });
+  if (legacyRepo.legacy) {
+    return {
+      ok: false,
+      failures: [{ code: 'S2', message: legacyRepo.reason, file: '.sdd' }],
+    };
+  }
+
   const { docs, rels, parseErrors } = loadBlueprintDocs({ repoRoot, blueprintDir });
   const failures = [...parseErrors];
 
@@ -100,7 +120,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate }) {
 }
 
 function statusOf(doc) {
-  return doc && doc.data && doc.data.sdd ? doc.data.sdd.status : undefined;
+  return doc && doc.data && doc.data.bouncer ? doc.data.bouncer.status : undefined;
 }
 
 const SECTION_DEFS = [
@@ -181,10 +201,13 @@ function checkGate(gate, docs, rels, failures) {
     if (statusOf(docs.epicIndex) !== 'approved') add('G1', 'epic.status != approved', 'epicIndex');
     if (statusOf(docs.blueprintIndex) !== 'approved') add('G2', 'blueprint.status != approved', 'blueprintIndex');
     if (statusOf(docs.tasks) !== 'ready') add('G3', 'tasks.status != ready', 'tasks');
-    const suggested = docs.tasks && docs.tasks.data.sdd && docs.tasks.data.sdd.graph
-      ? docs.tasks.data.sdd.graph.suggested_paths : undefined;
+    const graph = docs.tasks && docs.tasks.data.bouncer ? docs.tasks.data.bouncer.graph : undefined;
+    const suggested = graph ? graph.suggested_paths : undefined;
     if (!Array.isArray(suggested)) add('G4', 'tasks.graph.suggested_paths missing', 'tasks');
-    const ap = docs.tasks && docs.tasks.data.sdd ? docs.tasks.data.sdd.affected_paths : undefined;
+    if (graph && (typeof graph.basis !== 'string' || !graph.basis.trim())) {
+      add('G4', 'tasks.graph.basis missing or empty', 'tasks');
+    }
+    const ap = docs.tasks && docs.tasks.data.bouncer ? docs.tasks.data.bouncer.affected_paths : undefined;
     if (!Array.isArray(ap) || ap.length === 0) add('G5', 'tasks.affected_paths missing or empty', 'tasks');
     const tasksBody = docs.tasks && typeof docs.tasks.body === 'string' ? docs.tasks.body : '';
     const sections = parseTasksSections(tasksBody);
@@ -211,7 +234,7 @@ function checkGate(gate, docs, rels, failures) {
   if (gate === 'execute') {
     if (statusOf(docs.tasks) !== 'verified') add('G6', 'tasks.status != verified', 'tasks');
     if (statusOf(docs.verification) !== 'passed') add('G7', 'verification.status != passed', 'verification');
-    const review = docs.review && docs.review.data.sdd ? docs.review.data.sdd.review : undefined;
+    const review = docs.review && docs.review.data.bouncer ? docs.review.data.bouncer.review : undefined;
     const reviewOk = statusOf(docs.review) === 'accepted' || (review && review.required === false);
     if (!reviewOk) add('G8', 'review not accepted and review.required != false', 'review');
     if (docs.verification) {
@@ -222,7 +245,7 @@ function checkGate(gate, docs, rels, failures) {
         add('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
       }
     }
-    const reviewMeta = docs.review && docs.review.data.sdd ? docs.review.data.sdd.review : undefined;
+    const reviewMeta = docs.review && docs.review.data.bouncer ? docs.review.data.bouncer.review : undefined;
     const reviewSkipped = reviewMeta && reviewMeta.required === false;
     if (docs.review && !reviewSkipped) {
       const rbody = typeof docs.review.body === 'string' ? docs.review.body : '';

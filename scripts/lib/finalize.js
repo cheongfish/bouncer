@@ -31,10 +31,10 @@ function line(list, value) {
 
 function buildCommitMessage(docs) {
   const bp = docs.blueprintIndex.data;
-  const sdd = bp.sdd || {};
-  const type = sdd.commit_type || 'feat';
-  const bpId = sdd.id;
-  const epicId = sdd.epic_id;
+  const bouncer = bp.bouncer || {};
+  const type = bouncer.commit_type || 'feat';
+  const bpId = bouncer.id;
+  const epicId = bouncer.epic_id;
   const summary = bp.title;
   const taskSummary = docs.tasks && docs.tasks.data.title ? docs.tasks.data.title : '';
   const verifySummary = docs.verification && docs.verification.data.title
@@ -76,8 +76,8 @@ function finalize({ repoRoot, blueprintDir, yes = false, git }) {
   if (!v.ok) return { ok: false, reason: 'validate', failures: v.failures };
 
   const { docs } = loadBlueprintDocs({ repoRoot, blueprintDir });
-  const affectedPaths = docs.tasks && docs.tasks.data.sdd
-    ? docs.tasks.data.sdd.affected_paths : [];
+  const affectedPaths = docs.tasks && docs.tasks.data.bouncer
+    ? docs.tasks.data.bouncer.affected_paths : [];
   const allowed = makeAllowed({ affectedPaths, blueprintDir });
 
   const changed = gitApi.changedFiles();

@@ -32,7 +32,7 @@ function readAffectedPaths({ repoRoot, blueprintDir }) {
   try {
     const abs = path.join(repoRoot, blueprintDir, 'tasks.md');
     const { data } = readDoc(abs);
-    const ap = data && data.sdd ? data.sdd.affected_paths : undefined;
+    const ap = data && data.bouncer ? data.bouncer.affected_paths : undefined;
     return Array.isArray(ap) ? ap : [];
   } catch (_e) {
     return [];
@@ -46,7 +46,7 @@ function realStagedFiles({ repoRoot }) {
   return out.split('\n').filter(Boolean);
 }
 
-// When `repoRoot` is a linked worktree, its `.sdd/current` may be absent
+// When `repoRoot` is a linked worktree, its `.bouncer/current` may be absent
 // (the file is gitignored, so a fresh worktree checkout won't carry it over).
 // Fall back to the main repo's working tree pointer, resolved via the git
 // common dir, so the commit-safety guard still finds the active blueprint.

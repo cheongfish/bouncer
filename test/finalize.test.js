@@ -18,30 +18,30 @@ function writeDoc(repo, rel, data) {
 
 function fullBlueprint(repo, { distillStatus = 'published' } = {}) {
   writeDoc(repo, 'context/epics/EPIC-001-auth/index.md', {
-    type: 'sdd.epic', title: 'Auth', description: 'd', resource: 'context/epics/EPIC-001-auth/index.md',
-    tags: ['sdd'], timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
+    type: 'bouncer.epic', title: 'Auth', description: 'd', resource: 'context/epics/EPIC-001-auth/index.md',
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
   });
   writeDoc(repo, `${BP_REL}/index.md`, {
-    type: 'sdd.blueprint', title: 'Login', description: 'd', resource: `${BP_REL}/index.md`,
-    tags: ['sdd'], timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved' },
+    type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${BP_REL}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved' },
   });
   writeDoc(repo, `${BP_REL}/tasks.md`, {
-    type: 'sdd.tasks', title: 'Impl login', description: 'd', resource: `${BP_REL}/tasks.md`,
-    tags: ['sdd'], timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'verified',
+    type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${BP_REL}/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'verified',
       affected_paths: ['src/auth/'] },
   });
   writeDoc(repo, `${BP_REL}/verification.md`, {
-    type: 'sdd.verification', title: 'Verified', description: 'd', resource: `${BP_REL}/verification.md`,
-    tags: ['sdd'], timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'VERIFY-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'passed' },
+    type: 'bouncer.verification', title: 'Verified', description: 'd', resource: `${BP_REL}/verification.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'VERIFY-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'passed' },
   });
   writeDoc(repo, `${BP_REL}/distill.md`, {
-    type: 'sdd.distill', title: 'Distill', description: 'd', resource: `${BP_REL}/distill.md`,
-    tags: ['sdd'], timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'DISTILL-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: distillStatus },
+    type: 'bouncer.distill', title: 'Distill', description: 'd', resource: `${BP_REL}/distill.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'DISTILL-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: distillStatus },
   });
 }
 
@@ -59,7 +59,7 @@ function fakeGit(changed, untracked) {
 }
 
 test('gate failure short-circuits before touching git', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo, { distillStatus: 'draft' });
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
   assert.strictEqual(res.ok, false);
@@ -68,7 +68,7 @@ test('gate failure short-circuits before touching git', () => {
 });
 
 test('out-of-scope file causes hard abort, nothing staged', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts', 'src/payments/charge.ts'], []);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
@@ -80,7 +80,7 @@ test('out-of-scope file causes hard abort, nothing staged', () => {
 });
 
 test('dry-run reports staged files and message without committing', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts', `${BP_REL}/tasks.md`], []);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
@@ -91,7 +91,7 @@ test('dry-run reports staged files and message without committing', () => {
 });
 
 test('--yes stages and commits', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts'], [`${BP_REL}/distill.md`]);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });

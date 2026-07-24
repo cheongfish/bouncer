@@ -24,7 +24,7 @@ test('allowed set covers affected paths, bp subtree, ancestor indexes', () => {
 
 test('commit message follows the template', () => {
   const docs = {
-    blueprintIndex: { data: { title: 'Login flow', sdd: { id: 'BP-001', epic_id: 'EPIC-001' } } },
+    blueprintIndex: { data: { title: 'Login flow', bouncer: { id: 'BP-001', epic_id: 'EPIC-001' } } },
     tasks: { data: { title: 'Implement login' } },
     verification: { data: { title: 'Login verified' } },
     distill: { data: { resource: `${BP}/distill.md` } },

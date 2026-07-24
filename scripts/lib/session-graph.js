@@ -3,8 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-function realHasSdd(repoRoot) {
-  return fs.existsSync(path.join(repoRoot, '.sdd', 'config.json'));
+function realHasBouncer(repoRoot) {
+  return fs.existsSync(path.join(repoRoot, '.bouncer', 'config.json'));
 }
 
 function realHasGraphify() {
@@ -21,7 +21,7 @@ function realHasGraphify() {
 
 function realSourceDirs(repoRoot) {
   try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.sdd', 'config.json'), 'utf8'));
+    const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
     return Array.isArray(cfg.source_dirs) ? cfg.source_dirs : [];
   } catch (_e) { return []; }
 }
@@ -58,7 +58,7 @@ function realGraphMtime(repoRoot) {
 
 function planSessionGraph({ repoRoot, deps }) {
   const d = {
-    hasSdd: () => realHasSdd(repoRoot),
+    hasBouncer: () => realHasBouncer(repoRoot),
     hasGraphify: () => realHasGraphify(),
     sourceDirs: () => realSourceDirs(repoRoot),
     existingDirs: (dirs) => realExistingDirs(repoRoot, dirs),
@@ -66,7 +66,7 @@ function planSessionGraph({ repoRoot, deps }) {
     graphMtime: () => realGraphMtime(repoRoot),
     ...(deps || {}),
   };
-  if (!d.hasSdd()) return { action: 'skip-no-sdd', reason: 'no .sdd/ in project' };
+  if (!d.hasBouncer()) return { action: 'skip-no-bouncer', reason: 'no .bouncer/ in project' };
   if (!d.hasGraphify()) return { action: 'skip-no-graphify', reason: 'graphify not on PATH' };
   const dirs = d.existingDirs(d.sourceDirs());
   const graphMtime = d.graphMtime();

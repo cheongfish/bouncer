@@ -24,11 +24,11 @@ function capture() {
 }
 
 test('validate emits JSON and exit 1 on failure', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   writeDoc(repo, `${BP_REL}/tasks.md`, {
-    type: 'sdd.tasks', title: 't', description: 'd', resource: `${BP_REL}/tasks.md`,
-    tags: ['sdd'], timestamp: '2026-07-01T00:00:00+09:00',
-    sdd: { id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'ready', affected_paths: [] },
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${BP_REL}/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'ready', affected_paths: [] },
   });
   const { io, buf } = capture();
   const code = runCli(['validate', '--repo', repo, '--blueprint', BP_REL], io);
@@ -44,7 +44,7 @@ test('unknown command exits 2', () => {
 });
 
 test('validate without --blueprint exits 2 and does not report ok:true', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const { io, buf } = capture();
   const code = runCli(['validate', '--repo', repo], io);
   assert.strictEqual(code, 2);
@@ -53,7 +53,7 @@ test('validate without --blueprint exits 2 and does not report ok:true', () => {
 });
 
 test('finalize without --blueprint exits 2', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'sdd-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const { io, buf } = capture();
   const code = runCli(['finalize', '--repo', repo], io);
   assert.strictEqual(code, 2);

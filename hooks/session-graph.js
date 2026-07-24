@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // SessionStart hook: incrementally builds the graphify source graph over
-// config.source_dirs when .sdd/ exists and graphify is available. Never fails
+// config.source_dirs when .bouncer/ exists and graphify is available. Never fails
 // the session — always exits 0.
 const { execFileSync } = require('node:child_process');
 const { planSessionGraph } = require('../scripts/lib/session-graph');

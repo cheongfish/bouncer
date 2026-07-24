@@ -70,7 +70,7 @@ test('out-of-scope commit is blocked with a reason listing violations', () => {
 
 test('worktree pointer missing but main-repo pointer present → falls back and blocks out-of-scope commit', () => {
   const r = evaluateCommit({
-    command: 'git commit -m x', repoRoot: '/r/.sdd/worktrees/BP-001-y',
+    command: 'git commit -m x', repoRoot: '/r/.bouncer/worktrees/BP-001-y',
     deps: deps({
       current: null,
       mainCurrent: { blueprint: BP, base: 'develop' },
@@ -84,7 +84,7 @@ test('worktree pointer missing but main-repo pointer present → falls back and 
 
 test('worktree pointer missing and main-repo pointer also missing → no active blueprint, allowed', () => {
   const r = evaluateCommit({
-    command: 'git commit -m x', repoRoot: '/r/.sdd/worktrees/BP-001-y',
+    command: 'git commit -m x', repoRoot: '/r/.bouncer/worktrees/BP-001-y',
     deps: deps({
       current: null,
       mainCurrent: null,
@@ -97,7 +97,7 @@ test('worktree pointer missing and main-repo pointer also missing → no active 
 
 test('worktree pointer present → used directly, main-repo fallback not needed', () => {
   const r = evaluateCommit({
-    command: 'git commit -m x', repoRoot: '/r/.sdd/worktrees/BP-001-y',
+    command: 'git commit -m x', repoRoot: '/r/.bouncer/worktrees/BP-001-y',
     deps: deps({
       current: { blueprint: BP, base: 'develop' },
       mainCurrent: { blueprint: 'context/epics/EPIC-999-z/blueprints/BP-999-z', base: 'main' },

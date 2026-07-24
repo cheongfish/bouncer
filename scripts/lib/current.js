@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { toPosix } = require('./paths');
 
-const REL = '.sdd/current';
+const REL = '.bouncer/current';
 
 function readCurrent({ repoRoot }) {
   const abs = path.join(repoRoot, REL);

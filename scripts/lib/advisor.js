@@ -6,7 +6,7 @@ const { loadBlueprintDocs } = require('./validate');
 
 function readConfig(repoRoot) {
   try {
-    return JSON.parse(fs.readFileSync(path.join(repoRoot, '.sdd/config.json'), 'utf8'));
+    return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer/config.json'), 'utf8'));
   } catch (_e) {
     return {};
   }
@@ -14,7 +14,7 @@ function readConfig(repoRoot) {
 
 function statusOf(docs, key) {
   const d = docs[key];
-  return d && d.data && d.data.sdd ? d.data.sdd.status : undefined;
+  return d && d.data && d.data.bouncer ? d.data.bouncer.status : undefined;
 }
 
 function detectPhase({ repoRoot, deps }) {
@@ -38,7 +38,7 @@ function detectPhase({ repoRoot, deps }) {
   return { phase, blueprint: cur.blueprint };
 }
 
-const BOUNDARY = 'SDD docs, tests, verification, review, and affected_paths remain required.';
+const BOUNDARY = 'Bouncer docs, tests, verification, review, and affected_paths remain required.';
 
 function recommendMode({ phase, config }) {
   const adv = config && config.plugin_advisors && config.plugin_advisors.ponytail;
