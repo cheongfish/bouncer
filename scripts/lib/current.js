@@ -1,30 +1,16 @@
 'use strict';
-const fs = require('node:fs');
-const path = require('node:path');
-const { toPosix } = require('./paths');
+const { readRuntimeCurrent, writeRuntimeCurrent } = require('./runtime-state');
 
-const REL = '.bouncer/current';
-
-function readCurrent({ repoRoot }) {
-  const abs = path.join(repoRoot, REL);
-  if (!fs.existsSync(abs)) return null;
-  const raw = fs.readFileSync(abs, 'utf8').trim();
-  if (!raw) return null;
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (_e) {
-    return null;
-  }
-  return { blueprint: toPosix(data.blueprint), base: data.base };
+function readCurrent({ repoRoot, deps }) {
+  return readRuntimeCurrent({ repoRoot, deps });
 }
 
-function writeCurrent({ repoRoot, blueprint, base }) {
-  const abs = path.join(repoRoot, REL);
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  const data = { blueprint: toPosix(blueprint), base };
-  fs.writeFileSync(abs, `${JSON.stringify(data, null, 2)}\n`);
-  return REL;
+function writeCurrent({
+  repoRoot, blueprint, base, deps,
+}) {
+  return writeRuntimeCurrent({
+    repoRoot, blueprint, base, deps,
+  });
 }
 
 module.exports = { readCurrent, writeCurrent };

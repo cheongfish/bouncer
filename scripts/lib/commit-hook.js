@@ -46,23 +46,10 @@ function realStagedFiles({ repoRoot }) {
   return out.split('\n').filter(Boolean);
 }
 
-// When `repoRoot` is a linked worktree, its `.bouncer/current` may be absent
-// (the file is gitignored, so a fresh worktree checkout won't carry it over).
-// Fall back to the main repo's working tree pointer, resolved via the git
-// common dir, so the commit-safety guard still finds the active blueprint.
-function realMainRepoCurrent({ repoRoot }) {
-  try {
-    const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
-      cwd: repoRoot, encoding: 'utf8',
-    }).trim();
-    const absCommonDir = path.resolve(repoRoot, commonDir);
-    const localGitDir = path.resolve(repoRoot, '.git');
-    if (absCommonDir === localGitDir) return null;
-    const mainRoot = path.dirname(absCommonDir);
-    return readCurrent({ repoRoot: mainRoot });
-  } catch (_e) {
-    return null;
-  }
+// The active pointer lives in the Git common directory, so primary and linked
+// worktrees both resolve the same state without locating a main working tree.
+function realMainRepoCurrent({ repoRoot, deps }) {
+  return readCurrent({ repoRoot, deps });
 }
 
 function evaluateCommit({ command, repoRoot, deps }) {

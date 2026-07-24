@@ -2,7 +2,12 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { isGitCommit, evaluateCommit, realMainRepoCurrent } = require('../scripts/lib/commit-hook');
+const { writeCurrent } = require('../scripts/lib/current');
 
 test('isGitCommit detects commit invocations', () => {
   assert.strictEqual(isGitCommit('git commit -m "x"'), true);
@@ -110,4 +115,29 @@ test('worktree pointer present → used directly, main-repo fallback not needed'
 
 test('realMainRepoCurrent returns null when git commands fail (not a repo)', () => {
   assert.strictEqual(realMainRepoCurrent({ repoRoot: '/nonexistent/path/xyz' }), null);
+});
+
+test('realMainRepoCurrent reads one shared pointer from primary and linked worktrees', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-'));
+  const primary = path.join(root, 'primary');
+  const linked = path.join(root, 'linked');
+  fs.mkdirSync(primary);
+  execFileSync('git', ['init', '--quiet'], { cwd: primary });
+  fs.writeFileSync(path.join(primary, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: primary });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'fixture',
+  ], { cwd: primary });
+  execFileSync('git', ['worktree', 'add', '--quiet', '--detach', linked], { cwd: primary });
+  const deps = {
+    execFileSync,
+    env: { ...process.env, XDG_STATE_HOME: path.join(root, 'state') },
+    platform: 'linux',
+  };
+  const current = { blueprint: BP, base: 'develop' };
+  writeCurrent({ repoRoot: primary, ...current, deps });
+
+  assert.deepStrictEqual(realMainRepoCurrent({ repoRoot: primary, deps }), current);
+  assert.deepStrictEqual(realMainRepoCurrent({ repoRoot: linked, deps }), current);
 });
