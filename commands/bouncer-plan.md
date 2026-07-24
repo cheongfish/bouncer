@@ -13,7 +13,7 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
 1. **Discover.** Use the `discovery` skill to clarify the request into goal, scope,
    non-goals, and success criteria. Confirm with the user before scaffolding.
 
-2. **ID allocation.** Scan `context/epics` for the next sequential id
+2. **ID allocation.** Scan `.bouncer/context/epics` for the next sequential id
    (`EPIC-002` after `EPIC-001`; `BP-002` within an epic). Show the suggested id
    and let the user override it.
 
@@ -22,8 +22,10 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" scaffold epic --id <EPIC-id> --name <slug>
    node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" scaffold blueprint \
-     --epic-dir <context/epics/EPIC-id-slug> --id <BP-id> --name <slug>
+     --epic-dir <.bouncer/context/epics/EPIC-id-slug> --id <BP-id> --name <slug>
    ```
+   The epic and blueprint outputs must both remain under
+   `.bouncer/context/epics/...`.
    (Skip `scaffold epic` when adding a blueprint to an existing epic.) Scaffold
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
    review `pending`, distill `draft`.
@@ -58,7 +60,7 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
 
 9. **Gate.** Run `bouncer validate --gate plan` and report:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <blueprint dir> --gate plan
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G3 tasks ready,
    G4 `graph.suggested_paths` present, G5 `affected_paths` non-empty, G10 all

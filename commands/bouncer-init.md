@@ -11,12 +11,12 @@ Bootstrap this project for Bouncer.
    node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" init
    ```
 2. Report the result:
-   - If `skipped: true`, tell the user `.bouncer/` already exists and **no changes**
-     were made (idempotent).
-   - Otherwise, list the created files (`.bouncer/config.json`, `.bouncer/current`,
+   - If no files were created, report the detected bootstrap state and that no
+     changes were made.
+   - Otherwise, list the created files (`.bouncer/config.json`,
      `.bouncer/governance.md`, `.bouncer/workflow.md`, `.bouncer/okf.md`,
-     `.bouncer/templates/*`, `context/index.md`) and note that `.gitignore` gained
-     `.bouncer/worktrees/`, `graphify-out/`, and `.bouncer/current`.
+     `.bouncer/templates/*`, `.bouncer/context/index.md`).
+   - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
 3. Point the user at `/bouncer-plan` as the next step, and mention they can edit
    `.bouncer/config.json` (`source_dirs`, `verify`, `base_branch`, `pr`) first.
 

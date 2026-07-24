@@ -7,7 +7,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 
-const BP_REL = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
 function writeDoc(repo, rel, data) {
   const abs = path.join(repo, rel);

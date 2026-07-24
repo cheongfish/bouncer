@@ -7,7 +7,8 @@ description: Use when authoring the body of planning or distill documents. Write
 
 Author the **body** of planning documents (epic, blueprint, tasks) and later
 distill notes. Scaffolding already wrote the frontmatter and protocol block.
-Your job is the prose under it.
+Your job is the prose under it. Canonical Bouncer documents live only under
+`.bouncer/context/`; never read, author, or migrate a root `context/` tree.
 
 ## Ownership boundary (do not cross)
 

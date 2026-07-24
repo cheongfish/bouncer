@@ -7,12 +7,12 @@ const path = require('node:path');
 const { checkGate, parseTasksSections, extractPathCandidates, validateBlueprint } = require('../scripts/lib/validate');
 
 const rels = {
-  epicIndex: 'context/epics/EPIC-001-auth/index.md',
-  blueprintIndex: 'context/epics/EPIC-001-auth/blueprints/BP-001-login/index.md',
-  tasks: 'context/epics/EPIC-001-auth/blueprints/BP-001-login/tasks.md',
-  verification: 'context/epics/EPIC-001-auth/blueprints/BP-001-login/verification.md',
-  review: 'context/epics/EPIC-001-auth/blueprints/BP-001-login/review.md',
-  distill: 'context/epics/EPIC-001-auth/blueprints/BP-001-login/distill.md',
+  epicIndex: '.bouncer/context/epics/EPIC-001-auth/index.md',
+  blueprintIndex: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/index.md',
+  tasks: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/tasks.md',
+  verification: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/verification.md',
+  review: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/review.md',
+  distill: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/distill.md',
 };
 
 const READY_BODY = `# Tasks
@@ -244,7 +244,7 @@ test('finalize gate requires distill published', () => {
   assert.deepStrictEqual(failures.map((f) => f.code), ['G9']);
 });
 
-const BP_REL = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
 function mkRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-gates-'));
@@ -262,7 +262,7 @@ function epicDoc() {
     type: 'bouncer.epic',
     title: 'Auth epic',
     description: 'EPIC-001',
-    resource: 'context/epics/EPIC-001-auth/index.md',
+    resource: '.bouncer/context/epics/EPIC-001-auth/index.md',
     tags: ['bouncer', 'epic'],
     timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
@@ -322,7 +322,7 @@ function planReadyTasks() {
 }
 
 function writePlanBlueprint(repo, tasksBody) {
-  writeDoc(repo, 'context/epics/EPIC-001-auth/index.md', epicDoc());
+  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, `${BP_REL}/tasks.md`, planReadyTasks(), tasksBody);
 }

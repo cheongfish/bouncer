@@ -36,7 +36,7 @@ test('writeCurrent then readCurrent round-trips', () => {
   const deps = runtimeDeps(repo);
   const rel = writeCurrent({
     repoRoot: repo,
-    blueprint: 'context/epics/EPIC-001-x/blueprints/BP-001-y',
+    blueprint: '.bouncer/context/epics/EPIC-001-x/blueprints/BP-001-y',
     base: 'develop',
     deps,
   });
@@ -45,7 +45,7 @@ test('writeCurrent then readCurrent round-trips', () => {
   assert.ok(fs.existsSync(rel));
   assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer', 'current')), false);
   assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), {
-    blueprint: 'context/epics/EPIC-001-x/blueprints/BP-001-y',
+    blueprint: '.bouncer/context/epics/EPIC-001-x/blueprints/BP-001-y',
     base: 'develop',
   });
 });
@@ -54,11 +54,11 @@ test('writeCurrent normalizes backslashes to POSIX', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   writeCurrent({
-    repoRoot: repo, blueprint: 'context\\epics\\EPIC-001-x', base: 'main', deps,
+    repoRoot: repo, blueprint: '.bouncer\\context\\epics\\EPIC-001-x', base: 'main', deps,
   });
   assert.strictEqual(
     readCurrent({ repoRoot: repo, deps }).blueprint,
-    'context/epics/EPIC-001-x',
+    '.bouncer/context/epics/EPIC-001-x',
   );
 });
 

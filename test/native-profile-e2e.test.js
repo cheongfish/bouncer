@@ -7,7 +7,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { validateBlueprint } = require('../scripts/lib/validate');
 
-const BP_REL = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
 function writeDoc(repo, rel, data, body) {
   const abs = path.join(repo, rel);
@@ -33,8 +33,8 @@ test('native profile: execute gate passes on self-contained verification+review 
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(cfg));
 
   // epic + blueprint indexes
-  writeDoc(repo, 'context/epics/EPIC-001-auth/index.md',
-    { ...base('bouncer.epic', 'EPIC-001', 'approved'), resource: 'context/epics/EPIC-001-auth/index.md' },
+  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md',
+    { ...base('bouncer.epic', 'EPIC-001', 'approved'), resource: '.bouncer/context/epics/EPIC-001-auth/index.md' },
     '# epic\n');
   writeDoc(repo, `${BP_REL}/index.md`,
     { ...base('bouncer.blueprint', 'BP-001', 'approved'), resource: `${BP_REL}/index.md` },

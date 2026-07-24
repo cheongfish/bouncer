@@ -2,6 +2,7 @@
 'use strict';
 const { execFileSync } = require('node:child_process');
 const { epicDirOf, toPosix } = require('./paths');
+const { CONTEXT_ROOT } = require('./scaffold');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
 
 function isUnder(file, entry) {
@@ -20,7 +21,7 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
     const f = toPosix(file);
     if (isUnder(f, `${bp}/`)) return true;
     if (f === `${epicDir}/index.md`) return true;
-    if (f === 'context/index.md') return true;
+    if (f === `${CONTEXT_ROOT}/index.md`) return true;
     return paths.some((p) => isUnder(f, p));
   };
 }

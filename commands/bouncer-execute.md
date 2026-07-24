@@ -16,6 +16,8 @@ regression → minimum fix → re-verify).
    node -e "console.log(JSON.stringify(require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/current').readCurrent({repoRoot:process.cwd()})))"
    ```
    If it is `null`, stop and tell the user to run `/bouncer-plan` first.
+   Use the returned `blueprint` value verbatim for every document read and
+   `--blueprint` argument below; do not reconstruct a root `context/` path.
 
 2. **Worktree.** Create a blueprint-level worktree + branch:
    - base = the branch checked out now (record it as `base` in `.bouncer/current`),
@@ -61,7 +63,7 @@ regression → minimum fix → re-verify).
 
 6. **Gate.** Run `validate --gate execute`:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <blueprint dir> --gate execute
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
    ```
    Gate `execute` checks G6 tasks verified, G7 verification passed, G8 review
    accepted (or `required: false`). Fix and re-run until it passes, then point

@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { renderDoc } = require('./render');
 
+const CONTEXT_ROOT = '.bouncer/context';
+
 function writeRel(repoRoot, rel, data, body) {
   const abs = path.join(repoRoot, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -15,7 +17,7 @@ function bouncerDoc(type, title, description, resource, tags, timestamp, bouncer
 }
 
 function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
-  const dir = `context/epics/${epicId}-${name}`;
+  const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
   const rel = `${dir}/index.md`;
   const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, `Epic ${epicId}`, rel,
     ['bouncer', 'epic'], timestamp,
@@ -24,6 +26,9 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
 }
 
 function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) {
+  if (!new RegExp(`^${CONTEXT_ROOT.replace('.', '\\.')}/epics/EPIC-\\d+[^/]*$`).test(epicDir)) {
+    throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
+  }
   const epicId = /EPIC-\d+/.exec(epicDir)[0];
   const dir = `${epicDir}/blueprints/${blueprintId}-${name}`;
   const created = [];
@@ -76,4 +81,4 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
   return created;
 }
 
-module.exports = { scaffoldEpic, scaffoldBlueprint };
+module.exports = { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint };

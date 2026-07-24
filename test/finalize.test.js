@@ -8,7 +8,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { finalize } = require('../scripts/lib/finalize');
 
-const BP_REL = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
 function writeDoc(repo, rel, data) {
   const abs = path.join(repo, rel);
@@ -17,8 +17,8 @@ function writeDoc(repo, rel, data) {
 }
 
 function fullBlueprint(repo, { distillStatus = 'published' } = {}) {
-  writeDoc(repo, 'context/epics/EPIC-001-auth/index.md', {
-    type: 'bouncer.epic', title: 'Auth', description: 'd', resource: 'context/epics/EPIC-001-auth/index.md',
+  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth', description: 'd', resource: '.bouncer/context/epics/EPIC-001-auth/index.md',
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
   });

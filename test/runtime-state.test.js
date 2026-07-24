@@ -98,7 +98,7 @@ test('runtime current round-trips across primary and linked worktrees', () => {
     platform: 'linux',
   };
   const value = {
-    blueprint: 'context/epics/EPIC-001-x/blueprints/BP-001-y',
+    blueprint: '.bouncer/context/epics/EPIC-001-x/blueprints/BP-001-y',
     base: 'develop',
   };
 

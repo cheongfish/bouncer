@@ -13,7 +13,8 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   assert.ok(data.description.length > 0);
   assert.match(body, /scripts\/bouncer"\s+scaffold\s+epic\b/);
   assert.match(body, /scripts\/bouncer"\s+scaffold\s+blueprint\b/);
-  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<blueprint dir>\s+--gate\s+plan\b/);
+  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+plan\b/);
+  assert.match(body, /\.bouncer\/context\/epics/);
   assert.match(body, /discovery/);
   assert.match(body, /spec-authoring/);
   assert.match(body, /graphify-runner/);

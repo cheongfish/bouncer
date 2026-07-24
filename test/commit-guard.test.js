@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { checkCommitSafety } = require('../scripts/lib/commit-guard');
 
-const BP = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
 test('allows in-scope files', () => {
   const res = checkCommitSafety({
