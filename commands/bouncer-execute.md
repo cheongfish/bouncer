@@ -22,19 +22,19 @@ regression → minimum fix → re-verify).
 2. **Worktree.** Create a blueprint-level worktree + branch:
    - base = the branch checked out now (record it as `base` in `.bouncer/current`),
    - branch `bouncer/<BP-id>-<slug>`,
-   - location `.bouncer/worktrees/<BP-id>` (already gitignored):
+   - location `<runtime worktree root>/<BP-id>`, resolved outside the repository by
+     `runtime-state.ensureWorktreeRoot()`:
    ```bash
-   git worktree add -b bouncer/<BP-id>-<slug> .bouncer/worktrees/<BP-id> <base>
+   WORKTREE_ROOT="$(node -e "process.stdout.write(require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/runtime-state').ensureWorktreeRoot({repoRoot:process.cwd()}))")"
+   WORKTREE_PATH="${WORKTREE_ROOT}/<BP-id>"
+   git worktree add -b bouncer/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
    ```
-   Re-write `.bouncer/current` inside the worktree so the `commit-safety` hook can
-   resolve the active blueprint there (`{ "blueprint": "<dir>", "base": "<base>" }`).
-   **`cd` into `.bouncer/worktrees/<BP-id>` and stay there for every subsequent git
-   operation in this session** (`git add`, `git commit`, etc.). Do **not** run
-   `git -C .bouncer/worktrees/<BP-id> ...` from the project root — the
-   `commit-safety` PreToolUse hook resolves the active blueprint from the
-   command's actual working directory (`cwd`), and a `-C`-qualified command
-   run from the root reports the root as `cwd`, so the hook would inspect the
-   wrong (likely empty) index and fail to guard the commit.
+   The active pointer is stored under the Git common directory, so the worktree
+   resolves the same pointer without copying it into the repository. **Set every
+   subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`** (`git add`,
+   `git commit`, etc.). Do **not** run `git -C "${WORKTREE_PATH}" ...` from the
+   project root — the `commit-safety` PreToolUse hook uses the command's actual
+   working directory and would otherwise inspect the wrong index.
 
 3. **Implement (tasks.md is the sole brief).** Use the `implementation` skill
    and only these `tasks.md` sections as decision authority:

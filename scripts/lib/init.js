@@ -6,6 +6,7 @@ const { detectLegacyFormat } = require('./schema');
 const CONFIG = {
   okf_version: '0.x',
   source_dirs: ['src', 'test'],
+  graphify: { enabled: false },
   verify: 'npm test',
   base_branch: 'develop',
   pr: { draft: true, base: 'develop', labels: ['bouncer'] },

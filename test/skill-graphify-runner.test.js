@@ -1,8 +1,6 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const { readSkill } = require('./helpers/read-skill');
 
@@ -28,7 +26,14 @@ test('graphify-runner records basis and documents freshness policy', () => {
   assert.match(md, /SessionStart|freshness|mtime/i);
 });
 
-test('.gitignore excludes graphify-out cache', () => {
-  const gi = fs.readFileSync(path.join(__dirname, '..', '.gitignore'), 'utf8');
-  assert.match(gi, /graphify-out/);
+test('graphify-runner treats graphify-out as user-managed local output', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /user-managed local output/i);
+  assert.doesNotMatch(md, /local cache|gitignored cache/i);
+});
+
+test('graphify-runner handles disabled auto-build with user-confirmed affected paths', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /auto-build is disabled|automatic graph build is disabled/i);
+  assert.match(md, /require the user to confirm\s+`affected_paths`/i);
 });

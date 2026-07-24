@@ -6,16 +6,17 @@ description: Use during /bouncer-plan to query the prebuilt source-code graph fo
 # Graphify Runner
 
 Turn a blueprint's intent into `bouncer.graph.suggested_paths` by querying the
-source graph that the `session-graph` hook built at SessionStart into
-`graphify-out/`.
+source graph in `graphify-out/`. This directory is user-managed local output;
+the SessionStart hook updates it only when `config.graphify.enabled` is `true`.
 
 ## Steps
 
-1. **Availability check.** If `graphify` is not on PATH or `graphify-out/` does
-   not exist, **skip gracefully**: leave `suggested_paths` as the scaffolded
-   `[]`, record the graceful fallback in `bouncer.graph.basis`, and tell the
-   caller the graph was unavailable so the user seeds `affected_paths`
-   manually. Do not fail the command.
+1. **Availability check.** If graphify auto-build is disabled, `graphify` is not
+   on PATH, or `graphify-out/` does not exist, **skip gracefully**: leave
+   `suggested_paths` as the scaffolded `[]`, record the graceful fallback in
+   `bouncer.graph.basis`, and tell the caller the graph was unavailable so the
+   user provides and confirms `affected_paths` manually. Do not fail the
+   command.
 2. **Query.** Build a query string from the blueprint goal plus the tasks
    checklist intent, then run:
    ```bash
@@ -39,8 +40,9 @@ source graph that the `session-graph` hook built at SessionStart into
   confirms the authoritative `affected_paths`.
 - Never write `affected_paths` here — that is `/bouncer-plan`'s user-confirmed
   step.
-- Graph freshness is decided at SessionStart by the `session-graph` hook
-  (`planSessionGraph` rebuilds when source mtime exceeds the graph mtime). This
-  skill does not rebuild; it queries the current `graphify-out/`, which is a
-  local cache (gitignored). If the graph is missing or stale, skip gracefully
-  and let the user seed `affected_paths` manually.
+- When auto-build is enabled, graph freshness is decided at SessionStart by the
+  `session-graph` hook (`planSessionGraph` rebuilds when source mtime exceeds the
+  graph mtime). This skill does not rebuild; it queries the current
+  user-managed local output in `graphify-out/`. If the graph is missing or
+  stale, skip gracefully and require the user to confirm `affected_paths`
+  manually.

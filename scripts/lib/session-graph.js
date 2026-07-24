@@ -16,6 +16,13 @@ function realHasGraphify() {
   }
 }
 
+function realGraphifyEnabled(repoRoot) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
+    return cfg.graphify?.enabled === true;
+  } catch (_e) { return false; }
+}
+
 function realSourceDirs(repoRoot) {
   try {
     const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
@@ -57,6 +64,7 @@ function planSessionGraph({ repoRoot, deps }) {
   const d = {
     inspectBootstrap: () => inspectBootstrap({ repoRoot }),
     init: () => init({ repoRoot, timestamp: new Date().toISOString() }),
+    graphifyEnabled: () => realGraphifyEnabled(repoRoot),
     hasGraphify: () => realHasGraphify(),
     sourceDirs: () => realSourceDirs(repoRoot),
     existingDirs: (dirs) => realExistingDirs(repoRoot, dirs),
@@ -77,6 +85,9 @@ function planSessionGraph({ repoRoot, deps }) {
   }
   if (bootstrap === 'legacy') {
     return { bootstrap, action: 'skip-legacy-bootstrap', reason: 'legacy-bootstrap-state' };
+  }
+  if (!d.graphifyEnabled()) {
+    return { bootstrap, action: 'skip-graph-disabled', reason: 'graphify auto-build disabled' };
   }
   if (!d.hasGraphify()) {
     return { bootstrap, action: 'skip-no-graphify', reason: 'graphify not on PATH' };

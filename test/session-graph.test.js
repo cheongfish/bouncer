@@ -11,6 +11,7 @@ function base(over) {
   return {
     inspectBootstrap: () => 'ready',
     init: () => ({ ok: true, created: [], skipped: true, reason: 'already-initialized' }),
+    graphifyEnabled: () => true,
     hasGraphify: () => true,
     sourceDirs: () => ['src', 'test'],
     existingDirs: (dirs) => dirs,
@@ -43,6 +44,11 @@ test('real bootstrap creates only safe project-local state', () => {
     deps: { hasGraphify: () => false },
   });
   assert.strictEqual(result.bootstrap, 'created');
+  assert.strictEqual(result.action, 'skip-graph-disabled');
+  assert.deepStrictEqual(
+    JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8')).graphify,
+    { enabled: false },
+  );
   assert.ok(fs.existsSync(path.join(repo, '.bouncer/config.json')));
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/current')));
   assert.ok(!fs.existsSync(path.join(repo, '.gitignore')));
@@ -70,6 +76,43 @@ test('skips graph work for legacy bootstrap state', () => {
   const result = plan({ inspectBootstrap: () => 'legacy' });
   assert.strictEqual(result.bootstrap, 'legacy');
   assert.strictEqual(result.action, 'skip-legacy-bootstrap');
+});
+
+test('skips graph work when ready config does not opt in to graphify', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-session-'));
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    verify: 'npm test',
+    base_branch: 'main',
+  }));
+  let checkedGraphify = false;
+
+  const result = planSessionGraph({
+    repoRoot: repo,
+    deps: {
+      hasGraphify: () => {
+        checkedGraphify = true;
+        return true;
+      },
+    },
+  });
+
+  assert.deepStrictEqual(result, {
+    bootstrap: 'ready',
+    action: 'skip-graph-disabled',
+    reason: 'graphify auto-build disabled',
+  });
+  assert.strictEqual(checkedGraphify, false);
+});
+
+test('graphify opt-in retains missing graph build behavior', () => {
+  const result = plan({
+    graphifyEnabled: () => true,
+    graphMtime: () => null,
+  });
+  assert.strictEqual(result.action, 'build');
+  assert.deepStrictEqual(result.dirs, ['src', 'test']);
 });
 
 test('skips when graphify is not on PATH', () => {

@@ -14,6 +14,10 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.match(md, /\.bouncer\/current/);
   assert.match(body, /worktree/i);
   assert.match(body, /bouncer\/<BP|bouncer\/\$\{|bouncer\//);
+  assert.match(body, /runtime-state/);
+  assert.match(body, /ensureWorktreeRoot/);
+  assert.doesNotMatch(body, /\.bouncer\/worktrees/);
+  assert.doesNotMatch(body, /already gitignored|ignored in-repo worktree/i);
   assert.match(body, /implementation/);
   assert.match(body, /verification/);
   assert.match(body, /review/);
