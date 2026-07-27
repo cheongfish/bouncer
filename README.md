@@ -34,6 +34,40 @@ Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 
 /plugin install bouncer@chunjae-tools
 ```
 
+### Cursor
+
+같은 저장소가 Cursor 플러그인이기도 합니다 (`.cursor-plugin/`). Cursor 세션에서:
+
+```
+/add-plugin <사내-git-url>
+```
+
+명령(`commands/`)과 스킬(`skills/`)은 Cursor의 기본 탐색 경로와 레이아웃이 같아
+그대로 잡힙니다. 커밋 가드는 `hooks/cursor-hooks.json`이 `beforeShellExecution`에
+걸어 주며, `affected_paths` 밖 파일이 staged면 셸 실행을 `deny`합니다 — Claude Code의
+`PreToolUse` 가드와 **판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다.
+
+### Codex
+
+아직 지원하지 않습니다. Codex 플러그인 매니페스트는 `skills`만 받고 `commands`와
+`hooks`를 검증 단계에서 거부하기 때문에, 4개 명령도 커밋 가드도 플러그인으로는
+노출할 수 없습니다. 스킬만 싣는 반쪽짜리 설치를 서두르기보다 별도 blueprint에서
+제대로 설계합니다.
+
+### 플러그인 루트 (`BOUNCER_HOME`)
+
+명령 본문은 `bouncer` CLI를 플러그인 디렉터리에서 실행합니다. 그 위치를 알려주는
+환경변수는 에이전트마다 달라서, 명령은 다음 순서로 해석합니다.
+
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+```
+
+Claude Code는 `CLAUDE_PLUGIN_ROOT`를 넣어 주므로 아무 설정 없이 동작합니다. 그 변수가
+없는 에이전트에서는 `scripts/bouncer`가 들어 있는 설치 디렉터리를 `BOUNCER_HOME`으로
+export 하면 됩니다. 명령은 해석에 실패하면 조용히 넘어가지 않고 `UNRESOLVED`를
+출력합니다.
+
 **`npm install`은 필요 없습니다.** Claude Code는 플러그인을 클론만 하고 의존성을
 설치하지 않으므로, 런타임에 필요한 `js-yaml`은 `scripts/vendor/`에 벤더링돼 있습니다
 (자세한 내용은 `scripts/vendor/README.md`). Node 24에서 검증했습니다. 런타임 코드는

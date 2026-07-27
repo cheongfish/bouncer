@@ -14,8 +14,6 @@ bouncer:
   status: ready
   affected_paths:
     - .cursor-plugin
-    - .codex-plugin
-    - .agents
     - hooks
     - commands
     - test
@@ -73,9 +71,6 @@ Claude Code 쪽 설치·동작은 회귀 없이 그대로 유지되어야 한다
   않는다). `commands`/`skills`는 선언하지 않는다 — 기본 탐색이 맞다.
 - `.cursor-plugin/marketplace.json` — 엔트리 하나, `name: "bouncer"`,
   `source: "./"`. `.claude-plugin/marketplace.json`과 대응.
-- `.codex-plugin/plugin.json` — Codex 매니페스트. 스펙상 `.codex-plugin/`에는
-  `plugin.json`만 두고 나머지 자산은 루트에 둔다.
-- `.agents/plugins/marketplace.json` — Codex가 읽는 레포 마켓플레이스 카탈로그.
 
 **신규 훅 어댑터**
 
@@ -101,8 +96,6 @@ Claude Code 쪽 설치·동작은 회귀 없이 그대로 유지되어야 한다
 
 ## Touch
 - `.cursor-plugin/` — Cursor 플러그인/마켓플레이스 매니페스트 신규.
-- `.codex-plugin/` — Codex 플러그인 매니페스트 신규.
-- `.agents/` — Codex 레포 마켓플레이스 카탈로그(`plugins/marketplace.json`) 신규.
 - `hooks/` — Cursor 훅 정의와 어댑터 신규, `hooks.json`의 루트 토큰 치환. 이
   디렉터리 안에서도 `session-graph.js`는 손대지 않는다 (SessionStart 훅 이식은
   이 blueprint의 out of scope).
@@ -133,15 +126,27 @@ Claude Code 쪽 설치·동작은 회귀 없이 그대로 유지되어야 한다
 - [ ] `hooks/cursor-hooks.json`과 `hooks/cursor-commit-safety.js`를 만든다.
       어댑터는 `evaluateCommit`을 호출만 하고, 실패 시 fail-closed(차단) 한다 —
       `hooks/commit-safety.js`의 처리와 동일한 판단 기준을 유지한다.
-- [ ] `.codex-plugin/plugin.json`과 `.agents/plugins/marketplace.json`을 만든다.
-      Codex에 셸 가로채기 이벤트가 있으면 커밋 가드를 걸고, 없으면 걸지 않고
-      다음 항목에서 한계로 문서화한다.
-- [ ] `README.md`에 세 에이전트 설치 절차와 에이전트별 강제 수준 차이를 적는다.
-      Codex에서 커밋 가드가 걸리지 않는다면 그 사실을 숨기지 말고 명시한다.
-- [ ] `test/` 에 검증을 추가한다: (1) 세 매니페스트가 존재하고 `name`이 `bouncer`로
-      일치하며 버전이 `.claude-plugin/plugin.json`과 어긋나지 않는다,
-      (2) `commands/*.md`와 `hooks/*.json`에 치환되지 않은 `${CLAUDE_PLUGIN_ROOT}`
-      리터럴이 남아 있지 않다, (3) affected_paths 밖 파일이 staged인 상황에서
-      Cursor 어댑터가 차단 응답을 낸다.
+- [ ] `README.md`에 Claude Code·Cursor 설치 절차와 `BOUNCER_HOME` 해석 규칙을 적고,
+      Codex 지원은 매니페스트 제약(아래 Deviations) 때문에 BP-002로 미뤘음을 밝힌다.
+- [ ] `test/` 에 검증을 추가한다: (1) Cursor 매니페스트가 존재하고 `name`이 `bouncer`로
+      `.claude-plugin/plugin.json`과 일치하며 버전도 어긋나지 않는다,
+      (2) `commands/*.md`가 `${CLAUDE_PLUGIN_ROOT}`를 직접 쓰지 않고 `BOUNCER_ROOT`
+      해석을 거친다, (3) affected_paths 밖 파일이 staged인 상황에서 Cursor 어댑터가
+      `permission: "deny"`를 stdout으로 낸다.
 - [ ] `npm test` 전체 통과. 특히 `test/plugin-wiring.test.js`와
       `test/distribution.test.js`가 그대로 통과하는지 확인한다 (Claude Code 회귀).
+
+## Deviations
+실행 중 확인된 사실로 계획을 두 군데 정정했다. 둘 다 사용자 승인 아래 반영.
+
+1. **Codex 분리 (BP-002).** Codex 0.145의 공식 검증기
+   (`~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py`)가 받는
+   매니페스트 키는 `id, name, version, description, skills, apps, mcpServers,
+   interface, author, homepage, repository, license, keywords`뿐이다 — `commands`도
+   `hooks`도 거부된다. Codex 플러그인으로는 4개 명령도 커밋 가드도 노출할 수 없어,
+   이번 blueprint를 Cursor 전용으로 줄이고 Codex는 별도 blueprint로 설계한다.
+2. **`hooks/hooks.json`은 그대로 둔다.** 이 파일은 Claude Code만 읽고, 그 환경에서는
+   `${CLAUDE_PLUGIN_ROOT}`가 정상 치환된다. Cursor는 매니페스트가 가리키는
+   `hooks/cursor-hooks.json`만 읽으며 그쪽은 플러그인 루트 기준 상대 경로를 쓴다
+   (설치된 Cursor 플러그인 실측으로 확인). 바꿀 이유가 없고 바꾸면 Claude 회귀
+   위험만 생긴다.

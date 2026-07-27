@@ -4,11 +4,22 @@ description: Bootstrap the .bouncer/ governance directory for Bouncer (idempoten
 
 # /bouncer-init
 
+**Plugin root.** Resolve `BOUNCER_ROOT` once before any command below:
+
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+[ -f "${BOUNCER_ROOT}/scripts/bouncer" ] && echo "$BOUNCER_ROOT" || echo UNRESOLVED
+```
+
+If it prints `UNRESOLVED`, this agent exports no plugin-root variable. Find the
+installed Bouncer plugin directory (the one containing `scripts/bouncer`) and
+export `BOUNCER_HOME` to it, then re-run the line above.
+
 Bootstrap this project for Bouncer.
 
 1. Run `bouncer init` (writes nothing if `.bouncer/` already exists):
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" init
+   node "${BOUNCER_ROOT}/scripts/bouncer" init
    ```
 2. Report the result:
    - If no files were created, report the detected bootstrap state and that no

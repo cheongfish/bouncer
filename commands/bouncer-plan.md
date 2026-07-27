@@ -5,6 +5,17 @@ argument-hint: [epic or blueprint description]
 
 # /bouncer-plan
 
+**Plugin root.** Resolve `BOUNCER_ROOT` once before any command below:
+
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+[ -f "${BOUNCER_ROOT}/scripts/bouncer" ] && echo "$BOUNCER_ROOT" || echo UNRESOLVED
+```
+
+If it prints `UNRESOLVED`, this agent exports no plugin-root variable. Find the
+installed Bouncer plugin directory (the one containing `scripts/bouncer`) and
+export `BOUNCER_HOME` to it, then re-run the line above.
+
 Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
 
@@ -20,8 +31,8 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" scaffold epic --id <EPIC-id> --name <slug>
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" scaffold blueprint \
+   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <EPIC-id> --name <slug>
+   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
      --epic-dir <.bouncer/context/epics/EPIC-id-slug> --id <BP-id> --name <slug>
    ```
    The epic and blueprint outputs must both remain under
@@ -56,13 +67,13 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
 
 8. **Pointer.** Record the active blueprint:
    ```bash
-   node -e "require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/current').writeCurrent({repoRoot:process.cwd(),blueprint:'<blueprint dir>',base:require('fs').existsSync('.bouncer/config.json')?JSON.parse(require('fs').readFileSync('.bouncer/config.json','utf8')).base_branch:'develop'})"
+   node -e "require('${BOUNCER_ROOT}/scripts/lib/current').writeCurrent({repoRoot:process.cwd(),blueprint:'<blueprint dir>',base:require('fs').existsSync('.bouncer/config.json')?JSON.parse(require('fs').readFileSync('.bouncer/config.json','utf8')).base_branch:'develop'})"
    ```
    (Equivalently: write `.bouncer/current` as `{ "blueprint": "<dir>", "base": "<config.base_branch>" }`.)
 
 9. **Gate.** Run `bouncer validate --gate plan` and report:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
+   node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G3 tasks ready,
    G4 `graph.suggested_paths` present and `graph.basis` non-empty, G5

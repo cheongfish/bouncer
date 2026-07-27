@@ -4,6 +4,17 @@ description: Finalize the active Bouncer blueprint — distill, validate, commit
 
 # /bouncer-finalize
 
+**Plugin root.** Resolve `BOUNCER_ROOT` once before any command below:
+
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+[ -f "${BOUNCER_ROOT}/scripts/bouncer" ] && echo "$BOUNCER_ROOT" || echo UNRESOLVED
+```
+
+If it prints `UNRESOLVED`, this agent exports no plugin-root variable. Find the
+installed Bouncer plugin directory (the one containing `scripts/bouncer`) and
+export `BOUNCER_HOME` to it, then re-run the line above.
+
 Close out the active blueprint. Follow this sequence.
 Read `.bouncer/current` and use its `blueprint` value verbatim wherever
 `<pointer.blueprint>` appears; do not reconstruct a root `context/` path.
@@ -13,14 +24,14 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate finalize
+   node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate finalize
    ```
    Gate `finalize` checks G9 `distill.status == published`. Fix and re-run until
    it passes.
 
 3. **Commit the remainder (deterministic core).** Dry-run first:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint>
+   node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint>
    ```
    This checks every remaining uncommitted change (tracked or untracked) against
    the allowed-set. Anything out of scope is a **hard abort — nothing staged**;
@@ -28,7 +39,7 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
    files. On a clean dry-run, show the staged file list + generated commit
    message and ask for confirmation, then commit:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
+   node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
    ```
    (If there is nothing left to commit because execute already committed
    everything, `finalize` reports an empty staged set — that is fine.)

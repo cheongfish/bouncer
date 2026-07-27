@@ -1,0 +1,17 @@
+{
+  "name": "bouncer",
+  "displayName": "Bouncer",
+  "description": "Spec-driven development gates for Cursor: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Chunjae AI Dev",
+    "email": "aidev.chunjae@gmail.com"
+  },
+  "keywords": [
+    "spec-driven",
+    "governance",
+    "workflow",
+    "gates"
+  ],
+  "hooks": "./hooks/cursor-hooks.json"
+}

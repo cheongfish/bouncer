@@ -4,6 +4,17 @@ description: Execute the active Bouncer blueprint in an isolated worktree — im
 
 # /bouncer-execute
 
+**Plugin root.** Resolve `BOUNCER_ROOT` once before any command below:
+
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+[ -f "${BOUNCER_ROOT}/scripts/bouncer" ] && echo "$BOUNCER_ROOT" || echo UNRESOLVED
+```
+
+If it prints `UNRESOLVED`, this agent exports no plugin-root variable. Find the
+installed Bouncer plugin directory (the one containing `scripts/bouncer`) and
+export `BOUNCER_HOME` to it, then re-run the line above.
+
 Implement the active blueprint. Follow this sequence.
 
 Skill flow (recommended): `implementation` → `verification` → `review` → `minimality`.
@@ -13,7 +24,7 @@ regression → minimum fix → re-verify).
 1. **Read the pointer.** Load the active blueprint dir and base branch from
    `.bouncer/current`:
    ```bash
-   node -e "console.log(JSON.stringify(require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/current').readCurrent({repoRoot:process.cwd()})))"
+   node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/current').readCurrent({repoRoot:process.cwd()})))"
    ```
    If it is `null`, stop and tell the user to run `/bouncer-plan` first.
    Use the returned `blueprint` value verbatim for every document read and
@@ -25,7 +36,7 @@ regression → minimum fix → re-verify).
    - location `<runtime worktree root>/<BP-id>`, resolved outside the repository by
      `runtime-state.ensureWorktreeRoot()`:
    ```bash
-   WORKTREE_ROOT="$(node -e "process.stdout.write(require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/runtime-state').ensureWorktreeRoot({repoRoot:process.cwd()}))")"
+   WORKTREE_ROOT="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').ensureWorktreeRoot({repoRoot:process.cwd()}))")"
    WORKTREE_PATH="${WORKTREE_ROOT}/<BP-id>"
    git worktree add -b bouncer/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
    ```
@@ -65,7 +76,7 @@ regression → minimum fix → re-verify).
 
 6. **Gate.** Run `validate --gate execute`:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
+   node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
    ```
    Before evaluating G6–G14, `validate --gate execute` runs the configured
    verify command in the worktree and records its evidence. Gate `execute`
