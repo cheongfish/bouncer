@@ -111,11 +111,32 @@ function cmdAdvise(rest, io) {
   return 0;
 }
 
+const USAGE = `usage: bouncer <command> [options]
+
+  validate   --blueprint <dir> --gate <plan|execute|finalize>
+             Run the structural checks and one gate. Reports failure codes.
+  verify     --blueprint <dir>
+             Run the configured verify command and record its evidence.
+  scaffold   epic --id <EPIC-id> --name <slug>
+             blueprint --epic-dir <dir> --id <BP-id> --name <slug>
+             Create a document set with correct frontmatter.
+  finalize   --blueprint <dir> [--yes]
+             Check the commit scope and, with --yes, commit the blueprint.
+  init       Bootstrap .bouncer/ for this project. Never overwrites.
+  advise     Print the recommended Ponytail mode for the current phase.
+
+Every command accepts --repo <dir> to run against another repository.
+`;
+
 function runCli(argv, io) {
   const out = io && io.out ? io.out : (s) => process.stdout.write(s);
   const err = io && io.err ? io.err : (s) => process.stderr.write(s);
   const sink = { out, err };
   const [cmd, ...rest] = argv;
+  if (cmd === undefined || cmd === 'help' || cmd === '--help' || cmd === '-h') {
+    out(USAGE);
+    return 0;
+  }
   switch (cmd) {
     case 'validate':
       return cmdValidate(rest, sink);
@@ -130,7 +151,7 @@ function runCli(argv, io) {
     case 'advise':
       return cmdAdvise(rest, sink);
     default:
-      err(`unknown command: ${cmd}\n`);
+      err(`unknown command: ${cmd}\n\n${USAGE}`);
       return 2;
   }
 }
