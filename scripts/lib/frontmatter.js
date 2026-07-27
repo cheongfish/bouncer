@@ -1,6 +1,6 @@
 'use strict';
 const fs = require('node:fs');
-const yaml = require('js-yaml');
+const yaml = require('../vendor/js-yaml');
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 

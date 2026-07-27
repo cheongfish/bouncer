@@ -3,7 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Deterministic core for the Bouncer plugin",
-  "bin": { "bouncer": "scripts/bouncer" },
-  "scripts": { "test": "node --test" },
-  "dependencies": { "js-yaml": "^4.1.0" }
+  "bin": {
+    "bouncer": "scripts/bouncer"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0"
+  }
 }

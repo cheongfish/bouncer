@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "chunjae-tools",
+  "description": "Chunjae internal Claude Code plugins",
+  "owner": {
+    "name": "Chunjae AI Dev",
+    "email": "aidev.chunjae@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "bouncer",
+      "source": "./",
+      "version": "0.1.0",
+      "description": "Spec-driven development gates for Claude Code: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
+      "category": "workflow",
+      "tags": ["spec-driven", "governance", "workflow", "gates"],
+      "author": {
+        "name": "Chunjae AI Dev"
+      }
+    }
+  ]
+}
