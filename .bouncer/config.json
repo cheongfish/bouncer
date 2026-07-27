@@ -1,0 +1,31 @@
+{
+  "okf_version": "0.x",
+  "source_dirs": [
+    "scripts",
+    "hooks",
+    "test"
+  ],
+  "graphify": {
+    "enabled": false
+  },
+  "verify": "npm test",
+  "base_branch": "develop",
+  "pr": {
+    "draft": true,
+    "base": "develop",
+    "labels": [
+      "bouncer"
+    ]
+  },
+  "plugin_advisors": {
+    "ponytail": {
+      "enabled": true,
+      "plan": "lite",
+      "execute": "full",
+      "verify": "full",
+      "review": "review",
+      "finalize": "lite",
+      "auto_switch": false
+    }
+  }
+}
