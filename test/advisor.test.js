@@ -30,17 +30,29 @@ test('tasks ready means execute phase', () => {
 });
 
 test('verification failed means verify phase', () => {
-  const r = detectPhase({ repoRoot: '/x', deps: deps({ blueprint: 'b' }, { tasks: 'in_progress', verification: 'failed' }) });
+  const r = detectPhase({
+    repoRoot: '/x',
+    deps: deps({ blueprint: 'b' }, { tasks: 'in_progress', verification: 'failed' }),
+  });
   assert.strictEqual(r.phase, 'verify');
 });
 
 test('verification passed means review phase', () => {
-  const r = detectPhase({ repoRoot: '/x', deps: deps({ blueprint: 'b' }, { tasks: 'verified', verification: 'passed' }) });
+  const r = detectPhase({
+    repoRoot: '/x',
+    deps: deps({ blueprint: 'b' }, { tasks: 'verified', verification: 'passed' }),
+  });
   assert.strictEqual(r.phase, 'review');
 });
 
 test('review accepted means finalize phase', () => {
-  const r = detectPhase({ repoRoot: '/x', deps: deps({ blueprint: 'b' }, { tasks: 'verified', verification: 'passed', review: 'accepted' }) });
+  const r = detectPhase({
+    repoRoot: '/x',
+    deps: deps(
+      { blueprint: 'b' },
+      { tasks: 'verified', verification: 'passed', review: 'accepted' },
+    ),
+  });
   assert.strictEqual(r.phase, 'finalize');
 });
 

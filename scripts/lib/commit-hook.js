@@ -75,7 +75,7 @@ function isWord(token, word) {
 
 function aliasIsCommit(name, resolveAlias, depth) {
   if (typeof resolveAlias !== 'function') return false;
-  let expansion = '';
+  let expansion;
   try {
     expansion = (resolveAlias(name) || '').trim();
   } catch (_e) {

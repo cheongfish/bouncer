@@ -55,7 +55,6 @@ test('package.json declares no runtime dependencies', () => {
 });
 
 test('the vendored yaml module provides load and dump', () => {
-  // eslint-disable-next-line global-require
   const yaml = require('../scripts/vendor/js-yaml');
   assert.strictEqual(typeof yaml.load, 'function');
   assert.strictEqual(typeof yaml.dump, 'function');

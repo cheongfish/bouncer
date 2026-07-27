@@ -112,7 +112,7 @@ function inspectBootstrap({ repoRoot }) {
   return 'partial';
 }
 
-function init({ repoRoot, timestamp }) {
+function init({ repoRoot }) {
   const bootstrap = inspectBootstrap({ repoRoot });
   if (bootstrap === 'legacy') {
     const legacy = detectLegacyFormat({ repoRoot });

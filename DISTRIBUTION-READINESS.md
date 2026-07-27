@@ -6,7 +6,8 @@
 요인(P1-1/P1-3/P1-4), 배포 자산(P0-2/P0-3)이 모두 해소됐다. 남은 것은 사내 Git에
 올리고 그 URL을 팀에 공유하는 일이다.
 
-갱신: 2026-07-27 — P0 전체와 P1 전체 완료. `npm test` 185/185 통과.
+갱신: 2026-07-27 — P0·P1 전체와 P2(LICENSE 제외) 완료. `npm test` 187/187,
+`npm run lint` 통과.
 남은 배포 차단 요인은 사내 Git 원격 저장소 등록 하나뿐이다.
 
 ## 판단 근거 (2026-07-27 실측)
@@ -158,18 +159,28 @@
 
 ## P2 — 팀 운영을 위해 필요
 
-- [ ] **CI 추가.** `.github/workflows`에서 push/PR마다 `npm test`를 실행한다.
-      기여자가 늘면 수동 실행에 의존할 수 없다.
-- [ ] **LICENSE 추가.** 사내 배포라도 라이선스 표기가 없으면 재사용 조건이 불명확하다.
-- [ ] **린터 도입.** 코드 스타일이 일관되지만 강제 수단이 없다. ESLint 설정과 CI 연동.
-- [ ] **오류 메시지 개선.** 존재하지 않는 blueprint 경로로 finalize하면
-      "문서 없음"이 아니라 `G9 distill.status != published`가 나온다. 문서 부재를
-      별도 실패 코드로 구분한다.
-- [ ] **죽은 설정 정리.** 저장소 `.gitignore`의 `.worktrees/`는 worktree가 저장소 밖으로
-      옮겨진 뒤 의미가 없다.
-- [ ] **문서 문구 테스트 비용 점검.** 34개 테스트 파일 중 13개가 Markdown 문구를
-      정규식으로 검사한다. 리브랜드 회귀 방지에는 유효하나, 문구 수정마다 깨지므로
-      검사 대상을 계약 수준(필수 섹션·명령 경로)으로 좁힐지 판단한다.
+- [x] **CI 추가.** GitHub Actions(`.github/workflows/test.yml`)와 GitLab CI
+      (`.gitlab-ci.yml`)를 모두 추가. `main`/`develop` 푸시와 PR마다 `npm test` +
+      `npm run lint`. 사설 저장소 과금을 고려해 `ubuntu-latest` 단일 러너만 사용
+      (Linux 1x, Windows 2x, macOS 10x).
+- [ ] **LICENSE 추가.** 보류 — 사내 정책 확인 필요. 개인 GitHub은 private으로 결정.
+- [x] **린터 도입.** ESLint flat config(`eslint.config.js`)로 기존 스타일을 규칙화.
+      `max-len`은 실측 관례에 맞춰 120(초과 7줄은 수정). 벤더링 코드 제외.
+      도입 중 죽은 인자 `init({ timestamp })`, 불필요한 초기 할당 2건, 남은
+      eslint-disable 지시문 1건을 제거했다.
+- [x] **오류 메시지 개선.** `S11 blueprint documents not found`를 추가해 경로 오타를
+      문서 문제와 구분한다. blueprint 문서가 하나도 없으면 게이트 검사와 `verify`
+      명령 실행을 건너뛰고 즉시 반환한다. epic index는 존재 판정에서 제외해야
+      blueprint 이름 오타가 새지 않는다.
+- [x] **죽은 설정 정리.** `.gitignore`에서 `.worktrees/` 제거.
+      `finalize.js`의 `RUNTIME_ARTIFACTS`에는 남겨 둔다 — 구 레이아웃에서 넘어온
+      저장소의 잔여 디렉터리를 범위 위반으로 보고하지 않기 위해서다(주석으로 명시).
+- [x] **문서 문구 테스트 비용 점검 — 판단 완료.** 유지한다. 근거와 향후 작성 규칙은
+      `GOVERNANCE-ARCHITECTURE-DECISIONS.md` 섹션 G에 기록했다. 요지: 명령·스킬
+      마크다운은 에이전트를 구동하는 제품 표면이므로 계약 검사에 해당하고, 실제로
+      이 저장소에서 회귀를 잡아냈다. 다만 앞으로는 *식별자 존재*만 단언하고 문장
+      구조는 단언하지 않는다. 일괄 재작성은 하지 않는다(실계약 삭제 위험).
+      현황: 37개 파일 중 13개가 문서 대상, 문구 단언 142개.
 
 ---
 

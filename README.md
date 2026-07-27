@@ -97,7 +97,7 @@ bouncer validate --blueprint <dir> --gate <plan|execute|finalize>
 | **execute** | G6 tasks `verified` · G7 verification `passed` · G8 리뷰 `accepted`(또는 `required: false`) · G13 `verify` 명령 실제 실행 + 종료 코드 0 + 본문이 기록된 메타데이터와 일치 · G14 `## Findings` 존재 + 각 finding의 severity/status 유효 |
 | **finalize** | G9 distill `published` |
 
-`S`로 시작하는 코드(S1–S9)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
+`S`로 시작하는 코드(S0–S11)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
 
 섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가 G10에
 걸리는 것은 의도된 동작입니다.
@@ -163,7 +163,8 @@ PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할
 | `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는 통과하지 않습니다 |
 | `G4 tasks.graph.basis missing or empty` | `/bouncer-plan`의 그래프 단계를 건너뛰었습니다. graphify가 꺼져 있어도 `graphify-runner`가 폴백 근거를 기록해야 합니다 |
 | `G13 missing successful harness verification metadata` | `verify` 명령이 실행되지 않았거나 실패했습니다. 손으로 쓴 증적은 통과하지 않습니다 |
-| `G9 distill.status != published` | distill 미작성 — 다만 **blueprint 경로 자체가 틀렸을 때도 이 오류가 납니다.** 경로를 먼저 확인하세요 |
+| `G9 distill.status != published` | distill이 아직 `published`가 아닙니다 |
+| `S11 blueprint documents not found` | blueprint 경로가 틀렸습니다(오타 등). 문서 문제가 아니라 경로 문제입니다 |
 | `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
 | finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`는 무시하므로 그 외 파일입니다 |
 
@@ -205,12 +206,18 @@ fail-closed의 대가는 **오탐**입니다. `git $ANYTHING`은 실제로 커�
 ## 개발
 
 ```bash
-npm install    # devDependencies만 (테스트용)
+npm install    # devDependencies만 (테스트·린트용)
 npm test       # node --test
+npm run lint   # eslint
 ```
+
+CI는 `main`/`develop` 푸시와 PR마다 두 가지를 모두 돌립니다. GitHub Actions
+(`.github/workflows/test.yml`)와 GitLab CI(`.gitlab-ci.yml`)를 함께 두어, 사내
+GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
 
 `scripts/`와 `hooks/` 아래 코드는 `node_modules`에 의존하면 안 됩니다 —
 마켓플레이스 설치가 깨집니다. `test/distribution.test.js`가 이 계약을 강제합니다.
+`scripts/vendor/`는 서드파티 코드라 린트 대상에서 제외합니다.
 
 릴리스는 `claude plugin tag`로 `bouncer--v<version>` 태그를 만듭니다. 이 명령은
 `plugin.json`과 `marketplace.json`의 버전 일치를 함께 검증합니다.

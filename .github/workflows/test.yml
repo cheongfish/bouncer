@@ -1,0 +1,20 @@
+name: test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+# ubuntu-latest only: on private repositories Actions minutes are billed at
+# 1x for Linux, 2x for Windows, and 10x for macOS.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint

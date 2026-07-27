@@ -43,7 +43,8 @@ function setupRepo(verify = 'node -e "process.exit(0)"') {
       affected_paths: ['src/login.js'],
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
     }),
-    '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n## Touch\n`src/`\n\n## Do not touch\n`test/`\n\n## Checklist\n- [ ] z\n');
+    '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n'
+    + '## Touch\n`src/`\n\n## Do not touch\n`test/`\n\n## Checklist\n- [ ] z\n');
   writeDoc(repo, `${BP_REL}/verification.md`,
     doc('bouncer.verification', 'VERIFY-BP-001', 'pending', `${BP_REL}/verification.md`),
     '# Verification\n');

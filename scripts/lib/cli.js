@@ -96,10 +96,7 @@ function cmdFinalize(rest, io) {
 
 function cmdInit(rest, io) {
   const f = parseFlags(rest);
-  const result = init({
-    repoRoot: f.repo || process.cwd(),
-    timestamp: typeof f.timestamp === 'string' ? f.timestamp : new Date().toISOString(),
-  });
+  const result = init({ repoRoot: f.repo || process.cwd() });
   io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }

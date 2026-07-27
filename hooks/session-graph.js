@@ -10,7 +10,7 @@ let raw = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { raw += chunk; });
 process.stdin.on('end', () => {
-  let payload = {};
+  let payload;
   try { payload = raw.trim() ? JSON.parse(raw) : {}; } catch (_e) { payload = {}; }
   const repoRoot = payload.cwd || process.cwd();
   try {

@@ -46,7 +46,8 @@ test('execute validation reruns the configured command instead of trusting evide
       graph: { suggested_paths: ['src/'], basis: 'manual: src/auth/' },
       affected_paths: ['src/auth/login.js'],
     }),
-    '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n## Touch\n`src/auth/`\n\n## Do not touch\n`src/pay/`\n\n## Checklist\n- [ ] a\n');
+    '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n'
+    + '## Touch\n`src/auth/`\n\n## Do not touch\n`src/pay/`\n\n## Checklist\n- [ ] a\n');
 
   // verification passed with body contract
   writeDoc(repo, `${BP_REL}/verification.md`,
@@ -58,7 +59,8 @@ test('execute validation reruns the configured command instead of trusting evide
         output_tail: '42 passed.',
       },
     }),
-    '# Verification\n\n## Command\n`npm test`\n\n## Evidence\nRan at: 2026-07-27T00:00:00.000Z\nExit code: 0\n\n```\n42 passed.\n```\n');
+    '# Verification\n\n## Command\n`npm test`\n\n## Evidence\n'
+    + 'Ran at: 2026-07-27T00:00:00.000Z\nExit code: 0\n\n```\n42 passed.\n```\n');
 
   // review accepted with findings schema
   writeDoc(repo, `${BP_REL}/review.md`,

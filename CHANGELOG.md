@@ -50,14 +50,24 @@
   `node_modules/`와 `graphify-out/`이 out-of-scope 위반으로 잡혔다. 이제 finalize와
   커밋 가드가 `node_modules/`, `graphify-out/`, `.worktrees/`를 무시 대상으로
   처리하고, finalize는 스테이징 대상에서도 제외한다.
+- **존재하지 않는 blueprint 경로가 `G9`로 보고되던 문제** — 이제 `S11 blueprint
+  documents not found`로 구분해 보고하고, 게이트 검사와 `verify` 명령 실행을
+  건너뛴다. 경로 오타를 문서 문제로 오인하지 않게 된다.
 - **`bouncer init`이 `.gitignore` 누락을 안내** — 결과의 `gitignoreSuggestions`로
   추가할 항목을 보고한다. 파일을 직접 수정하지는 않는다(안전 부트스트랩 정책).
+
+### Tooling
+
+- **CI** — GitHub Actions와 GitLab CI를 모두 추가. `main`/`develop` 푸시와 PR마다
+  `npm test`와 `npm run lint`를 실행한다. 사설 저장소 과금을 고려해 `ubuntu-latest`
+  단일 러너만 쓴다(Linux 1x, Windows 2x, macOS 10x).
+- **ESLint** — 기존 코드 스타일을 그대로 규칙화(`eslint.config.js`, flat config).
+  벤더링 코드는 제외. 도입 과정에서 죽은 인자 `init({ timestamp })`, 불필요한 초기
+  할당 2건, 남은 eslint-disable 지시문 1건을 제거했다.
 
 ### Known limitations
 
 - 커밋 가드는 셸을 거치지 않는 경로(스크립트 파일, `make`, `subprocess`)와 plumbing
   우회(`git commit-tree` + `git update-ref`)를 탐지하지 못한다. 실수 방지 장치이지
   악의적 우회 방어가 아니다. README의 "위협 모델" 참고.
-- 존재하지 않는 blueprint 경로로 finalize하면 "문서 없음"이 아니라
-  `G9 distill.status != published`가 보고된다.
-- CI, LICENSE, 린터가 아직 없다.
+- LICENSE가 아직 없다(사내 정책 확인 대기).

@@ -33,6 +33,14 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
   return { docs, rels, parseErrors };
 }
 
+// Existence only: cheap, and it must not parse, because it runs before the
+// execute gate re-runs verification (which rewrites verification.md).
+function blueprintDocsExist({ repoRoot, blueprintDir }) {
+  const bp = toPosix(blueprintDir);
+  return ['index.md', 'tasks.md', 'verification.md', 'review.md', 'distill.md']
+    .some((name) => fs.existsSync(path.join(repoRoot, bp, name)));
+}
+
 function checkStructural(doc, failures) {
   const { data, rel } = doc;
   const add = (code, message) => failures.push({ code, message, file: rel });
@@ -114,6 +122,23 @@ function validateBlueprint({ repoRoot, blueprintDir, gate }) {
     };
   }
 
+  // No blueprint document at all means a wrong path, not a document problem.
+  // Reporting that first keeps the reader from chasing the cascade of gate
+  // failures an empty document set produces, and stops `execute` from running
+  // the verify command for a path that does not exist. The epic index is
+  // deliberately excluded: it exists for every blueprint under that epic, so a
+  // mistyped blueprint name would otherwise slip past this check.
+  if (!blueprintDocsExist({ repoRoot, blueprintDir })) {
+    return {
+      ok: false,
+      failures: [{
+        code: 'S11',
+        message: 'blueprint documents not found — check the blueprint path',
+        file: toPosix(blueprintDir),
+      }],
+    };
+  }
+
   const executionFailures = [];
   if (gate === 'execute') {
     try {
@@ -134,6 +159,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate }) {
     }
   }
 
+  // Loaded after verification so the execute gate reads the evidence it just wrote.
   const { docs, rels, parseErrors } = loadBlueprintDocs({ repoRoot, blueprintDir });
   const failures = [...executionFailures, ...parseErrors];
 

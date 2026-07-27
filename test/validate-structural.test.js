@@ -160,3 +160,32 @@ function epicDoc() {
     bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'draft' },
   };
 }
+
+// P2: a nonexistent blueprint used to surface as `G9 distill.status != published`,
+// which sends the reader looking for a document problem instead of a typo.
+test('S11: a blueprint with no documents is reported as absent, not as a gate failure', () => {
+  const repo = mkRepo();
+  for (const gate of [undefined, 'plan', 'execute', 'finalize']) {
+    const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate });
+    assert.strictEqual(res.ok, false, `gate ${gate} should fail`);
+    assert.deepStrictEqual(res.failures.map((f) => f.code), ['S11'], `gate ${gate} codes`);
+    assert.match(res.failures[0].message, /not found|absent|no documents/i);
+    assert.strictEqual(res.failures[0].file, BP_REL);
+  }
+});
+
+test('S11 does not mask a partially scaffolded blueprint', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${BP_REL}/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'draft',
+      affected_paths: ['src/a'],
+    },
+  });
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  const codes = res.failures.map((f) => f.code);
+  assert.ok(!codes.includes('S11'), `S11 should not fire: ${codes.join(',')}`);
+  assert.ok(codes.includes('S8'), `expected S8 for the absent index: ${codes.join(',')}`);
+});

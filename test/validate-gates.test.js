@@ -50,7 +50,8 @@ test('parseTasksSections reads English headings', () => {
 });
 
 test('parseTasksSections accepts Korean aliases', () => {
-  const body = `## 목적·의도\nwhy\n\n## 인터페이스\napi\n\n## 수정할 부분\n\`src/x.js\`\n\n## 절대 수정 금지\n\`src/y.js\`\n\n## 체크리스트\n- [ ] a\n`;
+  const body = '## 목적·의도\nwhy\n\n## 인터페이스\napi\n\n## 수정할 부분\n`src/x.js`\n\n'
+    + '## 절대 수정 금지\n`src/y.js`\n\n## 체크리스트\n- [ ] a\n';
   const s = parseTasksSections(body);
   assert.strictEqual(s.goal, 'why');
   assert.strictEqual(s.interface, 'api');
@@ -94,7 +95,7 @@ test('plan gate flags G3 and G4 and G5', () => {
 });
 
 test('plan gate G10 fails when a section is missing', () => {
-  const body = `# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n## Touch\n\`src/\`\n\n## Checklist\n- [ ] a\n`;
+  const body = '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n## Touch\n`src/`\n\n## Checklist\n- [ ] a\n';
   const docs = {
     epicIndex: doc('approved'),
     blueprintIndex: doc('approved'),
