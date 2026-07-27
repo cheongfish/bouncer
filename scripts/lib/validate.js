@@ -201,8 +201,20 @@ const REVIEW_SECTION_DEFS = [
 const REVIEW_SEVERITY = ['blocker', 'major', 'minor', 'nit'];
 const REVIEW_STATUS = ['resolved', 'accepted'];
 
+// Authoring guidance ships as HTML comments, so a section holding nothing but
+// guidance is unwritten. Stripping comments before the emptiness test keeps
+// "section present but empty" meaning what it did before templates carried
+// prose. Applies to every section-parsed document, not only tasks.
+function stripComments(text) {
+  return text.replace(/<!--[\s\S]*?-->/g, '');
+}
+
+// The single placeholder form templates use. Distinctive enough that real
+// prose never trips it — an `<T>` generic in Interface stays legal.
+const TODO_RE = /<TODO:[^>\n]*>/;
+
 function parseSections(body, defs) {
-  const text = typeof body === 'string' ? body : '';
+  const text = typeof body === 'string' ? stripComments(body) : '';
   const lines = text.split('\n');
   const starts = [];
   for (let i = 0; i < lines.length; i++) {
@@ -270,10 +282,15 @@ function checkGate(gate, docs, rels, failures) {
     if (!Array.isArray(ap) || ap.length === 0) add('G5', 'tasks.affected_paths missing or empty', 'tasks');
     const tasksBody = docs.tasks && typeof docs.tasks.body === 'string' ? docs.tasks.body : '';
     const sections = parseTasksSections(tasksBody);
-    const missing = ['goal', 'interface', 'touch', 'doNotTouch', 'checklist']
-      .filter((k) => !sections[k]);
+    const sectionKeys = ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
+    const missing = sectionKeys.filter((k) => !sections[k]);
+    const unfilled = sectionKeys.filter((k) => sections[k] && TODO_RE.test(sections[k]));
     if (missing.length) {
       add('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`, 'tasks');
+    } else if (unfilled.length) {
+      // Reported instead of the path checks below: unreplaced placeholders make
+      // G11/G12 findings noise about template text rather than about scope.
+      add('G10', `tasks sections still contain <TODO: …> placeholders: ${unfilled.join(', ')}`, 'tasks');
     } else {
       const apList = Array.isArray(ap)
         ? ap.map((p) => toPosix(String(p)).replace(/^\.\//, ''))

@@ -5,7 +5,10 @@ const { detectLegacyFormat } = require('./schema');
 const { TEMPLATES, TEMPLATE_DIR } = require('./templates');
 
 const CONFIG = {
-  okf_version: '0.x',
+  // Bouncer's own frontmatter schema version. The OKF *spec* version is a
+  // different thing and is declared where OKF §11 requires it: the frontmatter
+  // of the bundle-root index.md.
+  schema_version: '0.x',
   source_dirs: ['src', 'test'],
   graphify: { enabled: false },
   // Appended verbatim to the message `bouncer finalize` writes. Empty by
@@ -54,16 +57,29 @@ const WORKFLOW = `# Workflow
 
 const OKF = `# OKF
 
-Pinned OKF version: **0.x**.
+Target OKF spec version: **0.1**, declared in the bundle-root
+\`.bouncer/context/index.md\` frontmatter — the one place OKF §11 permits it.
+\`config.json\`'s \`schema_version\` is Bouncer's own frontmatter schema version
+and is not an OKF version string.
 
 Every \`context/**/*.md\` document carries OKF frontmatter
 (\`type\`, \`title\`, \`description\`, \`resource\`, \`tags\`, \`timestamp\`); Bouncer
 fields live under \`bouncer:\`. See the schema-gates design for the full schema.
+
+Known divergence from OKF v0.1: epic and blueprint concept documents are named
+\`index.md\`, which §3.1 reserves for directory listings, so the bundle is not
+yet §9-conformant. Tracked separately from template authoring.
 `;
 
-const CONTEXT_INDEX = `# Context Index
+// Bundle root. OKF §11 allows frontmatter here and nowhere else among index
+// files; §6 fixes the body shape as `* [Title](url) - description` groups.
+const CONTEXT_INDEX = `---
+okf_version: "0.1"
+---
+# Epics
 
-Root index of Bouncer epics and blueprints for this project.
+<!-- /bouncer-plan이 epic을 만들 때마다 여기에 한 줄씩 추가합니다 (OKF §6).
+     * [EPIC-00x 제목](epics/EPIC-00x-slug/index.md) - 한 줄 설명 -->
 `;
 
 function writeFile(repoRoot, rel, content, created) {

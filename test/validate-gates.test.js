@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { checkGate, parseTasksSections, extractPathCandidates, validateBlueprint } = require('../scripts/lib/validate');
+const { TEMPLATES } = require('../scripts/lib/templates');
 
 const rels = {
   epicIndex: '.bouncer/context/epics/EPIC-001-auth/index.md',
@@ -107,6 +108,63 @@ test('plan gate G10 fails when a section is missing', () => {
   const failures = [];
   checkGate('plan', docs, rels, failures);
   assert.ok(failures.some((f) => f.code === 'G10'));
+});
+
+function planDocs(body) {
+  return {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+      affected_paths: ['src/auth/login.js', 'test/auth/login.test.js'],
+    }, body),
+  };
+}
+
+test('plan gate G10 fails when a section holds only guidance comments', () => {
+  const body = READY_BODY.replace('Ship login validation.', '<!-- 여기에 목표를 적습니다 -->');
+  const failures = [];
+  checkGate('plan', planDocs(body), rels, failures);
+  const g10 = failures.filter((f) => f.code === 'G10');
+  assert.strictEqual(g10.length, 1);
+  assert.match(g10[0].message, /missing implementation-ready sections: goal/);
+});
+
+test('plan gate G10 fails when a TODO placeholder survives', () => {
+  const body = READY_BODY.replace('- [ ] implement validateLogin', '- [ ] <TODO: 작업 항목>');
+  const failures = [];
+  checkGate('plan', planDocs(body), rels, failures);
+  const g10 = failures.filter((f) => f.code === 'G10');
+  assert.strictEqual(g10.length, 1);
+  assert.match(g10[0].message, /placeholders: checklist/);
+});
+
+test('plan gate tolerates guidance comments alongside real content', () => {
+  const body = READY_BODY.replace(
+    '## Touch',
+    '## Touch\n<!-- affected_paths의 모든 경로가 여기서 정당화되어야 합니다 (G11) -->',
+  );
+  const failures = [];
+  checkGate('plan', planDocs(body), rels, failures);
+  assert.deepStrictEqual(failures, []);
+});
+
+test('plan gate does not mistake a generic parameter for a placeholder', () => {
+  const body = READY_BODY.replace('`validateLogin(input) -> Result`', '`validateLogin<T>(input: T) -> Result<T>`');
+  const failures = [];
+  checkGate('plan', planDocs(body), rels, failures);
+  assert.deepStrictEqual(failures, []);
+});
+
+// The safety property the guidance-heavy templates must not cost us: prose in a
+// section makes it non-empty, so `<TODO:` detection is the only thing keeping an
+// untouched template out of the plan gate.
+test('the shipped tasks template cannot pass the plan gate untouched', () => {
+  const failures = [];
+  checkGate('plan', planDocs(TEMPLATES['tasks.md']), rels, failures);
+  const g10 = failures.filter((f) => f.code === 'G10');
+  assert.strictEqual(g10.length, 1);
+  assert.match(g10[0].message, /placeholders: goal, interface, touch, doNotTouch, checklist/);
 });
 
 test('plan gate G11 fails when affected_paths not justified by Touch', () => {

@@ -39,7 +39,7 @@ test('init writes the exact config.json shape', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')), {
-    okf_version: '0.x',
+    schema_version: '0.x',
     source_dirs: ['src', 'test'],
     graphify: { enabled: false },
     commit: { trailers: [] },
@@ -77,6 +77,31 @@ test('init tasks template has five implementation-ready sections', () => {
   assert.ok(/## Touch/.test(tasks));
   assert.ok(/## Do not touch/.test(tasks));
   assert.ok(/## Checklist/.test(tasks));
+});
+
+// OKF §11 permits frontmatter in the bundle-root index.md and nowhere else
+// among index files; §6 fixes the body as `* [Title](url) - description` groups.
+test('init writes an OKF-shaped bundle root index', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const index = read(repo, '.bouncer/context/index.md');
+  assert.match(index, /^---\nokf_version: "0\.1"\n---\n/);
+  assert.match(index, /^# Epics$/m);
+  assert.match(index, /\* \[EPIC-00x 제목\]\(epics\/EPIC-00x-slug\/index\.md\) - /);
+});
+
+test('epic and blueprint templates link their neighbours with relative paths', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const epic = read(repo, '.bouncer/templates/epic.md');
+  const blueprint = read(repo, '.bouncer/templates/blueprint.md');
+  // OKF §5.2. A leading `/` (§5.1) would resolve against the repo root on web
+  // git hosts and break every link.
+  assert.ok(!/\]\(\//.test(epic), 'epic template must not use bundle-absolute links');
+  assert.ok(!/\]\(\//.test(blueprint), 'blueprint template must not use bundle-absolute links');
+  assert.match(epic, /\]\(blueprints\//);
+  assert.match(blueprint, /Epic: \[<EPIC-id>\]\(\.\.\/\.\.\/index\.md\)/);
+  assert.match(blueprint, /\* \[Tasks\]\(tasks\.md\) - /);
 });
 
 test('init leaves a pre-existing .gitignore byte-for-byte unchanged', () => {

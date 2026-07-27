@@ -171,14 +171,15 @@ PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할
 | `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
 | `graphify` | `{ "enabled": false }` | 소스 그래프 생성. **기본 비활성.** 켜면 SessionStart에서 `graphify-out/` 캐시를 갱신하고 `suggested_paths`를 채웁니다 |
 | `commit.trailers` | `[]` | `/bouncer-finalize`가 만드는 커밋 메시지 말미에 그대로 덧붙일 trailer 목록 (예: `Co-Authored-By: ...`) |
-| `okf_version` | `"0.x"` | 문서 frontmatter 스키마 버전 |
+| `schema_version` | `"0.x"` | Bouncer 문서 frontmatter 스키마 버전. OKF 스펙 버전과는 별개이며, 후자는 OKF §11에 따라 `.bouncer/context/index.md` frontmatter의 `okf_version`에 선언합니다 |
 | `plugin_advisors.ponytail` | (객체) | 단계별 Ponytail 모드 **권고**. 자동 전환하지 않습니다 |
 
 ## 막혔을 때
 
 | 증상 | 원인과 대처 |
 | --- | --- |
-| `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는 통과하지 않습니다 |
+| `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는, 또 템플릿 안내 주석만으로는 통과하지 않습니다 |
+| `G10 tasks sections still contain <TODO: …> placeholders` | 템플릿 placeholder를 실제 내용으로 바꾸지 않았습니다 |
 | `G4 tasks.graph.basis missing or empty` | `/bouncer-plan`의 그래프 단계를 건너뛰었습니다. graphify가 꺼져 있어도 `graphify-runner`가 폴백 근거를 기록해야 합니다 |
 | `G13 missing successful harness verification metadata` | `verify` 명령이 실행되지 않았거나 실패했습니다. 손으로 쓴 증적은 통과하지 않습니다 |
 | `G9 distill.status != published` | distill이 아직 `published`가 아닙니다 |

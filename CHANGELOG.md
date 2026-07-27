@@ -7,6 +7,20 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **epic·blueprint·tasks 템플릿 개선** — 각 섹션에 무엇을 써야 하는지와 어떤
+  게이트가 그것을 검사하는지를 한국어 안내로 실었다. blueprint에
+  `One-commit justification` 섹션 추가 — 채우지 못하면 blueprint를 쪼개라는 신호.
+- **G10 확장** — plan 게이트가 `<TODO: …>` placeholder 잔존을 잡는다. 안내
+  주석만 있는 섹션도 미작성으로 판정한다(`parseSections`가 HTML 주석을 먼저
+  제거하므로 G13·G14 판정도 함께 엄격해진다).
+- **OKF v0.1 정렬(부분)** — 번들 루트 `.bouncer/context/index.md`가 §6 목록
+  형식과 §11 `okf_version: "0.1"` frontmatter를 갖는다. 템플릿이 상대 링크로
+  이웃 문서를 가리킨다(§5.2). `config.json`의 `okf_version`은 의미가 다른 값이라
+  `schema_version`으로 개명했다(이 키를 읽는 코드는 없음).
+  epic/blueprint 본체가 예약 파일명 `index.md`를 쓰는 §3.1 위반은 이연 상태다.
+
 ## [0.1.0] — 2026-07-27
 
 팀 배포용 첫 릴리스.
