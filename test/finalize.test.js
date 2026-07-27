@@ -126,3 +126,36 @@ test('runtime artifacts are neither violations nor staged', () => {
   assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
   assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts']);
 });
+
+test('a committed finalize clears the active pointer', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const cleared = [];
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    yes: true,
+    git: g.api,
+    clearPointer: (args) => { cleared.push(args.repoRoot); return true; },
+  });
+  assert.strictEqual(res.committed, true);
+  assert.strictEqual(res.pointerCleared, true);
+  assert.deepStrictEqual(cleared, [repo]);
+});
+
+test('a dry-run finalize leaves the pointer alone', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const cleared = [];
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    git: g.api,
+    clearPointer: (args) => { cleared.push(args.repoRoot); return true; },
+  });
+  assert.strictEqual(res.dryRun, true);
+  assert.strictEqual(res.pointerCleared, undefined);
+  assert.deepStrictEqual(cleared, []);
+});

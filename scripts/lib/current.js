@@ -1,5 +1,5 @@
 'use strict';
-const { readRuntimeCurrent, writeRuntimeCurrent } = require('./runtime-state');
+const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = require('./runtime-state');
 
 function readCurrent({ repoRoot, deps }) {
   return readRuntimeCurrent({ repoRoot, deps });
@@ -13,4 +13,8 @@ function writeCurrent({
   });
 }
 
-module.exports = { readCurrent, writeCurrent };
+function clearCurrent({ repoRoot, deps }) {
+  return clearRuntimeCurrent({ repoRoot, deps });
+}
+
+module.exports = { readCurrent, writeCurrent, clearCurrent };

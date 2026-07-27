@@ -8,8 +8,14 @@ const { execFileSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 
-/** Historical plan/spec records retain legacy wording; exclude from scans. */
-const HISTORICAL_DIRS = ['docs/superpowers/plans', 'docs/superpowers/specs'];
+/**
+ * Records, not authored surfaces. Historical plans and specs retain legacy
+ * wording, and `.bouncer/context/` holds captured evidence — verification.md
+ * quotes whatever the verify command printed, which for this repository
+ * includes test names that mention the retired protocol on purpose. The naming
+ * policy governs what we write, not what a command's output happened to say.
+ */
+const HISTORICAL_DIRS = ['docs/superpowers/plans', 'docs/superpowers/specs', '.bouncer/context'];
 
 /**
  * Focused tests + runtime detectors that intentionally reject legacy inputs.

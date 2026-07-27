@@ -239,8 +239,20 @@ GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
 릴리스는 `claude plugin tag`로 `bouncer--v<version>` 태그를 만듭니다. 이 명령은
 `plugin.json`과 `marketplace.json`의 버전 일치를 함께 검증합니다.
 
+## 막혔을 때 알려주세요
+
+Bouncer를 쓰다 막히거나 이해가 안 된 지점은 이슈로 남겨 주세요. GitHub은
+New issue의 **막힌 지점 (friction)** / **버그** 템플릿, GitLab은 Description
+template의 `friction` / `bug`를 쓰면 됩니다.
+
+**스스로 우회한 경우에도 기록해 주세요.** 우회 방법이 곧 문서에 들어갈 내용입니다.
+
+파일럿 참가자는 [`docs/PILOT.md`](docs/PILOT.md)를 보세요 — 이미 알려진 마찰 목록이
+있어 중복 보고를 피할 수 있습니다.
+
 ## 라이선스 / 문서
 
+- `docs/PILOT.md` — 파일럿 안내와 알려진 마찰
 - `GOVERNANCE-ARCHITECTURE-DECISIONS.md` — 설계 결정 기록
 - `CHANGELOG.md` — 변경 이력
 - `DISTRIBUTION-READINESS.md` — 남은 배포 준비 항목

@@ -4,6 +4,7 @@ const { execFileSync } = require('node:child_process');
 const { epicDirOf, toPosix } = require('./paths');
 const { CONTEXT_ROOT } = require('./scaffold');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
+const { clearCurrent } = require('./current');
 
 function isUnder(file, entry) {
   const f = toPosix(file);
@@ -84,7 +85,9 @@ function realGit(repoRoot) {
   };
 }
 
-function finalize({ repoRoot, blueprintDir, yes = false, git }) {
+function finalize({
+  repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent,
+}) {
   const gitApi = git || realGit(repoRoot);
 
   const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
@@ -106,7 +109,12 @@ function finalize({ repoRoot, blueprintDir, yes = false, git }) {
 
   gitApi.stage(all);
   gitApi.commit(commitMessage);
-  return { ok: true, committed: true, staged: all, commitMessage };
+  // The blueprint is done. Leaving the pointer in place would keep the commit
+  // guard enforcing this blueprint's affected_paths against every later commit.
+  const pointerCleared = clearPointer({ repoRoot });
+  return {
+    ok: true, committed: true, staged: all, commitMessage, pointerCleared,
+  };
 }
 
 module.exports = {

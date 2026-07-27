@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { readCurrent, writeCurrent } = require('../scripts/lib/current');
+const { readCurrent, writeCurrent, clearCurrent } = require('../scripts/lib/current');
 const { init } = require('../scripts/lib/init');
 
 function tmpRepo() {
@@ -87,4 +87,22 @@ test('legacy .sdd/current is ignored and init rejects with bouncer-init guidance
   const result = init({ repoRoot: repo, timestamp: '2026-07-24T00:00:00.000Z' });
   assert.strictEqual(result.ok, false);
   assert.match(result.reason, /bouncer-init/);
+});
+
+// P3 dogfooding: finalize left the pointer in place, so every commit after a
+// finished cycle was blocked against that blueprint's affected_paths.
+test('clearCurrent removes the active pointer and is safe to repeat', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-clear-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: root });
+  const deps = {
+    execFileSync,
+    env: { ...process.env, XDG_STATE_HOME: path.join(root, 'state') },
+    platform: 'linux',
+  };
+  writeCurrent({ repoRoot: root, blueprint: 'b', base: 'develop', deps });
+  assert.ok(readCurrent({ repoRoot: root, deps }));
+
+  assert.strictEqual(clearCurrent({ repoRoot: root, deps }), true);
+  assert.strictEqual(readCurrent({ repoRoot: root, deps }), null);
+  assert.strictEqual(clearCurrent({ repoRoot: root, deps }), false);
 });

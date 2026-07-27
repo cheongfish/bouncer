@@ -65,9 +65,29 @@
   벤더링 코드는 제외. 도입 과정에서 죽은 인자 `init({ timestamp })`, 불필요한 초기
   할당 2건, 남은 eslint-disable 지시문 1건을 제거했다.
 
+### Dogfooding (P3)
+
+이 저장소를 Bouncer로 한 사이클 완주(EPIC-001/BP-001, 커밋 `a221b3b`)하며 확인한
+것과 그 결과다.
+
+- **finalize가 활성 포인터를 정리하지 않던 문제 (배포 차단급)** — 사이클을 끝낸 뒤
+  `.bouncer/current`가 남아, 무관한 모든 커밋이 그 blueprint의 `affected_paths`에
+  걸려 차단됐다. 커밋에 성공한 finalize가 이제 포인터를 지운다(`clearCurrent`).
+  dry-run은 지우지 않는다.
+- **기록된 증적이 저장소 이름 가드를 깨뜨리던 문제** — `verification.md`는 verify
+  명령의 출력을 그대로 담는데, 이 저장소의 테스트 이름에는 레거시 프로토콜명이
+  의도적으로 들어 있다. `.bouncer/context/`를 기록물로 보아 스캔에서 제외했다.
+  이름 정책은 *작성한 표면*을 규율하지, 명령이 출력한 내용을 규율하지 않는다.
+- 파일럿 안내(`docs/PILOT.md`)와 이슈 템플릿(GitHub·GitLab)을 추가했다.
+
 ### Known limitations
 
 - 커밋 가드는 셸을 거치지 않는 경로(스크립트 파일, `make`, `subprocess`)와 plumbing
   우회(`git commit-tree` + `git update-ref`)를 탐지하지 못한다. 실수 방지 장치이지
   악의적 우회 방어가 아니다. README의 "위협 모델" 참고.
 - LICENSE가 아직 없다(사내 정책 확인 대기).
+- `verification.md`가 verify 출력을 frontmatter `output_tail`과 본문 `## Evidence`에
+  중복 기록해 문서가 크게 부푼다(191개 테스트 기준 229줄).
+- 생성되는 커밋 메시지의 품질이 문서 `title`에 전적으로 좌우되며, trailer를 넣을
+  자리가 없다.
+- `graphify`가 꺼져 있을 때 `graph.basis`를 사람이 직접 적어야 한다.

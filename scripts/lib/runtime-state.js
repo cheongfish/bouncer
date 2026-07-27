@@ -76,6 +76,16 @@ function readRuntimeCurrent({ repoRoot, deps }) {
   }
 }
 
+// Returns true when a pointer was removed, false when there was none. Callers
+// treat "already absent" as success, so this must not throw on a missing file.
+function clearRuntimeCurrent({ repoRoot, deps }) {
+  const d = { fs, ...(deps || {}) };
+  const paths = resolvedPaths({ repoRoot, deps: d });
+  if (paths.unavailable || !d.fs.existsSync(paths.currentFile)) return false;
+  d.fs.rmSync(paths.currentFile);
+  return true;
+}
+
 function writeRuntimeCurrent({
   repoRoot, blueprint, base, deps,
 }) {
@@ -97,5 +107,5 @@ function ensureWorktreeRoot({ repoRoot, deps }) {
 }
 
 module.exports = {
-  runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, ensureWorktreeRoot,
+  runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, ensureWorktreeRoot,
 };
