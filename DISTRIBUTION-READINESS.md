@@ -207,8 +207,12 @@
 
 ## 다음 세션 시작점 (2026-07-27 기준)
 
-현재 상태: `develop` = `main` = `7054610`, 워킹 트리 clean, `npm test` 194/194,
+현재 상태: `develop` = `main`, 워킹 트리 clean, `npm test` 199/199,
 `npm run lint` 통과, 태그 `bouncer--v0.1.0`. **원격 저장소 없음.**
+
+푸시 시 함께 해야 할 것: README와 `docs/PILOT.md`의 `<사내-git-url>` 자리표시자를
+실제 URL로 치환하고, 주 배포처 리모트를 `origin`으로 명명한다
+(`commands/bouncer-finalize.md`와 `claude plugin tag --push`가 `origin`을 가정한다).
 
 ### 남은 작업 (우선순위 순)
 
@@ -216,7 +220,9 @@
    두 곳. 비공개이므로 SSH 리모트 권장(이유는 README 설치 절).
    푸시 전까지 태그는 옮겨도 되지만, 푸시 후에는 버전을 올릴 것.
 
-2. **커밋 산출물 정리 blueprint** — 아래 셋은 한 관심사라 한 blueprint로 묶는다.
+2. ~~**커밋 산출물 정리 blueprint**~~ — **완료** (EPIC-002/BP-001). 증적 229줄 → 47줄,
+   커밋 메시지에서 스코프 제거 + 메타데이터를 trailer로 이동 + `commit.trailers` 설정
+   추가. 아래는 그 근거 기록이다.
    - `verification.md` 중복 기록: `verification.js`가 같은 출력을 frontmatter
      `output_tail`과 본문 `## Evidence`에 두 번 쓴다(191개 테스트 기준 229줄).
      G13이 본문에 요구하는 것은 명령 문자열과 `Exit code: 0`뿐이므로 본문
