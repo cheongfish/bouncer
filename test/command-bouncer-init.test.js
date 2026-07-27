@@ -17,3 +17,9 @@ test('bouncer-init command has a description and calls scripts/bouncer init', ()
   assert.match(body, /\/bouncer-plan/);
   assert.doesNotMatch(md, /superpowers/i);
 });
+
+test('bouncer-init command surfaces the gitignore suggestions it reports', () => {
+  assert.match(md, /gitignoreSuggestions/);
+  assert.match(md, /\.gitignore/);
+  assert.match(md, /does not (edit|write)|never (edits|writes)/i);
+});

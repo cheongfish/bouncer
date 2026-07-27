@@ -37,3 +37,8 @@ test('bouncer-plan recommends minimality (advisory) and keeps graphify-runner', 
   assert.match(md, /graphify-runner/);
   assert.match(md, /unavailable|skip|fallback|manual/i);
 });
+
+test('bouncer-plan states that G4 requires a recorded graph basis', () => {
+  assert.match(md, /G4[^\n]*basis|basis[^\n]*G4/);
+  assert.match(md, /scaffold[^\n]*empt|empt[^\n]*basis/i);
+});

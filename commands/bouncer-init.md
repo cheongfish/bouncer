@@ -17,7 +17,11 @@ Bootstrap this project for Bouncer.
      `.bouncer/governance.md`, `.bouncer/workflow.md`, `.bouncer/okf.md`,
      `.bouncer/templates/*`, `.bouncer/context/index.md`).
    - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
-3. Point the user at `/bouncer-plan` as the next step, and mention they can edit
+3. If the result carries a non-empty `gitignoreSuggestions`, list those entries and
+   tell the user to add them to `.gitignore` themselves. Bouncer never edits
+   `.gitignore` — it only reports. Finalize ignores these paths either way, so this
+   is housekeeping, not a blocker.
+4. Point the user at `/bouncer-plan` as the next step, and mention they can edit
    `.bouncer/config.json` (`source_dirs`, `verify`, `base_branch`, `pr`) first.
 
 Do not author any epic or blueprint here — `/bouncer-init` only scaffolds `.bouncer/`.

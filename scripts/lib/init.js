@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { detectLegacyFormat } = require('./schema');
+const { TEMPLATES, TEMPLATE_DIR } = require('./templates');
 
 const CONFIG = {
   okf_version: '0.x',
@@ -57,43 +58,6 @@ Every \`context/**/*.md\` document carries OKF frontmatter
 fields live under \`bouncer:\`. See the schema-gates design for the full schema.
 `;
 
-const PR_TEMPLATE = `<type>(<bp-id>): <summary>
-
-Epic: <epic-id>
-Blueprint: <bp-id>
-
-Implemented:
-- <task summary>
-
-Verified:
-- <verification summary>
-
-Distilled:
-- <distill path>
-`;
-
-const TEMPLATES = {
-  'epic.md': '# <EPIC-id> <name>\n\nGoal and scope of this epic.\n',
-  'blueprint.md': '# <BP-id> <name>\n\nWhat this blueprint delivers and why it fits one reviewable commit.\n',
-  'tasks.md': `# Tasks
-
-## Goal & intent
-
-## Interface
-
-## Touch
-
-## Do not touch
-
-## Checklist
-- [ ] <task>
-`,
-  'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
-  'review.md': '# Review\n\n## Findings\n- <finding>\n',
-  'distill.md': '# Distill\n\nWhat was learned; durable notes for future work.\n',
-  'pr.md': PR_TEMPLATE,
-};
-
 const CONTEXT_INDEX = `# Context Index
 
 Root index of Bouncer epics and blueprints for this project.
@@ -104,6 +68,26 @@ function writeFile(repoRoot, rel, content, created) {
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content);
   created.push(rel);
+}
+
+// Advisory only. Safe bootstrap forbids init from editing files it did not
+// create, so a missing .gitignore is reported, never written. finalize ignores
+// these paths regardless; the suggestion keeps the working tree readable.
+const SUGGESTED_IGNORES = ['node_modules/', 'graphify-out/'];
+
+function gitignoreSuggestions({ repoRoot }) {
+  let ignored = [];
+  try {
+    ignored = fs.readFileSync(path.join(repoRoot, '.gitignore'), 'utf8')
+      .split('\n')
+      .map((line) => line.trim().replace(/\/+$/, ''))
+      .filter((line) => line && !line.startsWith('#'));
+  } catch (_e) {
+    ignored = [];
+  }
+  return SUGGESTED_IGNORES.filter(
+    (entry) => !ignored.includes(entry.replace(/\/+$/, '')),
+  );
 }
 
 function inspectBootstrap({ repoRoot }) {
@@ -137,8 +121,12 @@ function init({ repoRoot, timestamp }) {
   if (bootstrap === 'partial') {
     return { ok: false, created: [], skipped: true, reason: 'partial-bouncer-state' };
   }
+  const suggestions = gitignoreSuggestions({ repoRoot });
   if (bootstrap === 'ready') {
-    return { ok: true, created: [], skipped: true, reason: 'already-initialized' };
+    return {
+      ok: true, created: [], skipped: true, reason: 'already-initialized',
+      gitignoreSuggestions: suggestions,
+    };
   }
 
   const created = [];
@@ -146,11 +134,14 @@ function init({ repoRoot, timestamp }) {
   writeFile(repoRoot, '.bouncer/workflow.md', WORKFLOW, created);
   writeFile(repoRoot, '.bouncer/okf.md', OKF, created);
   for (const [name, content] of Object.entries(TEMPLATES)) {
-    writeFile(repoRoot, `.bouncer/templates/${name}`, content, created);
+    writeFile(repoRoot, `${TEMPLATE_DIR}/${name}`, content, created);
   }
   writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
   writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
-  return { ok: true, created, skipped: false, reason: 'initialized' };
+  return {
+    ok: true, created, skipped: false, reason: 'initialized',
+    gitignoreSuggestions: suggestions,
+  };
 }
 
-module.exports = { init, inspectBootstrap };
+module.exports = { init, inspectBootstrap, gitignoreSuggestions, SUGGESTED_IGNORES };

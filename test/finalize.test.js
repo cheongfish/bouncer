@@ -113,3 +113,16 @@ test('legacy root context blueprint is rejected before staging', () => {
   assert.strictEqual(g.calls.staged, null);
   assert.strictEqual(g.calls.committed, null);
 });
+
+test('runtime artifacts are neither violations nor staged', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = fakeGit(
+    ['src/auth/login.ts'],
+    ['node_modules/js-yaml/index.js', 'graphify-out/graph.json', '.worktrees/BP-001/x'],
+  );
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
+  assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts']);
+});

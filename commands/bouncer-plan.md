@@ -39,6 +39,8 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
    graph and write `bouncer.graph.suggested_paths` into `tasks.md`. If graphify is
    unavailable, it leaves `suggested_paths` empty, records a graceful fallback in
    `bouncer.graph.basis`, and says so so the user can seed paths manually.
+   Scaffold leaves `basis` empty on purpose, so this step must run: G4 fails
+   until a real basis is recorded.
 
 6. **affected_paths (user-confirmed).** Propose `bouncer.affected_paths` in
    `tasks.md` seeded from `suggested_paths`, then **have the user confirm or
@@ -63,7 +65,8 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
    node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G3 tasks ready,
-   G4 `graph.suggested_paths` present, G5 `affected_paths` non-empty, G10 all
+   G4 `graph.suggested_paths` present and `graph.basis` non-empty, G5
+   `affected_paths` non-empty, G10 all
    five implementation-ready sections present, G11 Touch justifies every
    `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.
    Fix any reported failure and re-run until it passes. Then point the user at

@@ -53,6 +53,75 @@ test('scaffoldBlueprint writes all five docs with correct ids and statuses', () 
   assert.strictEqual(verify.bouncer.status, 'pending');
 });
 
+// The headings are the skeleton the gates look for; they stay empty on purpose
+// so G10/G13/G14 still require an author to fill them in.
+test('scaffolded bodies carry the section skeleton the gates require', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/EPIC-001-auth',
+    blueprintId: 'BP-001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+  const bodyOf = (rel) => readDoc(path.join(repo, rel)).body;
+
+  const tasks = bodyOf(`${base}/tasks.md`);
+  for (const heading of [
+    '## Goal & intent', '## Interface', '## Touch', '## Do not touch', '## Checklist',
+  ]) {
+    assert.ok(tasks.includes(heading), `tasks.md missing ${heading}`);
+  }
+  const verification = bodyOf(`${base}/verification.md`);
+  assert.ok(verification.includes('## Command'));
+  assert.ok(verification.includes('## Evidence'));
+  assert.ok(bodyOf(`${base}/review.md`).includes('## Findings'));
+});
+
+test('scaffoldBlueprint renders bodies from .bouncer/templates when present', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fs.mkdirSync(path.join(repo, '.bouncer/templates'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/templates/tasks.md'),
+    '# <BP-id> <name> tasks\n\n## Goal & intent\nteam-specific prompt\n',
+  );
+  scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/EPIC-001-auth',
+    blueprintId: 'BP-001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+  const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).body;
+  assert.ok(tasks.includes('team-specific prompt'));
+  assert.ok(tasks.includes('# BP-001 login tasks'), `placeholders not substituted: ${tasks}`);
+});
+
+test('scaffoldEpic renders its body from .bouncer/templates when present', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fs.mkdirSync(path.join(repo, '.bouncer/templates'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/templates/epic.md'),
+    '# <EPIC-id> <name>\n\nhouse epic template\n',
+  );
+  const created = scaffoldEpic({
+    repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS,
+  });
+  const body = readDoc(path.join(repo, created[0])).body;
+  assert.ok(body.includes('house epic template'));
+  assert.ok(body.includes('# EPIC-001 auth'));
+});
+
+test('scaffoldBlueprint leaves graph.basis empty so G4 needs recorded evidence', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/EPIC-001-auth',
+    blueprintId: 'BP-001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+  const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).data;
+  assert.strictEqual(tasks.bouncer.graph.basis, '');
+});
+
 test('scaffoldBlueprint rejects a root context epic directory', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   assert.throws(() => scaffoldBlueprint({

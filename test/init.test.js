@@ -165,3 +165,33 @@ test('init materials have no Superpowers profile language', () => {
   assert.ok(!exists(repo, '.bouncer/superpowers.md'));
   assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(all));
 });
+
+test('init reports the gitignore entries a repo without .gitignore should add', () => {
+  const repo = tmpRepo();
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.deepStrictEqual(res.gitignoreSuggestions, ['node_modules/', 'graphify-out/']);
+  assert.ok(!exists(repo, '.gitignore'), 'init must not write .gitignore');
+});
+
+test('init suggests only the entries .gitignore is missing', () => {
+  const repo = tmpRepo();
+  fs.writeFileSync(path.join(repo, '.gitignore'), '# deps\nnode_modules\n');
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.deepStrictEqual(res.gitignoreSuggestions, ['graphify-out/']);
+  assert.strictEqual(read(repo, '.gitignore'), '# deps\nnode_modules\n');
+});
+
+test('init suggests nothing when the artifacts are already ignored', () => {
+  const repo = tmpRepo();
+  fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\ngraphify-out/\n');
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.deepStrictEqual(res.gitignoreSuggestions, []);
+});
+
+test('init reports gitignore suggestions on an already-initialized repo', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(again.reason, 'already-initialized');
+  assert.deepStrictEqual(again.gitignoreSuggestions, ['node_modules/', 'graphify-out/']);
+});

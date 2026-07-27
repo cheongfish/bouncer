@@ -13,6 +13,17 @@ function isUnder(file, entry) {
   return f.startsWith(pref);
 }
 
+// Build outputs and runtime state are never Bouncer-managed scope: they are
+// neither staged nor reported as violations, so a repository without a
+// .gitignore does not hard-stop finalize. `bouncer init` reports the entries a
+// project should ignore; Bouncer never edits .gitignore itself.
+const RUNTIME_ARTIFACTS = ['node_modules/', 'graphify-out/', '.worktrees/'];
+
+function isRuntimeArtifact(file) {
+  const f = toPosix(file);
+  return RUNTIME_ARTIFACTS.some((entry) => isUnder(f, entry));
+}
+
 function makeAllowed({ affectedPaths, blueprintDir }) {
   const bp = toPosix(blueprintDir);
   const epicDir = epicDirOf(bp);
@@ -83,7 +94,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git }) {
 
   const changed = gitApi.changedFiles();
   const untracked = gitApi.untrackedFiles();
-  const all = [...new Set([...changed, ...untracked])];
+  const all = [...new Set([...changed, ...untracked])].filter((f) => !isRuntimeArtifact(f));
   const violations = all.filter((f) => !allowed(f));
   if (violations.length) return { ok: false, reason: 'out-of-scope', violations };
 
@@ -96,5 +107,5 @@ function finalize({ repoRoot, blueprintDir, yes = false, git }) {
 }
 
 module.exports = {
-  isUnder, makeAllowed, buildCommitMessage, realGit, finalize,
+  isUnder, isRuntimeArtifact, RUNTIME_ARTIFACTS, makeAllowed, buildCommitMessage, realGit, finalize,
 };

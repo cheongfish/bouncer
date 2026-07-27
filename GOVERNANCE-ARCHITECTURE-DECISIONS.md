@@ -171,8 +171,12 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 ### D. Graphify 정책
 
 1. 그래프 최신성은 SessionStart 훅과 계획 시점의 안내에 따른다.
-2. `graphify-out/`은 로컬 캐시로 `.gitignore`에 제외한다.
-3. `suggested_paths`의 근거는 `bouncer.graph.basis`에 기록한다.
+2. `graphify-out/`은 로컬 캐시다. `bouncer init`이 `.gitignore` 누락 항목을
+   **안내**하고(직접 수정하지 않음), finalize/커밋 가드는 `node_modules/`,
+   `graphify-out/`, `.worktrees/`를 범위 위반이 아니라 무시 대상으로 처리한다.
+   따라서 `.gitignore`가 없어도 finalize가 하드 중단되지 않는다.
+3. `suggested_paths`의 근거는 `bouncer.graph.basis`에 기록한다. scaffold는
+   `basis`를 빈 값으로 두므로, 실제 근거를 기록해야 G4를 통과한다.
 
 ### E. Ponytail 최소화 정책
 
