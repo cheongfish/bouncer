@@ -6,7 +6,12 @@ const { readDoc } = require('./frontmatter');
 const { renderDoc } = require('./render');
 const { isCanonicalBlueprintDir } = require('./layout');
 
+// A passing run is evidence that the command exited zero; the tail only needs
+// to carry the summary the command prints at the end. A failing run is evidence
+// of what went wrong, so it keeps far more — and keeps it in the document body
+// where a reviewer reads, not only in frontmatter.
 const OUTPUT_TAIL_LINES = 100;
+const PASSING_OUTPUT_TAIL_LINES = 20;
 const MAX_VERIFY_OUTPUT_BYTES = 10 * 1024 * 1024;
 
 function verificationError(code, message) {
@@ -32,9 +37,9 @@ function readVerifyCommand(repoRoot) {
   return config.verify;
 }
 
-function outputTail(stdout, stderr) {
+function outputTail(stdout, stderr, lines = OUTPUT_TAIL_LINES) {
   const combined = [stdout, stderr].filter(Boolean).join('');
-  return combined.split('\n').slice(-OUTPUT_TAIL_LINES).join('\n').trim();
+  return combined.split('\n').slice(-lines).join('\n').trim();
 }
 
 function executeVerify(command, { cwd, exec = execSync }) {
@@ -47,7 +52,11 @@ function executeVerify(command, { cwd, exec = execSync }) {
     });
     const stdout = result && typeof result === 'object' ? result.stdout : result;
     const stderr = result && typeof result === 'object' ? result.stderr : '';
-    return { ok: true, exitCode: 0, output: outputTail(stdout, stderr) };
+    return {
+      ok: true,
+      exitCode: 0,
+      output: outputTail(stdout, stderr, PASSING_OUTPUT_TAIL_LINES),
+    };
   } catch (error) {
     return {
       ok: false,
@@ -77,6 +86,9 @@ function recordVerificationResult({ repoRoot, blueprintDir, command, ranAt, exit
     exit_code: exitCode,
     output_tail: output,
   };
+  const evidence = exitCode === 0
+    ? ''
+    : `\n\`\`\`\n${output}\n\`\`\`\n`;
   const body = `# Verification
 
 ## Command
@@ -85,11 +97,7 @@ function recordVerificationResult({ repoRoot, blueprintDir, command, ranAt, exit
 ## Evidence
 Ran at: ${ranAt}
 Exit code: ${exitCode}
-
-\`\`\`
-${output}
-\`\`\`
-`;
+${evidence}`;
   fs.writeFileSync(verificationPath, renderDoc(data, body));
 }
 
@@ -120,6 +128,7 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
 
 module.exports = {
   OUTPUT_TAIL_LINES,
+  PASSING_OUTPUT_TAIL_LINES,
   MAX_VERIFY_OUTPUT_BYTES,
   readVerifyCommand,
   executeVerify,

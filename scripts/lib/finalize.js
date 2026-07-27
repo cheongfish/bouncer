@@ -5,6 +5,7 @@ const { epicDirOf, toPosix } = require('./paths');
 const { CONTEXT_ROOT } = require('./scaffold');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
 const { clearCurrent } = require('./current');
+const { readConfig } = require('./advisor');
 
 function isUnder(file, entry) {
   const f = toPosix(file);
@@ -41,37 +42,28 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
   };
 }
 
-function line(list, value) {
-  list.push(value);
-}
-
-function buildCommitMessage(docs) {
+// Subject and body follow whatever commit convention the project writes into
+// its document titles; only the structure is ours. Identifiers and paths go in
+// trailers rather than the body, so a convention that keeps file names out of
+// prose is not violated and a machine can still parse them back out.
+function buildCommitMessage(docs, { trailers } = {}) {
   const bp = docs.blueprintIndex.data;
   const bouncer = bp.bouncer || {};
   const type = bouncer.commit_type || 'feat';
-  const bpId = bouncer.id;
-  const epicId = bouncer.epic_id;
-  const summary = bp.title;
-  const taskSummary = docs.tasks && docs.tasks.data.title ? docs.tasks.data.title : '';
-  const verifySummary = docs.verification && docs.verification.data.title
-    ? docs.verification.data.title : '';
+  const titleOf = (key) => (docs[key] && docs[key].data.title ? docs[key].data.title : '');
+
+  const body = ['tasks', 'verification'].map(titleOf).filter(Boolean).map((t) => `- ${t}`);
+
+  const meta = [`Epic: ${bouncer.epic_id}`, `Blueprint: ${bouncer.id}`];
   const distillPath = docs.distill && docs.distill.data.resource
     ? docs.distill.data.resource : '';
-  const out = [];
-  line(out, `${type}(${bpId}): ${summary}`);
-  line(out, '');
-  line(out, `Epic: ${epicId}`);
-  line(out, `Blueprint: ${bpId}`);
-  line(out, '');
-  line(out, 'Implemented:');
-  line(out, `- ${taskSummary}`);
-  line(out, '');
-  line(out, 'Verified:');
-  line(out, `- ${verifySummary}`);
-  line(out, '');
-  line(out, 'Distilled:');
-  line(out, `- ${distillPath}`);
-  return out.join('\n');
+  if (distillPath) meta.push(`Distill: ${distillPath}`);
+
+  const extra = (Array.isArray(trailers) ? trailers : [])
+    .map((t) => String(t).trim())
+    .filter(Boolean);
+
+  return [`${type}: ${bp.title}`, '', ...body, '', ...meta, ...extra].join('\n');
 }
 
 function realGit(repoRoot) {
@@ -104,7 +96,8 @@ function finalize({
   const violations = all.filter((f) => !allowed(f));
   if (violations.length) return { ok: false, reason: 'out-of-scope', violations };
 
-  const commitMessage = buildCommitMessage(docs);
+  const commit = readConfig(repoRoot).commit || {};
+  const commitMessage = buildCommitMessage(docs, { trailers: commit.trailers });
   if (!yes) return { ok: true, dryRun: true, staged: all, commitMessage };
 
   gitApi.stage(all);

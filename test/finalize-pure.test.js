@@ -32,9 +32,46 @@ test('commit message follows the template', () => {
     distill: { data: { resource: `${BP}/distill.md` } },
   };
   const msg = buildCommitMessage(docs);
-  assert.ok(msg.startsWith('feat(BP-001): Login flow\n'));
-  assert.ok(msg.includes('Epic: EPIC-001'));
-  assert.ok(msg.includes('Blueprint: BP-001'));
-  assert.ok(msg.includes('Implemented:\n- Implement login'));
-  assert.ok(msg.includes('Distilled:\n- ' + `${BP}/distill.md`));
+  const lines = msg.split('\n');
+
+  // Subject carries no scope: the blueprint id lives in a trailer, where a
+  // machine can read it and the team's commit convention does not forbid it.
+  assert.strictEqual(lines[0], 'feat: Login flow');
+  assert.strictEqual(lines[1], '');
+  assert.strictEqual(lines[2], '- Implement login');
+  assert.strictEqual(lines[3], '- Login verified');
+
+  const trailers = msg.slice(msg.indexOf('Epic: '));
+  assert.strictEqual(trailers, [
+    'Epic: EPIC-001',
+    'Blueprint: BP-001',
+    `Distill: ${BP}/distill.md`,
+  ].join('\n'));
+  assert.ok(!msg.includes('Implemented:'), 'prose labels are replaced by bullets');
+});
+
+test('configured trailers are appended after the Bouncer trailers', () => {
+  const docs = {
+    blueprintIndex: { data: { title: 'Login flow', bouncer: { id: 'BP-001', epic_id: 'EPIC-001' } } },
+    tasks: { data: { title: 'Implement login' } },
+    verification: { data: { title: 'Login verified' } },
+    distill: { data: { resource: `${BP}/distill.md` } },
+  };
+  const msg = buildCommitMessage(docs, { trailers: ['Co-Authored-By: A <a@b.c>', 'Refs: #12'] });
+  assert.ok(msg.endsWith('Distill: ' + `${BP}/distill.md`
+    + '\nCo-Authored-By: A <a@b.c>\nRefs: #12'), msg);
+});
+
+test('a blank or non-array trailer config changes nothing', () => {
+  const docs = {
+    blueprintIndex: { data: { title: 'Login flow', bouncer: { id: 'BP-001', epic_id: 'EPIC-001' } } },
+    tasks: { data: { title: 'Implement login' } },
+    verification: { data: { title: 'Login verified' } },
+    distill: { data: { resource: `${BP}/distill.md` } },
+  };
+  const baseline = buildCommitMessage(docs);
+  assert.strictEqual(buildCommitMessage(docs, {}), baseline);
+  assert.strictEqual(buildCommitMessage(docs, { trailers: [] }), baseline);
+  assert.strictEqual(buildCommitMessage(docs, { trailers: '  ' }), baseline);
+  assert.strictEqual(buildCommitMessage(docs, { trailers: ['', '   '] }), baseline);
 });

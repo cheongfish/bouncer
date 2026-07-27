@@ -87,15 +87,25 @@
   때문). PR 본문 템플릿을 GitHub·GitLab·Bouncer 세 경로에 같은 형식으로 배치했다.
   이전 PR 템플릿은 커밋 메시지 형식의 복사본이었다.
 
+### Changed (커밋 산출물)
+
+- **검증 증적을 성공과 실패에 따라 다르게 기록** — 통과한 실행은 종료 코드가 증거이므로
+  본문에 출력 블록을 남기지 않고 꼬리도 짧게(20줄) 남긴다. 실패한 실행은 출력이
+  증거이므로 본문에 코드블록으로 남기고 꼬리도 길게(100줄) 유지한다. 같은 출력을
+  frontmatter와 본문에 두 번 쓰던 것을 없앴다. 이 저장소 기준 229줄 → 47줄.
+- **생성 커밋 메시지를 팀 규약에 맞춤** — 제목에서 스코프를 빼고, `Epic`/`Blueprint`/
+  `Distill`을 본문이 아닌 trailer로 옮겼다. 본문은 tasks와 verification의 `title`을
+  불릿으로 쓴다. 언어는 문서 `title`에서 오므로 하드코딩하지 않는다 — 다른 팀이
+  설치해도 그 팀의 언어와 규약을 따른다.
+- **`commit.trailers` 설정 추가** — 커밋 메시지 말미에 그대로 덧붙일 trailer 목록.
+  기본값은 빈 배열이다. trailer는 팀 규약이지 Bouncer가 가정할 것이 아니다.
+
 ### Known limitations
 
 - 커밋 가드는 셸을 거치지 않는 경로(스크립트 파일, `make`, `subprocess`)와 plumbing
   우회(`git commit-tree` + `git update-ref`)를 탐지하지 못한다. 실수 방지 장치이지
   악의적 우회 방어가 아니다. README의 "위협 모델" 참고.
 - LICENSE가 아직 없다(사내 정책 확인 대기).
-- `verification.md`가 verify 출력을 frontmatter `output_tail`과 본문 `## Evidence`에
-  중복 기록해 문서가 크게 부푼다(191개 테스트 기준 229줄).
-- 생성되는 커밋 메시지의 품질이 문서 `title`에 전적으로 좌우되며, trailer를 넣을
-  자리가 없다. 또한 스코프 `(BP-001)`와 본문의 distill 경로가 이 저장소의 커밋
-  규약과 어긋난다 — 커밋 템플릿으로는 고칠 수 없고 `buildCommitMessage`를 고쳐야 한다.
+- 생성되는 커밋 메시지의 품질이 문서 `title`에 전적으로 좌우된다. `title`을 커밋
+  제목·본문 줄로 그대로 쓸 수 있게 작성해야 한다.
 - `graphify`가 꺼져 있을 때 `graph.basis`를 사람이 직접 적어야 한다.

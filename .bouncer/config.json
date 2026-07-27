@@ -27,5 +27,10 @@
       "finalize": "lite",
       "auto_switch": false
     }
+  },
+  "commit": {
+    "trailers": [
+      "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+    ]
   }
 }

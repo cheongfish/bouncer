@@ -87,7 +87,8 @@ test('dry-run reports staged files and message without committing', () => {
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
-  assert.ok(res.commitMessage.startsWith('feat(BP-001): Login'));
+  assert.ok(res.commitMessage.startsWith('feat: Login'), res.commitMessage);
+  assert.ok(res.commitMessage.includes('\nBlueprint: BP-001'), res.commitMessage);
   assert.strictEqual(g.calls.committed, null);
 });
 
@@ -98,7 +99,7 @@ test('--yes stages and commits', () => {
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/distill.md`]);
-  assert.ok(g.calls.committed.startsWith('feat(BP-001): Login'));
+  assert.ok(g.calls.committed.startsWith('feat: Login'), g.calls.committed);
 });
 
 test('legacy root context blueprint is rejected before staging', () => {
@@ -158,4 +159,19 @@ test('a dry-run finalize leaves the pointer alone', () => {
   assert.strictEqual(res.dryRun, true);
   assert.strictEqual(res.pointerCleared, undefined);
   assert.deepStrictEqual(cleared, []);
+});
+
+test('finalize appends the trailers configured for the project', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    JSON.stringify({ commit: { trailers: ['Co-Authored-By: A <a@b.c>'] } }),
+  );
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
+  });
+  assert.ok(res.commitMessage.endsWith('Co-Authored-By: A <a@b.c>'), res.commitMessage);
 });

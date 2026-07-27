@@ -121,3 +121,39 @@ test('executeVerify accepts successful commands with over one megabyte of output
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.exitCode, 0);
 });
+
+// A passing run's value is the exit code and the summary; a failing run's value
+// is the output. Recording the full tail twice — frontmatter and body — put a
+// couple of hundred lines into every commit.
+const noisyCommand = (lines, exitCode) => 'node -e "'
+  + `for(let i=1;i<=${lines};i++)console.log('line '+i);process.exit(${exitCode})`
+  + '"';
+
+test('a passing verification keeps no output block in the body', () => {
+  const repo = setupRepo(noisyCommand(300, 0));
+  runVerification({ repoRoot: repo, blueprintDir: BP_REL });
+  const { data, body } = readDoc(path.join(repo, BP_REL, 'verification.md'));
+
+  assert.ok(!body.includes('```'), `body should carry no code block:\n${body}`);
+  assert.match(body, /## Command/);
+  assert.match(body, /Exit code: 0/);
+  assert.ok(body.split('\n').length < 15, `body should stay short:\n${body}`);
+
+  const tail = data.bouncer.verification.output_tail.split('\n');
+  assert.ok(tail.length <= 20, `a passing run records a short tail, got ${tail.length}`);
+  assert.strictEqual(tail[tail.length - 1], 'line 300', 'the tail ends at the last line printed');
+});
+
+test('a failing verification keeps the output where a reader will see it', () => {
+  const repo = setupRepo(noisyCommand(300, 3));
+  runVerification({ repoRoot: repo, blueprintDir: BP_REL });
+  const { data, body } = readDoc(path.join(repo, BP_REL, 'verification.md'));
+
+  assert.match(body, /Exit code: 3/);
+  assert.ok(body.includes('```'), 'a failure keeps its output block');
+  assert.ok(body.includes('line 300'), 'the body shows the end of the output');
+
+  const tail = data.bouncer.verification.output_tail.split('\n');
+  assert.ok(tail.length > 20, `a failing run records more than a passing one, got ${tail.length}`);
+  assert.ok(tail.length <= 100, `bounded at the failure limit, got ${tail.length}`);
+});

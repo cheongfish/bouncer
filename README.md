@@ -170,6 +170,7 @@ PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할
 | `pr.base` | `"develop"` | PR 대상 브랜치 |
 | `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
 | `graphify` | `{ "enabled": false }` | 소스 그래프 생성. **기본 비활성.** 켜면 SessionStart에서 `graphify-out/` 캐시를 갱신하고 `suggested_paths`를 채웁니다 |
+| `commit.trailers` | `[]` | `/bouncer-finalize`가 만드는 커밋 메시지 말미에 그대로 덧붙일 trailer 목록 (예: `Co-Authored-By: ...`) |
 | `okf_version` | `"0.x"` | 문서 frontmatter 스키마 버전 |
 | `plugin_advisors.ponytail` | (객체) | 단계별 Ponytail 모드 **권고**. 자동 전환하지 않습니다 |
 
