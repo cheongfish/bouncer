@@ -8,7 +8,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "setup": "git config commit.template .gitmessage && echo \"commit.template set \u2014 git commit (without -m) now opens the team template\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

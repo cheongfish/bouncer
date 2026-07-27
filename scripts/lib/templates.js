@@ -7,19 +7,33 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const PR_TEMPLATE = `<type>(<bp-id>): <summary>
+const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 
-Epic: <epic-id>
-Blueprint: <bp-id>
+-
 
-Implemented:
-- <task summary>
+## 📝 작업 개요 (Task Overview)
 
-Verified:
-- <verification summary>
+- <blueprint summary>
 
-Distilled:
-- <distill path>
+## 🛠️ 주요 변경 사항 (Major Changes)
+
+### ✨ 신규 기능 및 개선 (Features & Improvements)
+
+- [ ] <change>
+
+### 🐛 버그 수정 (Fixes)
+
+- [ ] <fix>
+
+## 💬 추가 정보 (Additional Information)
+
+- 특이 사항 및 리뷰 포인트
+
+## 🚦 Bouncer
+
+- Epic: <epic-id>
+- Blueprint: <bp-id>
+- Distill: <distill path>
 `;
 
 const TEMPLATES = {

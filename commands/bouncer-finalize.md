@@ -38,8 +38,10 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
      stop after the local commit and tell the user push/PR was skipped. Worktree
      cleanup and merge are the user's responsibility.
    - Otherwise push the branch and open a **draft** PR using `.bouncer/config.json`
-     `base_branch`/`pr` and the §5.6 template (mirrored in `.bouncer/templates/pr.md`),
-     which is identical in shape to the commit message:
+     `base_branch`/`pr` and `.bouncer/templates/pr.md`. That template follows the
+     team's PR format, not the commit message shape; fill its sections from the
+     blueprint and tasks documents and leave the `## 🚦 Bouncer` section for the
+     epic/blueprint ids and the distill path:
      ```bash
      git push -u origin bouncer/<BP-id>-<slug>
      gh pr create --draft --base <config.base_branch> \
