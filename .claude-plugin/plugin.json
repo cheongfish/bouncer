@@ -5,6 +5,5 @@
   "author": {
     "name": "Chunjae AI Dev",
     "email": "aidev.chunjae@gmail.com"
-  },
-  "hooks": "./hooks/hooks.json"
+  }
 }

@@ -13,10 +13,15 @@ test('package.json exposes the bouncer name and bin', () => {
   assert.deepStrictEqual(pkg.bin, { bouncer: 'scripts/bouncer' });
 });
 
-test('plugin.json references hooks/hooks.json', () => {
+// hooks/hooks.json is loaded by convention. Naming it in the manifest as well
+// makes the loader see the same file twice and reject the whole plugin with
+// "Duplicate hooks file detected" — the plugin does not load at all, so this is
+// a shipping blocker rather than a cosmetic manifest issue. `hooks` is only for
+// *additional* hook files.
+test('plugin.json does not re-declare the conventional hooks file', () => {
   const plugin = readJson('.claude-plugin/plugin.json');
   assert.strictEqual(plugin.name, 'bouncer');
-  assert.strictEqual(plugin.hooks, './hooks/hooks.json');
+  assert.ok(!('hooks' in plugin), 'plugin.json must not declare hooks/hooks.json');
 });
 
 test('hooks.json registers commit-safety on PreToolUse Bash', () => {
