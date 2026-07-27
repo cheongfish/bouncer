@@ -21,8 +21,10 @@
 - **실행되는 검증** — execute 게이트가 `config.verify`를 직접 실행하고 종료 코드와
   출력을 `verification.md`에 기록한다. 하네스가 기록한 메타데이터가 없거나 본문과
   어긋나면 G13 실패. 에이전트가 손으로 쓴 증적만으로는 통과할 수 없다.
-- **커밋 안전 훅** — PreToolUse에서 `affected_paths` 밖 파일의 커밋을 차단.
-  finalize의 범위 검사가 최후 방어선.
+- **커밋 안전 훅** — PreToolUse에서 `affected_paths` 밖 파일의 커밋을 차단한다.
+  판단할 수 없는 명령은 커밋으로 간주한다(fail-closed): 중첩 셸(`bash -c "..."`)은
+  내부를 파싱하고, 셸 확장(`git $FLAG commit`)은 판단 불가로 처리하며, 셸 별칭
+  (`git ci`)은 `git config`로 확장해 해석한다. finalize의 범위 검사가 최후 방어선.
 - **8개 스킬** — `discovery`, `spec-authoring`, `implementation`, `debugging`,
   `verification`, `review`, `minimality`, `graphify-runner`.
 - **마켓플레이스 배포** — `.claude-plugin/marketplace.json`. 저장소 자체가
@@ -53,9 +55,9 @@
 
 ### Known limitations
 
-- 커밋 가드는 중첩 셸(`bash -c "git commit"`), 변수 확장(`git $FLAG commit`),
-  셸 별칭(`git ci`)을 탐지하지 못한다. 실수 방지 장치이지 악의적 우회 방어가 아니다.
-  README의 "위협 모델" 참고.
+- 커밋 가드는 셸을 거치지 않는 경로(스크립트 파일, `make`, `subprocess`)와 plumbing
+  우회(`git commit-tree` + `git update-ref`)를 탐지하지 못한다. 실수 방지 장치이지
+  악의적 우회 방어가 아니다. README의 "위협 모델" 참고.
 - 존재하지 않는 blueprint 경로로 finalize하면 "문서 없음"이 아니라
   `G9 distill.status != published`가 보고된다.
 - CI, LICENSE, 린터가 아직 없다.

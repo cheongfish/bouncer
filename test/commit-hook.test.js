@@ -141,3 +141,56 @@ test('realMainRepoCurrent reads one shared pointer from primary and linked workt
   assert.deepStrictEqual(realMainRepoCurrent({ repoRoot: primary, deps }), current);
   assert.deepStrictEqual(realMainRepoCurrent({ repoRoot: linked, deps }), current);
 });
+
+// P1-2: the guard is a mistake-prevention device. Where it cannot decide what a
+// command does, it must fail closed (report a commit) rather than wave it through.
+
+test('isGitCommit sees through a nested shell', () => {
+  assert.strictEqual(isGitCommit('bash -c "git commit -m x"'), true);
+  assert.strictEqual(isGitCommit("sh -c 'git commit -m x'"), true);
+  assert.strictEqual(isGitCommit('zsh -lc "git commit"'), true);
+  assert.strictEqual(isGitCommit('bash -c "git add . && git commit -m x"'), true);
+  assert.strictEqual(isGitCommit('bash -c "npm test"'), false);
+  assert.strictEqual(isGitCommit('sh -c "git status"'), false);
+});
+
+test('isGitCommit fails closed on variable expansion inside a git command', () => {
+  assert.strictEqual(isGitCommit('git $FLAG commit'), true);
+  assert.strictEqual(isGitCommit('git ${FLAG} status'), true);
+  assert.strictEqual(isGitCommit('git $(printf commit)'), true);
+  // No git token in the command: nothing to be undecided about.
+  assert.strictEqual(isGitCommit('npm run $SCRIPT'), false);
+  assert.strictEqual(isGitCommit('echo $HOME'), false);
+});
+
+test('isGitCommit resolves a git alias to its expansion', () => {
+  const resolveAlias = (name) => ({
+    ci: 'commit -v',
+    save: "!git add -A && git commit -m 'save'",
+    st: 'status',
+  }[name] || '');
+  assert.strictEqual(isGitCommit('git ci -m x', { resolveAlias }), true);
+  assert.strictEqual(isGitCommit('git save', { resolveAlias }), true);
+  assert.strictEqual(isGitCommit('git st', { resolveAlias }), false);
+  assert.strictEqual(isGitCommit('git unknown-sub', { resolveAlias }), false);
+});
+
+test('isGitCommit does not fire on quoted text that merely mentions a commit', () => {
+  assert.strictEqual(isGitCommit('echo "git commit"'), false);
+  assert.strictEqual(isGitCommit('git log --grep "commit"'), false);
+  assert.strictEqual(isGitCommit('git commit-tree abc'), false);
+  assert.strictEqual(isGitCommit('docker commit abc'), false);
+});
+
+test('evaluateCommit blocks an out-of-scope commit hidden in a nested shell', () => {
+  const r = evaluateCommit({
+    command: 'bash -c "git commit -m x"', repoRoot: '/r',
+    deps: deps({
+      current: { blueprint: BP, base: 'develop' },
+      affected: ['src/feature'],
+      staged: ['src/other/b.js'],
+    }),
+  });
+  assert.strictEqual(r.block, true);
+  assert.ok(r.reason.includes('src/other/b.js'));
+});

@@ -6,7 +6,7 @@
 요인(P1-1/P1-3/P1-4), 배포 자산(P0-2/P0-3)이 모두 해소됐다. 남은 것은 사내 Git에
 올리고 그 URL을 팀에 공유하는 일이다.
 
-갱신: 2026-07-27 — P0-1, P0-2, P0-3, P1-1, P1-3, P1-4 완료. `npm test` 179/179 통과.
+갱신: 2026-07-27 — P0 전체와 P1 전체 완료. `npm test` 185/185 통과.
 남은 배포 차단 요인은 사내 Git 원격 저장소 등록 하나뿐이다.
 
 ## 판단 근거 (2026-07-27 실측)
@@ -96,7 +96,7 @@
       `init` 결과의 `gitignoreSuggestions`, `/bouncer-init` 3단계.
 - [x] 정책 D2 서술을 실제 동작과 일치시켰다.
 
-### P1-2. 커밋 가드를 쉽게 우회할 수 있다
+### P1-2. 커밋 가드를 쉽게 우회할 수 있다 — **해결됨**
 
 **증상.** `isGitCommit`이 다음을 탐지하지 못한다.
 
@@ -104,19 +104,27 @@
 | --- | --- |
 | `git commit -m x` | O |
 | `git -C /tmp/repo commit -m x` | O |
-| `bash -c "git commit -m x"` | X |
-| `git $FLAG commit` | X |
-| `git ci -m x` (alias) | X |
+| `bash -c "git commit -m x"` | X → **O** (중첩 셸 파싱) |
+| `git $FLAG commit` | X → **O** (판단 불가 → fail-closed) |
+| `git ci -m x` (alias) | X → **O** (`git config`로 확장) |
 
 또한 가드는 커밋만 막고 범위 밖 파일의 *작성*은 막지 않는다.
 
 **조치.**
 
-- [ ] 중첩 셸(`bash -c`, `sh -c`), 변수 확장이 섞인 명령은 탐지 실패 시
-      "판단 불가"로 처리해 fail-closed 한다.
-- [ ] 우회가 원리적으로 가능하다는 점을 README의 위협 모델에 명시한다. 가드는
-      실수 방지 장치이지 악의적 우회 방어가 아니다.
-- [ ] finalize의 최종 범위 검사를 최후 방어선으로 유지한다(현재 정상 동작).
+- [x] 인용부호를 인식하는 토크나이저로 교체하고, 중첩 셸(`sh`/`bash`/`zsh`/`dash`/
+      `ksh`/`ash`, `-lc` 결합 플래그 포함) 내부를 재귀 파싱한다. 셸 확장이 섞이면
+      판단 불가로 보고 fail-closed 한다. `git config alias.*`를 조회해 별칭을
+      확장하며, `!` 셸 별칭은 그 내용을 다시 파싱한다.
+- [x] 남은 우회 경로(셸을 거치지 않는 스크립트·`make`·`subprocess`, plumbing
+      조합, 범위 밖 파일 *작성*)를 README 위협 모델에 명시했다.
+- [x] finalize의 최종 범위 검사를 최후 방어선으로 유지(변경 없음).
+
+실제 저장소에서 훅을 돌려 확인: `bash -c "git commit"`, `git ci`(실제 alias),
+`git $FLAG commit` 모두 exit 2로 차단되고, `npm test`/`git status`는 통과했다.
+
+오탐 비용: `git $ANYTHING`은 커밋이 아니어도 범위 검사를 거친다. 범위 밖 파일이
+스테이징된 경우에만 실제로 막히므로 평상시에는 드러나지 않는다.
 
 ### P1-3. scaffold 산출물이 게이트 요구사항과 불일치한다 — **해결됨**
 
