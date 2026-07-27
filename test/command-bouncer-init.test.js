@@ -23,3 +23,11 @@ test('bouncer-init command surfaces the gitignore suggestions it reports', () =>
   assert.match(md, /\.gitignore/);
   assert.match(md, /does not (edit|write)|never (edits|writes)/i);
 });
+
+test('bouncer-init tells the user to commit the bootstrap before planning', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /git add[^\n]*\.bouncer|commit[^\n]*\.bouncer/i);
+  // The guidance is only correct before /bouncer-plan writes the active pointer,
+  // after which the commit guard blocks files outside affected_paths.
+  assert.match(body, /before[^\n]*\/bouncer-plan|\/bouncer-plan[^\n]*after/i);
+});

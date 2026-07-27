@@ -55,6 +55,12 @@ credential helper를 비활성화한 채 `git pull`을 돌리기 때문에 HTTPS
 건드리지 않습니다. `.gitignore`에 추가할 항목을 **안내만** 하고 직접 쓰지 않으니,
 알려주는 항목을 직접 넣으세요.
 
+만든 직후 별도 커밋으로 남기세요. 이유는 [컨텍스트 문서 버전관리](#컨텍스트-문서-버전관리)에 있습니다.
+
+```bash
+git add .bouncer && git commit -m "chore: bootstrap bouncer"
+```
+
 ```
 /bouncer-plan
 ```
@@ -95,6 +101,46 @@ bouncer validate --blueprint <dir> --gate <plan|execute|finalize>
 
 섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가 G10에
 걸리는 것은 의도된 동작입니다.
+
+## 컨텍스트 문서 버전관리
+
+**`.bouncer/` 전체를 커밋합니다.** 선택 사항이 아니라 설계 전제입니다 —
+`/bouncer-finalize`는 코드 변경과 그 blueprint의 문서를 **한 커밋에 함께** 담습니다.
+문서를 gitignore하면 게이트를 통과했다는 증적(`verification.md`의 실제 종료 코드,
+`affected_paths` 승인 기록)이 로컬에만 남고 리뷰어에게 도달하지 않아, 이 도구의
+존재 이유가 사라집니다.
+
+| 대상 | 방침 | 누가 커밋하나 |
+| --- | --- | --- |
+| `.bouncer/context/**` | 커밋 | `/bouncer-finalize`가 코드와 함께 자동으로 |
+| `.bouncer/config.json`, `governance.md`, `workflow.md`, `okf.md`, `templates/` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
+| `graphify-out/` | 제외 | — (`.gitignore`, init이 안내) |
+| 활성 blueprint 포인터·worktree | 해당 없음 | 저장소 밖(`$GIT_COMMON_DIR/bouncer/`)에 저장됨 |
+
+### 부트스트랩은 왜 따로 커밋해야 하나
+
+`.bouncer/config.json`과 `templates/`는 blueprint가 커밋할 수 있는 범위에 **없습니다.**
+그래서 커밋하지 않은 채로 두면 첫 `/bouncer-finalize`가 out-of-scope로 중단됩니다.
+게다가 `/bouncer-plan`이 활성 blueprint를 기록하고 나면 커밋 가드가
+`affected_paths` 밖 파일을 막으므로, **`/bouncer-init`과 `/bouncer-plan` 사이**가
+이 커밋을 남길 수 있는 유일한 구간입니다.
+
+`templates/`를 커밋해야 하는 이유가 하나 더 있습니다 — scaffold가 이 디렉터리를
+런타임에 읽습니다. 커밋하지 않으면 팀원마다 다른 문서 골격이 생성됩니다.
+
+### 문서는 "현행"이 아니라 "그 시점의 기록"입니다
+
+커밋 이후 코드만 고치면 `tasks.md`는 과거 상태로 남습니다. 이건 결함이 아닙니다.
+컨텍스트 문서는 살아있는 명세가 아니라 **그 커밋이 왜 그 범위였고 무엇으로
+검증됐는지에 대한 기록**입니다. 최신 상태로 유지하려 들지 마세요. 범위가 바뀌면
+새 blueprint를 만드는 것이 맞습니다.
+
+PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할 수 있습니다.
+
+```
+# .gitattributes
+.bouncer/context/** linguist-generated=true
+```
 
 ## 설정 (`.bouncer/config.json`)
 
