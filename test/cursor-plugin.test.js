@@ -71,6 +71,26 @@ test('commands resolve the plugin root instead of naming a single agent', () => 
   }
 });
 
+// Each fenced block is executed as its own shell, so an assignment made in an
+// earlier block is gone by the time a later one runs. A block that reads
+// ${BOUNCER_ROOT} without setting it first resolves to an empty prefix and
+// runs `node /scripts/bouncer`.
+test('every shell block that reads BOUNCER_ROOT also assigns it', () => {
+  const dir = path.join(root, 'commands');
+  const offenders = [];
+  for (const name of fs.readdirSync(dir).filter((f) => f.endsWith('.md'))) {
+    const src = fs.readFileSync(path.join(dir, name), 'utf8');
+    for (const m of src.matchAll(/( *)```bash\n(.*?)\1```/gs)) {
+      const body = m[2];
+      if (!body.includes('${BOUNCER_ROOT}')) continue;
+      if (!body.includes('BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"')) {
+        offenders.push(`${name}: ${body.split('\n')[0].trim()}`);
+      }
+    }
+  }
+  assert.deepStrictEqual(offenders, [], `blocks read BOUNCER_ROOT without setting it:\n${offenders.join('\n')}`);
+});
+
 function runCursorHook(payload, cwd) {
   const out = execFileSync(process.execPath, [path.join(root, 'hooks/cursor-commit-safety.js')], {
     input: JSON.stringify(payload), encoding: 'utf8', cwd,
