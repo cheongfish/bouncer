@@ -205,6 +205,47 @@
 
 ---
 
+## 다음 세션 시작점 (2026-07-27 기준)
+
+현재 상태: `develop` = `main` = `7054610`, 워킹 트리 clean, `npm test` 194/194,
+`npm run lint` 통과, 태그 `bouncer--v0.1.0`. **원격 저장소 없음.**
+
+### 남은 작업 (우선순위 순)
+
+1. **원격 등록 + 푸시** — 유일한 배포 차단 요인. 사내 GitLab과 개인 GitHub(private)
+   두 곳. 비공개이므로 SSH 리모트 권장(이유는 README 설치 절).
+   푸시 전까지 태그는 옮겨도 되지만, 푸시 후에는 버전을 올릴 것.
+
+2. **커밋 산출물 정리 blueprint** — 아래 셋은 한 관심사라 한 blueprint로 묶는다.
+   - `verification.md` 중복 기록: `verification.js`가 같은 출력을 frontmatter
+     `output_tail`과 본문 `## Evidence`에 두 번 쓴다(191개 테스트 기준 229줄).
+     G13이 본문에 요구하는 것은 명령 문자열과 `Exit code: 0`뿐이므로 본문
+     코드블록은 뺄 수 있다. 실패 시에는 본문에도 꼬리를 남기는 편이 낫다.
+   - `buildCommitMessage`가 팀 규약을 위반한다: 스코프 `(BP-001)` 사용, 본문에
+     distill 파일 경로. 제안 형태는 제목·본문을 팀 규약대로 두고 Epic/Blueprint/
+     Distill을 **trailer**로 내리는 것. 언어는 문서 `title`에서 오므로 하드코딩
+     하지 않는다 — 다른 팀이 설치해도 그 팀 언어를 따라야 한다.
+   - trailer 자리 추가(`Co-Authored-By` 등). 위 변경에 함께 들어간다.
+
+   `test/finalize-pure.test.js`가 현재 형식을 고정하고 있으므로 함께 고쳐야 한다.
+
+3. **LICENSE** — 회사 정책 확인 대기. 개인 GitHub은 private으로 결정됨.
+
+4. **파일럿 실행** — 원격 등록 후. `docs/PILOT.md` 참조.
+
+5. **`graph.basis` 수기 입력** — 파일럿에서 실제 불편 보고가 나오면 그때 판단한다.
+   지금 자동화하면 P1-4(게이트 자동 충족)가 되돌아간다.
+
+### 이 저장소의 규약
+
+- 커밋: 한국어 Conventional Commits (`.gitmessage`). `type: 명사형 제목` +
+  `~함` 본문 최대 3줄, 본문에 파일·모듈명 금지. 출처는 `~/.cursor/skills/commit`.
+- 작업 방식: TDD(실패 테스트 먼저), 문서 테스트는 식별자 존재만 단언
+  (`GOVERNANCE-ARCHITECTURE-DECISIONS.md` 섹션 G).
+- 가능하면 Bouncer 사이클로 진행한다. 이 저장소가 첫 사용자다.
+
+---
+
 ## 권장 순서
 
 1. P0-1 (검증 실행) — 이것이 없으면 나머지 개선은 신뢰할 수 없는 도구를 다듬는 일이다.

@@ -80,6 +80,13 @@
   이름 정책은 *작성한 표면*을 규율하지, 명령이 출력한 내용을 규율하지 않는다.
 - 파일럿 안내(`docs/PILOT.md`)와 이슈 템플릿(GitHub·GitLab)을 추가했다.
 
+### Conventions
+
+- **커밋·PR 템플릿** — 한국어 Conventional Commits 규약을 `.gitmessage`에 명문화하고
+  `npm run setup`으로 연결한다(클론마다 1회, git이 저장소의 로컬 설정 변경을 막기
+  때문). PR 본문 템플릿을 GitHub·GitLab·Bouncer 세 경로에 같은 형식으로 배치했다.
+  이전 PR 템플릿은 커밋 메시지 형식의 복사본이었다.
+
 ### Known limitations
 
 - 커밋 가드는 셸을 거치지 않는 경로(스크립트 파일, `make`, `subprocess`)와 plumbing
@@ -89,5 +96,6 @@
 - `verification.md`가 verify 출력을 frontmatter `output_tail`과 본문 `## Evidence`에
   중복 기록해 문서가 크게 부푼다(191개 테스트 기준 229줄).
 - 생성되는 커밋 메시지의 품질이 문서 `title`에 전적으로 좌우되며, trailer를 넣을
-  자리가 없다.
+  자리가 없다. 또한 스코프 `(BP-001)`와 본문의 distill 경로가 이 저장소의 커밋
+  규약과 어긋난다 — 커밋 템플릿으로는 고칠 수 없고 `buildCommitMessage`를 고쳐야 한다.
 - `graphify`가 꺼져 있을 때 `graph.basis`를 사람이 직접 적어야 한다.
