@@ -159,18 +159,38 @@ const VERIFY_BODY_OK = `# Verification
 \`npm test\`
 
 ## Evidence
-All 42 tests passed. Exit code 0.
+Ran at: 2026-07-27T00:00:00.000Z
+Exit code: 0
+All 42 tests passed.
 `;
 
 test('execute gate: review optional satisfies G8 (with verification body)', () => {
   const docs = {
     tasks: doc('verified'),
-    verification: doc('passed', {}, VERIFY_BODY_OK),
+    verification: doc('passed', {
+      verification: {
+        command: 'npm test',
+        ran_at: '2026-07-27T00:00:00.000Z',
+        exit_code: 0,
+        output_tail: 'All 42 tests passed.',
+      },
+    }, VERIFY_BODY_OK),
     review: doc('pending', { review: { required: false, reason: 'docs-only' } }),
   };
   const failures = [];
   checkGate('execute', docs, rels, failures);
   assert.deepStrictEqual(failures, []);
+});
+
+test('execute gate flags G13 when verification lacks harness metadata', () => {
+  const docs = {
+    tasks: doc('verified'),
+    verification: doc('passed', {}, VERIFY_BODY_OK),
+    review: doc('pending', { review: { required: false } }),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G13'));
 });
 
 test('execute gate flags G13 when verification body lacks Command/Evidence', () => {
@@ -193,7 +213,14 @@ const REVIEW_BODY_OK = `# Review
 test('execute gate accepts review with valid findings schema', () => {
   const docs = {
     tasks: doc('verified'),
-    verification: doc('passed', {}, VERIFY_BODY_OK),
+    verification: doc('passed', {
+      verification: {
+        command: 'npm test',
+        ran_at: '2026-07-27T00:00:00.000Z',
+        exit_code: 0,
+        output_tail: 'All 42 tests passed.',
+      },
+    }, VERIFY_BODY_OK),
     review: doc('accepted', {
       review: { findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }] },
     }, REVIEW_BODY_OK),

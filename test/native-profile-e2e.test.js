@@ -24,12 +24,12 @@ function base(type, id, status, extra) {
   };
 }
 
-test('native profile: execute gate passes on self-contained verification+review docs', () => {
+test('execute validation reruns the configured command instead of trusting evidence', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-native-e2e-'));
 
   // native Bouncer workflow: self-contained verification + review docs
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  const cfg = { verify: 'npm test' };
+  const cfg = { verify: 'node -e "process.exit(7)"' };
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(cfg));
 
   // epic + blueprint indexes
@@ -50,8 +50,15 @@ test('native profile: execute gate passes on self-contained verification+review 
 
   // verification passed with body contract
   writeDoc(repo, `${BP_REL}/verification.md`,
-    base('bouncer.verification', 'VERIFY-BP-001', 'passed'),
-    '# Verification\n\n## Command\n`npm test`\n\n## Evidence\n42 passed, exit 0.\n');
+    base('bouncer.verification', 'VERIFY-BP-001', 'passed', {
+      verification: {
+        command: 'npm test',
+        ran_at: '2026-07-27T00:00:00.000Z',
+        exit_code: 0,
+        output_tail: '42 passed.',
+      },
+    }),
+    '# Verification\n\n## Command\n`npm test`\n\n## Evidence\nRan at: 2026-07-27T00:00:00.000Z\nExit code: 0\n\n```\n42 passed.\n```\n');
 
   // review accepted with findings schema
   writeDoc(repo, `${BP_REL}/review.md`,
@@ -61,5 +68,9 @@ test('native profile: execute gate passes on self-contained verification+review 
     '# Review\n\n## Findings\n- F1 (minor): resolved.\n');
 
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'execute' });
-  assert.deepStrictEqual(res, { ok: true, failures: [] });
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.failures.some((failure) => failure.code === 'G13'));
+  const verification = require('../scripts/lib/frontmatter')
+    .readDoc(path.join(repo, BP_REL, 'verification.md'));
+  assert.strictEqual(verification.data.bouncer.status, 'failed');
 });

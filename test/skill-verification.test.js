@@ -17,5 +17,6 @@ test('verification requires real Command and Evidence sections', () => {
   assert.match(md, /## Command/);
   assert.match(md, /## Evidence/);
   assert.match(md, /real (pass|command)|never.*without.*pass|exit (code|status)/i);
+  assert.match(md, /harness.*record|do not.*manually.*evidence/i);
   assert.doesNotMatch(md, /profile|superpowers/i);
 });

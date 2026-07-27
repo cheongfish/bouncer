@@ -50,10 +50,12 @@ regression → minimum fix → re-verify).
    `/bouncer-plan` — no speculative scope expansion. You may make **one or more
    commits**; every `git commit` is guarded by `commit-safety`.
 
-4. **Verify.** Use the `verification` skill: fill existing `verification.md`
-   with `## Command` + `## Evidence`, set `verification → passed`,
-   `tasks → verified`. If verification fails, use the `debugging` skill before
-   retrying.
+4. **Verify.** Use the `verification` skill to investigate failures and prepare
+   the existing `verification.md`. Do not hand-write success evidence or set
+   `verification → passed`: the execute gate runs the configured verify command
+   and the harness records `## Command`, `## Evidence`, exit status, and run
+   metadata. Set `tasks → verified` only after the implementation work is
+   complete. If verification fails, use the `debugging` skill before retrying.
 
 5. **Review.** Use the `review` skill: update existing `review.md` with
    `## Findings` and `bouncer.review.findings[]`, set `review → accepted`. If
@@ -65,6 +67,8 @@ regression → minimum fix → re-verify).
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
    ```
-   Gate `execute` checks G6 tasks verified, G7 verification passed, G8 review
-   accepted (or `required: false`). Fix and re-run until it passes, then point
-   the user at `/bouncer-finalize`.
+   Before evaluating G6–G14, `validate --gate execute` runs the configured
+   verify command in the worktree and records its evidence. Gate `execute`
+   then checks G6 tasks verified, G7 verification passed, G8 review accepted
+   (or `required: false`). Fix and re-run until it passes, then point the user
+   at `/bouncer-finalize`.

@@ -5,6 +5,7 @@ const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat } = requ
 const { readDoc } = require('./frontmatter');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
 const { parsePathIds, epicDirOf, toPosix } = require('./paths');
+const { runVerification } = require('./verification');
 
 function loadBlueprintDocs({ repoRoot, blueprintDir }) {
   const bp = toPosix(blueprintDir);
@@ -113,8 +114,28 @@ function validateBlueprint({ repoRoot, blueprintDir, gate }) {
     };
   }
 
+  const executionFailures = [];
+  if (gate === 'execute') {
+    try {
+      const verification = runVerification({ repoRoot, blueprintDir });
+      if (!verification.ok) {
+        executionFailures.push({
+          code: 'G13',
+          message: `configured verify command failed with exit code ${verification.exitCode}`,
+          file: `${toPosix(blueprintDir)}/verification.md`,
+        });
+      }
+    } catch (error) {
+      executionFailures.push({
+        code: 'G13',
+        message: error.message,
+        file: `${toPosix(blueprintDir)}/verification.md`,
+      });
+    }
+  }
+
   const { docs, rels, parseErrors } = loadBlueprintDocs({ repoRoot, blueprintDir });
-  const failures = [...parseErrors];
+  const failures = [...executionFailures, ...parseErrors];
 
   const anyLeaf = ['tasks', 'verification', 'review', 'distill'].some((k) => docs[k]);
   if (anyLeaf && !docs.blueprintIndex) {
@@ -255,6 +276,22 @@ function checkGate(gate, docs, rels, failures) {
       const missingV = ['command', 'evidence'].filter((k) => !vs[k]);
       if (missingV.length) {
         add('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
+      }
+      const evidence = docs.verification.data.bouncer && docs.verification.data.bouncer.verification;
+      const validEvidence = evidence
+        && typeof evidence.command === 'string'
+        && evidence.command.trim()
+        && typeof evidence.ran_at === 'string'
+        && evidence.ran_at.trim()
+        && evidence.exit_code === 0
+        && typeof evidence.output_tail === 'string';
+      if (!validEvidence) {
+        add('G13', 'verification.md missing successful harness verification metadata', 'verification');
+      } else if (
+        !vs.command.includes(`\`${evidence.command}\``)
+        || !vs.evidence.includes('Exit code: 0')
+      ) {
+        add('G13', 'verification.md body does not match harness verification metadata', 'verification');
       }
     }
     const reviewMeta = docs.review && docs.review.data.bouncer ? docs.review.data.bouncer.review : undefined;

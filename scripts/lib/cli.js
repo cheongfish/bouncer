@@ -4,6 +4,7 @@ const { scaffoldEpic, scaffoldBlueprint } = require('./scaffold');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
 const { readConfig, detectPhase, recommendMode } = require('./advisor');
+const { runVerification } = require('./verification');
 
 function parseFlags(rest) {
   const flags = {};
@@ -28,13 +29,34 @@ function cmdValidate(rest, io) {
     io.err('validate: --blueprint is required\n');
     return 2;
   }
+  const repoRoot = f.repo || process.cwd();
+  const gate = typeof f.gate === 'string' ? f.gate : undefined;
   const result = validateBlueprint({
-    repoRoot: f.repo || process.cwd(),
+    repoRoot,
     blueprintDir: f.blueprint,
-    gate: typeof f.gate === 'string' ? f.gate : undefined,
+    gate,
   });
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   return result.ok ? 0 : 1;
+}
+
+function cmdVerify(rest, io) {
+  const f = parseFlags(rest);
+  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+    io.err('verify: --blueprint is required\n');
+    return 2;
+  }
+  try {
+    const result = runVerification({
+      repoRoot: f.repo || process.cwd(),
+      blueprintDir: f.blueprint,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  } catch (error) {
+    io.err(`verify: ${error.message}\n`);
+    return 1;
+  }
 }
 
 function cmdScaffold(rest, io) {
@@ -100,6 +122,8 @@ function runCli(argv, io) {
   switch (cmd) {
     case 'validate':
       return cmdValidate(rest, sink);
+    case 'verify':
+      return cmdVerify(rest, sink);
     case 'scaffold':
       return cmdScaffold(rest, sink);
     case 'finalize':

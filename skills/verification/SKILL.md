@@ -1,31 +1,32 @@
 ---
 name: verification
-description: Use when recording verification results. Run the real verify command, write ## Command and ## Evidence, and never declare success without a real pass.
+description: Use when investigating verification results. Never hand-write success evidence; the execute gate runs the configured command and records it.
 ---
 
 # Verification
 
-Produce the verification **deliverable contract**. Gates judge the result; this
-skill only produces honest evidence.
+Prepare the verification **deliverable context**. The execute gate is the
+evidence authority: it runs the configured command and records the result.
 
 ## Steps
 
 1. **Load** — Read the existing verification document (do not create a new
-   file), the configured verify command (default `npm test`), the worktree cwd,
-   and the tasks brief.
-2. **Contract** — The verification body must end with:
-   - `## Command` — the exact verify command that was run;
-   - `## Evidence` — the pass/fail summary and exit status.
-3. **Verify** — Run the verify command in the worktree. Capture the command and
-   its output/exit code. Fix one logical failure at a time; never weaken tests
-   or the command to force a pass.
-4. **Assert** — Confirm `## Command` and `## Evidence` are populated. Only then
-   may the calling workflow mark verification passed and tasks verified. On any
-   unresolved failure: do **not** claim success; report and stop with no
-   half-applied success transitions.
+   file), the configured verify command, the worktree cwd, and the tasks brief.
+2. **Investigate** — You may run the command to diagnose a failure. Fix one
+   logical failure at a time; never weaken tests or the command to force a pass.
+3. **Preserve ownership** — Do not manually write `## Command`, `## Evidence`,
+   `bouncer.status`, or `bouncer.verification` metadata. The harness records
+   those fields when `validate --gate execute` runs the configured command.
+4. **Gate** — Run `validate --gate execute` from the worktree. It is the final
+   verification run and records the command, output tail, exit code, and run
+   time. On any unresolved failure, do **not** claim success; report and stop.
 
 ## Guardrails
 
-- Success requires a real pass. Never declare passed without one.
+- Success requires a real pass. The harness, not an agent-authored document,
+  records a pass.
 - One logical fix at a time; do not weaken tests or the verify command.
 - Prefer debugging for repeated failures rather than masking them in evidence.
+- The configured command runs on every execute-gate attempt. Expensive or
+  external verification needs a future explicit skip policy; it must not be
+  silently skipped.

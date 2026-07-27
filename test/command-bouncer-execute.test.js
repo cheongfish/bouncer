@@ -26,5 +26,6 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.match(body, /Goal & intent|Interface|Touch|Do not touch|Checklist/i);
   assert.match(body, /commit-safety|affected_paths/);
   assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+execute\b/);
+  assert.match(body, /harness.*record|validate.*configured verify command/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
