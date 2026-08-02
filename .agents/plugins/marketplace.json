@@ -1,0 +1,20 @@
+{
+  "name": "chunjae-tools",
+  "interface": {
+    "displayName": "Chunjae Tools"
+  },
+  "plugins": [
+    {
+      "name": "bouncer",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -7,21 +7,21 @@ description: Bootstrap the .bouncer/ governance directory for Bouncer (idempoten
 **Plugin root.** Every shell block below opens with
 
 ```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
 ```
 
 because each block runs in a fresh shell — the assignment does not carry over,
-so it is repeated rather than exported once. `CLAUDE_PLUGIN_ROOT` is what Claude
-Code provides; on an agent that exports no plugin-root variable the value comes
-back empty and `node` fails on a path starting with `/scripts`. Set
-`BOUNCER_HOME` to the installed plugin directory (the one containing
-`scripts/bouncer`) and it takes precedence everywhere.
+so it is repeated rather than exported once. Resolution order:
+`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
+compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
+a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
+contains `scripts/bouncer`.
 
 Bootstrap this project for Bouncer.
 
 1. Run `bouncer init` (writes nothing if `.bouncer/` already exists):
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" init
    ```
 2. Report the result:

@@ -7,15 +7,15 @@ description: Execute the active Bouncer blueprint in an isolated worktree — im
 **Plugin root.** Every shell block below opens with
 
 ```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
 ```
 
 because each block runs in a fresh shell — the assignment does not carry over,
-so it is repeated rather than exported once. `CLAUDE_PLUGIN_ROOT` is what Claude
-Code provides; on an agent that exports no plugin-root variable the value comes
-back empty and `node` fails on a path starting with `/scripts`. Set
-`BOUNCER_HOME` to the installed plugin directory (the one containing
-`scripts/bouncer`) and it takes precedence everywhere.
+so it is repeated rather than exported once. Resolution order:
+`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
+compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
+a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
+contains `scripts/bouncer`.
 
 Implement the active blueprint. Follow this sequence.
 
@@ -26,7 +26,7 @@ regression → minimum fix → re-verify).
 1. **Read the pointer.** Load the active blueprint dir and base branch from
    `.bouncer/current`:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/current').readCurrent({repoRoot:process.cwd()})))"
    ```
    If it is `null`, stop and tell the user to run `/bouncer-plan` first.
@@ -39,7 +39,7 @@ regression → minimum fix → re-verify).
    - location `<runtime worktree root>/<BP-id>`, resolved outside the repository by
      `runtime-state.ensureWorktreeRoot()`:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    WORKTREE_ROOT="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').ensureWorktreeRoot({repoRoot:process.cwd()}))")"
    WORKTREE_PATH="${WORKTREE_ROOT}/<BP-id>"
    git worktree add -b bouncer/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
@@ -80,7 +80,7 @@ regression → minimum fix → re-verify).
 
 6. **Gate.** Run `validate --gate execute`:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
    ```
    Before evaluating G6–G14, `validate --gate execute` runs the configured

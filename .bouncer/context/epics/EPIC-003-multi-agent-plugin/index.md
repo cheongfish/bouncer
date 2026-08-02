@@ -19,8 +19,9 @@ bouncer:
   Cursor와 Codex도 자체 플러그인 매니페스트 체계를 갖췄지만 Bouncer는 그 경로로
   설치되지 않아, 다른 에이전트를 쓰는 팀원은 게이트를 쓸 수 없다.
 - 목표: 한 저장소가 세 에이전트의 네이티브 설치 경로를 모두 제공한다. 자산
-  (`commands/`, `skills/`, `scripts/`)은 공유하고 에이전트별로는 매니페스트와
-  훅 배선만 갈라진다.
+  (`skills/`, `scripts/`)은 공유하고 에이전트별로는 매니페스트와 훅 배선만
+  갈라진다. 워크플로 진입점은 세 에이전트가 모두 읽는 `skills/*/SKILL.md` 하나로
+  모은다 (BP-002).
 
 ## Out of scope
 - Cursor·Codex 공식 마켓플레이스 제출 — 사내 GitLab / 개인 GitHub 저장소 직접
@@ -35,3 +36,4 @@ bouncer:
      리뷰 가능한 단위인가. 더 크면 blueprint를 쪼갠다. 하위 태스크 계층은
      만들지 않는다 (.bouncer/governance.md). -->
 * [BP-001 cursor-codex-manifests](blueprints/BP-001-cursor-codex-manifests/index.md) - Cursor·Codex 플러그인 매니페스트를 추가하고 명령·훅 경로를 에이전트 중립으로 만든다
+* [BP-002 commands-to-skills](blueprints/BP-002-commands-to-skills/index.md) - 워크플로 진입점 네 개를 `commands/`에서 `skills/`로 이관해 Codex도 읽는 공통 표면에 올린다

@@ -7,15 +7,15 @@ description: Finalize the active Bouncer blueprint — distill, validate, commit
 **Plugin root.** Every shell block below opens with
 
 ```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
 ```
 
 because each block runs in a fresh shell — the assignment does not carry over,
-so it is repeated rather than exported once. `CLAUDE_PLUGIN_ROOT` is what Claude
-Code provides; on an agent that exports no plugin-root variable the value comes
-back empty and `node` fails on a path starting with `/scripts`. Set
-`BOUNCER_HOME` to the installed plugin directory (the one containing
-`scripts/bouncer`) and it takes precedence everywhere.
+so it is repeated rather than exported once. Resolution order:
+`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
+compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
+a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
+contains `scripts/bouncer`.
 
 Close out the active blueprint. Follow this sequence.
 Read `.bouncer/current` and use its `blueprint` value verbatim wherever
@@ -26,7 +26,7 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate finalize
    ```
    Gate `finalize` checks G9 `distill.status == published`. Fix and re-run until
@@ -34,7 +34,7 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
 
 3. **Commit the remainder (deterministic core).** Dry-run first:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint>
    ```
    This checks every remaining uncommitted change (tracked or untracked) against
@@ -43,7 +43,7 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
    files. On a clean dry-run, show the staged file list + generated commit
    message and ask for confirmation, then commit:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-}}"
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
    ```
    (If there is nothing left to commit because execute already committed

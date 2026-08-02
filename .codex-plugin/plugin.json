@@ -1,0 +1,32 @@
+{
+  "name": "bouncer",
+  "version": "0.1.0",
+  "description": "Spec-driven development gates for Codex: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
+  "author": {
+    "name": "Chunjae AI Dev",
+    "email": "aidev.chunjae@gmail.com"
+  },
+  "keywords": [
+    "spec-driven",
+    "governance",
+    "workflow",
+    "gates"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Bouncer",
+    "shortDescription": "Spec-driven development gates for agent workflows",
+    "longDescription": "Bouncer splits work into reviewable blueprints and enforces plan, execute, verify, and finalize gates so agents cannot claim done without evidence.",
+    "developerName": "Chunjae AI Dev",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Initialize bouncer in this repository",
+      "Plan the next blueprint and write its tasks brief",
+      "Execute the active blueprint and verify it"
+    ]
+  }
+}
