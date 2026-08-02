@@ -14,17 +14,17 @@ bouncer:
   status: passed
   verification:
     command: npm test
-    ran_at: '2026-08-02T23:18:18.945Z'
+    ran_at: '2026-08-02T23:18:25.205Z'
     exit_code: 0
     output_tail: |-
       ---
-        duration_ms: 15.383991
+        duration_ms: 23.345197
         type: 'test'
         ...
       # Subtest: a failing verification keeps the output where a reader will see it
       ok 218 - a failing verification keeps the output where a reader will see it
         ---
-        duration_ms: 14.826639
+        duration_ms: 18.590364
         type: 'test'
         ...
       1..218
@@ -35,7 +35,7 @@ bouncer:
       # cancelled 0
       # skipped 0
       # todo 0
-      # duration_ms 208.501143
+      # duration_ms 207.01002
 ---
 # Verification
 
@@ -43,5 +43,5 @@ bouncer:
 `npm test`
 
 ## Evidence
-Ran at: 2026-08-02T23:18:18.945Z
+Ran at: 2026-08-02T23:18:25.205Z
 Exit code: 0
