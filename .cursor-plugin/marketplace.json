@@ -1,0 +1,21 @@
+{
+  "name": "chunjae-tools",
+  "description": "Chunjae internal agent plugins",
+  "owner": {
+    "name": "Chunjae AI Dev",
+    "email": "aidev.chunjae@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "bouncer",
+      "source": "./",
+      "version": "0.1.0",
+      "description": "Spec-driven development gates for Cursor: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
+      "category": "workflow",
+      "keywords": ["spec-driven", "governance", "workflow", "gates"],
+      "author": {
+        "name": "Chunjae AI Dev"
+      }
+    }
+  ]
+}

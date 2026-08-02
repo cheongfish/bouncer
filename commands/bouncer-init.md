@@ -4,11 +4,25 @@ description: Bootstrap the .bouncer/ governance directory for Bouncer (idempoten
 
 # /bouncer-init
 
+**Plugin root.** Every shell block below opens with
+
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+```
+
+because each block runs in a fresh shell — the assignment does not carry over,
+so it is repeated rather than exported once. Resolution order:
+`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
+compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
+a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
+contains `scripts/bouncer`.
+
 Bootstrap this project for Bouncer.
 
 1. Run `bouncer init` (writes nothing if `.bouncer/` already exists):
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/bouncer" init
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" init
    ```
 2. Report the result:
    - If no files were created, report the detected bootstrap state and that no
