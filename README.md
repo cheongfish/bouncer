@@ -1,9 +1,10 @@
 # Bouncer
 
-에이전트가 "다 했습니다"라고 말하기 전에, 실제로 했는지 검사하는 플러그인.
-같은 저장소가 Claude Code · Cursor · Codex 세 경로로 설치됩니다.
+에이전트가 "다 했습니다"라고 말하기 전에, **실제로 했는지** 검사하는 플러그인.
 
-## 무엇을 해결하나
+같은 저장소가 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex)에서 설치됩니다.
+
+## Why
 
 코딩 에이전트에게 일을 맡기면 세 가지가 반복됩니다.
 
@@ -12,324 +13,90 @@
 - **커밋이 뒤섞인다.** 한 커밋에 기능·리팩터·포맷팅이 함께 들어와 리뷰가 불가능하다.
 
 Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 쪼개고, 각 단계를
-게이트로 막습니다. 게이트는 문서 상태와 본문을 결정적으로 검사하는 Node 스크립트라
-에이전트가 설득할 대상이 아닙니다. 통과하거나, 실패 코드가 나오거나 둘 중 하나입니다.
+결정적 게이트로 막습니다. 게이트는 문서 상태와 본문을 검사하는 Node 스크립트라
+에이전트가 설득할 대상이 아닙니다.
 
-**검증은 실제로 실행됩니다.** execute 게이트는 `config.json`의 `verify` 명령을 직접
-돌려 종료 코드와 출력을 `verification.md`에 기록하고, 그 메타데이터가 없거나 본문과
-어긋나면 G13으로 실패시킵니다. 에이전트가 손으로 쓴 "통과했습니다"만으로는 못 지나갑니다.
+## Features
 
-## 설치
+- **Blueprint 단위 커밋** — 한 사이클이 리뷰 가능한 한 커밋으로 끝남
+- **실제 검증 실행** — execute 게이트가 `config.verify`를 돌려 증적을 남김
+- **변경 범위 가드** — 승인된 `affected_paths` 밖 커밋을 훅이 차단
+- **멀티 에이전트** — Claude Code · Cursor · Codex가 같은 스킬·게이트 계약을 사용
+- **증적 있는 finalize** — 코드와 `.bouncer/context` 문서를 한 커밋에 함께 담음
 
-사내 Git 저장소에 이 저장소를 올린 뒤, 팀원은 Claude Code 세션에서 두 줄이면 됩니다.
+## Requirements
+
+- Node.js 24에서 검증 (런타임은 표준 모듈 + 벤더링된 `js-yaml`)
+- Claude Code, Cursor, 또는 Codex
+- (선택) `gh` — finalize 시 draft PR 생성
+
+## Install
+
+Claude Code:
 
 ```
-/plugin marketplace add <사내-git-url>
+/plugin marketplace add <git-url-or-local-path>
 /plugin install bouncer@chunjae-tools
 ```
 
-로컬 경로에서 바로 써 볼 수도 있습니다.
+Cursor · Codex · 환경변수·비공개 SSH는 [docs/install.md](docs/install.md)를 보세요.
+**`npm install`은 사용 시 필요 없습니다.**
 
-```
-/plugin marketplace add ./path/to/bouncer
-/plugin install bouncer@chunjae-tools
-```
-
-### Cursor
-
-같은 저장소가 Cursor 플러그인이기도 합니다 (`.cursor-plugin/`). Cursor 세션에서:
-
-```
-/add-plugin <사내-git-url>
-```
-
-워크플로 스킬(`skills/bouncer-*/SKILL.md`)과 하위 스킬(`skills/*/SKILL.md`)은
-Cursor의 기본 탐색 경로와 레이아웃이 같아 그대로 잡힙니다. 커밋 가드는
-`hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
-밖 파일이 staged면 셸 실행을 `deny`합니다 — Claude Code의 `PreToolUse` 가드와
-**판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다.
-
-### Codex
-
-같은 저장소가 Codex 플러그인이기도 합니다 (`.codex-plugin/`). 레포 마켓플레이스는
-`.agents/plugins/marketplace.json`입니다. Codex Plugins Directory에서 이 저장소를
-소스로 추가한 뒤 `bouncer`를 설치합니다.
-
-- **스킬** (`skills/`)은 Codex·Claude·Cursor가 공통으로 읽는 표면입니다.
-  워크플로 진입점 네 개(`/bouncer-init`·`/bouncer-plan`·`/bouncer-execute`·
-  `/bouncer-finalize`)도 `skills/bouncer-*/SKILL.md`에 있습니다.
-- **커밋 가드**는 Codex가 기본 탐색하는 `hooks/hooks.json`의 `PreToolUse`/`Bash`
-  경로로 걸립니다. 판정은 Claude Code와 같은 `hooks/commit-safety.js`이며, Codex는
-  종료 코드 `2`와 stderr 사유로 차단합니다. 플러그인 훅은 사용자가 정의를
-  trust하기 전까지 로드되지 않습니다 — trust하지 않으면 가드가 동작하지 않습니다.
-- 매니페스트에 `hooks` 키를 넣으면 공식 검증기가 거부합니다. 훅 파일은 선언 없이
-  `hooks/hooks.json` 기본 경로에 둡니다.
-
-### 플러그인 루트 (`BOUNCER_HOME`)
-
-워크플로 스킬 본문은 `bouncer` CLI를 플러그인 디렉터리에서 실행합니다. 그 위치를
-알려주는 환경변수는 에이전트마다 달라서, 스킬은 다음 순서로 해석합니다.
-
-```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-```
-
-`BOUNCER_HOME`은 수동 탈출구, `CLAUDE_PLUGIN_ROOT`는 Claude Code(및 Codex 호환
-별칭), `PLUGIN_ROOT`는 Codex 네이티브 변수입니다. Cursor 스킬 셸에는 플러그인
-루트 변수가 없으므로 `BOUNCER_HOME`을 설치 디렉터리( `scripts/bouncer`가 있는 곳
-)로 export 하세요. `hooks/hooks.json`은 Claude·Codex가 치환하는
-`${CLAUDE_PLUGIN_ROOT}`를 그대로 쓰고, Cursor 훅은 상대 경로를 씁니다.
-
-**`npm install`은 필요 없습니다.** Claude Code는 플러그인을 클론만 하고 의존성을
-설치하지 않으므로, 런타임에 필요한 `js-yaml`은 `scripts/vendor/`에 벤더링돼 있습니다
-(자세한 내용은 `scripts/vendor/README.md`). Node 24에서 검증했습니다. 런타임 코드는
-Node 표준 모듈만 쓰지만 더 낮은 버전은 아직 확인하지 않았습니다.
-
-사내 저장소가 **비공개**라면 SSH 리모트를 권장합니다. 백그라운드 자동 업데이트는 git
-credential helper를 비활성화한 채 `git pull`을 돌리기 때문에 HTTPS 인증이 실패하고
-전체 재클론으로 폴백합니다. SSH 키(`ssh-agent`)는 이 영향을 받지 않습니다. 함께
-`CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE=1`을 설정하면 갱신 실패 시 기존
-클론을 유지합니다.
-
-## Quickstart (5분)
+## Quickstart
 
 ```
 /bouncer-init
 ```
 
-`.bouncer/`를 만듭니다 — `config.json`, 거버넌스 문서, 문서 템플릿. 기존 파일은
-건드리지 않습니다. `.gitignore`에 추가할 항목을 **안내만** 하고 직접 쓰지 않으니,
-알려주는 항목을 직접 넣으세요.
+`.bouncer/`를 만듭니다. 기존 파일은 건드리지 않습니다. `.gitignore` 추가는
+**안내만** 하므로 알려주는 항목을 직접 넣으세요.
 
-만든 직후 별도 커밋으로 남기세요. 이유는 [컨텍스트 문서 버전관리](#컨텍스트-문서-버전관리)에 있습니다.
+부트스트랩은 **바로 별도 커밋**하세요 (`/bouncer-plan` 전에만 가능).
+이유는 [docs/context-versioning.md](docs/context-versioning.md)에 있습니다.
 
 ```bash
 git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ```
 
 ```
-/bouncer-plan
+/bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
+/bouncer-execute   # worktree에서 구현 · verify · review
+/bouncer-finalize  # distill · 범위 확인 · 커밋 (+ draft PR)
 ```
 
-epic → blueprint → tasks를 작성합니다. `tasks.md`의 5개 섹션(Goal & intent,
-Interface, Touch, Do not touch, Checklist)이 이후 구현의 유일한 지시서입니다.
-`affected_paths`는 **사용자가 확인**해야 하고, 이후 이 경로 밖의 커밋은 차단됩니다.
+각 단계 끝에서 게이트가 돌고, 실패하면 코드와 파일이 찍힙니다.
 
-```
-/bouncer-execute
-```
+## How it works
 
-격리된 worktree에서 tasks 지시서대로 구현하고, `verify` 명령을 실제로 실행해 증적을
-남기고, 리뷰를 기록합니다.
-
-```
-/bouncer-finalize
+```text
+/bouncer-plan  →  gate plan     (G1–G5, G10–G12)
+/bouncer-execute → gate execute (G6–G8, G13–G14)  ← verify 실제 실행
+/bouncer-finalize → gate finalize (G9) → 한 커밋
 ```
 
-배운 것을 distill에 남기고, 범위 밖 파일이 없는지 최종 확인한 뒤 한 커밋으로 묶습니다.
-리모트와 `gh`가 있으면 draft PR까지 만들고, 없으면 조용히 건너뜁니다.
+게이트 표와 실패 코드는 [docs/gates.md](docs/gates.md),
+CLI는 [docs/cli.md](docs/cli.md), 설정은 [docs/configuration.md](docs/configuration.md)를
+보세요. 커밋 가드의 한계는 [docs/security.md](docs/security.md)에 있습니다.
 
-각 스킬 끝에서 게이트가 돌고, 실패하면 코드와 파일이 찍힙니다. 고치고 다시 돌리면 됩니다.
+## Documentation
 
-## 게이트
+전체 목차는 [docs/README.md](docs/README.md)입니다.
 
-```
-bouncer validate --blueprint <dir> --gate <plan|execute|finalize>
-```
-
-| 게이트 | 검사 |
+| 문서 | 내용 |
 | --- | --- |
-| **plan** | G1 epic `approved` · G2 blueprint `approved` · G3 tasks `ready` · G4 `graph.suggested_paths` 존재 + `graph.basis` 비어있지 않음 · G5 `affected_paths` 비어있지 않음 · G10 tasks 5개 섹션 작성됨 · G11 `affected_paths`가 Touch로 정당화됨 · G12 Do not touch와 `affected_paths`가 겹치지 않음 |
-| **execute** | G6 tasks `verified` · G7 verification `passed` · G8 리뷰 `accepted`(또는 `required: false`) · G13 `verify` 명령 실제 실행 + 종료 코드 0 + 본문이 기록된 메타데이터와 일치 · G14 `## Findings` 존재 + 각 finding의 severity/status 유효 |
-| **finalize** | G9 distill `published` |
+| [Install](docs/install.md) | 에이전트별 설치 |
+| [Gates](docs/gates.md) | 게이트와 G·S 코드 |
+| [Troubleshooting](docs/troubleshooting.md) | 막혔을 때 |
+| [Architecture](docs/ARCHITECTURE.md) | 설계 결정 |
+| [Contributing](docs/contributing.md) | 개발·커밋·CI |
+| [Pilot](docs/PILOT.md) | 파일럿·알려진 마찰 |
+| [Changelog](CHANGELOG.md) | 변경 이력 |
 
-`S`로 시작하는 코드(S0–S11)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
+## Status
 
-섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가 G10에
-걸리는 것은 의도된 동작입니다.
+v0.1.0. 사내·팀 파일럿 단계이며 `package.json`은 `private: true`입니다.
+라이선스는 아직 확정하지 않았습니다.
 
-## 컨텍스트 문서 버전관리
+## License
 
-**`.bouncer/` 전체를 커밋합니다.** 선택 사항이 아니라 설계 전제입니다 —
-`/bouncer-finalize`는 코드 변경과 그 blueprint의 문서를 **한 커밋에 함께** 담습니다.
-문서를 gitignore하면 게이트를 통과했다는 증적(`verification.md`의 실제 종료 코드,
-`affected_paths` 승인 기록)이 로컬에만 남고 리뷰어에게 도달하지 않아, 이 도구의
-존재 이유가 사라집니다.
-
-| 대상 | 방침 | 누가 커밋하나 |
-| --- | --- | --- |
-| `.bouncer/context/**` | 커밋 | `/bouncer-finalize`가 코드와 함께 자동으로 |
-| `.bouncer/config.json`, `governance.md`, `workflow.md`, `okf.md`, `templates/` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
-| `graphify-out/` | 제외 | — (`.gitignore`, init이 안내) |
-| 활성 blueprint 포인터·worktree | 해당 없음 | 저장소 밖(`$GIT_COMMON_DIR/bouncer/`)에 저장됨 |
-
-### 부트스트랩은 왜 따로 커밋해야 하나
-
-`.bouncer/config.json`과 `templates/`는 blueprint가 커밋할 수 있는 범위에 **없습니다.**
-그래서 커밋하지 않은 채로 두면 첫 `/bouncer-finalize`가 out-of-scope로 중단됩니다.
-게다가 `/bouncer-plan`이 활성 blueprint를 기록하고 나면 커밋 가드가
-`affected_paths` 밖 파일을 막으므로, **`/bouncer-init`과 `/bouncer-plan` 사이**가
-이 커밋을 남길 수 있는 유일한 구간입니다.
-
-`templates/`를 커밋해야 하는 이유가 하나 더 있습니다 — scaffold가 이 디렉터리를
-런타임에 읽습니다. 커밋하지 않으면 팀원마다 다른 문서 골격이 생성됩니다.
-
-### 문서는 "현행"이 아니라 "그 시점의 기록"입니다
-
-커밋 이후 코드만 고치면 `tasks.md`는 과거 상태로 남습니다. 이건 결함이 아닙니다.
-컨텍스트 문서는 살아있는 명세가 아니라 **그 커밋이 왜 그 범위였고 무엇으로
-검증됐는지에 대한 기록**입니다. 최신 상태로 유지하려 들지 마세요. 범위가 바뀌면
-새 blueprint를 만드는 것이 맞습니다.
-
-PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할 수 있습니다.
-
-```
-# .gitattributes
-.bouncer/context/** linguist-generated=true
-```
-
-## CLI
-
-스킬(`/bouncer-*`)이 내부에서 부르는 스크립트를 직접 쓸 수도 있습니다.
-`bouncer` 또는 `bouncer --help`로 목록을 볼 수 있습니다.
-
-| 명령 | 하는 일 |
-| --- | --- |
-| `bouncer validate --blueprint <dir> --gate <plan\|execute\|finalize>` | 구조 검사 + 게이트 하나. 실패 코드를 보고 |
-| `bouncer verify --blueprint <dir>` | `config.verify`를 실행하고 증적을 기록 |
-| `bouncer scaffold epic\|blueprint ...` | 올바른 프론트매터로 문서 세트 생성 |
-| `bouncer finalize --blueprint <dir> [--yes]` | 커밋 범위 확인, `--yes`면 커밋까지 |
-| `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
-| `bouncer advise` | 현재 단계에 권장되는 Ponytail 모드 출력 |
-
-모든 명령이 `--repo <dir>`로 다른 저장소를 대상으로 실행할 수 있습니다.
-종료 코드는 도움말 0, 게이트 실패 1, 사용법 오류 2입니다.
-
-## 설정 (`.bouncer/config.json`)
-
-| 필드 | 기본값 | 설명 |
-| --- | --- | --- |
-| `source_dirs` | `["src", "test"]` | 그래프 생성과 탐색의 대상 디렉터리 |
-| `verify` | `"npm test"` | **execute 게이트가 실제로 실행하는 명령.** 종료 코드 0이어야 G13 통과 |
-| `base_branch` | `"develop"` | worktree와 PR의 기준 브랜치 |
-| `pr.draft` | `true` | PR을 draft로 생성 |
-| `pr.base` | `"develop"` | PR 대상 브랜치 |
-| `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
-| `graphify` | `{ "enabled": false }` | 소스 그래프 생성. **기본 비활성.** 켜면 SessionStart에서 `graphify-out/` 캐시를 갱신하고 `suggested_paths`를 채웁니다 |
-| `schema_version` | `"0.x"` | Bouncer 문서 frontmatter 스키마 버전. OKF 스펙 버전과는 별개이며, 후자는 OKF §11에 따라 `.bouncer/context/index.md` frontmatter의 `okf_version`에 선언합니다 |
-| `plugin_advisors.ponytail` | (객체) | 단계별 Ponytail 모드 **권고**. 자동 전환하지 않습니다 |
-
-## 막혔을 때
-
-| 증상 | 원인과 대처 |
-| --- | --- |
-| `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는, 또 템플릿 안내 주석만으로는 통과하지 않습니다 |
-| `G10 tasks sections still contain <TODO: …> placeholders` | 템플릿 placeholder를 실제 내용으로 바꾸지 않았습니다 |
-| `G4 tasks.graph.basis missing or empty` | `/bouncer-plan`의 그래프 단계를 건너뛰었습니다. graphify가 꺼져 있어도 `graphify-runner`가 폴백 근거를 기록해야 합니다 |
-| `G13 missing successful harness verification metadata` | `verify` 명령이 실행되지 않았거나 실패했습니다. 손으로 쓴 증적은 통과하지 않습니다 |
-| `G9 distill.status != published` | distill이 아직 `published`가 아닙니다 |
-| `S11 blueprint documents not found` | blueprint 경로가 틀렸습니다(오타 등). 문서 문제가 아니라 경로 문제입니다 |
-| `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
-| finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`는 무시하므로 그 외 파일입니다 |
-
-## 위협 모델
-
-커밋 가드는 **실수 방지 장치이지 악의적 우회에 대한 방어가 아닙니다.**
-
-`hooks/commit-safety.js`는 Bash 명령 문자열을 파싱해 `git commit`을 탐지하고,
-**판단할 수 없는 명령은 커밋으로 간주합니다**(fail-closed). 통과시키는 쪽으로
-기울면 가드가 없는 것과 같기 때문입니다.
-
-탐지하는 것:
-
-| 입력 | 처리 |
-| --- | --- |
-| `git commit -m x`, `git -C <path> commit` | 직접 탐지 |
-| `bash -c "git commit -m x"` | 중첩 셸 내부를 파싱 (`sh`/`zsh`/`dash`/`ksh`/`ash`, `-lc` 같은 결합 플래그 포함) |
-| `git $FLAG commit`, `` git `...` `` | 확장이 섞이면 판단 불가 → 커밋으로 간주 |
-| `git ci -m x` | `git config alias.ci`를 조회해 확장. `!` 셸 별칭은 그 내용을 다시 파싱 |
-| `bash -c` 뒤에 아무것도 없음 | 판단 불가 → 커밋으로 간주 |
-
-fail-closed의 대가는 **오탐**입니다. `git $ANYTHING`은 실제로 커밋이 아니어도
-범위 검사를 거칩니다. 다만 범위 밖 파일이 스테이징돼 있을 때만 실제로 막히므로
-평상시에는 드러나지 않습니다.
-
-여전히 뚫리는 것:
-
-- **셸을 거치지 않는 경로** — 스크립트 파일(`./release.sh`), `make commit`,
-  Python·Node의 `subprocess`/`child_process`. 가드는 Bash 도구 호출의 명령
-  문자열만 봅니다.
-- **plumbing 우회** — `git commit-tree` + `git update-ref` 조합은 `commit`
-  서브커맨드가 아니라 탐지되지 않습니다.
-- **파일 *작성*** — 가드는 커밋만 막고 범위 밖 파일을 쓰는 것 자체는 막지 않습니다.
-
-최후 방어선은 `/bouncer-finalize`의 범위 검사입니다. 이건 명령 문자열이 아니라
-실제 git 상태(`diff --name-only HEAD` + `ls-files --others`)를 보므로,
-위의 어떤 경로로 파일이 들어왔든 걸립니다.
-
-## 개발
-
-```bash
-npm install    # devDependencies만 (테스트·린트용)
-npm run setup  # 커밋 메시지 템플릿 연결 (클론마다 1회)
-npm test       # node --test
-npm run lint   # eslint
-```
-
-### 커밋·PR 규약
-
-커밋 메시지는 한국어 Conventional Commits를 따릅니다 — `type: 명사형 제목` +
-`~함`으로 끝나는 본문 불릿 최대 3개. 본문에 파일·모듈 이름은 쓰지 않습니다(diff가
-이미 보여줍니다). 전체 규칙은 `.gitmessage`에 있습니다.
-
-`/bouncer-finalize`도 같은 규약을 씁니다. 메시지를 새로 짓지 않고 plan 때 쓴
-문서 `title`을 그대로 조립합니다 — `bouncer.commit_type` + blueprint `title`이
-제목, tasks/verification `title`이 본문 불릿. Epic/Blueprint/Distill 식별자는
-커밋에 넣지 않고 PR 본문·blueprint 문서에 둡니다.
-scaffold 기본값(`BP-001 slug` 등)을 남기면 그 문구가 커밋에 들어가므로,
-`/bouncer-plan`에서 `.gitmessage` 기준으로 `title`을 고쳐 두세요.
-
-`npm run setup`은 `git config commit.template .gitmessage`를 실행합니다. **클론해도
-자동 적용되지 않습니다** — git이 저장소가 로컬 설정을 바꾸는 것을 막기 때문에
-각자 한 번 실행해야 합니다. 그리고 이 템플릿은 에디터가 열릴 때만 보이므로
-`git commit -m`에는 적용되지 않습니다.
-
-PR/MR 본문 템플릿은 세 곳에 같은 형식으로 있습니다.
-
-| 위치 | 쓰이는 곳 |
-| --- | --- |
-| `.github/pull_request_template.md` | GitHub PR 작성 시 자동 적용 |
-| `.gitlab/merge_request_templates/기본.md` | GitLab MR 작성 시 템플릿 드롭다운에서 선택 |
-| `.bouncer/templates/pr.md` | `/bouncer-finalize`가 draft PR을 만들 때 |
-
-GitLab에서 기본값으로 강제하려면 프로젝트 설정 → Merge requests →
-*Default description template*에서 지정해야 합니다.
-
-CI는 `main`/`develop` 푸시와 PR마다 두 가지를 모두 돌립니다. GitHub Actions
-(`.github/workflows/test.yml`)와 GitLab CI(`.gitlab-ci.yml`)를 함께 두어, 사내
-GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
-
-`scripts/`와 `hooks/` 아래 코드는 `node_modules`에 의존하면 안 됩니다 —
-마켓플레이스 설치가 깨집니다. `test/distribution.test.js`가 이 계약을 강제합니다.
-`scripts/vendor/`는 서드파티 코드라 린트 대상에서 제외합니다.
-
-릴리스는 `claude plugin tag`로 `bouncer--v<version>` 태그를 만듭니다. 이 명령은
-`plugin.json`과 `marketplace.json`의 버전 일치를 함께 검증합니다.
-
-## 막혔을 때 알려주세요
-
-Bouncer를 쓰다 막히거나 이해가 안 된 지점은 이슈로 남겨 주세요. GitHub은
-New issue의 **막힌 지점 (friction)** / **버그** 템플릿, GitLab은 Description
-template의 `friction` / `bug`를 쓰면 됩니다.
-
-**스스로 우회한 경우에도 기록해 주세요.** 우회 방법이 곧 문서에 들어갈 내용입니다.
-
-파일럿 참가자는 [`docs/PILOT.md`](docs/PILOT.md)를 보세요 — 이미 알려진 마찰 목록이
-있어 중복 보고를 피할 수 있습니다.
-
-## 라이선스 / 문서
-
-- `docs/PILOT.md` — 파일럿 안내와 알려진 마찰
-- `docs/ARCHITECTURE.md` — 설계 결정 기록
-- `CHANGELOG.md` — 변경 이력
-- `scripts/vendor/` — 벤더링된 서드파티 코드와 라이선스
+TBD. 벤더링된 서드파티 고지는 [`scripts/vendor/`](scripts/vendor/)를 보세요.

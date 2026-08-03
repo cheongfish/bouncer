@@ -20,7 +20,7 @@
 /plugin install bouncer@chunjae-tools
 ```
 
-비공개 저장소면 SSH 리모트를 쓰세요. 이유는 [README의 설치 절](../README.md#설치)에 있습니다.
+비공개 저장소면 SSH 리모트를 쓰세요. 이유는 [install.md](install.md#비공개-저장소)에 있습니다.
 
 ## 첫 사이클 (권장 30–60분)
 
@@ -28,7 +28,7 @@
 연습용 가짜 작업은 피하세요 — 진짜 마찰은 진짜 작업에서만 나옵니다.
 
 1. `/bouncer-init` → 안내대로 `.bouncer/`를 **별도 커밋**
-   ([이유](../README.md#부트스트랩은-왜-따로-커밋해야-하나))
+   ([이유](context-versioning.md#부트스트랩은-왜-따로-커밋해야-하나))
 2. `.bouncer/config.json`을 프로젝트에 맞게 수정
    - `source_dirs` — 소스가 실제로 있는 디렉터리
    - `verify` — **execute 게이트가 실제로 실행할 명령.** 여기가 틀리면 게이트가
@@ -111,5 +111,5 @@ Bouncer가 정하고 문장은 전부 여러분이 쓴 `title`에서 오므로, 
 ## 참고
 
 - `bouncer --help` — CLI가 무엇을 할 수 있는지 직접 확인할 수 있습니다.
-- 게이트 실패 코드의 의미는 [README의 게이트 절](../README.md#게이트)과
-  [막혔을 때](../README.md#막혔을-때)에 정리되어 있습니다.
+- 게이트 실패 코드의 의미는 [gates.md](gates.md)와
+  [troubleshooting.md](troubleshooting.md)에 정리되어 있습니다.

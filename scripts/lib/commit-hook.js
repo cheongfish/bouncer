@@ -7,7 +7,7 @@ const { readCurrent } = require('./current');
 const { readDoc } = require('./frontmatter');
 
 // The guard prevents mistakes; it is not a defense against a determined bypass
-// (see the threat model in README.md). Where a command cannot be decided —
+// (see the threat model in docs/security.md). Where a command cannot be decided —
 // a nested shell, a shell expansion, an alias — it reports a commit rather than
 // waving the command through, so the scope check still runs.
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash']);
