@@ -57,10 +57,13 @@ regression → minimum fix → re-verify).
    - Interface
    - Touch
    - Do not touch
+   - Constraints
    - Checklist
    You may read code/tests/repo context needed to implement. Do **not**
    re-interpret epic/blueprint as a second requirements source. Modify only
-   within `affected_paths` (commit-safety enforces). Honor Do not touch. If
+   within `affected_paths` (commit-safety enforces). Honor Do not touch, and
+   honor Constraints inside the paths you are allowed to edit — staying in
+   `affected_paths` is not by itself compliance. If
    blocked by ambiguity or contradiction, stop and send the user back to
    `/bouncer-plan` — no speculative scope expansion. You may make **one or more
    commits**; every `git commit` is guarded by `commit-safety`.

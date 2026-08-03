@@ -30,6 +30,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 
 1. **Discover.** Use the `discovery` skill (`skills/discovery/SKILL.md`) to clarify the request into goal, scope,
    non-goals, and success criteria. Confirm with the user before scaffolding.
+   The success criteria are not scratch work: they become the numbered
+   `## Success criteria` list in the epic body in step 4.
 
 2. **ID allocation.** Scan `.bouncer/context/epics` for the next sequential id
    (`EPIC-002` after `EPIC-001`; `BP-002` within an epic). Show the suggested id
@@ -50,9 +52,11 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    review `pending`, distill `draft`.
 
 4. **Author.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write the epic, blueprint, and
-   tasks bodies. Fill all five implementation-ready sections in `tasks.md`
-   before approval — Goal & intent, Interface, Touch, Do not touch, Checklist.
-   Those sections (plus the checklist) are the sole brief for `/bouncer-execute`.
+   tasks bodies. Fill every implementation-ready section in `tasks.md` before
+   approval — Goal & intent, Interface, Touch, Do not touch, Constraints,
+   Checklist. Those sections are the sole brief for `/bouncer-execute`. Write
+   Touch per file with a verb rather than per directory, and put non-path rules
+   in Constraints.
    Also replace scaffold default frontmatter `title` values (and set
    `bouncer.commit_type` on the blueprint when not `feat`):
    `/bouncer-finalize` turns blueprint `title` into the commit subject and
@@ -91,8 +95,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G3 tasks ready,
    G4 `graph.suggested_paths` present and `graph.basis` non-empty, G5
-   `affected_paths` non-empty, G10 all
-   five implementation-ready sections present, G11 Touch justifies every
+   `affected_paths` non-empty, G10 the five gated sections present and
+   placeholder-free (Constraints is authored but not gated), G11 Touch justifies every
    `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.
    Fix any reported failure and re-run until it passes. Then point the user at
    `/bouncer-execute`.

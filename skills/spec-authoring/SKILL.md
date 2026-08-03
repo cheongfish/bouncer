@@ -48,15 +48,32 @@ ship as the commit subject and body.
 1. Read the pinned template/governance materials for the document kind you are
    writing.
 2. Fill the skeleton with concrete, specific content:
-   - **epic**: goal, scope, what success looks like.
+   - **epic**: intent, out of scope, and numbered Success criteria. Persist the
+     success criteria discovery produced — each one must be decidable true or
+     false, so blueprint acceptance and review can cite it by number. "Improve
+     X" is not a criterion.
    - **blueprint**: what this unit delivers and why it fits one reviewable
      commit. Set `title` (and `bouncer.commit_type` if not `feat`) for the
      finalize commit subject.
-   - **tasks**: fill all five implementation-ready sections before approval —
-     Goal & intent, Interface, Touch, Do not touch, Checklist. Those sections
-     plus the checklist are the sole brief for execution. Touch must justify
-     every `affected_paths` entry; Do not touch must not overlap them. Set
-     `title` as a `~함` body line for the commit.
+   - **tasks**: fill every implementation-ready section before approval —
+     Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
+     Those sections are the sole brief for execution. Set `title` as a `~함`
+     body line for the commit. Section-specific rules:
+     - **Interface**: state what the change provides *and* what it rejects.
+       A contract with only the positive half cannot be reviewed against.
+     - **Touch**: one entry per file with a verb (`Create`, `Modify`,
+       `Delete`, `Rename`), not per directory. A bare directory opens every
+       file under it, so G11 passes without constraining anything. Touch must
+       justify every `affected_paths` entry.
+     - **Do not touch**: paths only; must not overlap `affected_paths`.
+     - **Constraints**: the rules that hold inside the allowed paths —
+       compatibility promises, contracts to preserve, conventions to keep.
+       Anything you cannot express as a path belongs here, not in Do not
+       touch.
+     - **Checklist**: order behavior-changing items as failing test → confirm
+       it fails → implement. Write expected assertions, constants, and
+       commands as literal code blocks; this is where implementation detail
+       deferred from the blueprint Contract lands.
    - **verification / review / distill**: only author these when a command
      sends you here. When touching verification during plan or execute, set
      its `title` as a second `~함` commit body line if it will be published.
