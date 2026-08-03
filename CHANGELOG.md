@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`AGENTS.md`가 `@CLAUDE.md`를 import** — 바이트 동일 복제 대신 Codex /
+  Cursor 어댑터만 둔다. 마스터 룰 SSOT는 `CLAUDE.md`.
+
 ## [0.2.0] — 2026-08-03
 
 0.1.0 이후 파일럿·dogfood에서 쌓인 워크플로·멀티 에이전트·코어 개선 릴리스.

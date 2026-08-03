@@ -7,10 +7,8 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
-test('CLAUDE.md and AGENTS.md are byte-identical master rules', () => {
+test('CLAUDE.md is the master-rules SSOT', () => {
   const claude = read('CLAUDE.md');
-  const agents = read('AGENTS.md');
-  assert.strictEqual(agents, claude);
   assert.match(claude, /^# Bouncer\b/m);
   assert.match(claude, /docs\/governance\.md/);
   assert.match(claude, /docs\/workflow\.md/);
@@ -19,6 +17,12 @@ test('CLAUDE.md and AGENTS.md are byte-identical master rules', () => {
   assert.match(claude, /execute gate/i);
   // Split the literal so public-name-regression does not flag this negative check.
   assert.doesNotMatch(claude, new RegExp(['super', 'powers'].join(''), 'i'));
+});
+
+test('AGENTS.md imports CLAUDE.md as Codex/Cursor adapter', () => {
+  const agents = read('AGENTS.md');
+  assert.match(agents, /@CLAUDE\.md/);
+  assert.doesNotMatch(agents, /^# Bouncer\b/m);
 });
 
 test('master rules are not installed by init', () => {

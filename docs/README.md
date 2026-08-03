@@ -16,8 +16,9 @@
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 플러그인 제품 설계 결정 (ADR) |
 | [PILOT.md](PILOT.md) | 파일럿 안내와 알려진 마찰 |
 
-플러그인 루트 [`CLAUDE.md`](../CLAUDE.md) / [`AGENTS.md`](../AGENTS.md)는 세션용
-마스터 룰(인덱스)이다. 소비 프로젝트에 설치되지 않으며, 워크플로 스킬이
-시작할 때 읽도록 지시한다.
+플러그인 루트 [`CLAUDE.md`](../CLAUDE.md)가 세션용 마스터 룰(인덱스)이다.
+[`AGENTS.md`](../AGENTS.md)는 Codex / Cursor용으로 `@CLAUDE.md`를 import한다.
+소비 프로젝트에 설치되지 않으며, 워크플로 스킬이 시작할 때 `CLAUDE.md`를
+읽도록 지시한다.
 
 제품 소개와 5분 Quickstart는 [루트 README](../README.md)를 보세요.

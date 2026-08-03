@@ -5,7 +5,7 @@ not in the consuming repository — `bouncer init` does not install it.
 Project `CLAUDE.md` / `AGENTS.md` / direct user instructions take precedence when
 they conflict.
 
-`AGENTS.md` in this plugin is byte-identical to this file (Codex / Cursor naming).
+`AGENTS.md` imports `@CLAUDE.md` (Codex / Cursor naming adapter).
 
 ## Hard rules
 

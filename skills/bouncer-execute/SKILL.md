@@ -18,7 +18,7 @@ a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
 contains `scripts/bouncer`.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(byte-identical `AGENTS.md`). Product detail:
+(`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
 
 Implement the active blueprint. Follow this sequence.
