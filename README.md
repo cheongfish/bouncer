@@ -68,6 +68,8 @@ flowchart TB
 
 ## Install
 
+다른 프로젝트에 스킬·훅이 붙지 않도록 **project 또는 local scope** 설치를 권장합니다.
+(`user`/전역은 모든 워크스페이스에 적용됩니다.)
 
 ### Claude Code
 
@@ -76,11 +78,20 @@ flowchart TB
 /plugin install bouncer@chunjae-tools
 ```
 
+프로젝트 전용 예:
+
+```bash
+claude plugin install bouncer@chunjae-tools --scope project   # 팀 공유 (.claude/settings.json)
+claude plugin install bouncer@chunjae-tools --scope local     # 본인만 (.claude/settings.local.json)
+```
+
 ### Cursor
 
 ```
 /add-plugin https://github.com/cheongfish/bouncer.git
 ```
+
+설치 UI에서 **project / workspace**를 선택하세요.
 
 ### Codex
 
