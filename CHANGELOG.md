@@ -7,44 +7,64 @@
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-03
+
+0.1.0 이후 파일럿·dogfood에서 쌓인 워크플로·멀티 에이전트·코어 개선 릴리스.
+제품 요약 표는 [README.md](README.md#whats-new-in-020)를 보세요.
+
+### Added
+
+- **Project Distill** — `.bouncer/context/Distill.md`를 init이 만들고, plan/execute가
+  읽은 뒤 맞는 Invariants / Gotchas / Decisions를 brief에 반영한다. finalize가
+  BP distill을 쓰고 지속 가능한 항목을 전역 Distill로 승격한다.
+- **Worktree execute + plan seed** — execute가 저장소 루트 아래 worktree를 만들고
+  plan 산출물을 옮긴 뒤(`seed-worktree`) 구현·verify·review를 한다.
+- **Named 서브에이전트 라우팅** — `bouncer-implementer` / `bouncer-reviewer`로
+  디스패치하고, 서브에이전트 모델 설정 계약을 둔다.
+- **Cursor · Codex 매니페스트** — 같은 저장소에서 Claude Code · Cursor · Codex
+  설치. 워크플로 명령을 스킬로 통일(`commands-to-skills`).
+- **플러그인 마스터 룰** — `CLAUDE.md` / `AGENTS.md`(바이트 동일). 소비 프로젝트에
+  설치하지 않으며, `/bouncer-*` 스킬과 `spec-authoring`이 시작 시 Read 한다.
+- **최소 변경 사다리·상세 주석·과설계 루브릭** — `implementation`이 코드 전
+  재사용 → stdlib → 네이티브 → 설치된 의존성 → 한 줄 → 최소 신규 순서를 밟고,
+  비자명한 변경에 **왜**를 남긴다. `review`가 과설계를 `minor`로 지적한다.
+- **리뷰 깊이** — Spec/Quality 루브릭, `reviewer-prompt`, 제약·거부 계약 검사.
+- **스펙 작성 가드** — 템플릿 섹션·게이트 안내, blueprint
+  `One-commit justification`, 제약·성공 조건 섹션.
+- **source·context 이중 그래프 동기화** — SessionStart 훅이 소스와
+  `.bouncer/context` 그래프를 맞춘다.
+- **하네스 타임스탬프 KST 통일**
+
 ### Changed
 
-- **플러그인 마스터 룰 `CLAUDE.md` / `AGENTS.md`** — governance · workflow · okf를
-  링크로 가리키는 짧은 인덱스. 소비 프로젝트에 설치하지 않으며, `/bouncer-*`
-  스킬과 `spec-authoring`이 시작 시 Read 하도록 지시한다.
 - **문서 템플릿·제품 규칙을 프로젝트에 설치하지 않음** — `bouncer init`이
   `.bouncer/templates/`와 `governance.md` / `workflow.md` / `okf.md`를 더 이상
-  쓰지 않는다. 골격은 `scripts/lib/templates.js`, 규칙은 `docs/governance.md` ·
-  `docs/workflow.md` · `docs/okf.md`에 플러그인 내장으로만 둔다. 프로젝트
-  override도 없다. 기존 사본이 남아 있어도 무시한다.
+  쓰지 않는다. 골격은 `scripts/lib/templates.js`, 규칙은 `docs/`에 플러그인
+  내장으로만 둔다. 기존 사본이 남아 있어도 무시한다.
+- **결정적 코어를 TypeScript → CJS로 이전** — `scripts/src`에서 빌드하고 CI가
+  산출물 동기화를 검사한다.
+- **BP distill 생성을 finalize 시점으로 이전** — execute가 아니라 사이클
+  마무리에서 쓴다.
 - **README를 제품 소개 중심으로 재구성** — 설치 세부·게이트 표·설정·위협 모델·
   기여 안내를 `docs/`로 옮기고 [docs/README.md](docs/README.md)로 라우팅한다.
-- **최소 변경 사다리를 구현 단계까지 확장** — `implementation`이 코드를 쓰기 전
-  재사용 → 표준 라이브러리 → 네이티브 기능 → 설치된 의존성 → 한 줄 → 최소 신규
-  코드 순서를 밟는다. 요청하지 않은 추상화를 금지하고, 승인된 Checklist 항목을
-  코드에서 줄이는 대신 계획으로 escalate 한다. `minimality`도 같은 사다리에
-  YAGNI·최단 표면·과설계 점검 렌즈를 더했다.
-- **구현 시 상세 주석 요구** — `implementation`이 비자명한 변경마다 무엇이 아니라
-  **왜**(의도·불변식·트레이드오프·알려진 한계)를 남기도록 한다. 설명 주석은
-  `minimality`의 축소 대상이 아니며, 누락 시 리뷰가 지적한다.
-- **리뷰에 과설계 루브릭 추가** — `review`와 `reviewer-prompt`가 표준 라이브러리
-  재발명, 불필요한 신규 의존성, 요청하지 않은 추상화, 증상만 덮는 수정을 찾는다.
-  기본 severity는 `minor`이며 blocker가 되지 않는다.
 - **finalize 커밋 메시지에서 trailer 제거** — Epic/Blueprint/Distill과
-  `commit.trailers` 설정을 더 이상 붙이지 않는다. 메시지는 `.gitmessage`와 같이
-  `type: 제목` + tasks/verification `title` 본문 불릿만 쓴다. 식별자는 PR 본문에
-  남긴다.
-- **epic·blueprint·tasks 템플릿 개선** — 각 섹션에 무엇을 써야 하는지와 어떤
-  게이트가 그것을 검사하는지를 한국어 안내로 실었다. blueprint에
-  `One-commit justification` 섹션 추가 — 채우지 못하면 blueprint를 쪼개라는 신호.
+  `commit.trailers`를 붙이지 않는다. `.gitmessage`와 같이 `type: 제목` +
+  tasks/verification `title` 불릿만 쓴다. 식별자는 PR 본문에 남긴다.
 - **G10 확장** — plan 게이트가 `<TODO: …>` placeholder 잔존을 잡는다. 안내
-  주석만 있는 섹션도 미작성으로 판정한다(`parseSections`가 HTML 주석을 먼저
-  제거하므로 G13·G14 판정도 함께 엄격해진다).
+  주석만 있는 섹션도 미작성으로 판정한다.
 - **OKF v0.1 정렬(부분)** — 번들 루트 `.bouncer/context/index.md`가 §6 목록
-  형식과 §11 `okf_version: "0.1"` frontmatter를 갖는다. 템플릿이 상대 링크로
-  이웃 문서를 가리킨다(§5.2). `config.json`의 `okf_version`은 의미가 다른 값이라
-  `schema_version`으로 개명했다(이 키를 읽는 코드는 없음).
-  epic/blueprint 본체가 예약 파일명 `index.md`를 쓰는 §3.1 위반은 이연 상태다.
+  형식과 §11 `okf_version: "0.1"`을 갖는다. `config.json`의 `okf_version`은
+  `schema_version`으로 개명했다. epic/blueprint 본체의 `index.md` §3.1 위반은
+  이연 상태다.
+
+### Fixed
+
+- **graphify 호출을 실제 CLI 계약에 맞춤**
+
+### Tooling
+
+- CI에 `tsc` 산출물 동기화 검사 추가
+- 에디터·에이전트 로컬 경로를 `.gitignore`에 추가
 
 ## [0.1.0] — 2026-07-27
 

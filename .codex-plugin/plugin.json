@@ -1,6 +1,6 @@
 {
   "name": "bouncer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Spec-driven development gates for Codex: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
   "author": {
     "name": "Chunjae AI Dev",

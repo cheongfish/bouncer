@@ -21,8 +21,29 @@ Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 
 - **Blueprint 단위 커밋** — 한 사이클이 리뷰 가능한 한 커밋으로 끝남
 - **실제 검증 실행** — execute 게이트가 `config.verify`를 돌려 증적을 남김
 - **변경 범위 가드** — 승인된 `affected_paths` 밖 커밋을 훅이 차단
+- **Worktree execute** — plan 산출물을 worktree로 옮긴 뒤 구현·verify·review
+- **Project Distill** — plan/execute 전 `.bouncer/context/Distill.md`를 읽고, finalize가 승격
+- **Named 서브에이전트** — implementer / reviewer 분리와 모델 설정 계약
+- **최소 변경 사다리** — 구현·리뷰가 재사용·과설계를 먼저 점검
 - **멀티 에이전트** — Claude Code · Cursor · Codex가 같은 스킬·게이트 계약을 사용
 - **증적 있는 finalize** — 코드와 `.bouncer/context` 문서를 한 커밋에 함께 담음
+
+## What's new in 0.2.0
+
+0.1.0 대비 주요 변경입니다. 전체 목록은 [CHANGELOG.md](CHANGELOG.md)를 보세요.
+
+| 영역 | 0.1.0 | 0.2.0 |
+| --- | --- | --- |
+| Execute | 같은 checkout에서 구현 | 저장소 루트 아래 worktree + plan 문서 seed |
+| Distill | BP distill 시점·전역 Distill 없음 | 전역 `Distill.md` 런타임 + finalize에서 BP distill·승격 |
+| 서브에이전트 | 일반 Task/서브에이전트 디스패치 | named `bouncer-implementer` / `bouncer-reviewer` + 모델 설정 |
+| 구현·리뷰 | 최소성 스킬만 | 최소 변경 사다리·상세 주석·과설계 루브릭 |
+| 규칙·템플릿 | init이 프로젝트에 템플릿·규칙 복사 | 플러그인 내장 + `CLAUDE.md`/`AGENTS.md` 마스터 룰 |
+| 코어 | JS 런타임 | TypeScript 소스 → CJS 산출, CI 동기화 검사 |
+| 그래프 | 소스 graphify | source·context 이중 그래프 동기화 |
+| 커밋 메시지 | Epic/Blueprint trailer | `.gitmessage`형 `type: 제목` + title 불릿만 |
+| 게이트 | G10 placeholder 일부 | `<TODO: …>`·안내 주석만 있는 섹션도 미작성으로 판정 |
+| 에이전트 설치 | Claude Code 중심 | Cursor·Codex 매니페스트와 설치 안내 |
 
 ## Requirements
 
@@ -66,8 +87,8 @@ codex plugin add bouncer@chunjae-tools
 /bouncer-init
 ```
 
-`.bouncer/`를 만듭니다. 기존 파일은 건드리지 않습니다. `.gitignore` 추가는
-**안내만** 하므로 알려주는 항목을 직접 넣으세요.
+`.bouncer/`를 만듭니다(전역 `Distill.md` 포함). 기존 파일은 건드리지 않습니다.
+`.gitignore` 추가는 **안내만** 하므로 알려주는 항목을 직접 넣으세요.
 
 부트스트랩은 **바로 별도 커밋**하세요 (`/bouncer-plan` 전에만 가능).
 이유는 [docs/context-versioning.md](docs/context-versioning.md)에 있습니다.
@@ -76,9 +97,12 @@ codex plugin add bouncer@chunjae-tools
 git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ```
 
+`.bouncer/config.json`에서 `source_dirs`와 **execute 게이트가 실제로 돌릴**
+`verify`를 프로젝트에 맞게 확인하세요.
+
 ```
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
-/bouncer-execute   # worktree에서 구현 · verify · review
+/bouncer-execute   # worktree seed → 구현 · verify · review
 /bouncer-finalize  # BP distill · 전역 Distill 승격 · 커밋 (+ draft PR)
 ```
 
@@ -87,9 +111,11 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ## How it works
 
 ```text
-/bouncer-plan  →  gate plan     (G1–G5, G10–G12)
-/bouncer-execute → gate execute (G6–G8, G13–G14)  ← verify 실제 실행
-/bouncer-finalize → gate finalize (G9) → 한 커밋
+/bouncer-plan     → gate plan     (G1–G5, G10–G12)
+/bouncer-execute  → worktree + seed → implement · verify · review
+                  → gate execute  (G6–G8, G13–G14)  ← verify 실제 실행
+/bouncer-finalize → BP distill · Distill 승격
+                  → gate finalize (G9) → 한 커밋 (+ draft PR)
 ```
 
 게이트 표와 실패 코드는 [docs/gates.md](docs/gates.md),
@@ -103,6 +129,8 @@ CLI는 [docs/cli.md](docs/cli.md), 설정은 [docs/configuration.md](docs/config
 | 문서 | 내용 |
 | --- | --- |
 | [Install](docs/install.md) | 에이전트별 설치 |
+| [Workflow](docs/workflow.md) | `/bouncer-*` 단계 요약 |
+| [Configuration](docs/configuration.md) | `.bouncer/config.json` |
 | [Gates](docs/gates.md) | 게이트와 G·S 코드 |
 | [Troubleshooting](docs/troubleshooting.md) | 막혔을 때 |
 | [Architecture](docs/ARCHITECTURE.md) | 설계 결정 |
@@ -112,7 +140,7 @@ CLI는 [docs/cli.md](docs/cli.md), 설정은 [docs/configuration.md](docs/config
 
 ## Status
 
-v0.1.0. 사내·팀 파일럿 단계이며 `package.json`은 `private: true`입니다.
+v0.2.0. 사내·팀 파일럿 단계이며 `package.json`은 `private: true`입니다.
 라이선스는 아직 확정하지 않았습니다.
 
 ## License
