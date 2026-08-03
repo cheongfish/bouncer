@@ -52,6 +52,9 @@ append a change log.
 - Do not assume `.bouncer/templates/` exists — scaffold/PR bodies come from
   built-in `scripts/lib/templates.js` unless a project override is intentionally
   present.
+- `BOUNCER_HOME` is not a host/provider signal — it is a manual plugin-root
+  override usable on any host. Cursor users must set
+  `subagents.provider: "cursor"` explicitly.
 
 ## Decisions
 
@@ -68,3 +71,8 @@ append a change log.
   plan context documents only, and the base is returned to HEAD.
 - Review Findings come from a fresh generic subagent (or inline read-only
   fallback); only the controller sets `review → accepted`.
+- Named-agent model overrides live in `.bouncer/config.json` `subagents` as
+  per-provider blocks (model ID namespaces differ by host).
+  `resolveSubagentModel` never throws — miss / `'inherit'` / non-string →
+  `{ model: null }` (parent-session inherit). `subagents` is project config,
+  not OKF/document frontmatter — do not register it in `schema.ts`.
