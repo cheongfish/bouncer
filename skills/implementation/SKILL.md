@@ -1,6 +1,6 @@
 ---
 name: implementation
-description: Use when implementing from an approved tasks brief. Make focused changes inside allowed paths, keep tests green, and report any deviations from the plan.
+description: "Use when implementing from an approved tasks brief. Make focused changes inside allowed paths, keep tests green, and report any deviations from the plan. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Implementation

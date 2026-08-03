@@ -43,10 +43,11 @@ Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 
 /add-plugin <사내-git-url>
 ```
 
-명령(`commands/`)과 스킬(`skills/`)은 Cursor의 기본 탐색 경로와 레이아웃이 같아
-그대로 잡힙니다. 커밋 가드는 `hooks/cursor-hooks.json`이 `beforeShellExecution`에
-걸어 주며, `affected_paths` 밖 파일이 staged면 셸 실행을 `deny`합니다 — Claude Code의
-`PreToolUse` 가드와 **판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다.
+워크플로 스킬(`skills/bouncer-*/SKILL.md`)과 하위 스킬(`skills/*/SKILL.md`)은
+Cursor의 기본 탐색 경로와 레이아웃이 같아 그대로 잡힙니다. 커밋 가드는
+`hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
+밖 파일이 staged면 셸 실행을 `deny`합니다 — Claude Code의 `PreToolUse` 가드와
+**판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다.
 
 ### Codex
 
@@ -54,11 +55,9 @@ Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 
 `.agents/plugins/marketplace.json`입니다. Codex Plugins Directory에서 이 저장소를
 소스로 추가한 뒤 `bouncer`를 설치합니다.
 
-- **스킬** (`skills/`)은 Codex가 읽는 공통 표면이라 그대로 잡힙니다.
-- **명령** (`commands/`)은 Codex 매니페스트/`validate_plugin.py`가 받지 않습니다.
-  네 단계 워크플로 진입점을 Codex에서도 쓰려면 BP-002에서 `skills/`로 이관해야
-  합니다. 지금은 스킬을 직접 호출하거나, 셸에서 `BOUNCER_ROOT`를 잡은 뒤
-  `scripts/bouncer`를 실행하세요.
+- **스킬** (`skills/`)은 Codex·Claude·Cursor가 공통으로 읽는 표면입니다.
+  워크플로 진입점 네 개(`/bouncer-init`·`/bouncer-plan`·`/bouncer-execute`·
+  `/bouncer-finalize`)도 `skills/bouncer-*/SKILL.md`에 있습니다.
 - **커밋 가드**는 Codex가 기본 탐색하는 `hooks/hooks.json`의 `PreToolUse`/`Bash`
   경로로 걸립니다. 판정은 Claude Code와 같은 `hooks/commit-safety.js`이며, Codex는
   종료 코드 `2`와 stderr 사유로 차단합니다. 플러그인 훅은 사용자가 정의를
@@ -68,15 +67,15 @@ Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 
 
 ### 플러그인 루트 (`BOUNCER_HOME`)
 
-명령 본문은 `bouncer` CLI를 플러그인 디렉터리에서 실행합니다. 그 위치를 알려주는
-환경변수는 에이전트마다 달라서, 명령은 다음 순서로 해석합니다.
+워크플로 스킬 본문은 `bouncer` CLI를 플러그인 디렉터리에서 실행합니다. 그 위치를
+알려주는 환경변수는 에이전트마다 달라서, 스킬은 다음 순서로 해석합니다.
 
 ```bash
 BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
 ```
 
 `BOUNCER_HOME`은 수동 탈출구, `CLAUDE_PLUGIN_ROOT`는 Claude Code(및 Codex 호환
-별칭), `PLUGIN_ROOT`는 Codex 네이티브 변수입니다. Cursor 명령 셸에는 플러그인
+별칭), `PLUGIN_ROOT`는 Codex 네이티브 변수입니다. Cursor 스킬 셸에는 플러그인
 루트 변수가 없으므로 `BOUNCER_HOME`을 설치 디렉터리( `scripts/bouncer`가 있는 곳
 )로 export 하세요. `hooks/hooks.json`은 Claude·Codex가 치환하는
 `${CLAUDE_PLUGIN_ROOT}`를 그대로 쓰고, Cursor 훅은 상대 경로를 씁니다.
@@ -130,7 +129,7 @@ Interface, Touch, Do not touch, Checklist)이 이후 구현의 유일한 지시�
 배운 것을 distill에 남기고, 범위 밖 파일이 없는지 최종 확인한 뒤 한 커밋으로 묶습니다.
 리모트와 `gh`가 있으면 draft PR까지 만들고, 없으면 조용히 건너뜁니다.
 
-각 명령 끝에서 게이트가 돌고, 실패하면 코드와 파일이 찍힙니다. 고치고 다시 돌리면 됩니다.
+각 스킬 끝에서 게이트가 돌고, 실패하면 코드와 파일이 찍힙니다. 고치고 다시 돌리면 됩니다.
 
 ## 게이트
 
@@ -191,7 +190,7 @@ PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할
 
 ## CLI
 
-명령(`/bouncer-*`)이 내부에서 부르는 스크립트를 직접 쓸 수도 있습니다.
+스킬(`/bouncer-*`)이 내부에서 부르는 스크립트를 직접 쓸 수도 있습니다.
 `bouncer` 또는 `bouncer --help`로 목록을 볼 수 있습니다.
 
 | 명령 | 하는 일 |

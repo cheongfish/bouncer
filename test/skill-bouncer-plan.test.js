@@ -6,7 +6,7 @@ const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 const root = path.join(__dirname, '..');
-const md = fs.readFileSync(path.join(root, 'commands', 'bouncer-plan.md'), 'utf8');
+const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-plan', 'SKILL.md'), 'utf8');
 
 test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gate', () => {
   const { data, body } = parseFrontmatter(md);

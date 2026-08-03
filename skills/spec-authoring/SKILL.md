@@ -1,6 +1,6 @@
 ---
 name: spec-authoring
-description: Use when authoring the body of planning or distill documents. Writes body content only; never edits harness-owned frontmatter fields.
+description: "Use when authoring the body of planning or distill documents. Writes body content only; never edits harness-owned frontmatter fields. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Spec Authoring

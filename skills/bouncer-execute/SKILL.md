@@ -1,7 +1,7 @@
 ---
-description: Execute the active Bouncer blueprint in an isolated worktree — implement from tasks.md, verify and review via standalone skills, and pass the execute gate.
+name: bouncer-execute
+description: "Use only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). Implement from tasks.md in an isolated worktree, verify and review via standalone skills, and pass the execute gate."
 ---
-
 # /bouncer-execute
 
 **Plugin root.** Every shell block below opens with
@@ -19,8 +19,8 @@ contains `scripts/bouncer`.
 
 Implement the active blueprint. Follow this sequence.
 
-Skill flow (recommended): `implementation` → `verification` → `review` → `minimality`.
-On failure investigation, use the `debugging` skill (reproduce → isolate → failing
+Skill flow (recommended): `implementation` (`skills/implementation/SKILL.md`) → `verification` (`skills/verification/SKILL.md`) → `review` (`skills/review/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
+On failure investigation, use the `debugging` skill (`skills/debugging/SKILL.md`) (reproduce → isolate → failing
 regression → minimum fix → re-verify).
 
 1. **Read the pointer.** Load the active blueprint dir and base branch from
@@ -51,7 +51,7 @@ regression → minimum fix → re-verify).
    project root — the `commit-safety` PreToolUse hook uses the command's actual
    working directory and would otherwise inspect the wrong index.
 
-3. **Implement (tasks.md is the sole brief).** Use the `implementation` skill
+3. **Implement (tasks.md is the sole brief).** Use the `implementation` skill (`skills/implementation/SKILL.md`)
    and only these `tasks.md` sections as decision authority:
    - Goal & intent
    - Interface
@@ -65,17 +65,17 @@ regression → minimum fix → re-verify).
    `/bouncer-plan` — no speculative scope expansion. You may make **one or more
    commits**; every `git commit` is guarded by `commit-safety`.
 
-4. **Verify.** Use the `verification` skill to investigate failures and prepare
+4. **Verify.** Use the `verification` skill (`skills/verification/SKILL.md`) to investigate failures and prepare
    the existing `verification.md`. Do not hand-write success evidence or set
    `verification → passed`: the execute gate runs the configured verify command
    and the harness records `## Command`, `## Evidence`, exit status, and run
    metadata. Set `tasks → verified` only after the implementation work is
-   complete. If verification fails, use the `debugging` skill before retrying.
+   complete. If verification fails, use the `debugging` skill (`skills/debugging/SKILL.md`) before retrying.
 
-5. **Review.** Use the `review` skill: update existing `review.md` with
+5. **Review.** Use the `review` skill (`skills/review/SKILL.md`): update existing `review.md` with
    `## Findings` and `bouncer.review.findings[]`, set `review → accepted`. If
    `bouncer.review.required === false`, skip (G8 already satisfied).
-   While reviewing, you may run the `minimality` skill (advisory) to flag
+   While reviewing, you may run the `minimality` skill (`skills/minimality/SKILL.md`) (advisory) to flag
    unnecessary new dependencies or abstractions in the diff.
 
 6. **Gate.** Run `validate --gate execute`:

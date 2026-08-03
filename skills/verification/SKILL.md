@@ -1,6 +1,6 @@
 ---
 name: verification
-description: Use when investigating verification results. Never hand-write success evidence; the execute gate runs the configured command and records it.
+description: "Use when investigating verification results. Never hand-write success evidence; the execute gate runs the configured command and records it. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Verification

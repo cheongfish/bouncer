@@ -71,26 +71,31 @@ test('the Codex marketplace lists bouncer at the repository root', () => {
   assert.deepStrictEqual(entry.source, { source: 'local', path: './' });
 });
 
-// Command markdown is not agent-substituted the way Claude rewrites
+// Workflow skill markdown is not agent-substituted the way Claude rewrites
 // ${CLAUDE_PLUGIN_ROOT} in hooks.json. Every use must go through the
 // BOUNCER_ROOT resolution line. Cursor hook files use relative paths and must
 // not name Claude's token. hooks/hooks.json keeps ${CLAUDE_PLUGIN_ROOT} because
 // Claude and Codex both substitute that token (Codex also exports it as a
 // compatibility alias for PLUGIN_ROOT).
 test('commands and Cursor hooks do not leave CLAUDE_PLUGIN_ROOT as a path prefix', () => {
-  const dir = path.join(root, 'commands');
-  for (const name of fs.readdirSync(dir).filter((f) => f.endsWith('.md'))) {
-    const src = fs.readFileSync(path.join(dir, name), 'utf8');
+  const skillsRoot = path.join(root, 'skills');
+  const workflowSkills = fs.readdirSync(skillsRoot)
+    .filter((name) => name.startsWith('bouncer-'))
+    .map((name) => path.join(skillsRoot, name, 'SKILL.md'));
+  assert.ok(workflowSkills.length >= 4, 'expected bouncer-* workflow skills');
+  for (const file of workflowSkills) {
+    const src = fs.readFileSync(file, 'utf8');
+    const label = path.relative(root, file);
     assert.ok(
       !src.includes('${CLAUDE_PLUGIN_ROOT}/'),
-      `${name} interpolates CLAUDE_PLUGIN_ROOT directly`,
+      `${label} interpolates CLAUDE_PLUGIN_ROOT directly`,
     );
     assert.ok(
       src.includes(BOUNCER_ROOT_LINE),
-      `${name} is missing the BOUNCER_ROOT resolution line`,
+      `${label} is missing the BOUNCER_ROOT resolution line`,
     );
     if (src.includes('bouncer" ') || src.includes('scripts/bouncer')) {
-      assert.ok(src.includes('${BOUNCER_ROOT}/'), `${name} does not use BOUNCER_ROOT`);
+      assert.ok(src.includes('${BOUNCER_ROOT}/'), `${label} does not use BOUNCER_ROOT`);
     }
   }
   const cursorHooks = fs.readFileSync(path.join(root, 'hooks/cursor-hooks.json'), 'utf8');
@@ -110,15 +115,19 @@ test('commands and Cursor hooks do not leave CLAUDE_PLUGIN_ROOT as a path prefix
 // ${BOUNCER_ROOT} without setting it first resolves to an empty prefix and
 // runs `node /scripts/bouncer`.
 test('every shell block that reads BOUNCER_ROOT also assigns it', () => {
-  const dir = path.join(root, 'commands');
+  const skillsRoot = path.join(root, 'skills');
+  const workflowSkills = fs.readdirSync(skillsRoot)
+    .filter((name) => name.startsWith('bouncer-'))
+    .map((name) => path.join(skillsRoot, name, 'SKILL.md'));
   const offenders = [];
-  for (const name of fs.readdirSync(dir).filter((f) => f.endsWith('.md'))) {
-    const src = fs.readFileSync(path.join(dir, name), 'utf8');
+  for (const file of workflowSkills) {
+    const src = fs.readFileSync(file, 'utf8');
+    const label = path.relative(root, file);
     for (const m of src.matchAll(/( *)```bash\n(.*?)\1```/gs)) {
       const body = m[2];
       if (!body.includes('${BOUNCER_ROOT}')) continue;
       if (!body.includes(BOUNCER_ROOT_LINE)) {
-        offenders.push(`${name}: ${body.split('\n')[0].trim()}`);
+        offenders.push(`${label}: ${body.split('\n')[0].trim()}`);
       }
     }
   }

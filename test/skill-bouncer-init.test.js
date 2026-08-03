@@ -6,9 +6,9 @@ const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 const root = path.join(__dirname, '..');
-const md = fs.readFileSync(path.join(root, 'commands', 'bouncer-init.md'), 'utf8');
+const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-init', 'SKILL.md'), 'utf8');
 
-test('bouncer-init command has a description and calls scripts/bouncer init', () => {
+test('bouncer-init skill has a description and calls scripts/bouncer init', () => {
   const { data, body } = parseFrontmatter(md);
   assert.ok(typeof data.description === 'string' && data.description.length > 0);
   assert.match(body, /scripts\/bouncer"\s+init\b/);
@@ -18,7 +18,7 @@ test('bouncer-init command has a description and calls scripts/bouncer init', ()
   assert.doesNotMatch(md, /superpowers/i);
 });
 
-test('bouncer-init command surfaces the gitignore suggestions it reports', () => {
+test('bouncer-init skill surfaces the gitignore suggestions it reports', () => {
   assert.match(md, /gitignoreSuggestions/);
   assert.match(md, /\.gitignore/);
   assert.match(md, /does not (edit|write)|never (edits|writes)/i);

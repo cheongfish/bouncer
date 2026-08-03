@@ -1,8 +1,7 @@
 ---
-description: Author a Bouncer epic/blueprint/tasks, scaffold the docs, inject graph suggestions, confirm affected_paths, approve, and pass the plan gate.
-argument-hint: [epic or blueprint description]
+name: bouncer-plan
+description: "Use only when the user explicitly asks to plan a Bouncer blueprint (for example /bouncer-plan). Author an epic/blueprint/tasks, scaffold the docs, inject graph suggestions, confirm affected_paths, approve, and pass the plan gate."
 ---
-
 # /bouncer-plan
 
 **Plugin root.** Every shell block below opens with
@@ -21,9 +20,15 @@ contains `scripts/bouncer`.
 Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
 
-Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner` → `minimality`.
+If the user supplied a description with this invocation, treat it as the request;
+otherwise ask before scaffolding.
 
-1. **Discover.** Use the `discovery` skill to clarify the request into goal, scope,
+**Preflight.** If `.bouncer/` is missing, stop and tell the user to run
+`/bouncer-init` first.
+
+Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-authoring` (`skills/spec-authoring/SKILL.md`) → `graphify-runner` (`skills/graphify-runner/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
+
+1. **Discover.** Use the `discovery` skill (`skills/discovery/SKILL.md`) to clarify the request into goal, scope,
    non-goals, and success criteria. Confirm with the user before scaffolding.
 
 2. **ID allocation.** Scan `.bouncer/context/epics` for the next sequential id
@@ -44,12 +49,12 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
    review `pending`, distill `draft`.
 
-4. **Author.** Use the `spec-authoring` skill to write the epic, blueprint, and
+4. **Author.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write the epic, blueprint, and
    tasks bodies. Fill all five implementation-ready sections in `tasks.md`
    before approval — Goal & intent, Interface, Touch, Do not touch, Checklist.
    Those sections (plus the checklist) are the sole brief for `/bouncer-execute`.
 
-5. **Graph suggestions.** Use the `graphify-runner` skill to query the source
+5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to query the source
    graph and write `bouncer.graph.suggested_paths` into `tasks.md`. If graphify is
    unavailable, it leaves `suggested_paths` empty, records a graceful fallback in
    `bouncer.graph.basis`, and says so so the user can seed paths manually.
@@ -61,7 +66,7 @@ Skill flow (recommended): `discovery` → `spec-authoring` → `graphify-runner`
    edit** it. It must be non-empty (gate G5). Write the confirmed value into
    `tasks.md` frontmatter.
    Before finalizing `affected_paths` and the Checklist, you may run the
-   `minimality` skill (advisory, not a gate) to challenge new dependencies,
+   `minimality` skill (`skills/minimality/SKILL.md`) (advisory, not a gate) to challenge new dependencies,
    abstractions, or files and record the rationale.
 
 7. **Approval (explicit).** Ask the user to approve. On approval, transition

@@ -1,7 +1,7 @@
 ---
-description: Bootstrap the .bouncer/ governance directory for Bouncer (idempotent).
+name: bouncer-init
+description: "Use only when the user explicitly asks to bootstrap Bouncer (for example /bouncer-init). Bootstrap the .bouncer/ governance directory for Bouncer (idempotent)."
 ---
-
 # /bouncer-init
 
 **Plugin root.** Every shell block below opens with
