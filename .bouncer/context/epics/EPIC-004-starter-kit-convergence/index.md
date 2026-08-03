@@ -24,6 +24,20 @@ bouncer:
   파일을 이식하는 것이 아니라 내용을 번역한다. 문서 스키마와 게이트 판정의 SSOT는
   Bouncer에 남고, starter-kit은 내용 출처로만 참조한다.
 
+## Success criteria
+<!-- discovery가 정리한 성공 조건. 판정 가능한 것만 번호를 붙이고, blueprint의
+     수용 기준과 리뷰가 이 번호를 참조한다. -->
+1. blueprint / tasks 템플릿 본문이 Contract-First 금지 목록과 수용 기준·검증 명령
+   칸을 포함한다.
+2. 블루프린트가 자신의 검증 명령을 `tasks.md`에 선언할 수 있고, 선언이 없는 기존
+   블루프린트는 전역 `config.verify`로 이전과 동일하게 동작한다.
+3. 선언된 검증 명령이 단일 실행 가능 형식이 아니면 문서 검사가 거부한다.
+4. execute 증적(`verification.md`)에 **실제 실행된** 명령이 기록된다.
+5. `discovery`가 한 패스에서 목표·범위·비목표·성공 조건에 더해 기존 epic·Distill과의
+   중복 여부까지 점검하고, 그 산출을 plan에 넘기는 출력 계약을 명시한다.
+6. 위 전부를 새 게이트 코드·새 런타임 상태 파일·외부 방법론 플러그인 의존 없이
+   달성한다.
+
 ## Out of scope
 - starter-kit의 문서 세트와 경로 체계 채택. `blueprint.md` + `status.json` +
   `lineage.json`, 루트 `context/epics/` 구조는 가져오지 않는다. `.bouncer/context/`의
@@ -46,3 +60,4 @@ bouncer:
 * [BP-001 spec-authoring-guardrails](blueprints/BP-001-spec-authoring-guardrails/index.md) - blueprint·tasks 템플릿 본문에 Contract-First 가드레일과 수용 기준·검증 항목을 추가한다
 * [BP-002 init-rules-scaffold](blueprints/BP-002-init-rules-scaffold/index.md) - `bouncer init`이 게이트 밖 구간을 안내하는 규칙 파일을 함께 스캐폴딩한다
 * [BP-003 per-task-verify-command](blueprints/BP-003-per-task-verify-command/index.md) - 전역 `config.verify` 하나 대신 블루프린트 단위 검증 명령을 선언·실행하고 증적에 남긴다
+* [BP-004 discovery-depth](blueprints/BP-004-discovery-depth/index.md) - `discovery`가 엣지·실패 모드·기존 스트림 중복까지 한 패스에서 묻고 그 산출을 plan에 넘기게 한다

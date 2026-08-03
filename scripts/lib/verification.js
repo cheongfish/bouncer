@@ -19,7 +19,43 @@ function verificationError(code, message) {
     error.code = code;
     return error;
 }
-function readVerifyCommand(repoRoot) {
+// One executable argv string only: no shell chaining, redirection, or `cd`
+// prefixes. Plan S12 and runtime VERIFY_COMMAND_INVALID share this predicate
+// so the two surfaces cannot drift.
+const VERIFY_COMMAND_FORBIDDEN = /[&|;`<>\n]|\$\(/;
+function isValidVerifyCommand(command) {
+    if (typeof command !== 'string')
+        return false;
+    const trimmed = command.trim();
+    if (!trimmed)
+        return false;
+    if (VERIFY_COMMAND_FORBIDDEN.test(trimmed))
+        return false;
+    return trimmed.split(/\s+/)[0] !== 'cd';
+}
+function readVerifyCommand(repoRoot, blueprintDir) {
+    // Blueprint declaration wins when present; missing tasks.md or missing field
+    // keeps the historical config.verify path. A present-but-invalid field must
+    // not silently fall through — that would hide a plan-time S12 miss.
+    if (blueprintDir) {
+        const tasksPath = path.join(repoRoot, blueprintDir, 'tasks.md');
+        try {
+            const { data } = readDoc(tasksPath);
+            const declared = data && data.bouncer && data.bouncer.verify;
+            if (declared !== undefined) {
+                if (!isValidVerifyCommand(declared)) {
+                    throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
+                }
+                return declared;
+            }
+        }
+        catch (error) {
+            if (error && error.code === 'VERIFY_COMMAND_INVALID')
+                throw error;
+            if (!(error && error.code === 'ENOENT'))
+                throw error;
+        }
+    }
     const configPath = path.join(repoRoot, '.bouncer', 'config.json');
     let config;
     try {
@@ -103,7 +139,7 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
     if (!isCanonicalBlueprintDir(blueprintDir)) {
         throw verificationError('VERIFY_BLUEPRINT_INVALID', 'blueprintDir must be under .bouncer/context/epics');
     }
-    const command = readVerifyCommand(repoRoot);
+    const command = readVerifyCommand(repoRoot, blueprintDir);
     const verificationPath = path.join(repoRoot, blueprintDir, 'verification.md');
     if (!fs.existsSync(verificationPath)) {
         throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
@@ -124,6 +160,7 @@ module.exports = {
     OUTPUT_TAIL_LINES,
     PASSING_OUTPUT_TAIL_LINES,
     MAX_VERIFY_OUTPUT_BYTES,
+    isValidVerifyCommand,
     readVerifyCommand,
     executeVerify,
     recordVerificationResult,

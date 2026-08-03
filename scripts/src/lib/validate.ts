@@ -5,7 +5,7 @@ const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat } = requ
 const { readDoc } = require('./frontmatter');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
 const { parsePathIds, epicDirOf, toPosix } = require('./paths');
-const { runVerification } = require('./verification');
+const { isValidVerifyCommand, runVerification } = require('./verification');
 
 function loadBlueprintDocs({ repoRoot, blueprintDir }) {
   const bp = toPosix(blueprintDir);
@@ -98,6 +98,11 @@ function checkStructural(doc, failures) {
       if (typeof basis !== 'string' || !basis.trim()) {
         add('S9', 'tasks.graph.basis missing or empty');
       }
+    }
+    // Optional field: absent keeps every pre-existing tasks.md valid. Reuse
+    // verification.isValidVerifyCommand so S12 and VERIFY_COMMAND_INVALID agree.
+    if (bouncer.verify !== undefined && !isValidVerifyCommand(bouncer.verify)) {
+      add('S12', 'tasks.verify must be a single executable command');
     }
   }
 }

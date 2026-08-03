@@ -156,7 +156,8 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 
 1. `verification.md` 본문 필수 헤딩: `## Command`, `## Evidence` (G13).
    상태 통과는 G7 (`verification.status == passed`).
-2. 검증 명령은 프로젝트 설정의 단일 `verify` 명령을 기본으로 한다.
+2. 검증 명령은 블루프린트 `tasks.bouncer.verify` 선언이 있으면 그것을, 없으면
+   프로젝트 설정의 `verify`를 폴백으로 쓴다.
 3. 리뷰 finding 스키마는 `bouncer.review.findings[]` + 본문 `## Findings` (G14).
    상태 통과는 G8 (`accepted` 또는 `required === false`).
 4. 사람이 승인해야 하는 전이는 blueprint/tasks 승인 등 명령 워크플로에 명시하고,

@@ -1,6 +1,6 @@
 ---
 type: bouncer.verification
-title: BP-003 verification
+title: 선언·폴백·형식 거절을 덮는 단위 테스트를 추가함
 description: Verification for BP-003
 resource: .bouncer/context/epics/EPIC-004-starter-kit-convergence/blueprints/BP-003-per-task-verify-command/verification.md
 tags:

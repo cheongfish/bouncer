@@ -1,6 +1,6 @@
 ---
 type: bouncer.blueprint
-title: BP-003 per-task-verify-command
+title: 블루프린트 단위 검증 명령 선언과 전역 폴백 지원
 description: Blueprint BP-003
 resource: .bouncer/context/epics/EPIC-004-starter-kit-convergence/blueprints/BP-003-per-task-verify-command/index.md
 tags:
@@ -11,7 +11,11 @@ bouncer:
   id: BP-003
   epic_id: EPIC-004
   blueprint_id: BP-003
-  status: draft
+  status: approved
+  commit_type: feat
+  commit_intent:
+    - 전역 검증 명령 하나로는 변경 범위와 검증 범위가 어긋나 문서 한 줄 수정에도 전체 스위트가 돌았음
+    - 블루프린트가 자신을 덮는 검증 명령을 직접 선언하고 실제 실행된 명령이 증적에 남게 함
 ---
 # BP-003 per-task-verify-command
 
@@ -38,14 +42,24 @@ Epic: [EPIC-004](../../index.md)
 - 인터페이스 (명령 형식 제약): 선언된 명령은 단일 실행 가능 명령이어야 한다. `cd`, 셸 제어
   연산자(`&&`, `||`, `;`, 파이프), 래퍼 스크립트를 금지한다 — 증적에 남은 문자열이 그대로
   재현 가능해야 하고, 실행 디렉터리는 항상 저장소 루트로 고정되어야 한다.
+- 인터페이스 (거절 지점): 형식 판정은 검증 모듈이 소유하고, 구조 검사가 그것을 재사용한다.
+  잘못된 선언은 plan 단계의 구조 위반(새 `S` 코드)으로 먼저 드러나고, 게이트를 우회해
+  실행에 도달하더라도 명령 해석이 전용 오류 코드로 거절한다. 판정 규칙은 한 곳에만 둔다.
 - 인터페이스 (해석 순서): `tasks.md`의 `bouncer.verify`가 있으면 그것을, 없으면
   `config.verify`를 쓴다. 둘 다 없으면 기존 `VERIFY_CONFIG_INVALID` 계약을 유지한다.
   선언은 선택 사항이며, 기존 프로젝트는 아무것도 바꾸지 않아도 동작이 같다.
 - 인터페이스 (증적): `verification.md`의 `bouncer.verification.command`와 본문
   `## Command`에는 **실제 실행된** 명령이 기록된다. G13은 지금처럼 그 메타데이터의 존재를
   확인하며, 선언 유무에 따라 판정을 달리하지 않는다.
-- 데이터·상태: `scripts/lib/schema.js`의 tasks 문서 스키마에 선택 필드 하나가 늘어난다.
-  기존 문서는 필드가 없어도 유효하다.
+- 데이터·상태: tasks 문서에 선택 필드 하나가 늘어난다. 기존 문서는 필드가 없어도 유효하다.
+  문서 필드의 형태 검사는 `scripts/src/lib/validate.ts`의 구조 검사가 소유한다 —
+  `scripts/src/lib/schema.ts`는 타입·id 접두어·상태 열거만 담고 필드 형태를 다루지 않으며,
+  `scripts/lib/*.js`는 빌드 산출물이라 SSOT가 아니다.
+- 수용 기준: 선언이 있으면 그 명령이 실행되고 증적에 남는다. 선언이 없으면 기존 전역
+  명령과 동작이 같다. 형식을 어긴 선언은 실행 전에 거절된다. `npm test` 통과.
+- 검증 명령: `npm test`
+- 실패 모드·엣지 케이스: 선언이 빈 문자열·비문자열인 경우, 전역 설정과 선언이 모두 없는
+  경우(기존 계약 유지), 형식 위반 선언이 구조 검사를 통과하지 못하는 경우.
 
 ## Out of scope
 - 블루프린트 하위 태스크 계층 도입. `.bouncer/governance.md`는 blueprint를 한 커밋 단위로
