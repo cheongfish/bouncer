@@ -29,3 +29,16 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.match(body, /harness.*record|validate.*configured verify command/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
+
+test('bouncer-execute step 5 dispatches reviewer-prompt via fresh generic subagent', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /reviewer-prompt\.md/);
+  assert.match(body, /fresh generic|generic.*subagent/i);
+  assert.match(body, /controller/i);
+  assert.match(body, /## Findings/);
+  assert.match(body, /bouncer\.review\.findings/);
+  assert.match(body, /review\s*→\s*accepted|set\s*`?review\s*→\s*accepted/i);
+  assert.match(body, /required\s*===\s*false|required === false/i);
+  assert.match(body, /inline|no subagent/i);
+  assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
+});

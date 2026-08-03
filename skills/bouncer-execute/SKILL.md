@@ -72,9 +72,19 @@ regression → minimum fix → re-verify).
    metadata. Set `tasks → verified` only after the implementation work is
    complete. If verification fails, use the `debugging` skill (`skills/debugging/SKILL.md`) before retrying.
 
-5. **Review.** Use the `review` skill (`skills/review/SKILL.md`): update existing `review.md` with
-   `## Findings` and `bouncer.review.findings[]`, set `review → accepted`. If
-   `bouncer.review.required === false`, skip (G8 already satisfied).
+5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
+   Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order:
+   (1) fill `skills/review/reviewer-prompt.md` (brief, base/HEAD, constraints);
+   (2) dispatch a **fresh generic** subagent with that prompt for a read-only
+   review (if no subagent tool exists, run the same prompt inline as a
+   read-only pass separated from implementation rationale);
+   (3) as controller, update existing `review.md` body `## Findings` and
+   `bouncer.review.findings[]` from the reviewer output — the subagent must not
+   flip status;
+   (4) if any actionable finding remains unresolved, fix within scope and
+   re-review;
+   (5) only when every finding is `resolved` or `accepted` with a note, set
+   `review → accepted`.
    While reviewing, you may run the `minimality` skill (`skills/minimality/SKILL.md`) (advisory) to flag
    unnecessary new dependencies or abstractions in the diff.
 
