@@ -78,6 +78,24 @@ test('init tasks template has five implementation-ready sections', () => {
   assert.ok(/## Checklist/.test(tasks));
 });
 
+test('init tasks template carries a Constraints section for non-path rules', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const tasks = read(repo, '.bouncer/templates/tasks.md');
+  assert.ok(/## Constraints/.test(tasks));
+  // Between Do not touch and Checklist so the section parser bounds it.
+  assert.ok(tasks.indexOf('## Constraints') > tasks.indexOf('## Do not touch'));
+  assert.ok(tasks.indexOf('## Constraints') < tasks.indexOf('## Checklist'));
+});
+
+test('init epic template records numbered success criteria', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const epic = read(repo, '.bouncer/templates/epic.md');
+  assert.ok(/## Success criteria/.test(epic));
+  assert.ok(/^1\. <TODO:/m.test(epic));
+});
+
 test('init blueprint/tasks templates carry Contract-First authoring guardrails', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });

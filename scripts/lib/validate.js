@@ -187,6 +187,9 @@ const SECTION_DEFS = [
   { key: 'interface', re: /^##\s+(Interface|인터페이스)\s*$/i },
   { key: 'touch', re: /^##\s+(Touch|수정할\s*부분)\s*$/i },
   { key: 'doNotTouch', re: /^##\s+(Do\s+not\s+touch|절대\s*수정\s*금지)\s*$/i },
+  // Parsed as a boundary but absent from the G10 required list: without a def
+  // here its prose would fold into Do not touch and invent G12 path overlaps.
+  { key: 'constraints', re: /^##\s+(Constraints|제약)\s*$/i },
   { key: 'checklist', re: /^##\s+(Checklist|체크리스트)\s*$/i },
 ];
 

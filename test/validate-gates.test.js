@@ -61,6 +61,27 @@ test('parseTasksSections accepts Korean aliases', () => {
   assert.ok(s.checklist.includes('- [ ] a'));
 });
 
+test('Constraints bounds the preceding section instead of folding into it', () => {
+  const body = READY_BODY.replace(
+    '## Checklist',
+    '## Constraints\n- keep `src/auth/login.js` backward compatible\n\n## Checklist',
+  );
+  const s = parseTasksSections(body);
+  assert.ok(s.constraints.includes('backward compatible'));
+  assert.ok(!s.doNotTouch.includes('src/auth/login.js'));
+  const tasks = doc('ready', {
+    affected_paths: ['src/auth/'],
+    graph: { suggested_paths: [], basis: 'manual' },
+  }, body);
+  const failures = [];
+  checkGate('plan', {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks,
+  }, rels, failures);
+  assert.deepStrictEqual(failures.filter((f) => f.code === 'G12'), []);
+});
+
 test('extractPathCandidates finds backtick and bare paths', () => {
   const paths = extractPathCandidates('- `src/auth/login.js`\n- test/auth/login.test.js\n');
   assert.ok(paths.includes('src/auth/login.js'));
