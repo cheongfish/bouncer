@@ -19,6 +19,7 @@ test('bouncer-finalize wires distill, finalize gate, bouncer finalize, push+PR, 
   assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes\b/);
   assert.match(body, /--yes|dry-run|dry run/);
   assert.match(body, /gh pr create/);
+  assert.match(body, /--title "\[YYMMDD\] \(→ MergeTarget\) \[Type\]/);
   assert.match(body, /no remote|without a remote|no `?gh`?|skip/i);
   assert.match(body, /bouncer\//);
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);

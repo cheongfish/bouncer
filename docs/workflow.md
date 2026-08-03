@@ -10,7 +10,9 @@
    G13–G14).
 4. `/bouncer-finalize` — write BP distill, promote durable notes into
    `.bouncer/context/Distill.md`, pass gate `finalize` (G9), commit remainder,
-   then push + draft PR (skipped gracefully with no remote / no `gh`).
+   then push + draft PR (skipped gracefully with no remote / no `gh`). Draft
+   PR titles use `[YYMMDD] (→ MergeTarget) [Type] 요약` — see
+   [contributing.md](contributing.md).
    Plan/execute Read that project Distill before work.
 5. `bouncer advise` — at any point, print the recommended Ponytail mode for
    the current Bouncer phase (advisory only; never switches modes automatically).

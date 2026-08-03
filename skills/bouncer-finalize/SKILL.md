@@ -80,15 +80,30 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
      `scripts/lib/templates.js` (`pr.md`). That template follows the team's PR
      format, not the commit message shape; fill its sections from the blueprint
      and tasks documents and leave the `## 🚦 Bouncer` section for the
-     epic/blueprint ids and the distill path:
+     epic/blueprint ids and the distill path.
+   - **PR title** (not the commit subject). Build from the branch commits vs
+     `config.base_branch` (or `config.pr.base`), not from free-form prose:
+     - Pattern: `[YYMMDD] (→ MergeTarget) [Type/Type] 요약`
+     - `YYMMDD` — today's date in **KST**
+     - `MergeTarget` — base branch with leading capital (`main` → `Main`,
+       `develop` → `Develop`); must match `--base`
+     - `Type` — PascalCase from commit types on the branch (`feat` → `Feat`,
+       `fix` → `Fix`, …). Multiple distinct types → join with `/`
+       (`[Feat/Fix]`). Prefer `git log <base>..HEAD --format=%s` plus blueprint
+       `bouncer.commit_type` when the log is sparse
+     - `요약` — Korean noun-phrase that covers the commits (blueprint `title` is
+       a good default when it already summarizes the branch)
+     - Example: `[260803] (→ Develop) [Feat] 전역 Distill을 init·finalize 런타임에 연결`
+     - Do **not** put Conventional-Commit subjects or Epic/Blueprint ids in the
+       title (ids stay in the `## 🚦 Bouncer` body section)
      ```bash
      git push -u origin bouncer/<BP-id>-<slug>
      gh pr create --draft --base <config.base_branch> \
-       --title "<type>(<bp-id>): <summary>" \
+       --title "[YYMMDD] (→ MergeTarget) [Type] 요약" \
        --body-file <rendered pr body> \
        <labels from config.pr.labels as --label ...>
      ```
-     Show the rendered PR body first (dry-run) and create it only on
+     Show the rendered title + PR body first (dry-run) and create it only on
      confirmation.
 
 5. **Report.** Summarize what was committed, and the PR URL (or that push/PR was

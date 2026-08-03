@@ -11,6 +11,8 @@
 
 - **`AGENTS.md`가 `@CLAUDE.md`를 import** — 바이트 동일 복제 대신 Codex /
   Cursor 어댑터만 둔다. 마스터 룰 SSOT는 `CLAUDE.md`.
+- **finalize draft PR 제목 형식** — `<type>(<bp-id>): …` 대신
+  `[YYMMDD] (→ MergeTarget) [Type] 요약` (베이스 브랜치·날짜·커밋 대표 요약).
 
 ## [0.2.0] — 2026-08-03
 

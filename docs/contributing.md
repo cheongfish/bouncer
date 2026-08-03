@@ -38,6 +38,21 @@ PR/MR 본문 템플릿은 두 곳에 같은 형식으로 있습니다.
 (`scripts/lib/templates.js`의 `pr.md`)을 사용합니다. 프로젝트에 별도 사본을
 두지 않습니다.
 
+PR **제목**은 커밋 subject와 다릅니다. finalize가 만드는 draft 제목 형식:
+
+```text
+[YYMMDD] (→ MergeTarget) [Type/Type] 요약
+```
+
+예: `[260803] (→ Develop) [Feat] 전역 Distill을 init·finalize 런타임에 연결`
+
+- `YYMMDD` — 작성일(KST)
+- `MergeTarget` — `config.base_branch` / `pr.base` (첫 글자 대문자)
+- `Type` — 브랜치 커밋 타입의 PascalCase (`feat` → `Feat`); 여러 타입이면 `/`로 연결
+- `요약` — 해당 커밋들을 대표하는 한국어 명사구 (보통 blueprint `title`)
+
+Epic/Blueprint id는 제목에 넣지 않고 PR 본문 `## 🚦 Bouncer`에 둡니다.
+
 GitLab에서 기본값으로 강제하려면 프로젝트 설정 → Merge requests →
 *Default description template*에서 지정해야 합니다.
 
