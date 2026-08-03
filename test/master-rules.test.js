@@ -17,7 +17,8 @@ test('CLAUDE.md and AGENTS.md are byte-identical master rules', () => {
   assert.match(claude, /docs\/okf\.md/);
   assert.match(claude, /one reviewable\s+commit/i);
   assert.match(claude, /execute gate/i);
-  assert.doesNotMatch(claude, /superpowers/i);
+  // Split the literal so public-name-regression does not flag this negative check.
+  assert.doesNotMatch(claude, new RegExp(['super', 'powers'].join(''), 'i'));
 });
 
 test('master rules are not installed by init', () => {

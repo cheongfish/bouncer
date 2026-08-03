@@ -1,6 +1,6 @@
 ---
 type: bouncer.verification
-title: BP-001 verification
+title: 타입체크와 전체 테스트가 통과함을 확인함
 description: Verification for BP-001
 resource: .bouncer/context/epics/EPIC-006-scripts-typescript/blueprints/BP-001-tsc-cjs-migrate/verification.md
 tags:

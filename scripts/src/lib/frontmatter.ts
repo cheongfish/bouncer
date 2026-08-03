@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 // Path is relative to emitted scripts/lib/ (tsc does not rewrite require strings).
-const yaml = require('../vendor/js-yaml') as typeof import('js-yaml');
+const yaml = require('../vendor/js-yaml') as { load: (s: string, o?: object) => unknown; dump: (o: unknown, opts?: object) => string };
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 

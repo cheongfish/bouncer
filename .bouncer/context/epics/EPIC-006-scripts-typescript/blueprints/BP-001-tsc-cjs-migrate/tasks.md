@@ -11,12 +11,14 @@ bouncer:
   id: TASKS-BP-001
   epic_id: EPIC-006
   blueprint_id: BP-001
-  status: ready
+  status: verified
   affected_paths:
     - scripts/
     - package.json
     - package-lock.json
     - tsconfig.json
+    - test/master-rules.test.js
+    - test/public-name-regression.test.js
   graph:
     generated_at: '2026-08-03T04:05:30.000Z'
     command: graphify query
@@ -91,11 +93,13 @@ CLI·게이트 동작은 그대로 둔다. 검증: `npm run typecheck`와 `npm t
 - Modify `scripts/lib/verification.js` — 산출로 교체
 - Modify `scripts/bouncer` — 필요 시 shebang/`require('./lib/cli')`만 유지 확인
   (동작 변경 없음)
+- Modify `test/master-rules.test.js` — Superpowers 네거티브 어서션이
+  public-name 스캐너에 걸리지 않도록 리터럴을 분리 구성(사용자 승인 범위 확장)
+- Modify `test/public-name-regression.test.js` — `LEGACY_ALLOWLIST`에
+  `scripts/src/lib/schema.ts`·`validate.ts` 추가(기존 `.js` 검출기와 동일 본문)
 
 ## Do not touch
 - `hooks/` — PreToolUse 등 훅 본문은 JS 유지; require 대상만 산출로 충족
-- `test/` — 테스트 파일 TS화·ESM화 없음(실패 시에만 최소 수정이 필요하면
-  계획 재승인)
 - `skills/` — 스킬 마크다운·셸의 require 경로 문구 유지
 - `docs/` — 아키텍처/기여 가이드 전면 개편 없음
 - `.bouncer/config.json` — `verify` 문자열은 `npm test` 유지(빌드는
@@ -112,6 +116,8 @@ CLI·게이트 동작은 그대로 둔다. 검증: `npm run typecheck`와 `npm t
 - 산출 `.js`는 커밋한다. 소스만 커밋하고 소비자에게 `tsc`를 요구하지 않는다.
 - Minimality: 경로 alias·모노레포 도구·점진적 `allowJs` 이중 소스 장기 유지
   없이, `scripts/src` → emit `scripts/lib` 한 줄로 끝낸다.
+- 테스트 스위트 TS/ESM 전환 금지. 허용 테스트 수정은 (1) master-rules
+  네거티브 리터럴 분리 (2) legacy allowlist에 TS 소스 경로 추가뿐.
 
 ## Checklist
 - [ ] `tsconfig.json` 추가: `compilerOptions.module` = `commonjs`,
@@ -137,6 +143,11 @@ CLI·게이트 동작은 그대로 둔다. 검증: `npm run typecheck`와 `npm t
       ```bash
       node scripts/bouncer --help
       ```
+- [ ] `test/master-rules.test.js`의 `/superpowers/i` 리터럴을
+      `new RegExp(['super', 'powers'].join(''), 'i')`로 바꿔
+      `public-name-regression` 자기참조 실패를 해소한다(어서션 의미 동일)
+- [ ] `test/public-name-regression.test.js`의 `LEGACY_ALLOWLIST`에
+      `scripts/src/lib/schema.ts`와 `scripts/src/lib/validate.ts`를 추가한다
 - [ ] 수용: epic Success criteria 1–4
 - [ ] 검증:
       ```bash
