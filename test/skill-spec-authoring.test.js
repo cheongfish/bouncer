@@ -24,3 +24,11 @@ test('spec-authoring ties document titles to finalize commit messages via .gitme
   assert.match(md, /title/i);
   assert.match(md, /commit_type|\/bouncer-finalize|finalize/i);
 });
+
+
+test('spec-authoring documents project Distill vs BP distill rules', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /\.bouncer\/context\/Distill\.md/);
+  assert.match(md, /Invariants|Gotchas|Decisions/);
+  assert.match(md, /current|현재/i);
+});

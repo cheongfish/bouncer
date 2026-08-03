@@ -2,6 +2,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { detectLegacyFormat } = require('./schema');
+const { PROJECT_DISTILL } = require('./layout');
+const { PROJECT_DISTILL_BODY } = require('./templates');
 
 const CONFIG = {
   // Bouncer's own frontmatter schema version. The OKF *spec* version is a
@@ -42,6 +44,29 @@ function writeFile(repoRoot, rel, content, created) {
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content);
   created.push(rel);
+}
+
+function projectDistillDoc(timestamp) {
+  // Not a registered bouncer.* schema kind — project Distill is ungated prose
+  // with OKF-shaped meta only (title/description/resource/tags/timestamp).
+  const ts = timestamp || new Date().toISOString();
+  return `---
+title: Project Distill
+description: Current project invariants, gotchas, and decisions
+resource: ${PROJECT_DISTILL}
+tags:
+  - bouncer
+  - distill
+timestamp: '${ts}'
+---
+${PROJECT_DISTILL_BODY}`;
+}
+
+// Create Distill only when missing — never overwrite curated project notes.
+function ensureProjectDistill(repoRoot, created, timestamp) {
+  const abs = path.join(repoRoot, PROJECT_DISTILL);
+  if (fs.existsSync(abs)) return;
+  writeFile(repoRoot, PROJECT_DISTILL, projectDistillDoc(timestamp), created);
 }
 
 // Advisory only. Safe bootstrap forbids init from editing files it did not
@@ -86,7 +111,7 @@ function inspectBootstrap({ repoRoot }) {
   return 'partial';
 }
 
-function init({ repoRoot }) {
+function init({ repoRoot, timestamp }) {
   const bootstrap = inspectBootstrap({ repoRoot });
   if (bootstrap === 'legacy') {
     const legacy = detectLegacyFormat({ repoRoot });
@@ -97,8 +122,14 @@ function init({ repoRoot }) {
   }
   const suggestions = gitignoreSuggestions({ repoRoot });
   if (bootstrap === 'ready') {
+    // Soft-seed Distill for repos initialized before project Distill existed.
+    const created = [];
+    ensureProjectDistill(repoRoot, created, timestamp);
     return {
-      ok: true, created: [], skipped: true, reason: 'already-initialized',
+      ok: true,
+      created,
+      skipped: created.length === 0,
+      reason: created.length ? 'project-distill-seeded' : 'already-initialized',
       gitignoreSuggestions: suggestions,
     };
   }
@@ -106,6 +137,7 @@ function init({ repoRoot }) {
   const created = [];
   writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
   writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
+  ensureProjectDistill(repoRoot, created, timestamp);
   return {
     ok: true, created, skipped: false, reason: 'initialized',
     gitignoreSuggestions: suggestions,

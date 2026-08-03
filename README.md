@@ -79,7 +79,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ```
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
 /bouncer-execute   # worktree에서 구현 · verify · review
-/bouncer-finalize  # distill · 범위 확인 · 커밋 (+ draft PR)
+/bouncer-finalize  # BP distill · 전역 Distill 승격 · 커밋 (+ draft PR)
 ```
 
 각 단계 끝에서 게이트가 돌고, 실패하면 코드와 파일이 찍힙니다.

@@ -8,7 +8,8 @@
 
 | 대상 | 방침 | 누가 커밋하나 |
 | --- | --- | --- |
-| `.bouncer/context/**` | 커밋 | `/bouncer-finalize`가 코드와 함께 자동으로 |
+| `.bouncer/context/**` (incl. `Distill.md`) | 커밋 | `/bouncer-finalize`가 코드·승격된 Distill과 함께 |
+| `.bouncer/context/Distill.md` | 커밋 (현행 주의 목록) | finalize가 BP distill에서 승격·교체·폐기 |
 | `.bouncer/config.json` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
 | `graphify-out/` | 제외 | — (`.gitignore`, init이 안내) |
 | 활성 blueprint 포인터·worktree | 해당 없음 | 저장소 밖(`$GIT_COMMON_DIR/bouncer/`)에 저장됨 |

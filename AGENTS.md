@@ -27,6 +27,11 @@ they conflict.
 6. **OKF shape** — Context documents carry OKF frontmatter; Bouncer fields live
    under `bouncer:`. Bundle-root `okf_version` is only on
    `.bouncer/context/index.md`. Detail: [`docs/okf.md`](docs/okf.md).
+7. **Project Distill** — Before `/bouncer-plan` and `/bouncer-execute` work,
+   Read `.bouncer/context/Distill.md` (create via `bouncer init` if missing).
+   Apply matching Invariants / Gotchas / Decisions to the brief. Do **not** put
+   Distill body content into these master rules — path and read obligation only.
+   `/bouncer-finalize` promotes durable BP distill notes into that file.
 
 ## When to invoke
 

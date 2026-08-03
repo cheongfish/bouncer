@@ -237,6 +237,36 @@ test('init suggests nothing when the artifacts are already ignored', () => {
   assert.deepStrictEqual(res.gitignoreSuggestions, []);
 });
 
+
+test('init creates .bouncer/context/Distill.md with Invariants Gotchas Decisions', () => {
+  const repo = tmpRepo();
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.ok(res.created.includes('.bouncer/context/Distill.md'));
+  const body = read(repo, '.bouncer/context/Distill.md');
+  assert.match(body, /## Invariants/);
+  assert.match(body, /## Gotchas/);
+  assert.match(body, /## Decisions/);
+});
+
+test('init does not overwrite an existing project Distill', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const custom = '# Distill\n\n## Invariants\n\n- keep me\n';
+  fs.writeFileSync(path.join(repo, '.bouncer/context/Distill.md'), custom);
+  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(again.reason, 'already-initialized');
+  assert.strictEqual(read(repo, '.bouncer/context/Distill.md'), custom);
+});
+
+test('init seeds Distill when bootstrap is ready but Distill is missing', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  fs.unlinkSync(path.join(repo, '.bouncer/context/Distill.md'));
+  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.ok(again.created.includes('.bouncer/context/Distill.md'));
+  assert.match(read(repo, '.bouncer/context/Distill.md'), /## Invariants/);
+});
+
 test('init reports gitignore suggestions on an already-initialized repo', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });

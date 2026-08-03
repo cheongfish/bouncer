@@ -4,6 +4,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const { execFileSync } = require('node:child_process');
 const { epicDirOf, toPosix } = require('./paths');
 const { CONTEXT_ROOT } = require('./scaffold');
+const { PROJECT_DISTILL } = require('./layout');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
 const { clearCurrent } = require('./current');
 function isUnder(file, entry) {
@@ -37,6 +38,10 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
         if (f === `${epicDir}/index.md`)
             return true;
         if (f === `${CONTEXT_ROOT}/index.md`)
+            return true;
+        // Finalize always updates project Distill via promotion; do not require it
+        // on every blueprint's affected_paths.
+        if (f === PROJECT_DISTILL)
             return true;
         return paths.some((p) => isUnder(f, p));
     };
