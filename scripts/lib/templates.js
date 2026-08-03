@@ -5,6 +5,7 @@
 // require: G10 for tasks, G13 for verification, G14 for review.
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+const { PROJECT_DISTILL } = require('./layout');
 const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 
 -
@@ -31,7 +32,7 @@ const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 
 - Epic: <epic-id>
 - Blueprint: <bp-id>
-- Distill: <distill path>
+- Distill: ${PROJECT_DISTILL}
 `;
 // Authoring guidance lives in HTML comments and `<TODO: …>` placeholders. The
 // plan gate strips comments before deciding a section is empty and rejects any
@@ -39,6 +40,26 @@ const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 // Cross-document links are relative (OKF §5.2) rather than bundle-relative
 // (§5.1): both are valid, and only the relative form survives web git hosts,
 // which resolve a leading `/` against the repository root.
+// Project Distill body (init). Keep sections stable — finalize promotes into them.
+const PROJECT_DISTILL_BODY = `# Distill
+
+Project-wide cautions for plan/execute. BP \`distill.md\` is a cycle candidate;
+\`/bouncer-finalize\` promotes durable items here (add / replace / drop).
+Decisions are **current** only — replace the sentence when it changes; do not
+append a change log.
+
+## Invariants
+
+<!-- Rules that break contracts or distribution if violated. One rule per bullet. -->
+
+## Gotchas
+
+<!-- Recurring traps (tools, paths, gates). Trigger + do / do-not. -->
+
+## Decisions
+
+<!-- Currently valid decisions only. Replace on change; no timeline append. -->
+`;
 const TEMPLATES = {
     'epic.md': `# <EPIC-id> <name>
 
@@ -142,7 +163,15 @@ Blueprint: [<BP-id>](index.md)
 `,
     'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
     'review.md': '# Review\n\n## Findings\n- <finding>\n',
-    'distill.md': '# Distill\n\nWhat was learned; durable notes for future work.\n',
+    'distill.md': `# Distill
+
+Cycle notes for this blueprint (candidates for promotion).
+
+After writing, \`/bouncer-finalize\` promotes durable Invariants / Gotchas /
+**current** Decisions into \`${PROJECT_DISTILL}\`. Leave cycle
+retrospectives and next-BP ideas here only — do not append a change log to the
+project Distill.
+`,
     'pr.md': PR_TEMPLATE,
 };
 function readTemplate(name) {
@@ -162,5 +191,5 @@ function templateBody(templateName, vars) {
     return renderTemplate(readTemplate(templateName), vars);
 }
 module.exports = {
-    TEMPLATES, PR_TEMPLATE, readTemplate, renderTemplate, templateBody,
+    TEMPLATES, PR_TEMPLATE, PROJECT_DISTILL_BODY, readTemplate, renderTemplate, templateBody,
 };

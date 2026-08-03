@@ -79,6 +79,12 @@ ship as the commit subject and body.
    - **verification / review / distill**: only author these when a command
      sends you here. When touching verification during plan or execute, set
      its `title` as a second `~함` commit body line if it will be published.
+   - **project Distill** (`.bouncer/context/Distill.md`): curated runtime
+     cautions — `## Invariants`, `## Gotchas`, `## Decisions`. Put only what
+     the next plan/execute must not rediscover. Decisions are **current**
+     valid choices; replace the sentence when it changes — never append a
+     timeline. BP `distill.md` holds cycle candidates; finalize promotes
+     durable bullets into the project Distill.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
 4. After editing, the calling command runs validation; if it reports a failure
    tied to a field you touched, fix the body and re-run.

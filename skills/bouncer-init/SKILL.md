@@ -23,16 +23,18 @@ contains `scripts/bouncer`.
 
 Bootstrap this project for Bouncer.
 
-1. Run `bouncer init` (writes nothing if `.bouncer/` already exists):
+1. Run `bouncer init` (idempotent for config; seeds missing project Distill):
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" init
    ```
 2. Report the result:
-   - If no files were created, report the detected bootstrap state and that no
-     changes were made.
+   - If bootstrap is already ready and `.bouncer/context/Distill.md` exists,
+     report `already-initialized` and that no changes were made.
+   - If bootstrap is ready but Distill was missing, report that Distill was
+     seeded (`project-distill-seeded`) and list `.bouncer/context/Distill.md`.
    - Otherwise, list the created files (`.bouncer/config.json`,
-     `.bouncer/context/index.md`).
+     `.bouncer/context/index.md`, `.bouncer/context/Distill.md`).
    - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
 3. If the result carries a non-empty `gitignoreSuggestions`, list those entries and
    tell the user to add them to `.gitignore` themselves. Bouncer never edits

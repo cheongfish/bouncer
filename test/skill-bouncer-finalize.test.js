@@ -22,3 +22,10 @@ test('bouncer-finalize wires distill, finalize gate, bouncer finalize, push+PR, 
   assert.match(body, /bouncer\//);
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
 });
+
+
+test('bouncer-finalize promotes BP distill into project Distill', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /\.bouncer\/context\/Distill\.md/);
+  assert.match(body, /promot|승격|Invariants|Gotchas|Decisions/i);
+});

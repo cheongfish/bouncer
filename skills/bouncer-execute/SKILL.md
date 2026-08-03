@@ -23,6 +23,10 @@ contains `scripts/bouncer`.
 
 Implement the active blueprint. Follow this sequence.
 
+**Project Distill.** Before implementing, Read `.bouncer/context/Distill.md`.
+If missing, stop and tell the user to run `bouncer init` (or seed the file).
+Honor matching Invariants / Gotchas / Decisions inside `affected_paths`.
+
 Skill flow (recommended): `implementation` (`skills/implementation/SKILL.md`) → `verification` (`skills/verification/SKILL.md`) → `review` (`skills/review/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
 On failure investigation, use the `debugging` skill (`skills/debugging/SKILL.md`) (reproduce → isolate → failing
 regression → minimum fix → re-verify).

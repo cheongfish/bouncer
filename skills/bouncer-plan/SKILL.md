@@ -30,6 +30,11 @@ otherwise ask before scaffolding.
 **Preflight.** If `.bouncer/` is missing, stop and tell the user to run
 `/bouncer-init` first.
 
+**Project Distill.** Read `.bouncer/context/Distill.md` before discovery/
+authoring. If it is missing, tell the user to run `bouncer init` (or create the
+file). Apply matching Invariants / Gotchas / Decisions when framing scope and
+Constraints.
+
 Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-authoring` (`skills/spec-authoring/SKILL.md`) → `graphify-runner` (`skills/graphify-runner/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
 
 1. **Discover.** Use the `discovery` skill (`skills/discovery/SKILL.md`) to clarify the request into goal, scope,

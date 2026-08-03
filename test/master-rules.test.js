@@ -40,3 +40,12 @@ test('workflow skills instruct reading CLAUDE.md before steps', () => {
   const spec = read('skills/spec-authoring/SKILL.md');
   assert.match(spec, /CLAUDE\.md/);
 });
+
+
+test('master rules point at project Distill path and require reading it', () => {
+  const claude = read('CLAUDE.md');
+  assert.match(claude, /\.bouncer\/context\/Distill\.md/);
+  assert.match(claude, /plan|execute/i);
+  assert.match(claude, /Read|읽/i);
+  assert.doesNotMatch(claude, /## Invariants/);
+});

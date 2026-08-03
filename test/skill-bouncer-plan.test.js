@@ -48,3 +48,10 @@ test('bouncer-plan reminds authors that titles feed the finalize commit message'
   assert.match(body, /title/i);
   assert.match(body, /\.gitmessage|commit_type|\/bouncer-finalize/);
 });
+
+
+test('bouncer-plan preflight reads project Distill', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /\.bouncer\/context\/Distill\.md/);
+  assert.match(body, /Read/i);
+});

@@ -33,8 +33,13 @@ If it is `null`, stop and tell the user to run `/bouncer-plan` first.
 Read `.bouncer/current` and use its `blueprint` value verbatim wherever
 `<pointer.blueprint>` appears; do not reconstruct a root `context/` path.
 
-1. **Distill.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write `distill.md` (durable
-   learnings), then set `distill.md` `bouncer.status → published`.
+1. **Distill.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to:
+   - Write this blueprint's `distill.md` (cycle candidates + durable notes), then
+     set `distill.md` `bouncer.status → published`.
+   - Promote durable items into `.bouncer/context/Distill.md` under
+     `## Invariants` / `## Gotchas` / `## Decisions` (add, replace, or drop
+     stale bullets). Decisions stay **current only** — no change-log append.
+     Cycle retrospectives and next-BP ideas stay in the BP `distill.md` only.
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:
    ```bash

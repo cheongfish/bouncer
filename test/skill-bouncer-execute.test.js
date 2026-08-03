@@ -42,3 +42,10 @@ test('bouncer-execute step 5 dispatches reviewer-prompt via fresh generic subage
   assert.match(body, /inline|no subagent/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
+
+
+test('bouncer-execute preflight reads project Distill', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /\.bouncer\/context\/Distill\.md/);
+  assert.match(body, /Read/i);
+});
