@@ -69,3 +69,13 @@ test('reviewer-prompt is read-only Findings template with placeholders', () => {
   assert.match(reviewerPrompt, /status|accepted/i);
   assert.doesNotMatch(reviewerPrompt, /profile|superpowers/i);
 });
+
+test('review and reviewer-prompt flag over-engineering without punishing why-comments', () => {
+  const md = readSkill('review');
+  assert.match(md, /Over-engineering/i);
+  assert.match(md, /unrequested abstraction|stdlib|root-cause/i);
+  assert.match(md, /why-comments|explanatory comments|\bwhy\b/i);
+  assert.match(reviewerPrompt, /Over-engineering/i);
+  assert.match(reviewerPrompt, /unrequested abstraction|stdlib|root-cause/i);
+  assert.match(reviewerPrompt, /why-comments|thorough why|\bwhy\b/i);
+});

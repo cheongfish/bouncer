@@ -39,6 +39,22 @@ Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
    ### Code quality
    Defects introduced by this change: incorrect logic, broken contracts/tests,
    unsafe error handling, brittle structure, unclear new interfaces.
+   Also flag missing explanatory comments on non-trivial new logic (why,
+   invariants, trade-offs, known ceilings) — not narrating what the next line
+   already says.
+
+   ### Over-engineering (advisory → finding when actionable)
+   Prefer deletion / simplification findings when the diff invents surface the
+   brief did not need:
+   - reinvented stdlib or native platform capability
+   - new dependency that installed code or a few lines already cover
+   - unrequested abstraction (single-implementation interface, one-product
+     factory, config for a never-changing value, scaffolding “for later”)
+   - symptom patch where a shared root-cause fix would be a smaller correct
+     diff
+   Do **not** treat thorough why-comments as bloat. Do **not** demand dropping
+   an approved Checklist item — that is a planning escalate, not a “fix in
+   place” acceptance.
 
    ### Calibration
    Map findings to severity without inflation:
@@ -48,6 +64,10 @@ Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
      creep (not Do not touch), or serious quality defect
    - `minor` — real issue, limited blast radius
    - `nit` — style/clarity only
+
+   Over-engineering findings are `minor` by default, `nit` when purely
+   stylistic, and only `major` when they are already Extra scope creep or a
+   real quality defect. Simpler-is-possible is not a blocker.
 
    Order: **dispatch → controller records Findings → disposition → accepted**.
    The controller (not the subagent) updates existing `review.md` body

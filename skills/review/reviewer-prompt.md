@@ -42,7 +42,20 @@ Judge the diff against the brief Checklist, Interface, and Constraints:
 ### Rubric — Code quality
 Flag defects that would ship: incorrect logic, broken contracts/tests, unsafe
 error handling, brittle structure, or unclear interfaces introduced by this
-diff. Prefer findings tied to this change over pre-existing nits.
+diff. Prefer findings tied to this change over pre-existing nits. Also flag
+non-trivial new logic that lacks comments explaining **why**, invariants,
+trade-offs, or known ceilings (do not demand comments that only restate the
+next line).
+
+### Rubric — Over-engineering
+Flag deletable or simplifiable surface the brief did not need:
+- reinvented stdlib / native platform capability
+- new dependency covered by installed code or a few lines
+- unrequested abstraction (single-implementation interface, one-product
+  factory, never-changing config, scaffolding “for later”)
+- symptom patch where a shared root-cause fix would be smaller and correct
+Do **not** treat thorough why-comments as bloat. Do **not** ask to drop an
+approved Checklist item in-place — call that out as a planning conflict.
 
 ### Rubric — Calibration (severity)
 Map each finding to exactly one severity:
@@ -50,6 +63,10 @@ Map each finding to exactly one severity:
 - `major` — Spec Missing / Misunderstood / Constraint breach, Extra scope creep (not Do not touch), or serious quality defect
 - `minor` — real issue, limited blast radius
 - `nit` — style/clarity only; do not inflate
+
+Over-engineering findings are `minor` by default, `nit` when purely stylistic,
+and only `major` when they are already Extra scope creep or a real quality
+defect. Simpler-is-possible is never a blocker.
 
 ### Output
 Return **only** a Findings list. For each finding include:
