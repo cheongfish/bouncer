@@ -32,15 +32,33 @@ Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 
 
 ## Install
 
-Claude Code:
+GitHub 저장소: `https://github.com/cheongfish/bouncer.git`  
+비공개면 HTTPS를 권장합니다. SSH 키가 GitHub에 등록돼 있으면
+`git@github.com:cheongfish/bouncer.git`도 됩니다.
+**`npm install`은 사용 시 필요 없습니다.**
+
+### Claude Code
 
 ```
-/plugin marketplace add <git-url-or-local-path>
+/plugin marketplace add https://github.com/cheongfish/bouncer.git
 /plugin install bouncer@chunjae-tools
 ```
 
-Cursor · Codex · 환경변수·비공개 SSH는 [docs/install.md](docs/install.md)를 보세요.
-**`npm install`은 사용 시 필요 없습니다.**
+### Cursor
+
+```
+/add-plugin https://github.com/cheongfish/bouncer.git
+```
+
+### Codex
+
+```bash
+codex plugin marketplace add https://github.com/cheongfish/bouncer.git
+codex plugin add bouncer@chunjae-tools
+```
+
+로컬 경로·환경변수·훅 trust·비공개 저장소 주의사항은
+[docs/install.md](docs/install.md)를 보세요.
 
 ## Quickstart
 
