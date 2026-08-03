@@ -9,20 +9,22 @@
 | 대상 | 방침 | 누가 커밋하나 |
 | --- | --- | --- |
 | `.bouncer/context/**` | 커밋 | `/bouncer-finalize`가 코드와 함께 자동으로 |
-| `.bouncer/config.json`, `governance.md`, `workflow.md`, `okf.md`, `templates/` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
+| `.bouncer/config.json` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
 | `graphify-out/` | 제외 | — (`.gitignore`, init이 안내) |
 | 활성 blueprint 포인터·worktree | 해당 없음 | 저장소 밖(`$GIT_COMMON_DIR/bouncer/`)에 저장됨 |
 
+문서 골격(템플릿)과 제품 규칙(`docs/governance.md` · `workflow.md` · `okf.md`),
+세션 마스터 룰(`CLAUDE.md` / `AGENTS.md`)은 프로젝트에 설치되지 않습니다.
+scaffold와 finalize PR 본문은 플러그인 내장값(`scripts/lib/templates.js`)만
+사용합니다.
+
 ## 부트스트랩은 왜 따로 커밋해야 하나
 
-`.bouncer/config.json`과 `templates/`는 blueprint가 커밋할 수 있는 범위에
-**없습니다.** 그래서 커밋하지 않은 채로 두면 첫 `/bouncer-finalize`가
-out-of-scope로 중단됩니다. 게다가 `/bouncer-plan`이 활성 blueprint를 기록하고
-나면 커밋 가드가 `affected_paths` 밖 파일을 막으므로, **`/bouncer-init`과
-`/bouncer-plan` 사이**가 이 커밋을 남길 수 있는 유일한 구간입니다.
-
-`templates/`를 커밋해야 하는 이유가 하나 더 있습니다 — scaffold가 이 디렉터리를
-런타임에 읽습니다. 커밋하지 않으면 팀원마다 다른 문서 골격이 생성됩니다.
+`.bouncer/config.json`은 blueprint가 커밋할 수 있는 범위에 **없습니다.** 그래서
+커밋하지 않은 채로 두면 첫 `/bouncer-finalize`가 out-of-scope로 중단됩니다.
+게다가 `/bouncer-plan`이 활성 blueprint를 기록하고 나면 커밋 가드가
+`affected_paths` 밖 파일을 막으므로, **`/bouncer-init`과 `/bouncer-plan` 사이**가
+이 커밋을 남길 수 있는 유일한 구간입니다.
 
 ```bash
 git add .bouncer && git commit -m "chore: bootstrap bouncer"

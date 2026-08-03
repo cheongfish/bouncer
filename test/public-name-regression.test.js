@@ -29,6 +29,9 @@ const LEGACY_ALLOWLIST = new Set([
   'test/cli-init.test.js',
   'scripts/lib/schema.js',
   'scripts/lib/validate.js',
+  // TypeScript sources of the same legacy detectors (tsc emit keeps the .js entries).
+  'scripts/src/lib/schema.ts',
+  'scripts/src/lib/validate.ts',
   'test/public-name-regression.test.js',
 ]);
 

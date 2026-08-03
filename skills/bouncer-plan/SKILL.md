@@ -17,6 +17,10 @@ compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails o
 a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
 contains `scripts/bouncer`.
 
+**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
+(byte-identical `AGENTS.md`). Product detail:
+`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+
 Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
 

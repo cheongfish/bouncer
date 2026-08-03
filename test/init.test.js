@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { init, inspectBootstrap } = require('../scripts/lib/init');
+const { TEMPLATES } = require('../scripts/lib/templates');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-init-'));
@@ -17,13 +18,14 @@ test('init scaffolds the safe .bouncer tree', () => {
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.strictEqual(res.skipped, false);
   for (const rel of [
-    '.bouncer/config.json', '.bouncer/governance.md', '.bouncer/workflow.md',
-    '.bouncer/okf.md', '.bouncer/templates/epic.md', '.bouncer/templates/blueprint.md',
-    '.bouncer/templates/tasks.md', '.bouncer/templates/verification.md', '.bouncer/templates/review.md',
-    '.bouncer/templates/distill.md', '.bouncer/templates/pr.md', '.bouncer/context/index.md',
+    '.bouncer/config.json', '.bouncer/context/index.md',
   ]) {
     assert.ok(exists(repo, rel), `missing ${rel}`);
   }
+  assert.ok(!exists(repo, '.bouncer/templates'));
+  assert.ok(!exists(repo, '.bouncer/governance.md'));
+  assert.ok(!exists(repo, '.bouncer/workflow.md'));
+  assert.ok(!exists(repo, '.bouncer/okf.md'));
   assert.ok(!exists(repo, '.bouncer/current'));
   assert.ok(!exists(repo, 'context/index.md'));
   assert.ok(!exists(repo, '.bouncer/superpowers.md'));
@@ -67,10 +69,8 @@ test('init config omits methodology and Superpowers profile fields', () => {
   assert.ok(!('methodology' in cfg));
 });
 
-test('init tasks template has five implementation-ready sections', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const tasks = read(repo, '.bouncer/templates/tasks.md');
+test('built-in tasks template has five implementation-ready sections', () => {
+  const tasks = TEMPLATES['tasks.md'];
   assert.ok(/## Goal & intent/.test(tasks));
   assert.ok(/## Interface/.test(tasks));
   assert.ok(/## Touch/.test(tasks));
@@ -78,29 +78,23 @@ test('init tasks template has five implementation-ready sections', () => {
   assert.ok(/## Checklist/.test(tasks));
 });
 
-test('init tasks template carries a Constraints section for non-path rules', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const tasks = read(repo, '.bouncer/templates/tasks.md');
+test('built-in tasks template carries a Constraints section for non-path rules', () => {
+  const tasks = TEMPLATES['tasks.md'];
   assert.ok(/## Constraints/.test(tasks));
   // Between Do not touch and Checklist so the section parser bounds it.
   assert.ok(tasks.indexOf('## Constraints') > tasks.indexOf('## Do not touch'));
   assert.ok(tasks.indexOf('## Constraints') < tasks.indexOf('## Checklist'));
 });
 
-test('init epic template records numbered success criteria', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const epic = read(repo, '.bouncer/templates/epic.md');
+test('built-in epic template records numbered success criteria', () => {
+  const epic = TEMPLATES['epic.md'];
   assert.ok(/## Success criteria/.test(epic));
   assert.ok(/^1\. <TODO:/m.test(epic));
 });
 
-test('init blueprint/tasks templates carry Contract-First authoring guardrails', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const blueprint = read(repo, '.bouncer/templates/blueprint.md');
-  const tasks = read(repo, '.bouncer/templates/tasks.md');
+test('built-in blueprint/tasks templates carry Contract-First authoring guardrails', () => {
+  const blueprint = TEMPLATES['blueprint.md'];
+  const tasks = TEMPLATES['tasks.md'];
   assert.match(blueprint, /Contract-First/);
   assert.match(blueprint, /금지:/);
   assert.match(blueprint, /~250줄/);
@@ -124,11 +118,9 @@ test('init writes an OKF-shaped bundle root index', () => {
   assert.match(index, /\* \[EPIC-00x 제목\]\(epics\/EPIC-00x-slug\/index\.md\) - /);
 });
 
-test('epic and blueprint templates link their neighbours with relative paths', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const epic = read(repo, '.bouncer/templates/epic.md');
-  const blueprint = read(repo, '.bouncer/templates/blueprint.md');
+test('built-in epic and blueprint templates link their neighbours with relative paths', () => {
+  const epic = TEMPLATES['epic.md'];
+  const blueprint = TEMPLATES['blueprint.md'];
   // OKF §5.2. A leading `/` (§5.1) would resolve against the repo root on web
   // git hosts and break every link.
   assert.ok(!/\]\(\//.test(epic), 'epic template must not use bundle-absolute links');
@@ -186,9 +178,9 @@ test('inspectBootstrap distinguishes missing, ready, partial, and legacy without
 
 test('init preserves partial user-authored Bouncer state', () => {
   const repo = tmpRepo();
-  const workflow = '# My workflow\n\nDo not replace this.\n';
+  const custom = '{"note":"do not replace"}\n';
   fs.mkdirSync(path.join(repo, '.bouncer'));
-  fs.writeFileSync(path.join(repo, '.bouncer/workflow.md'), workflow);
+  fs.writeFileSync(path.join(repo, '.bouncer/notes.json'), custom);
 
   const result = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
 
@@ -198,14 +190,13 @@ test('init preserves partial user-authored Bouncer state', () => {
     skipped: true,
     reason: 'partial-bouncer-state',
   });
-  assert.strictEqual(read(repo, '.bouncer/workflow.md'), workflow);
+  assert.strictEqual(read(repo, '.bouncer/notes.json'), custom);
   assert.ok(!exists(repo, '.bouncer/config.json'));
 });
 
-test('init workflow uses Bouncer commands and retains Ponytail advise', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-23T00:00:00+09:00' });
-  const workflow = read(repo, '.bouncer/workflow.md');
+test('init workflow materials live in plugin docs, not the project tree', () => {
+  const root = path.join(__dirname, '..');
+  const workflow = fs.readFileSync(path.join(root, 'docs/workflow.md'), 'utf8');
   assert.ok(/\/bouncer-init/.test(workflow));
   assert.ok(/\/bouncer-plan/.test(workflow));
   assert.ok(/\/bouncer-execute/.test(workflow));
@@ -215,14 +206,12 @@ test('init workflow uses Bouncer commands and retains Ponytail advise', () => {
   assert.ok(!/superpowers|profile-aware|methodology/i.test(workflow));
 });
 
-test('init materials have no Superpowers profile language', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-23T00:00:00+09:00' });
-  const gov = read(repo, '.bouncer/governance.md');
-  const workflow = read(repo, '.bouncer/workflow.md');
-  const okf = read(repo, '.bouncer/okf.md');
+test('plugin governance materials have no Superpowers profile language', () => {
+  const root = path.join(__dirname, '..');
+  const gov = fs.readFileSync(path.join(root, 'docs/governance.md'), 'utf8');
+  const workflow = fs.readFileSync(path.join(root, 'docs/workflow.md'), 'utf8');
+  const okf = fs.readFileSync(path.join(root, 'docs/okf.md'), 'utf8');
   const all = gov + workflow + okf;
-  assert.ok(!exists(repo, '.bouncer/superpowers.md'));
   assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(all));
 });
 
