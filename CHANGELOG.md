@@ -19,7 +19,21 @@
 ## [0.2.0] — 2026-08-03
 
 0.1.0 이후 파일럿·dogfood에서 쌓인 워크플로·멀티 에이전트·코어 개선 릴리스.
-제품 요약 표는 [README.md](README.md#whats-new-in-020)를 보세요.
+
+0.1.0 대비 요약:
+
+| 영역 | 0.1.0 | 0.2.0 |
+| --- | --- | --- |
+| Execute | 같은 checkout에서 구현 | 저장소 루트 아래 worktree + plan 문서 seed |
+| Distill | BP distill 시점·전역 Distill 없음 | 전역 `Distill.md` 런타임 + finalize에서 BP distill·승격 |
+| 서브에이전트 | 일반 Task/서브에이전트 디스패치 | named `bouncer-implementer` / `bouncer-reviewer` + 모델 설정 |
+| 구현·리뷰 | 최소성 스킬만 | 최소 변경 사다리·상세 주석·과설계 루브릭 |
+| 규칙·템플릿 | init이 프로젝트에 템플릿·규칙 복사 | 플러그인 내장 + `CLAUDE.md`/`AGENTS.md` 마스터 룰 |
+| 코어 | JS 런타임 | TypeScript 소스 → CJS 산출, CI 동기화 검사 |
+| 그래프 | 소스 graphify | source·context 이중 그래프 동기화 |
+| 커밋 메시지 | Epic/Blueprint trailer | `.gitmessage`형 `type: 제목` + 의도 2줄 + title 불릿 |
+| 게이트 | G10 placeholder 일부 | `<TODO: …>`·안내 주석만 있는 섹션도 미작성으로 판정 |
+| 에이전트 설치 | Claude Code 중심 | Cursor·Codex 매니페스트와 설치 안내 |
 
 ### Added
 

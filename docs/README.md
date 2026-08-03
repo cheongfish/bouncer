@@ -7,7 +7,7 @@
 | [cli.md](cli.md) | `bouncer` CLI 명령 |
 | [configuration.md](configuration.md) | `.bouncer/config.json` 필드 |
 | [governance.md](governance.md) | blueprint 크기 등 제품 운영 규칙 |
-| [workflow.md](workflow.md) | `/bouncer-*` 단계 요약 |
+| [workflow.md](workflow.md) | `/bouncer-*` 단계·게이트 흐름·스킬 매핑 |
 | [okf.md](okf.md) | OKF 정렬·알려진 차이 |
 | [context-versioning.md](context-versioning.md) | `.bouncer/` 커밋 정책과 부트스트랩 |
 | [troubleshooting.md](troubleshooting.md) | 게이트 실패·막힘 대처, 피드백 |
@@ -15,6 +15,7 @@
 | [contributing.md](contributing.md) | 개발, 커밋·PR 규약, CI |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 플러그인 제품 설계 결정 (ADR) |
 | [PILOT.md](PILOT.md) | 파일럿 안내와 알려진 마찰 |
+| [Changelog](../CHANGELOG.md) | 변경 이력 · [0.2.0 요약 표](../CHANGELOG.md#020--2026-08-03) |
 
 플러그인 루트 [`CLAUDE.md`](../CLAUDE.md)가 세션용 마스터 룰(인덱스)이다.
 [`AGENTS.md`](../AGENTS.md)는 Codex / Cursor용으로 `@CLAUDE.md`를 import한다.
