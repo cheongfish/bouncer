@@ -24,7 +24,8 @@ process.stdin.on('end', () => {
     } else if (decision.action === 'skip-no-graphify') {
       // Only when opted in (enabled) but CLI missing — default-disabled stays silent.
       process.stderr.write(
-        'Bouncer: graphify.enabled is true but graphify is not on PATH — path suggestions will fall back to manual affected_paths. '
+        'Bouncer: graphify.enabled is true but graphify is not on PATH — path suggestions '
+        + 'will fall back to manual affected_paths. '
         + 'Install: pip install graphifyy && graphify install. See docs/install.md.\n',
       );
     } else if (decision.failed && decision.failed.length) {
