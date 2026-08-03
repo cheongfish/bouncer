@@ -8,7 +8,8 @@ description: "Use when reviewing a change against the tasks brief. Record ## Fin
 Produce the review **deliverable contract**. Gates judge the result; this skill
 only produces findings and dispositions.
 
-Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
+Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md) (call
+brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 
 ## Steps
 
@@ -22,9 +23,23 @@ Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
    - `accepted` findings **require** a note (the accepted-risk rationale).
    Mark the review accepted only when no actionable finding remains unresolved
    (every finding `resolved`, or `accepted` with a note).
-3. **Review** — Fill [`reviewer-prompt.md`](reviewer-prompt.md) and dispatch a
-   **fresh generic** subagent for a read-only pass (or run the same prompt
-   inline read-only when no subagent tool exists). Judge the diff with:
+3. **Review** — Fill [`reviewer-prompt.md`](reviewer-prompt.md) and dispatch
+   **`bouncer-reviewer`** with this order:
+
+   1. Resolve the model (never throws; `null` means parent-session inherit):
+      ```bash
+      BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+      node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-reviewer'})))"
+      ```
+   2. Call named agent `bouncer-reviewer` with that `model` (attach the filled
+      brief slot as the call prompt).
+   3. If the host rejects the model slug, retry with `inherit` and tell the
+      user the slug was refused.
+   4. If the host has no named-agent support (e.g. Codex), fall back to a
+      **fresh generic** subagent with the same prompt, or an inline read-only
+      pass when no subagent tool exists.
+
+   Judge the diff with:
 
    ### Spec compliance
    - **Missing** — Checklist / Interface requirement absent from the diff.

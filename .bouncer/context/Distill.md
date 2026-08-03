@@ -45,8 +45,11 @@ append a change log.
   index and working tree together.
 - `git diff --name-only HEAD` reports staged changes and deletions too — feeding
   its output straight into a file read throws on any deleted path.
-- Reviewer rubric and `reviewer-prompt.md` are a pair with execute dispatch —
-  change them in the same commit.
+- Reviewer rubric, `reviewer-prompt.md`, named agent docs under `agents/`, and
+  execute dispatch are one commit unit — change them together.
+- Do not redeclare an `agents` path in plugin manifests. Claude rejects the
+  plugin when a convention path is listed again; Cursor auto-discovers
+  `agents/` when unset.
 - Promoting into `.bouncer/context/Distill.md` requires `makeAllowed` to whitelist
   that path; otherwise finalize aborts as out-of-scope.
 - Do not assume `.bouncer/templates/` exists — scaffold/PR bodies come from
@@ -71,10 +74,20 @@ append a change log.
   plan context documents only, and the base is returned to HEAD.
 - Execute worktrees live under `<repo>/.worktrees/<BP-id>` (shared via the
   main worktree root from `git-common-dir`), not under the host XDG state home.
-- Review Findings come from a fresh generic subagent (or inline read-only
-  fallback); only the controller sets `review → accepted`.
+- Review Findings come from named agent `bouncer-reviewer` (or generic /
+  inline fallback when named agents are unavailable); only the controller
+  sets `review → accepted`. `bouncer-implementer` likewise must not commit
+  or flip document status — the controller owns both.
+- Named-agent dispatch is four steps: `resolveSubagentModel` → named call →
+  slug reject retries with `inherit` (and notify the user) → named-agent
+  unsupported falls back to generic/inline. Keep the fallback wording or G8
+  blocks on hosts without `agents/` (Codex).
+- `reviewer-prompt.md` is a per-run call brief slot; persona, guards, and
+  Findings output contract live in `agents/bouncer-reviewer.md`.
 - Named-agent model overrides live in `.bouncer/config.json` `subagents` as
   per-provider blocks (model ID namespaces differ by host).
   `resolveSubagentModel` never throws — miss / `'inherit'` / non-string →
   `{ model: null }` (parent-session inherit). `subagents` is project config,
   not OKF/document frontmatter — do not register it in `schema.ts`.
+- Codex is out of named-agent routing: the plugin cannot deploy `agents/`, so
+  review and execute always take the generic/inline fallback there.
