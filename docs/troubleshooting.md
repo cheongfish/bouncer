@@ -10,6 +10,9 @@
 | `.bouncer/context/Distill.md` 없음 | `bouncer init`이 골격을 만듭니다. plan/execute 전에 Read해야 합니다 |
 | `S11 blueprint documents not found` | blueprint 경로가 틀렸습니다(오타 등). 문서 문제가 아니라 경로 문제입니다 |
 | `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
+| worktree에 `tasks.md`가 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
+| base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |
+| `seed-worktree`가 `conflict`로 실패 | worktree에 같은 경로가 다른 내용으로 이미 있습니다. base는 건드리지 않았으니 손으로 정리한 뒤 다시 실행하세요 |
 | finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`는 무시. `.bouncer/context/Distill.md`는 항상 허용됩니다 |
 
 게이트 코드 전체는 [gates.md](gates.md)를 보세요.

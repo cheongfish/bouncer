@@ -52,6 +52,20 @@ regression → minimum fix → re-verify).
    WORKTREE_PATH="${WORKTREE_ROOT}/<BP-id>"
    git worktree add -b bouncer/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
    ```
+   `/bouncer-plan` does not commit, so the documents it authored exist only in
+   the base working tree while the new worktree starts from the committed HEAD.
+   Move them across **immediately after `git worktree add`, still in the base
+   `cwd`** — without this the worktree has no `tasks.md` and step 3 has no brief:
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" seed-worktree \
+     --blueprint <pointer.blueprint> --to "${WORKTREE_PATH}"
+   ```
+   It moves only the plan context documents (blueprint tree, epic index,
+   context index) and returns the base to its committed state; unrelated dirty
+   files stay in the base. A `conflict` result means the worktree already holds
+   a different version — resolve it by hand rather than re-running.
+
    The active pointer is stored under the Git common directory, so the worktree
    resolves the same pointer without copying it into the repository. **Set every
    subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`** (`git add`,
