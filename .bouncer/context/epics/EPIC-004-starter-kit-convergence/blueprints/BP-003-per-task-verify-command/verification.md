@@ -14,17 +14,17 @@ bouncer:
   status: passed
   verification:
     command: npm test
-    ran_at: '2026-08-04T08:49:11.492+09:00'
+    ran_at: '2026-08-04T08:49:15.800+09:00'
     exit_code: 0
     output_tail: |-
       ---
-        duration_ms: 0.796493
+        duration_ms: 1.081553
         type: 'test'
         ...
       # Subtest: readVerifyCommand(repoRoot) still returns config.verify
       ok 289 - readVerifyCommand(repoRoot) still returns config.verify
         ---
-        duration_ms: 0.161826
+        duration_ms: 0.283481
         type: 'test'
         ...
       1..289
@@ -35,7 +35,7 @@ bouncer:
       # cancelled 0
       # skipped 0
       # todo 0
-      # duration_ms 357.06678
+      # duration_ms 354.135832
 ---
 # Verification
 
@@ -43,5 +43,5 @@ bouncer:
 `npm test`
 
 ## Evidence
-Ran at: 2026-08-04T08:49:11.492+09:00
+Ran at: 2026-08-04T08:49:15.800+09:00
 Exit code: 0
