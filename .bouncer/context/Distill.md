@@ -36,8 +36,15 @@ append a change log.
 - Skill YAML `description` plain `##` is truncated as a comment — quote or avoid.
 - Name-policy / allowlist scanners that only listed `scripts/lib/*.js` break when
   `scripts/src/**/*.ts` is tracked — update allowlists with the source tree.
-- Plan epic docs absent from the base branch must be copied into the execute
-  worktree or the gate cannot read the blueprint path.
+- `git worktree add` checks out every tracked file at its HEAD blob — the
+  destination is never empty, so "the file is already there" does not mean
+  someone else wrote it; compare against the HEAD blob (`git cat-file --filters
+  HEAD:<path>`, which respects autocrlf) before calling it a conflict.
+- `git checkout -- <path>` restores from the index, so it silently leaves a
+  staged change in place; name HEAD (`git checkout HEAD -- <path>`) to reset the
+  index and working tree together.
+- `git diff --name-only HEAD` reports staged changes and deletions too — feeding
+  its output straight into a file read throws on any deleted path.
 - Reviewer rubric and `reviewer-prompt.md` are a pair with execute dispatch —
   change them in the same commit.
 - Promoting into `.bouncer/context/Distill.md` requires `makeAllowed` to whitelist
@@ -56,5 +63,8 @@ append a change log.
 - `bouncer init` soft-seeds missing Distill on an already-ready bootstrap and
   never overwrites curated content.
 - Mechanical TS migration may keep `strict: false` until a later tightening BP.
+- Plan artifacts reach the execute worktree through `bouncer seed-worktree`,
+  run in the base checkout right after `git worktree add`; the moved set is the
+  plan context documents only, and the base is returned to HEAD.
 - Review Findings come from a fresh generic subagent (or inline read-only
   fallback); only the controller sets `review → accepted`.

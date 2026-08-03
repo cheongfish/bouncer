@@ -5,6 +5,7 @@ const { finalize } = require('./finalize');
 const { init } = require('./init');
 const { readConfig, detectPhase, recommendMode } = require('./advisor');
 const { runVerification } = require('./verification');
+const { seedWorktree } = require('./seed-worktree');
 
 function parseFlags(rest) {
   const flags: Record<string, string | boolean> = {};
@@ -94,6 +95,32 @@ function cmdFinalize(rest, io) {
   return result.ok ? 0 : 1;
 }
 
+function cmdSeedWorktree(rest, io) {
+  const f = parseFlags(rest);
+  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+    io.err('seed-worktree: --blueprint is required\n');
+    return 2;
+  }
+  if (typeof f.to !== 'string' || f.to === '') {
+    io.err('seed-worktree: --to is required\n');
+    return 2;
+  }
+  try {
+    // --repo (default cwd) is the base checkout the plan documents live in;
+    // --to is the worktree that was just created from the committed HEAD.
+    const result = seedWorktree({
+      repoRoot: f.repo || process.cwd(),
+      blueprintDir: f.blueprint,
+      worktreePath: f.to,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  } catch (error) {
+    io.err(`seed-worktree: ${error.message}\n`);
+    return 1;
+  }
+}
+
 function cmdInit(rest, io) {
   const f = parseFlags(rest);
   const result = init({ repoRoot: f.repo || process.cwd() });
@@ -122,6 +149,8 @@ const USAGE = `usage: bouncer <command> [options]
              Create a document set with correct frontmatter.
   finalize   --blueprint <dir> [--yes]
              Check the commit scope and, with --yes, commit the blueprint.
+  seed-worktree --blueprint <dir> --to <worktree>
+             Move the plan context documents into a freshly created worktree.
   init       Bootstrap .bouncer/ for this project. Never overwrites.
   advise     Print the recommended Ponytail mode for the current phase.
 
@@ -146,6 +175,8 @@ function runCli(argv, io) {
       return cmdScaffold(rest, sink);
     case 'finalize':
       return cmdFinalize(rest, sink);
+    case 'seed-worktree':
+      return cmdSeedWorktree(rest, sink);
     case 'init':
       return cmdInit(rest, sink);
     case 'advise':

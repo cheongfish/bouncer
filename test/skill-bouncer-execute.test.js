@@ -30,6 +30,18 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
 
+test('bouncer-execute step 2 seeds the worktree with the plan documents', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /seed-worktree/);
+  assert.match(body, /--to\s+"\$\{WORKTREE_PATH\}"/);
+  // The command reads the base checkout, so it must run before the cwd switch.
+  assert.ok(
+    body.indexOf('seed-worktree') > body.indexOf('git worktree add'),
+    'seed-worktree must be documented after git worktree add',
+  );
+  assert.match(body, /tasks\.md/);
+});
+
 test('bouncer-execute step 5 dispatches reviewer-prompt via fresh generic subagent', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /reviewer-prompt\.md/);

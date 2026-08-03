@@ -4,7 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { runCli } = require('../scripts/lib/cli');
 
-const SUBCOMMANDS = ['validate', 'scaffold', 'finalize', 'verify', 'init', 'advise'];
+const SUBCOMMANDS = [
+  'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'advise',
+];
 
 function capture(argv) {
   const buf = { out: '', err: '' };
