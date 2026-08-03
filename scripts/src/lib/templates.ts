@@ -4,7 +4,7 @@
 // project-level override. Every default satisfies the body sections the gates
 // require: G10 for tasks, G13 for verification, G14 for review.
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
+
 const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 
 -
@@ -33,6 +33,7 @@ const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 - Blueprint: <bp-id>
 - Distill: <distill path>
 `;
+
 // Authoring guidance lives in HTML comments and `<TODO: …>` placeholders. The
 // plan gate strips comments before deciding a section is empty and rejects any
 // surviving `<TODO:` token (G10), so an untouched template can never pass.
@@ -40,7 +41,7 @@ const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 // (§5.1): both are valid, and only the relative form survives web git hosts,
 // which resolve a leading `/` against the repository root.
 const TEMPLATES = {
-    'epic.md': `# <EPIC-id> <name>
+  'epic.md': `# <EPIC-id> <name>
 
 ## Intent
 <!-- 왜 지금 이 에픽인가. 두 문장 이내. -->
@@ -63,7 +64,7 @@ const TEMPLATES = {
      만들지 않는다 (docs/governance.md). -->
 * [<TODO: BP-00x 제목>](blueprints/<TODO: BP-00x-slug>/index.md) - <TODO: 한 줄 목적>
 `,
-    'blueprint.md': `# <BP-id> <name>
+  'blueprint.md': `# <BP-id> <name>
 
 Epic: [<EPIC-id>](../../index.md)
 
@@ -98,7 +99,7 @@ Epic: [<EPIC-id>](../../index.md)
 * [Review](review.md) - 리뷰 발견사항
 * [Distill](distill.md) - 배운 것
 `,
-    'tasks.md': `# Tasks
+  'tasks.md': `# Tasks
 
 Blueprint: [<BP-id>](index.md)
 
@@ -140,27 +141,31 @@ Blueprint: [<BP-id>](index.md)
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
 - [ ] <TODO: 작업 항목>
 `,
-    'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
-    'review.md': '# Review\n\n## Findings\n- <finding>\n',
-    'distill.md': '# Distill\n\nWhat was learned; durable notes for future work.\n',
-    'pr.md': PR_TEMPLATE,
+  'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
+  'review.md': '# Review\n\n## Findings\n- <finding>\n',
+  'distill.md': '# Distill\n\nWhat was learned; durable notes for future work.\n',
+  'pr.md': PR_TEMPLATE,
 };
+
 function readTemplate(name) {
-    const body = TEMPLATES[name];
-    if (typeof body !== 'string') {
-        throw new Error(`unknown template: ${name}`);
-    }
-    return body;
+  const body = TEMPLATES[name];
+  if (typeof body !== 'string') {
+    throw new Error(`unknown template: ${name}`);
+  }
+  return body;
 }
+
 function renderTemplate(body, { epicId, blueprintId, name }) {
-    return body
-        .replace(/<EPIC-id>/g, epicId || '')
-        .replace(/<BP-id>/g, blueprintId || '')
-        .replace(/<name>/g, name || '');
+  return body
+    .replace(/<EPIC-id>/g, epicId || '')
+    .replace(/<BP-id>/g, blueprintId || '')
+    .replace(/<name>/g, name || '');
 }
+
 function templateBody(templateName, vars) {
-    return renderTemplate(readTemplate(templateName), vars);
+  return renderTemplate(readTemplate(templateName), vars);
 }
+
 module.exports = {
-    TEMPLATES, PR_TEMPLATE, readTemplate, renderTemplate, templateBody,
+  TEMPLATES, PR_TEMPLATE, readTemplate, renderTemplate, templateBody,
 };

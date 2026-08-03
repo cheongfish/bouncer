@@ -9,11 +9,17 @@
   "scripts": {
     "test": "node --test",
     "lint": "eslint .",
-    "setup": "git config commit.template .gitmessage && echo \"commit.template set \u2014 git commit (without -m) now opens the team template\""
+    "setup": "git config commit.template .gitmessage && echo \"commit.template set — git commit (without -m) now opens the team template\"",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.1.2",
     "eslint": "^10.8.0",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "typescript": "^5.8.3"
   }
 }
