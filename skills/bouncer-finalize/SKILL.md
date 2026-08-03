@@ -17,6 +17,10 @@ compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails o
 a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
 contains `scripts/bouncer`.
 
+**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
+(byte-identical `AGENTS.md`). Product detail:
+`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+
 Close out the active blueprint. Follow this sequence.
 
 **Preflight.** Load the active blueprint from `.bouncer/current`:
@@ -62,9 +66,10 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
      stop after the local commit and tell the user push/PR was skipped. Worktree
      cleanup and merge are the user's responsibility.
    - Otherwise push the branch and open a **draft** PR using `.bouncer/config.json`
-     `base_branch`/`pr` and `.bouncer/templates/pr.md`. That template follows the
-     team's PR format, not the commit message shape; fill its sections from the
-     blueprint and tasks documents and leave the `## 🚦 Bouncer` section for the
+     `base_branch`/`pr` and the built-in PR body from
+     `scripts/lib/templates.js` (`pr.md`). That template follows the team's PR
+     format, not the commit message shape; fill its sections from the blueprint
+     and tasks documents and leave the `## 🚦 Bouncer` section for the
      epic/blueprint ids and the distill path:
      ```bash
      git push -u origin bouncer/<BP-id>-<slug>

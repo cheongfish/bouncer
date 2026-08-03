@@ -17,6 +17,10 @@ compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails o
 a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
 contains `scripts/bouncer`.
 
+**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
+(byte-identical `AGENTS.md`). Product detail:
+`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+
 Implement the active blueprint. Follow this sequence.
 
 Skill flow (recommended): `implementation` (`skills/implementation/SKILL.md`) → `verification` (`skills/verification/SKILL.md`) → `review` (`skills/review/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).

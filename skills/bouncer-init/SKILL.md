@@ -17,6 +17,10 @@ compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails o
 a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
 contains `scripts/bouncer`.
 
+**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
+(byte-identical `AGENTS.md`). Product detail:
+`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+
 Bootstrap this project for Bouncer.
 
 1. Run `bouncer init` (writes nothing if `.bouncer/` already exists):
@@ -28,8 +32,7 @@ Bootstrap this project for Bouncer.
    - If no files were created, report the detected bootstrap state and that no
      changes were made.
    - Otherwise, list the created files (`.bouncer/config.json`,
-     `.bouncer/governance.md`, `.bouncer/workflow.md`, `.bouncer/okf.md`,
-     `.bouncer/templates/*`, `.bouncer/context/index.md`).
+     `.bouncer/context/index.md`).
    - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
 3. If the result carries a non-empty `gitignoreSuggestions`, list those entries and
    tell the user to add them to `.gitignore` themselves. Bouncer never edits
@@ -40,11 +43,8 @@ Bootstrap this project for Bouncer.
    git add .bouncer && git commit -m "chore: bootstrap bouncer"
    ```
    Two reasons, both worth stating:
-   - `.bouncer/config.json`, the governance documents, and `.bouncer/templates/`
-     are not in the scope a blueprint may commit, so leaving them uncommitted
-     makes the first `/bouncer-finalize` abort as out-of-scope. Scaffold reads
-     `.bouncer/templates/` at runtime, so an uncommitted template also means
-     teammates generate different documents.
+   - `.bouncer/config.json` is not in the scope a blueprint may commit, so leaving
+     it uncommitted makes the first `/bouncer-finalize` abort as out-of-scope.
    - The window closes after `/bouncer-plan`: once `.bouncer/current` points at a
      blueprint, the commit guard blocks files outside `affected_paths`.
 
@@ -54,3 +54,6 @@ Bootstrap this project for Bouncer.
    `.bouncer/config.json` (`source_dirs`, `verify`, `base_branch`, `pr`) first.
 
 Do not author any epic or blueprint here — `/bouncer-init` only scaffolds `.bouncer/`.
+Document skeletons, product rules, and master rules live in the plugin
+(`scripts/lib/templates.js`, `docs/governance.md`, `docs/workflow.md`,
+`docs/okf.md`, `CLAUDE.md`); init does not install them into the project.

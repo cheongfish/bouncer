@@ -9,6 +9,9 @@
 
 ### Changed
 
+- **플러그인 마스터 룰 `CLAUDE.md` / `AGENTS.md`** — governance · workflow · okf를
+  링크로 가리키는 짧은 인덱스. 소비 프로젝트에 설치하지 않으며, `/bouncer-*`
+  스킬과 `spec-authoring`이 시작 시 Read 하도록 지시한다.
 - **문서 템플릿·제품 규칙을 프로젝트에 설치하지 않음** — `bouncer init`이
   `.bouncer/templates/`와 `governance.md` / `workflow.md` / `okf.md`를 더 이상
   쓰지 않는다. 골격은 `scripts/lib/templates.js`, 규칙은 `docs/governance.md` ·
