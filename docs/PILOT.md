@@ -37,22 +37,26 @@
 
 각 단계에서 **막히면 즉시 기록**하세요. 나중에 정리하면 무엇이 어려웠는지 잊습니다.
 
-### 문서 `title`이 그대로 커밋 메시지가 됩니다
+### 문서 필드가 그대로 커밋 메시지가 됩니다
 
 `/bouncer-finalize`가 만드는 커밋은 이런 형태입니다.
 
 ```
 <type>: <blueprint 문서의 title>
 
-- <tasks 문서의 title>
-- <verification 문서의 title>
+- <bouncer.commit_intent[0]>   # 배경·의도
+- <bouncer.commit_intent[1]>   # 배경·의도
+- <tasks 문서의 title>         # 수정 내용
+- <verification 문서의 title>  # 수정 내용 (선택)
 ```
 
-즉 **세 문서의 `title`을 커밋 제목·본문 줄로 쓸 수 있게 적어야 합니다.** scaffold
+즉 **blueprint `title`·`commit_intent`와 tasks/verification `title`을 커밋
+제목·본문 줄로 쓸 수 있게 적어야 합니다.** scaffold
 기본값(`BP-001 tasks` 같은)을 그대로 두면 아무 정보 없는 커밋이 남습니다. 구조만
-Bouncer가 정하고 문장은 전부 여러분이 쓴 `title`에서 오므로, 팀의 커밋 규약(언어,
-어미, 금지 사항)은 `title`을 어떻게 쓰느냐로 지켜집니다. Epic/Blueprint/Distill
-식별자는 커밋이 아니라 PR 본문과 blueprint 문서에 남습니다.
+Bouncer가 정하고 문장은 전부 여러분이 쓴 필드에서 오므로, 팀의 커밋 규약(언어,
+어미, 금지 사항)은 필드를 어떻게 쓰느냐로 지켜집니다. Epic/Blueprint/Distill
+식별자는 커밋이 아니라 PR 본문과 blueprint 문서에 남습니다. `commit_intent`가
+없으면 finalize 스킬이 커밋 전에 2줄을 채웁니다.
 
 ## 언제 Bouncer를 쓰나 (잠정 — 파일럿이 답할 질문)
 
@@ -95,7 +99,7 @@ Bouncer가 정하고 문장은 전부 여러분이 쓴 `title`에서 오므로, 
 
 | 증상 | 상태 |
 | --- | --- |
-| 문서 `title`을 성의 없이 쓰면 커밋 메시지도 그렇게 남음 | 미해결 — 위 「문서 `title`이 그대로 커밋 메시지가 됩니다」 참고. 명령 문서에 안내를 넣는 것이 후속 과제 |
+| 문서 필드를 성의 없이 쓰면 커밋 메시지도 그렇게 남음 | 미해결 — 위 「문서 필드가 그대로 커밋 메시지가 됩니다」 참고. 명령 문서에 안내를 넣는 것이 후속 과제 |
 | `graphify` 비활성 시 `graph.basis`를 손으로 적어야 함 | 미해결 — 자동화하면 게이트가 무의미해지는 문제가 있어, 파일럿 보고를 보고 판단 |
 | 계획 도중 범위가 늘면 tasks를 고치고 plan 게이트를 다시 통과해야 함 | 의도된 동작 — 다만 번거롭다고 느껴지면 기록해 주세요 |
 

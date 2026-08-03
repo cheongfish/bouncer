@@ -22,6 +22,7 @@ test('spec-authoring ties document titles to finalize commit messages via .gitme
   const md = readSkill('spec-authoring');
   assert.match(md, /\.gitmessage/);
   assert.match(md, /title/i);
+  assert.match(md, /commit_intent/);
   assert.match(md, /commit_type|\/bouncer-finalize|finalize/i);
 });
 

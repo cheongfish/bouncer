@@ -68,9 +68,10 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    Touch per file with a verb rather than per directory, and put non-path rules
    in Constraints.
    Also replace scaffold default frontmatter `title` values (and set
-   `bouncer.commit_type` on the blueprint when not `feat`):
-   `/bouncer-finalize` turns blueprint `title` into the commit subject and
-   tasks/verification `title` into body bullets, following `.gitmessage`.
+   `bouncer.commit_type` / `bouncer.commit_intent` on the blueprint when needed):
+   `/bouncer-finalize` turns blueprint `title` into the commit subject,
+   `commit_intent` (exactly two `~함` lines) into 배경·의도 bullets, and
+   tasks/verification `title` into 수정 내용 bullets, following `.gitmessage`.
 
 5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to
    run `bouncer graph-sync` (plan-time freshness for **source** + **context**

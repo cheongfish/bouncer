@@ -41,7 +41,7 @@ Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 
 | 규칙·템플릿 | init이 프로젝트에 템플릿·규칙 복사 | 플러그인 내장 + `CLAUDE.md`/`AGENTS.md` 마스터 룰 |
 | 코어 | JS 런타임 | TypeScript 소스 → CJS 산출, CI 동기화 검사 |
 | 그래프 | 소스 graphify | source·context 이중 그래프 동기화 |
-| 커밋 메시지 | Epic/Blueprint trailer | `.gitmessage`형 `type: 제목` + title 불릿만 |
+| 커밋 메시지 | Epic/Blueprint trailer | `.gitmessage`형 `type: 제목` + 의도 2줄 + title 불릿 |
 | 게이트 | G10 placeholder 일부 | `<TODO: …>`·안내 주석만 있는 섹션도 미작성으로 판정 |
 | 에이전트 설치 | Claude Code 중심 | Cursor·Codex 매니페스트와 설치 안내 |
 

@@ -54,7 +54,12 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
    Gate `finalize` checks G9 `distill.status == published`. Fix and re-run until
    it passes.
 
-3. **Commit the remainder (deterministic core).** Dry-run first:
+3. **Commit the remainder (deterministic core).** Before dry-run, ensure the
+   blueprint frontmatter has `bouncer.commit_intent` as **exactly two** Korean
+   `~함` / `~임` strings (배경·의도). Prefer values written at plan time; if
+   missing or not length 2, author them now from Goal & intent / distill (no
+   Epic/Blueprint ids, no file paths), then proceed.
+   Dry-run first:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint>
@@ -63,7 +68,8 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
    the allowed-set. Anything out of scope is a **hard abort — nothing staged**;
    show the violations and have the user fix `affected_paths` or remove the stray
    files. On a clean dry-run, show the staged file list + generated commit
-   message and ask for confirmation, then commit:
+   message (subject + 의도 2줄 + tasks/verification titles) and ask for
+   confirmation, then commit:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes

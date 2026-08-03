@@ -13,6 +13,8 @@
   Cursor 어댑터만 둔다. 마스터 룰 SSOT는 `CLAUDE.md`.
 - **finalize draft PR 제목 형식** — `<type>(<bp-id>): …` 대신
   `[YYMMDD] (→ MergeTarget) [Type] 요약` (베이스 브랜치·날짜·커밋 대표 요약).
+- **finalize 커밋 본문에 배경·의도 2줄** — blueprint `bouncer.commit_intent`
+  (정확히 2개)를 조립하고, 없으면 finalize 스킬이 커밋 전에 채운다.
 
 ## [0.2.0] — 2026-08-03
 

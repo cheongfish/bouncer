@@ -12,15 +12,17 @@ npm run lint   # eslint
 ## 커밋·PR 규약
 
 커밋 메시지는 한국어 Conventional Commits를 따릅니다 — `type: 명사형 제목` +
-`~함`으로 끝나는 본문 불릿 최대 3개. 본문에 파일·모듈 이름은 쓰지 않습니다(diff가
+배경·의도 2줄 + 수정 내용 불릿. 본문에 파일·모듈 이름은 쓰지 않습니다(diff가
 이미 보여줍니다). 전체 규칙은 [`.gitmessage`](../.gitmessage)에 있습니다.
 
 `/bouncer-finalize`도 같은 규약을 씁니다. 메시지를 새로 짓지 않고 plan 때 쓴
-문서 `title`을 그대로 조립합니다 — `bouncer.commit_type` + blueprint `title`이
-제목, tasks/verification `title`이 본문 불릿. Epic/Blueprint/Distill 식별자는
-커밋에 넣지 않고 PR 본문·blueprint 문서에 둡니다.
+문서 필드를 조립합니다 — `bouncer.commit_type` + blueprint `title`이 제목,
+`bouncer.commit_intent`(정확히 2줄)이 배경·의도, tasks/verification `title`이
+수정 내용. Epic/Blueprint/Distill 식별자는 커밋에 넣지 않고 PR 본문·blueprint
+문서에 둡니다.
 scaffold 기본값(`BP-001 slug` 등)을 남기면 그 문구가 커밋에 들어가므로,
-`/bouncer-plan`에서 `.gitmessage` 기준으로 `title`을 고쳐 두세요.
+`/bouncer-plan`에서 `.gitmessage` 기준으로 `title`·`commit_intent`를 고쳐 두세요.
+finalize 직전에 `commit_intent`가 없으면 스킬이 Goal & intent에서 채워 넣습니다.
 
 `npm run setup`은 `git config commit.template .gitmessage`를 실행합니다. **클론해도
 자동 적용되지 않습니다** — git이 저장소가 로컬 설정을 바꾸는 것을 막기 때문에

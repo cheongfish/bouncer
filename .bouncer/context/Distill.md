@@ -22,9 +22,9 @@ append a change log.
   via `pretest` / `npm run build`; do not require TS runtimes at consume time.
 - `tsc` does not rewrite `require('../vendor/…')` — keep `outDir`/`rootDir` so
   emit lands in `scripts/lib` and relative vendor paths stay valid.
-- Commit-message subject/body come from document `title` fields (and
-  `commit_type`), not free-form finalize prose; keep Epic/Blueprint/Distill ids
-  and file paths out of those titles.
+- Commit-message subject/body come from document fields (`title`,
+  `commit_type`, `commit_intent`), not free-form finalize prose; keep
+  Epic/Blueprint/Distill ids and file paths out of those fields.
 - Unknown CLI usage goes to **stderr** so stdout stays pipe-clean.
 
 ## Gotchas

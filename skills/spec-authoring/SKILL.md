@@ -20,8 +20,9 @@ Your job is the prose under it. Canonical Bouncer documents live only under
 - **Status** transitions are owned by the calling workflow, not by this skill.
   Do not flip status while authoring a body.
 - **Do** rewrite scaffold default `title` values (and optional
-  `bouncer.commit_type` on the blueprint). They are authored content, not
-  harness ids — `/bouncer-finalize` copies them into the commit message.
+  `bouncer.commit_type` / `bouncer.commit_intent` on the blueprint). They are
+  authored content, not harness ids — `/bouncer-finalize` copies them into the
+  commit message.
 - The other exception is content the calling command explicitly tells you to
   write into the protocol block (for example graph suggestions or confirmed
   `affected_paths`). Otherwise, bodies only.
@@ -36,14 +37,20 @@ from free-form prose. Follow the project commit convention in `.gitmessage`
 | --- | --- |
 | `blueprint` `bouncer.commit_type` (default `feat`) | `<type>:` |
 | `blueprint` `title` | subject (명사형 어미) |
-| `tasks` `title` | first body bullet (`- …함`) |
-| `verification` `title` | second body bullet (`- …함`) |
+| `blueprint` `bouncer.commit_intent` (exactly **2** strings) | 배경·의도 bullets (`- …함`) |
+| `tasks` `title` | 수정 내용 bullet (`- …함`) |
+| `verification` `title` | second 수정 내용 bullet (`- …함`) |
 
-Leave Epic / Blueprint / Distill identifiers and file paths out of titles —
-they belong in the blueprint docs and PR body, not the commit message. Do not
-put module or package names in titles either. Replace scaffold defaults like
-`BP-001 slug` / `BP-001 tasks` before approval; otherwise those placeholders
-ship as the commit subject and body.
+`commit_intent` must be a YAML list of two Korean lines ending in `~함` / `~임`
+(why this change). Without exactly two entries, finalize falls back to
+tasks/verification titles only — set the list at plan time, or before the
+finalize commit step.
+
+Leave Epic / Blueprint / Distill identifiers and file paths out of titles and
+`commit_intent` — they belong in the blueprint docs and PR body, not the commit
+message. Do not put module or package names in those fields either. Replace
+scaffold defaults like `BP-001 slug` / `BP-001 tasks` before approval; otherwise
+those placeholders ship as the commit subject and body.
 
 ## How to author
 
@@ -58,7 +65,8 @@ ship as the commit subject and body.
      X" is not a criterion.
    - **blueprint**: what this unit delivers and why it fits one reviewable
      commit. Set `title` (and `bouncer.commit_type` if not `feat`) for the
-     finalize commit subject.
+     finalize commit subject. Set `bouncer.commit_intent` to **two** `~함`
+     lines (배경·의도) drawn from Goal & intent — not the subject noun phrase.
    - **tasks**: fill every implementation-ready section before approval —
      Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
      Those sections are the sole brief for execution. Set `title` as a `~함`

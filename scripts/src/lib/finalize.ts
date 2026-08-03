@@ -45,15 +45,26 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
 }
 
 // Subject and body follow whatever commit convention the project writes into
-// its document titles; only the structure is ours. Keep identifiers and paths
+// document fields; only the structure is ours. Keep identifiers and paths
 // out of the message — they live in the blueprint docs and the PR body.
+// Body order: 배경·의도 2줄 (`bouncer.commit_intent`) then 수정 내용
+// (tasks / verification titles). Without a 2-line intent, fall back to
+// title bullets only (legacy).
 function buildCommitMessage(docs) {
   const bp = docs.blueprintIndex.data;
   const bouncer = bp.bouncer || {};
   const type = bouncer.commit_type || 'feat';
   const titleOf = (key) => (docs[key] && docs[key].data.title ? docs[key].data.title : '');
-
-  const body = ['tasks', 'verification'].map(titleOf).filter(Boolean).map((t) => `- ${t}`);
+  const rawIntent = Array.isArray(bouncer.commit_intent) ? bouncer.commit_intent : [];
+  const intent = rawIntent
+    .filter((s) => typeof s === 'string' && s.trim())
+    .map((s) => String(s).trim())
+    .slice(0, 2);
+  const what = ['tasks', 'verification'].map(titleOf).filter(Boolean);
+  const bodyLines = intent.length === 2
+    ? [...intent, ...what]
+    : what;
+  const body = bodyLines.map((t) => `- ${t}`);
   const lines = [`${type}: ${bp.title}`];
   if (body.length) lines.push('', ...body);
   return lines.join('\n');
