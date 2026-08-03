@@ -24,6 +24,7 @@ test('graphify-runner records basis and documents freshness policy', () => {
   const md = readSkill('graphify-runner');
   assert.match(md, /bouncer\.graph\.basis|graph\.basis|basis/i);
   assert.match(md, /SessionStart|freshness|mtime/i);
+  assert.match(md, /graph-sync/);
 });
 
 test('graphify-runner treats graphify-out as user-managed local output', () => {
@@ -36,4 +37,19 @@ test('graphify-runner handles disabled auto-build with user-confirmed affected p
   const md = readSkill('graphify-runner');
   assert.match(md, /auto-build is disabled|automatic graph build is disabled/i);
   assert.match(md, /require the user to confirm\s+`affected_paths`/i);
+});
+
+test('graphify-runner tells users how to install graphify when skipping', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /pip install graphifyy/);
+  assert.match(md, /graphify\.enabled/);
+  assert.match(md, /docs\/install\.md/);
+});
+
+test('graphify-runner queries source and context graphs after plan-time sync', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /graphify-out\/source/);
+  assert.match(md, /graphify-out\/context/);
+  assert.match(md, /context_dirs|source_dirs/);
+  assert.match(md, /graph-sync/);
 });

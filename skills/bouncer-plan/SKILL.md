@@ -58,7 +58,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    `.bouncer/context/epics/...`.
    (Skip `scaffold epic` when adding a blueprint to an existing epic.) Scaffold
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
-   review `pending`, distill `draft`.
+   review `pending`. Do **not** create BP `distill.md` here — `/bouncer-finalize`
+   scaffolds it with `bouncer scaffold distill`.
 
 4. **Author.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write the epic, blueprint, and
    tasks bodies. Fill every implementation-ready section in `tasks.md` before
@@ -71,10 +72,14 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    `/bouncer-finalize` turns blueprint `title` into the commit subject and
    tasks/verification `title` into body bullets, following `.gitmessage`.
 
-5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to query the source
-   graph and write `bouncer.graph.suggested_paths` into `tasks.md`. If graphify is
+5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to
+   run `bouncer graph-sync` (plan-time freshness for **source** + **context**
+   graphs), query both `graphify-out/source` and `graphify-out/context`, and write
+   `bouncer.graph.suggested_paths` into `tasks.md`. If graphify is
    unavailable, it leaves `suggested_paths` empty, records a graceful fallback in
-   `bouncer.graph.basis`, and says so so the user can seed paths manually.
+   `bouncer.graph.basis`, tells the user how to install/enable Graphify
+   (`pip install graphifyy && graphify install`, then `graphify.enabled: true`),
+   and says so so the user can seed paths manually.
    Scaffold leaves `basis` empty on purpose, so this step must run: G4 fails
    until a real basis is recorded.
 

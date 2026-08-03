@@ -170,7 +170,9 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 
 ### D. Graphify 정책
 
-1. 그래프 최신성은 SessionStart 훅과 계획 시점의 안내에 따른다.
+1. 그래프 최신성은 SessionStart와 plan의 `bouncer graph-sync`가 같은
+   mtime 판정으로 맞춘다. **source**(`source_dirs` → `graphify-out/source`)와
+   **context**(`context_dirs` → `graphify-out/context`) 두 그래프를 유지한다.
 2. `graphify-out/`은 로컬 캐시다. `bouncer init`이 `.gitignore` 누락 항목을
    **안내**하고(직접 수정하지 않음), finalize/커밋 가드는 `node_modules/`,
    `graphify-out/`, `.worktrees/`를 범위 위반이 아니라 무시 대상으로 처리한다.

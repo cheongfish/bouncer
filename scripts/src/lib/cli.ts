@@ -1,11 +1,13 @@
 'use strict';
 const { validateBlueprint } = require('./validate');
-const { scaffoldEpic, scaffoldBlueprint } = require('./scaffold');
+const { scaffoldEpic, scaffoldBlueprint, scaffoldDistill } = require('./scaffold');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
 const { readConfig, detectPhase, recommendMode } = require('./advisor');
 const { runVerification } = require('./verification');
 const { seedWorktree } = require('./seed-worktree');
+const { nowIsoKst } = require('./time');
+const { syncSessionGraphs } = require('./session-graph');
 
 function parseFlags(rest) {
   const flags: Record<string, string | boolean> = {};
@@ -64,7 +66,7 @@ function cmdScaffold(rest, io) {
   const [kind, ...flagArgs] = rest;
   const f = parseFlags(flagArgs);
   const repoRoot = f.repo || process.cwd();
-  const timestamp = typeof f.timestamp === 'string' ? f.timestamp : new Date().toISOString();
+  const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
   let created;
   if (kind === 'epic') {
     created = scaffoldEpic({ repoRoot, epicId: f.id, name: f.name, timestamp });
@@ -72,6 +74,12 @@ function cmdScaffold(rest, io) {
     created = scaffoldBlueprint({
       repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp,
     });
+  } else if (kind === 'distill') {
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+      io.err('scaffold distill: --blueprint is required\n');
+      return 2;
+    }
+    created = scaffoldDistill({ repoRoot, blueprintDir: f.blueprint, timestamp });
   } else {
     io.err(`unknown scaffold kind: ${kind}\n`);
     return 2;
@@ -123,7 +131,8 @@ function cmdSeedWorktree(rest, io) {
 
 function cmdInit(rest, io) {
   const f = parseFlags(rest);
-  const result = init({ repoRoot: f.repo || process.cwd() });
+  const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
+  const result = init({ repoRoot: f.repo || process.cwd(), timestamp });
   io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }
@@ -138,6 +147,13 @@ function cmdAdvise(rest, io) {
   return 0;
 }
 
+function cmdGraphSync(rest, io) {
+  const f = parseFlags(rest);
+  const result = syncSessionGraphs({ repoRoot: f.repo || process.cwd() });
+  io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
+  return result.failed.length === 0 ? 0 : 1;
+}
+
 const USAGE = `usage: bouncer <command> [options]
 
   validate   --blueprint <dir> --gate <plan|execute|finalize>
@@ -146,13 +162,16 @@ const USAGE = `usage: bouncer <command> [options]
              Run the configured verify command and record its evidence.
   scaffold   epic --id <EPIC-id> --name <slug>
              blueprint --epic-dir <dir> --id <BP-id> --name <slug>
+             distill --blueprint <dir>
              Create a document set with correct frontmatter.
+             (distill is for finalize; epic/blueprint scaffold omit it.)
   finalize   --blueprint <dir> [--yes]
              Check the commit scope and, with --yes, commit the blueprint.
   seed-worktree --blueprint <dir> --to <worktree>
              Move the plan context documents into a freshly created worktree.
   init       Bootstrap .bouncer/ for this project. Never overwrites.
   advise     Print the recommended Ponytail mode for the current phase.
+  graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
 
 Every command accepts --repo <dir> to run against another repository.
 `;
@@ -181,6 +200,8 @@ function runCli(argv, io) {
       return cmdInit(rest, sink);
     case 'advise':
       return cmdAdvise(rest, sink);
+    case 'graph-sync':
+      return cmdGraphSync(rest, sink);
     default:
       err(`unknown command: ${cmd}\n\n${USAGE}`);
       return 2;

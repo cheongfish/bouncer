@@ -68,6 +68,27 @@ BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
 export 하세요. `hooks/hooks.json`은 Claude·Codex가 치환하는
 `${CLAUDE_PLUGIN_ROOT}`를 그대로 쓰고, Cursor 훅은 상대 경로를 씁니다.
 
+## 선택: Graphify (경로 추천)
+
+Graphify는 **선택** 의존성입니다. 없어도 `/bouncer-plan`은 수동
+`affected_paths` 확인으로 진행합니다. 경로 추천을 쓰려면:
+
+```bash
+pip install graphifyy && graphify install
+```
+
+프로젝트 `.bouncer/config.json`에서:
+
+```json
+"graphify": { "enabled": true }
+```
+
+`source_dirs` / `context_dirs`를 맞게 고친 뒤 세션을 다시 열면 SessionStart가
+`graphify-out/source`와 `graphify-out/context`를 갱신합니다. `/bouncer-plan`의
+`graphify-runner`는 `bouncer graph-sync`로 같은 freshness를 한 번 더 검사합니다.
+설치·활성화 안내는 SessionStart와 `graphify-runner` 스킵 메시지에도 나옵니다.
+업스트림: [Graphify](https://github.com/Graphify-Labs/graphify).
+
 ## 비공개 저장소
 
 사내 저장소가 **비공개**라면 SSH 리모트를 권장합니다. 백그라운드 자동 업데이트는

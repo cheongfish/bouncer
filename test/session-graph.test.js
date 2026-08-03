@@ -5,7 +5,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { planSessionGraph } = require('../scripts/lib/session-graph');
+const {
+  planSessionGraph, syncSessionGraphs, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT,
+} = require('../scripts/lib/session-graph');
 
 function base(over) {
   return {
@@ -14,6 +16,7 @@ function base(over) {
     graphifyEnabled: () => true,
     hasGraphify: () => true,
     sourceDirs: () => ['src', 'test'],
+    contextDirs: () => ['.bouncer/context'],
     existingDirs: (dirs) => dirs,
     newestMtime: () => 200,
     graphMtime: () => 100,
@@ -35,6 +38,7 @@ test('bootstraps missing Bouncer state before graph planning', () => {
   assert.strictEqual(initialized, true);
   assert.strictEqual(result.bootstrap, 'created');
   assert.strictEqual(result.action, 'skip-no-graphify');
+  assert.deepStrictEqual(result.graphs, []);
 });
 
 test('real bootstrap creates only safe project-local state', () => {
@@ -68,6 +72,7 @@ test('skips graph work for partial Bouncer state', () => {
     bootstrap: 'partial',
     action: 'skip-partial-bootstrap',
     reason: 'partial-bouncer-state',
+    graphs: [],
   });
   assert.strictEqual(checkedGraphify, false);
 });
@@ -102,17 +107,22 @@ test('skips graph work when ready config does not opt in to graphify', () => {
     bootstrap: 'ready',
     action: 'skip-graph-disabled',
     reason: 'graphify auto-build disabled',
+    graphs: [],
   });
   assert.strictEqual(checkedGraphify, false);
 });
 
-test('graphify opt-in retains missing graph build behavior', () => {
+test('graphify opt-in retains missing graph build behavior for both scopes', () => {
   const result = plan({
     graphifyEnabled: () => true,
     graphMtime: () => null,
   });
   assert.strictEqual(result.action, 'build');
-  assert.deepStrictEqual(result.dirs, ['src', 'test']);
+  assert.strictEqual(result.graphs.length, 2);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'context']);
+  assert.ok(result.graphs.every((g) => g.action === 'build'));
+  assert.strictEqual(result.graphs[0].outDir, DEFAULT_SOURCE_OUT);
+  assert.strictEqual(result.graphs[1].outDir, DEFAULT_CONTEXT_OUT);
 });
 
 test('skips when graphify is not on PATH', () => {
@@ -121,14 +131,19 @@ test('skips when graphify is not on PATH', () => {
   assert.strictEqual(result.action, 'skip-no-graphify');
 });
 
-test('skips when the graph is fresher than every source dir', () => {
+test('skips when both graphs are fresher than their source dirs', () => {
   assert.strictEqual(plan({ newestMtime: () => 100, graphMtime: () => 200 }).action, 'skip-fresh');
 });
 
-test('builds when the graph is missing', () => {
-  const r = plan({ graphMtime: () => null });
-  assert.strictEqual(r.action, 'build');
-  assert.deepStrictEqual(r.dirs, ['src', 'test']);
+test('builds only the stale graph when the other is fresh', () => {
+  const result = plan({
+    graphMtime: (outDir) => (outDir === DEFAULT_SOURCE_OUT ? 100 : 300),
+    newestMtime: () => 200,
+  });
+  assert.strictEqual(result.action, 'build');
+  const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g.action]));
+  assert.strictEqual(byName.source, 'build');
+  assert.strictEqual(byName.context, 'skip-fresh');
 });
 
 test('builds when a source dir is newer than the graph', () => {
@@ -136,8 +151,38 @@ test('builds when a source dir is newer than the graph', () => {
 });
 
 test('build dirs are limited to source dirs that exist', () => {
-  const r = plan({ graphMtime: () => null, existingDirs: () => ['src'] });
-  assert.deepStrictEqual(r.dirs, ['src']);
+  const r = plan({
+    graphMtime: () => null,
+    existingDirs: (dirs) => dirs.filter((d) => d === 'src' || d === '.bouncer/context'),
+  });
+  assert.deepStrictEqual(r.graphs.find((g) => g.name === 'source').dirs, ['src']);
+  assert.deepStrictEqual(r.graphs.find((g) => g.name === 'context').dirs, ['.bouncer/context']);
+});
+
+test('syncSessionGraphs builds stale graphs via execGraphify', () => {
+  const calls = [];
+  const result = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({ graphMtime: () => null }),
+    execGraphify: (graph) => { calls.push(graph.name); },
+  });
+  assert.strictEqual(result.action, 'build');
+  assert.deepStrictEqual(calls, ['source', 'context']);
+  assert.deepStrictEqual(result.built, ['source', 'context']);
+  assert.deepStrictEqual(result.failed, []);
+});
+
+test('syncSessionGraphs records per-graph failures without throwing', () => {
+  const result = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({ graphMtime: () => null }),
+    execGraphify: (graph) => {
+      if (graph.name === 'context') throw new Error('boom');
+    },
+  });
+  assert.deepStrictEqual(result.built, ['source']);
+  assert.strictEqual(result.failed.length, 1);
+  assert.strictEqual(result.failed[0].name, 'context');
 });
 
 test('SessionStart reports partial state on stderr and exits zero', () => {

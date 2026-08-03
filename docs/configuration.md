@@ -5,13 +5,14 @@
 
 | 필드 | 기본값 | 설명 |
 | --- | --- | --- |
-| `source_dirs` | `["src", "test"]` | 그래프 생성과 탐색의 대상 디렉터리 |
+| `source_dirs` | `["src", "test"]` | **소스 코드** 그래프 입력. 산출: `graphify-out/source/` |
+| `context_dirs` | `[".bouncer/context"]` | **컨텍스트** 그래프 입력(에픽/BP 문서). 산출: `graphify-out/context/` |
 | `verify` | `"npm test"` | **execute 게이트가 실제로 실행하는 명령.** 종료 코드 0이어야 G13 통과 |
 | `base_branch` | `"develop"` | worktree와 PR의 기준 브랜치 |
 | `pr.draft` | `true` | PR을 draft로 생성 |
 | `pr.base` | `"develop"` | PR 대상 브랜치 |
 | `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
-| `graphify` | `{ "enabled": false }` | 소스 그래프 생성. **기본 비활성.** 켜면 SessionStart에서 `graphify-out/` 캐시를 갱신하고 `suggested_paths`를 채웁니다 |
+| `graphify` | `{ "enabled": false }` | 이중 그래프 생성. **기본 비활성·선택 의존성.** 켜려면 `pip install graphifyy && graphify install` 후 `enabled: true`. SessionStart와 plan의 `bouncer graph-sync`가 `source`/`context` 그래프를 mtime 기준으로 갱신하고, `graphify-runner`가 둘 다 query해 `suggested_paths`를 채웁니다. 없거나 꺼져 있으면 수동 `affected_paths`로 폴백합니다 ([install.md](install.md)) |
 | `schema_version` | `"0.x"` | Bouncer 문서 frontmatter 스키마 버전. OKF 스펙 버전과는 별개이며, 후자는 OKF §11에 따라 `.bouncer/context/index.md` frontmatter의 `okf_version`에 선언합니다 |
 | `plugin_advisors.ponytail` | (객체) | 단계별 Ponytail 모드 **권고**. 자동 전환하지 않습니다 |
 | `subagents` | (객체) | named agent별 모델 오버라이드. 아래 절 참고 |

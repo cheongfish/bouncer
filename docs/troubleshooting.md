@@ -5,8 +5,9 @@
 | `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는, 또 템플릿 안내 주석만으로는 통과하지 않습니다 |
 | `G10 tasks sections still contain <TODO: …> placeholders` | 템플릿 placeholder를 실제 내용으로 바꾸지 않았습니다 |
 | `G4 tasks.graph.basis missing or empty` | `/bouncer-plan`의 그래프 단계를 건너뛰었습니다. graphify가 꺼져 있어도 `graphify-runner`가 폴백 근거를 기록해야 합니다 |
+| `graphify not on PATH` / 경로 추천 없음 | 선택 의존성. `pip install graphifyy && graphify install` 후 `graphify.enabled: true`. 없으면 `affected_paths`를 수동 확정하면 됩니다 ([install.md](install.md)) |
 | `G13 missing successful harness verification metadata` | `verify` 명령이 실행되지 않았거나 실패했습니다. 손으로 쓴 증적은 통과하지 않습니다 |
-| `G9 distill.status != published` | BP `distill.md`가 아직 `published`가 아닙니다 (전역 Distill과 별개) |
+| `G9 distill.status != published` | BP `distill.md`가 아직 `published`가 아닙니다 (전역 Distill과 별개). plan scaffold는 이 파일을 만들지 않으므로 `/bouncer-finalize`에서 `scaffold distill` 후 작성·publish 하세요 |
 | `.bouncer/context/Distill.md` 없음 | `bouncer init`이 골격을 만듭니다. plan/execute 전에 Read해야 합니다 |
 | `S11 blueprint documents not found` | blueprint 경로가 틀렸습니다(오타 등). 문서 문제가 아니라 경로 문제입니다 |
 | `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |

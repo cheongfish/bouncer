@@ -4,6 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { init, inspectBootstrap } = require('./init');
+const { nowIsoKst } = require('./time');
+const DEFAULT_SOURCE_OUT = 'graphify-out/source';
+const DEFAULT_CONTEXT_OUT = 'graphify-out/context';
+const DEFAULT_CONTEXT_DIRS = ['.bouncer/context'];
 function realHasGraphify() {
     try {
         execFileSync('graphify', ['--version'], { stdio: 'ignore' });
@@ -19,23 +23,27 @@ function realHasGraphify() {
         }
     }
 }
-function realGraphifyEnabled(repoRoot) {
+function readBouncerConfig(repoRoot) {
     try {
-        const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
-        return cfg.graphify?.enabled === true;
+        return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
     }
     catch (_e) {
-        return false;
+        return null;
     }
 }
+function realGraphifyEnabled(repoRoot) {
+    const cfg = readBouncerConfig(repoRoot);
+    return cfg?.graphify?.enabled === true;
+}
 function realSourceDirs(repoRoot) {
-    try {
-        const cfg = JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
-        return Array.isArray(cfg.source_dirs) ? cfg.source_dirs : [];
-    }
-    catch (_e) {
-        return [];
-    }
+    const cfg = readBouncerConfig(repoRoot);
+    return Array.isArray(cfg?.source_dirs) ? cfg.source_dirs : [];
+}
+function realContextDirs(repoRoot) {
+    const cfg = readBouncerConfig(repoRoot);
+    if (Array.isArray(cfg?.context_dirs))
+        return cfg.context_dirs;
+    return DEFAULT_CONTEXT_DIRS;
 }
 function realExistingDirs(repoRoot, dirs) {
     return dirs.filter((d) => fs.existsSync(path.join(repoRoot, d)));
@@ -68,50 +76,138 @@ function newestMtimeUnder(repoRoot, dir) {
 function realNewestMtime(repoRoot, dirs) {
     return dirs.reduce((max, d) => Math.max(max, newestMtimeUnder(repoRoot, d)), 0);
 }
-function realGraphMtime(repoRoot) {
-    const abs = path.join(repoRoot, 'graphify-out', 'graph.json');
+function realGraphMtime(repoRoot, outDir) {
+    const abs = path.join(repoRoot, outDir, 'graph.json');
     return fs.existsSync(abs) ? fs.statSync(abs).mtimeMs : null;
+}
+function resolveGraphScopes({ sourceDirs, contextDirs }) {
+    return [
+        { name: 'source', dirs: sourceDirs, outDir: DEFAULT_SOURCE_OUT },
+        { name: 'context', dirs: contextDirs, outDir: DEFAULT_CONTEXT_OUT },
+    ];
+}
+function planOneGraph({ name, dirs, outDir, existingDirs, newestMtime, graphMtime }) {
+    const present = existingDirs(dirs);
+    const mtime = graphMtime(outDir);
+    if (present.length === 0) {
+        return {
+            name, dirs: present, outDir, action: 'skip-no-dirs',
+            reason: `${name} dirs missing`,
+        };
+    }
+    if (mtime === null) {
+        return {
+            name, dirs: present, outDir, action: 'build',
+            reason: `${name} graph missing`,
+        };
+    }
+    const newest = newestMtime(present);
+    if (newest <= mtime) {
+        return {
+            name, dirs: present, outDir, action: 'skip-fresh',
+            reason: `${name} graph is up to date`,
+        };
+    }
+    return {
+        name, dirs: present, outDir, action: 'build',
+        reason: `${name} sources changed since last build`,
+    };
 }
 function planSessionGraph({ repoRoot, deps }) {
     const d = {
         inspectBootstrap: () => inspectBootstrap({ repoRoot }),
-        init: () => init({ repoRoot, timestamp: new Date().toISOString() }),
+        init: () => init({ repoRoot, timestamp: nowIsoKst() }),
         graphifyEnabled: () => realGraphifyEnabled(repoRoot),
         hasGraphify: () => realHasGraphify(),
         sourceDirs: () => realSourceDirs(repoRoot),
+        contextDirs: () => realContextDirs(repoRoot),
         existingDirs: (dirs) => realExistingDirs(repoRoot, dirs),
         newestMtime: (dirs) => realNewestMtime(repoRoot, dirs),
-        graphMtime: () => realGraphMtime(repoRoot),
+        graphMtime: (outDir) => realGraphMtime(repoRoot, outDir),
         ...(deps || {}),
     };
     let bootstrap = d.inspectBootstrap();
     if (bootstrap === 'missing') {
         const initialized = d.init();
         if (!initialized.ok) {
-            return { bootstrap: 'partial', action: 'skip-partial-bootstrap', reason: initialized.reason };
+            return { bootstrap: 'partial', action: 'skip-partial-bootstrap', reason: initialized.reason, graphs: [] };
         }
         bootstrap = initialized.skipped ? 'ready' : 'created';
     }
     if (bootstrap === 'partial') {
-        return { bootstrap, action: 'skip-partial-bootstrap', reason: 'partial-bouncer-state' };
+        return { bootstrap, action: 'skip-partial-bootstrap', reason: 'partial-bouncer-state', graphs: [] };
     }
     if (bootstrap === 'legacy') {
-        return { bootstrap, action: 'skip-legacy-bootstrap', reason: 'legacy-bootstrap-state' };
+        return { bootstrap, action: 'skip-legacy-bootstrap', reason: 'legacy-bootstrap-state', graphs: [] };
     }
     if (!d.graphifyEnabled()) {
-        return { bootstrap, action: 'skip-graph-disabled', reason: 'graphify auto-build disabled' };
+        return { bootstrap, action: 'skip-graph-disabled', reason: 'graphify auto-build disabled', graphs: [] };
     }
     if (!d.hasGraphify()) {
-        return { bootstrap, action: 'skip-no-graphify', reason: 'graphify not on PATH' };
+        return { bootstrap, action: 'skip-no-graphify', reason: 'graphify not on PATH', graphs: [] };
     }
-    const dirs = d.existingDirs(d.sourceDirs());
-    const graphMtime = d.graphMtime();
-    if (graphMtime === null)
-        return { bootstrap, action: 'build', dirs, reason: 'graph missing' };
-    const newest = d.newestMtime(dirs);
-    if (newest <= graphMtime) {
-        return { bootstrap, action: 'skip-fresh', reason: 'graph is up to date' };
+    const scopes = resolveGraphScopes({
+        sourceDirs: d.sourceDirs(),
+        contextDirs: d.contextDirs(),
+    });
+    const graphs = scopes.map((scope) => planOneGraph({
+        ...scope,
+        existingDirs: d.existingDirs,
+        newestMtime: d.newestMtime,
+        graphMtime: d.graphMtime,
+    }));
+    const toBuild = graphs.filter((g) => g.action === 'build');
+    if (toBuild.length) {
+        return {
+            bootstrap,
+            action: 'build',
+            // Back-compat: dirs of the first build target (hook prefers graphs[]).
+            dirs: toBuild[0].dirs,
+            graphs,
+            reason: toBuild.map((g) => g.reason).join('; '),
+        };
     }
-    return { bootstrap, action: 'build', dirs, reason: 'sources changed since last build' };
+    if (graphs.every((g) => g.action === 'skip-no-dirs')) {
+        return { bootstrap, action: 'skip-no-dirs', graphs, reason: 'no graph source dirs exist' };
+    }
+    return { bootstrap, action: 'skip-fresh', graphs, reason: 'graphs are up to date' };
 }
-module.exports = { planSessionGraph };
+function defaultExecGraphify(repoRoot, graph) {
+    execFileSync('graphify', [...graph.dirs, '--update', '--no-viz'], {
+        cwd: repoRoot,
+        env: { ...process.env, GRAPHIFY_OUT: graph.outDir },
+        stdio: 'ignore',
+    });
+}
+/**
+ * Plan freshness for source + context graphs and rebuild any that are stale.
+ * Used by SessionStart and again by /bouncer-plan (graphify-runner) before query.
+ */
+function syncSessionGraphs({ repoRoot, deps, execGraphify }) {
+    const decision = planSessionGraph({ repoRoot, deps });
+    const run = execGraphify || ((graph) => defaultExecGraphify(repoRoot, graph));
+    const built = [];
+    const failed = [];
+    if (decision.action === 'build') {
+        for (const graph of decision.graphs) {
+            if (graph.action !== 'build' || !graph.dirs.length)
+                continue;
+            try {
+                run(graph);
+                built.push(graph.name);
+            }
+            catch (error) {
+                failed.push({ name: graph.name, message: error && error.message ? error.message : String(error) });
+            }
+        }
+    }
+    return { ...decision, built, failed };
+}
+module.exports = {
+    planSessionGraph,
+    syncSessionGraphs,
+    resolveGraphScopes,
+    DEFAULT_SOURCE_OUT,
+    DEFAULT_CONTEXT_OUT,
+    DEFAULT_CONTEXT_DIRS,
+};

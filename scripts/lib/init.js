@@ -5,12 +5,16 @@ const path = require('node:path');
 const { detectLegacyFormat } = require('./schema');
 const { PROJECT_DISTILL } = require('./layout');
 const { PROJECT_DISTILL_BODY } = require('./templates');
+const { nowIsoKst } = require('./time');
 const CONFIG = {
     // Bouncer's own frontmatter schema version. The OKF *spec* version is a
     // different thing and is declared where OKF §11 requires it: the frontmatter
     // of the bundle-root index.md.
     schema_version: '0.x',
     source_dirs: ['src', 'test'],
+    // Bouncer context docs graph (epics/blueprints). Used with source_dirs for
+    // dual graphify outputs under graphify-out/source and graphify-out/context.
+    context_dirs: ['.bouncer/context'],
     graphify: { enabled: false },
     verify: 'npm test',
     base_branch: 'develop',
@@ -56,7 +60,7 @@ function writeFile(repoRoot, rel, content, created) {
 function projectDistillDoc(timestamp) {
     // Not a registered bouncer.* schema kind — project Distill is ungated prose
     // with OKF-shaped meta only (title/description/resource/tags/timestamp).
-    const ts = timestamp || new Date().toISOString();
+    const ts = timestamp || nowIsoKst();
     return `---
 title: Project Distill
 description: Current project invariants, gotchas, and decisions
