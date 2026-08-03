@@ -26,6 +26,16 @@ const CONFIG = {
       auto_switch: false,
     },
   },
+  // Placeholder slots for host-specific model IDs. Every value starts as
+  // "inherit" so init shows the editable shape without pinning a model;
+  // resolveSubagentModel treats "inherit" as parent-session fallback.
+  // Provider blocks are separate because each host has its own model
+  // namespace (Claude / Cursor / Codex slugs are not interchangeable).
+  subagents: {
+    claude: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+    cursor: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+    codex: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+  },
 };
 
 // Bundle root. OKF §11 allows frontmatter here and nowhere else among index

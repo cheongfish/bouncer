@@ -58,6 +58,11 @@ test('init writes the exact config.json shape', () => {
         auto_switch: false,
       },
     },
+    subagents: {
+      claude: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+      cursor: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+      codex: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+    },
   });
 });
 
