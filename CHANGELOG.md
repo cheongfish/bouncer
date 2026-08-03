@@ -9,6 +9,17 @@
 
 ### Changed
 
+- **최소 변경 사다리를 구현 단계까지 확장** — `implementation`이 코드를 쓰기 전
+  재사용 → 표준 라이브러리 → 네이티브 기능 → 설치된 의존성 → 한 줄 → 최소 신규
+  코드 순서를 밟는다. 요청하지 않은 추상화를 금지하고, 승인된 Checklist 항목을
+  코드에서 줄이는 대신 계획으로 escalate 한다. `minimality`도 같은 사다리에
+  YAGNI·최단 표면·과설계 점검 렌즈를 더했다.
+- **구현 시 상세 주석 요구** — `implementation`이 비자명한 변경마다 무엇이 아니라
+  **왜**(의도·불변식·트레이드오프·알려진 한계)를 남기도록 한다. 설명 주석은
+  `minimality`의 축소 대상이 아니며, 누락 시 리뷰가 지적한다.
+- **리뷰에 과설계 루브릭 추가** — `review`와 `reviewer-prompt`가 표준 라이브러리
+  재발명, 불필요한 신규 의존성, 요청하지 않은 추상화, 증상만 덮는 수정을 찾는다.
+  기본 severity는 `minor`이며 blocker가 되지 않는다.
 - **finalize 커밋 메시지에서 trailer 제거** — Epic/Blueprint/Distill과
   `commit.trailers` 설정을 더 이상 붙이지 않는다. 메시지는 `.gitmessage`와 같이
   `type: 제목` + tasks/verification `title` 본문 불릿만 쓴다. 식별자는 PR 본문에
