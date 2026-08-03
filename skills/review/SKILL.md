@@ -14,7 +14,7 @@ Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
 
 1. **Load** — Read the existing review document (do not create a new file), the
    worktree diff basis (`git diff <base>...HEAD` plus untracked), and `tasks.md`
-   (Goal & intent, Interface, Touch, Do not touch, Checklist).
+   (Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist).
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:
    - `severity`: one of `blocker | major | minor | nit`;
@@ -27,9 +27,14 @@ Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
    inline read-only when no subagent tool exists). Judge the diff with:
 
    ### Spec compliance
-   - **Missing** — Checklist / Interface requirement absent from the diff
+   - **Missing** — Checklist / Interface requirement absent from the diff.
+     Interface states what the change rejects as well as what it provides;
+     an unimplemented rejection path is Missing, not a nit.
    - **Extra** — outside Touch / Interface (scope creep), or a Do not touch breach
    - **Misunderstood** — intent present but implemented incorrectly
+   - **Constraint breach** — a Constraints rule broken inside an allowed path.
+     Do not touch covers paths; Constraints covers everything else, so a diff
+     can stay entirely within `affected_paths` and still violate the brief.
 
    ### Code quality
    Defects introduced by this change: incorrect logic, broken contracts/tests,
@@ -39,8 +44,8 @@ Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
    Map findings to severity without inflation:
    - `blocker` — must fix before accept (broken verify, Do not touch breach,
      false acceptance risk)
-   - `major` — Spec Missing / Misunderstood, Extra scope creep (not Do not touch),
-     or serious quality defect
+   - `major` — Spec Missing / Misunderstood / Constraint breach, Extra scope
+     creep (not Do not touch), or serious quality defect
    - `minor` — real issue, limited blast radius
    - `nit` — style/clarity only
 

@@ -45,6 +45,16 @@ test('review skill includes Spec/Quality rubric and reviewer-prompt dispatch', (
   assert.doesNotMatch(md, /profile|superpowers/i);
 });
 
+test('review judges the Constraints section and the rejection half of Interface', () => {
+  const md = readSkill('review');
+  assert.match(md, /Constraint breach/i);
+  assert.match(md, /rejects/i);
+  // Constraints must reach the dispatched reviewer, not just the controller.
+  assert.match(reviewerPrompt, /Constraint breach/i);
+  assert.match(reviewerPrompt, /rejects/i);
+  assert.match(reviewerPrompt, /## Constraints|Constraints.*verbatim/i);
+});
+
 test('reviewer-prompt is read-only Findings template with placeholders', () => {
   assert.match(reviewerPrompt, /\{\{BRIEF\}\}/);
   assert.match(reviewerPrompt, /\{\{BASE\}\}/);
