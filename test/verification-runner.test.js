@@ -54,7 +54,7 @@ test('runVerification records successful command evidence', () => {
   assert.strictEqual(verification.data.bouncer.status, 'passed');
   assert.deepStrictEqual(verification.data.bouncer.verification, {
     command: 'npm test',
-    ran_at: '2026-07-27T00:00:00.000Z',
+    ran_at: '2026-07-27T09:00:00.000+09:00',
     exit_code: 0,
     output_tail: 'line one\nline two',
   });

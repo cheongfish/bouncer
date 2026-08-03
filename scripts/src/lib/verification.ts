@@ -5,6 +5,7 @@ const { execSync } = require('node:child_process');
 const { readDoc } = require('./frontmatter');
 const { renderDoc } = require('./render');
 const { isCanonicalBlueprintDir } = require('./layout');
+const { nowIsoKst } = require('./time');
 
 // A passing run is evidence that the command exited zero; the tail only needs
 // to carry the summary the command prints at the end. A failing run is evidence
@@ -114,7 +115,7 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
     throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
   }
   const execution = executeVerify(command, { cwd: repoRoot, exec });
-  const ranAt = now().toISOString();
+  const ranAt = nowIsoKst(now());
   recordVerificationResult({
     repoRoot,
     blueprintDir,
