@@ -172,10 +172,66 @@ function planSessionGraph({ repoRoot, deps }) {
     }
     return { bootstrap, action: 'skip-fresh', graphs, reason: 'graphs are up to date' };
 }
-function defaultExecGraphify(repoRoot, graph) {
-    execFileSync('graphify', [...graph.dirs, '--update', '--no-viz'], {
+// `graphify update <dir>` resolves its output as `<dir>/$GRAPHIFY_OUT`, so the
+// env value must be relative to the scanned directory to land under repoRoot.
+function graphifyOutEnv(dir, outDir) {
+    return path.relative(dir, outDir).split(path.sep).join('/') || '.';
+}
+function partOutDir(outDir, dir) {
+    const slug = dir.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'root';
+    return `${outDir}/parts/${slug}`;
+}
+function runGraphifyUpdate(repoRoot, dir, outDir) {
+    // `update` is the AST-only path: no LLM key required, unlike `extract`.
+    execFileSync('graphify', ['update', dir], {
         cwd: repoRoot,
-        env: { ...process.env, GRAPHIFY_OUT: graph.outDir },
+        env: { ...process.env, GRAPHIFY_OUT: graphifyOutEnv(dir, outDir) },
+        stdio: 'ignore',
+    });
+}
+// graphify records source_file relative to the directory it scanned and derives
+// node ids from it, so a part built from `scripts` claims `src/lib/render.ts`
+// and could collide with an identically-named path under another source dir.
+// Rewrite both to repo-relative / namespaced form before anything consumes them.
+function normalizeGraphPaths(repoRoot, partOut, dir) {
+    const graph = JSON.parse(fs.readFileSync(path.join(repoRoot, partOut, 'graph.json'), 'utf8'));
+    const idPrefix = `${dir.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_`;
+    const prefixId = (id) => (typeof id === 'string' ? idPrefix + id : id);
+    const prefixFile = (f) => (typeof f === 'string' && f ? `${dir}/${f}` : f);
+    for (const node of graph.nodes || []) {
+        node.id = prefixId(node.id);
+        node.source_file = prefixFile(node.source_file);
+    }
+    for (const link of graph.links || []) {
+        link.source = prefixId(link.source);
+        link.target = prefixId(link.target);
+        link.source_file = prefixFile(link.source_file);
+    }
+    for (const hyperedge of graph.hyperedges || []) {
+        if (Array.isArray(hyperedge.nodes))
+            hyperedge.nodes = hyperedge.nodes.map(prefixId);
+        hyperedge.source_file = prefixFile(hyperedge.source_file);
+    }
+    const rel = `${partOut}/graph.normalized.json`;
+    fs.writeFileSync(path.join(repoRoot, rel), JSON.stringify(graph));
+    return rel;
+}
+// Each dir keeps its own graphify state under parts/ so incremental rebuilds see
+// the ids graphify itself wrote; the scope graph.json is our derived artifact.
+function defaultExecGraphify(repoRoot, graph) {
+    const parts = graph.dirs.map((dir) => {
+        const partOut = partOutDir(graph.outDir, dir);
+        runGraphifyUpdate(repoRoot, dir, partOut);
+        return normalizeGraphPaths(repoRoot, partOut, dir);
+    });
+    const target = path.join(repoRoot, graph.outDir, 'graph.json');
+    if (parts.length === 1) {
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(path.join(repoRoot, parts[0]), target);
+        return;
+    }
+    execFileSync('graphify', ['merge-graphs', ...parts, '--out', `${graph.outDir}/graph.json`], {
+        cwd: repoRoot,
         stdio: 'ignore',
     });
 }
