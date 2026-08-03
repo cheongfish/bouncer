@@ -22,3 +22,13 @@ test('minimality preserves required scope and escalates conflicts to planning', 
   assert.match(md, /advisory|not a gate/i);
   assert.doesNotMatch(md, /\/bouncer-plan|superpowers/i);
 });
+
+test('minimality ladder covers YAGNI, reuse, stdlib/platform, and shortest surface', () => {
+  const md = readSkill('minimality');
+  assert.match(md, /YAGNI|need to exist/i);
+  assert.match(md, /Already in this codebase|Reuse/i);
+  assert.match(md, /standard library|native platform/i);
+  assert.match(md, /shortest working|fewest files/i);
+  assert.match(md, /Over-engineering/i);
+  assert.match(md, /[Ee]xplanatory comments/);
+});
