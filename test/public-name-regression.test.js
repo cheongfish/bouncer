@@ -116,7 +116,7 @@ test('only focused legacy-rejection tests and detectors mention .sdd / sdd.*', (
 });
 
 test('governance retains execute gate and body-contract references', () => {
-  const gov = read('GOVERNANCE-ARCHITECTURE-DECISIONS.md');
+  const gov = read('docs/ARCHITECTURE.md');
   assert.match(gov, /Bouncer/);
   assert.match(gov, /\bG7\b/);
   assert.match(gov, /\bG13\b/);
@@ -148,7 +148,7 @@ function genericSkillsFromGovernance(gov) {
 }
 
 test('current documentation describes Bouncer native workflow without Superpowers profile', () => {
-  const gov = read('GOVERNANCE-ARCHITECTURE-DECISIONS.md');
+  const gov = read('docs/ARCHITECTURE.md');
   assert.match(gov, /Bouncer/);
   assert.doesNotMatch(gov, /Superpowers.*profile/i);
   assert.ok(!fs.existsSync(path.join(root, 'docs/superpowers-integration.md')));

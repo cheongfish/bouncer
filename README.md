@@ -330,7 +330,6 @@ template의 `friction` / `bug`를 쓰면 됩니다.
 ## 라이선스 / 문서
 
 - `docs/PILOT.md` — 파일럿 안내와 알려진 마찰
-- `GOVERNANCE-ARCHITECTURE-DECISIONS.md` — 설계 결정 기록
+- `docs/ARCHITECTURE.md` — 설계 결정 기록
 - `CHANGELOG.md` — 변경 이력
-- `DISTRIBUTION-READINESS.md` — 남은 배포 준비 항목
 - `scripts/vendor/` — 벤더링된 서드파티 코드와 라이선스
