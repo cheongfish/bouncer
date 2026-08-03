@@ -42,9 +42,21 @@ test('bouncer-execute step 2 seeds the worktree with the plan documents', () => 
   assert.match(body, /tasks\.md/);
 });
 
-test('bouncer-execute step 5 dispatches reviewer-prompt via fresh generic subagent', () => {
+test('bouncer-execute step 3 routes implementation through bouncer-implementer', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /bouncer-implementer/);
+  assert.match(body, /resolveSubagentModel/);
+  assert.match(body, /inherit/);
+  assert.match(body, /controller/i);
+  assert.match(body, /commit-safety|git commit/i);
+});
+
+test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /reviewer-prompt\.md/);
+  assert.match(body, /bouncer-reviewer/);
+  assert.match(body, /resolveSubagentModel/);
+  assert.match(body, /inherit/);
   assert.match(body, /fresh generic|generic.*subagent/i);
   assert.match(body, /controller/i);
   assert.match(body, /## Findings/);

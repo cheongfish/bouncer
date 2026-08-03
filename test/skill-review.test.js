@@ -40,6 +40,9 @@ test('review skill includes Spec/Quality rubric and reviewer-prompt dispatch', (
   assert.match(md, /Calibration/i);
   assert.match(md, /reviewer-prompt\.md/);
   assert.match(md, /dispatch/i);
+  assert.match(md, /bouncer-reviewer/);
+  assert.match(md, /resolveSubagentModel/);
+  assert.match(md, /inherit/);
   assert.match(md, /fresh generic|generic.*subagent/i);
   assert.match(md, /controller/i);
   assert.doesNotMatch(md, /profile|superpowers/i);

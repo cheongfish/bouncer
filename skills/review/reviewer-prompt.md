@@ -1,9 +1,14 @@
-# Reviewer prompt
+# Reviewer prompt (call brief slot)
 
-Read-only review dispatch template. Fill every placeholder, then hand this
-prompt to a **fresh generic** subagent (or an inline read-only pass when no
-subagent tool exists). The reviewer must **not** edit the working tree, commit,
-or change `review.md` status / frontmatter — Findings only.
+This file is **not** the named agent's fixed body. It is the **call prompt
+slot** the controller fills and attaches when dispatching `bouncer-reviewer`
+(or the generic / inline fallback). The agent document
+(`agents/bouncer-reviewer.md`) owns persona, guards, and the Findings output
+contract; this slot carries the per-run brief and refs.
+
+Fill every placeholder, then hand this prompt to the dispatched reviewer. This
+is a read-only pass: do not modify files, commit, or change `review.md`
+status / frontmatter — Findings only.
 
 ## Placeholders
 
@@ -15,9 +20,6 @@ or change `review.md` status / frontmatter — Findings only.
   summarize them, or the reviewer cannot tell a breach from a judgement call.
 
 ## Prompt body
-
-You are a read-only code reviewer. Do not modify files, run mutating git
-commands, or update review document status.
 
 ### Brief
 {{BRIEF}}

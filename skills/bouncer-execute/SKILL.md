@@ -73,22 +73,33 @@ regression → minimum fix → re-verify).
    project root — the `commit-safety` PreToolUse hook uses the command's actual
    working directory and would otherwise inspect the wrong index.
 
-3. **Implement (tasks.md is the sole brief).** Use the `implementation` skill (`skills/implementation/SKILL.md`)
-   and only these `tasks.md` sections as decision authority:
-   - Goal & intent
-   - Interface
-   - Touch
-   - Do not touch
-   - Constraints
-   - Checklist
-   You may read code/tests/repo context needed to implement. Do **not**
-   re-interpret epic/blueprint as a second requirements source. Modify only
-   within `affected_paths` (commit-safety enforces). Honor Do not touch, and
-   honor Constraints inside the paths you are allowed to edit — staying in
-   `affected_paths` is not by itself compliance. If
-   blocked by ambiguity or contradiction, stop and send the user back to
-   `/bouncer-plan` — no speculative scope expansion. You may make **one or more
-   commits**; every `git commit` is guarded by `commit-safety`.
+3. **Implement (tasks.md is the sole brief).** Dispatch **`bouncer-implementer`**
+   (plugin `agents/bouncer-implementer.md`) with this order — the
+   `implementation` skill remains the behavioral brief the agent follows:
+
+   1. Resolve the model:
+      ```bash
+      BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+      node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-implementer'})))"
+      ```
+   2. Call named agent `bouncer-implementer` with that `model`, passing only
+      these `tasks.md` sections as decision authority: Goal & intent, Interface,
+      Touch, Do not touch, Constraints, Checklist.
+   3. If the host rejects the model slug, retry with `inherit` and tell the user.
+   4. If named agents are unavailable (e.g. Codex), fall back to running the
+      `implementation` skill inline (or a fresh generic subagent with the same
+      brief).
+
+   Modify only within `affected_paths` (commit-safety enforces). Honor Do not
+   touch, and honor Constraints inside the paths you are allowed to edit —
+   staying in `affected_paths` is not by itself compliance. If blocked by
+   ambiguity or contradiction, stop and send the user back to `/bouncer-plan` —
+   no speculative scope expansion.
+
+   **Controller owns commits and document status transitions.** The implementer
+   must not `git commit` or flip `tasks` / `verification` / `review` status; you
+   may make **one or more commits** after it returns, and every `git commit` is
+   guarded by `commit-safety`.
 
 4. **Verify.** Use the `verification` skill (`skills/verification/SKILL.md`) to investigate failures and prepare
    the existing `verification.md`. Do not hand-write success evidence or set
@@ -100,9 +111,10 @@ regression → minimum fix → re-verify).
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
    Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order:
    (1) fill `skills/review/reviewer-prompt.md` (brief, base/HEAD, constraints);
-   (2) dispatch a **fresh generic** subagent with that prompt for a read-only
-   review (if no subagent tool exists, run the same prompt inline as a
-   read-only pass separated from implementation rationale);
+   (2) resolve model via `resolveSubagentModel` for `bouncer-reviewer`, then
+       dispatch named agent `bouncer-reviewer` with that model (retry `inherit`
+       if the slug is rejected; if named agents are unavailable, fall back to a
+       **fresh generic** subagent or inline read-only pass with the same prompt);
    (3) as controller, update existing `review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status;
