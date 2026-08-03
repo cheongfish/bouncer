@@ -6,7 +6,7 @@ const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 const root = path.join(__dirname, '..');
-const md = fs.readFileSync(path.join(root, 'commands', 'bouncer-finalize.md'), 'utf8');
+const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
 
 test('bouncer-finalize wires distill, finalize gate, bouncer finalize, push+PR, and graceful skip', () => {
   const { data, body } = parseFrontmatter(md);

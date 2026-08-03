@@ -1,6 +1,6 @@
 ---
 name: review
-description: Use when reviewing a change against the tasks brief. Record ## Findings with severity and disposition; never accept while an actionable finding remains unresolved.
+description: "Use when reviewing a change against the tasks brief. Record ## Findings with severity and disposition; never accept while an actionable finding remains unresolved. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Review

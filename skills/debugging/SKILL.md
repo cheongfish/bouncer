@@ -1,6 +1,6 @@
 ---
 name: debugging
-description: Use when a change fails verification or behaves unexpectedly. Reproduce, isolate the cause, add a failing regression test, apply a minimum fix, then re-verify.
+description: "Use when a change fails verification or behaves unexpectedly. Reproduce, isolate the cause, add a failing regression test, apply a minimum fix, then re-verify. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Debugging

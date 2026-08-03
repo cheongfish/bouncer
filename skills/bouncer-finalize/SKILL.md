@@ -1,7 +1,7 @@
 ---
-description: Finalize the active Bouncer blueprint — distill, validate, commit the remainder, then push and open a draft PR (skipped gracefully with no remote).
+name: bouncer-finalize
+description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Distill, validate, commit the remainder, then push and open a draft PR (skipped gracefully with no remote)."
 ---
-
 # /bouncer-finalize
 
 **Plugin root.** Every shell block below opens with
@@ -18,10 +18,18 @@ a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
 contains `scripts/bouncer`.
 
 Close out the active blueprint. Follow this sequence.
+
+**Preflight.** Load the active blueprint from `.bouncer/current`:
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/current').readCurrent({repoRoot:process.cwd()})))"
+```
+If it is `null`, stop and tell the user to run `/bouncer-plan` first.
+
 Read `.bouncer/current` and use its `blueprint` value verbatim wherever
 `<pointer.blueprint>` appears; do not reconstruct a root `context/` path.
 
-1. **Distill.** Use the `spec-authoring` skill to write `distill.md` (durable
+1. **Distill.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write `distill.md` (durable
    learnings), then set `distill.md` `bouncer.status → published`.
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:

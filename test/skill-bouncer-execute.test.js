@@ -6,7 +6,7 @@ const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 const root = path.join(__dirname, '..');
-const md = fs.readFileSync(path.join(root, 'commands', 'bouncer-execute.md'), 'utf8');
+const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-execute', 'SKILL.md'), 'utf8');
 
 test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   const { data, body } = parseFrontmatter(md);

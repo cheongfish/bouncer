@@ -39,10 +39,10 @@ const LEGACY_ALLOWLIST = new Set([
  */
 const SUPERPOWERS_NEGATIVE_TESTS = new Set([
   'test/cli-validate.test.js',
-  'test/command-bouncer-execute.test.js',
-  'test/command-bouncer-finalize.test.js',
-  'test/command-bouncer-init.test.js',
-  'test/command-bouncer-plan.test.js',
+  'test/skill-bouncer-execute.test.js',
+  'test/skill-bouncer-finalize.test.js',
+  'test/skill-bouncer-init.test.js',
+  'test/skill-bouncer-plan.test.js',
   'test/init.test.js',
   'test/skill-discovery.test.js',
   'test/skill-graphify-runner.test.js',
