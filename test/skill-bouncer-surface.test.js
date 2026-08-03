@@ -36,7 +36,10 @@ test('workflow skills cite subordinate skills by path', () => {
   assert.match(execute, /skills\/verification\/SKILL\.md/);
   assert.match(execute, /skills\/review\/SKILL\.md/);
   assert.match(finalize, /skills\/spec-authoring\/SKILL\.md/);
-  for (const name of ['discovery', 'implementation', 'verification', 'review', 'minimality', 'debugging', 'graphify-runner', 'spec-authoring']) {
+  for (const name of [
+    'discovery', 'implementation', 'verification', 'review',
+    'minimality', 'debugging', 'graphify-runner', 'spec-authoring',
+  ]) {
     // at least one workflow skill should mention each used path form when present
     assert.ok(SUB_PATHS.includes(name));
   }
