@@ -4,10 +4,18 @@ const js = require('@eslint/js');
 
 // The rules below encode the style the codebase already uses, so the linter
 // enforces what reviewers were checking by hand. Vendored third-party code is
-// not ours to restyle.
+// not ours to restyle. `scripts/lib/**` is tsc emit (4-space printer); style is
+// enforced on hand-written JS elsewhere. TS sources under scripts/src need a
+// typescript-eslint config before they can be linted.
 module.exports = [
   {
-    ignores: ['scripts/vendor/**', 'node_modules/**', 'graphify-out/**', 'docs/**'],
+    ignores: [
+      'scripts/vendor/**',
+      'scripts/lib/**',
+      'node_modules/**',
+      'graphify-out/**',
+      'docs/**',
+    ],
   },
   js.configs.recommended,
   {
