@@ -16,5 +16,13 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
+      # Plugins are consumed as a clone with no build step, so the committed
+      # tsc emit is what ships. npm test rebuilds it, which would hide a stale
+      # commit; check the emit before anything else regenerates it.
+      - name: scripts/lib matches scripts/src/lib
+        run: |
+          npm run build
+          git add --intent-to-add scripts/lib
+          git diff --exit-code -- scripts/lib
       - run: npm test
       - run: npm run lint
