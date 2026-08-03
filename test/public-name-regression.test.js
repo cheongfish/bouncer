@@ -9,13 +9,13 @@ const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 
 /**
- * Records, not authored surfaces. Historical plans and specs retain legacy
- * wording, and `.bouncer/context/` holds captured evidence — verification.md
- * quotes whatever the verify command printed, which for this repository
- * includes test names that mention the retired protocol on purpose. The naming
- * policy governs what we write, not what a command's output happened to say.
+ * Records, not authored surfaces. `.bouncer/context/` holds captured evidence —
+ * verification.md quotes whatever the verify command printed, which for this
+ * repository includes test names that mention the retired protocol on purpose.
+ * The naming policy governs what we write, not what a command's output happened
+ * to say.
  */
-const HISTORICAL_DIRS = ['docs/superpowers/plans', 'docs/superpowers/specs', '.bouncer/context'];
+const HISTORICAL_DIRS = ['.bouncer/context'];
 
 /**
  * Focused tests + runtime detectors that intentionally reject legacy inputs.
@@ -63,6 +63,9 @@ function trackedTextFiles() {
   return raw.toString('utf8').split('\0').filter(Boolean).filter((file) => {
     if (file.startsWith('node_modules/')) return false;
     if (/\.(png|jpe?g|gif|webp|ico|woff2?|zip|gz|tgz|bin)$/i.test(file)) return false;
+    // Skip index entries already removed from the working tree (e.g. deleted
+    // archives not yet staged).
+    if (!fs.existsSync(path.join(root, file))) return false;
     return true;
   });
 }

@@ -14,4 +14,3 @@
 | [PILOT.md](PILOT.md) | 파일럿 안내와 알려진 마찰 |
 
 제품 소개와 5분 Quickstart는 [루트 README](../README.md)를 보세요.
-`docs/superpowers/`는 과거 설계·계획 아카이브이며 현행 문서가 아닙니다.
