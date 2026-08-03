@@ -69,10 +69,17 @@ Epic: [<EPIC-id>](../../index.md)
 - 완료 조건: <TODO: 무엇이 되면 끝인가>
 
 ## Contract
-<!-- 계약만. 구현 코드 금지 — 시그니처·타입·의사코드는 블록당 20줄 이하.
-     길어지면 구현 상세가 새는 신호이니 tasks.md로 넘기거나 blueprint를 쪼갭니다. -->
+<!-- Contract-First: 계약만. 구현 코드 금지.
+     시그니처·타입·의사코드는 블록당 20줄 이하.
+     길어지면 구현 상세가 새는 신호이니 tasks.md로 넘기거나 blueprint를 쪼갭니다.
+     금지: 계약 클래스·메서드 본문, As-Is/To-Be 코드 덤프, 단계별 구현 시퀀스,
+     실행 가능한 테스트 본문 → tasks.md로 이연.
+     본문 분량 예산 ~250줄. 초과는 구현 상세 누출 신호 — 쪼개거나 이연. -->
 - 인터페이스: <TODO: 추가·변경되는 공개 인터페이스>
 - 데이터·상태: <TODO: 스키마 / 상태 변화>
+- 수용 기준: <TODO: 무엇이 되면 이 blueprint가 성공인가>
+- 검증 명령: <TODO: 성공을 증명할 명령 (예: npm test)>
+- 실패 모드·엣지 케이스: <TODO: Happy path 밖 — 실패·경계 조건>
 
 ## Out of scope
 - <TODO: 이 blueprint에서 하지 않을 것>
@@ -93,7 +100,8 @@ Epic: [<EPIC-id>](../../index.md)
 Blueprint: [<BP-id>](index.md)
 
 ## Goal & intent
-<!-- 구현자가 다른 문서 없이 시작할 수 있게. -->
+<!-- 구현자가 다른 문서 없이 시작할 수 있게.
+     수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다. -->
 <TODO: 완료 후 시스템이 어떻게 달라지는가>
 
 ## Interface
@@ -110,7 +118,8 @@ Blueprint: [<BP-id>](index.md)
 - \`<TODO: 보호할-경로>\` — <TODO: 왜 건드리면 안 되는가>
 
 ## Checklist
-<!-- 각 항목은 구현자가 순서대로 실행 가능해야 합니다. -->
+<!-- 각 항목은 구현자가 순서대로 실행 가능해야 합니다.
+     수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
 - [ ] <TODO: 작업 항목>
 `,
   'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',

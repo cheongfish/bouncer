@@ -11,12 +11,37 @@ bouncer:
   id: VERIFY-BP-001
   epic_id: EPIC-004
   blueprint_id: BP-001
-  status: pending
+  status: passed
+  verification:
+    command: npm test
+    ran_at: '2026-08-02T23:59:50.766Z'
+    exit_code: 0
+    output_tail: |-
+      ---
+        duration_ms: 16.559719
+        type: 'test'
+        ...
+      # Subtest: a failing verification keeps the output where a reader will see it
+      ok 219 - a failing verification keeps the output where a reader will see it
+        ---
+        duration_ms: 16.853434
+        type: 'test'
+        ...
+      1..219
+      # tests 219
+      # suites 0
+      # pass 219
+      # fail 0
+      # cancelled 0
+      # skipped 0
+      # todo 0
+      # duration_ms 201.643845
 ---
 # Verification
 
 ## Command
-<command>
+`npm test`
 
 ## Evidence
-<result>
+Ran at: 2026-08-02T23:59:50.766Z
+Exit code: 0

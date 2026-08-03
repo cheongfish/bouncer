@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-BP-001
   epic_id: EPIC-004
   blueprint_id: BP-001
-  status: ready
+  status: verified
   affected_paths:
     - scripts/lib/templates.js
     - test

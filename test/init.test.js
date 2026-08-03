@@ -79,6 +79,23 @@ test('init tasks template has five implementation-ready sections', () => {
   assert.ok(/## Checklist/.test(tasks));
 });
 
+test('init blueprint/tasks templates carry Contract-First authoring guardrails', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const blueprint = read(repo, '.bouncer/templates/blueprint.md');
+  const tasks = read(repo, '.bouncer/templates/tasks.md');
+  assert.match(blueprint, /Contract-First/);
+  assert.match(blueprint, /금지:/);
+  assert.match(blueprint, /~250줄/);
+  assert.match(blueprint, /수용 기준:/);
+  assert.match(blueprint, /검증 명령:/);
+  assert.match(blueprint, /실패 모드·엣지 케이스:/);
+  assert.match(tasks, /수용 기준/);
+  assert.match(tasks, /검증 명령/);
+  // Plain-text guidance must not fill sections — placeholders remain.
+  assert.match(tasks, /<TODO:/);
+});
+
 // OKF §11 permits frontmatter in the bundle-root index.md and nowhere else
 // among index files; §6 fixes the body as `* [Title](url) - description` groups.
 test('init writes an OKF-shaped bundle root index', () => {
