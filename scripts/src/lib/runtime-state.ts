@@ -1,30 +1,16 @@
 'use strict';
-const crypto = require('node:crypto');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const { toPosix } = require('./paths');
 
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
 
-function stateHome({ env, platform, pathApi }) {
-  if (env.XDG_STATE_HOME) return pathApi.resolve(env.XDG_STATE_HOME);
-  if (platform === 'win32') {
-    return pathApi.resolve(
-      env.LOCALAPPDATA
-        || pathApi.join(env.USERPROFILE || env.HOME || os.homedir(), 'AppData', 'Local'),
-    );
-  }
-  const home = env.HOME || os.homedir();
-  if (platform === 'darwin') return pathApi.join(home, 'Library', 'Application Support');
-  return pathApi.join(home, '.local', 'state');
-}
-
 function runtimePaths({
   repoRoot,
   execFileSync = realExecFileSync,
-  env = process.env,
+  // env / platform kept for call-site compatibility; worktrees are in-repo now.
+  env: _env = process.env,
   platform = process.platform,
 }) {
   const pathApi = platform === 'win32' ? path.win32 : path;
@@ -43,13 +29,13 @@ function runtimePaths({
   }
 
   const commonGitDir = pathApi.resolve(repoRoot, commonDir);
-  const repoId = crypto.createHash('sha256').update(commonGitDir).digest('hex').slice(0, 12);
+  // dirname(.git) is the main worktree root for a normal repo, so linked
+  // checkouts share the same `.worktrees/` instead of nesting under themselves.
+  const mainRoot = pathApi.dirname(commonGitDir);
   return {
     commonGitDir,
     currentFile: pathApi.join(commonGitDir, 'bouncer', 'current'),
-    worktreeRoot: pathApi.join(
-      stateHome({ env, platform, pathApi }), 'bouncer', 'worktrees', repoId,
-    ),
+    worktreeRoot: pathApi.join(mainRoot, '.worktrees'),
   };
 }
 

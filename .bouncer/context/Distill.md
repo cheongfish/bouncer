@@ -69,6 +69,8 @@ append a change log.
 - Plan artifacts reach the execute worktree through `bouncer seed-worktree`,
   run in the base checkout right after `git worktree add`; the moved set is the
   plan context documents only, and the base is returned to HEAD.
+- Execute worktrees live under `<repo>/.worktrees/<BP-id>` (shared via the
+  main worktree root from `git-common-dir`), not under the host XDG state home.
 - Review Findings come from a fresh generic subagent (or inline read-only
   fallback); only the controller sets `review → accepted`.
 - Named-agent model overrides live in `.bouncer/config.json` `subagents` as

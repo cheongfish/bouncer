@@ -19,9 +19,8 @@ function isUnder(file, entry) {
 // neither staged nor reported as violations, so a repository without a
 // .gitignore does not hard-stop finalize. `bouncer init` reports the entries a
 // project should ignore; Bouncer never edits .gitignore itself.
-// `.worktrees/` is no longer written — worktrees live outside the repository —
-// but it stays here so a repository carrying one from an older layout is
-// ignored rather than reported as out of scope.
+// Execute checkouts live under `<repo>/.worktrees/<BP-id>`. Ignore the whole
+// tree so finalize never treats a nested worktree file as out-of-scope.
 const RUNTIME_ARTIFACTS = ['node_modules/', 'graphify-out/', '.worktrees/'];
 
 function isRuntimeArtifact(file) {

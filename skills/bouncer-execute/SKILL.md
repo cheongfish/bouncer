@@ -44,7 +44,7 @@ regression → minimum fix → re-verify).
 2. **Worktree.** Create a blueprint-level worktree + branch:
    - base = the branch checked out now (record it as `base` in `.bouncer/current`),
    - branch `bouncer/<BP-id>-<slug>`,
-   - location `<runtime worktree root>/<BP-id>`, resolved outside the repository by
+   - location `<repo>/.worktrees/<BP-id>`, with the `.worktrees` root created by
      `runtime-state.ensureWorktreeRoot()`:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"

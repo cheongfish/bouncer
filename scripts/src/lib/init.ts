@@ -82,7 +82,7 @@ function ensureProjectDistill(repoRoot, created, timestamp) {
 // Advisory only. Safe bootstrap forbids init from editing files it did not
 // create, so a missing .gitignore is reported, never written. finalize ignores
 // these paths regardless; the suggestion keeps the working tree readable.
-const SUGGESTED_IGNORES = ['node_modules/', 'graphify-out/'];
+const SUGGESTED_IGNORES = ['node_modules/', 'graphify-out/', '.worktrees/'];
 
 function gitignoreSuggestions({ repoRoot }) {
   let ignored = [];

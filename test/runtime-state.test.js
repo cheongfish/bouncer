@@ -1,7 +1,6 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -29,53 +28,42 @@ function linkedRepo() {
 }
 
 test('primary checkout and linked worktree share Git-local runtime paths', () => {
-  const { root, primary, linked } = linkedRepo();
-  const env = { ...process.env, XDG_STATE_HOME: path.join(root, 'state') };
-  const primaryPaths = runtimePaths({ repoRoot: primary, execFileSync, env, platform: 'linux' });
-  const linkedPaths = runtimePaths({ repoRoot: linked, execFileSync, env, platform: 'linux' });
+  const { primary, linked } = linkedRepo();
+  const primaryPaths = runtimePaths({ repoRoot: primary, execFileSync, platform: 'linux' });
+  const linkedPaths = runtimePaths({ repoRoot: linked, execFileSync, platform: 'linux' });
 
   assert.strictEqual(linkedPaths.commonGitDir, primaryPaths.commonGitDir);
   assert.strictEqual(primaryPaths.currentFile,
     path.join(primaryPaths.commonGitDir, 'bouncer', 'current'));
+  assert.strictEqual(primaryPaths.worktreeRoot, path.join(primary, '.worktrees'));
   assert.deepStrictEqual(linkedPaths, primaryPaths);
 });
 
-test('Linux XDG state path uses a stable short hash outside the repository', () => {
-  const { root, primary } = linkedRepo();
-  const stateHome = path.join(root, 'state');
+test('worktree root is under the main repository checkout', () => {
+  const { primary } = linkedRepo();
   const paths = runtimePaths({
     repoRoot: primary,
     execFileSync,
-    env: { ...process.env, XDG_STATE_HOME: stateHome },
     platform: 'linux',
   });
-  const id = crypto.createHash('sha256').update(paths.commonGitDir).digest('hex').slice(0, 12);
 
-  assert.strictEqual(paths.worktreeRoot, path.join(stateHome, 'bouncer', 'worktrees', id));
-  assert.ok(!paths.worktreeRoot.startsWith(`${primary}${path.sep}`));
+  assert.strictEqual(paths.worktreeRoot, path.join(primary, '.worktrees'));
+  assert.ok(paths.worktreeRoot.startsWith(`${primary}${path.sep}`));
   assert.ok(!paths.worktreeRoot.startsWith(`${paths.commonGitDir}${path.sep}`));
   assert.strictEqual(fs.existsSync(paths.currentFile), false);
   assert.strictEqual(fs.existsSync(paths.worktreeRoot), false);
 });
 
-test('platform defaults choose the required state directory', () => {
+test('win32 path API keeps worktrees beside the main checkout', () => {
   const exec = () => '.git\n';
-  const linux = runtimePaths({
-    repoRoot: '/repo', execFileSync: exec, env: { HOME: '/home/test' }, platform: 'linux',
-  });
   const windows = runtimePaths({
     repoRoot: 'C:\\repo', execFileSync: exec,
-    env: { LOCALAPPDATA: 'C:\\Users\\test\\AppData\\Local' }, platform: 'win32',
+    env: {}, platform: 'win32',
   });
-  const mac = runtimePaths({
-    repoRoot: '/repo', execFileSync: exec, env: { HOME: '/Users/test' }, platform: 'darwin',
-  });
-
-  assert.ok(linux.worktreeRoot.startsWith(path.join('/home/test', '.local', 'state')));
-  assert.ok(windows.worktreeRoot.startsWith(
-    path.win32.join('C:\\Users\\test\\AppData\\Local', 'bouncer', 'worktrees'),
-  ));
-  assert.ok(mac.worktreeRoot.startsWith(path.join('/Users/test', 'Library', 'Application Support')));
+  assert.strictEqual(
+    windows.worktreeRoot,
+    path.win32.join('C:\\repo', '.worktrees'),
+  );
 });
 
 test('runtime resolution is read-only and reports non-Git directories unavailable', () => {
@@ -91,10 +79,9 @@ test('runtime resolution is read-only and reports non-Git directories unavailabl
 });
 
 test('runtime current round-trips across primary and linked worktrees', () => {
-  const { root, primary, linked } = linkedRepo();
+  const { primary, linked } = linkedRepo();
   const deps = {
     execFileSync,
-    env: { ...process.env, XDG_STATE_HOME: path.join(root, 'state') },
     platform: 'linux',
   };
   const value = {
@@ -109,10 +96,9 @@ test('runtime current round-trips across primary and linked worktrees', () => {
 });
 
 test('runtime current handles missing, corrupt, and non-Git state', () => {
-  const { root, primary } = linkedRepo();
+  const { primary } = linkedRepo();
   const deps = {
     execFileSync,
-    env: { ...process.env, XDG_STATE_HOME: path.join(root, 'state') },
     platform: 'linux',
   };
   const paths = runtimePaths({ repoRoot: primary, ...deps });
@@ -130,10 +116,9 @@ test('runtime current handles missing, corrupt, and non-Git state', () => {
 });
 
 test('ensureWorktreeRoot is the explicit worktree directory creation boundary', () => {
-  const { root, primary } = linkedRepo();
+  const { primary } = linkedRepo();
   const deps = {
     execFileSync,
-    env: { ...process.env, XDG_STATE_HOME: path.join(root, 'state') },
     platform: 'linux',
   };
   const paths = runtimePaths({ repoRoot: primary, ...deps });
@@ -141,4 +126,5 @@ test('ensureWorktreeRoot is the explicit worktree directory creation boundary', 
 
   assert.strictEqual(ensureWorktreeRoot({ repoRoot: primary, deps }), paths.worktreeRoot);
   assert.strictEqual(fs.existsSync(paths.worktreeRoot), true);
+  assert.strictEqual(paths.worktreeRoot, path.join(primary, '.worktrees'));
 });

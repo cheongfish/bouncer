@@ -12,7 +12,8 @@
 | `.bouncer/context/Distill.md` | 커밋 (현행 주의 목록) | finalize가 BP distill에서 승격·교체·폐기 |
 | `.bouncer/config.json` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
 | `graphify-out/` | 제외 | — (`.gitignore`, init이 안내) |
-| 활성 blueprint 포인터·worktree | 해당 없음 | 저장소 밖(`$GIT_COMMON_DIR/bouncer/`)에 저장됨 |
+| 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/current` (Git 공통 디렉터리) |
+| execute worktree | 제외 | `<repo>/.worktrees/<BP-id>` (gitignore / finalize 무시) |
 
 문서 골격(템플릿)과 제품 규칙(`docs/governance.md` · `workflow.md` · `okf.md`),
 세션 마스터 룰(`CLAUDE.md` / `AGENTS.md`)은 프로젝트에 설치되지 않습니다.
