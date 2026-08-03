@@ -88,7 +88,7 @@ test('dry-run reports staged files and message without committing', () => {
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
   assert.ok(res.commitMessage.startsWith('feat: Login'), res.commitMessage);
-  assert.ok(res.commitMessage.includes('\nBlueprint: BP-001'), res.commitMessage);
+  assert.ok(!res.commitMessage.includes('Blueprint:'), res.commitMessage);
   assert.strictEqual(g.calls.committed, null);
 });
 
@@ -161,17 +161,12 @@ test('a dry-run finalize leaves the pointer alone', () => {
   assert.deepStrictEqual(cleared, []);
 });
 
-test('finalize appends the trailers configured for the project', () => {
+test('finalize commit message has no trailers', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  fs.writeFileSync(
-    path.join(repo, '.bouncer/config.json'),
-    JSON.stringify({ commit: { trailers: ['Co-Authored-By: A <a@b.c>'] } }),
-  );
   const g = fakeGit(['src/auth/login.ts'], []);
   const res = finalize({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
   });
-  assert.ok(res.commitMessage.endsWith('Co-Authored-By: A <a@b.c>'), res.commitMessage);
+  assert.ok(!/Epic:|Blueprint:|Distill:|Co-Authored-By:/.test(res.commitMessage), res.commitMessage);
 });

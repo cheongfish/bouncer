@@ -53,6 +53,10 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    tasks bodies. Fill all five implementation-ready sections in `tasks.md`
    before approval — Goal & intent, Interface, Touch, Do not touch, Checklist.
    Those sections (plus the checklist) are the sole brief for `/bouncer-execute`.
+   Also replace scaffold default frontmatter `title` values (and set
+   `bouncer.commit_type` on the blueprint when not `feat`):
+   `/bouncer-finalize` turns blueprint `title` into the commit subject and
+   tasks/verification `title` into body bullets, following `.gitmessage`.
 
 5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to query the source
    graph and write `bouncer.graph.suggested_paths` into `tasks.md`. If graphify is

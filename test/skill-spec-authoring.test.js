@@ -17,3 +17,10 @@ test('spec-authoring documents frontmatter ownership and five task sections', ()
   assert.match(md, /frontmatter/i);
   assert.match(md, /Goal & intent|Interface|Touch|Do not touch|Checklist/i);
 });
+
+test('spec-authoring ties document titles to finalize commit messages via .gitmessage', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /\.gitmessage/);
+  assert.match(md, /title/i);
+  assert.match(md, /commit_type|\/bouncer-finalize|finalize/i);
+});

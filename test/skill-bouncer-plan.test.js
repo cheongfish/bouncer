@@ -42,3 +42,9 @@ test('bouncer-plan states that G4 requires a recorded graph basis', () => {
   assert.match(md, /G4[^\n]*basis|basis[^\n]*G4/);
   assert.match(md, /scaffold[^\n]*empt|empt[^\n]*basis/i);
 });
+
+test('bouncer-plan reminds authors that titles feed the finalize commit message', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /title/i);
+  assert.match(body, /\.gitmessage|commit_type|\/bouncer-finalize/);
+});

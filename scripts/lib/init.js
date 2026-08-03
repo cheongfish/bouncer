@@ -11,9 +11,6 @@ const CONFIG = {
   schema_version: '0.x',
   source_dirs: ['src', 'test'],
   graphify: { enabled: false },
-  // Appended verbatim to the message `bouncer finalize` writes. Empty by
-  // default: a trailer is a team convention, not something Bouncer should assume.
-  commit: { trailers: [] },
   verify: 'npm test',
   base_branch: 'develop',
   pr: { draft: true, base: 'develop', labels: ['bouncer'] },

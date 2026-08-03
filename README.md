@@ -216,7 +216,6 @@ PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할
 | `pr.base` | `"develop"` | PR 대상 브랜치 |
 | `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
 | `graphify` | `{ "enabled": false }` | 소스 그래프 생성. **기본 비활성.** 켜면 SessionStart에서 `graphify-out/` 캐시를 갱신하고 `suggested_paths`를 채웁니다 |
-| `commit.trailers` | `[]` | `/bouncer-finalize`가 만드는 커밋 메시지 말미에 그대로 덧붙일 trailer 목록 (예: `Co-Authored-By: ...`) |
 | `schema_version` | `"0.x"` | Bouncer 문서 frontmatter 스키마 버전. OKF 스펙 버전과는 별개이며, 후자는 OKF §11에 따라 `.bouncer/context/index.md` frontmatter의 `okf_version`에 선언합니다 |
 | `plugin_advisors.ponytail` | (객체) | 단계별 Ponytail 모드 **권고**. 자동 전환하지 않습니다 |
 
@@ -282,6 +281,13 @@ npm run lint   # eslint
 커밋 메시지는 한국어 Conventional Commits를 따릅니다 — `type: 명사형 제목` +
 `~함`으로 끝나는 본문 불릿 최대 3개. 본문에 파일·모듈 이름은 쓰지 않습니다(diff가
 이미 보여줍니다). 전체 규칙은 `.gitmessage`에 있습니다.
+
+`/bouncer-finalize`도 같은 규약을 씁니다. 메시지를 새로 짓지 않고 plan 때 쓴
+문서 `title`을 그대로 조립합니다 — `bouncer.commit_type` + blueprint `title`이
+제목, tasks/verification `title`이 본문 불릿. Epic/Blueprint/Distill 식별자는
+커밋에 넣지 않고 PR 본문·blueprint 문서에 둡니다.
+scaffold 기본값(`BP-001 slug` 등)을 남기면 그 문구가 커밋에 들어가므로,
+`/bouncer-plan`에서 `.gitmessage` 기준으로 `title`을 고쳐 두세요.
 
 `npm run setup`은 `git config commit.template .gitmessage`를 실행합니다. **클론해도
 자동 적용되지 않습니다** — git이 저장소가 로컬 설정을 바꾸는 것을 막기 때문에

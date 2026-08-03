@@ -42,7 +42,6 @@ test('init writes the exact config.json shape', () => {
     schema_version: '0.x',
     source_dirs: ['src', 'test'],
     graphify: { enabled: false },
-    commit: { trailers: [] },
     verify: 'npm test',
     base_branch: 'develop',
     pr: { draft: true, base: 'develop', labels: ['bouncer'] },

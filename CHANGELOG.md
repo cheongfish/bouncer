@@ -9,6 +9,10 @@
 
 ### Changed
 
+- **finalize 커밋 메시지에서 trailer 제거** — Epic/Blueprint/Distill과
+  `commit.trailers` 설정을 더 이상 붙이지 않는다. 메시지는 `.gitmessage`와 같이
+  `type: 제목` + tasks/verification `title` 본문 불릿만 쓴다. 식별자는 PR 본문에
+  남긴다.
 - **epic·blueprint·tasks 템플릿 개선** — 각 섹션에 무엇을 써야 하는지와 어떤
   게이트가 그것을 검사하는지를 한국어 안내로 실었다. blueprint에
   `One-commit justification` 섹션 추가 — 채우지 못하면 blueprint를 쪼개라는 신호.

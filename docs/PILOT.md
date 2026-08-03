@@ -33,8 +33,6 @@
    - `source_dirs` — 소스가 실제로 있는 디렉터리
    - `verify` — **execute 게이트가 실제로 실행할 명령.** 여기가 틀리면 게이트가
      의미 없어집니다
-   - `commit.trailers` — 팀 커밋 규약에 trailer가 있다면 여기에 넣으세요.
-     Bouncer가 만드는 커밋 말미에 그대로 붙습니다
 3. `/bouncer-plan` → `/bouncer-execute` → `/bouncer-finalize`
 
 각 단계에서 **막히면 즉시 기록**하세요. 나중에 정리하면 무엇이 어려웠는지 잊습니다.
@@ -48,17 +46,13 @@
 
 - <tasks 문서의 title>
 - <verification 문서의 title>
-
-Epic: EPIC-001
-Blueprint: BP-001
-Distill: <distill 경로>
-<config의 commit.trailers>
 ```
 
 즉 **세 문서의 `title`을 커밋 제목·본문 줄로 쓸 수 있게 적어야 합니다.** scaffold
 기본값(`BP-001 tasks` 같은)을 그대로 두면 아무 정보 없는 커밋이 남습니다. 구조만
 Bouncer가 정하고 문장은 전부 여러분이 쓴 `title`에서 오므로, 팀의 커밋 규약(언어,
-어미, 금지 사항)은 `title`을 어떻게 쓰느냐로 지켜집니다.
+어미, 금지 사항)은 `title`을 어떻게 쓰느냐로 지켜집니다. Epic/Blueprint/Distill
+식별자는 커밋이 아니라 PR 본문과 blueprint 문서에 남습니다.
 
 ## 언제 Bouncer를 쓰나 (잠정 — 파일럿이 답할 질문)
 
@@ -111,8 +105,7 @@ Bouncer가 정하고 문장은 전부 여러분이 쓴 `title`에서 오므로, 
 | --- | --- |
 | finalize 후 포인터가 남아 이후 커밋이 전부 막힘 | 0.1.0 — 커밋에 성공한 finalize가 포인터를 정리 |
 | `verification.md`가 검증 출력 중복으로 200줄 이상 부풀음 | 0.1.0 — 통과 시 본문에서 출력 블록 제거 (229줄 → 47줄) |
-| 생성 커밋 메시지에 trailer 자리가 없음 | 0.1.0 — `commit.trailers` 설정 |
-| 커밋 제목에 스코프 `(BP-001)`가 붙어 규약과 충돌 | 0.1.0 — 스코프 제거, id는 trailer로 |
+| 생성 커밋 메시지에 trailer / 스코프가 팀 규약과 충돌 | Unreleased — trailer·스코프 제거, `.gitmessage` 형태만 유지 |
 | 존재하지 않는 blueprint 경로가 `G9`로 잘못 보고됨 | 0.1.0 — `S11`로 구분 |
 
 ## 참고
