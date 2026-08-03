@@ -28,7 +28,7 @@ Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
 
    ### Spec compliance
    - **Missing** — Checklist / Interface requirement absent from the diff
-   - **Extra** — outside Touch / Interface, or a Do not touch breach
+   - **Extra** — outside Touch / Interface (scope creep), or a Do not touch breach
    - **Misunderstood** — intent present but implemented incorrectly
 
    ### Code quality
@@ -37,8 +37,10 @@ Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md).
 
    ### Calibration
    Map findings to severity without inflation:
-   - `blocker` — must fix before accept
-   - `major` — Spec Missing/Extra/Misunderstood or serious quality defect
+   - `blocker` — must fix before accept (broken verify, Do not touch breach,
+     false acceptance risk)
+   - `major` — Spec Missing / Misunderstood, Extra scope creep (not Do not touch),
+     or serious quality defect
    - `minor` — real issue, limited blast radius
    - `nit` — style/clarity only
 

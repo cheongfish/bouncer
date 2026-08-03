@@ -30,7 +30,7 @@ Review `git diff {{BASE}}...{{HEAD}}` plus untracked files relevant to Touch /
 ### Rubric — Spec compliance
 Judge the diff against the brief Checklist and Interface:
 - **Missing** — required behavior or checklist item absent
-- **Extra** — work outside Touch / Interface, or Do not touch violations
+- **Extra** — work outside Touch / Interface (scope creep), or Do not touch violations
 - **Misunderstood** — brief intent present but implemented incorrectly
 
 ### Rubric — Code quality
@@ -41,7 +41,7 @@ diff. Prefer findings tied to this change over pre-existing nits.
 ### Rubric — Calibration (severity)
 Map each finding to exactly one severity:
 - `blocker` — must fix before accept (broken verify, Do not touch breach, false acceptance risk)
-- `major` — Spec Missing/Extra/Misunderstood or serious quality defect
+- `major` — Spec Missing / Misunderstood, Extra scope creep (not Do not touch), or serious quality defect
 - `minor` — real issue, limited blast radius
 - `nit` — style/clarity only; do not inflate
 
