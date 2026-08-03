@@ -13,6 +13,7 @@ test('bouncer-finalize wires distill, finalize gate, bouncer finalize, push+PR, 
   assert.ok(data.description.length > 0);
   assert.match(body, /spec-authoring/);
   assert.match(body, /distill/i);
+  assert.match(body, /scaffold distill/);
   assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize\b/);
   assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>(?:\s+--yes)?\b/);
   assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes\b/);

@@ -25,22 +25,22 @@ test('scaffoldEpic writes a valid epic index', () => {
   assert.strictEqual(fs.readFileSync(legacyIndex, 'utf8'), 'legacy content\n');
 });
 
-test('scaffoldBlueprint writes all five docs with correct ids and statuses', () => {
+test('scaffoldBlueprint writes four plan docs (no distill) with correct ids and statuses', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
   const created = scaffoldBlueprint({
     repoRoot: repo, epicDir: '.bouncer/context/epics/EPIC-001-auth',
     blueprintId: 'BP-001', name: 'login', timestamp: TS,
   });
-  assert.strictEqual(created.length, 5);
+  assert.strictEqual(created.length, 4);
   const base = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
   assert.deepStrictEqual(created, [
     `${base}/index.md`,
     `${base}/tasks.md`,
     `${base}/verification.md`,
     `${base}/review.md`,
-    `${base}/distill.md`,
   ]);
+  assert.ok(!fs.existsSync(path.join(repo, `${base}/distill.md`)));
   const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).data;
   assert.strictEqual(tasks.resource, `${base}/tasks.md`);
   assert.strictEqual(tasks.bouncer.id, 'TASKS-BP-001');
@@ -51,6 +51,26 @@ test('scaffoldBlueprint writes all five docs with correct ids and statuses', () 
   assert.strictEqual(review.bouncer.review.required, true);
   const verify = readDoc(path.join(repo, `${base}/verification.md`)).data;
   assert.strictEqual(verify.bouncer.status, 'pending');
+});
+
+test('scaffoldDistill creates distill.md once for finalize', () => {
+  const { scaffoldDistill } = require('../scripts/lib/scaffold');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/EPIC-001-auth',
+    blueprintId: 'BP-001', name: 'login', timestamp: TS,
+  });
+  const bp = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+  const created = scaffoldDistill({ repoRoot: repo, blueprintDir: bp, timestamp: TS });
+  assert.deepStrictEqual(created, [`${bp}/distill.md`]);
+  const { data } = readDoc(path.join(repo, created[0]));
+  assert.strictEqual(data.type, 'bouncer.distill');
+  assert.strictEqual(data.bouncer.status, 'draft');
+  assert.deepStrictEqual(
+    scaffoldDistill({ repoRoot: repo, blueprintDir: bp, timestamp: TS }),
+    [],
+  );
 });
 
 // The headings are the skeleton the gates look for; they stay empty on purpose

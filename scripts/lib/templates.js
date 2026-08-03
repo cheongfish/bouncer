@@ -117,7 +117,7 @@ Epic: [<EPIC-id>](../../index.md)
 * [Tasks](tasks.md) - 구현 브리프
 * [Verification](verification.md) - 검증 명령과 증적
 * [Review](review.md) - 리뷰 발견사항
-* [Distill](distill.md) - 배운 것
+<!-- distill.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다. -->
 `,
     'tasks.md': `# Tasks
 

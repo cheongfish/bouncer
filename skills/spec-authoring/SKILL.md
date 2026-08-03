@@ -6,7 +6,9 @@ description: "Use when authoring the body of planning or distill documents. Writ
 # Spec Authoring
 
 Author the **body** of planning documents (epic, blueprint, tasks) and later
-distill notes. Scaffolding already wrote the frontmatter and protocol block.
+distill notes. Epic/blueprint scaffolding already wrote the frontmatter and
+protocol block for plan docs. BP `distill.md` is created at finalize
+(`bouncer scaffold distill`) before you author its body.
 Your job is the prose under it. Canonical Bouncer documents live only under
 `.bouncer/context/`; never read, author, or migrate a root `context/` tree.
 

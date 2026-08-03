@@ -2,7 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { CONTEXT_ROOT, normalizeRepoPath, isCanonicalEpicDir } = require('./layout');
+const { CONTEXT_ROOT, normalizeRepoPath, isCanonicalEpicDir, isCanonicalBlueprintDir, } = require('./layout');
+const { parsePathIds } = require('./paths');
 const { renderDoc } = require('./render');
 const { templateBody } = require('./templates');
 function writeRel(repoRoot, rel, data, body) {
@@ -48,8 +49,23 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
     const review = `${dir}/review.md`;
     created.push(writeRel(repoRoot, review, bouncerDoc('bouncer.review', `${blueprintId} review`, `Review for ${blueprintId}`, review, ['bouncer', 'review'], timestamp, { id: `REVIEW-${blueprintId}`, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
         review: { required: true } }), body('review.md')));
-    const distill = `${dir}/distill.md`;
-    created.push(writeRel(repoRoot, distill, bouncerDoc('bouncer.distill', `${blueprintId} distill`, `Distill for ${blueprintId}`, distill, ['bouncer', 'distill'], timestamp, { id: `DISTILL-${blueprintId}`, epic_id: epicId, blueprint_id: blueprintId, status: 'draft' }), body('distill.md')));
+    // BP distill.md is created at finalize time (scaffoldDistill), not during plan scaffold.
     return created;
 }
-module.exports = { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint };
+/** Create BP distill.md if missing. Used by /bouncer-finalize, not plan scaffold. */
+function scaffoldDistill({ repoRoot, blueprintDir, timestamp }) {
+    if (!isCanonicalBlueprintDir(blueprintDir)) {
+        throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
+    }
+    const bp = normalizeRepoPath(blueprintDir);
+    const distill = `${bp}/distill.md`;
+    if (fs.existsSync(path.join(repoRoot, distill)))
+        return [];
+    const { epicId, blueprintId } = parsePathIds(bp);
+    if (!epicId || !blueprintId) {
+        throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
+    }
+    const slug = bp.split('/').pop().replace(new RegExp(`^${blueprintId}-`), '') || 'blueprint';
+    return [writeRel(repoRoot, distill, bouncerDoc('bouncer.distill', `${blueprintId} distill`, `Distill for ${blueprintId}`, distill, ['bouncer', 'distill'], timestamp, { id: `DISTILL-${blueprintId}`, epic_id: epicId, blueprint_id: blueprintId, status: 'draft' }), templateBody('distill.md', { epicId, blueprintId, name: slug }))];
+}
+module.exports = { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldDistill };

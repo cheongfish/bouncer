@@ -33,7 +33,12 @@ If it is `null`, stop and tell the user to run `/bouncer-plan` first.
 Read `.bouncer/current` and use its `blueprint` value verbatim wherever
 `<pointer.blueprint>` appears; do not reconstruct a root `context/` path.
 
-1. **Distill.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to:
+1. **Distill.** Create BP `distill.md` if it is missing (plan scaffold omits it):
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold distill --blueprint <pointer.blueprint>
+   ```
+   Then use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to:
    - Write this blueprint's `distill.md` (cycle candidates + durable notes), then
      set `distill.md` `bouncer.status → published`.
    - Promote durable items into `.bouncer/context/Distill.md` under
