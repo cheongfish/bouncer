@@ -1,11 +1,9 @@
 // scripts/lib/templates.js
-// Document bodies shared by `bouncer init` (which writes them to
-// .bouncer/templates/ so a team can adapt them) and by scaffold (which renders
-// them into new documents). Every default here satisfies the body sections the
-// gates require: G10 for tasks, G13 for verification, G14 for review.
+// Built-in document bodies for scaffold (and the finalize PR body). The plugin
+// owns these strings — they are not installed into the project and there is no
+// project-level override. Every default satisfies the body sections the gates
+// require: G10 for tasks, G13 for verification, G14 for review.
 'use strict';
-const fs = require('node:fs');
-const path = require('node:path');
 
 const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 
@@ -63,7 +61,7 @@ const TEMPLATES = {
 ## Blueprints
 <!-- OKF §6 인덱스 형식. 새 blueprint를 만드는 기준은 하나 — 한 커밋으로
      리뷰 가능한 단위인가. 더 크면 blueprint를 쪼갠다. 하위 태스크 계층은
-     만들지 않는다 (.bouncer/governance.md). -->
+     만들지 않는다 (docs/governance.md). -->
 * [<TODO: BP-00x 제목>](blueprints/<TODO: BP-00x-slug>/index.md) - <TODO: 한 줄 목적>
 `,
   'blueprint.md': `# <BP-id> <name>
@@ -91,7 +89,7 @@ Epic: [<EPIC-id>](../../index.md)
 - <TODO: 이 blueprint에서 하지 않을 것>
 
 ## One-commit justification
-<!-- .bouncer/governance.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.
+<!-- docs/governance.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.
      이 칸을 못 채우겠으면 blueprint를 쪼갤 신호입니다. -->
 - <TODO: 한 커밋에 들어가는 이유>
 
@@ -149,18 +147,12 @@ Blueprint: [<BP-id>](index.md)
   'pr.md': PR_TEMPLATE,
 };
 
-const TEMPLATE_DIR = '.bouncer/templates';
-
-// A project template wins over the built-in default; a missing or unreadable
-// one falls back so scaffold never emits a document that cannot pass its gate.
-function readTemplate(repoRoot, name) {
-  const fallback = TEMPLATES[name];
-  try {
-    const body = fs.readFileSync(path.join(repoRoot, TEMPLATE_DIR, name), 'utf8');
-    return body.trim() ? body : fallback;
-  } catch (_e) {
-    return fallback;
+function readTemplate(name) {
+  const body = TEMPLATES[name];
+  if (typeof body !== 'string') {
+    throw new Error(`unknown template: ${name}`);
   }
+  return body;
 }
 
 function renderTemplate(body, { epicId, blueprintId, name }) {
@@ -170,10 +162,10 @@ function renderTemplate(body, { epicId, blueprintId, name }) {
     .replace(/<name>/g, name || '');
 }
 
-function templateBody(repoRoot, templateName, vars) {
-  return renderTemplate(readTemplate(repoRoot, templateName), vars);
+function templateBody(templateName, vars) {
+  return renderTemplate(readTemplate(templateName), vars);
 }
 
 module.exports = {
-  TEMPLATES, TEMPLATE_DIR, PR_TEMPLATE, readTemplate, renderTemplate, templateBody,
+  TEMPLATES, PR_TEMPLATE, readTemplate, renderTemplate, templateBody,
 };

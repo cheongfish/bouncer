@@ -27,13 +27,16 @@ scaffold 기본값(`BP-001 slug` 등)을 남기면 그 문구가 커밋에 들�
 각자 한 번 실행해야 합니다. 그리고 이 템플릿은 에디터가 열릴 때만 보이므로
 `git commit -m`에는 적용되지 않습니다.
 
-PR/MR 본문 템플릿은 세 곳에 같은 형식으로 있습니다.
+PR/MR 본문 템플릿은 두 곳에 같은 형식으로 있습니다.
 
 | 위치 | 쓰이는 곳 |
 | --- | --- |
 | `.github/pull_request_template.md` | GitHub PR 작성 시 자동 적용 |
 | `.gitlab/merge_request_templates/기본.md` | GitLab MR 작성 시 템플릿 드롭다운에서 선택 |
-| `.bouncer/templates/pr.md` | `/bouncer-finalize`가 draft PR을 만들 때 |
+
+`/bouncer-finalize`의 draft PR 본문은 플러그인 내장 템플릿
+(`scripts/lib/templates.js`의 `pr.md`)을 사용합니다. 프로젝트에 별도 사본을
+두지 않습니다.
 
 GitLab에서 기본값으로 강제하려면 프로젝트 설정 → Merge requests →
 *Default description template*에서 지정해야 합니다.

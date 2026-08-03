@@ -22,7 +22,7 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
   const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, `Epic ${epicId}`, rel,
     ['bouncer', 'epic'], timestamp,
     { id: epicId, epic_id: epicId, status: 'draft' });
-  const body = templateBody(repoRoot, 'epic.md', { epicId, name });
+  const body = templateBody('epic.md', { epicId, name });
   return [writeRel(repoRoot, rel, data, body)];
 }
 
@@ -34,7 +34,7 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
   const epicId = /EPIC-\d+/.exec(canonicalEpicDir)[0];
   const dir = `${canonicalEpicDir}/blueprints/${blueprintId}-${name}`;
   const created = [];
-  const body = (templateName) => templateBody(repoRoot, templateName, { epicId, blueprintId, name });
+  const body = (templateName) => templateBody(templateName, { epicId, blueprintId, name });
 
   const idx = `${dir}/index.md`;
   created.push(writeRel(repoRoot, idx,

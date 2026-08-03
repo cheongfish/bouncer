@@ -15,5 +15,8 @@
 | `schema_version` | `"0.x"` | Bouncer 문서 frontmatter 스키마 버전. OKF 스펙 버전과는 별개이며, 후자는 OKF §11에 따라 `.bouncer/context/index.md` frontmatter의 `okf_version`에 선언합니다 |
 | `plugin_advisors.ponytail` | (객체) | 단계별 Ponytail 모드 **권고**. 자동 전환하지 않습니다 |
 
-프로젝트 로컬 규칙(blueprint 크기 등)은 `.bouncer/governance.md`에 둡니다.
-플러그인 제품 ADR은 [ARCHITECTURE.md](ARCHITECTURE.md)입니다.
+프로젝트 설정은 `.bouncer/config.json`에 둡니다. blueprint 크기·워크플로·OKF
+정렬 같은 제품 규칙은 플러그인 문서
+([governance.md](governance.md) · [workflow.md](workflow.md) · [okf.md](okf.md))에
+있으며 프로젝트에 복사되지 않습니다. 플러그인 제품 ADR은
+[ARCHITECTURE.md](ARCHITECTURE.md)입니다.

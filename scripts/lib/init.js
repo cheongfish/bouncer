@@ -2,7 +2,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { detectLegacyFormat } = require('./schema');
-const { TEMPLATES, TEMPLATE_DIR } = require('./templates');
 
 const CONFIG = {
   // Bouncer's own frontmatter schema version. The OKF *spec* version is a
@@ -26,47 +25,6 @@ const CONFIG = {
     },
   },
 };
-
-const GOVERNANCE = `# Governance
-
-## Blueprint sizing rule
-
-A blueprint is split so it fits **one reviewable commit**. If work feels too
-large for a single commit, split the blueprint into more blueprints — do **not**
-add a subtask layer. Per-task commits and per-task \`affected_paths\` are out of
-scope for v1.
-`;
-
-const WORKFLOW = `# Workflow
-
-1. \`/bouncer-init\` — bootstrap \`.bouncer/\` once per project.
-2. \`/bouncer-plan\` — author epic → blueprint → tasks, scaffold docs, inject
-   \`graph.suggested_paths\`, confirm \`affected_paths\`, approve, write
-   \`.bouncer/current\`, pass gate \`plan\` (G1–G5, G10–G12).
-3. \`/bouncer-execute\` — preflight, worktree, implement from tasks
-   brief, verification, review, pass gate \`execute\` (G6–G8,
-   G13–G14).
-4. \`/bouncer-finalize\` — distill, pass gate \`finalize\` (G9), commit remainder,
-   then push + draft PR (skipped gracefully with no remote / no \`gh\`).
-5. \`bouncer advise\` — at any point, print the recommended Ponytail mode for
-   the current Bouncer phase (advisory only; never switches modes automatically).
-`;
-
-const OKF = `# OKF
-
-Target OKF spec version: **0.1**, declared in the bundle-root
-\`.bouncer/context/index.md\` frontmatter — the one place OKF §11 permits it.
-\`config.json\`'s \`schema_version\` is Bouncer's own frontmatter schema version
-and is not an OKF version string.
-
-Every \`context/**/*.md\` document carries OKF frontmatter
-(\`type\`, \`title\`, \`description\`, \`resource\`, \`tags\`, \`timestamp\`); Bouncer
-fields live under \`bouncer:\`. See the schema-gates design for the full schema.
-
-Known divergence from OKF v0.1: epic and blueprint concept documents are named
-\`index.md\`, which §3.1 reserves for directory listings, so the bundle is not
-yet §9-conformant. Tracked separately from template authoring.
-`;
 
 // Bundle root. OKF §11 allows frontmatter here and nowhere else among index
 // files; §6 fixes the body shape as `* [Title](url) - description` groups.
@@ -146,12 +104,6 @@ function init({ repoRoot }) {
   }
 
   const created = [];
-  writeFile(repoRoot, '.bouncer/governance.md', GOVERNANCE, created);
-  writeFile(repoRoot, '.bouncer/workflow.md', WORKFLOW, created);
-  writeFile(repoRoot, '.bouncer/okf.md', OKF, created);
-  for (const [name, content] of Object.entries(TEMPLATES)) {
-    writeFile(repoRoot, `${TEMPLATE_DIR}/${name}`, content, created);
-  }
   writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
   writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
   return {

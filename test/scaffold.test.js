@@ -77,7 +77,7 @@ test('scaffolded bodies carry the section skeleton the gates require', () => {
   assert.ok(bodyOf(`${base}/review.md`).includes('## Findings'));
 });
 
-test('scaffoldBlueprint renders bodies from .bouncer/templates when present', () => {
+test('scaffoldBlueprint ignores a project .bouncer/templates override', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fs.mkdirSync(path.join(repo, '.bouncer/templates'), { recursive: true });
   fs.writeFileSync(
@@ -91,11 +91,12 @@ test('scaffoldBlueprint renders bodies from .bouncer/templates when present', ()
   });
   const base = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
   const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).body;
-  assert.ok(tasks.includes('team-specific prompt'));
-  assert.ok(tasks.includes('# BP-001 login tasks'), `placeholders not substituted: ${tasks}`);
+  assert.ok(!tasks.includes('team-specific prompt'));
+  assert.ok(tasks.includes('## Goal & intent'));
+  assert.ok(tasks.includes('Blueprint: [BP-001](index.md)'));
 });
 
-test('scaffoldEpic renders its body from .bouncer/templates when present', () => {
+test('scaffoldEpic ignores a project .bouncer/templates override', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fs.mkdirSync(path.join(repo, '.bouncer/templates'), { recursive: true });
   fs.writeFileSync(
@@ -106,8 +107,9 @@ test('scaffoldEpic renders its body from .bouncer/templates when present', () =>
     repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS,
   });
   const body = readDoc(path.join(repo, created[0])).body;
-  assert.ok(body.includes('house epic template'));
+  assert.ok(!body.includes('house epic template'));
   assert.ok(body.includes('# EPIC-001 auth'));
+  assert.ok(body.includes('## Intent'));
 });
 
 test('scaffoldBlueprint leaves graph.basis empty so G4 needs recorded evidence', () => {
