@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { readDoc } = require('../scripts/lib/frontmatter');
-const { executeVerify, runVerification } = require('../scripts/lib/verification');
+const { executeVerify, readVerifyCommand, runVerification } = require('../scripts/lib/verification');
 
 const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
@@ -34,6 +34,30 @@ bouncer:
 Existing notes.
 `);
   return repo;
+}
+
+function writeTasks(repo, verifyField) {
+  const verifyYaml = verifyField === undefined
+    ? ''
+    : `  verify: ${JSON.stringify(verifyField)}\n`;
+  fs.writeFileSync(path.join(repo, BP_REL, 'tasks.md'), `---
+type: bouncer.tasks
+title: Login tasks
+description: Tasks for BP-001
+resource: ${BP_REL}/tasks.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-BP-001
+  epic_id: EPIC-001
+  blueprint_id: BP-001
+  status: ready
+  affected_paths:
+    - src/auth/
+${verifyYaml}---
+# Tasks
+`);
 }
 
 test('runVerification records successful command evidence', () => {
@@ -156,4 +180,70 @@ test('a failing verification keeps the output where a reader will see it', () =>
   const tail = data.bouncer.verification.output_tail.split('\n');
   assert.ok(tail.length > 20, `a failing run records more than a passing one, got ${tail.length}`);
   assert.ok(tail.length <= 100, `bounded at the failure limit, got ${tail.length}`);
+});
+
+test('runVerification prefers tasks.bouncer.verify over config.verify', () => {
+  const declared = 'node -e "process.exit(0)"';
+  const repo = setupRepo('npm test');
+  writeTasks(repo, declared);
+  let executed;
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec: (command) => {
+      executed = command;
+      return { stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(executed, declared);
+  assert.strictEqual(result.command, declared);
+  const verification = readDoc(path.join(repo, BP_REL, 'verification.md'));
+  assert.strictEqual(verification.data.bouncer.verification.command, declared);
+});
+
+test('runVerification falls back to config.verify when tasks has no verify', () => {
+  const repo = setupRepo('npm test');
+  writeTasks(repo);
+  let executed;
+  runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    exec: (command) => {
+      executed = command;
+      return { stdout: '', stderr: '' };
+    },
+  });
+  assert.strictEqual(executed, 'npm test');
+});
+
+test('runVerification falls back to config.verify when tasks.md is absent', () => {
+  const repo = setupRepo('npm test');
+  let executed;
+  runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    exec: (command) => {
+      executed = command;
+      return { stdout: '', stderr: '' };
+    },
+  });
+  assert.strictEqual(executed, 'npm test');
+});
+
+test('readVerifyCommand rejects non-single executable commands', () => {
+  for (const bad of ['cd sub && npm test', 'npm test | tee out.log', 'a; b', '  ']) {
+    const repo = setupRepo('npm test');
+    writeTasks(repo, bad);
+    assert.throws(
+      () => readVerifyCommand(repo, BP_REL),
+      (e) => e.code === 'VERIFY_COMMAND_INVALID',
+    );
+  }
+});
+
+test('readVerifyCommand(repoRoot) still returns config.verify', () => {
+  const repo = setupRepo('npm test');
+  writeTasks(repo, 'node -e "process.exit(0)"');
+  assert.strictEqual(readVerifyCommand(repo), 'npm test');
 });

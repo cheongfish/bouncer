@@ -26,6 +26,9 @@ append a change log.
   `commit_type`, `commit_intent`), not free-form finalize prose; keep
   Epic/Blueprint/Distill ids and file paths out of those fields.
 - Unknown CLI usage goes to **stderr** so stdout stays pipe-clean.
+- Optional `tasks.bouncer.verify` is a single executable argv string only
+  (no shell chaining, redirection, or `cd` prefix) so the evidence command
+  is reproducible from the repository root.
 
 ## Gotchas
 
@@ -58,6 +61,11 @@ append a change log.
 - `BOUNCER_HOME` is not a host/provider signal — it is a manual plugin-root
   override usable on any host. Cursor users must set
   `subagents.provider: "cursor"` explicitly.
+- `verification.md` is rewritten by `recordVerificationResult` — never put
+  author declarations there; declare an optional verify command on
+  `tasks.md` as `bouncer.verify`.
+- A present-but-invalid `bouncer.verify` must not fall through to
+  `config.verify` — that would hide a plan-time `S12` miss.
 
 ## Decisions
 
@@ -91,3 +99,6 @@ append a change log.
   not OKF/document frontmatter — do not register it in `schema.ts`.
 - Codex is out of named-agent routing: the plugin cannot deploy `agents/`, so
   review and execute always take the generic/inline fallback there.
+- Verify command resolution is `tasks.bouncer.verify` (when set) then
+  `config.verify`; format rules live only in `isValidVerifyCommand`, which
+  plan `S12` and runtime `VERIFY_COMMAND_INVALID` both reuse.

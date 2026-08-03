@@ -189,3 +189,24 @@ test('S11 does not mask a partially scaffolded blueprint', () => {
   assert.ok(!codes.includes('S11'), `S11 should not fire: ${codes.join(',')}`);
   assert.ok(codes.includes('S8'), `expected S8 for the absent index: ${codes.join(',')}`);
 });
+
+test('S12: invalid tasks.bouncer.verify is reported', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.verify = 'cd x && npm test';
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S12'));
+});
+
+test('S12 does not fire when tasks.bouncer.verify is absent', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(!res.failures.some((f) => f.code === 'S12'));
+  assert.deepStrictEqual(res, { ok: true, failures: [] });
+});

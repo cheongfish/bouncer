@@ -7,7 +7,7 @@
 | --- | --- | --- |
 | `source_dirs` | `["src", "test"]` | **소스 코드** 그래프 입력. 산출: `graphify-out/source/` |
 | `context_dirs` | `[".bouncer/context"]` | **컨텍스트** 그래프 입력(에픽/BP 문서). 산출: `graphify-out/context/` |
-| `verify` | `"npm test"` | **execute 게이트가 실제로 실행하는 명령.** 종료 코드 0이어야 G13 통과 |
+| `verify` | `"npm test"` | **execute 게이트가 실제로 실행하는 전역 폴백 명령.** 블루프린트 `tasks.bouncer.verify`가 있으면 그쪽이 우선한다. 종료 코드 0이어야 G13 통과 |
 | `base_branch` | `"develop"` | worktree와 PR의 기준 브랜치 |
 | `pr.draft` | `true` | PR을 draft로 생성 |
 | `pr.base` | `"develop"` | PR 대상 브랜치 |

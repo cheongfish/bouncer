@@ -13,7 +13,9 @@ bouncer validate --blueprint <dir> --gate <plan|execute|finalize>
 | **execute** | G6 tasks `verified` · G7 verification `passed` · G8 리뷰 `accepted`(또는 `required: false`) · G13 `verify` 명령 실제 실행 + 종료 코드 0 + 본문이 기록된 메타데이터와 일치 · G14 `## Findings` 존재 + 각 finding의 severity/status 유효 |
 | **finalize** | G9 BP `distill.status == published` (project `.bouncer/context/Distill.md` is skill + `makeAllowed`, not a G9 body gate) |
 
-`S`로 시작하는 코드(S0–S11)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
+`S`로 시작하는 코드(S0–S12)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
+S12는 `tasks.bouncer.verify`가 있을 때 셸 체이닝·리다이렉션·`cd` 접두 같은 비단일
+실행 형식을 거절합니다.
 
 섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가
 G10에 걸리는 것은 의도된 동작입니다.
