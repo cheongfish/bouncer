@@ -11,12 +11,37 @@ bouncer:
   id: VERIFY-BP-004
   epic_id: EPIC-004
   blueprint_id: BP-004
-  status: pending
+  status: passed
+  verification:
+    command: npm test
+    ran_at: '2026-08-04T10:00:06.928+09:00'
+    exit_code: 0
+    output_tail: |-
+      ---
+        duration_ms: 0.799948
+        type: 'test'
+        ...
+      # Subtest: readVerifyCommand(repoRoot) still returns config.verify
+      ok 293 - readVerifyCommand(repoRoot) still returns config.verify
+        ---
+        duration_ms: 0.160779
+        type: 'test'
+        ...
+      1..293
+      # tests 293
+      # suites 0
+      # pass 293
+      # fail 0
+      # cancelled 0
+      # skipped 0
+      # todo 0
+      # duration_ms 364.110257
 ---
 # Verification
 
 ## Command
-<command>
+`npm test`
 
 ## Evidence
-<result>
+Ran at: 2026-08-04T10:00:06.928+09:00
+Exit code: 0

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-BP-004
   epic_id: EPIC-004
   blueprint_id: BP-004
-  status: ready
+  status: verified
   affected_paths:
     - skills/discovery/SKILL.md
     - skills/bouncer-plan/SKILL.md
