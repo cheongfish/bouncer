@@ -105,6 +105,12 @@ regression → minimum fix → re-verify).
    ambiguity or contradiction, stop and send the user back to `/bouncer-plan` —
    no speculative scope expansion.
 
+   **One implementer.** `bouncer-implementer` is the only agent this step
+   spawns — one instance, not a fleet. Do not split `tasks.md` across parallel
+   implementers (they share `affected_paths` and would collide), and do not add
+   a second agent to check the first one's work; step 4 and step 5 already cover
+   that with the gate and the reviewer.
+
    **Controller owns commits and document status transitions.** The implementer
    must not `git commit` or flip `tasks` / `verification` / `review` status; you
    may make **one or more commits** after it returns, and every `git commit` is

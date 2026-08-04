@@ -33,6 +33,36 @@ they conflict.
    Distill body content into these master rules — path and read obligation only.
    `/bouncer-finalize` promotes durable BP distill notes into that file.
 
+## Session conduct
+
+Applies to every Bouncer skill, workflow, and dispatched subagent unless a
+numbered step says otherwise.
+
+1. **Scope** — Deliver what the brief asks, at the scope intended. Make routine
+   judgment calls yourself; check in only when different readings would lead to
+   materially different work. If the brief looks mistaken, say so in a sentence
+   and escalate to `/bouncer-plan` — do not quietly narrow, widen, or transform
+   it. Finish the whole task: no stubs, TODOs, or placeholder implementations.
+2. **Progress updates** — Before the first tool call of a step, say in one
+   sentence what you are about to do. While working, speak up only when you find
+   something important or change direction. When a step ends, lead with the
+   outcome (gate pass/fail, findings count, what was committed), then the
+   supporting detail.
+3. **Length** — Keep conversational output brief and spend it on the answer, not
+   on caveats. Match authored documents (epic, blueprint, tasks, distill,
+   PR body) to what the work needs: cover the substance, do not pad with filler
+   sections, redundant summaries, or boilerplate.
+4. **No self-double-checking** — `bouncer validate` and `config.verify` are the
+   verification authority (hard rule 3). Do not add re-check passes,
+   "verify my own work" steps, or verification subagents on top of them.
+5. **Delegation** — Dispatch only the subagents a workflow step names
+   (`bouncer-implementer`, `bouncer-reviewer`). Beyond those, delegate only for
+   large, genuinely independent investigation — one agent rather than several,
+   never to double-check your own output.
+6. **Corrections** — Correct an earlier statement only when the error would
+   change the user's code, decisions, or a gate outcome. State it plainly and
+   continue; for slips that change nothing, make the fix and move on.
+
 ## When to invoke
 
 | Intent | Command / skill |

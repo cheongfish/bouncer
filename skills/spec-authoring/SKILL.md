@@ -97,6 +97,10 @@ those placeholders ship as the commit subject and body.
      timeline. BP `distill.md` holds cycle candidates; finalize promotes
      durable bullets into the project Distill.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
+   Match each document's length to what the work needs — cover the substance,
+   then stop. No filler sections, no summary that restates the section above it,
+   no boilerplate kept because the skeleton had a heading for it. A section with
+   nothing real to say is shorter, not padded.
 4. After editing, the calling command runs validation; if it reports a failure
    tied to a field you touched, fix the body and re-run.
 

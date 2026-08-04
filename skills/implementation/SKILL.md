@@ -53,6 +53,11 @@ reader does not have to rediscover why the change looks the way it does.
   for one product, no config for a value that never changes, no scaffolding
   “for later.”
 - One logical change set at a time; avoid drive-by refactors.
+- Finish every checklist item. A stub, a `TODO`, or a placeholder body is an
+  unfinished task, not a smaller diff.
+- Run the project's verify command; do not stack extra self-review or re-check
+  passes on top of it, and do not delegate checking your own work to a subagent.
+  The execute gate is the evidence authority.
 - Do not flip document statuses; the calling workflow owns transitions.
 - Never simplify away: input validation at trust boundaries, error handling
   that prevents data loss, security, accessibility, or anything the brief

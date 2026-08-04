@@ -128,5 +128,7 @@ appears; do not reconstruct a root `context/` path.
      delete it — merge remains their responsibility.
    - If no, leave the worktree in place and note its path in the report.
 
-6. **Report.** Summarize what was committed, the PR URL (or that push/PR was
-   skipped/declined), and whether the worktree was removed or left in place.
+6. **Report.** Lead with the outcome, then the detail: what was committed, the
+   PR URL (or that push/PR was skipped/declined), and whether the worktree was
+   removed or left in place. Keep it to those facts — no recap of the steps the
+   user just watched run.

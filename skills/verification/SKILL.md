@@ -27,6 +27,9 @@ evidence authority: it runs the configured command and records the result.
   records a pass.
 - One logical fix at a time; do not weaken tests or the verify command.
 - Prefer debugging for repeated failures rather than masking them in evidence.
+- The gate run is the verification. Do not add a second confirmation pass, a
+  "re-verify before reporting" step, or a verification subagent around it —
+  those cost tokens without changing what the harness records.
 - The configured command runs on every execute-gate attempt. Expensive or
   external verification needs a future explicit skip policy; it must not be
   silently skipped.
