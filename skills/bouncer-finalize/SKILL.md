@@ -133,19 +133,23 @@ appears; do not reconstruct a root `context/` path.
    the `finalize --yes` JSON output (or from the dry-run output when there was
    nothing left to commit and `--yes` was never run). If `next.next` is `null`,
    skip this step.
-   - Show the candidate (`next.next.blueprint`, `sameEpic`, `remaining` count).
-   - If `sharedPaths` is non-empty, warn that the next blueprint likely needs to
-     branch from this commit (overlap) — do not block advancing.
+   - Show the candidate (`next.next.blueprint`, `next.next.sameEpic`,
+     `next.remaining` length).
+   - If `next.next.sharedPaths` is non-empty, warn that the next blueprint
+     likely needs to branch from this commit (overlap) — do not block
+     advancing.
    - If the execute worktree was left in place, warn that the shared pointer
      means that worktree's commit guard will start enforcing the *new*
      blueprint's `affected_paths`.
-   - Ask for an explicit yes before moving the pointer. Without confirmation,
-     show the command only and leave the pointer cleared:
+   - Ask for an explicit yes before moving the pointer.
+   - If yes, run:
      ```bash
      BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
      node "${BOUNCER_ROOT}/scripts/bouncer" current --set <next.blueprint>
      ```
      (`<next.blueprint>` is `next.next.blueprint` from the finalize payload.)
+   - If no, show that same command only and leave the pointer cleared — do not
+     run it.
    - If `current --set` refuses because the plan gate fails, report that and
      still treat finalize as successful — do not retry or bypass `--set`.
 
