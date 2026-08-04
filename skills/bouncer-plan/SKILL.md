@@ -72,6 +72,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    `/bouncer-finalize` turns blueprint `title` into the commit subject,
    `commit_intent` (exactly two `~함` lines) into 배경·의도 bullets, and
    tasks/verification `title` into 수정 내용 bullets, following `.gitmessage`.
+   `commit_type` also becomes the execute branch prefix (`<type>/<BP-id>-<slug>`).
 
 5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to
    run `bouncer graph-sync` (plan-time freshness for **source** + **context**

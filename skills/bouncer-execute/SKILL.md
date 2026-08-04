@@ -43,14 +43,19 @@ regression → minimum fix → re-verify).
 
 2. **Worktree.** Create a blueprint-level worktree + branch:
    - base = the branch checked out now (record it as `base` in `.bouncer/current`),
-   - branch `bouncer/<BP-id>-<slug>`,
+   - branch `<type>/<BP-id>-<slug>`, where `<type>` is
+     `bouncer.commit_type` from the blueprint index (default `feat`). Use a
+     Conventional Commit type from `.gitmessage` —
+     `feat` | `fix` | `docs` | `style` | `refactor` | `test` | `chore` —
+     matching the work's intent (same field finalize uses for the commit
+     subject),
    - location `<repo>/.worktrees/<BP-id>`, with the `.worktrees` root created by
      `runtime-state.ensureWorktreeRoot()`:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    WORKTREE_ROOT="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').ensureWorktreeRoot({repoRoot:process.cwd()}))")"
    WORKTREE_PATH="${WORKTREE_ROOT}/<BP-id>"
-   git worktree add -b bouncer/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
+   git worktree add -b <type>/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
    ```
    `/bouncer-plan` does not commit, so the documents it authored exist only in
    the base working tree while the new worktree starts from the committed HEAD.
