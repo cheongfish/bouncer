@@ -12,6 +12,8 @@
    `.bouncer/context/Distill.md`, pass gate `finalize` (G9), commit remainder,
    then **ask** whether to push + draft PR (skipped gracefully with no remote /
    no `gh`, or when declined) and whether to remove the execute worktree.
+   Finalize notifies the next ready blueprint candidate and, after confirmation,
+   advances the pointer with `bouncer current --set`.
    Draft PR titles use `[YYMMDD] (→ MergeTarget) [Type] 요약`. See
    [contributing.md](contributing.md).
    Plan/execute Read that project Distill before work.

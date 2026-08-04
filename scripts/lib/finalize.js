@@ -6,7 +6,7 @@ const { epicDirOf, toPosix } = require('./paths');
 const { CONTEXT_ROOT } = require('./scaffold');
 const { PROJECT_DISTILL } = require('./layout');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
-const { clearCurrent } = require('./current');
+const { clearCurrent, nextBlueprint } = require('./current');
 function isUnder(file, entry) {
     const f = toPosix(file);
     const e = toPosix(entry);
@@ -82,7 +82,7 @@ function realGit(repoRoot) {
         commit: (msg) => { run(['commit', '-m', msg]); },
     };
 }
-function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, }) {
+function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, }) {
     const gitApi = git || realGit(repoRoot);
     const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
     if (!v.ok)
@@ -98,15 +98,33 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     if (violations.length)
         return { ok: false, reason: 'out-of-scope', violations };
     const commitMessage = buildCommitMessage(docs);
-    if (!yes)
-        return { ok: true, dryRun: true, staged: all, commitMessage };
+    // Next-candidate calculation must never break finalize: a thrown next()
+    // collapses to the empty handoff shape so ok / exit stay tied to commit work.
+    const computeNext = () => {
+        try {
+            return next({ repoRoot, blueprintDir });
+        }
+        catch (_e) {
+            return { next: null, remaining: [] };
+        }
+    };
+    if (!yes) {
+        return {
+            ok: true, dryRun: true, staged: all, commitMessage, next: computeNext(),
+        };
+    }
     gitApi.stage(all);
     gitApi.commit(commitMessage);
     // The blueprint is done. Leaving the pointer in place would keep the commit
     // guard enforcing this blueprint's affected_paths against every later commit.
     const pointerCleared = clearPointer({ repoRoot });
     return {
-        ok: true, committed: true, staged: all, commitMessage, pointerCleared,
+        ok: true,
+        committed: true,
+        staged: all,
+        commitMessage,
+        pointerCleared,
+        next: computeNext(),
     };
 }
 module.exports = {
