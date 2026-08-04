@@ -7,7 +7,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
   planSessionGraph, syncSessionGraphs, graphSyncWarnings,
-  DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT,
+  newestMtimeUnder, runGraphifyUpdate, partOutDir,
+  SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT,
 } = require('../scripts/lib/session-graph');
 
 function base(over) {
@@ -333,6 +334,65 @@ test('syncSessionGraphs records per-graph failures without throwing', () => {
   assert.deepStrictEqual(result.built, ['source']);
   assert.strictEqual(result.failed.length, 1);
   assert.strictEqual(result.failed[0].name, 'context');
+});
+
+test('newestMtimeUnder skips SCAN_EXCLUDED_DIRS even when they are newer', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-mtime-'));
+  const srcFile = path.join(repo, 'src.js');
+  fs.writeFileSync(srcFile, 'old');
+  const mtimeOfSourceFile = fs.statSync(srcFile).mtimeMs;
+  // Excluded dir holds a newer file — must not win the walk.
+  assert.ok(SCAN_EXCLUDED_DIRS.has('graphify-out'));
+  assert.ok(SCAN_EXCLUDED_DIRS.has('node_modules'));
+  assert.ok(SCAN_EXCLUDED_DIRS.has('.git'));
+  assert.ok(SCAN_EXCLUDED_DIRS.has('.worktrees'));
+  for (const name of SCAN_EXCLUDED_DIRS) {
+    const dir = path.join(repo, name);
+    fs.mkdirSync(dir);
+    const hot = path.join(dir, 'hot.txt');
+    fs.writeFileSync(hot, 'new');
+    const future = mtimeOfSourceFile + 60_000;
+    fs.utimesSync(hot, new Date(future), new Date(future));
+  }
+  assert.strictEqual(newestMtimeUnder(repo, '.'), mtimeOfSourceFile);
+});
+
+test('newestMtimeUnder does not follow directory symlinks', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-mtime-sym-'));
+  // Target lives outside the scanned tree so only the symlink entry is visible.
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-mtime-outside-'));
+  const hot = path.join(outside, 'hot.txt');
+  fs.writeFileSync(hot, 'via-symlink');
+  const future = Date.now() + 60_000;
+  fs.utimesSync(hot, new Date(future), new Date(future));
+  const cold = path.join(repo, 'cold.txt');
+  fs.writeFileSync(cold, 'direct');
+  const coldMtime = fs.statSync(cold).mtimeMs;
+  fs.symlinkSync(outside, path.join(repo, 'link'), 'dir');
+  assert.strictEqual(newestMtimeUnder(repo, '.'), coldMtime);
+});
+
+test('runGraphifyUpdate uses part outDir as cwd and absolute scan path', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-part-cwd-'));
+  fs.mkdirSync(path.join(repo, 'src'));
+  fs.writeFileSync(path.join(repo, 'src', 'a.js'), 'export default 1\n');
+  const outDir = partOutDir(DEFAULT_SOURCE_OUT, 'src');
+  const partAbs = path.join(repo, outDir);
+  const calls = [];
+  runGraphifyUpdate(repo, 'src', outDir, {
+    exec: (cmd, args, opts) => {
+      calls.push({ cmd, args, opts });
+    },
+  });
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].cmd, 'graphify');
+  assert.deepStrictEqual(calls[0].args, ['update', path.join(repo, 'src')]);
+  assert.strictEqual(calls[0].opts.cwd, partAbs);
+  assert.ok(path.isAbsolute(calls[0].args[1]));
+  assert.ok(fs.existsSync(partAbs), 'part outDir must exist before the call');
+  // Absolute GRAPHIFY_OUT derived from the cwd-relative contract (usually ".")
+  // so graphify does not join "." onto the absolute scan target.
+  assert.strictEqual(calls[0].opts.env.GRAPHIFY_OUT, partAbs);
 });
 
 test('SessionStart reports partial state on stderr and exits zero', () => {

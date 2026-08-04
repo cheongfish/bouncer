@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { init, inspectBootstrap } = require('../scripts/lib/init');
+const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../scripts/lib/init');
 const { TEMPLATES } = require('../scripts/lib/templates');
 
 function tmpRepo() {
@@ -39,10 +39,11 @@ test('init does not write a Superpowers preference document', () => {
 
 test('init writes the exact config.json shape', () => {
   const repo = tmpRepo();
+  // Empty tmp repo → no candidate dirs; source_dirs is detected, not hard-coded.
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')), {
     schema_version: '0.x',
-    source_dirs: ['src', 'test'],
+    source_dirs: [],
     context_dirs: ['.bouncer/context'],
     graphify: { enabled: false },
     verify: 'npm test',
@@ -65,6 +66,53 @@ test('init writes the exact config.json shape', () => {
       codex: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
     },
   });
+});
+
+test('init source_dirs detects existing candidate directories in fixed order', () => {
+  const repo = tmpRepo();
+  // Only lib/ and app/ exist — result order follows SOURCE_DIR_CANDIDATES, not fs order.
+  fs.mkdirSync(path.join(repo, 'app'));
+  fs.mkdirSync(path.join(repo, 'lib'));
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(SOURCE_DIR_CANDIDATES, [
+    'src', 'lib', 'app', 'packages', 'scripts', 'test', 'tests',
+  ]);
+  assert.deepStrictEqual(cfg.source_dirs, ['lib', 'app']);
+  assert.notStrictEqual(res.sourceDirsUnresolved, true);
+});
+
+test('init source_dirs is empty and flags unresolved when no candidates exist', () => {
+  const repo = tmpRepo();
+  const result = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(cfg.source_dirs, []);
+  assert.ok(result.sourceDirsUnresolved === true);
+});
+
+test('init does not overwrite existing config source_dirs', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['custom'],
+    verify: 'npm test',
+    base_branch: 'develop',
+  }));
+  // Candidate dirs exist but must not replace the curated value.
+  fs.mkdirSync(path.join(repo, 'src'));
+  fs.mkdirSync(path.join(repo, 'lib'));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const existing = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(existing.source_dirs, ['custom']);
+});
+
+test('init ignores same-named files when detecting source_dirs', () => {
+  const repo = tmpRepo();
+  fs.writeFileSync(path.join(repo, 'src'), 'not a directory');
+  fs.mkdirSync(path.join(repo, 'test'));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(cfg.source_dirs, ['test']);
 });
 
 test('init config omits methodology and Superpowers profile fields', () => {

@@ -6,41 +6,58 @@ const { detectLegacyFormat } = require('./schema');
 const { PROJECT_DISTILL } = require('./layout');
 const { PROJECT_DISTILL_BODY } = require('./templates');
 const { nowIsoKst } = require('./time');
-const CONFIG = {
-    // Bouncer's own frontmatter schema version. The OKF *spec* version is a
-    // different thing and is declared where OKF §11 requires it: the frontmatter
-    // of the bundle-root index.md.
-    schema_version: '0.x',
-    source_dirs: ['src', 'test'],
-    // Bouncer context docs graph (epics/blueprints). Used with source_dirs for
-    // dual graphify outputs under graphify-out/source and graphify-out/context.
-    context_dirs: ['.bouncer/context'],
-    graphify: { enabled: false },
-    verify: 'npm test',
-    base_branch: 'develop',
-    pr: { draft: true, base: 'develop', labels: ['bouncer'] },
-    plugin_advisors: {
-        ponytail: {
-            enabled: true,
-            plan: 'lite',
-            execute: 'full',
-            verify: 'full',
-            review: 'review',
-            finalize: 'lite',
-            auto_switch: false,
+// Fixed probe order for default source_dirs. Only directories that exist at
+// init time are kept; order of this list is the order written to config.
+// Keep in sync with tests that import SOURCE_DIR_CANDIDATES.
+const SOURCE_DIR_CANDIDATES = ['src', 'lib', 'app', 'packages', 'scripts', 'test', 'tests'];
+function detectSourceDirs(repoRoot) {
+    return SOURCE_DIR_CANDIDATES.filter((name) => {
+        try {
+            return fs.statSync(path.join(repoRoot, name)).isDirectory();
+        }
+        catch (_e) {
+            return false;
+        }
+    });
+}
+function defaultConfig(repoRoot) {
+    return {
+        // Bouncer's own frontmatter schema version. The OKF *spec* version is a
+        // different thing and is declared where OKF §11 requires it: the frontmatter
+        // of the bundle-root index.md.
+        schema_version: '0.x',
+        // Detected at scaffold time only — never rewritten on a ready bootstrap.
+        source_dirs: detectSourceDirs(repoRoot),
+        // Bouncer context docs graph (epics/blueprints). Used with source_dirs for
+        // dual graphify outputs under graphify-out/source and graphify-out/context.
+        context_dirs: ['.bouncer/context'],
+        graphify: { enabled: false },
+        verify: 'npm test',
+        base_branch: 'develop',
+        pr: { draft: true, base: 'develop', labels: ['bouncer'] },
+        plugin_advisors: {
+            ponytail: {
+                enabled: true,
+                plan: 'lite',
+                execute: 'full',
+                verify: 'full',
+                review: 'review',
+                finalize: 'lite',
+                auto_switch: false,
+            },
         },
-    },
-    // Placeholder slots for host-specific model IDs. Every value starts as
-    // "inherit" so init shows the editable shape without pinning a model;
-    // resolveSubagentModel treats "inherit" as parent-session fallback.
-    // Provider blocks are separate because each host has its own model
-    // namespace (Claude / Cursor / Codex slugs are not interchangeable).
-    subagents: {
-        claude: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
-        cursor: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
-        codex: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
-    },
-};
+        // Placeholder slots for host-specific model IDs. Every value starts as
+        // "inherit" so init shows the editable shape without pinning a model;
+        // resolveSubagentModel treats "inherit" as parent-session fallback.
+        // Provider blocks are separate because each host has its own model
+        // namespace (Claude / Cursor / Codex slugs are not interchangeable).
+        subagents: {
+            claude: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+            cursor: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+            codex: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+        },
+    };
+}
 // Bundle root. OKF §11 allows frontmatter here and nowhere else among index
 // files; §6 fixes the body shape as `* [Title](url) - description` groups.
 const CONTEXT_INDEX = `---
@@ -142,12 +159,19 @@ function init({ repoRoot, timestamp }) {
         };
     }
     const created = [];
+    const config = defaultConfig(repoRoot);
     writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
-    writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(CONFIG, null, 2)}\n`, created);
+    writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
     ensureProjectDistill(repoRoot, created, timestamp);
+    // Same advisory layer as gitignoreSuggestions: tell the operator when
+    // detection found nothing so they fill source_dirs instead of opting into
+    // an empty graph (BP-001's missing warning). Omit when dirs were found.
     return {
         ok: true, created, skipped: false, reason: 'initialized',
         gitignoreSuggestions: suggestions,
+        ...(config.source_dirs.length === 0 ? { sourceDirsUnresolved: true } : {}),
     };
 }
-module.exports = { init, inspectBootstrap, gitignoreSuggestions, SUGGESTED_IGNORES };
+module.exports = {
+    init, inspectBootstrap, gitignoreSuggestions, SUGGESTED_IGNORES, SOURCE_DIR_CANDIDATES,
+};
