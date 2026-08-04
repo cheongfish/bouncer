@@ -23,15 +23,15 @@ contains `scripts/bouncer`.
 
 Close out the active blueprint. Follow this sequence.
 
-**Preflight.** Load the active blueprint from `.bouncer/current`:
+**Preflight.** Load the active blueprint:
 ```bash
 BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/current').readCurrent({repoRoot:process.cwd()})))"
+node "${BOUNCER_ROOT}/scripts/bouncer" current
 ```
-If it is `null`, stop and tell the user to run `/bouncer-plan` first.
+If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 
-Read `.bouncer/current` and use its `blueprint` value verbatim wherever
-`<pointer.blueprint>` appears; do not reconstruct a root `context/` path.
+Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
+appears; do not reconstruct a root `context/` path.
 
 1. **Distill.** Create BP `distill.md` if it is missing (plan scaffold omits it):
    ```bash

@@ -29,6 +29,11 @@ append a change log.
 - Optional `tasks.bouncer.verify` is a single executable argv string only
   (no shell chaining, redirection, or `cd` prefix) so the evidence command
   is reproducible from the repository root.
+- The supported surface for the active blueprint pointer is `bouncer current`
+  (read / `--set` / `--clear`). Workflow skills must not call
+  `scripts/lib/current` via `node -e`.
+- The pointer file lives under the Git common directory as `bouncer/current`
+  — never document it as `.bouncer/current`.
 
 ## Gotchas
 
@@ -66,6 +71,8 @@ append a change log.
   `tasks.md` as `bouncer.verify`.
 - A present-but-invalid `bouncer.verify` must not fall through to
   `config.verify` — that would hide a plan-time `S12` miss.
+- Skills and docs that say the pointer path is `.bouncer/current` are wrong;
+  the shared file is `<git-common-dir>/bouncer/current`.
 - When `config.source_dirs` is `scripts` / `hooks` / `test`, Graphify source
   queries do not return `skills/` paths — manually add skill directories to
   `suggested_paths` for blueprints that touch skills.
@@ -112,6 +119,14 @@ append a change log.
 - Verify command resolution is `tasks.bouncer.verify` (when set) then
   `config.verify`; format rules live only in `isValidVerifyCommand`, which
   plan `S12` and runtime `VERIFY_COMMAND_INVALID` both reuse.
+- Pointer absence is a state, not an error: bare `bouncer current` always
+  exits `0`, and attaches `ready` only when the pointer is null.
+- `listReadyBlueprints` includes only blueprint `approved` with tasks
+  `ready` / `in_progress` (`verified` is excluded); broken docs are skipped
+  per entry.
+- `bouncer current --set` writes the pointer only after the plan gate passes;
+  failures ship `validateBlueprint` results untouched and leave the pointer
+  alone.
 - discovery Confirmation hands off six named outputs: `Goal`, `Scope`,
   `Non-goals`, `Success criteria`, `Edge cases & failure modes`, `Overlap`.
   `/bouncer-plan` step 1 cites those names and maps Edge cases → blueprint

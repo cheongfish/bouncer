@@ -2,8 +2,8 @@
 
 1. `/bouncer-init` — bootstrap `.bouncer/` once per project.
 2. `/bouncer-plan` — author epic → blueprint → tasks, scaffold docs, inject
-   `graph.suggested_paths`, confirm `affected_paths`, approve, write
-   `.bouncer/current`, pass gate `plan` (G1–G5, G10–G12).
+   `graph.suggested_paths`, confirm `affected_paths`, approve, write the active
+   pointer (`bouncer current --set`), pass gate `plan` (G1–G5, G10–G12).
 3. `/bouncer-execute` — preflight, worktree, `seed-worktree` (move the plan
    documents from the base checkout into the fresh worktree), implement from
    tasks brief, verification, review, pass gate `execute` (G6–G8,
