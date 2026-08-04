@@ -10,8 +10,9 @@
    G13–G14).
 4. `/bouncer-finalize` — write BP distill, promote durable notes into
    `.bouncer/context/Distill.md`, pass gate `finalize` (G9), commit remainder,
-   then push + draft PR (skipped gracefully with no remote / no `gh`). Draft
-   PR titles use `[YYMMDD] (→ MergeTarget) [Type] 요약` — see
+   then **ask** whether to push + draft PR (skipped gracefully with no remote /
+   no `gh`, or when declined) and whether to remove the execute worktree.
+   Draft PR titles use `[YYMMDD] (→ MergeTarget) [Type] 요약` — see
    [contributing.md](contributing.md).
    Plan/execute Read that project Distill before work.
 5. `bouncer advise` — at any point, print the recommended Ponytail mode for
@@ -24,7 +25,8 @@
 /bouncer-execute  → worktree + seed → implement · verify · review
                   → gate execute  (G6–G8, G13–G14)  ← verify 실제 실행
 /bouncer-finalize → BP distill · Distill 승격
-                  → gate finalize (G9) → 한 커밋 (+ draft PR)
+                  → gate finalize (G9) → 한 커밋
+                  → (ask) draft PR · (ask) worktree remove
 ```
 
 단계별 스킬(권장 순서):

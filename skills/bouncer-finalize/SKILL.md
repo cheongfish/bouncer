@@ -1,6 +1,6 @@
 ---
 name: bouncer-finalize
-description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Distill, validate, commit the remainder, then push and open a draft PR (skipped gracefully with no remote)."
+description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Distill, validate, commit the remainder, then ask whether to push a draft PR and whether to remove the execute worktree (PR skipped gracefully with no remote)."
 ---
 # /bouncer-finalize
 
@@ -77,12 +77,17 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
    (If there is nothing left to commit because execute already committed
    everything, `finalize` reports an empty staged set — that is fine.)
 
-4. **Push + draft PR (markdown layer).** This is outward-facing — confirm first.
+4. **Push + draft PR (markdown layer).** Outward-facing — **ask the user
+   whether to open a PR at all** before any push or `gh pr create`. Do not
+   assume yes from `/bouncer-finalize` alone.
+   - If the user declines, skip push/PR, report the local commit, and continue
+     at step 5 (worktree cleanup ask still applies).
    - If there is no git remote or `gh` is not installed, **skip gracefully**:
-     stop after the local commit and tell the user push/PR was skipped. Worktree
-     cleanup and merge are the user's responsibility.
-   - Otherwise push the branch and open a **draft** PR using `.bouncer/config.json`
-     `base_branch`/`pr` and the built-in PR body from
+     stop after the local commit and tell the user push/PR was skipped.
+   - If the user accepts and remote/`gh` are available, show the rendered
+     title + PR body (dry-run) and create only on a second confirmation of that
+     content. Then push the branch and open a **draft** PR using
+     `.bouncer/config.json` `base_branch`/`pr` and the built-in PR body from
      `scripts/lib/templates.js` (`pr.md`). That template follows the team's PR
      format, not the commit message shape; fill its sections from the blueprint
      and tasks documents and leave the `## 🚦 Bouncer` section for the
@@ -102,15 +107,26 @@ Read `.bouncer/current` and use its `blueprint` value verbatim wherever
      - Example: `[260803] (→ Develop) [Feat] 전역 Distill을 init·finalize 런타임에 연결`
      - Do **not** put Conventional-Commit subjects or Epic/Blueprint ids in the
        title (ids stay in the `## 🚦 Bouncer` body section)
+     Push the execute branch as named at worktree creation
+     (`<type>/<BP-id>-<slug>`, `<type>` = blueprint `bouncer.commit_type`,
+     default `feat`):
      ```bash
-     git push -u origin bouncer/<BP-id>-<slug>
+     git push -u origin <type>/<BP-id>-<slug>
      gh pr create --draft --base <config.base_branch> \
        --title "[YYMMDD] (→ MergeTarget) [Type] 요약" \
        --body-file <rendered pr body> \
        <labels from config.pr.labels as --label ...>
      ```
-     Show the rendered title + PR body first (dry-run) and create it only on
-     confirmation.
 
-5. **Report.** Summarize what was committed, and the PR URL (or that push/PR was
-   skipped).
+5. **Worktree cleanup.** After step 4 (whether PR was created, declined, or
+   skipped), **ask the user whether to remove the execute worktree** at
+   `<repo>/.worktrees/<BP-id>`. Do not remove it without an explicit yes.
+   - If yes, run cleanup from the **main worktree** (not from inside the
+     execute checkout): `git worktree remove <repo>/.worktrees/<BP-id>` (add
+     `--force` only if the user agrees after a dirty-tree warning). Leave the
+     feature branch on the remote/local refs unless the user also asks to
+     delete it — merge remains their responsibility.
+   - If no, leave the worktree in place and note its path in the report.
+
+6. **Report.** Summarize what was committed, the PR URL (or that push/PR was
+   skipped/declined), and whether the worktree was removed or left in place.
