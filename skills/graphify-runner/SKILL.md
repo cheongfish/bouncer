@@ -30,12 +30,13 @@ the same sync again at plan time so mid-session edits are caught.
    `bouncer.graph.basis` later.
 
 2. **Availability check.** If graphify auto-build is disabled, `graphify` is not
-   on PATH, sync reports `skip-no-graphify` / `skip-graph-disabled`, or both
-   `graph.json` files are still missing after sync, **skip gracefully**: leave
-   `suggested_paths` as the scaffolded `[]`, record the graceful fallback in
-   `bouncer.graph.basis`, and tell the caller the graph was unavailable so the
-   user provides and confirms `affected_paths` manually. Do not fail the
-   command.
+   on PATH, sync reports `skip-no-graphify` / `skip-graph-disabled`, or the
+   source `graph.json` is still missing after sync (`missing` from `graph-sync`
+   includes `"source"`), **skip gracefully**: leave `suggested_paths` as the
+   scaffolded `[]`, record that `missing` basis in `bouncer.graph.basis`, and
+   tell the caller the graph was unavailable so the user provides and confirms
+   `affected_paths` manually. Do not fail the command. A context-only graph
+   must not block this skip — source absence alone is enough.
 
    When skipping, tell the user (verbatim or close):
 
@@ -47,16 +48,18 @@ the same sync again at plan time so mid-session edits are caught.
    If auto-build is disabled but the CLI is present, still record that in
    `basis` and mention enabling `graphify.enabled`.
 
-3. **Query both graphs.** Build a query string from the blueprint goal plus the
-   tasks checklist intent, then run:
+3. **Query both graphs.** Only reach this step when the source graph is
+   available (step 2 did not skip). Build a query string from the blueprint
+   goal plus the tasks checklist intent, then run:
    ```bash
    graphify query "<blueprint goal + key task nouns>" \
      --graph graphify-out/source/graph.json
    graphify query "<blueprint goal + key task nouns>" \
      --graph graphify-out/context/graph.json
    ```
-   If one graph file is missing, query the other and note the gap in `basis`.
-   Use the returned nodes' file paths as raw hits (union of both queries).
+   If the context graph file is missing, query source alone and note the gap
+   in `basis`. Use the returned nodes' file paths as raw hits (union of both
+   queries when both ran).
 
 4. **Roll up to directories.** Map each hit file to its containing directory
    (repo-relative, POSIX). Deduplicate. Prefer directory granularity over
