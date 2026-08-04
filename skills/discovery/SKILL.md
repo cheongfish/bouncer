@@ -12,12 +12,34 @@ implementation starts.
 
 1. **Request** — Capture the user's ask in their words; note constraints and
    open questions.
-2. **Goal** — State the outcome in one or two sentences.
-3. **Scope** — List what is in for this unit of work.
-4. **Non-goals** — List what is explicitly out (deferrals, adjacent work).
-5. **Success criteria** — Define observable checks that prove the goal is met.
-6. **Confirmation** — Present the framing and get explicit user confirmation
+2. **Prior art** — Read `.bouncer/context/Distill.md` and the Blueprints lists
+   under `.bouncer/context/epics/*/index.md`. Note any overlapping streams in
+   the framing. Empty prior-art results are fine (no epics yet, or a fresh
+   Distill) — continue; do not block the flow.
+3. **Goal** — State the outcome in one or two sentences.
+4. **Scope** — List what is in for this unit of work.
+   Ask in one pass: edge cases, failure modes, what not to do, and overlap
+   with existing streams.
+5. **Non-goals** — List what is explicitly out (deferrals, adjacent work).
+   Ask in one pass: edge cases, failure modes, what not to do, and overlap
+   with existing streams.
+6. **Success criteria** — Define observable checks that prove the goal is met.
+   Ask in one pass: edge cases, failure modes, what not to do, and overlap
+   with existing streams.
+7. **Confirmation** — Present the framing and get explicit user confirmation
    before moving on.
+
+## Handoff
+
+After Confirmation, carry all five items into the next step (e.g.
+`spec-authoring` via `/bouncer-plan`). If any item is missing, re-run
+Confirmation before handing off:
+
+1. Goal
+2. Scope
+3. Non-goals
+4. Numbered success criteria
+5. Relationship to existing streams
 
 ## Guardrails
 

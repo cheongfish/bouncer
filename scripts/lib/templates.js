@@ -81,7 +81,9 @@ const TEMPLATES = {
 ## Blueprints
 <!-- OKF §6 인덱스 형식. 새 blueprint를 만드는 기준은 하나 — 한 커밋으로
      리뷰 가능한 단위인가. 더 크면 blueprint를 쪼갠다. 하위 태스크 계층은
-     만들지 않는다 (docs/governance.md). -->
+     만들지 않는다 (docs/governance.md).
+     한 줄 목적은 목록 한 줄만 보고 새 요청이 이 스트림과 겹치는지 판단할 수
+     있게 쓴다. -->
 * [<TODO: BP-00x 제목>](blueprints/<TODO: BP-00x-slug>/index.md) - <TODO: 한 줄 목적>
 `,
     'blueprint.md': `# <BP-id> <name>

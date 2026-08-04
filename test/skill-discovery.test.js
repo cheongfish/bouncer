@@ -21,6 +21,15 @@ test('discovery clarifies goal, scope, non-goals, and success criteria', () => {
   assert.match(md, /confirm/i);
 });
 
+test('discovery reads prior art and defines a handoff contract', () => {
+  const md = readSkill('discovery');
+  assert.match(md, /\.bouncer\/context\/Distill\.md/);
+  assert.match(md, /\.bouncer\/context\/epics/);
+  assert.match(md, /edge case/i);
+  assert.match(md, /failure mode/i);
+  assert.match(md, /handoff/i);
+});
+
 test('generic skills omit legacy protocol and methodology assumptions', () => {
   assert.doesNotMatch(readAllGenericSkills(), /superpowers/i);
 });

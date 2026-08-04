@@ -38,9 +38,12 @@ Constraints.
 Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-authoring` (`skills/spec-authoring/SKILL.md`) → `graphify-runner` (`skills/graphify-runner/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
 
 1. **Discover.** Use the `discovery` skill (`skills/discovery/SKILL.md`) to clarify the request into goal, scope,
-   non-goals, and success criteria. Confirm with the user before scaffolding.
-   The success criteria are not scratch work: they become the numbered
-   `## Success criteria` list in the epic body in step 4.
+   non-goals, and success criteria. Assume discovery has already finished its
+   prior-art Read (`.bouncer/context/Distill.md` and epic Blueprints lists) and
+   produced the five-item handoff (goal, scope, non-goals, numbered success
+   criteria, relationship to existing streams). Confirm with the user before
+   scaffolding. The success criteria are not scratch work: they become the
+   numbered `## Success criteria` list in the epic body in step 4.
 
 2. **ID allocation.** Scan `.bouncer/context/epics` for the next sequential id
    (`EPIC-002` after `EPIC-001`; `BP-002` within an epic). Show the suggested id
