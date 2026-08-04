@@ -31,18 +31,22 @@ Skill flow (recommended): `implementation` (`skills/implementation/SKILL.md`) �
 On failure investigation, use the `debugging` skill (`skills/debugging/SKILL.md`) (reproduce → isolate → failing
 regression → minimum fix → re-verify).
 
-1. **Read the pointer.** Load the active blueprint dir and base branch from
-   `.bouncer/current`:
+1. **Read the pointer.** Load the active blueprint dir and base branch:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-   node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/current').readCurrent({repoRoot:process.cwd()})))"
+   node "${BOUNCER_ROOT}/scripts/bouncer" current
    ```
-   If it is `null`, stop and tell the user to run `/bouncer-plan` first.
+   If `current` is `null`:
+   - When `ready` is non-empty, show those candidates and tell the user to run
+     `bouncer current --set <dir>` (or `/bouncer-plan` if they meant a different
+     blueprint), then stop.
+   - When `ready` is empty, stop and tell the user to run `/bouncer-plan` first.
    Use the returned `blueprint` value verbatim for every document read and
    `--blueprint` argument below; do not reconstruct a root `context/` path.
 
 2. **Worktree.** Create a blueprint-level worktree + branch:
-   - base = the branch checked out now (record it as `base` in `.bouncer/current`),
+   - base = the branch checked out now (already recorded as `base` in the
+     active pointer by `/bouncer-plan`),
    - branch `bouncer/<BP-id>-<slug>`,
    - location `<repo>/.worktrees/<BP-id>`, with the `.worktrees` root created by
      `runtime-state.ensureWorktreeRoot()`:

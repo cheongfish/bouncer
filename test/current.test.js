@@ -4,12 +4,49 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const yaml = require('js-yaml');
 const { execFileSync } = require('node:child_process');
-const { readCurrent, writeCurrent, clearCurrent } = require('../scripts/lib/current');
+const {
+  readCurrent, writeCurrent, clearCurrent, listReadyBlueprints,
+} = require('../scripts/lib/current');
 const { init } = require('../scripts/lib/init');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-current-'));
+}
+
+function writeDoc(repo, rel, data, body = '# x\n') {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
+}
+
+function writeBp(repo, {
+  epicSlug, bpSlug, epicId, bpId, bpStatus, tasksStatus,
+}) {
+  const epicDir = `.bouncer/context/epics/${epicSlug}`;
+  const bpDir = `${epicDir}/blueprints/${bpSlug}`;
+  writeDoc(repo, `${epicDir}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: epicId, epic_id: epicId, status: 'approved' },
+  });
+  writeDoc(repo, `${bpDir}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: bpId, epic_id: epicId, blueprint_id: bpId, status: bpStatus,
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${bpDir}/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `TASKS-${bpId}`, epic_id: epicId, blueprint_id: bpId, status: tasksStatus,
+      affected_paths: [],
+    },
+  });
+  return bpDir;
 }
 
 function tmpGitRepo() {
@@ -105,4 +142,53 @@ test('clearCurrent removes the active pointer and is safe to repeat', () => {
   assert.strictEqual(clearCurrent({ repoRoot: root, deps }), true);
   assert.strictEqual(readCurrent({ repoRoot: root, deps }), null);
   assert.strictEqual(clearCurrent({ repoRoot: root, deps }), false);
+});
+
+test('listReadyBlueprints includes approved + ready / in_progress only', () => {
+  const repo = tmpRepo();
+  const ready = writeBp(repo, {
+    epicSlug: 'EPIC-001-a', bpSlug: 'BP-001-ready', epicId: 'EPIC-001', bpId: 'BP-001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const inProg = writeBp(repo, {
+    epicSlug: 'EPIC-001-a', bpSlug: 'BP-002-wip', epicId: 'EPIC-001', bpId: 'BP-002',
+    bpStatus: 'approved', tasksStatus: 'in_progress',
+  });
+  writeBp(repo, {
+    epicSlug: 'EPIC-001-a', bpSlug: 'BP-003-done', epicId: 'EPIC-001', bpId: 'BP-003',
+    bpStatus: 'approved', tasksStatus: 'verified',
+  });
+  writeBp(repo, {
+    epicSlug: 'EPIC-001-a', bpSlug: 'BP-004-draft', epicId: 'EPIC-001', bpId: 'BP-004',
+    bpStatus: 'draft', tasksStatus: 'ready',
+  });
+
+  const list = listReadyBlueprints({ repoRoot: repo });
+  assert.deepStrictEqual(list, [
+    { blueprint: inProg, status: 'in_progress' },
+    { blueprint: ready, status: 'ready' },
+  ].sort((a, b) => a.blueprint.localeCompare(b.blueprint)));
+});
+
+test('listReadyBlueprints sorts across epics and skips broken docs', () => {
+  const repo = tmpRepo();
+  const later = writeBp(repo, {
+    epicSlug: 'EPIC-002-z', bpSlug: 'BP-001-z', epicId: 'EPIC-002', bpId: 'BP-001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const earlier = writeBp(repo, {
+    epicSlug: 'EPIC-001-a', bpSlug: 'BP-001-a', epicId: 'EPIC-001', bpId: 'BP-001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  // Corrupt frontmatter: skip this blueprint, keep enumerating the rest.
+  const brokenDir = '.bouncer/context/epics/EPIC-001-a/blueprints/BP-099-broken';
+  fs.mkdirSync(path.join(repo, brokenDir), { recursive: true });
+  fs.writeFileSync(path.join(repo, brokenDir, 'index.md'), 'not frontmatter\n');
+  fs.writeFileSync(path.join(repo, brokenDir, 'tasks.md'), 'not frontmatter\n');
+
+  const list = listReadyBlueprints({ repoRoot: repo });
+  assert.deepStrictEqual(list, [
+    { blueprint: earlier, status: 'ready' },
+    { blueprint: later, status: 'ready' },
+  ]);
 });
