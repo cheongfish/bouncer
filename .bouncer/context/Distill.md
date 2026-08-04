@@ -87,6 +87,8 @@ append a change log.
   `skip-no-dirs` / empty `dirs`; scopes already in `failed` must not get a
   missing line (failed covers them).
 
+- newestMtimeUnder skips directories named graphify-out, node_modules, .git, .worktrees and does not descend directory symlinks.
+
 ## Decisions
 
 - Project Distill SSOT is `.bouncer/context/Distill.md`; master rules only name
@@ -140,3 +142,4 @@ append a change log.
 - Graph absence is a state, not an error: `syncSessionGraphs.missing` stays
   empty on `NO_GRAPH_WORK` paths and never flips `ok` to false; consumers
   signal via fields / stderr, not exit codes.
+- init default source_dirs is the fixed candidate list filtered to existing directories (order preserved); empty yields [] with sourceDirsUnresolved; existing config.json is never overwritten.

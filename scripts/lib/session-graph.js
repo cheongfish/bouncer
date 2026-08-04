@@ -8,6 +8,10 @@ const { nowIsoKst } = require('./time');
 const DEFAULT_SOURCE_OUT = 'graphify-out/source';
 const DEFAULT_CONTEXT_OUT = 'graphify-out/context';
 const DEFAULT_CONTEXT_DIRS = ['.bouncer/context'];
+// Name-based prune for freshness walks only — not a config key. If users could
+// put graphify-out back into the scan, source_dirs: ["."] would loop forever
+// (build writes under graphify-out → mtime newer → rebuild).
+const SCAN_EXCLUDED_DIRS = new Set(['graphify-out', 'node_modules', '.git', '.worktrees']);
 function realHasGraphify() {
     try {
         execFileSync('graphify', ['--version'], { stdio: 'ignore' });
@@ -61,8 +65,11 @@ function newestMtimeUnder(repoRoot, dir) {
         }
         for (const e of entries) {
             const child = path.join(abs, e.name);
+            // Descend only into real directories outside the exclude set. Symlink dirs
+            // are not followed — avoids cycles when a link points back at an ancestor.
             if (e.isDirectory()) {
-                walk(child);
+                if (!e.isSymbolicLink() && !SCAN_EXCLUDED_DIRS.has(e.name))
+                    walk(child);
                 continue;
             }
             const m = fs.statSync(child).mtimeMs;
@@ -174,20 +181,33 @@ function planSessionGraph({ repoRoot, deps }) {
     }
     return { bootstrap, action: 'skip-fresh', graphs, reason: 'graphs are up to date' };
 }
-// `graphify update <dir>` resolves its output as `<dir>/$GRAPHIFY_OUT`, so the
-// env value must be relative to the scanned directory to land under repoRoot.
-function graphifyOutEnv(dir, outDir) {
-    return path.relative(dir, outDir).split(path.sep).join('/') || '.';
+// Desired outDir relative to the part cwd (normally "."). Callers that need a
+// value graphify will honor should resolve this against the cwd — see
+// runGraphifyUpdate. Kept as a pure relative helper so tests can assert the
+// cwd-relative contract without caring about graphify's join rules.
+function graphifyOutEnv(cwdAbs, outDirAbs) {
+    return path.relative(cwdAbs, outDirAbs).split(path.sep).join('/') || '.';
 }
 function partOutDir(outDir, dir) {
     const slug = dir.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'root';
     return `${outDir}/parts/${slug}`;
 }
-function runGraphifyUpdate(repoRoot, dir, outDir) {
+function runGraphifyUpdate(repoRoot, dir, outDir, opts = null) {
+    // Isolate cwd to the part outDir so graphify's fixed
+    // `<cwd>/graphify-out/manifest.json` lands under the part, not the repo
+    // root. Scan target is absolute so cwd is only the cache/output sandbox.
+    const partAbs = path.join(repoRoot, outDir);
+    const scanAbs = path.join(repoRoot, dir);
+    fs.mkdirSync(partAbs, { recursive: true });
+    const exec = (opts && opts.exec) || execFileSync;
+    // graphify joins a *relative* GRAPHIFY_OUT onto the scanned directory. With
+    // an absolute scan target, passing the cwd-relative "." would write into the
+    // source tree; resolve against the part cwd so graph.json lands in partAbs.
+    const outEnv = path.resolve(partAbs, graphifyOutEnv(partAbs, partAbs));
     // `update` is the AST-only path: no LLM key required, unlike `extract`.
-    execFileSync('graphify', ['update', dir], {
-        cwd: repoRoot,
-        env: { ...process.env, GRAPHIFY_OUT: graphifyOutEnv(dir, outDir) },
+    exec('graphify', ['update', scanAbs], {
+        cwd: partAbs,
+        env: { ...process.env, GRAPHIFY_OUT: outEnv },
         stdio: 'ignore',
     });
 }
@@ -335,6 +355,10 @@ module.exports = {
     syncSessionGraphs,
     graphSyncWarnings,
     resolveGraphScopes,
+    newestMtimeUnder,
+    runGraphifyUpdate,
+    partOutDir,
+    SCAN_EXCLUDED_DIRS,
     DEFAULT_SOURCE_OUT,
     DEFAULT_CONTEXT_OUT,
     DEFAULT_CONTEXT_DIRS,
