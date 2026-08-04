@@ -22,7 +22,11 @@ test('bouncer-finalize wires distill, finalize gate, bouncer finalize, push+PR, 
   assert.match(body, /gh pr create/);
   assert.match(body, /--title "\[YYMMDD\] \(→ MergeTarget\) \[Type\]/);
   assert.match(body, /no remote|without a remote|no `?gh`?|skip/i);
-  assert.match(body, /bouncer\//);
+  assert.match(body, /ask the user whether to open a PR|whether to open a PR at all/i);
+  assert.match(body, /ask the user whether to remove the execute worktree|worktree cleanup/i);
+  assert.match(body, /git worktree remove/);
+  assert.match(body, /<type>\/<BP-id>-<slug>/);
+  assert.match(body, /commit_type/);
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
 });
 

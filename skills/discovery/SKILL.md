@@ -10,14 +10,43 @@ implementation starts.
 
 ## Flow
 
-1. **Request** — Capture the user's ask in their words; note constraints and
+1. **Pre-read** — Before framing, read epic indexes under
+   `.bouncer/context/epics/` and `.bouncer/context/Distill.md` so questions can
+   probe overlap with existing streams and Distill invariants. If an index or
+   Distill.md is missing or absent (does not exist yet), record Overlap as
+   "none" and continue — pre-read is not a hard stop.
+2. **Request** — Capture the user's ask in their words; note constraints and
    open questions.
-2. **Goal** — State the outcome in one or two sentences.
-3. **Scope** — List what is in for this unit of work.
-4. **Non-goals** — List what is explicitly out (deferrals, adjacent work).
-5. **Success criteria** — Define observable checks that prove the goal is met.
-6. **Confirmation** — Present the framing and get explicit user confirmation
-   before moving on.
+3. **Goal** — State the outcome in one or two sentences.
+4. **Scope** — List what is in for this unit of work.
+5. **Non-goals** — List what is explicitly out (deferrals, adjacent work).
+6. **Success criteria** — Define observable checks that prove the goal is met.
+7. **Edge cases & failure modes** — Ask for edge cases and failure modes the
+   change must handle or deliberately reject.
+8. **Overlap** — Ask how this request overlaps with existing epic/blueprint
+   streams and Distill decisions; capture reuse vs. new work.
+9. **Confirmation** — Present the framing (all six handoff outputs) and get
+   explicit user confirmation before moving on.
+
+## Question checklist
+
+In one clarifying pass, cover at least:
+
+- Goal, scope, explicit non-goals, and success criteria
+- Edge cases the change must survive
+- Failure modes (what breaks, and what the change must reject)
+- Overlap with existing epic/blueprint streams and Distill.md
+
+## Handoff
+
+Pass these named outputs to `/bouncer-plan` (do not persist them as new files):
+
+- `Goal`
+- `Scope`
+- `Non-goals`
+- `Success criteria`
+- `Edge cases & failure modes`
+- `Overlap`
 
 ## Guardrails
 
@@ -25,3 +54,5 @@ implementation starts.
 - Prefer concrete, testable success criteria over vague aspirations.
 - If the request is still ambiguous after one clarifying pass, ask again rather
   than inventing scope.
+- Do not stop discovery solely because epic indexes or Distill.md are missing;
+  record Overlap as "none" and continue.

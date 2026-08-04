@@ -73,6 +73,16 @@ append a change log.
   `config.verify` — that would hide a plan-time `S12` miss.
 - Skills and docs that say the pointer path is `.bouncer/current` are wrong;
   the shared file is `<git-common-dir>/bouncer/current`.
+- When `config.source_dirs` is `scripts` / `hooks` / `test`, Graphify source
+  queries do not return `skills/` paths — manually add skill directories to
+  `suggested_paths` for blueprints that touch skills.
+- discovery pre-read (`.bouncer/context/epics/` indexes, Distill.md) is
+  required for framing, but missing files are not a hard stop — record Overlap
+  as `"none"` and continue.
+- 「Behavior-changing diff without adding/updating tests」 is a Code quality
+  review candidate (`minor` / `major`); docs-only and configuration-only diffs
+  are exempt. Keep the rubric in sync across `skills/review`,
+  `reviewer-prompt.md`, and `agents/bouncer-reviewer.md`.
 
 ## Decisions
 
@@ -117,3 +127,10 @@ append a change log.
 - `bouncer current --set` writes the pointer only after the plan gate passes;
   failures ship `validateBlueprint` results untouched and leave the pointer
   alone.
+- discovery Confirmation hands off six named outputs: `Goal`, `Scope`,
+  `Non-goals`, `Success criteria`, `Edge cases & failure modes`, `Overlap`.
+  `/bouncer-plan` step 1 cites those names and maps Edge cases → blueprint
+  Contract 「실패 모드·엣지 케이스」, Overlap → epic Out of scope or reuse of
+  an existing blueprint.
+- Epic `## Blueprints` one-line purpose must show what changes and where it
+  touches so the next discovery can judge stream overlap from the list alone.

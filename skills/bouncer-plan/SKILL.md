@@ -37,10 +37,15 @@ Constraints.
 
 Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-authoring` (`skills/spec-authoring/SKILL.md`) → `graphify-runner` (`skills/graphify-runner/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
 
-1. **Discover.** Use the `discovery` skill (`skills/discovery/SKILL.md`) to clarify the request into goal, scope,
-   non-goals, and success criteria. Confirm with the user before scaffolding.
-   The success criteria are not scratch work: they become the numbered
-   `## Success criteria` list in the epic body in step 4.
+1. **Discover.** Use the `discovery` skill (`skills/discovery/SKILL.md`) to
+   clarify the request. Expect these named handoff outputs: `Goal`, `Scope`,
+   `Non-goals`, `Success criteria`, `Edge cases & failure modes`, and
+   `Overlap`. Confirm with the user before scaffolding.
+   Map handoff into authored docs in step 4: `Edge cases & failure modes` →
+   blueprint Contract 「실패 모드·엣지 케이스」; `Overlap` → epic Out of scope
+   (or reuse an existing blueprint when overlap says so). The success criteria
+   are not scratch work: they become the numbered `## Success criteria` list
+   in the epic body in step 4.
 
 2. **ID allocation.** Scan `.bouncer/context/epics` for the next sequential id
    (`EPIC-002` after `EPIC-001`; `BP-002` within an epic). Show the suggested id
@@ -72,6 +77,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    `/bouncer-finalize` turns blueprint `title` into the commit subject,
    `commit_intent` (exactly two `~함` lines) into 배경·의도 bullets, and
    tasks/verification `title` into 수정 내용 bullets, following `.gitmessage`.
+   `commit_type` also becomes the execute branch prefix (`<type>/<BP-id>-<slug>`).
 
 5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to
    run `bouncer graph-sync` (plan-time freshness for **source** + **context**

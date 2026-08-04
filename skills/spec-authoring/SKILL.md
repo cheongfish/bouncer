@@ -35,7 +35,7 @@ from free-form prose. Follow the project commit convention in `.gitmessage`
 
 | Field | Becomes |
 | --- | --- |
-| `blueprint` `bouncer.commit_type` (default `feat`) | `<type>:` |
+| `blueprint` `bouncer.commit_type` (default `feat`) | commit `<type>:` and execute branch prefix `<type>/…` (`.gitmessage`: feat, fix, docs, style, refactor, test, chore) |
 | `blueprint` `title` | subject (명사형 어미) |
 | `blueprint` `bouncer.commit_intent` (exactly **2** strings) | 배경·의도 bullets (`- …함`) |
 | `tasks` `title` | 수정 내용 bullet (`- …함`) |
@@ -65,7 +65,8 @@ those placeholders ship as the commit subject and body.
      X" is not a criterion.
    - **blueprint**: what this unit delivers and why it fits one reviewable
      commit. Set `title` (and `bouncer.commit_type` if not `feat`) for the
-     finalize commit subject. Set `bouncer.commit_intent` to **two** `~함`
+     finalize commit subject and the execute branch prefix
+     (`<type>/<BP-id>-<slug>`). Set `bouncer.commit_intent` to **two** `~함`
      lines (배경·의도) drawn from Goal & intent — not the subject noun phrase.
    - **tasks**: fill every implementation-ready section before approval —
      Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.

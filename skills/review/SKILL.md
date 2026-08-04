@@ -57,6 +57,10 @@ brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
    Also flag missing explanatory comments on non-trivial new logic (why,
    invariants, trade-offs, known ceilings) — not narrating what the next line
    already says.
+   Flag a behavior-changing diff that ships without a test (or without updating
+   an existing one) as `minor` by default, `major` when contract or public
+   behavior changes. Do **not** apply this to docs-only or configuration-only
+   diffs.
 
    ### Over-engineering (advisory → finding when actionable)
    Prefer deletion / simplification findings when the diff invents surface the

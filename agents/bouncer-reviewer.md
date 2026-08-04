@@ -42,6 +42,10 @@ Defects introduced by this change: incorrect logic, broken contracts/tests,
 unsafe error handling, brittle structure, unclear new interfaces. Also flag
 missing explanatory comments on non-trivial new logic (why, invariants,
 trade-offs, known ceilings) — not narrating what the next line already says.
+Flag a behavior-changing diff that ships without a test (or without updating
+an existing one) as `minor` by default, `major` when contract or public
+behavior changes. Do **not** apply this to docs-only or configuration-only
+diffs.
 
 ## Rubric — Over-engineering (advisory → finding when actionable)
 

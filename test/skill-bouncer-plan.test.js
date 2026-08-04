@@ -56,3 +56,10 @@ test('bouncer-plan preflight reads project Distill', () => {
   assert.match(body, /\.bouncer\/context\/Distill\.md/);
   assert.match(body, /Read/i);
 });
+
+test('bouncer-plan step 1 cites the named discovery handoff outputs', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /Edge cases & failure modes/);
+  assert.match(body, /Overlap/);
+  assert.match(body, /실패 모드|failure mode/i);
+});
