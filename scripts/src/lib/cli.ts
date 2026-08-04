@@ -8,6 +8,7 @@ const { runVerification } = require('./verification');
 const { seedWorktree } = require('./seed-worktree');
 const { nowIsoKst } = require('./time');
 const { syncSessionGraphs } = require('./session-graph');
+const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints } = require('./current');
 
 function parseFlags(rest) {
   const flags: Record<string, string | boolean> = {};
@@ -154,6 +155,66 @@ function cmdGraphSync(rest, io) {
   return result.failed.length === 0 ? 0 : 1;
 }
 
+function cmdCurrent(rest, io) {
+  const f = parseFlags(rest);
+  const wantsSet = Object.prototype.hasOwnProperty.call(f, 'set');
+  const wantsClear = f.clear === true;
+
+  if (wantsSet && wantsClear) {
+    io.err('current: --set and --clear are mutually exclusive\n');
+    return 2;
+  }
+  if (wantsSet && (typeof f.set !== 'string' || f.set === '')) {
+    io.err('current: --set requires a blueprint directory\n');
+    return 2;
+  }
+
+  const repoRoot = f.repo || process.cwd();
+
+  if (wantsClear) {
+    clearCurrent({ repoRoot });
+    io.out(`${JSON.stringify({ ok: true, current: null }, null, 2)}\n`);
+    return 0;
+  }
+
+  if (wantsSet) {
+    const blueprintDir = f.set;
+    const result = validateBlueprint({
+      repoRoot,
+      blueprintDir,
+      gate: 'plan',
+    });
+    if (!result.ok) {
+      // Pass failures through untouched — plan gate is the authority; do not
+      // write the pointer on a failing brief.
+      io.out(`${JSON.stringify({ ok: false, failures: result.failures }, null, 2)}\n`);
+      return 1;
+    }
+    let base = typeof f.base === 'string' ? f.base : undefined;
+    if (!base) {
+      const config = readConfig(repoRoot);
+      base = (config && typeof config.base_branch === 'string' && config.base_branch)
+        ? config.base_branch
+        : 'develop';
+    }
+    writeCurrent({ repoRoot, blueprint: blueprintDir, base });
+    const current = readCurrent({ repoRoot });
+    io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
+    return 0;
+  }
+
+  // Absence is a state, not an error: always exit 0. When unset, attach the
+  // ready list so execute can tell "planned but unset" from "nothing planned".
+  const current = readCurrent({ repoRoot });
+  if (current) {
+    io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
+  } else {
+    const ready = listReadyBlueprints({ repoRoot });
+    io.out(`${JSON.stringify({ ok: true, current: null, ready }, null, 2)}\n`);
+  }
+  return 0;
+}
+
 const USAGE = `usage: bouncer <command> [options]
 
   validate   --blueprint <dir> --gate <plan|execute|finalize>
@@ -172,6 +233,8 @@ const USAGE = `usage: bouncer <command> [options]
   init       Bootstrap .bouncer/ for this project. Never overwrites.
   advise     Print the recommended Ponytail mode for the current phase.
   graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
+  current    [--set <blueprint dir> [--base <branch>]] [--clear]
+             Show the active blueprint pointer, or set / clear it.
 
 Every command accepts --repo <dir> to run against another repository.
 `;
@@ -202,6 +265,8 @@ function runCli(argv, io) {
       return cmdAdvise(rest, sink);
     case 'graph-sync':
       return cmdGraphSync(rest, sink);
+    case 'current':
+      return cmdCurrent(rest, sink);
     default:
       err(`unknown command: ${cmd}\n\n${USAGE}`);
       return 2;

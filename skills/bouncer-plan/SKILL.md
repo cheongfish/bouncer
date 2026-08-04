@@ -102,9 +102,11 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 8. **Pointer.** Record the active blueprint:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-   node -e "require('${BOUNCER_ROOT}/scripts/lib/current').writeCurrent({repoRoot:process.cwd(),blueprint:'<blueprint dir>',base:require('fs').existsSync('.bouncer/config.json')?JSON.parse(require('fs').readFileSync('.bouncer/config.json','utf8')).base_branch:'develop'})"
+   node "${BOUNCER_ROOT}/scripts/bouncer" current --set <blueprint dir>
    ```
-   (Equivalently: write `.bouncer/current` as `{ "blueprint": "<dir>", "base": "<config.base_branch>" }`.)
+   Writes the pointer under the Git common directory (`bouncer/current`) as
+   `{ "blueprint": "<dir>", "base": "<config.base_branch or develop>" }`.
+   `--set` runs the plan gate first and refuses to write on failure.
 
 9. **Gate.** Run `bouncer validate --gate plan` and report:
    ```bash

@@ -47,7 +47,7 @@ Bootstrap this project for Bouncer.
    Two reasons, both worth stating:
    - `.bouncer/config.json` is not in the scope a blueprint may commit, so leaving
      it uncommitted makes the first `/bouncer-finalize` abort as out-of-scope.
-   - The window closes after `/bouncer-plan`: once `.bouncer/current` points at a
+   - The window closes after `/bouncer-plan`: once the active pointer points at a
      blueprint, the commit guard blocks files outside `affected_paths`.
 
    Do not run the commit yourself unless the user asks — bootstrapping is their

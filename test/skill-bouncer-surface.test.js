@@ -45,14 +45,16 @@ test('workflow skills cite subordinate skills by path', () => {
   }
 });
 
-test('execute and finalize stop when .bouncer/current is null; plan stops without .bouncer/', () => {
+test('execute and finalize stop when current is null; plan stops without .bouncer/', () => {
   const execute = readWorkflow('bouncer-execute');
   const finalize = readWorkflow('bouncer-finalize');
   const plan = readWorkflow('bouncer-plan');
-  assert.match(execute, /\.bouncer\/current/);
+  assert.match(execute, /scripts\/bouncer"\s+current\b/);
   assert.match(execute, /null/);
+  assert.match(execute, /ready/);
+  assert.match(execute, /current --set/);
   assert.match(execute, /\/bouncer-plan/);
-  assert.match(finalize, /\.bouncer\/current/);
+  assert.match(finalize, /scripts\/bouncer"\s+current\b/);
   assert.match(finalize, /null/);
   assert.match(finalize, /\/bouncer-plan/);
   assert.match(plan, /\.bouncer\//);

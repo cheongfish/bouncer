@@ -20,7 +20,7 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   assert.match(body, /graphify-runner/);
   assert.match(body, /minimality/);
   assert.match(body, /affected_paths/);
-  assert.match(body, /\.bouncer\/current/);
+  assert.match(body, /scripts\/bouncer"\s+current\s+--set\b/);
   assert.match(body, /approv/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|--from-superpowers|import-superpowers|okf-authoring/i);
 });
