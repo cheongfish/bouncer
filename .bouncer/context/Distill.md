@@ -66,6 +66,12 @@ append a change log.
   `tasks.md` as `bouncer.verify`.
 - A present-but-invalid `bouncer.verify` must not fall through to
   `config.verify` — that would hide a plan-time `S12` miss.
+- When `config.source_dirs` is `scripts` / `hooks` / `test`, Graphify source
+  queries do not return `skills/` paths — manually add skill directories to
+  `suggested_paths` for blueprints that touch skills.
+- discovery prior-art Read (`.bouncer/context/Distill.md`, epic Blueprints) is
+  required, but empty results are normal and must not block the flow; the skill
+  remains guidance, not a gate.
 
 ## Decisions
 
@@ -102,3 +108,6 @@ append a change log.
 - Verify command resolution is `tasks.bouncer.verify` (when set) then
   `config.verify`; format rules live only in `isValidVerifyCommand`, which
   plan `S12` and runtime `VERIFY_COMMAND_INVALID` both reuse.
+- Epic `## Blueprints` one-line purpose must let a reader judge whether a new
+  request overlaps that stream from the list line alone — discovery Prior art
+  depends on it.
