@@ -7,6 +7,31 @@
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-04
+
+0.2.0 이후 워크플로 CLI·검증 오버라이드·discovery·finalize 확인 흐름 개선.
+
+0.2.0 대비 요약:
+
+| 영역 | 0.2.0 | 0.3.0 |
+| --- | --- | --- |
+| Verify | `config.verify`만 | `tasks.bouncer.verify` 우선, 없으면 전역 폴백 (S12) |
+| 활성 포인터 | 파일 직접 읽기/쓰기 | `bouncer current [--set\|--clear]` CLI |
+| Discovery | Goal→Scope→Non-goals→Success→Confirm | pre-read · 엣지/실패 · Overlap · 6항 handoff |
+| Execute 브랜치 | `bouncer/<BP-id>-…` 등 | `<commit_type>/<BP-id>-<slug>` |
+| Finalize 후처리 | push·draft PR·worktree를 자동 시도 | 사용자 확인 후 PR / worktree 정리 |
+| 커밋·PR 제목 | type + title 불릿 | `commit_intent` 2줄 + `[YYMMDD] (→ base) [Type] 요약` |
+| 마스터 룰 | `CLAUDE.md`/`AGENTS.md` 바이트 동일 | `AGENTS.md` → `@CLAUDE.md` import |
+
+### Added
+
+- **블루프린트 단위 verify** — `tasks.bouncer.verify`가 있으면 그걸 쓰고, 없으면
+  `config.verify`로 폴백. 비단일 셸 형식은 S12로 거절.
+- **`bouncer current`** — 활성 포인터 읽기 / `--set` / `--clear`. 없으면 `ready`
+  후보를 안내. plan·execute·finalize 스킬이 CLI로 배선.
+- **Discovery 심화** — epic 인덱스·Distill pre-read, 엣지 케이스·실패 모드·Overlap
+  질문, plan handoff 6항 계약. review는 테스트 없는 동작 변경을 지적할 수 있음.
+
 ### Changed
 
 - **`AGENTS.md`가 `@CLAUDE.md`를 import** — 바이트 동일 복제 대신 Codex /
@@ -15,6 +40,13 @@
   `[YYMMDD] (→ MergeTarget) [Type] 요약` (베이스 브랜치·날짜·커밋 대표 요약).
 - **finalize 커밋 본문에 배경·의도 2줄** — blueprint `bouncer.commit_intent`
   (정확히 2개)를 조립하고, 없으면 finalize 스킬이 커밋 전에 채운다.
+- **finalize PR·worktree 정리** — 커밋 후 push·draft PR과 execute worktree 제거를
+  사용자에게 물은 뒤에만 수행(거절·원격/`gh` 없으면 건너뜀).
+- **execute 브랜치명** — `bouncer.commit_type` 접두사로
+  `<type>/<BP-id>-<slug>` 통일.
+- **설치 안내** — Claude Code · Cursor에서 project / local(workspace) scope 권장.
+- **README** — 제품 소개·스킬 흐름(mermaid) 중심으로 재구성. 게이트·CLI 상세는
+  `docs/`로 유지.
 
 ## [0.2.0] — 2026-08-03
 

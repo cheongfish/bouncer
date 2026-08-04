@@ -18,14 +18,16 @@ Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 
 ## Features
 
 - **Blueprint 단위 커밋** — 한 사이클이 리뷰 가능한 한 커밋으로 끝남
-- **실제 검증 실행** — execute 게이트가 `config.verify`를 돌려 증적을 남김
+- **실제 검증 실행** — execute 게이트가 `tasks.bouncer.verify`(또는 `config.verify` 폴백)를 돌려 증적을 남김
 - **변경 범위 가드** — 승인된 `affected_paths` 밖 커밋을 훅이 차단
-- **Worktree execute** — plan 산출물을 worktree로 옮긴 뒤 구현·verify·review
+- **Worktree execute** — plan 산출물을 worktree로 옮긴 뒤 구현·verify·review (`<type>/<BP-id>-…` 브랜치)
+- **활성 포인터 CLI** — `bouncer current`로 읽기 / 설정 / 지우기
+- **Discovery 심화** — Distill·epic 겹침·엣지/실패 모드까지 확인한 뒤 plan에 인계
 - **Project Distill** — plan/execute 전 `.bouncer/context/Distill.md`를 읽고, finalize가 승격
 - **Named 서브에이전트** — implementer / reviewer 분리와 모델 설정 계약
 - **최소 변경 사다리** — 구현·리뷰가 재사용·과설계를 먼저 점검
 - **멀티 에이전트** — Claude Code · Cursor · Codex가 같은 스킬·게이트 계약을 사용
-- **증적 있는 finalize** — 코드와 `.bouncer/context` 문서를 한 커밋에 함께 담음
+- **증적 있는 finalize** — 코드와 `.bouncer/context` 문서를 한 커밋에 담고, PR·worktree 정리는 확인 후
 
 단계별 스킬 흐름:
 
@@ -142,4 +144,4 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 | [Architecture](docs/ARCHITECTURE.md) | 설계 결정 |
 | [Contributing](docs/contributing.md) | 개발·커밋·CI |
 | [Pilot](docs/PILOT.md) | 파일럿·알려진 마찰 |
-| [Changelog](CHANGELOG.md) | 변경 이력 · [0.2.0 요약](CHANGELOG.md#020--2026-08-03) |
+| [Changelog](CHANGELOG.md) | 변경 이력 · [0.3.0 요약](CHANGELOG.md#030--2026-08-04) |
