@@ -11,7 +11,7 @@ const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-execute', 'SKILL.m
 test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   const { data, body } = parseFrontmatter(md);
   assert.ok(data.description.length > 0);
-  assert.match(md, /\.bouncer\/current/);
+  assert.match(body, /scripts\/bouncer"\s+current\b/);
   assert.match(body, /worktree/i);
   assert.match(body, /bouncer\/<BP|bouncer\/\$\{|bouncer\//);
   assert.match(body, /runtime-state/);
