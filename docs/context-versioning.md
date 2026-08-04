@@ -1,8 +1,8 @@
 # 컨텍스트 문서 버전관리
 
-**`.bouncer/` 전체를 커밋합니다.** 선택 사항이 아니라 설계 전제입니다 —
+**`.bouncer/` 전체를 커밋합니다.** 설계 전제입니다.
 `/bouncer-finalize`는 코드 변경과 그 blueprint의 문서를 **한 커밋에 함께** 담습니다.
-문서를 gitignore하면 게이트를 통과했다는 증적(`verification.md`의 실제 종료 코드,
+문서를 gitignore하면 게이트를 통과했다는 증적(`verification.md`의 종료 코드,
 `affected_paths` 승인 기록)이 로컬에만 남고 리뷰어에게 도달하지 않아, 이 도구의
 존재 이유가 사라집니다.
 
@@ -11,7 +11,7 @@
 | `.bouncer/context/**` (incl. `Distill.md`) | 커밋 | `/bouncer-finalize`가 코드·승격된 Distill과 함께 |
 | `.bouncer/context/Distill.md` | 커밋 (현행 주의 목록) | finalize가 BP distill에서 승격·교체·폐기 |
 | `.bouncer/config.json` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
-| `graphify-out/` | 제외 | — (`.gitignore`, init이 안내) |
+| `graphify-out/` | 제외 | `-` (`.gitignore`, init이 안내) |
 | 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/current` (Git 공통 디렉터리) |
 | execute worktree | 제외 | `<repo>/.worktrees/<BP-id>` (gitignore / finalize 무시) |
 
@@ -32,12 +32,11 @@ scaffold와 finalize PR 본문은 플러그인 내장값(`scripts/lib/templates.
 git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ```
 
-## 문서는 "현행"이 아니라 "그 시점의 기록"입니다
+## 문서는 그 시점의 기록입니다
 
-커밋 이후 코드만 고치면 `tasks.md`는 과거 상태로 남습니다. 이건 결함이 아닙니다.
-컨텍스트 문서는 살아있는 명세가 아니라 **그 커밋이 왜 그 범위였고 무엇으로
-검증됐는지에 대한 기록**입니다. 최신 상태로 유지하려 들지 마세요. 범위가 바뀌면
-새 blueprint를 만드는 것이 맞습니다.
+커밋 이후 코드만 고치면 `tasks.md`는 과거 상태로 남습니다.
+컨텍스트 문서는 **그 커밋이 왜 그 범위였고 무엇으로 검증됐는지에 대한 기록**입니다.
+최신 상태로 유지하려 들지 마세요. 범위가 바뀌면 새 blueprint를 만드세요.
 
 PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할 수 있습니다.
 

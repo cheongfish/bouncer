@@ -1,7 +1,7 @@
 # 설치
 
 Claude Code · Cursor · Codex가 **같은 저장소**를 플러그인으로 읽습니다.
-런타임에 `npm install`은 필요 없습니다 — Claude Code는 플러그인을 클론만 하고
+런타임에 `npm install`은 필요 없습니다. Claude Code는 플러그인을 클론만 하고
 의존성을 설치하지 않으므로, 필요한 `js-yaml`은 `scripts/vendor/`에 벤더링돼
 있습니다. 자세한 내용은 [`scripts/vendor/README.md`](../scripts/vendor/README.md)를
 보세요. Node 24에서 검증했습니다. 런타임 코드는 Node 표준 모듈만 쓰지만 더 낮은
@@ -34,7 +34,7 @@ Claude Code · Cursor · Codex가 **같은 저장소**를 플러그인으로 읽
 워크플로 스킬(`skills/bouncer-*/SKILL.md`)과 하위 스킬(`skills/*/SKILL.md`)은
 Cursor의 기본 탐색 경로와 레이아웃이 같아 그대로 잡힙니다. 커밋 가드는
 `hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
-밖 파일이 staged면 셸 실행을 `deny`합니다 — Claude Code의 `PreToolUse` 가드와
+밖 파일이 staged면 셸 실행을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
 **판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다.
 
 ## Codex
@@ -49,7 +49,7 @@ Cursor의 기본 탐색 경로와 레이아웃이 같아 그대로 잡힙니다.
 - **커밋 가드**는 Codex가 기본 탐색하는 `hooks/hooks.json`의 `PreToolUse`/`Bash`
   경로로 걸립니다. 판정은 Claude Code와 같은 `hooks/commit-safety.js`이며, Codex는
   종료 코드 `2`와 stderr 사유로 차단합니다. 플러그인 훅은 사용자가 정의를
-  trust하기 전까지 로드되지 않습니다 — trust하지 않으면 가드가 동작하지 않습니다.
+  trust하기 전까지 로드되지 않습니다. trust하지 않으면 가드가 동작하지 않습니다.
 - 매니페스트에 `hooks` 키를 넣으면 공식 검증기가 거부합니다. 훅 파일은 선언 없이
   `hooks/hooks.json` 기본 경로에 둡니다.
 

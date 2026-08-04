@@ -11,23 +11,23 @@ npm run lint   # eslint
 
 ## 커밋·PR 규약
 
-커밋 메시지는 한국어 Conventional Commits를 따릅니다 — `type: 명사형 제목` +
+커밋 메시지는 한국어 Conventional Commits를 따릅니다. `type: 명사형 제목` +
 배경·의도 2줄 + 수정 내용 불릿. 본문에 파일·모듈 이름은 쓰지 않습니다(diff가
 이미 보여줍니다). 전체 규칙은 [`.gitmessage`](../.gitmessage)에 있습니다.
 
 `/bouncer-finalize`도 같은 규약을 씁니다. 메시지를 새로 짓지 않고 plan 때 쓴
-문서 필드를 조립합니다 — `bouncer.commit_type` + blueprint `title`이 제목,
+문서 필드를 조립합니다. `bouncer.commit_type` + blueprint `title`이 제목,
 `bouncer.commit_intent`(정확히 2줄)이 배경·의도, tasks/verification `title`이
 수정 내용. Epic/Blueprint/Distill 식별자는 커밋에 넣지 않고 PR 본문·blueprint
 문서에 둡니다.
-execute 브랜치도 같은 `bouncer.commit_type`을 prefix로 씁니다 —
+execute 브랜치도 같은 `bouncer.commit_type`을 prefix로 씁니다:
 `<type>/<BP-id>-<slug>` (`feat/…`, `refactor/…`, `test/…` 등).
 scaffold 기본값(`BP-001 slug` 등)을 남기면 그 문구가 커밋에 들어가므로,
 `/bouncer-plan`에서 `.gitmessage` 기준으로 `title`·`commit_intent`를 고쳐 두세요.
 finalize 직전에 `commit_intent`가 없으면 스킬이 Goal & intent에서 채워 넣습니다.
 
 `npm run setup`은 `git config commit.template .gitmessage`를 실행합니다. **클론해도
-자동 적용되지 않습니다** — git이 저장소가 로컬 설정을 바꾸는 것을 막기 때문에
+자동 적용되지 않습니다.** git이 저장소가 로컬 설정을 바꾸는 것을 막기 때문에
 각자 한 번 실행해야 합니다. 그리고 이 템플릿은 에디터가 열릴 때만 보이므로
 `git commit -m`에는 적용되지 않습니다.
 
@@ -50,10 +50,10 @@ PR **제목**은 커밋 subject와 다릅니다. finalize가 만드는 draft 제
 
 예: `[260803] (→ Develop) [Feat] 전역 Distill을 init·finalize 런타임에 연결`
 
-- `YYMMDD` — 작성일(KST)
-- `MergeTarget` — `config.base_branch` / `pr.base` (첫 글자 대문자)
-- `Type` — 브랜치 커밋 타입의 PascalCase (`feat` → `Feat`); 여러 타입이면 `/`로 연결
-- `요약` — 해당 커밋들을 대표하는 한국어 명사구 (보통 blueprint `title`)
+- `YYMMDD`: 작성일(KST)
+- `MergeTarget`: `config.base_branch` / `pr.base` (첫 글자 대문자)
+- `Type`: 브랜치 커밋 타입의 PascalCase (`feat` → `Feat`); 여러 타입이면 `/`로 연결
+- `요약`: 해당 커밋들을 대표하는 한국어 명사구 (보통 blueprint `title`)
 
 Epic/Blueprint id는 제목에 넣지 않고 PR 본문 `## 🚦 Bouncer`에 둡니다.
 
@@ -66,7 +66,7 @@ CI는 `main`/`develop` 푸시와 PR마다 두 가지를 모두 돌립니다. Git
 (`.github/workflows/test.yml`)와 GitLab CI(`.gitlab-ci.yml`)를 함께 두어, 사내
 GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
 
-`scripts/`와 `hooks/` 아래 코드는 `node_modules`에 의존하면 안 됩니다 —
+`scripts/`와 `hooks/` 아래 코드는 `node_modules`에 의존하면 안 됩니다.
 마켓플레이스 설치가 깨집니다. `test/distribution.test.js`가 이 계약을 강제합니다.
 `scripts/vendor/`는 서드파티 코드라 린트 대상에서 제외합니다.
 

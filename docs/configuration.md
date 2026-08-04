@@ -7,7 +7,7 @@
 | --- | --- | --- |
 | `source_dirs` | `["src", "test"]` | **소스 코드** 그래프 입력. 산출: `graphify-out/source/` |
 | `context_dirs` | `[".bouncer/context"]` | **컨텍스트** 그래프 입력(에픽/BP 문서). 산출: `graphify-out/context/` |
-| `verify` | `"npm test"` | **execute 게이트가 실제로 실행하는 전역 폴백 명령.** 블루프린트 `tasks.bouncer.verify`가 있으면 그쪽이 우선한다. 종료 코드 0이어야 G13 통과 |
+| `verify` | `"npm test"` | **execute 게이트가 실행하는 전역 폴백 명령.** 블루프린트 `tasks.bouncer.verify`가 있으면 그쪽이 우선한다. 종료 코드 0이어야 G13 통과 |
 | `base_branch` | `"develop"` | worktree와 PR의 기준 브랜치 |
 | `pr.draft` | `true` | PR을 draft로 생성 |
 | `pr.base` | `"develop"` | PR 대상 브랜치 |
@@ -24,9 +24,9 @@
 (`bouncer-reviewer`, `bouncer-implementer`)를 모두 `"inherit"`로 채워 두어,
 사용자가 편집할 자리를 보여 줍니다.
 
-- `"inherit"` — 부모 세션 모델을 그대로 씁니다. `resolveSubagentModel`은 이 값
+- `"inherit"`: 부모 세션 모델을 그대로 씁니다. `resolveSubagentModel`은 이 값
   (또는 비어 있거나 문자열이 아닌 값)에 대해 `{ model: null }`을 돌려줍니다.
-- 비어 있지 않은 문자열 — 해당 호스트의 모델 slug로 해석합니다.
+- 비어 있지 않은 문자열: 해당 호스트의 모델 slug로 해석합니다.
 - Cursor는 `CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT`로 자동 판별되지 않습니다.
   Cursor 사용자는 `subagents.provider: "cursor"`를 명시하세요.
   (`BOUNCER_HOME`은 수동 플러그인 루트 오버라이드라 프로바이더 신호가 아닙니다.)

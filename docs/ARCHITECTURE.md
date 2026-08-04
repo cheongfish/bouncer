@@ -1,4 +1,4 @@
-# Bouncer — 아키텍처
+# Bouncer 아키텍처
 
 > 플러그인 제품의 설계 결정 ADR. 운영 규칙·워크플로·OKF 정렬 요약은
 > [governance.md](governance.md) · [workflow.md](workflow.md) · [okf.md](okf.md)에 있다.
@@ -11,8 +11,7 @@
 이 문서는 Bouncer를 Claude, Codex, Cursor 등 여러 코딩 에이전트에서
 동일하게 사용할 수 있는 **공통 거버넌스 레이어**로 쓰기 위해 확정한 경계를 기록한다.
 
-여기서 Bouncer의 역할은 에이전트의 사고방식을 통제하는 것이 아니라, 팀이 검증할 수
-있는 문서·상태·증적·변경 범위를 강제하는 것이다.
+Bouncer는 팀이 검증할 수 있는 문서·상태·증적·변경 범위를 강제한다.
 
 ```text
 에이전트 계층                 공통 거버넌스 계층
@@ -32,8 +31,7 @@ Codex / Claude / Cursor       OKF 문서 스키마
   `affected_paths`, 커밋 안전성을 소유한다.
 - 기획, 구현, 테스트, 리뷰를 *어떻게* 수행하는지는 에이전트와 권장 일반
   스킬의 책임이다.
-- 게이트는 특정 플러그인의 설치 여부가 아니라 필요한 산출물과 실제 실행 증거가
-  있는지를 검사해야 한다.
+- 게이트는 필요한 산출물과 실행 증거가 있는지만 검사한다.
 - 하위 호환·별칭·자동 마이그레이션 없이 `.bouncer/` / `bouncer.*` 프로토콜만
   지원한다.
 
@@ -48,7 +46,7 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 
 ### 3. 산출물 계약과 하네스 검증을 우선한다
 
-각 단계는 스킬 호출 여부가 아니라 다음과 같은 계약으로 정의한다.
+각 단계는 아래 계약으로 정의한다.
 
 | 단계 | 공통 입력 | 반드시 남길 결과 | 통과 기준 |
 | --- | --- | --- | --- |
@@ -63,10 +61,10 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 
 Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 본다.
 
-- **G7** — `verification.status == passed`
-- **G13** — `verification.md` 본문에 `## Command`와 `## Evidence` 필수
-- **G8** — `review.status == accepted`, 또는 `bouncer.review.required === false`로 정책상 통과
-- **G14** — `review.md` 본문에 `## Findings` 필수; `bouncer.review.findings[]`는
+- **G7**: `verification.status == passed`
+- **G13**: `verification.md` 본문에 `## Command`와 `## Evidence` 필수
+- **G8**: `review.status == accepted`, 또는 `bouncer.review.required === false`로 정책상 통과
+- **G14**: `review.md` 본문에 `## Findings` 필수; `bouncer.review.findings[]`는
   `{id, severity, status, note}`이며 `severity ∈ {blocker,major,minor,nit}`,
   `status ∈ {resolved,accepted}`, `accepted`면 `note` 필수.
   `review.required === false`이면 G14도 건너뛴다.
@@ -96,9 +94,9 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 
 ### Graphify: 외부 리포지터리 인텔리전스 제공자
 
-Graphify는 단순한 지시문이 아니라 로컬 AST 기반 코드 그래프 생성, 질의, 다수
-플랫폼 설치와 훅을 제공하는 도구다. 코드 관계를 `EXTRACTED`/`INFERRED`로 구분해
-근거를 보여 주고, Codex·Claude·Cursor 등을 지원한다.
+Graphify는 로컬 AST 기반 코드 그래프 생성, 질의, 다수 플랫폼 설치와 훅을
+제공한다. 코드 관계를 `EXTRACTED`/`INFERRED`로 구분해 근거를 보여 주고,
+Codex·Claude·Cursor 등을 지원한다.
 
 따라서 Graphify의 그래프 엔진이나 설치 계층을 이 프로젝트 안에 복제하지 않는다.
 대신 현재의 `graphify-runner`처럼 얇은 어댑터를 유지·개선한다.
@@ -118,11 +116,10 @@ Graphify는 단순한 지시문이 아니라 로컬 AST 기반 코드 그래프 
 
 ### Ponytail: 원칙만 최소화 스킬로 흡수
 
-Ponytail의 핵심은 기존 코드 재사용, 표준 라이브러리/플랫폼 기능/기설치 의존성
-우선, 최소 구현이라는 의사결정 사다리다. 이 원칙은 과도한 추상화와 의존성 추가를
-줄이는 데 적합하다.
+Ponytail은 기존 코드 재사용, 표준 라이브러리/플랫폼 기능/기설치 의존성, 최소
+구현을 우선하는 의사결정 사다리다. 과도한 추상화와 의존성 추가를 줄인다.
 
-그러나 Bouncer에서는 다음의 보정이 필요하다.
+Bouncer에서는 다음 보정이 필요하다.
 
 - 승인된 요구사항·테스트·검증·보안·접근성·오류 처리를 최소화 대상으로 보지 않는다.
 - 이미 승인된 blueprint의 기능을 구현 중에 임의로 삭제하지 않는다.
@@ -177,7 +174,7 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    **context**(`context_dirs` → `graphify-out/context`) 두 그래프를 유지한다.
 2. `graphify-out/`은 로컬 캐시다. `bouncer init`이 `.gitignore` 누락 항목을
    **안내**하고(직접 수정하지 않음), finalize/커밋 가드는 `node_modules/`,
-   `graphify-out/`, `.worktrees/`를 범위 위반이 아니라 무시 대상으로 처리한다.
+   `graphify-out/`, `.worktrees/`를 범위 검사에서 무시한다.
    execute 체크아웃은 `<repo>/.worktrees/<BP-id>`에 두며, init이 `.worktrees/`
    gitignore 누락도 함께 안내한다.
 3. `suggested_paths`의 근거는 `bouncer.graph.basis`에 기록한다. scaffold는
@@ -198,12 +195,11 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 
 ### G. 문서 문구 테스트의 범위 (2026-07-27)
 
-1. **유지한다.** 워크플로·하위 스킬 마크다운은 부산물이 아니라 에이전트를 구동하는
-   제품 표면이므로, 그 내용에 대한 단언은 문구 검사가 아니라 계약 검사다. 실제로
+1. **유지한다.** 워크플로·하위 스킬 마크다운은 에이전트를 구동하는 제품 표면이다.
+   단언은 식별자·계약(게이트 코드, 필드명, 스킬 이름)에 둔다.
    `public-name-regression`은 리브랜드 회귀를, 스킬 문서 테스트는 게이트 코드
    누락을 이 저장소에서 잡아냈다.
-2. **깨지기 쉬운 것은 문장 구조에 대한 단언이다.** 앞으로 문서 테스트는
-   *식별자의 존재*(명령 경로, 게이트 코드 G1–G14/S1–S11, 프론트매터 필드명,
-   스킬 이름)를 단언하고, 어절 인접성이나 문장 배열은 단언하지 않는다.
+2. 문서 테스트는 *식별자의 존재*(명령 경로, 게이트 코드 G1–G14/S1–S11, 프론트매터
+   필드명, 스킬 이름)를 단언하고, 어절 인접성이나 문장 배열은 단언하지 않는다.
 3. 13개 파일을 일괄 재작성하지는 않는다. 실제 계약을 지우는 위험이 이득보다
    크므로, 해당 파일을 손댈 때 위 규칙으로 옮긴다.
