@@ -53,3 +53,12 @@ test('graphify-runner queries source and context graphs after plan-time sync', (
   assert.match(md, /context_dirs|source_dirs/);
   assert.match(md, /graph-sync/);
 });
+
+test('graphify-runner skips on source graph missing via graph-sync missing', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /missing/);
+  assert.doesNotMatch(md, /both `graph\.json` files/);
+  // Line-break–tolerant: the old "both … files" skip rule must be gone.
+  assert.doesNotMatch(md, /both\s+`graph\.json` files/);
+  assert.match(md, /source `graph\.json`/);
+});

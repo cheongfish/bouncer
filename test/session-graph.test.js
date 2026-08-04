@@ -6,7 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
-  planSessionGraph, syncSessionGraphs, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT,
+  planSessionGraph, syncSessionGraphs, graphSyncWarnings,
+  DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT,
 } = require('../scripts/lib/session-graph');
 
 function base(over) {
@@ -157,6 +158,155 @@ test('build dirs are limited to source dirs that exist', () => {
   });
   assert.deepStrictEqual(r.graphs.find((g) => g.name === 'source').dirs, ['src']);
   assert.deepStrictEqual(r.graphs.find((g) => g.name === 'context').dirs, ['.bouncer/context']);
+});
+
+test('planOneGraph keeps configured dirs even when only some exist', () => {
+  const r = plan({
+    graphMtime: () => null,
+    existingDirs: (dirs) => dirs.filter((d) => d === 'src' || d === '.bouncer/context'),
+  });
+  const src = r.graphs.find((g) => g.name === 'source');
+  assert.deepStrictEqual(src.configured, ['src', 'test']);
+  assert.deepStrictEqual(src.dirs, ['src']);
+});
+
+test('syncSessionGraphs reports missing source when opted in but source dirs absent', () => {
+  const result = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({
+      existingDirs: (dirs) => dirs.filter((d) => d === '.bouncer/context'),
+      // Context graph present and fresh; source never built.
+      graphMtime: (outDir) => (outDir === DEFAULT_CONTEXT_OUT ? 300 : null),
+      newestMtime: () => 200,
+    }),
+  });
+  assert.deepStrictEqual(result.missing, ['source']);
+});
+
+test('syncSessionGraphs reports empty missing when graphify is not opted in', () => {
+  const disabled = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({ graphifyEnabled: () => false }),
+  });
+  assert.deepStrictEqual(disabled.missing, []);
+});
+
+test('syncSessionGraphs reports empty missing for other no-graph-work skips', () => {
+  for (const over of [
+    { inspectBootstrap: () => 'partial' },
+    { inspectBootstrap: () => 'legacy' },
+    { hasGraphify: () => false },
+  ]) {
+    const result = syncSessionGraphs({ repoRoot: '/r', deps: base(over) });
+    assert.deepStrictEqual(result.missing, []);
+  }
+});
+
+test('syncSessionGraphs omits scope from missing when leftover graph exists under skip-no-dirs', () => {
+  const result = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({
+      existingDirs: () => [],
+      // Prior session left a source graph.json even though dirs are gone now.
+      graphMtime: (outDir) => (outDir === DEFAULT_SOURCE_OUT ? 100 : null),
+    }),
+  });
+  assert.ok(!result.missing.includes('source'));
+  assert.deepStrictEqual(result.missing, ['context']);
+});
+
+test('graphSyncWarnings is silent when graphify is disabled', () => {
+  assert.deepStrictEqual(
+    graphSyncWarnings({ action: 'skip-graph-disabled', missing: [] }),
+    [],
+  );
+});
+
+test('graphSyncWarnings names configured source_dirs when source graph is missing', () => {
+  const noDirs = {
+    action: 'skip-no-dirs',
+    missing: ['source'],
+    graphs: [{
+      name: 'source',
+      configured: ['src', 'test'],
+      dirs: [],
+      outDir: DEFAULT_SOURCE_OUT,
+      action: 'skip-no-dirs',
+    }],
+    failed: [],
+  };
+  const lines = graphSyncWarnings(noDirs);
+  assert.ok(lines.length >= 1);
+  assert.match(lines[0], /source_dirs/);
+  assert.match(lines[0], /"src"/);
+  assert.match(lines[0], /none of/);
+  assert.match(lines[0], /\n$/);
+});
+
+test('graphSyncWarnings skips missing line when scope already failed', () => {
+  const lines = graphSyncWarnings({
+    action: 'build',
+    missing: ['source'],
+    graphs: [{
+      name: 'source',
+      configured: ['src', 'test'],
+      dirs: ['src'],
+      outDir: DEFAULT_SOURCE_OUT,
+      action: 'build',
+    }],
+    failed: [{ name: 'source', message: 'boom' }],
+  });
+  assert.strictEqual(lines.length, 1);
+  assert.match(lines[0], /graphify sync failed for source/);
+  assert.doesNotMatch(lines.join(''), /none of/);
+});
+
+test('graphSyncWarnings does not claim dirs missing when they were present', () => {
+  const lines = graphSyncWarnings({
+    action: 'build',
+    missing: ['source'],
+    graphs: [{
+      name: 'source',
+      configured: ['src'],
+      dirs: ['src'],
+      outDir: DEFAULT_SOURCE_OUT,
+      action: 'build',
+    }],
+    failed: [],
+  });
+  assert.ok(lines.length >= 1);
+  assert.doesNotMatch(lines[0], /none of/);
+  assert.match(lines[0], /no source graph was built/);
+});
+
+test('graphSyncWarnings is empty for a healthy sync', () => {
+  const healthy = {
+    action: 'skip-fresh',
+    missing: [],
+    graphs: [],
+    failed: [],
+  };
+  assert.strictEqual(graphSyncWarnings(healthy).length, 0);
+});
+
+test('graphSyncWarnings covers partial, legacy, no-graphify, and failed in order', () => {
+  assert.match(
+    graphSyncWarnings({ bootstrap: 'partial', action: 'skip-partial-bootstrap', missing: [] })[0],
+    /partial Bouncer state/,
+  );
+  assert.match(
+    graphSyncWarnings({ bootstrap: 'legacy', action: 'skip-legacy-bootstrap', missing: [] })[0],
+    /legacy state/,
+  );
+  const noCli = graphSyncWarnings({ action: 'skip-no-graphify', missing: [] });
+  assert.match(noCli[0], /graphifyy/);
+  assert.match(noCli[0], /docs\/install\.md/);
+  const failed = graphSyncWarnings({
+    action: 'build',
+    missing: [],
+    failed: [{ name: 'context', message: 'boom' }],
+  });
+  assert.match(failed[0], /graphify sync failed for context/);
 });
 
 test('syncSessionGraphs builds stale graphs via execGraphify', () => {

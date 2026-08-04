@@ -83,6 +83,9 @@ append a change log.
   review candidate (`minor` / `major`); docs-only and configuration-only diffs
   are exempt. Keep the rubric in sync across `skills/review`,
   `reviewer-prompt.md`, and `agents/bouncer-reviewer.md`.
+- `graphSyncWarnings` missing copy: use “none of … exist” only for
+  `skip-no-dirs` / empty `dirs`; scopes already in `failed` must not get a
+  missing line (failed covers them).
 
 ## Decisions
 
@@ -134,3 +137,6 @@ append a change log.
   an existing blueprint.
 - Epic `## Blueprints` one-line purpose must show what changes and where it
   touches so the next discovery can judge stream overlap from the list alone.
+- Graph absence is a state, not an error: `syncSessionGraphs.missing` stays
+  empty on `NO_GRAPH_WORK` paths and never flips `ok` to false; consumers
+  signal via fields / stderr, not exit codes.

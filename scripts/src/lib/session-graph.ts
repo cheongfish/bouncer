@@ -85,27 +85,29 @@ function resolveGraphScopes({ sourceDirs, contextDirs }) {
 function planOneGraph({ name, dirs, outDir, existingDirs, newestMtime, graphMtime }) {
   const present = existingDirs(dirs);
   const mtime = graphMtime(outDir);
+  // `configured` is the full config list; `dirs` stays present-only so callers
+  // can say "you asked for X but only Y exists" without re-reading config.
   if (present.length === 0) {
     return {
-      name, dirs: present, outDir, action: 'skip-no-dirs',
+      name, dirs: present, configured: dirs, outDir, action: 'skip-no-dirs',
       reason: `${name} dirs missing`,
     };
   }
   if (mtime === null) {
     return {
-      name, dirs: present, outDir, action: 'build',
+      name, dirs: present, configured: dirs, outDir, action: 'build',
       reason: `${name} graph missing`,
     };
   }
   const newest = newestMtime(present);
   if (newest <= mtime) {
     return {
-      name, dirs: present, outDir, action: 'skip-fresh',
+      name, dirs: present, configured: dirs, outDir, action: 'skip-fresh',
       reason: `${name} graph is up to date`,
     };
   }
   return {
-    name, dirs: present, outDir, action: 'build',
+    name, dirs: present, configured: dirs, outDir, action: 'build',
     reason: `${name} sources changed since last build`,
   };
 }
@@ -239,6 +241,15 @@ function defaultExecGraphify(repoRoot, graph) {
   });
 }
 
+// Early exits that never attempted graph work — reporting those scopes as
+// "missing" would blame the user for a deliberate no-op (disabled / bootstrap).
+const NO_GRAPH_WORK = new Set([
+  'skip-graph-disabled',
+  'skip-partial-bootstrap',
+  'skip-legacy-bootstrap',
+  'skip-no-graphify',
+]);
+
 /**
  * Plan freshness for source + context graphs and rebuild any that are stale.
  * Used by SessionStart and again by /bouncer-plan (graphify-runner) before query.
@@ -259,12 +270,86 @@ function syncSessionGraphs({ repoRoot, deps, execGraphify }) {
       }
     }
   }
-  return { ...decision, built, failed };
+  // Same deps.graphMtime injection planSessionGraph uses — probe the real
+  // graph.json after the build loop; do not infer absence from action strings
+  // (a prior session's graph still counts as present under skip-no-dirs).
+  const graphMtime = (deps && deps.graphMtime)
+    ? deps.graphMtime
+    : (outDir) => realGraphMtime(repoRoot, outDir);
+  const missing = NO_GRAPH_WORK.has(decision.action)
+    ? []
+    : decision.graphs
+      .filter((g) => graphMtime(g.outDir) === null)
+      .map((g) => g.name);
+  return { ...decision, built, failed, missing };
+}
+
+/**
+ * Turn a sync decision into stderr warning lines for SessionStart.
+ * Order: bootstrap (partial/legacy) → no-graphify → missing → failed.
+ * NO_GRAPH_WORK exits leave missing empty, so bootstrap lines never share
+ * stderr with missing/failed. Each line ends with \n for the hook.
+ */
+function graphSyncWarnings(decision) {
+  const lines = [];
+  if (decision.bootstrap === 'partial') {
+    lines.push(
+      'Bouncer: partial Bouncer state detected; preserving .bouncer and skipping SessionStart work.\n',
+    );
+  } else if (decision.bootstrap === 'legacy') {
+    lines.push(
+      'Bouncer: legacy state detected; remove or migrate legacy files, then run /bouncer-init.\n',
+    );
+  }
+  if (decision.action === 'skip-no-graphify') {
+    // Only when opted in (enabled) but CLI missing — default-disabled stays silent.
+    lines.push(
+      'Bouncer: graphify.enabled is true but graphify is not on PATH — path suggestions '
+      + 'will fall back to manual affected_paths. '
+      + 'Install: pip install graphifyy && graphify install. See docs/install.md.\n',
+    );
+  }
+  const byName = Object.fromEntries(
+    (decision.graphs || []).map((g) => [g.name, g]),
+  );
+  // Failed scopes already get a dedicated line; do not also claim their
+  // configured dirs are missing (dirs were present — the build failed).
+  const failedNames = new Set((decision.failed || []).map((f) => f.name));
+  for (const name of decision.missing || []) {
+    if (failedNames.has(name)) continue;
+    const graph = byName[name] || {};
+    const configured = Array.isArray(graph.configured) ? graph.configured : [];
+    const dirsKey = name === 'context' ? 'context_dirs' : `${name}_dirs`;
+    // "none of … exist" is only true for skip-no-dirs / empty present dirs.
+    const noDirs = graph.action === 'skip-no-dirs'
+      || !Array.isArray(graph.dirs)
+      || graph.dirs.length === 0;
+    if (noDirs) {
+      lines.push(
+        `Bouncer: graphify is enabled but no ${name} graph was built — none of `
+        + `${dirsKey} ${JSON.stringify(configured)} exist. Update .bouncer/config.json; path `
+        + 'suggestions will fall back to manual affected_paths.\n',
+      );
+    } else {
+      lines.push(
+        `Bouncer: graphify is enabled but no ${name} graph was built after sync. `
+        + 'Path suggestions will fall back to manual affected_paths.\n',
+      );
+    }
+  }
+  if (decision.failed && decision.failed.length) {
+    lines.push(
+      `Bouncer: graphify sync failed for ${decision.failed.map((f) => f.name).join(', ')}. `
+      + 'Plan will re-check; confirm affected_paths manually if graphs stay stale.\n',
+    );
+  }
+  return lines;
 }
 
 module.exports = {
   planSessionGraph,
   syncSessionGraphs,
+  graphSyncWarnings,
   resolveGraphScopes,
   DEFAULT_SOURCE_OUT,
   DEFAULT_CONTEXT_OUT,
