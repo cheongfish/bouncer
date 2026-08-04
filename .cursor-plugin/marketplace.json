@@ -2,8 +2,8 @@
   "name": "chunjae-tools",
   "description": "Chunjae internal agent plugins",
   "owner": {
-    "name": "Chunjae AI Dev",
-    "email": "aidev.chunjae@gmail.com"
+    "name": "Kim Cheongwoon",
+    "email": "rlq10324@chunjae.com"
   },
   "plugins": [
     {
@@ -14,7 +14,8 @@
       "category": "workflow",
       "keywords": ["spec-driven", "governance", "workflow", "gates"],
       "author": {
-        "name": "Chunjae AI Dev"
+        "name": "Kim Cheongwoon",
+        "email": "rlq10324@chunjae.com"
       }
     }
   ]

@@ -3,8 +3,8 @@
   "version": "0.3.0",
   "description": "Spec-driven development gates for Codex: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
   "author": {
-    "name": "Chunjae AI Dev",
-    "email": "aidev.chunjae@gmail.com"
+    "name": "Kim Cheongwoon",
+    "email": "rlq10324@chunjae.com"
   },
   "keywords": [
     "spec-driven",
@@ -17,7 +17,7 @@
     "displayName": "Bouncer",
     "shortDescription": "Spec-driven development gates for agent workflows",
     "longDescription": "Bouncer splits work into reviewable blueprints and enforces plan, execute, verify, and finalize gates so agents cannot claim done without evidence.",
-    "developerName": "Chunjae AI Dev",
+    "developerName": "Kim Cheongwoon",
     "category": "Developer Tools",
     "capabilities": [
       "Interactive",
