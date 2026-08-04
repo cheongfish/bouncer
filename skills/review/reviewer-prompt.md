@@ -48,6 +48,10 @@ diff. Prefer findings tied to this change over pre-existing nits. Also flag
 non-trivial new logic that lacks comments explaining **why**, invariants,
 trade-offs, or known ceilings (do not demand comments that only restate the
 next line).
+Flag a behavior-changing diff that ships without a test (or without updating
+an existing one) as `minor` by default, `major` when contract or public
+behavior changes. Do **not** apply this to docs-only or configuration-only
+diffs.
 
 ### Rubric — Over-engineering
 Flag deletable or simplifiable surface the brief did not need:

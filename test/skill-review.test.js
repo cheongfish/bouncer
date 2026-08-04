@@ -82,3 +82,15 @@ test('review and reviewer-prompt flag over-engineering without punishing why-com
   assert.match(reviewerPrompt, /unrequested abstraction|stdlib|root-cause/i);
   assert.match(reviewerPrompt, /why-comments|thorough why|\bwhy\b/i);
 });
+
+test('review rubric flags behavior changes that ship without tests', () => {
+  const md = readSkill('review');
+  const agent = fs.readFileSync(
+    path.join(root, 'agents', 'bouncer-reviewer.md'), 'utf8',
+  );
+  for (const doc of [md, reviewerPrompt, agent]) {
+    assert.match(doc, /without (a )?test|테스트 없|untested/i);
+    assert.match(doc, /minor|major/);
+  }
+  assert.match(md, /docs-only|documentation-only|configuration-only|문서만/i);
+});
