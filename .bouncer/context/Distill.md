@@ -71,6 +71,9 @@ append a change log.
   `tasks.md` as `bouncer.verify`.
 - A present-but-invalid `bouncer.verify` must not fall through to
   `config.verify` — that would hide a plan-time `S12` miss.
+- `finalize` nests the whole `nextBlueprint` return under `next`, so the
+  candidate is `next.next` and overlap is `next.next.sharedPaths` — a flat
+  `next.sharedPaths` read skips the handoff warning.
 - Skills and docs that say the pointer path is `.bouncer/current` are wrong;
   the shared file is `<git-common-dir>/bouncer/current`.
 - When `config.source_dirs` is `scripts` / `hooks` / `test`, Graphify source
@@ -132,6 +135,10 @@ append a change log.
 - `bouncer current --set` writes the pointer only after the plan gate passes;
   failures ship `validateBlueprint` results untouched and leave the pointer
   alone.
+- The next blueprint after finalize is a computation (`listReadyBlueprints` +
+  epic `## Blueprints` order), not stored state; advancing the pointer is
+  confirm-then-`bouncer current --set` only — never automatic and never a new
+  CLI.
 - discovery Confirmation hands off six named outputs: `Goal`, `Scope`,
   `Non-goals`, `Success criteria`, `Edge cases & failure modes`, `Overlap`.
   `/bouncer-plan` step 1 cites those names and maps Edge cases → blueprint
