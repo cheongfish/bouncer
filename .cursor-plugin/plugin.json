@@ -7,11 +7,14 @@
     "name": "Kim Cheongwoon",
     "email": "rlq10324@chunjae.com"
   },
+  "homepage": "https://github.com/cheongfish/bouncer",
+  "repository": "https://github.com/cheongfish/bouncer",
   "keywords": [
     "spec-driven",
     "governance",
     "workflow",
     "gates"
   ],
+  "skills": "./skills/",
   "hooks": "./hooks/cursor-hooks.json"
 }

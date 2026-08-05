@@ -25,7 +25,9 @@ Claude Code · Cursor · Codex가 **같은 저장소**를 플러그인으로 읽
 
 ## Cursor
 
-같은 저장소가 Cursor 플러그인이기도 합니다 (`.cursor-plugin/`). Cursor 세션에서:
+같은 저장소가 Cursor 플러그인이기도 합니다 (`.cursor-plugin/plugin.json`).
+단일 플러그인이라 Claude Code용 `marketplace.json`과 달리 Cursor 쪽
+marketplace 카탈로그는 두지 않습니다. Cursor 세션에서:
 
 ```
 /add-plugin <사내-git-url>
@@ -35,7 +37,21 @@ Claude Code · Cursor · Codex가 **같은 저장소**를 플러그인으로 읽
 Cursor의 기본 탐색 경로와 레이아웃이 같아 그대로 잡힙니다. 커밋 가드는
 `hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
 밖 파일이 staged면 셸 실행을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
-**판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다.
+**판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다. 훅은 상대 경로를
+쓰므로 아래 `BOUNCER_HOME`과 무관합니다.
+
+**`BOUNCER_HOME` (필수에 가깝다).** Cursor 스킬 셸에는 `CLAUDE_PLUGIN_ROOT` /
+`PLUGIN_ROOT`가 없습니다. `/bouncer-plan`·`/bouncer-execute` 등이
+`node …/scripts/bouncer`를 실행하려면 플러그인 루트를 직접 알려 줘야 합니다.
+
+```bash
+# scripts/bouncer 가 있는 디렉터리 — 실제 설치 경로로 바꾸세요
+export BOUNCER_HOME=~/.cursor/plugins/local/bouncer
+```
+
+셸 프로필이나 프로젝트 환경에 넣어 두면 세션마다 다시 설정하지 않아도 됩니다.
+값이 비면 경로가 `/scripts/bouncer`처럼 깨져 CLI 호출이 실패합니다. 해석 순서는
+아래 [플러그인 루트](#플러그인-루트-bouncer_home)를 보세요.
 
 ## Codex
 

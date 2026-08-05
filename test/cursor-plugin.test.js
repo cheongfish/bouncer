@@ -47,11 +47,14 @@ test('cursor-hooks.json registers commit safety on beforeShellExecution', () => 
   assert.ok(entries[0].command.includes('cursor-commit-safety.js'));
 });
 
-test('the Cursor marketplace lists bouncer at the repository root', () => {
-  const market = readJson('.cursor-plugin/marketplace.json');
-  const entry = (market.plugins || []).find((p) => p.name === 'bouncer');
-  assert.ok(entry, 'no bouncer entry');
-  assert.strictEqual(entry.source, './');
+// Single-plugin repos only need plugin.json. marketplace.json is for
+// multi-plugin Cursor marketplaces; Claude Code still uses
+// .claude-plugin/marketplace.json for /plugin marketplace add.
+test('the Cursor plugin has no marketplace.json', () => {
+  assert.ok(
+    !fs.existsSync(path.join(root, '.cursor-plugin/marketplace.json')),
+    'single-plugin Cursor layout must omit .cursor-plugin/marketplace.json',
+  );
 });
 
 // Codex's official validator rejects a `hooks` key in plugin.json, but still

@@ -59,8 +59,11 @@ flowchart TB
 ## Install
 
 다른 프로젝트에 스킬·훅이 붙지 않도록 **project 또는 local scope** 설치를 권장합니다.
+자세한 설치·루트 해석은 [docs/install.md](docs/install.md)를 보세요.
 
 ### Claude Code
+
+카탈로그는 `.claude-plugin/marketplace.json`입니다. 마켓을 등록한 뒤 플러그인을 설치합니다.
 
 ```
 /plugin marketplace add https://github.com/cheongfish/bouncer.git
@@ -76,13 +79,29 @@ claude plugin install bouncer@chunjae-tools --scope local     # 본인만 (.clau
 
 ### Cursor
 
+단일 플러그인이라 `.cursor-plugin/plugin.json`만 있으면 됩니다 (marketplace 카탈로그 없음).
+
 ```
 /add-plugin https://github.com/cheongfish/bouncer.git
 ```
 
 설치 UI에서 **project / workspace**를 선택하세요.
 
+Cursor는 Claude/Codex와 달리 스킬 셸에 플러그인 루트 변수를 넣지 않습니다.
+`/bouncer-plan` 등이 `scripts/bouncer`를 찾으려면 **`BOUNCER_HOME`을 설치
+디렉터리로 export** 하세요 (`scripts/bouncer`가 있는 곳).
+
+```bash
+# 예: 로컬 플러그인 경로 — 실제 설치 위치로 바꾸세요
+export BOUNCER_HOME=~/.cursor/plugins/local/bouncer
+```
+
+셸 프로필이나 프로젝트 환경에 넣어 두면 세션마다 다시 설정하지 않아도 됩니다.
+커밋 가드 훅은 상대 경로라 `BOUNCER_HOME`과 무관합니다.
+
 ### Codex
+
+레포 카탈로그는 `.agents/plugins/marketplace.json`입니다.
 
 ```bash
 codex plugin marketplace add https://github.com/cheongfish/bouncer.git
