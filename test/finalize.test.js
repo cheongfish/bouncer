@@ -11,7 +11,7 @@ const { finalize } = require('../scripts/lib/finalize');
 const { computeDiffSha } = require('../scripts/lib/comprehension');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
-const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 const EXPLAIN_BODY = `# Explain
 
@@ -64,11 +64,11 @@ function fullBlueprint(repo, {
   writeDoc(repo, `${epicDir}/index.md`, {
     type: 'bouncer.epic', title: 'Auth', description: 'd', resource: `${epicDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
   });
   const epicLeaf = epicDir.split('/').pop();
-  const epicIdMatch = /^(EPIC-\d+)/.exec(epicLeaf);
-  const epicId = epicIdMatch ? epicIdMatch[1] : 'EPIC-001';
+  const epicIdMatch = /^(\d{3})-/.exec(epicLeaf);
+  const epicId = epicIdMatch ? epicIdMatch[1] : '001';
   const epicSlug = epicLeaf.slice(epicId.length + 1) || 'auth';
   ensureEpicIndexEntry({
     repoRoot: repo, epicId, name: epicSlug, description: 'd',
@@ -76,18 +76,18 @@ function fullBlueprint(repo, {
   writeDoc(repo, `${blueprintDir}/index.md`, {
     type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${blueprintDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved' },
+    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
   });
   writeDoc(repo, `${blueprintDir}/tasks.md`, {
     type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'verified',
+    bouncer: { id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
       affected_paths: ['src/auth/'] },
   });
   writeDoc(repo, `${blueprintDir}/verification.md`, {
     type: 'bouncer.verification', title: 'Verified', description: 'd', resource: `${blueprintDir}/verification.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'VERIFY-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'passed' },
+    bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'passed' },
   });
 
   let comprehension = {
@@ -131,7 +131,7 @@ function fullBlueprint(repo, {
     type: 'bouncer.explain', title: 'Explain', description: 'd', resource: `${blueprintDir}/explain.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'EXPLAIN-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'published',
+      id: 'EXPLAIN-001', epic_id: '001', blueprint_id: '001', status: 'published',
       comprehension,
     },
   }, body);
@@ -195,7 +195,7 @@ test('--yes stages and commits', () => {
 
 test('legacy root context blueprint is rejected before staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  const legacyBp = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
+  const legacyBp = 'context/epics/001-auth/blueprints/001-login';
   fullBlueprint(repo, { blueprintDir: legacyBp, withGit: false, comprehensionOk: false });
   const g = fakeGit([`${legacyBp}/tasks.md`], []);
   const res = finalize({ repoRoot: repo, blueprintDir: legacyBp, yes: true, git: g.api });
@@ -295,8 +295,8 @@ test('finalize dry-run and commit both carry injected next payload', () => {
   fullBlueprint(repo);
   const payload = {
     next: {
-      blueprint: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-002-x',
-      epic: '.bouncer/context/epics/EPIC-001-auth',
+      blueprint: '.bouncer/context/epics/001-auth/blueprints/002-x',
+      epic: '.bouncer/context/epics/001-auth',
       sameEpic: true,
       sharedPaths: ['src/auth/'],
     },

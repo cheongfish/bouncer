@@ -1,0 +1,47 @@
+---
+type: bouncer.verification
+title: 003 verification
+description: Verification for 003
+resource: .bouncer/context/epics/014-numeric-context-ids/blueprints/003-dogfood-context/verification.md
+tags:
+  - bouncer
+  - verification
+timestamp: '2026-08-05T16:54:53.798+09:00'
+bouncer:
+  id: VERIFY-003
+  epic_id: '014'
+  blueprint_id: '003'
+  status: passed
+  verification:
+    command: npm test
+    ran_at: '2026-08-06T08:47:20.778+09:00'
+    exit_code: 0
+    output_tail: |-
+      ---
+        duration_ms: 0.783772
+        type: 'test'
+        ...
+      # Subtest: readVerifyCommand(repoRoot) still returns config.verify
+      ok 375 - readVerifyCommand(repoRoot) still returns config.verify
+        ---
+        duration_ms: 0.166372
+        type: 'test'
+        ...
+      1..375
+      # tests 375
+      # suites 0
+      # pass 375
+      # fail 0
+      # cancelled 0
+      # skipped 0
+      # todo 0
+      # duration_ms 422.33352
+---
+# Verification
+
+## Command
+`npm test`
+
+## Evidence
+Ran at: 2026-08-06T08:47:20.778+09:00
+Exit code: 0

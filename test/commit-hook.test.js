@@ -21,7 +21,7 @@ test('isGitCommit detects commit invocations', () => {
   assert.strictEqual(isGitCommit('git -c user.name=x commit -m y'), true);
 });
 
-const BP = '.bouncer/context/epics/EPIC-001-x/blueprints/BP-001-y';
+const BP = '.bouncer/context/epics/001-x/blueprints/001-y';
 
 function deps({
   current, affected, staged, mainCurrent = null,
@@ -105,7 +105,7 @@ test('worktree pointer present → used directly, main-repo fallback not needed'
     command: 'git commit -m x', repoRoot: '/state/bouncer/worktrees/repo-id/BP-001-y',
     deps: deps({
       current: { blueprint: BP, base: 'develop' },
-      mainCurrent: { blueprint: '.bouncer/context/epics/EPIC-999-z/blueprints/BP-999-z', base: 'main' },
+      mainCurrent: { blueprint: '.bouncer/context/epics/999-z/blueprints/999-z', base: 'main' },
       affected: ['src/feature'],
       staged: ['src/feature/a.js'],
     }),

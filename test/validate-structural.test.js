@@ -7,7 +7,6 @@ const path = require('node:path');
 const { validateBlueprint } = require('../scripts/lib/validate');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
-const BP_LEGACY = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
 function mkRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
@@ -22,7 +21,7 @@ function writeDoc(repo, rel, data, body = '# x\n') {
 
 function writeBundleIndex(repo, epicDirs = ['001-auth']) {
   const lines = epicDirs.map((d) => {
-    const m = d.match(/^((?:EPIC-)?\d{3})-(.+)$/);
+    const m = d.match(/^(\d{3})-(.+)$/);
     const id = m[1];
     const slug = m[2];
     return `* [${id} ${slug}](epics/${d}/index.md) - Epic ${id}`;
@@ -101,7 +100,7 @@ test('S3/S6/S7 detect resource, status, affected_paths problems', () => {
   assert.ok(codes.includes('S7'));
 });
 
-test('S4: rejects child id that is neither KIND-\\d{3} nor legacy KIND-BP-\\d{3}', () => {
+test('S4: rejects child id that is not KIND-\\d{3}', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, {
     ...goodTasks(),
@@ -109,8 +108,7 @@ test('S4: rejects child id that is neither KIND-\\d{3} nor legacy KIND-BP-\\d{3}
   });
   writeDoc(repo, `${BP_REL}/index.md`, {
     ...blueprintDoc(),
-    // 구형 BP-001은 normalize 후 001 → S4 통과; 자식 bogus만 실패해야 함
-    bouncer: { id: 'BP-001', epic_id: '001', blueprint_id: '001', status: 'draft' },
+    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'draft' },
   });
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
@@ -135,51 +133,40 @@ test('a fully valid numeric blueprint passes structural checks', () => {
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
 
-test('legacy path + legacy meta (EPIC-/BP-/TASKS-BP-) still passes S5', () => {
+test('S5: legacy-prefixed frontmatter fails on a canonical path', () => {
   const repo = mkRepo();
-  writeDoc(repo, `${BP_LEGACY}/tasks.md`, {
-    type: 'bouncer.tasks',
-    title: 'Login tasks',
-    description: 'Tasks for BP-001',
-    resource: `${BP_LEGACY}/tasks.md`,
-    tags: ['bouncer', 'tasks'],
-    timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: {
-      id: 'TASKS-BP-001',
-      epic_id: 'EPIC-001',
-      blueprint_id: 'BP-001',
-      status: 'ready',
-      affected_paths: ['src/auth/'],
-    },
-  });
-  writeDoc(repo, `${BP_LEGACY}/index.md`, {
-    type: 'bouncer.blueprint',
-    title: 'Login blueprint',
-    description: 'BP-001',
-    resource: `${BP_LEGACY}/index.md`,
-    tags: ['bouncer', 'blueprint'],
-    timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'draft' },
-  });
-  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', {
-    type: 'bouncer.epic',
-    title: 'Auth epic',
-    description: 'EPIC-001',
-    resource: '.bouncer/context/epics/EPIC-001-auth/index.md',
-    tags: ['bouncer', 'epic'],
-    timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'draft' },
-  });
-  writeBundleIndex(repo, ['EPIC-001-auth']);
-  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_LEGACY });
-  assert.deepStrictEqual(res, { ok: true, failures: [] });
+  const tasks = goodTasks();
+  tasks.bouncer.id = 'TASKS-BP-001';
+  tasks.bouncer.epic_id = 'EPIC-001';
+  tasks.bouncer.blueprint_id = 'BP-001';
+  writeDoc(repo, `${BP_REL}/tasks.md`, tasks);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.failures.some((f) => f.code === 'S5' && /epic_id/.test(f.message)));
+  assert.ok(res.failures.some((f) => f.code === 'S5' && /blueprint_id/.test(f.message)));
+  assert.ok(res.failures.some((f) => f.code === 'S5' && /id TASKS-BP-001/.test(f.message)));
 });
 
-test('S5: wrong number after legacy-prefix normalize still fails', () => {
+test('S10: legacy-prefixed blueprint path is not canonical', () => {
   const repo = mkRepo();
-  const t = goodTasks();
-  t.bouncer.epic_id = 'EPIC-013';
-  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  const legacyBp = '.bouncer/context/epics/' + 'EPIC-001-auth/blueprints/' + 'BP-001-login';
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: legacyBp });
+  assert.strictEqual(res.ok, false);
+  assert.deepStrictEqual(res.failures.map((f) => f.code), ['S10']);
+});
+
+test('S5: legacy-prefixed epic id fails even when digits match', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, {
+    ...goodTasks(),
+    bouncer: {
+      ...goodTasks().bouncer,
+      epic_id: 'EPIC-001',
+    },
+  });
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeBundleIndex(repo);
@@ -208,6 +195,50 @@ test('S13: bundle context index lists a missing epic directory', () => {
   writeBundleIndex(repo, ['001-auth', '099-ghost']);
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.ok(res.failures.some((f) => f.code === 'S13' && /missing epic/.test(f.message)));
+});
+
+test('S13: legacy-prefixed epic directory alone fails', () => {
+  const repo = mkRepo();
+  // 정본 blueprint로 validate가 S10 early-return 없이 진행하게 두고,
+  // 옆에 구형 EPIC- 디렉터리·index 링크만 남겨 S13이 거절하는지 본다.
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  const legacyEpic = '.bouncer/context/epics/' + 'EPIC-002-other';
+  writeDoc(repo, `${legacyEpic}/index.md`, {
+    ...epicDoc(),
+    bouncer: { ...epicDoc().bouncer, id: 'EPIC-002', epic_id: 'EPIC-002' },
+  });
+  const abs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(
+    abs,
+    '---\nokf_version: "0.1"\n---\n# Epics\n\n' +
+      '* [001 auth](epics/001-auth/index.md) - auth\n' +
+      '* [EPIC-002 other](epics/' + 'EPIC-002-other' + '/index.md) - other\n',
+  );
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.failures.some((f) => f.code === 'S13' && /legacy-prefixed epic directory/.test(f.message)));
+  assert.ok(res.failures.some((f) => f.code === 'S13' && /legacy-prefixed epic link/.test(f.message)));
+});
+
+test('S13: legacy-only tree fails without a canonical epic present', () => {
+  const repo = mkRepo();
+  const legacyEpic = '.bouncer/context/epics/' + 'EPIC-001-auth';
+  writeDoc(repo, `${legacyEpic}/index.md`, epicDoc());
+  const abs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(
+    abs,
+    '---\nokf_version: "0.1"\n---\n# Epics\n\n* [EPIC-001 auth](epics/' +
+      'EPIC-001-auth' +
+      '/index.md) - auth\n',
+  );
+  const { checkEpicIndexConsistency } = require('../scripts/lib/epic-index');
+  const failures = checkEpicIndexConsistency({ repoRoot: repo });
+  assert.ok(failures.some((f) => f.code === 'S13' && /legacy-prefixed epic directory/.test(f.message)));
+  assert.ok(failures.some((f) => f.code === 'S13' && /legacy-prefixed epic link/.test(f.message)));
 });
 
 test('S0: malformed frontmatter is collected as a failure, not thrown', () => {

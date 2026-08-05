@@ -103,11 +103,11 @@ append a change log.
   `doesNotMatch(/이해 상태/)` — the prohibition text itself would break an
   absence assert.
 - `normalizeContextId` strips legacy `EPIC-`/`BP-` and `KIND-BP-` prefixes
-  only — wrong digits still fail S5 after normalize (e.g. `EPIC-013` under
-  `epics/014-…`).
+  for migrate rewrite only — S4/S5 do not call it; wrong or prefixed ids fail
+  as written.
 - Legacy-id SessionStart discovery must call `migrate-ids` `discoverLegacyIds`,
-  not layout/`parsePathIds` transition allowance — BP-003 removes the latter
-  and the hook must still warn.
+  not layout/`parsePathIds` (hard cut removed transition allowance). The hook
+  must still warn on unmigrated consumer trees.
 - Do not fold legacy-id warnings into `session-graph.js` — that hook is gated
   on `config.graphify.enabled` and swallows exceptions, so migration guidance
   disappears when graphs fail or are disabled.
@@ -142,7 +142,7 @@ append a change log.
 - Plan artifacts reach the execute worktree through `bouncer seed-worktree`,
   run in the base checkout right after `git worktree add`; the moved set is the
   plan context documents only, and the base is returned to HEAD.
-- Execute worktrees live under `<repo>/.worktrees/<BP-id>` (shared via the
+- Execute worktrees live under `<repo>/.worktrees/<zero-padded numeric blueprint id>` (shared via the
   main worktree root from `git-common-dir`), not under the host XDG state home.
 - Review Findings come from named agent `bouncer-reviewer` (or generic /
   inline fallback when named agents are unavailable); only the controller
@@ -190,8 +190,12 @@ append a change log.
 - Canonical epic/blueprint context ids are zero-padded `\d{3}` with no
   `EPIC-`/`BP-` prefix; child docs use `TASKS-`|`VERIFY-`|`REVIEW-`|`EXPLAIN-`
   + `\d{3}` (e.g. `TASKS-001`). Scaffold/`--id` accept and emit that shape
-  only. Legacy prefixed path segments and frontmatter remain readable via
-  normalize/layout during the transition (removal is a later BP).
+  only. Legacy-prefixed path segments and frontmatter fail canonical/S5/S13
+  after the hard cut — consumers must `bouncer migrate ids` first.
 - Legacy tree migration surface is `bouncer migrate ids` plus the
   `migrate-ids` skill (dry-run → confirm → apply). SessionStart warns through
   a separate hook that reuses that discoverer; it does not rename trees.
+  Dogfood order is migrate apply first, then remove layout/`parsePathIds`/S5
+  legacy allowance — reverse order breaks validate on the migrating docs.
+- Execute worktree directory and branch names are not renamed by migrate even
+  when they still contain legacy `BP-` tokens; leave them through finalize.

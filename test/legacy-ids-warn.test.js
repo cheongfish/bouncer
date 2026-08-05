@@ -24,7 +24,7 @@ test('legacyIdsWarnings is empty when no legacy dirs exist', () => {
 test('legacyIdsWarnings mentions migrate-ids skill and dry-run CLI', () => {
   const repo = mkRepo();
   fs.mkdirSync(
-    path.join(repo, '.bouncer/context/epics/EPIC-014-x/blueprints/BP-001-y'),
+    path.join(repo, '.bouncer/context/epics', 'EPIC-014-x', 'blueprints', 'BP-001-y'),
     { recursive: true },
   );
   const d = discoverLegacyIds({ repoRoot: repo });
@@ -41,7 +41,7 @@ test('legacyIdsWarnings mentions migrate-ids skill and dry-run CLI', () => {
 test('SessionStart legacy hook prints warnings and exits 0', () => {
   const repo = mkRepo();
   fs.mkdirSync(
-    path.join(repo, '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login'),
+    path.join(repo, '.bouncer/context/epics', 'EPIC-001-auth', 'blueprints', 'BP-001-login'),
     { recursive: true },
   );
   const hook = path.join(__dirname, '../hooks/session-legacy-ids.js');

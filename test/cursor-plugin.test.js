@@ -156,7 +156,7 @@ test('the Cursor adapter allows commands that are not commits', () => {
   assert.strictEqual(res.permission, 'allow');
 });
 
-const BP = '.bouncer/context/epics/EPIC-001-x/blueprints/BP-001-y';
+const BP = '.bouncer/context/epics/001-x/blueprints/001-y';
 
 // A repository with an active blueprint whose affected_paths cover src/feature
 // only, and one staged file on each side of that boundary.

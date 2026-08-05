@@ -11,9 +11,13 @@ okf_version: "0.1"
 
 `;
 
-// OKF §6: 신형 `epics/001-slug` + 전이용 `epics/EPIC-001-slug`. S13이 구형 실디렉터리와 맞아야 함.
-const EPIC_LINK_RE = /\]\(epics\/((?:EPIC-)?\d{3}-[^/)]+)\/index\.md\)/g;
-const EPIC_DIR_NAME_RE = /^(?:EPIC-)?\d{3}-.+$/;
+// OKF §6: bundle index와 실제 디렉터리 모두 숫자 정본 경로만 비교한다.
+// 구형 EPIC- 접두는 목록에서 조용히 빼지 않고 S13으로 거절한다 — 전이 종료 후
+// “구형만 남은 트리”가 빈 dirs로 통과하면 안 된다.
+const EPIC_LINK_RE = /\]\(epics\/(\d{3}-[^/)]+)\/index\.md\)/g;
+const LEGACY_EPIC_LINK_RE = /\]\(epics\/(EPIC-\d{3}-[^/)]+)\/index\.md\)/g;
+const EPIC_DIR_NAME_RE = /^\d{3}-.+$/;
+const LEGACY_EPIC_DIR_NAME_RE = /^EPIC-\d{3}-.+$/;
 
 function listEpicDirNames(repoRoot) {
   const epicsRoot = path.join(repoRoot, CONTEXT_ROOT, 'epics');
@@ -37,11 +41,44 @@ function listEpicDirNames(repoRoot) {
   return dirs;
 }
 
+/** 구형 EPIC- 접두 epic 디렉터리 이름. S13 거절 대상. */
+function listLegacyEpicDirNames(repoRoot) {
+  const epicsRoot = path.join(repoRoot, CONTEXT_ROOT, 'epics');
+  if (!fs.existsSync(epicsRoot)) return [];
+  let names: string[];
+  try {
+    names = fs.readdirSync(epicsRoot);
+  } catch (_e) {
+    return [];
+  }
+  const dirs: string[] = [];
+  for (const name of names) {
+    if (!LEGACY_EPIC_DIR_NAME_RE.test(name)) continue;
+    try {
+      if (fs.statSync(path.join(epicsRoot, name)).isDirectory()) dirs.push(name);
+    } catch (_e) {
+      // skip unreadable entries
+    }
+  }
+  dirs.sort();
+  return dirs;
+}
+
 function parseIndexEpicDirs(text) {
   const listed = new Set<string>();
   EPIC_LINK_RE.lastIndex = 0;
   let m;
   while ((m = EPIC_LINK_RE.exec(text)) !== null) {
+    listed.add(m[1]);
+  }
+  return listed;
+}
+
+function parseLegacyIndexEpicDirs(text) {
+  const listed = new Set<string>();
+  LEGACY_EPIC_LINK_RE.lastIndex = 0;
+  let m;
+  while ((m = LEGACY_EPIC_LINK_RE.exec(text)) !== null) {
     listed.add(m[1]);
   }
   return listed;
@@ -76,10 +113,21 @@ function ensureEpicIndexEntry({ repoRoot, epicId, name, description }) {
 /** epic 디렉터리 ↔ `.bouncer/context/index.md` 목록 일치. S13 실패 목록. */
 function checkEpicIndexConsistency({ repoRoot }) {
   const failures: Array<{ code: string; message: string; file: string }> = [];
-  const dirs = listEpicDirNames(repoRoot);
-  if (dirs.length === 0) return failures;
+  const legacyDirs = listLegacyEpicDirNames(repoRoot);
+  for (const d of legacyDirs) {
+    failures.push({
+      code: 'S13',
+      message: `legacy-prefixed epic directory is not canonical: ${d}`,
+      file: `${CONTEXT_ROOT}/epics/${d}`,
+    });
+  }
 
+  const dirs = listEpicDirNames(repoRoot);
   const abs = path.join(repoRoot, CONTEXT_INDEX_REL);
+  const hasEpics = dirs.length > 0 || legacyDirs.length > 0;
+
+  if (!hasEpics) return failures;
+
   if (!fs.existsSync(abs)) {
     failures.push({
       code: 'S13',
@@ -100,6 +148,17 @@ function checkEpicIndexConsistency({ repoRoot }) {
     });
     return failures;
   }
+
+  for (const d of [...parseLegacyIndexEpicDirs(text)].sort()) {
+    failures.push({
+      code: 'S13',
+      message: `legacy-prefixed epic link is not canonical: ${d}`,
+      file: CONTEXT_INDEX_REL,
+    });
+  }
+
+  // 정본 디렉터리가 하나도 없으면 구형 거절만으로 충분하다.
+  if (dirs.length === 0) return failures;
 
   const listed = parseIndexEpicDirs(text);
   for (const d of dirs) {
@@ -126,7 +185,9 @@ function checkEpicIndexConsistency({ repoRoot }) {
 module.exports = {
   CONTEXT_INDEX_REL,
   listEpicDirNames,
+  listLegacyEpicDirNames,
   parseIndexEpicDirs,
+  parseLegacyIndexEpicDirs,
   formatEpicIndexLine,
   ensureEpicIndexEntry,
   checkEpicIndexConsistency,

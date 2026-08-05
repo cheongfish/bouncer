@@ -10,7 +10,7 @@ const { runCli } = require('../scripts/lib/cli');
 const { readCurrent, writeCurrent } = require('../scripts/lib/current');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
-const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function capture(argv) {
   const buf = { out: '', err: '' };
@@ -53,32 +53,32 @@ Ship login validation.
 `;
 
 function writePlanPassingBlueprint(repo) {
-  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', {
-    type: 'bouncer.epic', title: 'Auth epic', description: 'EPIC-001',
-    resource: '.bouncer/context/epics/EPIC-001-auth/index.md',
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth epic', description: '001',
+    resource: '.bouncer/context/epics/001-auth/index.md',
     tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
   });
   writeDoc(repo, `${BP_REL}/index.md`, {
-    type: 'bouncer.blueprint', title: 'Login blueprint', description: 'BP-001',
+    type: 'bouncer.blueprint', title: 'Login blueprint', description: '001',
     resource: `${BP_REL}/index.md`,
     tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved',
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
     },
   });
   writeDoc(repo, `${BP_REL}/tasks.md`, {
-    type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for BP-001',
+    type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for 001',
     resource: `${BP_REL}/tasks.md`,
     tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'ready',
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready',
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['./src/auth/login.js', './test/auth/login.test.js'],
     },
   }, PLAN_BODY);
   ensureEpicIndexEntry({
-    repoRoot: repo, epicId: 'EPIC-001', name: 'auth', description: 'Epic EPIC-001',
+    repoRoot: repo, epicId: '001', name: 'auth', description: 'Epic 001',
   });
 }
 
@@ -140,26 +140,26 @@ test('current --set respects --base and config base_branch', () => {
 test('current --set does not write pointer when plan gate fails', () => {
   const repo = tmpGitRepo();
   // Blueprint documents exist but fail the plan gate (draft statuses).
-  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', {
-    type: 'bouncer.epic', title: 'Auth epic', description: 'EPIC-001',
-    resource: '.bouncer/context/epics/EPIC-001-auth/index.md',
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth epic', description: '001',
+    resource: '.bouncer/context/epics/001-auth/index.md',
     tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'draft' },
+    bouncer: { id: '001', epic_id: '001', status: 'draft' },
   });
   writeDoc(repo, `${BP_REL}/index.md`, {
-    type: 'bouncer.blueprint', title: 'Login blueprint', description: 'BP-001',
+    type: 'bouncer.blueprint', title: 'Login blueprint', description: '001',
     resource: `${BP_REL}/index.md`,
     tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'draft',
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'draft',
     },
   });
   writeDoc(repo, `${BP_REL}/tasks.md`, {
-    type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for BP-001',
+    type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for 001',
     resource: `${BP_REL}/tasks.md`,
     tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'draft',
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'draft',
       affected_paths: [],
     },
   });

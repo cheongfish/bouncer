@@ -8,12 +8,12 @@ const { checkGate, parseTasksSections, extractPathCandidates, validateBlueprint 
 const { TEMPLATES } = require('../scripts/lib/templates');
 
 const rels = {
-  epicIndex: '.bouncer/context/epics/EPIC-001-auth/index.md',
-  blueprintIndex: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/index.md',
-  tasks: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/tasks.md',
-  verification: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/verification.md',
-  review: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/review.md',
-  explain: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login/explain.md',
+  epicIndex: '.bouncer/context/epics/001-auth/index.md',
+  blueprintIndex: '.bouncer/context/epics/001-auth/blueprints/001-login/index.md',
+  tasks: '.bouncer/context/epics/001-auth/blueprints/001-login/tasks.md',
+  verification: '.bouncer/context/epics/001-auth/blueprints/001-login/verification.md',
+  review: '.bouncer/context/epics/001-auth/blueprints/001-login/review.md',
+  explain: '.bouncer/context/epics/001-auth/blueprints/001-login/explain.md',
 };
 
 const READY_BODY = `# Tasks
@@ -369,7 +369,7 @@ function explainDoc(comprehension, body = EXPLAIN_BODY_OK) {
 
 const G15_CTX = {
   repoRoot: '/tmp/unused',
-  blueprintDir: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login',
+  blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
   deps: {
     readCurrent: () => null,
     readConfig: () => ({}),
@@ -473,7 +473,7 @@ test('finalize gate G15 fails when explain.md is absent', () => {
   assert.match(failures[0].message, /explain\.md missing/);
 });
 
-const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function mkRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-gates-'));
@@ -490,11 +490,11 @@ function epicDoc() {
   return {
     type: 'bouncer.epic',
     title: 'Auth epic',
-    description: 'EPIC-001',
-    resource: '.bouncer/context/epics/EPIC-001-auth/index.md',
+    description: '001',
+    resource: '.bouncer/context/epics/001-auth/index.md',
     tags: ['bouncer', 'epic'],
     timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
   };
 }
 
@@ -502,11 +502,11 @@ function blueprintDoc() {
   return {
     type: 'bouncer.blueprint',
     title: 'Login blueprint',
-    description: 'BP-001',
+    description: '001',
     resource: `${BP_REL}/index.md`,
     tags: ['bouncer', 'blueprint'],
     timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'approved' },
+    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
   };
 }
 
@@ -535,14 +535,14 @@ function planReadyTasks() {
   return {
     type: 'bouncer.tasks',
     title: 'Login tasks',
-    description: 'Tasks for BP-001',
+    description: 'Tasks for 001',
     resource: `${BP_REL}/tasks.md`,
     tags: ['bouncer', 'tasks'],
     timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'TASKS-BP-001',
-      epic_id: 'EPIC-001',
-      blueprint_id: 'BP-001',
+      id: 'TASKS-001',
+      epic_id: '001',
+      blueprint_id: '001',
       status: 'ready',
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['./src/auth/login.js', './test/auth/login.test.js'],
@@ -551,7 +551,7 @@ function planReadyTasks() {
 }
 
 function writePlanBlueprint(repo, tasksBody) {
-  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, `${BP_REL}/tasks.md`, planReadyTasks(), tasksBody);
   const indexAbs = path.join(repo, '.bouncer/context/index.md');
@@ -559,7 +559,7 @@ function writePlanBlueprint(repo, tasksBody) {
   fs.writeFileSync(
     indexAbs,
     '---\nokf_version: "0.1"\n---\n# Epics\n\n'
-    + '* [EPIC-001 auth](epics/EPIC-001-auth/index.md) - Epic EPIC-001\n',
+    + '* [001 auth](epics/001-auth/index.md) - Epic 001\n',
   );
 }
 

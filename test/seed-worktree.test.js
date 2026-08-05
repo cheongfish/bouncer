@@ -8,8 +8,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { seedWorktree } = require('../scripts/lib/seed-worktree');
 
-const EPIC_REL = '.bouncer/context/epics/EPIC-001-auth';
-const BP_REL = `${EPIC_REL}/blueprints/BP-001-login`;
+const EPIC_REL = '.bouncer/context/epics/001-auth';
+const BP_REL = `${EPIC_REL}/blueprints/001-login`;
 const INDEX_REL = '.bouncer/context/index.md';
 const COMMITTED_INDEX = '# Epics\ncommitted\n';
 
@@ -226,7 +226,7 @@ test('dirty files outside the plan context set are left alone', () => {
   write(repo, '.bouncer/config.json', '{"verify":"npm test"}\n');
   write(repo, 'scripts/keep.js', 'locally edited\n');
   write(repo, '.bouncer/Distill.md', '# Distill\n');
-  write(repo, '.bouncer/context/epics/EPIC-002-other/index.md', 'other epic\n');
+  write(repo, '.bouncer/context/epics/002-other/index.md', 'other epic\n');
 
   const res = seed(repo, wt);
 
@@ -235,7 +235,7 @@ test('dirty files outside the plan context set are left alone', () => {
   assert.strictEqual(read(repo, '.bouncer/config.json'), '{"verify":"npm test"}\n');
   assert.strictEqual(read(repo, 'scripts/keep.js'), 'locally edited\n');
   assert.strictEqual(read(repo, '.bouncer/Distill.md'), '# Distill\n');
-  assert.strictEqual(read(repo, '.bouncer/context/epics/EPIC-002-other/index.md'), 'other epic\n');
+  assert.strictEqual(read(repo, '.bouncer/context/epics/002-other/index.md'), 'other epic\n');
   assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/config.json')), false);
   assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/Distill.md')), false);
 });
