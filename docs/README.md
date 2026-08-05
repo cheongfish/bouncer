@@ -15,7 +15,7 @@
 | [contributing.md](contributing.md) | 개발, 커밋·PR 규약, CI |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 플러그인 제품 설계 결정 (ADR) |
 | [PILOT.md](PILOT.md) | 파일럿 안내와 알려진 마찰 |
-| [Changelog](../CHANGELOG.md) | 변경 이력 · [0.3.0 요약 표](../CHANGELOG.md#030--2026-08-04) |
+| [Changelog](../CHANGELOG.md) | 변경 이력 · [0.4.0 요약 표](../CHANGELOG.md#040--2026-08-05) |
 
 플러그인 루트 [`CLAUDE.md`](../CLAUDE.md)가 세션용 마스터 룰(인덱스)이다.
 [`AGENTS.md`](../AGENTS.md)는 Codex / Cursor용으로 `@CLAUDE.md`를 import한다.

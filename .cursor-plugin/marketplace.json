@@ -9,7 +9,7 @@
     {
       "name": "bouncer",
       "source": "./",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "description": "Spec-driven development gates for Cursor: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
       "category": "workflow",
       "keywords": ["spec-driven", "governance", "workflow", "gates"],

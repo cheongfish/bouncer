@@ -7,6 +7,42 @@
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-05
+
+0.3.0 이후 이해 게이트(explain)·finalize 인계·그래프 신호 개선.
+
+0.3.0 대비 요약:
+
+| 영역 | 0.3.0 | 0.4.0 |
+| --- | --- | --- |
+| BP 회고 문서 | `distill.md` + G9 상태 검사 | `explain.md` + G15(diff SHA·이해 기록) |
+| Finalize 설명 | 별도 저술 단계 없음 | `explain-diff`로 설명·퀴즈·comprehension 기록 |
+| Distill / PR | BP distill 승격·별도 PR 본문 | explain에서 승격·PR 본문 (`## 이해 상태` 제외) |
+| Finalize 인계 | 포인터 수동 | 다음 BP 후보 통지 후 확인 시 `current --set` |
+| 그래프 | 실패·경로 이슈가 무음으로 넘어갈 수 있음 | 미생성 신호 + 경로 계약 정정 |
+
+### Added
+
+- **`explain.md` 계약** — `bouncer scaffold explain`이 다섯 섹션 골격을 만들고,
+  finalize가 빈 본문·누락된 comprehension·`diff_sha` 불일치를 G15로 거절.
+- **`explain-diff` 스킬** — finalize가 diff 설명·퀴즈 채점·이해 기록을 이 스킬로 수행.
+- **다음 블루프린트 인계** — 마감 뒤 후보를 계산·통지하고, 승낙 시
+  `bouncer current --set`으로 포인터를 옮김.
+
+### Changed
+
+- **BP `distill.md` / G9 제거** — 마감 게이트가 이해 기록 검사(G15)로 교체.
+  기존 에픽의 `distill.md`는 소급 마이그레이션하지 않음.
+- **Distill 승격·PR 본문** — 소스가 `explain.md`. `## 이해 상태`는 전역 Distill과
+  PR에 넣지 않음.
+- **README** — Features에 Explain·이해 게이트를 반영하고 Documentation 표를
+  `docs/README.md` 링크로 단순화.
+
+### Fixed
+
+- **그래프 미생성 무음 스킵** — 생성 실패를 신호로 드러냄.
+- **그래프 경로 계약** — 실재 디렉터리와 격리된 산출 위치로 맞춤.
+
 ## [0.3.0] — 2026-08-04
 
 0.2.0 이후 워크플로 CLI·검증 오버라이드·discovery·finalize 확인 흐름 개선.
