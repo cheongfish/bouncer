@@ -83,7 +83,7 @@ const TEMPLATES = {
      만들지 않는다 (docs/governance.md).
      한 줄 목적에는 무엇이 바뀌는지(what)와 어디를 건드리는지(where)를
      함께 적는다. 기존 라인은 소급 수정하지 않는다. -->
-     * [<TODO: 00x 제목>](blueprints/<TODO: 00x-slug>/index.md) - <TODO: 한 줄 목적 — what changes + where touched>
+* [<TODO: 00x 제목>](blueprints/<TODO: 00x-slug>/index.md) - <TODO: 한 줄 목적 — what changes + where touched>
 `,
     'blueprint.md': `# <BP-id> <name>
 

@@ -101,20 +101,18 @@ test('S3/S6/S7 detect resource, status, affected_paths problems', () => {
   assert.ok(codes.includes('S7'));
 });
 
-test('S4: epic/blueprint require \\d{3}; children require KIND-\\d{3}', () => {
+test('S4: rejects child id that is neither KIND-\\d{3} nor legacy KIND-BP-\\d{3}', () => {
   const repo = mkRepo();
-  const t = goodTasks();
-  t.bouncer.id = 'TASKS-BP-001'; // legacy shape: S4 passes via normalize, covered elsewhere
   writeDoc(repo, `${BP_REL}/tasks.md`, {
     ...goodTasks(),
     bouncer: { ...goodTasks().bouncer, id: 'bogus' },
   });
   writeDoc(repo, `${BP_REL}/index.md`, {
     ...blueprintDoc(),
+    // 구형 BP-001은 normalize 후 001 → S4 통과; 자식 bogus만 실패해야 함
     bouncer: { id: 'BP-001', epic_id: '001', blueprint_id: '001', status: 'draft' },
   });
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
-  // blueprint id BP-001 normalizes to 001 → S4 ok; tasks id "bogus" → S4
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.ok(res.failures.some((f) => f.code === 'S4' && /bogus/.test(f.message)));
 });
