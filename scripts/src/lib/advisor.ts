@@ -27,7 +27,7 @@ function detectPhase({ repoRoot, deps }) {
   const t = statusOf(docs, 'tasks');
   const v = statusOf(docs, 'verification');
   const r = statusOf(docs, 'review');
-  const di = statusOf(docs, 'distill');
+  const di = statusOf(docs, 'explain');
 
   let phase = 'plan';
   if (t === 'ready' || t === 'in_progress') phase = 'execute';

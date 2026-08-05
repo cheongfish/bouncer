@@ -161,8 +161,9 @@ function epicDoc() {
   };
 }
 
-// P2: a nonexistent blueprint used to surface as `G9 distill.status != published`,
-// which sends the reader looking for a document problem instead of a typo.
+// P2: a nonexistent blueprint used to surface as a finalize comprehension
+// failure (now G15), which sends the reader looking for a document problem
+// instead of a typo.
 test('S11: a blueprint with no documents is reported as absent, not as a gate failure', () => {
   const repo = mkRepo();
   for (const gate of [undefined, 'plan', 'execute', 'finalize']) {

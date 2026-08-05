@@ -5,18 +5,60 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { finalize } = require('../scripts/lib/finalize');
+const { computeDiffSha } = require('../scripts/lib/comprehension');
 
 const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
-function writeDoc(repo, rel, data) {
+const EXPLAIN_BODY = `# Explain
+
+## Background
+Auth validation moved to the edge.
+
+## Intuition
+Reject bad input early.
+
+## Code
+src/auth/login.ts
+
+## Quiz
+Where does validation live?
+
+## 이해 상태
+Recorded after review.
+`;
+
+function writeDoc(repo, rel, data, body = '# x\n') {
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n# x\n`);
+  fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
 }
 
-function fullBlueprint(repo, { distillStatus = 'published', blueprintDir = BP_REL } = {}) {
+// Real git so G15's computeDiffSha (no deps injection through finalize) can run.
+function initGitWithChange(repo) {
+  const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+  run(['init', '-b', 'work']);
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  fs.writeFileSync(path.join(repo, 'README'), 'base\n');
+  run(['add', 'README']);
+  run(['commit', '-m', 'base']);
+  // develop stays on the first commit; HEAD advances with the change.
+  run(['branch', 'develop']);
+  fs.mkdirSync(path.join(repo, 'src/auth'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export {}\n');
+  run(['add', 'src/auth/login.ts']);
+  run(['commit', '-m', 'change']);
+}
+
+function fullBlueprint(repo, {
+  comprehensionOk = true,
+  blueprintDir = BP_REL,
+  withGit = true,
+} = {}) {
+  if (withGit) initGitWithChange(repo);
   const epicDir = blueprintDir.split('/blueprints/')[0];
   writeDoc(repo, `${epicDir}/index.md`, {
     type: 'bouncer.epic', title: 'Auth', description: 'd', resource: `${epicDir}/index.md`,
@@ -39,11 +81,52 @@ function fullBlueprint(repo, { distillStatus = 'published', blueprintDir = BP_RE
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'VERIFY-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'passed' },
   });
-  writeDoc(repo, `${blueprintDir}/distill.md`, {
-    type: 'bouncer.distill', title: 'Distill', description: 'd', resource: `${blueprintDir}/distill.md`,
+
+  let comprehension = {
+    diff_sha: '',
+    quiz_score: '',
+    disposition: '',
+    recorded_at: '',
+  };
+  let body = EXPLAIN_BODY;
+  if (comprehensionOk) {
+    const hashed = computeDiffSha({ repoRoot: repo, base: 'develop' });
+    assert.strictEqual(hashed.ok, true, 'fixture git must yield a diff sha');
+    comprehension = {
+      diff_sha: hashed.sha,
+      quiz_score: '1/5',
+      disposition: 'accepted',
+      recorded_at: '2026-07-01T00:00:00+09:00',
+    };
+  } else {
+    // Empty sections → G15 without needing a matching hash.
+    body = `# Explain
+
+## Background
+<!-- empty -->
+
+## Intuition
+<!-- empty -->
+
+## Code
+<!-- empty -->
+
+## Quiz
+<!-- empty -->
+
+## 이해 상태
+<!-- empty -->
+`;
+  }
+
+  writeDoc(repo, `${blueprintDir}/explain.md`, {
+    type: 'bouncer.explain', title: 'Explain', description: 'd', resource: `${blueprintDir}/explain.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'DISTILL-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: distillStatus },
-  });
+    bouncer: {
+      id: 'EXPLAIN-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'published',
+      comprehension,
+    },
+  }, body);
 }
 
 function fakeGit(changed, untracked) {
@@ -61,11 +144,11 @@ function fakeGit(changed, untracked) {
 
 test('gate failure short-circuits before touching git', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  fullBlueprint(repo, { distillStatus: 'draft' });
+  fullBlueprint(repo, { comprehensionOk: false });
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'validate');
-  assert.ok(res.failures.some((f) => f.code === 'G9'));
+  assert.ok(res.failures.some((f) => f.code === 'G15'));
 });
 
 test('out-of-scope file causes hard abort, nothing staged', () => {
@@ -95,17 +178,17 @@ test('dry-run reports staged files and message without committing', () => {
 test('--yes stages and commits', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
-  const g = fakeGit(['src/auth/login.ts'], [`${BP_REL}/distill.md`]);
+  const g = fakeGit(['src/auth/login.ts'], [`${BP_REL}/explain.md`]);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.committed, true);
-  assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/distill.md`]);
+  assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/explain.md`]);
   assert.ok(g.calls.committed.startsWith('feat: Login'), g.calls.committed);
 });
 
 test('legacy root context blueprint is rejected before staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const legacyBp = 'context/epics/EPIC-001-auth/blueprints/BP-001-login';
-  fullBlueprint(repo, { blueprintDir: legacyBp });
+  fullBlueprint(repo, { blueprintDir: legacyBp, withGit: false, comprehensionOk: false });
   const g = fakeGit([`${legacyBp}/tasks.md`], []);
   const res = finalize({ repoRoot: repo, blueprintDir: legacyBp, yes: true, git: g.api });
   assert.strictEqual(res.ok, false);

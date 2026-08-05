@@ -29,7 +29,7 @@ test('commit message follows the template', () => {
     blueprintIndex: { data: { title: 'Login flow', bouncer: { id: 'BP-001', epic_id: 'EPIC-001' } } },
     tasks: { data: { title: 'Implement login' } },
     verification: { data: { title: 'Login verified' } },
-    distill: { data: { resource: `${BP}/distill.md` } },
+    explain: { data: { resource: `${BP}/explain.md` } },
   };
   const msg = buildCommitMessage(docs);
 

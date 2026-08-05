@@ -9,7 +9,7 @@ timestamp: '2026-08-03T05:10:00.000Z'
 ---
 # Distill
 
-Project-wide cautions for plan/execute. BP `distill.md` is a cycle candidate;
+Project-wide cautions for plan/execute. BP `explain.md` is a cycle candidate;
 `/bouncer-finalize` promotes durable items here (add / replace / drop).
 Decisions are **current** only — replace the sentence when it changes; do not
 append a change log.
@@ -71,6 +71,9 @@ append a change log.
   `tasks.md` as `bouncer.verify`.
 - A present-but-invalid `bouncer.verify` must not fall through to
   `config.verify` — that would hide a plan-time `S12` miss.
+- Empty `diff_sha` (or empty `disposition`) on `explain.md` is G15 **record
+  missing**, not hash mismatch — scaffold defaults must not collapse into the
+  wrong failure branch.
 - `finalize` nests the whole `nextBlueprint` return under `next`, so the
   candidate is `next.next` and overlap is `next.next.sharedPaths` — a flat
   `next.sharedPaths` read skips the handoff warning.
@@ -96,8 +99,10 @@ append a change log.
 
 - Project Distill SSOT is `.bouncer/context/Distill.md`; master rules only name
   the path and the read obligation.
-- BP `distill.md` + G9 `published` remain the finalize gate token; global Distill
-  is skill promotion + `makeAllowed`, not a G9 body-quality gate.
+- BP `explain.md` + G15 (written sections, `bouncer.comprehension`, matching
+  `diff_sha` for `base..HEAD` excluding `.bouncer/context/`) are the finalize
+  gate token; global Distill is skill promotion + `makeAllowed`, not a G15
+  body-quality gate. G9 is retired (number vacant).
 - Project Distill is ungated OKF-shaped meta (no registered `bouncer.*` kind).
 - `bouncer init` soft-seeds missing Distill on an already-ready bootstrap and
   never overwrites curated content.

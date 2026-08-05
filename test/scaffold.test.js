@@ -25,7 +25,7 @@ test('scaffoldEpic writes a valid epic index', () => {
   assert.strictEqual(fs.readFileSync(legacyIndex, 'utf8'), 'legacy content\n');
 });
 
-test('scaffoldBlueprint writes four plan docs (no distill) with correct ids and statuses', () => {
+test('scaffoldBlueprint writes four plan docs (no explain) with correct ids and statuses', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
   const created = scaffoldBlueprint({
@@ -40,7 +40,7 @@ test('scaffoldBlueprint writes four plan docs (no distill) with correct ids and 
     `${base}/verification.md`,
     `${base}/review.md`,
   ]);
-  assert.ok(!fs.existsSync(path.join(repo, `${base}/distill.md`)));
+  assert.ok(!fs.existsSync(path.join(repo, `${base}/explain.md`)));
   const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).data;
   assert.strictEqual(tasks.resource, `${base}/tasks.md`);
   assert.strictEqual(tasks.bouncer.id, 'TASKS-BP-001');
@@ -53,8 +53,8 @@ test('scaffoldBlueprint writes four plan docs (no distill) with correct ids and 
   assert.strictEqual(verify.bouncer.status, 'pending');
 });
 
-test('scaffoldDistill creates distill.md once for finalize', () => {
-  const { scaffoldDistill } = require('../scripts/lib/scaffold');
+test('scaffoldExplain creates explain.md once for finalize with empty comprehension', () => {
+  const { scaffoldExplain } = require('../scripts/lib/scaffold');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -62,13 +62,25 @@ test('scaffoldDistill creates distill.md once for finalize', () => {
     blueprintId: 'BP-001', name: 'login', timestamp: TS,
   });
   const bp = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
-  const created = scaffoldDistill({ repoRoot: repo, blueprintDir: bp, timestamp: TS });
-  assert.deepStrictEqual(created, [`${bp}/distill.md`]);
-  const { data } = readDoc(path.join(repo, created[0]));
-  assert.strictEqual(data.type, 'bouncer.distill');
+  const created = scaffoldExplain({ repoRoot: repo, blueprintDir: bp, timestamp: TS });
+  assert.deepStrictEqual(created, [`${bp}/explain.md`]);
+  const { data, body } = readDoc(path.join(repo, created[0]));
+  assert.strictEqual(data.type, 'bouncer.explain');
   assert.strictEqual(data.bouncer.status, 'draft');
+  assert.strictEqual(data.bouncer.id, 'EXPLAIN-BP-001');
+  assert.deepStrictEqual(data.bouncer.comprehension, {
+    diff_sha: '',
+    quiz_score: '',
+    disposition: '',
+    recorded_at: '',
+  });
+  for (const heading of [
+    '## Background', '## Intuition', '## Code', '## Quiz', '## 이해 상태',
+  ]) {
+    assert.ok(body.includes(heading), `explain.md missing ${heading}`);
+  }
   assert.deepStrictEqual(
-    scaffoldDistill({ repoRoot: repo, blueprintDir: bp, timestamp: TS }),
+    scaffoldExplain({ repoRoot: repo, blueprintDir: bp, timestamp: TS }),
     [],
   );
 });

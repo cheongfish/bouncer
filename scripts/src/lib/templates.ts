@@ -122,7 +122,7 @@ Epic: [<EPIC-id>](../../index.md)
 * [Tasks](tasks.md) - 구현 브리프
 * [Verification](verification.md) - 검증 명령과 증적
 * [Review](review.md) - 리뷰 발견사항
-<!-- distill.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다. -->
+<!-- explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다. -->
 `,
   'tasks.md': `# Tasks
 
@@ -168,14 +168,24 @@ Blueprint: [<BP-id>](index.md)
 `,
   'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
   'review.md': '# Review\n\n## Findings\n- <finding>\n',
-  'distill.md': `# Distill
+  // Five section headings with comment-only bodies so a fresh scaffold fails
+  // G15 the same way an empty tasks template fails G10 — authoring is required.
+  'explain.md': `# Explain
 
-Cycle notes for this blueprint (candidates for promotion).
+## Background
+<!-- 이 변경이 생긴 배경. 무엇을 고치려 했는가. -->
 
-After writing, \`/bouncer-finalize\` promotes durable Invariants / Gotchas /
-**current** Decisions into \`${PROJECT_DISTILL}\`. Leave cycle
-retrospectives and next-BP ideas here only — do not append a change log to the
-project Distill.
+## Intuition
+<!-- 한 줄로 말하면 무엇인가. 비유·그림이 있으면 여기. -->
+
+## Code
+<!-- 핵심 경로와 읽어야 할 파일. 긴 덤프 금지. -->
+
+## Quiz
+<!-- 이해 확인 질문. 채점·기록 절차는 finalize 스킬이 안내한다. -->
+
+## 이해 상태
+<!-- 퀴즈 결과와 disposition. comprehension 프론트매터와 맞춰 적는다. -->
 `,
   'pr.md': PR_TEMPLATE,
 };

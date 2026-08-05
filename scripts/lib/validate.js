@@ -7,6 +7,8 @@ const { readDoc } = require('./frontmatter');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
 const { parsePathIds, epicDirOf, toPosix } = require('./paths');
 const { isValidVerifyCommand, runVerification } = require('./verification');
+const { computeDiffSha, EXPLAIN_SECTION_DEFS } = require('./comprehension');
+const { readCurrent } = require('./current');
 function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     const bp = toPosix(blueprintDir);
     const rels = {
@@ -15,7 +17,7 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
         tasks: `${bp}/tasks.md`,
         verification: `${bp}/verification.md`,
         review: `${bp}/review.md`,
-        distill: `${bp}/distill.md`,
+        explain: `${bp}/explain.md`,
     };
     const docs = {};
     const parseErrors = [];
@@ -37,7 +39,7 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
 // execute gate re-runs verification (which rewrites verification.md).
 function blueprintDocsExist({ repoRoot, blueprintDir }) {
     const bp = toPosix(blueprintDir);
-    return ['index.md', 'tasks.md', 'verification.md', 'review.md', 'distill.md']
+    return ['index.md', 'tasks.md', 'verification.md', 'review.md', 'explain.md']
         .some((name) => fs.existsSync(path.join(repoRoot, bp, name)));
 }
 function checkStructural(doc, failures) {
@@ -103,7 +105,7 @@ function checkStructural(doc, failures) {
         }
     }
 }
-function validateBlueprint({ repoRoot, blueprintDir, gate }) {
+function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     if (!isCanonicalBlueprintDir(blueprintDir)) {
         return {
             ok: false,
@@ -160,7 +162,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate }) {
     // Loaded after verification so the execute gate reads the evidence it just wrote.
     const { docs, rels, parseErrors } = loadBlueprintDocs({ repoRoot, blueprintDir });
     const failures = [...executionFailures, ...parseErrors];
-    const anyLeaf = ['tasks', 'verification', 'review', 'distill'].some((k) => docs[k]);
+    const anyLeaf = ['tasks', 'verification', 'review', 'explain'].some((k) => docs[k]);
     if (anyLeaf && !docs.blueprintIndex) {
         failures.push({ code: 'S8', message: 'blueprint index.md absent', file: rels.blueprintIndex });
     }
@@ -169,8 +171,9 @@ function validateBlueprint({ repoRoot, blueprintDir, gate }) {
     }
     for (const key of Object.keys(docs))
         checkStructural(docs[key], failures);
-    if (gate)
-        checkGate(gate, docs, rels, failures); // implemented in Task 6
+    if (gate) {
+        checkGate(gate, docs, rels, failures, { repoRoot, blueprintDir, deps });
+    }
     return { ok: failures.length === 0, failures };
 }
 function statusOf(doc) {
@@ -195,6 +198,45 @@ const REVIEW_SECTION_DEFS = [
 ];
 const REVIEW_SEVERITY = ['blocker', 'major', 'minor', 'nit'];
 const REVIEW_STATUS = ['resolved', 'accepted'];
+// Same emptiness contract as G10: heading present, prose after comment-strip.
+// Keys mirror EXPLAIN_SECTION_DEFS so the comprehension module stays the SSOT
+// for which sections exist; regexes stay here next to parseSections.
+const EXPLAIN_SECTION_HEADINGS = [
+    { key: 'background', re: /^##\s+Background\s*$/i },
+    { key: 'intuition', re: /^##\s+Intuition\s*$/i },
+    { key: 'code', re: /^##\s+Code\s*$/i },
+    { key: 'quiz', re: /^##\s+Quiz\s*$/i },
+    { key: 'understanding', re: /^##\s+이해\s*상태\s*$/i },
+];
+function readConfigFile(repoRoot) {
+    try {
+        return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer/config.json'), 'utf8'));
+    }
+    catch (_e) {
+        return {};
+    }
+}
+// Pointer base wins only when the pointer names this blueprint; otherwise
+// config.base_branch, then develop. Keeps finalize hash stable without a
+// pointer, and avoids hashing against another BP's base by accident.
+function resolveFinalizeBase({ repoRoot, blueprintDir, deps }) {
+    const rc = (deps && deps.readCurrent) || readCurrent;
+    const cfgRead = (deps && deps.readConfig) || readConfigFile;
+    const cur = rc({ repoRoot });
+    const bp = toPosix(blueprintDir);
+    if (cur
+        && typeof cur.blueprint === 'string'
+        && toPosix(cur.blueprint) === bp
+        && typeof cur.base === 'string'
+        && cur.base.trim()) {
+        return cur.base.trim();
+    }
+    const cfg = cfgRead(repoRoot) || {};
+    if (typeof cfg.base_branch === 'string' && cfg.base_branch.trim()) {
+        return cfg.base_branch.trim();
+    }
+    return 'develop';
+}
 // Authoring guidance ships as HTML comments, so a section holding nothing but
 // guidance is unwritten. Stripping comments before the emptiness test keeps
 // "section present but empty" meaning what it did before templates carried
@@ -256,8 +298,11 @@ function pathJustifiedByTouch(ap, touchText) {
         return true;
     return extractPathCandidates(touchText).some((c) => ap === c || ap.startsWith(c.endsWith('/') ? c : `${c}/`));
 }
-function checkGate(gate, docs, rels, failures) {
+function checkGate(gate, docs, rels, failures, ctx) {
     const add = (code, message, fileKey) => failures.push({ code, message, file: rels[fileKey] });
+    const repoRoot = ctx && ctx.repoRoot;
+    const blueprintDir = ctx && ctx.blueprintDir;
+    const deps = ctx && ctx.deps;
     if (gate === 'plan') {
         if (statusOf(docs.epicIndex) !== 'approved')
             add('G1', 'epic.status != approved', 'epicIndex');
@@ -360,8 +405,45 @@ function checkGate(gate, docs, rels, failures) {
         return;
     }
     if (gate === 'finalize') {
-        if (statusOf(docs.distill) !== 'published')
-            add('G9', 'distill.status != published', 'distill');
+        // G9 (distill.status == published) is retired — number stays vacant.
+        // G15 judges comprehension of the diff, not a status token alone.
+        if (!docs.explain) {
+            add('G15', 'explain.md missing', 'explain');
+            return;
+        }
+        const explainBody = typeof docs.explain.body === 'string' ? docs.explain.body : '';
+        const sections = parseSections(explainBody, EXPLAIN_SECTION_HEADINGS);
+        // Keys come from the comprehension module so a drift between modules fails
+        // tests that assert EXPLAIN_SECTION_DEFS, not a silent subset here.
+        const missing = EXPLAIN_SECTION_DEFS.filter((k) => !sections[k]);
+        if (missing.length) {
+            add('G15', `explain missing written sections: ${missing.join(', ')}`, 'explain');
+            return;
+        }
+        const bouncer = docs.explain.data && docs.explain.data.bouncer
+            ? docs.explain.data.bouncer
+            : {};
+        const comp = bouncer.comprehension;
+        // Empty diff_sha is "record missing", not "hash mismatch" — scaffold
+        // defaults must not collapse into the wrong failure branch.
+        const diffSha = comp && typeof comp.diff_sha === 'string' ? comp.diff_sha : '';
+        const disposition = comp && typeof comp.disposition === 'string' ? comp.disposition : '';
+        if (!comp || typeof comp !== 'object' || !disposition.trim() || !diffSha.trim()) {
+            add('G15', 'explain comprehension record missing', 'explain');
+            return;
+        }
+        // quiz_score is recorded for humans / later BPs; G15 must not interpret it.
+        const shaFn = (deps && deps.computeDiffSha) || computeDiffSha;
+        const base = resolveFinalizeBase({ repoRoot, blueprintDir, deps });
+        const computed = shaFn({ repoRoot, base, exec: deps && deps.exec });
+        if (!computed || computed.ok !== true) {
+            const reason = computed && computed.reason ? computed.reason : 'exec-failed';
+            add('G15', `explain diff_sha could not be computed (${reason})`, 'explain');
+            return;
+        }
+        if (computed.sha !== diffSha.trim()) {
+            add('G15', 'explain diff_sha does not match base..HEAD', 'explain');
+        }
         return;
     }
     throw new Error(`unknown gate: ${gate}`);

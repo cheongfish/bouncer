@@ -11,12 +11,14 @@ test('OKF required fields are exact', () => {
 test('id prefix and status enum per type', () => {
   assert.deepStrictEqual(schema.TYPES, [
     'bouncer.epic', 'bouncer.blueprint', 'bouncer.tasks',
-    'bouncer.verification', 'bouncer.review', 'bouncer.distill',
+    'bouncer.verification', 'bouncer.review', 'bouncer.explain',
   ]);
   assert.strictEqual(schema.ID_PREFIX['bouncer.tasks'], 'TASKS-');
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.review'],
     ['pending', 'requested', 'addressed', 'accepted']);
-  assert.strictEqual(schema.KIND_TO_TYPE.distill, 'bouncer.distill');
+  assert.strictEqual(schema.KIND_TO_TYPE.explain, 'bouncer.explain');
+  assert.strictEqual(schema.ID_PREFIX['bouncer.explain'], 'EXPLAIN-');
+  assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.explain'], ['draft', 'published']);
   assert.strictEqual(schema.TYPES.length, 6);
 });
 

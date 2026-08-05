@@ -33,31 +33,31 @@ If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
 appears; do not reconstruct a root `context/` path.
 
-1. **Distill.** Create BP `distill.md` if it is missing (plan scaffold omits it):
+1. **Explain.** Create BP `explain.md` if it is missing (plan scaffold omits it):
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold distill --blueprint <pointer.blueprint>
+   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold explain --blueprint <pointer.blueprint>
    ```
    Then use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to:
-   - Write this blueprint's `distill.md` (cycle candidates + durable notes), then
-     set `distill.md` `bouncer.status → published`.
+   - Write this blueprint's `explain.md` (cycle candidates + durable notes), then
+     set `explain.md` `bouncer.status → published`.
    - Promote durable items into `.bouncer/context/Distill.md` under
      `## Invariants` / `## Gotchas` / `## Decisions` (add, replace, or drop
      stale bullets). Decisions stay **current only** — no change-log append.
-     Cycle retrospectives and next-BP ideas stay in the BP `distill.md` only.
+     Cycle retrospectives and next-BP ideas stay in the BP `explain.md` only.
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate finalize
    ```
-   Gate `finalize` checks G9 `distill.status == published`. Fix and re-run until
-   it passes.
+   Gate `finalize` checks G15 (explain sections, comprehension record, diff_sha).
+   Fix and re-run until it passes.
 
 3. **Commit the remainder (deterministic core).** Before dry-run, ensure the
    blueprint frontmatter has `bouncer.commit_intent` as **exactly two** Korean
    `~함` / `~임` strings (배경·의도). Prefer values written at plan time; if
-   missing or not length 2, author them now from Goal & intent / distill (no
+   missing or not length 2, author them now from Goal & intent / explain (no
    Epic/Blueprint ids, no file paths), then proceed.
    Dry-run first:
    ```bash
@@ -91,7 +91,7 @@ appears; do not reconstruct a root `context/` path.
      `scripts/lib/templates.js` (`pr.md`). That template follows the team's PR
      format, not the commit message shape; fill its sections from the blueprint
      and tasks documents and leave the `## 🚦 Bouncer` section for the
-     epic/blueprint ids and the distill path.
+     epic/blueprint ids and the explain path.
    - **PR title** (not the commit subject). Build from the branch commits vs
      `config.base_branch` (or `config.pr.base`), not from free-form prose:
      - Pattern: `[YYMMDD] (→ MergeTarget) [Type/Type] 요약`
