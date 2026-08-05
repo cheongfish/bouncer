@@ -13,6 +13,7 @@
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer advise` | 현재 단계에 권장되는 Ponytail 모드 출력 |
 | `bouncer current [--set <dir>] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. 없으면 `ready` 후보 |
+| `bouncer migrate ids [--dry-run]` | 구형 `EPIC-`/`BP-` context 디렉터리를 숫자 id로 이관(계획 또는 적용) |
 
 모든 명령이 `--repo <dir>`로 다른 저장소를 대상으로 실행할 수 있습니다.
 종료 코드는 도움말 0, 게이트 실패 1, 사용법 오류 2입니다.
