@@ -36,3 +36,10 @@ test('spec-authoring documents project Distill promotion and defers explain to e
   assert.doesNotMatch(md, /scaffold distill/);
   assert.doesNotMatch(md, /author.*explain\.md|Write.*explain\.md/i);
 });
+
+test('spec-authoring promotes from explain.md and excludes 이해 상태', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /explain\.md/);
+  assert.match(md, /이해 상태/); // 제외 대상 언급
+  assert.match(md, /승격하지 않|옮기지 않|제외/);
+});

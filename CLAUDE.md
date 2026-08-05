@@ -31,7 +31,7 @@ they conflict.
    Read `.bouncer/context/Distill.md` (create via `bouncer init` if missing).
    Apply matching Invariants / Gotchas / Decisions to the brief. Do **not** put
    Distill body content into these master rules — path and read obligation only.
-   `/bouncer-finalize` promotes durable BP distill notes into that file.
+   `/bouncer-finalize` promotes durable BP `explain.md` notes into that file.
 
 ## Session conduct
 
@@ -49,7 +49,7 @@ numbered step says otherwise.
    outcome (gate pass/fail, findings count, what was committed), then the
    supporting detail.
 3. **Length** — Keep conversational output brief and spend it on the answer, not
-   on caveats. Match authored documents (epic, blueprint, tasks, distill,
+   on caveats. Match authored documents (epic, blueprint, tasks, explain,
    PR body) to what the work needs: cover the substance, do not pad with filler
    sections, redundant summaries, or boilerplate.
 4. **No self-double-checking** — `bouncer validate` and `config.verify` are the
@@ -69,7 +69,7 @@ numbered step says otherwise.
 | --- | --- |
 | Bootstrap `.bouncer/` once | `/bouncer-init` |
 | Clarify goal / scope / success criteria | `discovery` (inside `/bouncer-plan`) |
-| Author epic / blueprint / tasks / distill bodies | `spec-authoring` |
+| Author epic / blueprint / tasks bodies | `spec-authoring` |
 | Implement from `tasks.md` | `implementation` (inside `/bouncer-execute`) |
 | Investigate a failed verify | `debugging` + `verification` |
 | Review the diff against the brief | `review` |

@@ -63,8 +63,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    `.bouncer/context/epics/...`.
    (Skip `scaffold epic` when adding a blueprint to an existing epic.) Scaffold
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
-   review `pending`. Do **not** create BP `distill.md` here — `/bouncer-finalize`
-   scaffolds it with `bouncer scaffold distill`.
+   review `pending`. Do **not** create BP `explain.md` here — `/bouncer-finalize`
+   scaffolds it with `bouncer scaffold explain`.
 
 4. **Author.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write the epic, blueprint, and
    tasks bodies. Fill every implementation-ready section in `tasks.md` before

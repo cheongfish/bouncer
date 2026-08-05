@@ -77,7 +77,7 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 | 스킬 | 책임 |
 | --- | --- |
 | `discovery` | 요구사항을 목표·범위·비목표·성공 조건으로 정리 |
-| `spec-authoring` | 구현 준비가 된 plan 문서(`tasks.md` 등) 작성 · 전역 Distill 승격 |
+| `spec-authoring` | 구현 준비가 된 plan 문서(`tasks.md` 등) 작성 · explain.md에서 전역 Distill 승격 |
 | `implementation` | `tasks.md`를 유일한 의사결정 기준으로 구현 |
 | `debugging` | 재현·원인·최소 수정·회귀 검증 기록 |
 | `verification` | 실제 검증 명령과 증거를 `verification.md`에 기록 |

@@ -97,7 +97,11 @@ those placeholders ship as the commit subject and body.
      `## Gotchas`, `## Decisions`. Put only what the next plan/execute must
      not rediscover. Decisions are **current** valid choices; replace the
      sentence when it changes — never append a timeline. Source durable
-     bullets from the BP `explain.md`; leave cycle retrospectives there.
+     bullets from the BP `explain.md` (`## Background` / `## Intuition` /
+     `## Code` and any durable notes there); leave cycle retrospectives in
+     that file. Do **not** promote `## 이해 상태`, `## Quiz`, or
+     comprehension fields (`quiz_score`, `disposition`, `diff_sha`) into
+     Distill — 이해 상태는 Distill로 승격하지 않는다.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
    Match each document's length to what the work needs — cover the substance,
    then stop. No filler sections, no summary that restates the section above it,

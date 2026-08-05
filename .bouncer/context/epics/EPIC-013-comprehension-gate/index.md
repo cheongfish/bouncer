@@ -56,4 +56,4 @@ bouncer:
 ## Blueprints
 * [BP 설명 문서 계약과 이해 게이트](blueprints/BP-001-explain-doc-contract/index.md) - `distill.md`를 `explain.md`로 교체하고 `scripts/src/lib`의 스키마·경로·템플릿·스캐폴드·검증에서 `G9`를 `G15`로 대체한다
 * [explain-diff 스킬과 마감 배선](blueprints/BP-002-explain-diff-skill/index.md) - `skills/explain-diff/`를 신설하고 `/bouncer-finalize`가 설명 저술·퀴즈 채점·`comprehension` 기록을 그 스킬로 하게 한다
-* BP-003 승격 규칙과 PR 본문 통합 (예정) - 승격 소스를 `explain.md`로 바꾸고 `## 이해 상태`를 승격에서 제외하며 PR 본문을 같은 문서에서 생성한다
+* [BP 승격 규칙과 PR 본문 통합](blueprints/BP-003-promotion-pr-body/index.md) - 승격·`pr.md`·finalize/spec-authoring을 `explain.md` 소스로 맞추고 `## 이해 상태`를 Distill·PR에서 제외한다

@@ -28,5 +28,5 @@ Bouncer 사이클로 작업한 경우에만 아래를 채웁니다. 아니면 �
 
 - Epic:
 - Blueprint:
-- Distill:
+- Explain:
 -->
