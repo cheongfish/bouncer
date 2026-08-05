@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-BP-002
   epic_id: EPIC-014
   blueprint_id: BP-002
-  status: ready
+  status: verified
   affected_paths:
     - scripts/src/lib/migrate-ids.ts
     - scripts/lib/migrate-ids.js

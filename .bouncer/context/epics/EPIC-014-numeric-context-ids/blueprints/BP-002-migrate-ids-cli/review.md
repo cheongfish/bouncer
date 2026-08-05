@@ -11,11 +11,12 @@ bouncer:
   id: REVIEW-BP-002
   epic_id: EPIC-014
   blueprint_id: BP-002
-  status: pending
+  status: accepted
   review:
     required: true
+    findings: []
 ---
 # Review
 
 ## Findings
-- <finding>
+Findings: none
