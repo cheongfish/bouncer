@@ -9,6 +9,7 @@ const { parsePathIds, epicDirOf, toPosix } = require('./paths');
 const { isValidVerifyCommand, runVerification } = require('./verification');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS } = require('./comprehension');
 const { readCurrent } = require('./current');
+const { checkEpicIndexConsistency } = require('./epic-index');
 function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     const bp = toPosix(blueprintDir);
     const rels = {
@@ -170,6 +171,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     }
     for (const key of Object.keys(docs))
         checkStructural(docs[key], failures);
+    failures.push(...checkEpicIndexConsistency({ repoRoot }));
     if (gate) {
         checkGate(gate, docs, rels, failures, { repoRoot, blueprintDir, deps });
     }

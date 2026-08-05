@@ -16,13 +16,27 @@ test('scaffoldEpic writes a valid epic index', () => {
   fs.writeFileSync(legacyIndex, 'legacy content\n');
   const created = scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
   assert.strictEqual(CONTEXT_ROOT, '.bouncer/context');
-  assert.deepStrictEqual(created, ['.bouncer/context/epics/EPIC-001-auth/index.md']);
+  assert.deepStrictEqual(created, [
+    '.bouncer/context/epics/EPIC-001-auth/index.md',
+    '.bouncer/context/index.md',
+  ]);
   const { data } = readDoc(path.join(repo, created[0]));
   assert.strictEqual(data.type, 'bouncer.epic');
   assert.strictEqual(data.bouncer.id, 'EPIC-001');
   assert.strictEqual(data.bouncer.status, 'draft');
   assert.strictEqual(data.resource, created[0]);
   assert.strictEqual(fs.readFileSync(legacyIndex, 'utf8'), 'legacy content\n');
+  const bundle = fs.readFileSync(path.join(repo, '.bouncer/context/index.md'), 'utf8');
+  assert.match(bundle, /\]\(epics\/EPIC-001-auth\/index\.md\)/);
+});
+
+test('scaffoldEpic is idempotent on the bundle context index line', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
+  const again = scaffoldEpic({ repoRoot: repo, epicId: 'EPIC-001', name: 'auth', timestamp: TS });
+  assert.deepStrictEqual(again, ['.bouncer/context/epics/EPIC-001-auth/index.md']);
+  const bundle = fs.readFileSync(path.join(repo, '.bouncer/context/index.md'), 'utf8');
+  assert.strictEqual([...bundle.matchAll(/EPIC-001-auth/g)].length, 1);
 });
 
 test('scaffoldBlueprint writes four plan docs (no explain) with correct ids and statuses', () => {

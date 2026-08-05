@@ -12,6 +12,7 @@
 | `G15 explain diff_sha does not match` / `could not be computed` | 기록된 `diff_sha`가 게이트가 다시 계산한 값과 다르거나, base/저장소 문제로 계산에 실패했습니다. base는 포인터 → `config.base_branch` → `develop` 순입니다 |
 | `.bouncer/Distill.md` 없음 | `bouncer init`이 골격을 만듭니다(레거시 `context/Distill.md`는 새 경로로 옮김). plan/execute 전에 Read해야 합니다 |
 | `S11 blueprint documents not found` | blueprint 경로가 틀렸습니다(오타 등). 경로를 확인하세요 |
+| `S13 epic directory not listed` / `lists missing epic` | `.bouncer/context/index.md`와 `epics/` 디렉터리가 어긋났습니다. `bouncer scaffold epic`으로 만들거나 목록 줄을 맞추세요 |
 | `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
 | worktree에 `tasks.md`가 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |

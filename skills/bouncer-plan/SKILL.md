@@ -61,6 +61,9 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    ```
    The epic and blueprint outputs must both remain under
    `.bouncer/context/epics/...`.
+   `scaffold epic` also appends an OKF §6 line to `.bouncer/context/index.md`
+   (idempotent if already listed). Validate reports `S13` when epic directories
+   and that list drift.
    (Skip `scaffold epic` when adding a blueprint to an existing epic.) Scaffold
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
    review `pending`. Do **not** create BP `explain.md` here — `/bouncer-finalize`

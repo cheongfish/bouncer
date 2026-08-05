@@ -554,6 +554,13 @@ function writePlanBlueprint(repo, tasksBody) {
   writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, `${BP_REL}/tasks.md`, planReadyTasks(), tasksBody);
+  const indexAbs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
+  fs.writeFileSync(
+    indexAbs,
+    '---\nokf_version: "0.1"\n---\n# Epics\n\n'
+    + '* [EPIC-001 auth](epics/EPIC-001-auth/index.md) - Epic EPIC-001\n',
+  );
 }
 
 test('validateBlueprint plan gate loads tasks body from disk for G10–G12 pass', () => {

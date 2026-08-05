@@ -7,6 +7,7 @@ const {
 const { parsePathIds } = require('./paths');
 const { renderDoc } = require('./render');
 const { templateBody } = require('./templates');
+const { ensureEpicIndexEntry } = require('./epic-index');
 
 function writeRel(repoRoot, rel, data, body) {
   const abs = path.join(repoRoot, rel);
@@ -22,11 +23,18 @@ function bouncerDoc(type, title, description, resource, tags, timestamp, bouncer
 function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
   const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
   const rel = `${dir}/index.md`;
-  const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, `Epic ${epicId}`, rel,
+  const description = `Epic ${epicId}`;
+  const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, description, rel,
     ['bouncer', 'epic'], timestamp,
     { id: epicId, epic_id: epicId, status: 'draft' });
   const body = templateBody('epic.md', { epicId, name });
-  return [writeRel(repoRoot, rel, data, body)];
+  const created = [writeRel(repoRoot, rel, data, body)];
+  // OKF §6 번들 루트 목록 — scaffold가 소유. 이미 있으면 no-op.
+  const indexRel = ensureEpicIndexEntry({
+    repoRoot, epicId, name, description,
+  });
+  if (indexRel) created.push(indexRel);
+  return created;
 }
 
 function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) {

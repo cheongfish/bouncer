@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { finalize } = require('../scripts/lib/finalize');
 const { computeDiffSha } = require('../scripts/lib/comprehension');
+const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
 const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
@@ -64,6 +65,13 @@ function fullBlueprint(repo, {
     type: 'bouncer.epic', title: 'Auth', description: 'd', resource: `${epicDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'EPIC-001', epic_id: 'EPIC-001', status: 'approved' },
+  });
+  const epicLeaf = epicDir.split('/').pop();
+  const epicIdMatch = /^(EPIC-\d+)/.exec(epicLeaf);
+  const epicId = epicIdMatch ? epicIdMatch[1] : 'EPIC-001';
+  const epicSlug = epicLeaf.slice(epicId.length + 1) || 'auth';
+  ensureEpicIndexEntry({
+    repoRoot: repo, epicId, name: epicSlug, description: 'd',
   });
   writeDoc(repo, `${blueprintDir}/index.md`, {
     type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${blueprintDir}/index.md`,

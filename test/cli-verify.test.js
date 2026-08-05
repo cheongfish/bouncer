@@ -7,6 +7,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 const { readDoc } = require('../scripts/lib/frontmatter');
+const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
 const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
@@ -35,6 +36,9 @@ function setupRepo(verify = 'node -e "process.exit(0)"') {
   writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md',
     doc('bouncer.epic', 'EPIC-001', 'approved', '.bouncer/context/epics/EPIC-001-auth/index.md'),
     '# Epic\n');
+  ensureEpicIndexEntry({
+    repoRoot: repo, epicId: 'EPIC-001', name: 'auth', description: 'Epic EPIC-001',
+  });
   writeDoc(repo, `${BP_REL}/index.md`,
     doc('bouncer.blueprint', 'BP-001', 'approved', `${BP_REL}/index.md`),
     '# Blueprint\n');

@@ -19,6 +19,17 @@ function writeDoc(repo, rel, data, body = '# x\n') {
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
 }
 
+function writeBundleIndex(repo, epicDirs = ['EPIC-001-auth']) {
+  const lines = epicDirs.map((d) => {
+    const id = d.match(/^(EPIC-\d+)/)[1];
+    const slug = d.slice(id.length + 1);
+    return `* [${id} ${slug}](epics/${d}/index.md) - Epic ${id}`;
+  });
+  const abs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---\nokf_version: "0.1"\n---\n# Epics\n\n${lines.join('\n')}\n`);
+}
+
 function goodTasks() {
   return {
     type: 'bouncer.tasks',
@@ -77,8 +88,31 @@ test('a fully valid blueprint passes structural checks', () => {
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.deepStrictEqual(res, { ok: true, failures: [] });
+});
+
+test('S13: epic directory missing from bundle context index', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
+  const abs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, '---\nokf_version: "0.1"\n---\n# Epics\n\n');
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S13' && /not listed/.test(f.message)));
+});
+
+test('S13: bundle context index lists a missing epic directory', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
+  writeBundleIndex(repo, ['EPIC-001-auth', 'EPIC-099-ghost']);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S13' && /missing epic/.test(f.message)));
 });
 
 test('S0: malformed frontmatter is collected as a failure, not thrown', () => {
@@ -207,6 +241,7 @@ test('S12 does not fire when tasks.bouncer.verify is absent', () => {
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.ok(!res.failures.some((f) => f.code === 'S12'));
   assert.deepStrictEqual(res, { ok: true, failures: [] });

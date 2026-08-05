@@ -13,9 +13,11 @@ bouncer validate --blueprint <dir> --gate <plan|execute|finalize>
 | **execute** | G6 tasks `verified` · G7 verification `passed` · G8 리뷰 `accepted`(또는 `required: false`) · G13 `verify` 명령 실제 실행 + 종료 코드 0 + 본문이 기록된 메타데이터와 일치 · G14 `## Findings` 존재 + 각 finding의 severity/status 유효 |
 | **finalize** | G15 explain 본문 5섹션 작성 · `bouncer.comprehension` 기록 존재 · `diff_sha`가 `base..HEAD`(`.bouncer/context/` 제외)와 일치 (G9는 결번; project `.bouncer/Distill.md`는 skill + `makeAllowed`, 본문 게이트 아님) |
 
-`S`로 시작하는 코드(S0–S12)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
+`S`로 시작하는 코드(S0–S13)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
 S12는 `tasks.bouncer.verify`가 있을 때 셸 체이닝·리다이렉션·`cd` 접두 같은 비단일
-실행 형식을 거절합니다.
+실행 형식을 거절합니다. S13은 `.bouncer/context/epics/` 디렉터리와 번들 루트
+`index.md`의 OKF §6 에픽 목록이 어긋나면 실패합니다(`bouncer scaffold epic`이
+목록 줄을 추가함).
 
 섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가
 G10에 걸리는 것은 의도된 동작입니다.

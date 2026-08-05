@@ -8,6 +8,7 @@ const yaml = require('js-yaml');
 const { execFileSync } = require('node:child_process');
 const { runCli } = require('../scripts/lib/cli');
 const { readCurrent, writeCurrent } = require('../scripts/lib/current');
+const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
 const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
 
@@ -76,6 +77,9 @@ function writePlanPassingBlueprint(repo) {
       affected_paths: ['./src/auth/login.js', './test/auth/login.test.js'],
     },
   }, PLAN_BODY);
+  ensureEpicIndexEntry({
+    repoRoot: repo, epicId: 'EPIC-001', name: 'auth', description: 'Epic EPIC-001',
+  });
 }
 
 test('current with no pointer returns null and ready candidates', () => {
