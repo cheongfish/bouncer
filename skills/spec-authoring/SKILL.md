@@ -1,15 +1,17 @@
 ---
 name: spec-authoring
-description: "Use when authoring the body of planning or distill documents. Writes body content only; never edits harness-owned frontmatter fields. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use when authoring the body of planning documents or promoting durable notes into project Distill. Writes body content only; never edits harness-owned frontmatter fields. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Spec Authoring
 
-Author the **body** of planning documents (epic, blueprint, tasks) and later
-distill notes. Epic/blueprint scaffolding already wrote the frontmatter and
-protocol block for plan docs. BP `distill.md` is created at finalize
-(`bouncer scaffold distill`) before you author its body.
-Your job is the prose under it. Canonical Bouncer documents live only under
+Author the **body** of planning documents (epic, blueprint, tasks) and promote
+durable notes into project Distill. Epic/blueprint scaffolding already wrote
+the frontmatter and protocol block for plan docs. BP `explain.md` body, quiz,
+and comprehension recording belong to `explain-diff`
+(`skills/explain-diff/SKILL.md`) — do not author those here.
+Your job is the prose under plan docs, and Distill promotion when finalize
+sends you here. Canonical Bouncer documents live only under
 `.bouncer/context/`; never read, author, or migrate a root `context/` tree.
 
 ## Ownership boundary (do not cross)
@@ -87,15 +89,15 @@ those placeholders ship as the commit subject and body.
        it fails → implement. Write expected assertions, constants, and
        commands as literal code blocks; this is where implementation detail
        deferred from the blueprint Contract lands.
-   - **verification / review / distill**: only author these when a command
-     sends you here. When touching verification during plan or execute, set
-     its `title` as a second `~함` commit body line if it will be published.
-   - **project Distill** (`.bouncer/context/Distill.md`): curated runtime
-     cautions — `## Invariants`, `## Gotchas`, `## Decisions`. Put only what
-     the next plan/execute must not rediscover. Decisions are **current**
-     valid choices; replace the sentence when it changes — never append a
-     timeline. BP `distill.md` holds cycle candidates; finalize promotes
-     durable bullets into the project Distill.
+   - **verification / review**: only author these when a command sends you
+     here. When touching verification during plan or execute, set its `title`
+     as a second `~함` commit body line if it will be published.
+   - **project Distill** (`.bouncer/context/Distill.md`): when finalize asks
+     for promotion, curate runtime cautions under `## Invariants`,
+     `## Gotchas`, `## Decisions`. Put only what the next plan/execute must
+     not rediscover. Decisions are **current** valid choices; replace the
+     sentence when it changes — never append a timeline. Source durable
+     bullets from the BP `explain.md`; leave cycle retrospectives there.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
    Match each document's length to what the work needs — cover the substance,
    then stop. No filler sections, no summary that restates the section above it,

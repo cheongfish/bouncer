@@ -179,7 +179,7 @@ Blueprint: [<BP-id>](index.md)
 <!-- 핵심 경로와 읽어야 할 파일. 긴 덤프 금지. -->
 
 ## Quiz
-<!-- 이해 확인 질문. 채점·기록 절차는 finalize 스킬이 안내한다. -->
+<!-- 이해 확인 질문. 채점·기록 절차는 explain-diff 스킬이 안내한다. -->
 
 ## 이해 상태
 <!-- 퀴즈 결과와 disposition. comprehension 프론트매터와 맞춰 적는다. -->

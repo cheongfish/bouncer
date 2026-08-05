@@ -11,6 +11,7 @@ const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.
 test('bouncer-finalize wires explain, finalize gate, bouncer finalize, push+PR, and graceful skip', () => {
   const { data, body } = parseFrontmatter(md);
   assert.ok(data.description.length > 0);
+  assert.match(body, /skills\/explain-diff\/SKILL\.md/);
   assert.match(body, /spec-authoring/);
   assert.match(body, /explain/i);
   assert.match(body, /scaffold explain/);

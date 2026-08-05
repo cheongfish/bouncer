@@ -38,13 +38,14 @@ appears; do not reconstruct a root `context/` path.
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold explain --blueprint <pointer.blueprint>
    ```
-   Then use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to:
-   - Write this blueprint's `explain.md` (cycle candidates + durable notes), then
-     set `explain.md` `bouncer.status → published`.
-   - Promote durable items into `.bouncer/context/Distill.md` under
-     `## Invariants` / `## Gotchas` / `## Decisions` (add, replace, or drop
-     stale bullets). Decisions stay **current only** — no change-log append.
-     Cycle retrospectives and next-BP ideas stay in the BP `explain.md` only.
+   Then use the `explain-diff` skill (`skills/explain-diff/SKILL.md`) to author
+   the five sections, quiz the user, record `bouncer.comprehension`, and set
+   `explain.md` `bouncer.status → published`.
+   After that, use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`)
+   to promote durable items into `.bouncer/context/Distill.md` under
+   `## Invariants` / `## Gotchas` / `## Decisions` (add, replace, or drop
+   stale bullets). Decisions stay **current only** — no change-log append.
+   Cycle retrospectives and next-BP ideas stay in the BP `explain.md` only.
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:
    ```bash
