@@ -116,8 +116,8 @@ function cmdSeedWorktree(rest, io) {
         return 2;
     }
     try {
-        // --repo (default cwd) is the base checkout the plan documents live in;
-        // --to is the worktree that was just created from the committed HEAD.
+        // --repo(기본 cwd)는 plan 문서가 있는 base checkout;
+        // --to는 committed HEAD에서 막 만든 worktree.
         const result = seedWorktree({
             repoRoot: f.repo || process.cwd(),
             blueprintDir: f.blueprint,
@@ -179,8 +179,8 @@ function cmdCurrent(rest, io) {
             gate: 'plan',
         });
         if (!result.ok) {
-            // Pass failures through untouched — plan gate is the authority; do not
-            // write the pointer on a failing brief.
+            // failures를 그대로 전달 — plan gate가 권위; 실패한 brief에는 pointer를
+            // 쓰지 않음.
             io.out(`${JSON.stringify({ ok: false, failures: result.failures }, null, 2)}\n`);
             return 1;
         }
@@ -196,8 +196,8 @@ function cmdCurrent(rest, io) {
         io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
         return 0;
     }
-    // Absence is a state, not an error: always exit 0. When unset, attach the
-    // ready list so execute can tell "planned but unset" from "nothing planned".
+    // 없음도 오류가 아닌 상태: 항상 exit 0. unset이면 ready list를 붙여 execute가
+    // "planned but unset"과 "nothing planned"를 구분하게 함.
     const current = readCurrent({ repoRoot });
     if (current) {
         io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);

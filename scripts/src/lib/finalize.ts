@@ -15,12 +15,12 @@ function isUnder(file, entry) {
   return f.startsWith(pref);
 }
 
-// Build outputs and runtime state are never Bouncer-managed scope: they are
-// neither staged nor reported as violations, so a repository without a
-// .gitignore does not hard-stop finalize. `bouncer init` reports the entries a
-// project should ignore; Bouncer never edits .gitignore itself.
-// Execute checkouts live under `<repo>/.worktrees/<BP-id>`. Ignore the whole
-// tree so finalize never treats a nested worktree file as out-of-scope.
+// 빌드 산출물과 runtime state는 Bouncer 관리 scope가 아님: stage하지도
+// 위반으로 보고하지도 않아 .gitignore가 없는 repo도 finalize를 막지 않음.
+// `bouncer init`은 프로젝트가 무시해야 할 항목을 알려 주며, Bouncer는
+// .gitignore를 직접 수정하지 않음.
+// Execute checkout은 `<repo>/.worktrees/<BP-id>` 아래에 있음. 트리 전체를
+// ignore하여 finalize가 중첩 worktree 파일을 scope 밖으로 보지 않게 함.
 const RUNTIME_ARTIFACTS = ['node_modules/', 'graphify-out/', '.worktrees/'];
 
 function isRuntimeArtifact(file) {
@@ -37,19 +37,19 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
     if (isUnder(f, `${bp}/`)) return true;
     if (f === `${epicDir}/index.md`) return true;
     if (f === `${CONTEXT_ROOT}/index.md`) return true;
-    // Finalize always updates project Distill via promotion; do not require it
-    // on every blueprint's affected_paths.
+    // Finalize는 promotion으로 project Distill을 항상 갱신; 모든 blueprint의
+    // affected_paths에 넣을 필요 없음.
     if (f === PROJECT_DISTILL) return true;
     return paths.some((p) => isUnder(f, p));
   };
 }
 
-// Subject and body follow whatever commit convention the project writes into
-// document fields; only the structure is ours. Keep identifiers and paths
-// out of the message — they live in the blueprint docs and the PR body.
-// Body order: 배경·의도 2줄 (`bouncer.commit_intent`) then 수정 내용
-// (tasks / verification titles). Without a 2-line intent, fall back to
-// title bullets only (legacy).
+// subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
+// 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
+// 문서와 PR body에 있음.
+// Body 순서: 배경·의도 2줄 (`bouncer.commit_intent`) 다음 수정 내용
+// (tasks / verification titles). 2줄 intent가 없으면 title bullet만
+// (legacy).
 function buildCommitMessage(docs) {
   const bp = docs.blueprintIndex.data;
   const bouncer = bp.bouncer || {};
@@ -102,8 +102,8 @@ function finalize({
   if (violations.length) return { ok: false, reason: 'out-of-scope', violations };
 
   const commitMessage = buildCommitMessage(docs);
-  // Next-candidate calculation must never break finalize: a thrown next()
-  // collapses to the empty handoff shape so ok / exit stay tied to commit work.
+  // next 후보 계산이 finalize를 깨면 안 됨: next()가 throw하면 빈 handoff
+  // 형태로 뭉개 ok/exit는 commit 작업에만 묶임.
   const computeNext = () => {
     try {
       return next({ repoRoot, blueprintDir });
@@ -120,8 +120,8 @@ function finalize({
 
   gitApi.stage(all);
   gitApi.commit(commitMessage);
-  // The blueprint is done. Leaving the pointer in place would keep the commit
-  // guard enforcing this blueprint's affected_paths against every later commit.
+  // blueprint는 끝남. pointer를 남기면 commit guard가 이후 모든 commit에
+  // 이 blueprint의 affected_paths를 계속 강제함.
   const pointerCleared = clearPointer({ repoRoot });
   return {
     ok: true,

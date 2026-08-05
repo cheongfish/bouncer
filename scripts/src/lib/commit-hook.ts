@@ -6,10 +6,10 @@ const { checkCommitSafety } = require('./commit-guard');
 const { readCurrent } = require('./current');
 const { readDoc } = require('./frontmatter');
 
-// The guard prevents mistakes; it is not a defense against a determined bypass
-// (see the threat model in docs/security.md). Where a command cannot be decided —
-// a nested shell, a shell expansion, an alias — it reports a commit rather than
-// waving the command through, so the scope check still runs.
+// guard는 실수를 막습니다. 의도적 우회에 대한 방어는 아닙니다
+// (docs/security.md의 threat model 참고). 명령을 판단할 수 없는 경우 —
+// 중첩 셸, 셸 확장, alias — commit으로 보고하고 통과시키지 않아
+// scope 검사가 여전히 실행됩니다.
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash']);
 const GIT_VALUE_FLAGS = new Set([
   '-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--super-prefix',
@@ -18,9 +18,9 @@ const SHELL_COMMAND_FLAG = /^-[A-Za-z]*c$/;
 const EXPANSION = /[$`]/;
 const MAX_DEPTH = 4;
 
-// Splits on whitespace and on the operators that begin a new command, both only
-// outside quotes. Quoted tokens are marked: a quoted word is data (an argument),
-// never a command name, so `echo "git commit"` must not read as a commit.
+// 공백과 새 명령을 시작하는 연산자 모두에서 분리하되, 따옴표 밖에서만.
+// 따옴표 토큰은 표시됩니다: 따옴표 안 단어는 데이터(인자)이지 명령 이름이
+// 아니므로 `echo "git commit"`을 commit으로 읽으면 안 됩니다.
 function tokenize(command) {
   const tokens = [];
   let value = '';
@@ -82,7 +82,7 @@ function aliasIsCommit(name, resolveAlias, depth) {
     return false;
   }
   if (!expansion) return false;
-  // A `!` alias runs an arbitrary shell command; anything else is git's own argv.
+  // `!` alias는 임의의 셸 명령을 실행합니다. 그 외는 git 자체 argv입니다.
   return expansion.startsWith('!')
     ? detect(expansion.slice(1), resolveAlias, depth + 1)
     : detect(`git ${expansion}`, resolveAlias, depth + 1);
@@ -96,7 +96,7 @@ function segmentIsGitCommit(tokens, resolveAlias, depth) {
     for (let i = shellIdx + 1; i < tokens.length; i += 1) {
       if (!tokens[i].quoted && SHELL_COMMAND_FLAG.test(tokens[i].value)) {
         const script = tokens[i + 1];
-        // `bash -c` with nothing to read is undecidable, not harmless.
+        // 읽을 `bash -c` 내용이 없으면 무해한 게 아니라 판단 불가입니다.
         if (!script) return true;
         return detect(script.value, resolveAlias, depth + 1);
       }
@@ -108,7 +108,7 @@ function segmentIsGitCommit(tokens, resolveAlias, depth) {
   let i = gitIdx + 1;
   while (i < tokens.length) {
     const t = tokens[i];
-    // The word that decides this command is produced at runtime.
+    // 이 명령을 결정하는 단어는 런타임에 만들어집니다.
     if (EXPANSION.test(t.value)) return true;
     if (t.value.startsWith('-')) {
       i += GIT_VALUE_FLAGS.has(t.value) ? 2 : 1;
@@ -162,8 +162,8 @@ function realStagedFiles({ repoRoot }) {
   return out.split('\n').filter(Boolean);
 }
 
-// The active pointer lives in the Git common directory, so primary and linked
-// worktrees both resolve the same state without locating a main working tree.
+// active pointer는 Git common directory에 있으므로 primary와 linked worktree
+// 모두 main working tree를 찾지 않고 같은 state를 resolve합니다.
 function realMainRepoCurrent({ repoRoot, deps }) {
   return readCurrent({ repoRoot, deps });
 }

@@ -7,8 +7,8 @@ const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = require
 
 const READY_TASK_STATUS = ['ready', 'in_progress'];
 
-// Match epic `## Blueprints` link targets like `blueprints/BP-001-slug/index.md`.
-// Capture the blueprint directory name only; ignore title text and one-line purpose.
+// epic `## Blueprints` 링크 대상(예: `blueprints/BP-001-slug/index.md`)과 매칭.
+// blueprint directory 이름만 캡처; title 텍스트와 한 줄 purpose는 무시.
 const BLUEPRINT_LINK_RE = /\]\(blueprints\/([^/)]+)\/index\.md\)/g;
 
 function readCurrent({ repoRoot, deps }) {
@@ -27,10 +27,10 @@ function clearCurrent({ repoRoot, deps }) {
   return clearRuntimeCurrent({ repoRoot, deps });
 }
 
-// Side-effect free scan of approved blueprints whose tasks are still open for
-// execute. Broken / unreadable docs are skipped per-entry so one corrupt
-// blueprint cannot erase the whole ready list (execute uses this when the
-// pointer is null to distinguish "planned but unset" from "nothing planned").
+// approved blueprint 중 execute가 아직 열린 tasks만 side-effect 없이 스캔.
+// 깨지거나 읽을 수 없는 doc은 항목별로 skip하여 corrupt blueprint 하나가
+// ready list 전체를 지우지 않게 함 (pointer가 null일 때 execute가
+// "planned but unset"과 "nothing planned"를 구분하는 데 사용).
 function listReadyBlueprints({ repoRoot }) {
   const list: Array<{ blueprint: string; status: string }> = [];
   const epicsRoot = path.join(repoRoot, '.bouncer', 'context', 'epics');
@@ -75,7 +75,7 @@ function listReadyBlueprints({ repoRoot }) {
           list.push({ blueprint: rel, status: tasksStatus });
         }
       } catch (_e) {
-        // Skip this blueprint only — keep scanning siblings.
+        // 이 blueprint만 skip — 형제는 계속 스캔.
       }
     }
   }
@@ -84,9 +84,9 @@ function listReadyBlueprints({ repoRoot }) {
   return list;
 }
 
-// Read only the `## Blueprints` section of an epic index and return blueprint
-// directory names in link appearance order. Missing section / unreadable file
-// → [] (never throw): callers fall back to path lexicographic order.
+// epic index의 `## Blueprints` section만 읽어 blueprint directory 이름을
+// 링크 등장 순으로 반환. section 없음/읽기 실패 → [] (throw 없음):
+// caller는 path lexicographic order로 fallback.
 function parseEpicBlueprintOrder(epicIndexAbs) {
   let text: string;
   try {
@@ -94,13 +94,13 @@ function parseEpicBlueprintOrder(epicIndexAbs) {
   } catch (_e) {
     return [];
   }
-  // Strip YAML frontmatter so a `## Blueprints` string inside it cannot win.
+  // YAML frontmatter를 제거해 그 안의 `## Blueprints` 문자열이 이기지 않게 함.
   const fmEnd = text.indexOf('\n---\n');
   const body = fmEnd >= 0 ? text.slice(fmEnd + 5) : text;
   const sectionMatch = /^## Blueprints\s*$/m.exec(body);
   if (!sectionMatch) return [];
   const start = sectionMatch.index + sectionMatch[0].length;
-  // Next ATX h2 ends this section; ignore deeper headings.
+  // 다음 ATX h2가 이 section을 끝냄; 더 깊은 heading은 무시.
   const rest = body.slice(start);
   const nextH2 = /^## /m.exec(rest);
   const section = nextH2 ? rest.slice(0, nextH2.index) : rest;
@@ -125,10 +125,10 @@ function readAffectedPaths(repoRoot, blueprintDir) {
   }
 }
 
-// Compute the next ready blueprint after a finalize target — pure calculation,
-// no writes / git / process. Candidates come only from listReadyBlueprints;
-// ordering prefers the finalized epic, then ## Blueprints link order, then
-// path lexicographic within-epic leftovers, then other epics by epic dir name.
+// finalize 대상 이후 다음 ready blueprint 계산 — 순수 계산, write/git/process
+// 없음. 후보는 listReadyBlueprints에서만; 정렬은 finalized epic 우선, 다음
+// ## Blueprints link order, epic 내 미등록은 path lexicographic, 그다음
+// 다른 epic은 epic dir name 순.
 function nextBlueprint({ repoRoot, blueprintDir }) {
   const selfRaw = String(blueprintDir);
   const selfPosix = toPosix(selfRaw);
@@ -157,7 +157,7 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
     };
   });
 
-  // Epic ## Blueprints order is per-epic; read once per distinct epic dir.
+  // Epic ## Blueprints order는 epic별; distinct epic dir마다 한 번만 읽음.
   const orderCache = new Map();
   function orderOf(epicRel) {
     if (orderCache.has(epicRel)) return orderCache.get(epicRel);
@@ -168,10 +168,10 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
   }
 
   ranked.sort((a, b) => {
-    // (1) same epic as the finalize target first
+    // (1) finalize 대상과 같은 epic을 먼저
     if (a.sameEpic !== b.sameEpic) return a.sameEpic ? -1 : 1;
     if (a.sameEpic) {
-      // (2)/(3) listed ## Blueprints order, then unlisted by path
+      // (2)/(3) ## Blueprints 등록 순, 미등록은 path 순
       const order = orderOf(a.epic);
       const ai = order.indexOf(a.bpName);
       const bi = order.indexOf(b.bpName);
@@ -181,7 +181,7 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
       if (aListed !== bListed) return aListed ? -1 : 1;
       return a.blueprint.localeCompare(b.blueprint);
     }
-    // (4) other epics: epic directory name lexicographic, then blueprint path
+    // (4) 다른 epic: epic directory name lexicographic, 다음 blueprint path
     const byEpic = a.epicName.localeCompare(b.epicName);
     if (byEpic !== 0) return byEpic;
     return a.blueprint.localeCompare(b.blueprint);
@@ -192,8 +192,8 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
   const finalizedPaths = readAffectedPaths(repoRoot, selfPosix);
   const [head, ...rest] = ranked;
   const candidatePaths = readAffectedPaths(repoRoot, head.blueprint);
-  // Intersection in candidate order; string equality only — no directory
-  // containment inference (tasks declare exact path entries).
+  // candidate order로 교집합; 문자열 equality만 — directory containment
+  // 추론 없음 (tasks는 정확한 path entry를 선언).
   const sharedPaths = candidatePaths.filter((p) => finalizedPaths.includes(p));
 
   return {

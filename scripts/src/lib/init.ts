@@ -6,9 +6,9 @@ const { PROJECT_DISTILL } = require('./layout');
 const { PROJECT_DISTILL_BODY } = require('./templates');
 const { nowIsoKst } = require('./time');
 
-// Fixed probe order for default source_dirs. Only directories that exist at
-// init time are kept; order of this list is the order written to config.
-// Keep in sync with tests that import SOURCE_DIR_CANDIDATES.
+// default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
+// 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
+// import하는 test와 동기 유지.
 const SOURCE_DIR_CANDIDATES = ['src', 'lib', 'app', 'packages', 'scripts', 'test', 'tests'];
 
 function detectSourceDirs(repoRoot) {
@@ -23,14 +23,13 @@ function detectSourceDirs(repoRoot) {
 
 function defaultConfig(repoRoot) {
   return {
-    // Bouncer's own frontmatter schema version. The OKF *spec* version is a
-    // different thing and is declared where OKF §11 requires it: the frontmatter
-    // of the bundle-root index.md.
+    // Bouncer 자체 frontmatter schema version. OKF *spec* version은 별개이며
+    // OKF §11이 요구하는 bundle-root index.md frontmatter에 선언됨.
     schema_version: '0.x',
-    // Detected at scaffold time only — never rewritten on a ready bootstrap.
+    // scaffold 시점에만 감지 — ready bootstrap에서는 다시 쓰지 않음.
     source_dirs: detectSourceDirs(repoRoot),
-    // Bouncer context docs graph (epics/blueprints). Used with source_dirs for
-    // dual graphify outputs under graphify-out/source and graphify-out/context.
+    // Bouncer context docs graph (epics/blueprints). source_dirs와 함께
+    // graphify-out/source, graphify-out/context 이중 graphify 출력에 사용.
     context_dirs: ['.bouncer/context'],
     graphify: { enabled: false },
     verify: 'npm test',
@@ -47,11 +46,11 @@ function defaultConfig(repoRoot) {
         auto_switch: false,
       },
     },
-    // Placeholder slots for host-specific model IDs. Every value starts as
-    // "inherit" so init shows the editable shape without pinning a model;
-    // resolveSubagentModel treats "inherit" as parent-session fallback.
-    // Provider blocks are separate because each host has its own model
-    // namespace (Claude / Cursor / Codex slugs are not interchangeable).
+    // host별 model ID용 placeholder slot. 모든 값은 "inherit"로 시작해 init이
+    // 편집 가능한 형태를 보여 주되 model을 고정하지 않음; resolveSubagentModel은
+    // "inherit"를 parent-session fallback으로 처리.
+    // provider block은 분리 — host마다 model namespace가 다름
+    // (Claude / Cursor / Codex slug는 호환되지 않음).
     subagents: {
       claude: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
       cursor: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
@@ -60,8 +59,8 @@ function defaultConfig(repoRoot) {
   };
 }
 
-// Bundle root. OKF §11 allows frontmatter here and nowhere else among index
-// files; §6 fixes the body shape as `* [Title](url) - description` groups.
+// Bundle root. OKF §11은 index file 중 여기에만 frontmatter를 허용;
+// §6은 body 형태를 `* [Title](url) - description` 그룹으로 고정.
 const CONTEXT_INDEX = `---
 okf_version: "0.1"
 ---
@@ -79,8 +78,8 @@ function writeFile(repoRoot, rel, content, created) {
 }
 
 function projectDistillDoc(timestamp) {
-  // Not a registered bouncer.* schema kind — project Distill is ungated prose
-  // with OKF-shaped meta only (title/description/resource/tags/timestamp).
+  // 등록된 bouncer.* schema kind가 아님 — project Distill은 gate 없는 prose,
+  // OKF 형태 meta만 (title/description/resource/tags/timestamp).
   const ts = timestamp || nowIsoKst();
   return `---
 title: Project Distill
@@ -94,16 +93,16 @@ timestamp: '${ts}'
 ${PROJECT_DISTILL_BODY}`;
 }
 
-// Create Distill only when missing — never overwrite curated project notes.
+// 없을 때만 Distill 생성 — 정리된 project note는 덮어쓰지 않음.
 function ensureProjectDistill(repoRoot, created, timestamp) {
   const abs = path.join(repoRoot, PROJECT_DISTILL);
   if (fs.existsSync(abs)) return;
   writeFile(repoRoot, PROJECT_DISTILL, projectDistillDoc(timestamp), created);
 }
 
-// Advisory only. Safe bootstrap forbids init from editing files it did not
-// create, so a missing .gitignore is reported, never written. finalize ignores
-// these paths regardless; the suggestion keeps the working tree readable.
+// advisory만. safe bootstrap은 init이 만들지 않은 file을 수정하지 않으므로
+// .gitignore가 없으면 보고만 하고 쓰지 않음. finalize는 이 path를 무시;
+// 제안은 working tree를 읽기 쉽게 유지.
 const SUGGESTED_IGNORES = ['node_modules/', 'graphify-out/', '.worktrees/'];
 
 function gitignoreSuggestions({ repoRoot }) {
@@ -138,7 +137,7 @@ function inspectBootstrap({ repoRoot }) {
       && typeof config.base_branch === 'string';
     if (valid) return 'ready';
   } catch (_e) {
-    // Existing Bouncer content is preserved when config is absent or invalid.
+    // config가 없거나 invalid일 때 기존 Bouncer 내용은 보존.
   }
   return 'partial';
 }
@@ -154,7 +153,7 @@ function init({ repoRoot, timestamp }) {
   }
   const suggestions = gitignoreSuggestions({ repoRoot });
   if (bootstrap === 'ready') {
-    // Soft-seed Distill for repos initialized before project Distill existed.
+    // project Distill 이전에 init된 repo용 soft-seed.
     const created = [];
     ensureProjectDistill(repoRoot, created, timestamp);
     return {
@@ -171,9 +170,9 @@ function init({ repoRoot, timestamp }) {
   writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
   writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
   ensureProjectDistill(repoRoot, created, timestamp);
-  // Same advisory layer as gitignoreSuggestions: tell the operator when
-  // detection found nothing so they fill source_dirs instead of opting into
-  // an empty graph (BP-001's missing warning). Omit when dirs were found.
+  // gitignoreSuggestions와 같은 advisory layer: detection이 아무것도 못 찾으면
+  // operator에게 source_dirs를 채우라고 알려 빈 graph(BP-001 missing warning)에
+  // opt-in하지 않게 함. dir을 찾았으면 생략.
   return {
     ok: true, created, skipped: false, reason: 'initialized',
     gitignoreSuggestions: suggestions,

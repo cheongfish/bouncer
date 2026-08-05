@@ -1,6 +1,6 @@
 'use strict';
 const fs = require('node:fs');
-// Path is relative to emitted scripts/lib/ (tsc does not rewrite require strings).
+// 경로는 emit된 scripts/lib/ 기준(tsc는 require 문자열을 재작성하지 않음).
 const yaml = require('../vendor/js-yaml') as { load: (s: string, o?: object) => unknown; dump: (o: unknown, opts?: object) => string };
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;

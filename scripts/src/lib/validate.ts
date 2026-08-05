@@ -35,8 +35,8 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
   return { docs, rels, parseErrors };
 }
 
-// Existence only: cheap, and it must not parse, because it runs before the
-// execute gate re-runs verification (which rewrites verification.md).
+// 존재 여부만 확인: 가볍고 파싱하지 않아야 함. execute gate가 verification을
+// 다시 실행(verification.md를 다시 씀)하기 전에 호출되기 때문.
 function blueprintDocsExist({ repoRoot, blueprintDir }) {
   const bp = toPosix(blueprintDir);
   return ['index.md', 'tasks.md', 'verification.md', 'review.md', 'explain.md']
@@ -59,7 +59,7 @@ function checkStructural(doc, failures) {
   }
   if (!TYPES.includes(data.type)) {
     add('S2', `unknown type: ${data.type}`);
-    return; // type-dependent checks cannot proceed
+    return; // type에 의존하는 검사는 진행할 수 없음
   }
   if (data.resource !== rel) {
     add('S3', `resource path mismatch: ${data.resource} != ${rel}`);
@@ -101,8 +101,8 @@ function checkStructural(doc, failures) {
         add('S9', 'tasks.graph.basis missing or empty');
       }
     }
-    // Optional field: absent keeps every pre-existing tasks.md valid. Reuse
-    // verification.isValidVerifyCommand so S12 and VERIFY_COMMAND_INVALID agree.
+    // 선택 필드: 없으면 기존 tasks.md가 모두 유효하게 유지됨. S12와
+    // VERIFY_COMMAND_INVALID가 일치하도록 verification.isValidVerifyCommand를 재사용.
     if (bouncer.verify !== undefined && !isValidVerifyCommand(bouncer.verify)) {
       add('S12', 'tasks.verify must be a single executable command');
     }
@@ -129,12 +129,11 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     };
   }
 
-  // No blueprint document at all means a wrong path, not a document problem.
-  // Reporting that first keeps the reader from chasing the cascade of gate
-  // failures an empty document set produces, and stops `execute` from running
-  // the verify command for a path that does not exist. The epic index is
-  // deliberately excluded: it exists for every blueprint under that epic, so a
-  // mistyped blueprint name would otherwise slip past this check.
+  // blueprint 문서가 하나도 없으면 문서 문제가 아니라 잘못된 경로를 의미함.
+  // 이를 먼저 보고하면 빈 문서 집합이 만드는 gate 실패 연쇄를 쫓지 않게 하고,
+  // 존재하지 않는 경로에 대해 `execute`가 verify 명령을 실행하는 것을 막음.
+  // epic index는 의도적으로 제외: 해당 epic 아래 모든 blueprint에 존재하므로,
+  // 오타 난 blueprint 이름이 이 검사를 통과해 버릴 수 있음.
   if (!blueprintDocsExist({ repoRoot, blueprintDir })) {
     return {
       ok: false,
@@ -166,7 +165,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     }
   }
 
-  // Loaded after verification so the execute gate reads the evidence it just wrote.
+  // execute gate가 방금 기록한 증적을 읽도록 verification 이후에 로드.
   const { docs, rels, parseErrors } = loadBlueprintDocs({ repoRoot, blueprintDir });
   const failures = [...executionFailures, ...parseErrors];
 
@@ -196,8 +195,8 @@ const SECTION_DEFS = [
   { key: 'interface', re: /^##\s+(Interface|인터페이스)\s*$/i },
   { key: 'touch', re: /^##\s+(Touch|수정할\s*부분)\s*$/i },
   { key: 'doNotTouch', re: /^##\s+(Do\s+not\s+touch|절대\s*수정\s*금지)\s*$/i },
-  // Parsed as a boundary but absent from the G10 required list: without a def
-  // here its prose would fold into Do not touch and invent G12 path overlaps.
+  // 경계로 파싱하지만 G10 필수 목록에는 없음: 여기에 def가 없으면 해당 본문이
+  // Do not touch에 흡수되어 G12 path overlap을 잘못 만들어 냄.
   { key: 'constraints', re: /^##\s+(Constraints|제약)\s*$/i },
   { key: 'checklist', re: /^##\s+(Checklist|체크리스트)\s*$/i },
 ];
@@ -213,9 +212,9 @@ const REVIEW_SECTION_DEFS = [
 const REVIEW_SEVERITY = ['blocker', 'major', 'minor', 'nit'];
 const REVIEW_STATUS = ['resolved', 'accepted'];
 
-// Same emptiness contract as G10: heading present, prose after comment-strip.
-// Keys mirror EXPLAIN_SECTION_DEFS so the comprehension module stays the SSOT
-// for which sections exist; regexes stay here next to parseSections.
+// G10과 동일한 비어 있음 계약: 제목은 있고, comment-strip 후 본문이 있어야 함.
+// comprehension module이 어떤 section이 있는지 SSOT가 되도록 key는
+// EXPLAIN_SECTION_DEFS를 반영; regex는 parseSections 옆에 둠.
 const EXPLAIN_SECTION_HEADINGS = [
   { key: 'background', re: /^##\s+Background\s*$/i },
   { key: 'intuition', re: /^##\s+Intuition\s*$/i },
@@ -232,9 +231,9 @@ function readConfigFile(repoRoot) {
   }
 }
 
-// Pointer base wins only when the pointer names this blueprint; otherwise
-// config.base_branch, then develop. Keeps finalize hash stable without a
-// pointer, and avoids hashing against another BP's base by accident.
+// pointer base는 pointer가 이 blueprint를 가리킬 때만 우선; 그 외에는
+// config.base_branch, 다음 develop. pointer 없이도 finalize hash를 안정적으로
+// 유지하고, 다른 BP의 base로 실수로 hash하지 않게 함.
 function resolveFinalizeBase({ repoRoot, blueprintDir, deps }) {
   const rc = (deps && deps.readCurrent) || readCurrent;
   const cfgRead = (deps && deps.readConfig) || readConfigFile;
@@ -256,16 +255,16 @@ function resolveFinalizeBase({ repoRoot, blueprintDir, deps }) {
   return 'develop';
 }
 
-// Authoring guidance ships as HTML comments, so a section holding nothing but
-// guidance is unwritten. Stripping comments before the emptiness test keeps
-// "section present but empty" meaning what it did before templates carried
-// prose. Applies to every section-parsed document, not only tasks.
+// 작성 가이드는 HTML comment로 제공되므로, 가이드만 있는 section은 미작성으로
+// 본다. 비어 있음 검사 전에 comment를 제거하면 "section은 있으나 비어 있음"이
+// template에 본문이 실리기 전과 같은 의미를 유지. tasks뿐 아니라 section을
+// 파싱하는 모든 문서에 적용.
 function stripComments(text) {
   return text.replace(/<!--[\s\S]*?-->/g, '');
 }
 
-// The single placeholder form templates use. Distinctive enough that real
-// prose never trips it — an `<T>` generic in Interface stays legal.
+// template이 쓰는 유일한 placeholder 형식. 실제 본문과 구분되어 걸리지 않음 —
+// Interface의 `<T>` generic은 그대로 허용.
 const TODO_RE = /<TODO:[^>\n]*>/;
 
 function parseSections(body, defs) {
@@ -346,8 +345,8 @@ function checkGate(gate, docs, rels, failures, ctx) {
     if (missing.length) {
       add('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`, 'tasks');
     } else if (unfilled.length) {
-      // Reported instead of the path checks below: unreplaced placeholders make
-      // G11/G12 findings noise about template text rather than about scope.
+      // 아래 path 검사 대신 보고: 치환되지 않은 placeholder는 G11/G12 finding이
+      // scope가 아니라 template 텍스트에 대한 잡음이 되게 함.
       add('G10', `tasks sections still contain <TODO: …> placeholders: ${unfilled.join(', ')}`, 'tasks');
     } else {
       const apList = Array.isArray(ap)
@@ -418,16 +417,16 @@ function checkGate(gate, docs, rels, failures, ctx) {
     return;
   }
   if (gate === 'finalize') {
-    // G9 (distill.status == published) is retired — number stays vacant.
-    // G15 judges comprehension of the diff, not a status token alone.
+    // G9 (distill.status == published)는 폐기됨 — 번호만 비워 둠.
+    // G15는 status token만이 아니라 diff에 대한 comprehension을 판단.
     if (!docs.explain) {
       add('G15', 'explain.md missing', 'explain');
       return;
     }
     const explainBody = typeof docs.explain.body === 'string' ? docs.explain.body : '';
     const sections = parseSections(explainBody, EXPLAIN_SECTION_HEADINGS);
-    // Keys come from the comprehension module so a drift between modules fails
-    // tests that assert EXPLAIN_SECTION_DEFS, not a silent subset here.
+    // key는 comprehension module에서 가져와 module 간 drift가 여기의 조용한
+    // subset이 아니라 EXPLAIN_SECTION_DEFS를 검증하는 test에서 실패하게 함.
     const missing = EXPLAIN_SECTION_DEFS.filter((k) => !sections[k]);
     if (missing.length) {
       add('G15', `explain missing written sections: ${missing.join(', ')}`, 'explain');
@@ -438,8 +437,8 @@ function checkGate(gate, docs, rels, failures, ctx) {
       ? docs.explain.data.bouncer
       : {};
     const comp = bouncer.comprehension;
-    // Empty diff_sha is "record missing", not "hash mismatch" — scaffold
-    // defaults must not collapse into the wrong failure branch.
+    // 빈 diff_sha는 "hash mismatch"가 아니라 "record missing" — scaffold
+    // default가 잘못된 failure branch로 뭉개지면 안 됨.
     const diffSha = comp && typeof comp.diff_sha === 'string' ? comp.diff_sha : '';
     const disposition = comp && typeof comp.disposition === 'string' ? comp.disposition : '';
     if (!comp || typeof comp !== 'object' || !disposition.trim() || !diffSha.trim()) {
@@ -447,7 +446,7 @@ function checkGate(gate, docs, rels, failures, ctx) {
       return;
     }
 
-    // quiz_score is recorded for humans / later BPs; G15 must not interpret it.
+    // quiz_score는 사람/이후 BP용으로 기록; G15는 이를 해석하지 않음.
     const shaFn = (deps && deps.computeDiffSha) || computeDiffSha;
     const base = resolveFinalizeBase({ repoRoot, blueprintDir, deps });
     const computed = shaFn({ repoRoot, base, exec: deps && deps.exec });

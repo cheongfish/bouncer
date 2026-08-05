@@ -7,10 +7,10 @@ const { renderDoc } = require('./render');
 const { isCanonicalBlueprintDir } = require('./layout');
 const { nowIsoKst } = require('./time');
 
-// A passing run is evidence that the command exited zero; the tail only needs
-// to carry the summary the command prints at the end. A failing run is evidence
-// of what went wrong, so it keeps far more — and keeps it in the document body
-// where a reviewer reads, not only in frontmatter.
+// 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
+// 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
+// 증거이므로 훨씬 더 많이 — 그리고 리뷰어가 읽는 문서 본문에, frontmatter에만
+// 두지 않고 — 보관합니다.
 const OUTPUT_TAIL_LINES = 100;
 const PASSING_OUTPUT_TAIL_LINES = 20;
 const MAX_VERIFY_OUTPUT_BYTES = 10 * 1024 * 1024;
@@ -21,9 +21,9 @@ function verificationError(code, message) {
   return error;
 }
 
-// One executable argv string only: no shell chaining, redirection, or `cd`
-// prefixes. Plan S12 and runtime VERIFY_COMMAND_INVALID share this predicate
-// so the two surfaces cannot drift.
+// 실행 가능한 argv 문자열 하나만: 셸 체이닝, 리다이렉션, `cd` 접두사 없음.
+// Plan S12와 runtime VERIFY_COMMAND_INVALID가 이 predicate를 공유하므로
+// 두 표면이 어긋날 수 없습니다.
 const VERIFY_COMMAND_FORBIDDEN = /[&|;`<>\n]|\$\(/;
 
 function isValidVerifyCommand(command) {
@@ -35,9 +35,9 @@ function isValidVerifyCommand(command) {
 }
 
 function readVerifyCommand(repoRoot, blueprintDir) {
-  // Blueprint declaration wins when present; missing tasks.md or missing field
-  // keeps the historical config.verify path. A present-but-invalid field must
-  // not silently fall through — that would hide a plan-time S12 miss.
+  // blueprint 선언이 있으면 우선합니다. tasks.md가 없거나 필드가 없으면
+  // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
+  // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
   if (blueprintDir) {
     const tasksPath = path.join(repoRoot, blueprintDir, 'tasks.md');
     try {

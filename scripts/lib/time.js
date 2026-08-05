@@ -1,6 +1,6 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-/** Format an instant as ISO-8601 with a fixed KST offset (Asia/Seoul, no DST). */
+/** 고정 KST 오프셋(Asia/Seoul, DST 없음)으로 instant를 ISO-8601 형식으로 포맷한다. */
 function nowIsoKst(date = new Date()) {
     const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Seoul',

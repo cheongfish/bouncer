@@ -6,7 +6,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 const { toPosix } = require('./paths');
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
 function runtimePaths({ repoRoot, execFileSync = realExecFileSync, 
-// env / platform kept for call-site compatibility; worktrees are in-repo now.
+// env/platform은 호출부 호환용; worktree는 이제 repo 내부.
 env: _env = process.env, platform = process.platform, }) {
     const pathApi = platform === 'win32' ? path.win32 : path;
     let commonDir;
@@ -24,8 +24,8 @@ env: _env = process.env, platform = process.platform, }) {
         return { unavailable: true, reason: 'Git common directory unavailable' };
     }
     const commonGitDir = pathApi.resolve(repoRoot, commonDir);
-    // dirname(.git) is the main worktree root for a normal repo, so linked
-    // checkouts share the same `.worktrees/` instead of nesting under themselves.
+    // dirname(.git)은 일반 repo의 main worktree root이므로, linked checkout이
+    // 자기 아래에 중첩되지 않고 같은 `.worktrees/`를 공유한다.
     const mainRoot = pathApi.dirname(commonGitDir);
     return {
         commonGitDir,
@@ -57,8 +57,8 @@ function readRuntimeCurrent({ repoRoot, deps }) {
         return null;
     }
 }
-// Returns true when a pointer was removed, false when there was none. Callers
-// treat "already absent" as success, so this must not throw on a missing file.
+// pointer가 제거되면 true, 없었으면 false. 호출자는 "이미 없음"을
+// 성공으로 보므로, 파일이 없어도 throw하면 안 된다.
 function clearRuntimeCurrent({ repoRoot, deps }) {
     const d = { fs, ...(deps || {}) };
     const paths = resolvedPaths({ repoRoot, deps: d });

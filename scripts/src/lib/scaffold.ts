@@ -77,11 +77,11 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
         review: { required: true } }),
     body('review.md')));
 
-  // BP explain.md is created at finalize time (scaffoldExplain), not during plan scaffold.
+  // BP explain.md는 plan scaffold가 아니라 finalize 시점(scaffoldExplain)에 생성한다.
   return created;
 }
 
-/** Create BP explain.md if missing. Used by /bouncer-finalize, not plan scaffold. */
+/** BP explain.md가 없으면 생성한다. plan scaffold가 아니라 /bouncer-finalize에서 사용. */
 function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
@@ -94,8 +94,8 @@ function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
     throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
   }
   const slug = bp.split('/').pop().replace(new RegExp(`^${blueprintId}-`), '') || 'blueprint';
-  // comprehension defaults are empty strings on purpose: G15 treats empty
-  // diff_sha / disposition as "record missing", not as a hash mismatch.
+  // comprehension 기본값은 의도적으로 빈 문자열: G15는 빈
+  // diff_sha/disposition을 hash 불일치가 아니라 "기록 없음"으로 본다.
   return [writeRel(repoRoot, explain,
     bouncerDoc('bouncer.explain', `${blueprintId} explain`, `Explain for ${blueprintId}`, explain,
       ['bouncer', 'explain'], timestamp,

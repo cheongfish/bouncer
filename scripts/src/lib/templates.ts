@@ -1,8 +1,8 @@
 // scripts/lib/templates.js
-// Built-in document bodies for scaffold (and the finalize PR body). The plugin
-// owns these strings — they are not installed into the project and there is no
-// project-level override. Every default satisfies the body sections the gates
-// require: G10 for tasks, G13 for verification, G14 for review.
+// scaffold(및 finalize PR 본문)용 내장 문서 본문. 플러그인이 이 문자열을
+// 소유하며 — 프로젝트에 설치되지 않고 프로젝트 수준 override도 없습니다.
+// 모든 기본값은 게이트가 요구하는 본문 섹션을 충족합니다: tasks는 G10,
+// verification은 G13, review는 G14.
 'use strict';
 
 const { PROJECT_DISTILL } = require('./layout');
@@ -36,13 +36,13 @@ const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 - Distill: ${PROJECT_DISTILL}
 `;
 
-// Authoring guidance lives in HTML comments and `<TODO: …>` placeholders. The
-// plan gate strips comments before deciding a section is empty and rejects any
-// surviving `<TODO:` token (G10), so an untouched template can never pass.
-// Cross-document links are relative (OKF §5.2) rather than bundle-relative
-// (§5.1): both are valid, and only the relative form survives web git hosts,
-// which resolve a leading `/` against the repository root.
-// Project Distill body (init). Keep sections stable — finalize promotes into them.
+// 작성 가이드는 HTML 주석과 `<TODO: …>` 플레이스홀더에 있습니다.
+// plan gate는 섹션이 비었는지 판단하기 전에 주석을 제거하고 남은 `<TODO:`
+// 토큰이 있으면 거부합니다(G10), 따라서 손대지 않은 템플릿은 통과할 수 없습니다.
+// 문서 간 링크는 bundle-relative(§5.1)가 아니라 relative(OKF §5.2)입니다:
+// 둘 다 유효하지만, 선행 `/`를 저장소 루트에 대해 해석하는 웹 git 호스트에서
+// survive하는 것은 relative 형식뿐입니다.
+// Project Distill 본문(init). 섹션 구조를 안정적으로 유지 — finalize가 여기로 승격합니다.
 const PROJECT_DISTILL_BODY = `# Distill
 
 Project-wide cautions for plan/execute. BP \`distill.md\` is a cycle candidate;
@@ -52,15 +52,15 @@ append a change log.
 
 ## Invariants
 
-<!-- Rules that break contracts or distribution if violated. One rule per bullet. -->
+<!-- 계약이나 배포를 위반하면 깨지는 규칙. 항목당 규칙 하나. -->
 
 ## Gotchas
 
-<!-- Recurring traps (tools, paths, gates). Trigger + do / do-not. -->
+<!-- 반복되는 함정(도구, 경로, gate). 트리거 + 하기/하지 않기. -->
 
 ## Decisions
 
-<!-- Currently valid decisions only. Replace on change; no timeline append. -->
+<!-- 현재 유효한 결정만. 변경 시 교체; 타임라인 추가 금지. -->
 `;
 
 const TEMPLATES = {
@@ -168,8 +168,8 @@ Blueprint: [<BP-id>](index.md)
 `,
   'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
   'review.md': '# Review\n\n## Findings\n- <finding>\n',
-  // Five section headings with comment-only bodies so a fresh scaffold fails
-  // G15 the same way an empty tasks template fails G10 — authoring is required.
+  // G15를 tasks 템플릿이 G10에서 실패하는 것과 같은 방식으로 — 작성이
+  // 필수이도록 — 주석만 있는 본문으로 다섯 섹션 제목을 둡니다.
   'explain.md': `# Explain
 
 ## Background
