@@ -181,3 +181,53 @@ test('allows .bouncer/context/Distill.md without listing it in affected_paths', 
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.staged, ['.bouncer/context/Distill.md']);
 });
+
+test('finalize return includes next even when no candidates remain', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    yes: true,
+    git: g.api,
+    clearPointer: () => true,
+    next: () => { throw new Error('should be caught'); },
+  });
+  assert.ok('next' in res);
+  assert.strictEqual(res.ok, true); // 후보가 없어도 ok는 그대로
+  assert.deepStrictEqual(res.next, { next: null, remaining: [] });
+});
+
+test('finalize dry-run and commit both carry injected next payload', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const payload = {
+    next: {
+      blueprint: '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-002-x',
+      epic: '.bouncer/context/epics/EPIC-001-auth',
+      sameEpic: true,
+      sharedPaths: ['src/auth/'],
+    },
+    remaining: [],
+  };
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const dry = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, git: g.api, next: () => payload,
+  });
+  assert.strictEqual(dry.ok, true);
+  assert.strictEqual(dry.dryRun, true);
+  assert.deepStrictEqual(dry.next, payload);
+
+  const committed = finalize({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    yes: true,
+    git: g.api,
+    clearPointer: () => true,
+    next: () => payload,
+  });
+  assert.strictEqual(committed.ok, true);
+  assert.strictEqual(committed.committed, true);
+  assert.deepStrictEqual(committed.next, payload);
+});

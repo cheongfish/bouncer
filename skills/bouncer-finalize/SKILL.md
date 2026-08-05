@@ -128,7 +128,33 @@ appears; do not reconstruct a root `context/` path.
      delete it — merge remains their responsibility.
    - If no, leave the worktree in place and note its path in the report.
 
-6. **Report.** Lead with the outcome, then the detail: what was committed, the
-   PR URL (or that push/PR was skipped/declined), and whether the worktree was
-   removed or left in place. Keep it to those facts — no recap of the steps the
-   user just watched run.
+6. **Next blueprint handoff.** After worktree cleanup, offer to advance the
+   active pointer — do **not** recompute candidates yourself. Read `next` from
+   the `finalize --yes` JSON output (or from the dry-run output when there was
+   nothing left to commit and `--yes` was never run). If `next.next` is `null`,
+   skip this step.
+   - Show the candidate (`next.next.blueprint`, `next.next.sameEpic`,
+     `next.remaining` length).
+   - If `next.next.sharedPaths` is non-empty, warn that the next blueprint
+     likely needs to branch from this commit (overlap) — do not block
+     advancing.
+   - If the execute worktree was left in place, warn that the shared pointer
+     means that worktree's commit guard will start enforcing the *new*
+     blueprint's `affected_paths`.
+   - Ask for an explicit yes before moving the pointer.
+   - If yes, run:
+     ```bash
+     BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+     node "${BOUNCER_ROOT}/scripts/bouncer" current --set <next.blueprint>
+     ```
+     (`<next.blueprint>` is `next.next.blueprint` from the finalize payload.)
+   - If no, show that same command only and leave the pointer cleared — do not
+     run it.
+   - If `current --set` refuses because the plan gate fails, report that and
+     still treat finalize as successful — do not retry or bypass `--set`.
+
+7. **Report.** Lead with the outcome, then the detail: what was committed, the
+   PR URL (or that push/PR was skipped/declined), whether the worktree was
+   removed or left in place, and whether the active pointer was advanced to the
+   next blueprint or left cleared. Keep it to those facts — no recap of the
+   steps the user just watched run.
