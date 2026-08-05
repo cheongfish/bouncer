@@ -439,6 +439,23 @@ test('finalize gate G15 fails on hash mismatch', () => {
   assert.match(failures[0].message, /does not match/);
 });
 
+test('finalize gate G15 fails when diff_sha cannot be computed', () => {
+  const failures = [];
+  checkGate('finalize', {
+    explain: explainDoc({
+      diff_sha: 'abc123', quiz_score: '5/5', disposition: 'ok', recorded_at: 't',
+    }),
+  }, rels, failures, {
+    ...G15_CTX,
+    deps: {
+      ...G15_CTX.deps,
+      computeDiffSha: () => ({ ok: false, reason: 'no-base' }),
+    },
+  });
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
+  assert.match(failures[0].message, /could not be computed \(no-base\)/);
+});
+
 test('finalize gate G15 passes even when quiz_score is low', () => {
   const failures = [];
   checkGate('finalize', {

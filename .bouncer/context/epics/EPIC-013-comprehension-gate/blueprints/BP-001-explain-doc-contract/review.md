@@ -11,11 +11,25 @@ bouncer:
   id: REVIEW-BP-001
   epic_id: EPIC-013
   blueprint_id: BP-001
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: minor
+        summary: >-
+          No unit test covered the G15 branch when computeDiffSha returns
+          ok:false with a reason.
+        status: resolved
+        note: >-
+          Added validate-gates test that injects no-base and asserts
+          "could not be computed (no-base)".
 ---
 # Review
 
 ## Findings
-- <finding>
+
+1. **minor** — G15 when `computeDiffSha` fails (`ok: false`) had no unit test,
+   though the gate embeds the reason in the message.
+   **status:** resolved — `test/validate-gates.test.js` now injects
+   `{ ok: false, reason: 'no-base' }` and asserts the message.
