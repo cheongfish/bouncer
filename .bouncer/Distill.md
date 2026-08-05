@@ -102,6 +102,9 @@ append a change log.
   positive exclusion phrases (`승격하지 않` / `옮기지 않` / …), not
   `doesNotMatch(/이해 상태/)` — the prohibition text itself would break an
   absence assert.
+- `normalizeContextId` strips legacy `EPIC-`/`BP-` and `KIND-BP-` prefixes
+  only — wrong digits still fail S5 after normalize (e.g. `EPIC-013` under
+  `epics/014-…`).
 
 ## Decisions
 
@@ -172,3 +175,8 @@ append a change log.
   empty on `NO_GRAPH_WORK` paths and never flips `ok` to false; consumers
   signal via fields / stderr, not exit codes.
 - init default source_dirs is the fixed candidate list filtered to existing directories (order preserved); empty yields [] with sourceDirsUnresolved; existing config.json is never overwritten.
+- Canonical epic/blueprint context ids are zero-padded `\d{3}` with no
+  `EPIC-`/`BP-` prefix; child docs use `TASKS-`|`VERIFY-`|`REVIEW-`|`EXPLAIN-`
+  + `\d{3}` (e.g. `TASKS-001`). Scaffold/`--id` accept and emit that shape
+  only. Legacy prefixed path segments and frontmatter remain readable via
+  normalize/layout during the transition (removal is a later BP).
