@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+## [0.4.5] — 2026-08-05
+
+0.4.0 이후 컨텍스트 산문 규칙·Distill 런타임 경로 정리.
+
 ### Added
 
 - **`stop-slop` 스킬** — `.bouncer/context/` 한국어 본문(epics·explain)의 AI 문체
@@ -19,6 +23,10 @@
 - **Project Distill 경로** — `.bouncer/context/Distill.md` → `.bouncer/Distill.md`
   (`config.json`과 같은 런타임 루트). `bouncer init`이 레거시 경로를 새 경로로
   soft-migrate.
+- **README Features** — Blueprint commits / Verified execute / Path guard /
+  Worktree execute 네 키워드로 축약.
+
+## [0.4.0] — 2026-08-05
 
 0.3.0 이후 이해 게이트(explain)·finalize 인계·그래프 신호 개선.
 
