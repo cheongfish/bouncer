@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-BP-003
   epic_id: EPIC-013
   blueprint_id: BP-003
-  status: ready
+  status: verified
   affected_paths:
     - skills/spec-authoring/SKILL.md
     - skills/bouncer-finalize/SKILL.md

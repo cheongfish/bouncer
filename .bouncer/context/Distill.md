@@ -96,8 +96,11 @@ append a change log.
 - `graphSyncWarnings` missing copy: use “none of … exist” only for
   `skip-no-dirs` / empty `dirs`; scopes already in `failed` must not get a
   missing line (failed covers them).
-
 - newestMtimeUnder skips directories named graphify-out, node_modules, .git, .worktrees and does not descend directory symlinks.
+- Skill contracts that lock “do not promote/copy `## 이해 상태`” must assert
+  positive exclusion phrases (`승격하지 않` / `옮기지 않` / …), not
+  `doesNotMatch(/이해 상태/)` — the prohibition text itself would break an
+  absence assert.
 
 ## Decisions
 
@@ -107,6 +110,11 @@ append a change log.
   `diff_sha` for `base..HEAD` excluding `.bouncer/context/`) are the finalize
   gate token; global Distill is skill promotion + `makeAllowed`, not a G15
   body-quality gate. G9 is retired (number vacant).
+- Distill promotion and draft PR body both source from BP `explain.md`
+  (`## Background` / `## Intuition` / `## Code`); `## 이해 상태` / Quiz /
+  comprehension stay out of Distill and PR. Bouncer PR meta uses
+  `- Explain: <explain path>` (not a Distill path). Shortest surface is skill
+  prose + template strings — no `finalize.ts` PR builder.
 - Project Distill is ungated OKF-shaped meta (no registered `bouncer.*` kind).
 - `bouncer init` soft-seeds missing Distill on an already-ready bootstrap and
   never overwrites curated content.
