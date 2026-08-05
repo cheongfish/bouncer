@@ -7,7 +7,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { execFileSync } = require('node:child_process');
 const {
-  readCurrent, writeCurrent, clearCurrent, listReadyBlueprints,
+  readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
 } = require('../scripts/lib/current');
 const { init } = require('../scripts/lib/init');
 
@@ -23,6 +23,7 @@ function writeDoc(repo, rel, data, body = '# x\n') {
 
 function writeBp(repo, {
   epicSlug, bpSlug, epicId, bpId, bpStatus, tasksStatus,
+  affectedPaths = [], epicBody,
 }) {
   const epicDir = `.bouncer/context/epics/${epicSlug}`;
   const bpDir = `${epicDir}/blueprints/${bpSlug}`;
@@ -30,7 +31,7 @@ function writeBp(repo, {
     type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: epicId, epic_id: epicId, status: 'approved' },
-  });
+  }, epicBody);
   writeDoc(repo, `${bpDir}/index.md`, {
     type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
@@ -43,7 +44,7 @@ function writeBp(repo, {
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: `TASKS-${bpId}`, epic_id: epicId, blueprint_id: bpId, status: tasksStatus,
-      affected_paths: [],
+      affected_paths: affectedPaths,
     },
   });
   return bpDir;
@@ -191,4 +192,80 @@ test('listReadyBlueprints sorts across epics and skips broken docs', () => {
     { blueprint: earlier, status: 'ready' },
     { blueprint: later, status: 'ready' },
   ]);
+});
+
+test('nextBlueprint prefers same-epic candidates in ## Blueprints order', () => {
+  const repo = tmpRepo();
+  const epicBody = [
+    '# Epic',
+    '',
+    '## Blueprints',
+    '',
+    '* [a](blueprints/BP-001-a/index.md) - first',
+    '* [b](blueprints/BP-002-b/index.md) - second',
+    '* [c](blueprints/BP-003-c/index.md) - third',
+    '',
+  ].join('\n');
+  const finalized = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: 'BP-001-a', epicId: 'EPIC-001', bpId: 'BP-001',
+    bpStatus: 'approved', tasksStatus: 'ready', epicBody,
+  });
+  writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: 'BP-002-b', epicId: 'EPIC-001', bpId: 'BP-002',
+    bpStatus: 'approved', tasksStatus: 'ready', epicBody,
+  });
+  writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: 'BP-003-c', epicId: 'EPIC-001', bpId: 'BP-003',
+    bpStatus: 'approved', tasksStatus: 'ready', epicBody,
+  });
+  // Other epic — lexicographically earlier epic dir, but same-epic wins.
+  writeBp(repo, {
+    epicSlug: 'A-other', bpSlug: 'BP-001-x', epicId: 'EPIC-099', bpId: 'BP-001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  // 같은 에픽 우선 + ## Blueprints 순서를 따른다
+  assert.strictEqual(res.next.blueprint, '.bouncer/context/epics/E-1/blueprints/BP-002-b');
+  assert.strictEqual(res.next.sameEpic, true);
+  // 마감 대상 자신은 후보가 아니다
+  assert.ok(!res.remaining.some((r) => r.blueprint === finalized));
+});
+
+test('nextBlueprint returns null when no candidates remain', () => {
+  const repo = tmpRepo();
+  const only = writeBp(repo, {
+    epicSlug: 'E-solo', bpSlug: 'BP-001-only', epicId: 'EPIC-001', bpId: 'BP-001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  // 후보 없음은 null
+  assert.deepStrictEqual(nextBlueprint({ repoRoot: repo, blueprintDir: only }), {
+    next: null,
+    remaining: [],
+  });
+});
+
+test('nextBlueprint sharedPaths is the affected_paths intersection in candidate order', () => {
+  const repo = tmpRepo();
+  const finalized = writeBp(repo, {
+    epicSlug: 'E-share', bpSlug: 'BP-001-a', epicId: 'EPIC-001', bpId: 'BP-001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+    affectedPaths: [
+      'scripts/src/lib/session-graph.ts',
+      'scripts/src/lib/cli.ts',
+    ],
+  });
+  writeBp(repo, {
+    epicSlug: 'E-share', bpSlug: 'BP-002-b', epicId: 'EPIC-001', bpId: 'BP-002',
+    bpStatus: 'approved', tasksStatus: 'ready',
+    affectedPaths: [
+      'scripts/src/lib/other.ts',
+      'scripts/src/lib/session-graph.ts',
+      'docs/workflow.md',
+    ],
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  // affected_paths 교집합이 sharedPaths로
+  assert.deepStrictEqual(res.next.sharedPaths, ['scripts/src/lib/session-graph.ts']);
 });

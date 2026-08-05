@@ -36,3 +36,10 @@ test('bouncer-finalize promotes BP distill into project Distill', () => {
   assert.match(body, /\.bouncer\/context\/Distill\.md/);
   assert.match(body, /promot|승격|Invariants|Gotchas|Decisions/i);
 });
+
+test('bouncer-finalize offers next-blueprint handoff via current --set after confirm', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /current --set/);
+  assert.match(body, /next/);
+  assert.match(body, /ask|confirm|승낙/i);
+});
