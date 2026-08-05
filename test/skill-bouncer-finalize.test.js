@@ -23,8 +23,9 @@ test('bouncer-finalize wires explain, finalize gate, bouncer finalize, push+PR, 
   assert.match(body, /gh pr create/);
   assert.match(body, /--title "\[YYMMDD\] \(→ MergeTarget\) \[Type\]/);
   assert.match(body, /no remote|without a remote|no `?gh`?|skip/i);
-  assert.match(body, /ask the user whether to open a PR|whether to open a PR at all/i);
-  assert.match(body, /ask the user whether to remove the execute worktree|worktree cleanup/i);
+  assert.match(body, /AskUserQuestion|ACQ/);
+  assert.match(body, /Commit \+ worktree|commit \+.*worktree/i);
+  assert.match(body, /worktree 제거|remove.*worktree|worktree cleanup/i);
   assert.match(body, /git worktree remove/);
   assert.match(body, /<type>\/<BP-id>-<slug>/);
   assert.match(body, /commit_type/);

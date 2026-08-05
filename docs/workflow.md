@@ -10,14 +10,12 @@
    G13–G14).
 4. `/bouncer-finalize`: scaffold + `explain-diff` (BP `explain.md` +
    comprehension), promote durable notes into `.bouncer/context/Distill.md`
-   via `spec-authoring`, pass gate `finalize` (G15), commit remainder,
-   then **ask** whether to push + draft PR (skipped gracefully with no remote /
-   no `gh`, or when declined) and whether to remove the execute worktree.
-   Finalize notifies the next ready blueprint candidate and, after confirmation,
-   advances the pointer with `bouncer current --set`.
-   Draft PR titles use `[YYMMDD] (→ MergeTarget) [Type] 요약`. See
-   [contributing.md](contributing.md).
-   Plan/execute Read that project Distill before work.
+   via `spec-authoring`, pass gate `finalize` (G15), then **ACQ**-confirm
+   remainder commit (recommended: `--yes` + remove execute worktree), draft PR,
+   and next-pointer handoff. PR is skipped gracefully with no remote / no `gh`,
+   or when declined. Draft PR titles use `[YYMMDD] (→ MergeTarget) [Type] 요약`.
+   See [contributing.md](contributing.md). Plan/execute Read that project Distill
+   before work.
 5. `bouncer advise`: at any point, print the recommended Ponytail mode for
    the current Bouncer phase (advisory only; never switches modes automatically).
 
@@ -28,8 +26,7 @@
 /bouncer-execute  → worktree + seed → implement · verify · review
                   → gate execute  (G6–G8, G13–G14)  ← verify 실제 실행
 /bouncer-finalize → explain-diff · Distill 승격
-                  → gate finalize (G15) → 한 커밋
-                  → (ask) draft PR · (ask) worktree remove
+                  → gate finalize (G15) → ACQ(--yes + worktree) → (ACQ) draft PR
 ```
 
 단계별 스킬(권장 순서):
