@@ -114,8 +114,7 @@ function writeLegacyTree(repo, {
   fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
   fs.writeFileSync(
     indexAbs,
-    `---\nokf_version: "0.1"\n---\n# Epics\n\n`
-    + `* [EPIC-001 auth](epics/${LEGACY_EPIC}/index.md) - Epic EPIC-001\n`,
+    `---\nokf_version: "0.1"\n---\n# Epics\n\n* [EPIC-001 auth](epics/${LEGACY_EPIC}/index.md) - Epic EPIC-001\n`,
   );
 }
 
