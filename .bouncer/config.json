@@ -30,5 +30,20 @@
       "finalize": "lite",
       "auto_switch": false
     }
+  },
+  "subagents": {
+    "provider": "cursor",
+    "claude": {
+      "bouncer-reviewer": "inherit",
+      "bouncer-implementer": "inherit"
+    },
+    "cursor": {
+      "bouncer-reviewer": "inherit",
+      "bouncer-implementer": "inherit"
+    },
+    "codex": {
+      "bouncer-reviewer": "inherit",
+      "bouncer-implementer": "inherit"
+    }
   }
 }
