@@ -74,7 +74,7 @@ test('writeCurrent then readCurrent round-trips', () => {
   const deps = runtimeDeps(repo);
   const rel = writeCurrent({
     repoRoot: repo,
-    blueprint: '.bouncer/context/epics/EPIC-001-x/blueprints/BP-001-y',
+    blueprint: '.bouncer/context/epics/001-x/blueprints/001-y',
     base: 'develop',
     deps,
   });
@@ -83,7 +83,7 @@ test('writeCurrent then readCurrent round-trips', () => {
   assert.ok(fs.existsSync(rel));
   assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer', 'current')), false);
   assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), {
-    blueprint: '.bouncer/context/epics/EPIC-001-x/blueprints/BP-001-y',
+    blueprint: '.bouncer/context/epics/001-x/blueprints/001-y',
     base: 'develop',
   });
 });
@@ -92,11 +92,11 @@ test('writeCurrent normalizes backslashes to POSIX', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   writeCurrent({
-    repoRoot: repo, blueprint: '.bouncer\\context\\epics\\EPIC-001-x', base: 'main', deps,
+    repoRoot: repo, blueprint: '.bouncer\\context\\epics\\001-x', base: 'main', deps,
   });
   assert.strictEqual(
     readCurrent({ repoRoot: repo, deps }).blueprint,
-    '.bouncer/context/epics/EPIC-001-x',
+    '.bouncer/context/epics/001-x',
   );
 });
 
@@ -148,19 +148,19 @@ test('clearCurrent removes the active pointer and is safe to repeat', () => {
 test('listReadyBlueprints includes approved + ready / in_progress only', () => {
   const repo = tmpRepo();
   const ready = writeBp(repo, {
-    epicSlug: 'EPIC-001-a', bpSlug: 'BP-001-ready', epicId: 'EPIC-001', bpId: 'BP-001',
+    epicSlug: '001-a', bpSlug: '001-ready', epicId: '001', bpId: '001',
     bpStatus: 'approved', tasksStatus: 'ready',
   });
   const inProg = writeBp(repo, {
-    epicSlug: 'EPIC-001-a', bpSlug: 'BP-002-wip', epicId: 'EPIC-001', bpId: 'BP-002',
+    epicSlug: '001-a', bpSlug: '002-wip', epicId: '001', bpId: '002',
     bpStatus: 'approved', tasksStatus: 'in_progress',
   });
   writeBp(repo, {
-    epicSlug: 'EPIC-001-a', bpSlug: 'BP-003-done', epicId: 'EPIC-001', bpId: 'BP-003',
+    epicSlug: '001-a', bpSlug: '003-done', epicId: '001', bpId: '003',
     bpStatus: 'approved', tasksStatus: 'verified',
   });
   writeBp(repo, {
-    epicSlug: 'EPIC-001-a', bpSlug: 'BP-004-draft', epicId: 'EPIC-001', bpId: 'BP-004',
+    epicSlug: '001-a', bpSlug: '004-draft', epicId: '001', bpId: '004',
     bpStatus: 'draft', tasksStatus: 'ready',
   });
 
@@ -174,15 +174,15 @@ test('listReadyBlueprints includes approved + ready / in_progress only', () => {
 test('listReadyBlueprints sorts across epics and skips broken docs', () => {
   const repo = tmpRepo();
   const later = writeBp(repo, {
-    epicSlug: 'EPIC-002-z', bpSlug: 'BP-001-z', epicId: 'EPIC-002', bpId: 'BP-001',
+    epicSlug: '002-z', bpSlug: '001-z', epicId: '002', bpId: '001',
     bpStatus: 'approved', tasksStatus: 'ready',
   });
   const earlier = writeBp(repo, {
-    epicSlug: 'EPIC-001-a', bpSlug: 'BP-001-a', epicId: 'EPIC-001', bpId: 'BP-001',
+    epicSlug: '001-a', bpSlug: '001-a', epicId: '001', bpId: '001',
     bpStatus: 'approved', tasksStatus: 'ready',
   });
   // Corrupt frontmatter: skip this blueprint, keep enumerating the rest.
-  const brokenDir = '.bouncer/context/epics/EPIC-001-a/blueprints/BP-099-broken';
+  const brokenDir = '.bouncer/context/epics/001-a/blueprints/099-broken';
   fs.mkdirSync(path.join(repo, brokenDir), { recursive: true });
   fs.writeFileSync(path.join(repo, brokenDir, 'index.md'), 'not frontmatter\n');
   fs.writeFileSync(path.join(repo, brokenDir, 'tasks.md'), 'not frontmatter\n');
@@ -201,32 +201,32 @@ test('nextBlueprint prefers same-epic candidates in ## Blueprints order', () => 
     '',
     '## Blueprints',
     '',
-    '* [a](blueprints/BP-001-a/index.md) - first',
-    '* [b](blueprints/BP-002-b/index.md) - second',
-    '* [c](blueprints/BP-003-c/index.md) - third',
+    '* [a](blueprints/001-a/index.md) - first',
+    '* [b](blueprints/002-b/index.md) - second',
+    '* [c](blueprints/003-c/index.md) - third',
     '',
   ].join('\n');
   const finalized = writeBp(repo, {
-    epicSlug: 'E-1', bpSlug: 'BP-001-a', epicId: 'EPIC-001', bpId: 'BP-001',
+    epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
     bpStatus: 'approved', tasksStatus: 'ready', epicBody,
   });
   writeBp(repo, {
-    epicSlug: 'E-1', bpSlug: 'BP-002-b', epicId: 'EPIC-001', bpId: 'BP-002',
+    epicSlug: 'E-1', bpSlug: '002-b', epicId: '001', bpId: '002',
     bpStatus: 'approved', tasksStatus: 'ready', epicBody,
   });
   writeBp(repo, {
-    epicSlug: 'E-1', bpSlug: 'BP-003-c', epicId: 'EPIC-001', bpId: 'BP-003',
+    epicSlug: 'E-1', bpSlug: '003-c', epicId: '001', bpId: '003',
     bpStatus: 'approved', tasksStatus: 'ready', epicBody,
   });
   // Other epic — lexicographically earlier epic dir, but same-epic wins.
   writeBp(repo, {
-    epicSlug: 'A-other', bpSlug: 'BP-001-x', epicId: 'EPIC-099', bpId: 'BP-001',
+    epicSlug: 'A-other', bpSlug: '001-x', epicId: '099', bpId: '001',
     bpStatus: 'approved', tasksStatus: 'ready',
   });
 
   const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
   // 같은 에픽 우선 + ## Blueprints 순서를 따른다
-  assert.strictEqual(res.next.blueprint, '.bouncer/context/epics/E-1/blueprints/BP-002-b');
+  assert.strictEqual(res.next.blueprint, '.bouncer/context/epics/E-1/blueprints/002-b');
   assert.strictEqual(res.next.sameEpic, true);
   // 마감 대상 자신은 후보가 아니다
   assert.ok(!res.remaining.some((r) => r.blueprint === finalized));
@@ -235,7 +235,7 @@ test('nextBlueprint prefers same-epic candidates in ## Blueprints order', () => 
 test('nextBlueprint returns null when no candidates remain', () => {
   const repo = tmpRepo();
   const only = writeBp(repo, {
-    epicSlug: 'E-solo', bpSlug: 'BP-001-only', epicId: 'EPIC-001', bpId: 'BP-001',
+    epicSlug: 'E-solo', bpSlug: '001-only', epicId: '001', bpId: '001',
     bpStatus: 'approved', tasksStatus: 'ready',
   });
   // 후보 없음은 null
@@ -248,7 +248,7 @@ test('nextBlueprint returns null when no candidates remain', () => {
 test('nextBlueprint sharedPaths is the affected_paths intersection in candidate order', () => {
   const repo = tmpRepo();
   const finalized = writeBp(repo, {
-    epicSlug: 'E-share', bpSlug: 'BP-001-a', epicId: 'EPIC-001', bpId: 'BP-001',
+    epicSlug: 'E-share', bpSlug: '001-a', epicId: '001', bpId: '001',
     bpStatus: 'approved', tasksStatus: 'ready',
     affectedPaths: [
       'scripts/src/lib/session-graph.ts',
@@ -256,7 +256,7 @@ test('nextBlueprint sharedPaths is the affected_paths intersection in candidate 
     ],
   });
   writeBp(repo, {
-    epicSlug: 'E-share', bpSlug: 'BP-002-b', epicId: 'EPIC-001', bpId: 'BP-002',
+    epicSlug: 'E-share', bpSlug: '002-b', epicId: '001', bpId: '002',
     bpStatus: 'approved', tasksStatus: 'ready',
     affectedPaths: [
       'scripts/src/lib/other.ts',

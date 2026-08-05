@@ -5,7 +5,7 @@ const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat } = requ
 const { readDoc } = require('./frontmatter');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
 const {
-  parsePathIds, epicDirOf, toPosix, isNumericContextId, normalizeContextId,
+  parsePathIds, epicDirOf, toPosix, isNumericContextId,
 } = require('./paths');
 const { isValidVerifyCommand, runVerification } = require('./verification');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS } = require('./comprehension');
@@ -70,29 +70,29 @@ function checkStructural(doc, failures) {
 
   const bouncer = data.bouncer || {};
   const prefix = ID_PREFIX[data.type];
-  // S4는 정규화 후 형태만 본다 — 구형 EPIC-014 / TASKS-BP-001도 전이 기간에 통과.
-  // 정본은 epic/bp=\d{3}, 자식=PREFIX+\d{3}. 접두만 떼므로 숫자 자체 오류는 S5.
-  const idNorm = normalizeContextId(bouncer.id);
+  // migration 이후에는 검증기가 구형 접두를 보정하지 않는다. 정본 형태가 아니면
+  // S4/S5에서 그대로 거절해 일부만 migrate된 저장소가 통과하지 못하게 한다.
+  const id = bouncer.id;
   if (data.type === 'bouncer.epic' || data.type === 'bouncer.blueprint') {
-    if (!isNumericContextId(idNorm)) {
+    if (!isNumericContextId(id)) {
       add('S4', `id "${bouncer.id}" must be a zero-padded three-digit id`);
     }
   } else if (
-    typeof idNorm !== 'string'
-    || !idNorm.startsWith(prefix)
-    || !isNumericContextId(idNorm.slice(prefix.length))
+    typeof id !== 'string'
+    || !id.startsWith(prefix)
+    || !isNumericContextId(id.slice(prefix.length))
   ) {
     add('S4', `id "${bouncer.id}" missing prefix ${prefix} or invalid digits`);
   }
 
   const parsed = parsePathIds(rel);
-  if (parsed.epicId && normalizeContextId(bouncer.epic_id) !== parsed.epicId) {
+  if (parsed.epicId && bouncer.epic_id !== parsed.epicId) {
     add('S5', `epic_id ${bouncer.epic_id} != path ${parsed.epicId}`);
   }
   if (
     data.type !== 'bouncer.epic'
     && parsed.blueprintId
-    && normalizeContextId(bouncer.blueprint_id) !== parsed.blueprintId
+    && bouncer.blueprint_id !== parsed.blueprintId
   ) {
     add('S5', `blueprint_id ${bouncer.blueprint_id} != path ${parsed.blueprintId}`);
   }
@@ -100,7 +100,7 @@ function checkStructural(doc, failures) {
   if (data.type === 'bouncer.epic') expectedId = parsed.epicId;
   else if (data.type === 'bouncer.blueprint') expectedId = parsed.blueprintId;
   else if (parsed.blueprintId) expectedId = `${prefix}${parsed.blueprintId}`;
-  if (expectedId && normalizeContextId(bouncer.id) !== expectedId) {
+  if (expectedId && bouncer.id !== expectedId) {
     add('S5', `id ${bouncer.id} != expected ${expectedId} from path`);
   }
 

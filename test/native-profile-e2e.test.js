@@ -7,7 +7,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { validateBlueprint } = require('../scripts/lib/validate');
 
-const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function writeDoc(repo, rel, data, body) {
   const abs = path.join(repo, rel);
@@ -20,7 +20,7 @@ function base(type, id, status, extra) {
     type, title: `${id} doc`, description: id,
     resource: `${BP_REL}/${type.split('.')[1]}.md`,
     tags: ['bouncer'], timestamp: '2026-07-23T00:00:00+09:00',
-    bouncer: { id, epic_id: 'EPIC-001', blueprint_id: 'BP-001', status, ...extra },
+    bouncer: { id, epic_id: '001', blueprint_id: '001', status, ...extra },
   };
 }
 
@@ -33,16 +33,16 @@ test('execute validation reruns the configured command instead of trusting evide
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(cfg));
 
   // epic + blueprint indexes
-  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md',
-    { ...base('bouncer.epic', 'EPIC-001', 'approved'), resource: '.bouncer/context/epics/EPIC-001-auth/index.md' },
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md',
+    { ...base('bouncer.epic', '001', 'approved'), resource: '.bouncer/context/epics/001-auth/index.md' },
     '# epic\n');
   writeDoc(repo, `${BP_REL}/index.md`,
-    { ...base('bouncer.blueprint', 'BP-001', 'approved'), resource: `${BP_REL}/index.md` },
+    { ...base('bouncer.blueprint', '001', 'approved'), resource: `${BP_REL}/index.md` },
     '# blueprint\n');
 
   // tasks verified
   writeDoc(repo, `${BP_REL}/tasks.md`,
-    base('bouncer.tasks', 'TASKS-BP-001', 'verified', {
+    base('bouncer.tasks', 'TASKS-001', 'verified', {
       graph: { suggested_paths: ['src/'], basis: 'manual: src/auth/' },
       affected_paths: ['src/auth/login.js'],
     }),
@@ -51,7 +51,7 @@ test('execute validation reruns the configured command instead of trusting evide
 
   // verification passed with body contract
   writeDoc(repo, `${BP_REL}/verification.md`,
-    base('bouncer.verification', 'VERIFY-BP-001', 'passed', {
+    base('bouncer.verification', 'VERIFY-001', 'passed', {
       verification: {
         command: 'npm test',
         ran_at: '2026-07-27T00:00:00.000Z',
@@ -64,7 +64,7 @@ test('execute validation reruns the configured command instead of trusting evide
 
   // review accepted with findings schema
   writeDoc(repo, `${BP_REL}/review.md`,
-    base('bouncer.review', 'REVIEW-BP-001', 'accepted', {
+    base('bouncer.review', 'REVIEW-001', 'accepted', {
       review: { findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }] },
     }),
     '# Review\n\n## Findings\n- F1 (minor): resolved.\n');

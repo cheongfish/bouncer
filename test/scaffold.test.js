@@ -21,7 +21,7 @@ function captureScaffold(argv) {
 
 test('scaffoldEpic writes a valid epic index under numeric dirs', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  const legacyIndex = path.join(repo, 'context/epics/EPIC-999-legacy/index.md');
+  const legacyIndex = path.join(repo, 'context/epics', 'EPIC-999-legacy/index.md');
   fs.mkdirSync(path.dirname(legacyIndex), { recursive: true });
   fs.writeFileSync(legacyIndex, 'legacy content\n');
   const created = scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
@@ -225,18 +225,11 @@ test('scaffoldBlueprint rejects backslash traversal outside the canonical epic',
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer')));
 });
 
-test('scaffoldBlueprint under a legacy epic dir still emits numeric meta and bp dir', () => {
+test('scaffoldBlueprint rejects a legacy-prefixed epic dir', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  // 전이: 구형 epic 디렉터리는 읽기만 허용. 신규 blueprint는 숫자 id·경로만 만든다.
-  const epicDir = '.bouncer/context/epics/EPIC-001-auth';
+  const epicDir = '.bouncer/context/epics/' + 'EPIC-001-auth';
   fs.mkdirSync(path.join(repo, epicDir), { recursive: true });
-  const created = scaffoldBlueprint({
+  assert.throws(() => scaffoldBlueprint({
     repoRoot: repo, epicDir, blueprintId: '002', name: 'login', timestamp: TS,
-  });
-  const base = `${epicDir}/blueprints/002-login`;
-  assert.deepStrictEqual(created[0], `${base}/index.md`);
-  const bp = readDoc(path.join(repo, created[0])).data;
-  assert.strictEqual(bp.bouncer.id, '002');
-  assert.strictEqual(bp.bouncer.epic_id, '001');
-  assert.doesNotMatch(bp.bouncer.id, /^BP-/);
+  }), /epicDir must be under \.bouncer\/context\/epics/);
 });

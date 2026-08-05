@@ -6,9 +6,9 @@ const FILE_KIND = {
     'review.md': 'review',
     'explain.md': 'explain',
 };
-// 정본 epic/bp id는 zero-pad 세 자리. EPIC-/BP- 접두는 경로 파생·전이 판정용으로만 optional.
-const EPIC_SEG_RE = /(?:^|\/)epics\/(?:EPIC-)?(\d{3})(?=-|\/|$)/;
-const BP_SEG_RE = /(?:^|\/)blueprints\/(?:BP-)?(\d{3})(?=-|\/|$)/;
+// 정본 epic/bp id는 접두 없는 zero-pad 세 자리다.
+const EPIC_SEG_RE = /(?:^|\/)epics\/(\d{3})(?=-|\/|$)/;
+const BP_SEG_RE = /(?:^|\/)blueprints\/(\d{3})(?=-|\/|$)/;
 function toPosix(p) {
     return String(p).split('\\').join('/');
 }
@@ -16,9 +16,9 @@ function isNumericContextId(id) {
     return typeof id === 'string' && /^\d{3}$/.test(id);
 }
 /**
- * 전이 기간: frontmatter에 남은 구형 접두를 떼어 정본 형태로 맞춘다.
- * EPIC-014→014, BP-001→001, TASKS-BP-001→TASKS-001. 숫자 자체는 바꾸지 않으므로
- * 어긋난 값(예: epics/014에 EPIC-013)은 정규화 후에도 S5에서 걸린다.
+ * migrate-ids 전용: 구형 frontmatter 접두를 떼어 정본 형태로 맞춘다.
+ * EPIC-014→014, BP-001→001, TASKS-BP-001→TASKS-001.
+ * S4/S5는 이 함수를 거치지 않고 정본만 받는다 — 구형 값은 그대로 실패한다.
  */
 function normalizeContextId(value) {
     if (typeof value !== 'string')

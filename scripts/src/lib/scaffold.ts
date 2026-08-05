@@ -26,10 +26,10 @@ function requireNumericId(id, label) {
   }
 }
 
-/** 구형 EPIC-014-slug 디렉터리에서도 정본 숫자만 꺼낸다. 신규 메타에는 접두를 넣지 않기 위함. */
+/** 정본 epic 디렉터리의 zero-pad 세 자리 id를 꺼낸다. */
 function epicIdFromDir(canonicalEpicDir) {
   const leaf = canonicalEpicDir.split('/').pop() || '';
-  const m = /^(?:EPIC-)?(\d{3})-/.exec(leaf);
+  const m = /^(\d{3})-/.exec(leaf);
   if (!m) {
     throw new Error(`cannot derive numeric epic id from ${canonicalEpicDir}`);
   }

@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+- **EPIC-014 — 숫자 context id (BP 001–003)** — Changed: epic/blueprint 경로와
+  frontmatter id의 정본을 접두 없는 zero-pad 세 자리 숫자로 통일. Added:
+  `bouncer migrate ids`와 `migrate-ids` 스킬. Removed: validate·scaffold의 구형
+  `EPIC-`/`BP-` 명명 허용. 소비자 저장소는 먼저
+  `bouncer migrate ids --dry-run`으로 변경 목록을 확인한 뒤
+  `bouncer migrate ids`를 적용해야 한다. 구형 명명이 남은 저장소는 migrate가
+  끝날 때까지 validate가 거절한다.
+
 ## [0.4.5] — 2026-08-05
 
 0.4.0 이후 컨텍스트 산문 규칙·Distill 런타임 경로 정리.

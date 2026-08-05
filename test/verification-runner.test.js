@@ -7,7 +7,7 @@ const path = require('node:path');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const { executeVerify, readVerifyCommand, runVerification } = require('../scripts/lib/verification');
 
-const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function setupRepo(verify = 'npm test') {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verification-'));
@@ -17,16 +17,16 @@ function setupRepo(verify = 'npm test') {
   fs.mkdirSync(path.dirname(verification), { recursive: true });
   fs.writeFileSync(verification, `---
 type: bouncer.verification
-title: Verify BP-001
+title: Verify 001
 description: Verification evidence
 resource: ${BP_REL}/verification.md
 tags:
   - bouncer
 timestamp: 2026-07-01T00:00:00.000Z
 bouncer:
-  id: VERIFY-BP-001
-  epic_id: EPIC-001
-  blueprint_id: BP-001
+  id: VERIFY-001
+  epic_id: '001'
+  blueprint_id: '001'
   status: pending
 ---
 # Verification
@@ -43,15 +43,15 @@ function writeTasks(repo, verifyField) {
   fs.writeFileSync(path.join(repo, BP_REL, 'tasks.md'), `---
 type: bouncer.tasks
 title: Login tasks
-description: Tasks for BP-001
+description: Tasks for 001
 resource: ${BP_REL}/tasks.md
 tags:
   - bouncer
 timestamp: 2026-07-01T00:00:00.000Z
 bouncer:
-  id: TASKS-BP-001
-  epic_id: EPIC-001
-  blueprint_id: BP-001
+  id: TASKS-001
+  epic_id: '001'
+  blueprint_id: '001'
   status: ready
   affected_paths:
     - src/auth/

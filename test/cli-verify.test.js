@@ -9,7 +9,7 @@ const { runCli } = require('../scripts/lib/cli');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
-const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function writeDoc(repo, rel, data, body) {
   const abs = path.join(repo, rel);
@@ -25,7 +25,7 @@ function doc(type, id, status, resource, extra = {}) {
     resource,
     tags: ['bouncer'],
     timestamp: '2026-07-01T00:00:00.000Z',
-    bouncer: { id, epic_id: 'EPIC-001', blueprint_id: 'BP-001', status, ...extra },
+    bouncer: { id, epic_id: '001', blueprint_id: '001', status, ...extra },
   };
 }
 
@@ -33,32 +33,32 @@ function setupRepo(verify = 'node -e "process.exit(0)"') {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-verify-'));
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify }));
-  writeDoc(repo, '.bouncer/context/epics/EPIC-001-auth/index.md',
-    doc('bouncer.epic', 'EPIC-001', 'approved', '.bouncer/context/epics/EPIC-001-auth/index.md'),
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md',
+    doc('bouncer.epic', '001', 'approved', '.bouncer/context/epics/001-auth/index.md'),
     '# Epic\n');
   ensureEpicIndexEntry({
-    repoRoot: repo, epicId: 'EPIC-001', name: 'auth', description: 'Epic EPIC-001',
+    repoRoot: repo, epicId: '001', name: 'auth', description: 'Epic 001',
   });
   writeDoc(repo, `${BP_REL}/index.md`,
-    doc('bouncer.blueprint', 'BP-001', 'approved', `${BP_REL}/index.md`),
+    doc('bouncer.blueprint', '001', 'approved', `${BP_REL}/index.md`),
     '# Blueprint\n');
   writeDoc(repo, `${BP_REL}/tasks.md`,
-    doc('bouncer.tasks', 'TASKS-BP-001', 'verified', `${BP_REL}/tasks.md`, {
+    doc('bouncer.tasks', 'TASKS-001', 'verified', `${BP_REL}/tasks.md`, {
       affected_paths: ['src/login.js'],
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
     }),
     '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n'
     + '## Touch\n`src/`\n\n## Do not touch\n`test/`\n\n## Checklist\n- [ ] z\n');
   writeDoc(repo, `${BP_REL}/verification.md`,
-    doc('bouncer.verification', 'VERIFY-BP-001', 'pending', `${BP_REL}/verification.md`),
+    doc('bouncer.verification', 'VERIFY-001', 'pending', `${BP_REL}/verification.md`),
     '# Verification\n');
   writeDoc(repo, `${BP_REL}/review.md`,
-    doc('bouncer.review', 'REVIEW-BP-001', 'pending', `${BP_REL}/review.md`, {
+    doc('bouncer.review', 'REVIEW-001', 'pending', `${BP_REL}/review.md`, {
       review: { required: false },
     }),
     '# Review\n');
   writeDoc(repo, `${BP_REL}/explain.md`,
-    doc('bouncer.explain', 'EXPLAIN-BP-001', 'draft', `${BP_REL}/explain.md`),
+    doc('bouncer.explain', 'EXPLAIN-001', 'draft', `${BP_REL}/explain.md`),
     '# Explain\n');
   return repo;
 }
