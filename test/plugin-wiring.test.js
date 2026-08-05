@@ -33,9 +33,12 @@ test('hooks.json registers commit-safety on PreToolUse Bash', () => {
   assert.ok(entry.hooks[0].command.includes('commit-safety.js'));
 });
 
-test('hooks.json registers session-graph on SessionStart', () => {
+test('hooks.json registers session-graph and session-legacy-ids on SessionStart', () => {
   const hooks = readJson('hooks/hooks.json');
   const start = hooks.hooks.SessionStart;
   assert.ok(Array.isArray(start));
-  assert.ok(start[0].hooks[0].command.includes('session-graph.js'));
+  assert.strictEqual(start.length, 2, 'SessionStart must keep graph and legacy hooks as separate entries');
+  const commands = start.map((entry) => entry.hooks[0].command);
+  assert.ok(commands.some((c) => c.includes('session-graph.js')), 'session-graph.js missing');
+  assert.ok(commands.some((c) => c.includes('session-legacy-ids.js')), 'session-legacy-ids.js missing');
 });

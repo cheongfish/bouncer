@@ -44,3 +44,11 @@ PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할
 # .gitattributes
 .bouncer/context/** linguist-generated=true
 ```
+
+## 구형 `EPIC-`/`BP-` 명명에서 올리기
+
+정본 경로는 `epics/014-slug/blueprints/001-slug`처럼 숫자 id다. 예전에 만든
+`EPIC-014-…` / `BP-001-…` 트리가 남아 있으면 SessionStart(Claude/Codex)가
+안내하고, `bouncer migrate ids --dry-run`으로 계획을 본 뒤 확인 후 apply한다
+(`migrate-ids` 스킬과 동일). Cursor는 SessionStart가 없으므로 CLI·스킬만
+쓴다.

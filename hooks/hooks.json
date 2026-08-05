@@ -13,6 +13,11 @@
         "hooks": [
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-graph.js" }
         ]
+      },
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-legacy-ids.js" }
+        ]
       }
     ]
   }

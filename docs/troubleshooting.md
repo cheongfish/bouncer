@@ -18,6 +18,7 @@
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |
 | `seed-worktree`가 `conflict`로 실패 | worktree에 같은 경로가 다른 내용으로 이미 있습니다. base는 건드리지 않았으니 손으로 정리한 뒤 다시 실행하세요 |
 | finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`는 무시. `.bouncer/Distill.md`는 항상 허용됩니다 |
+| SessionStart에 `legacy EPIC-/BP- context directories` 경고 | 구형 디렉터리명이 남아 있습니다. `migrate-ids` 스킬 또는 `bouncer migrate ids --dry-run`으로 계획을 본 뒤 확인받고 apply하세요. 신·구 혼재·대상 충돌·dirty worktree면 apply가 거절됩니다 ([context-versioning.md](context-versioning.md)) |
 
 게이트 코드 전체는 [gates.md](gates.md)를 보세요.
 파일럿·알려진 마찰은 [PILOT.md](PILOT.md)를 보세요.

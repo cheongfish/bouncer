@@ -10,6 +10,7 @@ const { seedWorktree } = require('./seed-worktree');
 const { nowIsoKst } = require('./time');
 const { syncSessionGraphs } = require('./session-graph');
 const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints } = require('./current');
+const { migrateIds } = require('./migrate-ids');
 
 function parseFlags(rest) {
   const flags: Record<string, string | boolean> = {};
@@ -176,6 +177,21 @@ function cmdGraphSync(rest, io) {
   return result.failed.length === 0 ? 0 : 1;
 }
 
+function cmdMigrate(rest, io) {
+  const [kind, ...flagArgs] = rest;
+  if (kind !== 'ids') {
+    io.err(`unknown migrate kind: ${kind || '(missing)'}\n`);
+    return 2;
+  }
+  const f = parseFlags(flagArgs);
+  const result = migrateIds({
+    repoRoot: f.repo || process.cwd(),
+    dryRun: f['dry-run'] === true,
+  });
+  io.out(`${JSON.stringify(result, null, 2)}\n`);
+  return result.ok ? 0 : 1;
+}
+
 function cmdCurrent(rest, io) {
   const f = parseFlags(rest);
   const wantsSet = Object.prototype.hasOwnProperty.call(f, 'set');
@@ -256,6 +272,8 @@ const USAGE = `usage: bouncer <command> [options]
   graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
   current    [--set <blueprint dir> [--base <branch>]] [--clear]
              Show the active blueprint pointer, or set / clear it.
+  migrate    ids [--dry-run]
+             Plan or apply rename of legacy EPIC-/BP- context dirs to numeric ids.
 
 Every command accepts --repo <dir> to run against another repository.
 `;
@@ -288,6 +306,8 @@ function runCli(argv, io) {
       return cmdGraphSync(rest, sink);
     case 'current':
       return cmdCurrent(rest, sink);
+    case 'migrate':
+      return cmdMigrate(rest, sink);
     default:
       err(`unknown command: ${cmd}\n\n${USAGE}`);
       return 2;
