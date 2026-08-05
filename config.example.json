@@ -1,14 +1,10 @@
 {
-  "source_dirs": [
-    "scripts",
-    "hooks",
-    "test"
-  ],
+  "source_dirs": [],
   "context_dirs": [
     ".bouncer/context"
   ],
   "graphify": {
-    "enabled": true
+    "enabled": false
   },
   "verify": "npm test",
   "base_branch": "develop",
@@ -31,7 +27,6 @@
     }
   },
   "subagents": {
-    "provider": "cursor",
     "claude": {
       "bouncer-reviewer": "inherit",
       "bouncer-implementer": "inherit"

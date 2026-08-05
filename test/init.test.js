@@ -42,7 +42,6 @@ test('init writes the exact config.json shape', () => {
   // Empty tmp repo → no candidate dirs; source_dirs is detected, not hard-coded.
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')), {
-    schema_version: '0.x',
     source_dirs: [],
     context_dirs: ['.bouncer/context'],
     graphify: { enabled: false },

@@ -2,8 +2,6 @@
 
 Target OKF spec version: **0.1**, declared in the bundle-root
 `.bouncer/context/index.md` frontmatter. That is the one place OKF §11 permits it.
-`config.json`'s `schema_version` is Bouncer's own frontmatter schema version
-and is not an OKF version string.
 
 Every `context/**/*.md` document carries OKF frontmatter
 (`type`, `title`, `description`, `resource`, `tags`, `timestamp`); Bouncer

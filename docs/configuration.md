@@ -1,7 +1,8 @@
 # 설정 (`.bouncer/config.json`)
 
 `/bouncer-init`이 기본값을 만들어 줍니다. 프로젝트에 맞게 `verify`와
-`source_dirs`부터 고치세요.
+`source_dirs`부터 고치세요. 전체 기본 형태는 저장소 루트
+[`config.example.json`](../config.example.json)을 보세요.
 
 | 필드 | 기본값 | 설명 |
 | --- | --- | --- |
@@ -13,7 +14,6 @@
 | `pr.base` | `"develop"` | PR 대상 브랜치 |
 | `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
 | `graphify` | `{ "enabled": false }` | 이중 그래프 생성. **기본 비활성·선택 의존성.** 켜려면 `pip install graphifyy && graphify install` 후 `enabled: true`. SessionStart와 plan의 `bouncer graph-sync`가 `source`/`context` 그래프를 mtime 기준으로 갱신하고, `graphify-runner`가 둘 다 query해 `suggested_paths`를 채웁니다. 없거나 꺼져 있으면 수동 `affected_paths`로 폴백합니다 ([install.md](install.md)) |
-| `schema_version` | `"0.x"` | Bouncer 문서 frontmatter 스키마 버전. OKF 스펙 버전과는 별개이며, 후자는 OKF §11에 따라 `.bouncer/context/index.md` frontmatter의 `okf_version`에 선언합니다 |
 | `plugin_advisors.ponytail` | (객체) | 단계별 Ponytail 모드 **권고**. 자동 전환하지 않습니다 |
 | `subagents` | (객체) | named agent별 모델 오버라이드. 아래 절 참고 |
 

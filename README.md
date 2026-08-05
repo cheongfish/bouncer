@@ -114,7 +114,7 @@ codex plugin add bouncer@chunjae-tools
 git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ```
 
-`.bouncer/config.json`에서 `source_dirs`와 **execute 게이트가 돌릴** `verify`를 프로젝트에 맞게 확인하세요.
+`.bouncer/config.json`에서 `source_dirs`와 **execute 게이트가 돌릴** `verify`를 확인하세요. 기본 형태는 [`config.example.json`](config.example.json)입니다.
 
 ```
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인

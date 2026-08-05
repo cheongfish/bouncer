@@ -22,9 +22,6 @@ function detectSourceDirs(repoRoot) {
 }
 function defaultConfig(repoRoot) {
     return {
-        // Bouncer 자체 frontmatter schema version. OKF *spec* version은 별개이며
-        // OKF §11이 요구하는 bundle-root index.md frontmatter에 선언됨.
-        schema_version: '0.x',
         // scaffold 시점에만 감지 — ready bootstrap에서는 다시 쓰지 않음.
         source_dirs: detectSourceDirs(repoRoot),
         // Bouncer context docs graph (epics/blueprints). source_dirs와 함께
@@ -64,7 +61,8 @@ okf_version: "0.1"
 ---
 # Epics
 
-<!-- /bouncer-plan이 epic을 만들 때마다 여기에 한 줄씩 추가합니다 (OKF §6).
+<!-- bouncer scaffold epic이 여기에 한 줄씩 추가합니다 (OKF §6).
+     validate는 S13으로 디렉터리 ↔ 목록 일치를 검사합니다.
      * [EPIC-00x 제목](epics/EPIC-00x-slug/index.md) - 한 줄 설명 -->
 `;
 function writeFile(repoRoot, rel, content, created) {
