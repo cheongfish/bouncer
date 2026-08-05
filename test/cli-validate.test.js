@@ -7,7 +7,7 @@ const path = require('node:path');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 
-const BP_REL = '.bouncer/context/epics/EPIC-001-auth/blueprints/BP-001-login';
+const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function writeDoc(repo, rel, data) {
   const abs = path.join(repo, rel);
@@ -28,7 +28,7 @@ test('validate emits JSON and exit 1 on failure', () => {
   writeDoc(repo, `${BP_REL}/tasks.md`, {
     type: 'bouncer.tasks', title: 't', description: 'd', resource: `${BP_REL}/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: 'TASKS-BP-001', epic_id: 'EPIC-001', blueprint_id: 'BP-001', status: 'ready', affected_paths: [] },
+    bouncer: { id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready', affected_paths: [] },
   });
   const { io, buf } = capture();
   const code = runCli(['validate', '--repo', repo, '--blueprint', BP_REL], io);

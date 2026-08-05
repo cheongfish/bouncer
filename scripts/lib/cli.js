@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const { validateBlueprint } = require('./validate');
 const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain } = require('./scaffold');
+const { isNumericContextId } = require('./paths');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
 const { readConfig, detectPhase, recommendMode } = require('./advisor');
@@ -69,23 +70,44 @@ function cmdScaffold(rest, io) {
     const repoRoot = f.repo || process.cwd();
     const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
     let created;
-    if (kind === 'epic') {
-        created = scaffoldEpic({ repoRoot, epicId: f.id, name: f.name, timestamp });
-    }
-    else if (kind === 'blueprint') {
-        created = scaffoldBlueprint({
-            repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp,
-        });
-    }
-    else if (kind === 'explain') {
-        if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-            io.err('scaffold explain: --blueprint is required\n');
+    try {
+        if (kind === 'epic' || kind === 'blueprint') {
+            // EPIC-001 / 1 / 01 거절 — 정본은 zero-pad 세 자리만. 라이브러리 throw와 메시지를 맞춤.
+            if (!isNumericContextId(f.id)) {
+                io.err(`scaffold: --id must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(f.id)}\n`);
+                return 2;
+            }
+            if (typeof f.name !== 'string' || f.name === '') {
+                io.err(`scaffold ${kind}: --name is required\n`);
+                return 2;
+            }
+        }
+        if (kind === 'epic') {
+            created = scaffoldEpic({ repoRoot, epicId: f.id, name: f.name, timestamp });
+        }
+        else if (kind === 'blueprint') {
+            if (typeof f['epic-dir'] !== 'string' || f['epic-dir'] === '') {
+                io.err('scaffold blueprint: --epic-dir is required\n');
+                return 2;
+            }
+            created = scaffoldBlueprint({
+                repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp,
+            });
+        }
+        else if (kind === 'explain') {
+            if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+                io.err('scaffold explain: --blueprint is required\n');
+                return 2;
+            }
+            created = scaffoldExplain({ repoRoot, blueprintDir: f.blueprint, timestamp });
+        }
+        else {
+            io.err(`unknown scaffold kind: ${kind}\n`);
             return 2;
         }
-        created = scaffoldExplain({ repoRoot, blueprintDir: f.blueprint, timestamp });
     }
-    else {
-        io.err(`unknown scaffold kind: ${kind}\n`);
+    catch (error) {
+        io.err(`scaffold: ${error.message}\n`);
         return 2;
     }
     io.out(`${JSON.stringify({ ok: true, created }, null, 2)}\n`);
@@ -214,8 +236,8 @@ const USAGE = `usage: bouncer <command> [options]
              Run the structural checks and one gate. Reports failure codes.
   verify     --blueprint <dir>
              Run the configured verify command and record its evidence.
-  scaffold   epic --id <EPIC-id> --name <slug>
-             blueprint --epic-dir <dir> --id <BP-id> --name <slug>
+  scaffold   epic --id <ddd> --name <slug>
+             blueprint --epic-dir <dir> --id <ddd> --name <slug>
              explain --blueprint <dir>
              Create a document set with correct frontmatter.
              (explain is for finalize; epic/blueprint scaffold omit it.)

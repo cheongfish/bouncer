@@ -10,9 +10,9 @@ okf_version: "0.1"
 # Epics
 
 `;
-// OKF §6 epic 링크: `* [title](epics/EPIC-001-slug/index.md) - desc`
-const EPIC_LINK_RE = /\]\(epics\/(EPIC-\d+-[^/)]+)\/index\.md\)/g;
-const EPIC_DIR_NAME_RE = /^EPIC-\d+-.+$/;
+// OKF §6: 신형 `epics/001-slug` + 전이용 `epics/EPIC-001-slug`. S13이 구형 실디렉터리와 맞아야 함.
+const EPIC_LINK_RE = /\]\(epics\/((?:EPIC-)?\d{3}-[^/)]+)\/index\.md\)/g;
+const EPIC_DIR_NAME_RE = /^(?:EPIC-)?\d{3}-.+$/;
 function listEpicDirNames(repoRoot) {
     const epicsRoot = path.join(repoRoot, CONTEXT_ROOT, 'epics');
     if (!fs.existsSync(epicsRoot))

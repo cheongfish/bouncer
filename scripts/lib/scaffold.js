@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { CONTEXT_ROOT, normalizeRepoPath, isCanonicalEpicDir, isCanonicalBlueprintDir, } = require('./layout');
-const { parsePathIds } = require('./paths');
+const { parsePathIds, isNumericContextId } = require('./paths');
 const { renderDoc } = require('./render');
 const { templateBody } = require('./templates');
 const { ensureEpicIndexEntry } = require('./epic-index');
@@ -16,7 +16,22 @@ function writeRel(repoRoot, rel, data, body) {
 function bouncerDoc(type, title, description, resource, tags, timestamp, bouncer) {
     return { type, title, description, resource, tags, timestamp, bouncer };
 }
+function requireNumericId(id, label) {
+    if (!isNumericContextId(id)) {
+        throw new Error(`${label} must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(id)}`);
+    }
+}
+/** 구형 EPIC-014-slug 디렉터리에서도 정본 숫자만 꺼낸다. 신규 메타에는 접두를 넣지 않기 위함. */
+function epicIdFromDir(canonicalEpicDir) {
+    const leaf = canonicalEpicDir.split('/').pop() || '';
+    const m = /^(?:EPIC-)?(\d{3})-/.exec(leaf);
+    if (!m) {
+        throw new Error(`cannot derive numeric epic id from ${canonicalEpicDir}`);
+    }
+    return m[1];
+}
 function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
+    requireNumericId(epicId, 'epicId');
     const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
     const rel = `${dir}/index.md`;
     const description = `Epic ${epicId}`;
@@ -35,8 +50,9 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
     if (!isCanonicalEpicDir(epicDir)) {
         throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
     }
+    requireNumericId(blueprintId, 'blueprintId');
     const canonicalEpicDir = normalizeRepoPath(epicDir);
-    const epicId = /EPIC-\d+/.exec(canonicalEpicDir)[0];
+    const epicId = epicIdFromDir(canonicalEpicDir);
     const dir = `${canonicalEpicDir}/blueprints/${blueprintId}-${name}`;
     const created = [];
     const body = (templateName) => templateBody(templateName, { epicId, blueprintId, name });

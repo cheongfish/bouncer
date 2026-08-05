@@ -47,20 +47,22 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    are not scratch work: they become the numbered `## Success criteria` list
    in the epic body in step 4.
 
-2. **ID allocation.** Scan `.bouncer/context/epics` for the next sequential id
-   (`EPIC-002` after `EPIC-001`; `BP-002` within an epic). Show the suggested id
-   and let the user override it.
+2. **ID allocation.** Scan `.bouncer/context/epics` for the next sequential
+   zero-padded three-digit id (`002` after `001`; next free `00x` within an
+   epic's `blueprints/`). Show the suggested id and let the user override it.
+   Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
 
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <EPIC-id> --name <slug>
+   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <ddd> --name <slug>
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
-     --epic-dir <.bouncer/context/epics/EPIC-id-slug> --id <BP-id> --name <slug>
+     --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
    ```
    The epic and blueprint outputs must both remain under
-   `.bouncer/context/epics/...`.
+   `.bouncer/context/epics/...` (dirs like `014-slug` / `001-slug`, never
+   `EPIC-`/`BP-` prefixes on new scaffolds).
    `scaffold epic` also appends an OKF §6 line to `.bouncer/context/index.md`
    (idempotent if already listed). Validate reports `S13` when epic directories
    and that list drift.
@@ -80,7 +82,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    `/bouncer-finalize` turns blueprint `title` into the commit subject,
    `commit_intent` (exactly two `~함` lines) into 배경·의도 bullets, and
    tasks/verification `title` into 수정 내용 bullets, following `.gitmessage`.
-   `commit_type` also becomes the execute branch prefix (`<type>/<BP-id>-<slug>`).
+   `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
    After the draft, run `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) on
    the authored bodies before approval.
 

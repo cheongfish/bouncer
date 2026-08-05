@@ -65,7 +65,7 @@ okf_version: "0.1"
 
 <!-- bouncer scaffold epic이 여기에 한 줄씩 추가합니다 (OKF §6).
      validate는 S13으로 디렉터리 ↔ 목록 일치를 검사합니다.
-     * [EPIC-00x 제목](epics/EPIC-00x-slug/index.md) - 한 줄 설명 -->
+     * [00x 제목](epics/00x-slug/index.md) - 한 줄 설명 -->
 `;
 
 function writeFile(repoRoot, rel, content, created) {

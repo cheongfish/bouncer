@@ -16,3 +16,4 @@ okf_version: "0.1"
 * [EPIC-011 graphify-signal](epics/EPIC-011-graphify-signal/index.md) - 그래프 미생성을 무음으로 넘기지 않고 신호로 드러내며 스캐폴딩·산출 경로 계약을 실재 디렉터리에 맞춘다
 * [EPIC-012 finalize-handoff](epics/EPIC-012-finalize-handoff/index.md) - 마감 직후 다음 블루프린트 후보를 계산·통지하고 확인 한 번으로 포인터를 옮긴다
 * [EPIC-013 comprehension-gate](epics/EPIC-013-comprehension-gate/index.md) - BP 설명 문서와 이해 기록을 마감 게이트로 세운다
+* [EPIC-014 numeric-context-ids](epics/EPIC-014-numeric-context-ids/index.md) - epic/bp id에서 EPIC-/BP- 접두를 제거하고 마이그레이션 경로를 둔다

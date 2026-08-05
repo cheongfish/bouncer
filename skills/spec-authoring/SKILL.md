@@ -62,7 +62,7 @@ finalize commit step.
 Leave Epic / Blueprint / Distill identifiers and file paths out of titles and
 `commit_intent` — they belong in the blueprint docs and PR body, not the commit
 message. Do not put module or package names in those fields either. Replace
-scaffold defaults like `BP-001 slug` / `BP-001 tasks` before approval; otherwise
+scaffold defaults like `001 slug` / `001 tasks` before approval; otherwise
 those placeholders ship as the commit subject and body.
 
 ## How to author
@@ -79,7 +79,7 @@ those placeholders ship as the commit subject and body.
    - **blueprint**: what this unit delivers and why it fits one reviewable
      commit. Set `title` (and `bouncer.commit_type` if not `feat`) for the
      finalize commit subject and the execute branch prefix
-     (`<type>/<BP-id>-<slug>`). Set `bouncer.commit_intent` to **two** `~함`
+     (`<type>/<id>-<slug>`). Set `bouncer.commit_intent` to **two** `~함`
      lines (배경·의도) drawn from Goal & intent — not the subject noun phrase.
    - **tasks**: fill every implementation-ready section before approval —
      Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.

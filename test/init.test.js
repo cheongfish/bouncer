@@ -168,7 +168,7 @@ test('init writes an OKF-shaped bundle root index', () => {
   const index = read(repo, '.bouncer/context/index.md');
   assert.match(index, /^---\nokf_version: "0\.1"\n---\n/);
   assert.match(index, /^# Epics$/m);
-  assert.match(index, /\* \[EPIC-00x 제목\]\(epics\/EPIC-00x-slug\/index\.md\) - /);
+  assert.match(index, /\* \[00x 제목\]\(epics\/00x-slug\/index\.md\) - /);
 });
 
 test('built-in epic and blueprint templates link their neighbours with relative paths', () => {

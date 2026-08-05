@@ -4,7 +4,9 @@ const path = require('node:path');
 const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat } = require('./schema');
 const { readDoc } = require('./frontmatter');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
-const { parsePathIds, epicDirOf, toPosix } = require('./paths');
+const {
+  parsePathIds, epicDirOf, toPosix, isNumericContextId, normalizeContextId,
+} = require('./paths');
 const { isValidVerifyCommand, runVerification } = require('./verification');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS } = require('./comprehension');
 const { readCurrent } = require('./current');
@@ -68,22 +70,37 @@ function checkStructural(doc, failures) {
 
   const bouncer = data.bouncer || {};
   const prefix = ID_PREFIX[data.type];
-  if (typeof bouncer.id !== 'string' || !bouncer.id.startsWith(prefix)) {
-    add('S4', `id "${bouncer.id}" missing prefix ${prefix}`);
+  // S4는 정규화 후 형태만 본다 — 구형 EPIC-014 / TASKS-BP-001도 전이 기간에 통과.
+  // 정본은 epic/bp=\d{3}, 자식=PREFIX+\d{3}. 접두만 떼므로 숫자 자체 오류는 S5.
+  const idNorm = normalizeContextId(bouncer.id);
+  if (data.type === 'bouncer.epic' || data.type === 'bouncer.blueprint') {
+    if (!isNumericContextId(idNorm)) {
+      add('S4', `id "${bouncer.id}" must be a zero-padded three-digit id`);
+    }
+  } else if (
+    typeof idNorm !== 'string'
+    || !idNorm.startsWith(prefix)
+    || !isNumericContextId(idNorm.slice(prefix.length))
+  ) {
+    add('S4', `id "${bouncer.id}" missing prefix ${prefix} or invalid digits`);
   }
 
   const parsed = parsePathIds(rel);
-  if (parsed.epicId && bouncer.epic_id !== parsed.epicId) {
+  if (parsed.epicId && normalizeContextId(bouncer.epic_id) !== parsed.epicId) {
     add('S5', `epic_id ${bouncer.epic_id} != path ${parsed.epicId}`);
   }
-  if (data.type !== 'bouncer.epic' && parsed.blueprintId && bouncer.blueprint_id !== parsed.blueprintId) {
+  if (
+    data.type !== 'bouncer.epic'
+    && parsed.blueprintId
+    && normalizeContextId(bouncer.blueprint_id) !== parsed.blueprintId
+  ) {
     add('S5', `blueprint_id ${bouncer.blueprint_id} != path ${parsed.blueprintId}`);
   }
   let expectedId = null;
   if (data.type === 'bouncer.epic') expectedId = parsed.epicId;
   else if (data.type === 'bouncer.blueprint') expectedId = parsed.blueprintId;
   else if (parsed.blueprintId) expectedId = `${prefix}${parsed.blueprintId}`;
-  if (expectedId && bouncer.id !== expectedId) {
+  if (expectedId && normalizeContextId(bouncer.id) !== expectedId) {
     add('S5', `id ${bouncer.id} != expected ${expectedId} from path`);
   }
 

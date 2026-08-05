@@ -21,8 +21,8 @@ npm run lint   # eslint
 수정 내용. Epic/Blueprint/Distill 식별자는 커밋에 넣지 않고 PR 본문·blueprint
 문서에 둡니다.
 execute 브랜치도 같은 `bouncer.commit_type`을 prefix로 씁니다:
-`<type>/<BP-id>-<slug>` (`feat/…`, `refactor/…`, `test/…` 등).
-scaffold 기본값(`BP-001 slug` 등)을 남기면 그 문구가 커밋에 들어가므로,
+`<type>/<id>-<slug>` (`feat/…`, `refactor/…`, `test/…` 등).
+scaffold 기본값(`001 slug` 등)을 남기면 그 문구가 커밋에 들어가므로,
 `/bouncer-plan`에서 `.gitmessage` 기준으로 `title`·`commit_intent`를 고쳐 두세요.
 finalize 직전에 `commit_intent`가 없으면 스킬이 Goal & intent에서 채워 넣습니다.
 

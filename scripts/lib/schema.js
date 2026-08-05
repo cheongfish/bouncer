@@ -9,9 +9,11 @@ const TYPES = [
     'bouncer.review',
     'bouncer.explain',
 ];
+// epic/blueprint 정본은 접두 없는 \d{3}. 빈 문자열은 S4가 숫자 규칙으로 분기할 힌트.
+// 자식 문서만 KIND- 접두 + \d{3}(예: TASKS-001). 구형 EPIC-/BP- 메타는 validate 정규화로 통과.
 const ID_PREFIX = {
-    'bouncer.epic': 'EPIC-',
-    'bouncer.blueprint': 'BP-',
+    'bouncer.epic': '',
+    'bouncer.blueprint': '',
     'bouncer.tasks': 'TASKS-',
     'bouncer.verification': 'VERIFY-',
     'bouncer.review': 'REVIEW-',
