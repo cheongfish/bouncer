@@ -5,7 +5,6 @@
 // verification은 G13, review는 G14.
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-const { PROJECT_DISTILL } = require('./layout');
 const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 
 -
@@ -32,7 +31,7 @@ const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 
 - Epic: <epic-id>
 - Blueprint: <bp-id>
-- Distill: ${PROJECT_DISTILL}
+- Explain: <explain path>
 `;
 // 작성 가이드는 HTML 주석과 `<TODO: …>` 플레이스홀더에 있습니다.
 // plan gate는 섹션이 비었는지 판단하기 전에 주석을 제거하고 남은 `<TODO:`
@@ -43,7 +42,7 @@ const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
 // Project Distill 본문(init). 섹션 구조를 안정적으로 유지 — finalize가 여기로 승격합니다.
 const PROJECT_DISTILL_BODY = `# Distill
 
-Project-wide cautions for plan/execute. BP \`distill.md\` is a cycle candidate;
+Project-wide cautions for plan/execute. BP \`explain.md\` is a cycle candidate;
 \`/bouncer-finalize\` promotes durable items here (add / replace / drop).
 Decisions are **current** only — replace the sentence when it changes; do not
 append a change log.

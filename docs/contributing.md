@@ -40,7 +40,8 @@ PR/MR 본문 템플릿은 두 곳에 같은 형식으로 있습니다.
 
 `/bouncer-finalize`의 draft PR 본문은 플러그인 내장 템플릿
 (`scripts/lib/templates.js`의 `pr.md`)을 사용합니다. 프로젝트에 별도 사본을
-두지 않습니다.
+두지 않습니다. 본문 섹션은 BP `explain.md`의 Background / Intuition / Code에서
+채우고, `## 이해 상태`·Quiz·comprehension은 넣지 않습니다.
 
 PR **제목**은 커밋 subject와 다릅니다. finalize가 만드는 draft 제목 형식:
 

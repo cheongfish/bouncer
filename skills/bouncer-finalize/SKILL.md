@@ -68,10 +68,13 @@ appears; do not reconstruct a root `context/` path.
    the five sections, quiz the user, record `bouncer.comprehension`, and set
    `explain.md` `bouncer.status → published`.
    After that, use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`)
-   to promote durable items into `.bouncer/context/Distill.md` under
-   `## Invariants` / `## Gotchas` / `## Decisions` (add, replace, or drop
-   stale bullets). Decisions stay **current only** — no change-log append.
-   Cycle retrospectives and next-BP ideas stay in the BP `explain.md` only.
+   to promote durable items from `explain.md` into
+   `.bouncer/context/Distill.md` under `## Invariants` / `## Gotchas` /
+   `## Decisions` (add, replace, or drop stale bullets). Decisions stay
+   **current only** — no change-log append. Do **not** promote `## 이해 상태`,
+   `## Quiz`, or comprehension fields into Distill — 이해 상태는 Distill로
+   승격하지 않는다. Cycle retrospectives and next-BP ideas stay in the BP
+   `explain.md` only.
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:
    ```bash
@@ -139,9 +142,12 @@ appears; do not reconstruct a root `context/` path.
      before create. Then push the branch and open a **draft** PR using
      `.bouncer/config.json` `base_branch`/`pr` and the built-in PR body from
      `scripts/lib/templates.js` (`pr.md`). That template follows the team's PR
-     format, not the commit message shape; fill its sections from the blueprint
-     and tasks documents and leave the `## 🚦 Bouncer` section for the
-     epic/blueprint ids and the explain path.
+     format, not the commit message shape. Fill the PR body from `explain.md`
+     sections `## Background`, `## Intuition`, and `## Code` — do not author a
+     separate PR narrative from blueprint/tasks alone, and do not copy
+     `## 이해 상태` / Quiz / comprehension into the PR (이해 상태는 PR에
+     옮기지 않는다). Leave the `## 🚦 Bouncer` section for the epic/blueprint
+     ids and the Explain path.
    - **PR title** (not the commit subject). Build from the branch commits vs
      `config.base_branch` (or `config.pr.base`), not from free-form prose:
      - Pattern: `[YYMMDD] (→ MergeTarget) [Type/Type] 요약`

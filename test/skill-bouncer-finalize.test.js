@@ -42,6 +42,20 @@ test('bouncer-finalize promotes BP explain notes into project Distill', () => {
   assert.match(body, /promot|승격|Invariants|Gotchas|Decisions/i);
 });
 
+test('bouncer-finalize fills PR from explain.md and excludes 이해 상태', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /explain\.md/);
+  assert.match(body, /이해 상태/);
+  assert.match(body, /승격하지 않|옮기지 않|제외/);
+  // PR 본문 소스는 긍정 문구로 못 박는다. 지금 finalize:142의
+  // "fill its sections from the blueprint and tasks" 문장을 doesNotMatch로
+  // 노리면 그 문장이 한 글자만 바뀌어도 단언이 무의미해진다.
+  assert.match(body, /PR body[\s\S]{0,200}explain\.md|explain\.md[\s\S]{0,200}PR body/);
+  for (const s of ['Background', 'Intuition', 'Code']) {
+    assert.ok(body.includes(s), `PR fill rule must name ${s}`);
+  }
+});
+
 test('bouncer-finalize offers next-blueprint handoff via current --set after confirm', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /current --set/);
