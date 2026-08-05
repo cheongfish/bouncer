@@ -30,12 +30,12 @@ otherwise ask before scaffolding.
 **Preflight.** If `.bouncer/` is missing, stop and tell the user to run
 `/bouncer-init` first.
 
-**Project Distill.** Read `.bouncer/context/Distill.md` before discovery/
+**Project Distill.** Read `.bouncer/Distill.md` before discovery/
 authoring. If it is missing, tell the user to run `bouncer init` (or create the
 file). Apply matching Invariants / Gotchas / Decisions when framing scope and
 Constraints.
 
-Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-authoring` (`skills/spec-authoring/SKILL.md`) → `graphify-runner` (`skills/graphify-runner/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
+Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-authoring` (`skills/spec-authoring/SKILL.md`) → `stop-slop` (`skills/stop-slop/SKILL.md`) → `graphify-runner` (`skills/graphify-runner/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
 
 1. **Discover.** Use the `discovery` skill (`skills/discovery/SKILL.md`) to
    clarify the request. Expect these named handoff outputs: `Goal`, `Scope`,
@@ -67,17 +67,19 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    scaffolds it with `bouncer scaffold explain`.
 
 4. **Author.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write the epic, blueprint, and
-   tasks bodies. Fill every implementation-ready section in `tasks.md` before
-   approval — Goal & intent, Interface, Touch, Do not touch, Constraints,
-   Checklist. Those sections are the sole brief for `/bouncer-execute`. Write
-   Touch per file with a verb rather than per directory, and put non-path rules
-   in Constraints.
+   tasks bodies in **Korean** (paths, ids, and code fences stay as-is). Fill every
+   implementation-ready section in `tasks.md` before approval — Goal & intent,
+   Interface, Touch, Do not touch, Constraints, Checklist. Those sections are the
+   sole brief for `/bouncer-execute`. Write Touch per file with a verb rather than
+   per directory, and put non-path rules in Constraints.
    Also replace scaffold default frontmatter `title` values (and set
    `bouncer.commit_type` / `bouncer.commit_intent` on the blueprint when needed):
    `/bouncer-finalize` turns blueprint `title` into the commit subject,
    `commit_intent` (exactly two `~함` lines) into 배경·의도 bullets, and
    tasks/verification `title` into 수정 내용 bullets, following `.gitmessage`.
    `commit_type` also becomes the execute branch prefix (`<type>/<BP-id>-<slug>`).
+   After the draft, run `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) on
+   the authored bodies before approval.
 
 5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to
    run `bouncer graph-sync` (plan-time freshness for **source** + **context**

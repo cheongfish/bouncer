@@ -1,7 +1,7 @@
 ---
 title: Project Distill
 description: Current project invariants, gotchas, and decisions
-resource: .bouncer/context/Distill.md
+resource: .bouncer/Distill.md
 tags:
   - bouncer
   - distill
@@ -17,7 +17,8 @@ append a change log.
 ## Invariants
 
 - Canonical Bouncer docs live only under `.bouncer/context/` — never a root
-  `context/` tree.
+  `context/` tree. Project Distill is agent runtime at `.bouncer/Distill.md`,
+  not under `context/`.
 - Plugin consumers stay Node-only: commit `scripts/lib` CJS emit and regenerate
   via `pretest` / `npm run build`; do not require TS runtimes at consume time.
 - `tsc` does not rewrite `require('../vendor/…')` — keep `outDir`/`rootDir` so
@@ -58,7 +59,7 @@ append a change log.
 - Do not redeclare an `agents` path in plugin manifests. Claude rejects the
   plugin when a convention path is listed again; Cursor auto-discovers
   `agents/` when unset.
-- Promoting into `.bouncer/context/Distill.md` requires `makeAllowed` to whitelist
+- Promoting into `.bouncer/Distill.md` requires `makeAllowed` to whitelist
   that path; otherwise finalize aborts as out-of-scope.
 - Do not assume `.bouncer/templates/` exists — scaffold/PR bodies come from
   built-in `scripts/lib/templates.js` unless a project override is intentionally
@@ -86,9 +87,9 @@ append a change log.
   updating `test/public-name-regression.test.js` `APPROVED_GENERIC_SKILLS`
   (and listing that test in `affected_paths`); otherwise execute cannot put a
   new skill in the table.
-- discovery pre-read (`.bouncer/context/epics/` indexes, Distill.md) is
-  required for framing, but missing files are not a hard stop — record Overlap
-  as `"none"` and continue.
+- discovery pre-read (`.bouncer/context/epics/` indexes, `.bouncer/Distill.md`)
+  is required for framing, but missing files are not a hard stop — record
+  Overlap as `"none"` and continue.
 - 「Behavior-changing diff without adding/updating tests」 is a Code quality
   review candidate (`minor` / `major`); docs-only and configuration-only diffs
   are exempt. Keep the rubric in sync across `skills/review`,
@@ -104,8 +105,12 @@ append a change log.
 
 ## Decisions
 
-- Project Distill SSOT is `.bouncer/context/Distill.md`; master rules only name
-  the path and the read obligation.
+- Project Distill SSOT is `.bouncer/Distill.md` (agent runtime under `.bouncer/`,
+  not under `context/`). Master rules only name the path and the read
+  obligation. Write Distill in English; epic/blueprint/tasks/explain stay
+  Korean for humans.
+- Human-facing bodies under `.bouncer/context/epics/**` and BP `explain.md` are
+  Korean (ids/paths/code fences excepted). Apply `stop-slop` there (advisory).
 - BP `explain.md` + G15 (written sections, `bouncer.comprehension`, matching
   `diff_sha` for `base..HEAD` excluding `.bouncer/context/`) are the finalize
   gate token; global Distill is skill promotion + `makeAllowed`, not a G15

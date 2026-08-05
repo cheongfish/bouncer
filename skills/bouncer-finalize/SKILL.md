@@ -65,16 +65,16 @@ appears; do not reconstruct a root `context/` path.
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold explain --blueprint <pointer.blueprint>
    ```
    Then use the `explain-diff` skill (`skills/explain-diff/SKILL.md`) to author
-   the five sections, quiz the user, record `bouncer.comprehension`, and set
-   `explain.md` `bouncer.status → published`.
+   the five sections in Korean (with `stop-slop`), quiz the user, record
+   `bouncer.comprehension`, and set `explain.md` `bouncer.status → published`.
    After that, use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`)
    to promote durable items from `explain.md` into
-   `.bouncer/context/Distill.md` under `## Invariants` / `## Gotchas` /
-   `## Decisions` (add, replace, or drop stale bullets). Decisions stay
-   **current only** — no change-log append. Do **not** promote `## 이해 상태`,
-   `## Quiz`, or comprehension fields into Distill — 이해 상태는 Distill로
-   승격하지 않는다. Cycle retrospectives and next-BP ideas stay in the BP
-   `explain.md` only.
+   `.bouncer/Distill.md` under `## Invariants` / `## Gotchas` /
+   `## Decisions` (add, replace, or drop stale bullets; English Distill bullets).
+   Decisions stay **current only** — no change-log append. Do **not** promote
+   `## 이해 상태`, `## Quiz`, or comprehension fields into Distill —
+   이해 상태는 Distill로 승격하지 않는다. Cycle retrospectives and next-BP
+   ideas stay in the BP `explain.md` only.
 
 2. **Validate.** Run the finalize gate — `validate --gate finalize`:
    ```bash

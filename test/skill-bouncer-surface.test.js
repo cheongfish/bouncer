@@ -11,6 +11,7 @@ const WORKFLOW = ['bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-fi
 const SUB_PATHS = [
   'discovery', 'spec-authoring', 'implementation', 'verification',
   'review', 'minimality', 'debugging', 'graphify-runner', 'explain-diff',
+  'stop-slop',
 ];
 
 function readWorkflow(name) {
@@ -31,6 +32,7 @@ test('workflow skills cite subordinate skills by path', () => {
   const finalize = readWorkflow('bouncer-finalize');
   assert.match(plan, /skills\/discovery\/SKILL\.md/);
   assert.match(plan, /skills\/spec-authoring\/SKILL\.md/);
+  assert.match(plan, /skills\/stop-slop\/SKILL\.md/);
   assert.match(plan, /skills\/graphify-runner\/SKILL\.md/);
   assert.match(execute, /skills\/implementation\/SKILL\.md/);
   assert.match(execute, /skills\/verification\/SKILL\.md/);
@@ -40,7 +42,7 @@ test('workflow skills cite subordinate skills by path', () => {
   for (const name of [
     'discovery', 'implementation', 'verification', 'review',
     'minimality', 'debugging', 'graphify-runner', 'spec-authoring',
-    'explain-diff',
+    'explain-diff', 'stop-slop',
   ]) {
     // at least one workflow skill should mention each used path form when present
     assert.ok(SUB_PATHS.includes(name));

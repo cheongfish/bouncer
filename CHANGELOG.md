@@ -7,7 +7,18 @@
 
 ## [Unreleased]
 
-## [0.4.0] — 2026-08-05
+### Added
+
+- **`stop-slop` 스킬** — `.bouncer/context/` 한국어 본문(epics·explain)의 AI 문체
+  패턴을 걷어내는 advisory 스킬. plan(`spec-authoring` 뒤)·explain에 연결.
+- **Context language** — epic/blueprint/tasks/explain 본문은 한국어. Distill은
+  영어 에이전트 런타임. `CLAUDE.md` hard rule 8.
+
+### Changed
+
+- **Project Distill 경로** — `.bouncer/context/Distill.md` → `.bouncer/Distill.md`
+  (`config.json`과 같은 런타임 루트). `bouncer init`이 레거시 경로를 새 경로로
+  soft-migrate.
 
 0.3.0 이후 이해 게이트(explain)·finalize 인계·그래프 신호 개선.
 

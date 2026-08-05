@@ -11,6 +11,7 @@ const GENERIC_SKILLS = [
   'verification',
   'review',
   'minimality',
+  'stop-slop',
 ];
 
 function readSkill(name) {

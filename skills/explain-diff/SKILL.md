@@ -12,14 +12,17 @@ caller to scaffold first.
 
 ## Steps
 
-1. **Author the five sections.** Fill the body under these headings (scaffold
-   leaves comment-only stubs; replace with real prose):
+1. **Author the five sections.** Fill the body under these headings in
+   **Korean** (paths, ids, and code fences stay as-is; scaffold leaves
+   comment-only stubs — replace with real prose):
    - `## Background` — why this change exists
    - `## Intuition` — one-line picture / analogy
    - `## Code` — key paths and files to read (no long dumps)
    - `## Quiz` — understanding-check questions for the human
    - `## 이해 상태` — quiz outcome and disposition (keep in sync with
      frontmatter below)
+   Then apply `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) before the
+   quiz — strip filler and formulaic closers from the five sections.
 
 2. **Quiz the user.** Present the Quiz questions, score the answers, and
    compute `quiz_score` as `N/M` (e.g. `3/5`). A low score is fine:

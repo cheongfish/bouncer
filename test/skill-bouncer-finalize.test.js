@@ -38,8 +38,9 @@ test('bouncer-finalize wires explain, finalize gate, bouncer finalize, push+PR, 
 
 test('bouncer-finalize promotes BP explain notes into project Distill', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /\.bouncer\/context\/Distill\.md/);
+  assert.match(body, /\.bouncer\/Distill\.md/);
   assert.match(body, /promot|승격|Invariants|Gotchas|Decisions/i);
+  assert.match(body, /English/);
 });
 
 test('bouncer-finalize fills PR from explain.md and excludes 이해 상태', () => {

@@ -29,12 +29,13 @@ Bootstrap this project for Bouncer.
    node "${BOUNCER_ROOT}/scripts/bouncer" init
    ```
 2. Report the result:
-   - If bootstrap is already ready and `.bouncer/context/Distill.md` exists,
+   - If bootstrap is already ready and `.bouncer/Distill.md` exists,
      report `already-initialized` and that no changes were made.
    - If bootstrap is ready but Distill was missing, report that Distill was
-     seeded (`project-distill-seeded`) and list `.bouncer/context/Distill.md`.
+     seeded (`project-distill-seeded`) and list `.bouncer/Distill.md`. If init
+     migrated a legacy `.bouncer/context/Distill.md`, report the new path.
    - Otherwise, list the created files (`.bouncer/config.json`,
-     `.bouncer/context/index.md`, `.bouncer/context/Distill.md`).
+     `.bouncer/context/index.md`, `.bouncer/Distill.md`).
    - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
 3. If the result carries a non-empty `gitignoreSuggestions`, list those entries and
    tell the user to add them to `.gitignore` themselves. Bouncer never edits

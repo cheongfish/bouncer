@@ -23,7 +23,7 @@ contains `scripts/bouncer`.
 
 Implement the active blueprint. Follow this sequence.
 
-**Project Distill.** Before implementing, Read `.bouncer/context/Distill.md`.
+**Project Distill.** Before implementing, Read `.bouncer/Distill.md`.
 If missing, stop and tell the user to run `bouncer init` (or seed the file).
 Honor matching Invariants / Gotchas / Decisions inside `affected_paths`.
 

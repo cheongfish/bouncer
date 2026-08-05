@@ -13,7 +13,8 @@ they conflict.
    Never author or migrate a root `context/` tree. Scaffold owns OKF frontmatter
    (`type`, `title`, `description`, `resource`, `tags`, `timestamp`) and harness
    ids under `bouncer:`; skills write body prose (and only the frontmatter fields
-   a workflow explicitly allows).
+   a workflow explicitly allows). Project Distill is **not** under `context/` —
+   it is agent runtime at `.bouncer/Distill.md` (see rule 7).
 2. **One commit per blueprint** — Split work so each blueprint is one reviewable
    commit. Do not add a subtask layer or per-task `affected_paths`.
    Detail: [`docs/governance.md`](docs/governance.md).
@@ -28,10 +29,15 @@ they conflict.
    under `bouncer:`. Bundle-root `okf_version` is only on
    `.bouncer/context/index.md`. Detail: [`docs/okf.md`](docs/okf.md).
 7. **Project Distill** — Before `/bouncer-plan` and `/bouncer-execute` work,
-   Read `.bouncer/context/Distill.md` (create via `bouncer init` if missing).
-   Apply matching Invariants / Gotchas / Decisions to the brief. Do **not** put
-   Distill body content into these master rules — path and read obligation only.
+   Read `.bouncer/Distill.md` (create via `bouncer init` if missing). Apply
+   matching Invariants / Gotchas / Decisions to the brief. Do **not** put Distill
+   body content into these master rules — path and read obligation only.
    `/bouncer-finalize` promotes durable BP `explain.md` notes into that file.
+   Distill is English agent runtime; not a human-facing OKF plan doc.
+8. **Context language** — Human-facing bodies under `.bouncer/context/epics/**`
+   and BP `explain.md` are Korean (identifiers, paths, and fenced code excepted).
+   Apply `stop-slop` when drafting or revising that prose; it is advisory, not a
+   gate. Distill stays English.
 
 ## Session conduct
 
@@ -70,6 +76,7 @@ numbered step says otherwise.
 | Bootstrap `.bouncer/` once | `/bouncer-init` |
 | Clarify goal / scope / success criteria | `discovery` (inside `/bouncer-plan`) |
 | Author epic / blueprint / tasks bodies | `spec-authoring` |
+| Strip AI tells from context prose | `stop-slop` (inside plan / explain / Distill) |
 | Implement from `tasks.md` | `implementation` (inside `/bouncer-execute`) |
 | Investigate a failed verify | `debugging` + `verification` |
 | Review the diff against the brief | `review` |

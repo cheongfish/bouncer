@@ -83,6 +83,7 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 | `verification` | 실제 검증 명령과 증거를 `verification.md`에 기록 |
 | `review` | 태스크·인터페이스·금지 범위에 비추어 diff 검토 |
 | `minimality` | 불필요한 코드·의존성·추상화를 줄이는 대안 검토 |
+| `stop-slop` | `.bouncer/context/` 한국어 본문의 AI 문체 패턴 제거 (advisory) |
 
 `explain-diff`는 `/bouncer-finalize`가 호출하는 하위 스킬이며 BP `explain.md`
 저술·퀴즈·`comprehension` 기록을 담당한다. 위 표의 일반 워크플로 스킬이 아니다.
@@ -166,8 +167,8 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 ### C. 자체 스킬의 범위와 호출 시점
 
 1. 첫 릴리스 스킬 집합: `discovery`, `spec-authoring`, `implementation`,
-   `debugging`, `verification`, `review`, `minimality` (+ 선택 `graphify-runner`;
-   finalize 하위 `explain-diff`).
+   `debugging`, `verification`, `review`, `minimality`, `stop-slop` (+ 선택
+   `graphify-runner`; finalize 하위 `explain-diff`).
 2. `debugging`은 독립 스킬이며 `/bouncer-execute` 실패 경로에서 권장한다.
 3. 처음에는 명령 내 명시 호출/권장으로 시작하고, 자동 훅은 검증 후 추가한다.
 
@@ -187,8 +188,10 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 ### E. Ponytail 최소화 정책
 
 1. `minimality`는 계획·구현·리뷰에서 권장(advisory)이며 별도 게이트가 아니다.
-2. 새 의존성 추가는 근거 기록을 요구하고, 별도 하드 게이트는 두지 않는다.
-3. 최소화 제안이 승인된 태스크와 충돌하면 `/bouncer-plan`으로 재검토한다.
+2. `stop-slop`은 plan·explain 한국어 본문에서 권장(advisory)이며 별도 게이트가
+   아니다. Project Distill(`.bouncer/Distill.md`)은 영어 에이전트 런타임이다.
+3. 새 의존성 추가는 근거 기록을 요구하고, 별도 하드 게이트는 두지 않는다.
+4. 최소화 제안이 승인된 태스크와 충돌하면 `/bouncer-plan`으로 재검토한다.
 
 ### F. 품질 평가와 재브랜드 경계
 

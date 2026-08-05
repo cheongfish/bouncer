@@ -10,7 +10,7 @@
    G13–G14).
 4. `/bouncer-finalize`: scaffold + `explain-diff` (BP `explain.md` +
    comprehension), promote durable notes from `explain.md` into
-   `.bouncer/context/Distill.md` via `spec-authoring` (excluding
+   `.bouncer/Distill.md` via `spec-authoring` (excluding
    `## 이해 상태` / Quiz / comprehension), pass gate `finalize` (G15), then
    **ACQ**-confirm remainder commit (recommended: `--yes` + remove execute
    worktree), draft PR filled from `explain.md` Background / Intuition / Code,
@@ -35,9 +35,9 @@
 
 | 단계 | 스킬 |
 | --- | --- |
-| `/bouncer-plan` | `discovery` → `spec-authoring` → `graphify-runner` → `minimality` |
+| `/bouncer-plan` | `discovery` → `spec-authoring` → `stop-slop` → `graphify-runner` → `minimality` |
 | `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (`debugging` on verify failure) |
-| `/bouncer-finalize` | `explain-diff` → `spec-authoring` (explain→Distill 승격) |
+| `/bouncer-finalize` | `explain-diff` → `spec-authoring` (explain→Distill 승격; explain에 `stop-slop`) |
 
 Execute에서 구현·리뷰는 named 서브에이전트 `bouncer-implementer` /
 `bouncer-reviewer`로 분리할 수 있다.

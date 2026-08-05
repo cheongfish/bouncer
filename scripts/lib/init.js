@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { detectLegacyFormat } = require('./schema');
-const { PROJECT_DISTILL } = require('./layout');
+const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout');
 const { PROJECT_DISTILL_BODY } = require('./templates');
 const { nowIsoKst } = require('./time');
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
@@ -75,7 +75,8 @@ function writeFile(repoRoot, rel, content, created) {
 }
 function projectDistillDoc(timestamp) {
     // 등록된 bouncer.* schema kind가 아님 — project Distill은 gate 없는 prose,
-    // OKF 형태 meta만 (title/description/resource/tags/timestamp).
+    // OKF 형태 meta만 (title/description/resource/tags/timestamp). `.bouncer/`
+    // 런타임 파일이지 context OKF 번들 문서가 아니다.
     const ts = timestamp || nowIsoKst();
     return `---
 title: Project Distill
@@ -88,11 +89,24 @@ timestamp: '${ts}'
 ---
 ${PROJECT_DISTILL_BODY}`;
 }
+function rewriteDistillResource(body) {
+    return body.replace(/^resource:\s*\.bouncer\/context\/Distill\.md\s*$/m, `resource: ${PROJECT_DISTILL}`);
+}
 // 없을 때만 Distill 생성 — 정리된 project note는 덮어쓰지 않음.
+// 레거시 `.bouncer/context/Distill.md`만 있으면 새 경로로 옮긴다.
 function ensureProjectDistill(repoRoot, created, timestamp) {
     const abs = path.join(repoRoot, PROJECT_DISTILL);
     if (fs.existsSync(abs))
         return;
+    const legacyAbs = path.join(repoRoot, LEGACY_PROJECT_DISTILL);
+    if (fs.existsSync(legacyAbs)) {
+        const body = rewriteDistillResource(fs.readFileSync(legacyAbs, 'utf8'));
+        fs.mkdirSync(path.dirname(abs), { recursive: true });
+        fs.writeFileSync(abs, body);
+        fs.unlinkSync(legacyAbs);
+        created.push(PROJECT_DISTILL);
+        return;
+    }
     writeFile(repoRoot, PROJECT_DISTILL, projectDistillDoc(timestamp), created);
 }
 // advisory만. safe bootstrap은 init이 만들지 않은 file을 수정하지 않으므로

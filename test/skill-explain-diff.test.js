@@ -30,4 +30,7 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   // 스킬이 "임계값을 두지 않는다"를 설명하는 순간 자기모순으로 깨진다.
   assert.match(md, /기록만 하고 (마감을 )?막지 않는다/);
   assert.match(md, /scaffold explain|대체하지/);
+  assert.match(md, /Korean/);
+  assert.match(md, /stop-slop/);
+  assert.match(md, /skills\/stop-slop\/SKILL\.md/);
 });

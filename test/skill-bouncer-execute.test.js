@@ -72,6 +72,6 @@ test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', (
 
 test('bouncer-execute preflight reads project Distill', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /\.bouncer\/context\/Distill\.md/);
+  assert.match(body, /\.bouncer\/Distill\.md/);
   assert.match(body, /Read/i);
 });

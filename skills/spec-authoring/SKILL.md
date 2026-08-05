@@ -14,6 +14,17 @@ Your job is the prose under plan docs, and Distill promotion when finalize
 sends you here. Canonical Bouncer documents live only under
 `.bouncer/context/`; never read, author, or migrate a root `context/` tree.
 
+## Language and prose
+
+- **Korean bodies.** Write epic / blueprint / tasks / explain body prose in
+  Korean. Keep identifiers, file paths, commands, and fenced code as-is. Do not
+  open a Korean section with an English overview sentence.
+- **Distill is English.** Project Distill (`.bouncer/Distill.md`) is agent
+  runtime — promote durable notes in English, not Korean.
+- **Stop slop.** After drafting Korean plan/explain bodies, apply the
+  `stop-slop` skill (`skills/stop-slop/SKILL.md`) — advisory, not a gate. Strip
+  filler, formulaic contrast, empty passives, and section-restating closers.
+
 ## Ownership boundary (do not cross)
 
 - **Never** hand-edit harness-owned frontmatter fields such as `type`,
@@ -92,16 +103,16 @@ those placeholders ship as the commit subject and body.
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.
-   - **project Distill** (`.bouncer/context/Distill.md`): when finalize asks
+   - **project Distill** (`.bouncer/Distill.md`): when finalize asks
      for promotion, curate runtime cautions under `## Invariants`,
-     `## Gotchas`, `## Decisions`. Put only what the next plan/execute must
-     not rediscover. Decisions are **current** valid choices; replace the
-     sentence when it changes — never append a timeline. Source durable
-     bullets from the BP `explain.md` (`## Background` / `## Intuition` /
-     `## Code` and any durable notes there); leave cycle retrospectives in
-     that file. Do **not** promote `## 이해 상태`, `## Quiz`, or
-     comprehension fields (`quiz_score`, `disposition`, `diff_sha`) into
-     Distill — 이해 상태는 Distill로 승격하지 않는다.
+     `## Gotchas`, `## Decisions` in **English**. Put only what the next
+     plan/execute must not rediscover. Decisions are **current** valid choices;
+     replace the sentence when it changes — never append a timeline. Source
+     durable bullets from the BP `explain.md` (`## Background` / `## Intuition`
+     / `## Code` and any durable notes there); leave cycle retrospectives in
+     that file. Do **not** promote `## 이해 상태`, `## Quiz`, or comprehension
+     fields (`quiz_score`, `disposition`, `diff_sha`) into Distill — 이해 상태는
+     Distill로 승격하지 않는다.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
    Match each document's length to what the work needs — cover the substance,
    then stop. No filler sections, no summary that restates the section above it,

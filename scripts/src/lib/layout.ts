@@ -2,9 +2,12 @@
 const { toPosix } = require('./paths');
 
 const CONTEXT_ROOT = '.bouncer/context';
-// 프로젝트 전역 Distill SSOT(blueprint별 distill.md 아님). 대소문자 구분
-// 경로 — 소비자와 master rules는 이 문자열을 정확히 써야 한다.
-const PROJECT_DISTILL = `${CONTEXT_ROOT}/Distill.md`;
+// 프로젝트 전역 Distill SSOT(blueprint별 distill.md / explain.md 아님).
+// 에이전트 런타임 주의사항 — OKF context 트리 밖, config.json과 같은 `.bouncer/`
+// 루트. 소비자와 master rules는 이 문자열을 정확히 써야 한다.
+const PROJECT_DISTILL = '.bouncer/Distill.md';
+// init soft-migrate: 예전 context 경로에만 있으면 새 경로로 옮긴다.
+const LEGACY_PROJECT_DISTILL = `${CONTEXT_ROOT}/Distill.md`;
 const EPIC_DIR = /^\.bouncer\/context\/epics\/EPIC-\d+-[^/]+$/;
 const BLUEPRINT_DIR =
   /^\.bouncer\/context\/epics\/EPIC-\d+-[^/]+\/blueprints\/BP-\d+-[^/]+$/;
@@ -24,6 +27,7 @@ function isCanonicalBlueprintDir(value) {
 module.exports = {
   CONTEXT_ROOT,
   PROJECT_DISTILL,
+  LEGACY_PROJECT_DISTILL,
   normalizeRepoPath,
   isCanonicalEpicDir,
   isCanonicalBlueprintDir,

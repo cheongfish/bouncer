@@ -225,7 +225,7 @@ test('dirty files outside the plan context set are left alone', () => {
   write(repo, `${BP_REL}/tasks.md`, 'brief\n');
   write(repo, '.bouncer/config.json', '{"verify":"npm test"}\n');
   write(repo, 'scripts/keep.js', 'locally edited\n');
-  write(repo, '.bouncer/context/Distill.md', '# Distill\n');
+  write(repo, '.bouncer/Distill.md', '# Distill\n');
   write(repo, '.bouncer/context/epics/EPIC-002-other/index.md', 'other epic\n');
 
   const res = seed(repo, wt);
@@ -234,10 +234,10 @@ test('dirty files outside the plan context set are left alone', () => {
   assert.deepStrictEqual(res.moved, [`${BP_REL}/tasks.md`]);
   assert.strictEqual(read(repo, '.bouncer/config.json'), '{"verify":"npm test"}\n');
   assert.strictEqual(read(repo, 'scripts/keep.js'), 'locally edited\n');
-  assert.strictEqual(read(repo, '.bouncer/context/Distill.md'), '# Distill\n');
+  assert.strictEqual(read(repo, '.bouncer/Distill.md'), '# Distill\n');
   assert.strictEqual(read(repo, '.bouncer/context/epics/EPIC-002-other/index.md'), 'other epic\n');
   assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/config.json')), false);
-  assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/context/Distill.md')), false);
+  assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/Distill.md')), false);
 });
 
 test('emptied plan directories do not linger in the base', () => {

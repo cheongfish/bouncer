@@ -255,14 +255,14 @@ test('finalize commit message has no trailers', () => {
 });
 
 
-test('allows .bouncer/context/Distill.md without listing it in affected_paths', () => {
+test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
-  const g = fakeGit(['.bouncer/context/Distill.md'], []);
+  const g = fakeGit(['.bouncer/Distill.md'], []);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.committed, true);
-  assert.deepStrictEqual(g.calls.staged, ['.bouncer/context/Distill.md']);
+  assert.deepStrictEqual(g.calls.staged, ['.bouncer/Distill.md']);
 });
 
 test('finalize return includes next even when no candidates remain', () => {

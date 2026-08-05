@@ -50,6 +50,7 @@ const SUPERPOWERS_NEGATIVE_TESTS = new Set([
   'test/skill-discovery.test.js',
   'test/skill-graphify-runner.test.js',
   'test/skill-minimality.test.js',
+  'test/skill-stop-slop.test.js',
   'test/skill-review.test.js',
   'test/skill-verification.test.js',
 ]);
@@ -144,6 +145,7 @@ const APPROVED_GENERIC_SKILLS = [
   'verification',
   'review',
   'minimality',
+  'stop-slop',
 ];
 
 /** Skill names listed in the §4 generic-skills markdown table (backtick cells). */
@@ -182,12 +184,12 @@ test('current documentation describes Bouncer native workflow without Superpower
     'graphify-runner / Graphify absence must document manual-search fallback',
   );
 
-  // Exactly the seven approved generic skills; graphify-runner stays outside that table.
+  // Exactly the approved generic skills; graphify-runner stays outside that table.
   const genericSkills = genericSkillsFromGovernance(gov);
   assert.deepStrictEqual(
     genericSkills,
     APPROVED_GENERIC_SKILLS,
-    '§4 skills table must list exactly the seven approved generic skills',
+    '§4 skills table must list exactly the approved generic skills',
   );
   assert.equal(
     genericSkills.includes('graphify-runner'),

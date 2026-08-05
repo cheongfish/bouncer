@@ -17,6 +17,7 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   assert.match(body, /\.bouncer\/context\/epics/);
   assert.match(body, /discovery/);
   assert.match(body, /spec-authoring/);
+  assert.match(body, /stop-slop/);
   assert.match(body, /graphify-runner/);
   assert.match(body, /minimality/);
   assert.match(body, /affected_paths/);
@@ -53,7 +54,7 @@ test('bouncer-plan reminds authors that titles feed the finalize commit message'
 
 test('bouncer-plan preflight reads project Distill', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /\.bouncer\/context\/Distill\.md/);
+  assert.match(body, /\.bouncer\/Distill\.md/);
   assert.match(body, /Read/i);
 });
 
@@ -62,4 +63,11 @@ test('bouncer-plan step 1 cites the named discovery handoff outputs', () => {
   assert.match(body, /Edge cases & failure modes/);
   assert.match(body, /Overlap/);
   assert.match(body, /실패 모드|failure mode/i);
+});
+
+test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /Korean/);
+  assert.match(body, /stop-slop/);
+  assert.match(body, /skills\/stop-slop\/SKILL\.md/);
 });

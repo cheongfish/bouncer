@@ -48,8 +48,17 @@ test('workflow skills instruct reading CLAUDE.md before steps', () => {
 
 test('master rules point at project Distill path and require reading it', () => {
   const claude = read('CLAUDE.md');
-  assert.match(claude, /\.bouncer\/context\/Distill\.md/);
+  assert.match(claude, /\.bouncer\/Distill\.md/);
   assert.match(claude, /plan|execute/i);
   assert.match(claude, /Read|읽/i);
   assert.doesNotMatch(claude, /## Invariants/);
+});
+
+test('master rules require Korean context bodies and name stop-slop', () => {
+  const claude = read('CLAUDE.md');
+  assert.match(claude, /Context language/i);
+  assert.match(claude, /Korean/);
+  assert.match(claude, /stop-slop/);
+  assert.match(claude, /advisory/i);
+  assert.match(claude, /Distill stays English|English agent runtime/i);
 });
