@@ -14,3 +14,5 @@ okf_version: "0.1"
 * [EPIC-009 subagent-model-config](epics/EPIC-009-subagent-model-config/index.md) - 프로바이더별 named 서브에이전트 모델을 config로 권고하고 디스패치 시점에 적용한다
 * [EPIC-010 active-pointer-cli](epics/EPIC-010-active-pointer-cli/index.md) - 활성 포인터에 CLI 표면 하나를 두고 포인터가 비었을 때 실행 가능한 후보를 하네스가 답하게 한다
 * [EPIC-011 graphify-signal](epics/EPIC-011-graphify-signal/index.md) - 그래프 미생성을 무음으로 넘기지 않고 신호로 드러내며 스캐폴딩·산출 경로 계약을 실재 디렉터리에 맞춘다
+* [EPIC-012 finalize-handoff](epics/EPIC-012-finalize-handoff/index.md) - 마감 직후 다음 블루프린트 후보를 계산·통지하고 확인 한 번으로 포인터를 옮긴다
+* [EPIC-013 comprehension-gate](epics/EPIC-013-comprehension-gate/index.md) - BP 설명 문서와 이해 기록을 마감 게이트로 세운다
