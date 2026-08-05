@@ -44,16 +44,20 @@ test('bouncer-finalize promotes BP explain notes into project Distill', () => {
 
 test('bouncer-finalize fills PR from explain.md and excludes 이해 상태', () => {
   const { body } = parseFrontmatter(md);
+  const { PR_TEMPLATE } = require('../scripts/lib/templates');
   assert.match(body, /explain\.md/);
-  assert.match(body, /이해 상태/);
-  assert.match(body, /승격하지 않|옮기지 않|제외/);
-  // PR 본문 소스는 긍정 문구로 못 박는다. 지금 finalize:142의
-  // "fill its sections from the blueprint and tasks" 문장을 doesNotMatch로
-  // 노리면 그 문장이 한 글자만 바뀌어도 단언이 무의미해진다.
+  // Distill 승격·PR 복사 금지를 각각 긍정 문구로 잠근다(한쪽만 남아도 통과하지 않음).
+  // 스킬 줄바꿈 wrapping을 허용한다.
+  assert.match(body, /이해 상태는 Distill로\s*승격하지 않는다/);
+  assert.match(body, /이해 상태는 PR에\s*옮기지 않는다/);
+  // PR 본문 소스는 explain.md 채움 규칙으로 못 박는다(부재 단언이 아님).
   assert.match(body, /PR body[\s\S]{0,200}explain\.md|explain\.md[\s\S]{0,200}PR body/);
-  for (const s of ['Background', 'Intuition', 'Code']) {
+  for (const s of ['## Background', '## Intuition', '## Code']) {
     assert.ok(body.includes(s), `PR fill rule must name ${s}`);
   }
+  // Bouncer 메타는 Explain 경로(스킬 지시 + 템플릿 플레이스홀더).
+  assert.match(body, /Explain path|Explain 경로/);
+  assert.match(PR_TEMPLATE, /- Explain: <explain path>/);
 });
 
 test('bouncer-finalize offers next-blueprint handoff via current --set after confirm', () => {
