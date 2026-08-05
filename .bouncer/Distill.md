@@ -105,6 +105,18 @@ append a change log.
 - `normalizeContextId` strips legacy `EPIC-`/`BP-` and `KIND-BP-` prefixes
   only — wrong digits still fail S5 after normalize (e.g. `EPIC-013` under
   `epics/014-…`).
+- Legacy-id SessionStart discovery must call `migrate-ids` `discoverLegacyIds`,
+  not layout/`parsePathIds` transition allowance — BP-003 removes the latter
+  and the hook must still warn.
+- Do not fold legacy-id warnings into `session-graph.js` — that hook is gated
+  on `config.graphify.enabled` and swallows exceptions, so migration guidance
+  disappears when graphs fail or are disabled.
+- `migrate-ids` is a specialized skill (like `graphify-runner`), not an
+  `APPROVED_GENERIC_SKILLS` entry — ship under `skills/migrate-ids/` without
+  updating the §4 generic table unless the plan expands that allowlist.
+- `bouncer migrate ids` apply is all-or-nothing after validate (mixed /
+  collision / dirty reject). SessionStart only warns (`exit 0`) and never
+  auto-applies. Cursor has no SessionStart — users get the CLI/skill only.
 
 ## Decisions
 
@@ -180,3 +192,6 @@ append a change log.
   + `\d{3}` (e.g. `TASKS-001`). Scaffold/`--id` accept and emit that shape
   only. Legacy prefixed path segments and frontmatter remain readable via
   normalize/layout during the transition (removal is a later BP).
+- Legacy tree migration surface is `bouncer migrate ids` plus the
+  `migrate-ids` skill (dry-run → confirm → apply). SessionStart warns through
+  a separate hook that reuses that discoverer; it does not rename trees.
