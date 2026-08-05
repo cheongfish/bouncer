@@ -1,6 +1,6 @@
 ---
 type: bouncer.verification
-title: BP-001 verification
+title: 설명 문서 계약과 G15 이해 게이트를 npm test로 검증함
 description: Verification for BP-001
 resource: .bouncer/context/epics/EPIC-013-comprehension-gate/blueprints/BP-001-explain-doc-contract/verification.md
 tags:
