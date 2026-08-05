@@ -1,6 +1,6 @@
 ---
 name: bouncer-finalize
-description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Distill, validate, commit the remainder, then ask whether to push a draft PR and whether to remove the execute worktree (PR skipped gracefully with no remote)."
+description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Run explain-diff, promote Distill, validate, commit the remainder, then ask whether to push a draft PR and whether to remove the execute worktree (PR skipped gracefully with no remote)."
 ---
 # /bouncer-finalize
 
