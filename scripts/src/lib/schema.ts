@@ -8,7 +8,7 @@ const TYPES = [
   'bouncer.tasks',
   'bouncer.verification',
   'bouncer.review',
-  'bouncer.distill',
+  'bouncer.explain',
 ];
 
 const ID_PREFIX = {
@@ -17,7 +17,7 @@ const ID_PREFIX = {
   'bouncer.tasks': 'TASKS-',
   'bouncer.verification': 'VERIFY-',
   'bouncer.review': 'REVIEW-',
-  'bouncer.distill': 'DISTILL-',
+  'bouncer.explain': 'EXPLAIN-',
 };
 
 const STATUS_ENUM = {
@@ -26,7 +26,7 @@ const STATUS_ENUM = {
   'bouncer.tasks': ['draft', 'ready', 'in_progress', 'verified'],
   'bouncer.verification': ['pending', 'passed', 'failed'],
   'bouncer.review': ['pending', 'requested', 'addressed', 'accepted'],
-  'bouncer.distill': ['draft', 'published'],
+  'bouncer.explain': ['draft', 'published'],
 };
 
 const KIND_TO_TYPE = {
@@ -35,7 +35,7 @@ const KIND_TO_TYPE = {
   tasks: 'bouncer.tasks',
   verification: 'bouncer.verification',
   review: 'bouncer.review',
-  distill: 'bouncer.distill',
+  explain: 'bouncer.explain',
 };
 
 const LEGACY_GUIDANCE =

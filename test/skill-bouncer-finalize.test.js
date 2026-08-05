@@ -8,12 +8,12 @@ const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const root = path.join(__dirname, '..');
 const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
 
-test('bouncer-finalize wires distill, finalize gate, bouncer finalize, push+PR, and graceful skip', () => {
+test('bouncer-finalize wires explain, finalize gate, bouncer finalize, push+PR, and graceful skip', () => {
   const { data, body } = parseFrontmatter(md);
   assert.ok(data.description.length > 0);
   assert.match(body, /spec-authoring/);
-  assert.match(body, /distill/i);
-  assert.match(body, /scaffold distill/);
+  assert.match(body, /explain/i);
+  assert.match(body, /scaffold explain/);
   assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize\b/);
   assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>(?:\s+--yes)?\b/);
   assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes\b/);
@@ -27,11 +27,14 @@ test('bouncer-finalize wires distill, finalize gate, bouncer finalize, push+PR, 
   assert.match(body, /git worktree remove/);
   assert.match(body, /<type>\/<BP-id>-<slug>/);
   assert.match(body, /commit_type/);
+  assert.match(body, /G15/);
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
+  assert.doesNotMatch(body, /scaffold distill/);
+  assert.doesNotMatch(body, /\bG9\b/);
 });
 
 
-test('bouncer-finalize promotes BP distill into project Distill', () => {
+test('bouncer-finalize promotes BP explain notes into project Distill', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /\.bouncer\/context\/Distill\.md/);
   assert.match(body, /promot|승격|Invariants|Gotchas|Decisions/i);

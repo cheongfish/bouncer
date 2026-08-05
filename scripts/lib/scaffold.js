@@ -49,23 +49,36 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
     const review = `${dir}/review.md`;
     created.push(writeRel(repoRoot, review, bouncerDoc('bouncer.review', `${blueprintId} review`, `Review for ${blueprintId}`, review, ['bouncer', 'review'], timestamp, { id: `REVIEW-${blueprintId}`, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
         review: { required: true } }), body('review.md')));
-    // BP distill.md is created at finalize time (scaffoldDistill), not during plan scaffold.
+    // BP explain.md is created at finalize time (scaffoldExplain), not during plan scaffold.
     return created;
 }
-/** Create BP distill.md if missing. Used by /bouncer-finalize, not plan scaffold. */
-function scaffoldDistill({ repoRoot, blueprintDir, timestamp }) {
+/** Create BP explain.md if missing. Used by /bouncer-finalize, not plan scaffold. */
+function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
     if (!isCanonicalBlueprintDir(blueprintDir)) {
         throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
     }
     const bp = normalizeRepoPath(blueprintDir);
-    const distill = `${bp}/distill.md`;
-    if (fs.existsSync(path.join(repoRoot, distill)))
+    const explain = `${bp}/explain.md`;
+    if (fs.existsSync(path.join(repoRoot, explain)))
         return [];
     const { epicId, blueprintId } = parsePathIds(bp);
     if (!epicId || !blueprintId) {
         throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
     }
     const slug = bp.split('/').pop().replace(new RegExp(`^${blueprintId}-`), '') || 'blueprint';
-    return [writeRel(repoRoot, distill, bouncerDoc('bouncer.distill', `${blueprintId} distill`, `Distill for ${blueprintId}`, distill, ['bouncer', 'distill'], timestamp, { id: `DISTILL-${blueprintId}`, epic_id: epicId, blueprint_id: blueprintId, status: 'draft' }), templateBody('distill.md', { epicId, blueprintId, name: slug }))];
+    // comprehension defaults are empty strings on purpose: G15 treats empty
+    // diff_sha / disposition as "record missing", not as a hash mismatch.
+    return [writeRel(repoRoot, explain, bouncerDoc('bouncer.explain', `${blueprintId} explain`, `Explain for ${blueprintId}`, explain, ['bouncer', 'explain'], timestamp, {
+            id: `EXPLAIN-${blueprintId}`,
+            epic_id: epicId,
+            blueprint_id: blueprintId,
+            status: 'draft',
+            comprehension: {
+                diff_sha: '',
+                quiz_score: '',
+                disposition: '',
+                recorded_at: '',
+            },
+        }), templateBody('explain.md', { epicId, blueprintId, name: slug }))];
 }
-module.exports = { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldDistill };
+module.exports = { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldExplain };

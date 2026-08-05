@@ -9,7 +9,7 @@ function fakeDocs(statuses) {
   if (statuses.tasks) docs.tasks = wrap(statuses.tasks);
   if (statuses.verification) docs.verification = wrap(statuses.verification);
   if (statuses.review) docs.review = wrap(statuses.review);
-  if (statuses.distill) docs.distill = wrap(statuses.distill);
+  if (statuses.explain) docs.explain = wrap(statuses.explain);
   return docs;
 }
 function deps(current, statuses) {
@@ -56,8 +56,8 @@ test('review accepted means finalize phase', () => {
   assert.strictEqual(r.phase, 'finalize');
 });
 
-test('distill published means finalize phase', () => {
-  const r = detectPhase({ repoRoot: '/x', deps: deps({ blueprint: 'b' }, { distill: 'published' }) });
+test('explain published means finalize phase', () => {
+  const r = detectPhase({ repoRoot: '/x', deps: deps({ blueprint: 'b' }, { explain: 'published' }) });
   assert.strictEqual(r.phase, 'finalize');
 });
 

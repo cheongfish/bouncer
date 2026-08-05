@@ -53,9 +53,9 @@ function setupRepo(verify = 'node -e "process.exit(0)"') {
       review: { required: false },
     }),
     '# Review\n');
-  writeDoc(repo, `${BP_REL}/distill.md`,
-    doc('bouncer.distill', 'DISTILL-BP-001', 'draft', `${BP_REL}/distill.md`),
-    '# Distill\n');
+  writeDoc(repo, `${BP_REL}/explain.md`,
+    doc('bouncer.explain', 'EXPLAIN-BP-001', 'draft', `${BP_REL}/explain.md`),
+    '# Explain\n');
   return repo;
 }
 

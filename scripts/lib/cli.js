@@ -1,7 +1,7 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const { validateBlueprint } = require('./validate');
-const { scaffoldEpic, scaffoldBlueprint, scaffoldDistill } = require('./scaffold');
+const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain } = require('./scaffold');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
 const { readConfig, detectPhase, recommendMode } = require('./advisor');
@@ -77,12 +77,12 @@ function cmdScaffold(rest, io) {
             repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp,
         });
     }
-    else if (kind === 'distill') {
+    else if (kind === 'explain') {
         if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-            io.err('scaffold distill: --blueprint is required\n');
+            io.err('scaffold explain: --blueprint is required\n');
             return 2;
         }
-        created = scaffoldDistill({ repoRoot, blueprintDir: f.blueprint, timestamp });
+        created = scaffoldExplain({ repoRoot, blueprintDir: f.blueprint, timestamp });
     }
     else {
         io.err(`unknown scaffold kind: ${kind}\n`);
@@ -216,9 +216,9 @@ const USAGE = `usage: bouncer <command> [options]
              Run the configured verify command and record its evidence.
   scaffold   epic --id <EPIC-id> --name <slug>
              blueprint --epic-dir <dir> --id <BP-id> --name <slug>
-             distill --blueprint <dir>
+             explain --blueprint <dir>
              Create a document set with correct frontmatter.
-             (distill is for finalize; epic/blueprint scaffold omit it.)
+             (explain is for finalize; epic/blueprint scaffold omit it.)
   finalize   --blueprint <dir> [--yes]
              Check the commit scope and, with --yes, commit the blueprint.
   seed-worktree --blueprint <dir> --to <worktree>

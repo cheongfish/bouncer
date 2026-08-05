@@ -13,6 +13,7 @@ test('parses ids and kind for each doc location', () => {
   assert.deepStrictEqual(parsePathIds('.bouncer/context/epics/EPIC-001-auth/index.md'),
     { epicId: 'EPIC-001', blueprintId: null, kind: 'epic' });
   assert.strictEqual(parsePathIds(`${BP}/verification.md`).kind, 'verification');
+  assert.strictEqual(parsePathIds(`${BP}/explain.md`).kind, 'explain');
 });
 
 test('epicDirOf strips the blueprints segment', () => {

@@ -4,7 +4,7 @@ const FILE_KIND = {
     'tasks.md': 'tasks',
     'verification.md': 'verification',
     'review.md': 'review',
-    'distill.md': 'distill',
+    'explain.md': 'explain',
 };
 function toPosix(p) {
     return String(p).split('\\').join('/');
