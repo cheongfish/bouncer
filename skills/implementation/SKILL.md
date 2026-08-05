@@ -1,13 +1,14 @@
 ---
 name: implementation
-description: "Use when implementing from an approved tasks brief. Make focused changes inside allowed paths, climb the minimality ladder before writing code, document non-obvious intent with detailed comments, keep tests green, and report any deviations from the plan. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use when implementing from an approved tasks brief. Make focused changes inside allowed paths, climb the minimality ladder before writing code, document non-obvious intent with detailed Korean comments, keep tests green, and report any deviations from the plan. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Implementation
 
 Execute approved work from the tasks brief without expanding scope. Prefer the
-smallest working diff — then explain non-obvious intent in comments so the next
-reader does not have to rediscover why the change looks the way it does.
+smallest working diff — then explain non-obvious intent in Korean comments so
+the next reader does not have to rediscover why the change looks the way it
+does.
 
 ## Flow
 
@@ -28,14 +29,15 @@ reader does not have to rediscover why the change looks the way it does.
    allowed to edit. Shortest working diff wins — but only in the right place.
    Bug fix = root cause: fix once where callers route through, not a symptom
    patch on the ticket path alone.
-4. **Detailed comments** — For every non-trivial change, write comments that
-   explain **why**, not a restatement of **what** the next line already says.
-   Prefer thoroughness over brevity: intent, invariants, rejection paths,
-   trade-offs, and known ceilings that a future reader needs. Comment
-   public contracts, tricky branches, workarounds, and deliberate
-   simplifications. Do not leave unexplained magic values, silent skips, or
-   “temporary” shortcuts without a comment naming the ceiling and upgrade
-   path. Trivial one-liners that are self-evident need no comment.
+4. **Detailed comments** — For every non-trivial change, write comments in
+   **Korean** that explain **why**, not a restatement of **what** the next
+   line already says. Prefer thoroughness over brevity: intent, invariants,
+   rejection paths, trade-offs, and known ceilings that a future reader
+   needs. Comment public contracts, tricky branches, workarounds, and
+   deliberate simplifications. Do not leave unexplained magic values,
+   silent skips, or “temporary” shortcuts without a comment naming the
+   ceiling and upgrade path. Trivial one-liners that are self-evident need
+   no comment.
 5. **Tests first** — For each behavior change, write the failing test, run it,
    and confirm it fails for the expected reason before writing the
    implementation. A test that passes before the change proves nothing, and
