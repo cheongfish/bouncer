@@ -54,7 +54,7 @@ flowchart TB
   end
 
   subgraph fin["/bouncer-finalize → gate finalize"]
-    SA2["spec-authoring<br/>BP distill · Distill 승격"]
+    ED[explain-diff] --> SA2["spec-authoring<br/>Distill 승격"]
   end
 
   init --> plan --> exec --> fin
@@ -125,7 +125,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ```
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
 /bouncer-execute   # worktree seed → 구현 · verify · review
-/bouncer-finalize  # BP distill · 전역 Distill 승격 · 커밋 (+ draft PR)
+/bouncer-finalize  # explain-diff · Distill 승격 · 커밋 (+ draft PR)
 ```
 
 각 단계 끝에서 게이트가 돌고, 실패하면 코드와 파일이 찍힙니다.

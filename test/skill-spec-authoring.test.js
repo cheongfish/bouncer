@@ -27,9 +27,12 @@ test('spec-authoring ties document titles to finalize commit messages via .gitme
 });
 
 
-test('spec-authoring documents project Distill vs BP distill rules', () => {
+test('spec-authoring documents project Distill promotion and defers explain to explain-diff', () => {
   const md = readSkill('spec-authoring');
   assert.match(md, /\.bouncer\/context\/Distill\.md/);
   assert.match(md, /Invariants|Gotchas|Decisions/);
   assert.match(md, /current|현재/i);
+  assert.match(md, /explain-diff/);
+  assert.doesNotMatch(md, /scaffold distill/);
+  assert.doesNotMatch(md, /author.*explain\.md|Write.*explain\.md/i);
 });

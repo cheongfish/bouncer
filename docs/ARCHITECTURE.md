@@ -77,12 +77,15 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 | 스킬 | 책임 |
 | --- | --- |
 | `discovery` | 요구사항을 목표·범위·비목표·성공 조건으로 정리 |
-| `spec-authoring` | 구현 준비가 된 `tasks.md` / BP distill / 전역 `.bouncer/context/Distill.md` 작성 |
+| `spec-authoring` | 구현 준비가 된 plan 문서(`tasks.md` 등) 작성 · 전역 Distill 승격 |
 | `implementation` | `tasks.md`를 유일한 의사결정 기준으로 구현 |
 | `debugging` | 재현·원인·최소 수정·회귀 검증 기록 |
 | `verification` | 실제 검증 명령과 증거를 `verification.md`에 기록 |
 | `review` | 태스크·인터페이스·금지 범위에 비추어 diff 검토 |
 | `minimality` | 불필요한 코드·의존성·추상화를 줄이는 대안 검토 |
+
+`explain-diff`는 `/bouncer-finalize`가 호출하는 하위 스킬이며 BP `explain.md`
+저술·퀴즈·`comprehension` 기록을 담당한다. 위 표의 일반 워크플로 스킬이 아니다.
 
 `graphify-runner`는 `/bouncer-plan`이 참조하는 선택적 경로 추천 어댑터이며,
 부재 시 수동 탐색으로 폴백한다.
@@ -163,7 +166,8 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 ### C. 자체 스킬의 범위와 호출 시점
 
 1. 첫 릴리스 스킬 집합: `discovery`, `spec-authoring`, `implementation`,
-   `debugging`, `verification`, `review`, `minimality` (+ 선택 `graphify-runner`).
+   `debugging`, `verification`, `review`, `minimality` (+ 선택 `graphify-runner`;
+   finalize 하위 `explain-diff`).
 2. `debugging`은 독립 스킬이며 `/bouncer-execute` 실패 경로에서 권장한다.
 3. 처음에는 명령 내 명시 호출/권장으로 시작하고, 자동 훅은 검증 후 추가한다.
 

@@ -82,6 +82,10 @@ append a change log.
 - When `config.source_dirs` is `scripts` / `hooks` / `test`, Graphify source
   queries do not return `skills/` paths — manually add skill directories to
   `suggested_paths` for blueprints that touch skills.
+- Changing `docs/ARCHITECTURE.md` §4 generic-skills table also requires
+  updating `test/public-name-regression.test.js` `APPROVED_GENERIC_SKILLS`
+  (and listing that test in `affected_paths`); otherwise execute cannot put a
+  new skill in the table.
 - discovery pre-read (`.bouncer/context/epics/` indexes, Distill.md) is
   required for framing, but missing files are not a hard stop — record Overlap
   as `"none"` and continue.
