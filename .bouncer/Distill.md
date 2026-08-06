@@ -160,21 +160,32 @@ append a change log.
   main worktree root from `git-common-dir`), not under the host XDG state home.
 - Review Findings come from named agent `bouncer-reviewer` (or generic /
   inline fallback when named agents are unavailable); only the controller
-  sets `review → accepted`. `bouncer-implementer` likewise must not commit
-  or flip document status — the controller owns both.
+  sets `review → accepted`. `bouncer-implementer` and `bouncer-debugger`
+  must not commit or flip document status — the controller owns both.
+  `bouncer-debugger` is read-only: root-cause report only; the implementer
+  or controller applies the fix.
 - Named-agent dispatch is four steps: `resolveSubagentModel` → named call →
   slug reject retries with `inherit` (and notify the user) → named-agent
   unsupported falls back to generic/inline. Keep the fallback wording or G8
-  blocks on hosts without `agents/` (Codex).
+  blocks on hosts without `agents/` (Codex). The same four steps apply to
+  `bouncer-implementer`, `bouncer-reviewer`, and `bouncer-debugger`.
+- On `/bouncer-execute` verify failure, dispatch `bouncer-debugger` (brief:
+  `skills/debugging` — Root cause → Pattern → Hypothesis → Implementation;
+  no fix proposals before root-cause). Redispatch the same failing verify at
+  most 3 times, then escalate to architecture / `/bouncer-plan`.
 - `reviewer-prompt.md` is a per-run call brief slot; persona, guards, and
-  Findings output contract live in `agents/bouncer-reviewer.md`.
+  Findings output contract live in `agents/bouncer-reviewer.md`. Debugger
+  persona / Hard guards / Output contract live in `agents/bouncer-debugger.md`.
 - Named-agent model overrides live in `.bouncer/config.json` `subagents` as
   per-provider blocks (model ID namespaces differ by host).
   `resolveSubagentModel` never throws — miss / `'inherit'` / non-string →
   `{ model: null }` (parent-session inherit). `subagents` is project config,
-  not OKF/document frontmatter — do not register it in `schema.ts`.
+  not OKF/document frontmatter — do not register it in `schema.ts`. Default
+  provider blocks seed `bouncer-debugger: inherit` alongside reviewer and
+  implementer.
 - Codex is out of named-agent routing: the plugin cannot deploy `agents/`, so
-  review and execute always take the generic/inline fallback there.
+  review, execute implementer, and debugger always take the generic/inline
+  fallback there.
 - Verify command resolution is `tasks.bouncer.verify` (when set) then
   `config.verify`; format rules live only in `isValidVerifyCommand`, which
   plan `S12` and runtime `VERIFY_COMMAND_INVALID` both reuse.
