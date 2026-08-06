@@ -43,6 +43,29 @@ function blueprintDocsExist({ repoRoot, blueprintDir }) {
     return ['index.md', 'tasks.md', 'verification.md', 'review.md', 'explain.md']
         .some((name) => fs.existsSync(path.join(repoRoot, bp, name)));
 }
+// graph.basis는 레거시 문자열과 그래프별 엔트리 배열을 모두 받는다.
+// S9(구조)와 G4(plan)가 같은 헬퍼를 써야 두 경로가 다른 답을 내지 않는다.
+const GRAPH_BASIS_STATUS = ['updated', 'reused', 'fail-skip', 'skip-disabled', 'missing'];
+const GRAPH_BASIS_GRAPH = ['source', 'context'];
+function isValidGraphBasis(basis) {
+    if (typeof basis === 'string')
+        return basis.trim().length > 0;
+    if (!Array.isArray(basis) || basis.length === 0)
+        return false;
+    for (const entry of basis) {
+        if (entry == null || typeof entry !== 'object' || Array.isArray(entry))
+            return false;
+        if (!GRAPH_BASIS_GRAPH.includes(entry.graph))
+            return false;
+        if (!GRAPH_BASIS_STATUS.includes(entry.status))
+            return false;
+        if (typeof entry.query !== 'string' || !entry.query.trim())
+            return false;
+        if (typeof entry.result !== 'string' || !entry.result.trim())
+            return false;
+    }
+    return true;
+}
 function checkStructural(doc, failures) {
     const { data, rel } = doc;
     const add = (code, message) => failures.push({ code, message, file: rel });
@@ -106,8 +129,7 @@ function checkStructural(doc, failures) {
             add('S7', 'tasks.affected_paths missing or empty');
         }
         if (bouncer.graph != null) {
-            const basis = bouncer.graph.basis;
-            if (typeof basis !== 'string' || !basis.trim()) {
+            if (!isValidGraphBasis(bouncer.graph.basis)) {
                 add('S9', 'tasks.graph.basis missing or empty');
             }
         }
@@ -327,7 +349,7 @@ function checkGate(gate, docs, rels, failures, ctx) {
         const suggested = graph ? graph.suggested_paths : undefined;
         if (!Array.isArray(suggested))
             add('G4', 'tasks.graph.suggested_paths missing', 'tasks');
-        if (graph && (typeof graph.basis !== 'string' || !graph.basis.trim())) {
+        if (graph && !isValidGraphBasis(graph.basis)) {
             add('G4', 'tasks.graph.basis missing or empty', 'tasks');
         }
         const ap = docs.tasks && docs.tasks.data.bouncer ? docs.tasks.data.bouncer.affected_paths : undefined;

@@ -289,6 +289,47 @@ test('tasks.graph.basis is required when graph is present', () => {
   assert.ok(res.failures.some((f) => /graph\.basis/.test(f.message)));
 });
 
+function writeTasksWithBasis(basis) {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.graph = { suggested_paths: ['src/'], basis };
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  return validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+}
+
+test('S9: legacy non-empty string basis passes', () => {
+  const res = writeTasksWithBasis('manual: src/');
+  assert.ok(!res.failures.some((f) => f.code === 'S9'));
+});
+
+test('S9: empty basis array is rejected', () => {
+  const res = writeTasksWithBasis([]);
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /graph\.basis/.test(f.message)));
+});
+
+test('S9: basis entry with bogus status is rejected', () => {
+  const res = writeTasksWithBasis([{
+    graph: 'source', status: 'bogus', query: 'q', result: 'r',
+  }]);
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /graph\.basis/.test(f.message)));
+});
+
+test('S9: basis entry with empty query is rejected', () => {
+  const res = writeTasksWithBasis([{
+    graph: 'source', status: 'updated', query: '', result: 'r',
+  }]);
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /graph\.basis/.test(f.message)));
+});
+
+test('S9: valid basis entry array passes', () => {
+  const res = writeTasksWithBasis([{
+    graph: 'source', status: 'updated', query: 'q', result: 'r',
+  }]);
+  assert.ok(!res.failures.some((f) => f.code === 'S9'));
+});
+
 test('legacy root context blueprint is not a canonical validation target', () => {
   const repo = mkRepo();
   const legacyBp = 'context/epics/001-auth/blueprints/001-login';

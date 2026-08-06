@@ -35,6 +35,10 @@ append a change log.
   `scripts/lib/current` via `node -e`.
 - The pointer file lives under the Git common directory as `bouncer/current`
   — never document it as `.bouncer/current`.
+- `tasks.bouncer.graph.basis` is a non-empty legacy string **or** a non-empty
+  array of entries (`graph` `source`|`context`, `status` in
+  `updated`|`reused`|`fail-skip`|`skip-disabled`|`missing`, non-empty
+  `query`/`result`). S9 and G4 must call the same `isValidGraphBasis` helper.
 
 ## Gotchas
 
@@ -124,6 +128,9 @@ append a change log.
 - Put correct answers / responses / right-wrong only under `## 이해 상태`,
   never into `## Quiz`. Unanswered items drop from the `N/M` denominator. On
   skip, do not set `quiz_score` to `0/0` — record the reason in `disposition`.
+- Scaffold defaults `graph.basis` to `[]`; an empty array fails G4 until
+  graphify-runner records per-graph entries. Never omit an entry when a query
+  cannot run — leave the mapped `status` (graph absence remains a state).
 
 ## Decisions
 

@@ -116,6 +116,39 @@ test('plan gate flags G3 and G4 and G5', () => {
   assert.ok(codes.includes('G5'));
 });
 
+test('plan gate G4 accepts a non-empty basis entry array', () => {
+  const docs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      graph: {
+        suggested_paths: ['src/'],
+        basis: [{
+          graph: 'source', status: 'updated', query: 'login', result: '1 hit: src/',
+        }],
+      },
+      affected_paths: ['src/auth/'],
+    }, READY_BODY),
+  };
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(!failures.some((f) => f.code === 'G4'));
+});
+
+test('plan gate G4 rejects an empty basis array', () => {
+  const docs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      graph: { suggested_paths: ['src/'], basis: [] },
+      affected_paths: ['src/auth/'],
+    }, READY_BODY),
+  };
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G4' && /graph\.basis/.test(f.message)));
+});
+
 test('plan gate G10 fails when a section is missing', () => {
   const body = '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n## Touch\n`src/`\n\n## Checklist\n- [ ] a\n';
   const docs = {

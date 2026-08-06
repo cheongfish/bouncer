@@ -74,7 +74,7 @@ test('scaffoldBlueprint writes four plan docs (no explain) with numeric child id
   assert.strictEqual(tasks.bouncer.blueprint_id, '001');
   assert.strictEqual(tasks.bouncer.status, 'draft');
   assert.deepStrictEqual(tasks.bouncer.affected_paths, []);
-  assert.ok(typeof tasks.bouncer.graph.basis === 'string');
+  assert.deepStrictEqual(tasks.bouncer.graph.basis, []);
   const review = readDoc(path.join(repo, `${base}/review.md`)).data;
   assert.strictEqual(review.bouncer.id, 'REVIEW-001');
   assert.strictEqual(review.bouncer.review.required, true);
@@ -194,7 +194,7 @@ test('scaffoldEpic ignores a project .bouncer/templates override', () => {
   assert.ok(body.includes('## Intent'));
 });
 
-test('scaffoldBlueprint leaves graph.basis empty so G4 needs recorded evidence', () => {
+test('scaffoldBlueprint leaves graph.basis as empty list so G4 needs recorded evidence', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -203,7 +203,7 @@ test('scaffoldBlueprint leaves graph.basis empty so G4 needs recorded evidence',
   });
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).data;
-  assert.strictEqual(tasks.bouncer.graph.basis, '');
+  assert.deepStrictEqual(tasks.bouncer.graph.basis, []);
 });
 
 test('scaffoldBlueprint rejects a root context epic directory', () => {
