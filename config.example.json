@@ -15,17 +15,6 @@
       "bouncer"
     ]
   },
-  "plugin_advisors": {
-    "ponytail": {
-      "enabled": true,
-      "plan": "lite",
-      "execute": "full",
-      "verify": "full",
-      "review": "review",
-      "finalize": "lite",
-      "auto_switch": false
-    }
-  },
   "subagents": {
     "claude": {
       "bouncer-reviewer": "inherit",

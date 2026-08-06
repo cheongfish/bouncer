@@ -11,7 +11,6 @@
 | `bouncer finalize --blueprint <dir> [--yes]` | 커밋 범위 확인, `--yes`면 커밋까지 |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 새 worktree로 이전하고 base를 원상복구 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
-| `bouncer advise` | 현재 단계에 권장되는 Ponytail 모드 출력 |
 | `bouncer current [--set <dir>] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. 없으면 `ready` 후보 |
 | `bouncer migrate ids [--dry-run]` | 구형 `EPIC-`/`BP-` context 디렉터리를 숫자 id로 이관(계획 또는 적용) |
 

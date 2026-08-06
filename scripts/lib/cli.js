@@ -5,13 +5,25 @@ const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain } = require('./scaffold
 const { isNumericContextId } = require('./paths');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
-const { readConfig, detectPhase, recommendMode } = require('./advisor');
 const { runVerification } = require('./verification');
 const { seedWorktree } = require('./seed-worktree');
 const { nowIsoKst } = require('./time');
 const { syncSessionGraphs } = require('./session-graph');
 const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints } = require('./current');
 const { migrateIds } = require('./migrate-ids');
+const fs = require('node:fs');
+const path = require('node:path');
+// cmdCurrent --set이 base_branch를 읽을 때만 쓴다. 없거나 깨진 config는
+// {}로 삼켜 inherit/기본값을 유지한다. subagents에 동형 헬퍼가 있으나
+// export되지 않아 여기 로컬로 둔다.
+function readConfig(repoRoot) {
+    try {
+        return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer/config.json'), 'utf8'));
+    }
+    catch (_e) {
+        return {};
+    }
+}
 function parseFlags(rest) {
     const flags = {};
     for (let i = 0; i < rest.length; i += 1) {
@@ -161,15 +173,6 @@ function cmdInit(rest, io) {
     io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
     return result.ok ? 0 : 1;
 }
-function cmdAdvise(rest, io) {
-    const f = parseFlags(rest);
-    const repoRoot = f.repo || process.cwd();
-    const config = readConfig(repoRoot);
-    const { phase, blueprint } = detectPhase({ repoRoot });
-    const rec = recommendMode({ phase, config });
-    io.out(`${JSON.stringify({ ok: true, ...rec, blueprint }, null, 2)}\n`);
-    return 0;
-}
 function cmdGraphSync(rest, io) {
     const f = parseFlags(rest);
     const result = syncSessionGraphs({ repoRoot: f.repo || process.cwd() });
@@ -261,7 +264,6 @@ const USAGE = `usage: bouncer <command> [options]
   seed-worktree --blueprint <dir> --to <worktree>
              Move the plan context documents into a freshly created worktree.
   init       Bootstrap .bouncer/ for this project. Never overwrites.
-  advise     Print the recommended Ponytail mode for the current phase.
   graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
   current    [--set <blueprint dir> [--base <branch>]] [--clear]
              Show the active blueprint pointer, or set / clear it.
@@ -292,8 +294,6 @@ function runCli(argv, io) {
             return cmdSeedWorktree(rest, sink);
         case 'init':
             return cmdInit(rest, sink);
-        case 'advise':
-            return cmdAdvise(rest, sink);
         case 'graph-sync':
             return cmdGraphSync(rest, sink);
         case 'current':

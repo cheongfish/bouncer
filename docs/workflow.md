@@ -20,8 +20,6 @@
    titles use `[YYMMDD] (→ MergeTarget) [Type] 요약`.
    See [contributing.md](contributing.md). Plan/execute Read that project Distill
    before work.
-5. `bouncer advise`: at any point, print the recommended Ponytail mode for
-   the current Bouncer phase (advisory only; never switches modes automatically).
 
 ## How it works
 

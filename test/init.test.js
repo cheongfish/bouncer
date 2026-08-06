@@ -48,17 +48,6 @@ test('init writes the exact config.json shape', () => {
     verify: 'npm test',
     base_branch: 'develop',
     pr: { draft: true, base: 'develop', labels: ['bouncer'] },
-    plugin_advisors: {
-      ponytail: {
-        enabled: true,
-        plan: 'lite',
-        execute: 'full',
-        verify: 'full',
-        review: 'review',
-        finalize: 'lite',
-        auto_switch: false,
-      },
-    },
     subagents: {
       claude: {
         'bouncer-reviewer': 'inherit',
@@ -266,8 +255,6 @@ test('init workflow materials live in plugin docs, not the project tree', () => 
   assert.ok(/\/bouncer-plan/.test(workflow));
   assert.ok(/\/bouncer-execute/.test(workflow));
   assert.ok(/\/bouncer-finalize/.test(workflow));
-  assert.ok(/bouncer advise/.test(workflow));
-  assert.ok(/Ponytail/.test(workflow));
   assert.ok(!/superpowers|profile-aware|methodology/i.test(workflow));
 });
 
