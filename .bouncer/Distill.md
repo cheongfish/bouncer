@@ -215,3 +215,7 @@ append a change log.
   when they still contain legacy `BP-` tokens; leave them through finalize.
 - Adaptive quiz rules live in `skills/explain-diff` prose plus
   `test/skill-explain-diff.test.js` contract asserts — no quiz engine or CLI.
+- `/bouncer-finalize` step 4 keeps a single Draft PR ACQ. After accept, show
+  the rendered title/body then push + `gh pr create --draft` with no second
+  body-confirm. If push or `gh` fails, keep the local commit and report the
+  reason — do not re-ask the PR ACQ.
