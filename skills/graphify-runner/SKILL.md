@@ -17,8 +17,10 @@ These directories are user-managed local output. SessionStart runs
 `syncSessionGraphs` when `config.graphify.enabled` is `true`; this skill runs
 the same sync again at plan time so mid-session edits are caught.
 
-`bouncer.graph.basis` is a **non-empty list of per-graph entries** (not a free
-prose string). Each entry has four required fields:
+`bouncer.graph.basis` is written here as a **non-empty list of per-graph
+entries** (canonical write shape). Validate still accepts a non-empty legacy
+string; do not author new string bases from this skill. Each entry has four
+required fields:
 
 | Field | Values |
 | --- | --- |
@@ -112,5 +114,6 @@ not an error).
   step.
 - Freshness is `newest mtime under configured dirs <= graph.json mtime` per
   graph. Plan-time `graph-sync` reuses the SessionStart planner so both call
-  sites stay aligned. If a graph is missing or rebuild fails, skip gracefully
-  and require the user to confirm `affected_paths` manually.
+  sites stay aligned. If a graph is missing or rebuild fails, still leave a
+  `basis` entry with the mapped `status`, then skip the query and require the user to confirm
+  `affected_paths` manually.
