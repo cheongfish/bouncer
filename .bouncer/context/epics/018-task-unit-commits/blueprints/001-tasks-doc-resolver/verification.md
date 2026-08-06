@@ -11,12 +11,37 @@ bouncer:
   id: VERIFY-001
   epic_id: '018'
   blueprint_id: '001'
-  status: pending
+  status: passed
+  verification:
+    command: npm test
+    ran_at: '2026-08-07T08:45:04.927+09:00'
+    exit_code: 0
+    output_tail: |-
+      ---
+        duration_ms: 0.303393
+        type: 'test'
+        ...
+      # Subtest: readVerifyCommand rejects invalid first declaration even if later is valid
+      ok 398 - readVerifyCommand rejects invalid first declaration even if later is valid
+        ---
+        duration_ms: 0.288686
+        type: 'test'
+        ...
+      1..398
+      # tests 398
+      # suites 0
+      # pass 398
+      # fail 0
+      # cancelled 0
+      # skipped 0
+      # todo 0
+      # duration_ms 430.148044
 ---
 # Verification
 
 ## Command
-<command>
+`npm test`
 
 ## Evidence
-<result>
+Ran at: 2026-08-07T08:45:04.927+09:00
+Exit code: 0
