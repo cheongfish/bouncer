@@ -117,6 +117,13 @@ append a change log.
 - `bouncer migrate ids` apply is all-or-nothing after validate (mixed /
   collision / dirty reject). SessionStart only warns (`exit 0`) and never
   auto-applies. Cursor has no SessionStart — users get the CLI/skill only.
+- `explain-diff` quiz count is agent judgment in **1–10** (minimum 1) from
+  `base..HEAD` scale — state a one-line rationale; no mechanical table. Each
+  item has three options; vary the correct-answer slot without RNG. Present
+  and collect all answers in one batch (no per-question ACQ).
+- Put correct answers / responses / right-wrong only under `## 이해 상태`,
+  never into `## Quiz`. Unanswered items drop from the `N/M` denominator. On
+  skip, do not set `quiz_score` to `0/0` — record the reason in `disposition`.
 
 ## Decisions
 
@@ -199,3 +206,5 @@ append a change log.
   legacy allowance — reverse order breaks validate on the migrating docs.
 - Execute worktree directory and branch names are not renamed by migrate even
   when they still contain legacy `BP-` tokens; leave them through finalize.
+- Adaptive quiz rules live in `skills/explain-diff` prose plus
+  `test/skill-explain-diff.test.js` contract asserts — no quiz engine or CLI.

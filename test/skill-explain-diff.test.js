@@ -33,4 +33,17 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   assert.match(md, /Korean/);
   assert.match(md, /stop-slop/);
   assert.match(md, /skills\/stop-slop\/SKILL\.md/);
+
+  // 적응형 퀴즈 — 문항 수·3지선다·정답 슬롯 분산을 개별 단언으로 고정.
+  assert.match(md, /1[–~-]10/);
+  assert.match(md, /three (answer )?options|3지선다/);
+  assert.match(md, /vary the correct-answer position|한 위치에 몰지/);
+  // ## Quiz는 문항+보기만, 정답·응답·정오는 ## 이해 상태 — 섹션 이름을 문장 단위로.
+  assert.match(md, /`## Quiz`[^\n]*(questions?|options|문항|보기)/i);
+  assert.match(
+    md,
+    /`## 이해 상태`[^\n]*(correct answers?|responses?|right\/wrong|정답|응답|정오)/i,
+  );
+  // 문항마다 ACQ를 돌리지 않고 한 번에 제시·한 번에 응답.
+  assert.match(md, /all (questions? )?at once|한 번에 (제시|응답)/i);
 });

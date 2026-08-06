@@ -18,16 +18,32 @@ caller to scaffold first.
    - `## Background` — why this change exists
    - `## Intuition` — one-line picture / analogy
    - `## Code` — key paths and files to read (no long dumps)
-   - `## Quiz` — understanding-check questions for the human
-   - `## 이해 상태` — quiz outcome and disposition (keep in sync with
-     frontmatter below)
+   - `## Quiz` — questions and three answer options each (no correct
+     answers, no user responses)
+   - `## 이해 상태` — correct answers, user responses, right/wrong, and
+     disposition (keep in sync with frontmatter below)
    Then apply `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) before the
    quiz — strip filler and formulaic closers from the five sections.
 
-2. **Quiz the user.** Present the Quiz questions, score the answers, and
-   compute `quiz_score` as `N/M` (e.g. `3/5`). A low score is fine:
-   **기록만 하고 마감을 막지 않는다.** Do not invent a pass threshold or force a
-   re-take.
+2. **Quiz the user.** Adapt and run the quiz from the `base..HEAD` diff
+   (agent judgment — no mechanical table):
+   1. Choose question count in **1–10** (minimum 1; never 0). State the
+      count and a one-line rationale (diff scale) before asking.
+   2. Each question has **three answer options**. Vary the correct-answer
+      position across questions — do not park every key on the same slot
+      (한 위치에 몰지 않는다). No RNG required.
+   3. Present **all questions at once** (한 번에 제시). Collect **all
+      responses at once** (한 번에 응답). Do not run ACQ per question.
+   4. Score answers. `quiz_score` is `N/M` where **M is the number of
+      questions actually asked** and unanswered items are excluded from the
+      denominator (e.g. asked 5, answered 4 with 3 correct → `3/4`).
+   5. Write correct answers, responses, and right/wrong under
+      `## 이해 상태` only — never into `## Quiz`.
+   6. If the quiz was skipped, do not set `quiz_score` to `0/0`; put the
+      skip reason in `disposition` (must stay non-empty for G15).
+
+   A low score is fine: **기록만 하고 마감을 막지 않는다.** Do not invent a
+   pass threshold or force a re-take.
 
 3. **Compute `diff_sha`.** Resolve `base` from `bouncer current` (`base`
    field); if absent, use `.bouncer/config.json` `base_branch`. Run from the
