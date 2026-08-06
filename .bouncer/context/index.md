@@ -17,3 +17,4 @@ okf_version: '0.1'
 * [012 finalize-handoff](epics/012-finalize-handoff/index.md) - 마감 직후 다음 블루프린트 후보를 계산·통지하고 확인 한 번으로 포인터를 옮긴다
 * [013 comprehension-gate](epics/013-comprehension-gate/index.md) - BP 설명 문서와 이해 기록을 마감 게이트로 세운다
 * [014 numeric-context-ids](epics/014-numeric-context-ids/index.md) - epic/bp id에서 EPIC-/BP- 접두를 제거하고 마이그레이션 경로를 둔다
+* [015 workflow-ergonomics](epics/015-workflow-ergonomics/index.md) - Epic 015
