@@ -1,6 +1,6 @@
 ---
 type: bouncer.verification
-title: 001 verification
+title: 검증 명령 실행과 증적을 기록함
 description: Verification for 001
 resource: .bouncer/context/epics/018-task-unit-commits/blueprints/001-tasks-doc-resolver/verification.md
 tags:
