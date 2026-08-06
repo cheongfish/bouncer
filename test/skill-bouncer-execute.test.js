@@ -53,6 +53,16 @@ test('bouncer-execute step 3 routes implementation through bouncer-implementer',
   assert.match(body, /commit-safety|git commit/i);
 });
 
+test('bouncer-execute step 4 dispatches bouncer-debugger on verify failure', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /bouncer-debugger/);
+  assert.match(body, /resolveSubagentModel/);
+  assert.match(body, /inherit/);
+  // Named-unsupported hosts (e.g. Codex) must keep an inline/generic fallback.
+  assert.match(body, /named agents are unavailable|fall back|inline/i);
+  assert.match(body, /debugging/);
+});
+
 test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /reviewer-prompt\.md/);

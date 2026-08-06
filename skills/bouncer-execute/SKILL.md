@@ -28,8 +28,10 @@ If missing, stop and tell the user to run `bouncer init` (or seed the file).
 Honor matching Invariants / Gotchas / Decisions inside `affected_paths`.
 
 Skill flow (recommended): `implementation` (`skills/implementation/SKILL.md`) → `verification` (`skills/verification/SKILL.md`) → `review` (`skills/review/SKILL.md`) → `minimality` (`skills/minimality/SKILL.md`).
-On failure investigation, use the `debugging` skill (`skills/debugging/SKILL.md`) (reproduce → isolate → failing
-regression → minimum fix → re-verify).
+On verify failure, dispatch `bouncer-debugger` (behavioral brief:
+`debugging` / `skills/debugging/SKILL.md` — Root cause → Pattern → Hypothesis
+→ Implementation). The debugger is read-only; the implementer or controller
+applies the fix.
 
 1. **Read the pointer.** Load the active blueprint dir and base branch:
    ```bash
@@ -116,12 +118,37 @@ regression → minimum fix → re-verify).
    may make **one or more commits** after it returns, and every `git commit` is
    guarded by `commit-safety`.
 
-4. **Verify.** Use the `verification` skill (`skills/verification/SKILL.md`) to investigate failures and prepare
-   the existing `verification.md`. Do not hand-write success evidence or set
-   `verification → passed`: the execute gate runs the configured verify command
-   and the harness records `## Command`, `## Evidence`, exit status, and run
-   metadata. Set `tasks → verified` only after the implementation work is
-   complete. If verification fails, use the `debugging` skill (`skills/debugging/SKILL.md`) before retrying.
+4. **Verify.** Use the `verification` skill (`skills/verification/SKILL.md`) to
+   prepare the existing `verification.md`. Do not hand-write success evidence
+   or set `verification → passed`: the execute gate runs the configured verify
+   command and the harness records `## Command`, `## Evidence`, exit status,
+   and run metadata. Set `tasks → verified` only after the implementation work
+   is complete.
+
+   **On verify failure**, dispatch **`bouncer-debugger`** (plugin
+   `agents/bouncer-debugger.md`) with this order — the `debugging` skill
+   remains the behavioral brief the agent follows:
+
+   1. Resolve the model:
+      ```bash
+      BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+      node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-debugger'})))"
+      ```
+   2. Call named agent `bouncer-debugger` with that `model`, passing the
+      failing verify evidence plus only these `tasks.md` sections as decision
+      authority: Goal & intent, Interface, Touch, Do not touch, Constraints,
+      Checklist.
+   3. If the host rejects the model slug, retry with `inherit` and tell the user.
+   4. If named agents are unavailable (e.g. Codex), fall back to running the
+      `debugging` skill inline (or a fresh generic read-only subagent with the
+      same brief).
+
+   The debugger must **not** edit files, commit, or flip document status — it
+   returns a root-cause report only. Apply the minimum fix via
+   `bouncer-implementer` (or inline within scope) from that report, then
+   re-verify. On the same failing verify, redispatch the debugger at most
+   **3** times (3 unsuccessful fix cycles); then escalate to architecture /
+   `/bouncer-plan` rather than looping.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
    Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order:

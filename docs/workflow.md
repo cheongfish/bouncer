@@ -39,11 +39,11 @@
 | 단계 | 스킬 |
 | --- | --- |
 | `/bouncer-plan` | `discovery` → `spec-authoring` → `stop-slop` → `graphify-runner` → `minimality` |
-| `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (`debugging` on verify failure) |
+| `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (`debugging` / `bouncer-debugger` on verify failure) |
 | `/bouncer-finalize` | `explain-diff` → `spec-authoring` (explain→Distill 승격; explain에 `stop-slop`) |
 
-Execute에서 구현·리뷰는 named 서브에이전트 `bouncer-implementer` /
-`bouncer-reviewer`로 분리할 수 있다.
+Execute에서 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implementer` /
+`bouncer-reviewer` / `bouncer-debugger`로 분리할 수 있다.
 
 게이트 표와 실패 코드는 [gates.md](gates.md),
 CLI는 [cli.md](cli.md), 설정은 [configuration.md](configuration.md)를

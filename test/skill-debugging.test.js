@@ -12,11 +12,20 @@ test('debugging has valid frontmatter identity', () => {
   assert.ok(typeof data.description === 'string' && data.description.length > 0);
 });
 
-test('debugging follows reproduce → isolate → failing test → minimum fix → verify', () => {
+test('debugging names the four stages Root cause → Pattern → Hypothesis → Implementation', () => {
   const md = readSkill('debugging');
-  assert.match(md, /reproduce/i);
-  assert.match(md, /isolate|root cause|cause/i);
-  assert.match(md, /failing|regression/i);
-  assert.match(md, /minimum|minimal/i);
-  assert.match(md, /verif/i);
+  assert.match(md, /Root cause/i);
+  assert.match(md, /Pattern/i);
+  assert.match(md, /Hypothesis/i);
+  assert.match(md, /Implementation/i);
+});
+
+test('debugging forbids proposing fixes before root-cause investigation', () => {
+  const md = readSkill('debugging');
+  assert.match(md, /do not propose fixes before root-cause investigation/i);
+});
+
+test('debugging escalates after 3 unsuccessful cycles', () => {
+  const md = readSkill('debugging');
+  assert.match(md, /3(?:\*\*)?\s*(?:failures?|times?|attempts?)[\s\S]{0,120}escalat/i);
 });

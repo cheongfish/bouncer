@@ -29,15 +29,18 @@
   "subagents": {
     "claude": {
       "bouncer-reviewer": "inherit",
-      "bouncer-implementer": "inherit"
+      "bouncer-implementer": "inherit",
+      "bouncer-debugger": "inherit"
     },
     "cursor": {
       "bouncer-reviewer": "inherit",
-      "bouncer-implementer": "inherit"
+      "bouncer-implementer": "inherit",
+      "bouncer-debugger": "inherit"
     },
     "codex": {
       "bouncer-reviewer": "inherit",
-      "bouncer-implementer": "inherit"
+      "bouncer-implementer": "inherit",
+      "bouncer-debugger": "inherit"
     }
   }
 }
