@@ -7,10 +7,25 @@
 
 ## [Unreleased]
 
-- **EPIC-014 — 숫자 context id (BP 001–003)** — Changed: epic/blueprint 경로와
-  frontmatter id의 정본을 접두 없는 zero-pad 세 자리 숫자로 통일. Added:
-  `bouncer migrate ids`와 `migrate-ids` 스킬. Removed: validate·scaffold의 구형
-  `EPIC-`/`BP-` 명명 허용. 소비자 저장소는 먼저
+## [0.5.0] — 2026-08-06
+
+0.4.5 이후 숫자 context id 계약(EPIC-014, BP 001–003).
+
+### Added
+
+- **`bouncer migrate ids`** — 구형 `EPIC-`/`BP-` 경로·frontmatter를 숫자 id로
+  옮기는 CLI. `migrate-ids` 스킬과 함께 제공.
+- **SessionStart 구형 경고** — 레거시 디렉터리명이 남아 있으면 migrate를
+  안내한다.
+
+### Changed
+
+- **epic/blueprint id 정본** — 경로와 frontmatter id를 접두 없는 zero-pad 세
+  자리 숫자(`014`, `001`)로 통일. scaffold는 신형만 생성한다.
+
+### Removed
+
+- **validate·scaffold의 구형 `EPIC-`/`BP-` 명명 허용** — 소비자 저장소는 먼저
   `bouncer migrate ids --dry-run`으로 변경 목록을 확인한 뒤
   `bouncer migrate ids`를 적용해야 한다. 구형 명명이 남은 저장소는 migrate가
   끝날 때까지 validate가 거절한다.
