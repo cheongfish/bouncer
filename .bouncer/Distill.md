@@ -5,7 +5,7 @@ resource: .bouncer/Distill.md
 tags:
   - bouncer
   - distill
-timestamp: '2026-08-03T05:10:00.000Z'
+timestamp: '2026-08-06T11:03:56.000+09:00'
 ---
 # Distill
 
@@ -131,6 +131,12 @@ append a change log.
 - Scaffold defaults `graph.basis` to `[]`; an empty array fails G4 until
   graphify-runner records per-graph entries. Never omit an entry when a query
   cannot run — leave the mapped `status` (graph absence remains a state).
+- `plugin_advisors` / `bouncer advise` / `scripts/lib/advisor` are gone from
+  defaults and the CLI. Leftover `plugin_advisors` in a consumer `config.json`
+  is ignored (no warn, no migrate). Do not re-seed that key in `init` or
+  examples. After deleting `advisor`, `cmdCurrent --set` still needs a local
+  swallow-`{}` `readConfig` in `cli.ts` — `subagents` has a twin but does not
+  export it.
 
 ## Decisions
 
@@ -230,3 +236,6 @@ append a change log.
   the rendered title/body then push + `gh pr create --draft` with no second
   body-confirm. If push or `gh` fails, keep the local commit and report the
   reason — do not re-ask the PR ACQ.
+- Minimality discipline lives only in the `minimality` skill. The Ponytail
+  `plugin_advisors` / `bouncer advise` path is removed; do not reintroduce it
+  as a parallel mode switcher.

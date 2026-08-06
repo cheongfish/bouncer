@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const { runCli } = require('../scripts/lib/cli');
 
 const SUBCOMMANDS = [
-  'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'advise', 'graph-sync',
+  'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'current',
 ];
 
