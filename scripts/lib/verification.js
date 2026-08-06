@@ -7,6 +7,7 @@ const { readDoc } = require('./frontmatter');
 const { renderDoc } = require('./render');
 const { isCanonicalBlueprintDir } = require('./layout');
 const { nowIsoKst } = require('./time');
+const { listTasksDocs } = require('./tasks-docs');
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
 // 증거이므로 훨씬 더 많이 — 그리고 리뷰어가 읽는 문서 본문에, frontmatter에만
@@ -34,26 +35,33 @@ function isValidVerifyCommand(command) {
     return trimmed.split(/\s+/)[0] !== 'cd';
 }
 function readVerifyCommand(repoRoot, blueprintDir) {
-    // blueprint 선언이 있으면 우선합니다. tasks.md가 없거나 필드가 없으면
+    // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
     // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
     // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
+    //
+    // 임시 규칙(task 포인터 전): 번호가 앞선 문서에서 첫 verify 선언을 채택.
+    // 허용 경로 합집합(current/commit-hook)과 짝이며, 포인터가 생기면 좁혀진다.
     if (blueprintDir) {
-        const tasksPath = path.join(repoRoot, blueprintDir, 'tasks.md');
-        try {
-            const { data } = readDoc(tasksPath);
-            const declared = data && data.bouncer && data.bouncer.verify;
-            if (declared !== undefined) {
-                if (!isValidVerifyCommand(declared)) {
-                    throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
+        const listing = listTasksDocs({ repoRoot, blueprintDir });
+        if (!listing.mixed) {
+            for (const entry of listing.entries) {
+                try {
+                    const { data } = readDoc(path.join(repoRoot, entry.rel));
+                    const declared = data && data.bouncer && data.bouncer.verify;
+                    if (declared !== undefined) {
+                        if (!isValidVerifyCommand(declared)) {
+                            throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
+                        }
+                        return declared;
+                    }
                 }
-                return declared;
+                catch (error) {
+                    if (error && error.code === 'VERIFY_COMMAND_INVALID')
+                        throw error;
+                    if (!(error && error.code === 'ENOENT'))
+                        throw error;
+                }
             }
-        }
-        catch (error) {
-            if (error && error.code === 'VERIFY_COMMAND_INVALID')
-                throw error;
-            if (!(error && error.code === 'ENOENT'))
-                throw error;
         }
     }
     const configPath = path.join(repoRoot, '.bouncer', 'config.json');

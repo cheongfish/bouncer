@@ -73,7 +73,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 
 4. **Author.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write the epic, blueprint, and
    tasks bodies in **Korean** (paths, ids, and code fences stay as-is). Fill every
-   implementation-ready section in `tasks.md` before approval — Goal & intent,
+   implementation-ready section in `tasks-001.md` before approval — Goal & intent,
    Interface, Touch, Do not touch, Constraints, Checklist. Those sections are the
    sole brief for `/bouncer-execute`. Write Touch per file with a verb rather than
    per directory, and put non-path rules in Constraints.
@@ -91,7 +91,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    do not read script bodies). If at least one signal applies, ask the user
    whether to set `tasks.bouncer.verify` for this blueprint (「이 blueprint의
    검증 명령을 `tasks.bouncer.verify`에 지정할까요?」). On accept, write a
-   **single** executable argv string into `tasks.md` frontmatter `bouncer.verify`
+   **single** executable argv string into `tasks-001.md` frontmatter `bouncer.verify`
    (예: `npm run test:e2e`, `make test`). If none of the signals above apply, or
    the user refuses, leave `bouncer.verify` unset so execute keeps the global
    `config.verify`. Never write `bouncer.verify` from detection alone, and never
@@ -106,7 +106,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to
    run `bouncer graph-sync` (plan-time freshness for **source** + **context**
    graphs), query both `graphify-out/source` and `graphify-out/context`, and write
-   `bouncer.graph.suggested_paths` into `tasks.md`. If graphify is
+   `bouncer.graph.suggested_paths` into `tasks-001.md`. If graphify is
    unavailable, it leaves `suggested_paths` empty, records a graceful fallback
    entry list in `bouncer.graph.basis` (per-graph `status` such as
    `skip-disabled` / `missing`), tells the user how to install/enable Graphify
@@ -117,9 +117,9 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    recorded.
 
 6. **affected_paths (user-confirmed).** Propose `bouncer.affected_paths` in
-   `tasks.md` seeded from `suggested_paths`, then **have the user confirm or
+   `tasks-001.md` seeded from `suggested_paths`, then **have the user confirm or
    edit** it. It must be non-empty (gate G5). Write the confirmed value into
-   `tasks.md` frontmatter.
+   `tasks-001.md` frontmatter.
    Before finalizing `affected_paths` and the Checklist, you may run the
    `minimality` skill (`skills/minimality/SKILL.md`) (advisory, not a gate) to challenge new dependencies,
    abstractions, or files and record the rationale.

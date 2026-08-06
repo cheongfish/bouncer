@@ -5,6 +5,7 @@ const { execFileSync } = require('node:child_process');
 const { checkCommitSafety } = require('./commit-guard');
 const { readCurrent } = require('./current');
 const { readDoc } = require('./frontmatter');
+const { listTasksDocs } = require('./tasks-docs');
 
 // guard는 실수를 막습니다. 의도적 우회에 대한 방어는 아닙니다
 // (docs/security.md의 threat model 참고). 명령을 판단할 수 없는 경우 —
@@ -145,11 +146,29 @@ function isGitCommit(command, { resolveAlias, cwd }: { resolveAlias?: any; cwd?:
 }
 
 function readAffectedPaths({ repoRoot, blueprintDir }) {
+  // 임시 규칙(task 포인터 전): 커밋 허용 경로는 모든 task 문서 affected_paths의 합집합.
+  // 검증 명령 채택(첫 선언)과 짝을 이룬다 — 둘 다 포인터가 생기면 좁혀진다.
   try {
-    const abs = path.join(repoRoot, blueprintDir, 'tasks.md');
-    const { data } = readDoc(abs);
-    const ap = data && data.bouncer ? data.bouncer.affected_paths : undefined;
-    return Array.isArray(ap) ? ap : [];
+    const listing = listTasksDocs({ repoRoot, blueprintDir });
+    if (listing.mixed || listing.entries.length === 0) return [];
+    const out: string[] = [];
+    const seen = new Set();
+    for (const entry of listing.entries) {
+      try {
+        const { data } = readDoc(path.join(repoRoot, entry.rel));
+        const ap = data && data.bouncer ? data.bouncer.affected_paths : undefined;
+        if (!Array.isArray(ap)) continue;
+        for (const p of ap) {
+          if (typeof p === 'string' && !seen.has(p)) {
+            seen.add(p);
+            out.push(p);
+          }
+        }
+      } catch (_e) {
+        // 깨진 문서는 건너뛴다.
+      }
+    }
+    return out;
   } catch (_e) {
     return [];
   }

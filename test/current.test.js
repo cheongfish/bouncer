@@ -269,3 +269,92 @@ test('nextBlueprint sharedPaths is the affected_paths intersection in candidate 
   // affected_paths 교집합이 sharedPaths로
   assert.deepStrictEqual(res.next.sharedPaths, ['scripts/src/lib/session-graph.ts']);
 });
+
+test('listReadyBlueprints: any numbered task ready/in_progress counts', () => {
+  const repo = tmpRepo();
+  const epicDir = '.bouncer/context/epics/001-multi';
+  const bpDir = `${epicDir}/blueprints/001-m`;
+  writeDoc(repo, `${epicDir}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${bpDir}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks-001.md`, {
+    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks-001.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'draft',
+      affected_paths: ['a.js'],
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks-002.md`, {
+    type: 'bouncer.tasks', title: 't2', description: 'd', resource: `${bpDir}/tasks-002.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '001', blueprint_id: '001', status: 'in_progress',
+      affected_paths: ['b.js'],
+    },
+  });
+  const list = listReadyBlueprints({ repoRoot: repo });
+  assert.deepStrictEqual(list, [{ blueprint: bpDir, status: 'in_progress' }]);
+});
+
+test('nextBlueprint sharedPaths unions affected_paths across numbered tasks', () => {
+  const repo = tmpRepo();
+  const epicSlug = 'E-union';
+  const epicDir = `.bouncer/context/epics/${epicSlug}`;
+  const finalized = `${epicDir}/blueprints/001-a`;
+  const candidate = `${epicDir}/blueprints/002-b`;
+  writeDoc(repo, `${epicDir}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  for (const [bpDir, bpId] of [
+    [finalized, '001'],
+    [candidate, '002'],
+  ]) {
+    writeDoc(repo, `${bpDir}/index.md`, {
+      type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpDir}/index.md`,
+      tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: bpId, epic_id: '001', blueprint_id: bpId, status: 'approved',
+      },
+    });
+  }
+  // finalized: 두 task 문서의 합집합
+  writeDoc(repo, `${finalized}/tasks-001.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${finalized}/tasks-001.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
+      affected_paths: ['shared/a.js'],
+    },
+  });
+  writeDoc(repo, `${finalized}/tasks-002.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${finalized}/tasks-002.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '001', blueprint_id: '001', status: 'verified',
+      affected_paths: ['shared/b.js'],
+    },
+  });
+  writeDoc(repo, `${candidate}/tasks-001.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${candidate}/tasks-001.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '002', status: 'ready',
+      affected_paths: ['shared/b.js', 'other.js'],
+    },
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  assert.deepStrictEqual(res.next.sharedPaths, ['shared/b.js']);
+});

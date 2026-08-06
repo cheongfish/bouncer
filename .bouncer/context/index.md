@@ -20,3 +20,4 @@ okf_version: '0.1'
 * [015 workflow-ergonomics](epics/015-workflow-ergonomics/index.md) - Epic 015
 * [016 advisor-removal](epics/016-advisor-removal/index.md) - Epic 016
 * [017 verify-wrapper-guidance](epics/017-verify-wrapper-guidance/index.md) - Epic 017
+* [018 task-unit-commits](epics/018-task-unit-commits/index.md) - Epic 018

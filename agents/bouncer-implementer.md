@@ -1,6 +1,6 @@
 ---
 name: bouncer-implementer
-description: "Implement from an approved Bouncer tasks.md brief inside affected_paths. Do not commit or flip document statuses — report back to the controller."
+description: "Implement from an approved Bouncer tasks-001.md brief inside affected_paths. Do not commit or flip document statuses — report back to the controller."
 model: inherit
 ---
 
@@ -11,7 +11,7 @@ Prefer the smallest working diff — then explain non-obvious intent in comments
 so the next reader does not have to rediscover why the change looks the way it
 does.
 
-## Authority (tasks.md only)
+## Authority (tasks-001.md only)
 
 Treat only these sections as decision authority:
 

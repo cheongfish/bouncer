@@ -624,3 +624,36 @@ y
   assert.strictEqual(res.ok, false);
   assert.ok(res.failures.some((f) => f.code === 'G10'));
 });
+
+test('plan gate applies per task document and reports the failing file', () => {
+  const repo = mkRepo();
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  const indexAbs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
+  fs.writeFileSync(
+    indexAbs,
+    '---\nokf_version: "0.1"\n---\n# Epics\n\n'
+    + '* [001 auth](epics/001-auth/index.md) - Epic 001\n',
+  );
+
+  const readyBody = planReadyTasksBody();
+  const t1 = planReadyTasks();
+  t1.resource = `${BP_REL}/tasks-001.md`;
+  t1.bouncer.id = 'TASKS-001';
+  writeDoc(repo, `${BP_REL}/tasks-001.md`, t1, readyBody);
+
+  // 두 번째 문서만 status draft → G3는 이 파일 경로로만 보고되어야 한다.
+  const t2 = planReadyTasks();
+  t2.resource = `${BP_REL}/tasks-002.md`;
+  t2.bouncer.id = 'TASKS-002';
+  t2.bouncer.status = 'draft';
+  writeDoc(repo, `${BP_REL}/tasks-002.md`, t2, readyBody);
+
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+  assert.strictEqual(res.ok, false);
+  const g3 = res.failures.filter((f) => f.code === 'G3');
+  assert.strictEqual(g3.length, 1);
+  assert.strictEqual(g3[0].file, `${BP_REL}/tasks-002.md`);
+  assert.ok(!res.failures.some((f) => f.code === 'G3' && f.file === `${BP_REL}/tasks-001.md`));
+});

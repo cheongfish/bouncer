@@ -390,3 +390,54 @@ test('S12 does not fire when tasks.bouncer.verify is absent', () => {
   assert.ok(!res.failures.some((f) => f.code === 'S12'));
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
+
+test('S5: legacy tasks.md expects TASKS-{blueprint id}', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(!res.failures.some((f) => f.code === 'S5'));
+});
+
+test('S5: tasks-002.md expects TASKS-002 (not blueprint id)', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.resource = `${BP_REL}/tasks-002.md`;
+  t.bouncer.id = 'TASKS-002';
+  writeDoc(repo, `${BP_REL}/tasks-002.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(!res.failures.some((f) => f.code === 'S5'), JSON.stringify(res.failures));
+});
+
+test('S5: wrong id on numbered tasks file is rejected', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.resource = `${BP_REL}/tasks-002.md`;
+  // 파일 번호는 002인데 id가 blueprint id 기준 TASKS-001이면 어긋남.
+  t.bouncer.id = 'TASKS-001';
+  writeDoc(repo, `${BP_REL}/tasks-002.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S5' && /TASKS-002/.test(f.message)));
+});
+
+test('S14: mixing tasks.md and tasks-NNN.md is rejected', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  const numbered = goodTasks();
+  numbered.resource = `${BP_REL}/tasks-001.md`;
+  numbered.bouncer.id = 'TASKS-001';
+  writeDoc(repo, `${BP_REL}/tasks-001.md`, numbered);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S14'));
+});

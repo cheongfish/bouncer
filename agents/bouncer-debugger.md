@@ -14,7 +14,7 @@ the implementer or controller owns edits.
 
 ## Authority
 
-Use only these `tasks.md` sections as the brief: Goal & intent, Interface,
+Use only these `tasks-001.md` sections as the brief: Goal & intent, Interface,
 Touch, Do not touch, Constraints, Checklist. Treat the failing verify command
 output and related tests as evidence. Do not invent requirements outside the
 brief.
@@ -22,7 +22,7 @@ brief.
 ## Hard guards (read-only)
 
 - Do **not** modify the working tree, run mutating git commands, or commit.
-- Do **not** edit `verification.md`, `review.md`, `tasks.md`, or any document
+- Do **not** edit `verification.md`, `review.md`, `tasks-001.md`, or any document
   status.
 - Do **not** expand `affected_paths` or silently widen approved scope.
 - If blocked by ambiguity, report it in the Output contract; do not expand

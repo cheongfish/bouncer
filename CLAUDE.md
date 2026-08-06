@@ -13,10 +13,13 @@ they conflict.
    Never author or migrate a root `context/` tree. Scaffold owns OKF frontmatter
    (`type`, `title`, `description`, `resource`, `tags`, `timestamp`) and harness
    ids under `bouncer:`; skills write body prose (and only the frontmatter fields
-   a workflow explicitly allows). Project Distill is **not** under `context/` —
-   it is agent runtime at `.bouncer/Distill.md` (see rule 7).
-2. **One commit per blueprint** — Split work so each blueprint is one reviewable
-   commit. Do not add a subtask layer or per-task `affected_paths`.
+   a workflow explicitly allows). A blueprint may hold multiple task documents
+   (`tasks-001.md`, `tasks-002.md`, …; legacy `tasks.md` still accepted alone).
+   Project Distill is **not** under `context/` — it is agent runtime at
+   `.bouncer/Distill.md` (see rule 7).
+2. **One commit per task** — Split work so each task document is one reviewable
+   commit. The blueprint remains the review / PR unit. Do not invent a further
+   subtask layer beneath a task document.
    Detail: [`docs/governance.md`](docs/governance.md).
 3. **Evidence, not claims** — Verification success evidence is written by the
    execute gate running `config.verify`, not by an agent. Do not hand-author a
@@ -77,7 +80,7 @@ numbered step says otherwise.
 | Clarify goal / scope / success criteria | `discovery` (inside `/bouncer-plan`) |
 | Author epic / blueprint / tasks bodies | `spec-authoring` |
 | Strip AI tells from context prose | `stop-slop` (inside plan / explain / Distill) |
-| Implement from `tasks.md` | `implementation` (inside `/bouncer-execute`) |
+| Implement from `tasks-001.md` | `implementation` (inside `/bouncer-execute`) |
 | Investigate a failed verify | `debugging` + `verification` |
 | Review the diff against the brief | `review` |
 | Close out, commit, draft PR | `/bouncer-finalize` |

@@ -247,3 +247,65 @@ test('readVerifyCommand(repoRoot) still returns config.verify', () => {
   writeTasks(repo, 'node -e "process.exit(0)"');
   assert.strictEqual(readVerifyCommand(repo), 'npm test');
 });
+
+test('readVerifyCommand adopts the earliest-numbered verify declaration', () => {
+  const repo = setupRepo('npm test');
+  const writeNumbered = (nnn, verifyField) => {
+    fs.writeFileSync(path.join(repo, BP_REL, `tasks-${nnn}.md`), `---
+type: bouncer.tasks
+title: Login tasks
+description: Tasks for 001
+resource: ${BP_REL}/tasks-${nnn}.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-${nnn}
+  epic_id: '001'
+  blueprint_id: '001'
+  status: ready
+  affected_paths:
+    - src/auth/
+  verify: ${JSON.stringify(verifyField)}
+---
+# Tasks
+`);
+  };
+  writeNumbered('001', 'node -e "process.exit(0)"');
+  writeNumbered('002', 'node -e "process.exit(1)"');
+  assert.strictEqual(
+    readVerifyCommand(repo, BP_REL),
+    'node -e "process.exit(0)"',
+  );
+});
+
+test('readVerifyCommand rejects invalid first declaration even if later is valid', () => {
+  const repo = setupRepo('npm test');
+  const writeNumbered = (nnn, verifyField) => {
+    fs.writeFileSync(path.join(repo, BP_REL, `tasks-${nnn}.md`), `---
+type: bouncer.tasks
+title: Login tasks
+description: Tasks for 001
+resource: ${BP_REL}/tasks-${nnn}.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-${nnn}
+  epic_id: '001'
+  blueprint_id: '001'
+  status: ready
+  affected_paths:
+    - src/auth/
+  verify: ${JSON.stringify(verifyField)}
+---
+# Tasks
+`);
+  };
+  writeNumbered('001', 'cd x && npm test');
+  writeNumbered('002', 'node -e "process.exit(0)"');
+  assert.throws(
+    () => readVerifyCommand(repo, BP_REL),
+    (e) => e.code === 'VERIFY_COMMAND_INVALID',
+  );
+});

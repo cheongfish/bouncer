@@ -10,19 +10,25 @@ const { isValidVerifyCommand, runVerification } = require('./verification');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS } = require('./comprehension');
 const { readCurrent } = require('./current');
 const { checkEpicIndexConsistency } = require('./epic-index');
+const { listTasksDocs, expectedTasksId, LEGACY_TASKS_BASENAME, } = require('./tasks-docs');
 function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     const bp = toPosix(blueprintDir);
+    const tasksListing = listTasksDocs({ repoRoot, blueprintDir });
     const rels = {
         epicIndex: `${epicDirOf(bp)}/index.md`,
         blueprintIndex: `${bp}/index.md`,
-        tasks: `${bp}/tasks.md`,
+        // finalize · execute G6 호환용 대표 경로(첫 task 문서). 없으면 레거시 이름.
+        tasks: tasksListing.entries[0]
+            ? tasksListing.entries[0].rel
+            : `${bp}/${LEGACY_TASKS_BASENAME}`,
         verification: `${bp}/verification.md`,
         review: `${bp}/review.md`,
         explain: `${bp}/explain.md`,
     };
     const docs = {};
     const parseErrors = [];
-    for (const [key, rel] of Object.entries(rels)) {
+    for (const key of ['epicIndex', 'blueprintIndex', 'verification', 'review', 'explain']) {
+        const rel = rels[key];
         const abs = path.join(repoRoot, rel);
         if (fs.existsSync(abs)) {
             try {
@@ -34,13 +40,34 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
             }
         }
     }
-    return { docs, rels, parseErrors };
+    const tasksDocs = [];
+    for (const entry of tasksListing.entries) {
+        const abs = path.join(repoRoot, entry.rel);
+        if (!fs.existsSync(abs))
+            continue;
+        try {
+            const { data, body } = readDoc(abs);
+            tasksDocs.push({ data, body, rel: entry.rel });
+        }
+        catch (e) {
+            parseErrors.push({ code: 'S0', message: e.message, file: entry.rel });
+        }
+    }
+    if (tasksDocs.length > 0) {
+        // docs.tasks = 첫 문서: finalize.ts(Do not touch)가 단일 필드를 읽는다.
+        docs.tasks = tasksDocs[0];
+        docs.tasksDocs = tasksDocs;
+    }
+    return { docs, rels, parseErrors, tasksListing };
 }
 // 존재 여부만 확인: 가볍고 파싱하지 않아야 함. execute gate가 verification을
 // 다시 실행(verification.md를 다시 씀)하기 전에 호출되기 때문.
 function blueprintDocsExist({ repoRoot, blueprintDir }) {
     const bp = toPosix(blueprintDir);
-    return ['index.md', 'tasks.md', 'verification.md', 'review.md', 'explain.md']
+    const tasksListing = listTasksDocs({ repoRoot, blueprintDir });
+    if (tasksListing.entries.length > 0)
+        return true;
+    return ['index.md', 'verification.md', 'review.md', 'explain.md']
         .some((name) => fs.existsSync(path.join(repoRoot, bp, name)));
 }
 // graph.basis는 레거시 문자열과 그래프별 엔트리 배열을 모두 받는다.
@@ -115,6 +142,10 @@ function checkStructural(doc, failures) {
         expectedId = parsed.epicId;
     else if (data.type === 'bouncer.blueprint')
         expectedId = parsed.blueprintId;
+    else if (data.type === 'bouncer.tasks') {
+        // task id는 파일 이름에서 유도 — 레거시는 blueprint id, 번호 문서는 NNN.
+        expectedId = expectedTasksId(path.posix.basename(rel), parsed.blueprintId);
+    }
     else if (parsed.blueprintId)
         expectedId = `${prefix}${parsed.blueprintId}`;
     if (expectedId && bouncer.id !== expectedId) {
@@ -194,17 +225,36 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
         }
     }
     // execute gate가 방금 기록한 증적을 읽도록 verification 이후에 로드.
-    const { docs, rels, parseErrors } = loadBlueprintDocs({ repoRoot, blueprintDir });
+    const { docs, rels, parseErrors, tasksListing } = loadBlueprintDocs({ repoRoot, blueprintDir });
     const failures = [...executionFailures, ...parseErrors];
-    const anyLeaf = ['tasks', 'verification', 'review', 'explain'].some((k) => docs[k]);
+    // 한 blueprint에 레거시 tasks.md와 번호 문서가 섞이면 어느 규칙을
+    // 적용할지 모호해지므로 구조 단계에서 거절한다.
+    if (tasksListing && tasksListing.mixed) {
+        failures.push({
+            code: 'S14',
+            message: 'cannot mix tasks.md and tasks-NNN.md in the same blueprint',
+            file: `${toPosix(blueprintDir)}/${LEGACY_TASKS_BASENAME}`,
+        });
+    }
+    const anyLeaf = (docs.tasksDocs && docs.tasksDocs.length > 0)
+        || ['verification', 'review', 'explain'].some((k) => docs[k]);
     if (anyLeaf && !docs.blueprintIndex) {
         failures.push({ code: 'S8', message: 'blueprint index.md absent', file: rels.blueprintIndex });
     }
     if (docs.blueprintIndex && !docs.epicIndex) {
         failures.push({ code: 'S8', message: 'epic index.md absent', file: rels.epicIndex });
     }
-    for (const key of Object.keys(docs))
+    for (const key of Object.keys(docs)) {
+        if (key === 'tasksDocs') {
+            for (const td of docs.tasksDocs)
+                checkStructural(td, failures);
+            continue;
+        }
+        // tasksDocs가 있으면 docs.tasks는 그 첫 항목이라 중복 검사하지 않는다.
+        if (key === 'tasks' && docs.tasksDocs)
+            continue;
         checkStructural(docs[key], failures);
+    }
     failures.push(...checkEpicIndexConsistency({ repoRoot }));
     if (gate) {
         checkGate(gate, docs, rels, failures, { repoRoot, blueprintDir, deps });
@@ -343,43 +393,60 @@ function checkGate(gate, docs, rels, failures, ctx) {
             add('G1', 'epic.status != approved', 'epicIndex');
         if (statusOf(docs.blueprintIndex) !== 'approved')
             add('G2', 'blueprint.status != approved', 'blueprintIndex');
-        if (statusOf(docs.tasks) !== 'ready')
+        // plan 게이트의 task 검사는 문서마다 돌린다. file은 해당 task 경로여야
+        // 어느 문서가 미달인지 알 수 있다. tasksDocs가 없으면 단위 테스트용
+        // 단일 docs.tasks로 폴백.
+        const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
+            ? docs.tasksDocs
+            : (docs.tasks ? [docs.tasks] : []);
+        if (tasksList.length === 0) {
             add('G3', 'tasks.status != ready', 'tasks');
-        const graph = docs.tasks && docs.tasks.data.bouncer ? docs.tasks.data.bouncer.graph : undefined;
-        const suggested = graph ? graph.suggested_paths : undefined;
-        if (!Array.isArray(suggested))
             add('G4', 'tasks.graph.suggested_paths missing', 'tasks');
-        if (graph && !isValidGraphBasis(graph.basis)) {
-            add('G4', 'tasks.graph.basis missing or empty', 'tasks');
-        }
-        const ap = docs.tasks && docs.tasks.data.bouncer ? docs.tasks.data.bouncer.affected_paths : undefined;
-        if (!Array.isArray(ap) || ap.length === 0)
             add('G5', 'tasks.affected_paths missing or empty', 'tasks');
-        const tasksBody = docs.tasks && typeof docs.tasks.body === 'string' ? docs.tasks.body : '';
-        const sections = parseTasksSections(tasksBody);
-        const sectionKeys = ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
-        const missing = sectionKeys.filter((k) => !sections[k]);
-        const unfilled = sectionKeys.filter((k) => sections[k] && TODO_RE.test(sections[k]));
-        if (missing.length) {
-            add('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`, 'tasks');
+            add('G10', 'tasks missing implementation-ready sections: goal, interface, touch, doNotTouch, checklist', 'tasks');
+            return;
         }
-        else if (unfilled.length) {
-            // 아래 path 검사 대신 보고: 치환되지 않은 placeholder는 G11/G12 finding이
-            // scope가 아니라 template 텍스트에 대한 잡음이 되게 함.
-            add('G10', `tasks sections still contain <TODO: …> placeholders: ${unfilled.join(', ')}`, 'tasks');
-        }
-        else {
-            const apList = Array.isArray(ap)
-                ? ap.map((p) => toPosix(String(p)).replace(/^\.\//, ''))
-                : [];
-            const unjustified = apList.filter((p) => !pathJustifiedByTouch(p, sections.touch));
-            if (unjustified.length) {
-                add('G11', `affected_paths not justified by Touch: ${unjustified.join(', ')}`, 'tasks');
+        for (const tasksDoc of tasksList) {
+            const file = tasksDoc.rel || rels.tasks;
+            const addTask = (code, message) => failures.push({ code, message, file });
+            if (statusOf(tasksDoc) !== 'ready')
+                addTask('G3', 'tasks.status != ready');
+            const graph = tasksDoc && tasksDoc.data.bouncer ? tasksDoc.data.bouncer.graph : undefined;
+            const suggested = graph ? graph.suggested_paths : undefined;
+            if (!Array.isArray(suggested))
+                addTask('G4', 'tasks.graph.suggested_paths missing');
+            if (graph && !isValidGraphBasis(graph.basis)) {
+                addTask('G4', 'tasks.graph.basis missing or empty');
             }
-            const forbidden = extractPathCandidates(sections.doNotTouch);
-            const overlap = apList.filter((p) => forbidden.some((f) => pathsOverlap(p, f)));
-            if (overlap.length) {
-                add('G12', `do-not-touch intersects affected_paths: ${overlap.join(', ')}`, 'tasks');
+            const ap = tasksDoc && tasksDoc.data.bouncer ? tasksDoc.data.bouncer.affected_paths : undefined;
+            if (!Array.isArray(ap) || ap.length === 0)
+                addTask('G5', 'tasks.affected_paths missing or empty');
+            const tasksBody = tasksDoc && typeof tasksDoc.body === 'string' ? tasksDoc.body : '';
+            const sections = parseTasksSections(tasksBody);
+            const sectionKeys = ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
+            const missing = sectionKeys.filter((k) => !sections[k]);
+            const unfilled = sectionKeys.filter((k) => sections[k] && TODO_RE.test(sections[k]));
+            if (missing.length) {
+                addTask('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`);
+            }
+            else if (unfilled.length) {
+                // 아래 path 검사 대신 보고: 치환되지 않은 placeholder는 G11/G12 finding이
+                // scope가 아니라 template 텍스트에 대한 잡음이 되게 함.
+                addTask('G10', `tasks sections still contain <TODO: …> placeholders: ${unfilled.join(', ')}`);
+            }
+            else {
+                const apList = Array.isArray(ap)
+                    ? ap.map((p) => toPosix(String(p)).replace(/^\.\//, ''))
+                    : [];
+                const unjustified = apList.filter((p) => !pathJustifiedByTouch(p, sections.touch));
+                if (unjustified.length) {
+                    addTask('G11', `affected_paths not justified by Touch: ${unjustified.join(', ')}`);
+                }
+                const forbidden = extractPathCandidates(sections.doNotTouch);
+                const overlap = apList.filter((p) => forbidden.some((f) => pathsOverlap(p, f)));
+                if (overlap.length) {
+                    addTask('G12', `do-not-touch intersects affected_paths: ${overlap.join(', ')}`);
+                }
             }
         }
         return;
