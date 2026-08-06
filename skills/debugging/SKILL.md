@@ -41,8 +41,9 @@ hypothesis, return to Root cause — do not pile on a second theory.
 failing regression test that should exist before the fix lands. Re-run verify
 after the fix is applied (by implementer / controller).
 
-**Gate:** Change only what the cause requires. Do not weaken or delete failing
-tests to force green.
+**Gate:** Propose or apply only what the cause requires (named
+`bouncer-debugger` proposes only — it never edits). Do not weaken or delete
+failing tests to force green.
 
 ## Guardrails
 
@@ -51,5 +52,6 @@ tests to force green.
 - Do not weaken or delete failing tests to force green.
 - If the fix would expand approved scope, stop and escalate rather than
   shipping a silent scope change.
-- After **3 failures** on the same verify, escalate to architecture /
-  `/bouncer-plan` — do not loop indefinitely.
+- On the same failing verify, redispatch / retry at most **3** times
+  (unsuccessful fix cycles); then escalate to architecture / `/bouncer-plan` —
+  do not loop indefinitely.

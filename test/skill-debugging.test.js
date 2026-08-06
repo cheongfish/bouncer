@@ -25,7 +25,7 @@ test('debugging forbids proposing fixes before root-cause investigation', () => 
   assert.match(md, /do not propose fixes before root-cause investigation/i);
 });
 
-test('debugging escalates after 3 failures', () => {
+test('debugging escalates after 3 unsuccessful cycles', () => {
   const md = readSkill('debugging');
-  assert.match(md, /3\s*(?:failures?|times?|attempts?).{0,80}escalat/i);
+  assert.match(md, /3(?:\*\*)?\s*(?:failures?|times?|attempts?)[\s\S]{0,120}escalat/i);
 });

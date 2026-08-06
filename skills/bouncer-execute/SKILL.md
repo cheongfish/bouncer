@@ -146,8 +146,8 @@ applies the fix.
    The debugger must **not** edit files, commit, or flip document status — it
    returns a root-cause report only. Apply the minimum fix via
    `bouncer-implementer` (or inline within scope) from that report, then
-   re-verify. Redispatch the debugger for the **same** failing verify at most
-   **3** times; after three unsuccessful cycles, escalate to architecture /
+   re-verify. On the same failing verify, redispatch the debugger at most
+   **3** times (3 unsuccessful fix cycles); then escalate to architecture /
    `/bouncer-plan` rather than looping.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
