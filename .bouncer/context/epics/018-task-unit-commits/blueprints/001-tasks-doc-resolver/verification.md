@@ -14,17 +14,17 @@ bouncer:
   status: passed
   verification:
     command: npm test
-    ran_at: '2026-08-07T08:45:04.927+09:00'
+    ran_at: '2026-08-07T08:45:15.981+09:00'
     exit_code: 0
     output_tail: |-
       ---
-        duration_ms: 0.303393
+        duration_ms: 0.319259
         type: 'test'
         ...
       # Subtest: readVerifyCommand rejects invalid first declaration even if later is valid
       ok 398 - readVerifyCommand rejects invalid first declaration even if later is valid
         ---
-        duration_ms: 0.288686
+        duration_ms: 0.299982
         type: 'test'
         ...
       1..398
@@ -35,7 +35,7 @@ bouncer:
       # cancelled 0
       # skipped 0
       # todo 0
-      # duration_ms 430.148044
+      # duration_ms 426.500128
 ---
 # Verification
 
@@ -43,5 +43,5 @@ bouncer:
 `npm test`
 
 ## Evidence
-Ran at: 2026-08-07T08:45:04.927+09:00
+Ran at: 2026-08-07T08:45:15.981+09:00
 Exit code: 0
