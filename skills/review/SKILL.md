@@ -14,8 +14,9 @@ brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 ## Steps
 
 1. **Load** — Read the existing review document (do not create a new file), the
-   worktree diff basis (`git diff <base>...HEAD` plus untracked), and `tasks-001.md`
-   (Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist).
+   worktree diff basis (`git diff <base>...HEAD` plus untracked), and the task
+   brief (`tasks-001.md` or legacy `tasks.md`: Goal & intent, Interface, Touch,
+   Do not touch, Constraints, Checklist).
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:
    - `severity`: one of `blocker | major | minor | nit`;

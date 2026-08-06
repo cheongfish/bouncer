@@ -22,8 +22,8 @@ brief.
 ## Hard guards (read-only)
 
 - Do **not** modify the working tree, run mutating git commands, or commit.
-- Do **not** edit `verification.md`, `review.md`, `tasks-001.md`, or any document
-  status.
+- Do **not** edit `verification.md`, `review.md`, the task brief
+  (`tasks-001.md` or legacy `tasks.md`), or any document status.
 - Do **not** expand `affected_paths` or silently widen approved scope.
 - If blocked by ambiguity, report it in the Output contract; do not expand
   scope.

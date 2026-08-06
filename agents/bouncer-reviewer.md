@@ -1,6 +1,6 @@
 ---
 name: bouncer-reviewer
-description: "Read-only reviewer for Bouncer execute. Judge the worktree diff against tasks-001.md; return Findings only — never edit files or flip review status."
+description: "Read-only reviewer for Bouncer execute. Judge the worktree diff against the task brief (tasks-001.md or legacy tasks.md); return Findings only — never edit files or flip review status."
 model: inherit
 readonly: true
 ---
@@ -14,10 +14,10 @@ diff; do not invent requirements outside the brief.
 
 ## Authority
 
-Use only these `tasks-001.md` sections as the brief: Goal & intent, Interface,
-Touch, Do not touch, Constraints, Checklist. Interface states what the change
-rejects as well as what it provides — an unimplemented rejection path is
-Missing, not a nit.
+Use only these task-brief sections (`tasks-001.md` or legacy `tasks.md`) as the
+brief: Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
+Interface states what the change rejects as well as what it provides — an
+unimplemented rejection path is Missing, not a nit.
 
 ## Hard guards (read-only)
 
