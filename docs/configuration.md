@@ -8,13 +8,32 @@
 | --- | --- | --- |
 | `source_dirs` | 실재하는 후보 디렉터리(`src`, `lib`, `app`, `packages`, `scripts`, `test`, `tests` 중 존재하는 것; 없으면 `[]`) | **소스 코드** 그래프 입력. `bouncer init`이 저장소 루트를 보고 채운다. 산출: `graphify-out/source/` |
 | `context_dirs` | `[".bouncer/context"]` | **컨텍스트** 그래프 입력(에픽/BP 문서). 산출: `graphify-out/context/` |
-| `verify` | `"npm test"` | **execute 게이트가 실행하는 전역 폴백 명령.** 블루프린트 `tasks.bouncer.verify`가 있으면 그쪽이 우선한다. 종료 코드 0이어야 G13 통과 |
+| `verify` | `"npm test"` | **execute 게이트가 실행하는 전역 폴백 명령.** 블루프린트 `tasks.bouncer.verify`가 있으면 그쪽이 우선한다. 종료 코드 0이어야 G13 통과. 컨테이너 기동과 테스트를 한 줄로 이을 수 없을 때는 [verify 래퍼 패턴](#verify-래퍼-패턴)을 본다 |
 | `base_branch` | `"develop"` | worktree와 PR의 기준 브랜치 |
 | `pr.draft` | `true` | PR을 draft로 생성 |
 | `pr.base` | `"develop"` | PR 대상 브랜치 |
 | `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
 | `graphify` | `{ "enabled": false }` | 이중 그래프 생성. **기본 비활성·선택 의존성.** 켜려면 `pip install graphifyy && graphify install` 후 `enabled: true`. SessionStart와 plan의 `bouncer graph-sync`가 `source`/`context` 그래프를 mtime 기준으로 갱신하고, `graphify-runner`가 둘 다 query해 `suggested_paths`를 채웁니다. 없거나 꺼져 있으면 수동 `affected_paths`로 폴백합니다 ([install.md](install.md)) |
 | `subagents` | (객체) | named agent별 모델 오버라이드. 아래 절 참고 |
+
+## verify 래퍼 패턴
+
+`config.verify`와 `tasks.bouncer.verify`는 단일 실행 문자열이다. `&&`, `;`,
+파이프, 리디렉션, `cd` 접두가 들어가면 plan `S12`와 runtime
+`VERIFY_COMMAND_INVALID`에 걸린다. 컨테이너를 띄운 뒤 테스트를 돌리는 작업을
+그 한 줄에 이을 수 없으니, 프로젝트 스크립트 하나로 감싼 뒤 그 스크립트만
+검증 명령으로 둔다.
+
+예시 (모두 단일 실행 문자열):
+
+- `npm run test:e2e` — `package.json` `scripts`에서 compose up과 테스트를 묶는다
+- `make test` — Makefile 타깃이 같은 작업을 수행한다
+
+worktree에서 compose를 쓸 때는 `-p` 또는 `COMPOSE_PROJECT_NAME`으로 프로젝트
+이름을 worktree마다 다르게 두어, 원본 체크아웃과 포트·볼륨이 겹치지 않게 한다.
+
+docker가 없는 환경(CI 호스트, 로컬에 데몬 없음)에서는 래퍼가 스스로 건너뛰고
+0으로 끝나게 한다. execute 게이트가 없는 바이너리 때문에 실패하지 않게 한다.
 
 ## `subagents`
 

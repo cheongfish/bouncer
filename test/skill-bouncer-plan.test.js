@@ -71,3 +71,12 @@ test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => 
   assert.match(body, /stop-slop/);
   assert.match(body, /skills\/stop-slop\/SKILL\.md/);
 });
+
+test('bouncer-plan detects project build scripts and asks before writing tasks verify', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /docker-compose|compose\.ya?ml/);
+  assert.match(body, /Makefile/);
+  assert.match(body, /package\.json/);
+  assert.match(body, /bouncer\.verify|tasks\.bouncer\.verify/);
+  assert.match(body, /확인|묻|물어|ask/i);
+});

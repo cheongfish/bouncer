@@ -19,3 +19,4 @@ okf_version: '0.1'
 * [014 numeric-context-ids](epics/014-numeric-context-ids/index.md) - epic/bp id에서 EPIC-/BP- 접두를 제거하고 마이그레이션 경로를 둔다
 * [015 workflow-ergonomics](epics/015-workflow-ergonomics/index.md) - Epic 015
 * [016 advisor-removal](epics/016-advisor-removal/index.md) - Epic 016
+* [017 verify-wrapper-guidance](epics/017-verify-wrapper-guidance/index.md) - Epic 017

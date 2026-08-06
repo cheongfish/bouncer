@@ -83,6 +83,23 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    `commit_intent` (exactly two `~함` lines) into 배경·의도 bullets, and
    tasks/verification `title` into 수정 내용 bullets, following `.gitmessage`.
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
+   **Verify command (optional).** After the draft bodies make this blueprint's
+   character clear, check the **repository root only** for any of these signals:
+   `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`,
+   `Makefile`, or `Taskfile.yml` (file existence only — do not parse their
+   contents), or a `package.json` that has a `scripts` key (key presence only;
+   do not read script bodies). If at least one signal applies, ask the user
+   whether to set `tasks.bouncer.verify` for this blueprint (「이 blueprint의
+   검증 명령을 `tasks.bouncer.verify`에 지정할까요?」). On accept, write a
+   **single** executable argv string into `tasks.md` frontmatter `bouncer.verify`
+   (예: `npm run test:e2e`, `make test`). If none of the signals above apply, or
+   the user refuses, leave `bouncer.verify` unset so execute keeps the global
+   `config.verify`. Never write `bouncer.verify` from detection alone, and never
+   edit `config.verify` / `.bouncer/config.json` here. Do not propose values that
+   mix `&&`, `;`, pipes, redirection, or a `cd` prefix — verify is a single argv
+   so the evidence command stays reproducible from the repo root; tell the user
+   to wrap container-up + test in one project script and point them at the
+   wrapper guidance in `docs/configuration.md`.
    After the draft, run `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) on
    the authored bodies before approval.
 
