@@ -45,9 +45,9 @@ put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body
    - C) {Cancel}
 ```
 
-**Gates in this skill:** Commit+worktree (step 3) · PR (step 4) · PR body
-confirm (step 4, when opening) · Next blueprint (step 6, when `next.next`
-exists). Worktree removal is **not** a separate gate — it is chosen in step 3.
+**Gates in this skill:** Commit+worktree (step 3) · PR (step 4) ·
+Next blueprint (step 6, when `next.next` exists). Worktree removal is **not** a
+separate gate — it is chosen in step 3.
 
 **Preflight.** Load the active blueprint:
 ```bash
@@ -138,8 +138,8 @@ appears; do not reconstruct a root `context/` path.
      stop after the local commit and tell the user push/PR was skipped — no PR
      ACQ needed beyond that notice.
    - If the user accepts and remote/`gh` are available, show the rendered
-     title + PR body (dry-run) and run a **second ACQ** to confirm that content
-     before create. Then push the branch and open a **draft** PR using
+     title + PR body (dry-run), then push and open a **draft** PR
+     **without a further confirmation** (본문·제목을 재확인하지 않는다). Use
      `.bouncer/config.json` `base_branch`/`pr` and the built-in PR body from
      `scripts/lib/templates.js` (`pr.md`). That template follows the team's PR
      format, not the commit message shape. Fill the PR body from `explain.md`
@@ -173,6 +173,10 @@ appears; do not reconstruct a root `context/` path.
        --body-file <rendered pr body> \
        <labels from config.pr.labels as --label ...>
      ```
+   - **Failure mode:** If `git push` or `gh pr create` fails after the user
+     accepted the PR ACQ, report the local commit as successful and state the
+     push/PR failure reason — do **not** re-ask the Draft PR ACQ or invent a
+     body-confirm gate to recover.
 
 5. **Worktree cleanup (from step 3 choice).** After step 4 (whether PR was
    created, declined, or skipped), apply the Commit+worktree ACQ result.

@@ -61,6 +61,14 @@ test('bouncer-finalize fills PR from explain.md and excludes 이해 상태', () 
   assert.match(PR_TEMPLATE, /- Explain: <explain path>/);
 });
 
+test('bouncer-finalize opens draft PR without a second body-confirm ACQ', () => {
+  const { body } = parseFrontmatter(md);
+  // 게이트 목록에 PR body confirm이 없다(긍정 문구로 셋만 나열됨을 단언)
+  assert.match(body, /Gates in this skill[\s\S]{0,200}Next blueprint/);
+  // 승인 뒤 재확인 없이 생성한다는 규칙
+  assert.match(body, /without a further confirmation|재확인하지 않는다/);
+});
+
 test('bouncer-finalize offers next-blueprint handoff via current --set after confirm', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /current --set/);

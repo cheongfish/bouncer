@@ -13,9 +13,11 @@
    `.bouncer/Distill.md` via `spec-authoring` (excluding
    `## 이해 상태` / Quiz / comprehension), pass gate `finalize` (G15), then
    **ACQ**-confirm remainder commit (recommended: `--yes` + remove execute
-   worktree), draft PR filled from `explain.md` Background / Intuition / Code,
-   and next-pointer handoff. PR is skipped gracefully with no remote / no `gh`,
-   or when declined. Draft PR titles use `[YYMMDD] (→ MergeTarget) [Type] 요약`.
+   worktree), one **ACQ** to open a draft PR (show rendered title/body, then
+   push + `gh pr create --draft` with no second confirm), filled from
+   `explain.md` Background / Intuition / Code, and next-pointer handoff. PR is
+   skipped gracefully with no remote / no `gh`, or when declined. Draft PR
+   titles use `[YYMMDD] (→ MergeTarget) [Type] 요약`.
    See [contributing.md](contributing.md). Plan/execute Read that project Distill
    before work.
 5. `bouncer advise`: at any point, print the recommended Ponytail mode for
@@ -28,7 +30,8 @@
 /bouncer-execute  → worktree + seed → implement · verify · review
                   → gate execute  (G6–G8, G13–G14)  ← verify 실제 실행
 /bouncer-finalize → explain-diff · Distill 승격(from explain)
-                  → gate finalize (G15) → ACQ(--yes + worktree) → (ACQ) draft PR
+                  → gate finalize (G15) → ACQ(--yes + worktree)
+                  → (ACQ) draft PR (render → push+create, no body confirm)
 ```
 
 단계별 스킬(권장 순서):
