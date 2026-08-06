@@ -76,6 +76,10 @@ append a change log.
   `tasks.md` as `bouncer.verify`.
 - A present-but-invalid `bouncer.verify` must not fall through to
   `config.verify` — that would hide a plan-time `S12` miss.
+- `/bouncer-plan` Author verify detection: compose / `Makefile` / `Taskfile`
+  are file-existence only; `package.json` counts only when a `scripts` key
+  is present (key presence, not script bodies). Do not treat any root
+  `package.json` as a hit.
 - Empty `diff_sha` (or empty `disposition`) on `explain.md` is G15 **record
   missing**, not hash mismatch — scaffold defaults must not collapse into the
   wrong failure branch.
@@ -195,6 +199,11 @@ append a change log.
 - Verify command resolution is `tasks.bouncer.verify` (when set) then
   `config.verify`; format rules live only in `isValidVerifyCommand`, which
   plan `S12` and runtime `VERIFY_COMMAND_INVALID` both reuse.
+- `/bouncer-plan` Author asks before writing `tasks.bouncer.verify` when root
+  build/container signals exist; never write from detection alone and never
+  edit `config.verify` there. Container-up + test must be one project script
+  (single argv); wrapper pattern (worktree compose project name, docker-absent
+  skip→0) lives in `docs/configuration.md`.
 - Pointer absence is a state, not an error: bare `bouncer current` always
   exits `0`, and attaches `ready` only when the pointer is null.
 - `listReadyBlueprints` includes only blueprint `approved` with tasks
