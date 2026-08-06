@@ -14,10 +14,10 @@ the implementer or controller owns edits.
 
 ## Authority
 
-Use only these `tasks-001.md` sections as the brief: Goal & intent, Interface,
-Touch, Do not touch, Constraints, Checklist. Treat the failing verify command
-output and related tests as evidence. Do not invent requirements outside the
-brief.
+Use only these task-brief sections (`tasks-001.md` or legacy `tasks.md`) as the
+brief: Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
+Treat the failing verify command output and related tests as evidence. Do not
+invent requirements outside the brief.
 
 ## Hard guards (read-only)
 

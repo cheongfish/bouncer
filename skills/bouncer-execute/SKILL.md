@@ -1,6 +1,6 @@
 ---
 name: bouncer-execute
-description: "Use only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). Implement from tasks-001.md in an isolated worktree, verify and review via standalone skills, and pass the execute gate."
+description: "Use only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). Implement from the task brief (tasks-001.md or legacy tasks.md) in an isolated worktree, verify and review via standalone skills, and pass the execute gate."
 ---
 # /bouncer-execute
 
@@ -85,7 +85,7 @@ applies the fix.
    project root — the `commit-safety` PreToolUse hook uses the command's actual
    working directory and would otherwise inspect the wrong index.
 
-3. **Implement (tasks-001.md is the sole brief).** Dispatch **`bouncer-implementer`**
+3. **Implement (task brief is the sole authority).** Dispatch **`bouncer-implementer`**
    (plugin `agents/bouncer-implementer.md`) with this order — the
    `implementation` skill remains the behavioral brief the agent follows:
 
@@ -95,8 +95,9 @@ applies the fix.
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-implementer'})))"
       ```
    2. Call named agent `bouncer-implementer` with that `model`, passing only
-      these `tasks-001.md` sections as decision authority: Goal & intent, Interface,
-      Touch, Do not touch, Constraints, Checklist.
+      these task-brief sections (`tasks-001.md` or legacy `tasks.md`) as decision
+      authority: Goal & intent, Interface, Touch, Do not touch, Constraints,
+      Checklist.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
    4. If named agents are unavailable (e.g. Codex), fall back to running the
       `implementation` skill inline (or a fresh generic subagent with the same
@@ -109,7 +110,7 @@ applies the fix.
    no speculative scope expansion.
 
    **One implementer.** `bouncer-implementer` is the only agent this step
-   spawns — one instance, not a fleet. Do not split `tasks-001.md` across parallel
+   spawns — one instance, not a fleet. Do not split the task brief across parallel
    implementers (they share `affected_paths` and would collide), and do not add
    a second agent to check the first one's work; step 4 and step 5 already cover
    that with the gate and the reviewer.
@@ -136,9 +137,9 @@ applies the fix.
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-debugger'})))"
       ```
    2. Call named agent `bouncer-debugger` with that `model`, passing the
-      failing verify evidence plus only these `tasks-001.md` sections as decision
-      authority: Goal & intent, Interface, Touch, Do not touch, Constraints,
-      Checklist.
+      failing verify evidence plus only these task-brief sections
+      (`tasks-001.md` or legacy `tasks.md`) as decision authority: Goal & intent,
+      Interface, Touch, Do not touch, Constraints, Checklist.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
    4. If named agents are unavailable (e.g. Codex), fall back to running the
       `debugging` skill inline (or a fresh generic read-only subagent with the
