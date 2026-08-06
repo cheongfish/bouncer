@@ -182,8 +182,11 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    `graphify-out/`, `.worktrees/`를 범위 검사에서 무시한다.
    execute 체크아웃은 `<repo>/.worktrees/<id>`에 두며, init이 `.worktrees/`
    gitignore 누락도 함께 안내한다.
-3. `suggested_paths`의 근거는 `bouncer.graph.basis`에 기록한다. scaffold는
-   `basis`를 빈 값으로 두므로, 실제 근거를 기록해야 G4를 통과한다.
+3. `suggested_paths`의 근거는 `bouncer.graph.basis`에 기록한다. 레거시 비어 있지
+   않은 문자열도 통과하고, 신규는 그래프별 엔트리 배열
+   (`graph`·`status`·`query`·`result`; `status`는
+   `updated`/`reused`/`fail-skip`/`skip-disabled`/`missing`)을 쓴다. scaffold는
+   `basis`를 빈 리스트(`[]`)로 두므로, 실제 근거 엔트리를 기록해야 G4를 통과한다.
 
 ### E. Ponytail 최소화 정책
 

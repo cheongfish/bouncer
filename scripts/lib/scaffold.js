@@ -66,7 +66,8 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
             generated_at: timestamp,
             command: 'mcp:graphify',
             suggested_paths: [],
-            basis: '',
+            // 빈 리스트는 G4가 거절한다 — graphify-runner가 엔트리를 채워야 통과.
+            basis: [],
         },
     }), body('tasks.md')));
     const verify = `${dir}/verification.md`;

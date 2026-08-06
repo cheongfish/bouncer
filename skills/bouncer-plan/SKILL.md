@@ -90,12 +90,14 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    run `bouncer graph-sync` (plan-time freshness for **source** + **context**
    graphs), query both `graphify-out/source` and `graphify-out/context`, and write
    `bouncer.graph.suggested_paths` into `tasks.md`. If graphify is
-   unavailable, it leaves `suggested_paths` empty, records a graceful fallback in
-   `bouncer.graph.basis`, tells the user how to install/enable Graphify
+   unavailable, it leaves `suggested_paths` empty, records a graceful fallback
+   entry list in `bouncer.graph.basis` (per-graph `status` such as
+   `skip-disabled` / `missing`), tells the user how to install/enable Graphify
    (`pip install graphifyy && graphify install`, then `graphify.enabled: true`),
    and says so so the user can seed paths manually.
-   Scaffold leaves `basis` empty on purpose, so this step must run: G4 fails
-   until a real basis is recorded.
+   Scaffold leaves `basis` as an empty list on purpose, so this step must run:
+   G4 fails until a real non-empty basis (legacy string or entry array) is
+   recorded.
 
 6. **affected_paths (user-confirmed).** Propose `bouncer.affected_paths` in
    `tasks.md` seeded from `suggested_paths`, then **have the user confirm or
@@ -124,7 +126,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G3 tasks ready,
-   G4 `graph.suggested_paths` present and `graph.basis` non-empty, G5
+   G4 `graph.suggested_paths` present and `graph.basis` a non-empty legacy
+   string or non-empty entry list, G5
    `affected_paths` non-empty, G10 the five gated sections present and
    placeholder-free (Constraints is authored but not gated), G11 Touch justifies every
    `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.

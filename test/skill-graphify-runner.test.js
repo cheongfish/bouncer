@@ -27,6 +27,23 @@ test('graphify-runner records basis and documents freshness policy', () => {
   assert.match(md, /graph-sync/);
 });
 
+test('graphify-runner basis status enum lists all five values', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /updated/);
+  assert.match(md, /reused/);
+  assert.match(md, /fail-skip/);
+  assert.match(md, /skip-disabled/);
+  assert.match(md, /missing/);
+});
+
+test('graphify-runner basis entry fields are named separately', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /`graph`/);
+  assert.match(md, /`status`/);
+  assert.match(md, /`query`/);
+  assert.match(md, /`result`/);
+});
+
 test('graphify-runner treats graphify-out as user-managed local output', () => {
   const md = readSkill('graphify-runner');
   assert.match(md, /user-managed local output/i);
