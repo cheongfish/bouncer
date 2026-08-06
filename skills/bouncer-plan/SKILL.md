@@ -84,15 +84,16 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    tasks/verification `title` into 수정 내용 bullets, following `.gitmessage`.
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
    **Verify command (optional).** After the draft bodies make this blueprint's
-   character clear, check the **repository root only** (existence, no content
-   parse) for any of: `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`,
-   `compose.yaml`, `Makefile`, `Taskfile.yml`, or a `package.json` with a
-   `scripts` field. If at least one is present, ask the user whether to set
-   `tasks.bouncer.verify` for this blueprint (「이 blueprint의 검증 명령을
-   `tasks.bouncer.verify`에 지정할까요?」). On accept, write a **single**
-   executable argv string into `tasks.md` frontmatter `bouncer.verify`
-   (예: `npm run test:e2e`, `make test`). If none of those files exist, or the
-   user refuses, leave `bouncer.verify` unset so execute keeps the global
+   character clear, check the **repository root only** for any of these signals:
+   `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`,
+   `Makefile`, or `Taskfile.yml` (file existence only — do not parse their
+   contents), or a `package.json` that has a `scripts` key (key presence only;
+   do not read script bodies). If at least one signal applies, ask the user
+   whether to set `tasks.bouncer.verify` for this blueprint (「이 blueprint의
+   검증 명령을 `tasks.bouncer.verify`에 지정할까요?」). On accept, write a
+   **single** executable argv string into `tasks.md` frontmatter `bouncer.verify`
+   (예: `npm run test:e2e`, `make test`). If none of the signals above apply, or
+   the user refuses, leave `bouncer.verify` unset so execute keeps the global
    `config.verify`. Never write `bouncer.verify` from detection alone, and never
    edit `config.verify` / `.bouncer/config.json` here. Do not propose values that
    mix `&&`, `;`, pipes, redirection, or a `cd` prefix — verify is a single argv
