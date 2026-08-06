@@ -49,9 +49,21 @@ function defaultConfig(repoRoot) {
     // provider block은 분리 — host마다 model namespace가 다름
     // (Claude / Cursor / Codex slug는 호환되지 않음).
     subagents: {
-      claude: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
-      cursor: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
-      codex: { 'bouncer-reviewer': 'inherit', 'bouncer-implementer': 'inherit' },
+      claude: {
+        'bouncer-reviewer': 'inherit',
+        'bouncer-implementer': 'inherit',
+        'bouncer-debugger': 'inherit',
+      },
+      cursor: {
+        'bouncer-reviewer': 'inherit',
+        'bouncer-implementer': 'inherit',
+        'bouncer-debugger': 'inherit',
+      },
+      codex: {
+        'bouncer-reviewer': 'inherit',
+        'bouncer-implementer': 'inherit',
+        'bouncer-debugger': 'inherit',
+      },
     },
   };
 }

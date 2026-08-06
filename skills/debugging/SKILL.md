@@ -1,27 +1,55 @@
 ---
 name: debugging
-description: "Use when a change fails verification or behaves unexpectedly. Reproduce, isolate the cause, add a failing regression test, apply a minimum fix, then re-verify. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use when a change fails verification or behaves unexpectedly. Investigate root cause before proposing a fix; follow Root cause → Pattern → Hypothesis → Implementation. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Debugging
 
-Investigate failures with a short, evidence-first loop.
+Investigate failures with an evidence-first four-stage loop. Named agent
+`bouncer-debugger` (when dispatched) follows this brief read-only and returns
+a report; the implementer or controller applies the fix.
 
-## Flow
+## Stages
 
-1. **Reproduce** — Capture the failing command, input, and observed result.
-2. **Isolate cause** — Narrow to the smallest failing unit; distinguish
-   symptom from root cause.
-3. **Failing regression test** — Add or tighten a test that fails for the bug
-   before the fix exists.
-4. **Minimum fix** — Change only what the cause requires; avoid unrelated
-   cleanup.
-5. **Verification** — Re-run the verify command and confirm the regression
-   test passes with the fix.
+### 1. Root cause
+
+**Output:** reproduction (command, input, observed result) and the smallest
+failing unit that separates symptom from cause.
+
+**Gate:** Do not propose fixes before root-cause investigation. No fix ideas,
+patches, or “try this” suggestions until this stage has a concrete cause
+candidate backed by evidence.
+
+### 2. Pattern
+
+**Output:** whether this failure matches a known in-repo pattern (similar
+test, Distill gotcha, prior fix) and what differs.
+
+**Gate:** Advance only after the root-cause stage has a reproducible failure
+and a narrowed locus.
+
+### 3. Hypothesis
+
+**Output:** exactly **one** hypothesis that explains the evidence.
+
+**Gate:** Reject stacked speculative guesses. If evidence contradicts the
+hypothesis, return to Root cause — do not pile on a second theory.
+
+### 4. Implementation
+
+**Output:** the minimum fix that addresses the single hypothesis, plus a
+failing regression test that should exist before the fix lands. Re-run verify
+after the fix is applied (by implementer / controller).
+
+**Gate:** Change only what the cause requires. Do not weaken or delete failing
+tests to force green.
 
 ## Guardrails
 
-- Do not weaken or delete failing tests to force green.
+- Do not propose fixes before root-cause investigation.
 - Prefer one root-cause fix over stacked speculative patches.
+- Do not weaken or delete failing tests to force green.
 - If the fix would expand approved scope, stop and escalate rather than
   shipping a silent scope change.
+- After **3 failures** on the same verify, escalate to architecture /
+  `/bouncer-plan` — do not loop indefinitely.
