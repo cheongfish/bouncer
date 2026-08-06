@@ -11,11 +11,13 @@ bouncer:
   id: REVIEW-001
   epic_id: '015'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings: []
 ---
 # Review
 
 ## Findings
-- <finding>
+
+없음 — `bouncer-reviewer`가 스펙 준수·품질·과잉 구현에서 actionable finding을 내지 않음.

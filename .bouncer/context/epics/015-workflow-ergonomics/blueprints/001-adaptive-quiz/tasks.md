@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-001
   epic_id: '015'
   blueprint_id: '001'
-  status: ready
+  status: verified
   affected_paths:
     - skills/explain-diff/SKILL.md
     - test/skill-explain-diff.test.js
