@@ -194,3 +194,31 @@ test('evaluateCommit blocks an out-of-scope commit hidden in a nested shell', ()
   assert.strictEqual(r.block, true);
   assert.ok(r.reason.includes('src/other/b.js'));
 });
+
+test('readAffectedPaths unions paths across numbered task documents', () => {
+  const { readAffectedPaths } = require('../scripts/lib/commit-hook');
+  const yaml = require('js-yaml');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-union-'));
+  const bp = BP;
+  const write = (name, paths) => {
+    const abs = path.join(repo, bp, name);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    const id = name === 'tasks.md' ? 'TASKS-001' : `TASKS-${name.match(/tasks-(\d{3})/)[1]}`;
+    fs.writeFileSync(abs, `---\n${yaml.dump({
+      type: 'bouncer.tasks',
+      title: 't',
+      description: 'd',
+      resource: `${bp}/${name}`,
+      tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id, epic_id: '001', blueprint_id: '001', status: 'ready',
+        affected_paths: paths,
+      },
+    })}---\n# Tasks\n`);
+  };
+  write('tasks-001.md', ['src/a.js', 'src/shared.js']);
+  write('tasks-002.md', ['src/shared.js', 'src/b.js']);
+  const union = readAffectedPaths({ repoRoot: repo, blueprintDir: bp });
+  assert.deepStrictEqual(union, ['src/a.js', 'src/shared.js', 'src/b.js']);
+});

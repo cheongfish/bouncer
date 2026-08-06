@@ -12,10 +12,11 @@ status / frontmatter — Findings only.
 
 ## Placeholders
 
-- `{{BRIEF}}` — `tasks.md` Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist
+- `{{BRIEF}}` — task brief (`tasks-001.md` or legacy `tasks.md`) Goal & intent,
+  Interface, Touch, Do not touch, Constraints, Checklist
 - `{{BASE}}` — review base ref (branch or commit)
 - `{{HEAD}}` — review HEAD ref (usually the worktree tip)
-- `{{CONSTRAINTS}}` — the `tasks.md` `## Constraints` list verbatim, plus Do not
+- `{{CONSTRAINTS}}` — the task brief `## Constraints` list verbatim, plus Do not
   touch paths, `affected_paths`, and repo norms. Paste the rules; do not
   summarize them, or the reviewer cannot tell a breach from a judgement call.
 

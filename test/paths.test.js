@@ -10,12 +10,18 @@ const BP_NEW = '.bouncer/context/epics/014-numeric/blueprints/001-id-contract';
 test('parses numeric ids and kind from new-style paths', () => {
   assert.deepStrictEqual(parsePathIds(`${BP_NEW}/tasks.md`),
     { epicId: '014', blueprintId: '001', kind: 'tasks' });
+  assert.deepStrictEqual(parsePathIds(`${BP_NEW}/tasks-002.md`),
+    { epicId: '014', blueprintId: '001', kind: 'tasks' });
   assert.deepStrictEqual(parsePathIds(`${BP_NEW}/index.md`),
     { epicId: '014', blueprintId: '001', kind: 'blueprint' });
   assert.deepStrictEqual(parsePathIds('.bouncer/context/epics/014-numeric/index.md'),
     { epicId: '014', blueprintId: null, kind: 'epic' });
   assert.strictEqual(parsePathIds(`${BP_NEW}/verification.md`).kind, 'verification');
   assert.strictEqual(parsePathIds(`${BP_NEW}/explain.md`).kind, 'explain');
+});
+
+test('parsePathIds does not treat non-padded tasks-1.md as tasks kind', () => {
+  assert.strictEqual(parsePathIds(`${BP_NEW}/tasks-1.md`).kind, null);
 });
 
 test('rejects legacy-prefixed path segments', () => {

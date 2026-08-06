@@ -2,7 +2,8 @@
 
 ## Blueprint sizing rule
 
-A blueprint is split so it fits **one reviewable commit**. If work feels too
-large for a single commit, split the blueprint into more blueprints. Do **not**
-add a subtask layer. Per-task commits and per-task `affected_paths` are out of
-scope for v1.
+Each **task document** (`tasks-001.md`, …; legacy `tasks.md`) is sized for
+**one reviewable commit**. A blueprint may hold several task documents and
+remains the review / PR unit. If a single task feels too large for one commit,
+split it into more task documents (or more blueprints). Do **not** invent a
+further subtask layer beneath a task document.

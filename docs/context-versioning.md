@@ -34,7 +34,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 
 ## 문서는 그 시점의 기록입니다
 
-커밋 이후 코드만 고치면 `tasks.md`는 과거 상태로 남습니다.
+커밋 이후 코드만 고치면 task 문서(`tasks-001.md` / 레거시 `tasks.md`)는 과거 상태로 남습니다.
 컨텍스트 문서는 **그 커밋이 왜 그 범위였고 무엇으로 검증됐는지에 대한 기록**입니다.
 최신 상태로 유지하려 들지 마세요. 범위가 바뀌면 새 blueprint를 만드세요.
 

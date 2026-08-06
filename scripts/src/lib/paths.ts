@@ -1,7 +1,8 @@
 'use strict';
 
+const { isNumberedTasksBasename, isLegacyTasksBasename } = require('./tasks-docs');
+
 const FILE_KIND = {
-  'tasks.md': 'tasks',
   'verification.md': 'verification',
   'review.md': 'review',
   'explain.md': 'explain',
@@ -39,6 +40,10 @@ function parsePathIds(resourcePath) {
   const blueprintId = bpM ? bpM[1] : null;
   const base = norm.split('/').pop();
   let kind = FILE_KIND[base] || null;
+  // tasks.md · tasks-{ddd}.md 판정은 tasks-docs에만 둔다.
+  if (!kind && (isLegacyTasksBasename(base) || isNumberedTasksBasename(base))) {
+    kind = 'tasks';
+  }
   if (base === 'index.md') {
     kind = blueprintId ? 'blueprint' : (epicId ? 'epic' : null);
   }

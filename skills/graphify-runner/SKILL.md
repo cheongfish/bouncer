@@ -1,6 +1,6 @@
 ---
 name: graphify-runner
-description: "Use during /bouncer-plan to query the prebuilt source-code graph for the files a blueprint will likely touch, roll them up to directory granularity, and write bouncer.graph.suggested_paths into tasks.md. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use during /bouncer-plan to query the prebuilt source-code graph for the files a blueprint will likely touch, roll them up to directory granularity, and write bouncer.graph.suggested_paths into the task brief (tasks-001.md or legacy tasks.md). Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Graphify Runner
@@ -95,7 +95,8 @@ not an error).
    (repo-relative, POSIX). Deduplicate. Prefer directory granularity over
    individual files so the set stays stable as files move within a module.
 
-5. **Write frontmatter.** Set `bouncer.graph.suggested_paths` in `tasks.md` to
+5. **Write frontmatter.** Set `bouncer.graph.suggested_paths` in the task brief
+   (`tasks-001.md` or legacy `tasks.md`) to
    the deduplicated directory list, and refresh `bouncer.graph.generated_at`
    (KST, `+09:00`), `bouncer.graph.command` (`graphify query` on source+context),
    and `bouncer.graph.basis` as the **array of per-graph entries** collected in

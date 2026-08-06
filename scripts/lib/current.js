@@ -5,6 +5,7 @@ const path = require('node:path');
 const { readDoc } = require('./frontmatter');
 const { epicDirOf, toPosix } = require('./paths');
 const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = require('./runtime-state');
+const { listTasksDocs } = require('./tasks-docs');
 const READY_TASK_STATUS = ['ready', 'in_progress'];
 // epic `## Blueprints` 링크 대상(예: `blueprints/BP-001-slug/index.md`)과 매칭.
 // blueprint directory 이름만 캡처; title 텍스트와 한 줄 purpose는 무시.
@@ -61,14 +62,28 @@ function listReadyBlueprints({ repoRoot }) {
             const rel = toPosix(path.relative(repoRoot, bpAbs));
             try {
                 const indexDoc = readDoc(path.join(bpAbs, 'index.md'));
-                const tasksDoc = readDoc(path.join(bpAbs, 'tasks.md'));
                 const bpStatus = indexDoc.data && indexDoc.data.bouncer
                     ? indexDoc.data.bouncer.status
                     : undefined;
-                const tasksStatus = tasksDoc.data && tasksDoc.data.bouncer
-                    ? tasksDoc.data.bouncer.status
-                    : undefined;
-                if (bpStatus === 'approved' && READY_TASK_STATUS.includes(tasksStatus)) {
+                if (bpStatus !== 'approved')
+                    continue;
+                // ready = task 문서 중 하나라도 ready/in_progress. 어느 문서를
+                // 실행 중인지 고르는 일은 포인터 확장 BP에서 한다.
+                const listing = listTasksDocs({ repoRoot, blueprintDir: rel });
+                if (listing.mixed || listing.entries.length === 0)
+                    continue;
+                let tasksStatus;
+                for (const entry of listing.entries) {
+                    const tasksDoc = readDoc(path.join(repoRoot, entry.rel));
+                    const st = tasksDoc.data && tasksDoc.data.bouncer
+                        ? tasksDoc.data.bouncer.status
+                        : undefined;
+                    if (READY_TASK_STATUS.includes(st)) {
+                        tasksStatus = st;
+                        break;
+                    }
+                }
+                if (tasksStatus) {
                     list.push({ blueprint: rel, status: tasksStatus });
                 }
             }
@@ -111,12 +126,34 @@ function parseEpicBlueprintOrder(epicIndexAbs) {
     return names;
 }
 function readAffectedPaths(repoRoot, blueprintDir) {
+    // 임시 규칙(task 포인터 전): 허용 경로는 모든 task 문서의 합집합.
+    // 검증 명령은 verification.ts에서 번호가 앞선 선언을 채택한다.
     try {
-        const doc = readDoc(path.join(repoRoot, blueprintDir, 'tasks.md'));
-        const paths = doc.data && doc.data.bouncer
-            ? doc.data.bouncer.affected_paths
-            : undefined;
-        return Array.isArray(paths) ? paths.filter((p) => typeof p === 'string') : [];
+        const listing = listTasksDocs({ repoRoot, blueprintDir });
+        if (listing.mixed || listing.entries.length === 0)
+            return [];
+        const out = [];
+        const seen = new Set();
+        for (const entry of listing.entries) {
+            try {
+                const doc = readDoc(path.join(repoRoot, entry.rel));
+                const paths = doc.data && doc.data.bouncer
+                    ? doc.data.bouncer.affected_paths
+                    : undefined;
+                if (!Array.isArray(paths))
+                    continue;
+                for (const p of paths) {
+                    if (typeof p === 'string' && !seen.has(p)) {
+                        seen.add(p);
+                        out.push(p);
+                    }
+                }
+            }
+            catch (_e) {
+                // 깨진 task 문서 하나는 건너뛰고 나머지 합집합을 유지.
+            }
+        }
+        return out;
     }
     catch (_e) {
         return [];

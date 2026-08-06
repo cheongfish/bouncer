@@ -7,6 +7,7 @@ const { parsePathIds, isNumericContextId } = require('./paths');
 const { renderDoc } = require('./render');
 const { templateBody } = require('./templates');
 const { ensureEpicIndexEntry } = require('./epic-index');
+const { INITIAL_NUMBERED_TASKS_BASENAME, expectedTasksId, } = require('./tasks-docs');
 function writeRel(repoRoot, rel, data, body) {
     const abs = path.join(repoRoot, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -58,9 +59,11 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
     const body = (templateName) => templateBody(templateName, { epicId, blueprintId, name });
     const idx = `${dir}/index.md`;
     created.push(writeRel(repoRoot, idx, bouncerDoc('bouncer.blueprint', `${blueprintId} ${name}`, `Blueprint ${blueprintId}`, idx, ['bouncer', 'blueprint'], timestamp, { id: blueprintId, epic_id: epicId, blueprint_id: blueprintId, status: 'draft' }), body('blueprint.md')));
-    const tasks = `${dir}/tasks.md`;
+    // 새 blueprint는 번호 문서부터 시작한다. 기존 tasks.md는 마이그레이션하지 않는다.
+    const tasks = `${dir}/${INITIAL_NUMBERED_TASKS_BASENAME}`;
+    const tasksId = expectedTasksId(INITIAL_NUMBERED_TASKS_BASENAME, blueprintId);
     created.push(writeRel(repoRoot, tasks, bouncerDoc('bouncer.tasks', `${blueprintId} tasks`, `Tasks for ${blueprintId}`, tasks, ['bouncer', 'tasks'], timestamp, {
-        id: `TASKS-${blueprintId}`, epic_id: epicId, blueprint_id: blueprintId, status: 'draft',
+        id: tasksId, epic_id: epicId, blueprint_id: blueprintId, status: 'draft',
         affected_paths: [],
         graph: {
             generated_at: timestamp,

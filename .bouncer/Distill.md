@@ -5,7 +5,7 @@ resource: .bouncer/Distill.md
 tags:
   - bouncer
   - distill
-timestamp: '2026-08-06T11:03:56.000+09:00'
+timestamp: '2026-08-07T08:48:33+09:00'
 ---
 # Distill
 
@@ -30,6 +30,14 @@ append a change log.
 - Optional `tasks.bouncer.verify` is a single executable argv string only
   (no shell chaining, redirection, or `cd` prefix) so the evidence command
   is reproducible from the repository root.
+- Task document basenames and expected ids live only in
+  `scripts/src/lib/tasks-docs.ts` (`listTasksDocs`, `expectedTasksId`,
+  `NUMBERED_TASKS_RE`). Consumers must not hardcode `tasks.md` or
+  `tasks-\d{3}.md`. Legacy alone is `tasks.md` → `TASKS-{blueprint id}`;
+  numbered is `tasks-{NNN}.md` → `TASKS-{NNN}`. A blueprint may hold multiple
+  numbered task docs; scaffold creates `tasks-001.md`.
+- Commit unit is one task document; the blueprint remains the review / PR
+  unit.
 - The supported surface for the active blueprint pointer is `bouncer current`
   (read / `--set` / `--clear`). Workflow skills must not call
   `scripts/lib/current` via `node -e`.
@@ -76,6 +84,15 @@ append a change log.
   `tasks.md` as `bouncer.verify`.
 - A present-but-invalid `bouncer.verify` must not fall through to
   `config.verify` — that would hide a plan-time `S12` miss.
+- Mixing `tasks.md` and any `tasks-{ddd}.md` in one blueprint is structural
+  **S14** — do not silently prefer either side. Non-`\d{3}` names like
+  `tasks-1.md` are not task docs (ignored).
+- Until a task pointer exists: `bouncer.verify` takes the earliest-numbered
+  declaration; commit `affected_paths` is the union across all task docs.
+  Both narrow when the pointer gains a task field.
+- `scripts/src/lib/templates.ts` Documents may still link `tasks.md` while
+  scaffold writes `tasks-001.md` — include `templates.ts` in Touch when
+  changing scaffold task names.
 - `/bouncer-plan` Author verify detection: compose / `Makefile` / `Taskfile`
   are file-existence only; `package.json` counts only when a `scripts` key
   is present (key presence, not script bodies). Do not treat any root
@@ -196,9 +213,10 @@ append a change log.
 - Codex is out of named-agent routing: the plugin cannot deploy `agents/`, so
   review, execute implementer, and debugger always take the generic/inline
   fallback there.
-- Verify command resolution is `tasks.bouncer.verify` (when set) then
-  `config.verify`; format rules live only in `isValidVerifyCommand`, which
-  plan `S12` and runtime `VERIFY_COMMAND_INVALID` both reuse.
+- Verify command resolution walks `listTasksDocs` in number order and takes
+  the first `bouncer.verify` declaration, then falls back to `config.verify`.
+  Format rules live only in `isValidVerifyCommand`, which plan `S12` and
+  runtime `VERIFY_COMMAND_INVALID` both reuse.
 - `/bouncer-plan` Author asks before writing `tasks.bouncer.verify` when root
   build/container signals exist; never write from detection alone and never
   edit `config.verify` there. Container-up + test must be one project script
@@ -206,9 +224,9 @@ append a change log.
   skip→0) lives in `docs/configuration.md`.
 - Pointer absence is a state, not an error: bare `bouncer current` always
   exits `0`, and attaches `ready` only when the pointer is null.
-- `listReadyBlueprints` includes only blueprint `approved` with tasks
-  `ready` / `in_progress` (`verified` is excluded); broken docs are skipped
-  per entry.
+- `listReadyBlueprints` includes only blueprint `approved` with at least one
+  task document `ready` / `in_progress` (`verified` is excluded); broken docs
+  are skipped per entry.
 - `bouncer current --set` writes the pointer only after the plan gate passes;
   failures ship `validateBlueprint` results untouched and leave the pointer
   alone.

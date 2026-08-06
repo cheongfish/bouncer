@@ -62,13 +62,13 @@ test('scaffoldBlueprint writes four plan docs (no explain) with numeric child id
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   assert.deepStrictEqual(created, [
     `${base}/index.md`,
-    `${base}/tasks.md`,
+    `${base}/tasks-001.md`,
     `${base}/verification.md`,
     `${base}/review.md`,
   ]);
   assert.ok(!fs.existsSync(path.join(repo, `${base}/explain.md`)));
-  const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).data;
-  assert.strictEqual(tasks.resource, `${base}/tasks.md`);
+  const tasks = readDoc(path.join(repo, `${base}/tasks-001.md`)).data;
+  assert.strictEqual(tasks.resource, `${base}/tasks-001.md`);
   assert.strictEqual(tasks.bouncer.id, 'TASKS-001');
   assert.strictEqual(tasks.bouncer.epic_id, '001');
   assert.strictEqual(tasks.bouncer.blueprint_id, '001');
@@ -147,11 +147,11 @@ test('scaffolded bodies carry the section skeleton the gates require', () => {
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   const bodyOf = (rel) => readDoc(path.join(repo, rel)).body;
 
-  const tasks = bodyOf(`${base}/tasks.md`);
+  const tasks = bodyOf(`${base}/tasks-001.md`);
   for (const heading of [
     '## Goal & intent', '## Interface', '## Touch', '## Do not touch', '## Checklist',
   ]) {
-    assert.ok(tasks.includes(heading), `tasks.md missing ${heading}`);
+    assert.ok(tasks.includes(heading), `tasks-001.md missing ${heading}`);
   }
   const verification = bodyOf(`${base}/verification.md`);
   assert.ok(verification.includes('## Command'));
@@ -172,7 +172,7 @@ test('scaffoldBlueprint ignores a project .bouncer/templates override', () => {
     blueprintId: '001', name: 'login', timestamp: TS,
   });
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
-  const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).body;
+  const tasks = readDoc(path.join(repo, `${base}/tasks-001.md`)).body;
   assert.ok(!tasks.includes('team-specific prompt'));
   assert.ok(tasks.includes('## Goal & intent'));
   assert.ok(tasks.includes('Blueprint: [001](index.md)'));
@@ -202,7 +202,7 @@ test('scaffoldBlueprint leaves graph.basis as empty list so G4 needs recorded ev
     blueprintId: '001', name: 'login', timestamp: TS,
   });
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
-  const tasks = readDoc(path.join(repo, `${base}/tasks.md`)).data;
+  const tasks = readDoc(path.join(repo, `${base}/tasks-001.md`)).data;
   assert.deepStrictEqual(tasks.bouncer.graph.basis, []);
 });
 
