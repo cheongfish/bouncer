@@ -5,7 +5,7 @@ resource: .bouncer/Distill.md
 tags:
   - bouncer
   - distill
-timestamp: '2026-08-07T09:30:50+09:00'
+timestamp: '2026-08-07T10:39:36+09:00'
 ---
 # Distill
 
@@ -30,12 +30,15 @@ append a change log.
 - Optional `tasks.bouncer.verify` is a single executable argv string only
   (no shell chaining, redirection, or `cd` prefix) so the evidence command
   is reproducible from the repository root.
-- Task document basenames and expected ids live only in
+- Task document basenames, `\d{3}` dir checks, and expected ids live only in
   `scripts/src/lib/tasks-docs.ts` (`listTasksDocs`, `expectedTasksId`,
-  `NUMBERED_TASKS_RE`). Consumers must not hardcode `tasks.md` or
-  `tasks-\d{3}.md`. Legacy alone is `tasks.md` → `TASKS-{blueprint id}`;
-  numbered is `tasks-{NNN}.md` → `TASKS-{NNN}`. A blueprint may hold multiple
-  numbered task docs; scaffold creates `tasks-001.md`.
+  `expectedTaskDocIds`, `NUMBERED_TASKS_RE`, `TASK_DIR_RE`,
+  `TASK_UNIT_BASENAMES`). Consumers must not hardcode `tasks.md`,
+  `verification.md`, `review.md`, or `tasks-\d{3}.md`. New layout entry:
+  `tasks/<NNN>/{tasks,verification,review}.md` with ids
+  `TASKS|VERIFY|REVIEW-<NNN>` and `dir` = `<bp>/tasks/<NNN>`. Legacy root
+  `tasks.md` / `tasks-{NNN}.md` still resolve (`dir` null; verification/review
+  at blueprint root) until the hard cut. Scaffold creates `tasks/001/`.
 - Commit unit is one task document; the blueprint remains the review / PR
   unit.
 - The supported surface for the active blueprint pointer is `bouncer current`
@@ -95,9 +98,9 @@ append a change log.
   `readAffectedPaths` use that document only. When `task` is unspecified or the
   file is gone: earliest `bouncer.verify` declaration and union of
   `affected_paths`.
-- `scripts/src/lib/templates.ts` Documents may still link `tasks.md` while
-  scaffold writes `tasks-001.md` — include `templates.ts` in Touch when
-  changing scaffold task names.
+- `scripts/src/lib/templates.ts` blueprint Documents link `tasks/001/…`; keep
+  `templates.ts` (and any assertion like `test/init.test.js`) in Touch when
+  changing scaffold task layout names.
 - `/bouncer-plan` Author verify detection: compose / `Makefile` / `Taskfile`
   are file-existence only; `package.json` counts only when a `scripts` key
   is present (key presence, not script bodies). Do not treat any root
