@@ -1,6 +1,6 @@
 ---
 name: bouncer-execute
-description: "Use only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). Implement from the pointer's task brief (current.task, or the resolver's first/single doc when unset) in an isolated worktree, verify and review via standalone skills, and pass the execute gate."
+description: "Use only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). Implement from the pointer's task brief (current.task.path, or the resolver's first/single doc when task is null) in an isolated worktree, verify and review via standalone skills, and pass the execute gate."
 ---
 # /bouncer-execute
 
@@ -45,10 +45,11 @@ applies the fix.
    - When `ready` is empty, stop and tell the user to run `/bouncer-plan` first.
    Use the returned `blueprint` value verbatim for every document read and
    `--blueprint` argument below; do not reconstruct a root `context/` path.
-   **Task brief** = `current.task` (repo-relative path) when set. When `task` is
-   `null`, use the resolver's single or first task document (`tasks-001.md` or
-   legacy `tasks.md` alone) as today. Later steps use that same brief path —
-   do not re-pick a different task document mid-run.
+   CLI `current.task` is `{ path, id }` when set (pointer file stores path only).
+   **Task brief** = `current.task.path` (repo-relative) when `current.task` is
+   non-null. When `task` is `null`, use the resolver's single or first task
+   document (`tasks-001.md` or legacy `tasks.md` alone) as today. Later steps
+   use that same brief path — do not re-pick a different task document mid-run.
 
 2. **Worktree.** Create a blueprint-level worktree + branch:
    - base = the branch checked out now (already recorded as `base` in the

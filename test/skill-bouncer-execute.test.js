@@ -88,7 +88,7 @@ test('bouncer-execute preflight reads project Distill', () => {
 
 test('bouncer-execute uses the pointer task document as the brief', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /current\.task/);
+  assert.match(body, /current\.task\.path/);
   assert.match(body, /Task brief|task brief|포인터.*task|pointer task brief/i);
   assert.match(body, /null/);
 });
