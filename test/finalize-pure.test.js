@@ -72,7 +72,7 @@ test('commit_intent prepends two background bullets before titles', () => {
   ].join('\n'));
 });
 
-test('incomplete commit_intent falls back to title bullets only', () => {
+test('incomplete commit_intent falls back to verification bullet only', () => {
   const docs = {
     blueprintIndex: {
       data: {
@@ -229,6 +229,55 @@ test('commit_intent prefers task over blueprint; one-line task falls to blueprin
       `- ${bpIntent[1]}`,
       '- 검증 통과',
     ].join('\n'),
+  );
+
+  // task가 3줄이면 slice하지 않고 출처 전체를 버리고 blueprint로 폴백.
+  assert.strictEqual(
+    buildCommitMessage(docs, {
+      ...baseUnit,
+      tasks: {
+        data: {
+          title: '게이트를 task 단위로 좁힘',
+          bouncer: { commit_intent: ['t1', 't2', 't3'] },
+        },
+        rel: `${BP}/tasks/001/tasks.md`,
+      },
+    }),
+    [
+      'feat: 게이트를 task 단위로 좁힘',
+      '',
+      `- ${bpIntent[0]}`,
+      `- ${bpIntent[1]}`,
+      '- 검증 통과',
+    ].join('\n'),
+  );
+});
+
+test('empty task title falls subject to blueprint title', () => {
+  const docs = {
+    blueprintIndex: {
+      data: {
+        title: 'blueprint 제목',
+        bouncer: { commit_type: 'feat' },
+      },
+    },
+  };
+  const taskUnit = {
+    number: 1,
+    dir: `${BP}/tasks/001`,
+    tasks: {
+      data: { title: '   ' },
+      rel: `${BP}/tasks/001/tasks.md`,
+    },
+    verification: {
+      data: { title: '검증 통과' },
+      rel: `${BP}/tasks/001/verification.md`,
+    },
+    review: undefined,
+  };
+  assert.match(
+    buildCommitMessage(docs, taskUnit).split('\n')[0],
+    /^feat: blueprint 제목$/,
   );
 });
 
