@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '021'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - finalize가 task 커밋까지 맡고 있어 열린 task가 남아도 blueprint를 닫을 수 있음
     - finalize를 마감 판정과 승격분 커밋으로 좁히고 열린 task를 게이트로 막음
