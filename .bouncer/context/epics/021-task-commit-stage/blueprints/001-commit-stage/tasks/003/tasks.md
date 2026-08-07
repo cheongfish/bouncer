@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '021'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - task 하나를 닫는 명령이 없어 커밋이 blueprint 마감 명령에 얹혀 있음
     - task 커밋을 독립 명령과 독립 게이트로 떼어내 반복 실행이 가능하게 함

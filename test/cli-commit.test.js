@@ -191,3 +191,25 @@ test('commit dry-run exits 0 with dryRun JSON', () => {
   assert.ok('nextTask' in parsed);
   assert.ok(Array.isArray(parsed.staged));
 });
+
+test('commit --yes stages in-scope change and returns committed:true', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  // HEAD 위에 범위 안 변경을 남겨 realGit 경로의 커밋을 검증한다.
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.committed, true);
+  assert.ok(parsed.staged.includes('src/auth/login.ts'));
+  assert.ok(typeof parsed.commitMessage === 'string' && parsed.commitMessage.length > 0);
+  const dirty = execFileSync('git', ['status', '--porcelain'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim();
+  assert.strictEqual(dirty, '');
+});

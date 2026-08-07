@@ -252,7 +252,13 @@ test('no changes with --yes succeeds without calling commit', () => {
 
 test('nextTask is earliest other open task; pointer is untouched', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  // 열린 task가 둘(002 ready, 003 in_progress)일 때 번호가 앞선 002를 고른다.
   fullBlueprint(repo, { extraOpenTask: true });
+  writeTaskUnit(repo, BP_REL, '003', {
+    tasksStatus: 'in_progress',
+    title: 'Impl session',
+    affectedPaths: ['src/auth/'],
+  });
   writeCurrent({
     repoRoot: repo,
     blueprint: BP_REL,

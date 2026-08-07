@@ -82,4 +82,5 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
         ok: true, committed: true, staged: all, commitMessage, nextTask,
     };
 }
-module.exports = { commitTask, findNextOpenTask };
+// Interface는 commitTask만 공개. findNextOpenTask는 모듈 내부 후보 계산용.
+module.exports = { commitTask };
