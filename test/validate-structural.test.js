@@ -14,6 +14,32 @@ function mkRepo() {
 
 function writeDoc(repo, rel, data, body = '# x\n') {
   const yaml = require('js-yaml');
+  // 레거시 경로로 쓰인 fixture만 새 묶음으로 접는다. 이미 tasks/<NNN>/tasks.md인
+  // 경로는 그대로 둬야 레이아웃 자체를 검증하는 테스트가 왜곡되지 않는다.
+  const legacyTasks = /\/tasks(?:-\d{3})?\.md$/.test(rel) && !/\/tasks\/\d{3}\/tasks\.md$/.test(rel);
+  if (data && data.type === 'bouncer.tasks' && legacyTasks) {
+    const number = /tasks-(\d{3})\.md$/.exec(rel)?.[1] || '001';
+    const bp = rel.replace(/\/tasks(?:-\d{3})?\.md$/, '');
+    rel = `${bp}/tasks/${number}/tasks.md`;
+    if (/\/tasks(?:-\d{3})?\.md$/.test(data.resource || '')) data.resource = rel;
+    for (const [kind, id] of [['verification', `VERIFY-${number}`], ['review', `REVIEW-${number}`]]) {
+      const leaf = `${bp}/tasks/${number}/${kind}.md`;
+      const leafAbs = path.join(repo, leaf);
+      if (fs.existsSync(leafAbs)) continue;
+      writeDoc(repo, leaf, {
+        type: `bouncer.${kind}`,
+        title: kind,
+        description: kind,
+        resource: leaf,
+        tags: ['bouncer'],
+        timestamp: '2026-07-01T00:00:00+09:00',
+        bouncer: {
+          id, epic_id: '001', blueprint_id: '001', status: 'pending',
+          ...(kind === 'review' ? { review: { required: true } } : {}),
+        },
+      });
+    }
+  }
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
@@ -243,7 +269,7 @@ test('S13: legacy-only tree fails without a canonical epic present', () => {
 
 test('S0: malformed frontmatter is collected as a failure, not thrown', () => {
   const repo = mkRepo();
-  const abs = path.join(repo, `${BP_REL}/tasks.md`);
+  const abs = path.join(repo, `${BP_REL}/tasks/001/tasks.md`);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, '# no frontmatter here\n');
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -255,11 +281,11 @@ test('S0: malformed frontmatter is collected as a failure, not thrown', () => {
 
 test('legacy sdd frontmatter is rejected with bouncer-init guidance', () => {
   const repo = mkRepo();
-  writeDoc(repo, `${BP_REL}/tasks.md`, {
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, {
     type: 'sdd.tasks',
     title: 'Legacy',
     description: 'legacy',
-    resource: `${BP_REL}/tasks.md`,
+    resource: `${BP_REL}/tasks/001/tasks.md`,
     tags: ['sdd', 'tasks'],
     timestamp: '2026-07-01T00:00:00+09:00',
     sdd: {
@@ -404,9 +430,9 @@ test('S5: legacy tasks.md expects TASKS-{blueprint id}', () => {
 test('S5: tasks-002.md expects TASKS-002 (not blueprint id)', () => {
   const repo = mkRepo();
   const t = goodTasks();
-  t.resource = `${BP_REL}/tasks-002.md`;
+  t.resource = `${BP_REL}/tasks/002/tasks.md`;
   t.bouncer.id = 'TASKS-002';
-  writeDoc(repo, `${BP_REL}/tasks-002.md`, t);
+  writeDoc(repo, `${BP_REL}/tasks/002/tasks.md`, t);
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeBundleIndex(repo);
@@ -417,10 +443,10 @@ test('S5: tasks-002.md expects TASKS-002 (not blueprint id)', () => {
 test('S5: wrong id on numbered tasks file is rejected', () => {
   const repo = mkRepo();
   const t = goodTasks();
-  t.resource = `${BP_REL}/tasks-002.md`;
+  t.resource = `${BP_REL}/tasks/002/tasks.md`;
   // 파일 번호는 002인데 id가 blueprint id 기준 TASKS-001이면 어긋남.
   t.bouncer.id = 'TASKS-001';
-  writeDoc(repo, `${BP_REL}/tasks-002.md`, t);
+  writeDoc(repo, `${BP_REL}/tasks/002/tasks.md`, t);
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeBundleIndex(repo);
@@ -428,9 +454,12 @@ test('S5: wrong id on numbered tasks file is rejected', () => {
   assert.ok(res.failures.some((f) => f.code === 'S5' && /TASKS-002/.test(f.message)));
 });
 
-test('S14: mixing tasks.md and tasks-NNN.md is rejected', () => {
+test('S15: legacy root task files are rejected', () => {
   const repo = mkRepo();
-  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  const legacy = { ...goodTasks(), resource: `${BP_REL}/tasks.md` };
+  const abs = path.join(repo, `${BP_REL}/tasks.md`);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---\n${require('js-yaml').dump(legacy)}---\n# x\n`);
   const numbered = goodTasks();
   numbered.resource = `${BP_REL}/tasks-001.md`;
   numbered.bouncer.id = 'TASKS-001';
@@ -439,5 +468,5 @@ test('S14: mixing tasks.md and tasks-NNN.md is rejected', () => {
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeBundleIndex(repo);
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
-  assert.ok(res.failures.some((f) => f.code === 'S14'));
+  assert.ok(res.failures.some((f) => f.code === 'S15'));
 });

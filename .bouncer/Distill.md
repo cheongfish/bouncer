@@ -5,7 +5,7 @@ resource: .bouncer/Distill.md
 tags:
   - bouncer
   - distill
-timestamp: '2026-08-07T09:30:50+09:00'
+timestamp: '2026-08-07T11:14:36+09:00'
 ---
 # Distill
 
@@ -30,12 +30,16 @@ append a change log.
 - Optional `tasks.bouncer.verify` is a single executable argv string only
   (no shell chaining, redirection, or `cd` prefix) so the evidence command
   is reproducible from the repository root.
-- Task document basenames and expected ids live only in
+- Task document basenames, `\d{3}` dir checks, and expected ids live only in
   `scripts/src/lib/tasks-docs.ts` (`listTasksDocs`, `expectedTasksId`,
-  `NUMBERED_TASKS_RE`). Consumers must not hardcode `tasks.md` or
-  `tasks-\d{3}.md`. Legacy alone is `tasks.md` → `TASKS-{blueprint id}`;
-  numbered is `tasks-{NNN}.md` → `TASKS-{NNN}`. A blueprint may hold multiple
-  numbered task docs; scaffold creates `tasks-001.md`.
+  `expectedTaskDocIds`, `NUMBERED_TASKS_RE`, `TASK_DIR_RE`,
+  `TASK_UNIT_BASENAMES`). Consumers must not hardcode `tasks.md`,
+  `verification.md`, `review.md`, or `tasks-\d{3}.md`. New layout entry:
+  `tasks/<NNN>/{tasks,verification,review}.md` with ids
+  `TASKS|VERIFY|REVIEW-<NNN>` and `dir` = `<bp>/tasks/<NNN>`. That is the only
+  layout: legacy root `tasks.md` / `tasks-{NNN}.md` no longer resolve as task
+  docs — `listTasksDocs` reports them as `legacyFiles` and validate rejects
+  them (S15). Scaffold creates `tasks/001/`.
 - Commit unit is one task document; the blueprint remains the review / PR
   unit.
 - The supported surface for the active blueprint pointer is `bouncer current`
@@ -47,6 +51,17 @@ append a change log.
   array of entries (`graph` `source`|`context`, `status` in
   `updated`|`reused`|`fail-skip`|`skip-disabled`|`missing`, non-empty
   `query`/`result`). S9 and G4 must call the same `isValidGraphBasis` helper.
+- Execute G6–G8 / G13 / G14 and finalize commit-bullet titles judge only the
+  pointer’s task unit (`loadBlueprintDocs` → `docs.taskUnits`,
+  `resolveTaskUnit` via 019 `entriesForVerify`). Do not fall back to a sibling
+  unit’s `tasks.md` / `verification.md` / `review.md`.
+- Workflow skills, agents, and public docs must name the same task bundle:
+  `tasks/<NNN>/tasks.md` for the brief and the pointer task directory's
+  `verification.md` / `review.md` for execute evidence. Legacy root paths are
+  described only as `bouncer migrate task-layout` input, never as a live layout.
+- `runVerification` / `recordVerificationResult` write the target unit’s
+  `verification.md` only (`verificationRel`). Missing file →
+  `VERIFY_DOCUMENT_MISSING` and no create.
 
 ## Gotchas
 
@@ -84,9 +99,21 @@ append a change log.
   `tasks.md` as `bouncer.verify`.
 - A present-but-invalid `bouncer.verify` must not fall through to
   `config.verify` — that would hide a plan-time `S12` miss.
-- Mixing `tasks.md` and any `tasks-{ddd}.md` in one blueprint is structural
-  **S14** — do not silently prefer either side. Non-`\d{3}` names like
-  `tasks-1.md` are not task docs (ignored).
+- Layout structural codes: **S15** legacy root task files remain,
+  **S16** non-`\d{3}` `tasks/` subdirectory, **S17** a unit missing one of
+  tasks/verification/review. **S14** (old/new mixing) is retired — number
+  vacant. Non-`\d{3}` names like `tasks-1.md` are not task docs (ignored).
+- `migrate task-layout` rewrites `resource` **and** `bouncer.id` on all three
+  unit docs: an id inside a unit comes from the directory number, so a legacy
+  blueprint-002 `verification.md` folded into `tasks/001/` becomes
+  `VERIFY-001`. Rewriting only `tasks.md` leaves docs that the migrator's own
+  validator rejects with S5.
+- The commit-safety hook runs the **installed plugin cache** code against the
+  shell cwd at PreToolUse time. A task that changes the document layout inside
+  this repo therefore hits a released resolver that cannot read the new layout,
+  `affected_paths` resolves to `[]`, and every commit in the execute worktree is
+  blocked as out-of-scope. Verify scope with the worktree's own
+  `readAffectedPaths` before working around it.
 - Active pointer JSON is `{ blueprint, task?, base }`. `task` is a repo-relative
   task-doc path string (or absent/non-string → unspecified). CLI `bouncer current`
   presents `task` as `{ path, id }` (or `null`); the pointer file never stores the
@@ -95,9 +122,9 @@ append a change log.
   `readAffectedPaths` use that document only. When `task` is unspecified or the
   file is gone: earliest `bouncer.verify` declaration and union of
   `affected_paths`.
-- `scripts/src/lib/templates.ts` Documents may still link `tasks.md` while
-  scaffold writes `tasks-001.md` — include `templates.ts` in Touch when
-  changing scaffold task names.
+- `scripts/src/lib/templates.ts` blueprint Documents link `tasks/001/…`; keep
+  `templates.ts` (and any assertion like `test/init.test.js`) in Touch when
+  changing scaffold task layout names.
 - `/bouncer-plan` Author verify detection: compose / `Makefile` / `Taskfile`
   are file-existence only; `package.json` counts only when a `scripts` key
   is present (key presence, not script bodies). Do not treat any root
@@ -240,6 +267,12 @@ append a change log.
 - `bouncer current --set` writes the pointer only after the plan gate passes;
   failures ship `validateBlueprint` results untouched and leave the pointer
   alone.
+- Plan G3–G5·G10–G12 still apply to **every** task document (not narrowed by
+  the pointer). G3 accepts `ready` | `in_progress` | `verified` so a finished
+  sibling does not block next-task `--set`; `draft` still fails G3.
+- When `docs.taskUnits` is present, skip structural checks on root
+  `verification` / `review` only if that `rel` was already seen on a unit leaf
+  — orphan root leftovers must still be S-checked.
 - The next blueprint after finalize is a computation (`listReadyBlueprints` +
   epic `## Blueprints` order), not stored state; advancing the pointer is
   confirm-then-`bouncer current --set` only — never automatic and never a new
@@ -273,6 +306,10 @@ append a change log.
   the rendered title/body then push + `gh pr create --draft` with no second
   body-confirm. If push or `gh` fails, keep the local commit and report the
   reason — do not re-ask the PR ACQ.
+- A document-layout hard cut ships as one commit: the migration tool, the
+  apply against this repo's own tree, and the validate rejection of the old
+  layout. Splitting them leaves an intermediate commit where the repository
+  fails validate on its own documents.
 - Minimality discipline lives only in the `minimality` skill. The Ponytail
   `plugin_advisors` / `bouncer advise` path is removed; do not reintroduce it
   as a parallel mode switcher.

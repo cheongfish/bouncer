@@ -41,7 +41,8 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 외부 방법론 플러그인 부재만으로 게이트를 실패시키지 않는다.
 
 - `/bouncer-init` → `/bouncer-plan` → `/bouncer-execute` → `/bouncer-finalize`
-- 검증·리뷰는 자체 문서 계약(`verification.md`, `review.md`)으로 충족한다.
+- 검증·리뷰는 각 `tasks/<NNN>/` 묶음의 자체 문서 계약
+  (`verification.md`, `review.md`)으로 충족한다.
 - 에이전트 기본 역량과 일반 워크플로 스킬이 같은 계약을 수행한다.
 
 ### 3. 산출물 계약과 하네스 검증을 우선한다
@@ -51,7 +52,7 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 | 단계 | 공통 입력 | 반드시 남길 결과 | 통과 기준 |
 | --- | --- | --- | --- |
 | 기획 | 사용자 요청, 저장소 맥락 | 목표, 범위, 비목표, 성공 조건 | 승인 가능한 blueprint |
-| 계획 | blueprint, 코드 맥락 | 인터페이스, Touch, Do not touch, 체크리스트 | implementation-ready `tasks-001.md`(또는 레거시 `tasks.md`) |
+| 계획 | blueprint, 코드 맥락 | 인터페이스, Touch, Do not touch, 체크리스트 | implementation-ready `tasks/<NNN>/tasks.md` (레거시 루트 task 문서는 마이그레이션 대상) |
 | 구현 | 승인된 task 문서 | 허용 경로 내 코드·테스트 변경 | 체크리스트 충족 |
 | 검증 | 변경사항, 프로젝트 명령 | 실행 명령, 결과, 실패/위험 요약 | 실제 통과 증거 (G7 + G13) |
 | 리뷰 | diff, tasks, verification | findings, 해결 또는 수용 근거 | 미해결 actionable finding 없음 (G8 + G14) |
@@ -62,9 +63,9 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 본다.
 
 - **G7**: `verification.status == passed`
-- **G13**: `verification.md` 본문에 `## Command`와 `## Evidence` 필수
+- **G13**: 활성 포인터 task 디렉터리의 `verification.md` 본문에 `## Command`와 `## Evidence` 필수
 - **G8**: `review.status == accepted`, 또는 `bouncer.review.required === false`로 정책상 통과
-- **G14**: `review.md` 본문에 `## Findings` 필수; `bouncer.review.findings[]`는
+- **G14**: 활성 포인터 task 디렉터리의 `review.md` 본문에 `## Findings` 필수; `bouncer.review.findings[]`는
   `{id, severity, status, note}`이며 `severity ∈ {blocker,major,minor,nit}`,
   `status ∈ {resolved,accepted}`, `accepted`면 `note` 필수.
   `review.required === false`이면 G14도 건너뛴다.
@@ -77,10 +78,10 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 | 스킬 | 책임 |
 | --- | --- |
 | `discovery` | 요구사항을 목표·범위·비목표·성공 조건으로 정리 |
-| `spec-authoring` | 구현 준비가 된 plan 문서(`tasks-001.md` 등) 작성 · explain.md에서 전역 Distill 승격 |
+| `spec-authoring` | 구현 준비가 된 plan 문서(`tasks/<NNN>/tasks.md`) 작성 · explain.md에서 전역 Distill 승격 |
 | `implementation` | task 문서를 유일한 의사결정 기준으로 구현 |
 | `debugging` | 재현·원인·최소 수정·회귀 검증 기록 |
-| `verification` | 실제 검증 명령과 증거를 `verification.md`에 기록 |
+| `verification` | 실제 검증 명령과 증거를 활성 task 디렉터리의 `verification.md`에 기록 |
 | `review` | 태스크·인터페이스·금지 범위에 비추어 diff 검토 |
 | `minimality` | 불필요한 코드·의존성·추상화를 줄이는 대안 검토 |
 | `stop-slop` | `.bouncer/context/` 한국어 본문의 AI 문체 패턴 제거 (advisory) |
@@ -155,7 +156,7 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 
 ### B. 공통 문서 계약과 게이트
 
-1. `verification.md` 본문 필수 헤딩: `## Command`, `## Evidence` (G13).
+1. 활성 task 디렉터리의 `verification.md` 본문 필수 헤딩: `## Command`, `## Evidence` (G13).
    상태 통과는 G7 (`verification.status == passed`).
 2. 검증 명령은 블루프린트 `tasks.bouncer.verify` 선언이 있으면 그것을, 없으면
    프로젝트 설정의 `verify`를 폴백으로 쓴다.

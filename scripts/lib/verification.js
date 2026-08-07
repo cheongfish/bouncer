@@ -122,8 +122,14 @@ function executeVerify(command, { cwd, exec = execSync }) {
         };
     }
 }
-function recordVerificationResult({ repoRoot, blueprintDir, command, ranAt, exitCode, output }) {
-    const verificationPath = path.join(repoRoot, blueprintDir, 'verification.md');
+function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, }) {
+    // verificationRel이 정식 인자. blueprintDir은 구 호출 호환(루트 verification.md).
+    const rel = verificationRel
+        || (blueprintDir ? `${toPosix(blueprintDir)}/verification.md` : null);
+    if (!rel) {
+        throw verificationError('VERIFY_DOCUMENT_MISSING', 'verification document path missing');
+    }
+    const verificationPath = path.join(repoRoot, rel);
     let document;
     try {
         document = readDoc(verificationPath);
@@ -157,12 +163,22 @@ Exit code: ${exitCode}
 ${evidence}`;
     fs.writeFileSync(verificationPath, renderDoc(data, body));
 }
+function resolveVerificationRel(repoRoot, blueprintDir) {
+    // readVerifyCommand와 동일 entriesForVerify 폴백: 포인터 매칭 → 그 묶음,
+    // 아니면 번호 순 첫 묶음. listing이 비면 레거시 루트 경로.
+    const entries = entriesForVerify(repoRoot, blueprintDir);
+    if (entries[0] && entries[0].verification && entries[0].verification.rel) {
+        return entries[0].verification.rel;
+    }
+    return `${toPosix(blueprintDir)}/verification.md`;
+}
 function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() }) {
     if (!isCanonicalBlueprintDir(blueprintDir)) {
         throw verificationError('VERIFY_BLUEPRINT_INVALID', 'blueprintDir must be under .bouncer/context/epics');
     }
     const command = readVerifyCommand(repoRoot, blueprintDir);
-    const verificationPath = path.join(repoRoot, blueprintDir, 'verification.md');
+    const verificationRel = resolveVerificationRel(repoRoot, blueprintDir);
+    const verificationPath = path.join(repoRoot, verificationRel);
     if (!fs.existsSync(verificationPath)) {
         throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
     }
@@ -170,7 +186,7 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
     const ranAt = nowIsoKst(now());
     recordVerificationResult({
         repoRoot,
-        blueprintDir,
+        verificationRel,
         command,
         ranAt,
         exitCode: execution.exitCode,
@@ -183,6 +199,7 @@ module.exports = {
     PASSING_OUTPUT_TAIL_LINES,
     MAX_VERIFY_OUTPUT_BYTES,
     isValidVerifyCommand,
+    entriesForVerify,
     readVerifyCommand,
     executeVerify,
     recordVerificationResult,

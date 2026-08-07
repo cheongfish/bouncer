@@ -82,3 +82,7 @@ test('bouncer-finalize confirms next open task before next-blueprint handoff', (
   assert.match(body, /Next task|다음.?task|남은.*열린 task|same-blueprint open task/i);
   assert.match(body, /never automatic|자동.*없|자동 전진은 없/i);
 });
+
+test('bouncer-finalize names task bundle paths during task handoff', () => {
+  assert.match(md, /tasks\/<NNN>\/tasks\.md/);
+});

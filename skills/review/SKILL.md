@@ -13,9 +13,10 @@ brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 
 ## Steps
 
-1. **Load** — Read the existing review document (do not create a new file), the
-   worktree diff basis (`git diff <base>...HEAD` plus untracked), and the task
-   brief (`tasks-001.md` or legacy `tasks.md`: Goal & intent, Interface, Touch,
+1. **Load** — Read the existing `<pointer task directory>/review.md` (do not
+   create a new file), the worktree diff basis (`git diff <base>...HEAD` plus
+   untracked), and the task brief (`tasks/<NNN>/tasks.md` or a legacy root task
+   document: Goal & intent, Interface, Touch,
    Do not touch, Constraints, Checklist).
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:
@@ -95,7 +96,7 @@ brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
    real quality defect. Simpler-is-possible is not a blocker.
 
    Order: **dispatch → controller records Findings → disposition → accepted**.
-   The controller (not the subagent) updates existing `review.md` body
+   The controller (not the subagent) updates existing `<pointer task directory>/review.md` body
    `## Findings` and `bouncer.review.findings[]`, then disposes each finding.
 4. **Assert** — Confirm `## Findings` is present and every finding has an
    actionable disposition. Never leave a false acceptance while an actionable

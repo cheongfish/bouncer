@@ -42,18 +42,18 @@ function setupRepo(verify = 'node -e "process.exit(0)"') {
   writeDoc(repo, `${BP_REL}/index.md`,
     doc('bouncer.blueprint', '001', 'approved', `${BP_REL}/index.md`),
     '# Blueprint\n');
-  writeDoc(repo, `${BP_REL}/tasks.md`,
-    doc('bouncer.tasks', 'TASKS-001', 'verified', `${BP_REL}/tasks.md`, {
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`,
+    doc('bouncer.tasks', 'TASKS-001', 'verified', `${BP_REL}/tasks/001/tasks.md`, {
       affected_paths: ['src/login.js'],
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
     }),
     '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n'
     + '## Touch\n`src/`\n\n## Do not touch\n`test/`\n\n## Checklist\n- [ ] z\n');
-  writeDoc(repo, `${BP_REL}/verification.md`,
-    doc('bouncer.verification', 'VERIFY-001', 'pending', `${BP_REL}/verification.md`),
+  writeDoc(repo, `${BP_REL}/tasks/001/verification.md`,
+    doc('bouncer.verification', 'VERIFY-001', 'pending', `${BP_REL}/tasks/001/verification.md`),
     '# Verification\n');
-  writeDoc(repo, `${BP_REL}/review.md`,
-    doc('bouncer.review', 'REVIEW-001', 'pending', `${BP_REL}/review.md`, {
+  writeDoc(repo, `${BP_REL}/tasks/001/review.md`,
+    doc('bouncer.review', 'REVIEW-001', 'pending', `${BP_REL}/tasks/001/review.md`, {
       review: { required: false },
     }),
     '# Review\n');
@@ -78,7 +78,7 @@ test('verify executes the configured command and records evidence', () => {
 
   assert.strictEqual(code, 0);
   assert.strictEqual(JSON.parse(buf.out).ok, true);
-  const verification = readDoc(path.join(repo, BP_REL, 'verification.md'));
+  const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.status, 'passed');
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 0);
 });
@@ -90,7 +90,7 @@ test('execute gate reruns verification before evaluating gates', () => {
 
   assert.strictEqual(code, 0);
   assert.strictEqual(JSON.parse(buf.out).ok, true);
-  const verification = readDoc(path.join(repo, BP_REL, 'verification.md'));
+  const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.verification.command, 'node -e "process.exit(0)"');
 });
 
@@ -103,7 +103,51 @@ test('execute gate records failure and returns a gate failure', () => {
   const result = JSON.parse(buf.out);
   assert.strictEqual(result.ok, false);
   assert.ok(result.failures.some((failure) => failure.code === 'G13'));
-  const verification = readDoc(path.join(repo, BP_REL, 'verification.md'));
+  const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.status, 'failed');
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 7);
+});
+
+test('verify records evidence into the pointer task-dir unit', () => {
+  const { writeCurrent } = require('../scripts/lib/current');
+  const { execFileSync } = require('node:child_process');
+  const repo = setupRepo('node -e "process.exit(0)"');
+  // 묶음 001은 그대로 두고, 새 묶음 002만 포인터로 지목한다.
+  const u2 = `${BP_REL}/tasks/002`;
+  writeDoc(repo, `${u2}/tasks.md`,
+    doc('bouncer.tasks', 'TASKS-002', 'verified', `${u2}/tasks.md`, {
+      affected_paths: ['src/login.js'],
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+    }),
+    '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n'
+    + '## Touch\n`src/`\n\n## Do not touch\n`test/`\n\n## Checklist\n- [ ] z\n');
+  writeDoc(repo, `${u2}/verification.md`,
+    doc('bouncer.verification', 'VERIFY-002', 'pending', `${u2}/verification.md`),
+    '# Verification\n');
+  writeDoc(repo, `${u2}/review.md`,
+    doc('bouncer.review', 'REVIEW-002', 'pending', `${u2}/review.md`, {
+      review: { required: false },
+    }),
+    '# Review\n');
+
+  const unit001Before = fs.readFileSync(path.join(repo, BP_REL, 'tasks/001/verification.md'), 'utf8');
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${u2}/tasks.md`,
+  });
+
+  const { io, buf } = capture();
+  const code = runCli(['verify', '--repo', repo, '--blueprint', BP_REL], io);
+  assert.strictEqual(code, 0);
+  assert.strictEqual(JSON.parse(buf.out).ok, true);
+
+  const unit = readDoc(path.join(repo, `${u2}/verification.md`));
+  assert.strictEqual(unit.data.bouncer.verification.exit_code, 0);
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, BP_REL, 'tasks/001/verification.md'), 'utf8'),
+    unit001Before,
+  );
 });

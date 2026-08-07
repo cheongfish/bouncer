@@ -10,8 +10,10 @@ evidence authority: it runs the configured command and records the result.
 
 ## Steps
 
-1. **Load** — Read the existing verification document (do not create a new
-   file), the configured verify command, the worktree cwd, and the tasks brief.
+1. **Load** — Read the existing `<pointer task directory>/verification.md`
+   document (do not create a new file), the configured verify command, the
+   worktree cwd, and the task brief. Legacy root documents remain migration
+   targets until the layout cutover.
 2. **Investigate** — You may run the command to diagnose a failure. Fix one
    logical failure at a time; never weaken tests or the command to force a pass.
 3. **Preserve ownership** — Do not manually write `## Command`, `## Evidence`,

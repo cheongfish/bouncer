@@ -1,10 +1,10 @@
 'use strict';
 
-const { isNumberedTasksBasename, isLegacyTasksBasename } = require('./tasks-docs');
+const { unitDocKind } = require('./tasks-docs');
 
 const FILE_KIND = {
-  'verification.md': 'verification',
-  'review.md': 'review',
+  // verification.md / review.md / tasks.md 는 tasks-docs.unitDocKind 로만 판정.
+  // 문자열을 여기 두면 Distill invariant( basenames live only in tasks-docs )를 깨뜨린다.
   'explain.md': 'explain',
 };
 
@@ -40,10 +40,9 @@ function parsePathIds(resourcePath) {
   const blueprintId = bpM ? bpM[1] : null;
   const base = norm.split('/').pop();
   let kind = FILE_KIND[base] || null;
-  // tasks.md · tasks-{ddd}.md 판정은 tasks-docs에만 둔다.
-  if (!kind && (isLegacyTasksBasename(base) || isNumberedTasksBasename(base))) {
-    kind = 'tasks';
-  }
+  // 루트·tasks/<NNN>/ 모두 basename 으로 kind 를 본다.
+  // tasks/002/tasks.md → tasks, …/verification.md → verification.
+  if (!kind) kind = unitDocKind(base);
   if (base === 'index.md') {
     kind = blueprintId ? 'blueprint' : (epicId ? 'epic' : null);
   }

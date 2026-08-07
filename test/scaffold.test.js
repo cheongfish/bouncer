@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint } = require('../scripts/lib/scaffold');
+const { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldTask } = require('../scripts/lib/scaffold');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const { runCli } = require('../scripts/lib/cli');
 
@@ -62,27 +62,51 @@ test('scaffoldBlueprint writes four plan docs (no explain) with numeric child id
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   assert.deepStrictEqual(created, [
     `${base}/index.md`,
-    `${base}/tasks-001.md`,
-    `${base}/verification.md`,
-    `${base}/review.md`,
+    `${base}/tasks/001/tasks.md`,
+    `${base}/tasks/001/verification.md`,
+    `${base}/tasks/001/review.md`,
   ]);
   assert.ok(!fs.existsSync(path.join(repo, `${base}/explain.md`)));
-  const tasks = readDoc(path.join(repo, `${base}/tasks-001.md`)).data;
-  assert.strictEqual(tasks.resource, `${base}/tasks-001.md`);
+  const tasks = readDoc(path.join(repo, `${base}/tasks/001/tasks.md`)).data;
+  assert.strictEqual(tasks.resource, `${base}/tasks/001/tasks.md`);
   assert.strictEqual(tasks.bouncer.id, 'TASKS-001');
   assert.strictEqual(tasks.bouncer.epic_id, '001');
   assert.strictEqual(tasks.bouncer.blueprint_id, '001');
   assert.strictEqual(tasks.bouncer.status, 'draft');
   assert.deepStrictEqual(tasks.bouncer.affected_paths, []);
   assert.deepStrictEqual(tasks.bouncer.graph.basis, []);
-  const review = readDoc(path.join(repo, `${base}/review.md`)).data;
+  const review = readDoc(path.join(repo, `${base}/tasks/001/review.md`)).data;
   assert.strictEqual(review.bouncer.id, 'REVIEW-001');
   assert.strictEqual(review.bouncer.review.required, true);
-  const verify = readDoc(path.join(repo, `${base}/verification.md`)).data;
+  const verify = readDoc(path.join(repo, `${base}/tasks/001/verification.md`)).data;
   assert.strictEqual(verify.bouncer.id, 'VERIFY-001');
   assert.strictEqual(verify.bouncer.status, 'pending');
   const bp = readDoc(path.join(repo, `${base}/index.md`)).data;
   assert.strictEqual(bp.bouncer.id, '001');
+});
+
+test('scaffoldTask adds a numbered unit and refuses overwrite', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const created = scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+  });
+  assert.deepStrictEqual(created, [
+    `${base}/tasks/002/tasks.md`,
+    `${base}/tasks/002/verification.md`,
+    `${base}/tasks/002/review.md`,
+  ]);
+  const tasksPath = path.join(repo, `${base}/tasks/002/tasks.md`);
+  const before = fs.readFileSync(tasksPath);
+  assert.throws(() => scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+  }), /already exists/);
+  assert.deepStrictEqual(fs.readFileSync(tasksPath), before);
 });
 
 test('scaffold --id 001 succeeds; EPIC-001 / 1 / 01 fail', () => {
@@ -147,16 +171,16 @@ test('scaffolded bodies carry the section skeleton the gates require', () => {
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   const bodyOf = (rel) => readDoc(path.join(repo, rel)).body;
 
-  const tasks = bodyOf(`${base}/tasks-001.md`);
+  const tasks = bodyOf(`${base}/tasks/001/tasks.md`);
   for (const heading of [
     '## Goal & intent', '## Interface', '## Touch', '## Do not touch', '## Checklist',
   ]) {
-    assert.ok(tasks.includes(heading), `tasks-001.md missing ${heading}`);
+    assert.ok(tasks.includes(heading), `tasks/001/tasks.md missing ${heading}`);
   }
-  const verification = bodyOf(`${base}/verification.md`);
+  const verification = bodyOf(`${base}/tasks/001/verification.md`);
   assert.ok(verification.includes('## Command'));
   assert.ok(verification.includes('## Evidence'));
-  assert.ok(bodyOf(`${base}/review.md`).includes('## Findings'));
+  assert.ok(bodyOf(`${base}/tasks/001/review.md`).includes('## Findings'));
 });
 
 test('scaffoldBlueprint ignores a project .bouncer/templates override', () => {
@@ -172,10 +196,10 @@ test('scaffoldBlueprint ignores a project .bouncer/templates override', () => {
     blueprintId: '001', name: 'login', timestamp: TS,
   });
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
-  const tasks = readDoc(path.join(repo, `${base}/tasks-001.md`)).body;
+  const tasks = readDoc(path.join(repo, `${base}/tasks/001/tasks.md`)).body;
   assert.ok(!tasks.includes('team-specific prompt'));
   assert.ok(tasks.includes('## Goal & intent'));
-  assert.ok(tasks.includes('Blueprint: [001](index.md)'));
+  assert.ok(tasks.includes('Blueprint: [001](../../index.md)'));
 });
 
 test('scaffoldEpic ignores a project .bouncer/templates override', () => {
@@ -202,7 +226,7 @@ test('scaffoldBlueprint leaves graph.basis as empty list so G4 needs recorded ev
     blueprintId: '001', name: 'login', timestamp: TS,
   });
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
-  const tasks = readDoc(path.join(repo, `${base}/tasks-001.md`)).data;
+  const tasks = readDoc(path.join(repo, `${base}/tasks/001/tasks.md`)).data;
   assert.deepStrictEqual(tasks.bouncer.graph.basis, []);
 });
 

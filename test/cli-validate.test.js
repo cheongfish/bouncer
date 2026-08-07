@@ -25,8 +25,8 @@ function capture() {
 
 test('validate emits JSON and exit 1 on failure', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  writeDoc(repo, `${BP_REL}/tasks.md`, {
-    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${BP_REL}/tasks.md`,
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${BP_REL}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready', affected_paths: [] },
   });

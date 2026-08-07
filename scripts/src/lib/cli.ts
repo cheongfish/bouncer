@@ -1,6 +1,6 @@
 'use strict';
 const { validateBlueprint } = require('./validate');
-const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain } = require('./scaffold');
+const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask } = require('./scaffold');
 const { isNumericContextId } = require('./paths');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
@@ -13,6 +13,7 @@ const {
   resolvePointerTask, presentCurrent,
 } = require('./current');
 const { migrateIds } = require('./migrate-ids');
+const { migrateTaskLayout } = require('./migrate-task-layout');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -108,6 +109,23 @@ function cmdScaffold(rest, io) {
       created = scaffoldBlueprint({
         repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp,
       });
+    } else if (kind === 'task') {
+      // --blueprint / --id 누락은 형식 오류보다 먼저 안내한다.
+      if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+        io.err('scaffold task: --blueprint is required\n');
+        return 2;
+      }
+      if (typeof f.id !== 'string' || f.id === '') {
+        io.err('scaffold task: --id is required\n');
+        return 2;
+      }
+      if (!isNumericContextId(f.id)) {
+        io.err(`scaffold: --id must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(f.id)}\n`);
+        return 2;
+      }
+      created = scaffoldTask({
+        repoRoot, blueprintDir: f.blueprint, taskId: f.id, timestamp,
+      });
     } else if (kind === 'explain') {
       if (typeof f.blueprint !== 'string' || f.blueprint === '') {
         io.err('scaffold explain: --blueprint is required\n');
@@ -184,15 +202,14 @@ function cmdGraphSync(rest, io) {
 
 function cmdMigrate(rest, io) {
   const [kind, ...flagArgs] = rest;
-  if (kind !== 'ids') {
+  if (kind !== 'ids' && kind !== 'task-layout') {
     io.err(`unknown migrate kind: ${kind || '(missing)'}\n`);
     return 2;
   }
   const f = parseFlags(flagArgs);
-  const result = migrateIds({
-    repoRoot: f.repo || process.cwd(),
-    dryRun: f['dry-run'] === true,
-  });
+  const result = kind === 'ids'
+    ? migrateIds({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true })
+    : migrateTaskLayout({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true });
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }
@@ -304,6 +321,7 @@ const USAGE = `usage: bouncer <command> [options]
              Run the configured verify command and record its evidence.
   scaffold   epic --id <ddd> --name <slug>
              blueprint --epic-dir <dir> --id <ddd> --name <slug>
+             task --blueprint <dir> --id <ddd>
              explain --blueprint <dir>
              Create a document set with correct frontmatter.
              (explain is for finalize; epic/blueprint scaffold omit it.)
@@ -319,6 +337,8 @@ const USAGE = `usage: bouncer <command> [options]
              --task picks a task doc; without it, first ready/in_progress wins.
   migrate    ids [--dry-run]
              Plan or apply rename of legacy EPIC-/BP- context dirs to numeric ids.
+             task-layout [--dry-run]
+             Move legacy task files into tasks/<NNN>/ units.
 
 Every command accepts --repo <dir> to run against another repository.
 `;

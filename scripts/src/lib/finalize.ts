@@ -4,7 +4,7 @@ const { execFileSync } = require('node:child_process');
 const { epicDirOf, toPosix } = require('./paths');
 const { CONTEXT_ROOT } = require('./scaffold');
 const { PROJECT_DISTILL } = require('./layout');
-const { validateBlueprint, loadBlueprintDocs } = require('./validate');
+const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = require('./validate');
 const { clearCurrent, nextBlueprint } = require('./current');
 
 function isUnder(file, entry) {
@@ -48,13 +48,19 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
 // 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
 // 문서와 PR body에 있음.
 // Body 순서: 배경·의도 2줄 (`bouncer.commit_intent`) 다음 수정 내용
-// (tasks / verification titles). 2줄 intent가 없으면 title bullet만
-// (legacy).
-function buildCommitMessage(docs) {
+// (대상 task 묶음의 tasks / verification titles). 2줄 intent가 없으면 title
+// bullet만 (legacy). taskUnit이 없으면 docs.tasks·verification 호환 필드.
+function buildCommitMessage(docs, taskUnit) {
   const bp = docs.blueprintIndex.data;
   const bouncer = bp.bouncer || {};
   const type = bouncer.commit_type || 'feat';
-  const titleOf = (key) => (docs[key] && docs[key].data.title ? docs[key].data.title : '');
+  const titleOf = (key) => {
+    const fromUnit = taskUnit && taskUnit[key] && taskUnit[key].data
+      ? taskUnit[key].data.title
+      : undefined;
+    if (typeof fromUnit === 'string' && fromUnit) return fromUnit;
+    return docs[key] && docs[key].data.title ? docs[key].data.title : '';
+  };
   const rawIntent = Array.isArray(bouncer.commit_intent) ? bouncer.commit_intent : [];
   const intent = rawIntent
     .filter((s) => typeof s === 'string' && s.trim())
@@ -101,7 +107,9 @@ function finalize({
   const violations = all.filter((f) => !allowed(f));
   if (violations.length) return { ok: false, reason: 'out-of-scope', violations };
 
-  const commitMessage = buildCommitMessage(docs);
+  // 커밋 bullet title은 포인터 대상 묶음에서. docs.tasks(첫 문서)로 대체하지 않는다.
+  const taskUnit = resolveTaskUnit(docs, { repoRoot, blueprintDir });
+  const commitMessage = buildCommitMessage(docs, taskUnit);
   // next 후보 계산이 finalize를 깨면 안 됨: next()가 throw하면 빈 handoff
   // 형태로 뭉개 ok/exit는 commit 작업에만 묶임.
   const computeNext = () => {

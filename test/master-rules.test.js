@@ -14,6 +14,7 @@ test('CLAUDE.md is the master-rules SSOT', () => {
   assert.match(claude, /docs\/workflow\.md/);
   assert.match(claude, /docs\/okf\.md/);
   assert.match(claude, /one reviewable\s+commit/i);
+  assert.match(claude, /tasks\/<NNN>\/?`?\{?tasks/);
   assert.match(claude, /execute gate/i);
   // Split the literal so public-name-regression does not flag this negative check.
   assert.doesNotMatch(claude, new RegExp(['super', 'powers'].join(''), 'i'));

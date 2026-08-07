@@ -7,12 +7,14 @@
 | --- | --- |
 | `bouncer validate --blueprint <dir> --gate <plan\|execute\|finalize>` | 구조 검사 + 게이트 하나. 실패 코드를 보고 |
 | `bouncer verify --blueprint <dir>` | `tasks.bouncer.verify`(있으면) 또는 `config.verify`를 실행하고 증적을 기록 |
-| `bouncer scaffold epic\|blueprint ...` | 올바른 프론트매터로 문서 세트 생성 |
+| `bouncer scaffold epic\|blueprint ...` | 올바른 프론트매터로 epic / blueprint와 첫 task 묶음 생성 |
+| `bouncer scaffold task --blueprint <dir> --id <NNN>` | `tasks/<NNN>/{tasks,verification,review}.md` task 묶음 생성 |
 | `bouncer finalize --blueprint <dir> [--yes]` | 커밋 범위 확인, `--yes`면 커밋까지 |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 새 worktree로 이전하고 base를 원상복구 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>]] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); 포인터 파일은 path 문자열만 저장. 없으면 `ready` 후보 |
 | `bouncer migrate ids [--dry-run]` | 구형 `EPIC-`/`BP-` context 디렉터리를 숫자 id로 이관(계획 또는 적용) |
+| `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
 
 모든 명령이 `--repo <dir>`로 다른 저장소를 대상으로 실행할 수 있습니다.
 종료 코드는 도움말 0, 게이트 실패 1, 사용법 오류 2입니다.

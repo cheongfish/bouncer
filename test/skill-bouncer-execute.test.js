@@ -91,4 +91,6 @@ test('bouncer-execute uses the pointer task document as the brief', () => {
   assert.match(body, /current\.task\.path/);
   assert.match(body, /Task brief|task brief|포인터.*task|pointer task brief/i);
   assert.match(body, /null/);
+  assert.match(body, /pointer task directory.*verification\.md|verification\.md.*pointer task directory/i);
+  assert.match(body, /pointer task directory.*review\.md|review\.md.*pointer task directory/i);
 });

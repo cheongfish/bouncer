@@ -1,0 +1,47 @@
+---
+type: bouncer.verification
+title: 002 verification
+description: Verification for 002
+resource: .bouncer/context/epics/014-numeric-context-ids/blueprints/002-migrate-ids-cli/tasks/001/verification.md
+tags:
+  - bouncer
+  - verification
+timestamp: '2026-08-05T16:54:53.764+09:00'
+bouncer:
+  id: VERIFY-001
+  epic_id: '014'
+  blueprint_id: '002'
+  status: passed
+  verification:
+    command: npm test
+    ran_at: '2026-08-05T18:24:01.237+09:00'
+    exit_code: 0
+    output_tail: |-
+      ---
+        duration_ms: 0.793691
+        type: 'test'
+        ...
+      # Subtest: readVerifyCommand(repoRoot) still returns config.verify
+      ok 372 - readVerifyCommand(repoRoot) still returns config.verify
+        ---
+        duration_ms: 0.167301
+        type: 'test'
+        ...
+      1..372
+      # tests 372
+      # suites 0
+      # pass 372
+      # fail 0
+      # cancelled 0
+      # skipped 0
+      # todo 0
+      # duration_ms 426.999513
+---
+# Verification
+
+## Command
+`npm test`
+
+## Evidence
+Ran at: 2026-08-05T18:24:01.237+09:00
+Exit code: 0

@@ -9,7 +9,7 @@ const { renderDoc } = require('./render');
 const { templateBody } = require('./templates');
 const { ensureEpicIndexEntry } = require('./epic-index');
 const {
-  INITIAL_NUMBERED_TASKS_BASENAME, expectedTasksId,
+  TASK_UNIT_BASENAMES, expectedTaskDocIds,
 } = require('./tasks-docs');
 
 function writeRel(repoRoot, rel, data, body) {
@@ -57,6 +57,72 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
   return created;
 }
 
+/**
+ * 기존 blueprint 에 tasks/<NNN>/ 묶음 3종을 추가한다.
+ * 거절 조건을 모두 검사한 뒤에만 파일을 쓴다 — 일부만 생성된 상태를 남기지 않기 위함.
+ */
+function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
+  if (!isCanonicalBlueprintDir(blueprintDir)) {
+    throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
+  }
+  requireNumericId(taskId, 'taskId');
+  const bp = normalizeRepoPath(blueprintDir);
+  const { epicId, blueprintId } = parsePathIds(bp);
+  if (!epicId || !blueprintId) {
+    throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
+  }
+
+  const taskDir = `${bp}/tasks/${taskId}`;
+  const absTaskDir = path.join(repoRoot, taskDir);
+  // 덮어쓰기 금지 — 존재하면 즉시 거절 (파일 쓰기 전).
+  if (fs.existsSync(absTaskDir)) {
+    throw new Error(`task directory already exists: ${taskDir}`);
+  }
+
+  const ids = expectedTaskDocIds(taskId);
+  const body = (templateName) => templateBody(templateName, { epicId, blueprintId, name: taskId });
+  const [tasksBase, verifyBase, reviewBase] = TASK_UNIT_BASENAMES;
+
+  const tasksRel = `${taskDir}/${tasksBase}`;
+  const verifyRel = `${taskDir}/${verifyBase}`;
+  const reviewRel = `${taskDir}/${reviewBase}`;
+
+  // mkdir 포함 쓰기는 검사 통과 후에만. writeRel 이 dirname 을 만든다.
+  const created = [];
+  created.push(writeRel(repoRoot, tasksRel,
+    bouncerDoc('bouncer.tasks', `${taskId} tasks`, `Tasks for ${taskId}`, tasksRel,
+      ['bouncer', 'tasks'], timestamp,
+      {
+        id: ids.tasks, epic_id: epicId, blueprint_id: blueprintId, status: 'draft',
+        affected_paths: [],
+        graph: {
+          generated_at: timestamp,
+          command: 'mcp:graphify',
+          suggested_paths: [],
+          // 빈 리스트는 G4가 거절한다 — graphify-runner가 엔트리를 채워야 통과.
+          basis: [],
+        },
+      }),
+    body(tasksBase)));
+
+  created.push(writeRel(repoRoot, verifyRel,
+    bouncerDoc('bouncer.verification', `${taskId} verification`, `Verification for ${taskId}`, verifyRel,
+      ['bouncer', 'verification'], timestamp,
+      { id: ids.verification, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }),
+    body(verifyBase)));
+
+  created.push(writeRel(repoRoot, reviewRel,
+    bouncerDoc('bouncer.review', `${taskId} review`, `Review for ${taskId}`, reviewRel,
+      ['bouncer', 'review'], timestamp,
+      {
+        id: ids.review, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
+        review: { required: true },
+      }),
+    body(reviewBase)));
+
+  return created;
+}
+
 function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) {
   if (!isCanonicalEpicDir(epicDir)) {
     throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
@@ -75,39 +141,12 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
       { id: blueprintId, epic_id: epicId, blueprint_id: blueprintId, status: 'draft' }),
     body('blueprint.md')));
 
-  // 새 blueprint는 번호 문서부터 시작한다. 기존 tasks.md는 마이그레이션하지 않는다.
-  const tasks = `${dir}/${INITIAL_NUMBERED_TASKS_BASENAME}`;
-  const tasksId = expectedTasksId(INITIAL_NUMBERED_TASKS_BASENAME, blueprintId);
-  created.push(writeRel(repoRoot, tasks,
-    bouncerDoc('bouncer.tasks', `${blueprintId} tasks`, `Tasks for ${blueprintId}`, tasks,
-      ['bouncer', 'tasks'], timestamp,
-      {
-        id: tasksId, epic_id: epicId, blueprint_id: blueprintId, status: 'draft',
-        affected_paths: [],
-        graph: {
-          generated_at: timestamp,
-          command: 'mcp:graphify',
-          suggested_paths: [],
-          // 빈 리스트는 G4가 거절한다 — graphify-runner가 엔트리를 채워야 통과.
-          basis: [],
-        },
-      }),
-    body('tasks.md')));
-
-  const verify = `${dir}/verification.md`;
-  created.push(writeRel(repoRoot, verify,
-    bouncerDoc('bouncer.verification', `${blueprintId} verification`, `Verification for ${blueprintId}`, verify,
-      ['bouncer', 'verification'], timestamp,
-      { id: `VERIFY-${blueprintId}`, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }),
-    body('verification.md')));
-
-  const review = `${dir}/review.md`;
-  created.push(writeRel(repoRoot, review,
-    bouncerDoc('bouncer.review', `${blueprintId} review`, `Review for ${blueprintId}`, review,
-      ['bouncer', 'review'], timestamp,
-      { id: `REVIEW-${blueprintId}`, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
-        review: { required: true } }),
-    body('review.md')));
+  // 새 blueprint 는 tasks/001/ 묶음부터 시작한다. 루트 tasks-001.md 는 더 이상 만들지 않는다.
+  // (기존 문서 인식은 listTasksDocs 가 유지 — 거절은 004.)
+  const taskCreated = scaffoldTask({
+    repoRoot, blueprintDir: dir, taskId: '001', timestamp,
+  });
+  created.push(...taskCreated);
 
   // BP explain.md는 plan scaffold가 아니라 finalize 시점(scaffoldExplain)에 생성한다.
   return created;
@@ -146,4 +185,6 @@ function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
     templateBody('explain.md', { epicId, blueprintId, name: slug }))];
 }
 
-module.exports = { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldExplain };
+module.exports = {
+  CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldTask, scaffoldExplain,
+};

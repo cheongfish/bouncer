@@ -78,16 +78,27 @@ function fullBlueprint(repo, {
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
   });
-  writeDoc(repo, `${blueprintDir}/tasks.md`, {
-    type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks.md`,
+  writeDoc(repo, `${blueprintDir}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
       affected_paths: ['src/auth/'] },
   });
-  writeDoc(repo, `${blueprintDir}/verification.md`, {
-    type: 'bouncer.verification', title: 'Verified', description: 'd', resource: `${blueprintDir}/verification.md`,
+  writeDoc(repo, `${blueprintDir}/tasks/001/verification.md`, {
+    type: 'bouncer.verification',
+    title: 'Verified',
+    description: 'd',
+    resource: `${blueprintDir}/tasks/001/verification.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'passed' },
+  });
+  writeDoc(repo, `${blueprintDir}/tasks/001/review.md`, {
+    type: 'bouncer.review', title: 'Review', description: 'd', resource: `${blueprintDir}/tasks/001/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: { required: false, reason: 'fixture' },
+    },
   });
 
   let comprehension = {
@@ -174,7 +185,7 @@ test('out-of-scope file causes hard abort, nothing staged', () => {
 test('dry-run reports staged files and message without committing', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
-  const g = fakeGit(['src/auth/login.ts', `${BP_REL}/tasks.md`], []);
+  const g = fakeGit(['src/auth/login.ts', `${BP_REL}/tasks/001/tasks.md`], []);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
@@ -197,7 +208,7 @@ test('legacy root context blueprint is rejected before staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const legacyBp = 'context/epics/001-auth/blueprints/001-login';
   fullBlueprint(repo, { blueprintDir: legacyBp, withGit: false, comprehensionOk: false });
-  const g = fakeGit([`${legacyBp}/tasks.md`], []);
+  const g = fakeGit([`${legacyBp}/tasks/001/tasks.md`], []);
   const res = finalize({ repoRoot: repo, blueprintDir: legacyBp, yes: true, git: g.api });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'validate');

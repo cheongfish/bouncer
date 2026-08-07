@@ -7,6 +7,7 @@ const { runCli } = require('../scripts/lib/cli');
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'current',
+  'migrate',
 ];
 
 function capture(argv) {
@@ -23,6 +24,10 @@ test('bouncer with no arguments prints usage and exits 0', () => {
   assert.strictEqual(r.code, 0);
   assert.match(r.out, /usage/i);
   assert.strictEqual(r.err, '');
+});
+
+test('usage lists task-layout migration', () => {
+  assert.match(capture([]).out, /task-layout \[--dry-run\]/);
 });
 
 test('every subcommand is listed in the usage text', () => {
@@ -47,4 +52,9 @@ test('an unknown command still fails, but says what is available', () => {
   assert.match(r.err, /unknown command: validat/);
   assert.match(r.err, /usage/i);
   assert.strictEqual(r.out, '');
+});
+
+test('usage lists scaffold task --blueprint --id', () => {
+  const r = capture([]);
+  assert.match(r.out, /task --blueprint <dir> --id <ddd>/);
 });
