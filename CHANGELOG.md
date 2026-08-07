@@ -7,6 +7,29 @@
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-08-07
+
+0.5.0 이후 task 단위 커밋 기반(EPIC-017–019).
+
+### Added
+
+- **plan 검증 명령 제안 (EPIC-017)** — `/bouncer-plan`이 compose·`Makefile`·
+  `Taskfile`·`package.json` scripts를 감지하면 blueprint `verify` 지정 여부를
+  묻고, 셸 체이닝 대신 래퍼 스크립트 패턴을 `docs/configuration.md`에 안내한다.
+- **다중 task 문서 (EPIC-018)** — blueprint에 `tasks-001.md`, `tasks-002.md` …
+  를 둘 수 있다. scaffold는 `tasks-001.md`를 만들고, plan 게이트는 발견된 모든
+  task 문서에 G3·G4·G5·G10–G12를 각각 적용한다.
+- **활성 포인터 `task` 필드 (EPIC-019)** — `bouncer current --set … --task <NNN>`
+  으로 작업 중 task를 기록한다. `--task` 없이 `--set`하면 열린 task 중 번호 순
+  첫 문서를 고른다. 포인터에 `task`가 있으면 verify·커밋 허용 경로가 그 문서만
+  본다.
+
+### Changed
+
+- **하드룰 2 — one commit per task** — 커밋 단위는 task 문서, 리뷰/PR 단위는
+  blueprint. `tasks.md`만 있는 기존 blueprint와 `task` 없는 포인터는 이전과
+  같이 동작한다. `tasks.md`와 `tasks-{ddd}.md` 혼재는 검증이 거절한다.
+
 ## [0.5.0] — 2026-08-06
 
 0.4.5 이후 숫자 context id 계약(EPIC-014, BP 001–003).
