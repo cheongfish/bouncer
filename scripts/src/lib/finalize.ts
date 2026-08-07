@@ -47,13 +47,20 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
 // subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
 // 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
 // 문서와 PR body에 있음.
-// Body 순서: 배경·의도 2줄 (`bouncer.commit_intent`) 다음 수정 내용
-// (대상 task 묶음의 tasks / verification titles). 2줄 intent가 없으면 title
-// bullet만 (legacy). taskUnit이 없으면 docs.tasks·verification 호환 필드.
+// Subject: 대상 task title (없으면 blueprint title). Body: 배경·의도 2줄
+// (`commit_intent`) 다음 수정 내용(verification title만 — tasks title은
+// 이미 subject에 있음). taskUnit이 없으면 docs.verification 호환 필드.
 function buildCommitMessage(docs, taskUnit) {
   const bp = docs.blueprintIndex.data;
   const bouncer = bp.bouncer || {};
   const type = bouncer.commit_type || 'feat';
+  const taskTitle = taskUnit && taskUnit.tasks && taskUnit.tasks.data
+    ? taskUnit.tasks.data.title
+    : undefined;
+  // 대상 묶음이 없거나 title이 비면 blueprint로 떨어뜨려 빈 subject를 만들지 않음.
+  const subjectTitle = (typeof taskTitle === 'string' && taskTitle.trim())
+    ? taskTitle.trim()
+    : bp.title;
   const titleOf = (key) => {
     const fromUnit = taskUnit && taskUnit[key] && taskUnit[key].data
       ? taskUnit[key].data.title
@@ -61,17 +68,27 @@ function buildCommitMessage(docs, taskUnit) {
     if (typeof fromUnit === 'string' && fromUnit) return fromUnit;
     return docs[key] && docs[key].data.title ? docs[key].data.title : '';
   };
-  const rawIntent = Array.isArray(bouncer.commit_intent) ? bouncer.commit_intent : [];
-  const intent = rawIntent
-    .filter((s) => typeof s === 'string' && s.trim())
-    .map((s) => String(s).trim())
-    .slice(0, 2);
-  const what = ['tasks', 'verification'].map(titleOf).filter(Boolean);
+  // 정확히 2줄일 때만 유효. slice(0,2)로 앞만 남기면 3줄+ 작성 실수를 숨김.
+  const normalizeIntent = (raw) => {
+    if (!Array.isArray(raw)) return null;
+    const lines = raw
+      .filter((s) => typeof s === 'string' && s.trim())
+      .map((s) => String(s).trim());
+    return lines.length === 2 ? lines : null;
+  };
+  const taskBouncer = taskUnit && taskUnit.tasks && taskUnit.tasks.data
+    ? taskUnit.tasks.data.bouncer
+    : undefined;
+  // task → blueprint 순. 한 출처가 무효면 다음으로; 둘 다 무효면 intent 없음.
+  const intent = normalizeIntent(taskBouncer && taskBouncer.commit_intent)
+    || normalizeIntent(bouncer.commit_intent)
+    || [];
+  const what = [titleOf('verification')].filter(Boolean);
   const bodyLines = intent.length === 2
     ? [...intent, ...what]
     : what;
   const body = bodyLines.map((t) => `- ${t}`);
-  const lines = [`${type}: ${bp.title}`];
+  const lines = [`${type}: ${subjectTitle}`];
   if (body.length) lines.push('', ...body);
   return lines.join('\n');
 }

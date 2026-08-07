@@ -189,7 +189,12 @@ test('dry-run reports staged files and message without committing', () => {
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
-  assert.ok(res.commitMessage.startsWith('feat: Login'), res.commitMessage);
+  // subject는 대상 task title; 수정 내용 bullet은 verification title만.
+  assert.strictEqual(res.commitMessage, [
+    'feat: Impl login',
+    '',
+    '- Verified',
+  ].join('\n'));
   assert.ok(!res.commitMessage.includes('Blueprint:'), res.commitMessage);
   assert.strictEqual(g.calls.committed, null);
 });
@@ -201,7 +206,11 @@ test('--yes stages and commits', () => {
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/explain.md`]);
-  assert.ok(g.calls.committed.startsWith('feat: Login'), g.calls.committed);
+  assert.strictEqual(g.calls.committed, [
+    'feat: Impl login',
+    '',
+    '- Verified',
+  ].join('\n'));
 });
 
 test('legacy root context blueprint is rejected before staging', () => {

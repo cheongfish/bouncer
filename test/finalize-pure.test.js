@@ -33,10 +33,11 @@ test('commit message follows the template', () => {
   };
   const msg = buildCommitMessage(docs);
 
+  // 대상 묶음이 없으면 subject는 blueprint title. tasks title은 subject에 없으므로
+  // 수정 내용 bullet은 verification만 (호환 필드 폴백).
   assert.strictEqual(msg, [
     'feat: Login flow',
     '',
-    '- Implement login',
     '- Login verified',
   ].join('\n'));
   assert.ok(!msg.includes('Epic:'), 'identifiers stay out of the commit message');
@@ -67,7 +68,6 @@ test('commit_intent prepends two background bullets before titles', () => {
     '',
     '- 로그인 실패 재시도가 서버에 부담을 줌',
     '- 지수 백오프로 안정성을 높이려 함',
-    '- 재시도 간격을 지수적으로 늘림',
     '- 관련 검증이 통과함을 확인함',
   ].join('\n'));
 });
@@ -81,11 +81,12 @@ test('incomplete commit_intent falls back to title bullets only', () => {
       },
     },
     tasks: { data: { title: 'Implement login' } },
+    verification: { data: { title: 'Login verified' } },
   };
   assert.strictEqual(buildCommitMessage(docs), [
     'feat: Login flow',
     '',
-    '- Implement login',
+    '- Login verified',
   ].join('\n'));
 });
 
@@ -96,7 +97,7 @@ test('missing titles omit body bullets', () => {
   assert.strictEqual(buildCommitMessage(docs), 'fix: Login flow');
 });
 
-test('commit bullets prefer target taskUnit titles over docs.tasks compat field', () => {
+test('commit bullets prefer target taskUnit verification over docs.tasks compat field', () => {
   const docs = {
     blueprintIndex: { data: { title: 'Login flow', bouncer: { id: '001', epic_id: '001' } } },
     // 호환 필드(첫 묶음) — taskUnit이 있으면 무시되어야 한다.
@@ -110,10 +111,175 @@ test('commit bullets prefer target taskUnit titles over docs.tasks compat field'
     verification: { data: { title: 'Second unit verified' }, rel: `${BP}/tasks/002/verification.md` },
     review: undefined,
   };
+  // subject는 task title, 수정 내용 bullet은 verification만 (tasks title은 subject에 있음).
   assert.strictEqual(buildCommitMessage(docs, taskUnit), [
-    'feat: Login flow',
+    'feat: Second unit implement',
     '',
-    '- Second unit implement',
     '- Second unit verified',
   ].join('\n'));
+});
+
+test('subject uses taskUnit tasks title over blueprint title', () => {
+  const docs = {
+    blueprintIndex: {
+      data: { title: 'blueprint 제목', bouncer: { commit_type: 'feat' } },
+    },
+  };
+  const taskUnit = {
+    number: 1,
+    dir: `${BP}/tasks/001`,
+    tasks: {
+      data: { title: '게이트를 task 단위로 좁힘' },
+      rel: `${BP}/tasks/001/tasks.md`,
+    },
+    verification: {
+      data: { title: '검증 통과' },
+      rel: `${BP}/tasks/001/verification.md`,
+    },
+    review: undefined,
+  };
+  assert.match(
+    buildCommitMessage(docs, taskUnit).split('\n')[0],
+    /^feat: 게이트를 task 단위로 좁힘$/,
+  );
+});
+
+test('commit_intent prefers task over blueprint; one-line task falls to blueprint', () => {
+  const bpIntent = [
+    'blueprint 배경: 커밋이 blueprint 단위로만 묶임',
+    'blueprint 의도: task마다 다른 메시지를 쓰게 함',
+  ];
+  const taskIntent = [
+    'task 배경: subject가 blueprint title로 고정됨',
+    'task 의도: 대상 task title로 subject를 바꿈',
+  ];
+  const docs = {
+    blueprintIndex: {
+      data: {
+        title: 'blueprint 제목',
+        bouncer: { commit_type: 'feat', commit_intent: bpIntent },
+      },
+    },
+  };
+  const baseUnit = {
+    number: 1,
+    dir: `${BP}/tasks/001`,
+    verification: {
+      data: { title: '검증 통과' },
+      rel: `${BP}/tasks/001/verification.md`,
+    },
+    review: undefined,
+  };
+
+  // task에 유효한 2줄이 있으면 그 출처를 쓴다.
+  assert.strictEqual(
+    buildCommitMessage(docs, {
+      ...baseUnit,
+      tasks: {
+        data: {
+          title: '게이트를 task 단위로 좁힘',
+          bouncer: { commit_intent: taskIntent },
+        },
+        rel: `${BP}/tasks/001/tasks.md`,
+      },
+    }),
+    [
+      'feat: 게이트를 task 단위로 좁힘',
+      '',
+      `- ${taskIntent[0]}`,
+      `- ${taskIntent[1]}`,
+      '- 검증 통과',
+    ].join('\n'),
+  );
+
+  // task에 commit_intent가 없으면 blueprint 2줄로 떨어진다.
+  assert.strictEqual(
+    buildCommitMessage(docs, {
+      ...baseUnit,
+      tasks: {
+        data: { title: '게이트를 task 단위로 좁힘' },
+        rel: `${BP}/tasks/001/tasks.md`,
+      },
+    }),
+    [
+      'feat: 게이트를 task 단위로 좁힘',
+      '',
+      `- ${bpIntent[0]}`,
+      `- ${bpIntent[1]}`,
+      '- 검증 통과',
+    ].join('\n'),
+  );
+
+  // task가 1줄이면 그 출처는 무효 → blueprint 2줄로 폴백.
+  assert.strictEqual(
+    buildCommitMessage(docs, {
+      ...baseUnit,
+      tasks: {
+        data: {
+          title: '게이트를 task 단위로 좁힘',
+          bouncer: { commit_intent: ['task 한 줄만'] },
+        },
+        rel: `${BP}/tasks/001/tasks.md`,
+      },
+    }),
+    [
+      'feat: 게이트를 task 단위로 좁힘',
+      '',
+      `- ${bpIntent[0]}`,
+      `- ${bpIntent[1]}`,
+      '- 검증 통과',
+    ].join('\n'),
+  );
+});
+
+test('both commit_intent sources invalid leave only verification bullet', () => {
+  const docs = {
+    blueprintIndex: {
+      data: {
+        title: 'blueprint 제목',
+        bouncer: {
+          commit_type: 'feat',
+          // 3줄은 앞 2줄로 자르지 않고 출처 전체를 버린다.
+          commit_intent: ['bp1', 'bp2', 'bp3'],
+        },
+      },
+    },
+  };
+  const taskUnit = {
+    number: 1,
+    dir: `${BP}/tasks/001`,
+    tasks: {
+      data: {
+        title: '게이트를 task 단위로 좁힘',
+        bouncer: { commit_intent: ['task 한 줄만'] },
+      },
+      rel: `${BP}/tasks/001/tasks.md`,
+    },
+    verification: {
+      data: { title: '검증 통과' },
+      rel: `${BP}/tasks/001/verification.md`,
+    },
+    review: undefined,
+  };
+  assert.strictEqual(buildCommitMessage(docs, taskUnit), [
+    'feat: 게이트를 task 단위로 좁힘',
+    '',
+    '- 검증 통과',
+  ].join('\n'));
+});
+
+test('undefined taskUnit falls subject to blueprint title', () => {
+  const docs = {
+    blueprintIndex: {
+      data: {
+        title: 'blueprint 제목',
+        bouncer: { commit_type: 'feat' },
+      },
+    },
+    verification: { data: { title: '검증 통과' } },
+  };
+  assert.match(
+    buildCommitMessage(docs, undefined).split('\n')[0],
+    /^feat: blueprint 제목$/,
+  );
 });
