@@ -164,8 +164,8 @@ function fixtureRepo() {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cursor-'));
   const git = (args) => execFileSync('git', args, { cwd: repo, stdio: 'ignore' });
   git(['init', '--quiet']);
-  fs.mkdirSync(path.join(repo, BP), { recursive: true });
-  fs.writeFileSync(path.join(repo, BP, 'tasks.md'), [
+  fs.mkdirSync(path.join(repo, BP, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, BP, 'tasks/001/tasks.md'), [
     '---', 'bouncer:', '  affected_paths:', '    - src/feature', '---', '',
   ].join('\n'));
   fs.mkdirSync(path.join(repo, 'src/feature'), { recursive: true });

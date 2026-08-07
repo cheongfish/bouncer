@@ -25,6 +25,27 @@ function writeDoc(repo, rel, data, body = '# x\n') {
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
+  // 묶음은 세 문서가 다 있어야 구조 검사를 지난다. task 문서를 쓸 때 짝 문서가
+  // 없으면 pending 상태로 채워 fixture마다 같은 보일러플레이트를 반복하지 않는다.
+  const unit = /^(.*)\/tasks\/(\d{3})\/tasks\.md$/.exec(rel);
+  if (data && data.type === 'bouncer.tasks' && unit) {
+    writeUnitSiblings(repo, unit[1], unit[2], data.bouncer || {});
+  }
+}
+
+function writeUnitSiblings(repo, bpDir, number, { epic_id: epicId, blueprint_id: bpId }) {
+  for (const [kind, prefix] of [['verification', 'VERIFY'], ['review', 'REVIEW']]) {
+    const rel = `${bpDir}/tasks/${number}/${kind}.md`;
+    if (fs.existsSync(path.join(repo, rel))) continue;
+    writeDoc(repo, rel, {
+      type: `bouncer.${kind}`, title: kind, description: kind, resource: rel,
+      tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `${prefix}-${number}`, epic_id: epicId, blueprint_id: bpId, status: 'pending',
+        ...(kind === 'review' ? { review: { required: true } } : {}),
+      },
+    });
+  }
 }
 
 function tmpGitRepo() {
@@ -67,9 +88,9 @@ function writePlanPassingBlueprint(repo) {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
     },
   });
-  writeDoc(repo, `${BP_REL}/tasks.md`, {
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for 001',
-    resource: `${BP_REL}/tasks.md`,
+    resource: `${BP_REL}/tasks/001/tasks.md`,
     tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready',
@@ -113,15 +134,15 @@ test('current --set writes pointer when plan gate passes', () => {
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
-  // 레거시 tasks.md 단독이면 자동 선택으로 그 문서가 task 가 된다.
+  // 묶음이 하나뿐이면 자동 선택으로 그 문서가 task 가 된다.
   // CLI 응답은 path+id; 포인터 파일은 path 문자열.
   assert.deepStrictEqual(parsed.current, {
     blueprint: BP_REL,
     base: 'develop',
-    task: { path: `${BP_REL}/tasks.md`, id: 'TASKS-001' },
+    task: { path: `${BP_REL}/tasks/001/tasks.md`, id: 'TASKS-001' },
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
-    blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks.md`,
+    blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks/001/tasks.md`,
   });
 });
 
@@ -160,9 +181,9 @@ test('current --set does not write pointer when plan gate fails', () => {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'draft',
     },
   });
-  writeDoc(repo, `${BP_REL}/tasks.md`, {
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for 001',
-    resource: `${BP_REL}/tasks.md`,
+    resource: `${BP_REL}/tasks/001/tasks.md`,
     tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'draft',
@@ -218,9 +239,9 @@ function writeNumberedPlanBlueprint(repo) {
     },
   });
   for (const nnn of ['001', '002']) {
-    writeDoc(repo, `${BP_REL}/tasks-${nnn}.md`, {
+    writeDoc(repo, `${BP_REL}/tasks/${nnn}/tasks.md`, {
       type: 'bouncer.tasks', title: `Login tasks ${nnn}`, description: 'Tasks',
-      resource: `${BP_REL}/tasks-${nnn}.md`,
+      resource: `${BP_REL}/tasks/${nnn}/tasks.md`,
       tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
       bouncer: {
         id: `TASKS-${nnn}`, epic_id: '001', blueprint_id: '001', status: 'ready',
@@ -244,12 +265,12 @@ test('current --set --task 002 records that task document', () => {
   assert.deepStrictEqual(parsed.current, {
     blueprint: BP_REL,
     base: 'develop',
-    task: { path: `${BP_REL}/tasks-002.md`, id: 'TASKS-002' },
+    task: { path: `${BP_REL}/tasks/002/tasks.md`, id: 'TASKS-002' },
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
     blueprint: BP_REL,
     base: 'develop',
-    task: `${BP_REL}/tasks-002.md`,
+    task: `${BP_REL}/tasks/002/tasks.md`,
   });
 });
 
@@ -282,7 +303,7 @@ test('bare current JSON includes a task key on the pointer', () => {
     repoRoot: repo,
     blueprint: BP_REL,
     base: 'develop',
-    task: `${BP_REL}/tasks-001.md`,
+    task: `${BP_REL}/tasks/001/tasks.md`,
   });
   const r = capture(['current', '--repo', repo]);
   assert.strictEqual(r.code, 0);
@@ -290,7 +311,7 @@ test('bare current JSON includes a task key on the pointer', () => {
   assert.strictEqual(parsed.ok, true);
   assert.ok(Object.prototype.hasOwnProperty.call(parsed.current, 'task'));
   assert.deepStrictEqual(parsed.current.task, {
-    path: `${BP_REL}/tasks-001.md`,
+    path: `${BP_REL}/tasks/001/tasks.md`,
     id: 'TASKS-001',
   });
 });

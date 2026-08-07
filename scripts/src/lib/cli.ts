@@ -13,6 +13,7 @@ const {
   resolvePointerTask, presentCurrent,
 } = require('./current');
 const { migrateIds } = require('./migrate-ids');
+const { migrateTaskLayout } = require('./migrate-task-layout');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -201,15 +202,14 @@ function cmdGraphSync(rest, io) {
 
 function cmdMigrate(rest, io) {
   const [kind, ...flagArgs] = rest;
-  if (kind !== 'ids') {
+  if (kind !== 'ids' && kind !== 'task-layout') {
     io.err(`unknown migrate kind: ${kind || '(missing)'}\n`);
     return 2;
   }
   const f = parseFlags(flagArgs);
-  const result = migrateIds({
-    repoRoot: f.repo || process.cwd(),
-    dryRun: f['dry-run'] === true,
-  });
+  const result = kind === 'ids'
+    ? migrateIds({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true })
+    : migrateTaskLayout({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true });
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }
@@ -337,6 +337,8 @@ const USAGE = `usage: bouncer <command> [options]
              --task picks a task doc; without it, first ready/in_progress wins.
   migrate    ids [--dry-run]
              Plan or apply rename of legacy EPIC-/BP- context dirs to numeric ids.
+             task-layout [--dry-run]
+             Move legacy task files into tasks/<NNN>/ units.
 
 Every command accepts --repo <dir> to run against another repository.
 `;

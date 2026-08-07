@@ -39,11 +39,11 @@ function writeBp(repo, {
       id: bpId, epic_id: epicId, blueprint_id: bpId, status: bpStatus,
     },
   });
-  writeDoc(repo, `${bpDir}/tasks.md`, {
-    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${bpDir}/tasks.md`,
+  writeDoc(repo, `${bpDir}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${bpDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: `TASKS-${bpId}`, epic_id: epicId, blueprint_id: bpId, status: tasksStatus,
+      id: 'TASKS-001', epic_id: epicId, blueprint_id: bpId, status: tasksStatus,
       affected_paths: affectedPaths,
     },
   });
@@ -170,12 +170,12 @@ test('listReadyBlueprints includes approved + ready / in_progress only', () => {
     {
       blueprint: inProg,
       status: 'in_progress',
-      tasks: [{ id: 'TASKS-002', path: `${inProg}/tasks.md`, status: 'in_progress' }],
+      tasks: [{ id: 'TASKS-001', path: `${inProg}/tasks/001/tasks.md`, status: 'in_progress' }],
     },
     {
       blueprint: ready,
       status: 'ready',
-      tasks: [{ id: 'TASKS-001', path: `${ready}/tasks.md`, status: 'ready' }],
+      tasks: [{ id: 'TASKS-001', path: `${ready}/tasks/001/tasks.md`, status: 'ready' }],
     },
   ].sort((a, b) => a.blueprint.localeCompare(b.blueprint)));
 });
@@ -194,19 +194,20 @@ test('listReadyBlueprints sorts across epics and skips broken docs', () => {
   const brokenDir = '.bouncer/context/epics/001-a/blueprints/099-broken';
   fs.mkdirSync(path.join(repo, brokenDir), { recursive: true });
   fs.writeFileSync(path.join(repo, brokenDir, 'index.md'), 'not frontmatter\n');
-  fs.writeFileSync(path.join(repo, brokenDir, 'tasks.md'), 'not frontmatter\n');
+  fs.mkdirSync(path.join(repo, brokenDir, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, brokenDir, 'tasks/001/tasks.md'), 'not frontmatter\n');
 
   const list = listReadyBlueprints({ repoRoot: repo });
   assert.deepStrictEqual(list, [
     {
       blueprint: earlier,
       status: 'ready',
-      tasks: [{ id: 'TASKS-001', path: `${earlier}/tasks.md`, status: 'ready' }],
+      tasks: [{ id: 'TASKS-001', path: `${earlier}/tasks/001/tasks.md`, status: 'ready' }],
     },
     {
       blueprint: later,
       status: 'ready',
-      tasks: [{ id: 'TASKS-001', path: `${later}/tasks.md`, status: 'ready' }],
+      tasks: [{ id: 'TASKS-001', path: `${later}/tasks/001/tasks.md`, status: 'ready' }],
     },
   ]);
 });
@@ -303,16 +304,16 @@ test('listReadyBlueprints: any numbered task ready/in_progress counts', () => {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
     },
   });
-  writeDoc(repo, `${bpDir}/tasks-001.md`, {
-    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks-001.md`,
+  writeDoc(repo, `${bpDir}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'draft',
       affected_paths: ['a.js'],
     },
   });
-  writeDoc(repo, `${bpDir}/tasks-002.md`, {
-    type: 'bouncer.tasks', title: 't2', description: 'd', resource: `${bpDir}/tasks-002.md`,
+  writeDoc(repo, `${bpDir}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks', title: 't2', description: 'd', resource: `${bpDir}/tasks/002/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-002', epic_id: '001', blueprint_id: '001', status: 'in_progress',
@@ -323,7 +324,7 @@ test('listReadyBlueprints: any numbered task ready/in_progress counts', () => {
   assert.deepStrictEqual(list, [{
     blueprint: bpDir,
     status: 'in_progress',
-    tasks: [{ id: 'TASKS-002', path: `${bpDir}/tasks-002.md`, status: 'in_progress' }],
+    tasks: [{ id: 'TASKS-002', path: `${bpDir}/tasks/002/tasks.md`, status: 'in_progress' }],
   }]);
 });
 
@@ -344,24 +345,24 @@ test('resolvePointerTask auto-selects first ready/in_progress by number order', 
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
     },
   });
-  writeDoc(repo, `${bpDir}/tasks-001.md`, {
-    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks-001.md`,
+  writeDoc(repo, `${bpDir}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
       affected_paths: ['a.js'],
     },
   });
-  writeDoc(repo, `${bpDir}/tasks-002.md`, {
-    type: 'bouncer.tasks', title: 't2', description: 'd', resource: `${bpDir}/tasks-002.md`,
+  writeDoc(repo, `${bpDir}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks', title: 't2', description: 'd', resource: `${bpDir}/tasks/002/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-002', epic_id: '001', blueprint_id: '001', status: 'ready',
       affected_paths: ['b.js'],
     },
   });
-  writeDoc(repo, `${bpDir}/tasks-003.md`, {
-    type: 'bouncer.tasks', title: 't3', description: 'd', resource: `${bpDir}/tasks-003.md`,
+  writeDoc(repo, `${bpDir}/tasks/003/tasks.md`, {
+    type: 'bouncer.tasks', title: 't3', description: 'd', resource: `${bpDir}/tasks/003/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-003', epic_id: '001', blueprint_id: '001', status: 'in_progress',
@@ -372,7 +373,7 @@ test('resolvePointerTask auto-selects first ready/in_progress by number order', 
   const auto = resolvePointerTask({ repoRoot: repo, blueprintDir: bpDir });
   assert.deepStrictEqual(auto, {
     ok: true,
-    task: `${bpDir}/tasks-002.md`,
+    task: `${bpDir}/tasks/002/tasks.md`,
     id: 'TASKS-002',
   });
 });
@@ -394,8 +395,8 @@ test('resolvePointerTask fails when --task does not match a document', () => {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
     },
   });
-  writeDoc(repo, `${bpDir}/tasks-001.md`, {
-    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks-001.md`,
+  writeDoc(repo, `${bpDir}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready',
@@ -420,7 +421,7 @@ test('writeCurrent persists an explicit task path', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
-  const task = `${blueprint}/tasks-002.md`;
+  const task = `${blueprint}/tasks/002/tasks.md`;
   writeCurrent({
     repoRoot: repo, blueprint, base: 'develop', task, deps,
   });
@@ -453,24 +454,24 @@ test('nextBlueprint sharedPaths unions affected_paths across numbered tasks', ()
     });
   }
   // finalized: 두 task 문서의 합집합
-  writeDoc(repo, `${finalized}/tasks-001.md`, {
-    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${finalized}/tasks-001.md`,
+  writeDoc(repo, `${finalized}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${finalized}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
       affected_paths: ['shared/a.js'],
     },
   });
-  writeDoc(repo, `${finalized}/tasks-002.md`, {
-    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${finalized}/tasks-002.md`,
+  writeDoc(repo, `${finalized}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${finalized}/tasks/002/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-002', epic_id: '001', blueprint_id: '001', status: 'verified',
       affected_paths: ['shared/b.js'],
     },
   });
-  writeDoc(repo, `${candidate}/tasks-001.md`, {
-    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${candidate}/tasks-001.md`,
+  writeDoc(repo, `${candidate}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd', resource: `${candidate}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '002', status: 'ready',

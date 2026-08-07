@@ -19,9 +19,6 @@ function isNumberedTasksBasename(name) {
 function isLegacyTasksBasename(name) {
     return name === LEGACY_TASKS_BASENAME;
 }
-function isTasksBasename(name) {
-    return isLegacyTasksBasename(name) || isNumberedTasksBasename(name);
-}
 /**
  * basename → 문서 kind. paths.parsePathIds 가 FILE_KIND 에
  * verification/review 문자열을 두지 않도록 여기로 모은다.
@@ -144,51 +141,10 @@ function listTasksDocs({ repoRoot, blueprintDir }) {
             review: { rel: `${dir}/${TASK_UNIT_BASENAMES[2]}`, id: ids.review },
         }));
     }
-    // --- 구 레이아웃: 루트 tasks.md / tasks-{NNN}.md ---
-    // 이 task 에서는 거절하지 않는다. 기존 001~019 문서가 validate 를 통과해야 한다.
-    const hasLegacy = names.some(isLegacyTasksBasename);
-    const numbered = [];
-    for (const name of names) {
-        const m = NUMBERED_TASKS_RE.exec(name);
-        if (m)
-            numbered.push({ name, n: Number(m[1]), digits: m[1] });
-    }
-    numbered.sort((a, b) => a.n - b.n);
-    const hasNumbered = numbered.length > 0;
-    const mixed = hasLegacy && hasNumbered;
-    const legacy = hasLegacy && !hasNumbered;
-    // 루트 verification/review 는 blueprint 단위 단일 파일 — 모든 레거시 엔트리가 공유.
-    // id 는 기존 관례(VERIFY-{blueprintId})를 유지; 번호별 분할은 002.
-    const rootVerifyRel = `${bp}/${TASK_UNIT_BASENAMES[1]}`;
-    const rootReviewRel = `${bp}/${TASK_UNIT_BASENAMES[2]}`;
-    const rootVerifyId = blueprintId ? `VERIFY-${blueprintId}` : null;
-    const rootReviewId = blueprintId ? `REVIEW-${blueprintId}` : null;
-    // 혼재여도 호출자가 양쪽을 볼 수 있게 모두 넣는다. 검증은 mixed로 거절한다.
-    if (hasLegacy) {
-        entries.push(makeEntry({
-            dir: null,
-            number: null,
-            tasks: {
-                rel: `${bp}/${LEGACY_TASKS_BASENAME}`,
-                id: expectedTasksId(LEGACY_TASKS_BASENAME, blueprintId),
-            },
-            verification: { rel: rootVerifyRel, id: rootVerifyId },
-            review: { rel: rootReviewRel, id: rootReviewId },
-        }));
-    }
-    for (const item of numbered) {
-        entries.push(makeEntry({
-            dir: null,
-            number: item.n,
-            tasks: {
-                rel: `${bp}/${item.name}`,
-                id: `TASKS-${item.digits}`,
-            },
-            verification: { rel: rootVerifyRel, id: rootVerifyId },
-            review: { rel: rootReviewRel, id: rootReviewId },
-        }));
-    }
-    return { entries, mixed, legacy, invalidDirs };
+    // 하드컷 뒤 구형 루트 파일은 묶음으로 세지 않고 잔존 목록으로만 보고한다.
+    // 해석은 migrate task-layout이 하고, validate는 S15로 거절한다.
+    const legacyFiles = names.filter((name) => isLegacyTasksBasename(name) || isNumberedTasksBasename(name)).sort();
+    return { entries, mixed: false, legacy: legacyFiles.length > 0, legacyFiles, invalidDirs };
 }
 module.exports = {
     LEGACY_TASKS_BASENAME,
@@ -198,7 +154,6 @@ module.exports = {
     TASK_UNIT_BASENAMES,
     isNumberedTasksBasename,
     isLegacyTasksBasename,
-    isTasksBasename,
     unitDocKind,
     expectedTasksId,
     expectedTaskDocIds,

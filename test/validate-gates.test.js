@@ -10,7 +10,7 @@ const { TEMPLATES } = require('../scripts/lib/templates');
 const rels = {
   epicIndex: '.bouncer/context/epics/001-auth/index.md',
   blueprintIndex: '.bouncer/context/epics/001-auth/blueprints/001-login/index.md',
-  tasks: '.bouncer/context/epics/001-auth/blueprints/001-login/tasks.md',
+  tasks: '.bouncer/context/epics/001-auth/blueprints/001-login/tasks/001/tasks.md',
   verification: '.bouncer/context/epics/001-auth/blueprints/001-login/verification.md',
   review: '.bouncer/context/epics/001-auth/blueprints/001-login/review.md',
   explain: '.bouncer/context/epics/001-auth/blueprints/001-login/explain.md',
@@ -591,7 +591,7 @@ function planReadyTasks() {
     type: 'bouncer.tasks',
     title: 'Login tasks',
     description: 'Tasks for 001',
-    resource: `${BP_REL}/tasks.md`,
+    resource: `${BP_REL}/tasks/001/tasks.md`,
     tags: ['bouncer', 'tasks'],
     timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
@@ -608,7 +608,21 @@ function planReadyTasks() {
 function writePlanBlueprint(repo, tasksBody) {
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
-  writeDoc(repo, `${BP_REL}/tasks.md`, planReadyTasks(), tasksBody);
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, planReadyTasks(), tasksBody);
+  // 구조 검사는 묶음의 세 문서를 모두 요구한다. plan 게이트만 보는 fixture라도
+  // 짝 문서가 없으면 S17에 먼저 걸린다.
+  writeDoc(
+    repo,
+    `${BP_REL}/tasks/001/verification.md`,
+    unitVerificationData('001', 'pending', `${BP_REL}/tasks/001/verification.md`),
+    '# Verification\n',
+  );
+  writeDoc(
+    repo,
+    `${BP_REL}/tasks/001/review.md`,
+    unitReviewData('001', 'pending', `${BP_REL}/tasks/001/review.md`, { required: true }),
+    '# Review\n',
+  );
   const indexAbs = path.join(repo, '.bouncer/context/index.md');
   fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
   fs.writeFileSync(
@@ -661,23 +675,23 @@ test('plan gate applies per task document and reports the failing file', () => {
 
   const readyBody = planReadyTasksBody();
   const t1 = planReadyTasks();
-  t1.resource = `${BP_REL}/tasks-001.md`;
+  t1.resource = `${BP_REL}/tasks/001/tasks.md`;
   t1.bouncer.id = 'TASKS-001';
-  writeDoc(repo, `${BP_REL}/tasks-001.md`, t1, readyBody);
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, t1, readyBody);
 
   // 두 번째 문서만 status draft → G3는 이 파일 경로로만 보고되어야 한다.
   const t2 = planReadyTasks();
-  t2.resource = `${BP_REL}/tasks-002.md`;
+  t2.resource = `${BP_REL}/tasks/002/tasks.md`;
   t2.bouncer.id = 'TASKS-002';
   t2.bouncer.status = 'draft';
-  writeDoc(repo, `${BP_REL}/tasks-002.md`, t2, readyBody);
+  writeDoc(repo, `${BP_REL}/tasks/002/tasks.md`, t2, readyBody);
 
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
   assert.strictEqual(res.ok, false);
   const g3 = res.failures.filter((f) => f.code === 'G3');
   assert.strictEqual(g3.length, 1);
-  assert.strictEqual(g3[0].file, `${BP_REL}/tasks-002.md`);
-  assert.ok(!res.failures.some((f) => f.code === 'G3' && f.file === `${BP_REL}/tasks-001.md`));
+  assert.strictEqual(g3[0].file, `${BP_REL}/tasks/002/tasks.md`);
+  assert.ok(!res.failures.some((f) => f.code === 'G3' && f.file === `${BP_REL}/tasks/001/tasks.md`));
 });
 
 // --- TASKS-002: execute 게이트는 포인터가 지목한 task 묶음만 본다 ---
@@ -870,7 +884,7 @@ test('execute gate G13 only inspects the pointer unit verification.md', () => {
 
 test('execute gate G6 when pointer unit tasks.md is missing does not use sibling tasks', () => {
   const repo = mkRepo();
-  const { u1, u2 } = writeTaskDirExecuteFixture(repo);
+  const { u2 } = writeTaskDirExecuteFixture(repo);
   fs.unlinkSync(path.join(repo, `${u2}/tasks.md`));
   setPointerTask(repo, `${u2}/tasks.md`);
 

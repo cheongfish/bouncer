@@ -291,6 +291,10 @@ module.exports = {
     planMigration,
     validateMigration,
     applyMigration,
+    // task-layout도 all-or-nothing migration이므로 dirty 판정과 markdown 순회는
+    // 별도 구현하지 않는다. ids 명령의 외부 동작은 이 export 추가로 변하지 않는다.
+    isWorktreeDirty,
+    walkMarkdownFiles,
     rewriteLegacyTokens,
     legacyIdsWarnings,
     migrateIds,

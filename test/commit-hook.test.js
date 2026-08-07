@@ -53,7 +53,7 @@ test('in-scope commit is allowed', () => {
     deps: deps({
       current: { blueprint: BP, base: 'develop' },
       affected: ['src/feature'],
-      staged: ['src/feature/a.js', `${BP}/tasks.md`],
+      staged: ['src/feature/a.js', `${BP}/tasks/001/tasks.md`],
     }),
   });
   assert.strictEqual(r.block, false);
@@ -209,7 +209,7 @@ test('readAffectedPaths unions paths across numbered task documents', () => {
   const write = (name, paths) => {
     const abs = path.join(repo, bp, name);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    const id = name === 'tasks.md' ? 'TASKS-001' : `TASKS-${name.match(/tasks-(\d{3})/)[1]}`;
+    const id = `TASKS-${name.match(/tasks\/(\d{3})\//)[1]}`;
     fs.writeFileSync(abs, `---\n${yaml.dump({
       type: 'bouncer.tasks',
       title: 't',
@@ -223,8 +223,8 @@ test('readAffectedPaths unions paths across numbered task documents', () => {
       },
     })}---\n# Tasks\n`);
   };
-  write('tasks-001.md', ['src/a.js', 'src/shared.js']);
-  write('tasks-002.md', ['src/shared.js', 'src/b.js']);
+  write('tasks/001/tasks.md', ['src/a.js', 'src/shared.js']);
+  write('tasks/002/tasks.md', ['src/shared.js', 'src/b.js']);
   const union = readAffectedPaths({ repoRoot: repo, blueprintDir: bp });
   assert.deepStrictEqual(union, ['src/a.js', 'src/shared.js', 'src/b.js']);
 });
@@ -238,7 +238,7 @@ test('pointer task narrows affected_paths; missing task keeps the union', () => 
   const write = (name, paths) => {
     const abs = path.join(repo, bp, name);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    const id = `TASKS-${name.match(/tasks-(\d{3})/)[1]}`;
+    const id = `TASKS-${name.match(/tasks\/(\d{3})\//)[1]}`;
     fs.writeFileSync(abs, `---\n${yaml.dump({
       type: 'bouncer.tasks',
       title: 't',
@@ -252,14 +252,14 @@ test('pointer task narrows affected_paths; missing task keeps the union', () => 
       },
     })}---\n# Tasks\n`);
   };
-  write('tasks-001.md', ['src/a.js']);
-  write('tasks-002.md', ['src/b.js']);
+  write('tasks/001/tasks.md', ['src/a.js']);
+  write('tasks/002/tasks.md', ['src/b.js']);
 
   writeCurrent({
     repoRoot: repo,
     blueprint: bp,
     base: 'develop',
-    task: `${bp}/tasks-002.md`,
+    task: `${bp}/tasks/002/tasks.md`,
   });
   assert.deepStrictEqual(
     readAffectedPaths({ repoRoot: repo, blueprintDir: bp }),

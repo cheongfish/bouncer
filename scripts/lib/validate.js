@@ -320,13 +320,19 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     const failures = [...executionFailures, ...parseErrors];
     // 한 blueprint에 레거시 tasks.md와 번호 문서가 섞이면 어느 규칙을
     // 적용할지 모호해지므로 구조 단계에서 거절한다.
-    if (tasksListing && tasksListing.mixed) {
+    if (tasksListing && tasksListing.legacyFiles && tasksListing.legacyFiles.length) {
         failures.push({
-            code: 'S14',
-            message: 'cannot mix tasks.md and tasks-NNN.md in the same blueprint',
-            file: `${toPosix(blueprintDir)}/${LEGACY_TASKS_BASENAME}`,
+            code: 'S15', message: `legacy task layout remains: ${tasksListing.legacyFiles.join(', ')}; run bouncer migrate task-layout`, file: toPosix(blueprintDir),
         });
     }
+    for (const name of (tasksListing && tasksListing.invalidDirs) || [])
+        failures.push({ code: 'S16', message: `non-canonical task directory: tasks/${name}`, file: `${toPosix(blueprintDir)}/tasks/${name}` });
+    for (const entry of (tasksListing && tasksListing.entries) || [])
+        for (const leaf of ['tasks', 'verification', 'review']) {
+            const rel = entry[leaf].rel;
+            if (!fs.existsSync(path.join(repoRoot, rel)))
+                failures.push({ code: 'S17', message: `task unit ${entry.number} missing ${path.posix.basename(rel)}`, file: rel });
+        }
     const anyLeaf = (docs.tasksDocs && docs.tasksDocs.length > 0)
         || (docs.taskUnits && docs.taskUnits.length > 0)
         || ['verification', 'review', 'explain'].some((k) => docs[k]);

@@ -39,61 +39,35 @@ function mkTaskDirs(nnns, { extraDirs = [] } = {}) {
   return repo;
 }
 
-test('listTasksDocs: legacy tasks.md alone yields a single legacy entry', () => {
+test('listTasksDocs: legacy tasks.md is retained only for the S15 reporter', () => {
   const repo = mkBp(['tasks.md', 'index.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
   assert.strictEqual(result.legacy, true);
   assert.strictEqual(result.mixed, false);
-  assert.deepEqual(result.invalidDirs, []);
-  assert.equal(result.entries.length, 1);
-  assert.equal(result.entries[0].dir, null);
-  assert.equal(result.entries[0].number, null);
-  assert.equal(result.entries[0].tasks.rel, `${BP}/tasks.md`);
-  assert.equal(result.entries[0].tasks.id, 'TASKS-001');
-  assert.equal(result.entries[0].verification.rel, `${BP}/verification.md`);
-  assert.equal(result.entries[0].review.rel, `${BP}/review.md`);
-  // 호환 별칭 — consumers 가 아직 entry.rel / entry.id 를 읽는다.
-  assert.equal(result.entries[0].rel, `${BP}/tasks.md`);
-  assert.equal(result.entries[0].id, 'TASKS-001');
-  assert.equal(result.entries[0].basename, 'tasks.md');
+  assert.deepEqual(result.legacyFiles, ['tasks.md']);
+  assert.equal(result.entries.length, 0);
 });
 
-test('listTasksDocs: numbered tasks sort ascending and skip gaps', () => {
+test('listTasksDocs: numbered root tasks are legacy files, not task entries', () => {
   const repo = mkBp(['tasks-003.md', 'tasks-001.md', 'index.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
-  assert.strictEqual(result.legacy, false);
-  assert.strictEqual(result.mixed, false);
-  assert.deepStrictEqual(
-    result.entries.map((e) => e.basename),
-    ['tasks-001.md', 'tasks-003.md'],
-  );
-  assert.deepStrictEqual(
-    result.entries.map((e) => e.id),
-    ['TASKS-001', 'TASKS-003'],
-  );
-  assert.deepStrictEqual(
-    result.entries.map((e) => e.number),
-    [1, 3],
-  );
-  assert.ok(result.entries.every((e) => e.dir === null));
+  assert.strictEqual(result.legacy, true);
+  assert.deepStrictEqual(result.legacyFiles, ['tasks-001.md', 'tasks-003.md']);
+  assert.deepStrictEqual(result.entries, []);
 });
 
-test('listTasksDocs: mixing tasks.md and numbered files sets mixed', () => {
+test('listTasksDocs: mixed root legacy files are reported together', () => {
   const repo = mkBp(['tasks.md', 'tasks-001.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
-  assert.strictEqual(result.mixed, true);
-  assert.strictEqual(result.legacy, false);
-  assert.ok(result.entries.some((e) => e.basename === 'tasks.md'));
-  assert.ok(result.entries.some((e) => e.basename === 'tasks-001.md'));
+  assert.strictEqual(result.mixed, false);
+  assert.deepStrictEqual(result.legacyFiles, ['tasks-001.md', 'tasks.md']);
 });
 
-test('listTasksDocs: tasks-1.md (non-padded) is excluded', () => {
+test('listTasksDocs: non-padded root names are not canonical task entries', () => {
   const repo = mkBp(['tasks-1.md', 'tasks-001.md']);
   const result = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
-  assert.deepStrictEqual(
-    result.entries.map((e) => e.basename),
-    ['tasks-001.md'],
-  );
+  assert.deepStrictEqual(result.entries, []);
+  assert.deepStrictEqual(result.legacyFiles, ['tasks-001.md']);
   assert.strictEqual(isNumberedTasksBasename('tasks-1.md'), false);
   assert.strictEqual(isNumberedTasksBasename('tasks-001.md'), true);
 });
@@ -130,12 +104,10 @@ test('listTasksDocs: non-padded task dirs land in invalidDirs only', () => {
   assert.deepEqual(invalidDirs, ['01', 'foo']);
 });
 
-test('listTasksDocs: legacy root tasks keep dir null and root verification', () => {
+test('listTasksDocs: root evidence does not revive a legacy task entry', () => {
   const repo = mkBp(['tasks-001.md', 'verification.md', 'index.md']);
   const { entries } = listTasksDocs({ repoRoot: repo, blueprintDir: BP });
-  assert.equal(entries.length, 1);
-  assert.equal(entries[0].dir, null);
-  assert.equal(entries[0].verification.rel, `${BP}/verification.md`);
+  assert.equal(entries.length, 0);
 });
 
 test('expectedTaskDocIds returns the three task-unit ids', () => {
