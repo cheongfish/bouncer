@@ -1,6 +1,6 @@
 ---
 name: bouncer-execute
-description: "Use only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). Implement from the task brief (tasks-001.md or legacy tasks.md) in an isolated worktree, verify and review via standalone skills, and pass the execute gate."
+description: "Use only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). Implement from the pointer's task brief (current.task.path, or the resolver's first/single doc when task is null) in an isolated worktree, verify and review via standalone skills, and pass the execute gate."
 ---
 # /bouncer-execute
 
@@ -33,7 +33,7 @@ On verify failure, dispatch `bouncer-debugger` (behavioral brief:
 → Implementation). The debugger is read-only; the implementer or controller
 applies the fix.
 
-1. **Read the pointer.** Load the active blueprint dir and base branch:
+1. **Read the pointer.** Load the active blueprint dir, base branch, and task brief:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" current
@@ -45,6 +45,11 @@ applies the fix.
    - When `ready` is empty, stop and tell the user to run `/bouncer-plan` first.
    Use the returned `blueprint` value verbatim for every document read and
    `--blueprint` argument below; do not reconstruct a root `context/` path.
+   CLI `current.task` is `{ path, id }` when set (pointer file stores path only).
+   **Task brief** = `current.task.path` (repo-relative) when `current.task` is
+   non-null. When `task` is `null`, use the resolver's single or first task
+   document (`tasks-001.md` or legacy `tasks.md` alone) as today. Later steps
+   use that same brief path — do not re-pick a different task document mid-run.
 
 2. **Worktree.** Create a blueprint-level worktree + branch:
    - base = the branch checked out now (already recorded as `base` in the
@@ -66,8 +71,8 @@ applies the fix.
    `/bouncer-plan` does not commit, so the documents it authored exist only in
    the base working tree while the new worktree starts from the committed HEAD.
    Move them across **immediately after `git worktree add`, still in the base
-   `cwd`** — without this the worktree has no `tasks-001.md` (legacy `tasks.md`
-   still accepted alone) and step 3 has no brief:
+   `cwd`** — without this the worktree has no task brief document and step 3
+   has nothing to implement from:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" seed-worktree \
@@ -95,7 +100,7 @@ applies the fix.
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-implementer'})))"
       ```
    2. Call named agent `bouncer-implementer` with that `model`, passing only
-      these task-brief sections (`tasks-001.md` or legacy `tasks.md`) as decision
+      these task-brief sections (the pointer task brief from step 1) as decision
       authority: Goal & intent, Interface, Touch, Do not touch, Constraints,
       Checklist.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
@@ -137,8 +142,8 @@ applies the fix.
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-debugger'})))"
       ```
    2. Call named agent `bouncer-debugger` with that `model`, passing the
-      failing verify evidence plus only these task-brief sections
-      (`tasks-001.md` or legacy `tasks.md`) as decision authority: Goal & intent,
+      failing verify evidence plus only these task-brief sections (the pointer
+      task brief from step 1) as decision authority: Goal & intent,
       Interface, Touch, Do not touch, Constraints, Checklist.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
    4. If named agents are unavailable (e.g. Codex), fall back to running the

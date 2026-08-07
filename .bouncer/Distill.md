@@ -5,7 +5,7 @@ resource: .bouncer/Distill.md
 tags:
   - bouncer
   - distill
-timestamp: '2026-08-07T08:48:33+09:00'
+timestamp: '2026-08-07T09:30:50+09:00'
 ---
 # Distill
 
@@ -87,9 +87,14 @@ append a change log.
 - Mixing `tasks.md` and any `tasks-{ddd}.md` in one blueprint is structural
   **S14** — do not silently prefer either side. Non-`\d{3}` names like
   `tasks-1.md` are not task docs (ignored).
-- Until a task pointer exists: `bouncer.verify` takes the earliest-numbered
-  declaration; commit `affected_paths` is the union across all task docs.
-  Both narrow when the pointer gains a task field.
+- Active pointer JSON is `{ blueprint, task?, base }`. `task` is a repo-relative
+  task-doc path string (or absent/non-string → unspecified). CLI `bouncer current`
+  presents `task` as `{ path, id }` (or `null`); the pointer file never stores the
+  id object. `/bouncer-execute` brief is `current.task.path` when set.
+- When the pointer has a `task` path and that file exists: `readVerifyCommand` and
+  `readAffectedPaths` use that document only. When `task` is unspecified or the
+  file is gone: earliest `bouncer.verify` declaration and union of
+  `affected_paths`.
 - `scripts/src/lib/templates.ts` Documents may still link `tasks.md` while
   scaffold writes `tasks-001.md` — include `templates.ts` in Touch when
   changing scaffold task names.
@@ -213,10 +218,15 @@ append a change log.
 - Codex is out of named-agent routing: the plugin cannot deploy `agents/`, so
   review, execute implementer, and debugger always take the generic/inline
   fallback there.
-- Verify command resolution walks `listTasksDocs` in number order and takes
-  the first `bouncer.verify` declaration, then falls back to `config.verify`.
-  Format rules live only in `isValidVerifyCommand`, which plan `S12` and
-  runtime `VERIFY_COMMAND_INVALID` both reuse.
+- Verify command resolution: if the pointer names a task doc, read that doc’s
+  `bouncer.verify` only; otherwise walk `listTasksDocs` in number order and take
+  the first declaration, then fall back to `config.verify`. Format rules live
+  only in `isValidVerifyCommand`, which plan `S12` and runtime
+  `VERIFY_COMMAND_INVALID` both reuse.
+- `/bouncer-finalize` handoff checks same-blueprint remaining open tasks
+  (`ready`/`in_progress`) before next-blueprint ACQ. Advance is confirm-then
+  `bouncer current --set <bp> --task <NNN>` (or `--set` for the next blueprint);
+  never automatic.
 - `/bouncer-plan` Author asks before writing `tasks.bouncer.verify` when root
   build/container signals exist; never write from detection alone and never
   edit `config.verify` there. Container-up + test must be one project script

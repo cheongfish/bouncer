@@ -56,7 +56,9 @@ function readRuntimeCurrent({ repoRoot, deps }) {
   try {
     const data = JSON.parse(d.fs.readFileSync(paths.currentFile, 'utf8').trim());
     if (!data || typeof data.blueprint !== 'string' || typeof data.base !== 'string') return null;
-    return { blueprint: toPosix(data.blueprint), base: data.base };
+    // task 키 부재·비문자열은 미지정. 마이그레이션 없이 기존 파일을 그대로 읽는다.
+    const task = typeof data.task === 'string' ? toPosix(data.task) : null;
+    return { blueprint: toPosix(data.blueprint), base: data.base, task };
   } catch (_error) {
     return null;
   }
@@ -73,13 +75,18 @@ function clearRuntimeCurrent({ repoRoot, deps }) {
 }
 
 function writeRuntimeCurrent({
-  repoRoot, blueprint, base, deps,
+  repoRoot, blueprint, base, task, deps,
 }) {
   const d = { fs, ...(deps || {}) };
   const paths = resolvedPaths({ repoRoot, deps: d });
   if (paths.unavailable) throw new Error(GIT_REQUIRED);
   d.fs.mkdirSync(path.dirname(paths.currentFile), { recursive: true });
-  const data = { blueprint: toPosix(blueprint), base };
+  // task는 문자열일 때만 파일에 쓴다 — 없으면 키 자체를 생략해 레거시 형태를 유지.
+  const data: { blueprint: string; base: string; task?: string } = {
+    blueprint: toPosix(blueprint),
+    base,
+  };
+  if (typeof task === 'string') data.task = toPosix(task);
   d.fs.writeFileSync(paths.currentFile, `${JSON.stringify(data, null, 2)}\n`);
   return paths.currentFile;
 }

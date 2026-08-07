@@ -75,3 +75,10 @@ test('bouncer-finalize offers next-blueprint handoff via current --set after con
   assert.match(body, /next/);
   assert.match(body, /ask|confirm|승낙/i);
 });
+
+test('bouncer-finalize confirms next open task before next-blueprint handoff', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /--task/);
+  assert.match(body, /Next task|다음.?task|남은.*열린 task|same-blueprint open task/i);
+  assert.match(body, /never automatic|자동.*없|자동 전진은 없/i);
+});

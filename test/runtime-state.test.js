@@ -92,7 +92,58 @@ test('runtime current round-trips across primary and linked worktrees', () => {
   const currentFile = writeRuntimeCurrent({ repoRoot: primary, ...value, deps });
 
   assert.ok(fs.existsSync(currentFile));
-  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: linked, deps }), value);
+  // task 미지정 쓰기는 파일에 키를 넣지 않지만, 읽기는 항상 task: null 로 정규화한다.
+  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: linked, deps }), {
+    ...value,
+    task: null,
+  });
+});
+
+test('writeRuntimeCurrent includes task key only when a string path is given', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
+  const task = `${blueprint}/tasks-002.md`;
+
+  const withTask = writeRuntimeCurrent({
+    repoRoot: primary, blueprint, base: 'develop', task, deps,
+  });
+  const written = JSON.parse(fs.readFileSync(withTask, 'utf8'));
+  assert.strictEqual(written.task, task);
+  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: primary, deps }), {
+    blueprint, base: 'develop', task,
+  });
+
+  const withoutTask = writeRuntimeCurrent({
+    repoRoot: primary, blueprint, base: 'develop', deps,
+  });
+  const omitted = JSON.parse(fs.readFileSync(withoutTask, 'utf8'));
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(omitted, 'task'), false);
+  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: primary, deps }), {
+    blueprint, base: 'develop', task: null,
+  });
+});
+
+test('readRuntimeCurrent treats missing or non-string task as null', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const paths = runtimePaths({ repoRoot: primary, ...deps });
+  fs.mkdirSync(path.dirname(paths.currentFile), { recursive: true });
+
+  const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
+  fs.writeFileSync(paths.currentFile, `${JSON.stringify({
+    blueprint, base: 'develop',
+  }, null, 2)}\n`);
+  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: primary, deps }), {
+    blueprint, base: 'develop', task: null,
+  });
+
+  fs.writeFileSync(paths.currentFile, `${JSON.stringify({
+    blueprint, base: 'develop', task: 2,
+  }, null, 2)}\n`);
+  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: primary, deps }), {
+    blueprint, base: 'develop', task: null,
+  });
 });
 
 test('runtime current handles missing, corrupt, and non-Git state', () => {

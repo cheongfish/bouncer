@@ -1,6 +1,6 @@
 ---
 name: bouncer-finalize
-description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Run explain-diff, promote Distill, validate, ACQ-confirm commit (recommended: --yes + remove worktree), then ACQ for draft PR and next-blueprint handoff (PR skipped gracefully with no remote)."
+description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Run explain-diff, promote Distill, validate, ACQ-confirm commit (recommended: --yes + remove worktree), then ACQ for draft PR and next-task / next-blueprint handoff (PR skipped gracefully with no remote)."
 ---
 # /bouncer-finalize
 
@@ -46,7 +46,7 @@ put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body
 ```
 
 **Gates in this skill:** Commit+worktree (step 3) · PR (step 4) ·
-Next blueprint (step 6, when `next.next` exists). Worktree removal is **not** a
+Next task / Next blueprint (step 6). Worktree removal is **not** a
 separate gate — it is chosen in step 3.
 
 **Preflight.** Load the active blueprint:
@@ -190,11 +190,41 @@ appears; do not reconstruct a root `context/` path.
    - If step 3 chose **keep** (B): leave the worktree in place and note its
      path in the report.
 
-6. **Next blueprint handoff.** After worktree cleanup, if `next.next` is
-   non-null, offer to advance the active pointer with an **ACQ** — do **not**
-   recompute candidates yourself. Read `next` from the `finalize --yes` JSON
-   output (or from the dry-run output when there was nothing left to commit and
-   `--yes` was never run). If `next.next` is `null`, skip this step.
+6. **Next-task / next-blueprint handoff.** After worktree cleanup, offer to
+   advance the active pointer with an **ACQ** — do **not** recompute candidates
+   yourself beyond reading `bouncer current` / the finalize payload.
+   Prefer a remaining open task on the **same** blueprint before any
+   next-blueprint handoff. Advancement is confirm-then-
+   `bouncer current --set …` only — never automatic.
+
+   **Same-blueprint open task (first).** Read `bouncer current` and the
+   `ready` list from a cleared-or-current scan: if this blueprint still has an
+   open task in `listReadyBlueprints` / `ready[].tasks` (status `ready` or
+   `in_progress`, not the task just finished), confirm advancing there before
+   considering another blueprint.
+   - Show the candidate task id (`TASKS-NNN`) and path.
+   - **AskUserQuestion — Next task**
+     1. **Re-ground**: 같은 blueprint의 남은 열린 task로 포인터를 옮길지.
+     2. **Recommend-why**: 한 PR(blueprint) 안에 다음 커밋 단위가 남아 있으면
+        그쪽을 먼저 닫는 편이 흐름이 짧다.
+     3. **Options**:
+        - A) `bouncer current --set <blueprint> --task <NNN>` (Recommended)
+        - B) 이 task는 건너뛰고 다음 blueprint handoff로
+        - C) 취소 — 포인터 상태만 보고
+   - If A, run:
+     ```bash
+     BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+     node "${BOUNCER_ROOT}/scripts/bouncer" current --set <blueprint> --task <NNN>
+     ```
+     Then skip the next-blueprint ACQ for this run (user can finalize again later).
+   - If B, continue to next-blueprint below.
+   - If C, leave the pointer as-is and skip the rest of this step.
+
+   **Next blueprint (when no same-blueprint open task, or user chose B).**
+   If `next.next` is non-null, offer to advance — do **not** recompute
+   candidates yourself. Read `next` from the `finalize --yes` JSON output
+   (or from the dry-run output when there was nothing left to commit and
+   `--yes` was never run). If `next.next` is `null`, skip this branch.
    - Show the candidate (`next.next.blueprint`, `next.next.sameEpic`,
      `next.remaining` length).
    - If `next.next.sharedPaths` is non-empty, warn that the next blueprint
@@ -228,5 +258,5 @@ appears; do not reconstruct a root `context/` path.
 7. **Report.** Lead with the outcome, then the detail: what was committed, the
    PR URL (or that push/PR was skipped/declined), whether the worktree was
    removed or left in place, and whether the active pointer was advanced to the
-   next blueprint or left cleared. Keep it to those facts — no recap of the
-   steps the user just watched run.
+   next task, next blueprint, or left cleared. Keep it to those facts — no
+   recap of the steps the user just watched run.

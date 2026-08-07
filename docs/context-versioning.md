@@ -12,7 +12,7 @@
 | `.bouncer/Distill.md` | 커밋 (에이전트 런타임 주의) | finalize가 BP explain에서 승격·교체·폐기 |
 | `.bouncer/config.json` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
 | `graphify-out/` | 제외 | `-` (`.gitignore`, init이 안내) |
-| 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/current` (Git 공통 디렉터리) |
+| 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/current` — JSON `{blueprint, task?, base}` (Git 공통 디렉터리; `task`는 task 문서 상대 경로, 없으면 미지정) |
 | execute worktree | 제외 | `<repo>/.worktrees/<숫자 blueprint id>` (gitignore / finalize 무시) |
 
 문서 골격(템플릿)과 제품 규칙(`docs/governance.md` · `workflow.md` · `okf.md`),

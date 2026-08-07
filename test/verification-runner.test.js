@@ -309,3 +309,61 @@ bouncer:
     (e) => e.code === 'VERIFY_COMMAND_INVALID',
   );
 });
+
+test('readVerifyCommand narrows to the pointer task document', () => {
+  const { writeCurrent } = require('../scripts/lib/current');
+  const { execFileSync } = require('node:child_process');
+  const repo = setupRepo('npm test');
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const writeNumbered = (nnn, verifyField) => {
+    const verifyYaml = verifyField === undefined
+      ? ''
+      : `  verify: ${JSON.stringify(verifyField)}\n`;
+    fs.writeFileSync(path.join(repo, BP_REL, `tasks-${nnn}.md`), `---
+type: bouncer.tasks
+title: Login tasks
+description: Tasks for 001
+resource: ${BP_REL}/tasks-${nnn}.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-${nnn}
+  epic_id: '001'
+  blueprint_id: '001'
+  status: ready
+  affected_paths:
+    - src/auth/
+${verifyYaml}---
+# Tasks
+`);
+  };
+  writeNumbered('001', 'node -e "process.exit(0)"');
+  writeNumbered('002'); // no verify — pointer to 002 must fall to config.verify
+
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks-002.md`,
+  });
+  assert.strictEqual(readVerifyCommand(repo, BP_REL), 'npm test');
+
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks-001.md`,
+  });
+  assert.strictEqual(
+    readVerifyCommand(repo, BP_REL),
+    'node -e "process.exit(0)"',
+  );
+
+  // task 미지정 포인터는 기존처럼 첫 선언을 채택한다.
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+  assert.strictEqual(
+    readVerifyCommand(repo, BP_REL),
+    'node -e "process.exit(0)"',
+  );
+});
