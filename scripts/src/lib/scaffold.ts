@@ -103,13 +103,13 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
           basis: [],
         },
       }),
-    body('tasks.md')));
+    body(tasksBase)));
 
   created.push(writeRel(repoRoot, verifyRel,
     bouncerDoc('bouncer.verification', `${taskId} verification`, `Verification for ${taskId}`, verifyRel,
       ['bouncer', 'verification'], timestamp,
       { id: ids.verification, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }),
-    body('verification.md')));
+    body(verifyBase)));
 
   created.push(writeRel(repoRoot, reviewRel,
     bouncerDoc('bouncer.review', `${taskId} review`, `Review for ${taskId}`, reviewRel,
@@ -118,7 +118,7 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
         id: ids.review, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
         review: { required: true },
       }),
-    body('review.md')));
+    body(reviewBase)));
 
   return created;
 }

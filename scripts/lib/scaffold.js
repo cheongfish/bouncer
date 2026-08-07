@@ -85,12 +85,12 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
             // 빈 리스트는 G4가 거절한다 — graphify-runner가 엔트리를 채워야 통과.
             basis: [],
         },
-    }), body('tasks.md')));
-    created.push(writeRel(repoRoot, verifyRel, bouncerDoc('bouncer.verification', `${taskId} verification`, `Verification for ${taskId}`, verifyRel, ['bouncer', 'verification'], timestamp, { id: ids.verification, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }), body('verification.md')));
+    }), body(tasksBase)));
+    created.push(writeRel(repoRoot, verifyRel, bouncerDoc('bouncer.verification', `${taskId} verification`, `Verification for ${taskId}`, verifyRel, ['bouncer', 'verification'], timestamp, { id: ids.verification, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }), body(verifyBase)));
     created.push(writeRel(repoRoot, reviewRel, bouncerDoc('bouncer.review', `${taskId} review`, `Review for ${taskId}`, reviewRel, ['bouncer', 'review'], timestamp, {
         id: ids.review, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
         review: { required: true },
-    }), body('review.md')));
+    }), body(reviewBase)));
     return created;
 }
 function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) {
