@@ -99,6 +99,11 @@ those placeholders ship as the commit subject and body.
        `Delete`, `Rename`), not per directory. A bare directory opens every
        file under it, so G11 passes without constraining anything. Touch must
        justify every `affected_paths` entry.
+     - **Touch** (contract change): when Interface revises a shared
+       serialized shape or gate input, also list every test/fixture file that
+       *constructs or asserts* that shape, with `Modify` — even if the owning
+       production module is under Do not touch. Import absence is not absence
+       of blast radius.
      - **Do not touch**: paths only; must not overlap `affected_paths`.
      - **Constraints**: the rules that hold inside the allowed paths —
        compatibility promises, contracts to preserve, conventions to keep.
@@ -108,6 +113,11 @@ those placeholders ship as the commit subject and body.
        it fails → implement. Write expected assertions, constants, and
        commands as literal code blocks; this is where implementation detail
        deferred from the blueprint Contract lands.
+     - **Checklist** (verify vs paths): if the verify command is the full
+       suite (e.g. `npm test`), the set of files that must change for green
+       must be ⊆ Touch / `affected_paths`. If a fixture outside that set would
+       fail, widen the brief or narrow verify / defer the contract change —
+       do not leave the gap for execute to discover.
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.

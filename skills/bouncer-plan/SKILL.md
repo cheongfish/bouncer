@@ -130,6 +130,18 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    Before finalizing `affected_paths` and the Checklist, you may run the
    `minimality` skill (`skills/minimality/SKILL.md`) (advisory, not a gate) to challenge new dependencies,
    abstractions, or files and record the rationale.
+   **Contract blast check (before user confirm).** When the task Interface
+   changes a serialized shape, gate input, or exported contract (field names,
+   object→list, helper return shape), search the repo for constructors and
+   assertions of the *old* shape before locking `affected_paths` — not only
+   importers of the touched module. Include test fixtures and helpers that
+   build the shape as a literal (e.g. `fullBlueprint`-style explain frontmatter)
+   even when they do not `require` the changed file. Every file that must be
+   edited for Checklist / `bouncer.verify` / `config.verify` to go green belongs
+   in Touch and `affected_paths`. `Do not touch` on a production file does not
+   exempt that file's tests if those tests embed the old contract — list the
+   tests under Touch, or keep the contract change out of this task. Stale or
+   empty graph results do not replace this search.
 
 7. **Approval (explicit).** Ask the user to approve. On approval, transition
    `bouncer.status`: epic `draft → approved`, blueprint `draft → approved`, tasks

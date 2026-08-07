@@ -61,6 +61,9 @@ When judging a plan or diff, flag candidates to delete or simplify:
 
 - If a minimality suggestion conflicts with an approved task, do not act
   unilaterally. Escalate: send the work back to planning for re-approval.
+- Plan contract blast: do not drop fixture/test paths from Touch to keep
+  `affected_paths` short when Interface changes a shared shape — that is a
+  planning miss, not minimality. Escalate to widen Touch or defer the change.
 
 ## When to run
 
