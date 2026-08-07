@@ -1,7 +1,7 @@
 ---
 type: bouncer.explain
-title: execute 게이트를 포인터 task 묶음으로 좁힘
-description: Explain for TASKS-002
+title: task 문서 경로를 디렉터리 묶음으로 안내
+description: Explain for TASKS-003
 resource: .bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/explain.md
 tags:
   - bouncer
@@ -13,71 +13,58 @@ bouncer:
   blueprint_id: '001'
   status: published
   comprehension:
-    diff_sha: '75a3d75a77d336567df039ba0c51176e5ca049848e43af8c0777f770136af283'
-    quiz_score: '1/3'
-    disposition: '퀴즈 3문항 중 1정답. Q1·Q2 오답, Q3 정답. 마감 진행.'
-    recorded_at: '2026-08-07T11:14:36+09:00'
+    diff_sha: 'dd77edcd31b091a665bba5ca5ffe874d2e33b0cd845267e1f85de5acd413e761'
+    quiz_score: '1/1'
+    disposition: '퀴즈 1문항 정답. task 묶음 추가와 포인터 증적 경로를 이해함.'
+    recorded_at: '2026-08-07T12:41:55+09:00'
 ---
 # Explain
 
 ## Background
 
-001에서 task마다 `tasks/<NNN>/` 서류 철을 만들 수 있게 됐지만, execute 게이트는
-여전히 blueprint 루트의 `tasks`·`verification`·`review` 한 벌만 봤다. 같은
-blueprint에 draft 묶음이 있으면 지금 커밋할 묶음의 G6–G8이 막혔고, verify 증적도
-루트 `verification.md`에만 쌓였다.
+task 묶음 리졸버와 execute 게이트가 먼저 새 배치를 처리하게 됐지만, 사용자를
+안내하는 스킬·에이전트·문서는 아직 `tasks-001.md`와 blueprint 루트의 증적 경로를
+섞어 썼다. 새 blueprint를 만든 뒤에도 다음 task를 어떻게 추가하고, 어느
+`verification.md`와 `review.md`를 읽어야 하는지 문서마다 달라질 수 있었다.
 
-이번 커밋은 `loadBlueprintDocs`가 `taskUnits`를 돌리고, execute·verify·finalize
-bullet이 포인터가 가리킨 묶음만 쓰게 한다. plan 게이트(G3–G5·G10–G12)는 모든
-묶음에 그대로 걸린다. 같이, 앞 task가 `verified`여도 next-task `--set`이 되도록
-G3를 `ready`|`in_progress`|`verified`로 완화했다.
+이번 변경은 새 blueprint의 첫 묶음을
+`tasks/001/{tasks,verification,review}.md`로 설명하고, 추가 묶음은
+`bouncer scaffold task --blueprint <dir> --id <NNN>`으로 만들도록 통일한다.
+execute·verification·review 안내는 포인터 task 디렉터리의 증적 문서를 가리킨다.
+구 루트 레이아웃은 하드컷 전까지 마이그레이션 대상으로 남긴다.
 
 ## Intuition
 
-여러 서류 철 중 손에 든 철만 검사한다. 옆 철이 미완이어도 지금 철의 통과·반려를
-정한다.
+task 하나를 열면 브리프·검증·리뷰 세 장이 같은 폴더에 들어 있는 서류철을 꺼내는
+방식이다. 안내문도 그 서류철의 주소를 써야 다른 task의 증적을 찾지 않는다.
 
 ## Code
 
-- `scripts/src/lib/validate.ts` — `docs.taskUnits`, `resolveTaskUnit`(019
-  `entriesForVerify` 재사용), execute G6–G8·G13·G14의 `file`을 묶음 경로로,
-  plan G3 상태 허용, 고아 루트 verification/review 구조 검사.
-- `scripts/src/lib/verification.ts` — `recordVerificationResult({ verificationRel })`,
-  `runVerification`이 대상 묶음 `verification.md`에만 기록. 없으면
-  `VERIFY_DOCUMENT_MISSING`이고 파일을 만들지 않음.
-- `scripts/src/lib/finalize.ts` — 커밋 bullet title을 `resolveTaskUnit` 대상
-  묶음의 tasks/verification `title`에서 읽음.
+- `CLAUDE.md`, `docs/governance.md`, `docs/workflow.md`, `docs/gates.md` —
+  task 묶음의 배치와 plan/execute 판정 단위를 설명한다.
+- `skills/bouncer-plan/SKILL.md`와 하위 스킬 — 첫 묶음 스캐폴드, task 추가 명령,
+  포인터 task 디렉터리의 verification/review 경로를 안내한다.
+- `agents/bouncer-*.md`, `skills/review/reviewer-prompt.md` — implementer,
+  reviewer, debugger가 같은 브리프·증적 경로를 받도록 맞춘다.
+- `test/*skill*.test.js`, `test/agents.test.js`, `test/master-rules.test.js` —
+  이 안내 계약이 다시 구 경로로 바뀌지 않도록 고정한다.
 
 ## Quiz
 
-**Q1.** 포인터가 `tasks/001/tasks.md`를 가리키고 `tasks/002/`가 draft일 때
-execute 게이트는?
+**Q1.** 새 blueprint의 두 번째 task를 추가하고 execute 증적을 확인할 때 맞는
+설명은 무엇인가?
 
-- A) 002가 draft라 blueprint 전체가 실패한다
-- B) 001 묶음만 G6–G8·G13·G14를 판정한다
-- C) plan 게이트처럼 모든 묶음을 검사한다
-
-**Q2.** 포인터가 `tasks/002`인데 `tasks/002/verification.md`가 없으면?
-
-- A) 루트 `verification.md`에 증적을 쓴다
-- B) `tasks/001/verification.md`로 폴백한다
-- C) `VERIFY_DOCUMENT_MISSING`이고 새 파일을 만들지 않는다
-
-**Q3.** plan 게이트 G3가 허용하는 task `status`는?
-
-- A) `ready`만
-- B) `ready` · `in_progress` · `verified`
-- C) `draft` · `ready` · `verified`
+- A) `tasks-002.md`를 만들고 blueprint 루트의 `verification.md`를 확인한다
+- B) `bouncer scaffold task --blueprint <dir> --id <NNN>`를 실행하고, 포인터 task
+  디렉터리의 `verification.md`와 `review.md`를 확인한다
+- C) `tasks.md` 하나에 다음 task를 덧붙이고 review는 blueprint 마지막에만 기록한다
 
 ## 이해 상태
 
-- 정답: Q1=B, Q2=C, Q3=B
-- 응답: Q1=C, Q2=B, Q3=B
-- 채점: 1/3
-  - Q1 오답 — execute는 포인터 묶음만 본다(plan이 전 묶음).
-  - Q2 오답 — 대상 묶음에 verification이 없으면 `VERIFY_DOCUMENT_MISSING`,
-    루트/형제로 폴백하지 않음.
-  - Q3 정답 — G3는 `ready`|`in_progress`|`verified` (draft만 실패).
-- disposition: 퀴즈 3문항 중 1정답. 마감 진행.
-- diff_sha: 75a3d75a77d336567df039ba0c51176e5ca049848e43af8c0777f770136af283
-- recorded_at: 2026-08-07T11:14:36+09:00
+- 정답: Q1=B
+- 응답: Q1=B
+- 채점: 1/1 — 정답. task 추가 명령과 포인터 task 디렉터리의 증적 경로를
+  구분했다.
+- disposition: 퀴즈 1문항 정답. task 묶음 추가와 포인터 증적 경로를 이해함.
+- diff_sha: dd77edcd31b091a665bba5ca5ffe874d2e33b0cd845267e1f85de5acd413e761
+- recorded_at: 2026-08-07T12:41:55+09:00

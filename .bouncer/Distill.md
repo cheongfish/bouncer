@@ -54,6 +54,10 @@ append a change log.
   pointer’s task unit (`loadBlueprintDocs` → `docs.taskUnits`,
   `resolveTaskUnit` via 019 `entriesForVerify`). Do not fall back to a sibling
   unit’s `tasks.md` / `verification.md` / `review.md`.
+- Workflow skills, agents, and public docs must name the same task bundle:
+  `tasks/<NNN>/tasks.md` for the brief and the pointer task directory's
+  `verification.md` / `review.md` for execute evidence. Keep legacy root paths
+  described as migration targets until the hard cut.
 - `runVerification` / `recordVerificationResult` write the target unit’s
   `verification.md` only (`verificationRel`). Missing file →
   `VERIFY_DOCUMENT_MISSING` and no create.

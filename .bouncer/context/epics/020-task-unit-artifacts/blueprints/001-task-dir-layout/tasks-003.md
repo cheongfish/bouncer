@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '020'
   blueprint_id: '001'
-  status: ready
+  status: verified
   affected_paths:
     - CLAUDE.md
     - skills/bouncer-plan/SKILL.md
