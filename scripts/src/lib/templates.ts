@@ -117,14 +117,14 @@ Epic: [<EPIC-id>](../../index.md)
 - <TODO: 한 커밋에 들어가는 이유>
 
 ## Documents
-* [Tasks](tasks.md) - 구현 브리프
-* [Verification](verification.md) - 검증 명령과 증적
-* [Review](review.md) - 리뷰 발견사항
+* [Tasks](tasks/001/tasks.md) - 구현 브리프
+* [Verification](tasks/001/verification.md) - 검증 명령과 증적
+* [Review](tasks/001/review.md) - 리뷰 발견사항
 <!-- explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다. -->
 `,
   'tasks.md': `# Tasks
 
-Blueprint: [<BP-id>](index.md)
+Blueprint: [<BP-id>](../../index.md)
 
 ## Goal & intent
 <!-- 구현자가 다른 문서 없이 시작할 수 있게.

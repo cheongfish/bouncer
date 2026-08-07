@@ -22,3 +22,4 @@ okf_version: '0.1'
 * [017 verify-wrapper-guidance](epics/017-verify-wrapper-guidance/index.md) - Epic 017
 * [018 task-unit-commits](epics/018-task-unit-commits/index.md) - Epic 018
 * [019 task-pointer](epics/019-task-pointer/index.md) - Epic 019
+* [020 task-unit-artifacts](epics/020-task-unit-artifacts/index.md) - Epic 020

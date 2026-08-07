@@ -48,3 +48,8 @@ test('an unknown command still fails, but says what is available', () => {
   assert.match(r.err, /usage/i);
   assert.strictEqual(r.out, '');
 });
+
+test('usage lists scaffold task --blueprint --id', () => {
+  const r = capture([]);
+  assert.match(r.out, /task --blueprint <dir> --id <ddd>/);
+});

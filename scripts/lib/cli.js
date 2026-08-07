@@ -1,7 +1,7 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const { validateBlueprint } = require('./validate');
-const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain } = require('./scaffold');
+const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask } = require('./scaffold');
 const { isNumericContextId } = require('./paths');
 const { finalize } = require('./finalize');
 const { init } = require('./init');
@@ -105,6 +105,24 @@ function cmdScaffold(rest, io) {
             }
             created = scaffoldBlueprint({
                 repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp,
+            });
+        }
+        else if (kind === 'task') {
+            // --blueprint / --id 누락은 형식 오류보다 먼저 안내한다.
+            if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+                io.err('scaffold task: --blueprint is required\n');
+                return 2;
+            }
+            if (typeof f.id !== 'string' || f.id === '') {
+                io.err('scaffold task: --id is required\n');
+                return 2;
+            }
+            if (!isNumericContextId(f.id)) {
+                io.err(`scaffold: --id must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(f.id)}\n`);
+                return 2;
+            }
+            created = scaffoldTask({
+                repoRoot, blueprintDir: f.blueprint, taskId: f.id, timestamp,
             });
         }
         else if (kind === 'explain') {
@@ -293,6 +311,7 @@ const USAGE = `usage: bouncer <command> [options]
              Run the configured verify command and record its evidence.
   scaffold   epic --id <ddd> --name <slug>
              blueprint --epic-dir <dir> --id <ddd> --name <slug>
+             task --blueprint <dir> --id <ddd>
              explain --blueprint <dir>
              Create a document set with correct frontmatter.
              (explain is for finalize; epic/blueprint scaffold omit it.)

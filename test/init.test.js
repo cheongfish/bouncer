@@ -181,7 +181,9 @@ test('built-in epic and blueprint templates link their neighbours with relative 
   assert.ok(!/\]\(\//.test(blueprint), 'blueprint template must not use bundle-absolute links');
   assert.match(epic, /\]\(blueprints\//);
   assert.match(blueprint, /Epic: \[<EPIC-id>\]\(\.\.\/\.\.\/index\.md\)/);
-  assert.match(blueprint, /\* \[Tasks\]\(tasks\.md\) - /);
+  assert.match(blueprint, /\* \[Tasks\]\(tasks\/001\/tasks\.md\) - /);
+  assert.match(blueprint, /\* \[Verification\]\(tasks\/001\/verification\.md\) - /);
+  assert.match(blueprint, /\* \[Review\]\(tasks\/001\/review\.md\) - /);
 });
 
 test('init leaves a pre-existing .gitignore byte-for-byte unchanged', () => {

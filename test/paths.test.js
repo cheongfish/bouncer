@@ -20,6 +20,16 @@ test('parses numeric ids and kind from new-style paths', () => {
   assert.strictEqual(parsePathIds(`${BP_NEW}/explain.md`).kind, 'explain');
 });
 
+test('parsePathIds kind for tasks/<NNN>/ unit documents', () => {
+  const unit = '.bouncer/context/epics/020-x/blueprints/001-y/tasks/002';
+  assert.equal(parsePathIds(`${unit}/tasks.md`).kind, 'tasks');
+  assert.equal(parsePathIds(`${unit}/verification.md`).kind, 'verification');
+  assert.equal(parsePathIds(`${unit}/review.md`).kind, 'review');
+  assert.deepStrictEqual(parsePathIds(`${unit}/tasks.md`), {
+    epicId: '020', blueprintId: '001', kind: 'tasks',
+  });
+});
+
 test('parsePathIds does not treat non-padded tasks-1.md as tasks kind', () => {
   assert.strictEqual(parsePathIds(`${BP_NEW}/tasks-1.md`).kind, null);
 });
