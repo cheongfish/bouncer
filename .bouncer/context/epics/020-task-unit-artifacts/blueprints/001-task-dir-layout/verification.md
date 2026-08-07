@@ -14,28 +14,28 @@ bouncer:
   status: passed
   verification:
     command: npm test
-    ran_at: '2026-08-07T10:36:43.822+09:00'
+    ran_at: '2026-08-07T11:11:30.095+09:00'
     exit_code: 0
     output_tail: |-
       ---
-        duration_ms: 1.74612
+        duration_ms: 8.548312
         type: 'test'
         ...
-      # Subtest: readVerifyCommand narrows to the pointer task document
-      ok 419 - readVerifyCommand narrows to the pointer task document
+      # Subtest: runVerification rejects missing unit verification.md without creating it
+      ok 428 - runVerification rejects missing unit verification.md without creating it
         ---
-        duration_ms: 12.011034
+        duration_ms: 7.883408
         type: 'test'
         ...
-      1..419
-      # tests 419
+      1..428
+      # tests 428
       # suites 0
-      # pass 419
+      # pass 428
       # fail 0
       # cancelled 0
       # skipped 0
       # todo 0
-      # duration_ms 412.169761
+      # duration_ms 441.442105
 ---
 # Verification
 
@@ -43,5 +43,5 @@ bouncer:
 `npm test`
 
 ## Evidence
-Ran at: 2026-08-07T10:36:43.822+09:00
+Ran at: 2026-08-07T11:11:30.095+09:00
 Exit code: 0

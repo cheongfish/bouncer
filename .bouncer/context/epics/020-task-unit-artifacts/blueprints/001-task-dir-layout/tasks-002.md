@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '020'
   blueprint_id: '001'
-  status: ready
+  status: verified
   affected_paths:
     - scripts/src/lib/validate.ts
     - scripts/src/lib/verification.ts
