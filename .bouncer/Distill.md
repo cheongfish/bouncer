@@ -5,7 +5,7 @@ resource: .bouncer/Distill.md
 tags:
   - bouncer
   - distill
-timestamp: '2026-08-07T10:39:36+09:00'
+timestamp: '2026-08-07T11:14:36+09:00'
 ---
 # Distill
 
@@ -50,6 +50,13 @@ append a change log.
   array of entries (`graph` `source`|`context`, `status` in
   `updated`|`reused`|`fail-skip`|`skip-disabled`|`missing`, non-empty
   `query`/`result`). S9 and G4 must call the same `isValidGraphBasis` helper.
+- Execute G6–G8 / G13 / G14 and finalize commit-bullet titles judge only the
+  pointer’s task unit (`loadBlueprintDocs` → `docs.taskUnits`,
+  `resolveTaskUnit` via 019 `entriesForVerify`). Do not fall back to a sibling
+  unit’s `tasks.md` / `verification.md` / `review.md`.
+- `runVerification` / `recordVerificationResult` write the target unit’s
+  `verification.md` only (`verificationRel`). Missing file →
+  `VERIFY_DOCUMENT_MISSING` and no create.
 
 ## Gotchas
 
@@ -243,6 +250,12 @@ append a change log.
 - `bouncer current --set` writes the pointer only after the plan gate passes;
   failures ship `validateBlueprint` results untouched and leave the pointer
   alone.
+- Plan G3–G5·G10–G12 still apply to **every** task document (not narrowed by
+  the pointer). G3 accepts `ready` | `in_progress` | `verified` so a finished
+  sibling does not block next-task `--set`; `draft` still fails G3.
+- When `docs.taskUnits` is present, skip structural checks on root
+  `verification` / `review` only if that `rel` was already seen on a unit leaf
+  — orphan root leftovers must still be S-checked.
 - The next blueprint after finalize is a computation (`listReadyBlueprints` +
   epic `## Blueprints` order), not stored state; advancing the pointer is
   confirm-then-`bouncer current --set` only — never automatic and never a new
