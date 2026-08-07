@@ -13,6 +13,34 @@ bouncer:
   blueprint_id: '001'
   status: published
   comprehension:
+    - task: '001'
+      range_from: develop
+      range_to: 097bca2b72ede5415e5cddc26de2ddcda8b7e649
+      diff_sha: dfc4dbcffc87ec490178543a3f37d4426ee55d2140affc73b1fae2efa06bf2d5
+      quiz_score: skipped
+      disposition: Backfilled for G16 — task closed before /bouncer-commit explain flow existed.
+      recorded_at: '2026-08-07T17:27:07+09:00'
+    - task: '002'
+      range_from: 097bca2b72ede5415e5cddc26de2ddcda8b7e649
+      range_to: a7aadf3d5347c02ec754253b1e0802d63f6522e4
+      diff_sha: ffbf23591c4519241e0f024a52b5a569086d883baf110de919cc518bef9ff21e
+      quiz_score: skipped
+      disposition: Backfilled for G16 — task closed before /bouncer-commit explain flow existed.
+      recorded_at: '2026-08-07T17:27:07+09:00'
+    - task: '003'
+      range_from: a7aadf3d5347c02ec754253b1e0802d63f6522e4
+      range_to: a664edd04e5112d869e06974c07c2fe1ec5f2357
+      diff_sha: 854068a8a66cd7998af70863226d4eb78889250b8fbd6fdba54fd225a88eb603
+      quiz_score: skipped
+      disposition: Backfilled for G16 — task closed before /bouncer-commit explain flow existed.
+      recorded_at: '2026-08-07T17:27:07+09:00'
+    - task: '004'
+      range_from: a664edd04e5112d869e06974c07c2fe1ec5f2357
+      range_to: 918450acc2253f7fa6ceba7f4ac5bb042ba0ff9b
+      diff_sha: a187d816f2e06d0701d27259ab2b45e938c5ac5c94d3d26fe67592608151e036
+      quiz_score: skipped
+      disposition: Backfilled for G16 — task closed before /bouncer-commit explain flow existed.
+      recorded_at: '2026-08-07T17:27:07+09:00'
     - task: '005'
       range_from: develop
       range_to: 918450acc2253f7fa6ceba7f4ac5bb042ba0ff9b
@@ -68,10 +96,11 @@ G15)과 `bouncer finalize`(게이트 `finalize` / G16)를 나눈다. execute는 
    - C) task 번호 엔트리를 append하는 배열
 
 ## 이해 상태
-- 점수: 3/4
+- 점수: 3/4 (task 005 quiz)
 - 응답: 1B 2C 3A 4C
 - 정답: 1B 2A 3A 4C
 - 채점: 1○ 2✗ 3○ 4○
 - disposition: Q2를 range_from..range_to로 골랐음. G15는 range_to를 쓰지 않고
   range_from..HEAD를 봄.
-- 엔트리: task `005`, range_from `develop` → range_to `918450a…`
+- 엔트리: task `005` quiz 기록. task `001`–`004`는 `/bouncer-commit` 이전
+  마감분이라 G16용으로 disposition `Backfilled for G16` 엔트리를 앞에 둠.
