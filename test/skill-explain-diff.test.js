@@ -13,16 +13,21 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   assert.match(md, /name:\s*explain-diff/);
   assert.strictEqual(data.name, 'explain-diff');
   assert.ok(typeof data.description === 'string' && data.description.length > 0);
-  assert.match(String(data.description), /finalize/i);
+  assert.match(String(data.description), /bouncer-commit|\/bouncer-commit/i);
 
   // 다섯 섹션 — 교대(|)가 아니라 개별 단언. EXPLAIN_SECTION_DEFS와 1:1.
   for (const h of ['Background', 'Intuition', 'Code', 'Quiz', '이해 상태']) {
     assert.ok(md.includes(h), `missing section: ${h}`);
   }
-  // comprehension 네 필드 — 개별 단언.
-  for (const f of ['diff_sha', 'quiz_score', 'disposition', 'recorded_at']) {
+  // 엔트리 필드 — range_from/range_to 포함, 배열 append.
+  for (const f of [
+    'diff_sha', 'quiz_score', 'disposition', 'recorded_at',
+    'range_from', 'range_to', 'task',
+  ]) {
     assert.ok(md.includes(f), `missing field: ${f}`);
   }
+  assert.match(md, /append|추가|엔트리/i);
+  assert.match(md, /range_from\.\.HEAD/);
   // 해시는 스킬이 직접 부른다 — 모듈 경로와 함수명을 함께 고정.
   assert.match(md, /scripts\/lib\/comprehension/);
   assert.match(md, /computeDiffSha/);

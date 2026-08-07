@@ -26,10 +26,11 @@ they conflict.
 3. **Evidence, not claims** — Verification success evidence is written by the
    execute gate running `config.verify`, not by an agent. Do not hand-author a
    passing `verification.md` to skip the harness.
-4. **Gates decide done** — `bouncer validate --gate plan|execute|finalize` is
-   authoritative. Fix reported G/S codes; do not argue past a failing gate.
+4. **Gates decide done** — `bouncer validate --gate plan|execute|commit|finalize`
+   is authoritative. Fix reported G/S codes; do not argue past a failing gate.
 5. **Workflow order** — `/bouncer-init` → `/bouncer-plan` → `/bouncer-execute` →
-   `/bouncer-finalize`. Detail: [`docs/workflow.md`](docs/workflow.md).
+   `/bouncer-commit` → `/bouncer-finalize`. Detail:
+   [`docs/workflow.md`](docs/workflow.md).
 6. **OKF shape** — Context documents carry OKF frontmatter; Bouncer fields live
    under `bouncer:`. Bundle-root `okf_version` is only on
    `.bouncer/context/index.md`. Detail: [`docs/okf.md`](docs/okf.md).
@@ -85,7 +86,8 @@ numbered step says otherwise.
 | Implement from `tasks/<NNN>/tasks.md` | `implementation` (inside `/bouncer-execute`) |
 | Investigate a failed verify | `debugging` + `verification` |
 | Review the diff against the brief | `review` |
-| Close out, commit, draft PR | `/bouncer-finalize` |
+| Close one task (explain entry + commit) | `/bouncer-commit` |
+| Promote Distill, draft PR, cleanup | `/bouncer-finalize` |
 
 ## Plugin root
 

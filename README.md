@@ -48,12 +48,17 @@ flowchart TB
     REV --> M2[minimality]
   end
 
-  subgraph fin["/bouncer-finalize → gate finalize"]
-    ED[explain-diff] --> SA2["spec-authoring<br/>Distill 승격"]
+  subgraph commit["/bouncer-commit → gate commit"]
+    direction LR
+    ED[explain-diff] --> CM["bouncer commit --yes"]
     ED -.-> SS2[stop-slop]
   end
 
-  init --> plan --> exec --> fin
+  subgraph fin["/bouncer-finalize → gate finalize"]
+    SA2["spec-authoring<br/>Distill 승격"] --> PR[draft PR]
+  end
+
+  init --> plan --> exec --> commit --> fin
 ```
 
 
@@ -119,7 +124,8 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ```
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
 /bouncer-execute   # worktree seed → 구현 · verify · review
-/bouncer-finalize  # explain-diff · Distill 승격 · 커밋 (+ draft PR)
+/bouncer-commit    # explain 엔트리 · task 커밋 · 다음 task
+/bouncer-finalize  # Distill 승격 · remainder · draft PR
 ```
 
 ## Requirements

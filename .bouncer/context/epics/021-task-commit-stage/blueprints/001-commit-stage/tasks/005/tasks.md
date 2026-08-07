@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-005
   epic_id: '021'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 새 단계가 코드에만 있고 스킬과 문서는 여전히 네 단계 흐름을 안내함
     - 사용자가 만나는 스킬과 문서를 다섯 단계 흐름으로 맞춰 실제 경로와 어긋나지 않게 함
@@ -39,6 +39,7 @@ bouncer:
     - test/skill-explain-diff.test.js
     - test/skill-spec-authoring.test.js
     - test/master-rules.test.js
+    - test/verification-runner.test.js
   graph:
     generated_at: '2026-08-07T14:35:00+09:00'
     command: graphify query (source + context)

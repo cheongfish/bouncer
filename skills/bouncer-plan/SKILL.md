@@ -72,7 +72,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    (ids `TASKS-001`, `VERIFY-001`, `REVIEW-001`). Add a later task with
    `bouncer scaffold task --blueprint <dir> --id <NNN>`. Existing root-layout
    documents remain migration targets.
-   Do **not** create BP `explain.md` here — `/bouncer-finalize`
+   Do **not** create BP `explain.md` here — `/bouncer-commit`
    scaffolds it with `bouncer scaffold explain`.
 
 4. **Author.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write the epic, blueprint, and
@@ -82,10 +82,13 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    sole brief for `/bouncer-execute`. Write Touch per file with a verb rather than
    per directory, and put non-path rules in Constraints.
    Also replace scaffold default frontmatter `title` values (and set
-   `bouncer.commit_type` / `bouncer.commit_intent` on the blueprint when needed):
-   `/bouncer-finalize` turns blueprint `title` into the commit subject,
-   `commit_intent` (exactly two `~함` lines) into 배경·의도 bullets, and
-   tasks/verification `title` into 수정 내용 bullets, following `.gitmessage`.
+   `bouncer.commit_type` / `bouncer.commit_intent` on the blueprint, plus
+   optional task `bouncer.commit_intent`, when needed): `/bouncer-commit`
+   turns each task `title` into that task's commit subject (falls back to
+   blueprint `title`), uses task then blueprint `commit_intent` (exactly two
+   `~함` lines) for 배경·의도, and verification `title` for a 수정 내용
+   bullet, following `.gitmessage`. `/bouncer-finalize` uses blueprint
+   `title` + blueprint `commit_intent` only for any Distill remainder commit.
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
    **Verify command (optional).** After the draft bodies make this blueprint's
    character clear, check the **repository root only** for any of these signals:

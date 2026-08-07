@@ -151,8 +151,11 @@ test('executeVerify accepts successful commands with over one megabyte of output
 // A passing run's value is the exit code and the summary; a failing run's value
 // is the output. Recording the full tail twice — frontmatter and body — put a
 // couple of hundred lines into every commit.
+// process.exit() can truncate piped console.log stdout under load; write +
+// exitCode lets the stream drain so output_tail assertions stay deterministic.
 const noisyCommand = (lines, exitCode) => 'node -e "'
-  + `for(let i=1;i<=${lines};i++)console.log('line '+i);process.exit(${exitCode})`
+  + `for(let i=1;i<=${lines};i++)process.stdout.write('line '+i+'\\n');`
+  + `process.exitCode=${exitCode}`
   + '"';
 
 test('a passing verification keeps no output block in the body', () => {

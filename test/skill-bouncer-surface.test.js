@@ -7,7 +7,9 @@ const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const { GENERIC_SKILLS } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
-const WORKFLOW = ['bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-finalize'];
+const WORKFLOW = [
+  'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize',
+];
 const SUB_PATHS = [
   'discovery', 'spec-authoring', 'implementation', 'verification',
   'review', 'minimality', 'debugging', 'graphify-runner', 'explain-diff',
@@ -29,6 +31,7 @@ test('workflow skills use directory-matching names and explicit-invocation descr
 test('workflow skills cite subordinate skills by path', () => {
   const plan = readWorkflow('bouncer-plan');
   const execute = readWorkflow('bouncer-execute');
+  const commit = readWorkflow('bouncer-commit');
   const finalize = readWorkflow('bouncer-finalize');
   assert.match(plan, /skills\/discovery\/SKILL\.md/);
   assert.match(plan, /skills\/spec-authoring\/SKILL\.md/);
@@ -37,7 +40,7 @@ test('workflow skills cite subordinate skills by path', () => {
   assert.match(execute, /skills\/implementation\/SKILL\.md/);
   assert.match(execute, /skills\/verification\/SKILL\.md/);
   assert.match(execute, /skills\/review\/SKILL\.md/);
-  assert.match(finalize, /skills\/explain-diff\/SKILL\.md/);
+  assert.match(commit, /skills\/explain-diff\/SKILL\.md/);
   assert.match(finalize, /skills\/spec-authoring\/SKILL\.md/);
   for (const name of [
     'discovery', 'implementation', 'verification', 'review',
@@ -49,8 +52,9 @@ test('workflow skills cite subordinate skills by path', () => {
   }
 });
 
-test('execute and finalize stop when current is null; plan stops without .bouncer/', () => {
+test('execute, commit, and finalize stop when current is null; plan stops without .bouncer/', () => {
   const execute = readWorkflow('bouncer-execute');
+  const commit = readWorkflow('bouncer-commit');
   const finalize = readWorkflow('bouncer-finalize');
   const plan = readWorkflow('bouncer-plan');
   assert.match(execute, /scripts\/bouncer"\s+current\b/);
@@ -58,6 +62,8 @@ test('execute and finalize stop when current is null; plan stops without .bounce
   assert.match(execute, /ready/);
   assert.match(execute, /current --set/);
   assert.match(execute, /\/bouncer-plan/);
+  assert.match(commit, /scripts\/bouncer"\s+current\b/);
+  assert.match(commit, /null/);
   assert.match(finalize, /scripts\/bouncer"\s+current\b/);
   assert.match(finalize, /null/);
   assert.match(finalize, /\/bouncer-plan/);

@@ -36,7 +36,7 @@ test('master rules are not installed by init', () => {
 
 test('workflow skills instruct reading CLAUDE.md before steps', () => {
   for (const name of [
-    'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-finalize',
+    'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize',
   ]) {
     const md = read(`skills/${name}/SKILL.md`);
     assert.match(md, /CLAUDE\.md/, `${name} must mention CLAUDE.md`);
@@ -44,6 +44,16 @@ test('workflow skills instruct reading CLAUDE.md before steps', () => {
   }
   const spec = read('skills/spec-authoring/SKILL.md');
   assert.match(spec, /CLAUDE\.md/);
+});
+
+test('hard rule 5 workflow order includes commit between execute and finalize', () => {
+  const claude = read('CLAUDE.md');
+  assert.match(
+    claude,
+    /\/bouncer-init`?\s*→\s*`?\/bouncer-plan`?\s*→\s*`?\/bouncer-execute`?\s*→\s*`?\/bouncer-commit`?\s*→\s*`?\/bouncer-finalize/,
+  );
+  assert.match(claude, /\/bouncer-commit/);
+  assert.match(claude, /When to invoke/i);
 });
 
 
