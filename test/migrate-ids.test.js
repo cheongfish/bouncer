@@ -193,7 +193,7 @@ test('apply rewrites the active blueprint pointer path', () => {
   assert.strictEqual(applyMigration({ repoRoot: repo, plan }).ok, true);
 
   const cur = readCurrent({ repoRoot: repo });
-  assert.deepStrictEqual(cur, { blueprint: NEW_BP_DIR, base: 'develop' });
+  assert.deepStrictEqual(cur, { blueprint: NEW_BP_DIR, base: 'develop', task: null });
 });
 
 test('apply rejects mixed new+legacy trees', () => {

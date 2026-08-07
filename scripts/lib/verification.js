@@ -8,6 +8,8 @@ const { renderDoc } = require('./render');
 const { isCanonicalBlueprintDir } = require('./layout');
 const { nowIsoKst } = require('./time');
 const { listTasksDocs } = require('./tasks-docs');
+const { readCurrent } = require('./current');
+const { toPosix } = require('./paths');
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
 // 증거이므로 훨씬 더 많이 — 그리고 리뷰어가 읽는 문서 본문에, frontmatter에만
@@ -34,33 +36,45 @@ function isValidVerifyCommand(command) {
         return false;
     return trimmed.split(/\s+/)[0] !== 'cd';
 }
+function entriesForVerify(repoRoot, blueprintDir) {
+    const listing = listTasksDocs({ repoRoot, blueprintDir });
+    if (listing.mixed)
+        return [];
+    // 포인터 task 가 이 blueprint 를 가리키고 문서가 살아 있으면 그 문서만.
+    // 문서가 사라졌을 때만 미지정(전체 walk)으로 폴백 — 다른 task 선언을
+    // 조용히 끌어오지 않기 위함.
+    const pointer = readCurrent({ repoRoot });
+    const bp = toPosix(blueprintDir);
+    if (pointer
+        && typeof pointer.task === 'string'
+        && toPosix(pointer.blueprint) === bp) {
+        const match = listing.entries.find((e) => e.rel === toPosix(pointer.task));
+        if (match)
+            return [match];
+    }
+    return listing.entries;
+}
 function readVerifyCommand(repoRoot, blueprintDir) {
     // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
     // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
     // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
-    //
-    // 임시 규칙(task 포인터 전): 번호가 앞선 문서에서 첫 verify 선언을 채택.
-    // 허용 경로 합집합(current/commit-hook)과 짝이며, 포인터가 생기면 좁혀진다.
     if (blueprintDir) {
-        const listing = listTasksDocs({ repoRoot, blueprintDir });
-        if (!listing.mixed) {
-            for (const entry of listing.entries) {
-                try {
-                    const { data } = readDoc(path.join(repoRoot, entry.rel));
-                    const declared = data && data.bouncer && data.bouncer.verify;
-                    if (declared !== undefined) {
-                        if (!isValidVerifyCommand(declared)) {
-                            throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
-                        }
-                        return declared;
+        for (const entry of entriesForVerify(repoRoot, blueprintDir)) {
+            try {
+                const { data } = readDoc(path.join(repoRoot, entry.rel));
+                const declared = data && data.bouncer && data.bouncer.verify;
+                if (declared !== undefined) {
+                    if (!isValidVerifyCommand(declared)) {
+                        throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
                     }
+                    return declared;
                 }
-                catch (error) {
-                    if (error && error.code === 'VERIFY_COMMAND_INVALID')
-                        throw error;
-                    if (!(error && error.code === 'ENOENT'))
-                        throw error;
-                }
+            }
+            catch (error) {
+                if (error && error.code === 'VERIFY_COMMAND_INVALID')
+                    throw error;
+                if (!(error && error.code === 'ENOENT'))
+                    throw error;
             }
         }
     }

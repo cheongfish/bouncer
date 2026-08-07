@@ -138,8 +138,14 @@ test('realMainRepoCurrent reads one shared pointer from primary and linked workt
   const current = { blueprint: BP, base: 'develop' };
   writeCurrent({ repoRoot: primary, ...current, deps });
 
-  assert.deepStrictEqual(realMainRepoCurrent({ repoRoot: primary, deps }), current);
-  assert.deepStrictEqual(realMainRepoCurrent({ repoRoot: linked, deps }), current);
+  assert.deepStrictEqual(realMainRepoCurrent({ repoRoot: primary, deps }), {
+    ...current,
+    task: null,
+  });
+  assert.deepStrictEqual(realMainRepoCurrent({ repoRoot: linked, deps }), {
+    ...current,
+    task: null,
+  });
 });
 
 // P1-2: the guard is a mistake-prevention device. Where it cannot decide what a
@@ -221,4 +227,62 @@ test('readAffectedPaths unions paths across numbered task documents', () => {
   write('tasks-002.md', ['src/shared.js', 'src/b.js']);
   const union = readAffectedPaths({ repoRoot: repo, blueprintDir: bp });
   assert.deepStrictEqual(union, ['src/a.js', 'src/shared.js', 'src/b.js']);
+});
+
+test('pointer task narrows affected_paths; missing task keeps the union', () => {
+  const { readAffectedPaths, evaluateCommit } = require('../scripts/lib/commit-hook');
+  const yaml = require('js-yaml');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-narrow-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const bp = BP;
+  const write = (name, paths) => {
+    const abs = path.join(repo, bp, name);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    const id = `TASKS-${name.match(/tasks-(\d{3})/)[1]}`;
+    fs.writeFileSync(abs, `---\n${yaml.dump({
+      type: 'bouncer.tasks',
+      title: 't',
+      description: 'd',
+      resource: `${bp}/${name}`,
+      tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id, epic_id: '001', blueprint_id: '001', status: 'ready',
+        affected_paths: paths,
+      },
+    })}---\n# Tasks\n`);
+  };
+  write('tasks-001.md', ['src/a.js']);
+  write('tasks-002.md', ['src/b.js']);
+
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: bp,
+    base: 'develop',
+    task: `${bp}/tasks-002.md`,
+  });
+  assert.deepStrictEqual(
+    readAffectedPaths({ repoRoot: repo, blueprintDir: bp }),
+    ['src/b.js'],
+  );
+  const blocked = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: repo,
+    deps: { stagedFiles: () => ['src/a.js'] },
+  });
+  assert.strictEqual(blocked.block, true);
+  assert.ok(blocked.reason.includes('src/a.js'));
+
+  // task 미지정이면 합집합이 살아 001 경로도 통과한다.
+  writeCurrent({ repoRoot: repo, blueprint: bp, base: 'develop' });
+  assert.deepStrictEqual(
+    readAffectedPaths({ repoRoot: repo, blueprintDir: bp }),
+    ['src/a.js', 'src/b.js'],
+  );
+  const allowed = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: repo,
+    deps: { stagedFiles: () => ['src/a.js'] },
+  });
+  assert.strictEqual(allowed.block, false);
 });

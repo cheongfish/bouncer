@@ -10,16 +10,73 @@ const READY_TASK_STATUS = ['ready', 'in_progress'];
 // epic `## Blueprints` 링크 대상(예: `blueprints/BP-001-slug/index.md`)과 매칭.
 // blueprint directory 이름만 캡처; title 텍스트와 한 줄 purpose는 무시.
 const BLUEPRINT_LINK_RE = /\]\(blueprints\/([^/)]+)\/index\.md\)/g;
+// --task 는 세 자리 숫자 또는 TASKS-NNN 만 받는다. 그 외 형식은 해석 실패.
+const TASK_DIGITS_RE = /^(\d{3})$/;
+const TASK_ID_RE = /^TASKS-(\d{3})$/;
 function readCurrent({ repoRoot, deps }) {
     return readRuntimeCurrent({ repoRoot, deps });
 }
-function writeCurrent({ repoRoot, blueprint, base, deps, }) {
+function writeCurrent({ repoRoot, blueprint, base, task, deps, }) {
     return writeRuntimeCurrent({
-        repoRoot, blueprint, base, deps,
+        repoRoot, blueprint, base, task, deps,
     });
 }
 function clearCurrent({ repoRoot, deps }) {
     return clearRuntimeCurrent({ repoRoot, deps });
+}
+function availableTaskEntries(listing) {
+    return listing.entries
+        .filter((entry) => typeof entry.id === 'string' && entry.id)
+        .map((entry) => ({ id: entry.id, path: entry.rel }));
+}
+/**
+ * --set 시 task 해석.
+ * - taskSpec 없음: 번호 순 첫 ready/in_progress. 없으면 task 미지정(ok + null).
+ * - NNN / TASKS-NNN: 해당 문서. 없거나 형식이 틀리면 ok:false + available 목록.
+ * mixed / 문서 없음: 명시 요청이면 실패, 자동이면 선택 없음.
+ */
+function resolvePointerTask({ repoRoot, blueprintDir, task: taskSpec }) {
+    const listing = listTasksDocs({ repoRoot, blueprintDir });
+    const available = availableTaskEntries(listing);
+    const requested = taskSpec !== undefined && taskSpec !== null && taskSpec !== '';
+    if (listing.mixed || listing.entries.length === 0) {
+        if (requested) {
+            return { ok: false, available, reason: 'no matching task document' };
+        }
+        return { ok: true, task: null, id: null };
+    }
+    if (requested) {
+        const raw = String(taskSpec);
+        let wantId = null;
+        const digits = TASK_DIGITS_RE.exec(raw);
+        const idMatch = TASK_ID_RE.exec(raw);
+        if (digits)
+            wantId = `TASKS-${digits[1]}`;
+        else if (idMatch)
+            wantId = `TASKS-${idMatch[1]}`;
+        else {
+            return { ok: false, available, reason: 'invalid task id' };
+        }
+        const entry = listing.entries.find((e) => e.id === wantId);
+        if (!entry) {
+            return { ok: false, available, reason: 'no matching task document' };
+        }
+        return { ok: true, task: entry.rel, id: entry.id };
+    }
+    // 자동 선택: listTasksDocs 가 이미 번호 순이므로 첫 열린 문서를 고른다.
+    for (const entry of listing.entries) {
+        try {
+            const doc = readDoc(path.join(repoRoot, entry.rel));
+            const st = doc.data && doc.data.bouncer ? doc.data.bouncer.status : undefined;
+            if (READY_TASK_STATUS.includes(st)) {
+                return { ok: true, task: entry.rel, id: entry.id };
+            }
+        }
+        catch (_e) {
+            // 깨진 문서는 건너뛰고 다음 후보를 본다.
+        }
+    }
+    return { ok: true, task: null, id: null };
 }
 // approved blueprint 중 execute가 아직 열린 tasks만 side-effect 없이 스캔.
 // 깨지거나 읽을 수 없는 doc은 항목별로 skip하여 corrupt blueprint 하나가
@@ -67,24 +124,27 @@ function listReadyBlueprints({ repoRoot }) {
                     : undefined;
                 if (bpStatus !== 'approved')
                     continue;
-                // ready = task 문서 중 하나라도 ready/in_progress. 어느 문서를
-                // 실행 중인지 고르는 일은 포인터 확장 BP에서 한다.
+                // ready = task 문서 중 하나라도 ready/in_progress.
+                // 열린 task 목록은 --set 자동 선택·finalize 다음-task 확인이 같이 쓴다.
                 const listing = listTasksDocs({ repoRoot, blueprintDir: rel });
                 if (listing.mixed || listing.entries.length === 0)
                     continue;
-                let tasksStatus;
+                const openTasks = [];
                 for (const entry of listing.entries) {
                     const tasksDoc = readDoc(path.join(repoRoot, entry.rel));
-                    const st = tasksDoc.data && tasksDoc.data.bouncer
+                    const taskStatus = tasksDoc.data && tasksDoc.data.bouncer
                         ? tasksDoc.data.bouncer.status
                         : undefined;
-                    if (READY_TASK_STATUS.includes(st)) {
-                        tasksStatus = st;
-                        break;
+                    if (READY_TASK_STATUS.includes(taskStatus) && entry.id) {
+                        openTasks.push({ id: entry.id, path: entry.rel, status: taskStatus });
                     }
                 }
-                if (tasksStatus) {
-                    list.push({ blueprint: rel, status: tasksStatus });
+                if (openTasks.length > 0) {
+                    list.push({
+                        blueprint: rel,
+                        status: openTasks[0].status,
+                        tasks: openTasks,
+                    });
                 }
             }
             catch (_e) {
@@ -126,8 +186,8 @@ function parseEpicBlueprintOrder(epicIndexAbs) {
     return names;
 }
 function readAffectedPaths(repoRoot, blueprintDir) {
-    // 임시 규칙(task 포인터 전): 허용 경로는 모든 task 문서의 합집합.
-    // 검증 명령은 verification.ts에서 번호가 앞선 선언을 채택한다.
+    // nextBlueprint sharedPaths 용: blueprint 전체 경로 합집합.
+    // 커밋 가드의 좁히기는 commit-hook.readAffectedPaths 가 포인터 task 를 본다.
     try {
         const listing = listTasksDocs({ repoRoot, blueprintDir });
         if (listing.mixed || listing.entries.length === 0)
@@ -235,4 +295,5 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
 }
 module.exports = {
     readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
+    resolvePointerTask,
 };

@@ -9,7 +9,7 @@ const { runVerification } = require('./verification');
 const { seedWorktree } = require('./seed-worktree');
 const { nowIsoKst } = require('./time');
 const { syncSessionGraphs } = require('./session-graph');
-const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints } = require('./current');
+const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, resolvePointerTask } = require('./current');
 const { migrateIds } = require('./migrate-ids');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -197,8 +197,17 @@ function cmdCurrent(rest, io) {
     const f = parseFlags(rest);
     const wantsSet = Object.prototype.hasOwnProperty.call(f, 'set');
     const wantsClear = f.clear === true;
+    const wantsTask = Object.prototype.hasOwnProperty.call(f, 'task');
     if (wantsSet && wantsClear) {
         io.err('current: --set and --clear are mutually exclusive\n');
+        return 2;
+    }
+    if (wantsClear && wantsTask) {
+        io.err('current: --clear and --task are mutually exclusive\n');
+        return 2;
+    }
+    if (wantsTask && !wantsSet) {
+        io.err('current: --task requires --set\n');
         return 2;
     }
     if (wantsSet && (typeof f.set !== 'string' || f.set === '')) {
@@ -224,6 +233,27 @@ function cmdCurrent(rest, io) {
             io.out(`${JSON.stringify({ ok: false, failures: result.failures }, null, 2)}\n`);
             return 1;
         }
+        // plan 통과 뒤에만 task 해석·포인터 기록. 해석 실패는 사용법 오류(2).
+        const taskSpec = wantsTask ? f.task : undefined;
+        if (wantsTask && (typeof taskSpec !== 'string' || taskSpec === '')) {
+            io.err('current: --task requires a task id (NNN or TASKS-NNN)\n');
+            return 2;
+        }
+        const resolved = resolvePointerTask({
+            repoRoot,
+            blueprintDir,
+            task: typeof taskSpec === 'string' ? taskSpec : undefined,
+        });
+        if (!resolved.ok) {
+            const ids = (resolved.available || [])
+                .map((t) => t.id)
+                .filter(Boolean)
+                .join(', ');
+            io.err(`current: cannot resolve --task ${JSON.stringify(taskSpec)}`
+                + (ids ? ` (available: ${ids})` : '')
+                + '\n');
+            return 2;
+        }
         let base = typeof f.base === 'string' ? f.base : undefined;
         if (!base) {
             const config = readConfig(repoRoot);
@@ -231,7 +261,12 @@ function cmdCurrent(rest, io) {
                 ? config.base_branch
                 : 'develop';
         }
-        writeCurrent({ repoRoot, blueprint: blueprintDir, base });
+        writeCurrent({
+            repoRoot,
+            blueprint: blueprintDir,
+            base,
+            task: resolved.task || undefined,
+        });
         const current = readCurrent({ repoRoot });
         io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
         return 0;
@@ -265,8 +300,10 @@ const USAGE = `usage: bouncer <command> [options]
              Move the plan context documents into a freshly created worktree.
   init       Bootstrap .bouncer/ for this project. Never overwrites.
   graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
-  current    [--set <blueprint dir> [--base <branch>]] [--clear]
+  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>]]
+             [--clear]
              Show the active blueprint pointer, or set / clear it.
+             --task picks a task doc; without it, first ready/in_progress wins.
   migrate    ids [--dry-run]
              Plan or apply rename of legacy EPIC-/BP- context dirs to numeric ids.
 

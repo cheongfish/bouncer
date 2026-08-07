@@ -6,6 +6,7 @@ const { checkCommitSafety } = require('./commit-guard');
 const { readCurrent } = require('./current');
 const { readDoc } = require('./frontmatter');
 const { listTasksDocs } = require('./tasks-docs');
+const { toPosix } = require('./paths');
 
 // guard는 실수를 막습니다. 의도적 우회에 대한 방어는 아닙니다
 // (docs/security.md의 threat model 참고). 명령을 판단할 수 없는 경우 —
@@ -145,27 +146,43 @@ function isGitCommit(command, { resolveAlias, cwd }: { resolveAlias?: any; cwd?:
   return detect(command, resolver, 0);
 }
 
+function pathsFromTaskDoc(repoRoot, entryRel) {
+  try {
+    const { data } = readDoc(path.join(repoRoot, entryRel));
+    const ap = data && data.bouncer ? data.bouncer.affected_paths : undefined;
+    if (!Array.isArray(ap)) return [];
+    return ap.filter((p) => typeof p === 'string');
+  } catch (_e) {
+    return [];
+  }
+}
+
 function readAffectedPaths({ repoRoot, blueprintDir }) {
-  // 임시 규칙(task 포인터 전): 커밋 허용 경로는 모든 task 문서 affected_paths의 합집합.
-  // 검증 명령 채택(첫 선언)과 짝을 이룬다 — 둘 다 포인터가 생기면 좁혀진다.
+  // 포인터 task 가 있으면 그 문서의 affected_paths 만. 없으면 전체 합집합.
+  // 가리키던 문서가 사라진 경우에만 합집합으로 폴백한다.
   try {
     const listing = listTasksDocs({ repoRoot, blueprintDir });
     if (listing.mixed || listing.entries.length === 0) return [];
+
+    const pointer = readCurrent({ repoRoot });
+    const bp = toPosix(blueprintDir);
+    if (
+      pointer
+      && typeof pointer.task === 'string'
+      && toPosix(pointer.blueprint) === bp
+    ) {
+      const match = listing.entries.find((e) => e.rel === toPosix(pointer.task));
+      if (match) return pathsFromTaskDoc(repoRoot, match.rel);
+    }
+
     const out: string[] = [];
     const seen = new Set();
     for (const entry of listing.entries) {
-      try {
-        const { data } = readDoc(path.join(repoRoot, entry.rel));
-        const ap = data && data.bouncer ? data.bouncer.affected_paths : undefined;
-        if (!Array.isArray(ap)) continue;
-        for (const p of ap) {
-          if (typeof p === 'string' && !seen.has(p)) {
-            seen.add(p);
-            out.push(p);
-          }
+      for (const p of pathsFromTaskDoc(repoRoot, entry.rel)) {
+        if (!seen.has(p)) {
+          seen.add(p);
+          out.push(p);
         }
-      } catch (_e) {
-        // 깨진 문서는 건너뛴다.
       }
     }
     return out;

@@ -102,7 +102,7 @@ test('current with a pointer omits ready', () => {
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
-  assert.deepStrictEqual(parsed.current, { blueprint: BP_REL, base: 'develop' });
+  assert.deepStrictEqual(parsed.current, { blueprint: BP_REL, base: 'develop', task: null });
   assert.strictEqual(parsed.ready, undefined);
 });
 
@@ -113,9 +113,14 @@ test('current --set writes pointer when plan gate passes', () => {
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
-  assert.deepStrictEqual(parsed.current, { blueprint: BP_REL, base: 'develop' });
+  // 레거시 tasks.md 단독이면 자동 선택으로 그 문서가 task 가 된다.
+  assert.deepStrictEqual(parsed.current, {
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks.md`,
+  });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
-    blueprint: BP_REL, base: 'develop',
+    blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks.md`,
   });
 });
 
@@ -194,4 +199,93 @@ test('current --clear is idempotent', () => {
   assert.strictEqual(parsed.ok, true);
   assert.strictEqual(parsed.current, null);
   assert.strictEqual(readCurrent({ repoRoot: repo }), null);
+});
+
+function writeNumberedPlanBlueprint(repo) {
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth epic', description: '001',
+    resource: '.bouncer/context/epics/001-auth/index.md',
+    tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login blueprint', description: '001',
+    resource: `${BP_REL}/index.md`,
+    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+    },
+  });
+  for (const nnn of ['001', '002']) {
+    writeDoc(repo, `${BP_REL}/tasks-${nnn}.md`, {
+      type: 'bouncer.tasks', title: `Login tasks ${nnn}`, description: 'Tasks',
+      resource: `${BP_REL}/tasks-${nnn}.md`,
+      tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `TASKS-${nnn}`, epic_id: '001', blueprint_id: '001', status: 'ready',
+        graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+        affected_paths: [`./src/auth/${nnn}.js`],
+      },
+    }, PLAN_BODY);
+  }
+  ensureEpicIndexEntry({
+    repoRoot: repo, epicId: '001', name: 'auth', description: 'Epic 001',
+  });
+}
+
+test('current --set --task 002 records that task document', () => {
+  const repo = tmpGitRepo();
+  writeNumberedPlanBlueprint(repo);
+  const r = capture(['current', '--repo', repo, '--set', BP_REL, '--task', '002']);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.deepStrictEqual(parsed.current, {
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks-002.md`,
+  });
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks-002.md`,
+  });
+});
+
+test('current --set --task with missing number exits 2 and writes no pointer', () => {
+  const repo = tmpGitRepo();
+  writeNumberedPlanBlueprint(repo);
+  const r = capture(['current', '--repo', repo, '--set', BP_REL, '--task', '099']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /TASKS-001/);
+  assert.match(r.err, /TASKS-002/);
+  assert.strictEqual(readCurrent({ repoRoot: repo }), null);
+});
+
+test('current --task without --set exits 2', () => {
+  const r = capture(['current', '--task', '001']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /--task requires --set/);
+});
+
+test('current --clear --task exits 2', () => {
+  const r = capture(['current', '--clear', '--task', '001']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /--clear and --task/);
+});
+
+test('bare current JSON includes a task key on the pointer', () => {
+  const repo = tmpGitRepo();
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks-001.md`,
+  });
+  const r = capture(['current', '--repo', repo]);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.ok(Object.prototype.hasOwnProperty.call(parsed.current, 'task'));
+  assert.strictEqual(parsed.current.task, `${BP_REL}/tasks-001.md`);
 });

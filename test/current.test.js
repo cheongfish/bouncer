@@ -85,6 +85,7 @@ test('writeCurrent then readCurrent round-trips', () => {
   assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), {
     blueprint: '.bouncer/context/epics/001-x/blueprints/001-y',
     base: 'develop',
+    task: null,
   });
 });
 
@@ -166,8 +167,16 @@ test('listReadyBlueprints includes approved + ready / in_progress only', () => {
 
   const list = listReadyBlueprints({ repoRoot: repo });
   assert.deepStrictEqual(list, [
-    { blueprint: inProg, status: 'in_progress' },
-    { blueprint: ready, status: 'ready' },
+    {
+      blueprint: inProg,
+      status: 'in_progress',
+      tasks: [{ id: 'TASKS-002', path: `${inProg}/tasks.md`, status: 'in_progress' }],
+    },
+    {
+      blueprint: ready,
+      status: 'ready',
+      tasks: [{ id: 'TASKS-001', path: `${ready}/tasks.md`, status: 'ready' }],
+    },
   ].sort((a, b) => a.blueprint.localeCompare(b.blueprint)));
 });
 
@@ -189,8 +198,16 @@ test('listReadyBlueprints sorts across epics and skips broken docs', () => {
 
   const list = listReadyBlueprints({ repoRoot: repo });
   assert.deepStrictEqual(list, [
-    { blueprint: earlier, status: 'ready' },
-    { blueprint: later, status: 'ready' },
+    {
+      blueprint: earlier,
+      status: 'ready',
+      tasks: [{ id: 'TASKS-001', path: `${earlier}/tasks.md`, status: 'ready' }],
+    },
+    {
+      blueprint: later,
+      status: 'ready',
+      tasks: [{ id: 'TASKS-001', path: `${later}/tasks.md`, status: 'ready' }],
+    },
   ]);
 });
 
@@ -303,7 +320,113 @@ test('listReadyBlueprints: any numbered task ready/in_progress counts', () => {
     },
   });
   const list = listReadyBlueprints({ repoRoot: repo });
-  assert.deepStrictEqual(list, [{ blueprint: bpDir, status: 'in_progress' }]);
+  assert.deepStrictEqual(list, [{
+    blueprint: bpDir,
+    status: 'in_progress',
+    tasks: [{ id: 'TASKS-002', path: `${bpDir}/tasks-002.md`, status: 'in_progress' }],
+  }]);
+});
+
+test('resolvePointerTask auto-selects first ready/in_progress by number order', () => {
+  const { resolvePointerTask } = require('../scripts/lib/current');
+  const repo = tmpRepo();
+  const epicDir = '.bouncer/context/epics/001-pick';
+  const bpDir = `${epicDir}/blueprints/001-p`;
+  writeDoc(repo, `${epicDir}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${bpDir}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks-001.md`, {
+    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks-001.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
+      affected_paths: ['a.js'],
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks-002.md`, {
+    type: 'bouncer.tasks', title: 't2', description: 'd', resource: `${bpDir}/tasks-002.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '001', blueprint_id: '001', status: 'ready',
+      affected_paths: ['b.js'],
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks-003.md`, {
+    type: 'bouncer.tasks', title: 't3', description: 'd', resource: `${bpDir}/tasks-003.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-003', epic_id: '001', blueprint_id: '001', status: 'in_progress',
+      affected_paths: ['c.js'],
+    },
+  });
+
+  const auto = resolvePointerTask({ repoRoot: repo, blueprintDir: bpDir });
+  assert.deepStrictEqual(auto, {
+    ok: true,
+    task: `${bpDir}/tasks-002.md`,
+    id: 'TASKS-002',
+  });
+});
+
+test('resolvePointerTask fails when --task does not match a document', () => {
+  const { resolvePointerTask } = require('../scripts/lib/current');
+  const repo = tmpRepo();
+  const epicDir = '.bouncer/context/epics/001-miss';
+  const bpDir = `${epicDir}/blueprints/001-m`;
+  writeDoc(repo, `${epicDir}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epicDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${bpDir}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${bpDir}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks-001.md`, {
+    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks-001.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready',
+      affected_paths: ['a.js'],
+    },
+  });
+
+  const missing = resolvePointerTask({
+    repoRoot: repo, blueprintDir: bpDir, task: '002',
+  });
+  assert.strictEqual(missing.ok, false);
+  assert.ok(Array.isArray(missing.available));
+  assert.deepStrictEqual(missing.available.map((t) => t.id), ['TASKS-001']);
+
+  const badForm = resolvePointerTask({
+    repoRoot: repo, blueprintDir: bpDir, task: 'TASK-001',
+  });
+  assert.strictEqual(badForm.ok, false);
+});
+
+test('writeCurrent persists an explicit task path', () => {
+  const repo = tmpGitRepo();
+  const deps = runtimeDeps(repo);
+  const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
+  const task = `${blueprint}/tasks-002.md`;
+  writeCurrent({
+    repoRoot: repo, blueprint, base: 'develop', task, deps,
+  });
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), {
+    blueprint, base: 'develop', task,
+  });
 });
 
 test('nextBlueprint sharedPaths unions affected_paths across numbered tasks', () => {
