@@ -348,16 +348,17 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
   }
 
   const hasTaskUnits = Array.isArray(docs.taskUnits) && docs.taskUnits.length > 0;
+  // 번호 tasks가 루트 verification/review를 공유하면 같은 rel을 두 번
+  // 검사하지 않는다. unit leaf에서 못 본 루트 파일은 그대로 검사한다
+  // (task-dir 레이아웃에 남은 고아 루트 증적/리뷰).
+  const unitSeenRels = new Set();
   for (const key of Object.keys(docs)) {
     if (key === 'taskUnits') {
-      // 번호 tasks가 루트 verification/review를 공유하면 같은 rel을 두 번
-      // 검사하지 않는다 — 중복 S finding이 생기지 않게.
-      const seen = new Set();
       for (const unit of docs.taskUnits) {
         for (const leaf of ['tasks', 'verification', 'review']) {
           const leafDoc = unit[leaf];
-          if (!leafDoc || seen.has(leafDoc.rel)) continue;
-          seen.add(leafDoc.rel);
+          if (!leafDoc || unitSeenRels.has(leafDoc.rel)) continue;
+          unitSeenRels.add(leafDoc.rel);
           checkStructural(leafDoc, failures);
         }
       }
@@ -371,8 +372,13 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     }
     // tasksDocs/taskUnits가 있으면 docs.tasks는 그 첫 항목이라 중복 검사하지 않는다.
     if (key === 'tasks' && (docs.tasksDocs || hasTaskUnits)) continue;
-    // 루트 verification/review도 taskUnits leaf와 동일 파일이면 중복 스킵.
-    if ((key === 'verification' || key === 'review') && hasTaskUnits) continue;
+    if (
+      (key === 'verification' || key === 'review')
+      && docs[key]
+      && unitSeenRels.has(docs[key].rel)
+    ) {
+      continue;
+    }
     checkStructural(docs[key], failures);
   }
 

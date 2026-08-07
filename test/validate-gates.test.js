@@ -867,3 +867,18 @@ test('execute gate G13 only inspects the pointer unit verification.md', () => {
   assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
   assert.ok(!res.failures.some((f) => f.code === 'G13' && String(f.file).includes('tasks/002')));
 });
+
+test('execute gate G6 when pointer unit tasks.md is missing does not use sibling tasks', () => {
+  const repo = mkRepo();
+  const { u1, u2 } = writeTaskDirExecuteFixture(repo);
+  fs.unlinkSync(path.join(repo, `${u2}/tasks.md`));
+  setPointerTask(repo, `${u2}/tasks.md`);
+
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'execute' });
+  assert.strictEqual(res.ok, false);
+  const g6 = res.failures.filter((f) => f.code === 'G6');
+  assert.ok(g6.length >= 1, `expected G6, got ${JSON.stringify(res.failures)}`);
+  // 형제 묶음(tasks/001)으로 대체해 통과하면 안 된다.
+  assert.ok(g6.every((f) => f.file.startsWith(`${u2}/`) || f.file === `${u2}/tasks.md`), JSON.stringify(g6));
+  assert.ok(!res.ok);
+});
