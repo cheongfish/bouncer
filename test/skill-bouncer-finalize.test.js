@@ -8,31 +8,30 @@ const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const root = path.join(__dirname, '..');
 const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
 
-test('bouncer-finalize wires explain, finalize gate, bouncer finalize, push+PR, and graceful skip', () => {
+test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR, and graceful skip', () => {
   const { data, body } = parseFrontmatter(md);
   assert.ok(data.description.length > 0);
-  assert.match(body, /skills\/explain-diff\/SKILL\.md/);
   assert.match(body, /spec-authoring/);
-  assert.match(body, /explain/i);
-  assert.match(body, /scaffold explain/);
+  assert.match(body, /Distill|\.bouncer\/Distill\.md/);
   assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize\b/);
   assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>(?:\s+--yes)?\b/);
   assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes\b/);
   assert.match(body, /--yes|dry-run|dry run/);
-  assert.match(body, /commit_intent/);
   assert.match(body, /gh pr create/);
   assert.match(body, /--title "\[YYMMDD\] \(→ MergeTarget\) \[Type\]/);
   assert.match(body, /no remote|without a remote|no `?gh`?|skip/i);
   assert.match(body, /AskUserQuestion|ACQ/);
-  assert.match(body, /Commit \+ worktree|commit \+.*worktree/i);
   assert.match(body, /worktree 제거|remove.*worktree|worktree cleanup/i);
   assert.match(body, /git worktree remove/);
   assert.match(body, /<type>\/<BP-id>-<slug>/);
   assert.match(body, /commit_type/);
-  assert.match(body, /G15/);
+  assert.match(body, /G16/);
+  // task 커밋·퀴즈는 /bouncer-commit — finalize는 PR·정리만.
+  assert.doesNotMatch(body, /skills\/explain-diff\/SKILL\.md/);
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
   assert.doesNotMatch(body, /scaffold distill/);
   assert.doesNotMatch(body, /\bG9\b/);
+  assert.doesNotMatch(body, /\bG15\b/);
 });
 
 
@@ -76,13 +75,10 @@ test('bouncer-finalize offers next-blueprint handoff via current --set after con
   assert.match(body, /ask|confirm|승낙/i);
 });
 
-test('bouncer-finalize confirms next open task before next-blueprint handoff', () => {
+test('bouncer-finalize next handoff is next blueprint only (task advance lives on commit)', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /--task/);
-  assert.match(body, /Next task|다음.?task|남은.*열린 task|same-blueprint open task/i);
+  assert.match(body, /current --set/);
+  assert.match(body, /Next blueprint|다음.?blueprint/i);
   assert.match(body, /never automatic|자동.*없|자동 전진은 없/i);
-});
-
-test('bouncer-finalize names task bundle paths during task handoff', () => {
-  assert.match(md, /tasks\/<NNN>\/tasks\.md/);
+  assert.doesNotMatch(body, /AskUserQuestion — Next task|Next task ACQ/i);
 });

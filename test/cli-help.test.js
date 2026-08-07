@@ -8,6 +8,7 @@ const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'current',
   'migrate',
+  'commit',
 ];
 
 function capture(argv) {
@@ -33,7 +34,13 @@ test('usage lists task-layout migration', () => {
 test('every subcommand is listed in the usage text', () => {
   const r = capture([]);
   for (const name of SUBCOMMANDS) {
-    assert.match(r.out, new RegExp(`\\b${name}\\b`), `usage omits ${name}`);
+    // 행 머리의 서브커맨드 이름만 본다. finalize 설명의 "commit" 단어에
+    // 걸려 신설 명령이 빠진 채로 통과하지 않게 한다.
+    assert.match(
+      r.out,
+      new RegExp(`(?:^|\\n)\\s*${name}\\b`, 'm'),
+      `usage omits ${name}`,
+    );
   }
 });
 

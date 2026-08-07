@@ -1,31 +1,41 @@
 ---
 name: explain-diff
-description: "Use from /bouncer-finalize after scaffold explain. Author BP explain.md sections, run the quiz with the user, record bouncer.comprehension, and set status published. Not a workflow entry point."
+description: "Use from /bouncer-commit after scaffold explain. Author BP explain.md sections, run the quiz for range_from..HEAD, append one bouncer.comprehension entry for the pointer task, and set status published. Not a workflow entry point."
 ---
 
 # Explain Diff
 
 Author and record comprehension for the active blueprint's `explain.md`.
-Called only from `/bouncer-finalize` after `scaffold explain`. This skill does
-**not** replace `scaffold explain` — if the file is missing, stop and tell the
-caller to scaffold first.
+Called only from `/bouncer-commit` after `scaffold explain` (create the file
+if missing). This skill does **not** replace `scaffold explain` — if the file
+is missing, stop and tell the caller to scaffold first.
 
 ## Steps
 
 1. **Author the five sections.** Fill the body under these headings in
    **Korean** (paths, ids, and code fences stay as-is; scaffold leaves
-   comment-only stubs — replace with real prose):
+   comment-only stubs — replace with real prose). On later tasks in the same
+   blueprint, refresh the sections so they still cover the whole branch, but
+   do **not** delete earlier comprehension entries:
    - `## Background` — why this change exists
    - `## Intuition` — one-line picture / analogy
    - `## Code` — key paths and files to read (no long dumps)
    - `## Quiz` — questions and three answer options each (no correct
      answers, no user responses)
    - `## 이해 상태` — correct answers, user responses, right/wrong, and
-     disposition (keep in sync with frontmatter below)
+     disposition (keep in sync with the new entry below)
    Then apply `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) before the
    quiz — strip filler and formulaic closers from the five sections.
 
-2. **Quiz the user.** Adapt and run the quiz from the `base..HEAD` diff
+2. **Resolve `range_from` for this task entry.** Read existing
+   `bouncer.comprehension` (must be a list — never a single object):
+   - If the list is empty, `range_from` is the pointer `base` from
+     `bouncer current` (else `.bouncer/config.json` `base_branch`).
+   - If the list already has entries, `range_from` is the **last** entry's
+     `range_to` (do not invent a different chain).
+   Never rewrite an earlier entry to change its `range_from` / `diff_sha`.
+
+3. **Quiz the user.** Adapt and run the quiz from the `range_from..HEAD` diff
    (agent judgment — no mechanical table):
    1. Choose question count in **1–10** (minimum 1; never 0). State the
       count and a one-line rationale (diff scale) before asking.
@@ -45,35 +55,45 @@ caller to scaffold first.
    A low score is fine: **기록만 하고 마감을 막지 않는다.** Do not invent a
    pass threshold or force a re-take.
 
-3. **Compute `diff_sha`.** Resolve `base` from `bouncer current` (`base`
-   field); if absent, use `.bouncer/config.json` `base_branch`. Run from the
-   **execute worktree root** (`cwd` = that worktree):
+4. **Compute `diff_sha`.** Pass the entry's `range_from` as `base` to
+   `computeDiffSha`. Run from the **execute worktree root** (`cwd` = that
+   worktree):
 
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node -e 'const { computeDiffSha } = require(process.argv[1] + "/scripts/lib/comprehension");
    console.log(JSON.stringify(computeDiffSha({ repoRoot: process.cwd(), base: process.argv[2] })));' \
-     "${BOUNCER_ROOT}" <base>
+     "${BOUNCER_ROOT}" <range_from>
    ```
 
    If the JSON has `ok: false`, report the `reason` and **stop** — do not invent
    a hash.
 
-4. **Record `bouncer.comprehension`.** Write all four fields on `explain.md`
-   frontmatter:
-   - `diff_sha` — `sha` from step 3
-   - `quiz_score` — `N/M` from step 2
-   - `disposition` — short free-text outcome (must be non-empty for G15)
-   - `recorded_at` — ISO-8601 timestamp (prefer KST offset)
+5. **Append one `bouncer.comprehension` entry.** Resolve the pointer task
+   number (`\d{3}`). Read `range_to` as the current `HEAD` sha
+   (`git rev-parse HEAD`). **Append** a new list item — do **not** overwrite,
+   edit in place, or replace earlier entries, and do not add a second entry
+   for the same task number:
 
-   Mirror the outcome under `## 이해 상태` so the body matches the record.
+   ```yaml
+   - task: '<NNN>'
+     range_from: <sha or base ref from step 2>
+     range_to: <HEAD sha>
+     diff_sha: <sha from step 4>
+     quiz_score: 'N/M'
+     disposition: <non-empty free-text>
+     recorded_at: <ISO-8601, prefer KST offset>
+   ```
 
-5. **Publish.** Set `bouncer.status → published` on `explain.md`. Distill
-   promotion stays with `spec-authoring` (caller runs that next).
+   Mirror the outcome under `## 이해 상태` so the body matches the new record.
+
+6. **Publish.** Set `bouncer.status → published` on `explain.md` if it is not
+   already. Distill promotion stays with `spec-authoring` at
+   `/bouncer-finalize` — do not promote here.
 
 ## Guardrails
 
 - No new CLI, quiz engine, or HTML UI — Node stdlib + `computeDiffSha` only.
 - Do not edit `scripts/lib/comprehension` or gate logic; call the existing API.
-- Do not block finalize on score. G15 checks the record and hash match, not the
-  grade.
+- Do not block the commit step on score. G15 checks the record and hash match
+  for this task entry, not the grade.

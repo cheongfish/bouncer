@@ -18,7 +18,7 @@ Bouncer는 팀이 검증할 수 있는 문서·상태·증적·변경 범위를 
 ─────────────────────         ─────────────────────────────
 Codex / Claude / Cursor       OKF 문서 스키마
 네이티브 역량 + 일반 스킬  ───▶  승인 및 상태 전이
-                              계획/실행/종료 게이트
+                              계획/실행/커밋/종료 게이트
                               검증·리뷰 증적
                               affected_paths 및 커밋 범위
 ```
@@ -40,7 +40,8 @@ Codex / Claude / Cursor       OKF 문서 스키마
 Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지 않는다.
 외부 방법론 플러그인 부재만으로 게이트를 실패시키지 않는다.
 
-- `/bouncer-init` → `/bouncer-plan` → `/bouncer-execute` → `/bouncer-finalize`
+- `/bouncer-init` → `/bouncer-plan` → `/bouncer-execute` → `/bouncer-commit` →
+  `/bouncer-finalize`
 - 검증·리뷰는 각 `tasks/<NNN>/` 묶음의 자체 문서 계약
   (`verification.md`, `review.md`)으로 충족한다.
 - 에이전트 기본 역량과 일반 워크플로 스킬이 같은 계약을 수행한다.
@@ -86,8 +87,9 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 | `minimality` | 불필요한 코드·의존성·추상화를 줄이는 대안 검토 |
 | `stop-slop` | `.bouncer/context/` 한국어 본문의 AI 문체 패턴 제거 (advisory) |
 
-`explain-diff`는 `/bouncer-finalize`가 호출하는 하위 스킬이며 BP `explain.md`
-저술·퀴즈·`comprehension` 기록을 담당한다. 위 표의 일반 워크플로 스킬이 아니다.
+`explain-diff`는 `/bouncer-commit`이 호출하는 하위 스킬이며 BP `explain.md`
+저술·퀴즈·task comprehension 엔트리 append를 담당한다. 위 표의 일반 워크플로
+스킬이 아니다. `bouncer-commit` 자체는 워크플로 스킬이며 이 표에 넣지 않는다.
 
 `graphify-runner`는 `/bouncer-plan`이 참조하는 선택적 경로 추천 어댑터이며,
 부재 시 수동 탐색으로 폴백한다.
@@ -169,7 +171,7 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 
 1. 첫 릴리스 스킬 집합: `discovery`, `spec-authoring`, `implementation`,
    `debugging`, `verification`, `review`, `minimality`, `stop-slop` (+ 선택
-   `graphify-runner`; finalize 하위 `explain-diff`).
+   `graphify-runner`; commit 하위 `explain-diff`).
 2. `debugging`은 독립 스킬이며 `/bouncer-execute` 실패 경로에서 권장한다.
 3. 처음에는 명령 내 명시 호출/권장으로 시작하고, 자동 훅은 검증 후 추가한다.
 
@@ -210,7 +212,7 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    단언은 식별자·계약(게이트 코드, 필드명, 스킬 이름)에 둔다.
    `public-name-regression`은 리브랜드 회귀를, 스킬 문서 테스트는 게이트 코드
    누락을 이 저장소에서 잡아냈다.
-2. 문서 테스트는 *식별자의 존재*(명령 경로, 게이트 코드 G1–G15/S1–S13, 프론트매터
+2. 문서 테스트는 *식별자의 존재*(명령 경로, 게이트 코드 G1–G16/S1–S17, 프론트매터
    필드명, 스킬 이름)를 단언하고, 어절 인접성이나 문장 배열은 단언하지 않는다.
 3. 13개 파일을 일괄 재작성하지는 않는다. 실제 계약을 지우는 위험이 이득보다
    크므로, 해당 파일을 손댈 때 위 규칙으로 옮긴다.

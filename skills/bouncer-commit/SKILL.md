@@ -1,0 +1,160 @@
+---
+name: bouncer-commit
+description: "Use only when the user explicitly asks to commit the active Bouncer task (for example /bouncer-commit). Preflight the pointer, dry-run scope, record the task explain entry via explain-diff, pass the commit gate, ACQ-confirm `bouncer commit --yes`, then ACQ for the next task via `bouncer current --set`."
+---
+# /bouncer-commit
+
+**Plugin root.** Every shell block below opens with
+
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+```
+
+because each block runs in a fresh shell — the assignment does not carry over,
+so it is repeated rather than exported once. Resolution order:
+`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
+compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
+a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
+contains `scripts/bouncer`.
+
+**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
+(`AGENTS.md` imports `@CLAUDE.md`). Product detail:
+`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+
+Close one task on the active blueprint. Follow this sequence. Do **not** open a
+draft PR or remove the execute worktree here — that is `/bouncer-finalize`.
+
+## ACQ (AskUserQuestion) gates
+
+Human-facing confirmations in this skill are **ACQ** gates. Prefer the host
+`AskUserQuestion` / `AskQuestion` UI when available; if the tool is missing,
+render the same skeleton in chat and wait for an A/B/… reply. Do **not** treat
+a bare `/bouncer-commit` as consent for commit or pointer advance.
+
+**Option order (strict):** recommended proceed first → revise → alternative →
+cancel/stop last. Mark one `(Recommended)` when you have a clear preference and
+put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body.
+
+```markdown
+**AskUserQuestion:**
+
+1. **Re-ground**: {한 줄 — 무엇을 결정하는지}
+2. **Recommend-why**: {왜 1번을 추천하는지}
+3. **Options** (recommended-first):
+   - A) {Proceed} (Recommended)
+   - B) {Revise / alternative}
+   - C) {Cancel}
+```
+
+**Gates in this skill:** Commit (step 5) · Next task (step 6).
+
+**Preflight.** Load the active blueprint:
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+node "${BOUNCER_ROOT}/scripts/bouncer" current
+```
+If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
+
+Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
+appears; do not reconstruct a root `context/` path. **Task brief** =
+`current.task.path` when set; when `task` is `null`, use the resolver's first
+or single task bundle (same rule as execute).
+
+1. **Scope dry-run.** Ensure the target task frontmatter has
+   `bouncer.commit_intent` as **exactly two** Korean `~함` / `~임` strings when
+   you want task-specific 배경·의도 (else the CLI falls back to blueprint
+   `commit_intent`). Prefer values written at plan time; if missing or not
+   length 2, author them now from Goal & intent (no Epic/Blueprint ids, no file
+   paths), then proceed. Dry-run first:
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" commit --blueprint <pointer.blueprint>
+   ```
+   This checks every uncommitted change (tracked or untracked) against the
+   task's `affected_paths` allowed-set. Anything out of scope is a **hard abort
+   — nothing staged**; show the violations and have the user fix
+   `affected_paths` or remove the stray files. On a clean dry-run (or empty
+   staged set), keep the staged file list + generated commit message for the
+   step-5 ACQ. (Empty staged set is fine — still continue; `--yes` will not
+   create an empty commit.)
+
+2. **Explain entry for this task.** Create BP `explain.md` if it is missing:
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold explain --blueprint <pointer.blueprint>
+   ```
+   Then use the `explain-diff` skill (`skills/explain-diff/SKILL.md`) to author
+   or refresh the five sections in Korean (with `stop-slop`), quiz the user on
+   `range_from..HEAD`, and **append** one `bouncer.comprehension` entry for the
+   pointer task. Do not overwrite earlier task entries. Set `explain.md`
+   `bouncer.status → published` when the sections are ready (first commit can
+   publish; later commits keep `published` and only append).
+
+3. **Validate.** Run the commit gate — `validate --gate commit`:
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate commit
+   ```
+   Gate `commit` checks G15 (explain sections, this task's comprehension entry,
+   `diff_sha` vs `range_from..HEAD`). Fix and re-run until it passes.
+
+4. **Status before commit.** Set the pointer task documents to the statuses the
+   execute gate already required (`tasks → verified`, `verification → passed`,
+   `review → accepted` or `required: false`) if any are still open from the
+   execute handoff. Do not invent new status names.
+
+5. **Commit (deterministic core).** Show the dry-run staged list + generated
+   commit message, then run this **ACQ** before `--yes`:
+
+   **AskUserQuestion — Commit**
+   1. **Re-ground**: 이 task 변경을 `bouncer commit --yes`로 커밋할지.
+   2. **Recommend-why**: execute가 이미 검증·리뷰를 끝냈고 commit 게이트도
+      통과했으므로, 범위를 다시 열어 두지 않고 지금 닫는 편이 다음 task로
+      빨리 넘어가게 함.
+   3. **Options**:
+      - A) `commit --yes` 실행 (Recommended)
+      - B) 메시지/스테이징 수정 후 재확인
+      - C) 취소 — `--yes` 하지 않음
+
+   On **A**, commit:
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" commit --blueprint <pointer.blueprint> --yes
+   ```
+   On **B**, fix and re-dry-run from step 1. On **C**, stop without `--yes`.
+   The CLI does **not** move the pointer — `nextTask` in the JSON is a candidate
+   only.
+
+6. **Next-task handoff.** After a successful step 5 (including empty staged set
+   with `committed: false`), offer to advance the active pointer with an **ACQ**
+   — do **not** recompute candidates yourself beyond reading `bouncer current` /
+   the commit payload's `nextTask`. Advancement is confirm-then-
+   `bouncer current --set …` only — never automatic.
+
+   If `nextTask` is non-null, show the candidate task id and path
+   (`tasks/<NNN>/tasks.md` for a task bundle; legacy paths remain migration
+   targets).
+
+   **AskUserQuestion — Next task**
+   1. **Re-ground**: 같은 blueprint의 다음 열린 task로 포인터를 옮길지.
+   2. **Recommend-why**: 한 PR(blueprint) 안에 다음 커밋 단위가 남아 있으면
+      `/bouncer-execute`로 이어서 닫는 편이 흐름이 짧음.
+   3. **Options**:
+      - A) `bouncer current --set <blueprint> --task <NNN>` (Recommended)
+      - B) 포인터만 보고 — `--set` 하지 않음
+      - C) 남은 task 없이 `/bouncer-finalize`로 (when `nextTask` is null, make
+        this the recommended proceed)
+
+   - If A, run:
+     ```bash
+     BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+     node "${BOUNCER_ROOT}/scripts/bouncer" current --set <pointer.blueprint> --task <NNN>
+     ```
+     Then point the user at `/bouncer-execute` for the next task (same worktree).
+   - If `nextTask` is `null`, skip A and recommend `/bouncer-finalize` instead.
+   - If B/C leave the pointer as-is (or only report), say so plainly.
+
+7. **Report.** Lead with the outcome, then the detail: whether a commit was
+   created (or empty staged set), the commit subject, whether the pointer moved
+   to the next task or the user should run `/bouncer-finalize`. Keep it to those
+   facts — no recap of the steps the user just watched run.

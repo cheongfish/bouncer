@@ -94,3 +94,10 @@ test('bouncer-execute uses the pointer task document as the brief', () => {
   assert.match(body, /pointer task directory.*verification\.md|verification\.md.*pointer task directory/i);
   assert.match(body, /pointer task directory.*review\.md|review\.md.*pointer task directory/i);
 });
+
+test('bouncer-execute hands off to /bouncer-commit and reuses an existing worktree', () => {
+  const { body } = parseFrontmatter(md);
+  // 커밋 지시는 /bouncer-commit으로 옮김 — execute에 남은 긍정 안내로 고정.
+  assert.match(body, /\/bouncer-commit/);
+  assert.match(body, /re-?use|이미 있으면|already exists|공유/i);
+});

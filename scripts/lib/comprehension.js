@@ -77,8 +77,66 @@ function computeDiffSha({ repoRoot, base, exec }) {
         return { ok: false, reason: 'exec-failed' };
     }
 }
+/**
+ * resolveTaskUnit.number(숫자)와 entry.task('\d{3}')를 같은 키로 맞춘다.
+ * 정규화 불가면 null — 호출측은 missing으로 본다.
+ */
+function normalizeTaskKey(taskNumber) {
+    if (taskNumber == null || taskNumber === '')
+        return null;
+    const digits = String(taskNumber).padStart(3, '0');
+    return /^\d{3}$/.test(digits) ? digits : null;
+}
+/**
+ * explain.md `bouncer.comprehension`에서 대상 task 엔트리 하나.
+ * 구 객체 형식은 자동 변환하지 않는다 — G15가 형식 거절로 막는다.
+ * 절대 throw하지 않는다.
+ *
+ * @returns {{ ok: true, entry: object }
+ *   | { ok: false, reason: 'not-a-list' | 'missing' | 'duplicate' | 'incomplete' }}
+ */
+function findComprehensionEntry(comprehension, taskNumber) {
+    try {
+        // 배열이 아니면(구 단일 객체 포함) 조회 자체가 성립하지 않는다.
+        if (!Array.isArray(comprehension)) {
+            return { ok: false, reason: 'not-a-list' };
+        }
+        const want = normalizeTaskKey(taskNumber);
+        if (want == null) {
+            return { ok: false, reason: 'missing' };
+        }
+        const matches = [];
+        for (const entry of comprehension) {
+            if (entry == null || typeof entry !== 'object' || Array.isArray(entry))
+                continue;
+            const key = normalizeTaskKey(entry.task);
+            if (key === want)
+                matches.push(entry);
+        }
+        if (matches.length === 0) {
+            return { ok: false, reason: 'missing' };
+        }
+        // 마지막을 고르면 덮어쓴 기록이 통과한다 — 중복은 거부.
+        if (matches.length > 1) {
+            return { ok: false, reason: 'duplicate' };
+        }
+        const entry = matches[0];
+        const rangeFrom = typeof entry.range_from === 'string' ? entry.range_from : '';
+        const diffSha = typeof entry.diff_sha === 'string' ? entry.diff_sha : '';
+        const disposition = typeof entry.disposition === 'string' ? entry.disposition : '';
+        // 빈 range_from·diff_sha·disposition은 scaffold 잔여와 같다 — hash mismatch가 아니라 기록 없음.
+        if (!rangeFrom.trim() || !diffSha.trim() || !disposition.trim()) {
+            return { ok: false, reason: 'incomplete' };
+        }
+        return { ok: true, entry };
+    }
+    catch (_e) {
+        return { ok: false, reason: 'not-a-list' };
+    }
+}
 module.exports = {
     DIFF_EXCLUDED_PREFIXES,
     EXPLAIN_SECTION_DEFS,
     computeDiffSha,
+    findComprehensionEntry,
 };

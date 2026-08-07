@@ -37,7 +37,7 @@ function writeDoc(repo, rel, data, body = '# x\n') {
   fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
 }
 
-// Real git so G15's computeDiffSha (no deps injection through finalize) can run.
+// Real git so fixtures that still hash ranges (commit path) can share this helper.
 function initGitWithChange(repo) {
   const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
   run(['init', '-b', 'work']);
@@ -76,7 +76,14 @@ function fullBlueprint(repo, {
   writeDoc(repo, `${blueprintDir}/index.md`, {
     type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${blueprintDir}/index.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
-    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+      commit_type: 'feat',
+      commit_intent: [
+        '마감은 blueprint 단위로 묶는다',
+        '남은 변경은 Distill 승격분 정도다',
+      ],
+    },
   });
   writeDoc(repo, `${blueprintDir}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks/001/tasks.md`,
@@ -101,24 +108,27 @@ function fullBlueprint(repo, {
     },
   });
 
-  let comprehension = {
-    diff_sha: '',
-    quiz_score: '',
-    disposition: '',
-    recorded_at: '',
-  };
+  // G16은 task 엔트리 배열을 요구한다 — fixture도 같은 형식을 쓴다.
+  let comprehension = [];
   let body = EXPLAIN_BODY;
   if (comprehensionOk) {
     const hashed = computeDiffSha({ repoRoot: repo, base: 'develop' });
     assert.strictEqual(hashed.ok, true, 'fixture git must yield a diff sha');
-    comprehension = {
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repo,
+      encoding: 'utf8',
+    }).trim();
+    comprehension = [{
+      task: '001',
+      range_from: 'develop',
+      range_to: head,
       diff_sha: hashed.sha,
       quiz_score: '1/5',
       disposition: 'accepted',
       recorded_at: '2026-07-01T00:00:00+09:00',
-    };
+    }];
   } else {
-    // Empty sections → G15 without needing a matching hash.
+    // Empty sections → G16 without needing a matching hash.
     body = `# Explain
 
 ## Background
@@ -148,6 +158,15 @@ function fullBlueprint(repo, {
   }, body);
 }
 
+function finalizeMessage() {
+  return [
+    'feat: Login',
+    '',
+    '- 마감은 blueprint 단위로 묶는다',
+    '- 남은 변경은 Distill 승격분 정도다',
+  ].join('\n');
+}
+
 function fakeGit(changed, untracked) {
   const calls = { staged: null, committed: null };
   return {
@@ -167,7 +186,8 @@ test('gate failure short-circuits before touching git', () => {
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'validate');
-  assert.ok(res.failures.some((f) => f.code === 'G15'));
+  assert.ok(res.failures.some((f) => f.code === 'G16'));
+  assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
 test('out-of-scope file causes hard abort, nothing staged', () => {
@@ -182,14 +202,17 @@ test('out-of-scope file causes hard abort, nothing staged', () => {
   assert.strictEqual(g.calls.committed, null);
 });
 
-test('dry-run reports staged files and message without committing', () => {
+test('dry-run reports staged files and blueprint message without committing', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts', `${BP_REL}/tasks/001/tasks.md`], []);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
-  assert.ok(res.commitMessage.startsWith('feat: Login'), res.commitMessage);
+  // subject는 blueprint title; body는 blueprint commit_intent 2줄뿐.
+  assert.strictEqual(res.commitMessage, finalizeMessage());
+  assert.ok(!res.commitMessage.includes('Impl login'), res.commitMessage);
+  assert.ok(!res.commitMessage.includes('Verified'), res.commitMessage);
   assert.ok(!res.commitMessage.includes('Blueprint:'), res.commitMessage);
   assert.strictEqual(g.calls.committed, null);
 });
@@ -201,7 +224,28 @@ test('--yes stages and commits', () => {
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/explain.md`]);
-  assert.ok(g.calls.committed.startsWith('feat: Login'), g.calls.committed);
+  assert.strictEqual(g.calls.committed, finalizeMessage());
+});
+
+test('no changes with --yes clears pointer without empty commit', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const cleared = [];
+  const g = fakeGit([], []);
+  const res = finalize({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    yes: true,
+    git: g.api,
+    clearPointer: (args) => { cleared.push(args.repoRoot); return true; },
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.committed, false);
+  assert.deepStrictEqual(res.staged, []);
+  assert.strictEqual(g.calls.staged, null);
+  assert.strictEqual(g.calls.committed, null);
+  assert.strictEqual(res.pointerCleared, true);
+  assert.deepStrictEqual(cleared, [repo]);
 });
 
 test('legacy root context blueprint is rejected before staging', () => {

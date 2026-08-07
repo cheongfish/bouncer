@@ -128,19 +128,14 @@ function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
         throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
     }
     const slug = bp.split('/').pop().replace(new RegExp(`^${blueprintId}-`), '') || 'blueprint';
-    // comprehension 기본값은 의도적으로 빈 문자열: G15는 빈
-    // diff_sha/disposition을 hash 불일치가 아니라 "기록 없음"으로 본다.
+    // 빈 배열: G15는 대상 task 엔트리가 없으면 hash 불일치가 아니라 "기록 없음".
+    // 구 단일 객체 기본값은 형식 거절로 바뀌므로 더 이상 쓰지 않는다.
     return [writeRel(repoRoot, explain, bouncerDoc('bouncer.explain', `${blueprintId} explain`, `Explain for ${blueprintId}`, explain, ['bouncer', 'explain'], timestamp, {
             id: `EXPLAIN-${blueprintId}`,
             epic_id: epicId,
             blueprint_id: blueprintId,
             status: 'draft',
-            comprehension: {
-                diff_sha: '',
-                quiz_score: '',
-                disposition: '',
-                recorded_at: '',
-            },
+            comprehension: [],
         }), templateBody('explain.md', { epicId, blueprintId, name: slug }))];
 }
 module.exports = {

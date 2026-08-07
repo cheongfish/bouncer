@@ -21,7 +21,9 @@ contains `scripts/bouncer`.
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
 
-Implement the active blueprint. Follow this sequence.
+Implement the active blueprint's current task. Follow this sequence. Do **not**
+run `git commit` or `bouncer commit` here — after the execute gate passes, point
+the user at `/bouncer-commit`.
 
 **Project Distill.** Before implementing, Read `.bouncer/Distill.md`.
 If missing, stop and tell the user to run `bouncer init` (or seed the file).
@@ -52,28 +54,34 @@ applies the fix.
    as today. Later steps
    use that same brief path — do not re-pick a different task document mid-run.
 
-2. **Worktree.** Create a blueprint-level worktree + branch:
+2. **Worktree.** All tasks on the same blueprint **share one** execute worktree
+   at `<repo>/.worktrees/<BP-id>`. If that path already exists, **reuse it** —
+   do not create a second worktree or a new branch. Only when the worktree is
+   missing, create it + branch:
    - base = the branch checked out now (already recorded as `base` in the
      active pointer by `/bouncer-plan`),
    - branch `<type>/<BP-id>-<slug>`, where `<type>` is
      `bouncer.commit_type` from the blueprint index (default `feat`). Use a
      Conventional Commit type from `.gitmessage` —
      `feat` | `fix` | `docs` | `style` | `refactor` | `test` | `chore` —
-     matching the work's intent (same field finalize uses for the commit
-     subject),
+     matching the work's intent (same field `/bouncer-commit` uses for the
+     commit subject type),
    - location `<repo>/.worktrees/<BP-id>`, with the `.worktrees` root created by
      `runtime-state.ensureWorktreeRoot()`:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    WORKTREE_ROOT="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').ensureWorktreeRoot({repoRoot:process.cwd()}))")"
    WORKTREE_PATH="${WORKTREE_ROOT}/<BP-id>"
-   git worktree add -b <type>/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
+   if [ -d "${WORKTREE_PATH}" ]; then
+     : # reuse existing blueprint worktree
+   else
+     git worktree add -b <type>/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
+   fi
    ```
    `/bouncer-plan` does not commit, so the documents it authored exist only in
-   the base working tree while the new worktree starts from the committed HEAD.
-   Move them across **immediately after `git worktree add`, still in the base
-   `cwd`** — without this the worktree has no task brief document and step 3
-   has nothing to implement from:
+   the base working tree while a fresh worktree starts from the committed HEAD.
+   Always run seed next (also on reuse — no-op when nothing remains to move),
+   **from the base `cwd`**, so the worktree has the task brief for step 3:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" seed-worktree \
@@ -82,14 +90,15 @@ applies the fix.
    It moves only the plan context documents (blueprint tree, epic index,
    context index) and returns the base to its committed state; unrelated dirty
    files stay in the base. A `conflict` result means the worktree already holds
-   a different version — resolve it by hand rather than re-running.
+   a different version — resolve it by hand rather than re-running. When there
+   is nothing left to move, seed returns success with an empty `moved` list.
 
    The active pointer is stored under the Git common directory, so the worktree
    resolves the same pointer without copying it into the repository. **Set every
-   subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`** (`git add`,
-   `git commit`, etc.). Do **not** run `git -C "${WORKTREE_PATH}" ...` from the
-   project root — the `commit-safety` PreToolUse hook uses the command's actual
-   working directory and would otherwise inspect the wrong index.
+   subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`**. Do **not**
+   run `git -C "${WORKTREE_PATH}" ...` from the project root — the
+   `commit-safety` PreToolUse hook uses the command's actual working directory
+   and would otherwise inspect the wrong index.
 
 3. **Implement (task brief is the sole authority).** Dispatch **`bouncer-implementer`**
    (plugin `agents/bouncer-implementer.md`) with this order — the
@@ -121,10 +130,11 @@ applies the fix.
    a second agent to check the first one's work; step 4 and step 5 already cover
    that with the gate and the reviewer.
 
-   **Controller owns commits and document status transitions.** The implementer
-   must not `git commit` or flip `tasks` / `verification` / `review` status; you
-   may make **one or more commits** after it returns, and every `git commit` is
-   guarded by `commit-safety`.
+   **Controller owns document status transitions; `/bouncer-commit` owns the
+   commit.** The implementer must not `git commit` or flip `tasks` /
+   `verification` / `review` status. After this skill returns, do **not** run
+   `git commit` / `bouncer commit` yourself — hand off to `/bouncer-commit`.
+   Any accidental `git commit` is still guarded by `commit-safety`.
 
 4. **Verify.** Use the `verification` skill (`skills/verification/SKILL.md`) to
    prepare the existing `<pointer task directory>/verification.md`. Do not hand-write success evidence
@@ -184,4 +194,4 @@ applies the fix.
    verify command in the worktree and records its evidence. Gate `execute`
    then checks G6 tasks verified, G7 verification passed, G8 review accepted
    (or `required: false`). Fix and re-run until it passes, then point the user
-   at `/bouncer-finalize`.
+   at `/bouncer-commit`.

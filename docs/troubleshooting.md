@@ -7,9 +7,10 @@
 | `G4 tasks.graph.basis missing or empty` | `/bouncer-plan`의 그래프 단계를 건너뛰었습니다. `basis`는 비어 있지 않은 레거시 문자열 또는 엔트리 배열(`graph`/`status`/`query`/`result`; `status`는 `updated`·`reused`·`fail-skip`·`skip-disabled`·`missing`)이어야 합니다. graphify가 꺼져 있어도 `graphify-runner`가 엔트리를 남겨야 합니다 |
 | `graphify not on PATH` / 경로 추천 없음 | 선택 의존성. `pip install graphifyy && graphify install` 후 `graphify.enabled: true`. 없으면 `affected_paths`를 수동 확정하면 됩니다 ([install.md](install.md)) |
 | `G13 missing successful harness verification metadata` | `verify` 명령이 실행되지 않았거나 실패했습니다. 손으로 쓴 증적은 통과하지 않습니다 |
-| `G15 explain missing written sections` | `explain.md` 다섯 섹션(Background / Intuition / Code / Quiz / 이해 상태) 중 본문이 비어 있습니다. 헤딩·주석만으로는 통과하지 않습니다 |
-| `G15 explain comprehension record missing` | `bouncer.comprehension`이 없거나 `disposition`/`diff_sha`가 빈 문자열입니다. 스캐폴드 직후 상태입니다 — 기록 후 다시 검사하세요 |
-| `G15 explain diff_sha does not match` / `could not be computed` | 기록된 `diff_sha`가 게이트가 다시 계산한 값과 다르거나, base/저장소 문제로 계산에 실패했습니다. base는 포인터 → `config.base_branch` → `develop` 순입니다 |
+| `G15 explain missing written sections` | `explain.md` 다섯 섹션(Background / Intuition / Code / Quiz / 이해 상태) 중 본문이 비어 있습니다. 헤딩·주석만으로는 통과하지 않습니다. `/bouncer-commit`의 explain-diff 단계에서 채우세요 |
+| `G15 explain comprehension record missing` | 포인터 task용 `bouncer.comprehension` 엔트리가 없거나 불완전합니다. 스캐폴드 직후 상태입니다 — 엔트리를 append한 뒤 다시 검사하세요 |
+| `G15 explain diff_sha does not match range_from..HEAD` / `could not be computed` | 기록된 `diff_sha`가 게이트가 `range_from..HEAD`로 다시 계산한 값과 다르거나, base/저장소 문제로 계산에 실패했습니다. `range_from`은 첫 엔트리에서 포인터 `base`, 이후엔 직전 엔트리 `range_to`입니다 |
+| `G16` (열린 task / explain / comprehension 커버) | finalize 게이트. 모든 task가 `verified`이고 explain이 `published`이며 task마다 comprehension 엔트리가 있어야 합니다. 남은 task는 `/bouncer-commit`으로 먼저 닫으세요 |
 | `.bouncer/Distill.md` 없음 | `bouncer init`이 골격을 만듭니다(레거시 `context/Distill.md`는 새 경로로 옮김). plan/execute 전에 Read해야 합니다 |
 | `S11 blueprint documents not found` | blueprint 경로가 틀렸습니다(오타 등). 경로를 확인하세요 |
 | `S13 epic directory not listed` / `lists missing epic` | `.bouncer/context/index.md`와 `epics/` 디렉터리가 어긋났습니다. `bouncer scaffold epic`으로 만들거나 목록 줄을 맞추세요 |

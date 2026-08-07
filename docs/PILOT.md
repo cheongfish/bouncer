@@ -35,35 +35,38 @@
    - `source_dirs`: 소스가 있는 디렉터리
    - `verify`: **execute 게이트가 실행할 명령.** 여기가 틀리면 게이트가
      의미 없어집니다
-3. `/bouncer-plan` → `/bouncer-execute` → `/bouncer-finalize`
+3. `/bouncer-plan` → `/bouncer-execute` → `/bouncer-commit` → `/bouncer-finalize`
 
 각 단계에서 **막히면 즉시 기록**하세요. 나중에 정리하면 무엇이 어려웠는지 잊습니다.
 
 ### 문서 필드가 그대로 커밋 메시지가 됩니다
 
-`/bouncer-finalize`가 만드는 커밋은 이런 형태입니다.
+`/bouncer-commit`이 만드는 **task** 커밋은 이런 형태입니다.
 
 ```
-<type>: <blueprint 문서의 title>
+<type>: <tasks 문서의 title>
 
-- <bouncer.commit_intent[0]>   # 배경·의도
-- <bouncer.commit_intent[1]>   # 배경·의도
-- <tasks 문서의 title>         # 수정 내용
-- <verification 문서의 title>  # 수정 내용 (선택)
+- <task 또는 blueprint commit_intent[0]>   # 배경·의도
+- <task 또는 blueprint commit_intent[1]>   # 배경·의도
+- <verification 문서의 title>              # 수정 내용 (선택)
 ```
 
-즉 **blueprint `title`·`commit_intent`와 tasks/verification `title`을 커밋
-제목·본문 줄로 쓸 수 있게 적어야 합니다.** scaffold
-기본값(`001 tasks` 같은)을 그대로 두면 아무 정보 없는 커밋이 남습니다. 구조만
-Bouncer가 정하고 문장은 전부 여러분이 쓴 필드에서 오므로, 팀의 커밋 규약(언어,
-어미, 금지 사항)은 필드를 어떻게 쓰느냐로 지켜집니다. Epic/Blueprint/Distill
-식별자는 커밋에 두지 않고 PR 본문과 blueprint 문서에 남습니다. `commit_intent`가
-없으면 finalize 스킬이 커밋 전에 2줄을 채웁니다.
+`/bouncer-finalize` remainder(보통 Distill 승격)는 blueprint `title`과
+blueprint `commit_intent` 2줄만 씁니다.
+
+즉 **task `title`·`commit_intent`와 blueprint 필드를 커밋 제목·본문 줄로 쓸
+수 있게 적어야 합니다.** scaffold 기본값(`001 tasks` 같은)을 그대로 두면 아무
+정보 없는 커밋이 남습니다. 구조만 Bouncer가 정하고 문장은 전부 여러분이 쓴
+필드에서 오므로, 팀의 커밋 규약(언어, 어미, 금지 사항)은 필드를 어떻게
+쓰느냐로 지켜집니다. Epic/Blueprint/Distill 식별자는 커밋에 두지 않고 PR 본문과
+blueprint 문서에 남습니다. task `commit_intent`가 없으면 `/bouncer-commit` 스킬이
+커밋 전에 2줄을 채울 수 있습니다.
 
 ## 언제 Bouncer를 쓰나 (잠정: 파일럿이 답할 질문)
 
-한 사이클은 문서 5개와 게이트 3개를 거칩니다. 오타 수정에까지 이걸 요구하면
-사람들은 곧 우회하기 시작합니다. 현재 잠정 기준은 이렇습니다.
+한 사이클은 task 묶음과 게이트 4개(plan / execute / commit / finalize)를
+거칩니다. 오타 수정에까지 이걸 요구하면 사람들은 곧 우회하기 시작합니다.
+현재 잠정 기준은 이렇습니다.
 
 | 상황 | 잠정 판단 |
 | --- | --- |

@@ -142,12 +142,8 @@ test('scaffoldExplain creates explain.md once for finalize with empty comprehens
   assert.strictEqual(data.type, 'bouncer.explain');
   assert.strictEqual(data.bouncer.status, 'draft');
   assert.strictEqual(data.bouncer.id, 'EXPLAIN-001');
-  assert.deepStrictEqual(data.bouncer.comprehension, {
-    diff_sha: '',
-    quiz_score: '',
-    disposition: '',
-    recorded_at: '',
-  });
+  // G15는 task 엔트리 배열을 본다. 빈 배열은 hash 불일치가 아니라 기록 없음.
+  assert.deepStrictEqual(data.bouncer.comprehension, []);
   for (const heading of [
     '## Background', '## Intuition', '## Code', '## Quiz', '## 이해 상태',
   ]) {

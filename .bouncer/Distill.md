@@ -199,10 +199,12 @@ append a change log.
   Korean for humans.
 - Human-facing bodies under `.bouncer/context/epics/**` and BP `explain.md` are
   Korean (ids/paths/code fences excepted). Apply `stop-slop` there (advisory).
-- BP `explain.md` + G15 (written sections, `bouncer.comprehension`, matching
-  `diff_sha` for `base..HEAD` excluding `.bouncer/context/`) are the finalize
-  gate token; global Distill is skill promotion + `makeAllowed`, not a G15
-  body-quality gate. G9 is retired (number vacant).
+- G15 (`commit` gate) checks the pointer task's comprehension entry and
+  matching `diff_sha` for that entry's `range_from..HEAD` (excluding
+  `.bouncer/context/`). G16 (`finalize` gate) requires every task `verified`,
+  explain `published` with written sections, and one comprehension entry per
+  task number. Global Distill is skill promotion + `makeAllowed`, not a body-
+  quality gate. G9 is retired (number vacant).
 - Distill promotion and draft PR body both source from BP `explain.md`
   (`## Background` / `## Intuition` / `## Code`); `## 이해 상태` / Quiz /
   comprehension stay out of Distill and PR. Bouncer PR meta uses
@@ -220,9 +222,11 @@ append a change log.
 - Review Findings come from named agent `bouncer-reviewer` (or generic /
   inline fallback when named agents are unavailable); only the controller
   sets `review → accepted`. `bouncer-implementer` and `bouncer-debugger`
-  must not commit or flip document status — the controller owns both.
-  `bouncer-debugger` is read-only: root-cause report only; the implementer
-  or controller applies the fix.
+  must not commit or flip document status. Task commits belong to
+  `/bouncer-commit` (`bouncer commit`); `/bouncer-execute` does not commit.
+  `/bouncer-finalize` may commit Distill remainder only. `bouncer-debugger`
+  is read-only: root-cause report only; the implementer or controller
+  applies the fix.
 - Named-agent dispatch is four steps: `resolveSubagentModel` → named call →
   slug reject retries with `inherit` (and notify the user) → named-agent
   unsupported falls back to generic/inline. Keep the fallback wording or G8
@@ -250,10 +254,13 @@ append a change log.
   the first declaration, then fall back to `config.verify`. Format rules live
   only in `isValidVerifyCommand`, which plan `S12` and runtime
   `VERIFY_COMMAND_INVALID` both reuse.
-- `/bouncer-finalize` handoff checks same-blueprint remaining open tasks
-  (`ready`/`in_progress`) before next-blueprint ACQ. Advance is confirm-then
-  `bouncer current --set <bp> --task <NNN>` (or `--set` for the next blueprint);
-  never automatic.
+- Workflow order is init → plan → execute → commit → finalize.
+  `/bouncer-commit` records one explain comprehension entry (append-only
+  array) and commits one task; same-blueprint next-task handoff is
+  confirm-then `bouncer current --set … --task <NNN>` there. `/bouncer-finalize`
+  G16 blocks while any task is not `verified` or lacks a comprehension
+  entry; next-blueprint advance is confirm-then `--set` only — never
+  automatic. One execute worktree is reused for every task on a blueprint.
 - `/bouncer-plan` Author asks before writing `tasks.bouncer.verify` when root
   build/container signals exist; never write from detection alone and never
   edit `config.verify` there. Container-up + test must be one project script
