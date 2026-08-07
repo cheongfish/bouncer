@@ -11,12 +11,37 @@ bouncer:
   id: VERIFY-001
   epic_id: '019'
   blueprint_id: '001'
-  status: pending
+  status: passed
+  verification:
+    command: npm test
+    ran_at: '2026-08-07T09:28:11.592+09:00'
+    exit_code: 0
+    output_tail: |-
+      ---
+        duration_ms: 1.810398
+        type: 'test'
+        ...
+      # Subtest: readVerifyCommand narrows to the pointer task document
+      ok 412 - readVerifyCommand narrows to the pointer task document
+        ---
+        duration_ms: 13.204286
+        type: 'test'
+        ...
+      1..412
+      # tests 412
+      # suites 0
+      # pass 412
+      # fail 0
+      # cancelled 0
+      # skipped 0
+      # todo 0
+      # duration_ms 434.62197
 ---
 # Verification
 
 ## Command
-<command>
+`npm test`
 
 ## Evidence
-<result>
+Ran at: 2026-08-07T09:28:11.592+09:00
+Exit code: 0
