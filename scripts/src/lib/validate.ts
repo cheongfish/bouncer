@@ -685,7 +685,8 @@ function checkGate(gate, docs, rels, failures, ctx) {
       return;
     }
     if (computed.sha !== String(found.entry.diff_sha).trim()) {
-      add('G15', 'explain diff_sha does not match base..HEAD', 'explain');
+      // 메시지에 range_from을 쓰지 않는다 — 실패 사유는 불일치뿐; 범위는 엔트리에 있다.
+      add('G15', 'explain diff_sha does not match range_from..HEAD', 'explain');
     }
     return;
   }

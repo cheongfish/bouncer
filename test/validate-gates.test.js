@@ -442,8 +442,6 @@ const G15_CTX = {
   // 단위 테스트는 파일시스템 없이 대상 task 번호를 주입한다.
   taskUnit: { number: 1 },
   deps: {
-    readCurrent: () => null,
-    readConfig: () => ({}),
     computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
   },
 };
