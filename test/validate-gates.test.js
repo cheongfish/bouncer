@@ -116,6 +116,28 @@ test('plan gate flags G3 and G4 and G5', () => {
   assert.ok(codes.includes('G5'));
 });
 
+test('plan gate G3 accepts ready, in_progress, and verified', () => {
+  for (const status of ['ready', 'in_progress', 'verified']) {
+    const docs = {
+      epicIndex: doc('approved'),
+      blueprintIndex: doc('approved'),
+      tasks: doc(status, {
+        affected_paths: ['src/x.ts'],
+        graph: {
+          suggested_paths: ['src/'],
+          basis: 'graphify query login → 1 hit: src/',
+        },
+      }, READY_BODY),
+    };
+    const failures = [];
+    checkGate('plan', docs, rels, failures);
+    assert.ok(
+      !failures.some((f) => f.code === 'G3'),
+      `G3 must not fire for status=${status}: ${JSON.stringify(failures)}`,
+    );
+  }
+});
+
 test('plan gate G4 accepts a non-empty basis entry array', () => {
   const docs = {
     epicIndex: doc('approved'),
@@ -656,4 +678,192 @@ test('plan gate applies per task document and reports the failing file', () => {
   assert.strictEqual(g3.length, 1);
   assert.strictEqual(g3[0].file, `${BP_REL}/tasks-002.md`);
   assert.ok(!res.failures.some((f) => f.code === 'G3' && f.file === `${BP_REL}/tasks-001.md`));
+});
+
+// --- TASKS-002: execute 게이트는 포인터가 지목한 task 묶음만 본다 ---
+
+function writeOkfIndex(repo) {
+  const indexAbs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
+  fs.writeFileSync(
+    indexAbs,
+    '---\nokf_version: "0.1"\n---\n# Epics\n\n'
+    + '* [001 auth](epics/001-auth/index.md) - Epic 001\n',
+  );
+}
+
+function unitTasksData(nnn, status, resource) {
+  return {
+    type: 'bouncer.tasks',
+    title: `Tasks ${nnn}`,
+    description: `Tasks for ${nnn}`,
+    resource,
+    tags: ['bouncer', 'tasks'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `TASKS-${nnn}`,
+      epic_id: '001',
+      blueprint_id: '001',
+      status,
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+      affected_paths: ['./src/auth/login.js', './test/auth/login.test.js'],
+    },
+  };
+}
+
+function unitVerificationData(nnn, status, resource, evidence) {
+  const bouncer = {
+    id: `VERIFY-${nnn}`,
+    epic_id: '001',
+    blueprint_id: '001',
+    status,
+  };
+  if (evidence) bouncer.verification = evidence;
+  return {
+    type: 'bouncer.verification',
+    title: `Verify ${nnn}`,
+    description: `Verification for ${nnn}`,
+    resource,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer,
+  };
+}
+
+function unitReviewData(nnn, status, resource, reviewExtra) {
+  return {
+    type: 'bouncer.review',
+    title: `Review ${nnn}`,
+    description: `Review for ${nnn}`,
+    resource,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `REVIEW-${nnn}`,
+      epic_id: '001',
+      blueprint_id: '001',
+      status,
+      review: reviewExtra,
+    },
+  };
+}
+
+const PASS_EVIDENCE = {
+  command: 'node -e "process.exit(0)"',
+  ran_at: '2026-07-27T00:00:00.000Z',
+  exit_code: 0,
+  output_tail: 'ok',
+};
+
+const PASS_VERIFY_BODY = `# Verification
+
+## Command
+\`node -e "process.exit(0)"\`
+
+## Evidence
+Ran at: 2026-07-27T00:00:00.000Z
+Exit code: 0
+`;
+
+/**
+ * tasks/001 완결 + tasks/002 draft/pending 묶음 fixture.
+ * execute 게이트가 포인터 대상만 보는지 검증할 때 쓴다.
+ */
+function writeTaskDirExecuteFixture(repo, { verifyCommand = 'node -e "process.exit(0)"' } = {}) {
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: verifyCommand }));
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeOkfIndex(repo);
+
+  const u1 = `${BP_REL}/tasks/001`;
+  writeDoc(repo, `${u1}/tasks.md`, unitTasksData('001', 'verified', `${u1}/tasks.md`), planReadyTasksBody());
+  writeDoc(
+    repo,
+    `${u1}/verification.md`,
+    unitVerificationData('001', 'passed', `${u1}/verification.md`, PASS_EVIDENCE),
+    PASS_VERIFY_BODY,
+  );
+  writeDoc(
+    repo,
+    `${u1}/review.md`,
+    unitReviewData('001', 'pending', `${u1}/review.md`, { required: false, reason: 'docs-only' }),
+    '# Review\n',
+  );
+
+  const u2 = `${BP_REL}/tasks/002`;
+  writeDoc(repo, `${u2}/tasks.md`, unitTasksData('002', 'draft', `${u2}/tasks.md`), planReadyTasksBody());
+  writeDoc(
+    repo,
+    `${u2}/verification.md`,
+    unitVerificationData('002', 'pending', `${u2}/verification.md`),
+    '# Verification\n',
+  );
+  writeDoc(
+    repo,
+    `${u2}/review.md`,
+    unitReviewData('002', 'pending', `${u2}/review.md`, { required: true }),
+    '# Review\n',
+  );
+  return { u1, u2 };
+}
+
+function setPointerTask(repo, taskRel) {
+  const { execFileSync } = require('node:child_process');
+  const { writeCurrent } = require('../scripts/lib/current');
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop', task: taskRel });
+}
+
+test('execute gate passes when pointer targets a complete tasks/001 unit despite draft sibling', () => {
+  const repo = mkRepo();
+  const { u1 } = writeTaskDirExecuteFixture(repo);
+  setPointerTask(repo, `${u1}/tasks.md`);
+
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'execute' });
+  assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
+});
+
+test('execute gate G6 G7 G8 report files under the pointer tasks/002 unit', () => {
+  const repo = mkRepo();
+  // verify 실패 → 대상 verification.status=failed 이므로 G7도 함께 뜬다.
+  const { u2 } = writeTaskDirExecuteFixture(repo, {
+    verifyCommand: 'node -e "process.exit(7)"',
+  });
+  setPointerTask(repo, `${u2}/tasks.md`);
+
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'execute' });
+  assert.strictEqual(res.ok, false);
+  const byCode = (code) => res.failures.filter((f) => f.code === code);
+  const g6 = byCode('G6');
+  const g7 = byCode('G7');
+  const g8 = byCode('G8');
+  assert.ok(g6.length >= 1, `expected G6, got ${JSON.stringify(res.failures)}`);
+  assert.ok(g7.length >= 1, `expected G7, got ${JSON.stringify(res.failures)}`);
+  assert.ok(g8.length >= 1, `expected G8, got ${JSON.stringify(res.failures)}`);
+  assert.ok(g6.every((f) => f.file.startsWith(`${u2}/`)), JSON.stringify(g6));
+  assert.ok(g7.every((f) => f.file.startsWith(`${u2}/`)), JSON.stringify(g7));
+  assert.ok(g8.every((f) => f.file.startsWith(`${u2}/`)), JSON.stringify(g8));
+});
+
+test('execute gate G13 only inspects the pointer unit verification.md', () => {
+  const repo = mkRepo();
+  const { u1, u2 } = writeTaskDirExecuteFixture(repo);
+  // 다른 묶음의 증적을 고의로 깨도 포인터 대상(001)만 보면 통과해야 한다.
+  writeDoc(
+    repo,
+    `${u2}/verification.md`,
+    unitVerificationData('002', 'passed', `${u2}/verification.md`, {
+      command: 'npm test',
+      ran_at: 't',
+      exit_code: 0,
+      output_tail: 'x',
+    }),
+    '# Verification\n\nbroken — no Command/Evidence sections\n',
+  );
+  setPointerTask(repo, `${u1}/tasks.md`);
+
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'execute' });
+  assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
+  assert.ok(!res.failures.some((f) => f.code === 'G13' && String(f.file).includes('tasks/002')));
 });

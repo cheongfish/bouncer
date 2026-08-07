@@ -7,13 +7,29 @@ const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
 const {
   parsePathIds, epicDirOf, toPosix, isNumericContextId,
 } = require('./paths');
-const { isValidVerifyCommand, runVerification } = require('./verification');
+const {
+  isValidVerifyCommand, runVerification, entriesForVerify,
+} = require('./verification');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS } = require('./comprehension');
 const { readCurrent } = require('./current');
 const { checkEpicIndexConsistency } = require('./epic-index');
 const {
-  listTasksDocs, expectedTasksId, LEGACY_TASKS_BASENAME,
+  listTasksDocs, expectedTasksId, expectedTaskDocIds, LEGACY_TASKS_BASENAME,
+  TASK_UNIT_BASENAMES,
 } = require('./tasks-docs');
+
+function readOptionalLeaf(repoRoot, rel, parseErrors) {
+  if (!rel) return undefined;
+  const abs = path.join(repoRoot, rel);
+  if (!fs.existsSync(abs)) return undefined;
+  try {
+    const { data, body } = readDoc(abs);
+    return { data, body, rel };
+  } catch (e) {
+    parseErrors.push({ code: 'S0', message: e.message, file: rel });
+    return undefined;
+  }
+}
 
 function loadBlueprintDocs({ repoRoot, blueprintDir }) {
   const bp = toPosix(blueprintDir);
@@ -55,11 +71,74 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     }
   }
   if (tasksDocs.length > 0) {
-    // docs.tasks = 첫 문서: finalize.ts(Do not touch)가 단일 필드를 읽는다.
+    // docs.tasks = 첫 문서 호환 필드. execute 게이트는 taskUnit만 본다.
     docs.tasks = tasksDocs[0];
     docs.tasksDocs = tasksDocs;
   }
+
+  // 묶음별 파싱. 파일이 없으면 해당 leaf는 undefined — 대체 묶음으로 채우지 않는다.
+  const taskUnits = tasksListing.entries.map((entry) => ({
+    number: entry.number,
+    dir: entry.dir,
+    tasks: readOptionalLeaf(repoRoot, entry.tasks.rel, parseErrors),
+    verification: readOptionalLeaf(repoRoot, entry.verification.rel, parseErrors),
+    review: readOptionalLeaf(repoRoot, entry.review.rel, parseErrors),
+  }));
+  docs.taskUnits = taskUnits;
+
   return { docs, rels, parseErrors, tasksListing };
+}
+
+/**
+ * execute / finalize 가 쓸 대상 묶음.
+ * entriesForVerify(019)와 같은 포인터 해석: 매칭되면 그 엔트리만, 아니면 번호 순 첫 묶음.
+ * 단위 테스트처럼 repoRoot가 없으면 docs.tasks·verification·review 평탄 필드로 합성.
+ */
+function resolveTaskUnit(docs, { repoRoot, blueprintDir }: {
+  repoRoot?: string;
+  blueprintDir?: string;
+} = {}) {
+  if (repoRoot && blueprintDir) {
+    const entries = entriesForVerify(repoRoot, blueprintDir);
+    const entry = entries[0];
+    if (entry) {
+      const units = Array.isArray(docs.taskUnits) ? docs.taskUnits : [];
+      const match = units.find((u) => (
+        (entry.dir && u.dir === entry.dir)
+        || (entry.number != null && u.number === entry.number)
+        || (u.tasks && u.tasks.rel === entry.tasks.rel)
+      ));
+      if (match) return match;
+      // listing에는 있으나 파싱 누락 — 빈 leaf로라도 경로를 유지해 G6 file을 살린다.
+      return {
+        number: entry.number,
+        dir: entry.dir,
+        tasks: undefined,
+        verification: undefined,
+        review: undefined,
+      };
+    }
+  }
+  if (docs.tasks || docs.verification || docs.review) {
+    return {
+      number: null,
+      dir: null,
+      tasks: docs.tasks,
+      verification: docs.verification,
+      review: docs.review,
+    };
+  }
+  return null;
+}
+
+/** 파일이 없을 때도 실패 file 경로를 묶음 안으로 고정한다. */
+function unitLeafRel(unit, leaf, fallbackRel) {
+  if (unit && unit[leaf] && unit[leaf].rel) return unit[leaf].rel;
+  if (unit && unit.dir) {
+    const idx = ['tasks', 'verification', 'review'].indexOf(leaf);
+    if (idx >= 0) return `${unit.dir}/${TASK_UNIT_BASENAMES[idx]}`;
+  }
+  return fallbackRel;
 }
 
 // 존재 여부만 확인: 가볍고 파싱하지 않아야 함. execute gate가 verification을
@@ -141,7 +220,15 @@ function checkStructural(doc, failures) {
     add('S5', `blueprint_id ${bouncer.blueprint_id} != path ${parsed.blueprintId}`);
   }
   let expectedId = null;
-  if (data.type === 'bouncer.epic') expectedId = parsed.epicId;
+  // tasks/<NNN>/… 새 레이아웃은 디렉터리 번호가 id 숫자. basename만 보면
+  // 전부 tasks.md → TASKS-{blueprintId}로 잘못 접혀 002가 S5에 걸린다.
+  const dirDigitsMatch = /\/tasks\/(\d{3})\//.exec(toPosix(rel));
+  if (dirDigitsMatch) {
+    const ids = expectedTaskDocIds(dirDigitsMatch[1]);
+    if (data.type === 'bouncer.tasks') expectedId = ids.tasks;
+    else if (data.type === 'bouncer.verification') expectedId = ids.verification;
+    else if (data.type === 'bouncer.review') expectedId = ids.review;
+  } else if (data.type === 'bouncer.epic') expectedId = parsed.epicId;
   else if (data.type === 'bouncer.blueprint') expectedId = parsed.blueprintId;
   else if (data.type === 'bouncer.tasks') {
     // task id는 파일 이름에서 유도 — 레거시는 blueprint id, 번호 문서는 NNN.
@@ -211,20 +298,27 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
 
   const executionFailures = [];
   if (gate === 'execute') {
+    // G13 file은 포인터 대상 묶음의 verification 경로. 루트 고정 경로를 쓰면
+    // tasks/<NNN>/ 레이아웃에서 실패 위치가 엉킨다.
+    let verificationFile = `${toPosix(blueprintDir)}/verification.md`;
     try {
+      const entries = entriesForVerify(repoRoot, blueprintDir);
+      if (entries[0] && entries[0].verification && entries[0].verification.rel) {
+        verificationFile = entries[0].verification.rel;
+      }
       const verification = runVerification({ repoRoot, blueprintDir });
       if (!verification.ok) {
         executionFailures.push({
           code: 'G13',
           message: `configured verify command failed with exit code ${verification.exitCode}`,
-          file: `${toPosix(blueprintDir)}/verification.md`,
+          file: verificationFile,
         });
       }
     } catch (error) {
       executionFailures.push({
         code: 'G13',
         message: error.message,
-        file: `${toPosix(blueprintDir)}/verification.md`,
+        file: verificationFile,
       });
     }
   }
@@ -244,6 +338,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
   }
 
   const anyLeaf = (docs.tasksDocs && docs.tasksDocs.length > 0)
+    || (docs.taskUnits && docs.taskUnits.length > 0)
     || ['verification', 'review', 'explain'].some((k) => docs[k]);
   if (anyLeaf && !docs.blueprintIndex) {
     failures.push({ code: 'S8', message: 'blueprint index.md absent', file: rels.blueprintIndex });
@@ -252,20 +347,42 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     failures.push({ code: 'S8', message: 'epic index.md absent', file: rels.epicIndex });
   }
 
+  const hasTaskUnits = Array.isArray(docs.taskUnits) && docs.taskUnits.length > 0;
   for (const key of Object.keys(docs)) {
+    if (key === 'taskUnits') {
+      // 번호 tasks가 루트 verification/review를 공유하면 같은 rel을 두 번
+      // 검사하지 않는다 — 중복 S finding이 생기지 않게.
+      const seen = new Set();
+      for (const unit of docs.taskUnits) {
+        for (const leaf of ['tasks', 'verification', 'review']) {
+          const leafDoc = unit[leaf];
+          if (!leafDoc || seen.has(leafDoc.rel)) continue;
+          seen.add(leafDoc.rel);
+          checkStructural(leafDoc, failures);
+        }
+      }
+      continue;
+    }
     if (key === 'tasksDocs') {
+      // taskUnits가 있으면 tasks leaf는 그쪽에서 이미 검사함.
+      if (hasTaskUnits) continue;
       for (const td of docs.tasksDocs) checkStructural(td, failures);
       continue;
     }
-    // tasksDocs가 있으면 docs.tasks는 그 첫 항목이라 중복 검사하지 않는다.
-    if (key === 'tasks' && docs.tasksDocs) continue;
+    // tasksDocs/taskUnits가 있으면 docs.tasks는 그 첫 항목이라 중복 검사하지 않는다.
+    if (key === 'tasks' && (docs.tasksDocs || hasTaskUnits)) continue;
+    // 루트 verification/review도 taskUnits leaf와 동일 파일이면 중복 스킵.
+    if ((key === 'verification' || key === 'review') && hasTaskUnits) continue;
     checkStructural(docs[key], failures);
   }
 
   failures.push(...checkEpicIndexConsistency({ repoRoot }));
 
   if (gate) {
-    checkGate(gate, docs, rels, failures, { repoRoot, blueprintDir, deps });
+    const taskUnit = gate === 'execute'
+      ? resolveTaskUnit(docs, { repoRoot, blueprintDir })
+      : undefined;
+    checkGate(gate, docs, rels, failures, { repoRoot, blueprintDir, deps, taskUnit });
   }
 
   return { ok: failures.length === 0, failures };
@@ -429,7 +546,12 @@ function checkGate(gate, docs, rels, failures, ctx) {
     for (const tasksDoc of tasksList) {
       const file = tasksDoc.rel || rels.tasks;
       const addTask = (code, message) => failures.push({ code, message, file });
-      if (statusOf(tasksDoc) !== 'ready') addTask('G3', 'tasks.status != ready');
+      // ready = plan 직후. in_progress = execute 중. verified = 같은 BP의
+      // 앞 task를 이미 끝낸 뒤 next-task --set. draft만 G3.
+      const taskStatus = statusOf(tasksDoc);
+      if (!['ready', 'in_progress', 'verified'].includes(taskStatus)) {
+        addTask('G3', 'tasks.status != ready');
+      }
       const graph = tasksDoc && tasksDoc.data.bouncer ? tasksDoc.data.bouncer.graph : undefined;
       const suggested = graph ? graph.suggested_paths : undefined;
       if (!Array.isArray(suggested)) addTask('G4', 'tasks.graph.suggested_paths missing');
@@ -467,19 +589,37 @@ function checkGate(gate, docs, rels, failures, ctx) {
     return;
   }
   if (gate === 'execute') {
-    if (statusOf(docs.tasks) !== 'verified') add('G6', 'tasks.status != verified', 'tasks');
-    if (statusOf(docs.verification) !== 'passed') add('G7', 'verification.status != passed', 'verification');
-    const review = docs.review && docs.review.data.bouncer ? docs.review.data.bouncer.review : undefined;
-    const reviewOk = statusOf(docs.review) === 'accepted' || (review && review.required === false);
-    if (!reviewOk) add('G8', 'review not accepted and review.required != false', 'review');
-    if (docs.verification) {
-      const vbody = typeof docs.verification.body === 'string' ? docs.verification.body : '';
+    // docs.tasks(첫 문서 호환 필드)는 쓰지 않는다 — 포인터 대상 묶음만 판정.
+    // ctx.taskUnit이 없으면 단위 테스트용으로 평탄 docs에서 합성.
+    const taskUnit = (ctx && ctx.taskUnit) || resolveTaskUnit(docs, {});
+    const tasksDoc = taskUnit && taskUnit.tasks;
+    const verificationDoc = taskUnit && taskUnit.verification;
+    const reviewDoc = taskUnit && taskUnit.review;
+    const addUnit = (code, message, leaf) => failures.push({
+      code,
+      message,
+      file: unitLeafRel(taskUnit, leaf, rels[leaf]),
+    });
+
+    if (statusOf(tasksDoc) !== 'verified') {
+      addUnit('G6', 'tasks.status != verified', 'tasks');
+    }
+    if (statusOf(verificationDoc) !== 'passed') {
+      addUnit('G7', 'verification.status != passed', 'verification');
+    }
+    const review = reviewDoc && reviewDoc.data.bouncer ? reviewDoc.data.bouncer.review : undefined;
+    const reviewOk = statusOf(reviewDoc) === 'accepted' || (review && review.required === false);
+    if (!reviewOk) {
+      addUnit('G8', 'review not accepted and review.required != false', 'review');
+    }
+    if (verificationDoc) {
+      const vbody = typeof verificationDoc.body === 'string' ? verificationDoc.body : '';
       const vs = parseSections(vbody, VERIFY_SECTION_DEFS);
       const missingV = ['command', 'evidence'].filter((k) => !vs[k]);
       if (missingV.length) {
-        add('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
+        addUnit('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
       }
-      const evidence = docs.verification.data.bouncer && docs.verification.data.bouncer.verification;
+      const evidence = verificationDoc.data.bouncer && verificationDoc.data.bouncer.verification;
       const validEvidence = evidence
         && typeof evidence.command === 'string'
         && evidence.command.trim()
@@ -488,31 +628,31 @@ function checkGate(gate, docs, rels, failures, ctx) {
         && evidence.exit_code === 0
         && typeof evidence.output_tail === 'string';
       if (!validEvidence) {
-        add('G13', 'verification.md missing successful harness verification metadata', 'verification');
+        addUnit('G13', 'verification.md missing successful harness verification metadata', 'verification');
       } else if (
         !vs.command.includes(`\`${evidence.command}\``)
         || !vs.evidence.includes('Exit code: 0')
       ) {
-        add('G13', 'verification.md body does not match harness verification metadata', 'verification');
+        addUnit('G13', 'verification.md body does not match harness verification metadata', 'verification');
       }
     }
-    const reviewMeta = docs.review && docs.review.data.bouncer ? docs.review.data.bouncer.review : undefined;
+    const reviewMeta = reviewDoc && reviewDoc.data.bouncer ? reviewDoc.data.bouncer.review : undefined;
     const reviewSkipped = reviewMeta && reviewMeta.required === false;
-    if (docs.review && !reviewSkipped) {
-      const rbody = typeof docs.review.body === 'string' ? docs.review.body : '';
+    if (reviewDoc && !reviewSkipped) {
+      const rbody = typeof reviewDoc.body === 'string' ? reviewDoc.body : '';
       const rs = parseSections(rbody, REVIEW_SECTION_DEFS);
-      if (!rs.findings) add('G14', 'review.md missing ## Findings body section', 'review');
+      if (!rs.findings) addUnit('G14', 'review.md missing ## Findings body section', 'review');
       const findings = Array.isArray(reviewMeta && reviewMeta.findings) ? reviewMeta.findings : [];
       for (const fnd of findings) {
         const id = fnd && fnd.id ? fnd.id : '(no id)';
         if (!REVIEW_SEVERITY.includes(fnd && fnd.severity)) {
-          add('G14', `review finding ${id} severity invalid: ${fnd && fnd.severity}`, 'review');
+          addUnit('G14', `review finding ${id} severity invalid: ${fnd && fnd.severity}`, 'review');
         }
         if (!REVIEW_STATUS.includes(fnd && fnd.status)) {
-          add('G14', `review finding ${id} status invalid: ${fnd && fnd.status}`, 'review');
+          addUnit('G14', `review finding ${id} status invalid: ${fnd && fnd.status}`, 'review');
         }
         if (fnd && fnd.status === 'accepted' && (!fnd.note || String(fnd.note).trim() === '')) {
-          add('G14', `review finding ${id} accepted without note`, 'review');
+          addUnit('G14', `review finding ${id} accepted without note`, 'review');
         }
       }
     }
@@ -566,6 +706,6 @@ function checkGate(gate, docs, rels, failures, ctx) {
 }
 
 module.exports = {
-  loadBlueprintDocs, checkStructural, checkGate, validateBlueprint,
+  loadBlueprintDocs, resolveTaskUnit, checkStructural, checkGate, validateBlueprint,
   parseTasksSections, parseSections, extractPathCandidates,
 };

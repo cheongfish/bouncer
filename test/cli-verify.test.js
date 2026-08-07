@@ -107,3 +107,47 @@ test('execute gate records failure and returns a gate failure', () => {
   assert.strictEqual(verification.data.bouncer.status, 'failed');
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 7);
 });
+
+test('verify records evidence into the pointer task-dir unit', () => {
+  const { writeCurrent } = require('../scripts/lib/current');
+  const { execFileSync } = require('node:child_process');
+  const repo = setupRepo('node -e "process.exit(0)"');
+  // 레거시 루트 문서는 두고, 새 묶음 002만 포인터로 지목한다.
+  const u2 = `${BP_REL}/tasks/002`;
+  writeDoc(repo, `${u2}/tasks.md`,
+    doc('bouncer.tasks', 'TASKS-002', 'verified', `${u2}/tasks.md`, {
+      affected_paths: ['src/login.js'],
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+    }),
+    '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n'
+    + '## Touch\n`src/`\n\n## Do not touch\n`test/`\n\n## Checklist\n- [ ] z\n');
+  writeDoc(repo, `${u2}/verification.md`,
+    doc('bouncer.verification', 'VERIFY-002', 'pending', `${u2}/verification.md`),
+    '# Verification\n');
+  writeDoc(repo, `${u2}/review.md`,
+    doc('bouncer.review', 'REVIEW-002', 'pending', `${u2}/review.md`, {
+      review: { required: false },
+    }),
+    '# Review\n');
+
+  const rootBefore = fs.readFileSync(path.join(repo, BP_REL, 'verification.md'), 'utf8');
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${u2}/tasks.md`,
+  });
+
+  const { io, buf } = capture();
+  const code = runCli(['verify', '--repo', repo, '--blueprint', BP_REL], io);
+  assert.strictEqual(code, 0);
+  assert.strictEqual(JSON.parse(buf.out).ok, true);
+
+  const unit = readDoc(path.join(repo, `${u2}/verification.md`));
+  assert.strictEqual(unit.data.bouncer.verification.exit_code, 0);
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, BP_REL, 'verification.md'), 'utf8'),
+    rootBefore,
+  );
+});

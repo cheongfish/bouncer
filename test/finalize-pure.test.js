@@ -95,3 +95,25 @@ test('missing titles omit body bullets', () => {
   };
   assert.strictEqual(buildCommitMessage(docs), 'fix: Login flow');
 });
+
+test('commit bullets prefer target taskUnit titles over docs.tasks compat field', () => {
+  const docs = {
+    blueprintIndex: { data: { title: 'Login flow', bouncer: { id: '001', epic_id: '001' } } },
+    // 호환 필드(첫 묶음) — taskUnit이 있으면 무시되어야 한다.
+    tasks: { data: { title: 'First unit title' } },
+    verification: { data: { title: 'First unit verify' } },
+  };
+  const taskUnit = {
+    number: 2,
+    dir: `${BP}/tasks/002`,
+    tasks: { data: { title: 'Second unit implement' }, rel: `${BP}/tasks/002/tasks.md` },
+    verification: { data: { title: 'Second unit verified' }, rel: `${BP}/tasks/002/verification.md` },
+    review: undefined,
+  };
+  assert.strictEqual(buildCommitMessage(docs, taskUnit), [
+    'feat: Login flow',
+    '',
+    '- Second unit implement',
+    '- Second unit verified',
+  ].join('\n'));
+});

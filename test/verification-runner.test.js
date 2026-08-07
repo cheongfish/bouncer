@@ -367,3 +367,118 @@ ${verifyYaml}---
     'node -e "process.exit(0)"',
   );
 });
+
+function writeUnitVerification(repo, nnn, bodyStatus = 'pending') {
+  const rel = `${BP_REL}/tasks/${nnn}/verification.md`;
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---
+type: bouncer.verification
+title: Verify ${nnn}
+description: Verification for ${nnn}
+resource: ${rel}
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: VERIFY-${nnn}
+  epic_id: '001'
+  blueprint_id: '001'
+  status: ${bodyStatus}
+---
+# Verification
+`);
+  return rel;
+}
+
+function writeUnitTasks(repo, nnn) {
+  const rel = `${BP_REL}/tasks/${nnn}/tasks.md`;
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---
+type: bouncer.tasks
+title: Tasks ${nnn}
+description: Tasks for ${nnn}
+resource: ${rel}
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-${nnn}
+  epic_id: '001'
+  blueprint_id: '001'
+  status: ready
+  affected_paths:
+    - src/auth/
+---
+# Tasks
+`);
+  return rel;
+}
+
+test('runVerification records evidence into the pointer tasks/002 unit only', () => {
+  const { writeCurrent } = require('../scripts/lib/current');
+  const { execFileSync } = require('node:child_process');
+  const repo = setupRepo('node -e "process.exit(0)"');
+  // 루트 verification은 남겨 두고, 새 레이아웃 묶음도 만든다 — 포인터가
+  // 002를 가리키면 루트·001은 건드리면 안 된다.
+  writeUnitTasks(repo, '001');
+  writeUnitVerification(repo, '001');
+  writeUnitTasks(repo, '002');
+  writeUnitVerification(repo, '002');
+  const before001 = fs.readFileSync(path.join(repo, BP_REL, 'tasks/001/verification.md'), 'utf8');
+
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/002/tasks.md`,
+  });
+
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec: () => ({ stdout: 'ok\n', stderr: '' }),
+  });
+  assert.deepStrictEqual(result, {
+    ok: true, command: 'node -e "process.exit(0)"', exitCode: 0,
+  });
+
+  const recorded = readDoc(path.join(repo, BP_REL, 'tasks/002/verification.md'));
+  assert.strictEqual(recorded.data.bouncer.verification.exit_code, 0);
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, BP_REL, 'tasks/001/verification.md'), 'utf8'),
+    before001,
+  );
+});
+
+test('runVerification rejects missing unit verification.md without creating it', () => {
+  const { writeCurrent } = require('../scripts/lib/current');
+  const { execFileSync } = require('node:child_process');
+  const repo = setupRepo('node -e "process.exit(0)"');
+  writeUnitTasks(repo, '001');
+  writeUnitVerification(repo, '001');
+  writeUnitTasks(repo, '002');
+  // tasks/002/verification.md 고의 생략
+  const missingRel = `${BP_REL}/tasks/002/verification.md`;
+
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/002/tasks.md`,
+  });
+
+  assert.throws(
+    () => runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      exec: () => { throw new Error('must not execute'); },
+    }),
+    { code: 'VERIFY_DOCUMENT_MISSING' },
+  );
+  assert.ok(!fs.existsSync(path.join(repo, missingRel)));
+});
