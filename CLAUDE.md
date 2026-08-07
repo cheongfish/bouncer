@@ -13,8 +13,10 @@ they conflict.
    Never author or migrate a root `context/` tree. Scaffold owns OKF frontmatter
    (`type`, `title`, `description`, `resource`, `tags`, `timestamp`) and harness
    ids under `bouncer:`; skills write body prose (and only the frontmatter fields
-   a workflow explicitly allows). A blueprint may hold multiple task documents
-   (`tasks-001.md`, `tasks-002.md`, …; legacy `tasks.md` still accepted alone).
+   a workflow explicitly allows). A blueprint may hold multiple task bundles:
+   `tasks/<NNN>/{tasks,verification,review}.md` (with ids `TASKS-<NNN>`,
+   `VERIFY-<NNN>`, `REVIEW-<NNN>`). Legacy root `tasks.md` and
+   `tasks-<NNN>.md` layouts remain migration targets until the layout cutover.
    Project Distill is **not** under `context/` — it is agent runtime at
    `.bouncer/Distill.md` (see rule 7).
 2. **One commit per task** — Split work so each task document is one reviewable
@@ -80,7 +82,7 @@ numbered step says otherwise.
 | Clarify goal / scope / success criteria | `discovery` (inside `/bouncer-plan`) |
 | Author epic / blueprint / tasks bodies | `spec-authoring` |
 | Strip AI tells from context prose | `stop-slop` (inside plan / explain / Distill) |
-| Implement from `tasks-001.md` | `implementation` (inside `/bouncer-execute`) |
+| Implement from `tasks/<NNN>/tasks.md` | `implementation` (inside `/bouncer-execute`) |
 | Investigate a failed verify | `debugging` + `verification` |
 | Review the diff against the brief | `review` |
 | Close out, commit, draft PR | `/bouncer-finalize` |

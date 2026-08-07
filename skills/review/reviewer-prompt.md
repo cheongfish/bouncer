@@ -7,12 +7,13 @@ slot** the controller fills and attaches when dispatching `bouncer-reviewer`
 contract; this slot carries the per-run brief and refs.
 
 Fill every placeholder, then hand this prompt to the dispatched reviewer. This
-is a read-only pass: do not modify files, commit, or change `review.md`
+is a read-only pass: do not modify files, commit, or change the pointer task
+directory's `review.md`
 status / frontmatter — Findings only.
 
 ## Placeholders
 
-- `{{BRIEF}}` — task brief (`tasks-001.md` or legacy `tasks.md`) Goal & intent,
+- `{{BRIEF}}` — task brief (`tasks/<NNN>/tasks.md` or legacy root task document) Goal & intent,
   Interface, Touch, Do not touch, Constraints, Checklist
 - `{{BASE}}` — review base ref (branch or commit)
 - `{{HEAD}}` — review HEAD ref (usually the worktree tip)
@@ -86,4 +87,5 @@ Return **only** a Findings list. For each finding include:
 - evidence (`file:line` or concrete diff reference)
 - suggested disposition hint (`resolve` vs accept-with-note) — advisory only
 
-Do **not** set review status to accepted. Do **not** edit `review.md`.
+Do **not** set review status to accepted. Do **not** edit the pointer task
+directory's `review.md`.

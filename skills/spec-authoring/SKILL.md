@@ -81,7 +81,8 @@ those placeholders ship as the commit subject and body.
      finalize commit subject and the execute branch prefix
      (`<type>/<id>-<slug>`). Set `bouncer.commit_intent` to **two** `~함`
      lines (배경·의도) drawn from Goal & intent — not the subject noun phrase.
-   - **tasks**: fill every implementation-ready section before approval —
+   - **tasks**: fill every implementation-ready section in each
+     `tasks/<NNN>/tasks.md` bundle before approval —
      Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
      Those sections are the sole brief for execution. Set `title` as a `~함`
      body line for the commit. Section-specific rules:

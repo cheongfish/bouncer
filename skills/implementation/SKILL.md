@@ -12,8 +12,8 @@ does.
 
 ## Flow
 
-1. **Approved tasks** — Treat the task brief (`tasks-001.md` or legacy
-   `tasks.md`: Goal & intent, Interface, Touch, Do not touch, Constraints,
+1. **Approved tasks** — Treat the task brief (`tasks/<NNN>/tasks.md` or a
+   legacy root task document: Goal & intent, Interface, Touch, Do not touch, Constraints,
    Checklist) as the sole authority. Do not invent requirements.
 2. **Understand, then climb** — Read the task and the code it touches; trace the
    real flow end to end. Only then apply the decision ladder and stop at the

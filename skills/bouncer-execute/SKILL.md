@@ -48,7 +48,8 @@ applies the fix.
    CLI `current.task` is `{ path, id }` when set (pointer file stores path only).
    **Task brief** = `current.task.path` (repo-relative) when `current.task` is
    non-null. When `task` is `null`, use the resolver's single or first task
-   document (`tasks-001.md` or legacy `tasks.md` alone) as today. Later steps
+   task bundle document (`tasks/<NNN>/tasks.md`, or a legacy root task document)
+   as today. Later steps
    use that same brief path — do not re-pick a different task document mid-run.
 
 2. **Worktree.** Create a blueprint-level worktree + branch:
@@ -126,7 +127,7 @@ applies the fix.
    guarded by `commit-safety`.
 
 4. **Verify.** Use the `verification` skill (`skills/verification/SKILL.md`) to
-   prepare the existing `verification.md`. Do not hand-write success evidence
+   prepare the existing `<pointer task directory>/verification.md`. Do not hand-write success evidence
    or set `verification → passed`: the execute gate runs the configured verify
    command and the harness records `## Command`, `## Evidence`, exit status,
    and run metadata. Set `tasks → verified` only after the implementation work
@@ -164,7 +165,7 @@ applies the fix.
        dispatch named agent `bouncer-reviewer` with that model (retry `inherit`
        if the slug is rejected; if named agents are unavailable, fall back to a
        **fresh generic** subagent or inline read-only pass with the same prompt);
-   (3) as controller, update existing `review.md` body `## Findings` and
+   (3) as controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status;
    (4) if any actionable finding remains unresolved, fix within scope and

@@ -2,7 +2,7 @@
 
 **`.bouncer/` 전체를 커밋합니다.** 설계 전제입니다.
 `/bouncer-finalize`는 코드 변경과 그 blueprint의 문서를 **한 커밋에 함께** 담습니다.
-문서를 gitignore하면 게이트를 통과했다는 증적(`verification.md`의 종료 코드,
+문서를 gitignore하면 게이트를 통과했다는 증적(각 `tasks/<NNN>/verification.md`의 종료 코드,
 `affected_paths` 승인 기록)이 로컬에만 남고 리뷰어에게 도달하지 않아, 이 도구의
 존재 이유가 사라집니다.
 
@@ -34,7 +34,8 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 
 ## 문서는 그 시점의 기록입니다
 
-커밋 이후 코드만 고치면 task 문서(`tasks-001.md` / 레거시 `tasks.md`)는 과거 상태로 남습니다.
+커밋 이후 코드만 고치면 task 문서(`tasks/<NNN>/tasks.md`; 레거시 루트 task 문서는
+마이그레이션 대상)는 과거 상태로 남습니다.
 컨텍스트 문서는 **그 커밋이 왜 그 범위였고 무엇으로 검증됐는지에 대한 기록**입니다.
 최신 상태로 유지하려 들지 마세요. 범위가 바뀌면 새 blueprint를 만드세요.
 

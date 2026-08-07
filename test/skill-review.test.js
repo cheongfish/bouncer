@@ -73,6 +73,12 @@ test('reviewer-prompt is read-only Findings template with placeholders', () => {
   assert.doesNotMatch(reviewerPrompt, /profile|superpowers/i);
 });
 
+test('review reads and records the selected task bundle review document', () => {
+  const md = readSkill('review');
+  assert.match(md, /pointer task directory.*review\.md|review\.md.*pointer task directory/i);
+  assert.match(reviewerPrompt, /tasks\/<NNN>\/tasks\.md/);
+});
+
 test('review and reviewer-prompt flag over-engineering without punishing why-comments', () => {
   const md = readSkill('review');
   assert.match(md, /Over-engineering/i);

@@ -7,7 +7,8 @@
 | --- | --- |
 | `bouncer validate --blueprint <dir> --gate <plan\|execute\|finalize>` | 구조 검사 + 게이트 하나. 실패 코드를 보고 |
 | `bouncer verify --blueprint <dir>` | `tasks.bouncer.verify`(있으면) 또는 `config.verify`를 실행하고 증적을 기록 |
-| `bouncer scaffold epic\|blueprint ...` | 올바른 프론트매터로 문서 세트 생성 |
+| `bouncer scaffold epic\|blueprint ...` | 올바른 프론트매터로 epic / blueprint와 첫 task 묶음 생성 |
+| `bouncer scaffold task --blueprint <dir> --id <NNN>` | `tasks/<NNN>/{tasks,verification,review}.md` task 묶음 생성 |
 | `bouncer finalize --blueprint <dir> [--yes]` | 커밋 범위 확인, `--yes`면 커밋까지 |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 새 worktree로 이전하고 base를 원상복구 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |

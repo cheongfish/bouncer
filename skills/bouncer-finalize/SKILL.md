@@ -202,7 +202,8 @@ appears; do not reconstruct a root `context/` path.
    open task in `listReadyBlueprints` / `ready[].tasks` (status `ready` or
    `in_progress`, not the task just finished), confirm advancing there before
    considering another blueprint.
-   - Show the candidate task id (`TASKS-NNN`) and path.
+   - Show the candidate task id (`TASKS-NNN`) and path
+     (`tasks/<NNN>/tasks.md` for a task bundle; legacy paths remain migration targets).
    - **AskUserQuestion — Next task**
      1. **Re-ground**: 같은 blueprint의 남은 열린 task로 포인터를 옮길지.
      2. **Recommend-why**: 한 PR(blueprint) 안에 다음 커밋 단위가 남아 있으면

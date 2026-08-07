@@ -1,6 +1,6 @@
 ---
 name: bouncer-implementer
-description: "Implement from an approved Bouncer task brief (tasks-001.md or legacy tasks.md) inside affected_paths. Do not commit or flip document statuses — report back to the controller."
+description: "Implement from an approved Bouncer task brief (tasks/<NNN>/tasks.md or a legacy root task document) inside affected_paths. Do not commit or flip document statuses — report back to the controller."
 model: inherit
 ---
 

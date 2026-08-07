@@ -1,14 +1,17 @@
 # Workflow
 
 1. `/bouncer-init`: bootstrap `.bouncer/` once per project.
-2. `/bouncer-plan`: author epic → blueprint → tasks, scaffold docs, inject
+2. `/bouncer-plan`: author epic → blueprint → task bundles
+   (`tasks/<NNN>/{tasks,verification,review}.md`), scaffold docs, inject
    `graph.suggested_paths`, confirm `affected_paths`, approve, write the active
    pointer (`bouncer current --set`, which records the selected task when one
-   is open), pass gate `plan` (G1–G5, G10–G12).
+   is open), pass gate `plan` (G1–G5, G10–G12). Add another bundle with
+   `bouncer scaffold task --blueprint <dir> --id <NNN>`.
 3. `/bouncer-execute`: preflight, worktree, `seed-worktree` (move the plan
    documents from the base checkout into the fresh worktree), implement from
-   the pointer's task brief, verification, review, pass gate `execute` (G6–G8,
-   G13–G14).
+   the pointer's `tasks/<NNN>/tasks.md`, then verify and review against that
+   same bundle's `verification.md` and `review.md`, pass gate `execute`
+   (G6–G8, G13–G14).
 4. `/bouncer-finalize`: scaffold + `explain-diff` (BP `explain.md` +
    comprehension), promote durable notes from `explain.md` into
    `.bouncer/Distill.md` via `spec-authoring` (excluding

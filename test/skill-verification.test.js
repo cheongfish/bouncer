@@ -20,3 +20,8 @@ test('verification requires real Command and Evidence sections', () => {
   assert.match(md, /harness.*record|do not.*manually.*evidence/i);
   assert.doesNotMatch(md, /profile|superpowers/i);
 });
+
+test('verification reads the selected task bundle evidence document', () => {
+  const md = readSkill('verification');
+  assert.match(md, /pointer task directory.*verification\.md|verification\.md.*pointer task directory/i);
+});

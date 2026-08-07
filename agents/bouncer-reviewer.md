@@ -1,6 +1,6 @@
 ---
 name: bouncer-reviewer
-description: "Read-only reviewer for Bouncer execute. Judge the worktree diff against the task brief (tasks-001.md or legacy tasks.md); return Findings only — never edit files or flip review status."
+description: "Read-only reviewer for Bouncer execute. Judge the worktree diff against the task brief (tasks/<NNN>/tasks.md or a legacy root task document); return Findings only — never edit files or flip review status."
 model: inherit
 readonly: true
 ---
@@ -14,7 +14,7 @@ diff; do not invent requirements outside the brief.
 
 ## Authority
 
-Use only these task-brief sections (`tasks-001.md` or legacy `tasks.md`) as the
+Use only these task-brief sections (`tasks/<NNN>/tasks.md` or a legacy root task document) as the
 brief: Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
 Interface states what the change rejects as well as what it provides — an
 unimplemented rejection path is Missing, not a nit.
@@ -22,7 +22,7 @@ unimplemented rejection path is Missing, not a nit.
 ## Hard guards (read-only)
 
 - Do **not** modify the working tree, run mutating git commands, or commit.
-- Do **not** edit `review.md`, its frontmatter, or any document status.
+- Do **not** edit the pointer task directory's `review.md`, its frontmatter, or any document status.
 - Do **not** set review status to `accepted`. The controller owns Findings
   recording and status transitions.
 - If blocked by ambiguity, report it as a Finding; do not expand scope.
@@ -87,4 +87,4 @@ Return **only** a Findings list. For each finding include:
 - evidence (`file:line` or concrete diff reference)
 - suggested disposition hint (`resolve` vs accept-with-note) — advisory only
 
-Do **not** set review status. Do **not** edit `review.md`.
+Do **not** set review status. Do **not** edit the pointer task directory's `review.md`.
