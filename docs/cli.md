@@ -11,7 +11,7 @@
 | `bouncer finalize --blueprint <dir> [--yes]` | 커밋 범위 확인, `--yes`면 커밋까지 |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 새 worktree로 이전하고 base를 원상복구 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
-| `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>]] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 없으면 `ready` 후보 |
+| `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>]] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); 포인터 파일은 path 문자열만 저장. 없으면 `ready` 후보 |
 | `bouncer migrate ids [--dry-run]` | 구형 `EPIC-`/`BP-` context 디렉터리를 숫자 id로 이관(계획 또는 적용) |
 
 모든 명령이 `--repo <dir>`로 다른 저장소를 대상으로 실행할 수 있습니다.

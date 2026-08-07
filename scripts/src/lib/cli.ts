@@ -8,7 +8,10 @@ const { runVerification } = require('./verification');
 const { seedWorktree } = require('./seed-worktree');
 const { nowIsoKst } = require('./time');
 const { syncSessionGraphs } = require('./session-graph');
-const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, resolvePointerTask } = require('./current');
+const {
+  readCurrent, writeCurrent, clearCurrent, listReadyBlueprints,
+  resolvePointerTask, presentCurrent,
+} = require('./current');
 const { migrateIds } = require('./migrate-ids');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -274,15 +277,17 @@ function cmdCurrent(rest, io) {
       base,
       task: resolved.task || undefined,
     });
-    const current = readCurrent({ repoRoot });
+    // 포인터 파일은 path 문자열; 응답 JSON 은 path+id (presentCurrent).
+    const current = presentCurrent(readCurrent({ repoRoot }), { repoRoot });
     io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
     return 0;
   }
 
   // 없음도 오류가 아닌 상태: 항상 exit 0. unset이면 ready list를 붙여 execute가
   // "planned but unset"과 "nothing planned"를 구분하게 함.
-  const current = readCurrent({ repoRoot });
-  if (current) {
+  const stored = readCurrent({ repoRoot });
+  if (stored) {
+    const current = presentCurrent(stored, { repoRoot });
     io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
   } else {
     const ready = listReadyBlueprints({ repoRoot });

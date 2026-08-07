@@ -30,6 +30,34 @@ function availableTaskEntries(listing) {
         .map((entry) => ({ id: entry.id, path: entry.rel }));
 }
 /**
+ * CLI 출력용. 포인터 파일의 task 는 rel path 문자열만 보관하고,
+ * `bouncer current` 응답에는 경로와 TASKS-NNN id 를 함께 실어 Interface 계약을 맞춘다.
+ * 문서가 사라져 id 를 못 찾으면 path 만 남기고 id 는 null — 포인터를 지우지 않는다.
+ */
+function presentCurrent(current, { repoRoot }) {
+    if (!current)
+        return null;
+    const taskPath = typeof current.task === 'string' && current.task ? current.task : null;
+    if (!taskPath) {
+        return { blueprint: current.blueprint, base: current.base, task: null };
+    }
+    let id = null;
+    try {
+        const listing = listTasksDocs({ repoRoot, blueprintDir: current.blueprint });
+        const entry = listing.entries.find((e) => e.rel === taskPath);
+        if (entry && typeof entry.id === 'string')
+            id = entry.id;
+    }
+    catch (_e) {
+        // listing 실패 시 id 없이 path 만 노출.
+    }
+    return {
+        blueprint: current.blueprint,
+        base: current.base,
+        task: { path: taskPath, id },
+    };
+}
+/**
  * --set 시 task 해석.
  * - taskSpec 없음: 번호 순 첫 ready/in_progress. 없으면 task 미지정(ok + null).
  * - NNN / TASKS-NNN: 해당 문서. 없거나 형식이 틀리면 ok:false + available 목록.
@@ -295,5 +323,5 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
 }
 module.exports = {
     readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
-    resolvePointerTask,
+    resolvePointerTask, presentCurrent,
 };

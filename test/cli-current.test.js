@@ -114,10 +114,11 @@ test('current --set writes pointer when plan gate passes', () => {
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
   // 레거시 tasks.md 단독이면 자동 선택으로 그 문서가 task 가 된다.
+  // CLI 응답은 path+id; 포인터 파일은 path 문자열.
   assert.deepStrictEqual(parsed.current, {
     blueprint: BP_REL,
     base: 'develop',
-    task: `${BP_REL}/tasks.md`,
+    task: { path: `${BP_REL}/tasks.md`, id: 'TASKS-001' },
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
     blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks.md`,
@@ -243,7 +244,7 @@ test('current --set --task 002 records that task document', () => {
   assert.deepStrictEqual(parsed.current, {
     blueprint: BP_REL,
     base: 'develop',
-    task: `${BP_REL}/tasks-002.md`,
+    task: { path: `${BP_REL}/tasks-002.md`, id: 'TASKS-002' },
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
     blueprint: BP_REL,
@@ -276,6 +277,7 @@ test('current --clear --task exits 2', () => {
 
 test('bare current JSON includes a task key on the pointer', () => {
   const repo = tmpGitRepo();
+  writeNumberedPlanBlueprint(repo);
   writeCurrent({
     repoRoot: repo,
     blueprint: BP_REL,
@@ -287,5 +289,8 @@ test('bare current JSON includes a task key on the pointer', () => {
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
   assert.ok(Object.prototype.hasOwnProperty.call(parsed.current, 'task'));
-  assert.strictEqual(parsed.current.task, `${BP_REL}/tasks-001.md`);
+  assert.deepStrictEqual(parsed.current.task, {
+    path: `${BP_REL}/tasks-001.md`,
+    id: 'TASKS-001',
+  });
 });
