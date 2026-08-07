@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-001
   epic_id: '021'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - task마다 커밋해도 subject가 blueprint title 고정이라 같은 문장이 반복됨
     - 커밋 제목과 배경·의도를 대상 task 문서에서 읽어 커밋 로그가 task를 구분하게 함
