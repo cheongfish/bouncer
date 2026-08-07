@@ -2,7 +2,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { makeAllowed, buildCommitMessage, isUnder } = require('../scripts/lib/finalize');
+const {
+  makeAllowed, buildCommitMessage, buildFinalizeCommitMessage, isUnder,
+} = require('../scripts/lib/finalize');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -331,4 +333,47 @@ test('undefined taskUnit falls subject to blueprint title', () => {
     buildCommitMessage(docs, undefined).split('\n')[0],
     /^feat: blueprint 제목$/,
   );
+});
+
+// --- TASKS-004: finalize 마감 메시지는 blueprint 단위 ---
+
+test('finalize commit message is blueprint title plus commit_intent only', () => {
+  const docs = {
+    blueprintIndex: {
+      data: {
+        title: 'task 단위 커밋 단계 신설과 finalize 축소',
+        bouncer: {
+          commit_type: 'feat',
+          commit_intent: [
+            '커밋 단위는 task인데 마감이 blueprint 하나에 묶여 있음',
+            'finalize는 blueprint를 닫는 일만 맡게 함',
+          ],
+        },
+      },
+    },
+    tasks: { data: { title: '이 task title은 마감 메시지에 없어야 함' } },
+    verification: { data: { title: 'verification title도 없어야 함' } },
+  };
+  assert.strictEqual(buildFinalizeCommitMessage(docs), [
+    'feat: task 단위 커밋 단계 신설과 finalize 축소',
+    '',
+    '- 커밋 단위는 task인데 마감이 blueprint 하나에 묶여 있음',
+    '- finalize는 blueprint를 닫는 일만 맡게 함',
+  ].join('\n'));
+});
+
+test('finalize commit message omits body when commit_intent is incomplete', () => {
+  const docs = {
+    blueprintIndex: {
+      data: {
+        title: 'Login flow',
+        bouncer: {
+          commit_type: 'fix',
+          commit_intent: ['only one line'],
+        },
+      },
+    },
+    verification: { data: { title: 'Login verified' } },
+  };
+  assert.strictEqual(buildFinalizeCommitMessage(docs), 'fix: Login flow');
 });

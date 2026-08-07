@@ -133,9 +133,18 @@ test('a staged new document is unstaged and removed, not checked out', () => {
 test('nothing to move is a successful no-op', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
+  // 재진입: worktree에 이미 plan 문서가 있어도 base에 옮길 것이 없으면
+  // 아무 일도 하지 않고 성공한다. worktree 바이트는 그대로다.
+  write(wt, `${BP_REL}/tasks.md`, 'already seeded\n');
+  const before = read(wt, `${BP_REL}/tasks.md`);
+  const beforeIndex = read(wt, INDEX_REL);
 
-  assert.deepStrictEqual(seed(repo, wt), { ok: true, moved: [], restored: [] });
+  const res = seed(repo, wt);
+
+  assert.deepStrictEqual(res, { ok: true, moved: [], restored: [] });
   assert.strictEqual(status(repo), '');
+  assert.strictEqual(read(wt, `${BP_REL}/tasks.md`), before);
+  assert.strictEqual(read(wt, INDEX_REL), beforeIndex);
 });
 
 test('an identical file already in the worktree is skipped, and the base is still cleaned', () => {

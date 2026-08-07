@@ -634,9 +634,89 @@ function checkGate(gate, docs, rels, failures, ctx) {
     }
     return;
   }
-  // commit 게이트가 G15 판정 권위. finalize는 004에서 G16으로 바뀌기 전까지
-  // 같은 분기를 공유해도 무해하다(이 task Constraints).
-  if (gate === 'finalize' || gate === 'commit') {
+  // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension 커버.
+  // G15(diff_sha) 번호를 재사용하지 않는다 — commit 게이트 전용으로 남긴다.
+  if (gate === 'finalize') {
+    const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
+      ? docs.tasksDocs
+      : (docs.tasks ? [docs.tasks] : []);
+    const openIds = [];
+    for (const tasksDoc of tasksList) {
+      if (statusOf(tasksDoc) !== 'verified') {
+        const id = tasksDoc && tasksDoc.data && tasksDoc.data.bouncer
+          ? tasksDoc.data.bouncer.id
+          : undefined;
+        openIds.push(typeof id === 'string' && id ? id : '(unknown)');
+      }
+    }
+    if (openIds.length) {
+      // 열린 task id를 메시지에 담아 어느 묶음이 남았는지 바로 보이게 한다.
+      // 경고가 아니라 hard fail — 사용자가 넘길 수 없다.
+      failures.push({
+        code: 'G16',
+        message: `open tasks remain (not verified): ${openIds.join(', ')}`,
+        file: (tasksList.find((t) => statusOf(t) !== 'verified') || {}).rel || rels.tasks,
+      });
+      return;
+    }
+
+    if (!docs.explain) {
+      add('G16', 'explain.md missing', 'explain');
+      return;
+    }
+    if (statusOf(docs.explain) !== 'published') {
+      add('G16', 'explain.status != published', 'explain');
+    }
+    const explainBody = typeof docs.explain.body === 'string' ? docs.explain.body : '';
+    const sections = parseSections(explainBody, EXPLAIN_SECTION_HEADINGS);
+    const missing = EXPLAIN_SECTION_DEFS.filter((k) => !sections[k]);
+    if (missing.length) {
+      add('G16', `explain missing written sections: ${missing.join(', ')}`, 'explain');
+      return;
+    }
+
+    const bouncer = docs.explain.data && docs.explain.data.bouncer
+      ? docs.explain.data.bouncer
+      : {};
+    const comp = bouncer.comprehension;
+    // 배열이 아니면(구 단일 객체 포함) task별 조회가 성립하지 않는다.
+    if (!Array.isArray(comp)) {
+      add('G16', 'explain comprehension must be a list of task entries', 'explain');
+      return;
+    }
+
+    // task 번호마다 엔트리 하나. findComprehensionEntry로 incomplete/duplicate도
+    // 기록 없음으로 묶어 commit G15와 같은 엔트리 계약을 재사용한다.
+    for (const tasksDoc of tasksList) {
+      const id = tasksDoc && tasksDoc.data && tasksDoc.data.bouncer
+        ? tasksDoc.data.bouncer.id
+        : undefined;
+      const label = typeof id === 'string' && id ? id : '(unknown)';
+      // TASKS-NNN → NNN. id가 깨져 있으면 rel 경로의 tasks/NNN을 본다.
+      let number = null;
+      if (typeof id === 'string') {
+        const m = /^TASKS-(\d{3})$/.exec(id);
+        if (m) number = m[1];
+      }
+      if (number == null && tasksDoc && tasksDoc.rel) {
+        const m = /\/tasks\/(\d{3})\//.exec(toPosix(tasksDoc.rel));
+        if (m) number = m[1];
+      }
+      const found = findComprehensionEntry(comp, number);
+      if (!found.ok) {
+        add(
+          'G16',
+          found.reason === 'not-a-list'
+            ? 'explain comprehension must be a list of task entries'
+            : `explain comprehension record missing for ${label}`,
+          'explain',
+        );
+      }
+    }
+    return;
+  }
+  // commit 게이트가 G15 판정 권위. finalize는 위에서 G16으로 분리됐다.
+  if (gate === 'commit') {
     // G9 (distill.status == published)는 폐기됨 — 번호만 비워 둠.
     // G15는 status token만이 아니라 diff에 대한 comprehension을 판단.
     if (!docs.explain) {
