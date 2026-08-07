@@ -1019,3 +1019,52 @@ test('finalize G15 rejects legacy object comprehension on disk', () => {
   assert.ok(g15.length >= 1, JSON.stringify(res.failures));
   assert.match(g15[0].message, /must be a list of task entries/);
 });
+
+test('commit gate G15 fails when explain.md is absent', () => {
+  const failures = [];
+  checkGate('commit', {}, rels, failures, G15_CTX);
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
+  assert.match(failures[0].message, /explain\.md missing/);
+});
+
+test('commit gate G15 passes when comprehension matches', () => {
+  const failures = [];
+  checkGate('commit', {
+    explain: explainDoc([compEntry({
+      quiz_score: '1/5', disposition: 'accepted with gaps',
+    })]),
+  }, rels, failures, G15_CTX);
+  assert.deepStrictEqual(failures, []);
+});
+
+test('commit gate G15 fails when pointer task has no comprehension entry', () => {
+  const repo = mkRepo();
+  const { u2 } = writeTaskDirExecuteFixture(repo);
+  writeExplainWithEntries(repo, [compEntry({
+    task: '001',
+    range_from: 'sha-from-001',
+    diff_sha: 'abc123',
+    disposition: 'ok',
+  })]);
+  setPointerTask(repo, `${u2}/tasks.md`);
+
+  const res = validateBlueprint({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    gate: 'commit',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
+  });
+  assert.strictEqual(res.ok, false);
+  const g15 = res.failures.filter((f) => f.code === 'G15');
+  assert.ok(g15.length >= 1, JSON.stringify(res.failures));
+  assert.match(g15[0].message, /comprehension record missing/);
+});
+
+test('unknown gate still throws', () => {
+  assert.throws(
+    () => checkGate('nope', {}, rels, [], G15_CTX),
+    /unknown gate: nope/,
+  );
+});

@@ -4,6 +4,7 @@ const { validateBlueprint } = require('./validate');
 const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask } = require('./scaffold');
 const { isNumericContextId } = require('./paths');
 const { finalize } = require('./finalize');
+const { commitTask } = require('./commit');
 const { init } = require('./init');
 const { runVerification } = require('./verification');
 const { seedWorktree } = require('./seed-worktree');
@@ -159,6 +160,20 @@ function cmdFinalize(rest, io) {
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
 }
+function cmdCommit(rest, io) {
+    const f = parseFlags(rest);
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+        io.err('commit: --blueprint is required\n');
+        return 2;
+    }
+    const result = commitTask({
+        repoRoot: f.repo || process.cwd(),
+        blueprintDir: f.blueprint,
+        yes: f.yes === true,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+}
 function cmdSeedWorktree(rest, io) {
     const f = parseFlags(rest);
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -305,7 +320,7 @@ function cmdCurrent(rest, io) {
 }
 const USAGE = `usage: bouncer <command> [options]
 
-  validate   --blueprint <dir> --gate <plan|execute|finalize>
+  validate   --blueprint <dir> --gate <plan|execute|commit|finalize>
              Run the structural checks and one gate. Reports failure codes.
   verify     --blueprint <dir>
              Run the configured verify command and record its evidence.
@@ -315,6 +330,8 @@ const USAGE = `usage: bouncer <command> [options]
              explain --blueprint <dir>
              Create a document set with correct frontmatter.
              (explain is for finalize; epic/blueprint scaffold omit it.)
+  commit     --blueprint <dir> [--yes]
+             Check task commit scope and, with --yes, commit one task.
   finalize   --blueprint <dir> [--yes]
              Check the commit scope and, with --yes, commit the blueprint.
   seed-worktree --blueprint <dir> --to <worktree>
@@ -350,6 +367,8 @@ function runCli(argv, io) {
             return cmdScaffold(rest, sink);
         case 'finalize':
             return cmdFinalize(rest, sink);
+        case 'commit':
+            return cmdCommit(rest, sink);
         case 'seed-worktree':
             return cmdSeedWorktree(rest, sink);
         case 'init':

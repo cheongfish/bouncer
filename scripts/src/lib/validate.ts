@@ -634,7 +634,9 @@ function checkGate(gate, docs, rels, failures, ctx) {
     }
     return;
   }
-  if (gate === 'finalize') {
+  // commit 게이트가 G15 판정 권위. finalize는 004에서 G16으로 바뀌기 전까지
+  // 같은 분기를 공유해도 무해하다(이 task Constraints).
+  if (gate === 'finalize' || gate === 'commit') {
     // G9 (distill.status == published)는 폐기됨 — 번호만 비워 둠.
     // G15는 status token만이 아니라 diff에 대한 comprehension을 판단.
     if (!docs.explain) {
