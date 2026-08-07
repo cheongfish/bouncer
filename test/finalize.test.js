@@ -101,22 +101,25 @@ function fullBlueprint(repo, {
     },
   });
 
-  let comprehension = {
-    diff_sha: '',
-    quiz_score: '',
-    disposition: '',
-    recorded_at: '',
-  };
+  // G15는 구 객체 형식을 거절한다 — fixture도 task 엔트리 배열을 쓴다.
+  let comprehension = [];
   let body = EXPLAIN_BODY;
   if (comprehensionOk) {
     const hashed = computeDiffSha({ repoRoot: repo, base: 'develop' });
     assert.strictEqual(hashed.ok, true, 'fixture git must yield a diff sha');
-    comprehension = {
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repo,
+      encoding: 'utf8',
+    }).trim();
+    comprehension = [{
+      task: '001',
+      range_from: 'develop',
+      range_to: head,
       diff_sha: hashed.sha,
       quiz_score: '1/5',
       disposition: 'accepted',
       recorded_at: '2026-07-01T00:00:00+09:00',
-    };
+    }];
   } else {
     // Empty sections → G15 without needing a matching hash.
     body = `# Explain

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '021'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - explain의 이해 기록이 blueprint에 한 벌뿐이라 두 번째 task를 마감하면 첫 기록이 덮임
     - 기록을 task 엔트리 배열로 두고 해시 범위를 그 task 커밋 구간으로 좁힘
@@ -25,6 +25,7 @@ bouncer:
     - test/comprehension.test.js
     - test/scaffold.test.js
     - test/validate-gates.test.js
+    - test/finalize.test.js
   graph:
     generated_at: '2026-08-07T14:35:00+09:00'
     command: graphify query (source + context)
@@ -96,6 +97,7 @@ Blueprint: [001](../../index.md)
 - Modify `test/comprehension.test.js` — 엔트리 조회 헬퍼의 반환 형태
 - Modify `test/scaffold.test.js` — explain 기본값
 - Modify `test/validate-gates.test.js` — G15의 엔트리 판정과 거절 사유
+- Modify `test/finalize.test.js` — `fullBlueprint` comprehension을 task 엔트리 배열로
 
 ## Do not touch
 - `scripts/src/lib/finalize.ts` — 001에서 확정

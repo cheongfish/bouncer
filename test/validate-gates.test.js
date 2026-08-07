@@ -422,9 +422,25 @@ function explainDoc(comprehension, body = EXPLAIN_BODY_OK) {
   return doc('published', { comprehension }, body);
 }
 
+/** G15가 기대하는 task 엔트리. overrides로 필드만 덮어쓴다. */
+function compEntry(overrides = {}) {
+  return {
+    task: '001',
+    range_from: 'develop',
+    range_to: 'deadbeef',
+    diff_sha: 'abc123',
+    quiz_score: '5/5',
+    disposition: 'ok',
+    recorded_at: 't',
+    ...overrides,
+  };
+}
+
 const G15_CTX = {
   repoRoot: '/tmp/unused',
   blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
+  // 단위 테스트는 파일시스템 없이 대상 task 번호를 주입한다.
+  taskUnit: { number: 1 },
   deps: {
     readCurrent: () => null,
     readConfig: () => ({}),
@@ -452,9 +468,7 @@ test('finalize gate G15 fails when explain sections are unwritten', () => {
 <!-- x -->
 `;
   checkGate('finalize', {
-    explain: explainDoc({
-      diff_sha: 'abc123', quiz_score: '5/5', disposition: 'ok', recorded_at: 't',
-    }, emptySections),
+    explain: explainDoc([compEntry()], emptySections),
   }, rels, failures, G15_CTX);
   assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
   assert.match(failures[0].message, /missing written sections/);
@@ -463,9 +477,7 @@ test('finalize gate G15 fails when explain sections are unwritten', () => {
 test('finalize gate G15 fails when comprehension record is missing', () => {
   const failures = [];
   checkGate('finalize', {
-    explain: explainDoc({
-      diff_sha: '', quiz_score: '', disposition: '', recorded_at: '',
-    }),
+    explain: explainDoc([]),
   }, rels, failures, G15_CTX);
   assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
   assert.match(failures[0].message, /comprehension record missing/);
@@ -474,9 +486,9 @@ test('finalize gate G15 fails when comprehension record is missing', () => {
 test('finalize gate G15 treats empty diff_sha as record missing, not mismatch', () => {
   const failures = [];
   checkGate('finalize', {
-    explain: explainDoc({
+    explain: explainDoc([compEntry({
       diff_sha: '', quiz_score: '5/5', disposition: 'ship it', recorded_at: 't',
-    }),
+    })]),
   }, rels, failures, G15_CTX);
   assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
   assert.match(failures[0].message, /comprehension record missing/);
@@ -486,9 +498,9 @@ test('finalize gate G15 treats empty diff_sha as record missing, not mismatch', 
 test('finalize gate G15 fails on hash mismatch', () => {
   const failures = [];
   checkGate('finalize', {
-    explain: explainDoc({
+    explain: explainDoc([compEntry({
       diff_sha: 'wrong', quiz_score: '1/5', disposition: 'partial', recorded_at: 't',
-    }),
+    })]),
   }, rels, failures, G15_CTX);
   assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
   assert.match(failures[0].message, /does not match/);
@@ -497,9 +509,7 @@ test('finalize gate G15 fails on hash mismatch', () => {
 test('finalize gate G15 fails when diff_sha cannot be computed', () => {
   const failures = [];
   checkGate('finalize', {
-    explain: explainDoc({
-      diff_sha: 'abc123', quiz_score: '5/5', disposition: 'ok', recorded_at: 't',
-    }),
+    explain: explainDoc([compEntry()]),
   }, rels, failures, {
     ...G15_CTX,
     deps: {
@@ -514,9 +524,9 @@ test('finalize gate G15 fails when diff_sha cannot be computed', () => {
 test('finalize gate G15 passes even when quiz_score is low', () => {
   const failures = [];
   checkGate('finalize', {
-    explain: explainDoc({
-      diff_sha: 'abc123', quiz_score: '1/5', disposition: 'accepted with gaps', recorded_at: 't',
-    }),
+    explain: explainDoc([compEntry({
+      quiz_score: '1/5', disposition: 'accepted with gaps',
+    })]),
   }, rels, failures, G15_CTX);
   assert.deepStrictEqual(failures, []);
 });
@@ -526,6 +536,26 @@ test('finalize gate G15 fails when explain.md is absent', () => {
   checkGate('finalize', {}, rels, failures, G15_CTX);
   assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
   assert.match(failures[0].message, /explain\.md missing/);
+});
+
+test('finalize gate G15 rejects legacy object comprehension', () => {
+  const failures = [];
+  checkGate('finalize', {
+    explain: explainDoc({
+      diff_sha: 'abc123', quiz_score: '5/5', disposition: 'ok', recorded_at: 't',
+    }),
+  }, rels, failures, G15_CTX);
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
+  assert.match(failures[0].message, /must be a list of task entries/);
+});
+
+test('finalize gate G15 rejects duplicate task entries', () => {
+  const failures = [];
+  checkGate('finalize', {
+    explain: explainDoc([compEntry(), compEntry({ range_from: 'other' })]),
+  }, rels, failures, G15_CTX);
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
+  assert.match(failures[0].message, /comprehension record missing/);
 });
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -895,4 +925,99 @@ test('execute gate G6 when pointer unit tasks.md is missing does not use sibling
   // 형제 묶음(tasks/001)으로 대체해 통과하면 안 된다.
   assert.ok(g6.every((f) => f.file.startsWith(`${u2}/`) || f.file === `${u2}/tasks.md`), JSON.stringify(g6));
   assert.ok(!res.ok);
+});
+
+function writeExplainWithEntries(repo, entries) {
+  writeDoc(repo, `${BP_REL}/explain.md`, {
+    type: 'bouncer.explain',
+    title: 'Explain',
+    description: 'd',
+    resource: `${BP_REL}/explain.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'EXPLAIN-001',
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'published',
+      comprehension: entries,
+    },
+  }, EXPLAIN_BODY_OK);
+}
+
+test('finalize G15 fails when pointer task has no comprehension entry', () => {
+  const repo = mkRepo();
+  const { u2 } = writeTaskDirExecuteFixture(repo);
+  writeExplainWithEntries(repo, [compEntry({
+    task: '001',
+    range_from: 'sha-from-001',
+    diff_sha: 'abc123',
+    disposition: 'ok',
+  })]);
+  setPointerTask(repo, `${u2}/tasks.md`);
+
+  const res = validateBlueprint({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
+  });
+  assert.strictEqual(res.ok, false);
+  const g15 = res.failures.filter((f) => f.code === 'G15');
+  assert.ok(g15.length >= 1, JSON.stringify(res.failures));
+  assert.match(g15[0].message, /comprehension record missing/);
+});
+
+test('finalize G15 passes for pointer task and forwards range_from as computeDiffSha base', () => {
+  const repo = mkRepo();
+  const { u1 } = writeTaskDirExecuteFixture(repo);
+  writeExplainWithEntries(repo, [compEntry({
+    task: '001',
+    range_from: 'sha-from-001',
+    diff_sha: 'abc123',
+    disposition: 'ok',
+  })]);
+  setPointerTask(repo, `${u1}/tasks.md`);
+
+  let seenBase;
+  const res = validateBlueprint({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    gate: 'finalize',
+    deps: {
+      computeDiffSha: ({ base }) => {
+        seenBase = base;
+        return { ok: true, sha: 'abc123' };
+      },
+    },
+  });
+  assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
+  assert.strictEqual(seenBase, 'sha-from-001');
+});
+
+test('finalize G15 rejects legacy object comprehension on disk', () => {
+  const repo = mkRepo();
+  const { u1 } = writeTaskDirExecuteFixture(repo);
+  writeExplainWithEntries(repo, {
+    diff_sha: 'abc123',
+    quiz_score: '5/5',
+    disposition: 'ok',
+    recorded_at: 't',
+  });
+  setPointerTask(repo, `${u1}/tasks.md`);
+
+  const res = validateBlueprint({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
+  });
+  assert.strictEqual(res.ok, false);
+  const g15 = res.failures.filter((f) => f.code === 'G15');
+  assert.ok(g15.length >= 1, JSON.stringify(res.failures));
+  assert.match(g15[0].message, /must be a list of task entries/);
 });

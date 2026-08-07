@@ -10,8 +10,7 @@ const {
 const {
   isValidVerifyCommand, runVerification, entriesForVerify,
 } = require('./verification');
-const { computeDiffSha, EXPLAIN_SECTION_DEFS } = require('./comprehension');
-const { readCurrent } = require('./current');
+const { computeDiffSha, EXPLAIN_SECTION_DEFS, findComprehensionEntry } = require('./comprehension');
 const { checkEpicIndexConsistency } = require('./epic-index');
 const {
   listTasksDocs, expectedTasksId, expectedTaskDocIds, LEGACY_TASKS_BASENAME,
@@ -434,38 +433,6 @@ const EXPLAIN_SECTION_HEADINGS = [
   { key: 'understanding', re: /^##\s+이해\s*상태\s*$/i },
 ];
 
-function readConfigFile(repoRoot) {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer/config.json'), 'utf8'));
-  } catch (_e) {
-    return {};
-  }
-}
-
-// pointer base는 pointer가 이 blueprint를 가리킬 때만 우선; 그 외에는
-// config.base_branch, 다음 develop. pointer 없이도 finalize hash를 안정적으로
-// 유지하고, 다른 BP의 base로 실수로 hash하지 않게 함.
-function resolveFinalizeBase({ repoRoot, blueprintDir, deps }) {
-  const rc = (deps && deps.readCurrent) || readCurrent;
-  const cfgRead = (deps && deps.readConfig) || readConfigFile;
-  const cur = rc({ repoRoot });
-  const bp = toPosix(blueprintDir);
-  if (
-    cur
-    && typeof cur.blueprint === 'string'
-    && toPosix(cur.blueprint) === bp
-    && typeof cur.base === 'string'
-    && cur.base.trim()
-  ) {
-    return cur.base.trim();
-  }
-  const cfg = cfgRead(repoRoot) || {};
-  if (typeof cfg.base_branch === 'string' && cfg.base_branch.trim()) {
-    return cfg.base_branch.trim();
-  }
-  return 'develop';
-}
-
 // 작성 가이드는 HTML comment로 제공되므로, 가이드만 있는 section은 미작성으로
 // 본다. 비어 있음 검사 전에 comment를 제거하면 "section은 있으나 비어 있음"이
 // template에 본문이 실리기 전과 같은 의미를 유지. tasks뿐 아니라 section을
@@ -688,25 +655,36 @@ function checkGate(gate, docs, rels, failures, ctx) {
       ? docs.explain.data.bouncer
       : {};
     const comp = bouncer.comprehension;
-    // 빈 diff_sha는 "hash mismatch"가 아니라 "record missing" — scaffold
-    // default가 잘못된 failure branch로 뭉개지면 안 됨.
-    const diffSha = comp && typeof comp.diff_sha === 'string' ? comp.diff_sha : '';
-    const disposition = comp && typeof comp.disposition === 'string' ? comp.disposition : '';
-    if (!comp || typeof comp !== 'object' || !disposition.trim() || !diffSha.trim()) {
-      add('G15', 'explain comprehension record missing', 'explain');
+    // 대상 task는 execute와 같은 resolveTaskUnit(포인터 → 번호 순 첫 묶음).
+    // 두 번째 해석기를 두지 않는다. 단위 테스트는 ctx.taskUnit으로 번호를 주입.
+    const taskUnit = (ctx && ctx.taskUnit) || resolveTaskUnit(docs, { repoRoot, blueprintDir });
+    const found = findComprehensionEntry(comp, taskUnit && taskUnit.number);
+    if (!found.ok) {
+      // 구 객체 형식만 새 사유. missing/incomplete/duplicate는 기록 없음으로 묶음 —
+      // 새 실패 메시지 문자열은 형식 거절 한 줄만 추가한다.
+      if (found.reason === 'not-a-list') {
+        add('G15', 'explain comprehension must be a list of task entries', 'explain');
+      } else {
+        add('G15', 'explain comprehension record missing', 'explain');
+      }
       return;
     }
 
-    // quiz_score는 사람/이후 BP용으로 기록; G15는 이를 해석하지 않음.
+    // quiz_score·range_to는 사람/이후 BP용 기록; G15는 해석하지 않음.
+    // 해시는 엔트리 range_from..HEAD — pointer base가 아니라 task 커밋 구간.
+    // range_to는 쓰지 않는다: 기록 후 커밋이 더 쌓이면 어긋나야 한다.
     const shaFn = (deps && deps.computeDiffSha) || computeDiffSha;
-    const base = resolveFinalizeBase({ repoRoot, blueprintDir, deps });
-    const computed = shaFn({ repoRoot, base, exec: deps && deps.exec });
+    const computed = shaFn({
+      repoRoot,
+      base: found.entry.range_from,
+      exec: deps && deps.exec,
+    });
     if (!computed || computed.ok !== true) {
       const reason = computed && computed.reason ? computed.reason : 'exec-failed';
       add('G15', `explain diff_sha could not be computed (${reason})`, 'explain');
       return;
     }
-    if (computed.sha !== diffSha.trim()) {
+    if (computed.sha !== String(found.entry.diff_sha).trim()) {
       add('G15', 'explain diff_sha does not match base..HEAD', 'explain');
     }
     return;
