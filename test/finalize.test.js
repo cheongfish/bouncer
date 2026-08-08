@@ -223,13 +223,25 @@ test('--yes stages and commits', () => {
   const g = fakeGit(['src/auth/login.ts'], [`${BP_REL}/explain.md`]);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.committed, true);
-  assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/explain.md`]);
+  // blueprint는 approved 상태로 시작하므로 이 실행이 index.md를 closed로 잠그고
+  // 그 경로도 함께 stage된다(브리프 인터페이스: lock 경로는 stage 대상에 합류).
+  assert.deepStrictEqual(g.calls.staged,
+    ['src/auth/login.ts', `${BP_REL}/explain.md`, `${BP_REL}/index.md`]);
   assert.strictEqual(g.calls.committed, finalizeMessage());
+  assert.strictEqual(res.closed, `${BP_REL}/index.md`);
 });
 
 test('no changes with --yes clears pointer without empty commit', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  // 아직 approved인 blueprint는 이 --yes 실행이 index.md를 closed로 잠궈
+  // "빈 커밋" 전제가 성립하지 않는다(항상 index.md 한 개는 stage된다).
+  // 빈-커밋-스킵 분기는 "이미 closed라 잠글 것도 없음" 케이스로 옮겨 고정한다.
   fullBlueprint(repo);
+  const lockOnly = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit([], []).api, clearPointer: () => true,
+  });
+  assert.strictEqual(lockOnly.closed, `${BP_REL}/index.md`, 'precondition: this run performed the lock');
+
   const cleared = [];
   const g = fakeGit([], []);
   const res = finalize({
@@ -240,6 +252,7 @@ test('no changes with --yes clears pointer without empty commit', () => {
     clearPointer: (args) => { cleared.push(args.repoRoot); return true; },
   });
   assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.closed, null, 'already closed — this run must not rewrite it');
   assert.strictEqual(res.committed, false);
   assert.deepStrictEqual(res.staged, []);
   assert.strictEqual(g.calls.staged, null);
@@ -270,8 +283,10 @@ test('runtime artifacts are neither violations nor staged', () => {
   );
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.ok, true);
-  assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
-  assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts']);
+  // approved blueprint → 이 실행이 잠금도 함께 stage한다(runtime artifact와
+  // 무관하게 lock path는 항상 blueprintDir 밑이라 out-of-scope에 걸리지 않음).
+  assert.deepStrictEqual(res.staged, ['src/auth/login.ts', `${BP_REL}/index.md`]);
+  assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/index.md`]);
 });
 
 test('a committed finalize clears the active pointer', () => {
@@ -325,7 +340,7 @@ test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.committed, true);
-  assert.deepStrictEqual(g.calls.staged, ['.bouncer/Distill.md']);
+  assert.deepStrictEqual(g.calls.staged, ['.bouncer/Distill.md', `${BP_REL}/index.md`]);
 });
 
 test('finalize return includes next even when no candidates remain', () => {
@@ -343,6 +358,52 @@ test('finalize return includes next even when no candidates remain', () => {
   assert.ok('next' in res);
   assert.strictEqual(res.ok, true); // 후보가 없어도 ok는 그대로
   assert.deepStrictEqual(res.next, { next: null, remaining: [] });
+});
+
+test('--yes locks the blueprint index.md to closed and stages it', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = fakeGit([], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
+  });
+  assert.strictEqual(res.closed, `${BP_REL}/index.md`);
+  assert.ok(res.staged.includes(`${BP_REL}/index.md`));
+  assert.match(
+    fs.readFileSync(path.join(repo, BP_REL, 'index.md'), 'utf8'),
+    /status: closed/,
+  );
+});
+
+test('dry-run reports the would-be lock path without writing index.md', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const indexPath = path.join(repo, BP_REL, 'index.md');
+  const before = fs.readFileSync(indexPath, 'utf8');
+  const g = fakeGit([], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.dryRun, true);
+  assert.strictEqual(res.closed, `${BP_REL}/index.md`);
+  assert.match(before, /status: approved/);
+  const after = fs.readFileSync(indexPath, 'utf8');
+  assert.strictEqual(after, before);
+});
+
+test('re-running --yes on an already-closed blueprint does not rewrite status and skips empty commit', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const firstRun = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit([], []).api, clearPointer: () => true,
+  });
+  assert.strictEqual(firstRun.closed, `${BP_REL}/index.md`);
+
+  const g = fakeGit([], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
+  });
+  assert.strictEqual(res.closed, null);
+  assert.strictEqual(res.committed, false);
+  assert.strictEqual(g.calls.committed, null);
 });
 
 test('finalize dry-run and commit both carry injected next payload', () => {

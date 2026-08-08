@@ -109,6 +109,88 @@ test('scaffoldTask adds a numbered unit and refuses overwrite', () => {
   assert.deepStrictEqual(fs.readFileSync(tasksPath), before);
 });
 
+// blueprint index.md의 bouncer.status를 덮어써서 잠금/비잠금 상태를 만든다.
+// scaffold 자체는 draft만 쓰므로 finalize를 부르지 않고 상태만 갈아끼운다.
+function setBlueprintStatus(repo, base, status) {
+  const abs = path.join(repo, base, 'index.md');
+  const raw = fs.readFileSync(abs, 'utf8');
+  fs.writeFileSync(abs, raw.replace(/^(\s+)status: draft$/m, `$1status: ${status}`));
+  assert.strictEqual(readDoc(abs).data.bouncer.status, status);
+}
+
+test('scaffoldTask refuses a closed blueprint without creating the task dir', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  setBlueprintStatus(repo, base, 'closed');
+  assert.throws(() => scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+  }), /closed/);
+  // 부분 생성이 남으면 다음 scaffold가 "already exists"로 막힌다 — 디렉터리째 없어야 한다.
+  assert.strictEqual(fs.existsSync(path.join(repo, base, 'tasks', '002')), false);
+});
+
+test('bouncer scaffold task exits 2 on a closed blueprint', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  setBlueprintStatus(repo, base, 'closed');
+  const r = captureScaffold([
+    'scaffold', 'task', '--repo', repo, '--blueprint', base, '--id', '002', '--timestamp', TS,
+  ]);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /^scaffold: /m);
+  assert.match(r.err, /closed/);
+  // 새 blueprint를 만들라는 안내가 stderr에 함께 나와야 사용자가 다음 행동을 안다.
+  assert.match(r.err, /new blueprint/);
+  assert.strictEqual(fs.existsSync(path.join(repo, base, 'tasks', '002')), false);
+});
+
+test('scaffoldTask still succeeds on draft / approved / superseded blueprints', () => {
+  for (const status of ['draft', 'approved', 'superseded']) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+    scaffoldBlueprint({
+      repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+      blueprintId: '001', name: 'login', timestamp: TS,
+    });
+    const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+    setBlueprintStatus(repo, base, status);
+    const created = scaffoldTask({
+      repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+    });
+    assert.deepStrictEqual(created, [
+      `${base}/tasks/002/tasks.md`,
+      `${base}/tasks/002/verification.md`,
+      `${base}/tasks/002/review.md`,
+    ], `expected ${status} blueprint to accept a new task unit`);
+  }
+});
+
+// 잠금 판정은 blueprint index.md를 읽는다. 그 파일이 없거나 깨졌을 때
+// scaffold가 함께 죽으면 새 저장소 부트스트랩이 막히므로 통과시킨다.
+test('scaffoldTask ignores a missing or unparsable blueprint index', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  fs.mkdirSync(path.join(repo, base), { recursive: true });
+  assert.strictEqual(scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+  }).length, 3);
+
+  fs.writeFileSync(path.join(repo, base, 'index.md'), 'no frontmatter here\n');
+  assert.strictEqual(scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '003', timestamp: TS,
+  }).length, 3);
+});
+
 test('scaffold --id 001 succeeds; EPIC-001 / 1 / 01 fail', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const ok = captureScaffold([

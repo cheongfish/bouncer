@@ -24,7 +24,9 @@ const ID_PREFIX = {
 
 const STATUS_ENUM = {
   'bouncer.epic': ['draft', 'approved', 'closed'],
-  'bouncer.blueprint': ['draft', 'approved', 'superseded'],
+  // 'closed'는 finalize --yes가 마감한 blueprint에 찍는 잠금 status.
+  // draft → approved 만 있던 어휘에 마감 표시를 추가; superseded는 유지.
+  'bouncer.blueprint': ['draft', 'approved', 'superseded', 'closed'],
   'bouncer.tasks': ['draft', 'ready', 'in_progress', 'verified'],
   'bouncer.verification': ['pending', 'passed', 'failed'],
   'bouncer.review': ['pending', 'requested', 'addressed', 'accepted'],

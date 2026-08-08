@@ -62,6 +62,10 @@ append a change log.
 - `runVerification` / `recordVerificationResult` write the target unit’s
   `verification.md` only (`verificationRel`). Missing file →
   `VERIFY_DOCUMENT_MISSING` and no create.
+- `closed` is the blueprint lifecycle terminal status: `finalize --yes` stamps
+  the blueprint `index.md` and stages that path, `scaffold task` refuses a
+  `closed` blueprint, and `listReadyBlueprints` excludes it. Work on a finished
+  blueprint goes to a new blueprint, not a new task on the old one.
 
 ## Gotchas
 
@@ -184,6 +188,18 @@ append a change log.
 - Scaffold defaults `graph.basis` to `[]`; an empty array fails G4 until
   graphify-runner records per-graph entries. Never omit an entry when a query
   cannot run — leave the mapped `status` (graph absence remains a state).
+- `scaffoldTask`'s closed-blueprint guard must fire before the `tasks/<NNN>`
+  existence check and any `writeRel`, or a partial unit survives and the next
+  scaffold fails with `already exists`. A missing or unparsable blueprint
+  `index.md` must fall through unjudged — a corrupt index cannot block
+  scaffolding.
+- finalize decides the `closed` lock **after** the out-of-scope check, and a
+  re-run on an already-closed blueprint returns `closed: null` (idempotent).
+  `validate` G2 branches its message by blueprint status so `closed` reads as
+  already finalized, not as unapproved `draft`.
+- Execute G14 review findings entries need `id`, `severity`, and `status`
+  (`resolved` | `accepted`) — `disposition` is not the field name — plus a
+  non-empty `note` on every `accepted` finding.
 - `plugin_advisors` / `bouncer advise` / `scripts/lib/advisor` are gone from
   defaults and the CLI. Leftover `plugin_advisors` in a consumer `config.json`
   is ignored (no warn, no migrate). Do not re-seed that key in `init` or
@@ -317,6 +333,10 @@ append a change log.
   apply against this repo's own tree, and the validate rejection of the old
   layout. Splitting them leaves an intermediate commit where the repository
   fails validate on its own documents.
+- Closed-blueprint rejection lives in `scaffoldTask` as a throw; `cli.ts` gets
+  no new branch because its existing catch already renders
+  `scaffold: <message>` + exit 2. The message names the closure and points at
+  opening a new blueprint.
 - Minimality discipline lives only in the `minimality` skill. The Ponytail
   `plugin_advisors` / `bouncer advise` path is removed; do not reintroduce it
   as a parallel mode switcher.

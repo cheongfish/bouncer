@@ -505,7 +505,15 @@ function checkGate(gate, docs, rels, failures, ctx) {
 
   if (gate === 'plan') {
     if (statusOf(docs.epicIndex) !== 'approved') add('G1', 'epic.status != approved', 'epicIndex');
-    if (statusOf(docs.blueprintIndex) !== 'approved') add('G2', 'blueprint.status != approved', 'blueprintIndex');
+    // closed는 finalize --yes가 마감한 blueprint의 잠금 signal(hard rule/schema 참고).
+    // 미승인 draft와 같은 코드(G2)로 걸지만, 사용자가 "왜 막혔는지" draft와
+    // 헷갈리지 않도록 문구를 분기한다 — 재승인 경로가 없다는 점도 여기서 안내.
+    const bpStatus = statusOf(docs.blueprintIndex);
+    if (bpStatus === 'closed') {
+      add('G2', 'blueprint is closed (finalized) — open a new blueprint instead of resuming this one', 'blueprintIndex');
+    } else if (bpStatus !== 'approved') {
+      add('G2', 'blueprint.status != approved', 'blueprintIndex');
+    }
     // plan 게이트의 task 검사는 문서마다 돌린다. file은 해당 task 경로여야
     // 어느 문서가 미달인지 알 수 있다. tasksDocs가 없으면 단위 테스트용
     // 단일 docs.tasks로 폴백.
