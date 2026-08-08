@@ -27,6 +27,12 @@
    titles use `[YYMMDD] (→ MergeTarget) [Type] 요약`.
    See [contributing.md](contributing.md). Plan/execute Read that project Distill
    before work.
+   `finalize --yes`는 마감한 blueprint의 `index.md` `bouncer.status`를 `closed`로
+   바꿔 그 변경도 마감 커밋에 함께 담는다(dry-run은 쓰지 않고 쓰게 될 경로만
+   보고). 잠긴 blueprint는 이후 `bouncer current --set`·`listReadyBlueprints`
+   후보에서 빠지고 plan 게이트 G2가 미승인 draft와 다른 문구로 이를 알린다.
+   해제 경로는 없다 — 다시 열려면 `index.md`의 status를 손으로 `approved`로
+   되돌려야 한다.
 
 ## How it works
 

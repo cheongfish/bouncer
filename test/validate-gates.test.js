@@ -116,6 +116,32 @@ test('plan gate flags G3 and G4 and G5', () => {
   assert.ok(codes.includes('G5'));
 });
 
+test('plan gate G2 on a closed blueprint reports lock wording distinct from draft', () => {
+  const draftDocs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('draft'),
+    tasks: doc('ready', { affected_paths: ['src/x.ts'] }, READY_BODY),
+  };
+  const draftFailures = [];
+  checkGate('plan', draftDocs, rels, draftFailures);
+  const draftG2 = draftFailures.find((f) => f.code === 'G2');
+  assert.ok(draftG2, 'draft blueprint must still fail G2');
+
+  const closedDocs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('closed'),
+    tasks: doc('ready', { affected_paths: ['src/x.ts'] }, READY_BODY),
+  };
+  const closedFailures = [];
+  checkGate('plan', closedDocs, rels, closedFailures);
+  const closedG2 = closedFailures.find((f) => f.code === 'G2');
+  assert.ok(closedG2, 'closed blueprint must still fail G2 (same code, no new G/S code)');
+  // 같은 G2지만 draft의 "not approved" 문구와 달라야 사용자가 재승인 대기와
+  // finalize 마감을 구분할 수 있다.
+  assert.notStrictEqual(closedG2.message, draftG2.message);
+  assert.doesNotMatch(closedG2.message, /!= approved/);
+});
+
 test('plan gate G3 accepts ready, in_progress, and verified', () => {
   for (const status of ['ready', 'in_progress', 'verified']) {
     const docs = {

@@ -180,6 +180,18 @@ test('listReadyBlueprints includes approved + ready / in_progress only', () => {
   ].sort((a, b) => a.blueprint.localeCompare(b.blueprint)));
 });
 
+test('listReadyBlueprints excludes a closed blueprint (finalize --yes lock)', () => {
+  // 회귀 고정: closed는 approved 필터를 그냥 안 타는 값일 뿐이라 오늘도 통과하지만,
+  // 001의 finalize 잠금 도입 이후에도 계속 빠져야 한다는 계약을 테스트로 못박는다.
+  const repo = tmpRepo();
+  writeBp(repo, {
+    epicSlug: '001-a', bpSlug: '001-closed', epicId: '001', bpId: '001',
+    bpStatus: 'closed', tasksStatus: 'ready',
+  });
+  const list = listReadyBlueprints({ repoRoot: repo });
+  assert.deepStrictEqual(list, []);
+});
+
 test('listReadyBlueprints sorts across epics and skips broken docs', () => {
   const repo = tmpRepo();
   const later = writeBp(repo, {
@@ -261,6 +273,31 @@ test('nextBlueprint returns null when no candidates remain', () => {
     next: null,
     remaining: [],
   });
+});
+
+test('nextBlueprint excludes a closed blueprint from candidates', () => {
+  const repo = tmpRepo();
+  const epicBody = [
+    '# Epic',
+    '',
+    '## Blueprints',
+    '',
+    '* [a](blueprints/001-a/index.md) - first',
+    '* [b](blueprints/002-b/index.md) - second',
+    '',
+  ].join('\n');
+  const finalized = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready', epicBody,
+  });
+  writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '002-b', epicId: '001', bpId: '002',
+    // 002가 이미 finalize --yes로 잠긴 상태 — next 후보에 나오면 안 된다.
+    bpStatus: 'closed', tasksStatus: 'ready', epicBody,
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  assert.deepStrictEqual(res, { next: null, remaining: [] });
 });
 
 test('nextBlueprint sharedPaths is the affected_paths intersection in candidate order', () => {

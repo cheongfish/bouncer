@@ -1,11 +1,16 @@
 // scripts/lib/finalize.js
 'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { epicDirOf, toPosix } = require('./paths');
 const { CONTEXT_ROOT } = require('./scaffold');
 const { PROJECT_DISTILL } = require('./layout');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
 const { clearCurrent, nextBlueprint } = require('./current');
+// migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
+const { parseFrontmatter } = require('./frontmatter');
+const { renderDoc } = require('./render');
 
 function isUnder(file, entry) {
   const f = toPosix(file);
@@ -116,6 +121,46 @@ function buildFinalizeCommitMessage(docs) {
   return lines.join('\n');
 }
 
+// blueprint index.md를 읽어 잠금 대상인지 판정한다. 파일이 없거나 프론트매터
+// 파싱이 깨지면 target.data는 null — closedLockPath/writeClosedLock 양쪽이
+// 이를 "잠글 것 없음"으로 취급해 finalize를 실패시키지 않는다.
+function resolveLockTarget({ repoRoot, blueprintDir }) {
+  const rel = `${toPosix(blueprintDir)}/index.md`;
+  const abs = path.join(repoRoot, rel);
+  if (!fs.existsSync(abs)) return { rel, data: null, body: null };
+  try {
+    const { data, body } = parseFrontmatter(fs.readFileSync(abs, 'utf8'));
+    return { rel, data, body };
+  } catch (_e) {
+    return { rel, data: null, body: null };
+  }
+}
+
+// dry-run과 --yes 양쪽에서 같은 판정을 쓴다: 이미 closed거나 대상이 없으면
+// null. closed → approved 역전이는 제공하지 않으므로 이 함수는 오직
+// "아직 closed가 아님" 방향으로만 경로를 반환한다.
+function closedLockPath(target) {
+  const bouncer = target.data && typeof target.data === 'object' ? target.data.bouncer : null;
+  if (!bouncer || typeof bouncer !== 'object' || bouncer.status === 'closed') return null;
+  return target.rel;
+}
+
+// 실제로 파일을 closed로 재기록한다. 호출 전에 closedLockPath가 non-null임을
+// 확인해야 함 — target.data가 없으면 여기서도 아무것도 쓰지 않는다.
+function writeClosedLock(repoRoot, target) {
+  if (!target.data || typeof target.data !== 'object') return;
+  target.data.bouncer.status = 'closed';
+  fs.writeFileSync(path.join(repoRoot, target.rel), renderDoc(target.data, target.body));
+}
+
+// out-of-scope 판정 뒤에만 부르는 stage 목록 합류. lockPath는 항상
+// `${blueprintDir}/index.md`이고 makeAllowed가 blueprintDir 하위 전체를
+// 허용하므로(위 makeAllowed 참고) 이 경로를 다시 allowed()에 통과시키지 않는다.
+function mergeLocked(list, lockPath) {
+  if (!lockPath) return list;
+  return list.includes(lockPath) ? list : [...list, lockPath];
+}
+
 function realGit(repoRoot) {
   const run = (args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
   const lines = (s) => s.split('\n').filter(Boolean);
@@ -159,15 +204,30 @@ function finalize({
     }
   };
 
+  // out-of-scope 검사(위)를 통과한 뒤에만 잠금 판정을 본다 — 위반이 있으면
+  // 문서를 건드리지 않고 이미 return한 상태.
+  const lockTarget = resolveLockTarget({ repoRoot, blueprintDir });
+  const lockPath = closedLockPath(lockTarget);
+
   if (!yes) {
+    // dry-run: 쓰지 않고 "쓰게 될" 경로만 closed/staged에 반영해 보고한다.
     return {
-      ok: true, dryRun: true, staged: all, commitMessage, next: computeNext(),
+      ok: true,
+      dryRun: true,
+      staged: mergeLocked(all, lockPath),
+      commitMessage,
+      next: computeNext(),
+      closed: lockPath,
     };
   }
 
-  // 빈 커밋 금지: Distill 승격분이 없으면 stage/commit을 건너뛰고 포인터만 비운다.
-  // task 커밋은 003 `bouncer commit`이 이미 끝냈다는 전제.
-  if (all.length === 0) {
+  // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
+  if (lockPath) writeClosedLock(repoRoot, lockTarget);
+  const staged = mergeLocked(all, lockPath);
+
+  // 빈 커밋 금지: Distill 승격분도 잠금도 없으면 stage/commit을 건너뛰고
+  // 포인터만 비운다. task 커밋은 003 `bouncer commit`이 이미 끝냈다는 전제.
+  if (staged.length === 0) {
     const pointerCleared = clearPointer({ repoRoot });
     return {
       ok: true,
@@ -176,10 +236,11 @@ function finalize({
       commitMessage,
       pointerCleared,
       next: computeNext(),
+      closed: lockPath,
     };
   }
 
-  gitApi.stage(all);
+  gitApi.stage(staged);
   gitApi.commit(commitMessage);
   // blueprint는 끝남. pointer를 남기면 commit guard가 이후 모든 commit에
   // 이 blueprint의 affected_paths를 계속 강제함.
@@ -187,10 +248,11 @@ function finalize({
   return {
     ok: true,
     committed: true,
-    staged: all,
+    staged,
     commitMessage,
     pointerCleared,
     next: computeNext(),
+    closed: lockPath,
   };
 }
 

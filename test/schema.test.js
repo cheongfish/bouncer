@@ -19,6 +19,8 @@ test('id prefix and status enum per type', () => {
   assert.strictEqual(schema.KIND_TO_TYPE.explain, 'bouncer.explain');
   assert.strictEqual(schema.ID_PREFIX['bouncer.explain'], 'EXPLAIN-');
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.explain'], ['draft', 'published']);
+  assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.blueprint'],
+    ['draft', 'approved', 'superseded', 'closed']);
   assert.strictEqual(schema.TYPES.length, 6);
 });
 

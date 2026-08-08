@@ -24,3 +24,4 @@ okf_version: '0.1'
 * [019 task-pointer](epics/019-task-pointer/index.md) - Epic 019
 * [020 task-unit-artifacts](epics/020-task-unit-artifacts/index.md) - Epic 020
 * [021 task-commit-stage](epics/021-task-commit-stage/index.md) - Epic 021
+* [022 blueprint-closure](epics/022-blueprint-closure/index.md) - Epic 022
