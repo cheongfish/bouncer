@@ -6,6 +6,7 @@ const {
 } = require('./layout');
 const { parsePathIds, isNumericContextId } = require('./paths');
 const { renderDoc } = require('./render');
+const { parseFrontmatter } = require('./frontmatter');
 const { templateBody } = require('./templates');
 const { ensureEpicIndexEntry } = require('./epic-index');
 const {
@@ -39,6 +40,23 @@ function epicIdFromDir(canonicalEpicDir) {
   return m[1];
 }
 
+/**
+ * blueprint index.md의 bouncer.status가 잠금(`closed`)인지 본다.
+ * 판정을 못 하는 경우(파일 없음 / 프론트매터 파싱 실패)는 false — 잠금 신호가
+ * 없는 것이지 잠긴 것이 아니다. 여기서 같이 죽으면 index.md가 아직 없는
+ * 저장소나 손상된 문서에서 scaffold 자체가 막힌다.
+ */
+function isClosedBlueprint(repoRoot, blueprintDirRel) {
+  const abs = path.join(repoRoot, blueprintDirRel, 'index.md');
+  let data;
+  try {
+    ({ data } = parseFrontmatter(fs.readFileSync(abs, 'utf8')));
+  } catch {
+    return false;
+  }
+  return Boolean(data && data.bouncer && data.bouncer.status === 'closed');
+}
+
 function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
   requireNumericId(epicId, 'epicId');
   const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
@@ -70,6 +88,13 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
   const { epicId, blueprintId } = parsePathIds(bp);
   if (!epicId || !blueprintId) {
     throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
+  }
+
+  // finalize가 잠근 blueprint는 다시 열지 않는다. 파일을 쓰기 전에 거절해
+  // tasks/<NNN>/ 가 남지 않게 한다. cli.ts의 기존 catch가 이 메시지를
+  // `scaffold: <메시지>` + exit 2 로 옮긴다.
+  if (isClosedBlueprint(repoRoot, bp)) {
+    throw new Error(`blueprint is closed (finalized): ${bp} — scaffold a new blueprint instead of adding a task to this one`);
   }
 
   const taskDir = `${bp}/tasks/${taskId}`;

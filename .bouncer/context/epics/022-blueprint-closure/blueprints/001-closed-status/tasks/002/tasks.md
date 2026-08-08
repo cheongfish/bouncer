@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '022'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 잠금 status가 생겨도 scaffold task는 그대로 문서를 만들어 마감된 단위가 다시 열림
     - task 문서가 생기기 전에 거절하고 새 blueprint 경로를 알려 줌
