@@ -55,7 +55,7 @@ applies the fix.
    use that same brief path — do not re-pick a different task document mid-run.
 
 2. **Worktree.** All tasks on the same blueprint **share one** execute worktree
-   at `<repo>/.worktrees/<BP-id>`. If that path already exists, **reuse it** —
+   at `<repo>/.worktrees/<epic-id>/<bp-id>`. If that path already exists, **reuse it** —
    do not create a second worktree or a new branch. Only when the worktree is
    missing, create it + branch:
    - base = the branch checked out now (already recorded as `base` in the
@@ -66,12 +66,13 @@ applies the fix.
      `feat` | `fix` | `docs` | `style` | `refactor` | `test` | `chore` —
      matching the work's intent (same field `/bouncer-commit` uses for the
      commit subject type),
-   - location `<repo>/.worktrees/<BP-id>`, with the `.worktrees` root created by
-     `runtime-state.ensureWorktreeRoot()`:
+   - location from `runtime-state.worktreePathFor()` (nested
+     `<repo>/.worktrees/<epic-id>/<bp-id>` by default). An existing flat
+     `.worktrees/<bp-id>` is returned by the helper so the reuse branch still
+     hits; do not migrate or rename it:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-   WORKTREE_ROOT="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').ensureWorktreeRoot({repoRoot:process.cwd()}))")"
-   WORKTREE_PATH="${WORKTREE_ROOT}/<BP-id>"
+   WORKTREE_PATH="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
    if [ -d "${WORKTREE_PATH}" ]; then
      : # reuse existing blueprint worktree
    else

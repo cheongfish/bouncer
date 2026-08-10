@@ -23,6 +23,10 @@ test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR
   assert.match(body, /AskUserQuestion|ACQ/);
   assert.match(body, /worktree 제거|remove.*worktree|worktree cleanup/i);
   assert.match(body, /git worktree remove/);
+  assert.match(body, /worktreePathFor/);
+  assert.match(body, /rmdir/);
+  // Nested-only cleanup: do not rmdir `.worktrees` when a flat path was reused.
+  assert.match(body, /basename.*dirname.*dirname.*WORKTREE_PATH.*\.worktrees/);
   assert.match(body, /<type>\/<BP-id>-<slug>/);
   assert.match(body, /commit_type/);
   assert.match(body, /G16/);

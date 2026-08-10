@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const {
-  runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, ensureWorktreeRoot,
+  runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, worktreePathFor,
 } = require('../scripts/lib/runtime-state');
 
 function git(cwd, args) {
@@ -166,16 +166,52 @@ test('runtime current handles missing, corrupt, and non-Git state', () => {
   );
 });
 
-test('ensureWorktreeRoot is the explicit worktree directory creation boundary', () => {
+test('worktreePathFor defaults to nested epic/blueprint path without creating directories', () => {
   const { primary } = linkedRepo();
-  const deps = {
-    execFileSync,
-    platform: 'linux',
-  };
-  const paths = runtimePaths({ repoRoot: primary, ...deps });
-  assert.strictEqual(fs.existsSync(paths.worktreeRoot), false);
+  const deps = { execFileSync, platform: 'linux' };
+  const bp = '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path';
+  assert.strictEqual(
+    worktreePathFor({ repoRoot: primary, blueprint: bp, deps }),
+    path.join(primary, '.worktrees', '023', '001'),
+  );
+  assert.strictEqual(fs.existsSync(path.join(primary, '.worktrees')), false);
+});
 
-  assert.strictEqual(ensureWorktreeRoot({ repoRoot: primary, deps }), paths.worktreeRoot);
-  assert.strictEqual(fs.existsSync(paths.worktreeRoot), true);
-  assert.strictEqual(paths.worktreeRoot, path.join(primary, '.worktrees'));
+test('worktreePathFor falls back to flat path when nested is missing', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const bp = '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path';
+  fs.mkdirSync(path.join(primary, '.worktrees', '001'), { recursive: true });
+  assert.strictEqual(
+    worktreePathFor({ repoRoot: primary, blueprint: bp, deps }),
+    path.join(primary, '.worktrees', '001'),
+  );
+});
+
+test('worktreePathFor prefers nested when both nested and flat exist', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const bp = '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path';
+  fs.mkdirSync(path.join(primary, '.worktrees', '001'), { recursive: true });
+  fs.mkdirSync(path.join(primary, '.worktrees', '023', '001'), { recursive: true });
+  assert.strictEqual(
+    worktreePathFor({ repoRoot: primary, blueprint: bp, deps }),
+    path.join(primary, '.worktrees', '023', '001'),
+  );
+});
+
+test('worktreePathFor rejects legacy-prefixed ids and non-Git roots', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const bp = '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path';
+  assert.throws(() => worktreePathFor({
+    repoRoot: primary,
+    blueprint: '.bouncer/context/epics/EPIC-023/blueprints/BP-001',
+    deps,
+  }));
+  const nonGit = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-'));
+  assert.throws(
+    () => worktreePathFor({ repoRoot: nonGit, blueprint: bp, deps }),
+    /Bouncer requires a Git repository for an active blueprint/,
+  );
 });

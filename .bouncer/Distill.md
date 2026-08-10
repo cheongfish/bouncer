@@ -80,6 +80,9 @@ append a change log.
   destination is never empty, so "the file is already there" does not mean
   someone else wrote it; compare against the HEAD blob (`git cat-file --filters
   HEAD:<path>`, which respects autocrlf) before calling it a conflict.
+- Finalize empty-epic cleanup `rmdir`s only when the removed worktree path is
+  nested (grandparent basename is `.worktrees`). After a flat
+  `.worktrees/<bp-id>` reuse, never `rmdir` the `.worktrees` root.
 - `git checkout -- <path>` restores from the index, so it silently leaves a
   staged change in place; name HEAD (`git checkout HEAD -- <path>`) to reset the
   index and working tree together.
@@ -233,8 +236,13 @@ append a change log.
 - Plan artifacts reach the execute worktree through `bouncer seed-worktree`,
   run in the base checkout right after `git worktree add`; the moved set is the
   plan context documents only, and the base is returned to HEAD.
-- Execute worktrees live under `<repo>/.worktrees/<zero-padded numeric blueprint id>` (shared via the
-  main worktree root from `git-common-dir`), not under the host XDG state home.
+- Execute worktree paths come from `runtime-state.worktreePathFor({ repoRoot,
+  blueprint })`: `<repo>/.worktrees/<epic-id>/<bp-id>` (ids from `parsePathIds`
+  on the blueprint dir). If the nested path is missing and a flat
+  `<repo>/.worktrees/<bp-id>` already exists as a directory, reuse that flat
+  path — do not rename or migrate. `ensureWorktreeRoot` is removed; skills must
+  not assemble the path themselves. The `.worktrees` root is still under the
+  main worktree from `git-common-dir`, not under the host XDG state home.
 - Review Findings come from named agent `bouncer-reviewer` (or generic /
   inline fallback when named agents are unavailable); only the controller
   sets `review → accepted`. `bouncer-implementer` and `bouncer-debugger`
