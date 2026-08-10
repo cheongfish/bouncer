@@ -244,8 +244,9 @@ append a change log.
   not assemble the path themselves. The `.worktrees` root is still under the
   main worktree from `git-common-dir`, not under the host XDG state home.
 - Review Findings come from named agent `bouncer-reviewer` (or generic /
-  inline fallback when named agents are unavailable); only the controller
-  sets `review → accepted`. `bouncer-implementer` and `bouncer-debugger`
+  inline fallback when named agents are unavailable, or when the user
+  declared a lightweight cycle); only the controller sets
+  `review → accepted`. `bouncer-implementer` and `bouncer-debugger`
   must not commit or flip document status. Task commits belong to
   `/bouncer-commit` (`bouncer commit`); `/bouncer-execute` does not commit.
   `/bouncer-finalize` may commit Distill remainder only. `bouncer-debugger`
@@ -253,9 +254,23 @@ append a change log.
   applies the fix.
 - Named-agent dispatch is four steps: `resolveSubagentModel` → named call →
   slug reject retries with `inherit` (and notify the user) → named-agent
-  unsupported falls back to generic/inline. Keep the fallback wording or G8
-  blocks on hosts without `agents/` (Codex). The same four steps apply to
+  unsupported falls back to generic/inline. For implementer and reviewer,
+  the same inline path also applies when the user declared a lightweight
+  cycle — keep the `named agents are unavailable` wording and OR the
+  lightweight declaration onto it (do not replace). Debugger stays on the
+  unavailable/fallback path only. Keep the fallback wording or G8 blocks on
+  hosts without `agents/` (Codex). The four steps apply to
   `bouncer-implementer`, `bouncer-reviewer`, and `bouncer-debugger`.
+- A **lightweight cycle** is in effect only on user declaration for the
+  current session — never from diff size, path count, or file count. It
+  shrinks three things only: stack blueprints under the shared
+  **maintenance epic** (create that epic once with normal numbering if
+  missing), run implementer/reviewer inline, and ask one explain-diff quiz
+  question. `tasks/<NNN>/{tasks,verification,review}.md`, `explain.md`, and
+  G1–G16 stay the same. Canonical prose is `docs/governance.md`
+  `## Lightweight cycle`; `/bouncer-plan`, `/bouncer-execute`, and
+  `explain-diff` reference that section. No `bouncer.lightweight` field,
+  config key, or CLI flag.
 - On `/bouncer-execute` verify failure, dispatch `bouncer-debugger` (brief:
   `skills/debugging` — Root cause → Pattern → Hypothesis → Implementation;
   no fix proposals before root-cause). Redispatch the same failing verify at
