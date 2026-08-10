@@ -115,9 +115,12 @@ applies the fix.
       authority: Goal & intent, Interface, Touch, Do not touch, Constraints,
       Checklist.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
-   4. If named agents are unavailable (e.g. Codex), fall back to running the
-      `implementation` skill inline (or a fresh generic subagent with the same
-      brief).
+   4. If named agents are unavailable (e.g. Codex), **or** the user declared a
+      **lightweight cycle**
+      ([`docs/governance.md`](../../docs/governance.md) `## Lightweight cycle`),
+      fall back to running the `implementation` skill inline (or a fresh
+      generic subagent with the same brief). The inline path still faces the
+      same G6–G8 judgment after verify and review.
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —
@@ -174,8 +177,12 @@ applies the fix.
    (1) fill `skills/review/reviewer-prompt.md` (brief, base/HEAD, constraints);
    (2) resolve model via `resolveSubagentModel` for `bouncer-reviewer`, then
        dispatch named agent `bouncer-reviewer` with that model (retry `inherit`
-       if the slug is rejected; if named agents are unavailable, fall back to a
-       **fresh generic** subagent or inline read-only pass with the same prompt);
+       if the slug is rejected; if named agents are unavailable, **or** the
+       user declared a **lightweight cycle**
+       ([`docs/governance.md`](../../docs/governance.md) `## Lightweight cycle`),
+       fall back to a **fresh generic** subagent or inline read-only pass with
+       the same prompt — G13 / G14 judgment and the findings procedure below
+       stay the same);
    (3) as controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status;

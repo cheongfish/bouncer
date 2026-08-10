@@ -51,6 +51,11 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    zero-padded three-digit id (`002` after `001`; next free `00x` within an
    epic's `blueprints/`). Show the suggested id and let the user override it.
    Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
+   **Lightweight cycle** ([`docs/governance.md`](../../docs/governance.md)
+   `## Lightweight cycle`): when the user declares a lightweight cycle, do
+   **not** allocate a new epic id. Find the shared **maintenance epic** and
+   allocate the next blueprint id under it. If that epic is missing, create it
+   once with normal numbering, then stack blueprints under it.
 
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:

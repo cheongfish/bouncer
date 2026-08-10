@@ -37,8 +37,11 @@ is missing, stop and tell the caller to scaffold first.
 
 3. **Quiz the user.** Adapt and run the quiz from the `range_from..HEAD` diff
    (agent judgment — no mechanical table):
-   1. Choose question count in **1–10** (minimum 1; never 0). State the
-      count and a one-line rationale (diff scale) before asking.
+   1. Choose question count in **1–10** (minimum 1; never 0). On a
+      **lightweight cycle**
+      ([`docs/governance.md`](../../docs/governance.md) `## Lightweight cycle`),
+      choose **1**. Otherwise state the count and a one-line rationale (diff
+      scale) before asking.
    2. Each question has **three answer options**. Vary the correct-answer
       position across questions — do not park every key on the same slot
       (한 위치에 몰지 않는다). No RNG required.
