@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { toPosix } = require('./paths');
+const { toPosix, parsePathIds } = require('./paths');
 
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
 
@@ -91,14 +91,37 @@ function writeRuntimeCurrent({
   return paths.currentFile;
 }
 
-function ensureWorktreeRoot({ repoRoot, deps }) {
+// blueprint 경로만으로 execute worktree 절대 경로를 고른다.
+// 기본은 `.worktrees/<epic>/<bp>`이고, 중첩이 없는데 평면 `.worktrees/<bp>`만
+// 있으면 그 평면을 재사용한다(옮기지 않음). mkdir은 하지 않는다 —
+// `git worktree add`가 부모 디렉터리까지 만든다.
+function worktreePathFor({ repoRoot, blueprint, deps }) {
   const d = { fs, ...(deps || {}) };
   const paths = resolvedPaths({ repoRoot, deps: d });
   if (paths.unavailable) throw new Error(GIT_REQUIRED);
-  d.fs.mkdirSync(paths.worktreeRoot, { recursive: true });
-  return paths.worktreeRoot;
+
+  const { epicId, blueprintId } = parsePathIds(blueprint);
+  // 구형 EPIC-/BP- 접두는 parsePathIds가 흡수하지 않는다 — migrate ids 선행.
+  if (!epicId || !blueprintId) {
+    throw new Error(`Cannot derive epic/blueprint ids from blueprint path: ${blueprint}`);
+  }
+
+  const platform = d.platform || process.platform;
+  const pathApi = platform === 'win32' ? path.win32 : path;
+  const nested = pathApi.join(paths.worktreeRoot, epicId, blueprintId);
+  const flat = pathApi.join(paths.worktreeRoot, blueprintId);
+
+  // 중첩이 디렉터리로 없고 평면만 디렉터리면 레거시 평면. 둘 다 있으면 중첩 우선.
+  const nestedIsDir = (() => {
+    try { return d.fs.statSync(nested).isDirectory(); } catch (_e) { return false; }
+  })();
+  const flatIsDir = (() => {
+    try { return d.fs.statSync(flat).isDirectory(); } catch (_e) { return false; }
+  })();
+  if (!nestedIsDir && flatIsDir) return flat;
+  return nested;
 }
 
 module.exports = {
-  runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, ensureWorktreeRoot,
+  runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, worktreePathFor,
 };

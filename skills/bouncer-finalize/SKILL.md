@@ -184,11 +184,21 @@ appears; do not reconstruct a root `context/` path.
    created, declined, or skipped), apply the Remainder commit + worktree ACQ
    result. Do **not** re-ask.
    - If step 2 chose **remove** (A): from the **main worktree** (not from inside
-     the execute checkout), run
-     `git worktree remove <repo>/.worktrees/<BP-id>` (add `--force` only after
-     an explicit dirty-tree warning ACQ). Leave the feature branch on
-     remote/local refs unless the user also asks to delete it — merge remains
-     their responsibility.
+     the execute checkout), resolve the same path execute used, then remove it.
+     Add `--force` only after an explicit dirty-tree warning ACQ. After remove,
+     drop an empty epic parent only for a nested path (grandparent basename is
+     `.worktrees`) — never `rmdir` the `.worktrees` root when a flat
+     `.worktrees/<bp-id>` was reused. Use `rmdir` only; ignore failure if
+     siblings remain. Leave the feature branch on remote/local refs unless the
+     user also asks to delete it — merge remains their responsibility.
+     ```bash
+     BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+     WORKTREE_PATH="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
+     git worktree remove "${WORKTREE_PATH}"
+     if [ "$(basename "$(dirname "$(dirname "${WORKTREE_PATH}")")")" = ".worktrees" ]; then
+       rmdir "$(dirname "${WORKTREE_PATH}")" 2>/dev/null || true
+     fi
+     ```
    - If step 2 chose **keep** (B): leave the worktree in place and note its
      path in the report.
 

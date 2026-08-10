@@ -13,7 +13,7 @@
 | `.bouncer/config.json` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
 | `graphify-out/` | 제외 | `-` (`.gitignore`, init이 안내) |
 | 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/current` — JSON `{blueprint, task?, base}` (Git 공통 디렉터리; `task`는 task 문서 상대 경로, 없으면 미지정) |
-| execute worktree | 제외 | `<repo>/.worktrees/<숫자 blueprint id>` (gitignore / finalize 무시) |
+| execute worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>` (gitignore / finalize 무시; 이미 열린 평면 `.worktrees/<blueprint id>`만 재사용) |
 
 문서 골격(템플릿)과 제품 규칙(`docs/governance.md` · `workflow.md` · `okf.md`),
 세션 마스터 룰(`CLAUDE.md` / `AGENTS.md`)은 프로젝트에 설치되지 않습니다.

@@ -17,7 +17,9 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.match(body, /commit_type/);
   assert.match(body, /\.gitmessage|feat.*fix.*docs|refactor.*test.*chore/);
   assert.match(body, /runtime-state/);
-  assert.match(body, /ensureWorktreeRoot/);
+  assert.match(body, /worktreePathFor/);
+  assert.doesNotMatch(body, /ensureWorktreeRoot/);
+  assert.match(body, /\.worktrees\/<epic-id>\/<bp-id>/);
   assert.doesNotMatch(body, /\.bouncer\/worktrees/);
   assert.doesNotMatch(body, /already gitignored|ignored in-repo worktree/i);
   assert.match(body, /implementation/);
