@@ -73,6 +73,14 @@ append a change log.
 - `graphify-runner` obtains the binary only via `bouncer graphify-bin` and
   runs `"$GRAPHIFY_BIN" query …`. An empty or failed bin is a graceful skip,
   not a hard plan failure.
+- Context graph builds from the section-digest tree at
+  `graphify-out/context-src/` (whitelist headings only), not by indexing full
+  `context_dirs` bodies. `buildContextDigest` writes that tree plus `map.json`;
+  `defaultExecGraphify` remaps with `normalizeGraphPaths(..., { map })` so
+  every surviving `source_file` is an original repo path.
+- Context scope freshness uses `dirs` + `watchFiles` (originals only). The
+  derived tree is not a freshness input — freshness walk already prunes
+  `graphify-out`, so derivatives cannot mark themselves stale.
 
 ## Gotchas
 
@@ -222,6 +230,16 @@ append a change log.
   examples. After deleting `advisor`, `cmdCurrent --set` still needs a local
   swallow-`{}` `readConfig` in `cli.ts` — `subagents` has a twin but does not
   export it.
+- Unmapped digest nodes (no `map.json` entry) are dropped together with links
+  and hyperedges that pointed at them — never leave a derived basename as
+  `source_file`.
+- Empty digest output skips the graphify call for that context scope; do not
+  scan an empty `context-src` tree and overwrite a prior graph with emptiness.
+- `.bouncer/Distill.md` sits outside `context_dirs`, so context `watchFiles`
+  must include it or Distill-only edits leave the graph stale.
+- `graphify-runner` drops hits under `graphify-out/` before directory rollup
+  and must not read `map.json` to translate derived names — remap belongs to
+  the build path only.
 
 ## Decisions
 
@@ -376,3 +394,6 @@ append a change log.
 - Minimality discipline lives only in the `minimality` skill. The Ponytail
   `plugin_advisors` / `bouncer advise` path is removed; do not reintroduce it
   as a parallel mode switcher.
+- Context indexing uses a whitelist-section derived tree under
+  `graphify-out/context-src/` with `map.json` as the sole remap SSOT;
+  consumers and `suggested_paths` see original repo paths only.
