@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '027'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 생성 예정 트리를 파일 쓰기 없이 먼저 보여줘야 대량 생성을 되돌릴 일이 없음
     - 수집 소스 판별과 상한 판정을 계산 단계에 몰아 적용 단계가 판단을 반복하지 않게 함
