@@ -81,6 +81,11 @@ append a change log.
 - Context scope freshness uses `dirs` + `watchFiles` (originals only). The
   derived tree is not a freshness input — freshness walk already prunes
   `graphify-out`, so derivatives cannot mark themselves stale.
+- Blueprint status `imported` is exhibit-only history: after structural and
+  epic-list checks, `validateBlueprint` records **S18** and returns without
+  gate judgment. Do not mark imported docs `approved`.
+- Import epic bodies carry only `## Intent` and `## Blueprints` — omit
+  `## Success criteria` (context digest whitelist).
 
 ## Gotchas
 
@@ -240,9 +245,19 @@ append a change log.
 - `graphify-runner` drops hits under `graphify-out/` before directory rollup
   and must not read `map.json` to translate derived names — remap belongs to
   the build path only.
+- An epic directory without a `.bouncer/context/index.md` row fails
+  whole-repo validate with **S13**. `applyImport` registers via
+  `ensureEpicIndexEntry` in the same apply; every refusal check runs before
+  the first write so a mid-apply stop cannot leave that half-state.
+- `bouncer import` without `--yes` is dry-run (plan JSON on stdout only).
+  `--message` alone does not apply; apply needs `--yes --message`.
+- Empty `entries` on `applyImport`: `ok: true`, `committed: false`, no files
+  and no commit — distinct from limit/refusal failures.
 
 ## Decisions
 
+- History import path is `planImport` → `applyImport` (single commit; message
+  is the `--message` argv). Git runs only through `deps.execFileSync`.
 - Project Distill SSOT is `.bouncer/Distill.md` (agent runtime under `.bouncer/`,
   not under `context/`). Master rules only name the path and the read
   obligation. Write Distill in English; epic/blueprint/tasks/explain stay

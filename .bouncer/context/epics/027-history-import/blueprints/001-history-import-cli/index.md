@@ -14,7 +14,7 @@ bouncer:
   status: approved
   commit_type: feat
   commit_intent:
-    - 도입 이전 히스토리를 문서 트리로 들여올 경로가 없어 context가 도입 시점부터 비어 있음
+    - 도입 이전 히스토리를 문서 트리로 들여올 경로가 없어 context가 도입 시점부터 비어 있는 상태임
     - 과거 커밋에 verify를 돌릴 수 없으므로 임포트분을 게이트 밖 status로 분리함
 ---
 # 001 history-import-cli
