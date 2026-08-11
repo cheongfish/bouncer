@@ -62,3 +62,24 @@ Execute에서 구현·리뷰·디버그는 named 서브에이전트 `bouncer-imp
 게이트 표와 실패 코드는 [gates.md](gates.md),
 CLI는 [cli.md](cli.md), 설정은 [configuration.md](configuration.md)를
 보세요. 커밋 가드의 한계는 [security.md](security.md)에 있습니다.
+
+## 경량 경로
+
+좁은 범위 작업은 새 모드가 아니라 운용 지침이다. `/bouncer-plan`이
+사용자에게 경량 여부를 묻고(자동 판정하지 않는다), 선언을 받으면
+blueprint `index.md`에 `bouncer.scale: light`를 쓴다.
+
+줄이는 것:
+
+- epic 신설 — slug `maintenance` epic을 재사용한다(없을 때만 한 번 만들고,
+  `closed`로 두지 않는다)
+- 서브에이전트 왕복 — execute가 named 디스패치 대신 인라인한다
+- 퀴즈 규모 — explain-diff가 질문 수를 1로 고정한다
+
+줄이지 않는 것:
+
+- 문서 수 — `tasks` / `verification` / `review` / `explain`은 그대로다
+- 게이트 — plan / execute / commit / finalize 게이트는 그대로다
+
+선언이 없으면 키를 쓰지 않으며 일반 경로다. 작업이 커지면 `scale` 줄을
+지워 일반 경로로 복귀한다.

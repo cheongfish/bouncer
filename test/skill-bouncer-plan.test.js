@@ -81,3 +81,14 @@ test('bouncer-plan detects project build scripts and asks before writing tasks v
   assert.match(body, /bouncer\.verify|tasks\.bouncer\.verify/);
   assert.match(body, /확인|묻|물어|ask/i);
 });
+
+// 경량 경로는 사용자 선언만 — 자동 판정·schema 등록 없이 산문에 고정한다.
+test('bouncer-plan asks for the light path and reuses the shared maintenance epic', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /bouncer\.scale/);
+  assert.match(body, /light/);
+  assert.match(body, /maintenance/);
+  // 사용자에게 묻는다 — 자동 판정 금지를 긍정 문구로 단언한다.
+  assert.match(body, /묻|물어|ask/i);
+  assert.match(body, /자동 판정하지 않|선언/);
+});

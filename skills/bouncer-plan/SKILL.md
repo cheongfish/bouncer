@@ -51,6 +51,13 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    zero-padded three-digit id (`002` after `001`; next free `00x` within an
    epic's `blueprints/`). Show the suggested id and let the user override it.
    Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
+   **경량 경로.** 범위가 좁은 작업인지 사용자에게 묻는다 — 자동 판정하지
+   않는다. 경량으로 선언받으면 epic을 새로 만들지 않고, slug가
+   `maintenance`인 epic 아래 blueprint id만 할당한다. 그 epic이 아직 없으면
+   그때 비어 있는 `\d{3}` id로 한 번만 만든다(`024-maintenance` 같은 특정
+   번호를 가정하지 않는다). 공용 `maintenance` epic은 `closed`로 만들지
+   않는다 — epic이 잠기면(epic 022 잠금 이후) blueprint를 더 붙일 수 없다.
+   선언이 없으면 일반 경로로 epic/blueprint id를 잡는다.
 
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
@@ -90,6 +97,11 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    bullet, following `.gitmessage`. `/bouncer-finalize` uses blueprint
    `title` + blueprint `commit_intent` only for any Distill remainder commit.
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
+   **경량 선언.** 사용자가 경량 경로를 선언했으면 blueprint `index.md`
+   frontmatter에 `bouncer.scale: light`를 쓴다. `schema.ts`에 등록하지 않는
+   미등록 필드이므로 `bouncer validate`는 그대로 통과한다. 선언이 없으면
+   키 자체를 넣지 않는다 — 그 외에는 일반 경로다. 작업이 커지면 `scale`
+   줄을 지워 일반 경로로 복귀한다.
    **Verify command (optional).** After the draft bodies make this blueprint's
    character clear, check the **repository root only** for any of these signals:
    `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`,
