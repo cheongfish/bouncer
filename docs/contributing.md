@@ -79,8 +79,12 @@ GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
 마켓플레이스 설치가 깨집니다. `test/distribution.test.js`가 이 계약을 강제합니다.
 `scripts/vendor/`는 서드파티 코드라 린트 대상에서 제외합니다.
 
-릴리스는 `claude plugin tag`로 `bouncer--v<version>` 태그를 만듭니다. 이 명령은
-`plugin.json`과 `marketplace.json`의 버전 일치를 함께 검증합니다.
+릴리스는 `claude plugin tag`로 `bouncer--v<version>` 태그를 만듭니다. 이 명령이
+검증하는 범위는 `.claude-plugin`의 `plugin.json`과 `marketplace.json`까지입니다.
+버전이 일치해야 하는 매니페스트는 넷입니다(`.claude-plugin` /
+`.cursor-plugin` / `.codex-plugin` / 루트 `plugin.json`). `package.json`도
+같은 값이어야 합니다. 나머지 매니페스트 일치는
+`test/cursor-plugin.test.js`가 잡습니다.
 
 ## 피드백
 

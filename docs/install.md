@@ -1,6 +1,6 @@
 # 설치
 
-Claude Code · Cursor · Codex가 **같은 저장소**를 플러그인으로 읽습니다.
+Claude Code · Cursor · Codex · Antigravity가 **같은 저장소**를 플러그인으로 읽습니다.
 런타임에 `npm install`은 필요 없습니다. Claude Code는 플러그인을 클론만 하고
 의존성을 설치하지 않으므로, 필요한 `js-yaml`은 `scripts/vendor/`에 벤더링돼
 있습니다. 자세한 내용은 [`scripts/vendor/README.md`](../scripts/vendor/README.md)를
@@ -69,6 +69,55 @@ export BOUNCER_HOME=~/.cursor/plugins/local/bouncer
 - 매니페스트에 `hooks` 키를 넣으면 공식 검증기가 거부합니다. 훅 파일은 선언 없이
   `hooks/hooks.json` 기본 경로에 둡니다.
 
+## Antigravity
+
+같은 저장소가 Antigravity 플러그인이기도 합니다. 매니페스트는 **루트
+`plugin.json`**입니다. 카탈로그는 Codex와 공유하는
+`.agents/plugins/marketplace.json`입니다.
+
+```
+agy plugin install <사내-git-url>
+```
+
+스킬(`skills/*/SKILL.md`)과 named agent(`agents/*.md`)는 관례 경로로 그대로
+잡힙니다. Codex와 달리 named agent가 지원되므로 fallback 경로로 내려가지
+않습니다. 훅은 `hooks/hooks.json` 관례 경로에 있습니다.
+
+**`subagents.provider: "antigravity"` (필수).** Antigravity 스킬 셸에는
+`CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT`가 없어 자동 판별 신호가 없습니다.
+Cursor와 같이 provider를 명시하세요.
+
+**`BOUNCER_HOME` (필수에 가깝다).** `/bouncer-plan`·`/bouncer-execute` 등이
+`node …/scripts/bouncer`를 실행하려면 플러그인 루트를 직접 알려 줘야 합니다.
+
+```bash
+# scripts/bouncer 가 있는 디렉터리 — 실제 설치 경로로 바꾸세요
+export BOUNCER_HOME=~/.gemini/antigravity-ide/plugins/bouncer
+```
+
+셸 프로필이나 프로젝트 환경에 넣어 두면 세션마다 다시 설정하지 않아도 됩니다.
+값이 비면 경로가 `/scripts/bouncer`처럼 깨져 CLI 호출이 실패합니다. 해석 순서는
+아래 [플러그인 루트](#플러그인-루트-bouncer_home)를 보세요.
+
+### 릴리스 전 수동 확인
+
+CI는 Antigravity 호스트를 띄울 수 없어 아래는 자동 검증 밖입니다. 릴리스 전에
+직접 확인하세요. `agy plugin validate`는 필수 설치 절차가 아닙니다 — `agy`가
+없는 환경에서도 설치는 가능합니다.
+
+- [ ] `agy plugin validate <repo>`가 skills / agents / hooks를 processed로
+  보고하는가
+- [ ] 설치 후 `/bouncer-init`·`/bouncer-plan`이 스킬로 잡히는가
+- [ ] named agent(`bouncer-reviewer` 등)가 호출되는가
+- [ ] SessionStart 훅이 실제로 실행되는가 — 훅 command의
+  `${CLAUDE_PLUGIN_ROOT}` 치환 여부는 확인되지 않았다. 실행되지 않으면
+  graph sync와 legacy-id 경고를 CLI로 대신한다
+- [ ] 루트 `plugin.json`이 생긴 뒤에도 Claude Code와 Codex 설치가 그대로인가 —
+  두 카탈로그(`.claude-plugin/marketplace.json`,
+  `.agents/plugins/marketplace.json`)가 저장소 루트를 가리키므로 로더가 새
+  매니페스트를 집어갈 여지가 있다. 두 호스트의 테스트는
+  `.claude-plugin/plugin.json`을 경로로 직접 읽어 이 회귀를 잡지 못한다
+
 ## 플러그인 루트 (`BOUNCER_HOME`)
 
 워크플로 스킬 본문은 `bouncer` CLI를 플러그인 디렉터리에서 실행합니다. 그 위치를
@@ -79,10 +128,11 @@ BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
 ```
 
 `BOUNCER_HOME`은 수동 탈출구, `CLAUDE_PLUGIN_ROOT`는 Claude Code(및 Codex 호환
-별칭), `PLUGIN_ROOT`는 Codex 네이티브 변수입니다. Cursor 스킬 셸에는 플러그인
-루트 변수가 없으므로 `BOUNCER_HOME`을 설치 디렉터리(`scripts/bouncer`가 있는 곳)로
-export 하세요. `hooks/hooks.json`은 Claude·Codex가 치환하는
-`${CLAUDE_PLUGIN_ROOT}`를 그대로 쓰고, Cursor 훅은 상대 경로를 씁니다.
+별칭), `PLUGIN_ROOT`는 Codex 네이티브 변수입니다. Cursor·Antigravity 스킬
+셸에는 플러그인 루트 변수가 없으므로 `BOUNCER_HOME`을 설치
+디렉터리(`scripts/bouncer`가 있는 곳)로 export 하세요.
+`hooks/hooks.json`은 Claude·Codex가 치환하는 `${CLAUDE_PLUGIN_ROOT}`를 그대로
+쓰고, Cursor 훅은 상대 경로를 씁니다.
 
 ## 선택: Graphify (경로 추천)
 

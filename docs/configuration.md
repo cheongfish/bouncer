@@ -37,10 +37,10 @@ docker가 없는 환경(CI 호스트, 로컬에 데몬 없음)에서는 래퍼�
 
 ## `subagents`
 
-호스트(Claude / Cursor / Codex)마다 모델 ID 네임스페이스가 다르므로
-프로바이더별 블록이 필요합니다. `bouncer init`은 세 프로바이더 × 두 에이전트
-(`bouncer-reviewer`, `bouncer-implementer`)를 모두 `"inherit"`로 채워 두어,
-사용자가 편집할 자리를 보여 줍니다.
+호스트(Claude / Cursor / Codex / Antigravity)마다 모델 ID 네임스페이스가
+다르므로 프로바이더별 블록이 필요합니다. `bouncer init`은 네 프로바이더 × 세
+에이전트(`bouncer-reviewer`, `bouncer-implementer`, `bouncer-debugger`)를 모두
+`"inherit"`로 채워 두어, 사용자가 편집할 자리를 보여 줍니다.
 
 - `"inherit"`: 부모 세션 모델을 그대로 씁니다. `resolveSubagentModel`은 이 값
   (또는 비어 있거나 문자열이 아닌 값)에 대해 `{ model: null }`을 돌려줍니다.
@@ -48,6 +48,12 @@ docker가 없는 환경(CI 호스트, 로컬에 데몬 없음)에서는 래퍼�
 - Cursor는 `CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT`로 자동 판별되지 않습니다.
   Cursor 사용자는 `subagents.provider: "cursor"`를 명시하세요.
   (`BOUNCER_HOME`은 수동 플러그인 루트 오버라이드라 프로바이더 신호가 아닙니다.)
+- Antigravity도 같은 이유로 `subagents.provider: "antigravity"`를 명시하세요.
+
+이미 `bouncer init`을 돌린 저장소는 `.bouncer/config.json`의 `subagents`에
+`antigravity` 블록을 직접 추가해야 합니다. 블록이 없어도
+`resolveSubagentModel`은 `{ model: null }`로 수렴해 부모 모델을 상속하므로
+깨지지는 않습니다.
 
 `resolveSubagentModel({ repoRoot, agentName, provider })`는 스킬이 `node -e`로
 직접 부르는 헬퍼이며, 어떤 입력에도 예외를 던지지 않습니다. 아직 게이트

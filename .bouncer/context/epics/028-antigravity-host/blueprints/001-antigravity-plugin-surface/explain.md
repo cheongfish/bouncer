@@ -20,48 +20,60 @@ bouncer:
       quiz_score: '2/2'
       disposition: 첫 task 커밋 전 브랜치 범위(develop..HEAD)는 코드 diff 없음. 퀴즈는 워킹트리 매니페스트·provider 계약을 기준으로 했고 2/2.
       recorded_at: '2026-08-12T08:25:59+09:00'
+    - task: '002'
+      range_from: 358f12284380f2e86aec556463a7f453a82e2c1b
+      range_to: e25ed658eae3c7fe95b59df578b51adee61f9357
+      diff_sha: 130934553510516d13a44eee52d1cecb4c6019df0bcdb4db78b3da4bae60799d
+      quiz_score: '2/2'
+      disposition: range_from..HEAD는 001 커밋 범위. 퀴즈는 이번 task 문서 WIP(설치 검증 위치·기존 init 저장소 antigravity 블록) 기준 2/2.
+      recorded_at: '2026-08-12T08:35:40+09:00'
 ---
 # Explain
 
 ## Background
-Antigravity는 플러그인 루트의 `plugin.json`과 관례 경로(`skills/` · `agents/` ·
-`hooks/`)로 배포 표면을 잡는다. 이 저장소에는 `.claude-plugin` /
-`.cursor-plugin` / `.codex-plugin` 매니페스트만 있어 `agy plugin validate`가
-매니페스트 부재로 멈춘다. 설치가 되더라도 `subagents`에 Antigravity 블록이
-없으면 named agent 모델 오버라이드를 적을 자리가 없다.
+Antigravity는 루트 `plugin.json`과 관례 경로로 플러그인을 읽는다. 이 저장소에는
+호스트별 매니페스트만 있어서 `agy plugin validate`가 매니페스트 부재로 멈췄고,
+`subagents`에도 Antigravity 칸이 없었다. 001에서 루트 명패와 provider 블록을
+올렸다.
 
-호스트는 플러그인 루트 환경 변수를 내보내지 않는다. env로 provider를 추정하면
-Cursor와 Antigravity가 서로의 model slug로 조용히 섞인다. 그래서
-`subagents.provider: "antigravity"` 명시 pin만 허용하고, `resolveProvider`의
-env 표는 그대로 둔다. `BOUNCER_HOME`은 수동 plugin-root override일 뿐
-provider 신호가 아니다.
+호스트가 플러그인 루트 환경 변수를 주지 않으므로 provider는
+`subagents.provider: "antigravity"`로만 고른다. env 추정 표는 건드리지 않았다.
+문서 태스크는 설치 명령, `BOUNCER_HOME`, pin 이유, CI가 못 돌리는 수동 확인
+목록을 `docs/install.md` 등에 적는다. `${CLAUDE_PLUGIN_ROOT}` 치환 여부는
+확인되지 않았고, 체크리스트에만 남긴다.
 
 ## Intuition
-네 번째 호스트용 명패를 루트에 걸고, 모델 선반은 호스트마다 칸을 나눈다.
-명패에 경로를 다시 적으면 관례 탐색과 싸우고, 선반 칸은 pin으로만 고른다.
+루트에 네 번째 호스트 명패를 걸고, 모델 선반은 pin으로만 고른다. 설치 안내는
+그 명패를 어디 두었는지와 pin·`BOUNCER_HOME`을 어디에 적는지까지 한 장에 모은다.
 
 ## Code
-- `plugin.json` — Antigravity 매니페스트. `name`/`version`/`author`는 다른 세
-  매니페스트와 맞춘다. `skills`/`agents`/`hooks`/`commands` 키는 넣지 않는다
-- `scripts/src/lib/init.ts` — `defaultConfig().subagents.antigravity`에
-  reviewer/implementer/debugger 모두 `"inherit"`
-- `scripts/src/lib/subagents.ts` — `resolveProvider` 주석만. env 분기 추가 없음
-- 회귀: `test/cursor-plugin.test.js`(넷 매니페스트·관례 경로),
-  `test/init.test.js`, `test/subagents.test.js`(pin / `BOUNCER_HOME`)
+- `plugin.json` — Antigravity 매니페스트. version은 다른 세 매니페스트와 동기.
+  `skills`/`agents`/`hooks` 키는 선언하지 않음
+- `scripts/src/lib/init.ts` — `defaultConfig().subagents.antigravity`에 세
+  에이전트 `"inherit"`
+- `scripts/src/lib/subagents.ts` — pin 경로 재사용. env 분기 추가 없음
+- `docs/install.md` — `## Antigravity`(설치·pin·`BOUNCER_HOME`·수동 확인),
+  `BOUNCER_HOME` 절에 Cursor와 함께 루트 변수 없는 호스트로 기록
+- `docs/configuration.md` — 네 provider × 세 에이전트, 기존 init 저장소의
+  `antigravity` 블록 추가 안내
+- `README.md` · `docs/ARCHITECTURE.md`(첫 문단) · `docs/contributing.md`(넷
+  매니페스트·`claude plugin tag` 범위)
 
 ## Quiz
-1. 루트 `plugin.json`에 `skills` 경로 키를 넣으면?
-   - A) Antigravity가 관례 탐색 대신 그 경로만 쓰고 정상 설치된다
-   - B) 관례 탐색과 충돌해 호스트가 플러그인을 거부할 수 있다
-   - C) Bouncer CLI가 `S12`로 설치를 막는다
+1. Antigravity 설치 문서에서 `agy plugin validate`의 위치는?
+   - A) 필수 설치 절차의 첫 단계로 적는다
+   - B) 릴리스 전 수동 확인 항목으로만 두고, 필수 절차로는 적지 않는다
+   - C) Claude Code 설치 절에만 공통 검증으로 적는다
 
-2. `BOUNCER_HOME`만 설정하고 `subagents.provider` pin이 없으면
-   `resolveSubagentModel` 결과는?
-   - A) `{ model: null, provider: 'antigravity' }`
-   - B) `{ model: 'inherit', provider: 'antigravity' }`
-   - C) `{ model: null, provider: null }`
+2. 이미 `bouncer init`을 돌린 저장소에 Antigravity를 쓰려면?
+   - A) `subagents.provider`만 바꾸면 `defaultConfig`가 블록을 자동으로 채운다
+   - B) `.bouncer/config.json`의 `subagents`에 `antigravity` 블록을 직접 추가한다
+   - C) `BOUNCER_HOME`만 export하면 provider 블록이 생긴다
 
 ## 이해 상태
 - task `001` · score `2/2` · disposition: 첫 task 커밋 전 브랜치 범위는 코드 diff 없음. 워킹트리 매니페스트·provider 계약 기준 퀴즈 2/2.
 - Q1 정답 B / 응답 B → 맞음
 - Q2 정답 C / 응답 C → 맞음
+- task `002` · score `2/2` · disposition: range_from..HEAD는 001 커밋 범위. 퀴즈는 문서 WIP(설치 검증 위치·기존 init antigravity 블록) 기준 2/2.
+- Q1 정답 B / 응답 B → 맞음
+- Q2 정답 B / 응답 B → 맞음

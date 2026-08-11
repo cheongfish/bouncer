@@ -2,7 +2,7 @@
 
 에이전트가 "다 했습니다"라고 말하기 전에, **실행했는지** 검사하는 플러그인.
 
-같은 저장소가 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex)에서 설치됩니다.
+같은 저장소가 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex) · [Antigravity](docs/install.md#antigravity)에서 설치됩니다.
 
 ## Why
 
@@ -101,7 +101,17 @@ codex plugin marketplace add https://github.com/cheongfish/bouncer.git
 codex plugin add bouncer@chunjae-tools
 ```
 
+### Antigravity
 
+매니페스트는 루트 `plugin.json`입니다. 카탈로그는 Codex와 공유하는
+`.agents/plugins/marketplace.json`입니다.
+
+```
+agy plugin install <사내-git-url>
+```
+
+`BOUNCER_HOME`과 `subagents.provider: "antigravity"` 설정은
+[docs/install.md](docs/install.md#antigravity)를 보세요.
 
 ## Quickstart
 
@@ -131,7 +141,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ## Requirements
 
 - Node.js 24에서 검증 (런타임은 표준 모듈 + 벤더링된 `js-yaml`)
-- Claude Code, Cursor, 또는 Codex
+- Claude Code, Cursor, Codex, 또는 Antigravity
 - (선택) `gh`: finalize 시 draft PR 생성
 
 ## Documentation

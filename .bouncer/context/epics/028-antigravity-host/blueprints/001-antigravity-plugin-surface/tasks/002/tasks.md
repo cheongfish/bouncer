@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '028'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 설치 표면만으로는 플러그인 루트를 어디로 잡아야 하는지 알 길이 없는 상태임
     - CI에서 호스트를 띄울 수 없어 자동 검증 밖 항목을 수동 확인 목록으로 남김
