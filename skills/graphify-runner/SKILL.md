@@ -102,9 +102,14 @@ not an error).
    entry for context — do not drop the entry. Use the returned nodes' file
    paths as raw hits (union of both queries when both ran).
 
-4. **Roll up to directories.** Map each hit file to its containing directory
-   (repo-relative, POSIX). Deduplicate. Prefer directory granularity over
-   individual files so the set stays stable as files move within a module.
+4. **Roll up to directories.** 롤업 전에 `graphify-out/` 하위 히트를 제외한다.
+   context 그래프는 이미 저장소-상대 원본 경로만 담아야 하므로, 히트에
+   `graphify-out/` 아래 경로가 보이면 빌드 경계가 샌 신호다 — 버리고 롤업한다.
+   파생 이름을 스킬이 번역하지 않는다(`map.json`을 읽지 않음; 번역은 빌드
+   경계 책임). 필터 후 히트가 비어도 실패로 치지 말고, 기존 graceful skip과
+   같이 `basis` 항목만 남긴다. Map each remaining hit file to its containing
+   directory (repo-relative, POSIX). Deduplicate. Prefer directory granularity
+   over individual files so the set stays stable as files move within a module.
 
 5. **Write frontmatter.** Set `bouncer.graph.suggested_paths` in the task brief
    (`tasks/<NNN>/tasks.md` or a legacy root task document) to

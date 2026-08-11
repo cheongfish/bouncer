@@ -7,7 +7,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
   planSessionGraph, syncSessionGraphs, graphSyncWarnings,
-  newestMtimeUnder, runGraphifyUpdate, partOutDir,
+  newestMtimeUnder, runGraphifyUpdate, partOutDir, resolveGraphScopes,
+  normalizeGraphPaths,
   SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT,
 } = require('../scripts/lib/session-graph');
 
@@ -409,6 +410,150 @@ test('runGraphifyUpdate exec first argument is the resolved bin path', () => {
     exec: (cmd) => { seen = cmd; },
   });
   assert.strictEqual(seen, resolvedBin);
+});
+
+test('context scope scans derived tree; freshness watches originals', () => {
+  // context scope는 파생 트리를 스캔하고, freshness는 원본을 본다
+  const [source, context] = resolveGraphScopes({ sourceDirs: ['scripts'], contextDirs: ['.bouncer/context'] });
+  assert.equal(source.scanDirs, undefined);
+  assert.deepEqual(context.dirs, ['.bouncer/context']);
+  assert.deepEqual(context.scanDirs, ['graphify-out/context-src']);
+  assert.deepEqual(context.watchFiles, ['.bouncer/Distill.md']);
+});
+
+test('normalizeGraphPaths maps source_file via opts.map and drops unknowns', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-norm-map-'));
+  const partOut = 'graphify-out/context/parts/digest';
+  fs.mkdirSync(path.join(repo, partOut), { recursive: true });
+  const graph = {
+    nodes: [
+      { id: 'keep', source_file: 'flat-a.md' },
+      { id: 'drop', source_file: 'unknown.md' },
+    ],
+    links: [
+      { source: 'keep', target: 'drop', source_file: 'flat-a.md' },
+      { source: 'drop', target: 'keep', source_file: 'unknown.md' },
+    ],
+    hyperedges: [
+      { nodes: ['keep', 'drop'], source_file: 'flat-a.md' },
+    ],
+  };
+  fs.writeFileSync(path.join(repo, partOut, 'graph.json'), JSON.stringify(graph));
+  const rel = normalizeGraphPaths(repo, partOut, 'graphify-out/context-src', {
+    map: { 'flat-a.md': '.bouncer/Distill.md' },
+  });
+  const out = JSON.parse(fs.readFileSync(path.join(repo, rel), 'utf8'));
+  assert.strictEqual(out.nodes.length, 1);
+  assert.strictEqual(out.nodes[0].source_file, '.bouncer/Distill.md');
+  assert.ok(out.nodes[0].id.includes('keep'));
+  assert.strictEqual(out.links.length, 0);
+  assert.strictEqual(out.hyperedges.length, 0);
+});
+
+test('normalizeGraphPaths without map keeps dir/file prefix behavior', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-norm-prefix-'));
+  const partOut = 'graphify-out/source/parts/scripts';
+  fs.mkdirSync(path.join(repo, partOut), { recursive: true });
+  fs.writeFileSync(path.join(repo, partOut, 'graph.json'), JSON.stringify({
+    nodes: [{ id: 'n1', source_file: 'lib/a.ts' }],
+    links: [{ source: 'n1', target: 'n1', source_file: 'lib/a.ts' }],
+    hyperedges: [],
+  }));
+  const rel = normalizeGraphPaths(repo, partOut, 'scripts');
+  const out = JSON.parse(fs.readFileSync(path.join(repo, rel), 'utf8'));
+  assert.strictEqual(out.nodes[0].source_file, 'scripts/lib/a.ts');
+  assert.ok(out.nodes[0].id.startsWith('scripts_'));
+});
+
+test('Distill.md mtime alone marks context graph stale', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-distill-fresh-'));
+  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/001-x'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/context/epics/001-x/index.md'), '## Success criteria\n\nx\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Decisions\n\nd\n');
+  fs.mkdirSync(path.join(repo, DEFAULT_CONTEXT_OUT), { recursive: true });
+  const graphPath = path.join(repo, DEFAULT_CONTEXT_OUT, 'graph.json');
+  fs.writeFileSync(graphPath, JSON.stringify({ nodes: [], links: [] }));
+
+  const old = Date.now() - 60_000;
+  const neu = Date.now() + 60_000;
+  const touch = (rel, ms) => {
+    const abs = path.join(repo, rel);
+    fs.utimesSync(abs, new Date(ms), new Date(ms));
+  };
+  // context dirs + graph are old; only Distill is newer → context must build.
+  touch('.bouncer/context/epics/001-x/index.md', old);
+  touch(path.join(DEFAULT_CONTEXT_OUT, 'graph.json'), old);
+  touch('.bouncer/Distill.md', neu);
+
+  const result = planSessionGraph({
+    repoRoot: repo,
+    deps: {
+      inspectBootstrap: () => 'ready',
+      graphifyEnabled: () => true,
+      hasGraphify: () => true,
+      sourceDirs: () => [],
+      contextDirs: () => ['.bouncer/context'],
+    },
+  });
+  const context = result.graphs.find((g) => g.name === 'context');
+  assert.ok(context);
+  assert.strictEqual(context.action, 'build');
+});
+
+test('empty context digest skips graphify, keeps prior graph, settles freshness', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-empty-digest-'));
+  // 화이트리스트 문서 없음 → digest count === 0
+  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001/tasks.md'),
+    '## Checklist\n\n- [ ] x\n',
+  );
+  fs.mkdirSync(path.join(repo, DEFAULT_CONTEXT_OUT), { recursive: true });
+  const graphPath = path.join(repo, DEFAULT_CONTEXT_OUT, 'graph.json');
+  const prior = JSON.stringify({ nodes: [{ id: 'keep-me', source_file: '.bouncer/Distill.md' }], links: [] });
+  fs.writeFileSync(graphPath, prior);
+  const old = Date.now() - 120_000;
+  fs.utimesSync(graphPath, new Date(old), new Date(old));
+  const srcPath = path.join(repo, '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001/tasks.md');
+  fs.utimesSync(srcPath, new Date(old + 60_000), new Date(old + 60_000));
+
+  const deps = {
+    inspectBootstrap: () => 'ready',
+    graphifyEnabled: () => true,
+    hasGraphify: () => true,
+    sourceDirs: () => [],
+    contextDirs: () => ['.bouncer/context'],
+  };
+  const sync = syncSessionGraphs({ repoRoot: repo, deps });
+  assert.ok(sync.built.includes('context'));
+  assert.strictEqual(fs.readFileSync(graphPath, 'utf8'), prior);
+  assert.ok(!fs.existsSync(path.join(repo, DEFAULT_CONTEXT_OUT, 'parts')));
+  assert.ok(fs.statSync(graphPath).mtimeMs > old + 60_000);
+
+  const after = planSessionGraph({ repoRoot: repo, deps });
+  const context = after.graphs.find((g) => g.name === 'context');
+  assert.strictEqual(context.action, 'skip-fresh');
+});
+
+test('empty context digest without prior graph is not reported as built', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-empty-digest-miss-'));
+  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/context/readme.md'), '# not whitelisted\n');
+
+  const sync = syncSessionGraphs({
+    repoRoot: repo,
+    deps: {
+      inspectBootstrap: () => 'ready',
+      graphifyEnabled: () => true,
+      hasGraphify: () => true,
+      sourceDirs: () => [],
+      contextDirs: () => ['.bouncer/context'],
+    },
+  });
+  assert.ok(!sync.built.includes('context'));
+  assert.ok(sync.missing.includes('context'));
+  assert.ok(!fs.existsSync(path.join(repo, DEFAULT_CONTEXT_OUT, 'graph.json')));
+  assert.ok(!fs.existsSync(path.join(repo, DEFAULT_CONTEXT_OUT, 'parts')));
 });
 
 test('SessionStart reports partial state on stderr and exits zero', () => {
