@@ -86,6 +86,10 @@ append a change log.
   gate judgment. Do not mark imported docs `approved`.
 - Import epic bodies carry only `## Intent` and `## Blueprints` — omit
   `## Success criteria` (context digest whitelist).
+- Root `plugin.json` is the Antigravity plugin surface (host-specific
+  manifests stay under `.claude-plugin` / `.cursor-plugin` /
+  `.codex-plugin`). Do not declare `skills` / `agents` / `hooks` keys
+  there — leave convention discovery.
 
 ## Gotchas
 
@@ -253,6 +257,16 @@ append a change log.
   `--message` alone does not apply; apply needs `--yes --message`.
 - Empty `entries` on `applyImport`: `ok: true`, `committed: false`, no files
   and no commit — distinct from limit/refusal failures.
+- Antigravity has no plugin-root env var — select it only with
+  `subagents.provider: "antigravity"` and set `BOUNCER_HOME` for shell
+  `BOUNCER_ROOT`; do not add env-based provider inference (would
+  cross-route with Cursor).
+- Switching `subagents.provider` does not backfill missing provider
+  blocks — repos already past `bouncer init` must add the `antigravity`
+  block to `.bouncer/config.json` by hand.
+- Whether Antigravity substitutes `${CLAUDE_PLUGIN_ROOT}` in hooks is
+  unverified — keep hooks as shipped; treat validate/hook behavior as a
+  pre-release manual check, not a CI assert.
 
 ## Decisions
 
@@ -412,3 +426,5 @@ append a change log.
 - Context indexing uses a whitelist-section derived tree under
   `graphify-out/context-src/` with `map.json` as the sole remap SSOT;
   consumers and `suggested_paths` see original repo paths only.
+- Antigravity named-agent models use the existing pin path
+  (`resolveSubagentModel` + `subagents.antigravity`); no new env branch.
