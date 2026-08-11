@@ -4,7 +4,7 @@
     ".bouncer/context"
   ],
   "graphify": {
-    "enabled": false
+    "enabled": true
   },
   "verify": "npm test",
   "base_branch": "develop",

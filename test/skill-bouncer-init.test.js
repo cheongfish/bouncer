@@ -18,10 +18,23 @@ test('bouncer-init skill has a description and calls scripts/bouncer init', () =
   assert.doesNotMatch(md, /superpowers/i);
 });
 
-test('bouncer-init skill surfaces the gitignore suggestions it reports', () => {
+test('bouncer-init skill surfaces gitignore suggestions and consent write', () => {
   assert.match(md, /gitignoreSuggestions/);
   assert.match(md, /\.gitignore/);
-  assert.match(md, /does not (edit|write)|never (edits|writes)/i);
+  assert.match(md, /--write-gitignore/);
+  // 동의 후에만 마커 블록을 씀 — "절대 쓰지 않음"은 폐기.
+  assert.match(md, /consent|ACQ|agree|동의/i);
+});
+
+test('bouncer-init promotion ACQ offers enable+install, enable-only, and leave-as-is', () => {
+  assert.match(md, /graphifyPromotion/);
+  assert.match(md, /candidate/);
+  assert.match(md, /--promote-graphify/);
+  // 세 선택지: 켜고 설치 / 켜기만 / 그대로.
+  assert.match(md, /enable.*install|켜고 설치|A\)/i);
+  assert.match(md, /enable only|켜기만|B\)/i);
+  // Option C만 — gitignore "leave … untouched"와 겹치지 않게 고정.
+  assert.match(md, /Leave as-is|\*\*C\)\*\*|C\) Leave/i);
 });
 
 test('bouncer-init tells the user to commit the bootstrap before planning', () => {

@@ -279,7 +279,12 @@ test('runtime artifacts are neither violations nor staged', () => {
   fullBlueprint(repo);
   const g = fakeGit(
     ['src/auth/login.ts'],
-    ['node_modules/js-yaml/index.js', 'graphify-out/graph.json', '.worktrees/BP-001/x'],
+    [
+      'node_modules/js-yaml/index.js',
+      'graphify-out/graph.json',
+      '.worktrees/BP-001/x',
+      '.bouncer/.venv/bin/graphify',
+    ],
   );
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
   assert.strictEqual(res.ok, true);

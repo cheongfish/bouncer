@@ -9,6 +9,7 @@ const { runVerification } = require('./verification');
 const { seedWorktree } = require('./seed-worktree');
 const { nowIsoKst } = require('./time');
 const { syncSessionGraphs } = require('./session-graph');
+const { resolveGraphifyBin } = require('./graphify');
 const {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints,
   resolvePointerTask, presentCurrent,
@@ -204,7 +205,16 @@ function cmdSeedWorktree(rest, io) {
 function cmdInit(rest, io) {
   const f = parseFlags(rest);
   const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
-  const result = init({ repoRoot: f.repo || process.cwd(), timestamp });
+  // CLI 기본은 설치 on — 라이브러리 init() 기본(install:false)과 의도적으로 다르다.
+  // 테스트·프로그래밍 호출이 네트워크 pip을 타지 않게 라이브러리는 opt-in.
+  const install = f['no-graphify'] !== true;
+  const result = init({
+    repoRoot: f.repo || process.cwd(),
+    timestamp,
+    graphify: { install },
+    promote: f['promote-graphify'] === true,
+    writeGitignore: f['write-gitignore'] === true,
+  });
   io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
   return result.ok ? 0 : 1;
 }
@@ -214,6 +224,19 @@ function cmdGraphSync(rest, io) {
   const result = syncSessionGraphs({ repoRoot: f.repo || process.cwd() });
   io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
   return result.failed.length === 0 ? 0 : 1;
+}
+
+function cmdGraphifyBin(rest, io) {
+  const f = parseFlags(rest);
+  const repoRoot = f.repo || process.cwd();
+  const { bin } = resolveGraphifyBin({ repoRoot });
+  if (!bin) {
+    // stdout은 pipe-clean 유지 — 실패 사유는 stderr만.
+    io.err('graphify-bin: graphify executable not found (config.bin, venv, or PATH)\n');
+    return 1;
+  }
+  io.out(`${bin}\n`);
+  return 0;
 }
 
 function cmdMigrate(rest, io) {
@@ -349,6 +372,8 @@ const USAGE = `usage: bouncer <command> [options]
              Move the plan context documents into a freshly created worktree.
   init       Bootstrap .bouncer/ for this project. Never overwrites.
   graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
+  graphify-bin
+             Print the resolved graphify executable path (one line).
   current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>]]
              [--clear]
              Show the active blueprint pointer, or set / clear it.
@@ -387,6 +412,8 @@ function runCli(argv, io) {
       return cmdInit(rest, sink);
     case 'graph-sync':
       return cmdGraphSync(rest, sink);
+    case 'graphify-bin':
+      return cmdGraphifyBin(rest, sink);
     case 'current':
       return cmdCurrent(rest, sink);
     case 'migrate':

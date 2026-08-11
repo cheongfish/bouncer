@@ -87,22 +87,38 @@ export 하세요. `hooks/hooks.json`은 Claude·Codex가 치환하는
 ## 선택: Graphify (경로 추천)
 
 Graphify는 **선택** 의존성입니다. 없어도 `/bouncer-plan`은 수동
-`affected_paths` 확인으로 진행합니다. 경로 추천을 쓰려면:
+`affected_paths` 확인으로 진행합니다.
+
+### 기본: `bouncer init`이 설치
+
+`/bouncer-init` → `bouncer init`이 `.bouncer/.venv`에 graphify를 두고,
+성공 시 `graphify.enabled: true`와 `graphify.bin`을 기록합니다. 설치가
+실패하면 `enabled: false`로 두고 부트스트랩은 그대로 성공합니다
+(soft-fail). 기존 프로젝트에서 아직 꺼져 있으면 init 결과가
+`graphifyPromotion: "candidate"`를 돌려 주며, `/bouncer-init`이 ACQ로
+승격을 묻습니다. 동의 후:
+
+```bash
+bouncer init --promote-graphify            # 켜고 설치
+bouncer init --promote-graphify --no-graphify  # 켜기만
+```
+
+실행 파일은 `bouncer graphify-bin`이 해석합니다
+(`config.graphify.bin` → `.bouncer/.venv` → PATH). SessionStart와
+`graphify-runner`는 그 경로로 `graph-sync` / query를 돌립니다.
+`source_dirs` / `context_dirs`를 맞춘 뒤 세션을 다시 열면
+`graphify-out/source`와 `graphify-out/context`가 갱신됩니다.
+
+### 오프라인·수동 폴백
+
+네트워크나 python이 없어 init 설치가 실패하면:
 
 ```bash
 pip install graphifyy && graphify install
 ```
 
-프로젝트 `.bouncer/config.json`에서:
-
-```json
-"graphify": { "enabled": true }
-```
-
-`source_dirs` / `context_dirs`를 맞게 고친 뒤 세션을 다시 열면 SessionStart가
-`graphify-out/source`와 `graphify-out/context`를 갱신합니다. `/bouncer-plan`의
-`graphify-runner`는 `bouncer graph-sync`로 같은 freshness를 한 번 더 검사합니다.
-설치·활성화 안내는 SessionStart와 `graphify-runner` 스킵 메시지에도 나옵니다.
+그다음 `bouncer init --promote-graphify`(필요 시 `--no-graphify`)로
+`enabled`를 켭니다. PATH에만 두었으면 `bin` 없이 PATH 후보로 해석됩니다.
 업스트림: [Graphify](https://github.com/Graphify-Labs/graphify).
 
 ## 비공개 저장소

@@ -1,5 +1,6 @@
 node_modules
 graphify-out/
 .worktrees/
+.bouncer/.venv/
 .cursor/
 .claude/

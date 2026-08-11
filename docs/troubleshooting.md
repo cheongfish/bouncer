@@ -5,7 +5,7 @@
 | `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는, 또 템플릿 안내 주석만으로는 통과하지 않습니다 |
 | `G10 tasks sections still contain <TODO: …> placeholders` | 템플릿 placeholder를 실제 내용으로 바꾸지 않았습니다 |
 | `G4 tasks.graph.basis missing or empty` | `/bouncer-plan`의 그래프 단계를 건너뛰었습니다. `basis`는 비어 있지 않은 레거시 문자열 또는 엔트리 배열(`graph`/`status`/`query`/`result`; `status`는 `updated`·`reused`·`fail-skip`·`skip-disabled`·`missing`)이어야 합니다. graphify가 꺼져 있어도 `graphify-runner`가 엔트리를 남겨야 합니다 |
-| `graphify not on PATH` / 경로 추천 없음 | 선택 의존성. `pip install graphifyy && graphify install` 후 `graphify.enabled: true`. 없으면 `affected_paths`를 수동 확정하면 됩니다 ([install.md](install.md)) |
+| graphify 실행 경로 해석 실패 / 경로 추천 없음 | `bouncer graphify-bin`이 config.bin → `.bouncer/.venv` → PATH에서 실행 파일을 못 찾은 상태입니다. `bouncer init`으로 설치하거나, 기존 프로젝트면 `bouncer init --promote-graphify`로 켠 뒤 다시 시도하세요. 오프라인은 [install.md](install.md) 수동 폴백. 없으면 `affected_paths`를 수동 확정하면 됩니다 |
 | `G13 missing successful harness verification metadata` | `verify` 명령이 실행되지 않았거나 실패했습니다. 손으로 쓴 증적은 통과하지 않습니다 |
 | `G15 explain missing written sections` | `explain.md` 다섯 섹션(Background / Intuition / Code / Quiz / 이해 상태) 중 본문이 비어 있습니다. 헤딩·주석만으로는 통과하지 않습니다. `/bouncer-commit`의 explain-diff 단계에서 채우세요 |
 | `G15 explain comprehension record missing` | 포인터 task용 `bouncer.comprehension` 엔트리가 없거나 불완전합니다. 스캐폴드 직후 상태입니다 — 엔트리를 append한 뒤 다시 검사하세요 |

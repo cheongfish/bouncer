@@ -66,6 +66,13 @@ append a change log.
   the blueprint `index.md` and stages that path, `scaffold task` refuses a
   `closed` blueprint, and `listReadyBlueprints` excludes it. Work on a finished
   blueprint goes to a new blueprint, not a new task on the old one.
+- Graphify executable resolution order is `config.graphify.bin` →
+  `.bouncer/.venv` → PATH. The single resolver is `resolveGraphifyBin` in
+  `scripts/src/lib/graphify.ts` (CLI: `bouncer graphify-bin`). Skills and
+  SessionStart must not invoke `graphify` by bare name.
+- `graphify-runner` obtains the binary only via `bouncer graphify-bin` and
+  runs `"$GRAPHIFY_BIN" query …`. An empty or failed bin is a graceful skip,
+  not a hard plan failure.
 
 ## Gotchas
 
@@ -162,6 +169,11 @@ append a change log.
   `skip-no-dirs` / empty `dirs`; scopes already in `failed` must not get a
   missing line (failed covers them).
 - newestMtimeUnder skips directories named graphify-out, node_modules, .git, .worktrees and does not descend directory symlinks.
+- Graphify venv install failures (missing python3, pip/mirror block,
+  `graphify install` error) are soft-ok: warn, leave `enabled: false`, init
+  still exits 0. Do not turn those into hard init failures.
+- A `.bouncer/.venv` directory without the platform binary is not a hit —
+  `resolveGraphifyBin` skips that candidate and continues to PATH.
 - Skill contracts that lock “do not promote/copy `## 이해 상태`” must assert
   positive exclusion phrases (`승격하지 않` / `옮기지 않` / …), not
   `doesNotMatch(/이해 상태/)` — the prohibition text itself would break an
@@ -326,7 +338,14 @@ append a change log.
 - Graph absence is a state, not an error: `syncSessionGraphs.missing` stays
   empty on `NO_GRAPH_WORK` paths and never flips `ok` to false; consumers
   signal via fields / stderr, not exit codes.
-- init default source_dirs is the fixed candidate list filtered to existing directories (order preserved); empty yields [] with sourceDirsUnresolved; existing config.json is never overwritten.
+- init default source_dirs is the fixed candidate list filtered to existing
+  directories (order preserved); empty yields [] with sourceDirsUnresolved.
+  Existing `config.json` is not changed without consent.
+  `--promote-graphify` alone may change `graphify.enabled` (and `bin` when
+  install succeeds). Library `init()` defaults to no Graphify install;
+  `cmdInit` opts in. `/bouncer-init` reports install outcome and uses ACQ for
+  promotion and gitignore write — it must not hand-edit `config.json` for
+  `enabled`.
 - Canonical epic/blueprint context ids are zero-padded `\d{3}` with no
   `EPIC-`/`BP-` prefix; child docs use `TASKS-`|`VERIFY-`|`REVIEW-`|`EXPLAIN-`
   + `\d{3}` (e.g. `TASKS-001`). Scaffold/`--id` accept and emit that shape

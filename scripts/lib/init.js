@@ -6,6 +6,7 @@ const { detectLegacyFormat } = require('./schema');
 const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout');
 const { PROJECT_DISTILL_BODY } = require('./templates');
 const { nowIsoKst } = require('./time');
+const { setupGraphify } = require('./graphify');
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
 // import하는 test와 동기 유지.
@@ -27,7 +28,9 @@ function defaultConfig(repoRoot) {
         // Bouncer context docs graph (epics/blueprints). source_dirs와 함께
         // graphify-out/source, graphify-out/context 이중 graphify 출력에 사용.
         context_dirs: ['.bouncer/context'],
-        graphify: { enabled: false },
+        // 라이브러리 기본(install:false)은 enabled만 true — bin은 설치 성공 시에만 기록.
+        // CLI는 install:true가 기본이라 실패 시 enabled:false로 내려 soft-fail한다.
+        graphify: { enabled: true },
         verify: 'npm test',
         base_branch: 'develop',
         pr: { draft: true, base: 'develop', labels: ['bouncer'] },
@@ -108,10 +111,16 @@ function ensureProjectDistill(repoRoot, created, timestamp) {
     }
     writeFile(repoRoot, PROJECT_DISTILL, projectDistillDoc(timestamp), created);
 }
-// advisory만. safe bootstrap은 init이 만들지 않은 file을 수정하지 않으므로
-// .gitignore가 없으면 보고만 하고 쓰지 않음. finalize는 이 path를 무시;
-// 제안은 working tree를 읽기 쉽게 유지.
-const SUGGESTED_IGNORES = ['node_modules/', 'graphify-out/', '.worktrees/'];
+// advisory(+ 동의 시 마커 블록 쓰기) 목록. `.bouncer/.venv/`는 설치 산출물이라
+// 범위 위반·실수 커밋을 막기 위해 제안과 finalize RUNTIME_ARTIFACTS에 같이 둔다.
+const SUGGESTED_IGNORES = [
+    'node_modules/',
+    'graphify-out/',
+    '.worktrees/',
+    '.bouncer/.venv/',
+];
+const GITIGNORE_MARKER_START = '# bouncer';
+const GITIGNORE_MARKER_END = '# /bouncer';
 function gitignoreSuggestions({ repoRoot }) {
     let ignored = [];
     try {
@@ -124,6 +133,53 @@ function gitignoreSuggestions({ repoRoot }) {
         ignored = [];
     }
     return SUGGESTED_IGNORES.filter((entry) => !ignored.includes(entry.replace(/\/+$/, '')));
+}
+/**
+ * `# bouncer` … `# /bouncer` 마커 블록만 갱신한다.
+ * 마커 밖 사용자 줄은 읽기만 하고 바꾸지 않는다 — 동의 신호(writeGitignore)가
+ * 있을 때만 호출된다.
+ * 마커 탐지는 줄 전체가 정확히 일치할 때만(substring `indexOf` 금지) —
+ * `# bouncer note` 같은 사용자 주석을 마커로 오인하지 않기 위함.
+ */
+function writeGitignoreMarkerBlock(repoRoot) {
+    const abs = path.join(repoRoot, '.gitignore');
+    const block = `${GITIGNORE_MARKER_START}\n${SUGGESTED_IGNORES.join('\n')}\n${GITIGNORE_MARKER_END}`;
+    let content = null;
+    try {
+        content = fs.readFileSync(abs, 'utf8');
+    }
+    catch (_e) {
+        fs.writeFileSync(abs, `${block}\n`);
+        return true;
+    }
+    const startMatch = /^# bouncer$/m.exec(content);
+    const endMatch = /^# \/bouncer$/m.exec(content);
+    if (startMatch && endMatch && endMatch.index > startMatch.index) {
+        const before = content.slice(0, startMatch.index);
+        const after = content.slice(endMatch.index + GITIGNORE_MARKER_END.length);
+        fs.writeFileSync(abs, `${before}${block}${after}`);
+        return true;
+    }
+    const sep = content.length === 0 || content.endsWith('\n') ? '' : '\n';
+    fs.writeFileSync(abs, `${content}${sep}${block}\n`);
+    return true;
+}
+function readConfigObject(repoRoot) {
+    try {
+        const raw = JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
+        if (raw && typeof raw === 'object' && !Array.isArray(raw))
+            return raw;
+    }
+    catch (_e) {
+        // ready 판정은 inspectBootstrap이 이미 통과 — 여기서는 승격 실패 시 no-op.
+    }
+    return null;
+}
+function graphifyEnabledIsTrue(config) {
+    return !!(config
+        && config.graphify
+        && typeof config.graphify === 'object'
+        && config.graphify.enabled === true);
 }
 function inspectBootstrap({ repoRoot }) {
     if (detectLegacyFormat({ repoRoot }).legacy)
@@ -148,8 +204,9 @@ function inspectBootstrap({ repoRoot }) {
     }
     return 'partial';
 }
-function init({ repoRoot, timestamp }) {
+function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) {
     const bootstrap = inspectBootstrap({ repoRoot });
+    // partial/legacy는 설치·승격·gitignore 쓰기를 시도하지 않는다 — 기존 반환 유지.
     if (bootstrap === 'legacy') {
         const legacy = detectLegacyFormat({ repoRoot });
         return { ok: false, created: [], skipped: true, reason: legacy.reason };
@@ -157,21 +214,88 @@ function init({ repoRoot, timestamp }) {
     if (bootstrap === 'partial') {
         return { ok: false, created: [], skipped: true, reason: 'partial-bouncer-state' };
     }
+    // 라이브러리 기본 install:false — 테스트가 실제 pip을 타지 않게 한다.
+    // CLI cmdInit만 install:true를 기본으로 넘긴다.
+    const wantInstall = !!(graphify && graphify.install === true);
+    const setup = (graphify && typeof graphify.setup === 'function')
+        ? graphify.setup
+        : setupGraphify;
+    const wantPromote = promote === true;
+    const wantWriteGitignore = writeGitignore === true;
+    // 동의 시 마커 블록을 먼저 쓰고, 제안 목록은 최종 파일 기준으로 계산한다.
+    let gitignoreWritten = false;
+    if (wantWriteGitignore) {
+        writeGitignoreMarkerBlock(repoRoot);
+        gitignoreWritten = true;
+    }
     const suggestions = gitignoreSuggestions({ repoRoot });
     if (bootstrap === 'ready') {
         // project Distill 이전에 init된 repo용 soft-seed.
         const created = [];
         ensureProjectDistill(repoRoot, created, timestamp);
+        const existing = readConfigObject(repoRoot);
+        const alreadyEnabled = graphifyEnabledIsTrue(existing);
+        let graphifyPromotion;
+        let graphifyInstall;
+        // enabled가 이미 true면 승격 경로 자체가 없다 — config를 건드리지 않는다.
+        if (!alreadyEnabled) {
+            if (!wantPromote) {
+                // --promote-graphify 없이 기존 config가 바뀌는 경로는 없다.
+                graphifyPromotion = 'candidate';
+            }
+            else {
+                // 승격은 graphify.enabled(+ 설치 성공 시 bin)만 바꾼다. 파일 재생성 금지.
+                if (wantInstall) {
+                    graphifyInstall = setup({ repoRoot });
+                }
+                if (existing) {
+                    const nextGraphify = {
+                        ...(existing.graphify && typeof existing.graphify === 'object'
+                            ? existing.graphify
+                            : {}),
+                        enabled: true,
+                    };
+                    if (graphifyInstall
+                        && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
+                        && typeof graphifyInstall.bin === 'string'
+                        && graphifyInstall.bin) {
+                        nextGraphify.bin = graphifyInstall.bin;
+                    }
+                    existing.graphify = nextGraphify;
+                    fs.writeFileSync(path.join(repoRoot, '.bouncer', 'config.json'), `${JSON.stringify(existing, null, 2)}\n`);
+                }
+                graphifyPromotion = 'promoted';
+            }
+        }
         return {
             ok: true,
             created,
             skipped: created.length === 0,
             reason: created.length ? 'project-distill-seeded' : 'already-initialized',
             gitignoreSuggestions: suggestions,
+            gitignoreWritten,
+            ...(graphifyPromotion ? { graphifyPromotion } : {}),
+            ...(graphifyInstall ? { graphifyInstall } : {}),
         };
     }
+    // 신규 부트스트랩
     const created = [];
     const config = defaultConfig(repoRoot);
+    let graphifyInstall;
+    if (wantInstall) {
+        graphifyInstall = setup({ repoRoot });
+        if (graphifyInstall
+            && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
+            && typeof graphifyInstall.bin === 'string'
+            && graphifyInstall.bin) {
+            // bin은 설치 성공 시에만 붙인다 — defaultConfig 추론 타입에 bin이 없어도 런타임 계약은 이 형태.
+            config.graphify = { enabled: true, bin: graphifyInstall.bin };
+        }
+        else {
+            // 설치 실패는 soft-fail: ok는 유지하고 enabled만 끈다.
+            config.graphify = { enabled: false };
+        }
+    }
     writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
     writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
     ensureProjectDistill(repoRoot, created, timestamp);
@@ -181,6 +305,8 @@ function init({ repoRoot, timestamp }) {
     return {
         ok: true, created, skipped: false, reason: 'initialized',
         gitignoreSuggestions: suggestions,
+        gitignoreWritten,
+        ...(graphifyInstall ? { graphifyInstall } : {}),
         ...(config.source_dirs.length === 0 ? { sourceDirsUnresolved: true } : {}),
     };
 }
