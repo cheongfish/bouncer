@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '024'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 경량 선언이 blueprint에 남아도 그것을 읽는 쪽이 없어 서브에이전트 왕복과 퀴즈 규모가 그대로임
     - execute가 implementer·reviewer를 인라인으로 돌리고 explain-diff가 질문을 1문항으로 고정하게 함

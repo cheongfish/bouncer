@@ -101,9 +101,17 @@ applies the fix.
    `commit-safety` PreToolUse hook uses the command's actual working directory
    and would otherwise inspect the wrong index.
 
-3. **Implement (task brief is the sole authority).** Dispatch **`bouncer-implementer`**
-   (plugin `agents/bouncer-implementer.md`) with this order — the
-   `implementation` skill remains the behavioral brief the agent follows:
+3. **Implement (task brief is the sole authority).** The `implementation`
+   skill remains the behavioral brief either way.
+
+   **경량 분기.** blueprint `index.md`의 `bouncer.scale`이 `light`면 named
+   디스패치 네 단계(`resolveSubagentModel` → named 호출 → slug 거절 시
+   `inherit` 재시도 → 미지원 시 fallback)를 건너뛰고 `implementation` 스킬을
+   인라인으로 실행한다. 선언에 의한 선택이며, 아래 4번의 호스트 fallback과는
+   별개 문장이다.
+
+   그 외에는 **`bouncer-implementer`** (plugin `agents/bouncer-implementer.md`)
+   를 이 순서로 디스패치한다:
 
    1. Resolve the model:
       ```bash
@@ -125,17 +133,19 @@ applies the fix.
    ambiguity or contradiction, stop and send the user back to `/bouncer-plan` —
    no speculative scope expansion.
 
-   **One implementer.** `bouncer-implementer` is the only agent this step
-   spawns — one instance, not a fleet. Do not split the task brief across parallel
-   implementers (they share `affected_paths` and would collide), and do not add
-   a second agent to check the first one's work; step 4 and step 5 already cover
-   that with the gate and the reviewer.
+   **One implementer.** 인라인 경로에서도 구현은 한 번만 돌린다 —
+   `bouncer-implementer`(또는 그 인라인 동등물)는 이 단계에서 한 인스턴스다.
+   Do not split the task brief across parallel implementers (they share
+   `affected_paths` and would collide), and do not add a second agent to check
+   the first one's work; step 4 and step 5 already cover that with the gate
+   and the reviewer.
 
    **Controller owns document status transitions; `/bouncer-commit` owns the
-   commit.** The implementer must not `git commit` or flip `tasks` /
-   `verification` / `review` status. After this skill returns, do **not** run
-   `git commit` / `bouncer commit` yourself — hand off to `/bouncer-commit`.
-   Any accidental `git commit` is still guarded by `commit-safety`.
+   commit.** 인라인에서도 같다 — The implementer must not `git commit` or flip
+   `tasks` / `verification` / `review` status. After this skill returns, do
+   **not** run `git commit` / `bouncer commit` yourself — hand off to
+   `/bouncer-commit`. Any accidental `git commit` is still guarded by
+   `commit-safety`.
 
 4. **Verify.** Use the `verification` skill (`skills/verification/SKILL.md`) to
    prepare the existing `<pointer task directory>/verification.md`. Do not hand-write success evidence
@@ -146,7 +156,9 @@ applies the fix.
 
    **On verify failure**, dispatch **`bouncer-debugger`** (plugin
    `agents/bouncer-debugger.md`) with this order — the `debugging` skill
-   remains the behavioral brief the agent follows:
+   remains the behavioral brief the agent follows.
+   **경량 경로에서도** `bouncer-debugger`는 named 디스패치한다 — verify 실패는
+   작업이 예상보다 작지 않았다는 신호라 조사 품질을 깎을 자리가 아니다.
 
    1. Resolve the model:
       ```bash
@@ -172,13 +184,16 @@ applies the fix.
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
    Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order:
    (1) fill `skills/review/reviewer-prompt.md` (brief, base/HEAD, constraints);
-   (2) resolve model via `resolveSubagentModel` for `bouncer-reviewer`, then
-       dispatch named agent `bouncer-reviewer` with that model (retry `inherit`
-       if the slug is rejected; if named agents are unavailable, fall back to a
-       **fresh generic** subagent or inline read-only pass with the same prompt);
+   (2) **경량 분기.** blueprint `index.md`의 `bouncer.scale`이 `light`면 named
+       디스패치 네 단계를 건너뛰고, 채운 `reviewer-prompt.md`로 `review` 스킬을
+       인라인 read-only로 실행한다. 그 외에는 resolve model via
+       `resolveSubagentModel` for `bouncer-reviewer`, then dispatch named agent
+       `bouncer-reviewer` with that model (retry `inherit` if the slug is
+       rejected). If named agents are unavailable (e.g. Codex), fall back to a
+       **fresh generic** subagent or inline read-only pass with the same prompt;
    (3) as controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
-   flip status;
+   flip status (인라인 경로에서도 Findings 기록과 status는 컨트롤러 몫);
    (4) if any actionable finding remains unresolved, fix within scope and
    re-review;
    (5) only when every finding is `resolved` or `accepted` with a note, set
