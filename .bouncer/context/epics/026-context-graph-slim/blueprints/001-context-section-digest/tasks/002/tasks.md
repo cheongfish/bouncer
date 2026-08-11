@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '026'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 매핑이 깨지면 파생 경로가 suggested_paths를 거쳐 affected_paths까지 실릴 수 있음
     - 소비 측에서 한 겹 더 걸러 계획 문서가 존재하지 않는 경로를 승인하지 못하게 함

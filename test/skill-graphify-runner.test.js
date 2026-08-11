@@ -82,3 +82,12 @@ test('graphify-runner skips on source graph missing via graph-sync missing', () 
   assert.doesNotMatch(md, /both\s+`graph\.json` files/);
   assert.match(md, /source `graph\.json`/);
 });
+
+test('graphify-runner drops graphify-out hits before rollup and does not translate', () => {
+  const md = readSkill('graphify-runner');
+  // 계약: 롤업 전에 graphify-out/ 하위 히트 제외 + 파생 이름 번역 금지 (스킬 본문).
+  assert.match(md, /graphify-out\//);
+  assert.match(md, /롤업/);
+  assert.match(md, /롤업\s*전에[\s\S]{0,200}`?graphify-out\/`?[\s\S]{0,120}(제외|버리)/);
+  assert.match(md, /파생\s*이름[\s\S]{0,80}번역하지\s*않는다/);
+});

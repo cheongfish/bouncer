@@ -180,6 +180,12 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 1. 그래프 최신성은 SessionStart와 plan의 `bouncer graph-sync`가 같은
    mtime 판정으로 맞춘다. **source**(`source_dirs` → `graphify-out/source`)와
    **context**(`context_dirs` → `graphify-out/context`) 두 그래프를 유지한다.
+   context는 설정 입력이 `context_dirs`여도, 빌드가 화이트리스트 섹션만 뽑은
+   파생 트리 `graphify-out/context-src/`를 스캔한 뒤 `map.json`으로 경로를
+   원본으로 되돌린다. 화이트리스트는 BP `explain.md`의 `## Background` /
+   `## Intuition` / `## Code`, epic `index.md`의 `## Success criteria`,
+   `.bouncer/Distill.md`의 `## Decisions` 세 종류다. freshness 판정 입력은
+   `context_dirs`와 `.bouncer/Distill.md`이며, 파생 트리 mtime은 넣지 않는다.
 2. `graphify-out/`은 로컬 캐시다. `bouncer init`이 `.gitignore` 누락 항목을
    **안내**하고, 사용자 동의(`--write-gitignore`)가 있을 때만 `# bouncer` …
    `# /bouncer` 마커 블록을 쓴다(마커 밖 줄은 읽기만 함). finalize/커밋 가드는
