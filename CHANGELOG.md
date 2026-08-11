@@ -7,13 +7,42 @@
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-12
+
+0.6.0 이후 task 묶음·커밋 단계·호스트 확장(EPIC-020–028).
+
+### Added
+
+- **task 단위 증적·리뷰 (EPIC-020)** — `tasks/<NNN>/{tasks,verification,review}.md`
+  디렉터리 묶음. execute 게이트는 포인터 task 묶음만 판정한다.
+- **`/bouncer-commit` (EPIC-021)** — task 하나를 닫는 단계. subject·의도는 대상
+  task에서 오고, `explain.md` comprehension은 task별 엔트리 배열이다. commit
+  게이트(G15)와 finalize의 G16(열린 task 없음)을 둔다.
+- **blueprint `closed` (EPIC-022)** — finalize가 status를 `closed`로 잠그고,
+  잠긴 blueprint에 task scaffold를 거절한다.
+- **경량 경로 (EPIC-024)** — blueprint에 `bouncer.scale: light`를 남기면 plan이
+  공용 epic 재사용·execute 왕복·퀴즈 규모를 줄인다. 게이트 판정은 분기하지
+  않는다.
+- **graphify init 설치 (EPIC-025)** — `bouncer init`이 `.bouncer/.venv`에
+  설치하고 (`--promote-graphify` / `--write-gitignore`는 동의 후), 실행 파일은
+  `config.graphify.bin` → venv → PATH 순으로 `bouncer graphify-bin`이 해석한다.
+- **context 섹션 다이제스트 (EPIC-026)** — context 그래프는 의사결정 섹션만 담은
+  파생 트리에서 빌드하고, 노드 `source_file`은 원본 경로를 유지한다.
+- **`bouncer import` (EPIC-027)** — git 히스토리를 `imported` status 문서로
+  전사한다. 임포트분은 게이트·다음 BP 후보 밖이다.
+- **Antigravity 호스트 (EPIC-028)** — 루트 `plugin.json`과
+  `subagents.provider: "antigravity"` 배선. Claude / Cursor / Codex에 이어 네
+  번째 설치 표면.
+
 ### Changed
 
-- **graphify 설치·경로 해석** — `bouncer init`이 `.bouncer/.venv`에 설치하고
-  (`--promote-graphify` / `--write-gitignore`는 동의 후), 실행 파일은
-  `config.graphify.bin` → venv → PATH 순으로 `bouncer graphify-bin`이 해석한다.
-  `graphify-runner`는 그 경로로 query하며, 문서는 init-first + 오프라인 폴백으로
-  맞춘다.
+- **워크플로 순서** — `/bouncer-init` → `/bouncer-plan` → `/bouncer-execute` →
+  `/bouncer-commit` → `/bouncer-finalize`. execute는 커밋하지 않고, finalize는
+  blueprint 마감·PR·정리로 좁힌다.
+- **execute worktree 경로 (EPIC-023)** — `.worktrees/<epic-id>/<bp-id>`로
+  중첩해 epic이 보이고 blueprint id 충돌을 피한다.
+- **루트 task 문서 레이아웃** — `tasks.md` / `tasks-<NNN>.md`는 마이그레이션
+  대상. 신규 scaffold는 `tasks/<NNN>/`만 만든다.
 
 ## [0.6.0] — 2026-08-07
 
