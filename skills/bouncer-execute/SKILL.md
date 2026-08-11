@@ -125,7 +125,8 @@ applies the fix.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
    4. If named agents are unavailable (e.g. Codex), fall back to running the
       `implementation` skill inline (or a fresh generic subagent with the same
-      brief).
+      brief). The inline path still faces the same G6–G8 judgment after verify
+      and review.
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —

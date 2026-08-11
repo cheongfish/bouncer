@@ -26,4 +26,5 @@ okf_version: '0.1'
 * [021 task-commit-stage](epics/021-task-commit-stage/index.md) - Epic 021
 * [022 blueprint-closure](epics/022-blueprint-closure/index.md) - Epic 022
 * [023 worktree-layout](epics/023-worktree-layout/index.md) - Epic 023
+* [024 lightweight-cycle](epics/024-lightweight-cycle/index.md) - Epic 024
 * [024 light-path](epics/024-light-path/index.md) - Epic 024
