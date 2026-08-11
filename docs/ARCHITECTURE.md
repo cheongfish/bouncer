@@ -8,7 +8,7 @@
 
 ## 목적
 
-이 문서는 Bouncer를 Claude, Codex, Cursor 등 여러 코딩 에이전트에서
+이 문서는 Bouncer를 Claude, Codex, Cursor, Antigravity 등 여러 코딩 에이전트에서
 동일하게 사용할 수 있는 **공통 거버넌스 레이어**로 쓰기 위해 확정한 경계를 기록한다.
 
 Bouncer는 팀이 검증할 수 있는 문서·상태·증적·변경 범위를 강제한다.

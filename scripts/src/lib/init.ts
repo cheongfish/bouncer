@@ -39,7 +39,7 @@ function defaultConfig(repoRoot) {
     // 편집 가능한 형태를 보여 주되 model을 고정하지 않음; resolveSubagentModel은
     // "inherit"를 parent-session fallback으로 처리.
     // provider block은 분리 — host마다 model namespace가 다름
-    // (Claude / Cursor / Codex slug는 호환되지 않음).
+    // (Claude / Cursor / Codex / Antigravity slug는 호환되지 않음).
     subagents: {
       claude: {
         'bouncer-reviewer': 'inherit',
@@ -52,6 +52,11 @@ function defaultConfig(repoRoot) {
         'bouncer-debugger': 'inherit',
       },
       codex: {
+        'bouncer-reviewer': 'inherit',
+        'bouncer-implementer': 'inherit',
+        'bouncer-debugger': 'inherit',
+      },
+      antigravity: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',

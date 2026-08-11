@@ -135,6 +135,58 @@ test('no provider signal yields null model and null provider', () => {
   }
 });
 
+test('config.subagents.provider antigravity resolves the antigravity block', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, {
+    subagents: {
+      provider: 'antigravity',
+      antigravity: {
+        'bouncer-reviewer': 'gemini-3-flash',
+        'bouncer-implementer': 'inherit',
+        'bouncer-debugger': 'inherit',
+      },
+    },
+  });
+  assert.deepStrictEqual(
+    resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+    { model: 'gemini-3-flash', provider: 'antigravity' },
+  );
+});
+
+// Antigravity exports no plugin-root env. BOUNCER_HOME alone must not become
+// provider: 'antigravity' even when an antigravity block is present.
+test('BOUNCER_HOME alone never resolves provider antigravity', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, {
+    subagents: {
+      antigravity: {
+        'bouncer-reviewer': 'some-model',
+        'bouncer-implementer': 'inherit',
+        'bouncer-debugger': 'inherit',
+      },
+    },
+  });
+  const prevClaude = process.env.CLAUDE_PLUGIN_ROOT;
+  const prevPlugin = process.env.PLUGIN_ROOT;
+  const prevHome = process.env.BOUNCER_HOME;
+  try {
+    delete process.env.CLAUDE_PLUGIN_ROOT;
+    delete process.env.PLUGIN_ROOT;
+    process.env.BOUNCER_HOME = '/tmp/fake-bouncer-home';
+    assert.deepStrictEqual(
+      resolveSubagentModel({ repoRoot: repo, agentName: 'bouncer-reviewer' }),
+      { model: null, provider: null },
+    );
+  } finally {
+    if (prevClaude === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
+    else process.env.CLAUDE_PLUGIN_ROOT = prevClaude;
+    if (prevPlugin === undefined) delete process.env.PLUGIN_ROOT;
+    else process.env.PLUGIN_ROOT = prevPlugin;
+    if (prevHome === undefined) delete process.env.BOUNCER_HOME;
+    else process.env.BOUNCER_HOME = prevHome;
+  }
+});
+
 test('inherit and non-string values return null model with resolved provider', () => {
   const repo = tmpRepo();
   writeConfig(repo, SAMPLE);
