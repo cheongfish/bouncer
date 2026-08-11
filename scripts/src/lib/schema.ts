@@ -23,10 +23,12 @@ const ID_PREFIX = {
 };
 
 const STATUS_ENUM = {
-  'bouncer.epic': ['draft', 'approved', 'closed'],
+  // imported: 히스토리 임포트 문서. 게이트 대상이 아니며 validateBlueprint가 S18로 거절.
+  'bouncer.epic': ['draft', 'approved', 'closed', 'imported'],
   // 'closed'는 finalize --yes가 마감한 blueprint에 찍는 잠금 status.
   // draft → approved 만 있던 어휘에 마감 표시를 추가; superseded는 유지.
-  'bouncer.blueprint': ['draft', 'approved', 'superseded', 'closed'],
+  // imported는 임포트 전용 — 작업 포인터/게이트 대상에서 제외(S18).
+  'bouncer.blueprint': ['draft', 'approved', 'superseded', 'closed', 'imported'],
   'bouncer.tasks': ['draft', 'ready', 'in_progress', 'verified'],
   'bouncer.verification': ['pending', 'passed', 'failed'],
   'bouncer.review': ['pending', 'requested', 'addressed', 'accepted'],

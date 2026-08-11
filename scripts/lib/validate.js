@@ -378,6 +378,18 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
         checkStructural(docs[key], failures);
     }
     failures.push(...checkEpicIndexConsistency({ repoRoot }));
+    // imported blueprint는 게이트·작업 대상이 아니다. 구조·에픽목록 검사는 유지하되
+    // checkGate를 건너뛰고 S18 하나로 거절한다 — ok:true/gateSkipped로 통과시키면
+    // cmdCurrent --set이 plan 통과로 포인터를 잡아버린다. epic-only imported는
+    // 판정하지 않는다(기준은 blueprint status). S14는 결번이므로 재사용하지 않는다.
+    if (statusOf(docs.blueprintIndex) === 'imported') {
+        failures.push({
+            code: 'S18',
+            message: 'imported document is out of gate scope',
+            file: rels.blueprintIndex,
+        });
+        return { ok: false, failures };
+    }
     if (gate) {
         const taskUnit = gate === 'execute'
             ? resolveTaskUnit(docs, { repoRoot, blueprintDir })

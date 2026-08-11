@@ -470,3 +470,38 @@ test('S15: legacy root task files are rejected', () => {
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.ok(res.failures.some((f) => f.code === 'S15'));
 });
+
+function writeImportedIndexes(repo) {
+  const epic = epicDoc();
+  epic.bouncer.status = 'imported';
+  const bp = blueprintDoc();
+  bp.bouncer.status = 'imported';
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epic);
+  writeDoc(repo, `${BP_REL}/index.md`, bp);
+  writeBundleIndex(repo);
+}
+
+test('S18: imported blueprint is out of gate scope (plan)', () => {
+  const repo = mkRepo();
+  writeImportedIndexes(repo);
+  const r = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+  assert.strictEqual(r.ok, false);
+  const codes = r.failures.map((f) => f.code);
+  assert.deepStrictEqual(codes, ['S18']);
+  assert.ok(!codes.some((c) => c.startsWith('G')));
+  assert.ok(r.failures.some((f) => (
+    f.code === 'S18'
+    && f.message === 'imported document is out of gate scope'
+    && f.file === `${BP_REL}/index.md`
+  )));
+});
+
+test('S18: imported blueprint rejected without gate too', () => {
+  const repo = mkRepo();
+  writeImportedIndexes(repo);
+  const r = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(r.ok, false);
+  const codes = r.failures.map((f) => f.code);
+  assert.deepStrictEqual(codes, ['S18']);
+  assert.ok(!codes.some((c) => c.startsWith('G')));
+});

@@ -30,3 +30,4 @@ okf_version: '0.1'
 * [024 light-path](epics/024-light-path/index.md) - Epic 024
 * [025 graphify-bootstrap](epics/025-graphify-bootstrap/index.md) - Epic 025
 * [026 context-graph-slim](epics/026-context-graph-slim/index.md) - Epic 026
+* [027 history-import](epics/027-history-import/index.md) - Epic 027
