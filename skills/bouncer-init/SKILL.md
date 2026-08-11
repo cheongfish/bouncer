@@ -23,24 +23,56 @@ contains `scripts/bouncer`.
 
 Bootstrap this project for Bouncer.
 
-1. Run `bouncer init` (idempotent for config; seeds missing project Distill):
+1. Run `bouncer init` (idempotent for config; seeds missing project Distill;
+   attempts graphify venv install by default):
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" init
    ```
-2. Report the result:
+2. Report the bootstrap and install result:
    - If bootstrap is already ready and `.bouncer/Distill.md` exists,
-     report `already-initialized` and that no changes were made.
+     report `already-initialized` and that no scaffold files were created.
    - If bootstrap is ready but Distill was missing, report that Distill was
      seeded (`project-distill-seeded`) and list `.bouncer/Distill.md`. If init
      migrated a legacy `.bouncer/context/Distill.md`, report the new path.
    - Otherwise, list the created files (`.bouncer/config.json`,
      `.bouncer/context/index.md`, `.bouncer/Distill.md`).
    - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
-3. If the result carries a non-empty `gitignoreSuggestions`, list those entries and
-   tell the user to add them to `.gitignore` themselves. Bouncer never edits
-   `.gitignore` — it only reports. Finalize ignores these paths either way, so this
-   is housekeeping, not a blocker.
+   - **Graphify install fork** (from `graphifyInstall` when present):
+     - Success / reuse (`status` `installed` or `reused`): report the outcome
+       and the recorded `config.graphify.bin` (or the returned `bin`).
+     - Failure: report the reason, note that `graphify.enabled` stayed / was
+       set `false`, and point at the offline fallback in `docs/install.md`
+       plus a later return via
+       `bouncer init --promote-graphify` after a manual install.
+   - Do **not** edit `.bouncer/config.json` yourself — promotion is CLI-only.
+3. Consent gates (ACQ). Never write config or `.gitignore` without agreement.
+   - **Promotion ACQ** — when the result carries
+     `graphifyPromotion: 'candidate'` (existing project with graphify not yet
+     enabled), ask:
+     - **A)** Enable and install (recommended)
+     - **B)** Enable only (no install attempt)
+     - **C)** Leave as-is
+     On **A** or **B** only, run (A installs; B enables without install):
+     ```bash
+     BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+     # A) enable + install
+     node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify
+     # B) enable only
+     node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify --no-graphify
+     ```
+     **C** writes nothing. In non-interactive environments, print the three
+     options and stop — do not promote.
+   - **Gitignore ACQ** — when `gitignoreSuggestions` is non-empty, list the
+     entries and ask whether to write the `# bouncer` … `# /bouncer` marker
+     block. On consent only:
+     ```bash
+     BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+     node "${BOUNCER_ROOT}/scripts/bouncer" init --write-gitignore
+     ```
+     On decline, report the suggested entries and leave `.gitignore`
+     untouched. Bouncer writes `.gitignore` only after this consent, and only
+     inside the marker block.
 4. Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
    git add .bouncer && git commit -m "chore: bootstrap bouncer"

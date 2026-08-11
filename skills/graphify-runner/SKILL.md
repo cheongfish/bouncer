@@ -56,34 +56,45 @@ not an error).
    (and any skip reason) so step 5 can write one `basis` entry per graph with
    the status mapping above.
 
-2. **Availability check.** If graphify auto-build is disabled, `graphify` is not
-   on PATH, sync reports `skip-no-graphify` / `skip-graph-disabled`, or the
-   source `graph.json` is still missing after sync (`missing` from `graph-sync`
-   includes `"source"`), **skip gracefully**: leave `suggested_paths` as the
-   scaffolded `[]`, **leave a `basis` entry for each affected graph** (with
-   `status` `skip-disabled` or `missing` as mapped above, plus non-empty
-   `query`/`result` explaining why), and tell the caller the graph was
-   unavailable so the user provides and confirms `affected_paths` manually. Do
-   not fail the command. A context-only graph must not block this skip — source
-   absence alone is enough.
+2. **Resolve executable and availability.** Resolve the graphify binary through
+   the single CLI interpreter — never invoke `graphify` by bare name:
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   GRAPHIFY_BIN="$(node "${BOUNCER_ROOT}/scripts/bouncer" graphify-bin)" || GRAPHIFY_BIN=""
+   ```
+   An empty `GRAPHIFY_BIN` is a state (resolution miss), not a skill error —
+   treat it like the other skip paths below.
+
+   If graphify auto-build is disabled, `GRAPHIFY_BIN` is empty, sync reports
+   `skip-no-graphify` / `skip-graph-disabled`, or the source `graph.json` is
+   still missing after sync (`missing` from `graph-sync` includes `"source"`),
+   **skip gracefully**: leave `suggested_paths` as the scaffolded `[]`,
+   **leave a `basis` entry for each affected graph** (with `status`
+   `skip-disabled` or `missing` as mapped above, plus non-empty `query`/`result`
+   explaining why), and tell the caller the graph was unavailable so the user
+   provides and confirms `affected_paths` manually. Do not fail the command. A
+   context-only graph must not block this skip — source absence alone is enough.
 
    When skipping, tell the user (verbatim or close):
 
    > Graphify is optional. Path suggestions were skipped — confirm
-   > `affected_paths` manually. To enable: `pip install graphifyy && graphify
-   > install`, set `.bouncer/config.json` `graphify.enabled` to `true`, then
-   > re-run `/bouncer-plan`. See `docs/install.md`.
+   > `affected_paths` manually. To enable: run `bouncer init` (fresh bootstrap
+   > installs into `.bouncer/.venv`) or `bouncer init --promote-graphify` on an
+   > existing project, then re-run `/bouncer-plan`. Offline/manual fallback is
+   > in `docs/install.md`.
 
    If auto-build is disabled but the CLI is present, still leave a
-   `skip-disabled` entry in `basis` and mention enabling `graphify.enabled`.
+   `skip-disabled` entry in `basis` and mention enabling via
+   `bouncer init --promote-graphify` (do not edit `config.json` by hand).
 
 3. **Query both graphs.** Only reach this step when the source graph is
-   available (step 2 did not skip). Build a query string from the blueprint
-   goal plus the tasks checklist intent, then run:
+   available and `GRAPHIFY_BIN` is non-empty (step 2 did not skip). Build a
+   query string from the blueprint goal plus the tasks checklist intent, then
+   run:
    ```bash
-   graphify query "<blueprint goal + key task nouns>" \
+   "$GRAPHIFY_BIN" query "<blueprint goal + key task nouns>" \
      --graph graphify-out/source/graph.json
-   graphify query "<blueprint goal + key task nouns>" \
+   "$GRAPHIFY_BIN" query "<blueprint goal + key task nouns>" \
      --graph graphify-out/context/graph.json
    ```
    Record one planned `basis` entry per graph you attempt. If the context graph
@@ -98,11 +109,11 @@ not an error).
 5. **Write frontmatter.** Set `bouncer.graph.suggested_paths` in the task brief
    (`tasks/<NNN>/tasks.md` or a legacy root task document) to
    the deduplicated directory list, and refresh `bouncer.graph.generated_at`
-   (KST, `+09:00`), `bouncer.graph.command` (`graphify query` on source+context),
-   and `bouncer.graph.basis` as the **array of per-graph entries** collected in
-   steps 1–3 (`graph`, `status`, `query`, `result` — all non-empty). For
-   successful queries, put hit count and a few top paths in `result`. Leave
-   every other field untouched.
+   (KST, `+09:00`), `bouncer.graph.command` (resolved-bin query on
+   source+context), and `bouncer.graph.basis` as the **array of per-graph
+   entries** collected in steps 1–3 (`graph`, `status`, `query`, `result` — all
+   non-empty). For successful queries, put hit count and a few top paths in
+   `result`. Leave every other field untouched.
 
 6. **Hand back.** Return the suggested paths to `/bouncer-plan`, which proposes
    `affected_paths` seeded from them for the user to confirm/edit.

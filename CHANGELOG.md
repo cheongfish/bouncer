@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **graphify 설치·경로 해석** — `bouncer init`이 `.bouncer/.venv`에 설치하고
+  (`--promote-graphify` / `--write-gitignore`는 동의 후), 실행 파일은
+  `config.graphify.bin` → venv → PATH 순으로 `bouncer graphify-bin`이 해석한다.
+  `graphify-runner`는 그 경로로 query하며, 문서는 init-first + 오프라인 폴백으로
+  맞춘다.
+
 ## [0.6.0] — 2026-08-07
 
 0.5.0 이후 task 단위 커밋 기반(EPIC-017–019).

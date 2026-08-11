@@ -11,12 +11,15 @@ test('graphify-runner has valid frontmatter', () => {
   assert.ok(typeof data.description === 'string' && data.description.length > 0);
 });
 
-test('graphify-runner references graphify query, suggested_paths, and graceful fallback', () => {
+test('graphify-runner resolves bin then queries; no PATH `graphify query`', () => {
   const md = readSkill('graphify-runner');
-  assert.match(md, /graphify query/i);
+  assert.match(md, /graphify-bin/);
+  assert.match(md, /GRAPHIFY_BIN/);
   assert.match(md, /suggested_paths/);
-  assert.match(md, /not available|unavailable|absent|not on PATH|skip/i);
+  assert.match(md, /not available|unavailable|absent|skip/i);
   assert.match(md, /bouncer\.graph|\/bouncer-plan/);
+  // PATH 직접 호출 형태는 거부 — 해석된 "$GRAPHIFY_BIN" query 만 허용.
+  assert.doesNotMatch(md, /`graphify query`/);
   assert.doesNotMatch(md, /\bsdd\b|superpowers/i);
 });
 
@@ -56,10 +59,10 @@ test('graphify-runner handles disabled auto-build with user-confirmed affected p
   assert.match(md, /require the user to confirm\s+`affected_paths`/i);
 });
 
-test('graphify-runner tells users how to install graphify when skipping', () => {
+test('graphify-runner tells users how to enable graphify when skipping', () => {
   const md = readSkill('graphify-runner');
-  assert.match(md, /pip install graphifyy/);
-  assert.match(md, /graphify\.enabled/);
+  assert.match(md, /bouncer init/);
+  assert.match(md, /--promote-graphify/);
   assert.match(md, /docs\/install\.md/);
 });
 

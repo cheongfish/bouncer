@@ -13,7 +13,7 @@
 | `pr.draft` | `true` | PR을 draft로 생성 |
 | `pr.base` | `"develop"` | PR 대상 브랜치 |
 | `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
-| `graphify` | `{ "enabled": false }` | 이중 그래프 생성. **기본 비활성·선택 의존성.** 켜려면 `pip install graphifyy && graphify install` 후 `enabled: true`. SessionStart와 plan의 `bouncer graph-sync`가 `source`/`context` 그래프를 mtime 기준으로 갱신하고, `graphify-runner`가 둘 다 query해 `suggested_paths`를 채웁니다. 없거나 꺼져 있으면 수동 `affected_paths`로 폴백합니다 ([install.md](install.md)) |
+| `graphify` | `{ "enabled": true }` (설치 실패 시 `{ "enabled": false }`) | 이중 그래프 생성. **기본은 활성.** `bouncer init`이 `.bouncer/.venv`에 설치하고 성공 시 `bin`(저장소-상대 경로)을 기록합니다. 실행 파일 해석 순서: `graphify.bin` → `.bouncer/.venv` → PATH (`bouncer graphify-bin` / `resolveGraphifyBin`). SessionStart와 plan의 `bouncer graph-sync`가 `source`/`context`를 mtime 기준으로 갱신하고, `graphify-runner`가 해석된 경로로 query해 `suggested_paths`를 채웁니다. 꺼져 있거나 해석 실패면 수동 `affected_paths`로 폴백합니다 ([install.md](install.md)) |
 | `subagents` | (객체) | named agent별 모델 오버라이드. 아래 절 참고 |
 
 ## verify 래퍼 패턴

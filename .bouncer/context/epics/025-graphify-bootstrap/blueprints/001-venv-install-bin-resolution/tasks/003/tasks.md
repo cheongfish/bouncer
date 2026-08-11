@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '025'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 스킬과 문서가 여전히 PATH 설치와 수동 활성화를 전제하고 있었음
     - 해석된 경로와 init 설치 흐름을 안내가 그대로 가리키게 하려 함

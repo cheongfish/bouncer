@@ -66,6 +66,10 @@ append a change log.
   the blueprint `index.md` and stages that path, `scaffold task` refuses a
   `closed` blueprint, and `listReadyBlueprints` excludes it. Work on a finished
   blueprint goes to a new blueprint, not a new task on the old one.
+- Graphify executable resolution order is `config.graphify.bin` →
+  `.bouncer/.venv` → PATH. The single resolver is `resolveGraphifyBin` in
+  `scripts/src/lib/graphify.ts` (CLI: `bouncer graphify-bin`). Skills and
+  SessionStart must not invoke `graphify` by bare name.
 
 ## Gotchas
 
@@ -326,7 +330,11 @@ append a change log.
 - Graph absence is a state, not an error: `syncSessionGraphs.missing` stays
   empty on `NO_GRAPH_WORK` paths and never flips `ok` to false; consumers
   signal via fields / stderr, not exit codes.
-- init default source_dirs is the fixed candidate list filtered to existing directories (order preserved); empty yields [] with sourceDirsUnresolved; existing config.json is never overwritten.
+- init default source_dirs is the fixed candidate list filtered to existing
+  directories (order preserved); empty yields [] with sourceDirsUnresolved.
+  Existing `config.json` is not changed without consent.
+  `--promote-graphify` alone may change `graphify.enabled` (and `bin` when
+  install succeeds).
 - Canonical epic/blueprint context ids are zero-padded `\d{3}` with no
   `EPIC-`/`BP-` prefix; child docs use `TASKS-`|`VERIFY-`|`REVIEW-`|`EXPLAIN-`
   + `\d{3}` (e.g. `TASKS-001`). Scaffold/`--id` accept and emit that shape
