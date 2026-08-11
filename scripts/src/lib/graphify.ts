@@ -105,7 +105,99 @@ function resolveGraphifyBin({
   }
 }
 
+/**
+ * 플랫폼별 venv pip 실행 파일 상대 경로.
+ * graphify와 같은 Scripts/ vs bin/ 규칙을 따르되, activate 없이 직접 호출한다.
+ */
+function venvPipRel(platform) {
+  if (platform === 'win32') return '.bouncer/.venv/Scripts/pip.exe';
+  return '.bouncer/.venv/bin/pip';
+}
+
+/**
+ * `.bouncer/.venv`에 graphify를 설치(또는 재사용).
+ * 네트워크·python 부재는 soft-fail — throw하지 않고 status/reason만 돌려
+ * init 부트스트랩 exit 0을 지키게 한다. 이미 bin이 있으면 upgrade하지 않는다
+ * (셸마다 activate가 끊기므로 경로로 직접 호출하는 계약과 맞춤).
+ *
+ * @param {{
+ *   repoRoot: string,
+ *   exec?: typeof execFileSync,
+ *   platform?: string,
+ * }} opts
+ * @returns {{
+ *   status: 'reused' | 'installed' | 'failed',
+ *   bin: string | null,
+ *   reason?: string,
+ * }}
+ */
+function setupGraphify({
+  repoRoot,
+  exec,
+  platform,
+}: {
+  repoRoot?: string;
+  exec?: typeof execFileSync;
+  platform?: string;
+} = {}) {
+  try {
+    const root = typeof repoRoot === 'string' ? repoRoot : process.cwd();
+    const plat = typeof platform === 'string' ? platform : process.platform;
+    const run = typeof exec === 'function' ? exec : execFileSync;
+    const binRel = venvBinRel(plat);
+    const binAbs = path.join(root, binRel);
+
+    if (fs.existsSync(binAbs)) {
+      return { status: 'reused', bin: binRel };
+    }
+
+    // 1) venv 생성 — cwd=repoRoot로 상대 경로 `.bouncer/.venv`를 고정.
+    try {
+      run('python3', ['-m', 'venv', '.bouncer/.venv'], { cwd: root, stdio: 'pipe' });
+    } catch (e) {
+      return {
+        status: 'failed',
+        bin: null,
+        reason: `venv: ${e && e.message ? e.message : String(e)}`,
+      };
+    }
+
+    // 2) pip으로 graphifyy 설치 — PyPI 패키지명이 graphify가 아님에 주의.
+    const pipAbs = path.join(root, venvPipRel(plat));
+    try {
+      run(pipAbs, ['install', 'graphifyy'], { cwd: root, stdio: 'pipe' });
+    } catch (e) {
+      return {
+        status: 'failed',
+        bin: null,
+        reason: `pip: ${e && e.message ? e.message : String(e)}`,
+      };
+    }
+
+    // 3) graphify 자체의 install(에이전트 훅 등) — activate 없이 bin 경로 직접 실행.
+    try {
+      run(binAbs, ['install'], { cwd: root, stdio: 'pipe' });
+    } catch (e) {
+      return {
+        status: 'failed',
+        bin: null,
+        reason: `graphify install: ${e && e.message ? e.message : String(e)}`,
+      };
+    }
+
+    return { status: 'installed', bin: binRel };
+  } catch (e) {
+    // 계약: setupGraphify 자신은 어떤 실패에도 throw하지 않는다.
+    return {
+      status: 'failed',
+      bin: null,
+      reason: e && e.message ? e.message : String(e),
+    };
+  }
+}
+
 module.exports = {
   venvBinRel,
   resolveGraphifyBin,
+  setupGraphify,
 };

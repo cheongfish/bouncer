@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '025'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - graphify 설치가 사용자 몫이라 부트스트랩 직후 그래프가 비어 있었음
     - init이 격리된 venv에 설치하고 실패해도 부트스트랩을 막지 않게 하려 함

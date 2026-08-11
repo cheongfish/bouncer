@@ -2,8 +2,10 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
-const { venvBinRel, resolveGraphifyBin } = require('../scripts/lib/graphify');
+const { venvBinRel, resolveGraphifyBin, setupGraphify } = require('../scripts/lib/graphify');
 
 test('venvBinRel returns POSIX-relative platform paths', () => {
   assert.strictEqual(venvBinRel('win32'), '.bouncer/.venv/Scripts/graphify.exe');
@@ -92,4 +94,73 @@ test('resolveGraphifyBin never throws on malformed config shapes', () => {
       assert.deepStrictEqual(r, { bin: null, source: null });
     });
   }
+});
+
+test('setupGraphify reuses an existing venv bin without calling exec', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-'));
+  const binRel = venvBinRel('linux');
+  fs.mkdirSync(path.join(repo, path.dirname(binRel)), { recursive: true });
+  fs.writeFileSync(path.join(repo, binRel), '');
+  const calls = [];
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    exec: (...args) => { calls.push(args); },
+  });
+  assert.deepStrictEqual(r, { status: 'reused', bin: binRel });
+  assert.strictEqual(calls.length, 0);
+});
+
+test('setupGraphify installs via venv → pip → graphify install in order', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-'));
+  const binRel = venvBinRel('linux');
+  const pipAbs = path.join(repo, '.bouncer/.venv/bin/pip');
+  const graphifyAbs = path.join(repo, binRel);
+  const calls = [];
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    exec: (file, args, opts) => {
+      calls.push({ file, args, cwd: opts && opts.cwd });
+    },
+  });
+  assert.deepStrictEqual(r, { status: 'installed', bin: binRel });
+  assert.strictEqual(calls.length, 3);
+  assert.deepStrictEqual(calls[0], {
+    file: 'python3',
+    args: ['-m', 'venv', '.bouncer/.venv'],
+    cwd: repo,
+  });
+  assert.deepStrictEqual(calls[1], {
+    file: pipAbs,
+    args: ['install', 'graphifyy'],
+    cwd: repo,
+  });
+  assert.deepStrictEqual(calls[2], {
+    file: graphifyAbs,
+    args: ['install'],
+    cwd: repo,
+  });
+});
+
+test('setupGraphify stops after the first failing step and never throws', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-'));
+  const calls = [];
+  let r;
+  assert.doesNotThrow(() => {
+    r = setupGraphify({
+      repoRoot: repo,
+      platform: 'linux',
+      exec: (file, args) => {
+        calls.push({ file, args });
+        throw new Error('no python');
+      },
+    });
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.strictEqual(r.bin, null);
+  assert.match(r.reason, /venv/);
+  assert.match(r.reason, /no python/);
+  assert.strictEqual(calls.length, 1);
+  assert.deepStrictEqual(calls[0].args, ['-m', 'venv', '.bouncer/.venv']);
 });

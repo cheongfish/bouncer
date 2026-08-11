@@ -204,7 +204,16 @@ function cmdSeedWorktree(rest, io) {
 function cmdInit(rest, io) {
     const f = parseFlags(rest);
     const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
-    const result = init({ repoRoot: f.repo || process.cwd(), timestamp });
+    // CLI 기본은 설치 on — 라이브러리 init() 기본(install:false)과 의도적으로 다르다.
+    // 테스트·프로그래밍 호출이 네트워크 pip을 타지 않게 라이브러리는 opt-in.
+    const install = f['no-graphify'] !== true;
+    const result = init({
+        repoRoot: f.repo || process.cwd(),
+        timestamp,
+        graphify: { install },
+        promote: f['promote-graphify'] === true,
+        writeGitignore: f['write-gitignore'] === true,
+    });
     io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
     return result.ok ? 0 : 1;
 }

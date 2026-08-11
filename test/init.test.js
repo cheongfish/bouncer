@@ -272,7 +272,9 @@ test('plugin governance materials have no Superpowers profile language', () => {
 test('init reports the gitignore entries a repo without .gitignore should add', () => {
   const repo = tmpRepo();
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.deepStrictEqual(res.gitignoreSuggestions, ['node_modules/', 'graphify-out/', '.worktrees/']);
+  assert.deepStrictEqual(res.gitignoreSuggestions, [
+    'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+  ]);
   assert.ok(!exists(repo, '.gitignore'), 'init must not write .gitignore');
 });
 
@@ -280,13 +282,18 @@ test('init suggests only the entries .gitignore is missing', () => {
   const repo = tmpRepo();
   fs.writeFileSync(path.join(repo, '.gitignore'), '# deps\nnode_modules\n');
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.deepStrictEqual(res.gitignoreSuggestions, ['graphify-out/', '.worktrees/']);
+  assert.deepStrictEqual(res.gitignoreSuggestions, [
+    'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+  ]);
   assert.strictEqual(read(repo, '.gitignore'), '# deps\nnode_modules\n');
 });
 
 test('init suggests nothing when the artifacts are already ignored', () => {
   const repo = tmpRepo();
-  fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\ngraphify-out/\n.worktrees/\n');
+  fs.writeFileSync(
+    path.join(repo, '.gitignore'),
+    'node_modules/\ngraphify-out/\n.worktrees/\n.bouncer/.venv/\n',
+  );
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(res.gitignoreSuggestions, []);
 });
@@ -351,5 +358,203 @@ test('init reports gitignore suggestions on an already-initialized repo', () => 
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.strictEqual(again.reason, 'already-initialized');
-  assert.deepStrictEqual(again.gitignoreSuggestions, ['node_modules/', 'graphify-out/', '.worktrees/']);
+  assert.deepStrictEqual(again.gitignoreSuggestions, [
+    'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+  ]);
+});
+
+test('init with install:true writes graphify bin from injected setup', () => {
+  const repo = tmpRepo();
+  const bin = '.bouncer/.venv/bin/graphify';
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    graphify: {
+      install: true,
+      setup: () => ({ status: 'installed', bin }),
+    },
+  });
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(res.graphifyInstall, { status: 'installed', bin });
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(cfg.graphify, { enabled: true, bin });
+});
+
+test('init with failed setup keeps ok and disables graphify', () => {
+  const repo = tmpRepo();
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    graphify: {
+      install: true,
+      setup: () => ({ status: 'failed', bin: null, reason: 'venv: no python' }),
+    },
+  });
+  assert.strictEqual(res.ok, true);
+  assert.ok(res.graphifyInstall && res.graphifyInstall.reason);
+  assert.match(res.graphifyInstall.reason, /venv/);
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(cfg.graphify, { enabled: false });
+});
+
+test('init without install does not call setup', () => {
+  const repo = tmpRepo();
+  let called = 0;
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    graphify: {
+      setup: () => {
+        called += 1;
+        return { status: 'installed', bin: '.bouncer/.venv/bin/graphify' };
+      },
+    },
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(called, 0);
+  assert.strictEqual(res.graphifyInstall, undefined);
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(cfg.graphify, { enabled: true });
+});
+
+test('ready bootstrap without promote reports candidate and leaves config bytes intact', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const disabled = {
+    source_dirs: ['src'],
+    context_dirs: ['.bouncer/context'],
+    graphify: { enabled: false },
+    verify: 'npm test',
+    base_branch: 'develop',
+    pr: { draft: true, base: 'develop', labels: ['bouncer'] },
+    subagents: { claude: { 'bouncer-reviewer': 'inherit' } },
+  };
+  const original = Buffer.from(`${JSON.stringify(disabled, null, 2)}\n`);
+  fs.writeFileSync(cfgPath, original);
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(res.graphifyPromotion, 'candidate');
+  assert.deepStrictEqual(fs.readFileSync(cfgPath), original);
+});
+
+test('ready bootstrap with promote:true flips only graphify.enabled', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const existing = {
+    source_dirs: ['custom'],
+    context_dirs: ['.bouncer/context'],
+    graphify: { enabled: false },
+    verify: 'make test',
+    base_branch: 'main',
+    pr: { draft: false, base: 'main', labels: [] },
+    subagents: {
+      cursor: { 'bouncer-reviewer': 'inherit' },
+    },
+  };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(existing, null, 2)}\n`);
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    promote: true,
+  });
+  assert.strictEqual(res.graphifyPromotion, 'promoted');
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.strictEqual(cfg.graphify.enabled, true);
+  assert.deepStrictEqual(cfg.verify, 'make test');
+  assert.deepStrictEqual(cfg.base_branch, 'main');
+  assert.deepStrictEqual(cfg.source_dirs, ['custom']);
+  assert.deepStrictEqual(cfg.subagents, existing.subagents);
+});
+
+test('ready bootstrap promote+install records bin and preserves other keys', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const bin = '.bouncer/.venv/bin/graphify';
+  const existing = {
+    source_dirs: ['custom'],
+    context_dirs: ['.bouncer/context'],
+    graphify: { enabled: false },
+    verify: 'make test',
+    base_branch: 'main',
+    pr: { draft: false, base: 'main', labels: [] },
+    subagents: {
+      cursor: { 'bouncer-reviewer': 'inherit' },
+    },
+  };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(existing, null, 2)}\n`);
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    promote: true,
+    graphify: {
+      install: true,
+      setup: () => ({ status: 'installed', bin }),
+    },
+  });
+  assert.strictEqual(res.graphifyPromotion, 'promoted');
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.strictEqual(cfg.graphify.enabled, true);
+  assert.strictEqual(cfg.graphify.bin, bin);
+  assert.deepStrictEqual(cfg.verify, 'make test');
+  assert.deepStrictEqual(cfg.base_branch, 'main');
+  assert.deepStrictEqual(cfg.source_dirs, ['custom']);
+  assert.deepStrictEqual(cfg.subagents, existing.subagents);
+});
+
+test('writeGitignore:true upserts a single # bouncer marker block with .venv', () => {
+  const repo = tmpRepo();
+  const giPath = path.join(repo, '.gitignore');
+  fs.writeFileSync(giPath, '# keep me\n*.secret\n');
+  const once = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    writeGitignore: true,
+  });
+  assert.strictEqual(once.gitignoreWritten, true);
+  const twice = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    writeGitignore: true,
+  });
+  assert.strictEqual(twice.gitignoreWritten, true);
+  const body = read(repo, '.gitignore');
+  assert.strictEqual((body.match(/^# bouncer$/mg) || []).length, 1);
+  assert.strictEqual((body.match(/^# \/bouncer$/mg) || []).length, 1);
+  assert.match(body, /^# bouncer\n[\s\S]*\.bouncer\/\.venv\/\n[\s\S]*# \/bouncer/m);
+  assert.match(body, /^# keep me$/m);
+  assert.match(body, /^\*\.secret$/m);
+});
+
+test('writeGitignore preserves substring lookalikes outside the marker block', () => {
+  const repo = tmpRepo();
+  const giPath = path.join(repo, '.gitignore');
+  fs.writeFileSync(giPath, '# bouncer note\n*.secret\n');
+  init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    writeGitignore: true,
+  });
+  const body = read(repo, '.gitignore');
+  assert.match(body, /^# bouncer note$/m);
+  assert.match(body, /^\*\.secret$/m);
+  assert.strictEqual((body.match(/^# bouncer$/mg) || []).length, 1);
+  assert.strictEqual((body.match(/^# \/bouncer$/mg) || []).length, 1);
+  // lookalike는 마커가 아니므로 블록이 파일 끝에 붙고, 기존 줄은 그대로다.
+  assert.match(body, /^# bouncer note\n\*\.secret\n# bouncer\n/);
+});
+
+test('writeGitignore without flag leaves .gitignore bytes unchanged and does not create it', () => {
+  const repo = tmpRepo();
+  const original = Buffer.from('# user rules\n*.secret\n');
+  fs.writeFileSync(path.join(repo, '.gitignore'), original);
+  const withGi = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(withGi.gitignoreWritten, false);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, '.gitignore')), original);
+
+  const empty = tmpRepo();
+  const noGi = init({ repoRoot: empty, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(noGi.gitignoreWritten, false);
+  assert.ok(!exists(empty, '.gitignore'));
 });
