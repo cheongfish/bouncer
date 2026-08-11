@@ -27,7 +27,9 @@ function defaultConfig(repoRoot) {
         // Bouncer context docs graph (epics/blueprints). source_dirs와 함께
         // graphify-out/source, graphify-out/context 이중 graphify 출력에 사용.
         context_dirs: ['.bouncer/context'],
-        graphify: { enabled: false },
+        // 기본 opt-in: 실행 파일이 없으면 skip-no-graphify(상태)이지 오류가 아니다.
+        // bin·venv 설치는 후속 task; 여기서는 "있으면 찾아 쓴다" 쪽만 켠다.
+        graphify: { enabled: true },
         verify: 'npm test',
         base_branch: 'develop',
         pr: { draft: true, base: 'develop', labels: ['bouncer'] },

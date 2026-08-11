@@ -4,6 +4,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { init, inspectBootstrap } = require('./init');
 const { nowIsoKst } = require('./time');
+// 해석기는 별도 모듈 — init이 이 모듈을 require하므로 session-graph에 두면 순환된다.
+const { resolveGraphifyBin } = require('./graphify');
 
 const DEFAULT_SOURCE_OUT = 'graphify-out/source';
 const DEFAULT_CONTEXT_OUT = 'graphify-out/context';
@@ -13,16 +15,10 @@ const DEFAULT_CONTEXT_DIRS = ['.bouncer/context'];
 // (build가 graphify-out 아래에 쓰기 → mtime 갱신 → rebuild).
 const SCAN_EXCLUDED_DIRS = new Set(['graphify-out', 'node_modules', '.git', '.worktrees']);
 
-function realHasGraphify() {
-  try {
-    execFileSync('graphify', ['--version'], { stdio: 'ignore' });
-    return true;
-  } catch (_e) {
-    try {
-      execFileSync('command', ['-v', 'graphify'], { stdio: 'ignore', shell: true });
-      return true;
-    } catch (_e2) { return false; }
-  }
+// PATH/`command -v` 폴백은 resolveGraphifyBin의 hasOnPath가 흡수한다.
+// 해석 실패는 새 상태가 아니라 기존 skip-no-graphify와 같다.
+function realHasGraphify(repoRoot) {
+  return resolveGraphifyBin({ repoRoot }).bin !== null;
 }
 
 function readBouncerConfig(repoRoot) {
@@ -126,7 +122,7 @@ function planSessionGraph({ repoRoot, deps }) {
     inspectBootstrap: () => inspectBootstrap({ repoRoot }),
     init: () => init({ repoRoot, timestamp: nowIsoKst() }),
     graphifyEnabled: () => realGraphifyEnabled(repoRoot),
-    hasGraphify: () => realHasGraphify(),
+    hasGraphify: () => realHasGraphify(repoRoot),
     sourceDirs: () => realSourceDirs(repoRoot),
     contextDirs: () => realContextDirs(repoRoot),
     existingDirs: (dirs) => realExistingDirs(repoRoot, dirs),
@@ -203,12 +199,16 @@ function runGraphifyUpdate(repoRoot, dir, outDir, opts = null) {
   const scanAbs = path.join(repoRoot, dir);
   fs.mkdirSync(partAbs, { recursive: true });
   const exec = (opts && opts.exec) || execFileSync;
+  // 실행 대상은 해석기가 준 값만 — 여기 리터럴 'graphify'를 두지 않는다.
+  // 호출자(defaultExecGraphify)가 한 번 해석한 bin을 넘기는 것이 정상이며,
+  // 미주입 시에만 여기서 한 번 더 해석한다(단위 테스트·직접 호출용).
+  const bin = (opts && opts.bin) || resolveGraphifyBin({ repoRoot }).bin;
   // graphify는 *상대* GRAPHIFY_OUT을 scan 디렉터리에 join한다. 절대 scan
   // target이면 cwd-relative "."를 넘기면 source tree에 쓰게 되므로, graph.json이
   // partAbs에 오도록 part cwd 기준으로 resolve.
   const outEnv = path.resolve(partAbs, graphifyOutEnv(partAbs, partAbs));
   // `update`는 AST-only 경로: `extract`와 달리 LLM key 불필요.
-  exec('graphify', ['update', scanAbs], {
+  exec(bin, ['update', scanAbs], {
     cwd: partAbs,
     env: { ...process.env, GRAPHIFY_OUT: outEnv },
     stdio: 'ignore',
@@ -245,9 +245,11 @@ function normalizeGraphPaths(repoRoot, partOut, dir) {
 // 각 dir은 parts/ 아래 graphify state를 유지해 incremental rebuild가 graphify가
 // 쓴 id를 본다; scope graph.json은 우리가 만든 파생 artifact.
 function defaultExecGraphify(repoRoot, graph) {
+  // 루프마다 재해석하지 않음 — config/venv/PATH 판정을 한 번만 하고 part·merge에 공유.
+  const { bin } = resolveGraphifyBin({ repoRoot });
   const parts = graph.dirs.map((dir) => {
     const partOut = partOutDir(graph.outDir, dir);
-    runGraphifyUpdate(repoRoot, dir, partOut);
+    runGraphifyUpdate(repoRoot, dir, partOut, { bin });
     return normalizeGraphPaths(repoRoot, partOut, dir);
   });
   const target = path.join(repoRoot, graph.outDir, 'graph.json');
@@ -256,7 +258,7 @@ function defaultExecGraphify(repoRoot, graph) {
     fs.copyFileSync(path.join(repoRoot, parts[0]), target);
     return;
   }
-  execFileSync('graphify', ['merge-graphs', ...parts, '--out', `${graph.outDir}/graph.json`], {
+  execFileSync(bin, ['merge-graphs', ...parts, '--out', `${graph.outDir}/graph.json`], {
     cwd: repoRoot,
     stdio: 'ignore',
   });
@@ -323,7 +325,7 @@ function graphSyncWarnings(decision) {
     );
   }
   if (decision.action === 'skip-no-graphify') {
-    // opt-in(enabled)인데 CLI가 없을 때만 — default-disabled는 조용히 유지.
+    // enabled인데 CLI가 없을 때만 경고 — disabled면 이 action에 오지 않는다.
     lines.push(
       'Bouncer: graphify.enabled is true but graphify is not on PATH — path suggestions '
       + 'will fall back to manual affected_paths. '

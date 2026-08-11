@@ -9,6 +9,7 @@ const { runVerification } = require('./verification');
 const { seedWorktree } = require('./seed-worktree');
 const { nowIsoKst } = require('./time');
 const { syncSessionGraphs } = require('./session-graph');
+const { resolveGraphifyBin } = require('./graphify');
 const {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints,
   resolvePointerTask, presentCurrent,
@@ -216,6 +217,19 @@ function cmdGraphSync(rest, io) {
   return result.failed.length === 0 ? 0 : 1;
 }
 
+function cmdGraphifyBin(rest, io) {
+  const f = parseFlags(rest);
+  const repoRoot = f.repo || process.cwd();
+  const { bin } = resolveGraphifyBin({ repoRoot });
+  if (!bin) {
+    // stdout은 pipe-clean 유지 — 실패 사유는 stderr만.
+    io.err('graphify-bin: graphify executable not found (config.bin, venv, or PATH)\n');
+    return 1;
+  }
+  io.out(`${bin}\n`);
+  return 0;
+}
+
 function cmdMigrate(rest, io) {
   const [kind, ...flagArgs] = rest;
   if (kind !== 'ids' && kind !== 'task-layout') {
@@ -349,6 +363,8 @@ const USAGE = `usage: bouncer <command> [options]
              Move the plan context documents into a freshly created worktree.
   init       Bootstrap .bouncer/ for this project. Never overwrites.
   graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
+  graphify-bin
+             Print the resolved graphify executable path (one line).
   current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>]]
              [--clear]
              Show the active blueprint pointer, or set / clear it.
@@ -387,6 +403,8 @@ function runCli(argv, io) {
       return cmdInit(rest, sink);
     case 'graph-sync':
       return cmdGraphSync(rest, sink);
+    case 'graphify-bin':
+      return cmdGraphifyBin(rest, sink);
     case 'current':
       return cmdCurrent(rest, sink);
     case 'migrate':

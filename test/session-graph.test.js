@@ -50,10 +50,10 @@ test('real bootstrap creates only safe project-local state', () => {
     deps: { hasGraphify: () => false },
   });
   assert.strictEqual(result.bootstrap, 'created');
-  assert.strictEqual(result.action, 'skip-graph-disabled');
+  assert.strictEqual(result.action, 'skip-no-graphify');
   assert.deepStrictEqual(
     JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8')).graphify,
-    { enabled: false },
+    { enabled: true },
   );
   assert.ok(fs.existsSync(path.join(repo, '.bouncer/config.json')));
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/current')));
@@ -379,13 +379,16 @@ test('runGraphifyUpdate uses part outDir as cwd and absolute scan path', () => {
   const outDir = partOutDir(DEFAULT_SOURCE_OUT, 'src');
   const partAbs = path.join(repo, outDir);
   const calls = [];
+  // 해석된 절대 경로를 주입 — session-graph는 리터럴 'graphify'를 실행 대상으로 쓰지 않는다.
+  const resolvedBin = path.join(repo, '.bouncer/.venv/bin/graphify');
   runGraphifyUpdate(repo, 'src', outDir, {
+    bin: resolvedBin,
     exec: (cmd, args, opts) => {
       calls.push({ cmd, args, opts });
     },
   });
   assert.strictEqual(calls.length, 1);
-  assert.strictEqual(calls[0].cmd, 'graphify');
+  assert.strictEqual(calls[0].cmd, resolvedBin);
   assert.deepStrictEqual(calls[0].args, ['update', path.join(repo, 'src')]);
   assert.strictEqual(calls[0].opts.cwd, partAbs);
   assert.ok(path.isAbsolute(calls[0].args[1]));
@@ -393,6 +396,19 @@ test('runGraphifyUpdate uses part outDir as cwd and absolute scan path', () => {
   // Absolute GRAPHIFY_OUT derived from the cwd-relative contract (usually ".")
   // so graphify does not join "." onto the absolute scan target.
   assert.strictEqual(calls[0].opts.env.GRAPHIFY_OUT, partAbs);
+});
+
+test('runGraphifyUpdate exec first argument is the resolved bin path', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-resolved-bin-'));
+  fs.mkdirSync(path.join(repo, 'src'));
+  const outDir = partOutDir(DEFAULT_SOURCE_OUT, 'src');
+  const resolvedBin = '/opt/custom/graphify';
+  let seen = null;
+  runGraphifyUpdate(repo, 'src', outDir, {
+    bin: resolvedBin,
+    exec: (cmd) => { seen = cmd; },
+  });
+  assert.strictEqual(seen, resolvedBin);
 });
 
 test('SessionStart reports partial state on stderr and exits zero', () => {

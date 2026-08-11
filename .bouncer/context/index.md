@@ -28,3 +28,4 @@ okf_version: '0.1'
 * [023 worktree-layout](epics/023-worktree-layout/index.md) - Epic 023
 * [024 lightweight-cycle](epics/024-lightweight-cycle/index.md) - Epic 024
 * [024 light-path](epics/024-light-path/index.md) - Epic 024
+* [025 graphify-bootstrap](epics/025-graphify-bootstrap/index.md) - Epic 025

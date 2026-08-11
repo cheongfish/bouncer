@@ -44,7 +44,7 @@ test('init writes the exact config.json shape', () => {
   assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')), {
     source_dirs: [],
     context_dirs: ['.bouncer/context'],
-    graphify: { enabled: false },
+    graphify: { enabled: true },
     verify: 'npm test',
     base_branch: 'develop',
     pr: { draft: true, base: 'develop', labels: ['bouncer'] },
