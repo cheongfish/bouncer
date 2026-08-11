@@ -61,20 +61,20 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
   fs.mkdirSync(path.join(repo, bp, 'tasks/001'), { recursive: true });
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
 
-  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), `---\ntitle: d\n---\n## Decisions\n\nd1\n`);
-  fs.writeFileSync(path.join(repo, `${epic}/index.md`), `## Success criteria\n\nok\n`);
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '---\ntitle: d\n---\n## Decisions\n\nd1\n');
+  fs.writeFileSync(path.join(repo, `${epic}/index.md`), '## Success criteria\n\nok\n');
   fs.writeFileSync(
     path.join(repo, `${bp}/explain.md`),
-    `## Background\n\nb\n\n## Intuition\n\ni\n\n## Code\n\nc\n`,
+    '## Background\n\nb\n\n## Intuition\n\ni\n\n## Code\n\nc\n',
   );
-  fs.writeFileSync(path.join(repo, `${bp}/index.md`), `## Intent\n\nnope\n`);
-  fs.writeFileSync(path.join(repo, `${bp}/tasks/001/tasks.md`), `## Checklist\n\n- [ ] x\n`);
+  fs.writeFileSync(path.join(repo, `${bp}/index.md`), '## Intent\n\nnope\n');
+  fs.writeFileSync(path.join(repo, `${bp}/tasks/001/tasks.md`), '## Checklist\n\n- [ ] x\n');
 
   // 026-x 와 026.x 는 비알파벳을 `-` 로 접으면 같은 슬러그가 된다.
   fs.mkdirSync(path.join(repo, '.bouncer/context/epics/026.x'), { recursive: true });
   fs.writeFileSync(
     path.join(repo, '.bouncer/context/epics/026.x/index.md'),
-    `## Success criteria\n\ncollide\n`,
+    '## Success criteria\n\ncollide\n',
   );
 
   const first = buildContextDigest({
