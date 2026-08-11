@@ -14,7 +14,7 @@ bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 | **commit** | G15 explain 본문 5섹션 작성 · 포인터 task의 `bouncer.comprehension` 엔트리 존재 · 그 엔트리 `diff_sha`가 `range_from..HEAD`(`.bouncer/context/` 제외)와 일치 (G9는 결번; project `.bouncer/Distill.md`는 skill + `makeAllowed`, 본문 게이트 아님) |
 | **finalize** | G16 모든 task `verified` · explain `published` · 본문 5섹션 · `comprehension` 배열에 task마다 엔트리 하나 (G15는 commit 게이트 전용) |
 
-`S`로 시작하는 코드(S0–S17)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
+`S`로 시작하는 코드(S0–S18)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
 S12는 `tasks.bouncer.verify`가 있을 때 셸 체이닝·리다이렉션·`cd` 접두 같은 비단일
 실행 형식을 거절합니다. S13은 `.bouncer/context/epics/` 디렉터리와 번들 루트
 `index.md`의 OKF §6 에픽 목록이 어긋나면 실패합니다(`bouncer scaffold epic`이
@@ -24,7 +24,8 @@ task 문서 레이아웃은 `tasks/<NNN>/{tasks,verification,review}.md` 하나�
 S15는 blueprint 루트에 남은 `tasks.md`·`tasks-<NNN>.md`를 거절합니다
 (`bouncer migrate task-layout`으로 옮기세요). S16은 세 자리 숫자가 아닌 `tasks/`
 하위 디렉터리를, S17은 묶음에서 세 문서 중 빠진 것을 거절합니다. S14는 구·신
-레이아웃 혼재를 막던 코드였고 하드컷과 함께 결번이 됐습니다.
+레이아웃 혼재를 막던 코드였고 하드컷과 함께 결번이 됐습니다. S18은 `imported`
+status인 blueprint를 게이트 대상에서 빼는 코드입니다.
 
 섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가
 G10에 걸리는 것은 의도된 동작입니다.

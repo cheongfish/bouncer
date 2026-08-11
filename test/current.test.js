@@ -192,6 +192,18 @@ test('listReadyBlueprints excludes a closed blueprint (finalize --yes lock)', ()
   assert.deepStrictEqual(list, []);
 });
 
+test('listReadyBlueprints excludes an imported blueprint', () => {
+  // imported도 approved가 아니므로 별도 분기 없이 빠져야 한다.
+  // current.ts에 status 분기를 넣지 않는 계약의 회귀 고정.
+  const repo = tmpRepo();
+  writeBp(repo, {
+    epicSlug: '001-a', bpSlug: '001-imported', epicId: '001', bpId: '001',
+    bpStatus: 'imported', tasksStatus: 'ready',
+  });
+  const list = listReadyBlueprints({ repoRoot: repo });
+  assert.deepStrictEqual(list, []);
+});
+
 test('listReadyBlueprints sorts across epics and skips broken docs', () => {
   const repo = tmpRepo();
   const later = writeBp(repo, {
