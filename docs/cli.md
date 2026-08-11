@@ -17,6 +17,7 @@
 | `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>]] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); 포인터 파일은 path 문자열만 저장. 없으면 `ready` 후보 |
 | `bouncer migrate ids [--dry-run]` | 구형 `EPIC-`/`BP-` context 디렉터리를 숫자 id로 이관(계획 또는 적용) |
 | `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
+| `bouncer import [--source merges\|commits] [--since <ref>] [--limit <n>] [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]` | git 히스토리를 `imported` epic/blueprint 문서로 전사. 기본은 dry-run(계획 JSON만 출력). `--yes --message`일 때만 파일을 쓰고 커밋 하나로 남김 |
 
 모든 명령이 `--repo <dir>`로 다른 저장소를 대상으로 실행할 수 있습니다.
 종료 코드는 도움말 0, 게이트 실패 1, 사용법 오류 2입니다.

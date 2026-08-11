@@ -4,7 +4,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { planImport } = require('../scripts/lib/import-history');
+const { execFileSync: realExec } = require('node:child_process');
+const { planImport, applyImport } = require('../scripts/lib/import-history');
+const { readDoc } = require('../scripts/lib/frontmatter');
+const { validateBlueprint } = require('../scripts/lib/validate');
+const { runCli } = require('../scripts/lib/cli');
 
 const US = '\x1f';
 const LOG_FORMAT = '%H%x1f%s%x1f%aI%x1f%an';
@@ -408,4 +412,260 @@ test('planImport passes since..HEAD range to git log', () => {
   assert.ok(seen.includes('v1.0.0..HEAD'));
   assert.ok(seen.includes('--reverse'));
   assert.ok(seen.some((x) => x === `--format=${LOG_FORMAT}`));
+});
+
+function twoEntryPlan(repo, {
+  epicId = '200',
+  epicName = 'imported-history',
+  refusals = [],
+  ok = true,
+  error,
+  entries,
+} = {}) {
+  const epicDir = `.bouncer/context/epics/${epicId}-${epicName}`;
+  const defaultEntries = [
+    {
+      sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      subject: 'first change',
+      date: '2026-01-01T00:00:00+09:00',
+      author: 'Dev A',
+      files: ['a.ts'],
+      blueprintId: '001',
+      slug: 'first-change',
+      blueprintDir: '001-first-change',
+    },
+    {
+      sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      subject: 'second change',
+      date: '2026-02-01T00:00:00+09:00',
+      author: 'Dev B',
+      files: ['b.ts', 'c.ts'],
+      blueprintId: '002',
+      slug: 'second-change',
+      blueprintDir: '002-second-change',
+    },
+  ];
+  return {
+    ok,
+    source: 'commits',
+    fellBack: true,
+    epicId,
+    epicName,
+    epicDir,
+    total: (entries || defaultEntries).length,
+    limit: 200,
+    entries: entries !== undefined ? entries : defaultEntries,
+    refusals,
+    ...(error ? { error } : {}),
+  };
+}
+
+/** apply 단계용: add/commit 만 허용하고 argv 형태를 고정한다. */
+function makeApplyExec({ onCall } = {}) {
+  const staged = [];
+  const commits = [];
+  const execFileSync = (cmd, args) => {
+    assert.strictEqual(cmd, 'git');
+    const a = args.map(String);
+    if (typeof onCall === 'function') onCall(a);
+    if (a[0] === 'add') {
+      assert.strictEqual(a[1], '--');
+      staged.push(...a.slice(2));
+      return '';
+    }
+    if (a[0] === 'commit') {
+      assert.strictEqual(a[1], '-m');
+      assert.strictEqual(a.length, 3);
+      commits.push(a[2]);
+      return '';
+    }
+    throw new Error(`unexpected git args: ${a.join(' ')}`);
+  };
+  return { execFileSync, staged, commits };
+}
+
+test('applyImport writes epic, two blueprints, index line, and commits', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+  const plan = twoEntryPlan(repo);
+  const { execFileSync, staged, commits } = makeApplyExec();
+  const deps = { execFileSync };
+
+  const r = applyImport({ repoRoot: repo, plan, message: 'chore: import', deps });
+  assert.strictEqual(r.ok, true);
+  assert.ok(r.created.includes('.bouncer/context/index.md'));
+  assert.strictEqual(r.created.filter((p) => /blueprints\/\d{3}-.*\/index\.md$/.test(p)).length, 2);
+  assert.strictEqual(r.committed, true);
+
+  assert.strictEqual(r.created[0], `${plan.epicDir}/index.md`);
+  const epic = readDoc(path.join(repo, r.created[0]));
+  assert.strictEqual(epic.data.bouncer.status, 'imported');
+  assert.ok(!epic.body.includes('## Success criteria'));
+  assert.ok(epic.body.includes('## Intent'));
+  assert.ok(epic.body.includes('## Blueprints'));
+
+  for (const entry of plan.entries) {
+    const bpRel = `${plan.epicDir}/blueprints/${entry.blueprintDir}`;
+    const bpAbs = path.join(repo, bpRel);
+    assert.ok(fs.existsSync(path.join(bpAbs, 'index.md')));
+    assert.ok(!fs.existsSync(path.join(bpAbs, 'tasks')));
+    assert.ok(!fs.existsSync(path.join(bpAbs, 'verification.md')));
+    assert.ok(!fs.existsSync(path.join(bpAbs, 'review.md')));
+    assert.ok(!fs.existsSync(path.join(bpAbs, 'explain.md')));
+    const bp = readDoc(path.join(bpAbs, 'index.md'));
+    assert.strictEqual(bp.data.bouncer.status, 'imported');
+    assert.ok(bp.body.includes('## Source'));
+    assert.ok(bp.body.includes(entry.sha));
+    assert.ok(bp.body.includes(entry.date));
+    assert.ok(bp.body.includes(entry.author));
+    assert.ok(bp.body.includes('## Message'));
+    assert.ok(bp.body.includes(entry.subject));
+    assert.ok(bp.body.includes('## Changes'));
+  }
+
+  assert.deepStrictEqual(commits, ['chore: import']);
+  assert.ok(staged.includes(`${plan.epicDir}/index.md`));
+  assert.ok(staged.includes('.bouncer/context/index.md'));
+  assert.ok(!staged.includes('-A'));
+
+  const v = validateBlueprint({
+    repoRoot: repo,
+    blueprintDir: `${plan.epicDir}/blueprints/${plan.entries[0].blueprintDir}`,
+    gate: 'plan',
+  });
+  assert.strictEqual(v.ok, false);
+  assert.deepStrictEqual(v.failures.map((f) => f.code), ['S18']);
+});
+
+test('applyImport refuses when plan has refusals or ok is false', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+
+  const refused = twoEntryPlan(repo, {
+    refusals: [{ code: 'IMPORT_WORKTREE_DIRTY', message: 'dirty' }],
+  });
+  const { execFileSync } = makeApplyExec();
+  const r1 = applyImport({
+    repoRoot: repo,
+    plan: refused,
+    message: 'chore: import',
+    deps: { execFileSync },
+  });
+  assert.strictEqual(r1.ok, false);
+  assert.strictEqual(r1.committed, false);
+  assert.ok(!fs.existsSync(path.join(repo, refused.epicDir)));
+
+  const bad = twoEntryPlan(repo, {
+    ok: false,
+    error: { code: 'IMPORT_LIMIT_EXCEEDED', message: 'too many' },
+    entries: [],
+  });
+  const r2 = applyImport({
+    repoRoot: repo,
+    plan: bad,
+    message: 'chore: import',
+    deps: { execFileSync },
+  });
+  assert.strictEqual(r2.ok, false);
+  assert.ok(!fs.existsSync(path.join(repo, bad.epicDir)));
+});
+
+test('applyImport requires a non-blank message', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+  const plan = twoEntryPlan(repo);
+  const { execFileSync } = makeApplyExec();
+
+  for (const message of [undefined, '', '   ']) {
+    const r = applyImport({ repoRoot: repo, plan, message, deps: { execFileSync } });
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.error.code, 'IMPORT_MESSAGE_REQUIRED');
+    assert.ok(!fs.existsSync(path.join(repo, plan.epicDir)));
+  }
+});
+
+test('applyImport with empty entries is a no-op success', () => {
+  const repo = tmpRepo();
+  seedContextIndex(repo);
+  const plan = twoEntryPlan(repo, { entries: [] });
+  const { execFileSync, commits } = makeApplyExec();
+  const r = applyImport({
+    repoRoot: repo,
+    plan,
+    message: 'chore: import',
+    deps: { execFileSync },
+  });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.committed, false);
+  assert.deepStrictEqual(r.created, []);
+  assert.deepStrictEqual(commits, []);
+  assert.ok(!fs.existsSync(path.join(repo, plan.epicDir)));
+});
+
+function initGitRepo(repo) {
+  const run = (args) => realExec('git', args, { cwd: repo, encoding: 'utf8', stdio: 'pipe' });
+  run(['init', '-b', 'main']);
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  fs.writeFileSync(path.join(repo, 'README'), 'base\n');
+  // context index 를 첫 커밋에 넣어 apply 차단(IMPORT_WORKTREE_DIRTY)이
+  // --message 누락 검사보다 먼저 뜨지 않게 한다.
+  seedContextIndex(repo);
+  run(['add', 'README', '.bouncer/context/index.md']);
+  run(['commit', '-m', 'base']);
+  fs.writeFileSync(path.join(repo, 'a.txt'), 'a\n');
+  run(['add', 'a.txt']);
+  run(['commit', '-m', 'add a']);
+  fs.writeFileSync(path.join(repo, 'b.txt'), 'b\n');
+  run(['add', 'b.txt']);
+  run(['commit', '-m', 'add b']);
+}
+
+function captureCli(argv) {
+  const buf = { out: '', err: '' };
+  const code = runCli(argv, {
+    out: (s) => { buf.out += s; },
+    err: (s) => { buf.err += s; },
+  });
+  return { code, ...buf };
+}
+
+test('bouncer import dry-run exits 0; limit exceeded and --yes without message exit 2', () => {
+  const repo = tmpRepo();
+  initGitRepo(repo);
+
+  const dry = captureCli([
+    'import', '--repo', repo, '--source', 'commits', '--epic-id', '210',
+  ]);
+  assert.strictEqual(dry.code, 0, dry.err || dry.out);
+  const dryPlan = JSON.parse(dry.out);
+  assert.strictEqual(dryPlan.ok, true);
+  assert.ok(!fs.existsSync(path.join(repo, dryPlan.epicDir)));
+
+  const over = captureCli([
+    'import', '--repo', repo, '--source', 'commits', '--limit', '1', '--epic-id', '211',
+  ]);
+  assert.strictEqual(over.code, 2);
+  const overPlan = JSON.parse(over.out);
+  assert.strictEqual(overPlan.ok, false);
+  assert.strictEqual(overPlan.error.code, 'IMPORT_LIMIT_EXCEEDED');
+
+  const noMsg = captureCli([
+    'import', '--repo', repo, '--source', 'commits', '--epic-id', '212', '--yes',
+  ]);
+  assert.strictEqual(noMsg.code, 2);
+  const noMsgResult = JSON.parse(noMsg.out);
+  assert.strictEqual(noMsgResult.ok, false);
+  assert.strictEqual(noMsgResult.error.code, 'IMPORT_MESSAGE_REQUIRED');
+
+  // --message alone is still dry-run; message is ignored and nothing is written.
+  const msgOnly = captureCli([
+    'import', '--repo', repo, '--source', 'commits', '--epic-id', '213',
+    '--message', 'should-ignore',
+  ]);
+  assert.strictEqual(msgOnly.code, 0, msgOnly.err || msgOnly.out);
+  const msgOnlyPlan = JSON.parse(msgOnly.out);
+  assert.strictEqual(msgOnlyPlan.ok, true);
+  assert.ok(Array.isArray(msgOnlyPlan.entries));
+  assert.ok(!fs.existsSync(path.join(repo, msgOnlyPlan.epicDir)));
 });

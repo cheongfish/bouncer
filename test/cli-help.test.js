@@ -10,6 +10,7 @@ const SUBCOMMANDS = [
   'current',
   'migrate',
   'commit',
+  'import',
 ];
 
 function capture(argv) {

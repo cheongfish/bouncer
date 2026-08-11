@@ -4,9 +4,11 @@ const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const { CONTEXT_ROOT } = require('./layout');
 const { isNumericContextId } = require('./paths');
-const { listEpicDirNames } = require('./epic-index');
+const { listEpicDirNames, ensureEpicIndexEntry } = require('./epic-index');
 const { readRuntimeCurrent } = require('./runtime-state');
 const { isWorktreeDirty } = require('./migrate-ids');
+const { renderDoc } = require('./render');
+const { nowIsoKst } = require('./time');
 
 const DEFAULT_LIMIT = 200;
 const DEFAULT_EPIC_NAME = 'imported-history';
@@ -36,6 +38,13 @@ type ImportPlan = {
   limit: number;
   entries: ImportEntry[];
   refusals: ImportRefusal[];
+  error?: ImportError;
+};
+type ImportResult = {
+  ok: boolean;
+  created: string[];
+  committed: boolean;
+  message?: string;
   error?: ImportError;
 };
 type RawCommit = {
@@ -336,6 +345,178 @@ function planImport({
   };
 }
 
+function failResult(error: ImportError): ImportResult {
+  return { ok: false, created: [], committed: false, error };
+}
+
+/** 임포트 epic 본문. Success criteria 헤딩은 context digest 화이트리스트라 넣지 않는다. */
+function renderEpicBody(plan: ImportPlan): string {
+  const lines = [
+    `# ${plan.epicId} ${plan.epicName}`,
+    '',
+    '## Intent',
+    `- Imported from git ${plan.source}${plan.fellBack ? ' (fell back from merges)' : ''}.`,
+    `- ${plan.entries.length} blueprint(s) transcribed from history.`,
+    '',
+    '## Blueprints',
+  ];
+  for (const e of plan.entries) {
+    const title = e.subject || e.slug;
+    lines.push(`* [${e.blueprintId} ${e.slug}](blueprints/${e.blueprintDir}/index.md) - ${title}`);
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+function renderBlueprintBody(plan: ImportPlan, entry: ImportEntry): string {
+  const changeLines = entry.files.length
+    ? entry.files.map((f) => `- ${f}`)
+    : ['- (no files)'];
+  return [
+    `# ${entry.blueprintId} ${entry.slug}`,
+    '',
+    `Epic: [${plan.epicId}](../../index.md)`,
+    '',
+    '## Source',
+    `- sha: \`${entry.sha}\``,
+    `- date: ${entry.date}`,
+    `- author: ${entry.author}`,
+    '',
+    '## Message',
+    entry.subject || '(empty)',
+    '',
+    '## Changes',
+    ...changeLines,
+    '',
+  ].join('\n');
+}
+
+function writeImportDoc(repoRoot: string, rel: string, data: object, body: string): string {
+  const abs = path.join(repoRoot, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, renderDoc(data, body));
+  return rel;
+}
+
+/**
+ * 계획 → imported 문서 트리 → 단일 커밋.
+ * 차단 판정은 전부 첫 파일 쓰기 전 — 부분 생성은 S13으로 저장소 전체를 깨뜨린다.
+ */
+function applyImport({
+  repoRoot,
+  plan,
+  message,
+  deps,
+}: {
+  repoRoot: string;
+  plan: ImportPlan;
+  message?: string;
+  deps?: { execFileSync?: typeof realExecFileSync };
+}): ImportResult {
+  const d = deps || {};
+  const execFileSync = d.execFileSync || realExecFileSync;
+
+  if (!plan || plan.ok === false) {
+    return failResult(plan && plan.error
+      ? plan.error
+      : { code: 'IMPORT_PLAN_INVALID', message: 'import plan is not ok' });
+  }
+  if (Array.isArray(plan.refusals) && plan.refusals.length > 0) {
+    const first = plan.refusals[0];
+    return failResult({ code: first.code, message: first.message });
+  }
+
+  const trimmed = typeof message === 'string' ? message.trim() : '';
+  if (!trimmed) {
+    return failResult({
+      code: 'IMPORT_MESSAGE_REQUIRED',
+      message: 'commit message is required to apply import',
+    });
+  }
+
+  if (!Array.isArray(plan.entries) || plan.entries.length === 0) {
+    return { ok: true, created: [], committed: false };
+  }
+
+  const timestamp = nowIsoKst();
+  const epicRel = `${plan.epicDir}/index.md`;
+  const epicDescription = `Imported history (${plan.source})`;
+  const created: string[] = [];
+
+  // 렌더 → 쓰기 → 목록 등록 → 스테이징 → 커밋. 중간에 멈추면 안 되므로
+  // 거절은 위에서 전부 끝냈다.
+  created.push(writeImportDoc(
+    repoRoot,
+    epicRel,
+    {
+      type: 'bouncer.epic',
+      title: `${plan.epicId} ${plan.epicName}`,
+      description: epicDescription,
+      resource: epicRel,
+      tags: ['bouncer', 'epic'],
+      timestamp,
+      bouncer: {
+        id: plan.epicId,
+        epic_id: plan.epicId,
+        status: 'imported',
+      },
+    },
+    renderEpicBody(plan),
+  ));
+
+  for (const entry of plan.entries) {
+    const bpRel = `${plan.epicDir}/blueprints/${entry.blueprintDir}/index.md`;
+    created.push(writeImportDoc(
+      repoRoot,
+      bpRel,
+      {
+        type: 'bouncer.blueprint',
+        title: `${entry.blueprintId} ${entry.slug}`,
+        description: entry.subject || `Imported ${entry.sha.slice(0, 7)}`,
+        resource: bpRel,
+        tags: ['bouncer', 'blueprint'],
+        timestamp,
+        bouncer: {
+          id: entry.blueprintId,
+          epic_id: plan.epicId,
+          blueprint_id: entry.blueprintId,
+          status: 'imported',
+        },
+      },
+      renderBlueprintBody(plan, entry),
+    ));
+  }
+
+  const indexRel = ensureEpicIndexEntry({
+    repoRoot,
+    epicId: plan.epicId,
+    name: plan.epicName,
+    description: epicDescription,
+  });
+  if (indexRel) created.push(indexRel);
+
+  // 생성한 경로만 스테이징 — git add -A 는 쓰지 않는다.
+  execFileSync('git', ['add', '--', ...created], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  // 커밋 메시지는 --message 인자 그대로. .gitmessage/문서 필드에서 조립하지 않는다.
+  execFileSync('git', ['commit', '-m', message as string], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  return {
+    ok: true,
+    created,
+    committed: true,
+    message: message as string,
+  };
+}
+
 module.exports = {
   planImport,
+  applyImport,
 };

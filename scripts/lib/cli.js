@@ -14,6 +14,7 @@ const { resolveGraphifyBin } = require('./graphify');
 const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, resolvePointerTask, presentCurrent, } = require('./current');
 const { migrateIds } = require('./migrate-ids');
 const { migrateTaskLayout } = require('./migrate-task-layout');
+const { planImport, applyImport } = require('./import-history');
 const fs = require('node:fs');
 const path = require('node:path');
 // cmdCurrent --set이 base_branch를 읽을 때만 쓴다. 없거나 깨진 config는
@@ -340,6 +341,37 @@ function cmdCurrent(rest, io) {
     }
     return 0;
 }
+function cmdImport(rest, io) {
+    const f = parseFlags(rest);
+    const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
+    const yes = f.yes === true;
+    let limit;
+    if (typeof f.limit === 'string' && f.limit !== '') {
+        const n = Number(f.limit);
+        if (Number.isFinite(n))
+            limit = n;
+    }
+    const plan = planImport({
+        repoRoot,
+        source: typeof f.source === 'string' ? f.source : undefined,
+        since: typeof f.since === 'string' ? f.since : undefined,
+        limit,
+        epicId: typeof f['epic-id'] === 'string' ? f['epic-id'] : undefined,
+        epicName: typeof f['epic-name'] === 'string' ? f['epic-name'] : undefined,
+    });
+    // --yes 없으면 dry-run. --message 만 있어도 무시하고 계획만 낸다.
+    if (!yes) {
+        io.out(`${JSON.stringify(plan, null, 2)}\n`);
+        return plan.ok ? 0 : 2;
+    }
+    const result = applyImport({
+        repoRoot,
+        plan,
+        message: typeof f.message === 'string' ? f.message : undefined,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 2;
+}
 const USAGE = `usage: bouncer <command> [options]
 
   validate   --blueprint <dir> --gate <plan|execute|commit|finalize>
@@ -370,6 +402,9 @@ const USAGE = `usage: bouncer <command> [options]
              Plan or apply rename of legacy EPIC-/BP- context dirs to numeric ids.
              task-layout [--dry-run]
              Move legacy task files into tasks/<NNN>/ units.
+  import     [--source merges|commits] [--since <ref>] [--limit <n>]
+             [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]
+             Transcribe git history into imported epic/blueprint documents.
 
 Every command accepts --repo <dir> to run against another repository.
 `;
@@ -405,6 +440,8 @@ function runCli(argv, io) {
             return cmdCurrent(rest, sink);
         case 'migrate':
             return cmdMigrate(rest, sink);
+        case 'import':
+            return cmdImport(rest, sink);
         default:
             err(`unknown command: ${cmd}\n\n${USAGE}`);
             return 2;

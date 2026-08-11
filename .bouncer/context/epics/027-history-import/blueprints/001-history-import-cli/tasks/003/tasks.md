@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '027'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 문서 200건 생성은 되돌리기 어려워 차단 사유를 전부 쓰기 이전 단계에 모음
     - epic 디렉터리만 생기고 목록 등록이 빠지면 저장소 전체 validate가 S13으로 깨짐
