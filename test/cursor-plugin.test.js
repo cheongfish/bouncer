@@ -1,9 +1,9 @@
 // test/cursor-plugin.test.js
-// Bouncer ships from one repository as a Claude Code, Cursor, and Codex plugin.
-// The three manifests describe the same artifact, so a version or name that
-// drifts between them ships a plugin that claims to be something it is not.
-// Hook adapters wear different protocols but must reach the same verdict, so
-// the Cursor one is exercised against the shared guard.
+// Bouncer ships from one repository as a Claude Code, Cursor, Codex, and
+// Antigravity plugin. The four manifests describe the same artifact, so a
+// version or name that drifts between them ships a plugin that claims to be
+// something it is not. Hook adapters wear different protocols but must reach
+// the same verdict, so the Cursor one is exercised against the shared guard.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
@@ -19,13 +19,26 @@ const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8
 const BOUNCER_ROOT_LINE =
   'BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"';
 
-test('the three plugin manifests agree on name and version', () => {
+test('the four plugin manifests agree on name and version', () => {
   const claude = readJson('.claude-plugin/plugin.json');
   const cursor = readJson('.cursor-plugin/plugin.json');
   const codex = readJson('.codex-plugin/plugin.json');
-  for (const m of [claude, cursor, codex]) {
+  const antigravity = readJson('plugin.json');
+  for (const m of [claude, cursor, codex, antigravity]) {
     assert.strictEqual(m.name, 'bouncer');
     assert.strictEqual(m.version, claude.version);
+  }
+});
+
+// Antigravity discovers skills/ · agents/ · hooks/ by convention. Re-declaring
+// those path keys in the root plugin.json is how the host rejects the plugin.
+test('the Antigravity root plugin.json omits convention path keys', () => {
+  const antigravity = readJson('plugin.json');
+  for (const key of ['skills', 'agents', 'hooks', 'commands']) {
+    assert.ok(!(key in antigravity), `plugin.json must not re-declare ${key}`);
+  }
+  for (const dir of ['skills', 'agents', 'hooks']) {
+    assert.ok(fs.existsSync(path.join(root, dir)));
   }
 });
 

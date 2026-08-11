@@ -19,7 +19,7 @@ function readConfig(repoRoot) {
 /**
  * provider 해석 순서(먼저 맞는 것이 이김):
  *   1. 명시적 `provider` 인자(skill override)
- *   2. `config.subagents.provider`(프로젝트 pin — Cursor에 필수)
+ *   2. `config.subagents.provider`(프로젝트 pin — Cursor·Antigravity에 필수)
  *   3. CLAUDE_PLUGIN_ROOT → 'claude'
  *   4. PLUGIN_ROOT → 'codex'
  *   5. null
@@ -27,6 +27,9 @@ function readConfig(repoRoot) {
  * BOUNCER_HOME은 의도적으로 무시한다: 어떤 호스트에서도 설정 가능한
  * 수동 plugin-root override이므로 Cursor(또는 다른 provider)를 의미하지
  * 않는다. Cursor 사용자는 `subagents.provider: "cursor"`를 설정해야 한다.
+ *
+ * Antigravity도 plugin-root 환경 변수를 내보내지 않으므로 env 표에 분기를
+ * 추가하지 않는다 — `subagents.provider: "antigravity"` 명시 pin만 허용.
  */
 function resolveProvider(config, providerArg) {
   if (typeof providerArg === 'string' && providerArg.length > 0) {

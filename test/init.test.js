@@ -64,6 +64,11 @@ test('init writes the exact config.json shape', () => {
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
       },
+      antigravity: {
+        'bouncer-reviewer': 'inherit',
+        'bouncer-implementer': 'inherit',
+        'bouncer-debugger': 'inherit',
+      },
     },
   });
 });
