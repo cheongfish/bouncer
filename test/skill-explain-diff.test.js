@@ -52,3 +52,12 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   // 문항마다 ACQ를 돌리지 않고 한 번에 제시·한 번에 응답.
   assert.match(md, /all (questions? )?at once|한 번에 (제시|응답)/i);
 });
+
+test('explain-diff fixes the light path at one question', () => {
+  const md = fs.readFileSync(path.join(root, 'skills/explain-diff/SKILL.md'), 'utf8');
+  assert.match(md, /scale/);
+  assert.match(md, /light/);
+  assert.match(md, /1문항|질문 수(를)? 1/);
+  // 일반 경로의 1–10 판단은 유지된다.
+  assert.match(md, /1–10|1-10/);
+});

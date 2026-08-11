@@ -37,11 +37,11 @@ is missing, stop and tell the caller to scaffold first.
 
 3. **Quiz the user.** Adapt and run the quiz from the `range_from..HEAD` diff
    (agent judgment — no mechanical table):
-   1. Choose question count in **1–10** (minimum 1; never 0). On a
-      **lightweight cycle**
-      ([`docs/governance.md`](../../docs/governance.md) `## Lightweight cycle`),
-      choose **1**. Otherwise state the count and a one-line rationale (diff
-      scale) before asking.
+   1. Choose question count in **1–10** (minimum 1; never 0). State the
+      count and a one-line rationale (diff scale) before asking.
+      **경량 예외.** blueprint `index.md`의 `bouncer.scale`이 `light`면 질문 수를
+      1로 고정한다(1문항) — 1–10 판단을 건너뛴다. 이 경우 `quiz_score`는
+      `N/1`이 된다.
    2. Each question has **three answer options**. Vary the correct-answer
       position across questions — do not park every key on the same slot
       (한 위치에 몰지 않는다). No RNG required.
@@ -49,7 +49,8 @@ is missing, stop and tell the caller to scaffold first.
       responses at once** (한 번에 응답). Do not run ACQ per question.
    4. Score answers. `quiz_score` is `N/M` where **M is the number of
       questions actually asked** and unanswered items are excluded from the
-      denominator (e.g. asked 5, answered 4 with 3 correct → `3/4`).
+      denominator (e.g. asked 5, answered 4 with 3 correct → `3/4`; light path
+      → `N/1`).
    5. Write correct answers, responses, and right/wrong under
       `## 이해 상태` only — never into `## Quiz`.
    6. If the quiz was skipped, do not set `quiz_score` to `0/0`; put the

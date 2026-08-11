@@ -16,20 +16,27 @@ cleanup) after every task is committed.
 
 ## Lightweight cycle
 
-A **lightweight cycle** is in effect only when the user **declares** the
-current session is a narrow-scope change. There is no automatic sizing from
-diff size, path count, or file count — declaration only. Without a
-declaration, the default path applies.
+A **lightweight cycle** (ops Korean: `docs/workflow.md` `## 경량 경로`) is in
+effect only when the user **declares** a narrow-scope change at `/bouncer-plan`
+and the plan writes `bouncer.scale: light` on the blueprint `index.md`. There
+is no automatic sizing from diff size, path count, or file count. Without that
+declaration (key absent or not `light`), the default path applies. `scripts/`
+does not read `scale`.
 
 What shrinks (three things only):
 
 1. **Epic allocation** — do not open a new epic. Stack the blueprint under the
-   shared **maintenance epic**. If that epic is missing, create it once with
-   normal numbering, then keep stacking blueprints under it.
-2. **Agent round-trips** — run implementer and reviewer **inline** (same session)
-   instead of named-agent dispatch. See `/bouncer-execute`.
-3. **Quiz size** — `explain-diff` asks **one question** (still within the usual
-   1–10 range rules). See `skills/explain-diff/SKILL.md`.
+   shared **maintenance epic** (slug `maintenance`). If that epic is missing,
+   create it once with normal numbering, then keep stacking blueprints under it.
+   Never close that epic.
+2. **Agent round-trips** — when `bouncer.scale` is `light`, run implementer and
+   reviewer **inline** (same session) instead of named-agent dispatch. Keep the
+   host `named agents are unavailable` fallback wording as a separate sentence
+   — do not replace it with the light branch. `bouncer-debugger` stays named.
+   See `/bouncer-execute`.
+3. **Quiz size** — `explain-diff` asks **one question** when `scale: light`
+   (still within the usual 1–10 range rules otherwise). See
+   `skills/explain-diff/SKILL.md`.
 
 What stays the same:
 
@@ -39,4 +46,5 @@ What stays the same:
 - Distill promotion at `/bouncer-finalize` is unchanged.
 
 Limit of inline review: the same session judges **its own diff** (self-review).
-If that judgment is unclear, return to the named-agent path.
+If that judgment is unclear, drop the `scale` line and return to the
+named-agent path.

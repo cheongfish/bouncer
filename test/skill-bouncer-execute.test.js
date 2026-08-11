@@ -103,3 +103,13 @@ test('bouncer-execute hands off to /bouncer-commit and reuses an existing worktr
   assert.match(body, /\/bouncer-commit/);
   assert.match(body, /re-?use|이미 있으면|already exists|공유/i);
 });
+
+test('bouncer-execute inlines implementer and reviewer on the light path', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /bouncer\.scale|scale:\s*light/);
+  assert.match(body, /인라인/);
+  // fallback 문구는 남아야 한다 — 경량 분기가 그것을 대체하면 G8이 막힌다.
+  assert.match(body, /named agents are unavailable|미지원/i);
+  // debugger는 축소 대상이 아니다.
+  assert.match(body, /bouncer-debugger/);
+});

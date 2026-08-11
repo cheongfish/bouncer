@@ -182,9 +182,10 @@ append a change log.
   collision / dirty reject). SessionStart only warns (`exit 0`) and never
   auto-applies. Cursor has no SessionStart — users get the CLI/skill only.
 - `explain-diff` quiz count is agent judgment in **1–10** (minimum 1) from
-  `base..HEAD` scale — state a one-line rationale; no mechanical table. Each
-  item has three options; vary the correct-answer slot without RNG. Present
-  and collect all answers in one batch (no per-question ACQ).
+  `base..HEAD` scale — state a one-line rationale; no mechanical table. When
+  blueprint `bouncer.scale` is `light`, skip that judgment and fix the count
+  at **1**. Each item has three options; vary the correct-answer slot without
+  RNG. Present and collect all answers in one batch (no per-question ACQ).
 - Put correct answers / responses / right-wrong only under `## 이해 상태`,
   never into `## Quiz`. Unanswered items drop from the `N/M` denominator. On
   skip, do not set `quiz_score` to `0/0` — record the reason in `disposition`.
@@ -244,9 +245,8 @@ append a change log.
   not assemble the path themselves. The `.worktrees` root is still under the
   main worktree from `git-common-dir`, not under the host XDG state home.
 - Review Findings come from named agent `bouncer-reviewer` (or generic /
-  inline fallback when named agents are unavailable, or when the user
-  declared a lightweight cycle); only the controller sets
-  `review → accepted`. `bouncer-implementer` and `bouncer-debugger`
+  inline fallback when named agents are unavailable); only the controller
+  sets `review → accepted`. `bouncer-implementer` and `bouncer-debugger`
   must not commit or flip document status. Task commits belong to
   `/bouncer-commit` (`bouncer commit`); `/bouncer-execute` does not commit.
   `/bouncer-finalize` may commit Distill remainder only. `bouncer-debugger`
@@ -254,23 +254,16 @@ append a change log.
   applies the fix.
 - Named-agent dispatch is four steps: `resolveSubagentModel` → named call →
   slug reject retries with `inherit` (and notify the user) → named-agent
-  unsupported falls back to generic/inline. For implementer and reviewer,
-  the same inline path also applies when the user declared a lightweight
-  cycle — keep the `named agents are unavailable` wording and OR the
-  lightweight declaration onto it (do not replace). Debugger stays on the
-  unavailable/fallback path only. Keep the fallback wording or G8 blocks on
-  hosts without `agents/` (Codex). The four steps apply to
-  `bouncer-implementer`, `bouncer-reviewer`, and `bouncer-debugger`.
-- A **lightweight cycle** is in effect only on user declaration for the
-  current session — never from diff size, path count, or file count. It
-  shrinks three things only: stack blueprints under the shared
-  **maintenance epic** (create that epic once with normal numbering if
-  missing), run implementer/reviewer inline, and ask one explain-diff quiz
-  question. `tasks/<NNN>/{tasks,verification,review}.md`, `explain.md`, and
-  G1–G16 stay the same. Canonical prose is `docs/governance.md`
-  `## Lightweight cycle`; `/bouncer-plan`, `/bouncer-execute`, and
-  `explain-diff` reference that section. No `bouncer.lightweight` field,
-  config key, or CLI flag.
+  unsupported falls back to generic/inline. Keep the fallback wording or G8
+  blocks on hosts without `agents/` (Codex). The same four steps apply to
+  `bouncer-implementer`, `bouncer-reviewer`, and `bouncer-debugger` on the
+  normal path. Optional blueprint `bouncer.scale: light` (plan asks the user;
+  never auto from diff size; `scripts/` does not read it) skips those four
+  steps for implementer and reviewer only — run `implementation` / `review`
+  inline. Debugger stays named. Light inline and host fallback are separate
+  sentences; do not replace one with the other. Drop the `scale` line to leave
+  the light path. Light blueprints reuse a slug-`maintenance` epic (allocate
+  a free `\d{3}` once if missing; never close that epic).
 - On `/bouncer-execute` verify failure, dispatch `bouncer-debugger` (brief:
   `skills/debugging` — Root cause → Pattern → Hypothesis → Implementation;
   no fix proposals before root-cause). Redispatch the same failing verify at
@@ -348,6 +341,7 @@ append a change log.
   when they still contain legacy `BP-` tokens; leave them through finalize.
 - Adaptive quiz rules live in `skills/explain-diff` prose plus
   `test/skill-explain-diff.test.js` contract asserts — no quiz engine or CLI.
+  `bouncer.scale: light` forces count 1; otherwise agent judgment stays 1–10.
 - `/bouncer-finalize` step 4 keeps a single Draft PR ACQ. After accept, show
   the rendered title/body then push + `gh pr create --draft` with no second
   body-confirm. If push or `gh` fails, keep the local commit and report the

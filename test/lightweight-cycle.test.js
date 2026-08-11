@@ -14,6 +14,7 @@ test('governance defines Lightweight cycle contract', () => {
   const gov = read('docs/governance.md');
   assert.match(gov, /## Lightweight cycle/);
   assert.match(gov, /declare|declaration/i);
+  assert.match(gov, /bouncer\.scale:\s*light|scale:\s*light/);
   assert.match(gov, /maintenance epic/i);
   assert.match(gov, /inline/i);
   assert.match(gov, /one question|single question/i);
@@ -21,26 +22,34 @@ test('governance defines Lightweight cycle contract', () => {
   assert.match(gov, /Distill/);
   assert.match(gov, /\bG16\b/);
   assert.match(gov, /its own diff|self-review/i);
+  assert.match(gov, /named agents are unavailable/);
 });
 
-test('bouncer-plan routes lightweight work to maintenance epic', () => {
+test('bouncer-plan routes light-path work to maintenance epic', () => {
   const plan = read('skills/bouncer-plan/SKILL.md');
-  assert.match(plan, /maintenance epic/i);
-  assert.match(plan, /docs\/governance\.md/);
+  assert.match(plan, /maintenance/);
+  assert.match(plan, /bouncer\.scale/);
+  assert.match(plan, /light/);
+  assert.match(plan, /묻|물어|ask/i);
 });
 
-test('bouncer-execute widens inline fallback with lightweight declaration', () => {
+test('bouncer-execute inlines on scale light and keeps host fallback wording', () => {
   const exec = read('skills/bouncer-execute/SKILL.md');
+  assert.match(exec, /bouncer\.scale|scale:\s*light/);
+  assert.match(exec, /인라인|inline/i);
   assert.match(exec, /named agents are unavailable/);
-  assert.match(exec, /lightweight/i);
-  assert.match(exec, /docs\/governance\.md/);
   assert.match(exec, /\bG8\b/);
-  assert.match(exec, /\bG14\b/);
+  assert.match(exec, /bouncer-debugger/);
+  // light branch must not OR onto the host-fallback sentence
+  assert.doesNotMatch(
+    exec,
+    /named agents are unavailable[\s\S]{0,120}lightweight cycle/i,
+  );
 });
 
-test('explain-diff chooses one quiz question on lightweight cycle', () => {
+test('explain-diff fixes one quiz question on scale light', () => {
   const ed = read('skills/explain-diff/SKILL.md');
   assert.match(ed, /1[–~-]10/);
-  assert.match(ed, /lightweight/i);
-  assert.match(ed, /docs\/governance\.md/);
+  assert.match(ed, /scale/);
+  assert.match(ed, /light/);
 });
