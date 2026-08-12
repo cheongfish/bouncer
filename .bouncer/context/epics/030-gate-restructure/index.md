@@ -2,17 +2,17 @@
 type: bouncer.epic
 title: 이해 기록을 finalize로 옮기고 게이트를 재배치
 description: explain·퀴즈를 commit에서 finalize로 옮기고 commit 게이트를 스코프 검사로 재정의한다
-resource: .bouncer/context/epics/029-gate-restructure/index.md
+resource: .bouncer/context/epics/030-gate-restructure/index.md
 tags:
   - bouncer
   - epic
 timestamp: '2026-08-12T11:14:29.527+09:00'
 bouncer:
-  id: '029'
-  epic_id: '029'
+  id: '030'
+  epic_id: '030'
   status: approved
 ---
-# 029 gate-restructure
+# 030 gate-restructure
 
 ## Intent
 - 문제: 이해 기록(explain + 퀴즈)이 task 커밋마다 걸려 있다. 커밋 단위로 퀴즈를

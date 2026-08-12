@@ -1,21 +1,10 @@
 ---
 name: bouncer-finalize
-description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Promote Distill, author explain + quiz via explain-diff, validate, ACQ-confirm `finalize --yes` (recommended: remove worktree), then ACQ for draft PR and next-blueprint handoff (PR skipped gracefully with no remote)."
+description: "This skill should be used only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). It promotes Distill, authors explain + quiz via explain-diff, validates, ACQ-confirms `finalize --yes` (recommended: remove worktree), then ACQs for draft PR and next-blueprint handoff (PR skipped gracefully with no remote)."
 ---
 # /bouncer-finalize
 
-**Plugin root.** Every shell block below opens with
-
-```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-```
-
-because each block runs in a fresh shell — the assignment does not carry over,
-so it is repeated rather than exported once. Resolution order:
-`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
-compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
-a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
-contains `scripts/bouncer`.
+**Plugin root.** See `docs/install.md` 「플러그인 루트」.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
@@ -98,11 +87,13 @@ appears; do not reconstruct a root `context/` path.
    blueprint comprehension entry whose `diff_sha` matches `range_from..HEAD`).
    Fix and re-run until it passes.
 
-   Before dry-run, ensure the blueprint frontmatter has `bouncer.commit_intent`
-   as **exactly two** Korean `~함` / `~임` strings (배경·의도 for any Distill
-   remainder commit). Prefer values written at plan time; if missing or not
-   length 2, author them now from Goal & intent / explain (no Epic/Blueprint
-   ids, no file paths), then proceed. Dry-run:
+   Before dry-run, ensure at least one task document has `bouncer.commit_intent`
+   as **exactly two** Korean `~함` / `~임` strings when you want 배경·의도 on
+   any Distill remainder commit. Finalize scans every task in number order and
+   uses the highest-numbered valid intent (no blueprint `commit_intent`). Prefer
+   values written at plan time; if none are length 2, author them on the latest
+   task from Goal & intent / explain (no Epic/Blueprint ids, no file paths),
+   then proceed. Dry-run:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint>

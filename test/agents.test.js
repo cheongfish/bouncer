@@ -32,3 +32,13 @@ test('agents describe task bundle briefs and task-local evidence documents', () 
     assert.match(md, /task directory.*review\.md|review\.md.*task directory/i);
   }
 });
+
+test('bouncer-implementer points comment rule at hard rule 9 without restating it', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  assert.match(md, /Detailed comments/i);
+  assert.match(md, /[Hh]ard rule 9|하드룰 9/);
+  assert.match(md, /skills\/implementation\/SKILL\.md|CLAUDE\.md/);
+  // Rule body lives in master rules + implementation skill — no second copy.
+  assert.doesNotMatch(md, /known ceilings/);
+  assert.doesNotMatch(md, /Prefer thoroughness/);
+});

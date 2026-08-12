@@ -2,14 +2,14 @@
 type: bouncer.tasks
 title: explain·퀴즈 단계의 finalize 이관과 문서 갱신
 description: Tasks for 003
-resource: .bouncer/context/epics/029-gate-restructure/blueprints/001-comprehension-gate-move/tasks/003/tasks.md
+resource: .bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/003/tasks.md
 tags:
   - bouncer
   - tasks
 timestamp: '2026-08-12T11:14:29.559+09:00'
 bouncer:
   id: TASKS-003
-  epic_id: '029'
+  epic_id: '030'
   blueprint_id: '001'
   status: verified
   commit_intent:

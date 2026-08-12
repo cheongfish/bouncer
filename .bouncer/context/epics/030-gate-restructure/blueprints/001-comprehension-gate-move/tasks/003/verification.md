@@ -1,30 +1,30 @@
 ---
 type: bouncer.verification
-title: 002 verification
-description: Verification for 002
-resource: .bouncer/context/epics/029-gate-restructure/blueprints/001-comprehension-gate-move/tasks/002/verification.md
+title: 003 verification
+description: Verification for 003
+resource: .bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/003/verification.md
 tags:
   - bouncer
   - verification
-timestamp: '2026-08-12T11:14:29.589+09:00'
+timestamp: '2026-08-12T11:14:29.622+09:00'
 bouncer:
-  id: VERIFY-002
-  epic_id: '029'
+  id: VERIFY-003
+  epic_id: '030'
   blueprint_id: '001'
   status: passed
   verification:
     command: npm test
-    ran_at: '2026-08-12T13:32:11.308+09:00'
+    ran_at: '2026-08-12T13:47:51.064+09:00'
     exit_code: 0
     output_tail: |-
       ---
-        duration_ms: 9.381215
+        duration_ms: 7.65361
         type: 'test'
         ...
       # Subtest: runVerification rejects missing unit verification.md without creating it
       ok 548 - runVerification rejects missing unit verification.md without creating it
         ---
-        duration_ms: 7.220865
+        duration_ms: 8.278727
         type: 'test'
         ...
       1..548
@@ -35,7 +35,7 @@ bouncer:
       # cancelled 0
       # skipped 0
       # todo 0
-      # duration_ms 616.833842
+      # duration_ms 589.783703
 ---
 # Verification
 
@@ -43,5 +43,5 @@ bouncer:
 `npm test`
 
 ## Evidence
-Ran at: 2026-08-12T13:32:11.308+09:00
+Ran at: 2026-08-12T13:47:51.064+09:00
 Exit code: 0

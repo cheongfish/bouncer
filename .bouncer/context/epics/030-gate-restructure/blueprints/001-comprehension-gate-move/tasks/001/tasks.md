@@ -2,14 +2,14 @@
 type: bouncer.tasks
 title: comprehension 단일 엔트리 계약과 G16 해시 판정
 description: Tasks for 001
-resource: .bouncer/context/epics/029-gate-restructure/blueprints/001-comprehension-gate-move/tasks/001/tasks.md
+resource: .bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/001/tasks.md
 tags:
   - bouncer
   - tasks
 timestamp: '2026-08-12T11:14:29.559+09:00'
 bouncer:
   id: TASKS-001
-  epic_id: '029'
+  epic_id: '030'
   blueprint_id: '001'
   status: verified
   commit_intent:

@@ -46,21 +46,22 @@
 ```
 <type>: <tasks 문서의 title>
 
-- <task 또는 blueprint commit_intent[0]>   # 배경·의도
-- <task 또는 blueprint commit_intent[1]>   # 배경·의도
+- <task commit_intent[0]>   # 배경·의도
+- <task commit_intent[1]>   # 배경·의도
 - <verification 문서의 title>              # 수정 내용 (선택)
 ```
 
-`/bouncer-finalize` remainder(보통 Distill 승격)는 blueprint `title`과
-blueprint `commit_intent` 2줄만 씁니다.
+`/bouncer-finalize` remainder(보통 Distill 승격)는 blueprint `title`과,
+번호 순으로 스캔한 task `commit_intent` 중 **가장 큰 번호**의 유효한 2줄만
+씁니다. blueprint에는 `commit_intent`를 두지 않습니다.
 
-즉 **task `title`·`commit_intent`와 blueprint 필드를 커밋 제목·본문 줄로 쓸
-수 있게 적어야 합니다.** scaffold 기본값(`001 tasks` 같은)을 그대로 두면 아무
-정보 없는 커밋이 남습니다. 구조만 Bouncer가 정하고 문장은 전부 여러분이 쓴
-필드에서 오므로, 팀의 커밋 규약(언어, 어미, 금지 사항)은 필드를 어떻게
-쓰느냐로 지켜집니다. Epic/Blueprint/Distill 식별자는 커밋에 두지 않고 PR 본문과
-blueprint 문서에 남습니다. task `commit_intent`가 없으면 `/bouncer-commit` 스킬이
-커밋 전에 2줄을 채울 수 있습니다.
+즉 **task `title`·`commit_intent`와 blueprint `title`/`commit_type`을 커밋
+제목·본문 줄로 쓸 수 있게 적어야 합니다.** scaffold 기본값(`001 tasks` 같은)을
+그대로 두면 아무 정보 없는 커밋이 남습니다. 구조만 Bouncer가 정하고 문장은
+전부 여러분이 쓴 필드에서 오므로, 팀의 커밋 규약(언어, 어미, 금지 사항)은
+필드를 어떻게 쓰느냐로 지켜집니다. Epic/Blueprint/Distill 식별자는 커밋에
+두지 않고 PR 본문과 blueprint 문서에 남습니다. task `commit_intent`가 없으면
+`/bouncer-commit` 스킬이 커밋 전에 2줄을 채울 수 있습니다.
 
 ## 언제 Bouncer를 쓰나 (잠정: 파일럿이 답할 질문)
 

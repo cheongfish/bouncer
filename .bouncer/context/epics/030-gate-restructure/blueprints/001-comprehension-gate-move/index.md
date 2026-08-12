@@ -2,14 +2,14 @@
 type: bouncer.blueprint
 title: 이해 기록 finalize 이관과 commit 스코프 게이트
 description: comprehension을 BP 단일 엔트리로 축소하고 commit 게이트를 G17 스코프 검사로 재정의한다
-resource: .bouncer/context/epics/029-gate-restructure/blueprints/001-comprehension-gate-move/index.md
+resource: .bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/index.md
 tags:
   - bouncer
   - blueprint
 timestamp: '2026-08-12T11:14:29.559+09:00'
 bouncer:
   id: '001'
-  epic_id: '029'
+  epic_id: '030'
   blueprint_id: '001'
   status: closed
   commit_type: refactor
@@ -19,7 +19,7 @@ bouncer:
 ---
 # 001 comprehension-gate-move
 
-Epic: [029](../../index.md)
+Epic: [030](../../index.md)
 
 ## Intent
 - 문제: `explain.md` 이해 기록이 task 커밋마다 걸려 있고, commit 게이트(G15)는

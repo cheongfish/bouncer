@@ -2,14 +2,14 @@
 type: bouncer.explain
 title: 001 explain
 description: Explain for 001
-resource: .bouncer/context/epics/029-gate-restructure/blueprints/001-comprehension-gate-move/explain.md
+resource: .bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/explain.md
 tags:
   - bouncer
   - explain
 timestamp: '2026-08-12T13:20:37.604+09:00'
 bouncer:
   id: EXPLAIN-001
-  epic_id: '029'
+  epic_id: '030'
   blueprint_id: '001'
   status: published
   comprehension:

@@ -1,6 +1,6 @@
 ---
 name: implementation
-description: "Use when implementing from an approved tasks brief. Make focused changes inside allowed paths, climb the minimality ladder before writing code, document non-obvious intent with detailed Korean comments, keep tests green, and report any deviations from the plan. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "This skill should be used when implementing from an approved tasks brief. It makes focused changes inside allowed paths, climbs the minimality ladder before writing code, documents non-obvious intent with detailed Korean comments, keeps tests green, and reports any deviations from the plan. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Implementation
@@ -29,15 +29,67 @@ does.
    allowed to edit. Shortest working diff wins — but only in the right place.
    Bug fix = root cause: fix once where callers route through, not a symptom
    patch on the ticket path alone.
-4. **Detailed comments** — For every non-trivial change, write comments in
-   **Korean** that explain **why**, not a restatement of **what** the next
-   line already says. Prefer thoroughness over brevity: intent, invariants,
-   rejection paths, trade-offs, and known ceilings that a future reader
-   needs. Comment public contracts, tricky branches, workarounds, and
+4. **Detailed comments** — Hard rule 9. For every non-trivial change, write
+   comments in **Korean** that explain **why**, not a restatement of **what**
+   the next line already says. Prefer thoroughness over brevity: intent,
+   invariants, rejection paths, trade-offs, and known ceilings that a future
+   reader needs. Comment public contracts, tricky branches, workarounds, and
    deliberate simplifications. Do not leave unexplained magic values,
    silent skips, or “temporary” shortcuts without a comment naming the
    ceiling and upgrade path. Trivial one-liners that are self-evident need
    no comment.
+
+   Contra examples from this repository (`scripts/lib/validate.js`). Each
+   pair comments the same code — **Bad** restates what; **Good** records why.
+
+   **Bad** (restates the next line):
+
+   ```js
+   // blueprint 문서 존재 여부를 확인한다.
+   function blueprintDocsExist({ repoRoot, blueprintDir }) {
+   ```
+
+   **Good** (why — skip parse because execute rewrites verification next):
+
+   ```js
+   // 존재 여부만 확인: 가볍고 파싱하지 않아야 함. execute gate가 verification을
+   // 다시 실행(verification.md를 다시 씀)하기 전에 호출되기 때문.
+   function blueprintDocsExist({ repoRoot, blueprintDir }) {
+   ```
+
+   **Bad**:
+
+   ```js
+   // graph.basis가 유효한지 검사한다.
+   function isValidGraphBasis(basis) {
+   ```
+
+   **Good** (why — one helper so S9 and G4 cannot diverge):
+
+   ```js
+   // graph.basis는 레거시 문자열과 그래프별 엔트리 배열을 모두 받는다.
+   // S9(구조)와 G4(plan)가 같은 헬퍼를 써야 두 경로가 다른 답을 내지 않는다.
+   function isValidGraphBasis(basis) {
+   ```
+
+   **Bad**:
+
+   ```js
+   // closed이면 G2를 추가한다.
+   if (bpStatus === 'closed') {
+     add('G2', 'blueprint is closed (finalized) — open a new blueprint instead of resuming this one', 'blueprintIndex');
+   ```
+
+   **Good** (why — same G2 code as draft, but message must not imply re-approve):
+
+   ```js
+   // closed는 finalize --yes가 마감한 blueprint의 잠금 signal(hard rule/schema 참고).
+   // 미승인 draft와 같은 코드(G2)로 걸지만, 사용자가 "왜 막혔는지" draft와
+   // 헷갈리지 않도록 문구를 분기한다 — 재승인 경로가 없다는 점을 여기서 안내.
+   if (bpStatus === 'closed') {
+     add('G2', 'blueprint is closed (finalized) — open a new blueprint instead of resuming this one', 'blueprintIndex');
+   ```
+
 5. **Tests first** — For each behavior change, write the failing test, run it,
    and confirm it fails for the expected reason before writing the
    implementation. A test that passes before the change proves nothing, and

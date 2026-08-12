@@ -2,14 +2,14 @@
 type: bouncer.tasks
 title: commit 게이트 재정의와 G17 스코프 검사
 description: Tasks for 002
-resource: .bouncer/context/epics/029-gate-restructure/blueprints/001-comprehension-gate-move/tasks/002/tasks.md
+resource: .bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/002/tasks.md
 tags:
   - bouncer
   - tasks
 timestamp: '2026-08-12T11:14:29.559+09:00'
 bouncer:
   id: TASKS-002
-  epic_id: '029'
+  epic_id: '030'
   blueprint_id: '001'
   status: verified
   commit_intent:

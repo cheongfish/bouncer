@@ -67,7 +67,7 @@ test('bouncer-execute step 4 dispatches bouncer-debugger on verify failure', () 
 
 test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /reviewer-prompt\.md/);
+  assert.match(body, /skills\/review\/assets\/reviewer-prompt\.md/);
   assert.match(body, /bouncer-reviewer/);
   assert.match(body, /resolveSubagentModel/);
   assert.match(body, /inherit/);
