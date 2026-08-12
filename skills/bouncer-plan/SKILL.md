@@ -1,21 +1,10 @@
 ---
 name: bouncer-plan
-description: "Use only when the user explicitly asks to plan a Bouncer blueprint (for example /bouncer-plan). Author an epic/blueprint/tasks, scaffold the docs, inject graph suggestions, confirm affected_paths, approve, and pass the plan gate."
+description: "This skill should be used only when the user explicitly asks to plan a Bouncer blueprint (for example /bouncer-plan). It authors an epic/blueprint/tasks, scaffolds the docs, injects graph suggestions, confirms affected_paths, approves, and passes the plan gate."
 ---
 # /bouncer-plan
 
-**Plugin root.** Every shell block below opens with
-
-```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-```
-
-because each block runs in a fresh shell — the assignment does not carry over,
-so it is repeated rather than exported once. Resolution order:
-`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
-compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
-a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
-contains `scripts/bouncer`.
+**Plugin root.** See `docs/install.md` 「플러그인 루트」.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:

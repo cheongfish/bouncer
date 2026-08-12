@@ -1,21 +1,10 @@
 ---
 name: bouncer-commit
-description: "Use only when the user explicitly asks to commit the active Bouncer task (for example /bouncer-commit). Preflight the pointer, dry-run scope, record the task explain entry via explain-diff, pass the commit gate, ACQ-confirm `bouncer commit --yes`, then ACQ for the next task via `bouncer current --set`."
+description: "This skill should be used only when the user explicitly asks to commit the active Bouncer task (for example /bouncer-commit). It preflights the pointer, dry-runs scope, records the task explain entry via explain-diff, passes the commit gate, ACQ-confirms `bouncer commit --yes`, then ACQs for the next task via `bouncer current --set`."
 ---
 # /bouncer-commit
 
-**Plugin root.** Every shell block below opens with
-
-```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-```
-
-because each block runs in a fresh shell — the assignment does not carry over,
-so it is repeated rather than exported once. Resolution order:
-`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
-compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
-a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
-contains `scripts/bouncer`.
+**Plugin root.** See `docs/install.md` 「플러그인 루트」.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:

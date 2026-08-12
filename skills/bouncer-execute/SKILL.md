@@ -1,21 +1,10 @@
 ---
 name: bouncer-execute
-description: "Use only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). Implement from the pointer's task brief (current.task.path, or the resolver's first/single doc when task is null) in an isolated worktree, verify and review via standalone skills, and pass the execute gate."
+description: "This skill should be used only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). It implements from the pointer's task brief (current.task.path, or the resolver's first/single doc when task is null) in an isolated worktree, verifies and reviews via standalone skills, and passes the execute gate."
 ---
 # /bouncer-execute
 
-**Plugin root.** Every shell block below opens with
-
-```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-```
-
-because each block runs in a fresh shell — the assignment does not carry over,
-so it is repeated rather than exported once. Resolution order:
-`BOUNCER_HOME` (manual override) → `CLAUDE_PLUGIN_ROOT` (Claude Code, and Codex
-compatibility) → `PLUGIN_ROOT` (Codex native). If none are set, `node` fails on
-a path starting with `/scripts` — set `BOUNCER_HOME` to the directory that
-contains `scripts/bouncer`.
+**Plugin root.** See `docs/install.md` 「플러그인 루트」.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
