@@ -10,7 +10,7 @@ const {
 const {
   isValidVerifyCommand, runVerification, entriesForVerify,
 } = require('./verification');
-const { computeDiffSha, EXPLAIN_SECTION_DEFS, findComprehensionEntry } = require('./comprehension');
+const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension');
 const { checkEpicIndexConsistency } = require('./epic-index');
 const {
   listTasksDocs, expectedTasksId, expectedTaskDocIds, LEGACY_TASKS_BASENAME,
@@ -655,8 +655,9 @@ function checkGate(gate, docs, rels, failures, ctx) {
     }
     return;
   }
-  // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension 커버.
-  // G15(diff_sha) 번호를 재사용하지 않는다 — commit 게이트 전용으로 남긴다.
+  // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension(BP 단일
+  // 엔트리)의 diff_sha를 range_from..HEAD와 대조. G15 번호는 commit 게이트에 남겨
+  // 두고, finalize는 여기서 해시까지 판정한다(TASKS-002가 commit을 재정의).
   if (gate === 'finalize') {
     const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
       ? docs.tasksDocs
@@ -700,43 +701,41 @@ function checkGate(gate, docs, rels, failures, ctx) {
       ? docs.explain.data.bouncer
       : {};
     const comp = bouncer.comprehension;
-    // 배열이 아니면(구 단일 객체 포함) task별 조회가 성립하지 않는다.
-    if (!Array.isArray(comp)) {
-      add('G16', 'explain comprehension must be a list of task entries', 'explain');
+    // BP당 엔트리 하나(배열 마지막). task 번호 루프는 쓰지 않는다 —
+    // 0.7 다중 엔트리는 마지막만 보면 읽기 호환이 된다.
+    const found = resolveComprehensionEntry(comp);
+    if (!found.ok) {
+      add(
+        'G16',
+        found.reason === 'not-a-list'
+          ? 'explain comprehension must be a list of task entries'
+          : 'explain comprehension record missing',
+        'explain',
+      );
       return;
     }
 
-    // task 번호마다 엔트리 하나. findComprehensionEntry로 incomplete/duplicate도
-    // 기록 없음으로 묶어 commit G15와 같은 엔트리 계약을 재사용한다.
-    for (const tasksDoc of tasksList) {
-      const id = tasksDoc && tasksDoc.data && tasksDoc.data.bouncer
-        ? tasksDoc.data.bouncer.id
-        : undefined;
-      const label = typeof id === 'string' && id ? id : '(unknown)';
-      // TASKS-NNN → NNN. id가 깨져 있으면 rel 경로의 tasks/NNN을 본다.
-      let number = null;
-      if (typeof id === 'string') {
-        const m = /^TASKS-(\d{3})$/.exec(id);
-        if (m) number = m[1];
-      }
-      if (number == null && tasksDoc && tasksDoc.rel) {
-        const m = /\/tasks\/(\d{3})\//.exec(toPosix(tasksDoc.rel));
-        if (m) number = m[1];
-      }
-      const found = findComprehensionEntry(comp, number);
-      if (!found.ok) {
-        add(
-          'G16',
-          found.reason === 'not-a-list'
-            ? 'explain comprehension must be a list of task entries'
-            : `explain comprehension record missing for ${label}`,
-          'explain',
-        );
-      }
+    // 계산 실패와 해시 불일치는 서로 다른 문자열 — 원인 분류가 메시지에 드러나야 한다.
+    const shaFn = (deps && deps.computeDiffSha) || computeDiffSha;
+    const computed = shaFn({
+      repoRoot,
+      base: found.entry.range_from,
+      exec: deps && deps.exec,
+    });
+    if (!computed || computed.ok !== true) {
+      const reason = computed && computed.reason ? computed.reason : 'exec-failed';
+      add('G16', `explain diff_sha could not be computed (${reason})`, 'explain');
+      return;
+    }
+    if (computed.sha !== String(found.entry.diff_sha).trim()) {
+      // 메시지에 range_from을 쓰지 않는다 — 실패 사유는 불일치뿐; 범위는 엔트리에 있다.
+      add('G16', 'explain diff_sha does not match range_from..HEAD', 'explain');
     }
     return;
   }
   // commit 게이트가 G15 판정 권위. finalize는 위에서 G16으로 분리됐다.
+  // TASKS-002가 이 분기를 G17로 다시 쓴다 — 여기서는 조회 API만 새 계약
+  // (마지막 엔트리)으로 맞춰 구 task-번호 조회 심볼이 남지 않게 한다(별칭 금지).
   if (gate === 'commit') {
     // G9 (distill.status == published)는 폐기됨 — 번호만 비워 둠.
     // G15는 status token만이 아니라 diff에 대한 comprehension을 판단.
@@ -758,12 +757,10 @@ function checkGate(gate, docs, rels, failures, ctx) {
       ? docs.explain.data.bouncer
       : {};
     const comp = bouncer.comprehension;
-    // 대상 task는 execute와 같은 resolveTaskUnit(포인터 → 번호 순 첫 묶음).
-    // 두 번째 해석기를 두지 않는다. 단위 테스트는 ctx.taskUnit으로 번호를 주입.
-    const taskUnit = (ctx && ctx.taskUnit) || resolveTaskUnit(docs, { repoRoot, blueprintDir });
-    const found = findComprehensionEntry(comp, taskUnit && taskUnit.number);
+    // 대상은 BP 마지막 엔트리. task 번호 조회는 제거됐고, commit 재정의는 TASKS-002.
+    const found = resolveComprehensionEntry(comp);
     if (!found.ok) {
-      // 구 객체 형식만 새 사유. missing/incomplete/duplicate는 기록 없음으로 묶음 —
+      // 구 객체 형식만 새 사유. missing/incomplete는 기록 없음으로 묶음 —
       // 새 실패 메시지 문자열은 형식 거절 한 줄만 추가한다.
       if (found.reason === 'not-a-list') {
         add('G15', 'explain comprehension must be a list of task entries', 'explain');
@@ -773,8 +770,8 @@ function checkGate(gate, docs, rels, failures, ctx) {
       return;
     }
 
-    // quiz_score·range_to는 사람/이후 BP용 기록; G15는 해석하지 않음.
-    // 해시는 엔트리 range_from..HEAD — pointer base가 아니라 task 커밋 구간.
+    // quiz_score는 resolveComprehensionEntry 필수 필드(빈 값 → 기록 없음).
+    // G15는 점수 값을 해석하지 않고, 해시만 range_from..HEAD로 본다.
     // range_to는 쓰지 않는다: 기록 후 커밋이 더 쌓이면 어긋나야 한다.
     const shaFn = (deps && deps.computeDiffSha) || computeDiffSha;
     const computed = shaFn({

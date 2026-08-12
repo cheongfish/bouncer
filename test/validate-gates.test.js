@@ -483,6 +483,9 @@ function g16VerifiedTasks(ids = ['001']) {
 const G16_CTX = {
   repoRoot: '/tmp/unused',
   blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
+  deps: {
+    computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+  },
 };
 
 test('finalize gate G16 fails when explain sections are unwritten', () => {
@@ -566,14 +569,31 @@ test('finalize gate G16 rejects legacy object comprehension', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 does not emit G15 on hash mismatch fields', () => {
-  // G16은 diff_sha를 판정하지 않는다 — 잘못된 해시여도 엔트리만 있으면 통과.
+test('finalize gate G16 fails when diff_sha does not match range_from..HEAD', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
     explain: explainDoc([compEntry({ diff_sha: 'wrong' })]),
   }, rels, failures, G16_CTX);
-  assert.deepStrictEqual(failures, []);
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G16']);
+  assert.match(failures[0].message, /diff_sha does not match/);
+  assert.ok(!failures.some((f) => f.code === 'G15'));
+});
+
+test('finalize gate G16 fails when diff_sha cannot be computed (no-base)', () => {
+  const failures = [];
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()]),
+  }, rels, failures, {
+    ...G16_CTX,
+    deps: {
+      computeDiffSha: () => ({ ok: false, reason: 'no-base' }),
+    },
+  });
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G16']);
+  assert.match(failures[0].message, /diff_sha could not be computed \(no-base\)/);
+  assert.ok(!/does not match/.test(failures[0].message));
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
@@ -1002,25 +1022,31 @@ test('finalize G16 fails when an open task remains (TASKS-002 ready)', () => {
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 fails when comprehension covers only one of two tasks', () => {
+test('finalize G16 fails when comprehension entry is incomplete (empty quiz_score)', () => {
+  // BP 단일 엔트리 계약: task 번호 커버가 아니라 엔트리 완전성·해시가 판정 주체.
+  // 빈 quiz_score는 incomplete → 기록 없음.
   const repo = mkRepo();
   writeFinalizeG16Fixture(repo, {
     task2Status: 'verified',
-    entries: [compEntry({ task: '001', disposition: 'ok' })],
+    entries: [compEntry({ task: '001', disposition: 'ok', quiz_score: '' })],
   });
 
   const res = validateBlueprint({
     repoRoot: repo,
     blueprintDir: BP_REL,
     gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
   });
   assert.equal(res.ok, false);
   assert.ok(res.failures.some((f) => f.code === 'G16' && /comprehension/.test(f.message)));
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 passes when every task is verified and has a comprehension entry', () => {
+test('finalize G16 passes with a single complete entry when all tasks are verified', () => {
   const repo = mkRepo();
+  // 0.7 다중 엔트리도 마지막만 보면 통과 — 마이그레이션 없이 읽기 호환.
   writeFinalizeG16Fixture(repo, {
     task2Status: 'verified',
     entries: [
@@ -1033,6 +1059,9 @@ test('finalize G16 passes when every task is verified and has a comprehension en
     repoRoot: repo,
     blueprintDir: BP_REL,
     gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
   });
   assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
@@ -1082,12 +1111,8 @@ test('commit gate G15 passes when comprehension matches', () => {
 test('commit gate G15 fails when pointer task has no comprehension entry', () => {
   const repo = mkRepo();
   const { u2 } = writeTaskDirExecuteFixture(repo);
-  writeExplainWithEntries(repo, [compEntry({
-    task: '001',
-    range_from: 'sha-from-001',
-    diff_sha: 'abc123',
-    disposition: 'ok',
-  })]);
+  // 빈 배열 = 기록 없음. task 번호 매칭은 제거됐으므로 포인터만으로 부족을 재현한다.
+  writeExplainWithEntries(repo, []);
   setPointerTask(repo, `${u2}/tasks.md`);
 
   const res = validateBlueprint({

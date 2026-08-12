@@ -108,7 +108,7 @@ function fullBlueprint(repo, {
     },
   });
 
-  // G16은 task 엔트리 배열을 요구한다 — fixture도 같은 형식을 쓴다.
+  // G16은 BP 단일 엔트리(배열)를 요구한다 — fixture도 같은 형식을 쓴다.
   let comprehension = [];
   let body = EXPLAIN_BODY;
   if (comprehensionOk) {

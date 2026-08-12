@@ -1,5 +1,5 @@
 'use strict';
-// finalize comprehension gate(G15)용 diff fingerprint 및 explain 섹션 키.
+// finalize comprehension gate(G16)용 diff fingerprint 및 explain 섹션 키.
 // gate 판정은 validate.ts에 두고, 이 모듈은 base..HEAD의 비-governance 슬라이스를
 // 무엇을 측정하고 어떻게 해시할지만 정의한다.
 const { createHash } = require('node:crypto');
@@ -89,54 +89,36 @@ function computeDiffSha({ repoRoot, base, exec }) {
 }
 
 /**
- * resolveTaskUnit.number(숫자)와 entry.task('\d{3}')를 같은 키로 맞춘다.
- * 정규화 불가면 null — 호출측은 missing으로 본다.
- */
-function normalizeTaskKey(taskNumber) {
-  if (taskNumber == null || taskNumber === '') return null;
-  const digits = String(taskNumber).padStart(3, '0');
-  return /^\d{3}$/.test(digits) ? digits : null;
-}
-
-/**
- * explain.md `bouncer.comprehension`에서 대상 task 엔트리 하나.
- * 구 객체 형식은 자동 변환하지 않는다 — G15가 형식 거절로 막는다.
+ * explain.md `bouncer.comprehension`에서 BP 단일 엔트리(배열의 마지막).
+ * 0.7의 task별 다중 엔트리는 마이그레이션하지 않고 마지막만 본다 — 읽기 호환
+ * 규칙이 변환 함수를 대신한다. 구 단일 객체는 자동 변환하지 않는다.
  * 절대 throw하지 않는다.
  *
  * @returns {{ ok: true, entry: object }
- *   | { ok: false, reason: 'not-a-list' | 'missing' | 'duplicate' | 'incomplete' }}
+ *   | { ok: false, reason: 'not-a-list' | 'missing' | 'incomplete' }}
  */
-function findComprehensionEntry(comprehension, taskNumber) {
+function resolveComprehensionEntry(comprehension) {
   try {
     // 배열이 아니면(구 단일 객체 포함) 조회 자체가 성립하지 않는다.
     if (!Array.isArray(comprehension)) {
       return { ok: false, reason: 'not-a-list' };
     }
-    const want = normalizeTaskKey(taskNumber);
-    if (want == null) {
+    if (comprehension.length === 0) {
       return { ok: false, reason: 'missing' };
     }
 
-    const matches = [];
-    for (const entry of comprehension) {
-      if (entry == null || typeof entry !== 'object' || Array.isArray(entry)) continue;
-      const key = normalizeTaskKey(entry.task);
-      if (key === want) matches.push(entry);
-    }
-    if (matches.length === 0) {
-      return { ok: false, reason: 'missing' };
-    }
-    // 마지막을 고르면 덮어쓴 기록이 통과한다 — 중복은 거부.
-    if (matches.length > 1) {
-      return { ok: false, reason: 'duplicate' };
+    const entry = comprehension[comprehension.length - 1];
+    if (entry == null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return { ok: false, reason: 'incomplete' };
     }
 
-    const entry = matches[0];
     const rangeFrom = typeof entry.range_from === 'string' ? entry.range_from : '';
     const diffSha = typeof entry.diff_sha === 'string' ? entry.diff_sha : '';
     const disposition = typeof entry.disposition === 'string' ? entry.disposition : '';
-    // 빈 range_from·diff_sha·disposition은 scaffold 잔여와 같다 — hash mismatch가 아니라 기록 없음.
-    if (!rangeFrom.trim() || !diffSha.trim() || !disposition.trim()) {
+    const quizScore = typeof entry.quiz_score === 'string' ? entry.quiz_score : '';
+    // 빈 필수 필드는 scaffold 잔여·퀴즈 스킵과 같다 — hash mismatch가 아니라 기록 없음.
+    // quiz_score '0/0'은 값이 있으므로 통과; 막는 것은 빈 문자열뿐이다.
+    if (!rangeFrom.trim() || !diffSha.trim() || !disposition.trim() || !quizScore.trim()) {
       return { ok: false, reason: 'incomplete' };
     }
     return { ok: true, entry };
@@ -149,5 +131,5 @@ module.exports = {
   DIFF_EXCLUDED_PREFIXES,
   EXPLAIN_SECTION_DEFS,
   computeDiffSha,
-  findComprehensionEntry,
+  resolveComprehensionEntry,
 };
