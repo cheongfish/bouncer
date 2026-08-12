@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '032'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - task가 여럿인 blueprint를 닫는 동안 사람이 execute와 commit을 번갈아 부르며 진행만 밀고 있었음
     - execute→commit을 소진까지 반복하고 멈추는 자리를 본문에 못박은 커맨드를 둠
