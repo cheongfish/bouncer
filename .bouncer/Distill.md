@@ -277,11 +277,22 @@ append a change log.
 - Whether Antigravity substitutes `${CLAUDE_PLUGIN_ROOT}` in hooks is
   unverified — keep hooks as shipped; treat validate/hook behavior as a
   pre-release manual check, not a CI assert.
+- Prose or layout cutovers that claim repo-wide closure: run the Checklist
+  leftover search before locking Touch. Touch = hits minus Do not touch;
+  rewrite Goal to that set only (Goal ⊆ Touch). Commit scope matches
+  `affected_paths` — every path staged for `/bouncer-commit` must be listed,
+  or commit-safety blocks it. Graph `suggested_paths` are hints; when
+  `source_dirs` omit `skills/` / `docs/` / `agents/`, add those directories by
+  hand before confirm.
 
 ## Decisions
 
 - History import path is `planImport` → `applyImport` (single commit; message
   is the `--message` argv). Git runs only through `deps.execFileSync`.
+- Plan inventory for wording cutovers: search first, then Touch, then Goal.
+  Goal does not outrank Touch. The same closed set is the commit unit
+  (`affected_paths`); widening after execute is a plan gap, not an implementer
+  miss.
 - Project Distill SSOT is `.bouncer/Distill.md` (agent runtime under `.bouncer/`,
   not under `context/`). Master rules only name the path and the read
   obligation. Write Distill in English; epic/blueprint/tasks/explain stay

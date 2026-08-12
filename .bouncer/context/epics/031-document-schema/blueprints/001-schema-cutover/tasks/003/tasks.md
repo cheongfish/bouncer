@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '031'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 코드는 이미 거절하는 레이아웃을 문서와 스킬이 아직 선택지로 서술하고 있었음
     - 대표 task 경로 폴백이 남아 있어 없는 레거시 파일을 가리킬 수 있었음
@@ -23,11 +23,15 @@ bouncer:
     - docs/okf.md
     - docs/governance.md
     - docs/context-versioning.md
+    - docs/ARCHITECTURE.md
     - skills/review/SKILL.md
     - skills/review/assets/reviewer-prompt.md
     - skills/implementation/SKILL.md
     - skills/graphify-runner/SKILL.md
     - skills/bouncer-execute/SKILL.md
+    - skills/verification/SKILL.md
+    - skills/bouncer-commit/SKILL.md
+    - skills/bouncer-plan/SKILL.md
     - agents/bouncer-reviewer.md
     - agents/bouncer-implementer.md
     - agents/bouncer-debugger.md
@@ -92,11 +96,18 @@ Blueprint: [001](../../index.md)
   targets during the transition」 교체.
 - Modify `docs/governance.md` — 루트 문서 문장을 마이그레이션 입력으로 한정.
 - Modify `docs/context-versioning.md` — 37행 괄호 안 레거시 언급 제거.
+- Modify `docs/ARCHITECTURE.md` — 계획 행 괄호의 레거시 마이그레이션 대상
+  서술을 제거하거나 migrate-input으로 한정.
 - Modify `skills/review/SKILL.md` — 브리프 경로에서 레거시 대안 제거.
 - Modify `skills/review/assets/reviewer-prompt.md` — 같은 문구.
 - Modify `skills/implementation/SKILL.md` — 같은 문구.
 - Modify `skills/graphify-runner/SKILL.md` — YAML `description`과 본문 두 곳.
 - Modify `skills/bouncer-execute/SKILL.md` — 브리프 문서 지칭.
+- Modify `skills/verification/SKILL.md` — 「remain migration targets until
+  the layout cutover」 제거.
+- Modify `skills/bouncer-commit/SKILL.md` — next-task 경로의 레거시 대안 제거.
+- Modify `skills/bouncer-plan/SKILL.md` — scaffold 안내의 root-layout
+  migration-targets 문장 교체.
 - Modify `agents/bouncer-reviewer.md` — `description`과 브리프 섹션 안내.
 - Modify `agents/bouncer-implementer.md` — `description`.
 - Modify `agents/bouncer-debugger.md` — 브리프 섹션 안내 두 곳.

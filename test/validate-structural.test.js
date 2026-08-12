@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { validateBlueprint, checkStructural } = require('../scripts/lib/validate');
+const { validateBlueprint, checkStructural, loadBlueprintDocs } = require('../scripts/lib/validate');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -469,6 +469,19 @@ test('S15: legacy root task files are rejected', () => {
   writeBundleIndex(repo);
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.ok(res.failures.some((f) => f.code === 'S15'));
+});
+
+test('loadBlueprintDocs: empty tasks listing falls back to tasks/001 not legacy root', () => {
+  const repo = mkRepo();
+  // tasks/ 묶음이 없는 blueprint — 대표 경로가 레거시 루트 basename이면 안 된다.
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const { rels } = loadBlueprintDocs({ repoRoot: repo, blueprintDir: BP_REL });
+  const files = [rels.tasks];
+  // /\/tasks\.md$/ 단독은 정본 …/tasks/001/tasks.md에도 걸리므로 루트 basename만 거절한다.
+  assert.ok(!files.some((f) => /\/tasks\.md$/.test(f) && !/\/tasks\/\d{3}\/tasks\.md$/.test(f)));
+  assert.strictEqual(rels.tasks, `${BP_REL}/tasks/001/tasks.md`);
 });
 
 function writeImportedIndexes(repo) {

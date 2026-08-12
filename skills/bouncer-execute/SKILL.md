@@ -39,7 +39,7 @@ applies the fix.
    CLI `current.task` is `{ path, id }` when set (pointer file stores path only).
    **Task brief** = `current.task.path` (repo-relative) when `current.task` is
    non-null. When `task` is `null`, use the resolver's single or first task
-   task bundle document (`tasks/<NNN>/tasks.md`, or a legacy root task document)
+   task bundle document (`tasks/<NNN>/tasks.md`)
    as today. Later steps
    use that same brief path — do not re-pick a different task document mid-run.
 

@@ -10,7 +10,7 @@ const { parsePathIds, epicDirOf, toPosix, isNumericContextId, } = require('./pat
 const { isValidVerifyCommand, runVerification, entriesForVerify, } = require('./verification');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension');
 const { checkEpicIndexConsistency } = require('./epic-index');
-const { listTasksDocs, expectedTasksId, expectedTaskDocIds, LEGACY_TASKS_BASENAME, TASK_UNIT_BASENAMES, unitDocKind, } = require('./tasks-docs');
+const { listTasksDocs, expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = require('./tasks-docs');
 // finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
 const { makeAllowed, isRuntimeArtifact } = require('./scope');
 /**
@@ -51,10 +51,12 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     const rels = {
         epicIndex: `${epicDirOf(bp)}/index.md`,
         blueprintIndex: `${bp}/index.md`,
-        // finalize · execute G6 호환용 대표 경로(첫 task 문서). 없으면 레거시 이름.
+        // finalize · execute G6 호환용 대표 경로(첫 task 문서).
+        // 묶음이 없을 때도 정본 레이아웃을 가리킨다 — 레거시 루트 basename은
+        // migrate task-layout 입력이고, validate는 S15로 거절한다(보고 경로로 쓰지 않음).
         tasks: tasksListing.entries[0]
             ? tasksListing.entries[0].rel
-            : `${bp}/${LEGACY_TASKS_BASENAME}`,
+            : `${bp}/tasks/001/tasks.md`,
         verification: `${bp}/verification.md`,
         review: `${bp}/review.md`,
         explain: `${bp}/explain.md`,

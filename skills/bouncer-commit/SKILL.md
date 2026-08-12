@@ -110,8 +110,7 @@ or single task bundle (same rule as execute).
    `bouncer current --set …` only — never automatic.
 
    If `nextTask` is non-null, show the candidate task id and path
-   (`tasks/<NNN>/tasks.md` for a task bundle; legacy paths remain migration
-   targets).
+   (`tasks/<NNN>/tasks.md`).
 
    **AskUserQuestion — Next task**
    1. **Re-ground**: 같은 blueprint의 다음 열린 task로 포인터를 옮길지.

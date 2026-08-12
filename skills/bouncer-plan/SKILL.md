@@ -66,8 +66,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
    review `pending`. `scaffold blueprint` creates `tasks/001/{tasks,verification,review}.md`
    (ids `TASKS-001`, `VERIFY-001`, `REVIEW-001`). Add a later task with
-   `bouncer scaffold task --blueprint <dir> --id <NNN>`. Existing root-layout
-   documents remain migration targets.
+   `bouncer scaffold task --blueprint <dir> --id <NNN>`. Root `tasks.md` /
+   `tasks-<NNN>.md` are input only to `bouncer migrate task-layout`.
    Do **not** create BP `explain.md` here — `/bouncer-commit`
    scaffolds it with `bouncer scaffold explain`.
 
@@ -144,6 +144,15 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    exempt that file's tests if those tests embed the old contract — list the
    tests under Touch, or keep the contract change out of this task. Stale or
    empty graph results do not replace this search.
+   **Prose / inventory cutovers.** When Goal or Interface closes wording across
+   docs, skills, or agents (not only code callers), run the Checklist leftover
+   search *before* locking Touch and `affected_paths`. Draft Touch from that
+   hit list minus Do not touch; rewrite Goal so it does not claim files outside
+   the list (Goal ⊆ Touch). Commit scope is the same set: every path that must
+   be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
+   blocks it. When `config.source_dirs` omit `skills/` / `docs/` / `agents/`,
+   add those directories to `suggested_paths` by hand — graph hits alone do not
+   inventory prose.
 
 7. **Approval (explicit).** Ask the user to approve. On approval, transition
    `bouncer.status`: epic `draft → approved`, blueprint `draft → approved`, tasks
