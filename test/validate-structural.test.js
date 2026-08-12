@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { validateBlueprint } = require('../scripts/lib/validate');
+const { validateBlueprint, checkStructural, loadBlueprintDocs } = require('../scripts/lib/validate');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -471,6 +471,19 @@ test('S15: legacy root task files are rejected', () => {
   assert.ok(res.failures.some((f) => f.code === 'S15'));
 });
 
+test('loadBlueprintDocs: empty tasks listing falls back to tasks/001 not legacy root', () => {
+  const repo = mkRepo();
+  // tasks/ 묶음이 없는 blueprint — 대표 경로가 레거시 루트 basename이면 안 된다.
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const { rels } = loadBlueprintDocs({ repoRoot: repo, blueprintDir: BP_REL });
+  const files = [rels.tasks];
+  // /\/tasks\.md$/ 단독은 정본 …/tasks/001/tasks.md에도 걸리므로 루트 basename만 거절한다.
+  assert.ok(!files.some((f) => /\/tasks\.md$/.test(f) && !/\/tasks\/\d{3}\/tasks\.md$/.test(f)));
+  assert.strictEqual(rels.tasks, `${BP_REL}/tasks/001/tasks.md`);
+});
+
 function writeImportedIndexes(repo) {
   const epic = epicDoc();
   epic.bouncer.status = 'imported';
@@ -504,4 +517,78 @@ test('S18: imported blueprint rejected without gate too', () => {
   const codes = r.failures.map((f) => f.code);
   assert.deepStrictEqual(codes, ['S18']);
   assert.ok(!codes.some((c) => c.startsWith('G')));
+});
+
+test('S19: tasks.md with wrong type reports expected and actual', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.type = 'bouncer.review';
+  t.resource = `${BP_REL}/tasks/001/tasks.md`;
+  // review status enum에 맞춰 S6을 피하되, 경로 기대 type(tasks)과의 불일치는 남긴다.
+  t.bouncer = {
+    id: 'REVIEW-001',
+    epic_id: '001',
+    blueprint_id: '001',
+    status: 'pending',
+    review: { required: true },
+  };
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  const s19 = res.failures.filter((f) => f.code === 'S19');
+  const codes = res.failures.map((f) => f.code);
+  assert.ok(codes.includes('S19'));
+  assert.strictEqual(s19.length, 1);
+  const msg = s19[0].message;
+  assert.match(msg, /bouncer\.tasks/);
+  assert.match(msg, /bouncer\.review/);
+});
+
+test('S19: paths without a location rule do not emit S19', () => {
+  const outside = {
+    type: 'bouncer.tasks',
+    title: 't',
+    description: 'd',
+    resource: 'docs/notes.md',
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001',
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'ready',
+      affected_paths: ['src/'],
+    },
+  };
+  const unknownBase = {
+    ...outside,
+    resource: `${BP_REL}/notes.md`,
+  };
+  for (const [data, rel] of [[outside, 'docs/notes.md'], [unknownBase, `${BP_REL}/notes.md`]]) {
+    const failures = [];
+    checkStructural({ data, rel }, failures);
+    assert.ok(
+      !failures.some((f) => f.code === 'S19'),
+      `unexpected S19 on ${rel}: ${JSON.stringify(failures)}`,
+    );
+  }
+});
+
+function codesFor(scaleFields) {
+  const failures = [];
+  const data = {
+    ...blueprintDoc(),
+    bouncer: { ...blueprintDoc().bouncer, ...scaleFields },
+  };
+  checkStructural({ data, rel: `${BP_REL}/index.md` }, failures);
+  return failures.map((f) => f.code);
+}
+
+test('S20: scale missing or valid values pass; lite fails', () => {
+  assert.deepStrictEqual(codesFor({}), []);
+  assert.deepStrictEqual(codesFor({ scale: 'light' }), []);
+  assert.deepStrictEqual(codesFor({ scale: 'full' }), []);
+  assert.deepStrictEqual(codesFor({ scale: 'lite' }), ['S20']);
 });

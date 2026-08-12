@@ -69,7 +69,8 @@ CLI는 [cli.md](cli.md), 설정은 [configuration.md](configuration.md)를
 
 좁은 범위 작업은 새 모드가 아니라 운용 지침이다. `/bouncer-plan`이
 사용자에게 경량 여부를 묻고(자동 판정하지 않는다), 선언을 받으면
-blueprint `index.md`에 `bouncer.scale: light`를 쓴다.
+blueprint `index.md`의 `bouncer.scale`을 `light`로 바꾼다. scaffold가
+이미 `scale: full`을 쓰므로 키를 새로 넣는 것이 아니라 값을 바꾼다.
 
 줄이는 것:
 
@@ -83,5 +84,5 @@ blueprint `index.md`에 `bouncer.scale: light`를 쓴다.
 - 문서 수 — `tasks` / `verification` / `review` / `explain`은 그대로다
 - 게이트 — plan / execute / commit / finalize 게이트는 그대로다
 
-선언이 없으면 키를 쓰지 않으며 일반 경로다. 작업이 커지면 `scale` 줄을
-지워 일반 경로로 복귀한다.
+scaffold가 `full`을 쓰므로 경량이면 그 값을 `light`로 바꾸고, 되돌릴
+때는 `full`로 되돌린다. 부재·`full`은 일반 경로다.

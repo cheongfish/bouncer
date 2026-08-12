@@ -15,8 +15,7 @@ brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 
 1. **Load** — Read the existing `<pointer task directory>/review.md` (do not
    create a new file), the worktree diff basis (`git diff <base>...HEAD` plus
-   untracked), and the task brief (`tasks/<NNN>/tasks.md` or a legacy root task
-   document: Goal & intent, Interface, Touch,
+   untracked), and the task brief (`tasks/<NNN>/tasks.md`: Goal & intent, Interface, Touch,
    Do not touch, Constraints, Checklist).
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:

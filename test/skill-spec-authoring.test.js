@@ -1,8 +1,15 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const { readSkill } = require('./helpers/read-skill');
+
+const refsRoot = path.join(__dirname, '..', 'skills', 'spec-authoring', 'references');
+function refPath(name) {
+  return path.join(refsRoot, name);
+}
 
 test('spec-authoring has valid frontmatter identity', () => {
   const md = readSkill('spec-authoring');
@@ -54,4 +61,11 @@ test('spec-authoring requires Korean plan bodies, English Distill, and stop-slop
   assert.match(md, /\.bouncer\/Distill\.md/);
   assert.match(md, /stop-slop/);
   assert.match(md, /skills\/stop-slop\/SKILL\.md/);
+});
+
+test('spec-authoring ships completed reference examples and points SKILL.md at them', () => {
+  for (const k of ['epic', 'blueprint', 'tasks', 'review']) {
+    assert.ok(fs.existsSync(refPath(`${k}.md`)), k);
+  }
+  assert.match(readSkill('spec-authoring'), /references\//);
 });

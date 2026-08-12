@@ -83,6 +83,14 @@ test('scaffoldBlueprint writes four plan docs (no explain) with numeric child id
   assert.strictEqual(verify.bouncer.status, 'pending');
   const bp = readDoc(path.join(repo, `${base}/index.md`)).data;
   assert.strictEqual(bp.bouncer.id, '001');
+  // commit_type·scale은 blueprint 전용 — scaffold 기본값이며 task·epic 문서에는 없다.
+  assert.strictEqual(bp.bouncer.commit_type, 'feat');
+  assert.strictEqual(bp.bouncer.scale, 'full');
+  assert.strictEqual(tasks.bouncer.scale, undefined);
+  assert.strictEqual(tasks.bouncer.commit_type, undefined);
+  const epic = readDoc(path.join(repo, '.bouncer/context/epics/001-auth/index.md')).data;
+  assert.strictEqual(epic.bouncer.scale, undefined);
+  assert.strictEqual(epic.bouncer.commit_type, undefined);
 });
 
 test('scaffoldTask adds a numbered unit and refuses overwrite', () => {

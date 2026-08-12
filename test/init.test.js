@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../scripts/lib/init');
 const { TEMPLATES } = require('../scripts/lib/templates');
+const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-init-'));
@@ -172,7 +173,10 @@ test('init writes an OKF-shaped bundle root index', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const index = read(repo, '.bouncer/context/index.md');
-  assert.match(index, /^---\nokf_version: "0\.1"\n---\n/);
+  assert.match(index, /^---\nokf_version: "0\.1"\nbouncer_schema: "0\.1"\n---\n/);
+  const { data } = parseFrontmatter(index);
+  assert.strictEqual(data.okf_version, '0.1');
+  assert.strictEqual(data.bouncer_schema, '0.1');
   assert.match(index, /^# Epics$/m);
   assert.match(index, /\* \[00x 제목\]\(epics\/00x-slug\/index\.md\) - /);
 });

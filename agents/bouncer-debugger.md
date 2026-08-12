@@ -14,7 +14,7 @@ the implementer or controller owns edits.
 
 ## Authority
 
-Use only these task-brief sections (`tasks/<NNN>/tasks.md` or a legacy root task document) as the
+Use only these task-brief sections (`tasks/<NNN>/tasks.md`) as the
 brief: Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
 Treat the failing verify command output and related tests as evidence. Do not
 invent requirements outside the brief.
@@ -23,7 +23,7 @@ invent requirements outside the brief.
 
 - Do **not** modify the working tree, run mutating git commands, or commit.
 - Do **not** edit the pointer task directory's `verification.md` or `review.md`,
-  the task brief (`tasks/<NNN>/tasks.md` or a legacy root task document), or any
+  the task brief (`tasks/<NNN>/tasks.md`), or any
   document status.
 - Do **not** expand `affected_paths` or silently widen approved scope.
 - If blocked by ambiguity, report it in the Output contract; do not expand

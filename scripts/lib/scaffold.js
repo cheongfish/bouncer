@@ -9,6 +9,7 @@ const { parseFrontmatter } = require('./frontmatter');
 const { templateBody } = require('./templates');
 const { ensureEpicIndexEntry } = require('./epic-index');
 const { TASK_UNIT_BASENAMES, expectedTaskDocIds, } = require('./tasks-docs');
+const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE } = require('./schema');
 function writeRel(repoRoot, rel, data, body) {
     const abs = path.join(repoRoot, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -128,7 +129,17 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
     const created = [];
     const body = (templateName) => templateBody(templateName, { epicId, blueprintId, name });
     const idx = `${dir}/index.md`;
-    created.push(writeRel(repoRoot, idx, bouncerDoc('bouncer.blueprint', `${blueprintId} ${name}`, `Blueprint ${blueprintId}`, idx, ['bouncer', 'blueprint'], timestamp, { id: blueprintId, epic_id: epicId, blueprint_id: blueprintId, status: 'draft' }), body('blueprint.md')));
+    // commit_type·scale은 blueprint 전용(epic/tasks 등에는 쓰지 않음).
+    // status 뒤에 두어 frontmatter 키 순서를 고정한다. 경량 선언은 plan이
+    // scale을 light로 바꾸고, 되돌릴 때는 full로 되돌린다(키 삭제 아님).
+    created.push(writeRel(repoRoot, idx, bouncerDoc('bouncer.blueprint', `${blueprintId} ${name}`, `Blueprint ${blueprintId}`, idx, ['bouncer', 'blueprint'], timestamp, {
+        id: blueprintId,
+        epic_id: epicId,
+        blueprint_id: blueprintId,
+        status: 'draft',
+        commit_type: DEFAULT_COMMIT_TYPE,
+        scale: DEFAULT_SCALE,
+    }), body('blueprint.md')));
     // 새 blueprint 는 tasks/001/ 묶음부터 시작한다. 루트 tasks-001.md 는 더 이상 만들지 않는다.
     // (기존 문서 인식은 listTasksDocs 가 유지 — 거절은 004.)
     const taskCreated = scaffoldTask({

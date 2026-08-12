@@ -13,7 +13,7 @@ status / frontmatter — Findings only.
 
 ## Placeholders
 
-- `{{BRIEF}}` — task brief (`tasks/<NNN>/tasks.md` or legacy root task document) Goal & intent,
+- `{{BRIEF}}` — task brief (`tasks/<NNN>/tasks.md`) Goal & intent,
   Interface, Touch, Do not touch, Constraints, Checklist
 - `{{BASE}}` — review base ref (branch or commit)
 - `{{HEAD}}` — review HEAD ref (usually the worktree tip)

@@ -18,6 +18,8 @@
 | `S15 legacy task layout remains` | clean worktree에서 `bouncer migrate task-layout --dry-run`으로 이동 계획을 확인한 뒤 apply하세요. |
 | `S16 non-canonical task directory` / `S17 task unit … missing` | task 디렉터리는 세 자리 번호여야 하며, 각 묶음에는 tasks·verification·review 문서가 모두 있어야 합니다. |
 | `S18 imported document is out of gate scope` | 임포트 문서는 작업 대상이 아니다. 새 blueprint를 만들라 |
+| `S19 type … does not match expected … for path` | 문서를 옮기거나 복사한 뒤 `type`을 안 고친 경우입니다. 경로가 요구하는 종류로 `type`을 맞추세요 |
+| `S20 scale "…" not in enum` | blueprint `bouncer.scale`은 `light` 또는 `full`만 허용합니다. 오타를 고치거나 필드를 빼세요 |
 | `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
 | worktree에 task 묶음(`tasks/<NNN>/{tasks,verification,review}.md`)이 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |

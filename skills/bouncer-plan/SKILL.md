@@ -66,8 +66,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
    review `pending`. `scaffold blueprint` creates `tasks/001/{tasks,verification,review}.md`
    (ids `TASKS-001`, `VERIFY-001`, `REVIEW-001`). Add a later task with
-   `bouncer scaffold task --blueprint <dir> --id <NNN>`. Existing root-layout
-   documents remain migration targets.
+   `bouncer scaffold task --blueprint <dir> --id <NNN>`. Root `tasks.md` /
+   `tasks-<NNN>.md` are input only to `bouncer migrate task-layout`.
    Do **not** create BP `explain.md` here — `/bouncer-commit`
    scaffolds it with `bouncer scaffold explain`.
 
@@ -88,10 +88,10 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    match (blueprint `title` as subject; no blueprint `commit_intent`).
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
    **경량 선언.** 사용자가 경량 경로를 선언했으면 blueprint `index.md`
-   frontmatter에 `bouncer.scale: light`를 쓴다. `schema.ts`에 등록하지 않는
-   미등록 필드이므로 `bouncer validate`는 그대로 통과한다. 선언이 없으면
-   키 자체를 넣지 않는다 — 그 외에는 일반 경로다. 작업이 커지면 `scale`
-   줄을 지워 일반 경로로 복귀한다.
+   frontmatter의 `bouncer.scale`을 `light`로 바꾼다. scaffold가 이미
+   `scale: full`을 쓰므로 키를 새로 넣는 것이 아니라 값을 바꾼다. 부재·`full`
+   은 일반 경로이고, 소비자는 `scale === 'light'`만 본다. 작업이 커지면
+   값을 `full`로 되돌려 일반 경로로 복귀한다.
    **Verify command (optional).** After the draft bodies make this blueprint's
    character clear, check the **repository root only** for any of these signals:
    `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`,
@@ -144,6 +144,15 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    exempt that file's tests if those tests embed the old contract — list the
    tests under Touch, or keep the contract change out of this task. Stale or
    empty graph results do not replace this search.
+   **Prose / inventory cutovers.** When Goal or Interface closes wording across
+   docs, skills, or agents (not only code callers), run the Checklist leftover
+   search *before* locking Touch and `affected_paths`. Draft Touch from that
+   hit list minus Do not touch; rewrite Goal so it does not claim files outside
+   the list (Goal ⊆ Touch). Commit scope is the same set: every path that must
+   be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
+   blocks it. When `config.source_dirs` omit `skills/` / `docs/` / `agents/`,
+   add those directories to `suggested_paths` by hand — graph hits alone do not
+   inventory prose.
 
 7. **Approval (explicit).** Ask the user to approve. On approval, transition
    `bouncer.status`: epic `draft → approved`, blueprint `draft → approved`, tasks

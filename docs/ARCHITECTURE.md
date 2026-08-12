@@ -53,7 +53,7 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 | 단계 | 공통 입력 | 반드시 남길 결과 | 통과 기준 |
 | --- | --- | --- | --- |
 | 기획 | 사용자 요청, 저장소 맥락 | 목표, 범위, 비목표, 성공 조건 | 승인 가능한 blueprint |
-| 계획 | blueprint, 코드 맥락 | 인터페이스, Touch, Do not touch, 체크리스트 | implementation-ready `tasks/<NNN>/tasks.md` (레거시 루트 task 문서는 마이그레이션 대상) |
+| 계획 | blueprint, 코드 맥락 | 인터페이스, Touch, Do not touch, 체크리스트 | implementation-ready `tasks/<NNN>/tasks.md` |
 | 구현 | 승인된 task 문서 | 허용 경로 내 코드·테스트 변경 | 체크리스트 충족 |
 | 검증 | 변경사항, 프로젝트 명령 | 실행 명령, 결과, 실패/위험 요약 | 실제 통과 증거 (G7 + G13) |
 | 리뷰 | diff, tasks, verification | findings, 해결 또는 수용 근거 | 미해결 actionable finding 없음 (G8 + G14) |

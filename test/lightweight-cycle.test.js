@@ -14,7 +14,9 @@ test('governance defines Lightweight cycle contract', () => {
   const gov = read('docs/governance.md');
   assert.match(gov, /## Lightweight cycle/);
   assert.match(gov, /declare|declaration/i);
-  assert.match(gov, /bouncer\.scale:\s*light|scale:\s*light/);
+  assert.match(gov, /bouncer\.scale:\s*light|scale:\s*light|scale.*light/i);
+  assert.match(gov, /scaffold.*full|full.*light/i);
+  assert.match(gov, /set `scale` back to `full`|back to `full`/);
   assert.match(gov, /maintenance epic/i);
   assert.match(gov, /inline/i);
   assert.match(gov, /one question|single question/i);
@@ -31,6 +33,20 @@ test('bouncer-plan routes light-path work to maintenance epic', () => {
   assert.match(plan, /bouncer\.scale/);
   assert.match(plan, /light/);
   assert.match(plan, /묻|물어|ask/i);
+  // scaffold 기본 full → 경량이면 light로 값만 바꾼다(키 신설/삭제 아님).
+  assert.match(plan, /scale:\s*full/);
+  assert.match(plan, /`light`로 바꾼다/);
+  assert.doesNotMatch(plan, /schema\.ts에 등록하지 않/);
+  assert.doesNotMatch(plan, /키 자체를 넣지 않는다/);
+});
+
+test('workflow light-path prose flips full to light instead of omitting the key', () => {
+  const workflow = read('docs/workflow.md');
+  assert.match(workflow, /## 경량 경로/);
+  assert.match(workflow, /자동 판정하지 않는다/);
+  assert.match(workflow, /scaffold가\s+이미\s+`scale:\s*full`/);
+  assert.match(workflow, /`full`로 되돌린다/);
+  assert.doesNotMatch(workflow, /키를 쓰지 않/);
 });
 
 test('bouncer-execute inlines on scale light and keeps host fallback wording', () => {
