@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '031'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 문서 type이 파일 위치와 어긋나도 검증기가 잡지 못했음
     - scale 오타가 조용히 일반 경로로 흘러가는 구멍을 닫음
