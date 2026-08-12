@@ -160,9 +160,9 @@ append a change log.
   are file-existence only; `package.json` counts only when a `scripts` key
   is present (key presence, not script bodies). Do not treat any root
   `package.json` as a hit.
-- Empty `diff_sha` (or empty `disposition`) on `explain.md` is G15 **record
-  missing**, not hash mismatch — scaffold defaults must not collapse into the
-  wrong failure branch.
+- Empty `diff_sha`, `disposition`, or `quiz_score` on the blueprint
+  comprehension entry is G16 **record missing**, not hash mismatch —
+  scaffold defaults must not collapse into the wrong failure branch.
 - `finalize` nests the whole `nextBlueprint` return under `next`, so the
   candidate is `next.next` and overlap is `next.next.sharedPaths` — a flat
   `next.sharedPaths` read skips the handoff warning.
@@ -278,12 +278,19 @@ append a change log.
   Korean for humans.
 - Human-facing bodies under `.bouncer/context/epics/**` and BP `explain.md` are
   Korean (ids/paths/code fences excepted). Apply `stop-slop` there (advisory).
-- G15 (`commit` gate) checks the pointer task's comprehension entry and
-  matching `diff_sha` for that entry's `range_from..HEAD` (excluding
-  `.bouncer/context/`). G16 (`finalize` gate) requires every task `verified`,
-  explain `published` with written sections, and one comprehension entry per
-  task number. Global Distill is skill promotion + `makeAllowed`, not a body-
+- Commit gate does **not** read `explain.md`. It re-checks the pointer task
+  with G6/G7/G8 and staged paths with **G17** (`deps.stagedFiles`; git failure
+  is a G17 failure, not a throw). G15 is retired (number vacant). G16
+  (`finalize`) requires every task `verified`, explain `published` with written
+  sections, and one blueprint comprehension entry (array last; 0.7 multi-entry
+  docs stay readable) whose `diff_sha` matches `range_from..HEAD` excluding
+  `.bouncer/context/`. `quiz_score` is required — empty fails as record
+  missing. Hash drift after the quiz needs body/`diff_sha` refresh only, not a
+  re-quiz. Global Distill is skill promotion + `makeAllowed`, not a body-
   quality gate. G9 is retired (number vacant).
+- `isUnder` / `RUNTIME_ARTIFACTS` / `isRuntimeArtifact` / `makeAllowed` live in
+  `scripts/src/lib/scope.ts` so `validate` does not require `finalize` (cycle).
+  `finalize` / `commit` / `commit-guard` / `seed-worktree` import from there.
 - Distill promotion and draft PR body both source from BP `explain.md`
   (`## Background` / `## Intuition` / `## Code`); `## 이해 상태` / Quiz /
   comprehension stay out of Distill and PR. Bouncer PR meta uses
@@ -346,11 +353,13 @@ append a change log.
   only in `isValidVerifyCommand`, which plan `S12` and runtime
   `VERIFY_COMMAND_INVALID` both reuse.
 - Workflow order is init → plan → execute → commit → finalize.
-  `/bouncer-commit` records one explain comprehension entry (append-only
-  array) and commits one task; same-blueprint next-task handoff is
-  confirm-then `bouncer current --set … --task <NNN>` there. `/bouncer-finalize`
-  G16 blocks while any task is not `verified` or lacks a comprehension
-  entry; next-blueprint advance is confirm-then `--set` only — never
+  `/bouncer-commit` commits one task only — no `explain-diff` / quiz.
+  Same-blueprint next-task handoff is confirm-then
+  `bouncer current --set … --task <NNN>` there. `/bouncer-finalize` promotes
+  Distill, then authors explain + quiz (`explain-diff`) for pointer-`base`..HEAD
+  as **one** blueprint comprehension entry, then G16 / remainder commit.
+  G16 blocks while any task is not `verified` or the blueprint entry / hash is
+  missing; next-blueprint advance is confirm-then `--set` only — never
   automatic. One execute worktree is reused for every task on a blueprint.
 - `/bouncer-plan` Author asks before writing `tasks.bouncer.verify` when root
   build/container signals exist; never write from detection alone and never

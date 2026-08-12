@@ -13,17 +13,9 @@ bouncer:
   blueprint_id: '001'
   status: published
   comprehension:
-    - task: '001'
-      range_from: develop
-      range_to: d1c62aa67734ef2f7ec2b43169db1bb8be143aba
-      diff_sha: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-      quiz_score: '2/2'
-      disposition: 마지막 엔트리 조회와 빈 quiz_score→incomplete를 맞춤
-      recorded_at: '2026-08-12T13:21:44+09:00'
-    - task: '002'
-      range_from: d1c62aa67734ef2f7ec2b43169db1bb8be143aba
-      range_to: cca30a7516a1b7580305d9fe822de600bce8a19a
-      diff_sha: a9e127c3b70ac276f509749d31314c2404ba581cd1b73ac1780f5bfd61ff07cc
+    - range_from: develop
+      range_to: d2625d674bbc36983838003eb117073e006427f5
+      diff_sha: 6c05e0115dbd4f1c9f692f55a1e88889b0353f751eb996065efb90576f6c416e
       quiz_score: '2/2'
       disposition: 스테이징 읽기 실패→G17, makeAllowed는 scope로 옮겨 순환을 끊음
       recorded_at: '2026-08-12T13:36:46+09:00'
@@ -36,6 +28,7 @@ bouncer:
 포인터 task의 G6/G7/G8을 다시 보고, 스테이징 경로가 `affected_paths` 안인지
 G17로 검사한다. G15 번호는 비운다. `makeAllowed` 등은 `finalize.ts`에 있어
 `validate`가 그대로 가져오면 순환이 생기므로 `scope.ts`로 옮겼다.
+`/bouncer-commit`에서 explain·퀴즈를 빼고 `/bouncer-finalize`로 옮겼다.
 
 ## Intuition
 마감 도장은 finalize가 찍고, 커밋 직전엔 「지금 올린 파일이 이 task 칸 안인가」만
@@ -46,9 +39,13 @@ G17로 검사한다. G15 번호는 비운다. `makeAllowed` 등은 `finalize.ts`
 - `scripts/src/lib/scope.ts` — `isUnder`·`RUNTIME_ARTIFACTS`·`isRuntimeArtifact`·
   `makeAllowed`. `finalize`/`commit`/`commit-guard`/`seed-worktree`가 여기서 가져온다.
 - `scripts/src/lib/validate.ts` — commit: G6/G7/G8 + `deps.stagedFiles` → G17.
-  git 실패는 예외가 아니라 G17. G15는 결번 주석만.
+  git 실패는 예외가 아니라 G17. G15는 결번 주석만. finalize G16은 BP 단일
+  엔트리 `diff_sha` 대조.
+- 스킬: `bouncer-commit`에서 explain-diff 제거, `bouncer-finalize`에 Distill 다음
+  explain·퀴즈 단계 추가.
 - 회귀: `test/validate-gates.test.js`(G17 위반·통과·staged 읽기 실패),
-  `test/cli-commit.test.js`, `test/commit-task.test.js`.
+  `test/cli-commit.test.js`, `test/commit-task.test.js`,
+  `test/skill-bouncer-finalize.test.js`.
 
 ## Quiz
 1. `validate --gate commit`이 스테이징 목록을 못 읽으면?

@@ -11,7 +11,7 @@ bouncer:
   id: '001'
   epic_id: '029'
   blueprint_id: '001'
-  status: approved
+  status: closed
   commit_type: refactor
   commit_intent:
     - task마다 반복되던 이해 기록과 퀴즈가 blueprint 단위 확인 한 번으로 줄어듦
