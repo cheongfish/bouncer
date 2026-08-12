@@ -8,7 +8,6 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { commitTask } = require('../scripts/lib/commit');
-const { computeDiffSha } = require('../scripts/lib/comprehension');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 const { readCurrent, writeCurrent } = require('../scripts/lib/current');
 
@@ -103,7 +102,7 @@ function writeTaskUnit(repo, blueprintDir, number, {
 }
 
 function fullBlueprint(repo, {
-  comprehensionOk = true,
+  tasksStatus = 'verified',
   blueprintDir = BP_REL,
   withGit = true,
   extraOpenTask = false,
@@ -128,7 +127,7 @@ function fullBlueprint(repo, {
     bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
   });
   writeTaskUnit(repo, blueprintDir, '001', {
-    tasksStatus: 'verified',
+    tasksStatus,
     title: 'Impl login',
   });
   if (extraOpenTask) {
@@ -139,52 +138,15 @@ function fullBlueprint(repo, {
     });
   }
 
-  let comprehension = [];
-  let body = EXPLAIN_BODY;
-  if (comprehensionOk) {
-    const hashed = computeDiffSha({ repoRoot: repo, base: 'develop' });
-    assert.strictEqual(hashed.ok, true, 'fixture git must yield a diff sha');
-    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: repo,
-      encoding: 'utf8',
-    }).trim();
-    comprehension = [{
-      task: '001',
-      range_from: 'develop',
-      range_to: head,
-      diff_sha: hashed.sha,
-      quiz_score: '1/5',
-      disposition: 'accepted',
-      recorded_at: '2026-07-01T00:00:00+09:00',
-    }];
-  } else {
-    body = `# Explain
-
-## Background
-<!-- empty -->
-
-## Intuition
-<!-- empty -->
-
-## Code
-<!-- empty -->
-
-## Quiz
-<!-- empty -->
-
-## 이해 상태
-<!-- empty -->
-`;
-  }
-
+  // commit 게이트는 explain을 보지 않는다. finalize G16용 문서만 최소로 둔다.
   writeDoc(repo, `${blueprintDir}/explain.md`, {
     type: 'bouncer.explain', title: 'Explain', description: 'd', resource: `${blueprintDir}/explain.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'EXPLAIN-001', epic_id: '001', blueprint_id: '001', status: 'published',
-      comprehension,
+      id: 'EXPLAIN-001', epic_id: '001', blueprint_id: '001', status: 'draft',
+      comprehension: [],
     },
-  }, body);
+  }, EXPLAIN_BODY);
 }
 
 function trackingGit(changed, untracked) {
@@ -292,13 +254,14 @@ test('nextTask is null when no other open tasks remain', () => {
 
 test('gate failure returns validate reason without staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  fullBlueprint(repo, { comprehensionOk: false });
+  // commit 게이트는 explain이 아니라 포인터 task 상태(G6)를 본다.
+  fullBlueprint(repo, { tasksStatus: 'ready' });
   const g = trackingGit(['src/auth/login.ts'], []);
   const res = commitTask({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
   });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'validate');
-  assert.ok(res.failures.some((f) => f.code === 'G15'));
+  assert.ok(res.failures.some((f) => f.code === 'G6'));
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
 });

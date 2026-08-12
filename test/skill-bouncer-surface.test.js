@@ -40,8 +40,15 @@ test('workflow skills cite subordinate skills by path', () => {
   assert.match(execute, /skills\/implementation\/SKILL\.md/);
   assert.match(execute, /skills\/verification\/SKILL\.md/);
   assert.match(execute, /skills\/review\/SKILL\.md/);
-  assert.match(commit, /skills\/explain-diff\/SKILL\.md/);
+  // explain-diff는 finalize가 호출한다(commit이 아님).
+  assert.doesNotMatch(commit, /skills\/explain-diff\/SKILL\.md/);
   assert.match(finalize, /skills\/spec-authoring\/SKILL\.md/);
+  assert.match(finalize, /skills\/explain-diff\/SKILL\.md/);
+  {
+    const i = finalize.indexOf('skills/spec-authoring/SKILL.md');
+    const j = finalize.indexOf('skills/explain-diff/SKILL.md');
+    assert.ok(i > -1 && j > i);
+  }
   for (const name of [
     'discovery', 'implementation', 'verification', 'review',
     'minimality', 'debugging', 'graphify-runner', 'spec-authoring',

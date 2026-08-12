@@ -30,8 +30,13 @@ test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR
   assert.match(body, /<type>\/<BP-id>-<slug>/);
   assert.match(body, /commit_type/);
   assert.match(body, /G16/);
-  // task 커밋·퀴즈는 /bouncer-commit — finalize는 PR·정리만.
-  assert.doesNotMatch(body, /skills\/explain-diff\/SKILL\.md/);
+  // Distill 승격(spec-authoring) 다음에 explain-diff가 온다.
+  assert.match(body, /skills\/explain-diff\/SKILL\.md/);
+  {
+    const i = body.indexOf('skills/spec-authoring/SKILL.md');
+    const j = body.indexOf('skills/explain-diff/SKILL.md');
+    assert.ok(i > -1 && j > i);
+  }
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
   assert.doesNotMatch(body, /scaffold distill/);
   assert.doesNotMatch(body, /\bG9\b/);

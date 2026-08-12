@@ -8,7 +8,6 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
-const { computeDiffSha } = require('../scripts/lib/comprehension');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -52,7 +51,7 @@ function initGitWithChange(repo) {
   run(['commit', '-m', 'change']);
 }
 
-function fullBlueprint(repo, { comprehensionOk = true } = {}) {
+function fullBlueprint(repo, { tasksStatus = 'verified' } = {}) {
   initGitWithChange(repo);
   const epicDir = '.bouncer/context/epics/001-auth';
   writeDoc(repo, `${epicDir}/index.md`, {
@@ -73,7 +72,7 @@ function fullBlueprint(repo, { comprehensionOk = true } = {}) {
     resource: `${BP_REL}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: tasksStatus,
       affected_paths: ['src/auth/'],
     },
   });
@@ -93,52 +92,16 @@ function fullBlueprint(repo, { comprehensionOk = true } = {}) {
     },
   });
 
-  let comprehension = [];
-  let body = EXPLAIN_BODY;
-  if (comprehensionOk) {
-    const hashed = computeDiffSha({ repoRoot: repo, base: 'develop' });
-    assert.strictEqual(hashed.ok, true);
-    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: repo, encoding: 'utf8',
-    }).trim();
-    comprehension = [{
-      task: '001',
-      range_from: 'develop',
-      range_to: head,
-      diff_sha: hashed.sha,
-      quiz_score: '1/5',
-      disposition: 'accepted',
-      recorded_at: '2026-07-01T00:00:00+09:00',
-    }];
-  } else {
-    body = `# Explain
-
-## Background
-<!-- empty -->
-
-## Intuition
-<!-- empty -->
-
-## Code
-<!-- empty -->
-
-## Quiz
-<!-- empty -->
-
-## 이해 상태
-<!-- empty -->
-`;
-  }
-
+  // commit 게이트는 explain을 보지 않는다. finalize용 문서만 최소로 둔다.
   writeDoc(repo, `${BP_REL}/explain.md`, {
     type: 'bouncer.explain', title: 'Explain', description: 'd',
     resource: `${BP_REL}/explain.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
-      id: 'EXPLAIN-001', epic_id: '001', blueprint_id: '001', status: 'published',
-      comprehension,
+      id: 'EXPLAIN-001', epic_id: '001', blueprint_id: '001', status: 'draft',
+      comprehension: [],
     },
-  }, body);
+  }, EXPLAIN_BODY);
 }
 
 function capture() {
@@ -160,7 +123,8 @@ test('commit without --blueprint exits 2 and keeps stdout pipe-clean of ok:true'
 
 test('commit gate failure exits non-zero with JSON { ok:false, reason:validate }', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  fullBlueprint(repo, { comprehensionOk: false });
+  // commit 게이트는 explain이 아니라 포인터 task 상태(G6)를 본다.
+  fullBlueprint(repo, { tasksStatus: 'ready' });
   const { io, buf } = capture();
   const code = runCli(
     ['commit', '--repo', repo, '--blueprint', BP_REL],
@@ -171,7 +135,7 @@ test('commit gate failure exits non-zero with JSON { ok:false, reason:validate }
   assert.strictEqual(parsed.ok, false);
   assert.strictEqual(parsed.reason, 'validate');
   assert.ok(Array.isArray(parsed.failures));
-  assert.ok(parsed.failures.some((f) => f.code === 'G15'));
+  assert.ok(parsed.failures.some((f) => f.code === 'G6'));
 });
 
 test('commit dry-run exits 0 with dryRun JSON', () => {

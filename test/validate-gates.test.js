@@ -448,7 +448,7 @@ function explainDoc(comprehension, body = EXPLAIN_BODY_OK) {
   return doc('published', { comprehension }, body);
 }
 
-/** G15가 기대하는 task 엔트리. overrides로 필드만 덮어쓴다. */
+/** G16가 기대하는 task 엔트리. overrides로 필드만 덮어쓴다. */
 function compEntry(overrides = {}) {
   return {
     task: '001',
@@ -462,16 +462,6 @@ function compEntry(overrides = {}) {
   };
 }
 
-const G15_CTX = {
-  repoRoot: '/tmp/unused',
-  blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
-  // 단위 테스트는 파일시스템 없이 대상 task 번호를 주입한다.
-  taskUnit: { number: 1 },
-  deps: {
-    computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
-  },
-};
-
 /** G16 단위 테스트용: 모든 task가 verified인 docs 조각. */
 function g16VerifiedTasks(ids = ['001']) {
   return ids.map((nnn) => ({
@@ -483,7 +473,34 @@ function g16VerifiedTasks(ids = ['001']) {
 const G16_CTX = {
   repoRoot: '/tmp/unused',
   blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
+  deps: {
+    computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+  },
 };
+
+/** commit 게이트: G6/G7/G8을 통과하는 포인터 단위 + 주입 가능한 stagedFiles. */
+function commitReadyUnit(extraTasksBouncer = {}) {
+  return {
+    number: 1,
+    dir: '.bouncer/context/epics/001-auth/blueprints/001-login/tasks/001',
+    tasks: doc('verified', { affected_paths: ['src/auth/'], ...extraTasksBouncer }),
+    verification: doc('passed'),
+    review: doc('accepted'),
+  };
+}
+
+function commitCtx(stagedFiles) {
+  return {
+    repoRoot: '/tmp/unused',
+    blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
+    taskUnit: commitReadyUnit(),
+    deps: {
+      stagedFiles: typeof stagedFiles === 'function'
+        ? stagedFiles
+        : () => ({ ok: true, files: stagedFiles || [] }),
+    },
+  };
+}
 
 test('finalize gate G16 fails when explain sections are unwritten', () => {
   const failures = [];
@@ -566,14 +583,31 @@ test('finalize gate G16 rejects legacy object comprehension', () => {
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize gate G16 does not emit G15 on hash mismatch fields', () => {
-  // G16은 diff_sha를 판정하지 않는다 — 잘못된 해시여도 엔트리만 있으면 통과.
+test('finalize gate G16 fails when diff_sha does not match range_from..HEAD', () => {
   const failures = [];
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
     explain: explainDoc([compEntry({ diff_sha: 'wrong' })]),
   }, rels, failures, G16_CTX);
-  assert.deepStrictEqual(failures, []);
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G16']);
+  assert.match(failures[0].message, /diff_sha does not match/);
+  assert.ok(!failures.some((f) => f.code === 'G15'));
+});
+
+test('finalize gate G16 fails when diff_sha cannot be computed (no-base)', () => {
+  const failures = [];
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()]),
+  }, rels, failures, {
+    ...G16_CTX,
+    deps: {
+      computeDiffSha: () => ({ ok: false, reason: 'no-base' }),
+    },
+  });
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G16']);
+  assert.match(failures[0].message, /diff_sha could not be computed \(no-base\)/);
+  assert.ok(!/does not match/.test(failures[0].message));
   assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
@@ -1002,25 +1036,31 @@ test('finalize G16 fails when an open task remains (TASKS-002 ready)', () => {
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 fails when comprehension covers only one of two tasks', () => {
+test('finalize G16 fails when comprehension entry is incomplete (empty quiz_score)', () => {
+  // BP 단일 엔트리 계약: task 번호 커버가 아니라 엔트리 완전성·해시가 판정 주체.
+  // 빈 quiz_score는 incomplete → 기록 없음.
   const repo = mkRepo();
   writeFinalizeG16Fixture(repo, {
     task2Status: 'verified',
-    entries: [compEntry({ task: '001', disposition: 'ok' })],
+    entries: [compEntry({ task: '001', disposition: 'ok', quiz_score: '' })],
   });
 
   const res = validateBlueprint({
     repoRoot: repo,
     blueprintDir: BP_REL,
     gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
   });
   assert.equal(res.ok, false);
   assert.ok(res.failures.some((f) => f.code === 'G16' && /comprehension/.test(f.message)));
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 passes when every task is verified and has a comprehension entry', () => {
+test('finalize G16 passes with a single complete entry when all tasks are verified', () => {
   const repo = mkRepo();
+  // 0.7 다중 엔트리도 마지막만 보면 통과 — 마이그레이션 없이 읽기 호환.
   writeFinalizeG16Fixture(repo, {
     task2Status: 'verified',
     entries: [
@@ -1033,6 +1073,9 @@ test('finalize G16 passes when every task is verified and has a comprehension en
     repoRoot: repo,
     blueprintDir: BP_REL,
     gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
   });
   assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
@@ -1062,51 +1105,50 @@ test('finalize G16 rejects legacy object comprehension on disk', () => {
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('commit gate G15 fails when explain.md is absent', () => {
+test('commit gate G17 fails when a staged path is outside affected_paths', () => {
   const failures = [];
-  checkGate('commit', {}, rels, failures, G15_CTX);
-  assert.deepStrictEqual(failures.map((f) => f.code), ['G15']);
-  assert.match(failures[0].message, /explain\.md missing/);
+  checkGate('commit', {}, rels, failures, commitCtx([
+    'src/auth/login.ts',
+    'src/other.ts',
+  ]));
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G17']);
+  assert.match(failures[0].message, /src\/other\.ts/);
 });
 
-test('commit gate G15 passes when comprehension matches', () => {
+test('commit gate G17 fails when staged files cannot be read', () => {
   const failures = [];
-  checkGate('commit', {
-    explain: explainDoc([compEntry({
-      quiz_score: '1/5', disposition: 'accepted with gaps',
-    })]),
-  }, rels, failures, G15_CTX);
+  checkGate('commit', {}, rels, failures, commitCtx(() => ({
+    ok: false,
+    reason: 'not-a-repo',
+  })));
+  assert.deepStrictEqual(failures.map((f) => f.code), ['G17']);
+  assert.match(failures[0].message, /could not read staged files \(not-a-repo\)/);
+});
+
+test('commit gate passes when only blueprint docs and runtime artifacts are staged', () => {
+  const failures = [];
+  const bp = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  checkGate('commit', {}, rels, failures, commitCtx([
+    `${bp}/tasks/001/tasks.md`,
+    `${bp}/explain.md`,
+    'graphify-out/graph.json',
+  ]));
   assert.deepStrictEqual(failures, []);
 });
 
-test('commit gate G15 fails when pointer task has no comprehension entry', () => {
-  const repo = mkRepo();
-  const { u2 } = writeTaskDirExecuteFixture(repo);
-  writeExplainWithEntries(repo, [compEntry({
-    task: '001',
-    range_from: 'sha-from-001',
-    diff_sha: 'abc123',
-    disposition: 'ok',
-  })]);
-  setPointerTask(repo, `${u2}/tasks.md`);
-
-  const res = validateBlueprint({
-    repoRoot: repo,
-    blueprintDir: BP_REL,
-    gate: 'commit',
-    deps: {
-      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
-    },
-  });
-  assert.strictEqual(res.ok, false);
-  const g15 = res.failures.filter((f) => f.code === 'G15');
-  assert.ok(g15.length >= 1, JSON.stringify(res.failures));
-  assert.match(g15[0].message, /comprehension record missing/);
+test('commit gate G6 fails when pointer tasks are not verified', () => {
+  const failures = [];
+  const ctx = commitCtx([]);
+  ctx.taskUnit = commitReadyUnit();
+  ctx.taskUnit.tasks = doc('ready', { affected_paths: ['src/auth/'] });
+  checkGate('commit', {}, rels, failures, ctx);
+  assert.ok(failures.some((f) => f.code === 'G6'));
+  assert.ok(!failures.some((f) => f.code === 'G15'));
 });
 
 test('unknown gate still throws', () => {
   assert.throws(
-    () => checkGate('nope', {}, rels, [], G15_CTX),
+    () => checkGate('nope', {}, rels, [], commitCtx([])),
     /unknown gate: nope/,
   );
 });

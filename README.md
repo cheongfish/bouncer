@@ -43,22 +43,22 @@ flowchart TD
     end
 
     subgraph COMMIT["/bouncer-commit"]
-        C1["explain-diff (entry append)"] --> C2{{"gate commit<br/>G15"}}
-        C2 --> C3["ACQ: commit --yes"]
-        C3 --> C4["ACQ: next task --set"]
+        C1{{"gate commit<br/>G6/G7/G8 + G17"}} --> C2["ACQ: commit --yes"]
+        C2 --> C3["ACQ: next task --set"]
     end
 
     subgraph FIN["/bouncer-finalize"]
-        F1["Distill 승격 (from explain)"] --> F2{{"gate finalize<br/>G16"}}
-        F2 --> F3["ACQ: finalize --yes + worktree 제거"]
-        F3 --> F4["ACQ: draft PR (render → push + create)"]
+        F1["Distill 승격 (from explain)"] --> F2["explain-diff (BP entry + quiz)"]
+        F2 --> F3{{"gate finalize<br/>G16"}}
+        F3 --> F4["ACQ: finalize --yes + worktree 제거"]
+        F4 --> F5["ACQ: draft PR (render → push + create)"]
     end
 
     BI --> P1
     P2 --> E1
     E6 --> C1
-    C4 -- "남은 task 있음" --> E1
-    C4 -- "task 모두 완료" --> F1
+    C3 -- "남은 task 있음" --> E1
+    C3 -- "task 모두 완료" --> F1
 ```
 
 
@@ -134,8 +134,8 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 ```
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
 /bouncer-execute   # worktree seed → 구현 · verify · review
-/bouncer-commit    # explain 엔트리 · task 커밋 · 다음 task
-/bouncer-finalize  # Distill 승격 · remainder · draft PR
+/bouncer-commit    # 스코프 · task 커밋 · 다음 task
+/bouncer-finalize  # Distill 승격 · explain+퀴즈 · remainder · draft PR
 ```
 
 ## Requirements

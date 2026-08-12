@@ -164,7 +164,7 @@ Blueprint: [<BP-id>](../../index.md)
 `,
     'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
     'review.md': '# Review\n\n## Findings\n- <finding>\n',
-    // G15를 tasks 템플릿이 G10에서 실패하는 것과 같은 방식으로 — 작성이
+    // G16를 tasks 템플릿이 G10에서 실패하는 것과 같은 방식으로 — 작성이
     // 필수이도록 — 주석만 있는 본문으로 다섯 섹션 제목을 둡니다.
     'explain.md': `# Explain
 
@@ -181,7 +181,8 @@ Blueprint: [<BP-id>](../../index.md)
 <!-- 이해 확인 질문. 채점·기록 절차는 explain-diff 스킬이 안내한다. -->
 
 ## 이해 상태
-<!-- 퀴즈 결과와 disposition. comprehension 프론트매터와 맞춰 적는다. -->
+<!-- 퀴즈 결과와 disposition을 task별 소제목 없이 단일 블록으로.
+     comprehension 프론트매터(BP 엔트리 하나)와 맞춰 적는다. -->
 `,
     'pr.md': PR_TEMPLATE,
 };

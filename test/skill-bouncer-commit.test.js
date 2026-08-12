@@ -14,7 +14,10 @@ test('bouncer-commit is an explicit-ask workflow skill', () => {
   assert.match(String(data.description), /This skill should be used only when the user explicitly asks/i);
   assert.match(body, /validate\s+--gate\s+commit/);
   assert.match(body, /bouncer"\s+commit[\s\S]*--yes|commit\s+--blueprint[\s\S]*--yes/);
-  assert.match(body, /skills\/explain-diff\/SKILL\.md/);
+  // commit 게이트 계약(존재) + explain-diff 호출 부재 — 부재만 두면 금지 문구가 매칭을 깨뜨림
+  assert.match(body, /G6\/G7\/G8/);
+  assert.match(body, /G17/);
+  assert.doesNotMatch(body, /skills\/explain-diff\/SKILL\.md/);
   assert.match(body, /current --set/);
 });
 

@@ -6,13 +6,13 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { epicDirOf, toPosix } = require('./paths');
 const { CONTEXT_ROOT } = require('./layout');
-const { isUnder } = require('./finalize');
+const { isUnder } = require('./scope');
 // plan 워크플로에는 commit 단계가 없으므로 epic/blueprint 문서는 base working tree에만
 // 존재합니다. `git worktree add`는 커밋된 HEAD를 checkout하므로 execute worktree는
 // 구현에 필요한 brief 없이 시작합니다. 이 모듈은 plan context 문서만 정확히 옮기고
 // base를 git이 기록한 상태로 되돌립니다.
 //
-// 이동 집합은 finalize.makeAllowed가 context 문서에 기본으로 허용하는 경계와
+// 이동 집합은 scope.makeAllowed가 context 문서에 기본으로 허용하는 경계와
 // 의도적으로 같습니다 — blueprint 트리, epic index, context index — project Distill은
 // 제외합니다. worktree가 가져가면 안 되는 base 전역 파일입니다. affected_paths 아래
 // 코드와 관련 없는 로컬 변경(config, graph output)은 그대로 둡니다.

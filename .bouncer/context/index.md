@@ -33,3 +33,4 @@ okf_version: '0.1'
 * [027 history-import](epics/027-history-import/index.md) - Epic 027
 * [028 antigravity-host](epics/028-antigravity-host/index.md) - Epic 028
 * [029 release-one-zero](epics/029-release-one-zero/index.md) - Epic 029
+* [030 gate-restructure](epics/030-gate-restructure/index.md) - Epic 030

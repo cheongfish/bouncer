@@ -1,12 +1,12 @@
 ---
 name: explain-diff
-description: "This skill should be used from /bouncer-commit after scaffold explain. It authors BP explain.md sections, runs the quiz for range_from..HEAD, appends one bouncer.comprehension entry for the pointer task, and sets status published. It is not a workflow entry point."
+description: "This skill should be used from /bouncer-finalize after scaffold explain. It authors BP explain.md sections, runs the quiz for pointer-base..HEAD, writes one bouncer.comprehension blueprint entry with required quiz_score, and sets status published. It is not a workflow entry point."
 ---
 
 # Explain Diff
 
 Author and record comprehension for the active blueprint's `explain.md`.
-Called only from `/bouncer-commit` after `scaffold explain` (create the file
+Called only from `/bouncer-finalize` after `scaffold explain` (create the file
 if missing). This skill does **not** replace `scaffold explain` — if the file
 is missing, stop and tell the caller to scaffold first.
 
@@ -14,29 +14,27 @@ is missing, stop and tell the caller to scaffold first.
 
 1. **Author the five sections.** Fill the body under these headings in
    **Korean** (paths, ids, and code fences stay as-is; scaffold leaves
-   comment-only stubs — replace with real prose). On later tasks in the same
-   blueprint, refresh the sections so they still cover the whole branch, but
-   do **not** delete earlier comprehension entries:
+   comment-only stubs — replace with real prose). Cover the whole blueprint
+   branch (all committed tasks), not a single task:
    - `## Background` — why this change exists
    - `## Intuition` — one-line picture / analogy
    - `## Code` — key paths and files to read (no long dumps)
    - `## Quiz` — questions and three answer options each (no correct
      answers, no user responses)
-   - `## 이해 상태` — correct answers, user responses, right/wrong, and
-     disposition (keep in sync with the new entry below)
+   - `## 이해 상태` — **one block** (no per-task subheadings): correct
+     answers, user responses, right/wrong, and disposition (keep in sync with
+     the single comprehension entry below)
    Then apply `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) before the
    quiz — strip filler and formulaic closers from the five sections.
 
-2. **Resolve `range_from` for this task entry.** Read existing
-   `bouncer.comprehension` (must be a list — never a single object):
-   - If the list is empty, `range_from` is the pointer `base` from
-     `bouncer current` (else `.bouncer/config.json` `base_branch`).
-   - If the list already has entries, `range_from` is the **last** entry's
-     `range_to` (do not invent a different chain).
-   Never rewrite an earlier entry to change its `range_from` / `diff_sha`.
+2. **Resolve `range_from`.** Always the pointer `base` from `bouncer current`
+   (else `.bouncer/config.json` `base_branch`). Do **not** chain from a prior
+   entry's `range_to` — comprehension is one blueprint entry, not a task chain.
 
 3. **Quiz the user.** Adapt and run the quiz from the `range_from..HEAD` diff
-   (agent judgment — no mechanical table):
+   (agent judgment — no mechanical table). The quiz is **required** — if the
+   user does not answer, stop and tell `/bouncer-finalize` to abort (do not
+   invent a skip path or leave `quiz_score` empty):
    1. Choose question count in **1–10** (minimum 1; never 0). State the
       count and a one-line rationale (diff scale) before asking.
       **경량 예외.** blueprint `index.md`의 `bouncer.scale`이 `light`면 질문 수를
@@ -50,14 +48,19 @@ is missing, stop and tell the caller to scaffold first.
    4. Score answers. `quiz_score` is `N/M` where **M is the number of
       questions actually asked** and unanswered items are excluded from the
       denominator (e.g. asked 5, answered 4 with 3 correct → `3/4`; light path
-      → `N/1`).
+      → `N/1`). `quiz_score` is **required** and must stay non-empty.
    5. Write correct answers, responses, and right/wrong under
-      `## 이해 상태` only — never into `## Quiz`.
-   6. If the quiz was skipped, do not set `quiz_score` to `0/0`; put the
-      skip reason in `disposition` (must stay non-empty for G15).
+      `## 이해 상태` only — never into `## Quiz`. Keep that section a
+      **single block** (단일 블록) — no `### task NNN` or similar per-task
+      headings.
 
    A low score is fine: **기록만 하고 마감을 막지 않는다.** Do not invent a
-   pass threshold or force a re-take.
+   pass threshold or force a re-take. Unanswered quiz (user refused) **does**
+   block finalize — that is the abort path above, not a recorded skip.
+
+   **Re-hash without re-quiz.** If a comprehension entry already exists and
+   later commits only drifted `diff_sha` / section prose, refresh the body and
+   `diff_sha` (and `range_to`) — do **not** re-run the quiz.
 
 4. **Compute `diff_sha`.** Pass the entry's `range_from` as `base` to
    `computeDiffSha`. Run from the **execute worktree root** (`cwd` = that
@@ -73,15 +76,13 @@ is missing, stop and tell the caller to scaffold first.
    If the JSON has `ok: false`, report the `reason` and **stop** — do not invent
    a hash.
 
-5. **Append one `bouncer.comprehension` entry.** Resolve the pointer task
-   number (`\d{3}`). Read `range_to` as the current `HEAD` sha
-   (`git rev-parse HEAD`). **Append** a new list item — do **not** overwrite,
-   edit in place, or replace earlier entries, and do not add a second entry
-   for the same task number:
+5. **Write one `bouncer.comprehension` entry.** Read `range_to` as the current
+   `HEAD` sha (`git rev-parse HEAD`). Keep the list at **exactly one** blueprint
+   entry — replace the sole item if refreshing, do **not** append a second
+   entry, and do **not** set a `task` field:
 
    ```yaml
-   - task: '<NNN>'
-     range_from: <sha or base ref from step 2>
+   - range_from: <pointer base from step 2>
      range_to: <HEAD sha>
      diff_sha: <sha from step 4>
      quiz_score: 'N/M'
@@ -89,15 +90,15 @@ is missing, stop and tell the caller to scaffold first.
      recorded_at: <ISO-8601, prefer KST offset>
    ```
 
-   Mirror the outcome under `## 이해 상태` so the body matches the new record.
+   Mirror the outcome under `## 이해 상태` so the body matches the record.
 
 6. **Publish.** Set `bouncer.status → published` on `explain.md` if it is not
    already. Distill promotion stays with `spec-authoring` at
-   `/bouncer-finalize` — do not promote here.
+   `/bouncer-finalize` (before this skill) — do not promote here.
 
 ## Guardrails
 
 - No new CLI, quiz engine, or HTML UI — Node stdlib + `computeDiffSha` only.
 - Do not edit `scripts/lib/comprehension` or gate logic; call the existing API.
-- Do not block the commit step on score. G15 checks the record and hash match
-  for this task entry, not the grade.
+- Do not block finalize on score. G16 checks the record and hash match for the
+  blueprint entry, not the grade. An unanswered quiz still aborts the caller.

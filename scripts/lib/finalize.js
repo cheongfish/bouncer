@@ -4,53 +4,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { epicDirOf, toPosix } = require('./paths');
-const { CONTEXT_ROOT } = require('./scaffold');
-const { PROJECT_DISTILL } = require('./layout');
+const { toPosix } = require('./paths');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
 const { clearCurrent, nextBlueprint } = require('./current');
 // migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
 const { parseFrontmatter } = require('./frontmatter');
 const { renderDoc } = require('./render');
-function isUnder(file, entry) {
-    const f = toPosix(file);
-    const e = toPosix(entry);
-    if (f === e)
-        return true;
-    const pref = e.endsWith('/') ? e : `${e}/`;
-    return f.startsWith(pref);
-}
-// 빌드 산출물과 runtime state는 Bouncer 관리 scope가 아님: stage하지도
-// 위반으로 보고하지도 않아 .gitignore가 없는 repo도 finalize를 막지 않음.
-// `bouncer init`은 프로젝트가 무시해야 할 항목을 알려 주며, `--write-gitignore`
-// 동의 신호가 있을 때만 마커 블록 안에서 쓴다(기본은 제안만).
-// Execute checkout은 `<repo>/.worktrees/<BP-id>` 아래에 있음. 트리 전체를
-// ignore하여 finalize가 중첩 worktree 파일을 scope 밖으로 보지 않게 함.
-// `.bouncer/.venv/`는 init 설치 산출물 — 범위 위반으로 보고하지 않는다.
-const RUNTIME_ARTIFACTS = ['node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/'];
-function isRuntimeArtifact(file) {
-    const f = toPosix(file);
-    return RUNTIME_ARTIFACTS.some((entry) => isUnder(f, entry));
-}
-function makeAllowed({ affectedPaths, blueprintDir }) {
-    const bp = toPosix(blueprintDir);
-    const epicDir = epicDirOf(bp);
-    const paths = Array.isArray(affectedPaths) ? affectedPaths : [];
-    return function allowed(file) {
-        const f = toPosix(file);
-        if (isUnder(f, `${bp}/`))
-            return true;
-        if (f === `${epicDir}/index.md`)
-            return true;
-        if (f === `${CONTEXT_ROOT}/index.md`)
-            return true;
-        // Finalize는 promotion으로 project Distill을 항상 갱신; 모든 blueprint의
-        // affected_paths에 넣을 필요 없음.
-        if (f === PROJECT_DISTILL)
-            return true;
-        return paths.some((p) => isUnder(f, p));
-    };
-}
+// validate↔finalize 순환을 피하려고 scope 헬퍼는 여기 두지 않는다(재수출도 안 함).
+const { makeAllowed, isRuntimeArtifact } = require('./scope');
 // subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
 // 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
 // 문서와 PR body에 있음.
@@ -179,8 +140,8 @@ function writeClosedLock(repoRoot, target) {
     fs.writeFileSync(path.join(repoRoot, target.rel), renderDoc(target.data, target.body));
 }
 // out-of-scope 판정 뒤에만 부르는 stage 목록 합류. lockPath는 항상
-// `${blueprintDir}/index.md`이고 makeAllowed가 blueprintDir 하위 전체를
-// 허용하므로(위 makeAllowed 참고) 이 경로를 다시 allowed()에 통과시키지 않는다.
+// `${blueprintDir}/index.md`이고 scope.makeAllowed가 blueprintDir 하위 전체를
+// 허용하므로 이 경로를 다시 allowed()에 통과시키지 않는다.
 function mergeLocked(list, lockPath) {
     if (!lockPath)
         return list;
@@ -274,6 +235,5 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     };
 }
 module.exports = {
-    isUnder, isRuntimeArtifact, RUNTIME_ARTIFACTS, makeAllowed,
     buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
 };

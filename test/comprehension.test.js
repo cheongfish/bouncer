@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   computeDiffSha,
-  findComprehensionEntry,
+  resolveComprehensionEntry,
   DIFF_EXCLUDED_PREFIXES,
   EXPLAIN_SECTION_DEFS,
 } = require('../scripts/lib/comprehension');
@@ -39,6 +39,20 @@ function failing(reason) {
       return { status: 1, stdout: '', stderr: 'diff failed' };
     }
     return { status: 1, stdout: '', stderr: 'fail' };
+  };
+}
+
+/** 완전 엔트리 픽스처. overrides로 필드만 덮어쓴다. */
+function okEntry(overrides = {}) {
+  return {
+    task: '001',
+    range_from: 'base-sha',
+    range_to: 'head-sha',
+    diff_sha: 'digest',
+    quiz_score: '2/3',
+    disposition: 'ship',
+    recorded_at: '2026-08-07T00:00:00+09:00',
+    ...overrides,
   };
 }
 
@@ -91,77 +105,58 @@ test('computeDiffSha failures are values, never thrown', () => {
   );
 });
 
-test('findComprehensionEntry rejects non-list and empty list', () => {
+test('resolveComprehensionEntry rejects non-list and empty list', () => {
   assert.deepStrictEqual(
-    findComprehensionEntry({ diff_sha: 'x' }, '001'),
+    resolveComprehensionEntry({ diff_sha: 'x' }),
     { ok: false, reason: 'not-a-list' },
   );
   assert.deepStrictEqual(
-    findComprehensionEntry([], '001'),
+    resolveComprehensionEntry([]),
     { ok: false, reason: 'missing' },
   );
 });
 
-test('findComprehensionEntry rejects duplicate task and incomplete fields', () => {
-  assert.deepStrictEqual(
-    findComprehensionEntry([
-      {
-        task: '001', range_from: 'a', range_to: 'b', diff_sha: 'x',
-        quiz_score: '1/1', disposition: 'ok', recorded_at: 't',
-      },
-      {
-        task: '001', range_from: 'c', range_to: 'd', diff_sha: 'y',
-        quiz_score: '1/1', disposition: 'ok', recorded_at: 't',
-      },
-    ], '001'),
-    { ok: false, reason: 'duplicate' },
-  );
+test('resolveComprehensionEntry rejects incomplete required fields', () => {
   for (const incomplete of [
     { range_from: '' },
     { diff_sha: '' },
     { disposition: '' },
+    { quiz_score: '' },
     { range_from: '   ' },
   ]) {
     assert.deepStrictEqual(
-      findComprehensionEntry([{
-        task: '001',
-        range_from: 'sha',
-        range_to: 'head',
-        diff_sha: 'abc',
-        quiz_score: '1/1',
-        disposition: 'ok',
-        recorded_at: 't',
-        ...incomplete,
-      }], '001'),
+      resolveComprehensionEntry([okEntry(incomplete)]),
       { ok: false, reason: 'incomplete' },
       `expected incomplete for ${JSON.stringify(incomplete)}`,
     );
   }
 });
 
-test('findComprehensionEntry returns the matching complete entry', () => {
-  const entry = {
+test('resolveComprehensionEntry returns the last complete entry', () => {
+  const ok = okEntry({ task: '001', disposition: 'ok' });
+  const ok2 = okEntry({
     task: '002',
-    range_from: 'base-sha',
-    range_to: 'head-sha',
-    diff_sha: 'digest',
-    quiz_score: '2/3',
+    range_from: 'base-2',
+    diff_sha: 'digest-2',
+    quiz_score: '1/1',
     disposition: 'ship',
-    recorded_at: '2026-08-07T00:00:00+09:00',
-  };
+  });
   assert.deepStrictEqual(
-    findComprehensionEntry([
-      {
-        task: '001', range_from: 'a', range_to: 'b', diff_sha: 'x',
-        quiz_score: '1/1', disposition: 'ok', recorded_at: 't',
-      },
-      entry,
-    ], '002'),
-    { ok: true, entry },
+    resolveComprehensionEntry([{ task: '001', ...ok }, { task: '002', ...ok2 }]).entry.task,
+    '002',
   );
-  // resolveTaskUnit.number 는 숫자이므로 pad 정규화로 맞춰야 한다.
+  assert.strictEqual(
+    resolveComprehensionEntry([{ ...ok, quiz_score: '' }]).reason,
+    'incomplete',
+  );
   assert.deepStrictEqual(
-    findComprehensionEntry([entry], 2),
-    { ok: true, entry },
+    resolveComprehensionEntry([ok2]),
+    { ok: true, entry: ok2 },
+  );
+  // quiz_score '0/0'은 빈 값이 아니므로 형식상 통과.
+  const zero = okEntry({ quiz_score: '0/0' });
+  assert.deepStrictEqual(
+    resolveComprehensionEntry([zero]),
+    { ok: true, entry: zero },
   );
 });
