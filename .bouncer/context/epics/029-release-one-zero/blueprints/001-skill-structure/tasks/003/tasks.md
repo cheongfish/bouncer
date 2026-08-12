@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '029'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 주석 규칙이 구현 경로 안에만 있어 그 경로를 타지 않는 에이전트는 규칙을 보지 못함
     - 규칙을 마스터 규칙으로 올리고 기준이 되는 대비 예시를 함께 두어 해석을 좁힘

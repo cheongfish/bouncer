@@ -44,6 +44,10 @@ they conflict.
    and BP `explain.md` are Korean (identifiers, paths, and fenced code excepted).
    Apply `stop-slop` when drafting or revising that prose; it is advisory, not a
    gate. Distill stays English.
+9. **Code comments** — Leave non-obvious intent in implementation code as
+   Korean comments. Detail and examples:
+   [`skills/implementation/SKILL.md`](skills/implementation/SKILL.md). Do
+   **not** put comment examples into these master rules.
 
 ## Session conduct
 
