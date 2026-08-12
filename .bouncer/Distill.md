@@ -23,9 +23,13 @@ append a change log.
   via `pretest` / `npm run build`; do not require TS runtimes at consume time.
 - `tsc` does not rewrite `require('../vendor/…')` — keep `outDir`/`rootDir` so
   emit lands in `scripts/lib` and relative vendor paths stay valid.
-- Commit-message subject/body come from document fields (`title`,
-  `commit_type`, `commit_intent`), not free-form finalize prose; keep
-  Epic/Blueprint/Distill ids and file paths out of those fields.
+- Commit-message subject/body come from document fields, not free-form
+  finalize prose: blueprint `commit_type` + task `title` (task subject;
+  blueprint `title` only when task title empty) + task `commit_intent`
+  (exactly two strings) + verification `title`. Finalize remainder subject
+  is blueprint `title`; remainder 배경·의도 is the highest-numbered valid
+  task `commit_intent` (no blueprint `commit_intent`). Keep Epic/Blueprint/
+  Distill ids and file paths out of those fields.
 - Unknown CLI usage goes to **stderr** so stdout stays pipe-clean.
 - Optional `tasks.bouncer.verify` is a single executable argv string only
   (no shell chaining, redirection, or `cd` prefix) so the evidence command
@@ -98,6 +102,11 @@ append a change log.
 - `affected_paths` as a wide directory (e.g. `scripts`) overlaps Do not touch
   file paths under it and fails G12 — prefer per-file paths.
 - Skill YAML `description` plain `##` is truncated as a comment — quote or avoid.
+  Prefer third-person trigger prose (`This skill should be used when/during…`).
+- Workflow skill bodies point plugin-root prose at `docs/install.md`; each
+  shell block still needs its own `BOUNCER_ROOT=` assignment (fresh shell).
+- `reviewer-prompt.md` call brief lives under `skills/review/assets/` — not
+  the skill directory root (hosts may treat a root sibling as a skill).
 - Name-policy / allowlist scanners that only listed `scripts/lib/*.js` break when
   `scripts/src/**/*.ts` is tracked — update allowlists with the source tree.
 - `git worktree add` checks out every tracked file at its HEAD blob — the
@@ -112,8 +121,9 @@ append a change log.
   index and working tree together.
 - `git diff --name-only HEAD` reports staged changes and deletions too — feeding
   its output straight into a file read throws on any deleted path.
-- Reviewer rubric, `reviewer-prompt.md`, named agent docs under `agents/`, and
-  execute dispatch are one commit unit — change them together.
+- Reviewer rubric, `skills/review/assets/reviewer-prompt.md`, named agent
+  docs under `agents/`, and execute dispatch are one commit unit — change
+  them together.
 - Do not redeclare an `agents` path in plugin manifests. Claude rejects the
   plugin when a convention path is listed again; Cursor auto-discovers
   `agents/` when unset.
@@ -327,9 +337,17 @@ append a change log.
   `skills/debugging` — Root cause → Pattern → Hypothesis → Implementation;
   no fix proposals before root-cause). Redispatch the same failing verify at
   most 3 times, then escalate to architecture / `/bouncer-plan`.
-- `reviewer-prompt.md` is a per-run call brief slot; persona, guards, and
-  Findings output contract live in `agents/bouncer-reviewer.md`. Debugger
-  persona / Hard guards / Output contract live in `agents/bouncer-debugger.md`.
+- `reviewer-prompt.md` is a per-run call brief slot at
+  `skills/review/assets/reviewer-prompt.md`; persona, guards, and Findings
+  output contract live in `agents/bouncer-reviewer.md`. Debugger persona /
+  Hard guards / Output contract live in `agents/bouncer-debugger.md`.
+- Code comments: obligation is CLAUDE.md hard rule 9 (pointer only); Bad/Good
+  examples and detailed guidance stay in `skills/implementation/SKILL.md`.
+  Do not restate the rule body in `agents/`.
+- `bouncer.commit_intent` is authored only on task documents (exactly two
+  Korean `~함`/`~임` lines). Blueprint keeps `commit_type` (and `title`) but
+  not `commit_intent`. Task commits and finalize remainder both read task
+  intents; remainder picks the highest-numbered valid entry.
 - Named-agent model overrides live in `.bouncer/config.json` `subagents` as
   per-provider blocks (model ID namespaces differ by host).
   `resolveSubagentModel` never throws — miss / `'inherit'` / non-string →

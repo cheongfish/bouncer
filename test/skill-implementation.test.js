@@ -33,7 +33,19 @@ test('implementation climbs a minimality ladder before writing code', () => {
 test('implementation requires detailed why-comments on non-trivial changes', () => {
   const md = readSkill('implementation');
   assert.match(md, /Detailed comments/i);
+  assert.match(md, /[Hh]ard rule 9|하드룰 9/);
   assert.match(md, /\bwhy\b/i);
   assert.match(md, /invariant|trade-?off|ceiling/i);
   assert.match(md, /thorough|상세|Prefer thoroughness/i);
+});
+
+test('implementation shows good/bad comment contra examples from validate.js', () => {
+  const md = readSkill('implementation');
+  assert.match(md, /scripts\/lib\/validate\.js/);
+  assert.match(md, /\*\*[Bb]ad\*\*|\bBad\b.*restat|나쁜/);
+  assert.match(md, /\*\*[Gg]ood\*\*|\bGood\b.*why|좋은/);
+  // Real why-fragments from validate.js (not invented samples).
+  assert.match(md, /파싱하지 않아야/);
+  assert.match(md, /같은 헬퍼를 써야/);
+  assert.match(md, /재승인 경로가 없/);
 });

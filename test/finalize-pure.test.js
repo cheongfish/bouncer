@@ -53,20 +53,33 @@ test('commit_intent prepends two background bullets before titles', () => {
     blueprintIndex: {
       data: {
         title: '재시도 로직 추가',
+        bouncer: { commit_type: 'feat' },
+      },
+    },
+  };
+  const taskUnit = {
+    number: 1,
+    dir: `${BP}/tasks/001`,
+    tasks: {
+      data: {
+        title: '재시도 간격을 지수적으로 늘림',
         bouncer: {
-          commit_type: 'feat',
           commit_intent: [
             '로그인 실패 재시도가 서버에 부담을 줌',
             '지수 백오프로 안정성을 높이려 함',
           ],
         },
       },
+      rel: `${BP}/tasks/001/tasks.md`,
     },
-    tasks: { data: { title: '재시도 간격을 지수적으로 늘림' } },
-    verification: { data: { title: '관련 검증이 통과함을 확인함' } },
+    verification: {
+      data: { title: '관련 검증이 통과함을 확인함' },
+      rel: `${BP}/tasks/001/verification.md`,
+    },
+    review: undefined,
   };
-  assert.strictEqual(buildCommitMessage(docs), [
-    'feat: 재시도 로직 추가',
+  assert.strictEqual(buildCommitMessage(docs, taskUnit), [
+    'feat: 재시도 간격을 지수적으로 늘림',
     '',
     '- 로그인 실패 재시도가 서버에 부담을 줌',
     '- 지수 백오프로 안정성을 높이려 함',
@@ -146,7 +159,7 @@ test('subject uses taskUnit tasks title over blueprint title', () => {
   );
 });
 
-test('commit_intent prefers task over blueprint; one-line task falls to blueprint', () => {
+test('commit_intent uses task only; missing or invalid leaves verification bullet', () => {
   const bpIntent = [
     'blueprint 배경: 커밋이 blueprint 단위로만 묶임',
     'blueprint 의도: task마다 다른 메시지를 쓰게 함',
@@ -155,6 +168,7 @@ test('commit_intent prefers task over blueprint; one-line task falls to blueprin
     'task 배경: subject가 blueprint title로 고정됨',
     'task 의도: 대상 task title로 subject를 바꿈',
   ];
+  // blueprint commit_intent가 있어도 task 커밋은 쓰지 않는다.
   const docs = {
     blueprintIndex: {
       data: {
@@ -194,7 +208,7 @@ test('commit_intent prefers task over blueprint; one-line task falls to blueprin
     ].join('\n'),
   );
 
-  // task에 commit_intent가 없으면 blueprint 2줄로 떨어진다.
+  // task에 commit_intent가 없으면 blueprint로 폴백하지 않고 verification만.
   assert.strictEqual(
     buildCommitMessage(docs, {
       ...baseUnit,
@@ -206,13 +220,11 @@ test('commit_intent prefers task over blueprint; one-line task falls to blueprin
     [
       'feat: 게이트를 task 단위로 좁힘',
       '',
-      `- ${bpIntent[0]}`,
-      `- ${bpIntent[1]}`,
       '- 검증 통과',
     ].join('\n'),
   );
 
-  // task가 1줄이면 그 출처는 무효 → blueprint 2줄로 폴백.
+  // task가 1줄이면 무효 — blueprint 폴백 없이 verification만.
   assert.strictEqual(
     buildCommitMessage(docs, {
       ...baseUnit,
@@ -227,13 +239,11 @@ test('commit_intent prefers task over blueprint; one-line task falls to blueprin
     [
       'feat: 게이트를 task 단위로 좁힘',
       '',
-      `- ${bpIntent[0]}`,
-      `- ${bpIntent[1]}`,
       '- 검증 통과',
     ].join('\n'),
   );
 
-  // task가 3줄이면 slice하지 않고 출처 전체를 버리고 blueprint로 폴백.
+  // task가 3줄이면 slice하지 않고 출처 전체를 버린다.
   assert.strictEqual(
     buildCommitMessage(docs, {
       ...baseUnit,
@@ -248,8 +258,6 @@ test('commit_intent prefers task over blueprint; one-line task falls to blueprin
     [
       'feat: 게이트를 task 단위로 좁힘',
       '',
-      `- ${bpIntent[0]}`,
-      `- ${bpIntent[1]}`,
       '- 검증 통과',
     ].join('\n'),
   );
@@ -283,15 +291,15 @@ test('empty task title falls subject to blueprint title', () => {
   );
 });
 
-test('both commit_intent sources invalid leave only verification bullet', () => {
+test('invalid task commit_intent leaves only verification bullet despite blueprint intent', () => {
   const docs = {
     blueprintIndex: {
       data: {
         title: 'blueprint 제목',
         bouncer: {
           commit_type: 'feat',
-          // 3줄은 앞 2줄로 자르지 않고 출처 전체를 버린다.
-          commit_intent: ['bp1', 'bp2', 'bp3'],
+          // blueprint에 유효한 2줄이 있어도 task 커밋은 쓰지 않는다.
+          commit_intent: ['bp1', 'bp2'],
         },
       },
     },
@@ -302,7 +310,8 @@ test('both commit_intent sources invalid leave only verification bullet', () => 
     tasks: {
       data: {
         title: '게이트를 task 단위로 좁힘',
-        bouncer: { commit_intent: ['task 한 줄만'] },
+        // 3줄은 앞 2줄로 자르지 않고 출처 전체를 버린다.
+        bouncer: { commit_intent: ['t1', 't2', 't3'] },
       },
       rel: `${BP}/tasks/001/tasks.md`,
     },
@@ -335,24 +344,43 @@ test('undefined taskUnit falls subject to blueprint title', () => {
   );
 });
 
-// --- TASKS-004: finalize 마감 메시지는 blueprint 단위 ---
+// --- TASKS-004: finalize 마감 메시지는 task 스캔 intent + blueprint title ---
 
-test('finalize commit message is blueprint title plus commit_intent only', () => {
+test('finalize commit message is blueprint title plus highest task commit_intent', () => {
   const docs = {
     blueprintIndex: {
       data: {
         title: 'task 단위 커밋 단계 신설과 finalize 축소',
         bouncer: {
           commit_type: 'feat',
+          // blueprint intent는 remainder 출처가 아님.
           commit_intent: [
-            '커밋 단위는 task인데 마감이 blueprint 하나에 묶여 있음',
-            'finalize는 blueprint를 닫는 일만 맡게 함',
+            'blueprint 배경은 무시됨',
+            'blueprint 의도도 무시됨',
           ],
         },
       },
     },
     tasks: { data: { title: '이 task title은 마감 메시지에 없어야 함' } },
     verification: { data: { title: 'verification title도 없어야 함' } },
+    taskUnits: [
+      {
+        number: 1,
+        dir: `${BP}/tasks/001`,
+        tasks: {
+          data: {
+            title: '첫 작업',
+            bouncer: {
+              commit_intent: [
+                '커밋 단위는 task인데 마감이 blueprint 하나에 묶여 있음',
+                'finalize는 blueprint를 닫는 일만 맡게 함',
+              ],
+            },
+          },
+          rel: `${BP}/tasks/001/tasks.md`,
+        },
+      },
+    ],
   };
   assert.strictEqual(buildFinalizeCommitMessage(docs), [
     'feat: task 단위 커밋 단계 신설과 finalize 축소',
@@ -362,18 +390,107 @@ test('finalize commit message is blueprint title plus commit_intent only', () =>
   ].join('\n'));
 });
 
-test('finalize commit message omits body when commit_intent is incomplete', () => {
+test('finalize commit message omits body when no task has valid commit_intent', () => {
   const docs = {
     blueprintIndex: {
       data: {
         title: 'Login flow',
         bouncer: {
           commit_type: 'fix',
-          commit_intent: ['only one line'],
+          // blueprint만 있어도 remainder body에 쓰지 않는다.
+          commit_intent: [
+            'blueprint 두 줄이 있어도',
+            'task가 없으면 body가 비어야 함',
+          ],
         },
       },
     },
     verification: { data: { title: 'Login verified' } },
+    taskUnits: [
+      {
+        number: 1,
+        dir: `${BP}/tasks/001`,
+        tasks: {
+          data: {
+            title: '한 줄만',
+            bouncer: { commit_intent: ['only one line'] },
+          },
+          rel: `${BP}/tasks/001/tasks.md`,
+        },
+      },
+    ],
   };
   assert.strictEqual(buildFinalizeCommitMessage(docs), 'fix: Login flow');
+});
+
+// --- TASKS-004: remainder intent는 task 문서 스캔(가장 큰 번호) ---
+
+test('finalize remainder uses highest-numbered task commit_intent, ignores blueprint', () => {
+  const docs = {
+    blueprintIndex: {
+      data: {
+        title: '커밋 의도 작성 위치를 task 문서로 일원화',
+        bouncer: {
+          commit_type: 'feat',
+          // blueprint에 있어도 remainder는 쓰지 않는다.
+          commit_intent: [
+            'blueprint 배경은 remainder에 들어가면 안 됨',
+            'blueprint 의도도 remainder에 들어가면 안 됨',
+          ],
+        },
+      },
+    },
+    taskUnits: [
+      {
+        number: 1,
+        dir: `${BP}/tasks/001`,
+        tasks: {
+          data: {
+            title: '첫 task',
+            bouncer: {
+              commit_intent: [
+                '001 배경: 앞선 task의 의도',
+                '001 의도: 앞선 task만의 변경',
+              ],
+            },
+          },
+          rel: `${BP}/tasks/001/tasks.md`,
+        },
+      },
+      {
+        number: 2,
+        dir: `${BP}/tasks/002`,
+        tasks: {
+          data: {
+            title: '중간 task',
+            // 무효(1줄) — 건너뛰고 더 큰 번호의 유효 항목을 쓴다.
+            bouncer: { commit_intent: ['002 한 줄만'] },
+          },
+          rel: `${BP}/tasks/002/tasks.md`,
+        },
+      },
+      {
+        number: 3,
+        dir: `${BP}/tasks/003`,
+        tasks: {
+          data: {
+            title: '마지막 task',
+            bouncer: {
+              commit_intent: [
+                '커밋 단위는 task인데 커밋 의도는 상위 문서에 적도록 서술돼 있어 위치가 어긋나 있음',
+                '의도를 task 문서에만 쓰도록 좁히고 마감 커밋도 그 문서들에서 의도를 찾게 함',
+              ],
+            },
+          },
+          rel: `${BP}/tasks/003/tasks.md`,
+        },
+      },
+    ],
+  };
+  assert.strictEqual(buildFinalizeCommitMessage(docs), [
+    'feat: 커밋 의도 작성 위치를 task 문서로 일원화',
+    '',
+    '- 커밋 단위는 task인데 커밋 의도는 상위 문서에 적도록 서술돼 있어 위치가 어긋나 있음',
+    '- 의도를 task 문서에만 쓰도록 좁히고 마감 커밋도 그 문서들에서 의도를 찾게 함',
+  ].join('\n'));
 });

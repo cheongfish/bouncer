@@ -18,8 +18,8 @@
 #     O  - 재시도 간격을 지수적으로 늘려 서버 부하를 줄임
 #     X  - 재시도 간격 지수 증가
 #   순서: 배경·의도 **정확히 2줄**, 이어서 수정 내용 1~2줄 (합계 최대 4줄).
-#   `/bouncer-finalize`는 blueprint `bouncer.commit_intent`(2줄) +
-#   tasks/verification `title`로 이 본문을 조립한다.
+#   `/bouncer-finalize`는 task 문서들의 `bouncer.commit_intent`(유효한 2줄 중
+#   번호가 가장 큰 항목)로 이 본문의 배경·의도를 조립한다.
 #   파일·모듈·패키지 이름은 쓰지 않는다. 그건 diff가 이미 보여준다.
 #
 # ── type ────────────────────────────────────────────────────────

@@ -32,3 +32,4 @@ okf_version: '0.1'
 * [026 context-graph-slim](epics/026-context-graph-slim/index.md) - Epic 026
 * [027 history-import](epics/027-history-import/index.md) - Epic 027
 * [028 antigravity-host](epics/028-antigravity-host/index.md) - Epic 028
+* [029 release-one-zero](epics/029-release-one-zero/index.md) - Epic 029

@@ -53,9 +53,10 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
 // subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
 // 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
 // 문서와 PR body에 있음.
-// Subject: 대상 task title (없으면 blueprint title). Body: 배경·의도 2줄
-// (`commit_intent`) 다음 수정 내용(verification title만 — tasks title은
-// 이미 subject에 있음). taskUnit이 없으면 docs.verification 호환 필드.
+// Subject: 대상 task title (없으면 blueprint title). Body: 대상 task의
+// 배경·의도 2줄(`commit_intent`) 다음 수정 내용(verification title만 —
+// tasks title은 이미 subject에 있음). intent는 task 문서만 — blueprint
+// 폴백 없음. taskUnit이 없으면 docs.verification 호환 필드.
 // commit 경로(`bouncer commit`)가 이 빌더를 쓴다. finalize 마감 메시지는
 // buildFinalizeCommitMessage — task title/verification bullet을 넣지 않는다.
 function buildCommitMessage(docs, taskUnit) {
@@ -87,10 +88,9 @@ function buildCommitMessage(docs, taskUnit) {
   const taskBouncer = taskUnit && taskUnit.tasks && taskUnit.tasks.data
     ? taskUnit.tasks.data.bouncer
     : undefined;
-  // task → blueprint 순. 한 출처가 무효면 다음으로; 둘 다 무효면 intent 없음.
-  const intent = normalizeIntent(taskBouncer && taskBouncer.commit_intent)
-    || normalizeIntent(bouncer.commit_intent)
-    || [];
+  // task 문서만. blueprint commit_intent는 쓰지 않는다 — 커밋 단위가 task인데
+  // 상위 문서로 폴백하면 작성 위치가 다시 갈라진다. 무효·부재면 intent 없음.
+  const intent = normalizeIntent(taskBouncer && taskBouncer.commit_intent) || [];
   const what = [titleOf('verification')].filter(Boolean);
   const bodyLines = intent.length === 2
     ? [...intent, ...what]
@@ -101,9 +101,12 @@ function buildCommitMessage(docs, taskUnit) {
   return lines.join('\n');
 }
 
-// finalize 마감 커밋: subject는 항상 blueprint title, body는 blueprint
-// commit_intent 2줄뿐. task title·verification bullet을 넣으면 003이 이미
-// 남긴 task 커밋과 메시지가 겹치고, Distill 승격분만 남는 마감 의미를 가린다.
+// finalize 마감 커밋: subject는 항상 blueprint title. body의 배경·의도는
+// taskUnits를 번호 순으로 스캔해 유효한 commit_intent(정확히 2줄) 중
+// **번호가 가장 큰** 항목만 쓴다. `.gitmessage`가 배경·의도 2줄로 고정이라
+// N개를 이어 붙일 수 없고, remainder는 blueprint의 마지막 상태이므로 마지막
+// task 의도가 가장 가깝다. blueprint commit_intent는 출처가 아니다.
+// task title·verification bullet을 넣으면 이미 남긴 task 커밋과 겹친다.
 function buildFinalizeCommitMessage(docs) {
   const bp = docs.blueprintIndex.data;
   const bouncer = bp.bouncer || {};
@@ -115,7 +118,22 @@ function buildFinalizeCommitMessage(docs) {
       .map((s) => String(s).trim());
     return lines.length === 2 ? lines : null;
   };
-  const intent = normalizeIntent(bouncer.commit_intent) || [];
+  // 번호 비교로 최댓값을 고른다 — taskUnits 배열 순서가 흐트러져도 같다.
+  let intent = [];
+  let bestNumber = -Infinity;
+  const units = Array.isArray(docs.taskUnits) ? docs.taskUnits : [];
+  for (const unit of units) {
+    const taskBouncer = unit && unit.tasks && unit.tasks.data
+      ? unit.tasks.data.bouncer
+      : undefined;
+    const normalized = normalizeIntent(taskBouncer && taskBouncer.commit_intent);
+    if (!normalized) continue;
+    const n = typeof unit.number === 'number' ? unit.number : -Infinity;
+    if (n >= bestNumber) {
+      bestNumber = n;
+      intent = normalized;
+    }
+  }
   const body = intent.map((t) => `- ${t}`);
   const lines = [`${type}: ${bp.title}`];
   if (body.length) lines.push('', ...body);
@@ -193,7 +211,8 @@ function finalize({
   const violations = all.filter((f) => !allowed(f));
   if (violations.length) return { ok: false, reason: 'out-of-scope', violations };
 
-  // 마감 메시지는 blueprint 단위. resolveTaskUnit/task title은 쓰지 않는다.
+  // subject는 blueprint title; body intent는 task 스캔(최고 번호).
+  // resolveTaskUnit/task title은 쓰지 않는다.
   const commitMessage = buildFinalizeCommitMessage(docs);
   // next 후보 계산이 finalize를 깨면 안 됨: next()가 throw하면 빈 handoff
   // 형태로 뭉개 ok/exit는 commit 작업에만 묶임.

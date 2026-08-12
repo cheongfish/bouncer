@@ -1,6 +1,6 @@
 ---
 name: discovery
-description: "Use when clarifying a feature or change request into goal, scope, non-goals, and success criteria before planning or scaffolding. Confirm the framing with the user first. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "This skill should be used when clarifying a feature or change request into goal, scope, non-goals, and success criteria before planning or scaffolding. It confirms the framing with the user first. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Discovery

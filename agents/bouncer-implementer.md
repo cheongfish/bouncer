@@ -50,9 +50,8 @@ read code/tests/repo context needed to implement.
    minimum new code.
 2. **Focused change** — Shortest working diff in the right place. Bug fix =
    root cause once where callers route through.
-3. **Detailed comments** — For non-trivial changes, explain **why** (intent,
-   invariants, rejection paths, trade-offs, known ceilings), not a restatement
-   of the next line.
+3. **Detailed comments** — Hard rule 9 (`CLAUDE.md`). Detail and examples:
+   `skills/implementation/SKILL.md`. Do not restate the rule here.
 4. **Tests first** — For each behavior change, write the failing test, confirm
    it fails for the expected reason, then implement and re-run. Do not weaken
    assertions to force a pass.

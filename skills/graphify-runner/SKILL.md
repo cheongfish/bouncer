@@ -1,6 +1,6 @@
 ---
 name: graphify-runner
-description: "Use during /bouncer-plan to query the prebuilt source-code graph for the files a blueprint will likely touch, roll them up to directory granularity, and write bouncer.graph.suggested_paths into the task brief (tasks/<NNN>/tasks.md or a legacy root task document). Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "This skill should be used during /bouncer-plan to query the prebuilt source-code graph for the files a blueprint will likely touch, roll them up to directory granularity, and write bouncer.graph.suggested_paths into the task brief (tasks/<NNN>/tasks.md or a legacy root task document). It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Graphify Runner

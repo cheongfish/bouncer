@@ -1,6 +1,6 @@
 ---
 name: explain-diff
-description: "Use from /bouncer-commit after scaffold explain. Author BP explain.md sections, run the quiz for range_from..HEAD, append one bouncer.comprehension entry for the pointer task, and set status published. Not a workflow entry point."
+description: "This skill should be used from /bouncer-commit after scaffold explain. It authors BP explain.md sections, runs the quiz for range_from..HEAD, appends one bouncer.comprehension entry for the pointer task, and sets status published. It is not a workflow entry point."
 ---
 
 # Explain Diff

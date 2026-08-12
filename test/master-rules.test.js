@@ -73,3 +73,14 @@ test('master rules require Korean context bodies and name stop-slop', () => {
   assert.match(claude, /advisory/i);
   assert.match(claude, /Distill stays English|English agent runtime/i);
 });
+
+test('hard rule 9 requires Korean code comments and points at implementation skill', () => {
+  const claude = read('CLAUDE.md');
+  assert.match(claude, /^9\.\s+\*\*Code comments\*\*/m);
+  assert.match(claude, /non-obvious intent|비자명한 의도/i);
+  assert.match(claude, /Korean comment/i);
+  assert.match(claude, /skills\/implementation\/SKILL\.md/);
+  // Distill pattern: obligation + pointer only — examples stay in the skill.
+  const hardRules = claude.split(/^## Session conduct/m)[0];
+  assert.doesNotMatch(hardRules, /```/);
+});

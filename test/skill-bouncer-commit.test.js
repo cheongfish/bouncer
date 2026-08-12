@@ -11,7 +11,7 @@ const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-commit', 'SKILL.md
 test('bouncer-commit is an explicit-ask workflow skill', () => {
   const { data, body } = parseFrontmatter(md);
   assert.strictEqual(data.name, 'bouncer-commit');
-  assert.match(String(data.description), /Use only when the user explicitly asks/i);
+  assert.match(String(data.description), /This skill should be used only when the user explicitly asks/i);
   assert.match(body, /validate\s+--gate\s+commit/);
   assert.match(body, /bouncer"\s+commit[\s\S]*--yes|commit\s+--blueprint[\s\S]*--yes/);
   assert.match(body, /skills\/explain-diff\/SKILL\.md/);
