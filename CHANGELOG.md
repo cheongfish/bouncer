@@ -7,6 +7,21 @@
 
 ## [Unreleased]
 
+## [0.7.5] — 2026-08-12
+
+0.7.0 이후 스킬 구조 정렬·이해 게이트 재배치(EPIC-029–030).
+
+### Changed
+
+- **스킬 anatomy (EPIC-029)** — 워크플로·제네릭 스킬 본문 구조를 맞추고, 코드
+  주석 규칙은 `CLAUDE.md` hard rule 9로 승격한다. `bouncer.commit_intent`는
+  task 문서에만 둔다.
+- **이해 기록 위치 (EPIC-030)** — explain·퀴즈는 `/bouncer-finalize`에서
+  blueprint당 comprehension 엔트리 하나로 기록한다. `/bouncer-commit`은 task
+  커밋만 담당한다. commit 게이트는 G6/G7/G8 + **G17**(스테이징 스코프)이고,
+  G15·G9는 결번이다. `makeAllowed` 등 허용 집합은 `scope.ts`로 옮겨
+  validate↔finalize 순환을 끊는다.
+
 ## [0.7.0] — 2026-08-12
 
 0.6.0 이후 task 묶음·커밋 단계·호스트 확장(EPIC-020–028).

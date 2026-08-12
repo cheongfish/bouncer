@@ -1,6 +1,6 @@
 {
   "name": "bouncer",
-  "version": "0.7.0",
+  "version": "0.7.5",
   "private": true,
   "description": "Deterministic core for the Bouncer plugin",
   "bin": {
