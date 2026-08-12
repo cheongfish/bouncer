@@ -43,6 +43,7 @@
                   → gate execute  (G6–G8, G13–G14)  ← verify 실제 실행
 /bouncer-commit   → gate commit (G6/G7/G8 + G17)
                   → ACQ(commit --yes) → ACQ(next task --set)
+/bouncer-run      → execute→commit 반복 (task 소진까지; 수동 경로의 대체)
 /bouncer-finalize → Distill 승격(from explain)
                   → explain-diff (BP entry + quiz) → gate finalize (G16)
                   → ACQ(--yes + worktree)
@@ -64,6 +65,23 @@ Execute에서 구현·리뷰·디버그는 named 서브에이전트 `bouncer-imp
 게이트 표와 실패 코드는 [gates.md](gates.md),
 CLI는 [cli.md](cli.md), 설정은 [configuration.md](configuration.md)를
 보세요. 커밋 가드의 한계는 [security.md](security.md)에 있습니다.
+
+## 자동 주행
+
+`/bouncer-run`은 위 다섯 단계의 정본을 바꾸지 않는다. plan과 finalize는
+그대로 두고, execute→commit만 열린 task가 없어질 때까지 반복한다.
+정본 상한·중단 규칙은 `/bouncer-run` SKILL.md에 있다.
+
+시작 전에 ACQ 하나로 주행 여부를 묻는다. 열린 task를 소진하면 멈추고
+`/bouncer-finalize`를 안내한다. finalize에는 들어가지 않는다.
+
+중단은 셋이다. verify 재시도 1회 후 재실패, 리뷰 왕복 2회 상한, 범위
+위반. 멈추면 포인터와 execute worktree를 그대로 둔다. 그 task는
+`/bouncer-execute`로 수동으로 닫은 뒤 `/bouncer-run`을 다시 건다.
+
+`config.autonomy`가 `auto`면 시작 ACQ만 묻고 commit·next-task ACQ는
+건너뛴다. `interactive`는 각 task를 닫은 뒤 다음 task로 갈지 ACQ를
+하나 더 묻는다.
 
 ## 경량 경로
 

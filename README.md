@@ -135,6 +135,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 /bouncer-plan      # epic → blueprint → tasks, affected_paths 승인
 /bouncer-execute   # worktree seed → 구현 · verify · review
 /bouncer-commit    # 스코프 · task 커밋 · 다음 task
+/bouncer-run       # execute→commit 반복 주행 (task 소진까지)
 /bouncer-finalize  # Distill 승격 · explain+퀴즈 · remainder · draft PR
 ```
 

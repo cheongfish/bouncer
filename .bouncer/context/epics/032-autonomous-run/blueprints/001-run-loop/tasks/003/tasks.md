@@ -11,10 +11,10 @@ bouncer:
   id: TASKS-003
   epic_id: '032'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 커맨드가 늘었는데 워크플로를 설명하는 문서들은 다섯 단계만 말하고 있어 새 경로가 보이지 않음
-    - 수동 순서를 그대로 둔 채 자동 주행을 대체 경로로 덧붙여 서술을 맞춤
+    - 수동 순서를 그대로 둔 채 자동 주행을 대체 경로로 덧붙이고, 선행 스킬 테스트 allowlist 누락을 함께 고침
   affected_paths:
     - CLAUDE.md
     - docs/workflow.md
@@ -22,6 +22,7 @@ bouncer:
     - docs/governance.md
     - README.md
     - test/master-rules.test.js
+    - test/public-name-regression.test.js
   graph:
     generated_at: '2026-08-12T18:20:00+09:00'
     command: graphify query "autonomous run loop skill autonomy config schema init default workflow command execute commit pointer" --graph graphify-out/{source,context}/graph.json
@@ -70,6 +71,9 @@ Blueprint: [001](../../index.md)
   - `test/master-rules.test.js` — `workflow skills instruct reading CLAUDE.md
     before steps`의 스킬 목록에 `'bouncer-run'`을 넣고, 「When to invoke」 표에
     `/bouncer-run` 행이 있는지 단언을 더한다.
+  - `test/public-name-regression.test.js` — `SUPERPOWERS_NEGATIVE_TESTS`에
+    `'test/skill-bouncer-run.test.js'`를 넣는다(TASKS-002 네거티브 단언 allowlist
+    누락).
 - 거부:
   - 하드룰 5의 다섯 단계 화살표 순서를 고치지 않는다. 수동 경로가 정본이고,
     `test/master-rules.test.js`의 순서 정규식이 그대로 통과해야 한다.
@@ -84,10 +88,11 @@ Blueprint: [001](../../index.md)
 - Modify `docs/governance.md` — 커밋 단위가 그대로임을 명시
 - Modify `README.md` — 커맨드 목록 한 줄 추가
 - Modify `test/master-rules.test.js` — 스킬 목록에 `bouncer-run` 추가, 표 행 단언 추가
+- Modify `test/public-name-regression.test.js` — `skill-bouncer-run`을 Superpowers 네거티브 allowlist에 추가
 
 ## Do not touch
 - `skills/` 전체 — 스킬 본문은 TASKS-002가 확정했다
-- `scripts/` 전체 — 문서 전용 커밋이다
+- `scripts/` 전체 — 하네스 코드는 건드리지 않는다
 - `docs/PILOT.md` · `docs/troubleshooting.md` · `docs/contributing.md` — 수동 경로를 설명하는 문서이며 그 서술이 계속 맞다
 - `docs/cli.md` — 새 CLI 명령이 없다
 - `CHANGELOG.md` — 릴리스 문서는 별도 흐름이다
@@ -97,18 +102,21 @@ Blueprint: [001](../../index.md)
   같은 말 반복을 넣지 않는다.
 - 문서마다 같은 규칙을 길게 되풀이하지 않는다. 각 문서는 자기 층위에서 한 번만
   말하고 자세한 것은 `/bouncer-run`으로 넘긴다.
-- 코드 변경이 없는 커밋이므로 테스트 추가 의무는 없지만, `CLAUDE.md` 표 행은
-  깨지기 쉬운 계약이라 `test/master-rules.test.js` 단언으로 고정한다.
+- 본문은 문서·계약 테스트 위주다. `CLAUDE.md` 표 행은
+  `test/master-rules.test.js` 단언으로 고정하고, TASKS-002 allowlist 누락만
+  `public-name-regression`에 한 줄로 고친다.
 
 ## Checklist
-- [ ] `test/master-rules.test.js`에 실패하는 단언을 먼저 넣고 실패를 확인한다.
+- [x] `test/master-rules.test.js`에 실패하는 단언을 먼저 넣고 실패를 확인한다.
       ```js
       assert.match(claude, /\|\s*Run one blueprint to task exhaustion\s*\|\s*`\/bouncer-run`\s*\|/);
       ```
       같은 파일의 워크플로 스킬 목록에 `'bouncer-run'`을 더한다.
-- [ ] `CLAUDE.md` 하드룰 5에 대체 경로 문장을 더하고 「When to invoke」 표에
+- [x] `CLAUDE.md` 하드룰 5에 대체 경로 문장을 더하고 「When to invoke」 표에
       행을 추가한다. 다섯 단계 화살표는 건드리지 않는다.
-- [ ] `docs/workflow.md`에 「자동 주행」 절과 「How it works」 줄을 더한다.
-- [ ] `docs/ARCHITECTURE.md` §2와 `docs/governance.md`에 각각 한 문장을 더한다.
-- [ ] `README.md` 커맨드 목록에 한 줄을 더한다.
-- [ ] `npm test`가 통과한다(순서 정규식과 새 단언이 함께 통과하는지 확인).
+- [x] `docs/workflow.md`에 「자동 주행」 절과 「How it works」 줄을 더한다.
+- [x] `docs/ARCHITECTURE.md` §2와 `docs/governance.md`에 각각 한 문장을 더한다.
+- [x] `README.md` 커맨드 목록에 한 줄을 더한다.
+- [x] `test/public-name-regression.test.js`의 `SUPERPOWERS_NEGATIVE_TESTS`에
+      `'test/skill-bouncer-run.test.js'`를 넣는다.
+- [x] `npm test`가 통과한다(순서 정규식·표 단언·allowlist가 함께 통과하는지 확인).

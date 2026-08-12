@@ -11,11 +11,13 @@ bouncer:
   id: REVIEW-003
   epic_id: '032'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings: []
 ---
 # Review
 
 ## Findings
-- <finding>
+
+(none)

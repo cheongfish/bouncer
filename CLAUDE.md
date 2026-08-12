@@ -31,6 +31,8 @@ they conflict.
 5. **Workflow order** — `/bouncer-init` → `/bouncer-plan` → `/bouncer-execute` →
    `/bouncer-commit` → `/bouncer-finalize`. Detail:
    [`docs/workflow.md`](docs/workflow.md).
+   `/bouncer-run`은 위 순서의 정본이 아니라, execute→commit 구간을 task
+   소진까지 반복하는 **대체 경로**다.
 6. **OKF shape** — Context documents carry OKF frontmatter; Bouncer fields live
    under `bouncer:`. Bundle-root `okf_version` is only on
    `.bouncer/context/index.md`. Detail: [`docs/okf.md`](docs/okf.md).
@@ -91,6 +93,7 @@ numbered step says otherwise.
 | Investigate a failed verify | `debugging` + `verification` |
 | Review the diff against the brief | `review` |
 | Close one task (commit) | `/bouncer-commit` |
+| Run one blueprint to task exhaustion | `/bouncer-run` |
 | Promote Distill, explain + quiz, draft PR, cleanup | `/bouncer-finalize` |
 
 ## Plugin root

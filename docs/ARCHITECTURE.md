@@ -42,6 +42,8 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 
 - `/bouncer-init` → `/bouncer-plan` → `/bouncer-execute` → `/bouncer-commit` →
   `/bouncer-finalize`
+- `/bouncer-run`은 위 단계를 부르는 드라이버이며, 단계 계약을 새로 만들지
+  않는다.
 - 검증·리뷰는 각 `tasks/<NNN>/` 묶음의 자체 문서 계약
   (`verification.md`, `review.md`)으로 충족한다.
 - 에이전트 기본 역량과 일반 워크플로 스킬이 같은 계약을 수행한다.
