@@ -8,6 +8,7 @@
   },
   "verify": "npm test",
   "base_branch": "develop",
+  "autonomy": "auto",
   "pr": {
     "draft": true,
     "base": "develop",

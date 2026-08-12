@@ -36,3 +36,4 @@ bouncer_schema: '0.1'
 * [029 release-one-zero](epics/029-release-one-zero/index.md) - Epic 029
 * [030 gate-restructure](epics/030-gate-restructure/index.md) - Epic 030
 * [031 document-schema](epics/031-document-schema/index.md) - Epic 031
+* [032 autonomous-run](epics/032-autonomous-run/index.md) - Epic 032
