@@ -50,11 +50,11 @@ appears; do not reconstruct a root `context/` path. **Task brief** =
 or single task bundle (same rule as execute).
 
 1. **Scope dry-run.** Ensure the target task frontmatter has
-   `bouncer.commit_intent` as **exactly two** Korean `~함` / `~임` strings when
-   you want task-specific 배경·의도 (else the CLI falls back to blueprint
-   `commit_intent`). Prefer values written at plan time; if missing or not
-   length 2, author them now from Goal & intent (no Epic/Blueprint ids, no file
-   paths), then proceed. Dry-run first:
+   `bouncer.commit_intent` as **exactly two** Korean `~함` / `~임` strings for
+   배경·의도 (task document only — no blueprint fallback). Prefer values
+   written at plan time; if missing or not length 2, author them now from
+   Goal & intent (no Epic/Blueprint ids, no file paths), then proceed.
+   Dry-run first:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" commit --blueprint <pointer.blueprint>

@@ -78,13 +78,14 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    sole brief for `/bouncer-execute`. Write Touch per file with a verb rather than
    per directory, and put non-path rules in Constraints.
    Also replace scaffold default frontmatter `title` values (and set
-   `bouncer.commit_type` / `bouncer.commit_intent` on the blueprint, plus
-   optional task `bouncer.commit_intent`, when needed): `/bouncer-commit`
-   turns each task `title` into that task's commit subject (falls back to
-   blueprint `title`), uses task then blueprint `commit_intent` (exactly two
-   `~함` lines) for 배경·의도, and verification `title` for a 수정 내용
-   bullet, following `.gitmessage`. `/bouncer-finalize` uses blueprint
-   `title` + blueprint `commit_intent` only for any Distill remainder commit.
+   `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent`,
+   when needed): `/bouncer-commit` turns each task `title` into that task's
+   commit subject (falls back to blueprint `title`), uses that task's
+   `commit_intent` (exactly two `~함` lines; no blueprint fallback) for
+   배경·의도, and verification `title` for a 수정 내용 bullet, following
+   `.gitmessage`. `/bouncer-finalize` remainder scans every task document in
+   number order for a valid `commit_intent` and uses the highest-numbered
+   match (blueprint `title` as subject; no blueprint `commit_intent`).
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
    **경량 선언.** 사용자가 경량 경로를 선언했으면 blueprint `index.md`
    frontmatter에 `bouncer.scale: light`를 쓴다. `schema.ts`에 등록하지 않는

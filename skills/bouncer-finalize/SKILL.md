@@ -72,11 +72,13 @@ appears; do not reconstruct a root `context/` path.
    Gate `finalize` checks G16 (every task `verified`, explain published with a
    comprehension entry per task). Fix and re-run until it passes.
 
-   Before dry-run, ensure the blueprint frontmatter has `bouncer.commit_intent`
-   as **exactly two** Korean `~함` / `~임` strings (배경·의도 for any Distill
-   remainder commit). Prefer values written at plan time; if missing or not
-   length 2, author them now from Goal & intent / explain (no Epic/Blueprint
-   ids, no file paths), then proceed. Dry-run:
+   Before dry-run, ensure at least one task document has `bouncer.commit_intent`
+   as **exactly two** Korean `~함` / `~임` strings when you want 배경·의도 on
+   any Distill remainder commit. Finalize scans every task in number order and
+   uses the highest-numbered valid intent (no blueprint `commit_intent`). Prefer
+   values written at plan time; if none are length 2, author them on the latest
+   task from Goal & intent / explain (no Epic/Blueprint ids, no file paths),
+   then proceed. Dry-run:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint>

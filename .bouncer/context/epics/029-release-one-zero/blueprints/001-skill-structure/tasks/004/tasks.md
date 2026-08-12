@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '029'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 커밋 단위는 task인데 커밋 의도는 상위 문서에 적도록 서술돼 있어 위치가 어긋나 있음
     - 의도를 task 문서에만 쓰도록 좁히고 마감 커밋도 그 문서들에서 의도를 찾게 함
@@ -23,8 +23,10 @@ bouncer:
     - skills/bouncer-commit/SKILL.md
     - skills/bouncer-finalize/SKILL.md
     - docs/PILOT.md
+    - docs/contributing.md
     - .gitmessage
     - test/finalize-pure.test.js
+    - test/finalize.test.js
   graph:
     generated_at: '2026-08-12T09:53:14.670+09:00'
     command: mcp:graphify
@@ -88,8 +90,10 @@ remainder도 task 문서들에서 의도를 찾도록 바꾼다.
 - Modify `skills/bouncer-commit/SKILL.md` — "task then blueprint" 폴백 서술을 task 단일 출처로
 - Modify `skills/bouncer-finalize/SKILL.md` — dry-run 전 blueprint `commit_intent` 요구 문구를 새 규칙으로
 - Modify `docs/PILOT.md` — 커밋 본문 조립 설명 갱신
+- Modify `docs/contributing.md` — task 단일 출처·remainder 최고 번호 규칙으로 갱신
 - Modify `.gitmessage` — 본문 조립 출처 설명 갱신
 - Modify `test/finalize-pure.test.js` — remainder intent 해석 테스트 추가·갱신
+- Modify `test/finalize.test.js` — fixture intent를 task로 옮기고 expectation 갱신
 
 ## Do not touch
 - `skills/implementation/SKILL.md`, `agents/` — 이 task는 커밋 의도 경로만 다룬다.
