@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '031'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 스캐폴드 주석만으로는 완성된 문서가 어떤 밀도인지 알 수 없었음
     - 예시를 읽는 주체가 spec-authoring이므로 그 스킬의 references에 둠
