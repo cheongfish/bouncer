@@ -10,12 +10,12 @@
 ## 권장 작업 순서
 
 BP-1(스킬 구조·주석 규칙, 옛 §6·§7)은 PR #37에서 끝났다.
-BP-2(게이트 재구성, 옛 §2)는 이 PR에서 끝났다. 남은 순서:
+BP-2(게이트 재구성, 옛 §2)는 PR #38에서 끝났다.
+BP-3(문서 스키마·레이아웃, 옛 §5)는 PR #39에서 끝났다. 남은 순서:
 
-1. **BP-3 문서 스키마·레이아웃** (§5) — `bouncer_schema`만 접점
-2. **BP-4 자동 루프** (§3, §4) — `/bouncer-run`, autonomy. **BP-2 이후**
-3. **BP-5 품질·보안** (minimality·context reviewer·인젝션) — **BP-2 이후** (G18이 validate/scaffold를 건드림)
-4. **BP-6 벤치마크** — 워크플로 밖 분리 스킬. 독립, 마지막
+1. **BP-4 자동 루프** (§3, §4) — `/bouncer-run`, autonomy. **BP-2 이후**
+2. **BP-5 품질·보안** (minimality·context reviewer·인젝션) — **BP-2 이후** (G18이 validate/scaffold를 건드림)
+3. **BP-6 벤치마크** — 워크플로 밖 분리 스킬. 독립, 마지막
 
 ---
 
@@ -76,49 +76,6 @@ review 상한 정책은 `bouncer-followups.md` 3번(재리뷰 루프 상한)의 
   (BP마다 달라질 이유가 아직 없고 해석 경로가 둘로 늘어난다).
 - `interactive` 모드에서도 explain 위치는 finalize로 동일하다. 모드별로 문서
   구조가 갈리면 G16을 두 벌 만들어야 한다.
-
----
-
-## 5. 문서 스키마
-
-### 5.1 현황 (조사 결과)
-
-| 문서 | `type` | `bouncer:` 필드 |
-| --- | --- | --- |
-| epic `index.md` | `bouncer.epic` | `id`, `epic_id`, `status` |
-| blueprint `index.md` | `bouncer.blueprint` | `id`, `epic_id`, `blueprint_id`, `status` |
-| `tasks/NNN/tasks.md` | `bouncer.tasks` | + `affected_paths`, `graph{command, suggested_paths}` |
-| `tasks/NNN/verification.md` | `bouncer.verification` | + `verification{command, ran_at, exit_code, output_tail}` |
-| `tasks/NNN/review.md` | `bouncer.review` | + `review{required, findings[]}` |
-| `explain.md` | — | `id`, `epic_id`, `blueprint_id`, `status`, `comprehension[]` |
-| 번들 루트 `index.md` | — | `okf_version: 0.1` |
-
-조사에서 드러난 문제:
-
-1. OKF 최상위 6필드 중 코드가 검사하는 것은 **`resource` 하나뿐**(S3).
-   `type`/`title`/`description`/`tags`/`timestamp`는 어떤 게이트도 읽지 않는다.
-2. **`bouncer.scale`은 코드에 존재하지 않는다.** `explain-diff` 스킬만 참조한다.
-3. **`bouncer.commit_type`은 읽히지만 scaffold가 만들지 않는다**
-   (`finalize.js`가 없으면 `'feat'` 폴백).
-
-### 5.2 결정
-
-- **OKF 최상위 필드는 유지하고 검사를 추가**하되 **`type`과 문서 종류 대조만**
-  한다(신규 S 코드 1개). `bouncer.tasks` 문서에 `bouncer.review`가 적혀 있는
-  종류의 사고만 잡는다. `title`/`description`/`tags`/`timestamp`는 검사하지 않는다 —
-  1.0 이후 깨기 어려운 계약을 필요 이상으로 늘리지 않는다.
-- **`bouncer.scale`을 정식 필드로 승격**한다. scaffold가 blueprint에 쓰고
-  스키마에 넣는다. 퀴즈 분량 외에 자동 루프의 검증 강도 조절에도 쓸 수 있다.
-- **번들 루트에 `bouncer_schema` 추가.** `okf_version` 옆에 bouncer 자체
-  스키마 버전을 한 개. 문서마다 박지 않는다. 1.0 호환 약속의 기준점이 된다.
-- **legacy 레이아웃 컷오버** — root `tasks.md` / `tasks-<NNN>.md` 이중 지원을
-  끝낸다. 1.0을 찍으면 영구 지원 계약이 되므로 그 전에 닫는다.
-- **작성 예시 문서 추가** — 각 문서 종류의 완성된 예시를
-  **`skills/spec-authoring/references/`**에 둔다. 예시를 실제로 읽는 주체가
-  `spec-authoring` 스킬이고, skill anatomy의 `references/`(필요할 때 로드)와
-  일치한다.
-
-`commit_type`은 scaffold가 쓰도록 함께 정리한다(5.1의 3번).
 
 ---
 
@@ -192,12 +149,12 @@ ponytail에만 있는 rung("네이티브 플랫폼 기능"을 stdlib과 분리)�
 
 ## 10. 신규 게이트 코드 정리
 
-G17(commit 스코프)·G15 폐기·G16 `diff_sha` 흡수는 BP-2에서 반영했다. 남은 코드:
+G17(commit 스코프)·G15 폐기·G16 `diff_sha` 흡수는 BP-2에서 반영했다.
+S19(`type`↔경로)·S20(`scale` enum)은 BP-3(PR #39)에서 반영했다. 남은 코드:
 
 | 코드 | 게이트 | 검사 |
 | --- | --- | --- |
 | **G18** | plan | `context-review.md` status / findings 형식 (§7) |
-| 신규 **S** | 구조 | `type`이 문서 종류와 일치하는가 (§5.2) |
 
 각 blueprint의 `affected_paths`는 해당 `/bouncer-plan`에서 확정한다.
 
@@ -207,8 +164,8 @@ G17(commit 스코프)·G15 폐기·G16 `diff_sha` 흡수는 BP-2에서 반영했
 
 ```
 BP-1  스킬 구조 재편        — 완료 (PR #37). 옛 §6·§7
-BP-2  게이트 재구성          — 완료 (이 PR). 옛 §2
-BP-3  문서 스키마·레이아웃   (5)   — legacy 컷오버, OKF 검사, scale/commit_type, bouncer_schema, 예시
+BP-2  게이트 재구성          — 완료 (PR #38). 옛 §2
+BP-3  문서 스키마·레이아웃   — 완료 (PR #39). 옛 §5
 BP-4  자동 루프              (3, 4) — /bouncer-run, autonomy, 상한 정책. BP-2 이후
 BP-5  품질·보안              (6, 7, 8) — minimality 래더, context reviewer, 인젝션 방어
 BP-6  벤치마크               (9)  — 분리 스킬. 마지막
@@ -216,11 +173,9 @@ BP-6  벤치마크               (9)  — 분리 스킬. 마지막
 
 순서 근거:
 
-- **BP-1·BP-2 완료** — 스킬 anatomy와 게이트 재배치가 올라와 있다. 이후 BP는
-  이 구조를 전제로 한다.
+- **BP-1·BP-2·BP-3 완료** — 스킬 anatomy, 게이트 재배치, 문서 스키마·레이아웃이
+  올라와 있다. 이후 BP는 이 구조를 전제로 한다.
 - **BP-2 → BP-4** — 자동 루프는 게이트가 확정된 뒤라야 설계가 흔들리지 않는다.
-- **BP-3은 BP-2와 병렬 가능** — 스키마와 게이트 로직이 만나는 지점은
-  `bouncer_schema` 하나뿐이다.
 - **BP-5는 BP-2 이후.** context reviewer가 자문에서 plan 게이트(G18)로 승격되면서
   `validate.js`와 `scaffold.js`(신규 `context-review.md`)를 건드린다 —
   BP-2와 같은 파일이므로 순서를 지켜야 충돌하지 않는다.
