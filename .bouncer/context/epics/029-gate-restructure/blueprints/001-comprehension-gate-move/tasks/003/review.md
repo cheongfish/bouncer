@@ -11,11 +11,26 @@ bouncer:
   id: REVIEW-003
   epic_id: '029'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: major
+        status: resolved
+        note: 'README quick-start comments now match commit/finalize split (scope commit; Distill then explain+quiz)'
+      - id: F2
+        severity: major
+        status: resolved
+        note: 'skill-bouncer-commit pairs G6/G7/G8 + G17 presence asserts with explain-diff doesNotMatch'
 ---
 # Review
 
 ## Findings
-- <finding>
+
+- F1 (major, resolved): README quick-start가 예전 commit/finalize 분리를
+  가리키고 있었다. `/bouncer-commit`은 스코프·커밋·다음 task, `/bouncer-finalize`는
+  Distill 승격·explain+퀴즈·remainder·draft PR로 고쳤다.
+- F2 (major, resolved): `test/skill-bouncer-commit.test.js`가
+  `doesNotMatch(explain-diff)`만 두고 새 commit 게이트 문구 존재 단언이 없었다.
+  `G6/G7/G8`·`G17` `assert.match`를 함께 두었다.

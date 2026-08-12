@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '029'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 퀴즈가 PR 단위로 한 번만 오도록 워크플로 순서가 정리됨
     - 문서와 스킬이 실제 게이트 판정과 같은 것을 가리키게 됨

@@ -52,4 +52,7 @@ test('explain-diff fixes one quiz question on scale light', () => {
   assert.match(ed, /1[–~-]10/);
   assert.match(ed, /scale/);
   assert.match(ed, /light/);
+  // light면 1문항으로 고정 — 새 단일 엔트리 문구에서도 성립.
+  assert.match(ed, /1문항|질문 수(를)? 1/);
+  assert.match(ed, /bouncer-finalize|\/bouncer-finalize/);
 });

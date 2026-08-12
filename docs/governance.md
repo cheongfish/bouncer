@@ -9,9 +9,9 @@ legacy migration targets. If a task feels too large for one commit, split it
 into more task bundles (or more blueprints). Do **not** invent a further
 subtask layer beneath a task bundle.
 
-`/bouncer-commit` closes one task (scope check → comprehension entry →
-`bouncer commit`). `/bouncer-execute` does not commit. `/bouncer-finalize`
-closes the blueprint (Distill promotion, remainder commit, draft PR, worktree
+`/bouncer-commit` closes one task (scope check → `bouncer commit`).
+`/bouncer-execute` does not commit. `/bouncer-finalize` closes the blueprint
+(Distill promotion, explain + quiz, remainder commit, draft PR, worktree
 cleanup) after every task is committed.
 
 ## Lightweight cycle
@@ -42,7 +42,8 @@ What stays the same:
 
 - Full document set: `tasks/<NNN>/{tasks,verification,review}.md` and
   `explain.md` are still authored and gated.
-- Gate judgments **G1–G16** are unchanged (including G16 Distill promotion).
+- Gate judgments **G1–G17** are unchanged in the light path (G16 Distill /
+  comprehension at finalize; G17 staged scope at commit). G15 is retired.
 - Distill promotion at `/bouncer-finalize` is unchanged.
 
 Limit of inline review: the same session judges **its own diff** (self-review).

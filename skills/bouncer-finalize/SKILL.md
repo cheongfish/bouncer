@@ -1,6 +1,6 @@
 ---
 name: bouncer-finalize
-description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Promote Distill, validate, ACQ-confirm `finalize --yes` (recommended: remove worktree), then ACQ for draft PR and next-blueprint handoff (PR skipped gracefully with no remote)."
+description: "Use only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). Promote Distill, author explain + quiz via explain-diff, validate, ACQ-confirm `finalize --yes` (recommended: remove worktree), then ACQ for draft PR and next-blueprint handoff (PR skipped gracefully with no remote)."
 ---
 # /bouncer-finalize
 
@@ -22,9 +22,9 @@ contains `scripts/bouncer`.
 `docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
 
 Close out the active blueprint after every task has been committed via
-`/bouncer-commit`. Follow this sequence. Do **not** run the task quiz or
-`bouncer commit` here — task commits and comprehension entries already landed
-on `/bouncer-commit`.
+`/bouncer-commit`. Follow this sequence. Do **not** run `bouncer commit` here —
+task commits already landed on `/bouncer-commit`. Comprehension (explain + quiz)
+runs in this skill, after Distill promotion.
 
 ## ACQ (AskUserQuestion) gates
 
@@ -49,9 +49,9 @@ put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body
    - C) {Cancel}
 ```
 
-**Gates in this skill:** Remainder commit + worktree (step 2) · PR (step 3) ·
-Next blueprint (step 5). Worktree removal is **not** a separate gate — it is
-chosen in step 2.
+**Gates in this skill:** Remainder commit + worktree (step 3) · PR (step 4) ·
+Next blueprint (step 6). Worktree removal is **not** a separate gate — it is
+chosen in step 3.
 
 **Preflight.** Load the active blueprint:
 ```bash
@@ -71,17 +71,32 @@ appears; do not reconstruct a root `context/` path.
    append. Do **not** promote `## 이해 상태`, `## Quiz`, or comprehension
    fields into Distill — 이해 상태는 Distill로 승격하지 않는다. Cycle
    retrospectives and next-BP ideas stay in the BP `explain.md` only.
-   If `explain.md` is missing or not `published`, stop — every task should
-   already have recorded comprehension via `/bouncer-commit`.
+   If `explain.md` is missing, continue — step 2 will scaffold and author it.
+   If it exists but is not yet `published`, step 2 publishes after the quiz.
 
-2. **Validate + remainder commit (deterministic core) + worktree choice.**
+2. **Explain + quiz.** Create BP `explain.md` if it is missing:
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold explain --blueprint <pointer.blueprint>
+   ```
+   Then use the `explain-diff` skill (`skills/explain-diff/SKILL.md`) to author
+   or refresh the five sections in Korean (with `stop-slop`), quiz the user on
+   pointer-`base`..HEAD, and write **one** `bouncer.comprehension` blueprint
+   entry (`quiz_score` required). If the user does not answer the quiz, **stop**
+   — do not continue to validate or `finalize --yes`. When sections are ready,
+   set `explain.md` `bouncer.status → published`. If a quiz was already recorded
+   and only `diff_sha` / body prose drifted after later commits, refresh those
+   fields only — do **not** re-quiz.
+
+3. **Validate + remainder commit (deterministic core) + worktree choice.**
    Run the finalize gate first:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate finalize
    ```
-   Gate `finalize` checks G16 (every task `verified`, explain published with a
-   comprehension entry per task). Fix and re-run until it passes.
+   Gate `finalize` checks G16 (every task `verified`, explain published with one
+   blueprint comprehension entry whose `diff_sha` matches `range_from..HEAD`).
+   Fix and re-run until it passes.
 
    Before dry-run, ensure the blueprint frontmatter has `bouncer.commit_intent`
    as **exactly two** Korean `~함` / `~임` strings (배경·의도 for any Distill
@@ -116,12 +131,12 @@ appears; do not reconstruct a root `context/` path.
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
    ```
-   Remember the worktree choice for step 4 (`remove` on A, `keep` on B).
+   Remember the worktree choice for step 5 (`remove` on A, `keep` on B).
    On **C**, fix and re-dry-run. On **D**, stop without `--yes`.
    (Empty staged set is fine — still run the ACQ so worktree choice is explicit;
    `--yes` clears the pointer without creating an empty commit.)
 
-3. **Push + draft PR (markdown layer).** **ACQ** whether to open a PR at all
+4. **Push + draft PR (markdown layer).** **ACQ** whether to open a PR at all
    before any push or `gh pr create`. Do not assume yes from `/bouncer-finalize`
    or from the remainder-commit ACQ.
 
@@ -132,10 +147,10 @@ appears; do not reconstruct a root `context/` path.
    3. **Options**:
       - A) draft PR 열기 (Recommended when remote + `gh` usable)
       - B) PR 생략 — 로컬만
-      - C) 취소 (stop further outward steps; still continue worktree step 4)
+      - C) 취소 (stop further outward steps; still continue worktree step 5)
 
    - If the user picks omit/decline, skip push/PR, report the local outcome, and
-     continue at step 4 (apply the step-2 worktree choice).
+     continue at step 5 (apply the step-3 worktree choice).
    - If there is no git remote or `gh` is not installed, **skip gracefully**:
      stop after the local finalize and tell the user push/PR was skipped — no PR
      ACQ needed beyond that notice.
@@ -180,10 +195,10 @@ appears; do not reconstruct a root `context/` path.
      push/PR failure reason — do **not** re-ask the Draft PR ACQ or invent a
      body-confirm gate to recover.
 
-4. **Worktree cleanup (from step 2 choice).** After step 3 (whether PR was
+5. **Worktree cleanup (from step 3 choice).** After step 4 (whether PR was
    created, declined, or skipped), apply the Remainder commit + worktree ACQ
    result. Do **not** re-ask.
-   - If step 2 chose **remove** (A): from the **main worktree** (not from inside
+   - If step 3 chose **remove** (A): from the **main worktree** (not from inside
      the execute checkout), resolve the same path execute used, then remove it.
      Add `--force` only after an explicit dirty-tree warning ACQ. After remove,
      drop an empty epic parent only for a nested path (grandparent basename is
@@ -199,10 +214,10 @@ appears; do not reconstruct a root `context/` path.
        rmdir "$(dirname "${WORKTREE_PATH}")" 2>/dev/null || true
      fi
      ```
-   - If step 2 chose **keep** (B): leave the worktree in place and note its
+   - If step 3 chose **keep** (B): leave the worktree in place and note its
      path in the report.
 
-5. **Next-blueprint handoff.** After worktree cleanup, offer to advance the
+6. **Next-blueprint handoff.** After worktree cleanup, offer to advance the
    active pointer with an **ACQ** — do **not** recompute candidates yourself
    beyond reading the finalize payload. Open tasks on this blueprint are already
    closed by G16; do **not** offer a same-blueprint next-task ACQ here (that
@@ -242,8 +257,9 @@ appears; do not reconstruct a root `context/` path.
    - If `current --set` refuses because the plan gate fails, report that and
      still treat finalize as successful — do not retry or bypass `--set`.
 
-6. **Report.** Lead with the outcome, then the detail: whether a remainder
-   commit landed, the PR URL (or that push/PR was skipped/declined), whether
-   the worktree was removed or left in place, and whether the active pointer
-   was advanced to the next blueprint or left cleared. Keep it to those facts —
-   no recap of the steps the user just watched run.
+7. **Report.** Lead with the outcome, then the detail: whether explain/quiz
+   landed, whether a remainder commit landed, the PR URL (or that push/PR was
+   skipped/declined), whether the worktree was removed or left in place, and
+   whether the active pointer was advanced to the next blueprint or left
+   cleared. Keep it to those facts — no recap of the steps the user just
+   watched run.

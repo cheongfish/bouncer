@@ -1,6 +1,6 @@
 ---
 name: bouncer-commit
-description: "Use only when the user explicitly asks to commit the active Bouncer task (for example /bouncer-commit). Preflight the pointer, dry-run scope, record the task explain entry via explain-diff, pass the commit gate, ACQ-confirm `bouncer commit --yes`, then ACQ for the next task via `bouncer current --set`."
+description: "Use only when the user explicitly asks to commit the active Bouncer task (for example /bouncer-commit). Preflight the pointer, dry-run scope, pass the commit gate, ACQ-confirm `bouncer commit --yes`, then ACQ for the next task via `bouncer current --set`."
 ---
 # /bouncer-commit
 
@@ -22,7 +22,8 @@ contains `scripts/bouncer`.
 `docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
 
 Close one task on the active blueprint. Follow this sequence. Do **not** open a
-draft PR or remove the execute worktree here — that is `/bouncer-finalize`.
+draft PR, remove the execute worktree, or run `explain-diff` here — those are
+`/bouncer-finalize`.
 
 ## ACQ (AskUserQuestion) gates
 
@@ -46,7 +47,7 @@ put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body
    - C) {Cancel}
 ```
 
-**Gates in this skill:** Commit (step 5) · Next task (step 6).
+**Gates in this skill:** Commit (step 4) · Next task (step 5).
 
 **Preflight.** Load the active blueprint:
 ```bash
@@ -75,35 +76,23 @@ or single task bundle (same rule as execute).
    — nothing staged**; show the violations and have the user fix
    `affected_paths` or remove the stray files. On a clean dry-run (or empty
    staged set), keep the staged file list + generated commit message for the
-   step-5 ACQ. (Empty staged set is fine — still continue; `--yes` will not
+   step-4 ACQ. (Empty staged set is fine — still continue; `--yes` will not
    create an empty commit.)
 
-2. **Explain entry for this task.** Create BP `explain.md` if it is missing:
-   ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold explain --blueprint <pointer.blueprint>
-   ```
-   Then use the `explain-diff` skill (`skills/explain-diff/SKILL.md`) to author
-   or refresh the five sections in Korean (with `stop-slop`), quiz the user on
-   `range_from..HEAD`, and **append** one `bouncer.comprehension` entry for the
-   pointer task. Do not overwrite earlier task entries. Set `explain.md`
-   `bouncer.status → published` when the sections are ready (first commit can
-   publish; later commits keep `published` and only append).
-
-3. **Validate.** Run the commit gate — `validate --gate commit`:
+2. **Validate.** Run the commit gate — `validate --gate commit`:
    ```bash
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate commit
    ```
-   Gate `commit` checks G15 (explain sections, this task's comprehension entry,
-   `diff_sha` vs `range_from..HEAD`). Fix and re-run until it passes.
+   Gate `commit` re-checks G6/G7/G8 for the pointer task and G17 (staged paths
+   inside `affected_paths`). Fix and re-run until it passes.
 
-4. **Status before commit.** Set the pointer task documents to the statuses the
+3. **Status before commit.** Set the pointer task documents to the statuses the
    execute gate already required (`tasks → verified`, `verification → passed`,
    `review → accepted` or `required: false`) if any are still open from the
    execute handoff. Do not invent new status names.
 
-5. **Commit (deterministic core).** Show the dry-run staged list + generated
+4. **Commit (deterministic core).** Show the dry-run staged list + generated
    commit message, then run this **ACQ** before `--yes`:
 
    **AskUserQuestion — Commit**
@@ -125,7 +114,7 @@ or single task bundle (same rule as execute).
    The CLI does **not** move the pointer — `nextTask` in the JSON is a candidate
    only.
 
-6. **Next-task handoff.** After a successful step 5 (including empty staged set
+5. **Next-task handoff.** After a successful step 4 (including empty staged set
    with `committed: false`), offer to advance the active pointer with an **ACQ**
    — do **not** recompute candidates yourself beyond reading `bouncer current` /
    the commit payload's `nextTask`. Advancement is confirm-then-
@@ -154,7 +143,7 @@ or single task bundle (same rule as execute).
    - If `nextTask` is `null`, skip A and recommend `/bouncer-finalize` instead.
    - If B/C leave the pointer as-is (or only report), say so plainly.
 
-7. **Report.** Lead with the outcome, then the detail: whether a commit was
+6. **Report.** Lead with the outcome, then the detail: whether a commit was
    created (or empty staged set), the commit subject, whether the pointer moved
    to the next task or the user should run `/bouncer-finalize`. Keep it to those
    facts — no recap of the steps the user just watched run.

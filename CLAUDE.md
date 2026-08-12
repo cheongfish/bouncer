@@ -86,8 +86,8 @@ numbered step says otherwise.
 | Implement from `tasks/<NNN>/tasks.md` | `implementation` (inside `/bouncer-execute`) |
 | Investigate a failed verify | `debugging` + `verification` |
 | Review the diff against the brief | `review` |
-| Close one task (explain entry + commit) | `/bouncer-commit` |
-| Promote Distill, draft PR, cleanup | `/bouncer-finalize` |
+| Close one task (commit) | `/bouncer-commit` |
+| Promote Distill, explain + quiz, draft PR, cleanup | `/bouncer-finalize` |
 
 ## Plugin root
 
