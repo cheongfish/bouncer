@@ -18,10 +18,10 @@ cleanup) after every task is committed.
 
 A **lightweight cycle** (ops Korean: `docs/workflow.md` `## 경량 경로`) is in
 effect only when the user **declares** a narrow-scope change at `/bouncer-plan`
-and the plan writes `bouncer.scale: light` on the blueprint `index.md`. There
-is no automatic sizing from diff size, path count, or file count. Without that
-declaration (key absent or not `light`), the default path applies. `scripts/`
-does not read `scale`.
+and the plan changes blueprint `index.md` `bouncer.scale` from the scaffold
+default `full` to `light`. There is no automatic sizing from diff size, path
+count, or file count. Without that declaration (`scale` absent or not
+`light`), the default path applies. `scripts/` does not read `scale`.
 
 What shrinks (three things only):
 
@@ -47,5 +47,5 @@ What stays the same:
 - Distill promotion at `/bouncer-finalize` is unchanged.
 
 Limit of inline review: the same session judges **its own diff** (self-review).
-If that judgment is unclear, drop the `scale` line and return to the
+If that judgment is unclear, set `scale` back to `full` and return to the
 named-agent path.

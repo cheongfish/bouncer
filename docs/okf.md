@@ -3,6 +3,13 @@
 Target OKF spec version: **0.1**, declared in the bundle-root
 `.bouncer/context/index.md` frontmatter. That is the one place OKF §11 permits it.
 
+The same bundle-root frontmatter also carries `bouncer_schema: "0.1"`. That
+value is Bouncer's document-schema promise (what `bouncer.*` kinds and fields
+mean), not the OKF package version. Keep it only on the bundle root — putting
+it on every epic/blueprint/task document would drift. The string stays
+`"0.1"` until a later epic promotes the schema; this cutover does not bump it
+to `1.0`.
+
 Every `context/**/*.md` document carries OKF frontmatter
 (`type`, `title`, `description`, `resource`, `tags`, `timestamp`); Bouncer
 fields live under `bouncer:`. See the schema-gates design for the full schema.

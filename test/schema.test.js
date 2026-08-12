@@ -26,6 +26,13 @@ test('id prefix and status enum per type', () => {
   assert.strictEqual(schema.TYPES.length, 6);
 });
 
+test('schema exports bouncer_schema and blueprint scale/commit_type defaults', () => {
+  assert.strictEqual(schema.BOUNCER_SCHEMA_VERSION, '0.1');
+  assert.deepStrictEqual(schema.SCALE_ENUM, ['light', 'full']);
+  assert.strictEqual(schema.DEFAULT_SCALE, 'full');
+  assert.strictEqual(schema.DEFAULT_COMMIT_TYPE, 'feat');
+});
+
 test('detectLegacyFormat flags .sdd dirs, sdd keys, and sdd.* types', () => {
   const fs = require('node:fs');
   const os = require('node:os');

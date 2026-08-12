@@ -4,8 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { CONTEXT_ROOT } = require('./layout');
 const CONTEXT_INDEX_REL = `${CONTEXT_ROOT}/index.md`;
+// init CONTEXT_INDEX와 동일 frontmatter. 파일이 없을 때만 쓰며 기존 index를
+// 소급 수정하지 않는다 — 이미 있는 저장소는 사람이 bouncer_schema를 넣는다.
 const EMPTY_CONTEXT_INDEX = `---
 okf_version: "0.1"
+bouncer_schema: "0.1"
 ---
 # Epics
 
