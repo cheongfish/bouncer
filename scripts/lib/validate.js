@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat } = require('./schema');
 const { readDoc } = require('./frontmatter');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
@@ -10,6 +11,25 @@ const { isValidVerifyCommand, runVerification, entriesForVerify, } = require('./
 const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension');
 const { checkEpicIndexConsistency } = require('./epic-index');
 const { listTasksDocs, expectedTasksId, expectedTaskDocIds, LEGACY_TASKS_BASENAME, TASK_UNIT_BASENAMES, } = require('./tasks-docs');
+// finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
+const { makeAllowed, isRuntimeArtifact } = require('./scope');
+/**
+ * commit 게이트 G17용 스테이징 목록. throw하지 않는다 —
+ * git 실패·비저장소는 { ok:false }로 올려 게이트가 G17로 보고하게 한다.
+ */
+function defaultStagedFiles({ repoRoot }) {
+    try {
+        const out = execFileSync('git', ['diff', '--cached', '--name-only'], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+        });
+        return { ok: true, files: String(out).split('\n').filter(Boolean) };
+    }
+    catch (e) {
+        const reason = e && e.message ? e.message : 'git-failed';
+        return { ok: false, reason };
+    }
+}
 function readOptionalLeaf(repoRoot, rel, parseErrors) {
     if (!rel)
         return undefined;
@@ -391,7 +411,8 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
         return { ok: false, failures };
     }
     if (gate) {
-        const taskUnit = gate === 'execute'
+        // execute·commit 모두 포인터 task 단위만 본다(G6–G8).
+        const taskUnit = (gate === 'execute' || gate === 'commit')
             ? resolveTaskUnit(docs, { repoRoot, blueprintDir })
             : undefined;
         checkGate(gate, docs, rels, failures, { repoRoot, blueprintDir, deps, taskUnit });
@@ -641,8 +662,8 @@ function checkGate(gate, docs, rels, failures, ctx) {
         return;
     }
     // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension(BP 단일
-    // 엔트리)의 diff_sha를 range_from..HEAD와 대조. G15 번호는 commit 게이트에 남겨
-    // 두고, finalize는 여기서 해시까지 판정한다(TASKS-002가 commit을 재정의).
+    // 엔트리)의 diff_sha를 range_from..HEAD와 대조. G15는 폐기(결번)됐고, commit은
+    // 아래에서 G6/G7/G8 + G17로 재판정한다.
     if (gate === 'finalize') {
         const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
             ? docs.tasksDocs
@@ -711,59 +732,60 @@ function checkGate(gate, docs, rels, failures, ctx) {
         }
         return;
     }
-    // commit 게이트가 G15 판정 권위. finalize는 위에서 G16으로 분리됐다.
-    // TASKS-002가 이 분기를 G17로 다시 쓴다 — 여기서는 조회 API만 새 계약
-    // (마지막 엔트리)으로 맞춰 구 task-번호 조회 심볼이 남지 않게 한다(별칭 금지).
+    // commit: explain을 보지 않는다. 포인터 task 상태(G6/G7/G8)와 스테이징
+    // 스코프(G17)만 본다. G9·G15는 폐기 — 번호만 비워 둔다.
     if (gate === 'commit') {
         // G9 (distill.status == published)는 폐기됨 — 번호만 비워 둠.
-        // G15는 status token만이 아니라 diff에 대한 comprehension을 판단.
-        if (!docs.explain) {
-            add('G15', 'explain.md missing', 'explain');
-            return;
-        }
-        const explainBody = typeof docs.explain.body === 'string' ? docs.explain.body : '';
-        const sections = parseSections(explainBody, EXPLAIN_SECTION_HEADINGS);
-        // key는 comprehension module에서 가져와 module 간 drift가 여기의 조용한
-        // subset이 아니라 EXPLAIN_SECTION_DEFS를 검증하는 test에서 실패하게 함.
-        const missing = EXPLAIN_SECTION_DEFS.filter((k) => !sections[k]);
-        if (missing.length) {
-            add('G15', `explain missing written sections: ${missing.join(', ')}`, 'explain');
-            return;
-        }
-        const bouncer = docs.explain.data && docs.explain.data.bouncer
-            ? docs.explain.data.bouncer
-            : {};
-        const comp = bouncer.comprehension;
-        // 대상은 BP 마지막 엔트리. task 번호 조회는 제거됐고, commit 재정의는 TASKS-002.
-        const found = resolveComprehensionEntry(comp);
-        if (!found.ok) {
-            // 구 객체 형식만 새 사유. missing/incomplete는 기록 없음으로 묶음 —
-            // 새 실패 메시지 문자열은 형식 거절 한 줄만 추가한다.
-            if (found.reason === 'not-a-list') {
-                add('G15', 'explain comprehension must be a list of task entries', 'explain');
-            }
-            else {
-                add('G15', 'explain comprehension record missing', 'explain');
-            }
-            return;
-        }
-        // quiz_score는 resolveComprehensionEntry 필수 필드(빈 값 → 기록 없음).
-        // G15는 점수 값을 해석하지 않고, 해시만 range_from..HEAD로 본다.
-        // range_to는 쓰지 않는다: 기록 후 커밋이 더 쌓이면 어긋나야 한다.
-        const shaFn = (deps && deps.computeDiffSha) || computeDiffSha;
-        const computed = shaFn({
-            repoRoot,
-            base: found.entry.range_from,
-            exec: deps && deps.exec,
+        // G15 (explain comprehension / diff_sha)는 폐기됨 — 번호만 비워 둠.
+        const taskUnit = (ctx && ctx.taskUnit) || resolveTaskUnit(docs, {
+            repoRoot, blueprintDir,
         });
-        if (!computed || computed.ok !== true) {
-            const reason = computed && computed.reason ? computed.reason : 'exec-failed';
-            add('G15', `explain diff_sha could not be computed (${reason})`, 'explain');
+        const tasksDoc = taskUnit && taskUnit.tasks;
+        const verificationDoc = taskUnit && taskUnit.verification;
+        const reviewDoc = taskUnit && taskUnit.review;
+        const addUnit = (code, message, leaf) => failures.push({
+            code,
+            message,
+            file: unitLeafRel(taskUnit, leaf, rels[leaf]),
+        });
+        if (statusOf(tasksDoc) !== 'verified') {
+            addUnit('G6', 'tasks.status != verified', 'tasks');
+        }
+        if (statusOf(verificationDoc) !== 'passed') {
+            addUnit('G7', 'verification.status != passed', 'verification');
+        }
+        const review = reviewDoc && reviewDoc.data.bouncer ? reviewDoc.data.bouncer.review : undefined;
+        const reviewOk = statusOf(reviewDoc) === 'accepted' || (review && review.required === false);
+        if (!reviewOk) {
+            addUnit('G8', 'review not accepted and review.required != false', 'review');
+        }
+        // G17은 이미 스테이징된 경로만 본다. working-tree 변경의 out-of-scope는
+        // bouncer commit이 따로 막으며, 빈 스테이징은 통과(빈 커밋 방지는 명령 몫).
+        const stagedFn = (deps && deps.stagedFiles) || defaultStagedFiles;
+        const staged = stagedFn({ repoRoot });
+        if (!staged || staged.ok !== true) {
+            const reason = staged && staged.reason ? staged.reason : 'git-failed';
+            failures.push({
+                code: 'G17',
+                message: `could not read staged files (${reason})`,
+                file: unitLeafRel(taskUnit, 'tasks', rels.tasks),
+            });
             return;
         }
-        if (computed.sha !== String(found.entry.diff_sha).trim()) {
-            // 메시지에 range_from을 쓰지 않는다 — 실패 사유는 불일치뿐; 범위는 엔트리에 있다.
-            add('G15', 'explain diff_sha does not match range_from..HEAD', 'explain');
+        const affectedPaths = tasksDoc && tasksDoc.data && tasksDoc.data.bouncer
+            ? tasksDoc.data.bouncer.affected_paths
+            : [];
+        const allowed = makeAllowed({ affectedPaths, blueprintDir });
+        const files = Array.isArray(staged.files) ? staged.files : [];
+        const violations = files
+            .filter((f) => !isRuntimeArtifact(f))
+            .filter((f) => !allowed(f));
+        if (violations.length) {
+            failures.push({
+                code: 'G17',
+                message: `staged path outside affected_paths: ${violations.join(', ')}`,
+                file: unitLeafRel(taskUnit, 'tasks', rels.tasks),
+            });
         }
         return;
     }

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '029'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 커밋 직전 스테이징 범위를 게이트가 직접 보게 됨
     - 훅이 설치되지 않았거나 우회된 환경에서도 범위를 벗어난 커밋이 막힘

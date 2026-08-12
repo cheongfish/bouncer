@@ -1,6 +1,6 @@
 // scripts/lib/commit-guard.js
 'use strict';
-const { makeAllowed, isRuntimeArtifact } = require('./finalize');
+const { makeAllowed, isRuntimeArtifact } = require('./scope');
 
 function checkCommitSafety({ files, affectedPaths, blueprintDir }) {
   const allowed = makeAllowed({ affectedPaths, blueprintDir });

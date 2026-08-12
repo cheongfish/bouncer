@@ -2,9 +2,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const {
-  makeAllowed, buildCommitMessage, buildFinalizeCommitMessage, isUnder,
-} = require('../scripts/lib/finalize');
+const { buildCommitMessage, buildFinalizeCommitMessage } = require('../scripts/lib/finalize');
+const { makeAllowed, isUnder } = require('../scripts/lib/scope');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 

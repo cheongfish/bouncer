@@ -5,7 +5,8 @@ const path = require('node:path');
 const { readDoc } = require('./frontmatter');
 const { listTasksDocs } = require('./tasks-docs');
 const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = require('./validate');
-const { makeAllowed, isRuntimeArtifact, realGit, buildCommitMessage, } = require('./finalize');
+const { realGit, buildCommitMessage } = require('./finalize');
+const { makeAllowed, isRuntimeArtifact } = require('./scope');
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
 /**
  * 같은 blueprint에서 지금 닫는 묶음을 제외한 열린 task 중 번호가 가장 앞선 것.
