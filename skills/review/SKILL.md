@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Use when reviewing a change against the tasks brief. Record ## Findings with severity and disposition; never accept while an actionable finding remains unresolved. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "This skill should be used when reviewing a change against the tasks brief. It records ## Findings with severity and disposition; it never accepts while an actionable finding remains unresolved. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Review
@@ -8,7 +8,7 @@ description: "Use when reviewing a change against the tasks brief. Record ## Fin
 Produce the review **deliverable contract**. Gates judge the result; this skill
 only produces findings and dispositions.
 
-Dispatch template: sibling [`reviewer-prompt.md`](reviewer-prompt.md) (call
+Dispatch template: [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) (call
 brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 
 ## Steps
@@ -25,7 +25,7 @@ brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
    - `accepted` findings **require** a note (the accepted-risk rationale).
    Mark the review accepted only when no actionable finding remains unresolved
    (every finding `resolved`, or `accepted` with a note).
-3. **Review** — Fill [`reviewer-prompt.md`](reviewer-prompt.md) and dispatch
+3. **Review** — Fill [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) and dispatch
    **`bouncer-reviewer`** with this order:
 
    1. Resolve the model (never throws; `null` means parent-session inherit):

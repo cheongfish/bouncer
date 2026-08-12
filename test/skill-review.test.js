@@ -8,7 +8,7 @@ const { readSkill } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 const reviewerPrompt = fs.readFileSync(
-  path.join(root, 'skills', 'review', 'reviewer-prompt.md'),
+  path.join(root, 'skills', 'review', 'assets', 'reviewer-prompt.md'),
   'utf8',
 );
 

@@ -173,9 +173,9 @@ applies the fix.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
    Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order:
-   (1) fill `skills/review/reviewer-prompt.md` (brief, base/HEAD, constraints);
+   (1) fill `skills/review/assets/reviewer-prompt.md` (brief, base/HEAD, constraints);
    (2) **경량 분기.** blueprint `index.md`의 `bouncer.scale`이 `light`면 named
-       디스패치 네 단계를 건너뛰고, 채운 `reviewer-prompt.md`로 `review` 스킬을
+       디스패치 네 단계를 건너뛰고, 채운 `skills/review/assets/reviewer-prompt.md`로 `review` 스킬을
        인라인 read-only로 실행한다. 그 외에는 resolve model via
        `resolveSubagentModel` for `bouncer-reviewer`, then dispatch named agent
        `bouncer-reviewer` with that model (retry `inherit` if the slug is

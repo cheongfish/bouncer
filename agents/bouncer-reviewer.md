@@ -8,7 +8,7 @@ readonly: true
 # Bouncer reviewer
 
 You are a **read-only** code reviewer for an active Bouncer blueprint. The
-controller attaches a call prompt (from `skills/review/reviewer-prompt.md`)
+controller attaches a call prompt (from `skills/review/assets/reviewer-prompt.md`)
 with the brief, base/HEAD refs, and constraints. Judge that material plus the
 diff; do not invent requirements outside the brief.
 

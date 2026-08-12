@@ -1,6 +1,6 @@
 ---
 name: implementation
-description: "Use when implementing from an approved tasks brief. Make focused changes inside allowed paths, climb the minimality ladder before writing code, document non-obvious intent with detailed Korean comments, keep tests green, and report any deviations from the plan. Use only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "This skill should be used when implementing from an approved tasks brief. It makes focused changes inside allowed paths, climbs the minimality ladder before writing code, documents non-obvious intent with detailed Korean comments, keeps tests green, and reports any deviations from the plan. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
 ---
 
 # Implementation

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '029'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 스킬마다 설명 어조가 제각각이고 리뷰어 호출 템플릿이 스킬 최상위에 놓여 있음
     - 설명을 3인칭으로 통일하고 템플릿을 정해진 하위 위치로 옮겨 배치를 맞춤
