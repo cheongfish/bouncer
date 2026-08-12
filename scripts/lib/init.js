@@ -65,8 +65,11 @@ function defaultConfig(repoRoot) {
 }
 // Bundle root. OKF §11은 index file 중 여기에만 frontmatter를 허용;
 // §6은 body 형태를 `* [Title](url) - description` 그룹으로 고정.
+// bouncer_schema는 번들 루트에만 둔다(문서마다 두지 않음). EMPTY_CONTEXT_INDEX와
+// 같은 frontmatter여야 ensureEpicIndexEntry가 파일을 새로 만들 때도 일치한다.
 const CONTEXT_INDEX = `---
 okf_version: "0.1"
+bouncer_schema: "0.1"
 ---
 # Epics
 

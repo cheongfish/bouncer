@@ -3,14 +3,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat } = require('./schema');
+const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, } = require('./schema');
 const { readDoc } = require('./frontmatter');
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
 const { parsePathIds, epicDirOf, toPosix, isNumericContextId, } = require('./paths');
 const { isValidVerifyCommand, runVerification, entriesForVerify, } = require('./verification');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension');
 const { checkEpicIndexConsistency } = require('./epic-index');
-const { listTasksDocs, expectedTasksId, expectedTaskDocIds, LEGACY_TASKS_BASENAME, TASK_UNIT_BASENAMES, } = require('./tasks-docs');
+const { listTasksDocs, expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = require('./tasks-docs');
 // finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
 const { makeAllowed, isRuntimeArtifact } = require('./scope');
 /**
@@ -51,10 +51,12 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     const rels = {
         epicIndex: `${epicDirOf(bp)}/index.md`,
         blueprintIndex: `${bp}/index.md`,
-        // finalize · execute G6 호환용 대표 경로(첫 task 문서). 없으면 레거시 이름.
+        // finalize · execute G6 호환용 대표 경로(첫 task 문서).
+        // 묶음이 없을 때도 정본 레이아웃을 가리킨다 — 레거시 루트 basename은
+        // migrate task-layout 입력이고, validate는 S15로 거절한다(보고 경로로 쓰지 않음).
         tasks: tasksListing.entries[0]
             ? tasksListing.entries[0].rel
-            : `${bp}/${LEGACY_TASKS_BASENAME}`,
+            : `${bp}/tasks/001/tasks.md`,
         verification: `${bp}/verification.md`,
         review: `${bp}/review.md`,
         explain: `${bp}/explain.md`,
@@ -184,6 +186,39 @@ function isValidGraphBasis(basis) {
     }
     return true;
 }
+/**
+ * 경로가 요구하는 bouncer type. 위치 규칙이 없으면 null — S19를 내지 않는다.
+ * task 묶음 basename은 TASK_UNIT_BASENAMES만 순회하고 문자열을 여기 두지 않는다.
+ */
+function expectedTypeForPath(rel) {
+    const norm = toPosix(rel);
+    const parsed = parsePathIds(norm);
+    const base = path.posix.basename(norm);
+    // epic/blueprint index는 basename이 같아 blueprintId 유무로만 가른다.
+    if (base === 'index.md') {
+        if (parsed.blueprintId)
+            return KIND_TO_TYPE.blueprint;
+        if (parsed.epicId)
+            return KIND_TO_TYPE.epic;
+        return null;
+    }
+    // 루트 tasks.md·알 수 없는 basename은 규칙 밖. 번호 묶음만 대조한다.
+    const unitM = /\/tasks\/(\d{3})\//.exec(norm);
+    if (unitM) {
+        for (const name of TASK_UNIT_BASENAMES) {
+            if (base === name) {
+                const kind = unitDocKind(name);
+                return kind ? KIND_TO_TYPE[kind] : null;
+            }
+        }
+        return null;
+    }
+    // explain.md는 FILE_KIND(paths) → parsePathIds.kind. blueprint 아래만 기대.
+    if (parsed.blueprintId && parsed.kind === 'explain') {
+        return KIND_TO_TYPE.explain;
+    }
+    return null;
+}
 function checkStructural(doc, failures) {
     const { data, rel } = doc;
     const add = (code, message) => failures.push({ code, message, file: rel });
@@ -200,6 +235,11 @@ function checkStructural(doc, failures) {
     if (!TYPES.includes(data.type)) {
         add('S2', `unknown type: ${data.type}`);
         return; // type에 의존하는 검사는 진행할 수 없음
+    }
+    // S19: 알려진 type만 위치와 대조. 기대값이 null이면 위치 규칙이 없는 경로.
+    const expectedType = expectedTypeForPath(rel);
+    if (expectedType && data.type !== expectedType) {
+        add('S19', `type ${data.type} does not match expected ${expectedType} for path`);
     }
     if (data.resource !== rel) {
         add('S3', `resource path mismatch: ${data.resource} != ${rel}`);
@@ -256,6 +296,12 @@ function checkStructural(doc, failures) {
     }
     if (!(STATUS_ENUM[data.type] || []).includes(bouncer.status)) {
         add('S6', `status "${bouncer.status}" not in enum for ${data.type}`);
+    }
+    // S20: blueprint만. 부재는 0.7 문서 통과용으로 허용; 잘못된 값만 거절.
+    if (data.type === 'bouncer.blueprint'
+        && bouncer.scale !== undefined
+        && !SCALE_ENUM.includes(bouncer.scale)) {
+        add('S20', `scale "${bouncer.scale}" not in enum for ${data.type}`);
     }
     if (data.type === 'bouncer.tasks') {
         const ap = bouncer.affected_paths;

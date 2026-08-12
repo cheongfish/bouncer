@@ -18,7 +18,9 @@ append a change log.
 
 - Canonical Bouncer docs live only under `.bouncer/context/` — never a root
   `context/` tree. Project Distill is agent runtime at `.bouncer/Distill.md`,
-  not under `context/`.
+  not under `context/`. Bundle-root `bouncer_schema` stays on
+  `.bouncer/context/index.md` only.
+
 - Plugin consumers stay Node-only: commit `scripts/lib` CJS emit and regenerate
   via `pretest` / `npm run build`; do not require TS runtimes at consume time.
 - `tsc` does not rewrite `require('../vendor/…')` — keep `outDir`/`rootDir` so
@@ -142,8 +144,11 @@ append a change log.
   `config.verify` — that would hide a plan-time `S12` miss.
 - Layout structural codes: **S15** legacy root task files remain,
   **S16** non-`\d{3}` `tasks/` subdirectory, **S17** a unit missing one of
-  tasks/verification/review. **S14** (old/new mixing) is retired — number
-  vacant. Non-`\d{3}` names like `tasks-1.md` are not task docs (ignored).
+  tasks/verification/review. **S19** type/path mismatch, **S20** bad
+  blueprint `scale`. **S14** (old/new mixing) is retired — number vacant.
+  Non-`\d{3}` names like `tasks-1.md` are not task docs (ignored).
+- Do not put `bouncer_schema` on every context document — only the bundle
+  root. Wrong `scale` spelling fails S20; omitting `scale` does not.
 - `migrate task-layout` rewrites `resource` **and** `bouncer.id` on all three
   unit docs: an id inside a unit comes from the directory number, so a legacy
   blueprint-002 `verification.md` folded into `tasks/001/` becomes
@@ -277,11 +282,22 @@ append a change log.
 - Whether Antigravity substitutes `${CLAUDE_PLUGIN_ROOT}` in hooks is
   unverified — keep hooks as shipped; treat validate/hook behavior as a
   pre-release manual check, not a CI assert.
+- Prose or layout cutovers that claim repo-wide closure: run the Checklist
+  leftover search before locking Touch. Touch = hits minus Do not touch;
+  rewrite Goal to that set only (Goal ⊆ Touch). Commit scope matches
+  `affected_paths` — every path staged for `/bouncer-commit` must be listed,
+  or commit-safety blocks it. Graph `suggested_paths` are hints; when
+  `source_dirs` omit `skills/` / `docs/` / `agents/`, add those directories by
+  hand before confirm.
 
 ## Decisions
 
 - History import path is `planImport` → `applyImport` (single commit; message
   is the `--message` argv). Git runs only through `deps.execFileSync`.
+- Plan inventory for wording cutovers: search first, then Touch, then Goal.
+  Goal does not outrank Touch. The same closed set is the commit unit
+  (`affected_paths`); widening after execute is a plan gap, not an implementer
+  miss.
 - Project Distill SSOT is `.bouncer/Distill.md` (agent runtime under `.bouncer/`,
   not under `context/`). Master rules only name the path and the read
   obligation. Write Distill in English; epic/blueprint/tasks/explain stay
@@ -337,9 +353,20 @@ append a change log.
   never auto from diff size; `scripts/` does not read it) skips those four
   steps for implementer and reviewer only — run `implementation` / `review`
   inline. Debugger stays named. Light inline and host fallback are separate
-  sentences; do not replace one with the other. Drop the `scale` line to leave
-  the light path. Light blueprints reuse a slug-`maintenance` epic (allocate
-  a free `\d{3}` once if missing; never close that epic).
+  sentences; do not replace one with the other. `scaffoldBlueprint` writes
+  `scale: full` and `commit_type: feat`; light sets `scale` to `light`,
+  restore sets `full`. Absence or `full` is the normal path. Light blueprints
+  reuse a slug-`maintenance` epic (allocate a free `\d{3}` once if missing;
+  never close that epic).
+- Bundle-root `.bouncer/context/index.md` carries `bouncer_schema: "0.1"`
+  beside `okf_version` — Bouncer document-schema promise, not OKF package
+  version, and not repeated on epic/blueprint/task docs. `init` CONTEXT_INDEX
+  and `EMPTY_CONTEXT_INDEX` seed it; existing repos add the key by hand.
+  Schema constants live in `schema.ts` (`BOUNCER_SCHEMA_VERSION`,
+  `SCALE_ENUM`, `DEFAULT_SCALE`, `DEFAULT_COMMIT_TYPE`).
+- Structural **S19** (`type` vs path-expected kind) and **S20** (blueprint
+  `scale` outside `SCALE_ENUM`) always run. Missing `scale` still passes for
+  0.7 docs; only a present bad value fails S20.
 - On `/bouncer-execute` verify failure, dispatch `bouncer-debugger` (brief:
   `skills/debugging` — Root cause → Pattern → Hypothesis → Implementation;
   no fix proposals before root-cause). Redispatch the same failing verify at

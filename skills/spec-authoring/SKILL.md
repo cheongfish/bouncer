@@ -77,7 +77,10 @@ those placeholders ship as the commit subject and body.
    materials for the document kind you are writing. Product rules live in the
    plugin (`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`), not under
    the project's `.bouncer/`.
-2. Fill the skeleton with concrete, specific content:
+2. Fill the skeleton with concrete, specific content. 종류별 완성 예시는
+   필요할 때 `references/epic.md`, `references/blueprint.md`,
+   `references/tasks.md`, `references/review.md`를 읽는다 (`verification`·
+   `explain` 예시는 없다 — 하드룰 3·explain-diff 소관).
    - **epic**: intent, out of scope, and numbered Success criteria. Persist the
      success criteria discovery produced — each one must be decidable true or
      false, so blueprint acceptance and review can cite it by number. "Improve

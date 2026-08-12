@@ -15,8 +15,8 @@ they conflict.
    ids under `bouncer:`; skills write body prose (and only the frontmatter fields
    a workflow explicitly allows). A blueprint may hold multiple task bundles:
    `tasks/<NNN>/{tasks,verification,review}.md` (with ids `TASKS-<NNN>`,
-   `VERIFY-<NNN>`, `REVIEW-<NNN>`). Legacy root `tasks.md` and
-   `tasks-<NNN>.md` layouts remain migration targets until the layout cutover.
+   `VERIFY-<NNN>`, `REVIEW-<NNN>`). Root `tasks.md` / `tasks-<NNN>.md` are
+   input only to `bouncer migrate task-layout`.
    Project Distill is **not** under `context/` — it is agent runtime at
    `.bouncer/Distill.md` (see rule 7).
 2. **One commit per task** — Split work so each task document is one reviewable
