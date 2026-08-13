@@ -41,26 +41,34 @@ function defaultConfig(repoRoot) {
     // "inherit"를 parent-session fallback으로 처리.
     // provider block은 분리 — host마다 model namespace가 다름
     // (Claude / Cursor / Codex / Antigravity slug는 호환되지 않음).
+    // plan의 context reviewer도 같은 inherit 슬롯이 있어야 init이 편집 자리를
+    // 보여 준다. 키가 없으면 resolve는 null로 수렴해 동작은 같지만, 사용자가
+    // 모델을 고를 자리가 사라진다. 이미 init을 돌린 소비자 config는 건드리지
+    // 않는다(부모 세션 상속 = 같은 동작).
     subagents: {
       claude: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
+        'bouncer-context-reviewer': 'inherit',
       },
       cursor: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
+        'bouncer-context-reviewer': 'inherit',
       },
       codex: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
+        'bouncer-context-reviewer': 'inherit',
       },
       antigravity: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
+        'bouncer-context-reviewer': 'inherit',
       },
     },
   };

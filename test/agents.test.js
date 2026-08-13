@@ -8,7 +8,13 @@ const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const root = path.join(__dirname, '..');
 const agentsDir = path.join(root, 'agents');
 
-for (const name of ['bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger']) {
+// context-reviewer는 execute 삼인조와 같이 inherit 슬롯·readonly를 쓰지만,
+// 판정 대상이 계획 문서 전체이고 산출은 BP 루트 context-review.md라
+// tasks/<NNN>/tasks.md 단독 브리프·task-dir review.md 단언 순회에는 넣지 않는다.
+for (const name of [
+  'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
+  'bouncer-context-reviewer',
+]) {
   test(`agents/${name}.md exists with name == basename and model inherit`, () => {
     const filePath = path.join(agentsDir, `${name}.md`);
     assert.ok(fs.existsSync(filePath), `missing ${filePath}`);
@@ -16,7 +22,11 @@ for (const name of ['bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger
     const { data } = parseFrontmatter(md);
     assert.strictEqual(data.name, name);
     assert.strictEqual(data.model, 'inherit');
-    if (name === 'bouncer-reviewer' || name === 'bouncer-debugger') {
+    if (
+      name === 'bouncer-reviewer'
+      || name === 'bouncer-debugger'
+      || name === 'bouncer-context-reviewer'
+    ) {
       assert.strictEqual(data.readonly, true);
     }
   });
@@ -31,6 +41,14 @@ test('agents describe task bundle briefs and task-local evidence documents', () 
     const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
     assert.match(md, /task directory.*review\.md|review\.md.*task directory/i);
   }
+});
+
+test('bouncer-context-reviewer records into blueprint-root context-review.md', () => {
+  const md = fs.readFileSync(
+    path.join(agentsDir, 'bouncer-context-reviewer.md'),
+    'utf8',
+  );
+  assert.match(md, /context-review\.md/);
 });
 
 test('bouncer-implementer points comment rule at hard rule 9 without restating it', () => {

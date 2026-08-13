@@ -39,8 +39,9 @@ docker가 없는 환경(CI 호스트, 로컬에 데몬 없음)에서는 래퍼�
 ## `subagents`
 
 호스트(Claude / Cursor / Codex / Antigravity)마다 모델 ID 네임스페이스가
-다르므로 프로바이더별 블록이 필요합니다. `bouncer init`은 네 프로바이더 × 세
-에이전트(`bouncer-reviewer`, `bouncer-implementer`, `bouncer-debugger`)를 모두
+다르므로 프로바이더별 블록이 필요합니다. `bouncer init`은 네 프로바이더 × 네
+에이전트(`bouncer-reviewer`, `bouncer-implementer`, `bouncer-debugger`,
+`bouncer-context-reviewer`)를 모두
 `"inherit"`로 채워 두어, 사용자가 편집할 자리를 보여 줍니다.
 
 - `"inherit"`: 부모 세션 모델을 그대로 씁니다. `resolveSubagentModel`은 이 값

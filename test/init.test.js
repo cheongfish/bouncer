@@ -55,21 +55,25 @@ test('init writes the exact config.json shape', () => {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
+        'bouncer-context-reviewer': 'inherit',
       },
       cursor: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
+        'bouncer-context-reviewer': 'inherit',
       },
       codex: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
+        'bouncer-context-reviewer': 'inherit',
       },
       antigravity: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
+        'bouncer-context-reviewer': 'inherit',
       },
     },
   });

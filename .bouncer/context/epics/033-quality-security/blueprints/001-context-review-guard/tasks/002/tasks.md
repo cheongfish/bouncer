@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '033'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 계획 문서의 정합성을 판정할 주체가 없어 어긋난 브리프가 그대로 execute로 넘어갔음
     - 승인 직전에 read-only 리뷰어를 불러 판정을 context-review.md에 남기게 함

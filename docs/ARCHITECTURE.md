@@ -97,6 +97,12 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 `graphify-runner`는 `/bouncer-plan`이 참조하는 선택적 경로 추천 어댑터이며,
 부재 시 수동 탐색으로 폴백한다.
 
+`context-review`는 `/bouncer-plan`이 승인 직전에 호출하는 전문 스킬이다.
+판정 대상은 계획 문서(epic·blueprint·`tasks/<NNN>/tasks.md`)이고 산출은
+블루프린트 루트 `context-review.md`다. 위 표의 일반 워크플로 스킬이 아니다.
+named agent는 `bouncer-context-reviewer`이며, named agent를 쓸 수 없는
+호스트에서는 스킬을 인라인으로 수행한다.
+
 외부 스킬의 문구나 구현을 실질적으로 복사할 경우에는 해당 프로젝트의 라이선스
 고지를 포함한다. 원칙만 참조해 새로 작성하는 방식을 기본으로 한다.
 
@@ -174,7 +180,7 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 
 1. 첫 릴리스 스킬 집합: `discovery`, `spec-authoring`, `implementation`,
    `debugging`, `verification`, `review`, `minimality`, `stop-slop` (+ 선택
-   `graphify-runner`; finalize 하위 `explain-diff`).
+   `graphify-runner`; plan 승인 직전 `context-review`; finalize 하위 `explain-diff`).
 2. `debugging`은 독립 스킬이며 `/bouncer-execute` 실패 경로에서 권장한다.
 3. 처음에는 명령 내 명시 호출/권장으로 시작하고, 자동 훅은 검증 후 추가한다.
 

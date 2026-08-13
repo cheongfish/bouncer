@@ -38,6 +38,7 @@ test('workflow skills cite subordinate skills by path', () => {
   assert.match(plan, /skills\/spec-authoring\/SKILL\.md/);
   assert.match(plan, /skills\/stop-slop\/SKILL\.md/);
   assert.match(plan, /skills\/graphify-runner\/SKILL\.md/);
+  assert.match(plan, /skills\/context-review\/SKILL\.md/);
   assert.match(execute, /skills\/implementation\/SKILL\.md/);
   assert.match(execute, /skills\/verification\/SKILL\.md/);
   assert.match(execute, /skills\/review\/SKILL\.md/);
