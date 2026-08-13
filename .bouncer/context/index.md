@@ -38,3 +38,4 @@ bouncer_schema: '0.1'
 * [031 document-schema](epics/031-document-schema/index.md) - Epic 031
 * [032 autonomous-run](epics/032-autonomous-run/index.md) - Epic 032
 * [033 quality-security](epics/033-quality-security/index.md) - Epic 033
+* [034 agentic-benchmark](epics/034-agentic-benchmark/index.md) - Epic 034

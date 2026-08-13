@@ -510,3 +510,16 @@ append a change log.
   promotion and the gitignore write — it must not hand-edit `config.json` for
   `enabled`.
 - Mechanical TS migration may keep `strict: false` until a later tightening BP.
+- Out-of-workflow specialist skills (no `bouncer-` prefix) must not embed
+  `BOUNCER_ROOT` resolution or call `scripts/bouncer`. Scores and judgment
+  reports from such tools never feed `verification.md`, `review.md`, or gate
+  judgment. Do not add them to the `docs/ARCHITECTURE.md` §4 generic workflow
+  skills table (`APPROVED_GENERIC_SKILLS` stays at eight).
+- Vendored Apache-2.0 skill trees: keep a `NOTICE.md` inside the skill with
+  upstream repo, path, license id, and URL when the upstream (and this repo)
+  has no `LICENSE` file to copy. Put convention output dirs (e.g.
+  `.benchmarks/`) in `.gitignore` so commit-safety does not see them as scope
+  noise.
+- Trust-boundary skills that assert `DISTINCTION_RE` need the exact English
+  sentence the brief locks — paraphrase ("input, not direction") fails the
+  contract test.

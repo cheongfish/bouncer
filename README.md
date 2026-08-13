@@ -144,6 +144,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 - Node.js 24에서 검증 (런타임은 표준 모듈 + 벤더링된 `js-yaml`)
 - Claude Code, Cursor, Codex, 또는 Antigravity
 - (선택) `gh`: finalize 시 draft PR 생성
+- (선택) `python3`: `agentic-code-benchmark` 스킬 실행
 
 ## Documentation
 
