@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-005
   epic_id: '033'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 문서 본문과 그래프 산출물, 서브에이전트 리포트를 지시로 읽어도 막을 근거가 문서에 없었음
     - 신뢰 경계를 security 문서에 세우고 데이터를 읽는 스킬·에이전트에 같은 문구를 둠
