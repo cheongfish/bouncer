@@ -12,55 +12,42 @@
 - **검증이 말뿐이다.** "테스트 전부 통과"라고 적지만 실행한 적은 없다.
 - **커밋이 뒤섞인다.** 한 커밋에 기능·리팩터·포맷팅이 함께 들어와 리뷰가 불가능하다.
 
-## Features
-```markdown
-- Bouncer는 작업을 **하나의 리뷰 가능한 커밋** 단위(blueprint)로 쪼개고, 각 단계를 결정적 게이트로 막습니다.
-- 게이트는 문서 상태와 본문을 검사하는 Node 스크립트라 에이전트가 설득할 대상이 아닙니다.
-```
+## How it works
 
-- Blueprint commits
-- Verified execute
-- Path guard
-- Worktree execute
+계획을 세우고 `affected_paths`를 승인받은 뒤, 격리된 worktree에서 구현합니다.
+게이트가 `verify`를 직접 실행하고, 통과해야 커밋이 열립니다. task 하나가 커밋
+하나, blueprint 하나가 PR 하나입니다. `/bouncer-run`이 이 구간을 task 소진까지
+반복하고, 마감에서 draft PR을 엽니다.
+
+## Deterministic gates
+
+게이트는 프롬프트가 아니라 Node 스크립트입니다.
+
+- **G13** — `verify`를 하네스가 실제로 실행합니다. 손으로 쓴 "통과했습니다"는
+  근거가 아닙니다.
+- **G17** — 스테이징 경로가 `affected_paths` 밖이면 커밋이 막힙니다.
+- **G10–G12** — 빈 계획 섹션과 근거 없는 경로를 잡습니다.
+
+실패 코드와 대처는 [gates.md](docs/gates.md).
 
 ## Workflow
 
-```mermaid
-flowchart TD
-    BI["/bouncer-init<br/>bootstrap .bouncer/"]
+1. **`/bouncer-init`** — 프로젝트당 한 번. `.bouncer/`를 만들고 기존 파일은 건드리지
+   않습니다.
+2. **`/bouncer-plan`** — epic → blueprint → task 묶음을 쓰고, 경로 추천을 받고,
+   `affected_paths`를 확정하고, 계획 문서를 리뷰한 뒤 승인합니다.
+3. **`/bouncer-execute`** — worktree를 만들거나 재사용하고, 계획 문서를 옮기고,
+   포인터가 가리키는 task를 구현한 뒤 검증·리뷰합니다. **커밋하지 않습니다.**
+4. **`/bouncer-commit`** — 스코프를 미리 보고, task 하나를 커밋하고, 다음 task로
+   포인터를 옮깁니다.
+5. **`/bouncer-finalize`** — 지식을 Distill로 승격하고, 설명과 퀴즈를 남기고, 남은
+   변경을 커밋하고, draft PR을 엽니다.
 
-    subgraph PLAN["/bouncer-plan"]
-        P1["epic → blueprint → task bundles"] --> P2{{"gate plan<br/>G1–G5, G10–G12"}}
-    end
+계획을 마치면 **`/bouncer-run`으로 이어집니다.** 3–4를 task가 소진될 때까지
+반복하며, 질문 빈도는 `config.autonomy`가 정합니다. 3·4를 직접 부르는 것은 task
+하나만 처리하거나 멈춘 주행을 복구할 때입니다.
 
-    subgraph EXEC["/bouncer-execute"]
-        E1["worktree 재사용/생성 + seed-worktree"] --> E2["implement"]
-        E2 --> E3["verify (게이트가 실제 실행)"]
-        E3 -- 실패 --> E4["debugging"]
-        E4 --> E2
-        E3 -- 통과 --> E5["review"]
-        E5 --> E6{{"gate execute<br/>G6–G8, G13–G14"}}
-    end
-
-    subgraph COMMIT["/bouncer-commit"]
-        C1{{"gate commit<br/>G6/G7/G8 + G17"}} --> C2["ACQ: commit --yes"]
-        C2 --> C3["ACQ: next task --set"]
-    end
-
-    subgraph FIN["/bouncer-finalize"]
-        F1["Distill 승격 (from explain)"] --> F2["explain-diff (BP entry + quiz)"]
-        F2 --> F3{{"gate finalize<br/>G16"}}
-        F3 --> F4["ACQ: finalize --yes + worktree 제거"]
-        F4 --> F5["ACQ: draft PR (render → push + create)"]
-    end
-
-    BI --> P1
-    P2 --> E1
-    E6 --> C1
-    C3 -- "남은 task 있음" --> E1
-    C3 -- "task 모두 완료" --> F1
-```
-
+전체 흐름도는 [workflow.md](docs/workflow.md)에 있습니다.
 
 ## Install
 
@@ -139,6 +126,74 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 /bouncer-finalize  # Distill 승격 · explain+퀴즈 · remainder · draft PR
 ```
 
+## 무엇이 들어있나
+
+**슬래시 커맨드 6개** — `/bouncer-init` · `/bouncer-plan` · `/bouncer-execute` ·
+`/bouncer-commit` · `/bouncer-run` · `/bouncer-finalize`.
+
+**게이트 4개** — `plan` / `execute` / `commit` / `finalize`. G 코드는 게이트별
+검사, S 코드(S0–S20)는 항상 도는 구조·스키마 검사입니다. 표는
+[gates.md](docs/gates.md)에 있습니다.
+
+**CLI** — 스킬이 내부에서 부르는 것을 직접 쓸 수 있습니다.
+
+| 명령 | 하는 일 |
+| --- | --- |
+| `bouncer validate` | 구조 검사 + 게이트 하나 |
+| `bouncer verify` | 설정된 검증 명령 실행 + 증적 기록 |
+| `bouncer scaffold` | epic / blueprint / task 묶음 / explain / context-review 생성 |
+| `bouncer commit` · `finalize` | 범위 확인 후 커밋 |
+| `bouncer current` | 활성 blueprint·task 포인터 읽기 / 기록 / 지우기 |
+| `bouncer migrate` · `import` | 레이아웃 이관, git 히스토리 전사 |
+
+전체 플래그는 [cli.md](docs/cli.md), `bouncer --help`에도 있습니다.
+
+**서브에이전트 4개** — `bouncer-implementer` / `bouncer-reviewer` /
+`bouncer-debugger` / `bouncer-context-reviewer`. 모델은 `config.subagents`에서
+에이전트 종류별로 지정합니다.
+
+**스킬 19개** — 대부분 위 커맨드가 내부에서 부르는 것이라 직접 호출할 일은 없습니다.
+예외는 개발자용 `agentic-code-benchmark`로, 워크플로 밖에 있고 게이트를 건드리지
+않습니다.
+
+## 언제 쓰고 언제 안 쓰나
+
+한 사이클은 task 묶음과 게이트 4개를 거칩니다. 오타 수정에까지 이걸 요구하면
+사람들은 곧 우회하기 시작합니다.
+
+| 상황 | 판단 |
+| --- | --- |
+| 코드가 바뀌고 검증 명령이 의미 있는 결과를 내는 작업 | Bouncer 사이클 |
+| 범위가 번질 위험이 있는 작업 (여러 디렉터리를 건드릴 것 같은) | Bouncer 사이클 |
+| 오타·문구 수정처럼 검증할 것이 없는 변경 | 일반 커밋 |
+
+이 기준은 잠정이고, 파일럿이 답할 질문입니다. "이건 Bouncer 쓰기엔 과하다"고 느낀
+순간이 있으면 [기록해 주세요](docs/PILOT.md#기록-방법).
+
+## 원칙
+
+- **증적이 주장을 이긴다** — 검증 성공 근거는 게이트가 명령을 돌려 기록합니다.
+  에이전트가 쓰지 않습니다.
+- **한 task, 한 커밋** — 커밋 하나가 리뷰 가능한 단위입니다. task 아래에 또 다른
+  하위 계층을 만들지 않습니다.
+- **완료는 게이트가 정한다** — 실패 코드를 고칠 대상으로 보고, 통과했다고 설득하지
+  않습니다.
+- **하위 호환 없는 단일 프로토콜** — 별칭과 자동 마이그레이션 대신 `.bouncer/` /
+  `bouncer.*` 하나만 지원합니다.
+
+## 현재 상태
+
+**0.8.1 — 파일럿 단계입니다.**
+
+이 저장소 자신을 35개 epic 동안 Bouncer로 관리해 왔지만, 다른 형태의 저장소에서는
+아직 검증되지 않았습니다. 공개 표면(`.bouncer/` 구조, `config.json` 스키마, G/S
+코드, CLI, 커맨드 이름)은 **아직 동결되지 않았고**, 1.0에서 동결할 예정입니다.
+그전까지 마이너 버전 사이에 바뀔 수 있습니다.
+
+붙여 보고 막히는 지점을 기록해 주세요 — 그게 1.0에서 무엇을 동결할지 정합니다.
+안내는 [PILOT.md](docs/PILOT.md)에 있고, 이미 알려진 마찰은 같은 문서 하단에
+있으니 중복 보고하지 않으셔도 됩니다.
+
 ## Requirements
 
 - Node.js 24에서 검증 (런타임은 표준 모듈 + 벤더링된 `js-yaml`)
@@ -148,5 +203,18 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 
 ## Documentation
 
-문서 목차는 [docs/README.md](docs/README.md)에 있습니다.
+문서는 독자에 따라 두 곳에 있습니다. 목차는 [docs/README.md](docs/README.md)입니다.
 
+- **[`docs/`](docs/)** — 사람용. 설치, 실패 대처, 설계 배경, 기여.
+- **[`rules/`](rules/)** — 에이전트 런타임 정본. 스킬과 `CLAUDE.md`가 인용하므로,
+  고치면 에이전트 행동이 바뀝니다.
+
+설계 배경은 [ARCHITECTURE.md](docs/ARCHITECTURE.md), 커밋 가드가 막지 못하는 것은
+[security.md](docs/security.md)에 정리되어 있습니다.
+
+## Contributing · License
+
+개발 환경, 커밋·PR 규약, CI는 [contributing.md](docs/contributing.md)를 보세요.
+버그와 막힌 지점은 이슈 템플릿(**버그** / **막힌 지점**)으로 받습니다.
+
+사내 배포용이라 라이선스를 아직 지정하지 않았습니다.

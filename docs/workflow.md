@@ -1,114 +1,95 @@
-# Workflow
+# 워크플로
 
-1. `/bouncer-init`: bootstrap `.bouncer/` once per project.
-2. `/bouncer-plan`: author epic → blueprint → task bundles
-   (`tasks/<NNN>/{tasks,verification,review}.md`), scaffold docs, inject
-   `graph.suggested_paths`, confirm `affected_paths`, judge plan documents
-   into blueprint-root `context-review.md`, approve, write the active
-   pointer (`bouncer current --set`, which records the selected task when one
-   is open), pass gate `plan` (G1–G5, G10–G12). Add another bundle with
-   `bouncer scaffold task --blueprint <dir> --id <NNN>`.
-3. `/bouncer-execute`: preflight, reuse or create the blueprint worktree,
-   `seed-worktree` (move plan documents from the base checkout into the
-   worktree), implement from the pointer's `tasks/<NNN>/tasks.md`, then verify
-   and review against that same bundle's `verification.md` and `review.md`,
-   pass gate `execute` (G6–G8, G13–G14). Does **not** commit — hand off to
-   `/bouncer-commit`. All tasks on one blueprint share one worktree.
-4. `/bouncer-commit`: scope dry-run, pass gate `commit` (G6/G7/G8 re-check +
-   G17 staged scope), **ACQ**-confirm `bouncer commit --yes`, then **ACQ**
-   next-task `bouncer current --set`. No explain / quiz step.
-5. `/bouncer-finalize`: promote durable notes from `explain.md` into
-   `.bouncer/Distill.md` via `spec-authoring` (excluding
-   `## 이해 상태` / Quiz / comprehension), then `explain-diff` (one blueprint
-   comprehension entry for pointer-`base`..HEAD, `quiz_score` required), pass
-   gate `finalize` (G16), then **ACQ**-confirm remainder `finalize --yes`
-   (recommended: remove execute worktree), one **ACQ** to open a draft PR
-   (show rendered title/body, then push + `gh pr create --draft` with no
-   second confirm), filled from `explain.md` Background / Intuition / Code, and
-   next-blueprint handoff. PR is skipped gracefully with no remote / no `gh`,
-   or when declined. Draft PR titles use `[YYMMDD] (→ MergeTarget) [Type] 요약`.
-   See [contributing.md](contributing.md). Plan/execute Read that project Distill
-   before work.
-   `finalize --yes`는 마감한 blueprint의 `index.md` `bouncer.status`를 `closed`로
-   바꿔 그 변경도 마감 커밋에 함께 담는다(dry-run은 쓰지 않고 쓰게 될 경로만
-   보고). 잠긴 blueprint는 이후 `bouncer current --set`·`listReadyBlueprints`
-   후보에서 빠지고 plan 게이트 G2가 미승인 draft와 다른 문구로 이를 알린다.
-   해제 경로는 없다 — 다시 열려면 `index.md`의 status를 손으로 `approved`로
-   되돌려야 한다.
+사람이 읽는 개요입니다. 각 단계의 정본은 해당 `skills/<name>/SKILL.md`이고,
+에이전트가 지키는 규칙은 플러그인 루트 `CLAUDE.md`와 `rules/`에 있습니다.
 
-## How it works
+## 다섯 단계
 
-```text
-/bouncer-plan     → gate plan     (G1–G5, G10–G12)
-/bouncer-execute  → worktree (reuse) + seed → implement · verify · review
-                  → gate execute  (G6–G8, G13–G14)  ← verify 실제 실행
-/bouncer-commit   → gate commit (G6/G7/G8 + G17)
-                  → ACQ(commit --yes) → ACQ(next task --set)
-/bouncer-run      → execute→commit 반복 (task 소진까지; 수동 경로의 대체)
-/bouncer-finalize → Distill 승격(from explain)
-                  → explain-diff (BP entry + quiz) → gate finalize (G16)
-                  → ACQ(--yes + worktree)
-                  → (ACQ) draft PR (render → push+create, no body confirm)
+| 단계 | 하는 일 | 막는 게이트 |
+| --- | --- | --- |
+| `/bouncer-init` | 프로젝트당 한 번 `.bouncer/` 부트스트랩 | — |
+| `/bouncer-plan` | epic → blueprint → task 묶음 작성, 경로 추천 주입, `affected_paths` 확정, 계획 문서 리뷰, 승인, 활성 포인터 기록 | plan (G1–G5, G10–G12, G18) |
+| `/bouncer-execute` | worktree 재사용·생성 → 계획 문서 seed → 구현 → verify → review. **커밋하지 않음** | execute (G6–G8, G13–G14) |
+| `/bouncer-commit` | 스코프 dry-run → task 하나 커밋 → 다음 task로 포인터 이동 | commit (G6/G7/G8 + G17) |
+| `/bouncer-finalize` | Distill 승격 → explain + 퀴즈 → 남은 변경 커밋 → worktree 제거 → draft PR | finalize (G16) |
+
+계획을 마치면 **`/bouncer-run`으로 이어집니다.** execute→commit을 task가 소진될
+때까지 반복하는 기본 주행 경로이고, 얼마나 자주 물어볼지는
+`config.autonomy`(`auto` | `interactive`)가 정합니다. `/bouncer-execute`와
+`/bouncer-commit`을 직접 부르는 것은 task 하나만 처리하거나 멈춘 주행을 복구할
+때입니다. 단계 순서 자체는 위 표 그대로입니다.
+
+```mermaid
+flowchart TD
+    BI["/bouncer-init<br/>bootstrap .bouncer/"]
+
+    subgraph PLAN["/bouncer-plan"]
+        P1["epic → blueprint → task bundles"] --> P2{{"gate plan<br/>G1–G5, G10–G12, G18"}}
+    end
+
+    subgraph RUN["/bouncer-run — 열린 task가 없어질 때까지 반복"]
+        subgraph EXEC["/bouncer-execute"]
+            E1["worktree 재사용/생성 + seed-worktree"] --> E2["implement"]
+            E2 --> E3["verify (게이트가 실제 실행)"]
+            E3 -- 실패 --> E4["debugging"]
+            E4 --> E2
+            E3 -- 통과 --> E5["review"]
+            E5 --> E6{{"gate execute<br/>G6–G8, G13–G14"}}
+        end
+
+        subgraph COMMIT["/bouncer-commit"]
+            C1{{"gate commit<br/>G6/G7/G8 + G17"}} --> C2["commit --yes"]
+            C2 --> C3["next task --set"]
+        end
+    end
+
+    subgraph FIN["/bouncer-finalize"]
+        F1["Distill 승격 (from explain)"] --> F2["explain-diff (BP entry + quiz)"]
+        F2 --> F3{{"gate finalize<br/>G16"}}
+        F3 --> F4["finalize --yes + worktree 제거"]
+        F4 --> F5["draft PR (render → push + create)"]
+    end
+
+    BI --> P1
+    P2 --> E1
+    E6 --> C1
+    C3 -- "남은 task 있음" --> E1
+    C3 -- "task 모두 완료" --> F1
 ```
 
-단계별 스킬(권장 순서):
+## 단계별 스킬
 
 | 단계 | 스킬 |
 | --- | --- |
 | `/bouncer-plan` | `discovery` → `spec-authoring` → `stop-slop` → `graphify-runner` → `minimality` → `context-review` |
-| `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (`debugging` / `bouncer-debugger` on verify failure) |
-| `/bouncer-commit` | (게이트·ACQ만 — explain 없음) |
-| `/bouncer-finalize` | `spec-authoring` (explain→Distill 승격) → `explain-diff` (explain에 `stop-slop`) |
+| `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (verify 실패 시 `debugging`) |
+| `/bouncer-commit` | 게이트와 확인만 — explain 단계 없음 |
+| `/bouncer-finalize` | `spec-authoring`(explain→Distill 승격) → `explain-diff` |
 
-Execute에서 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implementer` /
-`bouncer-reviewer` / `bouncer-debugger`로 분리할 수 있다. Plan 승인 직전
-계획 문서 판정은 `bouncer-context-reviewer`다.
+execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implementer` /
+`bouncer-reviewer` / `bouncer-debugger`로 분리됩니다. 계획 승인 직전의 문서
+판정은 `bouncer-context-reviewer`입니다.
 
-게이트 표와 실패 코드는 [gates.md](gates.md),
-CLI는 [cli.md](cli.md), 설정은 [configuration.md](configuration.md)를
-보세요. 커밋 가드의 한계는 [security.md](security.md)에 있습니다.
+## 알아둘 것
 
-## 자동 주행
+- **worktree는 blueprint당 하나입니다.** `/bouncer-execute`가
+  `.worktrees/<epic-id>/<bp-id>`에 만들고 그 blueprint의 모든 task가 공유합니다.
+  제거는 `/bouncer-finalize`만 합니다.
+- **execute는 커밋하지 않습니다.** 커밋은 `/bouncer-commit`의 몫입니다.
+- **주행이 멈추는 경우는 셋입니다** — verify 재실패, 리뷰 왕복 상한, 범위 위반.
+  포인터와 worktree를 그대로 두므로 `/bouncer-execute`로 그 task만 닫은 뒤
+  `/bouncer-run`을 다시 걸면 됩니다.
+- **좁은 범위 작업**은 `/bouncer-plan`이 경량 여부를 묻고 blueprint
+  `bouncer.scale`을 `light`로 바꿉니다. 무엇이 줄고 무엇이 그대로인지는
+  [`rules/governance.md`](../rules/governance.md) `## Lightweight cycle`에
+  있습니다.
+- **마감한 blueprint는 잠깁니다.** `finalize --yes`가 `bouncer.status`를
+  `closed`로 바꾸고, 이후 포인터 후보에서 빠집니다. 다시 열려면 `index.md`의
+  status를 손으로 `approved`로 되돌려야 합니다.
 
-`/bouncer-run`은 위 다섯 단계의 정본을 바꾸지 않는다. plan과 finalize는
-그대로 두고, execute→commit만 열린 task가 없어질 때까지 반복한다.
-정본 상한·중단 규칙은 `/bouncer-run` SKILL.md에 있다.
+## 더 보기
 
-주행 세션은 오케스트레이터다. 구현·리뷰·조사는 execute가 `bouncer-implementer`
-/ `bouncer-reviewer` / `bouncer-debugger`로 위임하고, 루프는 세 리포트만 받아
-조치를 라우팅한다. 루프가 자기 손으로 하는 일은 CLI 호출, 문서 status와
-Findings 기록, 게이트 판단, ACQ뿐이다.
-
-시작 전에 ACQ 하나로 주행 여부를 묻는다. 열린 task를 소진하면 멈추고
-`/bouncer-finalize`를 안내한다. finalize에는 들어가지 않는다.
-
-중단은 셋이다. verify 재시도 1회 후 재실패, 리뷰 왕복 2회 상한, 범위
-위반. 멈추면 포인터와 execute worktree를 그대로 둔다. 그 task는
-`/bouncer-execute`로 수동으로 닫은 뒤 `/bouncer-run`을 다시 건다.
-
-`config.autonomy`가 `auto`면 시작 ACQ만 묻고 commit·next-task ACQ는
-건너뛴다. `interactive`는 각 task를 닫은 뒤 다음 task로 갈지 ACQ를
-하나 더 묻는다.
-
-## 경량 경로
-
-좁은 범위 작업은 새 모드가 아니라 운용 지침이다. `/bouncer-plan`이
-사용자에게 경량 여부를 묻고(자동 판정하지 않는다), 선언을 받으면
-blueprint `index.md`의 `bouncer.scale`을 `light`로 바꾼다. scaffold가
-이미 `scale: full`을 쓰므로 키를 새로 넣는 것이 아니라 값을 바꾼다.
-
-줄이는 것:
-
-- epic 신설 — slug `maintenance` epic을 재사용한다(없을 때만 한 번 만들고,
-  `closed`로 두지 않는다)
-- 서브에이전트 왕복 — execute가 named 디스패치 대신 인라인한다
-  (`/bouncer-run` 주행 중에는 named 디스패치를 유지한다)
-- 퀴즈 규모 — explain-diff가 질문 수를 1로 고정한다
-
-줄이지 않는 것:
-
-- 문서 수 — `tasks` / `verification` / `review` / `explain`은 그대로다
-- 게이트 — plan / execute / commit / finalize 게이트는 그대로다
-
-scaffold가 `full`을 쓰므로 경량이면 그 값을 `light`로 바꾸고, 되돌릴
-때는 `full`로 되돌린다. 부재·`full`은 일반 경로다.
+게이트 표와 실패 코드는 [gates.md](gates.md), CLI는 [cli.md](cli.md), 설정은
+[configuration.md](configuration.md), 커밋 가드의 한계는
+[security.md](security.md)에 있습니다. 주행 상한과 중단 규칙의 정본은
+`skills/bouncer-run/SKILL.md`입니다.
