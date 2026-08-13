@@ -103,6 +103,10 @@ applies the fix.
    인라인으로 실행한다. 선언에 의한 선택이며, 아래 4번의 호스트 fallback과는
    별개 문장이다.
 
+   **주행 예외.** `/bouncer-run` 주행 중에는 경량 선언이어도 이 인라인 분기를
+   쓰지 않고 named 디스패치를 쓴다. 루프 세션이 곧 implementer가 되면 리포트만
+   받는 오케스트레이션 경계가 깨지고, 리뷰도 자기 diff 자기 판정이 된다.
+
    그 외에는 **`bouncer-implementer`** (plugin `agents/bouncer-implementer.md`)
    를 이 순서로 디스패치한다:
 
@@ -180,7 +184,8 @@ applies the fix.
    (1) fill `skills/review/assets/reviewer-prompt.md` (brief, base/HEAD, constraints);
    (2) **경량 분기.** blueprint `index.md`의 `bouncer.scale`이 `light`면 named
        디스패치 네 단계를 건너뛰고, 채운 `skills/review/assets/reviewer-prompt.md`로 `review` 스킬을
-       인라인 read-only로 실행한다. 그 외에는 resolve model via
+       인라인 read-only로 실행한다. `/bouncer-run` 주행 중에는 step 3의 주행
+       예외와 같이 이 분기를 쓰지 않는다. 그 외에는 resolve model via
        `resolveSubagentModel` for `bouncer-reviewer`, then dispatch named agent
        `bouncer-reviewer` with that model (retry `inherit` if the slug is
        rejected). If named agents are unavailable (e.g. Codex), fall back to a

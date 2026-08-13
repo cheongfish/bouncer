@@ -74,9 +74,10 @@ numbered step says otherwise.
    verification authority (hard rule 3). Do not add re-check passes,
    "verify my own work" steps, or verification subagents on top of them.
 5. **Delegation** — Dispatch only the subagents a workflow step names
-   (`bouncer-implementer`, `bouncer-reviewer`). Beyond those, delegate only for
-   large, genuinely independent investigation — one agent rather than several,
-   never to double-check your own output.
+   (`bouncer-implementer`, `bouncer-reviewer`, `bouncer-debugger`,
+   `bouncer-context-reviewer`). Beyond those, delegate only for large, genuinely
+   independent investigation — one agent rather than several, never to
+   double-check your own output.
 6. **Corrections** — Correct an earlier statement only when the error would
    change the user's code, decisions, or a gate outcome. State it plainly and
    continue; for slips that change nothing, make the fix and move on.

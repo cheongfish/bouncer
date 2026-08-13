@@ -74,6 +74,11 @@ CLI는 [cli.md](cli.md), 설정은 [configuration.md](configuration.md)를
 그대로 두고, execute→commit만 열린 task가 없어질 때까지 반복한다.
 정본 상한·중단 규칙은 `/bouncer-run` SKILL.md에 있다.
 
+주행 세션은 오케스트레이터다. 구현·리뷰·조사는 execute가 `bouncer-implementer`
+/ `bouncer-reviewer` / `bouncer-debugger`로 위임하고, 루프는 세 리포트만 받아
+조치를 라우팅한다. 루프가 자기 손으로 하는 일은 CLI 호출, 문서 status와
+Findings 기록, 게이트 판단, ACQ뿐이다.
+
 시작 전에 ACQ 하나로 주행 여부를 묻는다. 열린 task를 소진하면 멈추고
 `/bouncer-finalize`를 안내한다. finalize에는 들어가지 않는다.
 
@@ -97,6 +102,7 @@ blueprint `index.md`의 `bouncer.scale`을 `light`로 바꾼다. scaffold가
 - epic 신설 — slug `maintenance` epic을 재사용한다(없을 때만 한 번 만들고,
   `closed`로 두지 않는다)
 - 서브에이전트 왕복 — execute가 named 디스패치 대신 인라인한다
+  (`/bouncer-run` 주행 중에는 named 디스패치를 유지한다)
 - 퀴즈 규모 — explain-diff가 질문 수를 1로 고정한다
 
 줄이지 않는 것:

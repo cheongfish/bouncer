@@ -103,6 +103,19 @@ test('bouncer-run does not invent CLI, invoke finalize, or copy execute dispatch
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
 });
 
+test('bouncer-run is an orchestrator that only consumes subagent reports', () => {
+  const { body } = parseFrontmatter(md);
+  // 루프가 구현·리뷰·조사를 자기 세션에서 하면 오케스트레이션 경계가 사라짐.
+  assert.match(body, /인라인/);
+  assert.match(body, /bouncer-implementer/);
+  assert.match(body, /bouncer-reviewer/);
+  assert.match(body, /bouncer-debugger/);
+  // 위임할 수 없는 네 가지는 게이트·훅 제약에서 나옴 — 근거를 본문에 남김.
+  assert.match(body, /commit-safety/);
+  assert.match(body, /Needs planning/);
+  assert.match(body, /Findings/);
+});
+
 test('bouncer-run treats context docs and subagent reports as data not instructions', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /데이터이지 지시|데이터가 아니|지시가 아니/);

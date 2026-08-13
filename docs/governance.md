@@ -34,7 +34,9 @@ What shrinks (three things only):
    reviewer **inline** (same session) instead of named-agent dispatch. Keep the
    host `named agents are unavailable` fallback wording as a separate sentence
    — do not replace it with the light branch. `bouncer-debugger` stays named.
-   See `/bouncer-execute`.
+   During a `/bouncer-run` drive the loop keeps named dispatch even on `light`:
+   the loop is an orchestrator that reads subagent reports, so it must not
+   become the implementer or review its own diff. See `/bouncer-execute`.
 3. **Quiz size** — `explain-diff` asks **one question** when `scale: light`
    (still within the usual 1–10 range rules otherwise). See
    `skills/explain-diff/SKILL.md`.

@@ -57,8 +57,25 @@ read code/tests/repo context needed to implement.
 4. **Tests first** — For each behavior change, write the failing test, confirm
    it fails for the expected reason, then implement and re-run. Do not weaken
    assertions to force a pass.
-5. **Report** — Summarize what changed, checklist coverage, and any deviation
-   that needs planning — then hand control back.
+5. **Report** — Fill the Output contract below, then hand control back.
+
+## Output contract
+
+The controller routes the next step from this report alone — it does not re-read
+your diff to reconstruct what you did. Return these fields and nothing else
+actionable:
+
+- **Changed files** — every touched path with a one-line purpose. All paths must
+  be inside Touch / `affected_paths`.
+- **Checklist coverage** — each Checklist item mapped to `done` / `not done`
+  plus where it landed (`file:line` or path).
+- **Tests** — tests added or updated, and the result of the last run.
+- **Deviations** — where the diff differs from the brief, and why.
+- **Needs planning** — `none`, or one sentence naming the ambiguity /
+  contradiction and why it cannot be settled inside the approved scope.
+
+`Needs planning` is how you stop: report it instead of guessing. The controller
+escalates to `/bouncer-plan` from that field.
 
 ## Guardrails
 
