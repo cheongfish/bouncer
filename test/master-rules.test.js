@@ -64,6 +64,47 @@ test('master rules point at project Distill path and require reading it', () => 
   assert.match(claude, /plan|execute/i);
   assert.match(claude, /Read|읽/i);
   assert.doesNotMatch(claude, /## Invariants/);
+  // Distill 경로는 소비 프로젝트 main worktree(project-root) 아래만 가리킨다.
+  assert.match(claude, /project-root|PROJECT_ROOT/);
+});
+
+test('workflow skills resolve PROJECT_ROOT via project-root for Distill', () => {
+  for (const name of [
+    'bouncer-plan', 'bouncer-execute', 'bouncer-run', 'bouncer-finalize',
+  ]) {
+    const md = read(`skills/${name}/SKILL.md`);
+    assert.match(md, /project-root/, `${name} must call bouncer project-root`);
+    assert.match(md, /PROJECT_ROOT/, `${name} must bind PROJECT_ROOT`);
+    assert.match(
+      md,
+      /\$\{PROJECT_ROOT\}\/\.bouncer\/Distill\.md/,
+      `${name} must Read Distill under PROJECT_ROOT`,
+    );
+    // 상대 경로 operational Read와 plugin-root 기준 Distill은 금지.
+    assert.doesNotMatch(
+      md,
+      /Read `\.bouncer\/Distill\.md`/,
+      `${name} must not use cwd-relative Distill Read`,
+    );
+    assert.doesNotMatch(
+      md,
+      /\$\{BOUNCER_ROOT\}\/\.bouncer\/Distill\.md/,
+      `${name} must not derive Distill from BOUNCER_ROOT`,
+    );
+  }
+});
+
+test('discovery and spec-authoring take caller-provided absolute Distill paths', () => {
+  for (const name of ['discovery', 'spec-authoring']) {
+    const md = read(`skills/${name}/SKILL.md`);
+    assert.match(
+      md,
+      /caller-provided|호출자가 넘긴|absolute Distill|절대 Distill|절대 경로/i,
+      `${name} must require caller-provided absolute Distill path`,
+    );
+    assert.doesNotMatch(md, /BOUNCER_ROOT/, `${name} must not resolve BOUNCER_ROOT`);
+    assert.doesNotMatch(md, /scripts\/bouncer/, `${name} must not invoke scripts/bouncer`);
+  }
 });
 
 test('master rules require Korean context bodies and name stop-slop', () => {

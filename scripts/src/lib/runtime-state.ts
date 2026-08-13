@@ -31,11 +31,14 @@ function runtimePaths({
   const commonGitDir = pathApi.resolve(repoRoot, commonDir);
   // dirname(.git)은 일반 repo의 main worktree root이므로, linked checkout이
   // 자기 아래에 중첩되지 않고 같은 `.worktrees/`를 공유한다.
+  // projectRoot는 그 값을 Distill/스킬 소비용으로 노출한다 — Git 계산을
+  // 스킬이나 별도 helper에서 복제하지 않기 위한 단일 정본.
   const mainRoot = pathApi.dirname(commonGitDir);
   return {
     commonGitDir,
     currentFile: pathApi.join(commonGitDir, 'bouncer', 'current'),
     worktreeRoot: pathApi.join(mainRoot, '.worktrees'),
+    projectRoot: mainRoot,
   };
 }
 

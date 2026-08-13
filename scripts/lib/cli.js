@@ -15,6 +15,7 @@ const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, resolvePoi
 const { migrateIds } = require('./migrate-ids');
 const { migrateTaskLayout } = require('./migrate-task-layout');
 const { planImport, applyImport } = require('./import-history');
+const { runtimePaths } = require('./runtime-state');
 const fs = require('node:fs');
 const path = require('node:path');
 // cmdCurrent --set이 base_branch를 읽을 때만 쓴다. 없거나 깨진 config는
@@ -243,6 +244,20 @@ function cmdGraphifyBin(rest, io) {
     io.out(`${bin}\n`);
     return 0;
 }
+function cmdProjectRoot(rest, io) {
+    const f = parseFlags(rest);
+    const repoRoot = f.repo || process.cwd();
+    // Distill·워크플로가 소비하는 정본은 main worktree다. linked cwd나
+    // plugin root로 대체하면 도그푸드 Distill을 오독하므로 unavailable은
+    // 빈 stdout/cwd fallback 없이 stderr+1로 거절한다.
+    const paths = runtimePaths({ repoRoot });
+    if (paths.unavailable || !paths.projectRoot) {
+        io.err(`project-root: ${paths.reason || 'Bouncer requires a Git repository'}\n`);
+        return 1;
+    }
+    io.out(`${paths.projectRoot}\n`);
+    return 0;
+}
 function cmdMigrate(rest, io) {
     const [kind, ...flagArgs] = rest;
     if (kind !== 'ids' && kind !== 'task-layout') {
@@ -402,6 +417,8 @@ const USAGE = `usage: bouncer <command> [options]
   graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
   graphify-bin
              Print the resolved graphify executable path (one line).
+  project-root
+             Print the consuming project's main worktree absolute path (one line).
   current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>]]
              [--clear]
              Show the active blueprint pointer, or set / clear it.
@@ -444,6 +461,8 @@ function runCli(argv, io) {
             return cmdGraphSync(rest, sink);
         case 'graphify-bin':
             return cmdGraphifyBin(rest, sink);
+        case 'project-root':
+            return cmdProjectRoot(rest, sink);
         case 'current':
             return cmdCurrent(rest, sink);
         case 'migrate':

@@ -11,7 +11,9 @@ implementation starts.
 ## Flow
 
 1. **Pre-read** — Before framing, read epic indexes under
-   `.bouncer/context/epics/` and `.bouncer/Distill.md` so questions can
+   `.bouncer/context/epics/` and the absolute Distill path the caller
+   provided (caller-provided absolute Distill path from `/bouncer-plan`, never
+   derived from plugin root or cwd) so questions can
    probe overlap with existing streams and Distill invariants. If an index or
    Distill.md is missing or absent (does not exist yet), record Overlap as
    "none" and continue — pre-read is not a hard stop.

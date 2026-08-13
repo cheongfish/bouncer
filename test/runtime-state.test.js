@@ -36,6 +36,9 @@ test('primary checkout and linked worktree share Git-local runtime paths', () =>
   assert.strictEqual(primaryPaths.currentFile,
     path.join(primaryPaths.commonGitDir, 'bouncer', 'current'));
   assert.strictEqual(primaryPaths.worktreeRoot, path.join(primary, '.worktrees'));
+  // projectRoot는 checkout 종류와 무관하게 main worktree(정본)다.
+  assert.strictEqual(primaryPaths.projectRoot, primary);
+  assert.strictEqual(linkedPaths.projectRoot, primary);
   assert.deepStrictEqual(linkedPaths, primaryPaths);
 });
 
@@ -64,6 +67,7 @@ test('win32 path API keeps worktrees beside the main checkout', () => {
     windows.worktreeRoot,
     path.win32.join('C:\\repo', '.worktrees'),
   );
+  assert.strictEqual(windows.projectRoot, 'C:\\repo');
 });
 
 test('runtime resolution is read-only and reports non-Git directories unavailable', () => {

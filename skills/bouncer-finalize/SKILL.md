@@ -15,6 +15,16 @@ Close out the active blueprint after every task has been committed via
 task commits already landed on `/bouncer-commit`. Comprehension (explain + quiz)
 runs in this skill, after Distill promotion.
 
+**Project root.** Resolve the consuming project's main worktree before Distill
+promotion:
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
+```
+If that fails, stop and report stderr — do not fall back to cwd or plugin root.
+Pass `${PROJECT_ROOT}/.bouncer/Distill.md` as the absolute Distill path when
+invoking `spec-authoring`.
+
 ## ACQ (AskUserQuestion) gates
 
 Human-facing confirmations in this skill are **ACQ** gates. Prefer the host
@@ -54,9 +64,11 @@ appears; do not reconstruct a root `context/` path.
 
 1. **Promote Distill.** Use the `spec-authoring` skill
    (`skills/spec-authoring/SKILL.md`) to promote durable items from BP
-   `explain.md` into `.bouncer/Distill.md` under `## Invariants` /
-   `## Gotchas` / `## Decisions` (add, replace, or drop stale bullets;
-   English Distill bullets). Decisions stay **current only** — no change-log
+   `explain.md` into `${PROJECT_ROOT}/.bouncer/Distill.md` under
+   `## Invariants` / `## Gotchas` / `## Decisions` (add, replace, or drop stale
+   bullets; English Distill bullets). Pass that absolute Distill path to
+   `spec-authoring` — do not let it invent a path from plugin root or cwd.
+   Decisions stay **current only** — no change-log
    append. Do **not** promote `## 이해 상태`, `## Quiz`, or comprehension
    fields into Distill — 이해 상태는 Distill로 승격하지 않는다. Cycle
    retrospectives and next-BP ideas stay in the BP `explain.md` only.

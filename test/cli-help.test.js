@@ -7,6 +7,7 @@ const { runCli } = require('../scripts/lib/cli');
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'graphify-bin',
+  'project-root',
   'current',
   'migrate',
   'commit',

@@ -10,9 +10,17 @@ description: "This skill should be used only when the user explicitly asks to ru
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 
-**Project Distill.** Before the numbered steps, Read `.bouncer/Distill.md`.
-If missing, stop and tell the user to run `bouncer init` (or seed the file).
-Honor matching Invariants / Gotchas / Decisions.
+**Project root.** Resolve once at drive start (and reuse on every re-ground):
+```bash
+BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
+```
+If that fails, stop and report stderr — do not fall back to cwd or plugin root.
+
+**Project Distill.** Before the numbered steps, Read
+`${PROJECT_ROOT}/.bouncer/Distill.md`. If missing, stop and tell the user to run
+`bouncer init` (or seed the file). Honor matching Invariants / Gotchas /
+Decisions. Re-ground after each task still uses that same absolute Distill path.
 
 활성 포인터의 blueprint에서 `/bouncer-execute` 다음 `/bouncer-commit`을 열린
 task가 없어질 때까지 반복한다. 두 스킬의 절차는 각 문서가 가진다. 이 문서는
@@ -122,7 +130,8 @@ put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body
    `affected_paths`를 넓히지 않는다.
 
    implementer에게는 해당 task 브리프 절(Goal & intent, Interface, Touch,
-   Do not touch, Constraints, Checklist)과 `.bouncer/Distill.md`, 직전 커밋
+   Do not touch, Constraints, Checklist)과
+   `${PROJECT_ROOT}/.bouncer/Distill.md`, 직전 커밋
    subject 목록만 준다. 이전 task의 대화 맥락 전체를 넘기지 않는다.
 
 4. **verify·review 상한.** verify 실패는 `/bouncer-execute`가 정한 대로
