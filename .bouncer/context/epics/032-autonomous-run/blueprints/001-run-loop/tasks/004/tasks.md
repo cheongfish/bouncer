@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '032'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 같은 verify 실패를 세 번까지 다시 파게 두면 근본 원인이 아니라 시도 횟수로 문제를 미는 셈이 됨
     - 수동 경로와 자동 주행이 같은 수를 갖도록 재디스패치 상한을 한 번으로 낮춤

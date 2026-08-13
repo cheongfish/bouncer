@@ -168,7 +168,7 @@ applies the fix.
    returns a root-cause report only. Apply the minimum fix via
    `bouncer-implementer` (or inline within scope) from that report, then
    re-verify. On the same failing verify, redispatch the debugger at most
-   **3** times (3 unsuccessful fix cycles); then escalate to architecture /
+   **1** time (1 unsuccessful fix cycle); then escalate to architecture /
    `/bouncer-plan` rather than looping.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).

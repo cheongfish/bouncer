@@ -47,8 +47,8 @@ Follow `skills/debugging/SKILL.md`. Complete each stage before the next:
 
 ## Redispatch limit
 
-On the same failing verify, the controller may redispatch you at most **3**
-times (3 unsuccessful fix cycles). After that ceiling, stop and escalate to
+On the same failing verify, the controller may redispatch you at most **1**
+time (1 unsuccessful fix cycle). After that ceiling, stop and escalate to
 architecture / `/bouncer-plan` rather than looping.
 
 ## Output contract
