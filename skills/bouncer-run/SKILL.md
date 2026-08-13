@@ -4,11 +4,11 @@ description: "This skill should be used only when the user explicitly asks to ru
 ---
 # /bouncer-run
 
-**Plugin root.** See `docs/install.md` 「플러그인 루트」.
+**Plugin root.** See `rules/plugin-root.md`.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+`rules/governance.md`, `rules/okf.md`.
 
 **Project Distill.** Before the numbered steps, Read `.bouncer/Distill.md`.
 If missing, stop and tell the user to run `bouncer init` (or seed the file).

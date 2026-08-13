@@ -15,7 +15,7 @@
 | 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/current` — JSON `{blueprint, task?, base}` (Git 공통 디렉터리; `task`는 task 문서 상대 경로, 없으면 미지정) |
 | execute worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>` (gitignore / finalize 무시; 이미 열린 평면 `.worktrees/<blueprint id>`만 재사용) |
 
-문서 골격(템플릿)과 제품 규칙(`docs/governance.md` · `workflow.md` · `okf.md`),
+문서 골격(템플릿)과 제품 규칙(`rules/governance.md` · `rules/okf.md`),
 세션 마스터 룰(`CLAUDE.md` / `AGENTS.md`)은 프로젝트에 설치되지 않습니다.
 scaffold와 finalize PR 본문은 플러그인 내장값(`scripts/lib/templates.js`)만
 사용합니다.

@@ -4,11 +4,11 @@ description: "This skill should be used only when the user explicitly asks to bo
 ---
 # /bouncer-init
 
-**Plugin root.** See `docs/install.md` 「플러그인 루트」.
+**Plugin root.** See `rules/plugin-root.md`.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+`rules/governance.md`, `rules/okf.md`.
 
 Bootstrap this project for Bouncer.
 
@@ -79,5 +79,5 @@ Bootstrap this project for Bouncer.
 
 Do not author any epic or blueprint here — `/bouncer-init` only scaffolds `.bouncer/`.
 Document skeletons, product rules, and master rules live in the plugin
-(`scripts/lib/templates.js`, `docs/governance.md`, `docs/workflow.md`,
-`docs/okf.md`, `CLAUDE.md`); init does not install them into the project.
+(`scripts/lib/templates.js`, `rules/governance.md`, `rules/okf.md`,
+`CLAUDE.md`); init does not install them into the project.

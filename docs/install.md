@@ -120,19 +120,17 @@ CI는 Antigravity 호스트를 띄울 수 없어 아래는 자동 검증 밖입�
 
 ## 플러그인 루트 (`BOUNCER_HOME`)
 
-워크플로 스킬 본문은 `bouncer` CLI를 플러그인 디렉터리에서 실행합니다. 그 위치를
-알려주는 환경변수는 에이전트마다 달라서, 스킬은 다음 순서로 해석합니다.
+스킬이 `bouncer` CLI를 어디서 실행할지 알아야 합니다. Claude Code와 Codex는
+그 경로를 환경변수로 넣어주지만, **Cursor와 Antigravity는 넣어주지 않습니다.**
+두 호스트에서는 `BOUNCER_HOME`을 설치 디렉터리(`scripts/bouncer`가 있는 곳)로
+직접 export 하세요.
 
 ```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+export BOUNCER_HOME=/path/to/bouncer
 ```
 
-`BOUNCER_HOME`은 수동 탈출구, `CLAUDE_PLUGIN_ROOT`는 Claude Code(및 Codex 호환
-별칭), `PLUGIN_ROOT`는 Codex 네이티브 변수입니다. Cursor·Antigravity 스킬
-셸에는 플러그인 루트 변수가 없으므로 `BOUNCER_HOME`을 설치
-디렉터리(`scripts/bouncer`가 있는 곳)로 export 하세요.
-`hooks/hooks.json`은 Claude·Codex가 치환하는 `${CLAUDE_PLUGIN_ROOT}`를 그대로
-쓰고, Cursor 훅은 상대 경로를 씁니다.
+스킬이 세 변수를 어떤 순서로 해석하는지는
+[`rules/plugin-root.md`](../rules/plugin-root.md)에 있습니다.
 
 ## 선택: Graphify (경로 추천)
 

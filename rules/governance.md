@@ -17,7 +17,7 @@ cleanup) after every task is committed.
 
 ## Lightweight cycle
 
-A **lightweight cycle** (ops Korean: `docs/workflow.md` `## 경량 경로`) is in
+A **lightweight cycle** is in
 effect only when the user **declares** a narrow-scope change at `/bouncer-plan`
 and the plan changes blueprint `index.md` `bouncer.scale` from the scaffold
 default `full` to `light`. There is no automatic sizing from diff size, path

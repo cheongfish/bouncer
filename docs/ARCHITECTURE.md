@@ -1,7 +1,7 @@
 # Bouncer 아키텍처
 
 > 플러그인 제품의 설계 결정 ADR. 운영 규칙·워크플로·OKF 정렬 요약은
-> [governance.md](governance.md) · [workflow.md](workflow.md) · [okf.md](okf.md)에 있다.
+> [governance.md](../rules/governance.md) · [workflow.md](workflow.md) · [okf.md](../rules/okf.md)에 있다.
 > 세 문서는 플러그인에 내장되며 소비 프로젝트에 설치되지 않는다.
 > 세션 진입용 짧은 인덱스는 플러그인 루트 `CLAUDE.md`다. `AGENTS.md`는
 > `@CLAUDE.md` import 어댑터다.

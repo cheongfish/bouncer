@@ -11,7 +11,7 @@ function read(rel) {
 }
 
 test('governance defines Lightweight cycle contract', () => {
-  const gov = read('docs/governance.md');
+  const gov = read('rules/governance.md');
   assert.match(gov, /## Lightweight cycle/);
   assert.match(gov, /declare|declaration/i);
   assert.match(gov, /bouncer\.scale:\s*light|scale:\s*light|scale.*light/i);
@@ -40,13 +40,13 @@ test('bouncer-plan routes light-path work to maintenance epic', () => {
   assert.doesNotMatch(plan, /키 자체를 넣지 않는다/);
 });
 
-test('workflow light-path prose flips full to light instead of omitting the key', () => {
-  const workflow = read('docs/workflow.md');
-  assert.match(workflow, /## 경량 경로/);
-  assert.match(workflow, /자동 판정하지 않는다/);
-  assert.match(workflow, /scaffold가\s+이미\s+`scale:\s*full`/);
-  assert.match(workflow, /`full`로 되돌린다/);
-  assert.doesNotMatch(workflow, /키를 쓰지 않/);
+test('governance light path flips full to light instead of omitting the key', () => {
+  const gov = read('rules/governance.md');
+  assert.match(gov, /no automatic sizing/i);
+  assert.match(gov, /scaffold\s+default\s+`full`\s+to\s+`light`/);
+  assert.match(gov, /back to `full`/);
+  // 키 자체를 빼는 방식으로 되돌아가지 않는다 — 값만 뒤집는다.
+  assert.doesNotMatch(gov, /omit(ting)? the key|키를 쓰지 않/i);
 });
 
 test('bouncer-execute inlines on scale light and keeps host fallback wording', () => {

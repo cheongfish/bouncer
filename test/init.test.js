@@ -276,9 +276,9 @@ test('init workflow materials live in plugin docs, not the project tree', () => 
 
 test('plugin governance materials have no Superpowers profile language', () => {
   const root = path.join(__dirname, '..');
-  const gov = fs.readFileSync(path.join(root, 'docs/governance.md'), 'utf8');
+  const gov = fs.readFileSync(path.join(root, 'rules/governance.md'), 'utf8');
   const workflow = fs.readFileSync(path.join(root, 'docs/workflow.md'), 'utf8');
-  const okf = fs.readFileSync(path.join(root, 'docs/okf.md'), 'utf8');
+  const okf = fs.readFileSync(path.join(root, 'rules/okf.md'), 'utf8');
   const all = gov + workflow + okf;
   assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(all));
 });

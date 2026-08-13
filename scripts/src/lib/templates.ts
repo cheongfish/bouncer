@@ -82,7 +82,7 @@ const TEMPLATES = {
 ## Blueprints
 <!-- OKF §6 인덱스 형식. 새 blueprint를 만드는 기준은 하나 — 한 커밋으로
      리뷰 가능한 단위인가. 더 크면 blueprint를 쪼갠다. 하위 태스크 계층은
-     만들지 않는다 (docs/governance.md).
+     만들지 않는다 (rules/governance.md).
      한 줄 목적에는 무엇이 바뀌는지(what)와 어디를 건드리는지(where)를
      함께 적는다. 기존 라인은 소급 수정하지 않는다. -->
 * [<TODO: 00x 제목>](blueprints/<TODO: 00x-slug>/index.md) - <TODO: 한 줄 목적 — what changes + where touched>
@@ -112,7 +112,7 @@ Epic: [<EPIC-id>](../../index.md)
 - <TODO: 이 blueprint에서 하지 않을 것>
 
 ## One-commit justification
-<!-- docs/governance.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.
+<!-- rules/governance.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.
      이 칸을 못 채우겠으면 blueprint를 쪼갤 신호입니다. -->
 - <TODO: 한 커밋에 들어가는 이유>
 

@@ -75,7 +75,7 @@ those placeholders ship as the commit subject and body.
 
 1. Read the plugin master rules (`CLAUDE.md` / `AGENTS.md`) and the pinned
    materials for the document kind you are writing. Product rules live in the
-   plugin (`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`), not under
+   plugin (`rules/governance.md`, `rules/okf.md`), not under
    the project's `.bouncer/`.
 2. Fill the skeleton with concrete, specific content. 종류별 완성 예시는
    필요할 때 `references/epic.md`, `references/blueprint.md`,

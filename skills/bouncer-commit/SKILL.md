@@ -4,11 +4,11 @@ description: "This skill should be used only when the user explicitly asks to co
 ---
 # /bouncer-commit
 
-**Plugin root.** See `docs/install.md` 「플러그인 루트」.
+**Plugin root.** See `rules/plugin-root.md`.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+`rules/governance.md`, `rules/okf.md`.
 
 Close one task on the active blueprint. Follow this sequence. Do **not** open a
 draft PR, remove the execute worktree, or run `explain-diff` here — those are

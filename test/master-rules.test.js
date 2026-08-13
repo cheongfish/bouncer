@@ -10,9 +10,8 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 test('CLAUDE.md is the master-rules SSOT', () => {
   const claude = read('CLAUDE.md');
   assert.match(claude, /^# Bouncer\b/m);
-  assert.match(claude, /docs\/governance\.md/);
-  assert.match(claude, /docs\/workflow\.md/);
-  assert.match(claude, /docs\/okf\.md/);
+  assert.match(claude, /rules\/governance\.md/);
+  assert.match(claude, /rules\/okf\.md/);
   assert.match(claude, /one reviewable\s+commit/i);
   assert.match(claude, /tasks\/<NNN>\/?`?\{?tasks/);
   assert.match(claude, /execute gate/i);

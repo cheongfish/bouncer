@@ -4,11 +4,11 @@ description: "This skill should be used only when the user explicitly asks to ex
 ---
 # /bouncer-execute
 
-**Plugin root.** See `docs/install.md` 「플러그인 루트」.
+**Plugin root.** See `rules/plugin-root.md`.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+`rules/governance.md`, `rules/okf.md`.
 
 Implement the active blueprint's current task. Follow this sequence. Do **not**
 run `git commit` or `bouncer commit` here — after the execute gate passes, point

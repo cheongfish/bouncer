@@ -4,11 +4,11 @@ description: "This skill should be used only when the user explicitly asks to pl
 ---
 # /bouncer-plan
 
-**Plugin root.** See `docs/install.md` 「플러그인 루트」.
+**Plugin root.** See `rules/plugin-root.md`.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`docs/governance.md`, `docs/workflow.md`, `docs/okf.md`.
+`rules/governance.md`, `rules/okf.md`.
 
 Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
@@ -215,4 +215,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    placeholder-free (Constraints is authored but not gated), G11 Touch justifies every
    `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.
    Fix any reported failure and re-run until it passes. Then point the user at
-   `/bouncer-execute`.
+   `/bouncer-run` — it drives execute→commit until the blueprint's tasks run
+   out, and `config.autonomy` (`auto` | `interactive`) already decides how often
+   they are asked, so do not offer `/bouncer-execute` as the normal next step.
+   Mention `/bouncer-execute` only if they ask for a single task or need to
+   recover a stopped drive.
