@@ -1,6 +1,6 @@
 'use strict';
 const { validateBlueprint } = require('./validate');
-const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask } = require('./scaffold');
+const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview } = require('./scaffold');
 const { isNumericContextId } = require('./paths');
 const { finalize } = require('./finalize');
 const { commitTask } = require('./commit');
@@ -135,6 +135,12 @@ function cmdScaffold(rest, io) {
         return 2;
       }
       created = scaffoldExplain({ repoRoot, blueprintDir: f.blueprint, timestamp });
+    } else if (kind === 'context-review') {
+      if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+        io.err('scaffold context-review: --blueprint is required\n');
+        return 2;
+      }
+      created = scaffoldContextReview({ repoRoot, blueprintDir: f.blueprint, timestamp });
     } else {
       io.err(`unknown scaffold kind: ${kind}\n`);
       return 2;
@@ -398,6 +404,7 @@ const USAGE = `usage: bouncer <command> [options]
              blueprint --epic-dir <dir> --id <ddd> --name <slug>
              task --blueprint <dir> --id <ddd>
              explain --blueprint <dir>
+             context-review --blueprint <dir>
              Create a document set with correct frontmatter.
              (explain is for finalize; epic/blueprint scaffold omit it.)
   commit     --blueprint <dir> [--yes]

@@ -9,6 +9,7 @@ const TYPES = [
   'bouncer.verification',
   'bouncer.review',
   'bouncer.explain',
+  'bouncer.context_review',
 ];
 
 // epic/blueprint 정본은 접두 없는 \d{3}. 빈 문자열은 S4가 숫자 규칙으로 분기할 힌트.
@@ -20,6 +21,7 @@ const ID_PREFIX = {
   'bouncer.verification': 'VERIFY-',
   'bouncer.review': 'REVIEW-',
   'bouncer.explain': 'EXPLAIN-',
+  'bouncer.context_review': 'CTXREVIEW-',
 };
 
 const STATUS_ENUM = {
@@ -33,6 +35,8 @@ const STATUS_ENUM = {
   'bouncer.verification': ['pending', 'passed', 'failed'],
   'bouncer.review': ['pending', 'requested', 'addressed', 'accepted'],
   'bouncer.explain': ['draft', 'published'],
+  // 계획 문서 정합성 판정. 어휘는 bouncer.review와 같다 — 새 status를 만들지 않는다.
+  'bouncer.context_review': ['pending', 'requested', 'addressed', 'accepted'],
 };
 
 const KIND_TO_TYPE = {
@@ -42,6 +46,7 @@ const KIND_TO_TYPE = {
   verification: 'bouncer.verification',
   review: 'bouncer.review',
   explain: 'bouncer.explain',
+  context_review: 'bouncer.context_review',
 };
 
 const LEGACY_GUIDANCE =

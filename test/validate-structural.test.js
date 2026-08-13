@@ -586,6 +586,60 @@ function codesFor(scaleFields) {
   return failures.map((f) => f.code);
 }
 
+function contextReviewDoc(bpRel = BP_REL) {
+  return {
+    type: 'bouncer.context_review',
+    title: 'Context review',
+    description: 'Context review for 001',
+    resource: `${bpRel}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001',
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'pending',
+      context_review: { findings: [] },
+    },
+  };
+}
+
+test('context-review.md with matching type passes structural checks', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/context-review.md`, contextReviewDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.deepStrictEqual(res, { ok: true, failures: [] });
+});
+
+test('S19: context-review.md with bouncer.review type reports expected and actual', () => {
+  const repo = mkRepo();
+  const doc = contextReviewDoc();
+  doc.type = 'bouncer.review';
+  // review enum·접두에 맞춰 S4/S6을 피하되, 경로 기대 type과의 불일치는 남긴다.
+  doc.bouncer = {
+    id: 'REVIEW-001',
+    epic_id: '001',
+    blueprint_id: '001',
+    status: 'pending',
+    review: { required: true },
+  };
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/context-review.md`, doc);
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  const s19 = res.failures.filter((f) => f.code === 'S19');
+  assert.ok(res.failures.map((f) => f.code).includes('S19'));
+  assert.strictEqual(s19.length, 1);
+  assert.match(s19[0].message, /bouncer\.context_review/);
+  assert.match(s19[0].message, /bouncer\.review/);
+});
+
 test('S20: scale missing or valid values pass; lite fails', () => {
   assert.deepStrictEqual(codesFor({}), []);
   assert.deepStrictEqual(codesFor({ scale: 'light' }), []);

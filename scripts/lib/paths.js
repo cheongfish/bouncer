@@ -5,6 +5,8 @@ const FILE_KIND = {
     // verification.md / review.md / tasks.md 는 tasks-docs.unitDocKind 로만 판정.
     // 문자열을 여기 두면 Distill invariant( basenames live only in tasks-docs )를 깨뜨린다.
     'explain.md': 'explain',
+    // BP 루트 문서. task 묶음 basename이 아니므로 tasks-docs에 넣지 않는다.
+    'context-review.md': 'context_review',
 };
 // 정본 epic/bp id는 접두 없는 zero-pad 세 자리다.
 const EPIC_SEG_RE = /(?:^|\/)epics\/(\d{3})(?=-|\/|$)/;

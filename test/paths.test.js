@@ -18,6 +18,7 @@ test('parses numeric ids and kind from new-style paths', () => {
     { epicId: '014', blueprintId: null, kind: 'epic' });
   assert.strictEqual(parsePathIds(`${BP_NEW}/verification.md`).kind, 'verification');
   assert.strictEqual(parsePathIds(`${BP_NEW}/explain.md`).kind, 'explain');
+  assert.strictEqual(parsePathIds(`${BP_NEW}/context-review.md`).kind, 'context_review');
 });
 
 test('parsePathIds kind for tasks/<NNN>/ unit documents', () => {

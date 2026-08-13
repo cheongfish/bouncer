@@ -177,6 +177,11 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
       }),
     body('blueprint.md')));
 
+  // index.md 다음, task 묶음보다 앞. explain은 finalize 시점이라 여기 넣지 않는다.
+  created.push(...scaffoldContextReview({
+    repoRoot, blueprintDir: dir, timestamp,
+  }));
+
   // 새 blueprint 는 tasks/001/ 묶음부터 시작한다. 루트 tasks-001.md 는 더 이상 만들지 않는다.
   // (기존 문서 인식은 listTasksDocs 가 유지 — 거절은 004.)
   const taskCreated = scaffoldTask({
@@ -186,6 +191,46 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
 
   // BP explain.md는 plan scaffold가 아니라 finalize 시점(scaffoldExplain)에 생성한다.
   return created;
+}
+
+/**
+ * 기존 blueprint에 context-review.md를 붙인다.
+ * 거절은 쓰기 전에 끝낸다 — 정본 디렉터리 → closed → 이미 존재.
+ * scaffoldExplain은 finalize가 반복 호출하므로 이미 있으면 조용히 []를 돌리지만,
+ * 이 명령은 plan이 직접 부르므로 덮어쓰기가 사람 손에 닿는다. 존재하면 throw.
+ */
+function scaffoldContextReview({ repoRoot, blueprintDir, timestamp }) {
+  if (!isCanonicalBlueprintDir(blueprintDir)) {
+    throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
+  }
+  const bp = normalizeRepoPath(blueprintDir);
+  const { epicId, blueprintId } = parsePathIds(bp);
+  if (!epicId || !blueprintId) {
+    throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
+  }
+
+  // finalize가 잠근 blueprint는 다시 열지 않는다. scaffoldTask와 같은 이유 —
+  // 마감된 계획에 판정 문서를 붙이지 않고 새 blueprint를 연다.
+  if (isClosedBlueprint(repoRoot, bp)) {
+    throw new Error(`blueprint is closed (finalized): ${bp} — scaffold a new blueprint instead of adding a context-review to this one`);
+  }
+
+  const rel = `${bp}/context-review.md`;
+  if (fs.existsSync(path.join(repoRoot, rel))) {
+    throw new Error(`context-review.md already exists: ${rel}`);
+  }
+
+  return [writeRel(repoRoot, rel,
+    bouncerDoc('bouncer.context_review', `${blueprintId} context review`, `Context review for ${blueprintId}`, rel,
+      ['bouncer', 'context_review'], timestamp,
+      {
+        id: `CTXREVIEW-${blueprintId}`,
+        epic_id: epicId,
+        blueprint_id: blueprintId,
+        status: 'pending',
+        context_review: { findings: [] },
+      }),
+    templateBody('context-review.md', { epicId, blueprintId, name: blueprintId }))];
 }
 
 /** BP explain.md가 없으면 생성한다. plan scaffold가 아니라 /bouncer-finalize에서 사용. */
@@ -218,4 +263,5 @@ function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
 
 module.exports = {
   CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldTask, scaffoldExplain,
+  scaffoldContextReview,
 };

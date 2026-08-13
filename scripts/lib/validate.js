@@ -60,10 +60,13 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
         verification: `${bp}/verification.md`,
         review: `${bp}/review.md`,
         explain: `${bp}/explain.md`,
+        // BP 단위 슬롯. 게이트 판정은 넣지 않는다 — 슬롯이 없으면 문서가 로드되지
+        // 않아 checkStructural/S19가 이 파일을 보지 못한다.
+        contextReview: `${bp}/context-review.md`,
     };
     const docs = {};
     const parseErrors = [];
-    for (const key of ['epicIndex', 'blueprintIndex', 'verification', 'review', 'explain']) {
+    for (const key of ['epicIndex', 'blueprintIndex', 'verification', 'review', 'explain', 'contextReview']) {
         const rel = rels[key];
         const abs = path.join(repoRoot, rel);
         if (fs.existsSync(abs)) {
@@ -213,9 +216,13 @@ function expectedTypeForPath(rel) {
         }
         return null;
     }
-    // explain.md는 FILE_KIND(paths) → parsePathIds.kind. blueprint 아래만 기대.
+    // explain.md / context-review.md는 FILE_KIND(paths) → parsePathIds.kind.
+    // blueprint 아래만 기대. 게이트 판정은 여기 두지 않는다(S19 매핑만).
     if (parsed.blueprintId && parsed.kind === 'explain') {
         return KIND_TO_TYPE.explain;
+    }
+    if (parsed.blueprintId && parsed.kind === 'context_review') {
+        return KIND_TO_TYPE.context_review;
     }
     return null;
 }

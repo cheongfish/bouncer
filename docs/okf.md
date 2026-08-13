@@ -17,7 +17,9 @@ fields live under `bouncer:`. See the schema-gates design for the full schema.
 A task unit is the three-document bundle
 `tasks/<NNN>/{tasks,verification,review}.md`; each file has its own OKF
 frontmatter and `resource` path. Root task layouts are input only to
-`bouncer migrate task-layout`.
+`bouncer migrate task-layout`. Blueprint-root documents sit beside that
+bundle: `explain.md` (written at finalize) and `context-review.md` (plan
+document consistency).
 
 Harness-written timestamps use **KST** (`Asia/Seoul`, offset `+09:00`), e.g.
 `2026-08-03T18:00:00.000+09:00`. Pass `--timestamp` to override when scaffolding.
