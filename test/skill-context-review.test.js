@@ -24,7 +24,7 @@ test('context-review covers the four judgment scopes', () => {
   assert.match(md, /suggested_paths/);
   assert.match(md, /stop-slop/);
   assert.match(md, /success criteria/i);
-  assert.match(md, /true\s*[\/·.]?\s*false|verifiable|cannot be judged|cannot tell/i);
+  assert.match(md, /true\s*[/·.]?\s*false|verifiable|cannot be judged|cannot tell/i);
 });
 
 test('context-review forbids document edits and status flips', () => {
