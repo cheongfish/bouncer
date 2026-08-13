@@ -6,7 +6,7 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 
-// 외부·생성 데이터를 읽는 스킬만 순회한다. 나머지 아홉은 그 데이터를
+// 외부·생성 데이터를 읽는 스킬만 순회한다. 나머지 열은 그 데이터를
 // 지시로 읽을 자리가 없어 같은 문구를 강제하지 않는다 — 목록을 늘리면
 // 문서만 길어진다.
 const SKILLS = [
@@ -18,6 +18,7 @@ const SKILLS = [
   'implementation',
   'debugging',
   'context-review',
+  'agentic-code-benchmark',
 ];
 
 const AGENTS = [
@@ -59,7 +60,7 @@ function agentRel(name) {
 }
 
 test('trust-boundary list excludes skills that do not read untrusted data', () => {
-  assert.strictEqual(SKILLS.length, 8);
+  assert.strictEqual(SKILLS.length, 9);
   assert.strictEqual(AGENTS.length, 4);
   for (const name of OUTSIDE_SKILLS) {
     assert.ok(
