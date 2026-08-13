@@ -7,6 +7,30 @@
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-13
+
+0.7.5 이후 문서 스키마 확정·자동 주행(EPIC-031–032).
+
+### Added
+
+- **`/bouncer-run` (EPIC-032)** — 활성 blueprint에서 `/bouncer-execute` →
+  `/bouncer-commit`을 열린 task가 없어질 때까지 반복한다. plan·finalize 정본은
+  그대로 두고, 시작 ACQ 한 번(및 `interactive`의 task 경계 ACQ)만 묻는다.
+  verify 재실패·리뷰 왕복 상한·범위 위반에서 멈추며 finalize에는 들어가지
+  않는다.
+- **`config.autonomy` (EPIC-032)** — `auto` | `interactive`(기본 `auto`).
+  `config.json`에만 두고 문서 frontmatter에는 넣지 않는다. `bouncer init`이 새
+  저장소에 `"auto"`를 심으며, 이미 있는 config는 바꾸지 않는다.
+
+### Changed
+
+- **문서 스키마 (EPIC-031)** — 번들 루트에 `bouncer_schema`를 두고, blueprint
+  `scale`/`commit_type` 기본값·S19(`type`↔경로)·S20(`scale` enum)을 확정한다.
+  루트 `tasks.md` / `tasks-<NNN>.md` 서술과 해석 폴백을 제거하고
+  `tasks/<NNN>/`만 산다.
+- **debugger 재디스패치 상한** — 같은 verify 실패에 대해 수동·자동 경로 모두
+  **1회**. `/bouncer-run`은 execute 위에 별도 상한을 씌우지 않는다.
+
 ## [0.7.5] — 2026-08-12
 
 0.7.0 이후 스킬 구조 정렬·이해 게이트 재배치(EPIC-029–030).

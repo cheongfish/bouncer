@@ -1,6 +1,6 @@
 {
   "name": "bouncer",
-  "version": "0.7.5",
+  "version": "0.8.0",
   "description": "Spec-driven development gates for Codex: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
   "author": {
     "name": "Kim Cheongwoon",
