@@ -12,6 +12,7 @@ test('id prefix and status enum per type', () => {
   assert.deepStrictEqual(schema.TYPES, [
     'bouncer.epic', 'bouncer.blueprint', 'bouncer.tasks',
     'bouncer.verification', 'bouncer.review', 'bouncer.explain',
+    'bouncer.context_review',
   ]);
   assert.strictEqual(schema.ID_PREFIX['bouncer.tasks'], 'TASKS-');
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.review'],
@@ -23,7 +24,15 @@ test('id prefix and status enum per type', () => {
     ['draft', 'approved', 'superseded', 'closed', 'imported']);
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.epic'],
     ['draft', 'approved', 'closed', 'imported']);
-  assert.strictEqual(schema.TYPES.length, 6);
+  assert.strictEqual(schema.TYPES.length, 7);
+});
+
+test('bouncer.context_review is registered on all four schema maps', () => {
+  assert.ok(schema.TYPES.includes('bouncer.context_review'));
+  assert.strictEqual(schema.ID_PREFIX['bouncer.context_review'], 'CTXREVIEW-');
+  assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.context_review'],
+    ['pending', 'requested', 'addressed', 'accepted']);
+  assert.strictEqual(schema.KIND_TO_TYPE.context_review, 'bouncer.context_review');
 });
 
 test('schema exports bouncer_schema and blueprint scale/commit_type defaults', () => {

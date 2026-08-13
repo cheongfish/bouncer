@@ -51,22 +51,28 @@ test('scaffoldEpic is idempotent on the bundle context index line', () => {
   assert.strictEqual([...bundle.matchAll(/001-auth/g)].length, 1);
 });
 
-test('scaffoldBlueprint writes four plan docs (no explain) with numeric child ids', () => {
+test('scaffoldBlueprint writes five plan docs (no explain) with numeric child ids', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   const created = scaffoldBlueprint({
     repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
     blueprintId: '001', name: 'login', timestamp: TS,
   });
-  assert.strictEqual(created.length, 4);
+  assert.strictEqual(created.length, 5);
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   assert.deepStrictEqual(created, [
     `${base}/index.md`,
+    `${base}/context-review.md`,
     `${base}/tasks/001/tasks.md`,
     `${base}/tasks/001/verification.md`,
     `${base}/tasks/001/review.md`,
   ]);
   assert.ok(!fs.existsSync(path.join(repo, `${base}/explain.md`)));
+  const ctxReview = readDoc(path.join(repo, `${base}/context-review.md`)).data;
+  assert.strictEqual(ctxReview.type, 'bouncer.context_review');
+  assert.strictEqual(ctxReview.bouncer.id, 'CTXREVIEW-001');
+  assert.strictEqual(ctxReview.bouncer.status, 'pending');
+  assert.deepStrictEqual(ctxReview.bouncer.context_review, { findings: [] });
   const tasks = readDoc(path.join(repo, `${base}/tasks/001/tasks.md`)).data;
   assert.strictEqual(tasks.resource, `${base}/tasks/001/tasks.md`);
   assert.strictEqual(tasks.bouncer.id, 'TASKS-001');
@@ -245,6 +251,48 @@ test('scaffoldExplain creates explain.md once for finalize with empty comprehens
   );
 });
 
+test('scaffoldContextReview refuses overwrite and leaves the file unchanged', () => {
+  const { scaffoldContextReview } = require('../scripts/lib/scaffold');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const bp = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const abs = path.join(repo, bp, 'context-review.md');
+  const before = fs.readFileSync(abs);
+  assert.throws(() => scaffoldContextReview({
+    repoRoot: repo, blueprintDir: bp, timestamp: TS,
+  }), /already exists/);
+  assert.deepStrictEqual(fs.readFileSync(abs), before);
+});
+
+test('scaffoldContextReview refuses a closed blueprint without writing the file', () => {
+  const { scaffoldContextReview } = require('../scripts/lib/scaffold');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const bp = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const abs = path.join(repo, bp, 'context-review.md');
+  if (fs.existsSync(abs)) fs.unlinkSync(abs);
+  setBlueprintStatus(repo, bp, 'closed');
+  assert.throws(() => scaffoldContextReview({
+    repoRoot: repo, blueprintDir: bp, timestamp: TS,
+  }), /closed/);
+  assert.strictEqual(fs.existsSync(path.join(repo, bp, 'context-review.md')), false);
+});
+
+test('bouncer scaffold context-review exits 2 without --blueprint', () => {
+  const r = captureScaffold(['scaffold', 'context-review']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /scaffold context-review: --blueprint is required/);
+  assert.strictEqual(r.out, '');
+});
+
 // The headings are the skeleton the gates look for; they stay empty on purpose
 // so G10/G13/G14 still require an author to fill them in.
 test('scaffolded bodies carry the section skeleton the gates require', () => {
@@ -267,6 +315,7 @@ test('scaffolded bodies carry the section skeleton the gates require', () => {
   assert.ok(verification.includes('## Command'));
   assert.ok(verification.includes('## Evidence'));
   assert.ok(bodyOf(`${base}/tasks/001/review.md`).includes('## Findings'));
+  assert.ok(bodyOf(`${base}/context-review.md`).includes('## Findings'));
 });
 
 test('scaffoldBlueprint ignores a project .bouncer/templates override', () => {

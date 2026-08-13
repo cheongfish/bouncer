@@ -14,6 +14,7 @@ const rels = {
   verification: '.bouncer/context/epics/001-auth/blueprints/001-login/verification.md',
   review: '.bouncer/context/epics/001-auth/blueprints/001-login/review.md',
   explain: '.bouncer/context/epics/001-auth/blueprints/001-login/explain.md',
+  contextReview: '.bouncer/context/epics/001-auth/blueprints/001-login/context-review.md',
 };
 
 const READY_BODY = `# Tasks
@@ -34,6 +35,16 @@ Ship login validation.
 ## Checklist
 - [ ] implement validateLogin
 `;
+
+const CONTEXT_REVIEW_BODY_OK = `# Context review
+
+## Findings
+(none)
+`;
+
+function contextReviewDoc(status, findings = [], body = CONTEXT_REVIEW_BODY_OK) {
+  return doc(status, { context_review: { findings } }, body);
+}
 
 function doc(status, extra = {}, body) {
   const d = { data: { bouncer: { status, ...extra } }, rel: 'x' };
@@ -89,16 +100,8 @@ test('extractPathCandidates finds backtick and bare paths', () => {
 });
 
 test('plan gate passes when all conditions met including G10–G12', () => {
-  const docs = {
-    epicIndex: doc('approved'),
-    blueprintIndex: doc('approved'),
-    tasks: doc('ready', {
-      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
-      affected_paths: ['src/auth/login.js', 'test/auth/login.test.js'],
-    }, READY_BODY),
-  };
   const failures = [];
-  checkGate('plan', docs, rels, failures);
+  checkGate('plan', planDocs(READY_BODY), rels, failures);
   assert.deepStrictEqual(failures, []);
 });
 
@@ -220,6 +223,7 @@ function planDocs(body) {
       graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
       affected_paths: ['src/auth/login.js', 'test/auth/login.test.js'],
     }, body),
+    contextReview: contextReviewDoc('accepted'),
   };
 }
 
@@ -312,6 +316,77 @@ y
   const failures = [];
   checkGate('plan', docs, rels, failures);
   assert.ok(failures.some((f) => f.code === 'G12'));
+});
+
+test('plan gate G18 fails when context-review.md is missing', () => {
+  const docs = planDocs(READY_BODY);
+  delete docs.contextReview;
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  const g18 = failures.filter((f) => f.code === 'G18');
+  assert.strictEqual(g18.length, 1);
+  assert.match(g18[0].message, /context-review\.md missing/);
+  assert.match(g18[0].message, /scaffold context-review/);
+  assert.strictEqual(g18[0].file, rels.contextReview);
+});
+
+test('plan gate G18 fails when context-review.status is pending', () => {
+  const docs = planDocs(READY_BODY);
+  docs.contextReview = contextReviewDoc('pending');
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G18' && /status != accepted/.test(f.message)));
+});
+
+test('plan gate G18 fails when context-review body lacks Findings heading', () => {
+  const docs = planDocs(READY_BODY);
+  docs.contextReview = contextReviewDoc('accepted', [], '# Context review\n\nnothing structured\n');
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G18' && /missing ## Findings/.test(f.message)));
+});
+
+test('plan gate G18 fails when a finding severity is invalid', () => {
+  const docs = planDocs(READY_BODY);
+  docs.contextReview = contextReviewDoc('accepted', [
+    { id: 'CR-1', severity: 'critical', status: 'resolved' },
+  ]);
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => (
+    f.code === 'G18' && /finding CR-1 severity invalid: critical/.test(f.message)
+  )));
+});
+
+test('plan gate G18 fails when an accepted finding has no note', () => {
+  const docs = planDocs(READY_BODY);
+  docs.contextReview = contextReviewDoc('accepted', [
+    { id: 'CR-2', severity: 'major', status: 'accepted' },
+  ]);
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => (
+    f.code === 'G18' && /finding CR-2 accepted without note/.test(f.message)
+  )));
+});
+
+test('plan gate G18 fails when context_review.findings is not an array', () => {
+  const docs = planDocs(READY_BODY);
+  docs.contextReview = doc(
+    'accepted',
+    { context_review: { findings: { id: 'CR-1' } } },
+    CONTEXT_REVIEW_BODY_OK,
+  );
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G18'));
+});
+
+test('plan gate G18 passes for an accepted context-review with empty findings', () => {
+  const failures = [];
+  checkGate('plan', planDocs(READY_BODY), rels, failures);
+  assert.deepStrictEqual(failures.filter((f) => f.code === 'G18'), []);
+  assert.deepStrictEqual(failures, []);
 });
 
 const VERIFY_BODY_OK = `# Verification
@@ -688,6 +763,24 @@ function planReadyTasks() {
   };
 }
 
+function contextReviewFileData(status = 'accepted', findings = []) {
+  return {
+    type: 'bouncer.context_review',
+    title: '001 context review',
+    description: 'Context review for 001',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001',
+      epic_id: '001',
+      blueprint_id: '001',
+      status,
+      context_review: { findings },
+    },
+  };
+}
+
 function writePlanBlueprint(repo, tasksBody) {
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
@@ -705,6 +798,12 @@ function writePlanBlueprint(repo, tasksBody) {
     `${BP_REL}/tasks/001/review.md`,
     unitReviewData('001', 'pending', `${BP_REL}/tasks/001/review.md`, { required: true }),
     '# Review\n',
+  );
+  writeDoc(
+    repo,
+    `${BP_REL}/context-review.md`,
+    contextReviewFileData(),
+    CONTEXT_REVIEW_BODY_OK,
   );
   const indexAbs = path.join(repo, '.bouncer/context/index.md');
   fs.mkdirSync(path.dirname(indexAbs), { recursive: true });

@@ -33,6 +33,12 @@ test('bouncer-plan requires implementation-ready tasks sections and mentions G10
   assert.match(body, /G10|G11|G12/);
 });
 
+test('bouncer-plan gate list includes G18 context-review', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /G18/);
+  assert.match(body, /context-review/);
+});
+
 test('bouncer-plan recommends minimality (advisory) and keeps graphify-runner', () => {
   assert.match(md, /minimality/);
   assert.match(md, /recommend|권장|advisory/i);
@@ -80,6 +86,19 @@ test('bouncer-plan detects project build scripts and asks before writing tasks v
   assert.match(body, /package\.json/);
   assert.match(body, /bouncer\.verify|tasks\.bouncer\.verify/);
   assert.match(body, /확인|묻|물어|ask/i);
+});
+
+test('bouncer-plan dispatches context-review before approval with named-agent fallback', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /skills\/context-review\/SKILL\.md/);
+  assert.match(body, /bouncer-context-reviewer/);
+  assert.match(body, /resolveSubagentModel/);
+  assert.match(body, /inherit/);
+  // Codex처럼 agents/를 배포할 수 없으면 단계를 건너뛰지 않고 인라인한다.
+  assert.match(body, /named agents are unavailable|fall back|inline/i);
+  const reviewAt = body.search(/context-review|bouncer-context-reviewer/);
+  const approvalAt = body.search(/\*\*Approval/);
+  assert.ok(reviewAt > -1 && approvalAt > reviewAt, 'context-review step must precede Approval');
 });
 
 // 경량 경로는 사용자 선언만 — 자동 판정·schema 등록 없이 산문에 고정한다.

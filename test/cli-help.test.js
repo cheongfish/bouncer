@@ -67,3 +67,8 @@ test('usage lists scaffold task --blueprint --id', () => {
   const r = capture([]);
   assert.match(r.out, /task --blueprint <dir> --id <ddd>/);
 });
+
+test('usage lists scaffold context-review --blueprint', () => {
+  const r = capture([]);
+  assert.match(r.out, /context-review --blueprint <dir>/);
+});

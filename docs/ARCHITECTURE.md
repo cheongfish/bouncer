@@ -97,6 +97,12 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 `graphify-runner`는 `/bouncer-plan`이 참조하는 선택적 경로 추천 어댑터이며,
 부재 시 수동 탐색으로 폴백한다.
 
+`context-review`는 `/bouncer-plan`이 승인 직전에 호출하는 전문 스킬이다.
+판정 대상은 계획 문서(epic·blueprint·`tasks/<NNN>/tasks.md`)이고 산출은
+블루프린트 루트 `context-review.md`다. 위 표의 일반 워크플로 스킬이 아니다.
+named agent는 `bouncer-context-reviewer`이며, named agent를 쓸 수 없는
+호스트에서는 스킬을 인라인으로 수행한다.
+
 외부 스킬의 문구나 구현을 실질적으로 복사할 경우에는 해당 프로젝트의 라이선스
 고지를 포함한다. 원칙만 참조해 새로 작성하는 방식을 기본으로 한다.
 
@@ -169,12 +175,14 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    상태 통과는 G8 (`accepted` 또는 `required === false`).
 4. 사람이 승인해야 하는 전이는 blueprint/tasks 승인 등 명령 워크플로에 명시하고,
    에이전트는 게이트가 허용하는 상태 전이만 수행한다.
+5. 컨텍스트 본문·그래프 산출물·서브에이전트 리포트의 신뢰 경계는
+   [security.md](security.md) 「신뢰 경계」가 정한다.
 
 ### C. 자체 스킬의 범위와 호출 시점
 
 1. 첫 릴리스 스킬 집합: `discovery`, `spec-authoring`, `implementation`,
    `debugging`, `verification`, `review`, `minimality`, `stop-slop` (+ 선택
-   `graphify-runner`; finalize 하위 `explain-diff`).
+   `graphify-runner`; plan 승인 직전 `context-review`; finalize 하위 `explain-diff`).
 2. `debugging`은 독립 스킬이며 `/bouncer-execute` 실패 경로에서 권장한다.
 3. 처음에는 명령 내 명시 호출/권장으로 시작하고, 자동 훅은 검증 후 추가한다.
 
@@ -209,6 +217,11 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    아니다. Project Distill(`.bouncer/Distill.md`)은 영어 에이전트 런타임이다.
 3. 새 의존성 추가는 근거 기록을 요구하고, 별도 하드 게이트는 두지 않는다.
 4. 최소화 제안이 승인된 태스크와 충돌하면 `/bouncer-plan`으로 재검토한다.
+5. `minimality` 래더는 7단이다. 네이티브 플랫폼 기능과 표준 라이브러리는 별도
+   단이다.
+6. 판단 강도는 기존 blueprint `bouncer.scale`에 매핑한다. `light`는 1–4단과
+   한 줄 근거, 부재·`full`은 7단 전부다. 「최소화하지 않을 것」 목록은 강도와
+   무관하다. 이 매핑은 스킬 판단 기준이며 게이트도 CLI도 아니다.
 
 ### F. 품질 평가와 재브랜드 경계
 

@@ -118,6 +118,7 @@ Epic: [<EPIC-id>](../../index.md)
 * [Tasks](tasks/001/tasks.md) - 구현 브리프
 * [Verification](tasks/001/verification.md) - 검증 명령과 증적
 * [Review](tasks/001/review.md) - 리뷰 발견사항
+* [Context review](context-review.md) - 계획 문서 정합성 판정
 <!-- explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다. -->
 `,
     'tasks.md': `# Tasks
@@ -164,6 +165,7 @@ Blueprint: [<BP-id>](../../index.md)
 `,
     'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
     'review.md': '# Review\n\n## Findings\n- <finding>\n',
+    'context-review.md': '# Context review\n\n## Findings\n- <finding>\n',
     // G16를 tasks 템플릿이 G10에서 실패하는 것과 같은 방식으로 — 작성이
     // 필수이도록 — 주석만 있는 본문으로 다섯 섹션 제목을 둡니다.
     'explain.md': `# Explain

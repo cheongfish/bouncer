@@ -22,16 +22,19 @@ const SAMPLE = {
       'bouncer-reviewer': 'claude-opus-4-6',
       'bouncer-implementer': 'inherit',
       'bouncer-debugger': 'claude-sonnet-4-6',
+      'bouncer-context-reviewer': 'claude-opus-4-6',
     },
     cursor: {
       'bouncer-reviewer': 'composer-2.5-fast',
       'bouncer-implementer': 'inherit',
       'bouncer-debugger': 'inherit',
+      'bouncer-context-reviewer': 'inherit',
     },
     codex: {
       'bouncer-reviewer': 'gpt-5.3-codex',
       'bouncer-implementer': 42,
       'bouncer-debugger': 'gpt-5.3-codex',
+      'bouncer-context-reviewer': 'gpt-5.3-codex',
     },
   },
 };
@@ -244,6 +247,35 @@ test('resolveSubagentModel returns provider values for bouncer-debugger', () => 
     resolveSubagentModel({
       repoRoot: repo,
       agentName: 'bouncer-debugger',
+      provider: 'codex',
+    }),
+    { model: 'gpt-5.3-codex', provider: 'codex' },
+  );
+});
+
+test('resolveSubagentModel returns provider values for bouncer-context-reviewer', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, SAMPLE);
+  assert.deepStrictEqual(
+    resolveSubagentModel({
+      repoRoot: repo,
+      agentName: 'bouncer-context-reviewer',
+      provider: 'claude',
+    }),
+    { model: 'claude-opus-4-6', provider: 'claude' },
+  );
+  assert.deepStrictEqual(
+    resolveSubagentModel({
+      repoRoot: repo,
+      agentName: 'bouncer-context-reviewer',
+      provider: 'cursor',
+    }),
+    { model: null, provider: 'cursor' },
+  );
+  assert.deepStrictEqual(
+    resolveSubagentModel({
+      repoRoot: repo,
+      agentName: 'bouncer-context-reviewer',
       provider: 'codex',
     }),
     { model: 'gpt-5.3-codex', provider: 'codex' },
