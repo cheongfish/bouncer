@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-08-13
+
+0.8.1 이후 벤치마크 스킬·문서 분리·Distill 루트 해석(EPIC-034, 007).
+
+### Added
+
+- **`agentic-code-benchmark` (EPIC-034)** — 런 사이 코드 품질을 0–100으로
+  남기는 워크플로 밖 도구. Apache-2.0 원본을 `skills/agentic-code-benchmark/`에
+  반입한다. 점수는 게이트·`verification.md`·`review.md`에 들어가지 않는다.
+- **`bouncer project-root`** — 소비 저장소 main worktree 절대 경로를 출력한다.
+  Distill은 `${PROJECT_ROOT}/.bouncer/Distill.md`만 읽는다.
+
 ### Changed
 
 - **`/bouncer-run` 역할** — 주행 세션은 오케스트레이터다. 구현·리뷰·조사는
@@ -16,6 +28,14 @@
 - **`bouncer-implementer` 리포트** — Output contract를 고정했다(Changed files /
   Checklist coverage / Tests / Deviations / Needs planning). 컨트롤러가 diff를
   다시 읽지 않고 이 필드만으로 다음 조치를 정한다.
+- **문서 트리** — 에이전트 런타임 정본을 `rules/`로 옮긴다. `docs/`는 설치·
+  워크플로·설정만 두고 정본은 링크로 가리킨다. README·workflow·configuration을
+  독자 질문 순으로 다시 썼다.
+
+### Fixed
+
+- **Distill 루트 (EPIC-007)** — 플러그인 트리 Distill과 소비 프로젝트 Distill을
+  섞지 않는다. linked worktree에서도 main worktree의 Distill만 쓴다.
 
 ## [0.8.1] — 2026-08-13
 
