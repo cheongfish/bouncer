@@ -370,7 +370,9 @@ append a change log.
 - On `/bouncer-execute` verify failure, dispatch `bouncer-debugger` (brief:
   `skills/debugging` — Root cause → Pattern → Hypothesis → Implementation;
   no fix proposals before root-cause). Redispatch the same failing verify at
-  most 3 times, then escalate to architecture / `/bouncer-plan`.
+  most **1** time (1 unsuccessful fix cycle), then escalate to architecture /
+  `/bouncer-plan`. Manual execute and `/bouncer-run` share this ceiling —
+  the run loop must not stack a second limit on top.
 - `reviewer-prompt.md` is a per-run call brief slot at
   `skills/review/assets/reviewer-prompt.md`; persona, guards, and Findings
   output contract live in `agents/bouncer-reviewer.md`. Debugger persona /
@@ -398,6 +400,9 @@ append a change log.
   only in `isValidVerifyCommand`, which plan `S12` and runtime
   `VERIFY_COMMAND_INVALID` both reuse.
 - Workflow order is init → plan → execute → commit → finalize.
+  `/bouncer-run` is an **alternate path** for the execute→commit span only —
+  it repeats those skills until open tasks are gone and never enters
+  finalize. Canonical five-step order stays the source of truth.
   `/bouncer-commit` commits one task only — no `explain-diff` / quiz.
   Same-blueprint next-task handoff is confirm-then
   `bouncer current --set … --task <NNN>` there. `/bouncer-finalize` promotes
@@ -406,6 +411,14 @@ append a change log.
   G16 blocks while any task is not `verified` or the blueprint entry / hash is
   missing; next-blueprint advance is confirm-then `--set` only — never
   automatic. One execute worktree is reused for every task on a blueprint.
+- `config.autonomy` (`auto` | `interactive`) lives only in `.bouncer/config.json`
+  — not document frontmatter, not validate. Missing or out-of-enum → warn and
+  treat as `auto` (do not branch on a dedicated auto path). `auto`: start ACQ
+  only; skip commit/next-task ACQs inside the loop. `interactive`: same loop
+  plus a next-task boundary ACQ after each closed task. On stop (verify
+  re-fail, review bounce cap 2, scope violation, or user decline), leave the
+  pointer and execute worktree; resume by manually closing that task with
+  `/bouncer-execute`, then invoke `/bouncer-run` again — no auto-retry.
 - `/bouncer-plan` Author asks before writing `tasks.bouncer.verify` when root
   build/container signals exist; never write from detection alone and never
   edit `config.verify` there. Container-up + test must be one project script
