@@ -18,14 +18,25 @@ Stop at the first rung that holds:
    Touch / Checklist (YAGNI). Do not invent follow-on work “for later.”
 2. **Already in this codebase?** Reuse the helper, util, type, or pattern —
    look before proposing a rewrite.
-3. Prefer the **standard library** or **native platform feature** over anything
-   new.
-4. Prefer an **already installed dependency** over adding a new one.
-5. Prefer the **shortest working surface** (fewest files, fewest new types)
+3. Prefer a **native platform feature** over anything new.
+4. Prefer the **standard library** over anything new.
+5. Prefer an **already installed dependency** over adding a new one.
+6. Prefer the **shortest working surface** (fewest files, fewest new types)
    that still meets the brief.
-6. Only then propose **minimal new code**.
+7. Only then propose **minimal new code**.
+
+## Intensity (`bouncer.scale`)
+
+How far to climb is the existing blueprint frontmatter field `bouncer.scale`
+(`light` | `full`). Do not invent a new config key or mode word. This mapping
+is a skill judgment criterion — not a gate and not a CLI path.
+
+- **`light`:** apply rungs 1–4 only. Record the rationale in one line.
+- **Absent or `full`:** apply all 7 rungs.
 
 ## Do NOT minimize these
+
+This list always applies, regardless of intensity. `light` does not shrink it.
 
 - Approved requirements, tests, verification, security, accessibility, and
   error handling are **out of scope** for minimization.
@@ -39,8 +50,8 @@ Stop at the first rung that holds:
 
 ## Before adding a new dependency, abstraction, or file
 
-- Evaluate a smaller alternative first (reuse → stdlib/platform → installed
-  dep → one-liner → minimum).
+- Evaluate a smaller alternative first (reuse → native platform → stdlib →
+  installed dep → one-liner → minimum).
 - Reject unrequested abstractions: single-implementation interfaces, factories
   for one product, config for a never-changing value, scaffolding “for later.”
 - **Record the rationale** in the plan (tasks) or the review record. A new

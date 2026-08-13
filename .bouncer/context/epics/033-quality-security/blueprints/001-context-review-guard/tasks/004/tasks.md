@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '033'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 래더가 표준 라이브러리와 네이티브 플랫폼 기능을 한 단에 묶어 판단 순서가 흐릿했음
     - 두 단을 갈라 세우고 판단 강도를 기존 blueprint scale에 매핑함
