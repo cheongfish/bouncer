@@ -23,7 +23,7 @@
 | [PILOT.md](PILOT.md) | 파일럿 안내와 알려진 마찰 |
 | [contributing.md](contributing.md) | 개발, 커밋·PR 규약, CI |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 플러그인 제품 설계 결정 (ADR) |
-| [Changelog](../CHANGELOG.md) | 변경 이력 · [0.8.2](../CHANGELOG.md#082--2026-08-13) |
+| [Changelog](../CHANGELOG.md) | 변경 이력 · [0.8.3](../CHANGELOG.md#083--2026-08-13) |
 
 ## rules — 에이전트 런타임
 

@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-08-13
+
+0.8.2 이후 verify 실패 시 debugger 리포트를 implementer 재호출로 고정.
+
+### Changed
+
+- **verify 실패 수정 경로** — `bouncer-debugger` 리포트(Minimum fix proposal
+  등)를 `bouncer-implementer` 재호출의 증거로 넘긴다. 디스패치 절차는
+  `/bouncer-execute` 소유이고, `/bouncer-run`은 그 리포트를 라우팅만 한다.
+
 ## [0.8.2] — 2026-08-13
 
 0.8.1 이후 벤치마크 스킬·문서 분리·Distill 루트 해석(EPIC-034, 007).

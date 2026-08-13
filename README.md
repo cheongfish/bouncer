@@ -183,7 +183,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 
 ## 현재 상태
 
-**0.8.2 — 파일럿 단계입니다.**
+**0.8.3 — 파일럿 단계입니다.**
 
 이 저장소 자신을 35개 epic 동안 Bouncer로 관리해 왔지만, 다른 형태의 저장소에서는
 아직 검증되지 않았습니다. 공개 표면(`.bouncer/` 구조, `config.json` 스키마, G/S
