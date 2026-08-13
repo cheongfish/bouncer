@@ -119,6 +119,9 @@ append a change log.
 - Finalize empty-epic cleanup `rmdir`s only when the removed worktree path is
   nested (grandparent basename is `.worktrees`). After a flat
   `.worktrees/<bp-id>` reuse, never `rmdir` the `.worktrees` root.
+- Linked execute checkout cwd can lack Distill; resolve main worktree with
+  `bouncer project-root` before any Distill Read/Write — do not re-derive Git
+  main-root in skill prose.
 - `git checkout -- <path>` restores from the index, so it silently leaves a
   staged change in place; name HEAD (`git checkout HEAD -- <path>`) to reset the
   index and working tree together.
@@ -399,13 +402,19 @@ append a change log.
   `config.verify` there. Container-up + test must be one project script (single
   argv); the wrapper pattern (worktree compose project name, docker-absent
   skip→0) lives in `docs/configuration.md`.
-- Project Distill SSOT is `.bouncer/Distill.md` — agent runtime under
+- Project Distill SSOT is `${PROJECT_ROOT}/.bouncer/Distill.md`, where
+  `PROJECT_ROOT` is the consuming repo's main worktree from
+  `bouncer project-root` (`runtimePaths().projectRoot`). Plugin root and
+  execute worktree cwd are not Distill path bases — do not fall back to
+  `${BOUNCER_ROOT}/.bouncer/Distill.md`. Distill is agent runtime under
   `.bouncer/`, outside `context/`, ungated OKF-shaped meta with no registered
-  `bouncer.*` kind. Master rules only name the path and the read obligation.
+  `bouncer.*` kind. Master rules name the resolve + read obligation only.
   Write Distill in English; epic/blueprint/tasks/explain stay Korean for humans.
   `bouncer init` soft-seeds a missing Distill on an already-ready bootstrap and
   never overwrites curated content. Promotion requires `makeAllowed` to
-  whitelist that path, or finalize aborts as out-of-scope.
+  whitelist that path, or finalize aborts as out-of-scope. Workflow skills bind
+  `PROJECT_ROOT` via the CLI; `discovery` / `spec-authoring` take a
+  caller-provided absolute Distill path only (no `BOUNCER_ROOT` resolve).
 - Human-facing bodies under `.bouncer/context/epics/**` and BP `explain.md` are
   Korean (ids/paths/code fences excepted). Apply `stop-slop` there (advisory).
 - Distill promotion and the draft PR body both source from BP `explain.md`
