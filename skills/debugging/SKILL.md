@@ -7,7 +7,8 @@ description: "This skill should be used when a change fails verification or beha
 
 Investigate failures with an evidence-first four-stage loop. Named agent
 `bouncer-debugger` (when dispatched) follows this brief read-only and returns
-a report; the implementer or controller applies the fix.
+a report; the controller re-dispatches `bouncer-implementer` with that report
+as evidence. The debugger never applies the fix.
 
 ## Stages
 
@@ -38,8 +39,9 @@ hypothesis, return to Root cause — do not pile on a second theory.
 ### 4. Implementation
 
 **Output:** the minimum fix that addresses the single hypothesis, plus a
-failing regression test that should exist before the fix lands. Re-run verify
-after the fix is applied (by implementer / controller).
+failing regression test that should exist before the fix lands. The
+controller re-dispatches `bouncer-implementer` with this report as evidence;
+then re-runs verify. Named `bouncer-debugger` never edits.
 
 **Gate:** Propose or apply only what the cause requires (named
 `bouncer-debugger` proposes only — it never edits). Do not weaken or delete

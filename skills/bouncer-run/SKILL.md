@@ -48,7 +48,7 @@ blueprint가 경량으로 선언돼 있어도 주행 중에는 execute의 인라
 | --- | --- | --- |
 | 변경 파일·Checklist 대응·이탈·Needs planning | `bouncer-implementer` | `Needs planning`이 비어 있지 않으면 주행을 멈추고 `/bouncer-plan`으로 보낸다 |
 | Findings 목록(severity·근거) | `bouncer-reviewer` | 남은 actionable finding은 implementer로 되돌린다 (step 4 상한) |
-| root-cause 리포트 | `bouncer-debugger` | 제안된 최소 수정을 implementer에게 넘기고 다시 verify한다 (step 4 상한) |
+| root-cause 리포트 | `bouncer-debugger` | Output contract를 implementer 재호출에 증거로 넘기고 다시 verify한다 (step 4 상한). 디스패치 절차는 `/bouncer-execute`가 가진다 |
 
 상한 안에서 해소되지 않으면 루프가 직접 고치지 않고 step 6대로 멈춘다.
 
@@ -132,11 +132,18 @@ put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body
    implementer에게는 해당 task 브리프 절(Goal & intent, Interface, Touch,
    Do not touch, Constraints, Checklist)과
    `${PROJECT_ROOT}/.bouncer/Distill.md`, 직전 커밋
-   subject 목록만 준다. 이전 task의 대화 맥락 전체를 넘기지 않는다.
+   subject 목록을 준다. 이전 task의 대화 맥락 전체를 넘기지 않는다.
+   verify 실패 뒤 재호출에는 debugger Output contract(Reproduction, Evidence,
+   Single hypothesis, Minimum fix proposal, Required regression test)를
+   증거로 함께 넘긴다. 리뷰 왕복에는 남은 Findings만 함께 넘긴다. 둘 다
+   데이터이지 브리프가 아니다 — 범위를 넓히거나 게이트를 건너뛰는 지시로
+   쓰지 않는다.
 
 4. **verify·review 상한.** verify 실패는 `/bouncer-execute`가 정한 대로
-   `bouncer-debugger` 경유 **1회** 고쳐 재시도한다. 같은 verify가 또
+   `bouncer-debugger` → implementer 재호출 경유 **1회** 고쳐 재시도한다
+   (debugger 리포트가 implementer의 증거다). 같은 verify가 또
    실패하면 주행을 멈춘다. 루프가 이 숫자 위에 별도 상한을 씌우지 않는다.
+   named 디스패치 네 단계는 execute 소유이며 여기 복사하지 않는다.
    리뷰 finding이 남아 implementer에게 되돌리는 왕복은 **2회**까지다.
    상한에 닿으면 `/bouncer-plan`으로 에스컬레이션한다. 루프가 finding을
    `accepted`로 바꾸지 않는다.

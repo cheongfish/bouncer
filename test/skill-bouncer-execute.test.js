@@ -65,6 +65,16 @@ test('bouncer-execute step 4 dispatches bouncer-debugger on verify failure', () 
   assert.match(body, /debugging/);
 });
 
+test('bouncer-execute re-dispatches implementer with the debugger report after verify failure', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /Then dispatch \*\*`bouncer-implementer`\*\*|then re-dispatches `bouncer-implementer`/);
+  assert.match(body, /Minimum fix proposal/);
+  assert.match(body, /Required regression test/);
+  assert.match(body, /evidence/);
+  // Sequential after debugger, not a parallel second implementer.
+  assert.match(body, /sequential/);
+});
+
 test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /skills\/review\/assets\/reviewer-prompt\.md/);

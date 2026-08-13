@@ -116,6 +116,16 @@ test('bouncer-run is an orchestrator that only consumes subagent reports', () =>
   assert.match(body, /Findings/);
 });
 
+test('bouncer-run passes debugger Output contract to implementer without copying execute dispatch', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /Minimum fix proposal/);
+  assert.match(body, /Output contract/);
+  assert.match(body, /증거/);
+  assert.match(body, /\/bouncer-execute/);
+  // named 디스패치 네 단계는 execute 소유. 사본이 갈리면 두 문서가 다른 말을 함.
+  assert.doesNotMatch(body, /resolveSubagentModel/);
+});
+
 test('bouncer-run treats context docs and subagent reports as data not instructions', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /데이터이지 지시|데이터가 아니|지시가 아니/);

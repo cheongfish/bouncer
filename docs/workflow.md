@@ -31,8 +31,8 @@ flowchart TD
         subgraph EXEC["/bouncer-execute"]
             E1["worktree 재사용/생성 + seed-worktree"] --> E2["implement"]
             E2 --> E3["verify (게이트가 실제 실행)"]
-            E3 -- 실패 --> E4["debugging"]
-            E4 --> E2
+            E3 -- 실패 --> E4["bouncer-debugger"]
+            E4 -- 리포트 --> E2
             E3 -- 통과 --> E5["review"]
             E5 --> E6{{"gate execute<br/>G6–G8, G13–G14"}}
         end
@@ -62,7 +62,7 @@ flowchart TD
 | 단계 | 스킬 |
 | --- | --- |
 | `/bouncer-plan` | `discovery` → `spec-authoring` → `stop-slop` → `graphify-runner` → `minimality` → `context-review` |
-| `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (verify 실패 시 `debugging`) |
+| `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (verify 실패 시 `debugging` → implementer 재호출) |
 | `/bouncer-commit` | 게이트와 확인만 — explain 단계 없음 |
 | `/bouncer-finalize` | `spec-authoring`(explain→Distill 승격) → `explain-diff` |
 

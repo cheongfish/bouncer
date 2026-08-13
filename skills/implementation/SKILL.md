@@ -118,4 +118,5 @@ does.
   that prevents data loss, security, accessibility, or anything the brief
   explicitly requires.
 - If verification fails, hand off to debugging rather than papering over the
-  failure.
+  failure. The controller re-dispatches implementer with the debugger report
+  as evidence; do not apply a stacked guess in the same turn.

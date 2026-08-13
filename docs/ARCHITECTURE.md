@@ -188,7 +188,9 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 1. 첫 릴리스 스킬 집합: `discovery`, `spec-authoring`, `implementation`,
    `debugging`, `verification`, `review`, `minimality`, `stop-slop` (+ 선택
    `graphify-runner`; plan 승인 직전 `context-review`; finalize 하위 `explain-diff`).
-2. `debugging`은 독립 스킬이며 `/bouncer-execute` 실패 경로에서 권장한다.
+2. `debugging`은 독립 스킬이며 `/bouncer-execute` verify 실패 경로에서
+   `bouncer-debugger`가 따른다. 컨트롤러는 그 리포트를 증거로
+   `bouncer-implementer`를 재호출한다.
 3. 처음에는 명령 내 명시 호출/권장으로 시작하고, 자동 훅은 검증 후 추가한다.
 
 ### D. Graphify 정책

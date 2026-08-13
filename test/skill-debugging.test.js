@@ -29,6 +29,12 @@ test('debugging forbids proposing fixes before root-cause investigation', () => 
   assert.match(md, /do not propose fixes before root-cause investigation/i);
 });
 
+test('debugging hands the report to implementer via controller re-dispatch', () => {
+  const md = readSkill('debugging');
+  assert.match(md, /re-dispatches `bouncer-implementer`/);
+  assert.match(md, /evidence/);
+});
+
 test('debugging escalates after 1 unsuccessful cycle', () => {
   const md = readSkill('debugging');
   assert.match(md, /1(?:\*\*)?\s*(?:failures?|times?|attempts?)[\s\S]{0,120}escalat/i);

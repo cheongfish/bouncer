@@ -52,14 +52,13 @@ test('bouncer-context-reviewer records into blueprint-root context-review.md', (
 });
 
 // 컨트롤러(특히 /bouncer-run 루프)는 diff를 다시 읽지 않고 이 필드로만 라우팅한다.
-test('bouncer-implementer returns a fixed report the controller can route from', () => {
+test('bouncer-implementer applies debugger report as evidence on verify-failure re-dispatch', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
-  assert.match(md, /## Output contract/);
-  assert.match(md, /Changed files/);
-  assert.match(md, /Checklist coverage/);
-  assert.match(md, /Deviations/);
+  assert.match(md, /Verify-failure re-dispatch/);
+  assert.match(md, /Minimum fix proposal/);
+  assert.match(md, /Required regression test/);
+  assert.match(md, /evidence/);
   assert.match(md, /Needs planning/);
-  assert.match(md, /\/bouncer-plan/);
 });
 
 test('bouncer-implementer points comment rule at hard rule 9 without restating it', () => {

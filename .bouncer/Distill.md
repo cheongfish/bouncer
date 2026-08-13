@@ -357,10 +357,12 @@ append a change log.
   re-reading the diff.
 - On `/bouncer-execute` verify failure, dispatch `bouncer-debugger` (brief:
   `skills/debugging` — Root cause → Pattern → Hypothesis → Implementation; no
-  fix proposals before root-cause). Redispatch the same failing verify at most
-  **1** time (1 unsuccessful fix cycle), then escalate to architecture /
-  `/bouncer-plan`. Manual execute and `/bouncer-run` share this ceiling — the
-  run loop must not stack a second limit on top.
+  fix proposals before root-cause). The controller then re-dispatches
+  `bouncer-implementer` with that Output contract as evidence (not a second
+  brief). Redispatch the same failing verify at most **1** time (1 unsuccessful
+  fix cycle), then escalate to architecture / `/bouncer-plan`. Manual execute
+  and `/bouncer-run` share this ceiling — the run loop must not stack a second
+  limit on top, and must not copy execute's named-dispatch steps.
 - Plan judgment vs gate: after confirming `affected_paths`, `/bouncer-plan`
   dispatches `bouncer-context-reviewer` (inline fallback on hosts without
   `agents/`). The controller writes Findings into blueprint-root

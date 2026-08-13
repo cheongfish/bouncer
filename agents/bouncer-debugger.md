@@ -44,8 +44,9 @@ Follow `skills/debugging/SKILL.md`. Complete each stage before the next:
 3. **Hypothesis** — State **one** concrete hypothesis that explains the
    evidence. Reject stacked speculative guesses.
 4. **Implementation** — Propose the **minimum** fix and the regression test
-   that should fail before the fix exists. Do not apply either; hand them to
-   the controller / implementer.
+   that should fail before the fix exists. Do not apply either; the
+   controller re-dispatches `bouncer-implementer` with this report as
+   evidence.
 
 ## Redispatch limit
 
