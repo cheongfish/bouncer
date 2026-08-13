@@ -48,6 +48,27 @@ function writeUnitSiblings(repo, bpDir, number, { epic_id: epicId, blueprint_id:
   }
 }
 
+// current --set이 plan 게이트를 타므로, 통과 fixture는 G18이 요구하는
+// accepted context-review.md를 함께 둔다. 일부러 문서를 빼는 실패 케이스는
+// 이 헬퍼를 부르지 않는다.
+function writeAcceptedContextReview(repo) {
+  writeDoc(repo, `${BP_REL}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: '001 context review',
+    description: 'Context review for 001',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001',
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'accepted',
+      context_review: { findings: [] },
+    },
+  }, '# Context review\n\n## Findings\n(none)\n');
+}
+
 function tmpGitRepo() {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-current-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -101,6 +122,7 @@ function writePlanPassingBlueprint(repo) {
   ensureEpicIndexEntry({
     repoRoot: repo, epicId: '001', name: 'auth', description: 'Epic 001',
   });
+  writeAcceptedContextReview(repo);
 }
 
 test('current with no pointer returns null and ready candidates', () => {
@@ -253,6 +275,7 @@ function writeNumberedPlanBlueprint(repo) {
   ensureEpicIndexEntry({
     repoRoot: repo, epicId: '001', name: 'auth', description: 'Epic 001',
   });
+  writeAcceptedContextReview(repo);
 }
 
 test('current --set --task 002 records that task document', () => {

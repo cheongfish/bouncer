@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '033'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 계획 판정이 자문에 머물러 있어 어긋난 브리프도 plan 게이트를 통과했음
     - context-review.md의 status와 findings 형식을 G18로 승격해 승인을 막게 함
@@ -20,6 +20,7 @@ bouncer:
     - scripts/lib/validate.js
     - test/validate-gates.test.js
     - test/cli-validate.test.js
+    - test/cli-current.test.js
     - test/skill-bouncer-plan.test.js
     - docs/gates.md
     - skills/bouncer-plan/SKILL.md
@@ -81,6 +82,9 @@ TASKS-002가 이 blueprint의 문서를 이미 만들어 뒀으므로, 이 커�
 - Modify `scripts/lib/validate.js` — 위 emit
 - Modify `test/validate-gates.test.js` — G18 통과·실패 분기
 - Modify `test/cli-validate.test.js` — CLI 출력에 G18 코드가 실림
+- Modify `test/cli-current.test.js` — `writePlanPassingBlueprint`와
+  `writeNumberedPlanBlueprint`가 accepted `context-review.md`를 쓰게 함.
+  `current --set`이 plan 게이트를 타므로 G18 이후 이 픽스처가 같이 맞아야 한다
 - Modify `docs/gates.md` — plan 행에 G18 추가
 - Modify `skills/bouncer-plan/SKILL.md` — 마지막 단계의 게이트 코드 목록 갱신
 - Modify `test/skill-bouncer-plan.test.js` — 그 목록을 보는 단언
@@ -115,6 +119,8 @@ TASKS-002가 이 blueprint의 문서를 이미 만들어 뒀으므로, 이 커�
       (G3–G5·G10–G12) 밖에 둔다.
 - [ ] `test/cli-validate.test.js`에 G18이 CLI JSON 출력의 `failures`에 실리는지
       추가한다.
+- [ ] `test/cli-current.test.js`의 plan 통과 픽스처 두 헬퍼가 accepted
+      `context-review.md`(`findings: []`, `## Findings`)를 쓴다.
 - [ ] `docs/gates.md` plan 행과 `skills/bouncer-plan/SKILL.md` 게이트 목록을
       갱신하고, `test/skill-bouncer-plan.test.js`가 G18을 보게 한다.
 - [ ] `npm test`가 통과한다.

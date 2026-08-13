@@ -33,6 +33,12 @@ test('bouncer-plan requires implementation-ready tasks sections and mentions G10
   assert.match(body, /G10|G11|G12/);
 });
 
+test('bouncer-plan gate list includes G18 context-review', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /G18/);
+  assert.match(body, /context-review/);
+});
+
 test('bouncer-plan recommends minimality (advisory) and keeps graphify-runner', () => {
   assert.match(md, /minimality/);
   assert.match(md, /recommend|권장|advisory/i);

@@ -201,7 +201,10 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
    ```
-   Gate `plan` checks G1 epic approved, G2 blueprint approved, G3 tasks ready,
+   Gate `plan` checks G1 epic approved, G2 blueprint approved, G18
+   `context-review.md` accepted with the same findings-field contract as G14
+   (`## Findings` present; each finding `id` / `severity` / `status`; `accepted`
+   needs a non-empty note; no `scale: light` exemption), G3 tasks ready,
    G4 `graph.suggested_paths` present and `graph.basis` a non-empty legacy
    string or non-empty entry list, G5
    `affected_paths` non-empty, G10 the five gated sections present and

@@ -68,8 +68,8 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     verification: `${bp}/verification.md`,
     review: `${bp}/review.md`,
     explain: `${bp}/explain.md`,
-    // BP 단위 슬롯. 게이트 판정은 넣지 않는다 — 슬롯이 없으면 문서가 로드되지
-    // 않아 checkStructural/S19가 이 파일을 보지 못한다.
+    // BP 단위 슬롯. plan 게이트 G18이 이 문서를 판정한다. 슬롯이 없으면
+    // 문서가 로드되지 않아 checkStructural/S19가 이 파일을 보지 못한다.
     contextReview: `${bp}/context-review.md`,
   };
   const docs: Record<string, any> = {};
@@ -592,6 +592,37 @@ function pathJustifiedByTouch(ap, touchText) {
   );
 }
 
+// findings 필드 계약은 G14(execute review.md)와 G18(plan context-review.md)이
+// 같다. 헬퍼를 공유하지 않으면 한쪽만 고친 순간 두 리뷰 문서가 다른 계약을
+// 갖게 된다. 본문 판정 문장은 읽지 않는다 — heading 존재와 id/severity/status/note.
+// findings가 있는데 배열이 아니면 []로 떨어뜨리지 않는다. 빈 배열과 같게 취급하면
+// 형식 위반이 통과한다. 부재(undefined/null)만 빈 목록으로 본다.
+function collectFindingFailures({ body, findings, sectionLabel, findingLabel }) {
+  const messages = [];
+  const rs = parseSections(typeof body === 'string' ? body : '', REVIEW_SECTION_DEFS);
+  if (!rs.findings) {
+    messages.push(`${sectionLabel} missing ## Findings body section`);
+  }
+  if (findings != null && !Array.isArray(findings)) {
+    messages.push(`${findingLabel} findings must be an array`);
+    return messages;
+  }
+  const list = Array.isArray(findings) ? findings : [];
+  for (const fnd of list) {
+    const id = fnd && fnd.id ? fnd.id : '(no id)';
+    if (!REVIEW_SEVERITY.includes(fnd && fnd.severity)) {
+      messages.push(`${findingLabel} finding ${id} severity invalid: ${fnd && fnd.severity}`);
+    }
+    if (!REVIEW_STATUS.includes(fnd && fnd.status)) {
+      messages.push(`${findingLabel} finding ${id} status invalid: ${fnd && fnd.status}`);
+    }
+    if (fnd && fnd.status === 'accepted' && (!fnd.note || String(fnd.note).trim() === '')) {
+      messages.push(`${findingLabel} finding ${id} accepted without note`);
+    }
+  }
+  return messages;
+}
+
 function checkGate(gate, docs, rels, failures, ctx) {
   const add = (code, message, fileKey) =>
     failures.push({ code, message, file: rels[fileKey] });
@@ -609,6 +640,35 @@ function checkGate(gate, docs, rels, failures, ctx) {
       add('G2', 'blueprint is closed (finalized) — open a new blueprint instead of resuming this one', 'blueprintIndex');
     } else if (bpStatus !== 'approved') {
       add('G2', 'blueprint.status != approved', 'blueprintIndex');
+    }
+    // G18은 blueprint 단위 — task 묶음 순회(G3–G5·G10–G12) 밖에 둔다.
+    // light 면제를 두지 않는 이유: bouncer.scale: light는 named-agent 디스패치
+    // (implementer/reviewer)만 인라인으로 줄이는 경로이고, 계획 문서 계약은
+    // 그대로다. scripts/는 scale을 읽지 않는다(Distill). 면제 분기를 넣으면
+    // LLM 판정이 게이트를 우회하게 되어 하드룰 4와 어긋난다. 게이트는 status와
+    // 세 필드·## Findings 절만 보고 판정 문장 자체는 읽지 않는다.
+    if (!docs.contextReview) {
+      add(
+        'G18',
+        `context-review.md missing (${rels.contextReview}); run bouncer scaffold context-review`,
+        'contextReview',
+      );
+    } else {
+      if (statusOf(docs.contextReview) !== 'accepted') {
+        add('G18', 'context-review.status != accepted', 'contextReview');
+      }
+      const crBouncer = docs.contextReview.data && docs.contextReview.data.bouncer
+        ? docs.contextReview.data.bouncer
+        : {};
+      const crMeta = crBouncer.context_review;
+      for (const message of collectFindingFailures({
+        body: docs.contextReview.body,
+        findings: crMeta && crMeta.findings,
+        sectionLabel: 'context-review',
+        findingLabel: 'context-review',
+      })) {
+        add('G18', message, 'contextReview');
+      }
     }
     // plan 게이트의 task 검사는 문서마다 돌린다. file은 해당 task 경로여야
     // 어느 문서가 미달인지 알 수 있다. tasksDocs가 없으면 단위 테스트용
@@ -719,21 +779,13 @@ function checkGate(gate, docs, rels, failures, ctx) {
     const reviewMeta = reviewDoc && reviewDoc.data.bouncer ? reviewDoc.data.bouncer.review : undefined;
     const reviewSkipped = reviewMeta && reviewMeta.required === false;
     if (reviewDoc && !reviewSkipped) {
-      const rbody = typeof reviewDoc.body === 'string' ? reviewDoc.body : '';
-      const rs = parseSections(rbody, REVIEW_SECTION_DEFS);
-      if (!rs.findings) addUnit('G14', 'review.md missing ## Findings body section', 'review');
-      const findings = Array.isArray(reviewMeta && reviewMeta.findings) ? reviewMeta.findings : [];
-      for (const fnd of findings) {
-        const id = fnd && fnd.id ? fnd.id : '(no id)';
-        if (!REVIEW_SEVERITY.includes(fnd && fnd.severity)) {
-          addUnit('G14', `review finding ${id} severity invalid: ${fnd && fnd.severity}`, 'review');
-        }
-        if (!REVIEW_STATUS.includes(fnd && fnd.status)) {
-          addUnit('G14', `review finding ${id} status invalid: ${fnd && fnd.status}`, 'review');
-        }
-        if (fnd && fnd.status === 'accepted' && (!fnd.note || String(fnd.note).trim() === '')) {
-          addUnit('G14', `review finding ${id} accepted without note`, 'review');
-        }
+      for (const message of collectFindingFailures({
+        body: reviewDoc.body,
+        findings: reviewMeta && reviewMeta.findings,
+        sectionLabel: 'review.md',
+        findingLabel: 'review',
+      })) {
+        addUnit('G14', message, 'review');
       }
     }
     return;
