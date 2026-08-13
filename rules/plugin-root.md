@@ -30,5 +30,3 @@ a special case.
 Hooks resolve separately: `hooks/hooks.json` uses `${CLAUDE_PLUGIN_ROOT}`
 verbatim (Claude and Codex substitute it), while Cursor hooks use relative
 paths.
-
-Human-facing setup steps are in [`../docs/install.md`](../docs/install.md).

@@ -83,8 +83,7 @@ not an error).
    > Graphify is optional. Path suggestions were skipped — confirm
    > `affected_paths` manually. To enable: run `bouncer init` (fresh bootstrap
    > installs into `.bouncer/.venv`) or `bouncer init --promote-graphify` on an
-   > existing project, then re-run `/bouncer-plan`. Offline/manual fallback is
-   > in `docs/install.md`.
+   > existing project, then re-run `/bouncer-plan`.
 
    If auto-build is disabled but the CLI is present, still leave a
    `skip-disabled` entry in `basis` and mention enabling via

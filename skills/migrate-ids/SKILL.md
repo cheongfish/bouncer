@@ -19,7 +19,7 @@ This skill does **not** invent a second procedure — it drives
 - Do not hand-rename under `.bouncer/context/epics/` — the CLI owns the
   atomic plan (validate → rename bp dirs → rename epic dirs → rewrite).
 - Do not run apply on a mixed new+legacy tree, a destination collision, or a
-  dirty worktree; fix those first (see `docs/troubleshooting.md`).
+  dirty worktree; fix those first.
 - Cursor has no SessionStart equivalent — rely on this skill / the CLI there.
 - Do not create skill files at runtime; this skill is already shipped.
 

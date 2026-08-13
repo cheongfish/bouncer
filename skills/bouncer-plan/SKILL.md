@@ -120,8 +120,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    edit `config.verify` / `.bouncer/config.json` here. Do not propose values that
    mix `&&`, `;`, pipes, redirection, or a `cd` prefix — verify is a single argv
    so the evidence command stays reproducible from the repo root; tell the user
-   to wrap container-up + test in one project script and point them at the
-   wrapper guidance in `docs/configuration.md`.
+   to wrap container-up + test in one project script.
    After the draft, run `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) on
    the authored bodies before approval.
 
@@ -163,9 +162,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    hit list minus Do not touch; rewrite Goal so it does not claim files outside
    the list (Goal ⊆ Touch). Commit scope is the same set: every path that must
    be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
-   blocks it. When `config.source_dirs` omit `skills/` / `docs/` / `agents/`,
-   add those directories to `suggested_paths` by hand — graph hits alone do not
-   inventory prose.
+   blocks it.
 
 7. **Context review.** After `affected_paths` is confirmed and **before**
    approval, judge the plan documents. The `context-review` skill

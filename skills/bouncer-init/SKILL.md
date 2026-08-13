@@ -31,8 +31,7 @@ Bootstrap this project for Bouncer.
      - Success / reuse (`status` `installed` or `reused`): report the outcome
        and the recorded `config.graphify.bin` (or the returned `bin`).
      - Failure: report the reason, note that `graphify.enabled` stayed / was
-       set `false`, and point at the offline fallback in `docs/install.md`
-       plus a later return via
+       set `false`, and point at a later return via
        `bouncer init --promote-graphify` after a manual install.
    - Do **not** edit `.bouncer/config.json` yourself — promotion is CLI-only.
 3. Consent gates (ACQ). Never write config or `.gitignore` without agreement.
