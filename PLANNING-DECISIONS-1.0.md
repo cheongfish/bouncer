@@ -11,11 +11,11 @@
 
 BP-1(스킬 구조·주석 규칙, 옛 §6·§7)은 PR #37에서 끝났다.
 BP-2(게이트 재구성, 옛 §2)는 PR #38에서 끝났다.
-BP-3(문서 스키마·레이아웃, 옛 §5)는 PR #39에서 끝났다. 남은 순서:
+BP-3(문서 스키마·레이아웃, 옛 §5)는 PR #39에서 끝났다.
+BP-4(자동 루프, 옛 §1 잔여·§3·§4)는 PR #40에서 끝났다. 남은 순서:
 
-1. **BP-4 자동 루프** (§3, §4) — `/bouncer-run`, autonomy. **BP-2 이후**
-2. **BP-5 품질·보안** (minimality·context reviewer·인젝션) — **BP-2 이후** (G18이 validate/scaffold를 건드림)
-3. **BP-6 벤치마크** — 워크플로 밖 분리 스킬. 독립, 마지막
+1. **BP-5 품질·보안** (minimality·context reviewer·인젝션) — **BP-2 이후** (G18이 validate/scaffold를 건드림)
+2. **BP-6 벤치마크** — 워크플로 밖 분리 스킬. 독립, 마지막
 
 ---
 
@@ -29,53 +29,6 @@ BP-3(문서 스키마·레이아웃, 옛 §5)는 PR #39에서 끝났다. 남은 
   슬래시 커맨드 이름과 순서.
 - **내부 선언 후보** — 스킬 SKILL.md 본문 구조, 서브에이전트 구성,
   `scripts/lib/` 내부 함수, worktree 경로 레이아웃.
-
----
-
-## 1. 이해 강제와 자율성 (기본 방향)
-
-explain/quiz 목적(이해 강제 + 기록), finalize 실행 시점, `/bouncer-commit`에서
-`explain-diff` 제거는 BP-2에서 반영했다. 아래는 자동 루프(BP-4)용 잔여 결정이다.
-
-| 결정 | 내용 |
-| --- | --- |
-| 도구 성격 | **자동 도구인데 확인도 됨** — 기본 auto |
-| 사람 확인 지점 | 루프 시작 / finalize 퀴즈 / PR 생성, **이 셋만** |
-
----
-
-## 3. 자동 루프
-
-| 항목 | 결정 |
-| --- | --- |
-| 주체 | **새 커맨드 `/bouncer-run`** — execute→commit을 반복. 기존 두 커맨드의 단일 책임과 수동 경로 유지 |
-| 종료 조건 | **현재 BP의 task 소진** (BP = PR 단위이므로 경계가 자연스럽다) |
-| VERIFY 실패 | **debugger 1회 → 재실패면 중단** |
-| review finding 잔존 | **implementer에 되돌려 자동 수정**, **2회 상한**, 상한 도달 시 **`/bouncer-plan` 에스컬레이션** |
-| implementer 맥락 | **Distill + 직전 커밋 subject 목록**. 전체 맥락은 주지 않는다 |
-| 시작 승인 | **task 목록 + 각 task의 `affected_paths`** |
-| 중단 시 상태 | **포인터를 실패한 task에 유지, worktree 유지.** 재개는 `/bouncer-execute`로 그 task만 수동으로 닫는다 |
-
-중단 후 `/bouncer-run`을 그대로 다시 부르지 않는 이유: verify 실패를 자동으로
-재시도하면 대개 또 실패한다. 사람이 막힌 task 하나를 닫은 뒤 루프를 다시 건다.
-
-review 상한 정책은 `bouncer-followups.md` 3번(재리뷰 루프 상한)의 "강제 분기"
-제안을 채택한 것이며, `debugging` 스킬의 3회 상한 + plan 에스컬레이션과 형태가 같다.
-
----
-
-## 4. 설정
-
-```jsonc
-{
-  "autonomy": "auto"   // "auto" | "interactive", 기본 auto
-}
-```
-
-- **`config.json`에만** 둔다. blueprint frontmatter 오버라이드는 두지 않는다
-  (BP마다 달라질 이유가 아직 없고 해석 경로가 둘로 늘어난다).
-- `interactive` 모드에서도 explain 위치는 finalize로 동일하다. 모드별로 문서
-  구조가 갈리면 G16을 두 벌 만들어야 한다.
 
 ---
 
@@ -166,16 +119,15 @@ S19(`type`↔경로)·S20(`scale` enum)은 BP-3(PR #39)에서 반영했다. 남�
 BP-1  스킬 구조 재편        — 완료 (PR #37). 옛 §6·§7
 BP-2  게이트 재구성          — 완료 (PR #38). 옛 §2
 BP-3  문서 스키마·레이아웃   — 완료 (PR #39). 옛 §5
-BP-4  자동 루프              (3, 4) — /bouncer-run, autonomy, 상한 정책. BP-2 이후
+BP-4  자동 루프              — 완료 (PR #40). 옛 §1 잔여·§3·§4
 BP-5  품질·보안              (6, 7, 8) — minimality 래더, context reviewer, 인젝션 방어
 BP-6  벤치마크               (9)  — 분리 스킬. 마지막
 ```
 
 순서 근거:
 
-- **BP-1·BP-2·BP-3 완료** — 스킬 anatomy, 게이트 재배치, 문서 스키마·레이아웃이
-  올라와 있다. 이후 BP는 이 구조를 전제로 한다.
-- **BP-2 → BP-4** — 자동 루프는 게이트가 확정된 뒤라야 설계가 흔들리지 않는다.
+- **BP-1·BP-2·BP-3·BP-4 완료** — 스킬 anatomy, 게이트 재배치, 문서 스키마·레이아웃,
+  `/bouncer-run`·autonomy가 올라와 있다. 이후 BP는 이 구조를 전제로 한다.
 - **BP-5는 BP-2 이후.** context reviewer가 자문에서 plan 게이트(G18)로 승격되면서
   `validate.js`와 `scaffold.js`(신규 `context-review.md`)를 건드린다 —
   BP-2와 같은 파일이므로 순서를 지켜야 충돌하지 않는다.
