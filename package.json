@@ -1,6 +1,6 @@
 {
   "name": "bouncer",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "Deterministic core for the Bouncer plugin",
   "bin": {
@@ -9,7 +9,7 @@
   "scripts": {
     "test": "node --test",
     "lint": "eslint .",
-    "setup": "git config commit.template .gitmessage && echo \"commit.template set — git commit (without -m) now opens the team template\"",
+    "setup": "git config commit.template .gitmessage && git config core.hooksPath .githooks && echo \"commit.template and core.hooksPath set — git commit (without -m) opens the team template; pre-commit runs lint and the scripts/lib emit check\"",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build"

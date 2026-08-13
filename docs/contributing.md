@@ -4,7 +4,7 @@
 
 ```bash
 npm install    # devDependencies만 (테스트·린트용)
-npm run setup  # 커밋 메시지 템플릿 연결 (클론마다 1회)
+npm run setup  # 커밋 메시지 템플릿 + pre-commit 훅 연결 (클론마다 1회)
 npm test       # node --test
 npm run lint   # eslint
 ```
@@ -36,10 +36,16 @@ scaffold 기본값(`001 slug` 등)을 남기면 그 문구가 커밋에 들어�
 고쳐 두세요. `/bouncer-commit` 직전에 task `commit_intent`가 없으면 스킬이
 Goal & intent에서 채워 넣을 수 있습니다.
 
-`npm run setup`은 `git config commit.template .gitmessage`를 실행합니다. **클론해도
-자동 적용되지 않습니다.** git이 저장소가 로컬 설정을 바꾸는 것을 막기 때문에
-각자 한 번 실행해야 합니다. 그리고 이 템플릿은 에디터가 열릴 때만 보이므로
-`git commit -m`에는 적용되지 않습니다.
+`npm run setup`은 `git config commit.template .gitmessage`와
+`git config core.hooksPath .githooks`를 실행합니다. **클론해도 자동 적용되지
+않습니다.** git이 저장소가 로컬 설정을 바꾸는 것을 막기 때문에 각자 한 번
+실행해야 합니다. 템플릿은 에디터가 열릴 때만 보이므로 `git commit -m`에는
+적용되지 않습니다.
+
+pre-commit(`.githooks/pre-commit`)은 원격 CI의 빠른 스텝을 로컬에서 돌립니다.
+`scripts/lib` emit이 `scripts/src/lib`과 일치하는지 검사한 뒤 `npm run lint`를
+실행합니다. `npm test`는 매 커밋에는 넣지 않고 원격 CI에 둡니다. 우회는
+`git commit --no-verify`입니다.
 
 PR/MR 본문 템플릿은 두 곳에 같은 형식으로 있습니다.
 

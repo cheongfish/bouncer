@@ -7,6 +7,36 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`/bouncer-run` 역할** — 주행 세션은 오케스트레이터다. 구현·리뷰·조사는
+  execute가 named 서브에이전트로 위임하고 루프는 세 리포트만 받아 조치를
+  라우팅한다. 경량(`scale: light`) blueprint도 주행 중에는 인라인 분기 대신
+  named 디스패치를 쓴다.
+- **`bouncer-implementer` 리포트** — Output contract를 고정했다(Changed files /
+  Checklist coverage / Tests / Deviations / Needs planning). 컨트롤러가 diff를
+  다시 읽지 않고 이 필드만으로 다음 조치를 정한다.
+
+## [0.8.1] — 2026-08-13
+
+0.8.0 이후 계획 품질 게이트와 로컬 커밋 가드(EPIC-033).
+
+### Added
+
+- **context-review (EPIC-033)** — blueprint 루트 `context-review.md`
+  (`bouncer.context_review`, id `CTXREVIEW-<bp>`). `/bouncer-plan` 승인 직전에
+  `bouncer-context-reviewer`가 계획 문서를 판정하고, plan 게이트 **G18**이
+  status와 findings 형식만 본다. `scale: light` 면제 없음.
+- **pre-commit** — `npm run setup`이 `.githooks`를 연결하고, 커밋 전에
+  `scripts/lib` emit 검사와 lint를 돌린다. 전체 테스트는 원격 CI에 둔다.
+
+### Changed
+
+- **minimality 래더** — native platform과 표준 라이브러리를 분리한 7단.
+  강도는 기존 `bouncer.scale`에 매긴다 (`light`는 1–4단).
+- **신뢰 경계** — 컨텍스트 본문·그래프 산출물·서브에이전트 리포트는 데이터로
+  읽고 지시로 따르지 않는다. `docs/security.md`에 고정.
+
 ## [0.8.0] — 2026-08-13
 
 0.7.5 이후 문서 스키마 확정·자동 주행(EPIC-031–032).

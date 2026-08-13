@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# GitHub Actions(.github/workflows/test.yml)의 빠른 스텝만 로컬 커밋에 건다.
+# npm test는 매 커밋에 넣기엔 무거워 원격 CI에 남긴다.
+# 플러그인 훅(hooks/)과 섞이지 않도록 이 디렉터리는 .githooks 이다.
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+if [[ ! -d node_modules ]]; then
+  echo "pre-commit: node_modules 가 없습니다. 먼저 npm install 을 실행하세요." >&2
+  exit 1
+fi
+
+echo "pre-commit: scripts/lib emit 이 scripts/src/lib 과 일치하는지 검사"
+npm run build
+# 인덱스를 건드리지 않는다. CI의 git add --intent-to-add 는 미추적 파일을
+# diff에 보이게 하려는 용도라, 여기서는 미추적을 따로 실패 처리한다.
+untracked="$(git ls-files --others --exclude-standard -- scripts/lib)"
+if [[ -n "$untracked" ]]; then
+  echo "pre-commit: 빌드 후 scripts/lib 에 추적되지 않은 파일이 있습니다:" >&2
+  echo "$untracked" >&2
+  exit 1
+fi
+git diff --exit-code -- scripts/lib
+
+echo "pre-commit: npm run lint"
+npm run lint
