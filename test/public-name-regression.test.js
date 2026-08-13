@@ -47,6 +47,7 @@ const SUPERPOWERS_NEGATIVE_TESTS = new Set([
   'test/skill-bouncer-finalize.test.js',
   'test/skill-bouncer-init.test.js',
   'test/skill-bouncer-plan.test.js',
+  'test/skill-bouncer-run.test.js',
   'test/init.test.js',
   'test/skill-discovery.test.js',
   'test/skill-graphify-runner.test.js',

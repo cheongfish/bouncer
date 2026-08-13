@@ -10,6 +10,7 @@ into more task bundles (or more blueprints). Do **not** invent a further
 subtask layer beneath a task bundle.
 
 `/bouncer-commit` closes one task (scope check → `bouncer commit`).
+`/bouncer-run` repeats that commit unit; it does not change it.
 `/bouncer-execute` does not commit. `/bouncer-finalize` closes the blueprint
 (Distill promotion, explain + quiz, remainder commit, draft PR, worktree
 cleanup) after every task is committed.

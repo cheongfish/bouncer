@@ -52,6 +52,11 @@ const DEFAULT_SCALE = 'full';
 // finalize가 읽되 scaffold가 비우면 항상 'feat' 폴백으로 떨어지던 구멍 —
 // blueprint에 기본 commit_type을 써 둔다. 값 검사는 TASKS-002.
 const DEFAULT_COMMIT_TYPE = 'feat';
+// config.json autonomy 허용값. 소비자는 autonomy === 'interactive'만 보고,
+// 부재·'auto'는 모두 같은 경로로 읽힌다(auto 전용 분기 금지).
+const AUTONOMY_ENUM = ['auto', 'interactive'];
+// init이 새 저장소 config.json에 쓰는 기본값. 키가 없어도 소비자는 auto로 읽는다.
+const DEFAULT_AUTONOMY = 'auto';
 function detectLegacyFormat({ repoRoot, data } = {}) {
     if (repoRoot) {
         const fs = require('node:fs');
@@ -74,4 +79,5 @@ module.exports = {
     OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, KIND_TO_TYPE,
     LEGACY_GUIDANCE, detectLegacyFormat,
     BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE,
+    AUTONOMY_ENUM, DEFAULT_AUTONOMY,
 };

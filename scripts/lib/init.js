@@ -33,6 +33,7 @@ function defaultConfig(repoRoot) {
         graphify: { enabled: true },
         verify: 'npm test',
         base_branch: 'develop',
+        autonomy: 'auto',
         pr: { draft: true, base: 'develop', labels: ['bouncer'] },
         // host별 model ID용 placeholder slot. 모든 값은 "inherit"로 시작해 init이
         // 편집 가능한 형태를 보여 주되 model을 고정하지 않음; resolveSubagentModel은

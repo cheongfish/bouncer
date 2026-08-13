@@ -48,6 +48,7 @@ test('init writes the exact config.json shape', () => {
     graphify: { enabled: true },
     verify: 'npm test',
     base_branch: 'develop',
+    autonomy: 'auto',
     pr: { draft: true, base: 'develop', labels: ['bouncer'] },
     subagents: {
       claude: {

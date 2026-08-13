@@ -52,6 +52,6 @@ failing tests to force green.
 - Do not weaken or delete failing tests to force green.
 - If the fix would expand approved scope, stop and escalate rather than
   shipping a silent scope change.
-- On the same failing verify, redispatch / retry at most **3** times
-  (unsuccessful fix cycles); then escalate to architecture / `/bouncer-plan` —
+- On the same failing verify, redispatch / retry at most **1** time
+  (unsuccessful fix cycle); then escalate to architecture / `/bouncer-plan` —
   do not loop indefinitely.

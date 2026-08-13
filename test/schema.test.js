@@ -31,6 +31,8 @@ test('schema exports bouncer_schema and blueprint scale/commit_type defaults', (
   assert.deepStrictEqual(schema.SCALE_ENUM, ['light', 'full']);
   assert.strictEqual(schema.DEFAULT_SCALE, 'full');
   assert.strictEqual(schema.DEFAULT_COMMIT_TYPE, 'feat');
+  assert.deepStrictEqual(schema.AUTONOMY_ENUM, ['auto', 'interactive']);
+  assert.strictEqual(schema.DEFAULT_AUTONOMY, 'auto');
 });
 
 test('detectLegacyFormat flags .sdd dirs, sdd keys, and sdd.* types', () => {

@@ -9,6 +9,7 @@ const { GENERIC_SKILLS } = require('./helpers/read-skill');
 const root = path.join(__dirname, '..');
 const WORKFLOW = [
   'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize',
+  'bouncer-run',
 ];
 const SUB_PATHS = [
   'discovery', 'spec-authoring', 'implementation', 'verification',

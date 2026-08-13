@@ -10,6 +10,7 @@
 | `context_dirs` | `[".bouncer/context"]` | **컨텍스트** 그래프 입력(에픽/BP 문서). 설정 값은 그대로 `context_dirs`이지만, 빌드는 화이트리스트 섹션만 뽑은 파생 트리 `graphify-out/context-src/`를 스캔하고 `map.json`으로 결과 경로를 원본으로 되돌린다. 화이트리스트 세 종류: BP `explain.md`의 `## Background` / `## Intuition` / `## Code`, epic `index.md`의 `## Success criteria`, `.bouncer/Distill.md`의 `## Decisions`. 산출: `graphify-out/context/` |
 | `verify` | `"npm test"` | **execute 게이트가 실행하는 전역 폴백 명령.** 블루프린트 `tasks.bouncer.verify`가 있으면 그쪽이 우선한다. 종료 코드 0이어야 G13 통과. 컨테이너 기동과 테스트를 한 줄로 이을 수 없을 때는 [verify 래퍼 패턴](#verify-래퍼-패턴)을 본다 |
 | `base_branch` | `"develop"` | worktree와 PR의 기준 브랜치 |
+| `autonomy` | `"auto"` | `/bouncer-run`의 확인 지점을 정한다. `"interactive"`는 task 경계 확인을 더한다 |
 | `pr.draft` | `true` | PR을 draft로 생성 |
 | `pr.base` | `"develop"` | PR 대상 브랜치 |
 | `pr.labels` | `["bouncer"]` | PR에 붙일 라벨 |
