@@ -40,11 +40,13 @@ they conflict.
    under `bouncer:`. Bundle-root `okf_version` is only on
    `.bouncer/context/index.md`. Detail: [`rules/okf.md`](rules/okf.md).
 7. **Project Distill** — Before `/bouncer-plan` and `/bouncer-execute` work,
-   Read `.bouncer/Distill.md` (create via `bouncer init` if missing). Apply
-   matching Invariants / Gotchas / Decisions to the brief. Do **not** put Distill
-   body content into these master rules — path and read obligation only.
-   `/bouncer-finalize` promotes durable BP `explain.md` notes into that file.
-   Distill is English agent runtime; not a human-facing OKF plan doc.
+   resolve the consuming project's main worktree with `bouncer project-root`,
+   then Read `${PROJECT_ROOT}/.bouncer/Distill.md` (create via `bouncer init` if
+   missing). Apply matching Invariants / Gotchas / Decisions to the brief. Do
+   **not** put Distill body content into these master rules — path and read
+   obligation only. Plugin root and execute worktree cwd are not Distill path
+   bases. `/bouncer-finalize` promotes durable BP `explain.md` notes into that
+   file. Distill is English agent runtime; not a human-facing OKF plan doc.
 8. **Context language** — Human-facing bodies under `.bouncer/context/epics/**`
    and BP `explain.md` are Korean (identifiers, paths, and fenced code excepted).
    Apply `stop-slop` when drafting or revising that prose; it is advisory, not a
