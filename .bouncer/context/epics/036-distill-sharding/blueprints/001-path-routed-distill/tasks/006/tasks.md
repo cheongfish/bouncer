@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-006
   epic_id: '036'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 현행 규칙을 빠짐없이 새 정본 구조로 옮겨야 함
     - 선택 라우팅 전에도 전량 소비로 안전성을 관찰해야 함
