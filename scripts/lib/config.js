@@ -2,6 +2,25 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
+// 샤드 설정은 opt-in 경로의 안전장치다. 기존 저장소에는 distill 키가 없을
+// 수 있으므로 읽기 함수의 null/shape 계약을 바꾸지 않고, init과 구조 검사만
+// 이 기본값을 사용한다. max_bytes는 하드 상한이 아니라 운영자가 분배를
+// 검토할 때 쓰는 경고 기준이며, 본문 소비를 잘라내는 값이 아니다.
+const DEFAULT_DISTILL_CONFIG = {
+    routing_enabled: false,
+    max_bytes: 64 * 1024,
+};
+function getDistillConfig(config = {}) {
+    const value = config
+        && typeof config === 'object'
+        && !Array.isArray(config)
+        && config.distill
+        && typeof config.distill === 'object'
+        && !Array.isArray(config.distill)
+        ? config.distill
+        : {};
+    return { ...DEFAULT_DISTILL_CONFIG, ...value };
+}
 /**
  * `.bouncer/config.json` 단일 파서. 값의 모양은 검사하지 않는다 — cli·
  * subagents·session-graph가 배열·원시값을 그대로 받아 왔고, 여기서 객체를
@@ -43,4 +62,9 @@ function readConfig(repoRoot) {
     // 같게 볼지 정한다 (cli·subagents는 ?? {}, session-graph·graphify는 null).
     return result.ok ? result.value : null;
 }
-module.exports = { readConfigResult, readConfig };
+module.exports = {
+    readConfigResult,
+    readConfig,
+    DEFAULT_DISTILL_CONFIG,
+    getDistillConfig,
+};

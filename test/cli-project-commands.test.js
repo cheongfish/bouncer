@@ -28,7 +28,7 @@ function fixture() {
     '---',
     'distill:',
     '  version: 1',
-    '  routing_enabled: true',
+    '  routing_enabled: false',
     '  shards:',
     '    - core',
     '    - source',
@@ -37,6 +37,9 @@ function fixture() {
     '# summary',
     '',
   ].join('\n'));
+  fs.writeFileSync(path.join(repo, '.bouncer', 'config.json'), `${JSON.stringify({
+    distill: { routing_enabled: true },
+  })}\n`);
   const writeShard = (id, metadata, body) => {
     fs.writeFileSync(path.join(repo, '.bouncer', 'distill', `${id}.md`), [
       '---',
@@ -84,6 +87,60 @@ test('distill --route and --json expose deterministic routing metadata', () => {
   assert.deepStrictEqual(JSON.parse(route.out).ids, ['core', 'docs']);
   assert.deepStrictEqual(JSON.parse(body.out).ids, ['core', 'docs']);
   assert.strictEqual(JSON.parse(body.out).content, '# core\n\n\n# docs\n');
+});
+
+test('distill routing uses config when index routing is disabled', () => {
+  const repo = fixture();
+  const result = capture(['distill', '--repo', repo, '--for', 'scripts/src/lib/cli.ts', '--json']);
+  const payload = JSON.parse(result.out);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.routingEnabled, true);
+  assert.deepStrictEqual(payload.ids, ['core', 'source']);
+  assert.strictEqual(result.err, '');
+});
+
+test('distill routing disabled in config overrides enabled index and fails open', () => {
+  const repo = fixture();
+  const index = path.join(repo, '.bouncer', 'Distill.md');
+  fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace(
+    'routing_enabled: false',
+    'routing_enabled: true',
+  ));
+  fs.writeFileSync(
+    path.join(repo, '.bouncer', 'config.json'),
+    `${JSON.stringify({ distill: { routing_enabled: false } })}\n`,
+  );
+
+  const result = capture(['distill', '--repo', repo, '--for', 'scripts/src/lib/cli.ts', '--json']);
+  const payload = JSON.parse(result.out);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.routingEnabled, false);
+  assert.strictEqual(payload.full, true);
+  assert.strictEqual(payload.reason, 'routing-disabled');
+  assert.deepStrictEqual(payload.ids, ['core', 'source', 'docs']);
+  assert.strictEqual(result.err, 'distill: routing-disabled; using all shards\n');
+});
+
+test('distill routing falls back to enabled index when config is absent', () => {
+  const repo = fixture();
+  const index = path.join(repo, '.bouncer', 'Distill.md');
+  fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace(
+    'routing_enabled: false',
+    'routing_enabled: true',
+  ));
+  fs.unlinkSync(path.join(repo, '.bouncer', 'config.json'));
+
+  const result = capture(['distill', '--repo', repo, '--for', 'scripts/src/lib/cli.ts', '--json']);
+  const payload = JSON.parse(result.out);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.routingEnabled, true);
+  assert.strictEqual(payload.full, false);
+  assert.strictEqual(payload.reason, 'matched');
+  assert.deepStrictEqual(payload.ids, ['core', 'source']);
+  assert.strictEqual(result.err, '');
 });
 
 test('distill rejects unknown and mixed modes on stderr without stdout', () => {

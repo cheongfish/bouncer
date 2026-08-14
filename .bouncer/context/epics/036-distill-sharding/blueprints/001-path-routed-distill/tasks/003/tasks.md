@@ -11,17 +11,25 @@ bouncer:
   id: TASKS-003
   epic_id: '036'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 샤드 전환 전 누락된 규칙 경로를 드러내야 함
     - 기존 단일 파일 저장소의 동작을 바꾸지 않아야 함
   verify: npm test
   affected_paths:
     - scripts/src/lib/config.ts
+    - scripts/lib/config.js
     - scripts/src/lib/init.ts
+    - scripts/lib/init.js
     - scripts/src/lib/validate-structural.ts
+    - scripts/lib/validate-structural.js
+    - scripts/src/lib/validate.ts
+    - scripts/lib/validate.js
+    - scripts/src/lib/cli-project-commands.ts
+    - scripts/lib/cli-project-commands.js
     - test/init.test.js
     - test/validate-structural.test.js
+    - test/cli-project-commands.test.js
   graph:
     generated_at: '2026-08-14T12:56:28.237+09:00'
     command: mcp:graphify
@@ -56,10 +64,18 @@ Blueprint: [001](../../index.md)
      디렉터리 하나로 뭉치면 그 안 모든 파일이 열려 G11이 사실상 통과만 합니다.
      경로는 백틱으로 감쌉니다. -->
 - Modify `scripts/src/lib/config.ts` — distill 설정 기본값과 읽기 계약을 추가한다.
+- Modify `scripts/lib/config.js` — config TypeScript 변경의 CJS emit을 동기화한다.
 - Modify `scripts/src/lib/init.ts` — 기존 Distill을 옮기지 않고 비활성 설정만 seed한다.
+- Modify `scripts/lib/init.js` — init TypeScript 변경의 CJS emit을 동기화한다.
 - Modify `scripts/src/lib/validate-structural.ts` — 샤드 구조와 활성화 조건을 검사한다.
+- Modify `scripts/lib/validate-structural.js` — 구조 검사 TypeScript 변경의 CJS emit을 동기화한다.
+- Modify `scripts/src/lib/validate.ts` — 구조 검사를 public validate 경로에 연결한다.
+- Modify `scripts/lib/validate.js` — validate 연결 변경의 CJS emit을 동기화한다.
+- Modify `scripts/src/lib/cli-project-commands.ts` — config의 routing_enabled를 CLI 라우팅에 반영한다.
+- Modify `scripts/lib/cli-project-commands.js` — CLI 연결 변경의 CJS emit을 동기화한다.
 - Modify `test/init.test.js` — 기존 단일 Distill 보존과 init 멱등성을 검증한다.
 - Modify `test/validate-structural.test.js` — 모든 샤드 경고와 활성화 거부를 검증한다.
+- Modify `test/cli-project-commands.test.js` — config 활성화와 fail-open CLI 결과를 검증한다.
 
 ## Do not touch
 <!-- 여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.
@@ -82,4 +98,7 @@ Blueprint: [001](../../index.md)
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
 - [ ] `test/validate-structural.test.js`에 고아·빈 비항상·누락 pulls·순환·라우팅 구멍의 실패 사례를 추가한다.
 - [ ] config/init/구조 검사를 구현하고 기존 저장소 폴백을 유지한다.
+- [ ] 구조 검사 호출과 config 기반 CLI routing을 연결하고 회귀 테스트를 추가한다.
+- [ ] `npm run build`로 config/init/validate-structural CJS emit을 동기화한다.
+- [ ] validate/CLI 변경의 CJS emit도 `npm run build`로 동기화한다.
 - [ ] `npm test`를 실행한다.

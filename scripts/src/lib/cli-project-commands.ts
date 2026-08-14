@@ -9,6 +9,7 @@ const { migrateIds } = require('./migrate-ids');
 const { migrateTaskLayout } = require('./migrate-task-layout');
 const { runtimePaths } = require('./runtime-state');
 const { readShards, routeShards, renderShards } = require('./distill');
+const { readConfig } = require('./config');
 
 const DISTILL_MODES = new Set(['for', 'all', 'route', 'audit']);
 
@@ -67,7 +68,13 @@ function allDistillSelection(state: any, reason: string) {
   };
 }
 
-function distillPayload(state: any, selection: any, mode: string, targets: string[]) {
+function distillPayload(
+  state: any,
+  selection: any,
+  mode: string,
+  targets: string[],
+  routingEnabled = state.routingEnabled === true,
+) {
   const ids = Array.isArray(selection.ids) ? selection.ids : [];
   const shards = Array.isArray(state.shards) ? state.shards : [];
   return {
@@ -75,7 +82,7 @@ function distillPayload(state: any, selection: any, mode: string, targets: strin
     path: state.path,
     repoRoot: state.repoRoot,
     targetPaths: targets,
-    routingEnabled: state.routingEnabled === true,
+    routingEnabled,
     full: selection.full === true,
     reason: selection.reason,
     ids,
@@ -105,15 +112,31 @@ function cmdDistill(rest: string[], io: any) {
   }
 
   const state = readShards({ repoRoot: paths.projectRoot, runtime: paths });
+  const config = readConfig(paths.projectRoot);
+  const configDistill = config
+    && typeof config === 'object'
+    && !Array.isArray(config)
+    && config.distill
+    && typeof config.distill === 'object'
+    && !Array.isArray(config.distill)
+    ? config.distill
+    : null;
+  // 명시된 config 값은 운영자가 현재 소비 모드를 선택한 신호이므로
+  // 인덱스의 과거 메타데이터보다 우선한다. config가 없거나 깨졌을 때는
+  // 기존 인덱스 flag를 사용해 단일 파일·구 저장소의 fail-open을 보존한다.
+  const routingEnabled = configDistill
+    && typeof configDistill.routing_enabled === 'boolean'
+    ? configDistill.routing_enabled
+    : state.routingEnabled === true;
   const selection = parsed.mode === 'all' || parsed.mode === 'audit'
     ? allDistillSelection(state, 'forced-all')
     : routeShards({
-      shards: state.shards,
-      affectedPaths: parsed.targets,
-      routingEnabled: state.routingEnabled,
-      repoRoot: state.repoRoot,
-    });
-  const payload = distillPayload(state, selection, parsed.mode, parsed.targets);
+        shards: state.shards,
+        affectedPaths: parsed.targets,
+        routingEnabled,
+        repoRoot: state.repoRoot,
+      });
+  const payload = distillPayload(state, selection, parsed.mode, parsed.targets, routingEnabled);
 
   // 본문 모드는 기존 consumer가 그대로 pipe할 수 있어야 하므로 content만 쓴다.
   // route/audit은 선택 결과 자체가 목적이라 JSON을 고정해 사람이 읽고 도구도
