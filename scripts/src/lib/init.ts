@@ -6,7 +6,10 @@ const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout');
 const { PROJECT_DISTILL_BODY } = require('./templates');
 const { nowIsoKst } = require('./time');
 const { setupGraphify } = require('./graphify');
-const { readConfig } = require('./config');
+const {
+  readConfig,
+  DEFAULT_DISTILL_CONFIG,
+} = require('./config');
 
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
@@ -33,6 +36,9 @@ function defaultConfig(repoRoot) {
     // 라이브러리 기본(install:false)은 enabled만 true — bin은 설치 성공 시에만 기록.
     // CLI는 install:true가 기본이라 실패 시 enabled:false로 내려 soft-fail한다.
     graphify: { enabled: true },
+    // 샤드 소비는 명시적으로 켜기 전까지 전량 로드한다. max_bytes는 본문을
+    // 자르는 제한이 아니라 샤드 분배를 검토할 때만 쓰는 경고 기준이다.
+    distill: { ...DEFAULT_DISTILL_CONFIG },
     verify: 'npm test',
     base_branch: 'develop',
     autonomy: 'auto',
@@ -206,6 +212,35 @@ function graphifyEnabledIsTrue(config) {
   );
 }
 
+function seedDistillConfig(repoRoot, existing) {
+  if (!existing || typeof existing !== 'object' || Array.isArray(existing)) return false;
+  const current = (
+    existing.distill
+    && typeof existing.distill === 'object'
+    && !Array.isArray(existing.distill)
+  ) ? existing.distill : {};
+  const next = {
+    ...DEFAULT_DISTILL_CONFIG,
+    ...current,
+  };
+  // 잘못된 값은 활성화가 아니라 비활성으로 수렴시킨다. 이미 true인
+  // 저장소의 선택 라우팅을 init이 몰래 끄면 재실행만으로 운영 상태가
+  // 바뀌므로, 유효한 true/false만 보존하고 나머지만 false로 seed한다.
+  if (next.routing_enabled !== true && next.routing_enabled !== false) {
+    next.routing_enabled = false;
+  }
+  if (!Number.isSafeInteger(next.max_bytes) || next.max_bytes <= 0) {
+    next.max_bytes = DEFAULT_DISTILL_CONFIG.max_bytes;
+  }
+  if (JSON.stringify(existing.distill) === JSON.stringify(next)) return false;
+  existing.distill = next;
+  fs.writeFileSync(
+    path.join(repoRoot, '.bouncer', 'config.json'),
+    `${JSON.stringify(existing, null, 2)}\n`,
+  );
+  return true;
+}
+
 function inspectBootstrap({ repoRoot }) {
   if (detectLegacyFormat({ repoRoot }).legacy) return 'legacy';
 
@@ -276,6 +311,7 @@ function init({
     // 덮지 않는다. null은 승격 no-op (existing이 falsy면 write 생략).
     const raw = readConfig(repoRoot);
     const existing = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : null;
+    const distillSeeded = seedDistillConfig(repoRoot, existing);
     const alreadyEnabled = graphifyEnabledIsTrue(existing);
     let graphifyPromotion;
     let graphifyInstall;
@@ -322,6 +358,7 @@ function init({
       reason: created.length ? 'project-distill-seeded' : 'already-initialized',
       gitignoreSuggestions: suggestions,
       gitignoreWritten,
+      ...(distillSeeded ? { distillSeeded: true } : {}),
       ...(graphifyPromotion ? { graphifyPromotion } : {}),
       ...(graphifyInstall ? { graphifyInstall } : {}),
     };

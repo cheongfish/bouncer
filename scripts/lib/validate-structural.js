@@ -1,10 +1,14 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+const fs = require('node:fs');
 const path = require('node:path');
 const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, } = require('./schema');
 const { parsePathIds, toPosix, isNumericContextId, } = require('./paths');
 const { isValidVerifyCommand } = require('./verification');
 const { expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = require('./tasks-docs');
+const { parseFrontmatter } = require('./frontmatter');
+const { PROJECT_DISTILL, DISTILL_ROOT } = require('./layout');
+const { DEFAULT_DISTILL_CONFIG, getDistillConfig, readConfig, } = require('./config');
 // 문서 하나(프론트매터)를 보는 S 코드 층. 게이트(G) 판정과 분리해 두면
 // 스키마/id 규칙을 고치는 사람이 checkGate 분기를 같이 읽지 않아도 된다.
 // graph.basis 헬퍼도 여기 둔다 — S9와 G4가 다른 구현을 가지면 같은 필드가
@@ -32,6 +36,253 @@ function isValidGraphBasis(basis) {
             return false;
     }
     return true;
+}
+const DISTILL_VERSION = 1;
+function isRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function distillMetadata(data) {
+    if (!isRecord(data))
+        return {};
+    if (isRecord(data.distill))
+        return data.distill;
+    if (isRecord(data.shard))
+        return data.shard;
+    return data;
+}
+function distillDeclarations(meta) {
+    if (Array.isArray(meta.shards)) {
+        return meta.shards.map((entry) => {
+            if (typeof entry === 'string')
+                return { id: entry.trim() };
+            if (!isRecord(entry))
+                return null;
+            const id = entry.id || entry.name || entry.shard;
+            return { ...entry, id: typeof id === 'string' ? id.trim() : id };
+        });
+    }
+    if (isRecord(meta.shards)) {
+        return Object.entries(meta.shards).map(([id, entry]) => (isRecord(entry) ? { ...entry, id: entry.id || id } : { id }));
+    }
+    return null;
+}
+function normalizeDistillPath(value) {
+    if (typeof value !== 'string')
+        return null;
+    const normalized = value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+/g, '/');
+    if (!normalized || normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized))
+        return null;
+    if (normalized.split('/').includes('..'))
+        return null;
+    return normalized;
+}
+function shardPath(id, declaration) {
+    const candidate = declaration.file || declaration.path || declaration.resource;
+    return normalizeDistillPath(candidate || `${DISTILL_ROOT}/${id}.md`);
+}
+function listDistillFiles(repoRoot) {
+    const root = path.join(repoRoot, DISTILL_ROOT);
+    try {
+        return fs.readdirSync(root, { withFileTypes: true })
+            .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+            .map((entry) => `${DISTILL_ROOT}/${entry.name}`);
+    }
+    catch (_e) {
+        return [];
+    }
+}
+function readDistillShard(repoRoot, declaration) {
+    const id = typeof declaration.id === 'string' ? declaration.id.trim() : '';
+    if (!id || id.includes('/') || id.includes('\\'))
+        return null;
+    const rel = shardPath(id, declaration);
+    if (!rel)
+        return null;
+    let raw;
+    try {
+        raw = fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+    }
+    catch (_e) {
+        return null;
+    }
+    let fileMeta = {};
+    try {
+        fileMeta = distillMetadata(parseFrontmatter(raw).data);
+    }
+    catch (_e) {
+        // distill.ts도 일반 Markdown shard를 허용한다. 선언에 충분한 메타데이터가
+        // 있으면 frontmatter 부재만으로 기존 단일 파일 폴백을 오염시키지 않는다.
+    }
+    return {
+        id,
+        rel,
+        raw,
+        meta: { ...fileMeta, ...declaration },
+    };
+}
+function routePatternCoversSource(patternValue, sourceValue) {
+    const pattern = normalizeDistillPath(patternValue);
+    const source = normalizeDistillPath(sourceValue);
+    if (!pattern || !source)
+        return false;
+    if (pattern === '**' || pattern === source)
+        return true;
+    if (pattern === `${source}/**` || pattern === `${source}/*`)
+        return true;
+    return false;
+}
+function addDistillWarning(warnings, code, message, file) {
+    warnings.push({ code, message, file });
+}
+/**
+ * Project Distill 샤드의 안전성 진단. 문서 S 코드인 checkStructural과
+ * 분리해 기존 S0~S20 호출 계약을 보존한다. 인덱스가 없거나 읽을 수 없으면
+ * 샤드 모드가 아니므로 경고도 만들지 않는다 — 그 상태의 소비자는 기존
+ * `.bouncer/Distill.md` 전문을 그대로 반환해야 한다.
+ *
+ * warnings는 routing_enabled와 무관하게 관찰용으로 반환한다. 활성화된
+ * 저장소에서만 같은 항목을 failures로 승격해, 비활성 전환 중에는 경고를
+ * 보여 주되 전량 소비를 계속하게 한다.
+ */
+function checkDistillStructural({ repoRoot, config } = {}) {
+    const root = repoRoot || process.cwd();
+    const warnings = [];
+    const failures = [];
+    let indexRaw;
+    try {
+        indexRaw = fs.readFileSync(path.join(root, PROJECT_DISTILL), 'utf8');
+    }
+    catch (_e) {
+        return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
+    }
+    let indexMeta;
+    try {
+        indexMeta = distillMetadata(parseFrontmatter(indexRaw).data);
+    }
+    catch (_e) {
+        return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
+    }
+    if (indexMeta.version !== DISTILL_VERSION) {
+        return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
+    }
+    const declarations = distillDeclarations(indexMeta);
+    if (!declarations || declarations.length === 0 || declarations.some((entry) => !entry)) {
+        return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
+    }
+    const shards = declarations.map((entry) => readDistillShard(root, entry));
+    // 읽을 수 없는 등록 shard는 distill.ts가 인덱스 요약만 반환하는 폴백
+    // 조건이다. 여기서 별도 경고를 내면 같은 저장소를 소비하는 경로마다
+    // "샤드 모드" 판정이 달라지므로 진단 대상에서도 제외한다.
+    if (shards.some((entry) => !entry)
+        || new Set(shards.map((entry) => entry.id)).size !== shards.length) {
+        return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
+    }
+    const registered = new Set(shards.map((entry) => entry.rel));
+    for (const rel of listDistillFiles(root)) {
+        if (!registered.has(rel)) {
+            addDistillWarning(warnings, 'S21', `orphan Distill shard is not registered: ${rel}`, rel);
+        }
+    }
+    const byId = new Map(shards.map((entry) => [entry.id, entry]));
+    const pullsById = new Map();
+    for (const shard of shards) {
+        const meta = shard.meta;
+        const paths = meta.paths;
+        const pulls = meta.pulls;
+        if (meta.always !== true && (!Array.isArray(paths) || paths.length === 0)) {
+            addDistillWarning(warnings, 'S22', `non-always shard has no routing paths: ${shard.id}`, shard.rel);
+        }
+        if (!Array.isArray(pulls) || pulls.some((id) => typeof id !== 'string' || !id.trim())) {
+            addDistillWarning(warnings, 'S23', `shard pulls are missing or invalid: ${shard.id}`, shard.rel);
+            pullsById.set(shard.id, []);
+        }
+        else {
+            const normalizedPulls = pulls.map((id) => id.trim());
+            pullsById.set(shard.id, normalizedPulls);
+            const missing = normalizedPulls.filter((id) => !byId.has(id));
+            if (missing.length) {
+                addDistillWarning(warnings, 'S23', `shard pulls reference missing shards: ${shard.id} -> ${missing.join(', ')}`, shard.rel);
+            }
+        }
+        const threshold = getDistillConfig(config === undefined ? readConfig(root) : config).max_bytes;
+        const maxBytes = Number.isSafeInteger(threshold) && threshold > 0
+            ? threshold
+            : DEFAULT_DISTILL_CONFIG.max_bytes;
+        const bytes = Buffer.byteLength(shard.raw, 'utf8');
+        if (bytes > maxBytes) {
+            addDistillWarning(warnings, 'S26', `shard exceeds byte warning threshold: ${shard.id} (${bytes} > ${maxBytes})`, shard.rel);
+        }
+    }
+    // DFS는 재귀 경로에 다시 들어온 지점만 보고한다. 정렬·중복 제거로 한
+    // 순환을 한 번만 내보내야 동일한 cycle이 pulls 순서에 따라 여러 경고가
+    // 되지 않는다.
+    const visiting = new Set();
+    const visited = new Set();
+    const cycleKeys = new Set();
+    const stack = [];
+    function visit(id) {
+        if (visiting.has(id)) {
+            const start = stack.indexOf(id);
+            const cycle = stack.slice(start).concat(id).sort();
+            const key = cycle.join('>');
+            if (!cycleKeys.has(key)) {
+                cycleKeys.add(key);
+                const shard = byId.get(id);
+                if (shard) {
+                    addDistillWarning(warnings, 'S24', `cyclic shard pulls: ${cycle.join(' -> ')}`, shard.rel);
+                }
+            }
+            return;
+        }
+        if (visited.has(id))
+            return;
+        visiting.add(id);
+        stack.push(id);
+        for (const pull of pullsById.get(id) || [])
+            if (byId.has(pull))
+                visit(pull);
+        stack.pop();
+        visiting.delete(id);
+        visited.add(id);
+    }
+    for (const shard of shards)
+        visit(shard.id);
+    const loadedConfig = config === undefined ? readConfig(root) : config;
+    const distillConfig = getDistillConfig(loadedConfig);
+    const sourceDirs = loadedConfig && Array.isArray(loadedConfig.source_dirs)
+        ? loadedConfig.source_dirs
+        : [];
+    for (const sourceDir of sourceDirs) {
+        const covered = shards.some((shard) => {
+            if (shard.meta.always === true)
+                return true;
+            return Array.isArray(shard.meta.paths)
+                && shard.meta.paths.some((pattern) => routePatternCoversSource(pattern, sourceDir));
+        });
+        if (!covered) {
+            addDistillWarning(warnings, 'S25', `source routing gap: no shard covers ${sourceDir}`, PROJECT_DISTILL);
+        }
+    }
+    // 기본값을 합친 distillConfig만 보면 설정 없음과 명시적 false를 구별할 수
+    // 없다. CLI와 같은 precedence를 유지하려면 raw config에 boolean이 선언된
+    // 경우에는 false도 선택 신호로 존중하고, 그때만 index 메타데이터를 덮어쓴다.
+    const configRoutingEnabled = isRecord(loadedConfig)
+        && isRecord(loadedConfig.distill)
+        && typeof loadedConfig.distill.routing_enabled === 'boolean'
+        ? loadedConfig.distill.routing_enabled
+        : null;
+    const routingEnabled = configRoutingEnabled === null
+        ? (indexMeta.routing_enabled === true || indexMeta.routingEnabled === true)
+        : configRoutingEnabled;
+    if (routingEnabled)
+        failures.push(...warnings);
+    return {
+        ok: failures.length === 0,
+        sharded: true,
+        routingEnabled,
+        warnings,
+        failures,
+    };
 }
 /**
  * 경로가 요구하는 bouncer type. 위치 규칙이 없으면 null — S19를 내지 않는다.
@@ -174,6 +425,7 @@ function checkStructural(doc, failures) {
 module.exports = {
     expectedTypeForPath,
     checkStructural,
+    checkDistillStructural,
     GRAPH_BASIS_STATUS,
     GRAPH_BASIS_GRAPH,
     isValidGraphBasis,

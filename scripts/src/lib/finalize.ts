@@ -10,7 +10,7 @@ const { clearCurrent, nextBlueprint } = require('./current');
 const { parseFrontmatter } = require('./frontmatter');
 const { renderDoc } = require('./render');
 // validate↔finalize 순환을 피하려고 scope 헬퍼는 여기 두지 않는다(재수출도 안 함).
-const { makeAllowed, isRuntimeArtifact } = require('./scope');
+const { makeFinalizeAllowed, isRuntimeArtifact } = require('./scope');
 
 // subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
 // 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
@@ -165,7 +165,7 @@ function finalize({
   const { docs } = loadBlueprintDocs({ repoRoot, blueprintDir });
   const affectedPaths = docs.tasks && docs.tasks.data.bouncer
     ? docs.tasks.data.bouncer.affected_paths : [];
-  const allowed = makeAllowed({ affectedPaths, blueprintDir });
+  const allowed = makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir });
 
   const changed = gitApi.changedFiles();
   const untracked = gitApi.untrackedFiles();

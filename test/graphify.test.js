@@ -6,6 +6,11 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { venvBinRel, resolveGraphifyBin, setupGraphify } = require('../scripts/lib/graphify');
+const {
+  realNewestMtime,
+  resolveGraphScopes,
+} = require('../scripts/lib/graph-scope');
+const { makeAllowed, makeFinalizeAllowed } = require('../scripts/lib/scope');
 
 test('venvBinRel returns POSIX-relative platform paths', () => {
   assert.strictEqual(venvBinRel('win32'), '.bouncer/.venv/Scripts/graphify.exe');
@@ -163,4 +168,69 @@ test('setupGraphify stops after the first failing step and never throws', () => 
   assert.match(r.reason, /no python/);
   assert.strictEqual(calls.length, 1);
   assert.deepStrictEqual(calls[0].args, ['-m', 'venv', '.bouncer/.venv']);
+});
+
+test('context freshness watches the Distill index and shard directory lifecycle', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-shard-fresh-'));
+  fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), 'index');
+  fs.writeFileSync(path.join(repo, '.bouncer/distill/core.md'), 'core');
+
+  const context = resolveGraphScopes({ sourceDirs: [], contextDirs: ['.bouncer/context'] })
+    .find((scope) => scope.name === 'context');
+  // 기존 결정 객체 계약은 index만 노출한다. realNewestMtime이 이 입력을
+  // 정본 shard 디렉터리까지 확장해 lifecycle을 계산한다.
+  assert.deepEqual(context.watchFiles, ['.bouncer/Distill.md']);
+
+  const graphMtime = Date.now() - 60_000;
+  const touch = (rel, mtime) => {
+    const abs = path.join(repo, rel);
+    fs.utimesSync(abs, new Date(mtime), new Date(mtime));
+  };
+  touch('.bouncer/Distill.md', graphMtime);
+  touch('.bouncer/distill/core.md', graphMtime);
+  touch('.bouncer/distill', graphMtime);
+  const old = realNewestMtime(repo, [], context.watchFiles);
+  assert.ok(old <= graphMtime + 1);
+
+  touch('.bouncer/distill/core.md', graphMtime + 1_000);
+  assert.ok(realNewestMtime(repo, [], context.watchFiles) > old);
+
+  const added = path.join(repo, '.bouncer/distill/added.md');
+  fs.writeFileSync(added, 'added');
+  assert.ok(realNewestMtime(repo, [], context.watchFiles) >= fs.statSync(added).mtimeMs);
+
+  fs.unlinkSync(added);
+  assert.ok(realNewestMtime(repo, [], context.watchFiles) >= fs.statSync(path.join(repo, '.bouncer/distill')).mtimeMs);
+});
+
+test('registered Distill shards are finalize-only scope allowances', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-shard-scope-'));
+  fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), [
+    '---',
+    'distill:',
+    '  version: 1',
+    '  shards:',
+    '    - core',
+    '---',
+    '## Decisions\n',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, '.bouncer/distill/core.md'), '## Decisions\n\ncore\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/distill/unregistered.md'), '## Decisions\n\nnope\n');
+
+  const execute = makeAllowed({
+    affectedPaths: ['scripts/src/lib/feature.ts'],
+    blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
+  });
+  const finalize = makeFinalizeAllowed({
+    repoRoot: repo,
+    affectedPaths: ['scripts/src/lib/feature.ts'],
+    blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
+  });
+
+  assert.strictEqual(execute('.bouncer/distill/core.md'), false);
+  assert.strictEqual(execute('.bouncer/distill/unregistered.md'), false);
+  assert.strictEqual(finalize('.bouncer/distill/core.md'), true);
+  assert.strictEqual(finalize('.bouncer/distill/unregistered.md'), false);
 });

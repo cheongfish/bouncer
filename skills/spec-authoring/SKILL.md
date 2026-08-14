@@ -126,17 +126,22 @@ those placeholders ship as the commit subject and body.
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.
-   - **project Distill** (caller-provided absolute Distill path from finalize
-     only — never invent from plugin root or cwd): when finalize asks
-     for promotion, curate runtime cautions under `## Invariants`,
-     `## Gotchas`, `## Decisions` in **English**. Put only what the next
-     plan/execute must not rediscover. Decisions are **current** valid choices;
-     replace the sentence when it changes — never append a timeline. Source
-     durable bullets from the BP `explain.md` (`## Background` / `## Intuition`
-     / `## Code` and any durable notes there); leave cycle retrospectives in
-     that file. Do **not** promote `## 이해 상태`, `## Quiz`, or comprehension
-     fields (`quiz_score`, `disposition`, `diff_sha`) into Distill — 이해 상태는
-     Distill로 승격하지 않는다.
+   - **project Distill** (caller-provided absolute path and the complete
+     `bouncer distill --all` output from plan/finalize — never invent a path from
+     plugin root or cwd): curate runtime cautions under `## Invariants`,
+     `## Gotchas`, `## Decisions` in **English**. Search the full output before
+     deciding whether a durable note is new, replaces a current sentence, or
+     should be dropped. A repeated `bouncer distill --route <path>` is allowed
+     only as a batch view after that full search; it cannot establish the
+     promotion inventory. Put only what the next plan/execute must not
+     rediscover. Decisions are **current** valid choices; replace the sentence
+     when it changes — never append a timeline. If current Distill conflicts with
+     an older explain decision, escalate to `/bouncer-plan` rather than choosing
+     silently. Source durable bullets from the BP `explain.md` (`## Background`
+     / `## Intuition` / `## Code` and any durable notes there); leave cycle
+     retrospectives in that file. Do **not** promote `## 이해 상태`, `## Quiz`, or
+     comprehension fields (`quiz_score`, `disposition`, `diff_sha`) into Distill
+     — 이해 상태는 Distill로 승격하지 않는다.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
    Match each document's length to what the work needs — cover the substance,
    then stop. No filler sections, no summary that restates the section above it,

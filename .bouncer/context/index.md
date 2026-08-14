@@ -40,3 +40,4 @@ bouncer_schema: '0.1'
 * [033 quality-security](epics/033-quality-security/index.md) - Epic 033
 * [034 agentic-benchmark](epics/034-agentic-benchmark/index.md) - Epic 034
 * [035 scripts-refactor](epics/035-scripts-refactor/index.md) - Epic 035
+* [036 distill-sharding](epics/036-distill-sharding/index.md) - Epic 036

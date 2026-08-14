@@ -25,6 +25,7 @@ const COMMANDS: Record<string, CliCommand> = {
   'graph-sync': projectCommands['graph-sync'],
   'graphify-bin': projectCommands['graphify-bin'],
   'project-root': projectCommands['project-root'],
+  distill: projectCommands.distill,
   current: currentCommand.current,
   migrate: projectCommands.migrate,
   import: gitCommands.import,
