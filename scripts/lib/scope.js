@@ -2,7 +2,8 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const { epicDirOf, toPosix } = require('./paths');
-const { CONTEXT_ROOT, PROJECT_DISTILL } = require('./layout');
+const { readShards } = require('./distill');
+const { CONTEXT_ROOT, PROJECT_DISTILL, DISTILL_SHARD_DIR } = require('./layout');
 function isUnder(file, entry) {
     const f = toPosix(file);
     const e = toPosix(entry);
@@ -23,6 +24,17 @@ function isRuntimeArtifact(file) {
     const f = toPosix(file);
     return RUNTIME_ARTIFACTS.some((entry) => isUnder(f, entry));
 }
+function registeredDistillShardPaths(repoRoot) {
+    if (typeof repoRoot !== 'string' || !repoRoot)
+        return new Set();
+    const state = readShards({ repoRoot });
+    if (!state.sharded || !state.valid)
+        return new Set();
+    return new Set(state.shards
+        .map((shard) => shard && shard.path)
+        .filter((rel) => (typeof rel === 'string'
+        && new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(toPosix(rel)))));
+}
 function makeAllowed({ affectedPaths, blueprintDir }) {
     const bp = toPosix(blueprintDir);
     const epicDir = epicDirOf(bp);
@@ -42,6 +54,22 @@ function makeAllowed({ affectedPaths, blueprintDir }) {
         return paths.some((p) => isUnder(f, p));
     };
 }
+// execute/commit 범위는 affected_paths만 권한으로 삼아야 한다. finalize가
+// 별도 promotion 단계에서만 이 정책을 확장하도록 함수를 분리해 두면,
+// 공용 makeAllowed를 넓혀 일반 task가 샤드를 몰래 커밋하는 회귀를 막는다.
+function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }) {
+    const allowed = makeAllowed({ affectedPaths, blueprintDir });
+    const registered = registeredDistillShardPaths(repoRoot);
+    return function finalizeAllowed(file) {
+        const rel = toPosix(file);
+        return allowed(rel) || registered.has(rel);
+    };
+}
 module.exports = {
-    isUnder, isRuntimeArtifact, RUNTIME_ARTIFACTS, makeAllowed,
+    isUnder,
+    isRuntimeArtifact,
+    RUNTIME_ARTIFACTS,
+    makeAllowed,
+    makeFinalizeAllowed,
+    registeredDistillShardPaths,
 };

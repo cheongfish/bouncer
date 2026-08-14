@@ -11,6 +11,9 @@ const LEGACY_PROJECT_DISTILL = `${CONTEXT_ROOT}/Distill.md`;
 // 샤드 파일은 project Distill과 같은 런타임 영역에 둔다. 이 상수를
 // 소비자마다 다시 조합하면 linked checkout에서 기준 경로가 갈라질 수 있다.
 const DISTILL_ROOT = '.bouncer/distill';
+// 인덱스가 가리키는 정본 샤드의 물리 경계. 소비자는 이 경계 밖의
+// 일반 Markdown을 Distill 샤드로 승격하거나 그래프 입력으로 삼지 않는다.
+const DISTILL_SHARD_DIR = DISTILL_ROOT;
 const DISTILL_INDEX = PROJECT_DISTILL;
 // context 디렉터리는 접두 없는 zero-pad 세 자리 id만 정본으로 인정한다.
 const EPIC_DIR = /^\.bouncer\/context\/epics\/\d{3}-[^/]+$/;
@@ -34,6 +37,7 @@ module.exports = {
   PROJECT_DISTILL,
   LEGACY_PROJECT_DISTILL,
   DISTILL_ROOT,
+  DISTILL_SHARD_DIR,
   DISTILL_INDEX,
   normalizeRepoPath,
   isCanonicalEpicDir,

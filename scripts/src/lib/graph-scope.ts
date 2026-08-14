@@ -6,6 +6,7 @@ const {
   CONTEXT_DIGEST_OUT,
   DIGEST_WATCH_FILES,
 } = require('./context-digest');
+const { DISTILL_SHARD_DIR } = require('./layout');
 
 // 설정·디렉터리 존재·mtime 판정만. 프로세스를 띄우지 않고 graphify.ts 도
 // require 하지 않는다 — 그 모듈의 PATH 탐색이 execFileSync 를 돌리기 때문.
@@ -85,12 +86,23 @@ function realNewestMtime(repoRoot, dirs, watchFiles) {
       newest = st.mtimeMs;
     }
   }
-  for (const f of watchFiles || []) {
+  const files = [...(watchFiles || [])];
+  // 기존 scope 객체의 watchFiles 계약은 index 하나로 유지하되, Distill
+  // 샤드는 그 인덱스와 별개로 추가·수정·삭제될 수 있다. 디렉터리를
+  // freshness 입력으로 확장하면 파생 graphify-out은 계속 제외하면서
+  // 정본 샤드의 lifecycle만 관찰할 수 있다.
+  if (files.includes('.bouncer/Distill.md') && !files.includes(DISTILL_SHARD_DIR)) {
+    files.push(DISTILL_SHARD_DIR);
+  }
+  for (const f of files) {
     const abs = path.join(repoRoot, f);
     let st;
     try { st = fs.statSync(abs); } catch (_e) { continue; }
     if (st.isDirectory()) {
-      newest = Math.max(newest, newestMtimeUnder(repoRoot, f));
+      // 파일 삭제는 남은 파일의 mtime을 바꾸지 않고 부모 디렉터리만
+      // 갱신한다. shard 디렉터리 자체를 포함해야 등록 파일의 삭제도
+      // freshness 입력으로 남는다.
+      newest = Math.max(newest, st.mtimeMs, newestMtimeUnder(repoRoot, f));
     } else if (st.mtimeMs > newest) {
       newest = st.mtimeMs;
     }

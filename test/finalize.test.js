@@ -183,6 +183,33 @@ function fakeGit(changed, untracked) {
   };
 }
 
+function writeRegisteredDistillShard(repo, id = 'core') {
+  fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), [
+    '---',
+    'distill:',
+    '  version: 1',
+    '  shards:',
+    `    - ${id}`,
+    '---',
+    '# Project Distill',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, `.bouncer/distill/${id}.md`), [
+    '---',
+    'distill:',
+    `  id: ${id}`,
+    '  always: true',
+    '  paths: []',
+    '  pulls: []',
+    '---',
+    '## Decisions',
+    '',
+    'registered shard',
+    '',
+  ].join('\n'));
+}
+
 test('gate failure short-circuits before touching git', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo, { comprehensionOk: false });
@@ -202,6 +229,33 @@ test('out-of-scope file causes hard abort, nothing staged', () => {
   assert.strictEqual(res.reason, 'out-of-scope');
   assert.deepStrictEqual(res.violations, ['src/payments/charge.ts']);
   assert.strictEqual(g.calls.staged, null);
+  assert.strictEqual(g.calls.committed, null);
+});
+
+test('finalize allows a registered Distill shard outside affected_paths', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeRegisteredDistillShard(repo);
+  const shard = '.bouncer/distill/core.md';
+  const g = fakeGit([shard], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.dryRun, true);
+  assert.ok(res.staged.includes(shard));
+  assert.strictEqual(g.calls.committed, null);
+});
+
+test('finalize rejects an unregistered Distill shard outside affected_paths', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeRegisteredDistillShard(repo);
+  const shard = '.bouncer/distill/unregistered.md';
+  fs.writeFileSync(path.join(repo, shard), '## Decisions\n\nunregistered shard\n');
+  const g = fakeGit([shard], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.deepStrictEqual(res.violations, [shard]);
   assert.strictEqual(g.calls.committed, null);
 });
 

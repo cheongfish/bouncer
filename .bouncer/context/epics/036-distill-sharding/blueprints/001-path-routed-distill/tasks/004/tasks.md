@@ -11,18 +11,25 @@ bouncer:
   id: TASKS-004
   epic_id: '036'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 샤드도 Project Distill 정본으로 그래프와 승격에 반영해야 함
     - 일반 실행 태스크의 수정 범위는 넓어지면 안 됨
   verify: npm test
   affected_paths:
     - scripts/src/lib/context-digest.ts
+    - scripts/lib/context-digest.js
     - scripts/src/lib/graph-scope.ts
+    - scripts/lib/graph-scope.js
     - scripts/src/lib/scope.ts
+    - scripts/lib/scope.js
+    - scripts/src/lib/finalize.ts
+    - scripts/lib/finalize.js
     - scripts/src/lib/layout.ts
+    - scripts/lib/layout.js
     - test/context-digest.test.js
     - test/graphify.test.js
+    - test/finalize.test.js
   graph:
     generated_at: '2026-08-14T12:56:28.271+09:00'
     command: mcp:graphify
@@ -57,11 +64,18 @@ context digest·freshness와 finalize remainder scope가 인덱스 등재 샤드
      디렉터리 하나로 뭉치면 그 안 모든 파일이 열려 G11이 사실상 통과만 합니다.
      경로는 백틱으로 감쌉니다. -->
 - Modify `scripts/src/lib/context-digest.ts` — 인덱스에 등재된 shard Decisions를 digest와 map에 포함한다.
+- Modify `scripts/lib/context-digest.js` — context digest TypeScript 변경의 CJS emit을 동기화한다.
 - Modify `scripts/src/lib/graph-scope.ts` — Distill 인덱스와 shard 디렉터리 변경을 freshness 입력으로 감시한다.
+- Modify `scripts/lib/graph-scope.js` — graph scope TypeScript 변경의 CJS emit을 동기화한다.
 - Modify `scripts/src/lib/scope.ts` — finalize remainder에만 등재 shard를 특별 허용한다.
+- Modify `scripts/lib/scope.js` — scope TypeScript 변경의 CJS emit을 동기화한다.
+- Modify `scripts/src/lib/finalize.ts` — finalize remainder scope에서 등록 shard 허용 helper를 실제 호출한다.
+- Modify `scripts/lib/finalize.js` — finalize TypeScript 변경의 CJS emit을 동기화한다.
 - Modify `scripts/src/lib/layout.ts` — shard 경로 상수를 통합 소비에 제공한다.
+- Modify `scripts/lib/layout.js` — layout TypeScript 변경의 CJS emit을 동기화한다.
 - Modify `test/context-digest.test.js` — shard digest와 원본 map 경로를 검증한다.
 - Modify `test/graphify.test.js` — shard 추가·수정·삭제 freshness와 등재·미등재 shard scope 경계를 검증한다.
+- Modify `test/finalize.test.js` — finalize가 등록 shard만 허용하고 미등재 shard를 거부하는지 검증한다.
 
 ## Do not touch
 <!-- 여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.
@@ -84,4 +98,7 @@ context digest·freshness와 finalize remainder scope가 인덱스 등재 샤드
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
 - [ ] digest·freshness·scope 경계의 실패 테스트를 먼저 추가한다.
 - [ ] 정본 shard 통합을 구현하고 허용 범위를 finalize로 한정한다.
+- [ ] finalize caller를 finalize-only scope helper에 연결하고 통합 회귀 테스트를 추가한다.
+- [ ] `npm run build`로 digest·freshness·scope·layout CJS emit을 동기화한다.
+- [ ] finalize 변경의 CJS emit도 `npm run build`로 동기화한다.
 - [ ] `npm test`를 실행한다.
