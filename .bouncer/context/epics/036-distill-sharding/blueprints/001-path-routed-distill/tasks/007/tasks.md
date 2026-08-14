@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-007
   epic_id: '036'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 전량 모드 관찰 뒤에만 선택 라우팅을 켜야 함
     - 활성화가 규칙 누락을 조용히 만들지 않게 검증해야 함

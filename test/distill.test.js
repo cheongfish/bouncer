@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const {
   readShards,
@@ -17,6 +18,8 @@ const {
   DISTILL_ROOT,
   DISTILL_INDEX,
 } = require('../scripts/lib/layout');
+const { checkDistillStructural } = require('../scripts/lib/validate-structural');
+const { runCli } = require('../scripts/lib/cli');
 
 function repoFixture() {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-distill-'));
@@ -64,6 +67,15 @@ function index(repo, ids = ['core', 'ts', 'docs']) {
     '인덱스 요약',
     '',
   ].join('\n'), repo);
+}
+
+function captureCli(argv) {
+  const output = { out: '', err: '' };
+  const code = runCli(argv, {
+    out: (value) => { output.out += value; },
+    err: (value) => { output.err += value; },
+  });
+  return { code, ...output };
 }
 
 test('layout keeps Project Distill and shard roots in one contract', () => {
@@ -276,6 +288,98 @@ test('renderShards preserves selected shard order and ignores the index summary'
   assert.match(rendered, /ts body/);
   assert.doesNotMatch(rendered, /인덱스 요약/);
   assert.doesNotMatch(rendered, /docs body/);
+});
+
+test('repository routing is enabled only after a clean full-mode preflight', () => {
+  const repo = path.resolve(__dirname, '..');
+  const config = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
+  const state = readShards({
+    repoRoot: repo,
+    runtimePaths: { projectRoot: repo },
+  });
+
+  assert.strictEqual(config.distill.routing_enabled, true);
+
+  // 전량 소비를 먼저 관찰한 결과가 같은 인덱스의 모든 shard를 포함해야
+  // 선택 라우팅 활성화를 “파일이 존재한다”는 사실만으로 통과시키지 않는다.
+  // linked checkout에서는 CLI가 main worktree의 runtime 경로를 사용하므로,
+  // 이 저장소의 dogfood 증적은 이미 고정한 local runtime으로 직접 확인한다.
+  const fullObservation = routeShards({
+    shards: state.shards,
+    affectedPaths: ['scripts/src/lib/validate.ts'],
+    routingEnabled: false,
+    repoRoot: repo,
+  });
+  assert.strictEqual(fullObservation.full, true);
+  assert.deepStrictEqual(fullObservation.ids, state.ids);
+  assert.strictEqual(renderShards({ ...state, selection: fullObservation }), renderShards(state));
+
+  const structural = checkDistillStructural({ repoRoot: repo, config });
+  assert.strictEqual(structural.ok, true);
+  assert.deepStrictEqual(structural.warnings, []);
+  assert.deepStrictEqual(structural.failures, []);
+
+  const cases = [
+    [['scripts/src/lib/validate.ts'], ['core', 'validate-gates', 'build-ts']],
+    [['docs'], ['core', 'plugin-skills']],
+    [
+      ['scripts/src/lib/validate.ts', 'docs/configuration.md'],
+      ['core', 'validate-gates', 'plugin-skills', 'build-ts'],
+    ],
+  ];
+  for (const [affectedPaths, ids] of cases) {
+    const selection = routeShards({
+      shards: state.shards,
+      affectedPaths,
+      routingEnabled: config.distill.routing_enabled,
+      repoRoot: repo,
+    });
+    assert.strictEqual(selection.full, false);
+    assert.deepStrictEqual(selection.ids, ids);
+  }
+});
+
+test('repository route fail-open keeps full content and reports only stderr', () => {
+  const repo = repoFixture();
+  execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+  write('unrelated.txt', 'known unrelated path\n', repo);
+  write('.bouncer/config.json', JSON.stringify({ distill: { routing_enabled: true } }), repo);
+  index(repo, ['source']);
+  shard({ id: 'source', paths: ['src/**'], pulls: [], body: 'source body' }, repo);
+
+  const result = captureCli(['distill', '--repo', repo, '--for', 'unrelated.txt', '--json']);
+  const payload = JSON.parse(result.out);
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.full, true);
+  assert.deepStrictEqual(payload.ids, ['source']);
+  assert.strictEqual(payload.content, 'source body\n');
+  assert.strictEqual(result.err, 'distill: no-match; using all shards\n');
+});
+
+test('byte threshold warns without truncating the routed result', () => {
+  const repo = repoFixture();
+  index(repo, ['source']);
+  shard({ id: 'source', paths: ['src/**'], pulls: [], body: 'x'.repeat(20) }, repo);
+  const config = {
+    source_dirs: ['src'],
+    distill: { routing_enabled: false, max_bytes: 1 },
+  };
+  const structural = checkDistillStructural({ repoRoot: repo, config });
+  const state = readShards({ repoRoot: repo });
+  const selection = routeShards({
+    shards: state.shards,
+    affectedPaths: ['src/index.ts'],
+    routingEnabled: false,
+    repoRoot: repo,
+  });
+  const rendered = renderShards({ ...state, selection });
+  const resultBytes = Buffer.byteLength(rendered, 'utf8');
+
+  assert.ok(structural.warnings.some((entry) => entry.code === 'S26'));
+  assert.deepStrictEqual(structural.failures, []);
+  assert.strictEqual(resultBytes, 21);
+  assert.ok(resultBytes > config.distill.max_bytes);
+  assert.strictEqual(rendered, state.shards[0].body);
 });
 
 function bulletHashes(markdown) {

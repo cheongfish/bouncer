@@ -15,6 +15,8 @@
 | `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run`이 물어보는 횟수 | `"auto"` (시작 확인 1회) · `"interactive"` (task 경계마다 추가) |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (저장소 상대) | `bouncer graphify-bin` 해석 1순위 | `".bouncer/.venv/bin/graphify"` |
+| `distill.routing_enabled` | `true` \| `false` | `bouncer distill --for` 선택 소비 | `true` — 구조 preflight 통과 후 활성화 |
+| `distill.max_bytes` | 양의 정수 바이트 값 | Distill 구조 validator의 경고 기준 | `65536` — 본문을 자르지 않음 |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` | `"develop"` |
 | `pr.labels` | 문자열 배열 | `/bouncer-finalize` | `["bouncer"]` |
@@ -23,6 +25,26 @@
 
 `<agent>`는 `bouncer-implementer` · `bouncer-reviewer` · `bouncer-debugger` ·
 `bouncer-context-reviewer` 넷입니다.
+
+## Project Distill 선택 라우팅
+
+이 저장소는 전량 모드(`bouncer distill --all`)로 인덱스와 모든 shard를 먼저
+관찰한 뒤 `distill.routing_enabled: true`를 명시한다. 활성화 전에는 구조
+validator가 고아 shard, 경로가 없는 비항상 shard, 잘못된 `pulls`, 순환,
+`source_dirs`의 routing 구멍을 모두 경고 없이 통과하는지 확인해야 한다.
+
+`bouncer distill --for <path>`는 파일, 디렉터리, 복수 경로를 받아 `always`와
+매칭 shard 및 `pulls` 전이 폐쇄만 선택한다. 매칭이 없거나 경로·메타데이터를
+확정할 수 없으면 전체 shard를 사용한다. 이 fail-open 진단은 본문을 오염시키지
+않고 stderr로만 전달하며, stdout은 본문 또는 JSON으로 유지한다. 구조
+validator의 경고는 활성화 가능 여부를 판정하는 구조화된 결과이고, 운영자가
+사람에게 보여 주는 진단으로 변환할 때도 본문과 섞지 않는다.
+
+`distill.max_bytes`는 선택 결과의 하드 상한이 아니다. validator가 shard의
+UTF-8 byte 수가 기준을 넘었다는 경고(S26)를 내는 관찰 기준일 뿐이며, 결과를
+잘라내거나 shard를 버리지 않는다. 활성화된 저장소에서 구조 경고가 남아
+있으면 validator가 활성화를 거부하므로, 먼저 경고를 해소한 뒤 true로
+전환한다.
 
 ## verify 래퍼 패턴
 
