@@ -63,7 +63,8 @@ test('graphify-runner tells users how to enable graphify when skipping', () => {
   const md = readSkill('graphify-runner');
   assert.match(md, /bouncer init/);
   assert.match(md, /--promote-graphify/);
-  assert.match(md, /docs\/install\.md/);
+  // 7df16a1이 스킬에서 docs/install.md 포인터를 제거함 — 에이전트 지시문에
+  // 사람용 문서 경로를 두지 않으므로 그 문자열을 요구하지 않는다.
 });
 
 test('graphify-runner queries source and context graphs after plan-time sync', () => {
