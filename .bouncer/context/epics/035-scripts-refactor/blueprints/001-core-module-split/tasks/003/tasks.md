@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '035'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 게이트 하나를 고칠 때 읽어야 하는 범위가 파일 전체라, 리뷰어가 변경이 다른 판정을 건드리는지 diff만으로 판단하지 못했음
     - 문서 읽기·구조 검사·게이트 판정·본문 파싱을 서로 다른 파일로 갈라 읽을 범위를 좁힘

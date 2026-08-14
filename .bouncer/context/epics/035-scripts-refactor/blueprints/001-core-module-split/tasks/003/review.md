@@ -11,11 +11,16 @@ bouncer:
   id: REVIEW-003
   epic_id: '035'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: minor
+        status: resolved
 ---
 # Review
 
 ## Findings
-- <finding>
+- F1 (minor, resolved): `require('./scope')`가 `validate-gates.ts`로 옮겨지며
+  순환 회피 주석이 빠졌음. 같은 파일 4행에 복구함.
