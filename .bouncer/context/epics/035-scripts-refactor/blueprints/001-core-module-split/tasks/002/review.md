@@ -11,11 +11,17 @@ bouncer:
   id: REVIEW-002
   epic_id: '035'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: major
+        status: resolved
 ---
 # Review
 
 ## Findings
-- <finding>
+- F1 (major, resolved): `COMMANDS[cmd]`가 `Object.prototype` 키(`toString` 등)와
+  겹치면 `entry.run is not a function`이 났다. `Object.hasOwn`으로 자기 키만
+  조회해 미등록 명령과 같은 stderr·exit 2 경로를 유지함 (`cli.ts:57-60`).

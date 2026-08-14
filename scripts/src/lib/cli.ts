@@ -1,486 +1,68 @@
 'use strict';
-const { validateBlueprint } = require('./validate');
-const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview } = require('./scaffold');
-const { isNumericContextId } = require('./paths');
-const { finalize } = require('./finalize');
-const { commitTask } = require('./commit');
-const { init } = require('./init');
-const { runVerification } = require('./verification');
-const { seedWorktree } = require('./seed-worktree');
-const { nowIsoKst } = require('./time');
-const { syncSessionGraphs } = require('./session-graph');
-const { resolveGraphifyBin } = require('./graphify');
-const {
-  readCurrent, writeCurrent, clearCurrent, listReadyBlueprints,
-  resolvePointerTask, presentCurrent,
-} = require('./current');
-const { migrateIds } = require('./migrate-ids');
-const { migrateTaskLayout } = require('./migrate-task-layout');
-const { planImport, applyImport } = require('./import-history');
-const { runtimePaths } = require('./runtime-state');
-const { readConfig } = require('./config');
 
-function parseFlags(rest) {
-  const flags: Record<string, string | boolean> = {};
-  for (let i = 0; i < rest.length; i += 1) {
-    const tok = rest[i];
-    if (!tok.startsWith('--')) continue;
-    const key = tok.slice(2);
-    const next = rest[i + 1];
-    if (next === undefined || next.startsWith('--')) {
-      flags[key] = true;
-    } else {
-      flags[key] = next;
-      i += 1;
-    }
-  }
-  return flags;
-}
+const { parseFlags } = require('./cli-flags');
+const docCommands = require('./cli-doc-commands');
+const gitCommands = require('./cli-git-commands');
+const projectCommands = require('./cli-project-commands');
+const currentCommand = require('./cli-current-command');
 
-function cmdValidate(rest, io) {
-  const f = parseFlags(rest);
-  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-    io.err('validate: --blueprint is required\n');
-    return 2;
-  }
-  const repoRoot = f.repo || process.cwd();
-  const gate = typeof f.gate === 'string' ? f.gate : undefined;
-  const result = validateBlueprint({
-    repoRoot,
-    blueprintDir: f.blueprint,
-    gate,
-  });
-  io.out(`${JSON.stringify(result, null, 2)}\n`);
-  return result.ok ? 0 : 1;
-}
+type CliCommand = {
+  run: (rest: string[], io: { out: (s: string) => void; err: (s: string) => void }) => number;
+  usage: string;
+};
 
-function cmdVerify(rest, io) {
-  const f = parseFlags(rest);
-  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-    io.err('verify: --blueprint is required\n');
-    return 2;
-  }
-  try {
-    const result = runVerification({
-      repoRoot: f.repo || process.cwd(),
-      blueprintDir: f.blueprint,
-    });
-    io.out(`${JSON.stringify(result, null, 2)}\n`);
-    return result.ok ? 0 : 1;
-  } catch (error) {
-    io.err(`verify: ${error.message}\n`);
-    return 1;
-  }
-}
+// 선언 순서 = 옛 USAGE 나열 순서. 디스패치는 키 조회라 이 순서에 의존하지
+// 않지만, help 문자열이 레지스트리에서 조립되므로 키를 빼먹으면 목록에서
+// 사라지고 usage를 빼먹으면 해당 블록이 비어 테스트가 실패한다.
+const COMMANDS: Record<string, CliCommand> = {
+  validate: docCommands.validate,
+  verify: docCommands.verify,
+  scaffold: docCommands.scaffold,
+  commit: gitCommands.commit,
+  finalize: gitCommands.finalize,
+  'seed-worktree': gitCommands['seed-worktree'],
+  init: projectCommands.init,
+  'graph-sync': projectCommands['graph-sync'],
+  'graphify-bin': projectCommands['graphify-bin'],
+  'project-root': projectCommands['project-root'],
+  current: currentCommand.current,
+  migrate: projectCommands.migrate,
+  import: gitCommands.import,
+};
 
-function cmdScaffold(rest, io) {
-  const [kind, ...flagArgs] = rest;
-  const f = parseFlags(flagArgs);
-  const repoRoot = f.repo || process.cwd();
-  const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
-  let created;
-  try {
-    if (kind === 'epic' || kind === 'blueprint') {
-      // EPIC-001 / 1 / 01 거절 — 정본은 zero-pad 세 자리만. 라이브러리 throw와 메시지를 맞춤.
-      if (!isNumericContextId(f.id)) {
-        io.err(`scaffold: --id must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(f.id)}\n`);
-        return 2;
-      }
-      if (typeof f.name !== 'string' || f.name === '') {
-        io.err(`scaffold ${kind}: --name is required\n`);
-        return 2;
-      }
-    }
-    if (kind === 'epic') {
-      created = scaffoldEpic({ repoRoot, epicId: f.id, name: f.name, timestamp });
-    } else if (kind === 'blueprint') {
-      if (typeof f['epic-dir'] !== 'string' || f['epic-dir'] === '') {
-        io.err('scaffold blueprint: --epic-dir is required\n');
-        return 2;
-      }
-      created = scaffoldBlueprint({
-        repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp,
-      });
-    } else if (kind === 'task') {
-      // --blueprint / --id 누락은 형식 오류보다 먼저 안내한다.
-      if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-        io.err('scaffold task: --blueprint is required\n');
-        return 2;
-      }
-      if (typeof f.id !== 'string' || f.id === '') {
-        io.err('scaffold task: --id is required\n');
-        return 2;
-      }
-      if (!isNumericContextId(f.id)) {
-        io.err(`scaffold: --id must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(f.id)}\n`);
-        return 2;
-      }
-      created = scaffoldTask({
-        repoRoot, blueprintDir: f.blueprint, taskId: f.id, timestamp,
-      });
-    } else if (kind === 'explain') {
-      if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-        io.err('scaffold explain: --blueprint is required\n');
-        return 2;
-      }
-      created = scaffoldExplain({ repoRoot, blueprintDir: f.blueprint, timestamp });
-    } else if (kind === 'context-review') {
-      if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-        io.err('scaffold context-review: --blueprint is required\n');
-        return 2;
-      }
-      created = scaffoldContextReview({ repoRoot, blueprintDir: f.blueprint, timestamp });
-    } else {
-      io.err(`unknown scaffold kind: ${kind}\n`);
-      return 2;
-    }
-  } catch (error) {
-    io.err(`scaffold: ${error.message}\n`);
-    return 2;
-  }
-  io.out(`${JSON.stringify({ ok: true, created }, null, 2)}\n`);
-  return 0;
-}
+const USAGE_HEADER = `usage: bouncer <command> [options]
 
-function cmdFinalize(rest, io) {
-  const f = parseFlags(rest);
-  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-    io.err('finalize: --blueprint is required\n');
-    return 2;
-  }
-  const result = finalize({
-    repoRoot: f.repo || process.cwd(),
-    blueprintDir: f.blueprint,
-    yes: f.yes === true,
-  });
-  io.out(`${JSON.stringify(result, null, 2)}\n`);
-  return result.ok ? 0 : 1;
-}
-
-function cmdCommit(rest, io) {
-  const f = parseFlags(rest);
-  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-    io.err('commit: --blueprint is required\n');
-    return 2;
-  }
-  const result = commitTask({
-    repoRoot: f.repo || process.cwd(),
-    blueprintDir: f.blueprint,
-    yes: f.yes === true,
-  });
-  io.out(`${JSON.stringify(result, null, 2)}\n`);
-  return result.ok ? 0 : 1;
-}
-
-function cmdSeedWorktree(rest, io) {
-  const f = parseFlags(rest);
-  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-    io.err('seed-worktree: --blueprint is required\n');
-    return 2;
-  }
-  if (typeof f.to !== 'string' || f.to === '') {
-    io.err('seed-worktree: --to is required\n');
-    return 2;
-  }
-  try {
-    // --repo(기본 cwd)는 plan 문서가 있는 base checkout;
-    // --to는 committed HEAD에서 막 만든 worktree.
-    const result = seedWorktree({
-      repoRoot: f.repo || process.cwd(),
-      blueprintDir: f.blueprint,
-      worktreePath: f.to,
-    });
-    io.out(`${JSON.stringify(result, null, 2)}\n`);
-    return result.ok ? 0 : 1;
-  } catch (error) {
-    io.err(`seed-worktree: ${error.message}\n`);
-    return 1;
-  }
-}
-
-function cmdInit(rest, io) {
-  const f = parseFlags(rest);
-  const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
-  // CLI 기본은 설치 on — 라이브러리 init() 기본(install:false)과 의도적으로 다르다.
-  // 테스트·프로그래밍 호출이 네트워크 pip을 타지 않게 라이브러리는 opt-in.
-  const install = f['no-graphify'] !== true;
-  const result = init({
-    repoRoot: f.repo || process.cwd(),
-    timestamp,
-    graphify: { install },
-    promote: f['promote-graphify'] === true,
-    writeGitignore: f['write-gitignore'] === true,
-  });
-  io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
-  return result.ok ? 0 : 1;
-}
-
-function cmdGraphSync(rest, io) {
-  const f = parseFlags(rest);
-  const result = syncSessionGraphs({ repoRoot: f.repo || process.cwd() });
-  io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
-  return result.failed.length === 0 ? 0 : 1;
-}
-
-function cmdGraphifyBin(rest, io) {
-  const f = parseFlags(rest);
-  const repoRoot = f.repo || process.cwd();
-  const { bin } = resolveGraphifyBin({ repoRoot });
-  if (!bin) {
-    // stdout은 pipe-clean 유지 — 실패 사유는 stderr만.
-    io.err('graphify-bin: graphify executable not found (config.bin, venv, or PATH)\n');
-    return 1;
-  }
-  io.out(`${bin}\n`);
-  return 0;
-}
-
-function cmdProjectRoot(rest, io) {
-  const f = parseFlags(rest);
-  const repoRoot = f.repo || process.cwd();
-  // Distill·워크플로가 소비하는 정본은 main worktree다. linked cwd나
-  // plugin root로 대체하면 도그푸드 Distill을 오독하므로 unavailable은
-  // 빈 stdout/cwd fallback 없이 stderr+1로 거절한다.
-  const paths = runtimePaths({ repoRoot });
-  if (paths.unavailable || !paths.projectRoot) {
-    io.err(`project-root: ${paths.reason || 'Bouncer requires a Git repository'}\n`);
-    return 1;
-  }
-  io.out(`${paths.projectRoot}\n`);
-  return 0;
-}
-
-function cmdMigrate(rest, io) {
-  const [kind, ...flagArgs] = rest;
-  if (kind !== 'ids' && kind !== 'task-layout') {
-    io.err(`unknown migrate kind: ${kind || '(missing)'}\n`);
-    return 2;
-  }
-  const f = parseFlags(flagArgs);
-  const result = kind === 'ids'
-    ? migrateIds({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true })
-    : migrateTaskLayout({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true });
-  io.out(`${JSON.stringify(result, null, 2)}\n`);
-  return result.ok ? 0 : 1;
-}
-
-function cmdCurrent(rest, io) {
-  const f = parseFlags(rest);
-  const wantsSet = Object.prototype.hasOwnProperty.call(f, 'set');
-  const wantsClear = f.clear === true;
-  const wantsTask = Object.prototype.hasOwnProperty.call(f, 'task');
-
-  if (wantsSet && wantsClear) {
-    io.err('current: --set and --clear are mutually exclusive\n');
-    return 2;
-  }
-  if (wantsClear && wantsTask) {
-    io.err('current: --clear and --task are mutually exclusive\n');
-    return 2;
-  }
-  if (wantsTask && !wantsSet) {
-    io.err('current: --task requires --set\n');
-    return 2;
-  }
-  if (wantsSet && (typeof f.set !== 'string' || f.set === '')) {
-    io.err('current: --set requires a blueprint directory\n');
-    return 2;
-  }
-
-  const repoRoot = f.repo || process.cwd();
-
-  if (wantsClear) {
-    clearCurrent({ repoRoot });
-    io.out(`${JSON.stringify({ ok: true, current: null }, null, 2)}\n`);
-    return 0;
-  }
-
-  if (wantsSet) {
-    const blueprintDir = f.set;
-    const result = validateBlueprint({
-      repoRoot,
-      blueprintDir,
-      gate: 'plan',
-    });
-    if (!result.ok) {
-      // failures를 그대로 전달 — plan gate가 권위; 실패한 brief에는 pointer를
-      // 쓰지 않음.
-      io.out(`${JSON.stringify({ ok: false, failures: result.failures }, null, 2)}\n`);
-      return 1;
-    }
-    // plan 통과 뒤에만 task 해석·포인터 기록. 해석 실패는 사용법 오류(2).
-    const taskSpec = wantsTask ? f.task : undefined;
-    if (wantsTask && (typeof taskSpec !== 'string' || taskSpec === '')) {
-      io.err('current: --task requires a task id (NNN or TASKS-NNN)\n');
-      return 2;
-    }
-    const resolved = resolvePointerTask({
-      repoRoot,
-      blueprintDir,
-      task: typeof taskSpec === 'string' ? taskSpec : undefined,
-    });
-    if (!resolved.ok) {
-      const ids = (resolved.available || [])
-        .map((t) => t.id)
-        .filter(Boolean)
-        .join(', ');
-      io.err(
-        `current: cannot resolve --task ${JSON.stringify(taskSpec)}`
-        + (ids ? ` (available: ${ids})` : '')
-        + '\n',
-      );
-      return 2;
-    }
-    let base = typeof f.base === 'string' ? f.base : undefined;
-    if (!base) {
-      // 부재·깨진 JSON을 {}로 삼킨다. --set은 base_branch만 읽고 없으면
-      // develop. session-graph는 null을 구분해 graphify.enabled를 끄지만,
-      // 이쪽은 파일 부재와 빈 설정을 같게 보는 것이 기존 동작이다.
-      const config = readConfig(repoRoot) ?? {};
-      base = (config && typeof config.base_branch === 'string' && config.base_branch)
-        ? config.base_branch
-        : 'develop';
-    }
-    writeCurrent({
-      repoRoot,
-      blueprint: blueprintDir,
-      base,
-      task: resolved.task || undefined,
-    });
-    // 포인터 파일은 path 문자열; 응답 JSON 은 path+id (presentCurrent).
-    const current = presentCurrent(readCurrent({ repoRoot }), { repoRoot });
-    io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
-    return 0;
-  }
-
-  // 없음도 오류가 아닌 상태: 항상 exit 0. unset이면 ready list를 붙여 execute가
-  // "planned but unset"과 "nothing planned"를 구분하게 함.
-  const stored = readCurrent({ repoRoot });
-  if (stored) {
-    const current = presentCurrent(stored, { repoRoot });
-    io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
-  } else {
-    const ready = listReadyBlueprints({ repoRoot });
-    io.out(`${JSON.stringify({ ok: true, current: null, ready }, null, 2)}\n`);
-  }
-  return 0;
-}
-
-function cmdImport(rest, io) {
-  const f = parseFlags(rest);
-  const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
-  const yes = f.yes === true;
-
-  let limit: number | undefined;
-  if (typeof f.limit === 'string' && f.limit !== '') {
-    const n = Number(f.limit);
-    if (Number.isFinite(n)) limit = n;
-  }
-
-  const plan = planImport({
-    repoRoot,
-    source: typeof f.source === 'string' ? f.source : undefined,
-    since: typeof f.since === 'string' ? f.since : undefined,
-    limit,
-    epicId: typeof f['epic-id'] === 'string' ? f['epic-id'] : undefined,
-    epicName: typeof f['epic-name'] === 'string' ? f['epic-name'] : undefined,
-  });
-
-  // --yes 없으면 dry-run. --message 만 있어도 무시하고 계획만 낸다.
-  if (!yes) {
-    io.out(`${JSON.stringify(plan, null, 2)}\n`);
-    return plan.ok ? 0 : 2;
-  }
-
-  const result = applyImport({
-    repoRoot,
-    plan,
-    message: typeof f.message === 'string' ? f.message : undefined,
-  });
-  io.out(`${JSON.stringify(result, null, 2)}\n`);
-  return result.ok ? 0 : 2;
-}
-
-const USAGE = `usage: bouncer <command> [options]
-
-  validate   --blueprint <dir> --gate <plan|execute|commit|finalize>
-             Run the structural checks and one gate. Reports failure codes.
-  verify     --blueprint <dir>
-             Run the configured verify command and record its evidence.
-  scaffold   epic --id <ddd> --name <slug>
-             blueprint --epic-dir <dir> --id <ddd> --name <slug>
-             task --blueprint <dir> --id <ddd>
-             explain --blueprint <dir>
-             context-review --blueprint <dir>
-             Create a document set with correct frontmatter.
-             (explain is for finalize; epic/blueprint scaffold omit it.)
-  commit     --blueprint <dir> [--yes]
-             Check task commit scope and, with --yes, commit one task.
-  finalize   --blueprint <dir> [--yes]
-             Check the commit scope and, with --yes, commit the blueprint.
-  seed-worktree --blueprint <dir> --to <worktree>
-             Move the plan context documents into a freshly created worktree.
-  init       Bootstrap .bouncer/ for this project. Never overwrites.
-  graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
-  graphify-bin
-             Print the resolved graphify executable path (one line).
-  project-root
-             Print the consuming project's main worktree absolute path (one line).
-  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>]]
-             [--clear]
-             Show the active blueprint pointer, or set / clear it.
-             --task picks a task doc; without it, first ready/in_progress wins.
-  migrate    ids [--dry-run]
-             Plan or apply rename of legacy EPIC-/BP- context dirs to numeric ids.
-             task-layout [--dry-run]
-             Move legacy task files into tasks/<NNN>/ units.
-  import     [--source merges|commits] [--since <ref>] [--limit <n>]
-             [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]
-             Transcribe git history into imported epic/blueprint documents.
-
-Every command accepts --repo <dir> to run against another repository.
+`;
+const USAGE_FOOTER = `Every command accepts --repo <dir> to run against another repository.
 `;
 
+// join('') — 각 usage가 이미 개행으로 끝난다. 개행으로 이으면 명령 사이에
+// 빈 줄이 생겨 바이트가 달라진다. 꼬리말 앞 빈 줄은 여기서 한 번만 넣는다.
+const USAGE = USAGE_HEADER
+  + Object.values(COMMANDS).map((c) => c.usage).join('')
+  + '\n'
+  + USAGE_FOOTER;
+
 function runCli(argv, io) {
+  // 테스트가 io를 주입한다. 없으면 프로세스 스트림 — stdout은 파이프용.
   const out = io && io.out ? io.out : (s) => process.stdout.write(s);
   const err = io && io.err ? io.err : (s) => process.stderr.write(s);
   const sink = { out, err };
   const [cmd, ...rest] = argv;
+  // help는 stdout. 알 수 없는 명령만 stderr로 보내 stdout을 pipe-clean으로 둔다.
   if (cmd === undefined || cmd === 'help' || cmd === '--help' || cmd === '-h') {
     out(USAGE);
     return 0;
   }
-  switch (cmd) {
-    case 'validate':
-      return cmdValidate(rest, sink);
-    case 'verify':
-      return cmdVerify(rest, sink);
-    case 'scaffold':
-      return cmdScaffold(rest, sink);
-    case 'finalize':
-      return cmdFinalize(rest, sink);
-    case 'commit':
-      return cmdCommit(rest, sink);
-    case 'seed-worktree':
-      return cmdSeedWorktree(rest, sink);
-    case 'init':
-      return cmdInit(rest, sink);
-    case 'graph-sync':
-      return cmdGraphSync(rest, sink);
-    case 'graphify-bin':
-      return cmdGraphifyBin(rest, sink);
-    case 'project-root':
-      return cmdProjectRoot(rest, sink);
-    case 'current':
-      return cmdCurrent(rest, sink);
-    case 'migrate':
-      return cmdMigrate(rest, sink);
-    case 'import':
-      return cmdImport(rest, sink);
-    default:
-      err(`unknown command: ${cmd}\n\n${USAGE}`);
-      return 2;
+  // 일반 객체 조회는 toString/constructor 같은 prototype 키를 참 값으로 잡는다.
+  // 그때 entry.run이 없어 TypeError가 나고, 미등록 거절(unknown command, exit 2)이
+  // 깨진다. own key만 보면 그 이름들도 예전 거절 경로로 간다.
+  const entry = Object.hasOwn(COMMANDS, cmd) ? COMMANDS[cmd] : undefined;
+  if (!entry) {
+    err(`unknown command: ${cmd}\n\n${USAGE}`);
+    return 2;
   }
+  return entry.run(rest, sink);
 }
 
 module.exports = { runCli, parseFlags };

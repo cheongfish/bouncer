@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '035'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 명령 하나를 고치려면 한 파일 전체를 읽어야 했고, 사용법 문자열과 실제 분기가 따로 놀아 어긋나도 드러나지 않았음
     - 명령마다 실행과 사용법을 한 자리에 묶고 도움말을 그 목록에서 만들어 냄
