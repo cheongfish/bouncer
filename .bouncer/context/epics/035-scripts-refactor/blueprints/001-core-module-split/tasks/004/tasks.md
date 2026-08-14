@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '035'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 무엇을 할지 정하는 코드와 실제로 외부 명령을 부르는 코드가 한 파일에 섞여 있어, 테스트가 어디까지 순수한지 경계가 흐렸음
     - 판단하는 층과 바깥을 건드리는 층을 파일로 갈라 그 경계를 눈에 보이게 함
