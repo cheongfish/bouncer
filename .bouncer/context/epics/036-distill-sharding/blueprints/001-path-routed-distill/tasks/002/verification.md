@@ -11,12 +11,37 @@ bouncer:
   id: VERIFY-002
   epic_id: '036'
   blueprint_id: '001'
-  status: pending
+  status: passed
+  verification:
+    command: npm test
+    ran_at: '2026-08-14T13:47:37.673+09:00'
+    exit_code: 0
+    output_tail: |-
+      ✔ a failing verification keeps the output where a reader will see it (23.518792ms)
+      ✔ runVerification prefers tasks.bouncer.verify over config.verify (4.051665ms)
+      ✔ runVerification falls back to config.verify when tasks has no verify (3.794501ms)
+      ✔ runVerification falls back to config.verify when the task document is absent (3.158877ms)
+      ✔ readVerifyCommand rejects non-single executable commands (6.235383ms)
+      ✔ readVerifyCommand(repoRoot) still returns config.verify (0.287384ms)
+      ✔ readVerifyCommand adopts the earliest-numbered verify declaration (1.721461ms)
+      ✔ readVerifyCommand rejects invalid first declaration even if later is valid (1.758447ms)
+      ✔ readVerifyCommand narrows to the pointer task document (11.711955ms)
+      ✔ runVerification records evidence into the pointer tasks/002 unit only (7.806685ms)
+      ✔ runVerification rejects missing unit verification.md without creating it (6.679942ms)
+      ℹ tests 631
+      ℹ suites 0
+      ℹ pass 631
+      ℹ fail 0
+      ℹ cancelled 0
+      ℹ skipped 0
+      ℹ todo 0
+      ℹ duration_ms 626.086085
 ---
 # Verification
 
 ## Command
-<command>
+`npm test`
 
 ## Evidence
-<result>
+Ran at: 2026-08-14T13:47:37.673+09:00
+Exit code: 0

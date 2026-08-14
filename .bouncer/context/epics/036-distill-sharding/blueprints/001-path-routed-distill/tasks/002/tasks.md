@@ -11,13 +11,16 @@ bouncer:
   id: TASKS-002
   epic_id: '036'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 라우팅 결과를 워크플로와 감사에서 재현 가능하게 노출해야 함
     - stdout 파이프 소비를 진단 메시지로 오염시키지 않아야 함
   verify: npm test
   affected_paths:
+    - scripts/src/lib/cli.ts
+    - scripts/lib/cli.js
     - scripts/src/lib/cli-project-commands.ts
+    - scripts/lib/cli-project-commands.js
     - docs/cli.md
     - test/cli-project-commands.test.js
   graph:
@@ -54,6 +57,9 @@ Blueprint: [001](../../index.md)
      디렉터리 하나로 뭉치면 그 안 모든 파일이 열려 G11이 사실상 통과만 합니다.
      경로는 백틱으로 감쌉니다. -->
 - Modify `scripts/src/lib/cli-project-commands.ts` — `distill` 등록과 인자 검증·출력을 배선한다.
+- Modify `scripts/src/lib/cli.ts` — `distill` 명령을 top-level command registry에 등록한다.
+- Modify `scripts/lib/cli.js` — CLI registry 변경의 CJS emit을 동기화한다.
+- Modify `scripts/lib/cli-project-commands.js` — project command 변경의 CJS emit을 동기화한다.
 - Modify `docs/cli.md` — 공개 명령과 모드별 출력을 설명한다.
 - Create `test/cli-project-commands.test.js` — 모드, JSON, stdout/stderr 분리를 검증한다.
 
@@ -78,4 +84,5 @@ Blueprint: [001](../../index.md)
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
 - [ ] 각 CLI 모드와 pipe-clean 출력을 실패 테스트로 작성한다.
 - [ ] 명령 등록과 문서를 구현하고 오류를 stderr로 보낸다.
+- [ ] `npm run build`로 CLI TypeScript 변경의 CJS emit을 동기화한다.
 - [ ] `npm test`를 실행한다.
