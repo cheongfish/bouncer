@@ -10,6 +10,10 @@
   "graphify": {
     "enabled": true
   },
+  "distill": {
+    "routing_enabled": true,
+    "max_bytes": 65536
+  },
   "verify": "npm test",
   "base_branch": "develop",
   "pr": {

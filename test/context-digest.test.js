@@ -114,3 +114,45 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
   assert.ok(!fs.existsSync(stale));
   assert.equal(second.count, first.count);
 });
+
+test('buildContextDigest includes Decisions from registered shards with original map paths only', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-shards-'));
+  fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), [
+    '---',
+    'distill:',
+    '  version: 1',
+    '  shards:',
+    '    - core',
+    '---',
+    '## Decisions',
+    '',
+    'index decision',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, '.bouncer/distill/core.md'), [
+    '---',
+    'distill:',
+    '  id: core',
+    '---',
+    '## Decisions',
+    '',
+    'shard decision',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, '.bouncer/distill/unregistered.md'), '## Decisions\n\nshould not graph\n');
+
+  const result = buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  const originals = Object.values(result.map);
+
+  assert.ok(originals.includes('.bouncer/Distill.md'));
+  assert.ok(originals.includes('.bouncer/distill/core.md'));
+  assert.ok(!originals.includes('.bouncer/distill/unregistered.md'));
+  const shardFlat = Object.keys(result.map).find((flat) => result.map[flat] === '.bouncer/distill/core.md');
+  assert.ok(shardFlat);
+  assert.match(
+    fs.readFileSync(path.join(repo, result.dir, shardFlat), 'utf8'),
+    /<!-- source: \.bouncer\/distill\/core\.md -->/,
+  );
+});

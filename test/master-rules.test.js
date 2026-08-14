@@ -94,6 +94,57 @@ test('workflow skills resolve PROJECT_ROOT via project-root for Distill', () => 
   }
 });
 
+test('Distill consumers use full preflight, then path-routed CLI output', () => {
+  const plan = read('skills/bouncer-plan/SKILL.md');
+  const discovery = read('skills/discovery/SKILL.md');
+  assert.match(plan, /distill\s+--all/);
+  assert.match(discovery, /distill\s+--all/);
+  assert.match(plan, /affected_paths[\s\S]{0,500}distill\s+--for|distill\s+--for[\s\S]{0,500}affected_paths/);
+
+  for (const name of ['bouncer-plan', 'discovery', 'bouncer-finalize']) {
+    const md = read(`skills/${name}/SKILL.md`);
+    assert.match(md, /distill\s+--all/, `${name} must consume its CLI mode`);
+    assert.match(md, /single-file fallback|단일 파일.*폴백/i, `${name} must preserve legacy fallback`);
+  }
+
+  for (const name of ['bouncer-execute', 'bouncer-run']) {
+    const md = read(`skills/${name}/SKILL.md`);
+    assert.match(md, /distill\s+--for/, `${name} must route after paths are fixed`);
+    assert.match(md, /affected_paths/, `${name} must use task scope for routing`);
+    assert.match(md, /single-file fallback|단일 파일.*폴백/i, `${name} must preserve legacy fallback`);
+  }
+});
+
+test('bouncer-run gives implementer the current task Distill re-ground', () => {
+  const run = read('skills/bouncer-run/SKILL.md');
+  assert.match(run, /현재 포인터 task의 라우팅된\s+`distill --for` 출력\/brief/);
+  assert.match(run, /이전 task의 대화 맥락 전체를 넘기지 않는다/);
+  assert.doesNotMatch(run, /직전 task의\s+`distill --for` 출력/);
+});
+
+test('finalize promotion searches all Distill content before route batching', () => {
+  const finalize = read('skills/bouncer-finalize/SKILL.md');
+  const spec = read('skills/spec-authoring/SKILL.md');
+  for (const md of [finalize, spec]) {
+    assert.match(md, /distill\s+--all/, 'promotion must start with a full search');
+    assert.match(md, /distill\s+--route/, 'route mode is available only for batching');
+    assert.match(md, /replace|교체/i, 'changed decisions must be replaceable');
+    assert.match(md, /append|추가하지|덧붙이/i, 'promotion must reject append-only decisions');
+  }
+  assert.match(finalize, /full search|전량.*검색/i);
+  assert.match(spec, /conflict|충돌|plan/i);
+});
+
+test('master rules preserve single-file Distill fallback and CLI trust boundary', () => {
+  const claude = read('CLAUDE.md');
+  assert.match(claude, /distill\s+--all/);
+  assert.match(claude, /distill\s+--for/);
+  assert.match(claude, /distill\s+--route/);
+  assert.match(claude, /single-file fallback|단일 파일.*폴백/i);
+  assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
+  assert.match(claude, /affected_paths/);
+});
+
 test('discovery and spec-authoring take caller-provided absolute Distill paths', () => {
   for (const name of ['discovery', 'spec-authoring']) {
     const md = read(`skills/${name}/SKILL.md`);

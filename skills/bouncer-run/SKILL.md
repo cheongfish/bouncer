@@ -17,10 +17,14 @@ PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
 ```
 If that fails, stop and report stderr — do not fall back to cwd or plugin root.
 
-**Project Distill.** Before the numbered steps, Read
-`${PROJECT_ROOT}/.bouncer/Distill.md`. If missing, stop and tell the user to run
-`bouncer init` (or seed the file). Honor matching Invariants / Gotchas /
-Decisions. Re-ground after each task still uses that same absolute Distill path.
+**Project Distill.** The CLI reads `${PROJECT_ROOT}/.bouncer/Distill.md`; do not
+read a cwd-relative file. After each pointer task's `affected_paths` is loaded,
+re-ground with `bouncer distill --for <path> --repo "${PROJECT_ROOT}"` once per
+path and pass that selected output through to `/bouncer-execute`. An absent or
+invalid shard index remains the CLI's single-file fallback. If the CLI fails,
+stop rather than substituting the run cwd or plugin root. Honor matching
+Invariants / Gotchas / Decisions, and repeat the re-ground after every task
+advance.
 
 활성 포인터의 blueprint에서 `/bouncer-execute` 다음 `/bouncer-commit`을 열린
 task가 없어질 때까지 반복한다. 두 스킬의 절차는 각 문서가 가진다. 이 문서는
@@ -130,8 +134,8 @@ put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body
    `affected_paths`를 넓히지 않는다.
 
    implementer에게는 해당 task 브리프 절(Goal & intent, Interface, Touch,
-   Do not touch, Constraints, Checklist)과
-   `${PROJECT_ROOT}/.bouncer/Distill.md`, 직전 커밋
+   Do not touch, Constraints, Checklist)과 현재 포인터 task의 라우팅된
+   `distill --for` 출력/brief, 직전 커밋
    subject 목록을 준다. 이전 task의 대화 맥락 전체를 넘기지 않는다.
    verify 실패 뒤 재호출에는 debugger Output contract(Reproduction, Evidence,
    Single hypothesis, Minimum fix proposal, Required regression test)를

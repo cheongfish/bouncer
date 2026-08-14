@@ -10,13 +10,14 @@ implementation starts.
 
 ## Flow
 
-1. **Pre-read** — Before framing, read epic indexes under
-   `.bouncer/context/epics/` and the absolute Distill path the caller
-   provided (caller-provided absolute Distill path from `/bouncer-plan`, never
-   derived from plugin root or cwd) so questions can
-   probe overlap with existing streams and Distill invariants. If an index or
-   Distill.md is missing or absent (does not exist yet), record Overlap as
-   "none" and continue — pre-read is not a hard stop.
+1. **Pre-read** — Before framing, consume the complete output of the caller's
+   `bouncer distill --all` preflight together with epic indexes under
+   `.bouncer/context/epics/`. The caller also supplies the absolute Distill
+   path from `/bouncer-plan` for provenance; it is never derived from plugin
+   root or cwd. Do not consume `--for` or another selective route before the
+   request has confirmed paths. If an index, Distill path, or shard index is
+   missing, record Overlap as "none" when the CLI's single-file fallback is
+   empty, and continue — pre-read is not a hard stop.
 2. **Request** — Capture the user's ask in their words; note constraints and
    open questions.
 3. **Goal** — State the outcome in one or two sentences.

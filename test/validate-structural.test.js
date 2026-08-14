@@ -5,11 +5,63 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { validateBlueprint, checkStructural, loadBlueprintDocs } = require('../scripts/lib/validate');
+const { checkDistillStructural } = require('../scripts/lib/validate-structural');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function mkRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+}
+
+function writeRaw(repo, rel, content) {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, content);
+}
+
+function writeDistillIndex(repo, declarations, routingEnabled = false) {
+  writeRaw(repo, '.bouncer/Distill.md', [
+    '---',
+    'distill:',
+    '  version: 1',
+    `  routing_enabled: ${routingEnabled}`,
+    '  shards:',
+    ...declarations.map((id) => `    - ${id}`),
+    '---',
+    '# Project Distill',
+    '',
+  ].join('\n'));
+}
+
+function writeDistillShard(repo, id, { paths, pulls, always = false, body = '# shard\n' } = {}) {
+  const lines = ['---', 'distill:', `  id: ${id}`, `  always: ${always}`];
+  if (paths !== undefined) {
+    if (paths.length === 0) lines.push('  paths: []');
+    else {
+      lines.push('  paths:');
+      for (const value of paths) lines.push(`    - ${value}`);
+    }
+  }
+  if (pulls !== undefined) {
+    if (pulls.length === 0) lines.push('  pulls: []');
+    else {
+      lines.push('  pulls:');
+      for (const value of pulls) lines.push(`    - ${value}`);
+    }
+  }
+  lines.push('---', body, '');
+  writeRaw(repo, `.bouncer/distill/${id}.md`, lines.join('\n'));
+}
+
+function distillWarnings(repo, { sourceDirs = ['src'], routingEnabled = false, maxBytes } = {}) {
+  const config = {
+    source_dirs: sourceDirs,
+    distill: {
+      routing_enabled: routingEnabled,
+      ...(maxBytes === undefined ? {} : { max_bytes: maxBytes }),
+    },
+  };
+  return checkDistillStructural({ repoRoot: repo, config });
 }
 
 function writeDoc(repo, rel, data, body = '# x\n') {
@@ -645,4 +697,108 @@ test('S20: scale missing or valid values pass; lite fails', () => {
   assert.deepStrictEqual(codesFor({ scale: 'light' }), []);
   assert.deepStrictEqual(codesFor({ scale: 'full' }), []);
   assert.deepStrictEqual(codesFor({ scale: 'lite' }), ['S20']);
+});
+
+test('Distill structural checks ignore the single-file fallback and disabled routing', () => {
+  const repo = mkRepo();
+  writeRaw(repo, '.bouncer/Distill.md', '# legacy\n');
+  writeDistillShard(repo, 'orphan', { paths: [], pulls: [] });
+
+  const result = distillWarnings(repo, { routingEnabled: false });
+  assert.deepStrictEqual(result.failures, []);
+  assert.deepStrictEqual(result.warnings, []);
+});
+
+test('Distill structural checks report orphan, empty non-always, missing pulls, cycle, and source gaps', () => {
+  const repo = mkRepo();
+  writeDistillIndex(repo, ['a', 'b']);
+  writeDistillShard(repo, 'a', { paths: [], pulls: ['missing'] });
+  writeDistillShard(repo, 'b', { paths: ['docs/**'], pulls: ['a'] });
+  writeDistillShard(repo, 'orphan', { paths: ['src/**'], pulls: [] });
+  writeDistillShard(repo, 'a', { paths: [], pulls: ['missing', 'b'] });
+
+  const result = distillWarnings(repo, { routingEnabled: false });
+  const codes = result.warnings.map((entry) => entry.code);
+  assert.ok(codes.includes('S21'), `orphan warning missing: ${JSON.stringify(result)}`);
+  assert.ok(codes.includes('S22'), `empty warning missing: ${JSON.stringify(result)}`);
+  assert.ok(codes.includes('S23'), `pull warning missing: ${JSON.stringify(result)}`);
+  assert.ok(codes.includes('S24'), `cycle warning missing: ${JSON.stringify(result)}`);
+  assert.ok(codes.includes('S25'), `source gap warning missing: ${JSON.stringify(result)}`);
+  assert.deepStrictEqual(result.failures, []);
+});
+
+test('enabled Distill routing rejects every remaining structural warning', () => {
+  const repo = mkRepo();
+  writeDistillIndex(repo, ['source'], false);
+  writeDistillShard(repo, 'source', { paths: ['docs/**'], pulls: [] });
+
+  const result = distillWarnings(repo, { routingEnabled: true });
+  assert.ok(result.warnings.length > 0);
+  assert.deepStrictEqual(result.failures.map((entry) => entry.code), result.warnings.map((entry) => entry.code));
+});
+
+test('config-disabled Distill routing overrides an enabled index and stays fail-open', () => {
+  const repo = mkRepo();
+  writeDistillIndex(repo, ['source'], true);
+  writeDistillShard(repo, 'source', { paths: ['docs/**'], pulls: [] });
+
+  const result = checkDistillStructural({
+    repoRoot: repo,
+    config: {
+      source_dirs: ['src'],
+      distill: { routing_enabled: false },
+    },
+  });
+
+  assert.strictEqual(result.routingEnabled, false);
+  assert.ok(result.warnings.some((entry) => entry.code === 'S25'));
+  assert.deepStrictEqual(result.failures, []);
+});
+
+test('Distill byte threshold is a warning, not a content limit', () => {
+  const repo = mkRepo();
+  writeDistillIndex(repo, ['source']);
+  writeDistillShard(repo, 'source', { paths: ['src/**'], pulls: [], body: 'x'.repeat(20) });
+
+  const result = distillWarnings(repo, { maxBytes: 1 });
+  assert.ok(result.warnings.some((entry) => entry.code === 'S26'));
+  assert.deepStrictEqual(result.failures, []);
+});
+
+test('public validation rejects active Distill structural warnings', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  writeRaw(repo, '.bouncer/config.json', `${JSON.stringify({
+    source_dirs: ['src'],
+    distill: { routing_enabled: true },
+  })}\n`);
+  writeDistillIndex(repo, ['source']);
+  writeDistillShard(repo, 'source', { paths: ['docs/**'], pulls: [] });
+
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.failures.some((entry) => entry.code === 'S25'));
+});
+
+test('public validation stays fail-open when config disables enabled index routing', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  writeRaw(repo, '.bouncer/config.json', `${JSON.stringify({
+    source_dirs: ['src'],
+    distill: { routing_enabled: false },
+  })}\n`);
+  writeDistillIndex(repo, ['source'], true);
+  writeDistillShard(repo, 'source', { paths: ['docs/**'], pulls: [] });
+
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+
+  assert.strictEqual(result.ok, true);
+  assert.ok(!result.failures.some((entry) => entry.code === 'S25'));
 });

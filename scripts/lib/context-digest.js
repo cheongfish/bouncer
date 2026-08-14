@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
+const { readShards } = require('./distill');
+const { DISTILL_SHARD_DIR } = require('./layout');
 /** graphify가 스캔할 파생 트리 (gitignore 대상 graphify-out 아래). */
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
 const DIGEST_MAP_REL = 'graphify-out/context-src/map.json';
@@ -18,6 +20,9 @@ function digestRulesFor(rel) {
     const norm = String(rel || '').replace(/\\/g, '/');
     if (norm === '.bouncer/Distill.md')
         return ['## Decisions'];
+    if (new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(norm)) {
+        return ['## Decisions'];
+    }
     if (/^\.bouncer\/context\/epics\/[^/]+\/index\.md$/.test(norm)) {
         return ['## Success criteria'];
     }
@@ -126,6 +131,19 @@ function buildContextDigest({ repoRoot, contextDirs }) {
     for (const watch of DIGEST_WATCH_FILES) {
         if (!candidates.includes(watch))
             candidates.push(watch);
+    }
+    const distill = readShards({ repoRoot });
+    if (distill.sharded && distill.valid) {
+        for (const shard of distill.shards) {
+            // readShards가 인덱스 정본만 반환하더라도 경로 계약은 여기서 한 번 더
+            // 좁힌다. 사용자 지정 경로를 그대로 그래프 원본으로 노출하지 않아야
+            // map.json의 source_file이 실제 Distill 샤드 경계를 벗어나지 않는다.
+            if (typeof shard.path === 'string'
+                && digestRulesFor(shard.path)
+                && !candidates.includes(shard.path)) {
+                candidates.push(shard.path);
+            }
+        }
     }
     const used = new Set();
     const map = {};
