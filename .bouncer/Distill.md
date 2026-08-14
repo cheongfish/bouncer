@@ -29,6 +29,11 @@ append a change log.
   or JSON error is `invalid`. Neither function checks value shape. Callers keep
   their own `null` vs `{}` vs typed-throw mapping (`VERIFY_CONFIG_MISSING` /
   `VERIFY_CONFIG_INVALID`).
+- Project Distill uses a versioned index plus registered shards. Routing is
+  opt-in through `distill.routing_enabled`; invalid structure, uncertain path
+  metadata, missing matches, and broken `pulls` fail open to the full shard
+  set. Before enabling routing, the structural validator and full-render
+  bullet audit must pass.
 - `validateBlueprint` stays in `validate.ts` — the public-name-regression
   allowlist keys a retired protocol token to that filename.
 - `isValidGraphBasis` is implemented once in `validate-structural.ts`;
@@ -45,6 +50,9 @@ append a change log.
   배경·의도 is the highest-numbered valid task `commit_intent`. Keep
   Epic/Blueprint/Distill ids and file paths out of those fields.
 - Unknown CLI usage goes to **stderr** so stdout stays pipe-clean.
+- Distill route diagnostics and byte-size observations go to stderr. The
+  `distill.max_bytes` value is warning-only: route output is never truncated or
+  silently dropped because it exceeds the threshold.
 - Task layout is `tasks/<NNN>/{tasks,verification,review}.md` with ids
   `TASKS|VERIFY|REVIEW-<NNN>` and `dir` = `<bp>/tasks/<NNN>`; scaffold creates
   `tasks/001/`. Basenames, `\d{3}` dir checks, and expected ids live only in
@@ -319,6 +327,10 @@ append a change log.
   blocks while any task is not `verified` or the blueprint entry / hash is
   missing; next-blueprint advance is confirm-then `--set` only — never
   automatic. One execute worktree is reused for every task on a blueprint.
+- This repository enables `distill.routing_enabled` only after the full
+  seven-shard render preserves every original bullet; route selection keeps
+  `always` shards and transitive `pulls` while retaining the full-render
+  fallback for uncertainty.
 - `config.autonomy` (`auto` | `interactive`) lives only in
   `.bouncer/config.json` — not document frontmatter, not validate. Missing or
   out-of-enum → warn and treat as `auto` (do not branch on a dedicated auto
