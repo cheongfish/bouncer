@@ -73,8 +73,41 @@ test('distill --all and --audit ignore routing and select every shard', () => {
 
   assert.strictEqual(all.code, 0);
   assert.strictEqual(all.out, '# core\n\n\n# source\n\n\n# docs\n');
-  assert.deepStrictEqual(JSON.parse(audit.out).ids, ['core', 'source', 'docs']);
-  assert.strictEqual(JSON.parse(audit.out).full, true);
+  const payload = JSON.parse(audit.out);
+  assert.deepStrictEqual(payload.ids, ['core', 'source', 'docs']);
+  assert.strictEqual(payload.full, true);
+  assert.deepStrictEqual(payload.audit.shards, [
+    {
+      id: 'core',
+      path: '.bouncer/distill/core.md',
+      always: true,
+      pathsKnown: true,
+      pullsKnown: true,
+      paths: [],
+      pulls: [],
+    },
+    {
+      id: 'source',
+      path: '.bouncer/distill/source.md',
+      always: false,
+      pathsKnown: true,
+      pullsKnown: true,
+      paths: ['scripts/**'],
+      pulls: ['core'],
+    },
+    {
+      id: 'docs',
+      path: '.bouncer/distill/docs.md',
+      always: false,
+      pathsKnown: true,
+      pullsKnown: true,
+      paths: ['docs/**'],
+      pulls: [],
+    },
+  ]);
+  assert.strictEqual(Object.hasOwn(payload.audit.shards[0], 'raw'), false);
+  assert.strictEqual(Object.hasOwn(payload.audit.shards[0], 'body'), false);
+  assert.strictEqual(Object.hasOwn(payload.audit.shards[0], 'content'), false);
   assert.strictEqual(audit.err, '');
 });
 
@@ -84,9 +117,45 @@ test('distill --route and --json expose deterministic routing metadata', () => {
   const body = capture(['distill', '--repo', repo, '--for', 'docs/index.md', '--json']);
 
   assert.strictEqual(route.code, 0);
-  assert.deepStrictEqual(JSON.parse(route.out).ids, ['core', 'docs']);
-  assert.deepStrictEqual(JSON.parse(body.out).ids, ['core', 'docs']);
-  assert.strictEqual(JSON.parse(body.out).content, '# core\n\n\n# docs\n');
+  const routePayload = JSON.parse(route.out);
+  const bodyPayload = JSON.parse(body.out);
+  assert.deepStrictEqual(routePayload.ids, ['core', 'docs']);
+  assert.deepStrictEqual(bodyPayload.ids, ['core', 'docs']);
+  assert.strictEqual(bodyPayload.content, '# core\n\n\n# docs\n');
+  assert.deepStrictEqual(routePayload.audit.shards.map((shard) => shard.id), ['core', 'source', 'docs']);
+  assert.strictEqual(routePayload.audit.shards.length, routePayload.audit.shardCount);
+});
+
+test('distill audit reports no shards for the single-file fallback', () => {
+  const repo = fixture();
+  fs.unlinkSync(path.join(repo, '.bouncer', 'Distill.md'));
+  const result = capture(['distill', '--repo', repo, '--all', '--json']);
+  const payload = JSON.parse(result.out);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.audit.sharded, false);
+  assert.deepStrictEqual(payload.audit.shards, []);
+});
+
+test('distill audit preserves undeclared shard fields and reader known flags', () => {
+  const repo = fixture();
+  fs.writeFileSync(path.join(repo, '.bouncer', 'distill', 'source.md'), [
+    '---',
+    'distill:',
+    '  id: source',
+    '  pulls: [core]',
+    '---',
+    '# source',
+    '',
+  ].join('\n'));
+  const result = capture(['distill', '--repo', repo, '--all', '--json']);
+  const source = JSON.parse(result.out).audit.shards.find((shard) => shard.id === 'source');
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(Object.hasOwn(source, 'paths'), false);
+  assert.strictEqual(source.pathsKnown, true);
+  assert.strictEqual(source.pullsKnown, true);
+  assert.deepStrictEqual(source.pulls, ['core']);
 });
 
 test('distill routing uses config when index routing is disabled', () => {

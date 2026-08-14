@@ -71,6 +71,28 @@ function allDistillSelection(state, reason) {
 function distillPayload(state, selection, mode, targets, routingEnabled = state.routingEnabled === true) {
     const ids = Array.isArray(selection.ids) ? selection.ids : [];
     const shards = Array.isArray(state.shards) ? state.shards : [];
+    // 선택 결과와 무관하게 인덱스의 전체 등록 순서를 노출해야 소비자가
+    // route/for 결과를 다시 읽지 않고도 배치 근거를 보존할 수 있다. 본문과
+    // 원문은 이미 content에 있으므로 메타데이터만 새 객체로 투영한다.
+    const auditShards = state.sharded === true
+        ? shards.map((shard) => {
+            const projected = {
+                id: shard.id,
+                path: shard.path,
+                always: shard.always,
+                pathsKnown: shard.pathsKnown,
+                pullsKnown: shard.pullsKnown,
+            };
+            // undefined를 빈 배열로 바꾸면 미선언과 빈 규칙을 구분할 수 없다.
+            // JSON.stringify는 undefined 필드를 생략하므로 선언된 값만 명시적으로
+            // 복사해 reader가 계산한 known 신호와 원래 메타데이터를 함께 보존한다.
+            if (shard.paths !== undefined)
+                projected.paths = shard.paths;
+            if (shard.pulls !== undefined)
+                projected.pulls = shard.pulls;
+            return projected;
+        })
+        : [];
     return {
         mode,
         path: state.path,
@@ -87,6 +109,7 @@ function distillPayload(state, selection, mode, targets, routingEnabled = state.
             shardCount: shards.length,
             selectedCount: ids.length,
             ids,
+            shards: auditShards,
         },
     };
 }
