@@ -122,17 +122,28 @@ test('bouncer-run gives implementer the current task Distill re-ground', () => {
   assert.doesNotMatch(run, /직전 task의\s+`distill --for` 출력/);
 });
 
-test('finalize promotion searches all Distill content before route batching', () => {
+test('finalize promotion searches all Distill content and independently reads every shard', () => {
   const finalize = read('skills/bouncer-finalize/SKILL.md');
   const spec = read('skills/spec-authoring/SKILL.md');
+  assert.match(finalize, /distill\s+--all\s+--json/, 'promotion must start with a full JSON audit');
+  assert.match(finalize, /already-resolved[\s\S]{0,100}PROJECT_ROOT[\s\S]{0,100}(?:every|each|모든)/i);
+  assert.match(finalize, /audit\.shards/);
+  assert.match(finalize, /read[\s\S]{0,100}(?:every|each|모든)[\s\S]{0,100}shard/i);
+  assert.match(finalize, /relative[^\n]{0,20}path|상대 경로/i);
+  assert.match(finalize, /currentBody/);
+  assert.match(finalize, /id[^\n]{0,80}(?:path|currentBody)/i);
+  assert.doesNotMatch(finalize, /distill\s+--route/);
+  assert.match(finalize, /aggregate|selection|합산|선택 결과/i);
+  assert.match(finalize, /never[^\n]{0,100}(?:attach|associate|individual shard|개별 샤드)/i);
   for (const md of [finalize, spec]) {
-    assert.match(md, /distill\s+--all/, 'promotion must start with a full search');
-    assert.match(md, /distill\s+--route/, 'route mode is available only for batching');
     assert.match(md, /replace|교체/i, 'changed decisions must be replaceable');
     assert.match(md, /append|추가하지|덧붙이/i, 'promotion must reject append-only decisions');
   }
   assert.match(finalize, /full search|전량.*검색/i);
   assert.match(spec, /conflict|충돌|plan/i);
+  assert.match(spec, /never invokes route|route.*자체/);
+  assert.match(spec, /aggregate|selection|합산|선택 결과/i);
+  assert.match(spec, /never[^\n]{0,100}(?:attach|associate|individual shard|개별 샤드)/i);
 });
 
 test('master rules preserve single-file Distill fallback and CLI trust boundary', () => {
@@ -143,6 +154,10 @@ test('master rules preserve single-file Distill fallback and CLI trust boundary'
   assert.match(claude, /single-file fallback|단일 파일.*폴백/i);
   assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
   assert.match(claude, /affected_paths/);
+  assert.match(claude, /audit\.shards/);
+  assert.match(claude, /relative[^\n]{0,20}path|상대 경로/i);
+  assert.match(claude, /aggregate|selection|합산|선택 결과/i);
+  assert.match(claude, /never[^\n]{0,120}(?:attach|associate|individual shard|개별 샤드)/i);
 });
 
 test('discovery and spec-authoring take caller-provided absolute Distill paths', () => {
@@ -176,4 +191,11 @@ test('hard rule 9 requires Korean code comments and points at implementation ski
   // Distill pattern: obligation + pointer only — examples stay in the skill.
   const hardRules = claude.split(/^## Session conduct/m)[0];
   assert.doesNotMatch(hardRules, /```/);
+});
+
+test('hard rule 7 requires finalize promotion consent and caller-provided shard audit', () => {
+  const claude = read('CLAUDE.md');
+  assert.match(claude, /finalize[\s\S]{0,260}(?:consent|동의|승인)/i);
+  assert.match(claude, /audit\.shards/);
+  assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
 });

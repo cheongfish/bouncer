@@ -69,3 +69,23 @@ test('spec-authoring ships completed reference examples and points SKILL.md at t
   }
   assert.match(readSkill('spec-authoring'), /references\//);
 });
+
+test('spec-authoring derives a shard-targeted proposal and writes only after consent', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /drop[\s\S]{0,80}replace[\s\S]{0,80}add/i);
+  assert.match(md, /bullet|불릿/);
+  assert.match(md, /source|출처.*explain|explain.*절/i);
+  assert.match(md, /target shard|대상 샤드|shard id/i);
+  assert.match(md, /audit\.shards/);
+  assert.match(md, /consent|동의|승인/);
+  assert.match(md, /only after|after.*consent|동의.*(?:이후|뒤).*쓴|동의.*쓰기/i);
+  assert.match(md, /current body|현재 본문|body content/);
+  assert.match(md, /registered relative path|등재.*상대 경로/i);
+  assert.match(md, /separate[\s\S]{0,10}read|read each.*separately|각.*따로.*읽/i);
+  assert.match(md, /single-file/);
+  assert.match(md, /never invoke.*route|never invokes route|route.*자체/);
+  assert.match(md, /caller-supplied|caller-provided|호출자.*(?:제공|넘긴)/i);
+  assert.match(md, /aggregate|selection|합산|선택 결과/i);
+  assert.match(md, /never[^\n]{0,120}(?:attach|associate|individual shard|개별 샤드)/i);
+  assert.doesNotMatch(md, /scripts\/bouncer|BOUNCER_ROOT/);
+});

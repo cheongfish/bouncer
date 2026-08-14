@@ -91,3 +91,51 @@ test('bouncer-finalize next handoff is next blueprint only (task advance lives o
   assert.match(body, /never automatic|자동.*없|자동 전진은 없/i);
   assert.doesNotMatch(body, /AskUserQuestion — Next task|Next task ACQ/i);
 });
+
+test('bouncer-finalize presents one ordered promotion proposal with complete item shape', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /proposal|제안/i);
+  assert.match(body, /drop[\s\S]{0,80}replace[\s\S]{0,80}add/i);
+  assert.match(body, /bullet|불릿/);
+  assert.match(body, /source|출처.*explain|explain.*절/i);
+  assert.match(body, /target shard|대상 샤드|shard id/i);
+  assert.match(body, /replace[\s\S]{0,240}(old|existing|기존).*bullet|기존 문장[\s\S]{0,240}replace/i);
+  assert.match(body, /drop[\s\S]{0,100}replace[\s\S]{0,100}add/i);
+});
+
+test('bouncer-finalize uses one three-way consent and keeps the cycle moving on rejection', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /one.*ACQ|단일 ACQ|한 번.*동의/i);
+  assert.match(body, /approve|승인/);
+  assert.match(body, /revise|수정/);
+  assert.match(body, /skip|건너뛰기/);
+  assert.match(body, /Never ask per bullet|불릿별 질문.*금지|불릿마다.*묻지 않/i);
+  assert.match(body, /rejection|decline|거절.*(?:explain|퀴즈|G16|remainder)/i);
+  assert.match(body, /auto[\s\S]{0,180}(?:not|does not|생략하지)|autonomy[\s\S]{0,180}(?:not|does not|생략하지)/i);
+  assert.match(body, /light[\s\S]{0,180}(?:not|does not|생략하지)/i);
+});
+
+test('bouncer-finalize handles empty proposals, drop mismatches, and missing ACQ tools', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /zero candidates|0건|후보.*없/);
+  assert.match(body, /mismatch|불일치/i);
+  assert.match(body, /that item as failed/);
+  assert.match(body, /other approved entries/);
+  assert.match(body, /host ACQ tool is unavailable|ACQ.*(?:missing|unavailable|없)/i);
+  assert.match(body, /audit\.shards/);
+  assert.match(body, /distill\s+--all\s+--json/);
+  assert.match(body, /PROJECT_ROOT/);
+  assert.match(body, /every|each|모든/i);
+  assert.match(body, /relative[^\n]{0,20}path|상대 경로/i);
+  assert.match(body, /registered relative path|등재.*상대 경로/i);
+  assert.match(body, /id\/path pairing|id.*path.*pairing|id.*경로.*짝/i);
+  assert.match(body, /separate[\s\S]{0,10}read|read each.*separately|각.*따로.*읽/i);
+  assert.match(body, /read fails|읽기.*실패/i);
+  assert.match(body, /currentBody/);
+  assert.match(body, /id[^\n]{0,80}(?:path|currentBody)/i);
+  assert.match(body, /aggregate|selection|합산|선택 결과/i);
+  assert.match(body, /never[^\n]{0,140}(?:attach|associate|individual shard|개별 샤드)/i);
+  assert.doesNotMatch(body, /distill\s+--route/);
+  assert.match(body, /single-file/);
+  assert.match(body, /absolute path|절대 경로/i);
+});

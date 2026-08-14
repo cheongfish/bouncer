@@ -41,3 +41,4 @@ bouncer_schema: '0.1'
 * [034 agentic-benchmark](epics/034-agentic-benchmark/index.md) - Epic 034
 * [035 scripts-refactor](epics/035-scripts-refactor/index.md) - Epic 035
 * [036 distill-sharding](epics/036-distill-sharding/index.md) - Epic 036
+* [037 distill-promotion-consent](epics/037-distill-promotion-consent/index.md) - Epic 037

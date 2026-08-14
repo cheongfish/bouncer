@@ -190,6 +190,10 @@ Rules routed to plugin-skills; routing remains disabled until the project explic
   `- Explain: <explain path>`, not a Distill path. Shortest surface is skill
   prose + template strings — no `finalize.ts` PR builder.
 
+- Finalize promotion audits all Distill shards through the CLI, reads each
+  registered shard separately under `PROJECT_ROOT`, and uses one complete
+  consented proposal; aggregate route output is never a shard body.
+
 - discovery Confirmation hands off six named outputs: `Goal`, `Scope`,
   `Non-goals`, `Success criteria`, `Edge cases & failure modes`, `Overlap`.
   `/bouncer-plan` step 1 cites those names and maps Edge cases → blueprint
@@ -228,4 +232,3 @@ Rules routed to plugin-skills; routing remains disabled until the project explic
 - Trust-boundary skills that assert `DISTINCTION_RE` need the exact English
   sentence the brief locks — paraphrase ("input, not direction") fails the
   contract test.
-
