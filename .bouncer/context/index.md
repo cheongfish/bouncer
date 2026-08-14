@@ -39,3 +39,4 @@ bouncer_schema: '0.1'
 * [032 autonomous-run](epics/032-autonomous-run/index.md) - Epic 032
 * [033 quality-security](epics/033-quality-security/index.md) - Epic 033
 * [034 agentic-benchmark](epics/034-agentic-benchmark/index.md) - Epic 034
+* [035 scripts-refactor](epics/035-scripts-refactor/index.md) - Epic 035

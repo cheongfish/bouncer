@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { readConfig } = require('./config');
 /**
  * 플랫폼별 venv 안 graphify 실행 파일의 저장소-상대 경로.
  * Windows만 Scripts/ + .exe; 그 외는 bin/. 구분자는 항상 POSIX(/)로 고정해
@@ -12,15 +13,6 @@ function venvBinRel(platform) {
     if (platform === 'win32')
         return '.bouncer/.venv/Scripts/graphify.exe';
     return '.bouncer/.venv/bin/graphify';
-}
-function readConfigSafe(repoRoot) {
-    try {
-        return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
-    }
-    catch (_e) {
-        // 파일 없음·깨진 JSON·권한 오류 모두 "config 없음"과 같게 — 해석기는 throw하지 않는다.
-        return null;
-    }
 }
 function defaultHasOnPath() {
     // session-graph의 구 realHasGraphify와 동일 순서: 직접 실행 → command -v.
@@ -61,8 +53,9 @@ function resolveGraphifyBin({ repoRoot, config, platform, exists, hasOnPath, } =
             ? exists
             : (p) => fs.existsSync(p);
         const onPath = typeof hasOnPath === 'function' ? hasOnPath : defaultHasOnPath;
-        // config를 넘기지 않으면 디스크에서 읽되, 실패는 null과 동일.
-        const cfg = config === undefined ? readConfigSafe(root) : config;
+        // 주입이 없으면 디스크에서 읽되, 실패는 null — ?? {}를 붙이면
+        // 아래 cfg && typeof cfg === 'object' 가 빈 객체를 설정 있음으로 본다.
+        const cfg = config === undefined ? readConfig(root) : config;
         const rawBin = cfg && typeof cfg === 'object' && cfg.graphify && typeof cfg.graphify === 'object'
             ? cfg.graphify.bin
             : undefined;

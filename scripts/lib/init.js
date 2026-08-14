@@ -7,6 +7,7 @@ const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout');
 const { PROJECT_DISTILL_BODY } = require('./templates');
 const { nowIsoKst } = require('./time');
 const { setupGraphify } = require('./graphify');
+const { readConfig } = require('./config');
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
 // import하는 test와 동기 유지.
@@ -181,17 +182,6 @@ function writeGitignoreMarkerBlock(repoRoot) {
     fs.writeFileSync(abs, `${content}${sep}${block}\n`);
     return true;
 }
-function readConfigObject(repoRoot) {
-    try {
-        const raw = JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
-        if (raw && typeof raw === 'object' && !Array.isArray(raw))
-            return raw;
-    }
-    catch (_e) {
-        // ready 판정은 inspectBootstrap이 이미 통과 — 여기서는 승격 실패 시 no-op.
-    }
-    return null;
-}
 function graphifyEnabledIsTrue(config) {
     return !!(config
         && config.graphify
@@ -204,21 +194,18 @@ function inspectBootstrap({ repoRoot }) {
     const bouncerAbs = path.join(repoRoot, '.bouncer');
     if (!fs.existsSync(bouncerAbs))
         return 'missing';
-    const configAbs = path.join(bouncerAbs, 'config.json');
-    try {
-        const config = JSON.parse(fs.readFileSync(configAbs, 'utf8'));
-        const valid = config
-            && typeof config === 'object'
-            && !Array.isArray(config)
-            && Array.isArray(config.source_dirs)
-            && typeof config.verify === 'string'
-            && typeof config.base_branch === 'string';
-        if (valid)
-            return 'ready';
-    }
-    catch (_e) {
-        // config가 없거나 invalid일 때 기존 Bouncer 내용은 보존.
-    }
+    // 파싱은 config.ts에 맡기고 유효성만 여기서 본다. 배열/원시값을 ready로
+    // 올리면 이후 승격이 비객체에 키를 심는다. 깨진 JSON·비객체는 missing이
+    // 아니라 partial — .bouncer가 이미 있으므로 재생성하면 기존 내용을 덮는다.
+    const config = readConfig(repoRoot);
+    const valid = config
+        && typeof config === 'object'
+        && !Array.isArray(config)
+        && Array.isArray(config.source_dirs)
+        && typeof config.verify === 'string'
+        && typeof config.base_branch === 'string';
+    if (valid)
+        return 'ready';
     return 'partial';
 }
 function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) {
@@ -250,7 +237,11 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) 
         // project Distill 이전에 init된 repo용 soft-seed.
         const created = [];
         ensureProjectDistill(repoRoot, created, timestamp);
-        const existing = readConfigObject(repoRoot);
+        // 승격은 객체에만 키를 심는다. readConfig는 배열/원시값도 통과시키므로
+        // 여기서 걸러야 비객체에 graphify.enabled를 쓰다가 파일을 잘못된 형태로
+        // 덮지 않는다. null은 승격 no-op (existing이 falsy면 write 생략).
+        const raw = readConfig(repoRoot);
+        const existing = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : null;
         const alreadyEnabled = graphifyEnabledIsTrue(existing);
         let graphifyPromotion;
         let graphifyInstall;

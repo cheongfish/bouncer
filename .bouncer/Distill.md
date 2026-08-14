@@ -21,7 +21,21 @@ append a change log.
 - Plugin consumers stay Node-only: commit `scripts/lib` CJS emit and regenerate
   via `pretest` / `npm run build`; do not require TS runtimes at consume time.
   `tsc` does not rewrite `require('../vendor/…')` — keep `outDir`/`rootDir` so
-  emit lands in `scripts/lib` and relative vendor paths stay valid.
+  emit lands in `scripts/lib` and relative vendor paths stay valid. Core splits
+  stay flat siblings under `scripts/src/lib` for the same reason — a nested
+  folder would break emit-relative vendor requires.
+- `.bouncer/config.json` is parsed only in `scripts/src/lib/config.ts`
+  (`readConfigResult` / `readConfig`). `missing` is ENOENT only; any other read
+  or JSON error is `invalid`. Neither function checks value shape. Callers keep
+  their own `null` vs `{}` vs typed-throw mapping (`VERIFY_CONFIG_MISSING` /
+  `VERIFY_CONFIG_INVALID`).
+- `validateBlueprint` stays in `validate.ts` — the public-name-regression
+  allowlist keys a retired protocol token to that filename.
+- `isValidGraphBasis` is implemented once in `validate-structural.ts`;
+  `validate-gates.ts` (G4) imports it and must not reimplement.
+- Graph freshness/config/dir reads live in `graph-scope.ts` (filesystem read
+  only; do not require `graphify.ts`). Graphify process execution lives in
+  `graph-exec.ts`.
 - Commit-message subject/body come from document fields, not free-form finalize
   prose: blueprint `commit_type` + task `title` (blueprint `title` only when the
   task title is empty) + task `commit_intent` (exactly two Korean `~함`/`~임`
@@ -104,6 +118,11 @@ append a change log.
   collide as scripts across the program.
 - `affected_paths` as a wide directory (e.g. `scripts`) overlaps Do not touch
   file paths under it and fails G12 — prefer per-file paths.
+- CLI command registry lookup must use own keys (`Object.hasOwn` or
+  `Object.create(null)`). `COMMANDS[cmd]` on a plain object treats `toString` /
+  `constructor` as hits and throws instead of unknown-command stderr + exit 2.
+  Help text follows registry declaration order; dispatch is key lookup and does
+  not depend on that order.
 - Skill YAML `description` plain `##` is truncated as a comment — quote or avoid.
   Prefer third-person trigger prose (`This skill should be used when/during…`).
 - Workflow skill bodies point plugin-root prose at `docs/install.md`; each shell

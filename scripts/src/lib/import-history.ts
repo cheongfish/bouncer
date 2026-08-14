@@ -1,4 +1,7 @@
 'use strict';
+import type {
+  ImportPlan, ImportEntry, ImportRefusal, ImportError, ImportResult, RawCommit,
+} from './import-types';
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
@@ -7,52 +10,25 @@ const { isNumericContextId } = require('./paths');
 const { listEpicDirNames, ensureEpicIndexEntry } = require('./epic-index');
 const { readRuntimeCurrent } = require('./runtime-state');
 const { isWorktreeDirty } = require('./migrate-ids');
-const { renderDoc } = require('./render');
 const { nowIsoKst } = require('./time');
+const {
+  EPIC_ID_PREFIX_RE,
+  slugFromSubject,
+  parseLogOutput,
+  gitLogArgs,
+  listChangedFiles,
+} = require('./import-git');
+const {
+  renderEpicBody,
+  renderBlueprintBody,
+  writeImportDoc,
+} = require('./import-render');
+
+// 계획·거절·적용 + 공개 배럴. git 파싱과 문서 렌더는 형제가 담당한다.
+// CLI 는 이 파일의 planImport / applyImport 만 본다.
 
 const DEFAULT_LIMIT = 200;
 const DEFAULT_EPIC_NAME = 'imported-history';
-const LOG_FORMAT = '%H%x1f%s%x1f%aI%x1f%an';
-const EPIC_ID_PREFIX_RE = /^(\d{3})-/;
-
-type ImportRefusal = { code: string; message: string };
-type ImportError = { code: string; message: string };
-type ImportEntry = {
-  sha: string;
-  subject: string;
-  date: string;
-  author: string;
-  files: string[];
-  blueprintId: string;
-  slug: string;
-  blueprintDir: string;
-};
-type ImportPlan = {
-  ok: boolean;
-  source: 'merges' | 'commits';
-  fellBack: boolean;
-  epicId: string;
-  epicName: string;
-  epicDir: string;
-  total: number;
-  limit: number;
-  entries: ImportEntry[];
-  refusals: ImportRefusal[];
-  error?: ImportError;
-};
-type ImportResult = {
-  ok: boolean;
-  created: string[];
-  committed: boolean;
-  message?: string;
-  error?: ImportError;
-};
-type RawCommit = {
-  sha: string;
-  subject: string;
-  date: string;
-  author: string;
-};
 
 function emptyPlan(partial: Partial<ImportPlan> & {
   source: ImportPlan['source'];
@@ -69,62 +45,6 @@ function emptyPlan(partial: Partial<ImportPlan> & {
     refusals: [],
     ...partial,
   };
-}
-
-/** 제목에서 ASCII 슬러그를 뽑고, 한글·기호만 남으면 축약 sha로 떨어뜨린다. */
-function slugFromSubject(subject: string, sha: string): string {
-  const slug = String(subject || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug || sha.slice(0, 7);
-}
-
-function parseLogOutput(text: string): RawCommit[] {
-  const out: RawCommit[] = [];
-  for (const line of String(text || '').split('\n')) {
-    if (!line.trim()) continue;
-    const parts = line.split('\x1f');
-    if (parts.length < 4) continue;
-    const [sha, subject, date, author] = parts;
-    if (!sha) continue;
-    out.push({
-      sha,
-      subject: subject || '',
-      date: date || '',
-      author: author || '',
-    });
-  }
-  return out;
-}
-
-function gitLogArgs(kind: 'merges' | 'commits', since?: string): string[] {
-  const args = kind === 'merges'
-    ? ['log', '--merges', '--reverse', `--format=${LOG_FORMAT}`]
-    : ['log', '--reverse', `--format=${LOG_FORMAT}`];
-  // --since <ref> 는 날짜 해석이 아니라 <ref>..HEAD 범위다.
-  if (typeof since === 'string' && since) args.push(`${since}..HEAD`);
-  return args;
-}
-
-function listChangedFiles(
-  execFileSync: typeof realExecFileSync,
-  repoRoot: string,
-  source: 'merges' | 'commits',
-  sha: string,
-): string[] {
-  const args = source === 'merges'
-    ? ['diff', '--name-only', `${sha}^1`, sha]
-    : ['show', '--name-only', '--format=', sha];
-  const out = execFileSync('git', args, {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return String(out || '')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean);
 }
 
 /**
@@ -154,7 +74,10 @@ function collectRefusals({
   execFileSync: typeof realExecFileSync;
 }): ImportRefusal[] {
   const refusals: ImportRefusal[] = [];
-  // 적용 단계 차단 사유만 계산한다. 여기서 ok 를 뒤집지 않는다.
+  // 거절은 전부 첫 write 앞에 모은다. apply 중간에 멈추면 epic 디렉터리만
+  // 생기고 context/index.md 행이 없는 반쪽이 남고, 그 상태는 저장소 전체
+  // validate 를 S13 으로 깨뜨린다. 여기서 ok 를 뒤집지 않는 이유: 거절은
+  // apply 입구에서 refusals 배열로 처리하고, plan 자체는 후보 목록을 돌려준다.
   if (isWorktreeDirty(repoRoot, execFileSync)) {
     refusals.push({
       code: 'IMPORT_WORKTREE_DIRTY',
@@ -347,55 +270,6 @@ function planImport({
 
 function failResult(error: ImportError): ImportResult {
   return { ok: false, created: [], committed: false, error };
-}
-
-/** 임포트 epic 본문. Success criteria 헤딩은 context digest 화이트리스트라 넣지 않는다. */
-function renderEpicBody(plan: ImportPlan): string {
-  const lines = [
-    `# ${plan.epicId} ${plan.epicName}`,
-    '',
-    '## Intent',
-    `- Imported from git ${plan.source}${plan.fellBack ? ' (fell back from merges)' : ''}.`,
-    `- ${plan.entries.length} blueprint(s) transcribed from history.`,
-    '',
-    '## Blueprints',
-  ];
-  for (const e of plan.entries) {
-    const title = e.subject || e.slug;
-    lines.push(`* [${e.blueprintId} ${e.slug}](blueprints/${e.blueprintDir}/index.md) - ${title}`);
-  }
-  lines.push('');
-  return lines.join('\n');
-}
-
-function renderBlueprintBody(plan: ImportPlan, entry: ImportEntry): string {
-  const changeLines = entry.files.length
-    ? entry.files.map((f) => `- ${f}`)
-    : ['- (no files)'];
-  return [
-    `# ${entry.blueprintId} ${entry.slug}`,
-    '',
-    `Epic: [${plan.epicId}](../../index.md)`,
-    '',
-    '## Source',
-    `- sha: \`${entry.sha}\``,
-    `- date: ${entry.date}`,
-    `- author: ${entry.author}`,
-    '',
-    '## Message',
-    entry.subject || '(empty)',
-    '',
-    '## Changes',
-    ...changeLines,
-    '',
-  ].join('\n');
-}
-
-function writeImportDoc(repoRoot: string, rel: string, data: object, body: string): string {
-  const abs = path.join(repoRoot, rel);
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, renderDoc(data, body));
-  return rel;
 }
 
 /**
