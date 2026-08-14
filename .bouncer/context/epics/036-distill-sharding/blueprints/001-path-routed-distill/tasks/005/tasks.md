@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-005
   epic_id: '036'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 워크플로가 단일 파일과 샤드 정본을 같은 CLI 계약으로 소비해야 함
     - 결정이 바뀔 때 이전 규칙을 전량 검색해 교체해야 함

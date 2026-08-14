@@ -22,8 +22,8 @@ BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
 PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
 ```
 If that fails, stop and report stderr — do not fall back to cwd or plugin root.
-Pass `${PROJECT_ROOT}/.bouncer/Distill.md` as the absolute Distill path when
-invoking `spec-authoring`.
+The CLI resolves `${PROJECT_ROOT}/.bouncer/Distill.md`; pass its output and that
+absolute path to `spec-authoring`.
 
 ## ACQ (AskUserQuestion) gates
 
@@ -62,16 +62,23 @@ If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
 appears; do not reconstruct a root `context/` path.
 
-1. **Promote Distill.** Use the `spec-authoring` skill
-   (`skills/spec-authoring/SKILL.md`) to promote durable items from BP
-   `explain.md` into `${PROJECT_ROOT}/.bouncer/Distill.md` under
-   `## Invariants` / `## Gotchas` / `## Decisions` (add, replace, or drop stale
-   bullets; English Distill bullets). Pass that absolute Distill path to
-   `spec-authoring` — do not let it invent a path from plugin root or cwd.
-   Decisions stay **current only** — no change-log
-   append. Do **not** promote `## 이해 상태`, `## Quiz`, or comprehension
-   fields into Distill — 이해 상태는 Distill로 승격하지 않는다. Cycle
-   retrospectives and next-BP ideas stay in the BP `explain.md` only.
+1. **Promote Distill.** Before deciding what to promote, run
+   `bouncer distill --all --repo "${PROJECT_ROOT}"` and give the complete
+   stdout plus the absolute `${PROJECT_ROOT}/.bouncer/Distill.md` path to the
+   `spec-authoring` skill (`skills/spec-authoring/SKILL.md`). This full search
+   covers every
+   current rule, including shards, against BP `explain.md`; never use a routed
+   subset as the promotion inventory. After candidates are identified, repeated
+   `bouncer distill --route <path> --repo "${PROJECT_ROOT}"` calls may batch
+   candidate review and return JSON selection metadata, but route output cannot
+   replace the `--all` search. Add, replace, or drop stale bullets; decisions
+   stay **current only** and must not become an append-only change log. If the
+   current Distill and an older explain decision conflict, stop and escalate to
+   `/bouncer-plan` instead of choosing silently. Do **not** promote
+   `## 이해 상태`, `## Quiz`, or comprehension fields into Distill — 이해 상태는 Distill로
+   승격하지 않는다. Cycle retrospectives and next-BP ideas stay in the BP
+   `explain.md` only. Use English Distill bullets. A missing or invalid shard
+   index is handled by the CLI's single-file fallback.
    If `explain.md` is missing, continue — step 2 will scaffold and author it.
    If it exists but is not yet `published`, step 2 publishes after the quiz.
 

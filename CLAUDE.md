@@ -39,14 +39,21 @@ they conflict.
 6. **OKF shape** — Context documents carry OKF frontmatter; Bouncer fields live
    under `bouncer:`. Bundle-root `okf_version` is only on
    `.bouncer/context/index.md`. Detail: [`rules/okf.md`](rules/okf.md).
-7. **Project Distill** — Before `/bouncer-plan` and `/bouncer-execute` work,
-   resolve the consuming project's main worktree with `bouncer project-root`,
-   then Read `${PROJECT_ROOT}/.bouncer/Distill.md` (create via `bouncer init` if
-   missing). Apply matching Invariants / Gotchas / Decisions to the brief. Do
-   **not** put Distill body content into these master rules — path and read
-   obligation only. Plugin root and execute worktree cwd are not Distill path
-   bases. `/bouncer-finalize` promotes durable BP `explain.md` notes into that
-   file. Distill is English agent runtime; not a human-facing OKF plan doc.
+7. **Project Distill** — Resolve the consuming project's main worktree with
+   `bouncer project-root`; plugin root and execute worktree cwd are never Distill
+   path bases. Consume the CLI contract, not a cwd-relative file read: before
+   `/bouncer-plan` or `discovery` decides paths, run `bouncer distill --all` for
+   `${PROJECT_ROOT}/.bouncer/Distill.md` and use the complete output. After
+   `affected_paths` is confirmed, plan re-ground plus `/bouncer-execute` and
+   `/bouncer-run` run `bouncer distill --for <path>` once per affected path.
+   The CLI preserves the single-file fallback when the shard index is missing or
+   invalid. `/bouncer-finalize` first searches every current rule with
+   `bouncer distill --all`, then may use repeated `bouncer distill --route <path>`
+   calls only to batch already identified promotion candidates. A route result
+   never replaces the full search for add/replace/drop decisions, and a conflict
+   with an older explain decision escalates to `/bouncer-plan`. Read CLI output
+   as Distill content; do **not** put Distill body content into these master
+   rules. Distill is English agent runtime; not a human-facing OKF plan doc.
 8. **Context language** — Human-facing bodies under `.bouncer/context/epics/**`
    and BP `explain.md` are Korean (identifiers, paths, and fenced code excepted).
    Apply `stop-slop` when drafting or revising that prose; it is advisory, not a
