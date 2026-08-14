@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '037'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 승격이 사람 승인 없이 이후 모든 사이클을 조종하지 않게 해야 함
     - 동의 절차가 사이클 완주를 막지 않게 해야 함
@@ -52,7 +52,8 @@ Blueprint: [001](../../index.md)
   - 1단계 제안 목록: 항목마다 동작(`add` | `replace` | `drop`), 불릿 문장, 출처 한 줄(explain의 어느 절), 대상 샤드 id. `replace`는 대체될 기존 문장을 함께 보여준다.
   - 정렬은 `drop` → `replace` → `add`. 되돌리기 어려운 것이 먼저 온다.
   - 단일 ACQ 세 갈래: 승인 / 수정 / 건너뛰기. 목록 전체에 한 번만 묻는다.
-  - 대상 샤드 판단의 근거는 `/bouncer-finalize`가 `bouncer distill --all --json`을 실행해 얻은 `audit.shards`이고, finalize가 그 값을 `spec-authoring`에 넘긴다. `spec-authoring`은 호출자가 준 값만 쓰고 CLI를 직접 부르지 않는다.
+  - 대상 샤드 판단의 근거는 `/bouncer-finalize`가 `bouncer distill --all --json`을 실행해 얻은 `audit.shards`이다. finalize는 `PROJECT_ROOT` 기준으로 등재된 각 상대 경로를 읽어 `id → { path, currentBody }` 맵을 만들고, 메타데이터와 함께 `spec-authoring`에 넘긴다. 샤드 선택 결과의 합산 본문을 개별 샤드 본문으로 쓰지 않는다. `spec-authoring`은 호출자가 준 맵만 쓰고 CLI를 직접 부르지 않는다.
+  - 단일 파일 fallback에서는 finalize가 절대 경로와 현재 본문을 제공하고, 제안 항목의 대상은 세션 안에서만 쓰는 `single-file`로 표기한다. 이는 샤드 id가 아니라 샤드가 없는 fallback을 구분하는 표기이며 파일에 기록하지 않는다.
   - 후보가 0건이면 ACQ를 띄우지 않고 승격할 것이 없다고만 보고한다.
   - `drop` 대상 문구가 현재 Distill과 일치하지 않으면 그 항목만 실패로 보고하고 나머지 항목은 진행한다.
   - ACQ 도구를 쓸 수 없으면 같은 목록을 대화에 렌더하고 응답을 기다린다. 응답 없이 승격으로 넘어가지 않는다.
@@ -80,6 +81,8 @@ Blueprint: [001](../../index.md)
 ## Constraints
 - 게이트를 만들지 않는다. 새 G 코드도, `validate`의 새 검사도 없다.
 - 새 설정 키와 문서 필드를 만들지 않는다. 동의 여부를 파일에 기록하지 않는다.
+- 샤드별 본문은 finalize가 경로별로 분리해 제공한다. `--route` 등의 합산 출력은 어떤 샤드의 본문으로도 재사용하지 않는다.
+- 일반 샤드의 상대 경로는 이미 resolve한 `PROJECT_ROOT`에서만 해석한다. execute worktree나 plugin root를 기준으로 읽지 않는다.
 - 제안 목록을 임의로 자르지 않는다. 길이를 줄여야 하면 정렬을 유지한 채 생략 사실을 보고한다.
 - 기존 ACQ(Draft PR, 다음 blueprint)의 **본문**은 건드리지 않는다. 다만 스킬 머리의 `Gates in this skill:` 목록에는 새 1단계 동의를 추가해야 한다 — 그 줄을 그대로 두면 목록이 사실과 어긋난다.
 - `spec-authoring`이 `scripts/bouncer`나 `BOUNCER_ROOT`를 부르게 만들지 않는다. `test/master-rules.test.js`의 해당 금지 어서션은 유지 대상이지 완화 대상이 아니다.
@@ -95,6 +98,9 @@ Blueprint: [001](../../index.md)
       replace 항목이 기존 문장과 새 문장을 함께 제시
       후보 0건이면 ACQ 없음, drop 불일치는 그 항목만 실패
       autonomy auto·scale light 어디서도 생략 없음
+      finalize가 모든 등재 샤드의 `id → path/currentBody` 맵을 넘기며, 합산 route 본문을 개별 샤드에 붙이지 않음
+      일반 샤드 경로는 `PROJECT_ROOT` 기준으로 해석함
+      fallback은 caller-provided 절대 경로·본문과 세션 전용 `single-file` 대상으로만 처리
       ```
 - [ ] `skills/bouncer-finalize/SKILL.md` 1단계를 다시 쓴다.
 - [ ] `skills/spec-authoring/SKILL.md` 승격 절을 제안 산출 + 동의 후 쓰기로 고친다.

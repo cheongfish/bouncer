@@ -43,6 +43,9 @@ bouncer:
         severity: minor
         status: accepted
         note: '리뷰어가 `scope.ts:62`에서 참임을 확인했다. 이미 있는 동작을 위해 새 어서션을 만드는 것은 자기 재검증에 해당하므로(세션 수칙 4) 판정 시점의 검사로 충분하다.'
+      - id: CR-010
+        severity: major
+        status: resolved
 ---
 # Context review
 
@@ -59,6 +62,9 @@ bouncer:
   - 근거: `rules/governance.md:49`는 light 경로 문맥의 문장이라 light 예외를 두지 않는 한 계속 참이다. 그 조건을 task 002 Interface에 명시해 해결했고 파일 편집은 불필요하다. `docs/workflow.md`·`docs/ARCHITECTURE.md`·`README.md`의 서술은 승격 순서만 말하므로 이번 변경 뒤에도 거짓이 되지 않는다 — 동의 절차 명시는 별도 문서 패스로 미룬다.
 - **CR-009** (minor, accepted) — SC7이 기존 동작에 대한 진술이라 이를 실행하는 태스크가 없다.
   - 근거: 리뷰어가 `scope.ts:62`에서 참임을 확인했다. 이미 있는 동작을 위해 새 어서션을 만드는 것은 자기 재검증에 해당하므로(세션 수칙 4) 판정 시점의 검사로 충분하다.
+
+- **CR-010** (major, resolved) — 샤드 상대 경로의 기준점이 명시되지 않아 execute worktree나 plugin root를 읽을 여지가 있었다.
+  - 해소: TASKS-002 Interface·Constraints·Checklist에 `PROJECT_ROOT` 기준 해석과 회귀 테스트를 명시했다.
 
 판정: `bouncer-context-reviewer`가 코드 주장까지 저장소에서 대조했다. major 3건은
 계획 문서를 고쳐 해소했고, minor 2건은 근거를 적어 수용했다. 실행 가능한 지적은

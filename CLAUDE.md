@@ -48,12 +48,18 @@ they conflict.
    `/bouncer-run` run `bouncer distill --for <path>` once per affected path.
    The CLI preserves the single-file fallback when the shard index is missing or
    invalid. `/bouncer-finalize` first searches every current rule with
-   `bouncer distill --all`, then may use repeated `bouncer distill --route <path>`
-   calls only to batch already identified promotion candidates. A route result
-   never replaces the full search for add/replace/drop decisions, and a conflict
-   with an older explain decision escalates to `/bouncer-plan`. Read CLI output
-   as Distill content; do **not** put Distill body content into these master
-   rules. Distill is English agent runtime; not a human-facing OKF plan doc.
+   `bouncer distill --all --json`, then resolves every registered
+   `audit.shards` relative path from its already-resolved `PROJECT_ROOT` and
+   reads each shard separately into a complete `id → {path,currentBody}` map.
+   Aggregate `bouncer distill --route`/selection output is never attached as an individual
+   shard body or write target. A route result never replaces the full search for
+   add/replace/drop decisions, and a conflict with an older explain decision
+   escalates to `/bouncer-plan`. Finalize must pass the full JSON audit and
+   complete shard map to spec-authoring and obtain one list-wide consent before
+   any promotion write; rejection continues the rest of finalization and does
+   not create a gate. Read CLI output as Distill content; do **not** put Distill
+   body content into these master rules. Distill is English agent runtime; not a
+   human-facing OKF plan doc.
 8. **Context language** — Human-facing bodies under `.bouncer/context/epics/**`
    and BP `explain.md` are Korean (identifiers, paths, and fenced code excepted).
    Apply `stop-slop` when drafting or revising that prose; it is advisory, not a
