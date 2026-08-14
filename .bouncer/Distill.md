@@ -29,8 +29,8 @@ append a change log.
   or JSON error is `invalid`. Neither function checks value shape. Callers keep
   their own `null` vs `{}` vs typed-throw mapping (`VERIFY_CONFIG_MISSING` /
   `VERIFY_CONFIG_INVALID`).
-- `validateBlueprint` stays in `validate.ts` — `test/public-name-regression.test.js`
-  allowlists the legacy `.sdd` string by that filename.
+- `validateBlueprint` stays in `validate.ts` — the public-name-regression
+  allowlist keys a retired protocol token to that filename.
 - `isValidGraphBasis` is implemented once in `validate-structural.ts`;
   `validate-gates.ts` (G4) imports it and must not reimplement.
 - Graph freshness/config/dir reads live in `graph-scope.ts` (filesystem read
