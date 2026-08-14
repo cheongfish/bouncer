@@ -7,6 +7,23 @@
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-08-14
+
+0.8.3 이후 scripts 코어 모듈 분해와 Distill 이름 회귀 수정(EPIC-035).
+
+### Changed
+
+- **scripts 코어 분해 (EPIC-035)** — `cli`·`validate`·그래프 동기화·히스토리
+  임포트를 책임 단위 파일로 나누고, `.bouncer/config.json` 리더를
+  `config.ts` 하나로 모은다. 공개 `require` 경로와 CLI 출력은 그대로다.
+
+### Fixed
+
+- **Distill 레거시 토큰** — 프로젝트 Distill에서 레거시 프로토콜 이름을 빼
+  이름 회귀 검사를 통과시킨다.
+- **스킬 테스트 포인터** — 제거된 `docs/install.md`를 스킬 테스트가 더 이상
+  요구하지 않는다.
+
 ## [0.8.3] — 2026-08-13
 
 0.8.2 이후 verify 실패 시 debugger 리포트를 implementer 재호출로 고정.
