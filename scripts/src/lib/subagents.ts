@@ -1,20 +1,5 @@
 'use strict';
-const fs = require('node:fs');
-const path = require('node:path');
-
-/**
- * advisor.readConfig와 동일하게 누락/잘못된 config를 삼킨다.
- * 호출자(skill)는 소비자 repo에 `.bouncer/config.json`이 없거나
- * 수동 편집된 경우에도 절대 crash하면 안 된다 — inherit/parent 모델이
- * 안전한 fallback이다.
- */
-function readConfig(repoRoot) {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer/config.json'), 'utf8'));
-  } catch (_e) {
-    return {};
-  }
-}
+const { readConfig } = require('./config');
 
 /**
  * provider 해석 순서(먼저 맞는 것이 이김):
@@ -61,7 +46,10 @@ function resolveSubagentModel({
   agentName?: string;
   provider?: string;
 } = {}) {
-  const config = readConfig(repoRoot);
+  // 부재·깨진 JSON은 null. ?? {}로 받아야 resolveProvider가 throw 없이
+  // inherit fallback({ model: null })으로 수렴한다. session-graph는 null을
+  // 구분하지만 이쪽은 "설정 없음 = 빈 설정"이 안전하다.
+  const config = readConfig(repoRoot) ?? {};
   const provider = resolveProvider(config, providerArg);
   if (!provider) {
     return { model: null, provider: null };

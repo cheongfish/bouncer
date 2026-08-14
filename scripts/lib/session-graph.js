@@ -7,6 +7,7 @@ const { init, inspectBootstrap } = require('./init');
 const { nowIsoKst } = require('./time');
 // 해석기는 별도 모듈 — init이 이 모듈을 require하므로 session-graph에 두면 순환된다.
 const { resolveGraphifyBin } = require('./graphify');
+const { readConfig } = require('./config');
 const { CONTEXT_DIGEST_OUT, DIGEST_WATCH_FILES, buildContextDigest, } = require('./context-digest');
 const DEFAULT_SOURCE_OUT = 'graphify-out/source';
 const DEFAULT_CONTEXT_OUT = 'graphify-out/context';
@@ -20,24 +21,19 @@ const SCAN_EXCLUDED_DIRS = new Set(['graphify-out', 'node_modules', '.git', '.wo
 function realHasGraphify(repoRoot) {
     return resolveGraphifyBin({ repoRoot }).bin !== null;
 }
-function readBouncerConfig(repoRoot) {
-    try {
-        return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer', 'config.json'), 'utf8'));
-    }
-    catch (_e) {
-        return null;
-    }
-}
 function realGraphifyEnabled(repoRoot) {
-    const cfg = readBouncerConfig(repoRoot);
+    // ?? {}를 붙이지 않는다. 부재를 빈 객체와 같게 보면 enabled 판정이
+    // "키 없음"과 "파일 없음"을 구분하지 못하게 되고, 둘 다 false로 떨어져
+    // 겉보기엔 같아 보이지만 cfg?. 전제(null 유지)가 깨진다.
+    const cfg = readConfig(repoRoot);
     return cfg?.graphify?.enabled === true;
 }
 function realSourceDirs(repoRoot) {
-    const cfg = readBouncerConfig(repoRoot);
+    const cfg = readConfig(repoRoot);
     return Array.isArray(cfg?.source_dirs) ? cfg.source_dirs : [];
 }
 function realContextDirs(repoRoot) {
-    const cfg = readBouncerConfig(repoRoot);
+    const cfg = readConfig(repoRoot);
     if (Array.isArray(cfg?.context_dirs))
         return cfg.context_dirs;
     return DEFAULT_CONTEXT_DIRS;

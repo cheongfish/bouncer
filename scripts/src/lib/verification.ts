@@ -9,6 +9,7 @@ const { nowIsoKst } = require('./time');
 const { listTasksDocs } = require('./tasks-docs');
 const { readCurrent } = require('./current');
 const { toPosix } = require('./paths');
+const { readConfigResult } = require('./config');
 
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
@@ -82,15 +83,16 @@ function readVerifyCommand(repoRoot, blueprintDir) {
   }
 
   const configPath = path.join(repoRoot, '.bouncer', 'config.json');
-  let config;
-  try {
-    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
+  // 파일 없음과 깨진 JSON을 한 오류로 합치면 VERIFY_CONFIG_MISSING이
+  // 권한·구문 문제를 가린다. 메시지 문자열은 호출자가 경로를 그대로 보게 유지.
+  const parsed = readConfigResult(repoRoot);
+  if (!parsed.ok) {
+    if (parsed.reason === 'missing') {
       throw verificationError('VERIFY_CONFIG_MISSING', `verification config missing: ${configPath}`);
     }
     throw verificationError('VERIFY_CONFIG_INVALID', `verification config is invalid: ${configPath}`);
   }
+  const config = parsed.value;
   if (typeof config.verify !== 'string' || config.verify.trim() === '') {
     throw verificationError('VERIFY_CONFIG_INVALID', 'config.verify must be a non-empty string');
   }

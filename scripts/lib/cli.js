@@ -16,19 +16,7 @@ const { migrateIds } = require('./migrate-ids');
 const { migrateTaskLayout } = require('./migrate-task-layout');
 const { planImport, applyImport } = require('./import-history');
 const { runtimePaths } = require('./runtime-state');
-const fs = require('node:fs');
-const path = require('node:path');
-// cmdCurrent --set이 base_branch를 읽을 때만 쓴다. 없거나 깨진 config는
-// {}로 삼켜 inherit/기본값을 유지한다. subagents에 동형 헬퍼가 있으나
-// export되지 않아 여기 로컬로 둔다.
-function readConfig(repoRoot) {
-    try {
-        return JSON.parse(fs.readFileSync(path.join(repoRoot, '.bouncer/config.json'), 'utf8'));
-    }
-    catch (_e) {
-        return {};
-    }
-}
+const { readConfig } = require('./config');
 function parseFlags(rest) {
     const flags = {};
     for (let i = 0; i < rest.length; i += 1) {
@@ -334,7 +322,10 @@ function cmdCurrent(rest, io) {
         }
         let base = typeof f.base === 'string' ? f.base : undefined;
         if (!base) {
-            const config = readConfig(repoRoot);
+            // 부재·깨진 JSON을 {}로 삼킨다. --set은 base_branch만 읽고 없으면
+            // develop. session-graph는 null을 구분해 graphify.enabled를 끄지만,
+            // 이쪽은 파일 부재와 빈 설정을 같게 보는 것이 기존 동작이다.
+            const config = readConfig(repoRoot) ?? {};
             base = (config && typeof config.base_branch === 'string' && config.base_branch)
                 ? config.base_branch
                 : 'develop';
