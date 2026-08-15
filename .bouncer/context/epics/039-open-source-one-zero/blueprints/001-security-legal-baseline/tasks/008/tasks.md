@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-008
   epic_id: '039'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - GitLab CI가 빌드 전 emit 드리프트를 검사하지 않고 두 CI가 서로 다른 명령을 실행하고 있음

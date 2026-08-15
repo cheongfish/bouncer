@@ -3,11 +3,18 @@
 ## 로컬 개발
 
 ```bash
-npm install    # devDependencies만 (테스트·린트용)
+npm install    # devDependencies만 (테스트·린트·타입검사용)
 npm run setup  # 커밋 메시지 템플릿 + pre-commit 훅 연결 (클론마다 1회)
-npm test       # node --test
-npm run lint   # eslint
+npm run ci     # emit → coverage → lint → typecheck → audit
 ```
+
+로컬 확인은 `npm run ci` 하나다. 순서는 배포 CJS emit 검사(`check:emit`),
+제품 코드 coverage, lint, typecheck, `npm audit --audit-level=high`다.
+coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
+하한은 line 94%, branch 83%, function 96%다. 기본 병렬 러너는 같은
+스위트에서도 branch 수치가 출렁여 하한을 깨므로 `test:coverage`는
+`--test-concurrency=1`로 돌린다. audit는 레지스트리에 닿아야
+하고, 레지스트리 실패를 성공으로 보지 않는다.
 
 ## 커밋·PR 규약
 
@@ -42,9 +49,9 @@ Goal & intent에서 채워 넣을 수 있습니다.
 실행해야 합니다. 템플릿은 에디터가 열릴 때만 보이므로 `git commit -m`에는
 적용되지 않습니다.
 
-pre-commit(`.githooks/pre-commit`)은 원격 CI의 빠른 스텝을 로컬에서 돌립니다.
-`scripts/lib` emit이 `scripts/src/lib`과 일치하는지 검사한 뒤 `npm run lint`를
-실행합니다. `npm test`는 매 커밋에는 넣지 않고 원격 CI에 둡니다. 우회는
+pre-commit(`.githooks/pre-commit`)은 `npm run check:emit`과 `npm run lint`만
+돌립니다. emit 검사는 CI와 같은 `scripts/check-emit.js`를 씁니다. coverage와
+audit는 매 커밋에는 넣지 않고 원격 CI에 둡니다. 우회는
 `git commit --no-verify`입니다.
 
 PR/MR 본문 템플릿은 두 곳에 같은 형식으로 있습니다.
@@ -79,9 +86,9 @@ GitLab에서 기본값으로 강제하려면 프로젝트 설정 → Merge reque
 
 ## CI와 배포 계약
 
-CI는 `main`/`develop` 푸시와 PR마다 두 가지를 모두 돌립니다. GitHub Actions
-(`.github/workflows/test.yml`)와 GitLab CI(`.gitlab-ci.yml`)를 함께 두어, 사내
-GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
+CI는 `main`/`develop` 푸시와 PR마다 같은 명령을 돌립니다. GitHub Actions
+(`.github/workflows/test.yml`)와 GitLab CI(`.gitlab-ci.yml`)는 러너 문법만
+다르고, `npm ci` 뒤에 `npm run ci`만 호출합니다.
 
 `scripts/`와 `hooks/` 아래 코드는 `node_modules`에 의존하면 안 됩니다.
 마켓플레이스 설치가 깨집니다. `test/distribution.test.js`가 이 계약을 강제합니다.
