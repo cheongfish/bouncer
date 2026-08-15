@@ -2,7 +2,7 @@
 
 에이전트가 "다 했습니다"라고 말하기 전에, **실행했는지** 검사하는 플러그인.
 
-같은 저장소가 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex) · [Antigravity](docs/install.md#antigravity)에서 설치됩니다. 지원 여부는 [파일럿 지원 현황](docs/install.md#파일럿-지원-현황)을 확인하세요.
+이 저장소는 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex) · [Antigravity](docs/install.md#antigravity)의 설치 절차를 제공합니다. 실제 설치·지원 여부는 [파일럿 지원 현황](docs/install.md#파일럿-지원-현황)의 검증 결과를 확인하세요.
 
 ## Why
 
@@ -186,16 +186,15 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 
 ## 현재 상태
 
-**0.9.0 — 파일럿 단계입니다.**
+**1.0.0 — 출시 준비 중입니다.**
 
-이 저장소 자신을 35개 epic 동안 Bouncer로 관리해 왔지만, 다른 형태의 저장소에서는
-아직 검증되지 않았습니다. 공개 표면(`.bouncer/` 구조, `config.json` 스키마, G/S
-코드, CLI, 커맨드 이름)은 **아직 동결되지 않았고**, 1.0에서 동결할 예정입니다.
-그전까지 마이너 버전 사이에 바뀔 수 있습니다.
+공개 표면(`.bouncer/` 구조, `config.json` 스키마, G/S 코드, CLI, 커맨드 이름)은
+1.0.0 출시를 위해 동결할 범위입니다. 호스트별 설치·저장소 조합의 검증 상태는
+[파일럿 지원 현황](docs/install.md#파일럿-지원-현황)을 기준으로 하며, 아직
+검증하지 않은 조합의 설치 성공이나 지원을 뜻하지 않습니다.
 
-붙여 보고 막히는 지점을 기록해 주세요 — 그게 1.0에서 무엇을 동결할지 정합니다.
-안내는 [PILOT.md](docs/PILOT.md)에 있고, 이미 알려진 마찰은 같은 문서 하단에
-있으니 중복 보고하지 않으셔도 됩니다.
+검증 중 발견한 막힘과 호환성 문제는 [PILOT.md](docs/PILOT.md)의 기록 방법을
+따라 제보해 주세요.
 
 ## Requirements
 

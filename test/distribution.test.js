@@ -74,12 +74,21 @@ test('marketplace.json lists bouncer from the repository root', () => {
 });
 
 test('marketplace and plugin manifests agree on name and version', () => {
+  const expectedVersion = '1.0.0';
   const mkt = readJson('.claude-plugin/marketplace.json');
   const plugin = readJson('.claude-plugin/plugin.json');
   const pkg = readJson('package.json');
+  const lock = readJson('package-lock.json');
   const entry = mkt.plugins.find((p) => p.name === 'bouncer');
+  assert.strictEqual(entry.version, expectedVersion);
+  assert.strictEqual(plugin.version, expectedVersion);
+  assert.strictEqual(pkg.version, expectedVersion);
+  assert.strictEqual(lock.version, expectedVersion);
+  assert.strictEqual(lock.packages[''].version, expectedVersion);
   assert.strictEqual(entry.version, plugin.version);
   assert.strictEqual(plugin.version, pkg.version);
+  assert.strictEqual(pkg.version, lock.version);
+  assert.strictEqual(pkg.version, lock.packages[''].version);
 });
 
 test('plugin.json carries author attribution for release tagging', () => {

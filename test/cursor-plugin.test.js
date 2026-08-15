@@ -20,12 +20,14 @@ const BOUNCER_ROOT_LINE =
   'BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"';
 
 test('the four plugin manifests agree on name and version', () => {
+  const expectedVersion = '1.0.0';
   const claude = readJson('.claude-plugin/plugin.json');
   const cursor = readJson('.cursor-plugin/plugin.json');
   const codex = readJson('.codex-plugin/plugin.json');
   const antigravity = readJson('plugin.json');
   for (const m of [claude, cursor, codex, antigravity]) {
     assert.strictEqual(m.name, 'bouncer');
+    assert.strictEqual(m.version, expectedVersion);
     assert.strictEqual(m.version, claude.version);
   }
 });
