@@ -1,8 +1,14 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { readShards } = require('./distill');
-const { DISTILL_SHARD_DIR } = require('./layout');
+const { readShards } = require('./distill') as {
+  readShards: (opts: { repoRoot: string }) => {
+    sharded?: boolean;
+    valid?: boolean;
+    shards?: Array<{ path?: unknown }>;
+  };
+};
+const { DISTILL_SHARD_DIR } = require('./layout') as { DISTILL_SHARD_DIR: string };
 
 /** graphify가 스캔할 파생 트리 (gitignore 대상 graphify-out 아래). */
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
@@ -17,7 +23,7 @@ const DIGEST_WATCH_FILES = ['.bouncer/Distill.md'];
  * 화이트리스트 문서만 헤딩 배열을 돌려준다. 그 외(tasks/verification/review,
  * blueprint index 등)는 null — 파생 파일을 만들지 않는다.
  */
-function digestRulesFor(rel) {
+function digestRulesFor(rel: unknown): string[] | null {
   const norm = String(rel || '').replace(/\\/g, '/');
   if (norm === '.bouncer/Distill.md') return ['## Decisions'];
   if (new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(norm)) {
@@ -33,7 +39,7 @@ function digestRulesFor(rel) {
 }
 
 /** YAML frontmatter(`---` … `---`)만 제거. 본문 중간의 --- 는 건드리지 않는다. */
-function stripFrontmatter(markdown) {
+function stripFrontmatter(markdown: unknown): string {
   const text = String(markdown || '');
   if (!text.startsWith('---')) return text;
   const end = text.indexOf('\n---', 3);
@@ -47,7 +53,7 @@ function stripFrontmatter(markdown) {
  * 헤딩이 없거나 본문이 비면 해당 섹션은 빼고, 전부 비면 '' 를 돌려
  * 호출자가 파생 파일을 만들지 않게 한다.
  */
-function extractSections(markdown, headings) {
+function extractSections(markdown: unknown, headings: unknown): string {
   const body = stripFrontmatter(markdown);
   const wanted = Array.isArray(headings) ? headings : [];
   if (!wanted.length) return '';
@@ -73,11 +79,11 @@ function extractSections(markdown, headings) {
   return chunks.length ? chunks.join('\n\n') + '\n' : '';
 }
 
-function flattenSlug(rel) {
+function flattenSlug(rel: string): string {
   return rel.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'doc';
 }
 
-function uniqueFlatName(base, used) {
+function uniqueFlatName(base: string, used: Set<string>): string {
   let name = `${base}.md`;
   if (!used.has(name)) {
     used.add(name);
@@ -90,7 +96,7 @@ function uniqueFlatName(base, used) {
   return name;
 }
 
-function walkMarkdownFiles(repoRoot, dir, acc) {
+function walkMarkdownFiles(repoRoot: string, dir: string, acc: string[]): void {
   const abs = path.join(repoRoot, dir);
   let entries;
   try {
@@ -100,7 +106,6 @@ function walkMarkdownFiles(repoRoot, dir, acc) {
   }
   for (const e of entries) {
     const childRel = path.posix.join(dir.replace(/\\/g, '/'), e.name);
-    const childAbs = path.join(abs, e.name);
     if (e.isDirectory()) {
       if (e.isSymbolicLink()) continue;
       walkMarkdownFiles(repoRoot, childRel, acc);
@@ -114,7 +119,10 @@ function walkMarkdownFiles(repoRoot, dir, acc) {
  * context_dirs 아래 화이트리스트 문서(+ Distill)에서 섹션만 뽑아
  * 평탄 파생 트리와 map.json 을 다시 쓴다. 매 빌드 전체 재생성.
  */
-function buildContextDigest({ repoRoot, contextDirs }) {
+function buildContextDigest({ repoRoot, contextDirs }: {
+  repoRoot: string;
+  contextDirs?: unknown;
+}) {
   const outRel = CONTEXT_DIGEST_OUT;
   const outAbs = path.join(repoRoot, outRel);
   fs.rmSync(outAbs, { recursive: true, force: true });
@@ -123,8 +131,8 @@ function buildContextDigest({ repoRoot, contextDirs }) {
   // 이 트리를 빈 입력으로 본다. 로컬 .graphifyignore 로 .md 만 재포함한다.
   fs.writeFileSync(path.join(outAbs, '.graphifyignore'), '*\n!*.md\n');
 
-  const candidates = [];
-  for (const dir of contextDirs || []) {
+  const candidates: string[] = [];
+  for (const dir of (contextDirs || []) as string[]) {
     walkMarkdownFiles(repoRoot, dir.replace(/\\/g, '/'), candidates);
   }
   for (const watch of DIGEST_WATCH_FILES) {
@@ -132,7 +140,7 @@ function buildContextDigest({ repoRoot, contextDirs }) {
   }
   const distill = readShards({ repoRoot });
   if (distill.sharded && distill.valid) {
-    for (const shard of distill.shards) {
+    for (const shard of distill.shards!) {
       // readShards가 인덱스 정본만 반환하더라도 경로 계약은 여기서 한 번 더
       // 좁힌다. 사용자 지정 경로를 그대로 그래프 원본으로 노출하지 않아야
       // map.json의 source_file이 실제 Distill 샤드 경계를 벗어나지 않는다.
@@ -146,9 +154,9 @@ function buildContextDigest({ repoRoot, contextDirs }) {
     }
   }
 
-  const used = new Set();
-  const map = {};
-  const files = [];
+  const used = new Set<string>();
+  const map: Record<string, string> = {};
+  const files: string[] = [];
 
   for (const rel of candidates) {
     const rules = digestRulesFor(rel);

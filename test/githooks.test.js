@@ -12,10 +12,11 @@ test('.githooks/pre-commit is executable and runs the local CI subset', () => {
   const st = fs.statSync(hook);
   assert.ok((st.mode & 0o111) !== 0, 'pre-commit must be executable');
   const body = fs.readFileSync(hook, 'utf8');
+  assert.match(body, /npm run check:emit/);
   assert.match(body, /npm run lint/);
-  assert.match(body, /npm run build/);
-  assert.match(body, /scripts\/lib/);
   assert.doesNotMatch(body, /^\s*npm test\b/m);
+  assert.doesNotMatch(body, /git ls-files/);
+  assert.doesNotMatch(body, /git diff/);
 });
 
 test('npm run setup enables the githooks path', () => {

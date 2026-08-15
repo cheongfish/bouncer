@@ -3,9 +3,29 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { epicDirOf, toPosix } = require('./paths');
-const { CONTEXT_ROOT } = require('./layout');
-const { isUnder } = require('./scope');
+const { epicDirOf, toPosix } = require('./paths') as {
+  epicDirOf: (blueprintDir: unknown) => string;
+  toPosix: (p: unknown) => string;
+};
+const { CONTEXT_ROOT } = require('./layout') as {
+  CONTEXT_ROOT: string;
+};
+const { isUnder } = require('./scope') as {
+  isUnder: (file: unknown, entry: unknown) => boolean;
+};
+
+type SeedGit = {
+  changedFiles: () => string[];
+  untrackedFiles: () => string[];
+  existsInHead: (file: string) => boolean;
+  readHead: (file: string) => Buffer | null;
+  restore: (file: string) => void;
+  unstage: (file: string) => void;
+};
+
+type PendingWrite = { rel: string; write: true; dst: string; content: Buffer; absent?: boolean };
+type PendingSkip = { rel: string; write: false; absent?: boolean };
+type Pending = PendingWrite | PendingSkip;
 
 // plan 워크플로에는 commit 단계가 없으므로 epic/blueprint 문서는 base working tree에만
 // 존재합니다. `git worktree add`는 커밋된 HEAD를 checkout하므로 execute worktree는
@@ -16,26 +36,26 @@ const { isUnder } = require('./scope');
 // 의도적으로 같습니다 — blueprint 트리, epic index, context index — project Distill은
 // 제외합니다. worktree가 가져가면 안 되는 base 전역 파일입니다. affected_paths 아래
 // 코드와 관련 없는 로컬 변경(config, graph output)은 그대로 둡니다.
-function makeIsTarget({ blueprintDir }) {
+function makeIsTarget({ blueprintDir }: { blueprintDir: unknown }) {
   const bp = toPosix(blueprintDir);
   const epicIndex = `${epicDirOf(bp)}/index.md`;
   const contextIndex = `${CONTEXT_ROOT}/index.md`;
-  return function isTarget(file) {
+  return function isTarget(file: unknown): boolean {
     const f = toPosix(file);
     if (isUnder(f, `${bp}/`)) return true;
     return f === epicIndex || f === contextIndex;
   };
 }
 
-function realGit(repoRoot) {
-  const run = (args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
-  const lines = (s) => s.split('\n').filter(Boolean);
+function realGit(repoRoot: string): SeedGit {
+  const run = (args: string[]) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }) as string;
+  const lines = (s: string) => s.split('\n').filter(Boolean);
   return {
     // `diff HEAD`는 staged 변경도 보고하므로, agent가 `git add`한 문서는
     // untracked가 아니라 여기서 분류됩니다.
     changedFiles: () => lines(run(['diff', '--name-only', 'HEAD'])),
     untrackedFiles: () => lines(run(['ls-files', '--others', '--exclude-standard'])),
-    existsInHead: (file) => {
+    existsInHead: (file: string) => {
       try {
         // 경로가 없는 것은 모든 새 plan 문서에서 예상되는 답이므로,
         // git의 "디스크에는 있지만 HEAD에는 없음" 메시지는 여기서 오류가 아닙니다.
@@ -48,7 +68,7 @@ function realGit(repoRoot) {
         return false;
       }
     },
-    readHead: (file) => {
+    readHead: (file: string) => {
       try {
         // `--filters`는 working-tree filter(autocrlf, .gitattributes text=auto)를
         // 적용하므로 checkout이 쓴 바이트와 동일하게 비교됩니다. raw `git show`는
@@ -56,7 +76,7 @@ function realGit(repoRoot) {
         return execFileSync('git', ['cat-file', '--filters', `HEAD:${file}`], {
           cwd: repoRoot,
           stdio: ['ignore', 'pipe', 'ignore'],
-        });
+        }) as Buffer;
       } catch {
         return null;
       }
@@ -64,15 +84,15 @@ function realGit(repoRoot) {
     // `git checkout -- <path>`는 index에서 복원하는데, agent가 staged하면
     // index에 dirty blob이 남습니다. HEAD를 지정하면 index와 working tree를
     // 함께 되돌려 staged ghost가 남지 않습니다.
-    restore: (file) => { run(['checkout', 'HEAD', '--', file]); },
-    unstage: (file) => { run(['rm', '--cached', '--quiet', '--', file]); },
+    restore: (file: string) => { run(['checkout', 'HEAD', '--', file]); },
+    unstage: (file: string) => { run(['rm', '--cached', '--quiet', '--', file]); },
   };
 }
 
 // 파일을 제거하면 scaffold가 만든 디렉터리 트리가 비울 수 있습니다. Git은
 // 디렉터리를 추적하지 않으므로 빈 잔여물은 `git status`에는 보이지 않지만
 // 다음 planning 세션에는 보입니다. 무언가 남을 때까지 위로 prune합니다.
-function pruneEmptyDirs(repoRoot, rel) {
+function pruneEmptyDirs(repoRoot: string, rel: string): void {
   let dir = path.dirname(path.join(repoRoot, rel));
   const stop = path.resolve(repoRoot);
   while (path.resolve(dir) !== stop && fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
@@ -83,6 +103,11 @@ function pruneEmptyDirs(repoRoot, rel) {
 
 function seedWorktree({
   repoRoot, blueprintDir, worktreePath, git,
+}: {
+  repoRoot: string;
+  blueprintDir: unknown;
+  worktreePath: string;
+  git?: SeedGit;
 }) {
   const gitApi = git || realGit(repoRoot);
   const isTarget = makeIsTarget({ blueprintDir });
@@ -101,8 +126,8 @@ function seedWorktree({
   // 없으므로, 모든 target이 worktree에 동일한 바이트로 존재하는 것이 확인될 때까지
   // base는 건드리지 않습니다. 거기서 다른 파일이면 이전 실행이 중단됐거나
   // 수동 편집입니다. 덮어쓰지 말고 중단합니다.
-  const conflicts = [];
-  const pending = [];
+  const conflicts: string[] = [];
+  const pending: Pending[] = [];
   for (const rel of targets) {
     const src = path.join(repoRoot, rel);
     // `git diff HEAD`는 삭제도 나열합니다. 옮길 것은 없지만 base는 git에
@@ -136,7 +161,7 @@ function seedWorktree({
       fs.writeFileSync(item.dst, item.content);
     }
   } catch (error) {
-    return { ok: false, reason: 'copy-failed', message: error.message };
+    return { ok: false, reason: 'copy-failed', message: (error as { message: unknown }).message };
   }
 
   // Phase 2 — base를 git이 기록한 상태로 되돌립니다. HEAD 소속 여부가 동사를
@@ -145,8 +170,8 @@ function seedWorktree({
   // `moved`는 worktree가 이제 보유하는 모든 target을 나열합니다 — 이미 바이트
   // 동일하게 있던 것도 포함 — 호출자가 brief를 읽을 수 있는지 확인하는 용도이지
   // 파일 쓰기 횟수를 세는 용도가 아닙니다.
-  const moved = [];
-  const restored = [];
+  const moved: string[] = [];
+  const restored: string[] = [];
   for (const { rel, absent } of pending) {
     if (gitApi.existsInHead(rel)) {
       gitApi.restore(rel);

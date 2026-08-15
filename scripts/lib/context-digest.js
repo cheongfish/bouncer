@@ -101,7 +101,6 @@ function walkMarkdownFiles(repoRoot, dir, acc) {
     }
     for (const e of entries) {
         const childRel = path.posix.join(dir.replace(/\\/g, '/'), e.name);
-        const childAbs = path.join(abs, e.name);
         if (e.isDirectory()) {
             if (e.isSymbolicLink())
                 continue;
@@ -125,7 +124,7 @@ function buildContextDigest({ repoRoot, contextDirs }) {
     // 이 트리를 빈 입력으로 본다. 로컬 .graphifyignore 로 .md 만 재포함한다.
     fs.writeFileSync(path.join(outAbs, '.graphifyignore'), '*\n!*.md\n');
     const candidates = [];
-    for (const dir of contextDirs || []) {
+    for (const dir of (contextDirs || [])) {
         walkMarkdownFiles(repoRoot, dir.replace(/\\/g, '/'), candidates);
     }
     for (const watch of DIGEST_WATCH_FILES) {

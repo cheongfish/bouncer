@@ -155,7 +155,8 @@ function isGitCommit(command, { resolveAlias, cwd } = {}) {
 function pathsFromTaskDoc(repoRoot, entryRel) {
     try {
         const { data } = readDoc(path.join(repoRoot, entryRel));
-        const ap = data && data.bouncer ? data.bouncer.affected_paths : undefined;
+        const bouncer = data ? data.bouncer : data;
+        const ap = bouncer ? bouncer.affected_paths : undefined;
         if (!Array.isArray(ap))
             return [];
         return ap.filter((p) => typeof p === 'string');

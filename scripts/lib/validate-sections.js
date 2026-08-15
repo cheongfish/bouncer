@@ -1,9 +1,6 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const { toPosix } = require('./paths');
-// 본문 파싱 층. 게이트(G)와 구조(S)가 같은 heading/경로 규칙을 보게 여기만 둔다.
-// 상위 모듈이 각자 정규식을 가지면 G10과 G16의 "비어 있음"이 어긋난다.
-// 이 파일은 형제 validate-*.ts를 require하지 않는다 — 의존 방향의 맨 아래층.
 const SECTION_DEFS = [
     { key: 'goal', re: /^##\s+(Goal\s*&\s*intent|목적[·・.]?의도)\s*$/i },
     { key: 'interface', re: /^##\s+(Interface|인터페이스)\s*$/i },
@@ -91,12 +88,15 @@ function extractPathCandidates(text) {
 // 디렉터리 prefix도 교차로 본다. `scripts/` 금지가 `scripts/lib/x.js`를
 // 통과시키면 G12가 파일 단위 affected_paths를 놓친다.
 function pathsOverlap(a, b) {
-    return a === b || a.startsWith(b + '/') || b.startsWith(a + '/');
+    return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 function pathJustifiedByTouch(ap, touchText) {
     if (touchText.includes(ap))
         return true;
     return extractPathCandidates(touchText).some((c) => ap === c || ap.startsWith(c.endsWith('/') ? c : `${c}/`));
+}
+function isRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 // findings 필드 계약은 G14(execute review.md)와 G18(plan context-review.md)이
 // 같다. 헬퍼를 공유하지 않으면 한쪽만 고친 순간 두 리뷰 문서가 다른 계약을
@@ -115,14 +115,15 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel }) 
     }
     const list = Array.isArray(findings) ? findings : [];
     for (const fnd of list) {
-        const id = fnd && fnd.id ? fnd.id : '(no id)';
-        if (!REVIEW_SEVERITY.includes(fnd && fnd.severity)) {
-            messages.push(`${findingLabel} finding ${id} severity invalid: ${fnd && fnd.severity}`);
+        const rec = isRecord(fnd) ? fnd : fnd;
+        const id = rec && rec.id ? rec.id : '(no id)';
+        if (!REVIEW_SEVERITY.includes(rec && rec.severity)) {
+            messages.push(`${findingLabel} finding ${id} severity invalid: ${rec && rec.severity}`);
         }
-        if (!REVIEW_STATUS.includes(fnd && fnd.status)) {
-            messages.push(`${findingLabel} finding ${id} status invalid: ${fnd && fnd.status}`);
+        if (!REVIEW_STATUS.includes(rec && rec.status)) {
+            messages.push(`${findingLabel} finding ${id} status invalid: ${rec && rec.status}`);
         }
-        if (fnd && fnd.status === 'accepted' && (!fnd.note || String(fnd.note).trim() === '')) {
+        if (rec && rec.status === 'accepted' && (!rec.note || String(rec.note).trim() === '')) {
             messages.push(`${findingLabel} finding ${id} accepted without note`);
         }
     }

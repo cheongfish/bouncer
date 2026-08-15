@@ -97,7 +97,9 @@ function listTasksDocs({ repoRoot, blueprintDir }) {
     catch (_e) {
         return { entries: [], mixed: false, legacy: false, invalidDirs: [] };
     }
-    const { blueprintId } = parsePathIds(bp);
+    // 반환 id는 목록에 쓰지 않는다. 순환 require로 paths를 로드한 뒤 같은
+    // 경로 문자열을 파서에 넘겨, 모듈 그래프와 입력 계약을 그대로 둔다.
+    void parsePathIds(bp);
     const entries = [];
     const invalidDirs = [];
     // --- 새 레이아웃: <bp>/tasks/<NNN>/ ---

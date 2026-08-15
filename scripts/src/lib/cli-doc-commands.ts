@@ -1,13 +1,46 @@
 'use strict';
 
-const { parseFlags } = require('./cli-flags');
-const { validateBlueprint } = require('./validate');
-const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview } = require('./scaffold');
-const { isNumericContextId } = require('./paths');
-const { runVerification } = require('./verification');
-const { nowIsoKst } = require('./time');
+const { parseFlags } = require('./cli-flags') as {
+  parseFlags: (rest: string[]) => Record<string, string | boolean>;
+};
+const { validateBlueprint } = require('./validate') as {
+  validateBlueprint: (opts: {
+    repoRoot: string;
+    blueprintDir: string;
+    gate?: string;
+  }) => { ok: boolean };
+};
+const {
+  scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview,
+} = require('./scaffold') as {
+  scaffoldEpic: (opts: Record<string, unknown>) => unknown;
+  scaffoldBlueprint: (opts: Record<string, unknown>) => unknown;
+  scaffoldExplain: (opts: Record<string, unknown>) => unknown;
+  scaffoldTask: (opts: Record<string, unknown>) => unknown;
+  scaffoldContextReview: (opts: Record<string, unknown>) => unknown;
+};
+const { isNumericContextId } = require('./paths') as {
+  isNumericContextId: (id: unknown) => boolean;
+};
+const { runVerification } = require('./verification') as {
+  runVerification: (opts: { repoRoot: string; blueprintDir: string }) => { ok: boolean };
+};
+const { nowIsoKst } = require('./time') as {
+  nowIsoKst: () => string;
+};
 
-function cmdValidate(rest, io) {
+type CliIo = {
+  out: (s: string) => void;
+  err: (s: string) => void;
+};
+
+function catchMessage(error: unknown): string {
+  // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
+  // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
+  return (error as { message: string }).message;
+}
+
+function cmdValidate(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
   // 게이트 실패(1)와 구분: 필수 플래그 누락은 호출 형식 오류(2). 없으면
   // validate가 빈 blueprint로 구조 실패를 내어 사용법 문제를 위장한다.
@@ -15,7 +48,7 @@ function cmdValidate(rest, io) {
     io.err('validate: --blueprint is required\n');
     return 2;
   }
-  const repoRoot = f.repo || process.cwd();
+  const repoRoot = (f.repo || process.cwd()) as string;
   // 빈 문자열을 넘기면 validate가 알 수 없는 gate로 본다. 생략일 때만
   // 라이브러리 기본(게이트 없이 구조 검사)이 살아 있다.
   const gate = typeof f.gate === 'string' ? f.gate : undefined;
@@ -29,7 +62,7 @@ function cmdValidate(rest, io) {
   return result.ok ? 0 : 1;
 }
 
-function cmdVerify(rest, io) {
+function cmdVerify(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
   // validate와 같은 2: 대상 없이 돌리면 게이트 실패로 위장된다.
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -38,7 +71,7 @@ function cmdVerify(rest, io) {
   }
   try {
     const result = runVerification({
-      repoRoot: f.repo || process.cwd(),
+      repoRoot: (f.repo || process.cwd()) as string,
       blueprintDir: f.blueprint,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
@@ -46,19 +79,19 @@ function cmdVerify(rest, io) {
   } catch (error) {
     // VERIFY_DOCUMENT_MISSING 등은 throw. 플래그는 이미 통과했으므로
     // 사용법(2)이 아니라 실행 실패(1).
-    io.err(`verify: ${error.message}\n`);
+    io.err(`verify: ${catchMessage(error)}\n`);
     return 1;
   }
 }
 
-function cmdScaffold(rest, io) {
+function cmdScaffold(rest: string[], io: CliIo) {
   // kind는 위치 인자 — parseFlags에 rest 전체를 주면 epic이 플래그 키로 사라진다.
   const [kind, ...flagArgs] = rest;
   const f = parseFlags(flagArgs);
-  const repoRoot = f.repo || process.cwd();
+  const repoRoot = (f.repo || process.cwd()) as string;
   // 테스트가 시각을 고정하려고 --timestamp를 넘긴다. 없으면 KST now.
   const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
-  let created;
+  let created: unknown;
   try {
     if (kind === 'epic' || kind === 'blueprint') {
       // EPIC-001 / 1 / 01 거절 — 정본은 zero-pad 세 자리만. 라이브러리 throw와 메시지를 맞춤.
@@ -125,7 +158,7 @@ function cmdScaffold(rest, io) {
   } catch (error) {
     // closed blueprint 거절 등 라이브러리 throw. 플래그는 통과했으나
     // 호출 상태로 막을 일이라 실행 실패(1)가 아니라 사용법/상태(2).
-    io.err(`scaffold: ${error.message}\n`);
+    io.err(`scaffold: ${catchMessage(error)}\n`);
     return 2;
   }
   io.out(`${JSON.stringify({ ok: true, created }, null, 2)}\n`);

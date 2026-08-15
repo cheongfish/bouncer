@@ -32,7 +32,8 @@ function findNextOpenTask({ repoRoot, blueprintDir, currentUnit }) {
             continue;
         try {
             const doc = readDoc(path.join(repoRoot, entry.rel));
-            const st = doc.data && doc.data.bouncer ? doc.data.bouncer.status : undefined;
+            const bouncer = doc.data ? doc.data.bouncer : doc.data;
+            const st = bouncer ? bouncer.status : undefined;
             if (OPEN_TASK_STATUS.includes(st)) {
                 return { id: entry.id, path: entry.rel, status: st };
             }

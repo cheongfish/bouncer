@@ -2,14 +2,44 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execSync } = require('node:child_process');
-const { readDoc } = require('./frontmatter');
-const { renderDoc } = require('./render');
-const { isCanonicalBlueprintDir } = require('./layout');
-const { nowIsoKst } = require('./time');
-const { listTasksDocs } = require('./tasks-docs');
-const { readCurrent } = require('./current');
-const { toPosix } = require('./paths');
-const { readConfigResult } = require('./config');
+const { readDoc } = require('./frontmatter') as {
+  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
+};
+const { renderDoc } = require('./render') as {
+  renderDoc: (data: unknown, body: string) => string;
+};
+const { isCanonicalBlueprintDir } = require('./layout') as {
+  isCanonicalBlueprintDir: (value: unknown) => boolean;
+};
+const { nowIsoKst } = require('./time') as {
+  nowIsoKst: (date?: Date) => string;
+};
+const { listTasksDocs } = require('./tasks-docs') as {
+  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
+    mixed: boolean;
+    entries: Array<{
+      rel: string;
+      dir: string | null;
+      number: number | null;
+      tasks: { rel: string; id: string | null };
+      verification: { rel: string; id: string | null };
+      review: { rel: string; id: string | null };
+    }>;
+  };
+};
+// current.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
+// 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
+const { readCurrent } = require('./current') as {
+  readCurrent: (opts: { repoRoot: string }) => unknown;
+};
+const { toPosix } = require('./paths') as {
+  toPosix: (p: unknown) => string;
+};
+const { readConfigResult } = require('./config') as {
+  readConfigResult: (repoRoot: string) =>
+    | { ok: true; value: unknown }
+    | { ok: false; reason: 'missing' | 'invalid' };
+};
 
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
@@ -19,10 +49,23 @@ const OUTPUT_TAIL_LINES = 100;
 const PASSING_OUTPUT_TAIL_LINES = 20;
 const MAX_VERIFY_OUTPUT_BYTES = 10 * 1024 * 1024;
 
-function verificationError(code, message) {
-  const error = new Error(message) as Error & { code?: string };
+type CodedError = Error & { code?: string };
+
+function verificationError(code: string, message: string): CodedError {
+  const error = new Error(message) as CodedError;
   error.code = code;
   return error;
+}
+
+function errorCode(error: unknown): unknown {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return error.code;
+  }
+  return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // 실행 가능한 argv 문자열 하나만: 셸 체이닝, 리다이렉션, `cd` 접두사 없음.
@@ -30,7 +73,7 @@ function verificationError(code, message) {
 // 두 표면이 어긋날 수 없습니다.
 const VERIFY_COMMAND_FORBIDDEN = /[&|;`<>\n]|\$\(/;
 
-function isValidVerifyCommand(command) {
+function isValidVerifyCommand(command: unknown): boolean {
   if (typeof command !== 'string') return false;
   const trimmed = command.trim();
   if (!trimmed) return false;
@@ -38,7 +81,7 @@ function isValidVerifyCommand(command) {
   return trimmed.split(/\s+/)[0] !== 'cd';
 }
 
-function entriesForVerify(repoRoot, blueprintDir) {
+function entriesForVerify(repoRoot: string, blueprintDir: string) {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   if (listing.mixed) return [];
   // 포인터 task 가 이 blueprint 를 가리키고 문서가 살아 있으면 그 문서만.
@@ -46,18 +89,14 @@ function entriesForVerify(repoRoot, blueprintDir) {
   // 조용히 끌어오지 않기 위함.
   const pointer = readCurrent({ repoRoot });
   const bp = toPosix(blueprintDir);
-  if (
-    pointer
-    && typeof pointer.task === 'string'
-    && toPosix(pointer.blueprint) === bp
-  ) {
+  if (isRecord(pointer) && typeof pointer.task === 'string' && toPosix(pointer.blueprint) === bp) {
     const match = listing.entries.find((e) => e.rel === toPosix(pointer.task));
     if (match) return [match];
   }
   return listing.entries;
 }
 
-function readVerifyCommand(repoRoot, blueprintDir) {
+function readVerifyCommand(repoRoot: string, blueprintDir?: string): string {
   // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
   // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
   // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
@@ -65,7 +104,11 @@ function readVerifyCommand(repoRoot, blueprintDir) {
     for (const entry of entriesForVerify(repoRoot, blueprintDir)) {
       try {
         const { data } = readDoc(path.join(repoRoot, entry.rel));
-        const declared = data && data.bouncer && data.bouncer.verify;
+        // `data && data.bouncer && data.bouncer.verify`와 같다. bouncer가 null이면
+        // declared가 null로 남아 VERIFY_COMMAND_INVALID로 간다 — undefined로
+        // 접으면 config.verify로 폴백되어 S12 누락을 숨긴다.
+        const bouncer = data ? (data as Record<string, unknown>).bouncer : data;
+        const declared = bouncer ? (bouncer as Record<string, unknown>).verify : bouncer;
         if (declared !== undefined) {
           if (!isValidVerifyCommand(declared)) {
             throw verificationError(
@@ -73,11 +116,12 @@ function readVerifyCommand(repoRoot, blueprintDir) {
               'verify command must be a single executable command',
             );
           }
-          return declared;
+          // isValidVerifyCommand가 통과한 값만 문자열이다. 여기서 다시 접지 않는다.
+          return declared as string;
         }
       } catch (error) {
-        if (error && error.code === 'VERIFY_COMMAND_INVALID') throw error;
-        if (!(error && error.code === 'ENOENT')) throw error;
+        if (errorCode(error) === 'VERIFY_COMMAND_INVALID') throw error;
+        if (errorCode(error) !== 'ENOENT') throw error;
       }
     }
   }
@@ -86,25 +130,43 @@ function readVerifyCommand(repoRoot, blueprintDir) {
   // 파일 없음과 깨진 JSON을 한 오류로 합치면 VERIFY_CONFIG_MISSING이
   // 권한·구문 문제를 가린다. 메시지 문자열은 호출자가 경로를 그대로 보게 유지.
   const parsed = readConfigResult(repoRoot);
-  if (!parsed.ok) {
+  // strict가 꺼진 기본 tsc는 `!parsed.ok`로 유니온을 좁히지 못한다.
+  // missing/invalid 분기를 유지하려면 리터럴 false와 비교한다.
+  if (parsed.ok === false) {
     if (parsed.reason === 'missing') {
       throw verificationError('VERIFY_CONFIG_MISSING', `verification config missing: ${configPath}`);
     }
     throw verificationError('VERIFY_CONFIG_INVALID', `verification config is invalid: ${configPath}`);
   }
   const config = parsed.value;
-  if (typeof config.verify !== 'string' || config.verify.trim() === '') {
+  // JSON.parse 결과는 unknown이다. 객체로 좁히면 null config의 TypeError가
+  // VERIFY_CONFIG_INVALID로 바뀌므로, 예전처럼 .verify에 바로 접근한다.
+  const verify = (config as Record<string, unknown>).verify;
+  if (typeof verify !== 'string' || verify.trim() === '') {
     throw verificationError('VERIFY_CONFIG_INVALID', 'config.verify must be a non-empty string');
   }
-  return config.verify;
+  return verify;
 }
 
-function outputTail(stdout, stderr, lines = OUTPUT_TAIL_LINES) {
+function outputTail(stdout: unknown, stderr: unknown, lines = OUTPUT_TAIL_LINES): string {
   const combined = [stdout, stderr].filter(Boolean).join('');
   return combined.split('\n').slice(-lines).join('\n').trim();
 }
 
-function executeVerify(command, { cwd, exec = execSync }) {
+type VerifyExec = (
+  command: string,
+  opts: {
+    cwd?: string;
+    encoding?: string;
+    stdio?: unknown;
+    maxBuffer?: number;
+  },
+) => unknown;
+
+function executeVerify(command: string, { cwd, exec = execSync }: {
+  cwd: string;
+  exec?: VerifyExec;
+}): { ok: boolean; exitCode: number; output: string } {
   try {
     const result = exec(command, {
       cwd,
@@ -112,18 +174,27 @@ function executeVerify(command, { cwd, exec = execSync }) {
       stdio: ['ignore', 'pipe', 'pipe'],
       maxBuffer: MAX_VERIFY_OUTPUT_BYTES,
     });
-    const stdout = result && typeof result === 'object' ? result.stdout : result;
-    const stderr = result && typeof result === 'object' ? result.stderr : '';
+    const stdout = result && typeof result === 'object' && 'stdout' in result ? result.stdout : result;
+    const stderr = result && typeof result === 'object' && 'stderr' in result ? result.stderr : '';
     return {
       ok: true,
       exitCode: 0,
       output: outputTail(stdout, stderr, PASSING_OUTPUT_TAIL_LINES),
     };
   } catch (error) {
+    const status = typeof error === 'object' && error !== null && 'status' in error
+      ? error.status
+      : undefined;
+    const stdout = typeof error === 'object' && error !== null && 'stdout' in error
+      ? error.stdout
+      : undefined;
+    const stderr = typeof error === 'object' && error !== null && 'stderr' in error
+      ? error.stderr
+      : undefined;
     return {
       ok: false,
-      exitCode: Number.isInteger(error && error.status) ? error.status : 1,
-      output: outputTail(error && error.stdout, error && error.stderr),
+      exitCode: Number.isInteger(status) ? Number(status) : 1,
+      output: outputTail(stdout, stderr),
     };
   }
 }
@@ -138,7 +209,7 @@ function recordVerificationResult({
   ranAt: string;
   exitCode: number;
   output: string;
-}) {
+}): void {
   // verificationRel이 정식 인자. blueprintDir은 구 호출 호환(루트 verification.md).
   const rel = verificationRel
     || (blueprintDir ? `${toPosix(blueprintDir)}/verification.md` : null);
@@ -146,19 +217,22 @@ function recordVerificationResult({
     throw verificationError('VERIFY_DOCUMENT_MISSING', 'verification document path missing');
   }
   const verificationPath = path.join(repoRoot, rel);
-  let document;
+  let document: { data: unknown; body: string; path: string };
   try {
     document = readDoc(verificationPath);
   } catch (error) {
-    if (error && error.code === 'ENOENT') {
+    if (errorCode(error) === 'ENOENT') {
       throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
     }
     throw error;
   }
-  const data = document.data;
-  data.bouncer = data.bouncer || {};
-  data.bouncer.status = exitCode === 0 ? 'passed' : 'failed';
-  data.bouncer.verification = {
+  const data = document.data as Record<string, unknown>;
+  // 증적은 파싱 객체에 in-place로 붙인다. 빈 객체로 바꾸면 스칼라 YAML의
+  // TypeError가 사라져 실패 형태가 바뀐다.
+  const bouncer = (data.bouncer || {}) as Record<string, unknown>;
+  data.bouncer = bouncer;
+  bouncer.status = exitCode === 0 ? 'passed' : 'failed';
+  bouncer.verification = {
     command,
     ran_at: ranAt,
     exit_code: exitCode,
@@ -179,7 +253,7 @@ ${evidence}`;
   fs.writeFileSync(verificationPath, renderDoc(data, body));
 }
 
-function resolveVerificationRel(repoRoot, blueprintDir) {
+function resolveVerificationRel(repoRoot: string, blueprintDir: string): string {
   // readVerifyCommand와 동일 entriesForVerify 폴백: 포인터 매칭 → 그 묶음,
   // 아니면 번호 순 첫 묶음. listing이 비면 레거시 루트 경로.
   const entries = entriesForVerify(repoRoot, blueprintDir);
@@ -189,7 +263,12 @@ function resolveVerificationRel(repoRoot, blueprintDir) {
   return `${toPosix(blueprintDir)}/verification.md`;
 }
 
-function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() }) {
+function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() }: {
+  repoRoot: string;
+  blueprintDir: string;
+  exec?: VerifyExec;
+  now?: () => Date;
+}): { ok: boolean; command: string; exitCode: number } {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     throw verificationError(
       'VERIFY_BLUEPRINT_INVALID',

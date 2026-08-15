@@ -1,25 +1,122 @@
 'use strict';
-const { toPosix } = require('./paths');
-const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension');
+const { toPosix } = require('./paths') as {
+  toPosix: (p: unknown) => string;
+};
+const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension') as {
+  EXPLAIN_SECTION_DEFS: string[];
+  computeDiffSha: (opts: {
+    repoRoot?: unknown;
+    base?: unknown;
+    exec?: unknown;
+  }) => { ok?: unknown; sha?: unknown; reason?: unknown } | null | undefined;
+  resolveComprehensionEntry: (comp: unknown) =>
+    | { ok: true; entry: { range_from?: unknown; diff_sha?: unknown } }
+    | { ok: false; reason: string };
+};
 // finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
-const { makeAllowed, isRuntimeArtifact } = require('./scope');
+const { makeAllowed, isRuntimeArtifact } = require('./scope') as {
+  makeAllowed: (opts: { affectedPaths?: unknown; blueprintDir: unknown }) => (file: unknown) => boolean;
+  isRuntimeArtifact: (file: unknown) => boolean;
+};
 const {
   defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf,
-} = require('./validate-docs');
-const { isValidGraphBasis } = require('./validate-structural');
+} = require('./validate-docs') as {
+  defaultStagedFiles: (opts: { repoRoot?: string }) =>
+    | { ok: true; files: string[] }
+    | { ok: false; reason?: string }
+    | { ok?: unknown; files?: unknown; reason?: unknown };
+  resolveTaskUnit: (docs: BlueprintDocs, opts?: {
+    repoRoot?: string;
+    blueprintDir?: string;
+  }) => TaskUnit | null;
+  unitLeafRel: (unit: TaskUnit | null | undefined, leaf: string, fallbackRel: string) => string;
+  statusOf: (doc: DocLeaf | undefined | null) => unknown;
+};
+const { isValidGraphBasis } = require('./validate-structural') as {
+  isValidGraphBasis: (basis: unknown) => boolean;
+};
 const {
   VERIFY_SECTION_DEFS, EXPLAIN_SECTION_HEADINGS, TODO_RE,
   parseSections, parseTasksSections, extractPathCandidates,
   pathsOverlap, pathJustifiedByTouch, collectFindingFailures,
-} = require('./validate-sections');
+} = require('./validate-sections') as {
+  VERIFY_SECTION_DEFS: Array<{ key: string; re: RegExp }>;
+  EXPLAIN_SECTION_HEADINGS: Array<{ key: string; re: RegExp }>;
+  TODO_RE: RegExp;
+  parseSections: (body: unknown, defs: Array<{ key: string; re: RegExp }>) => Record<string, string | null>;
+  parseTasksSections: (body: unknown) => Record<string, string | null>;
+  extractPathCandidates: (text: unknown) => string[];
+  pathsOverlap: (a: string, b: string) => boolean;
+  pathJustifiedByTouch: (ap: string, touchText: string) => boolean;
+  collectFindingFailures: (opts: {
+    body: unknown;
+    findings: unknown;
+    sectionLabel: string;
+    findingLabel: string;
+  }) => string[];
+};
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
 // 않는다. graph.basis는 structural.isValidGraphBasis를 그대로 쓴다 — 여기 다시
 // 구현하면 S9와 G4가 갈라진다. validate.ts를 require하지 않는다
 // (validate → gates → structural, 순환 금지).
 
-function checkGate(gate, docs, rels, failures, ctx) {
-  const add = (code, message, fileKey) =>
+type FailureEntry = { code: string; message: string; file: string };
+type DocLeaf = { data: unknown; body: string; rel: string };
+type TaskUnit = {
+  number: number | null;
+  dir: string | null;
+  tasks?: DocLeaf;
+  verification?: DocLeaf;
+  review?: DocLeaf;
+};
+type BlueprintRels = {
+  epicIndex: string;
+  blueprintIndex: string;
+  tasks: string;
+  verification: string;
+  review: string;
+  explain: string;
+  contextReview: string;
+  [key: string]: string;
+};
+type BlueprintDocs = {
+  epicIndex?: DocLeaf;
+  blueprintIndex?: DocLeaf;
+  verification?: DocLeaf;
+  review?: DocLeaf;
+  explain?: DocLeaf;
+  contextReview?: DocLeaf;
+  tasks?: DocLeaf;
+  tasksDocs?: DocLeaf[];
+  taskUnits?: TaskUnit[];
+};
+type GateContext = {
+  repoRoot?: string;
+  blueprintDir?: string;
+  deps?: {
+    computeDiffSha?: typeof computeDiffSha;
+    exec?: unknown;
+    stagedFiles?: typeof defaultStagedFiles;
+  };
+  taskUnit?: TaskUnit | null;
+};
+
+function asData(doc: DocLeaf | undefined | null): Record<string, unknown> | undefined {
+  if (!doc) return undefined;
+  // 호출부가 `doc.data.bouncer`로 바로 들어가던 곳은 그대로 두기 위해
+  // 여기서 data를 빈 객체로 바꾸지 않는다. null data는 예전처럼 접근 시 터진다.
+  return doc.data as Record<string, unknown>;
+}
+
+function checkGate(
+  gate: string,
+  docs: BlueprintDocs,
+  rels: BlueprintRels,
+  failures: FailureEntry[],
+  ctx: GateContext,
+): void {
+  const add = (code: string, message: string, fileKey: string) =>
     failures.push({ code, message, file: rels[fileKey] });
   const repoRoot = ctx && ctx.repoRoot;
   const blueprintDir = ctx && ctx.blueprintDir;
@@ -32,7 +129,11 @@ function checkGate(gate, docs, rels, failures, ctx) {
     // 헷갈리지 않도록 문구를 분기한다 — 재승인 경로가 없다는 점도 여기서 안내.
     const bpStatus = statusOf(docs.blueprintIndex);
     if (bpStatus === 'closed') {
-      add('G2', 'blueprint is closed (finalized) — open a new blueprint instead of resuming this one', 'blueprintIndex');
+      add(
+        'G2',
+        'blueprint is closed (finalized) — open a new blueprint instead of resuming this one',
+        'blueprintIndex',
+      );
     } else if (bpStatus !== 'approved') {
       add('G2', 'blueprint.status != approved', 'blueprintIndex');
     }
@@ -52,10 +153,11 @@ function checkGate(gate, docs, rels, failures, ctx) {
       if (statusOf(docs.contextReview) !== 'accepted') {
         add('G18', 'context-review.status != accepted', 'contextReview');
       }
-      const crBouncer = docs.contextReview.data && docs.contextReview.data.bouncer
-        ? docs.contextReview.data.bouncer
+      const crData = asData(docs.contextReview);
+      const crBouncer = crData && crData.bouncer
+        ? crData.bouncer as Record<string, unknown>
         : {};
-      const crMeta = crBouncer.context_review;
+      const crMeta = crBouncer.context_review as Record<string, unknown> | undefined;
       for (const message of collectFindingFailures({
         body: docs.contextReview.body,
         findings: crMeta && crMeta.findings,
@@ -80,26 +182,32 @@ function checkGate(gate, docs, rels, failures, ctx) {
     }
     for (const tasksDoc of tasksList) {
       const file = tasksDoc.rel || rels.tasks;
-      const addTask = (code, message) => failures.push({ code, message, file });
+      const addTask = (code: string, message: string) => failures.push({ code, message, file });
       // ready = plan 직후. in_progress = execute 중. verified = 같은 BP의
       // 앞 task를 이미 끝낸 뒤 next-task --set. draft만 G3.
       const taskStatus = statusOf(tasksDoc);
-      if (!['ready', 'in_progress', 'verified'].includes(taskStatus)) {
+      if (!(['ready', 'in_progress', 'verified'] as unknown[]).includes(taskStatus)) {
         addTask('G3', 'tasks.status != ready');
       }
-      const graph = tasksDoc && tasksDoc.data.bouncer ? tasksDoc.data.bouncer.graph : undefined;
+      // YAML data가 null/undefined면 `.bouncer`에서 터지는 게 기존 실패 형태다.
+      // `data &&`로 막으면 G4/G5가 missing 메시지로 fail-open 한다.
+      const taskBouncer = (tasksDoc.data as Record<string, unknown>).bouncer as
+        Record<string, unknown> | undefined;
+      const graph = taskBouncer
+        ? taskBouncer.graph as Record<string, unknown> | undefined
+        : undefined;
       const suggested = graph ? graph.suggested_paths : undefined;
       if (!Array.isArray(suggested)) addTask('G4', 'tasks.graph.suggested_paths missing');
       if (graph && !isValidGraphBasis(graph.basis)) {
         addTask('G4', 'tasks.graph.basis missing or empty');
       }
-      const ap = tasksDoc && tasksDoc.data.bouncer ? tasksDoc.data.bouncer.affected_paths : undefined;
+      const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
       if (!Array.isArray(ap) || ap.length === 0) addTask('G5', 'tasks.affected_paths missing or empty');
       const tasksBody = tasksDoc && typeof tasksDoc.body === 'string' ? tasksDoc.body : '';
       const sections = parseTasksSections(tasksBody);
       const sectionKeys = ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
       const missing = sectionKeys.filter((k) => !sections[k]);
-      const unfilled = sectionKeys.filter((k) => sections[k] && TODO_RE.test(sections[k]));
+      const unfilled = sectionKeys.filter((k) => sections[k] && TODO_RE.test(sections[k] as string));
       if (missing.length) {
         addTask('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`);
       } else if (unfilled.length) {
@@ -110,11 +218,13 @@ function checkGate(gate, docs, rels, failures, ctx) {
         const apList = Array.isArray(ap)
           ? ap.map((p) => toPosix(String(p)).replace(/^\.\//, ''))
           : [];
-        const unjustified = apList.filter((p) => !pathJustifiedByTouch(p, sections.touch));
+        const touchText = sections.touch || '';
+        const avoidText = sections.doNotTouch || '';
+        const unjustified = apList.filter((p) => !pathJustifiedByTouch(p, touchText));
         if (unjustified.length) {
           addTask('G11', `affected_paths not justified by Touch: ${unjustified.join(', ')}`);
         }
-        const forbidden = extractPathCandidates(sections.doNotTouch);
+        const forbidden = extractPathCandidates(avoidText);
         const overlap = apList.filter((p) => forbidden.some((f) => pathsOverlap(p, f)));
         if (overlap.length) {
           addTask('G12', `do-not-touch intersects affected_paths: ${overlap.join(', ')}`);
@@ -130,7 +240,7 @@ function checkGate(gate, docs, rels, failures, ctx) {
     const tasksDoc = taskUnit && taskUnit.tasks;
     const verificationDoc = taskUnit && taskUnit.verification;
     const reviewDoc = taskUnit && taskUnit.review;
-    const addUnit = (code, message, leaf) => failures.push({
+    const addUnit = (code: string, message: string, leaf: string) => failures.push({
       code,
       message,
       file: unitLeafRel(taskUnit, leaf, rels[leaf]),
@@ -142,7 +252,10 @@ function checkGate(gate, docs, rels, failures, ctx) {
     if (statusOf(verificationDoc) !== 'passed') {
       addUnit('G7', 'verification.status != passed', 'verification');
     }
-    const review = reviewDoc && reviewDoc.data.bouncer ? reviewDoc.data.bouncer.review : undefined;
+    const reviewBouncer = reviewDoc
+      ? (reviewDoc.data as Record<string, unknown>).bouncer as Record<string, unknown> | undefined
+      : undefined;
+    const review = reviewBouncer ? reviewBouncer.review as Record<string, unknown> | undefined : undefined;
     const reviewOk = statusOf(reviewDoc) === 'accepted' || (review && review.required === false);
     if (!reviewOk) {
       addUnit('G8', 'review not accepted and review.required != false', 'review');
@@ -154,7 +267,8 @@ function checkGate(gate, docs, rels, failures, ctx) {
       if (missingV.length) {
         addUnit('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
       }
-      const evidence = verificationDoc.data.bouncer && verificationDoc.data.bouncer.verification;
+      const vBouncer = (verificationDoc.data as Record<string, unknown>).bouncer as Record<string, unknown> | undefined;
+      const evidence = vBouncer && vBouncer.verification as Record<string, unknown> | undefined;
       const validEvidence = evidence
         && typeof evidence.command === 'string'
         && evidence.command.trim()
@@ -165,13 +279,18 @@ function checkGate(gate, docs, rels, failures, ctx) {
       if (!validEvidence) {
         addUnit('G13', 'verification.md missing successful harness verification metadata', 'verification');
       } else if (
-        !vs.command.includes(`\`${evidence.command}\``)
-        || !vs.evidence.includes('Exit code: 0')
+        !(vs.command as string).includes(`\`${evidence.command}\``)
+        || !(vs.evidence as string).includes('Exit code: 0')
       ) {
         addUnit('G13', 'verification.md body does not match harness verification metadata', 'verification');
       }
     }
-    const reviewMeta = reviewDoc && reviewDoc.data.bouncer ? reviewDoc.data.bouncer.review : undefined;
+    const reviewMetaBouncer = reviewDoc
+      ? (reviewDoc.data as Record<string, unknown>).bouncer as Record<string, unknown> | undefined
+      : undefined;
+    const reviewMeta = reviewMetaBouncer
+      ? reviewMetaBouncer.review as Record<string, unknown> | undefined
+      : undefined;
     const reviewSkipped = reviewMeta && reviewMeta.required === false;
     if (reviewDoc && !reviewSkipped) {
       for (const message of collectFindingFailures({
@@ -192,11 +311,12 @@ function checkGate(gate, docs, rels, failures, ctx) {
     const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
       ? docs.tasksDocs
       : (docs.tasks ? [docs.tasks] : []);
-    const openIds = [];
+    const openIds: string[] = [];
     for (const tasksDoc of tasksList) {
       if (statusOf(tasksDoc) !== 'verified') {
-        const id = tasksDoc && tasksDoc.data && tasksDoc.data.bouncer
-          ? tasksDoc.data.bouncer.id
+        const data = asData(tasksDoc);
+        const id = data && data.bouncer
+          ? (data.bouncer as Record<string, unknown>).id
           : undefined;
         openIds.push(typeof id === 'string' && id ? id : '(unknown)');
       }
@@ -204,10 +324,11 @@ function checkGate(gate, docs, rels, failures, ctx) {
     if (openIds.length) {
       // 열린 task id를 메시지에 담아 어느 묶음이 남았는지 바로 보이게 한다.
       // 경고가 아니라 hard fail — 사용자가 넘길 수 없다.
+      const openDoc = tasksList.find((t) => statusOf(t) !== 'verified');
       failures.push({
         code: 'G16',
         message: `open tasks remain (not verified): ${openIds.join(', ')}`,
-        file: (tasksList.find((t) => statusOf(t) !== 'verified') || {}).rel || rels.tasks,
+        file: (openDoc && openDoc.rel) || rels.tasks,
       });
       return;
     }
@@ -227,14 +348,16 @@ function checkGate(gate, docs, rels, failures, ctx) {
       return;
     }
 
-    const bouncer = docs.explain.data && docs.explain.data.bouncer
-      ? docs.explain.data.bouncer
+    const explainData = asData(docs.explain);
+    const bouncer = explainData && explainData.bouncer
+      ? explainData.bouncer as Record<string, unknown>
       : {};
     const comp = bouncer.comprehension;
     // BP당 엔트리 하나(배열 마지막). task 번호 루프는 쓰지 않는다 —
     // 0.7 다중 엔트리는 마지막만 보면 읽기 호환이 된다.
     const found = resolveComprehensionEntry(comp);
-    if (!found.ok) {
+    // 기본 tsc(strict 꺼짐)는 `!found.ok`로 실패 분기를 좁히지 못한다.
+    if (found.ok === false) {
       add(
         'G16',
         found.reason === 'not-a-list'
@@ -274,7 +397,7 @@ function checkGate(gate, docs, rels, failures, ctx) {
     const tasksDoc = taskUnit && taskUnit.tasks;
     const verificationDoc = taskUnit && taskUnit.verification;
     const reviewDoc = taskUnit && taskUnit.review;
-    const addUnit = (code, message, leaf) => failures.push({
+    const addUnit = (code: string, message: string, leaf: string) => failures.push({
       code,
       message,
       file: unitLeafRel(taskUnit, leaf, rels[leaf]),
@@ -286,7 +409,12 @@ function checkGate(gate, docs, rels, failures, ctx) {
     if (statusOf(verificationDoc) !== 'passed') {
       addUnit('G7', 'verification.status != passed', 'verification');
     }
-    const review = reviewDoc && reviewDoc.data.bouncer ? reviewDoc.data.bouncer.review : undefined;
+    const commitReviewBouncer = reviewDoc
+      ? (reviewDoc.data as Record<string, unknown>).bouncer as Record<string, unknown> | undefined
+      : undefined;
+    const review = commitReviewBouncer
+      ? commitReviewBouncer.review as Record<string, unknown> | undefined
+      : undefined;
     const reviewOk = statusOf(reviewDoc) === 'accepted' || (review && review.required === false);
     if (!reviewOk) {
       addUnit('G8', 'review not accepted and review.required != false', 'review');
@@ -297,7 +425,10 @@ function checkGate(gate, docs, rels, failures, ctx) {
     const stagedFn = (deps && deps.stagedFiles) || defaultStagedFiles;
     const staged = stagedFn({ repoRoot });
     if (!staged || staged.ok !== true) {
-      const reason = staged && staged.reason ? staged.reason : 'git-failed';
+      // `'reason' in`은 객체가 아니면 TypeError. 예전 `staged && staged.reason`은
+      // primitive도 git-failed로 G17에 남겼다.
+      const stagedFail = staged as { reason?: unknown } | null | undefined;
+      const reason = stagedFail && stagedFail.reason ? stagedFail.reason : 'git-failed';
       failures.push({
         code: 'G17',
         message: `could not read staged files (${reason})`,
@@ -305,8 +436,9 @@ function checkGate(gate, docs, rels, failures, ctx) {
       });
       return;
     }
-    const affectedPaths = tasksDoc && tasksDoc.data && tasksDoc.data.bouncer
-      ? tasksDoc.data.bouncer.affected_paths
+    const taskData = asData(tasksDoc);
+    const affectedPaths = taskData && taskData.bouncer
+      ? (taskData.bouncer as Record<string, unknown>).affected_paths
       : [];
     const allowed = makeAllowed({ affectedPaths, blueprintDir });
     const files = Array.isArray(staged.files) ? staged.files : [];

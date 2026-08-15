@@ -1,12 +1,17 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { readConfig } = require('./config');
+const { readConfig } = require('./config') as {
+  readConfig: (repoRoot: string) => unknown;
+};
 const {
   CONTEXT_DIGEST_OUT,
   DIGEST_WATCH_FILES,
-} = require('./context-digest');
-const { DISTILL_SHARD_DIR } = require('./layout');
+} = require('./context-digest') as {
+  CONTEXT_DIGEST_OUT: string;
+  DIGEST_WATCH_FILES: string[];
+};
+const { DISTILL_SHARD_DIR } = require('./layout') as { DISTILL_SHARD_DIR: string };
 
 // 설정·디렉터리 존재·mtime 판정만. 프로세스를 띄우지 않고 graphify.ts 도
 // require 하지 않는다 — 그 모듈의 PATH 탐색이 execFileSync 를 돌리기 때문.
@@ -25,33 +30,45 @@ const DEFAULT_CONTEXT_DIRS = ['.bouncer/context'];
 //    build 가 graphify-out 아래에 쓰기 → mtime 갱신 → rebuild 무한 루프.
 const SCAN_EXCLUDED_DIRS = new Set(['graphify-out', 'node_modules', '.git', '.worktrees']);
 
-function realGraphifyEnabled(repoRoot) {
+function configField(cfg: unknown, key: string): unknown {
+  // cfg?.key 와 같다. `'key' in cfg`로 바꾸면 프로토타입 필드가 생기고
+  // null에서 단락되지 않을 수 있다.
+  return cfg && typeof cfg === 'object' ? (cfg as Record<string, unknown>)[key] : undefined;
+}
+
+function realGraphifyEnabled(repoRoot: string) {
   // ?? {}를 붙이지 않는다. 부재를 빈 객체와 같게 보면 enabled 판정이
   // "키 없음"과 "파일 없음"을 구분하지 못하게 되고, 둘 다 false로 떨어져
   // 겉보기엔 같아 보이지만 cfg?. 전제(null 유지)가 깨진다.
   const cfg = readConfig(repoRoot);
-  return cfg?.graphify?.enabled === true;
+  const graphify = configField(cfg, 'graphify');
+  const enabled = graphify && typeof graphify === 'object'
+    ? (graphify as Record<string, unknown>).enabled
+    : undefined;
+  return enabled === true;
 }
 
-function realSourceDirs(repoRoot) {
+function realSourceDirs(repoRoot: string) {
   const cfg = readConfig(repoRoot);
-  return Array.isArray(cfg?.source_dirs) ? cfg.source_dirs : [];
+  const dirs = configField(cfg, 'source_dirs');
+  return Array.isArray(dirs) ? dirs as string[] : [];
 }
 
-function realContextDirs(repoRoot) {
+function realContextDirs(repoRoot: string) {
   const cfg = readConfig(repoRoot);
-  if (Array.isArray(cfg?.context_dirs)) return cfg.context_dirs;
+  const dirs = configField(cfg, 'context_dirs');
+  if (Array.isArray(dirs)) return dirs as string[];
   return DEFAULT_CONTEXT_DIRS;
 }
 
-function realExistingDirs(repoRoot, dirs) {
+function realExistingDirs(repoRoot: string, dirs: string[]) {
   return dirs.filter((d) => fs.existsSync(path.join(repoRoot, d)));
 }
 
-function newestMtimeUnder(repoRoot, dir) {
+function newestMtimeUnder(repoRoot: string, dir: string) {
   const root = path.join(repoRoot, dir);
   let newest = 0;
-  const walk = (abs) => {
+  const walk = (abs: string) => {
     let entries;
     try { entries = fs.readdirSync(abs, { withFileTypes: true }); } catch (_e) { return; }
     for (const e of entries) {
@@ -74,7 +91,7 @@ function newestMtimeUnder(repoRoot, dir) {
  * dirs 는 보통 디렉터리 walk, watchFiles 는 Distill 같은 단일 파일 mtime.
  * 디렉터리가 아닌 경로는 walk 하지 않고 statSync 로 직접 잰다.
  */
-function realNewestMtime(repoRoot, dirs, watchFiles) {
+function realNewestMtime(repoRoot: string, dirs: string[], watchFiles?: string[]) {
   let newest = 0;
   for (const d of dirs || []) {
     const abs = path.join(repoRoot, d);
@@ -110,12 +127,15 @@ function realNewestMtime(repoRoot, dirs, watchFiles) {
   return newest;
 }
 
-function realGraphMtime(repoRoot, outDir) {
+function realGraphMtime(repoRoot: string, outDir: string) {
   const abs = path.join(repoRoot, outDir, 'graph.json');
   return fs.existsSync(abs) ? fs.statSync(abs).mtimeMs : null;
 }
 
-function resolveGraphScopes({ sourceDirs, contextDirs }) {
+function resolveGraphScopes({ sourceDirs, contextDirs }: {
+  sourceDirs: string[];
+  contextDirs: string[];
+}) {
   return [
     { name: 'source', dirs: sourceDirs, outDir: DEFAULT_SOURCE_OUT },
     {

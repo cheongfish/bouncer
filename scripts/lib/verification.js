@@ -8,6 +8,8 @@ const { renderDoc } = require('./render');
 const { isCanonicalBlueprintDir } = require('./layout');
 const { nowIsoKst } = require('./time');
 const { listTasksDocs } = require('./tasks-docs');
+// current.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
+// 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
 const { readCurrent } = require('./current');
 const { toPosix } = require('./paths');
 const { readConfigResult } = require('./config');
@@ -22,6 +24,15 @@ function verificationError(code, message) {
     const error = new Error(message);
     error.code = code;
     return error;
+}
+function errorCode(error) {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+        return error.code;
+    }
+    return undefined;
+}
+function isRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 // 실행 가능한 argv 문자열 하나만: 셸 체이닝, 리다이렉션, `cd` 접두사 없음.
 // Plan S12와 runtime VERIFY_COMMAND_INVALID가 이 predicate를 공유하므로
@@ -46,9 +57,7 @@ function entriesForVerify(repoRoot, blueprintDir) {
     // 조용히 끌어오지 않기 위함.
     const pointer = readCurrent({ repoRoot });
     const bp = toPosix(blueprintDir);
-    if (pointer
-        && typeof pointer.task === 'string'
-        && toPosix(pointer.blueprint) === bp) {
+    if (isRecord(pointer) && typeof pointer.task === 'string' && toPosix(pointer.blueprint) === bp) {
         const match = listing.entries.find((e) => e.rel === toPosix(pointer.task));
         if (match)
             return [match];
@@ -63,18 +72,23 @@ function readVerifyCommand(repoRoot, blueprintDir) {
         for (const entry of entriesForVerify(repoRoot, blueprintDir)) {
             try {
                 const { data } = readDoc(path.join(repoRoot, entry.rel));
-                const declared = data && data.bouncer && data.bouncer.verify;
+                // `data && data.bouncer && data.bouncer.verify`와 같다. bouncer가 null이면
+                // declared가 null로 남아 VERIFY_COMMAND_INVALID로 간다 — undefined로
+                // 접으면 config.verify로 폴백되어 S12 누락을 숨긴다.
+                const bouncer = data ? data.bouncer : data;
+                const declared = bouncer ? bouncer.verify : bouncer;
                 if (declared !== undefined) {
                     if (!isValidVerifyCommand(declared)) {
                         throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
                     }
+                    // isValidVerifyCommand가 통과한 값만 문자열이다. 여기서 다시 접지 않는다.
                     return declared;
                 }
             }
             catch (error) {
-                if (error && error.code === 'VERIFY_COMMAND_INVALID')
+                if (errorCode(error) === 'VERIFY_COMMAND_INVALID')
                     throw error;
-                if (!(error && error.code === 'ENOENT'))
+                if (errorCode(error) !== 'ENOENT')
                     throw error;
             }
         }
@@ -83,17 +97,22 @@ function readVerifyCommand(repoRoot, blueprintDir) {
     // 파일 없음과 깨진 JSON을 한 오류로 합치면 VERIFY_CONFIG_MISSING이
     // 권한·구문 문제를 가린다. 메시지 문자열은 호출자가 경로를 그대로 보게 유지.
     const parsed = readConfigResult(repoRoot);
-    if (!parsed.ok) {
+    // strict가 꺼진 기본 tsc는 `!parsed.ok`로 유니온을 좁히지 못한다.
+    // missing/invalid 분기를 유지하려면 리터럴 false와 비교한다.
+    if (parsed.ok === false) {
         if (parsed.reason === 'missing') {
             throw verificationError('VERIFY_CONFIG_MISSING', `verification config missing: ${configPath}`);
         }
         throw verificationError('VERIFY_CONFIG_INVALID', `verification config is invalid: ${configPath}`);
     }
     const config = parsed.value;
-    if (typeof config.verify !== 'string' || config.verify.trim() === '') {
+    // JSON.parse 결과는 unknown이다. 객체로 좁히면 null config의 TypeError가
+    // VERIFY_CONFIG_INVALID로 바뀌므로, 예전처럼 .verify에 바로 접근한다.
+    const verify = config.verify;
+    if (typeof verify !== 'string' || verify.trim() === '') {
         throw verificationError('VERIFY_CONFIG_INVALID', 'config.verify must be a non-empty string');
     }
-    return config.verify;
+    return verify;
 }
 function outputTail(stdout, stderr, lines = OUTPUT_TAIL_LINES) {
     const combined = [stdout, stderr].filter(Boolean).join('');
@@ -107,8 +126,8 @@ function executeVerify(command, { cwd, exec = execSync }) {
             stdio: ['ignore', 'pipe', 'pipe'],
             maxBuffer: MAX_VERIFY_OUTPUT_BYTES,
         });
-        const stdout = result && typeof result === 'object' ? result.stdout : result;
-        const stderr = result && typeof result === 'object' ? result.stderr : '';
+        const stdout = result && typeof result === 'object' && 'stdout' in result ? result.stdout : result;
+        const stderr = result && typeof result === 'object' && 'stderr' in result ? result.stderr : '';
         return {
             ok: true,
             exitCode: 0,
@@ -116,10 +135,19 @@ function executeVerify(command, { cwd, exec = execSync }) {
         };
     }
     catch (error) {
+        const status = typeof error === 'object' && error !== null && 'status' in error
+            ? error.status
+            : undefined;
+        const stdout = typeof error === 'object' && error !== null && 'stdout' in error
+            ? error.stdout
+            : undefined;
+        const stderr = typeof error === 'object' && error !== null && 'stderr' in error
+            ? error.stderr
+            : undefined;
         return {
             ok: false,
-            exitCode: Number.isInteger(error && error.status) ? error.status : 1,
-            output: outputTail(error && error.stdout, error && error.stderr),
+            exitCode: Number.isInteger(status) ? Number(status) : 1,
+            output: outputTail(stdout, stderr),
         };
     }
 }
@@ -136,15 +164,18 @@ function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, com
         document = readDoc(verificationPath);
     }
     catch (error) {
-        if (error && error.code === 'ENOENT') {
+        if (errorCode(error) === 'ENOENT') {
             throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
         }
         throw error;
     }
     const data = document.data;
-    data.bouncer = data.bouncer || {};
-    data.bouncer.status = exitCode === 0 ? 'passed' : 'failed';
-    data.bouncer.verification = {
+    // 증적은 파싱 객체에 in-place로 붙인다. 빈 객체로 바꾸면 스칼라 YAML의
+    // TypeError가 사라져 실패 형태가 바뀐다.
+    const bouncer = (data.bouncer || {});
+    data.bouncer = bouncer;
+    bouncer.status = exitCode === 0 ? 'passed' : 'failed';
+    bouncer.verification = {
         command,
         ran_at: ranAt,
         exit_code: exitCode,

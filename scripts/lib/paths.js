@@ -35,7 +35,10 @@ function parsePathIds(resourcePath) {
     const bpM = BP_SEG_RE.exec(norm);
     const epicId = epicM ? epicM[1] : null;
     const blueprintId = bpM ? bpM[1] : null;
-    const base = norm.split('/').pop();
+    // pop()은 string | undefined라 인덱스에 바로 못 쓴다. split 결과는 항상
+    // 한 칸 이상이라 마지막 칸을 쓰면 런타임 값이 같고 타입만 닫힌다.
+    const segments = norm.split('/');
+    const base = segments[segments.length - 1];
     let kind = FILE_KIND[base] || null;
     // 루트·tasks/<NNN>/ 모두 basename 으로 kind 를 본다.
     // tasks/002/tasks.md → tasks, …/verification.md → verification.

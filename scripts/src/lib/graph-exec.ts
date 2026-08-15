@@ -2,40 +2,87 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { resolveGraphifyBin } = require('./graphify');
-const { buildContextDigest } = require('./context-digest');
+const { resolveGraphifyBin } = require('./graphify') as {
+  resolveGraphifyBin: (opts: { repoRoot: string }) => { bin: string | null };
+};
+const { buildContextDigest } = require('./context-digest') as {
+  buildContextDigest: (opts: { repoRoot: string; contextDirs?: unknown }) => {
+    count: number;
+    map: Record<string, string>;
+  };
+};
+
+type GraphifyExecFn = (
+  file: string | null,
+  args?: readonly string[],
+  options?: { cwd?: unknown; env?: NodeJS.ProcessEnv; stdio?: unknown },
+) => unknown;
+
+type GraphifyRunOpts = {
+  exec?: GraphifyExecFn;
+  bin?: string | null;
+};
+
+type GraphNode = {
+  id?: unknown;
+  source_file?: unknown;
+  [key: string]: unknown;
+};
+type GraphLink = {
+  source?: unknown;
+  target?: unknown;
+  source_file?: unknown;
+  [key: string]: unknown;
+};
+type GraphHyperedge = {
+  nodes?: unknown;
+  source_file?: unknown;
+  [key: string]: unknown;
+};
+type GraphJson = {
+  nodes?: GraphNode[];
+  links?: GraphLink[];
+  hyperedges?: GraphHyperedge[];
+  [key: string]: unknown;
+};
+
+type GraphScope = {
+  name: string;
+  dirs: string[];
+  outDir: string;
+  scanDirs?: string[];
+};
 
 // graphify 프로세스와 결과 경로 정규화. 해석기 PATH 탐색이
 // execFileSync('graphify', ['--version']) 를 돌리므로 realHasGraphify 도
 // 여기 둔다 — 이름은 판정처럼 보이지만 프로세스를 띄운다.
 // session-graph 를 require 하지 않는다(exec → plan 순환 금지).
-
 // PATH/`command -v` 폴백은 resolveGraphifyBin의 hasOnPath가 흡수한다.
 // 해석 실패는 새 상태가 아니라 기존 skip-no-graphify와 같다.
-function realHasGraphify(repoRoot) {
+function realHasGraphify(repoRoot: string) {
   return resolveGraphifyBin({ repoRoot }).bin !== null;
 }
 
 // part cwd(보통 ".") 기준 원하는 outDir. graphify가 인정할 값이 필요하면
 // cwd에 대해 resolve — runGraphifyUpdate 참고. graphify join 규칙과 무관하게
 // cwd-relative 계약을 테스트할 수 있도록 순수 relative helper로 유지.
-function graphifyOutEnv(cwdAbs, outDirAbs) {
+function graphifyOutEnv(cwdAbs: string, outDirAbs: string) {
   return path.relative(cwdAbs, outDirAbs).split(path.sep).join('/') || '.';
 }
 
-function partOutDir(outDir, dir) {
+function partOutDir(outDir: string, dir: string) {
   const slug = dir.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'root';
   return `${outDir}/parts/${slug}`;
 }
 
-function runGraphifyUpdate(repoRoot, dir, outDir, opts = null) {
+function runGraphifyUpdate(repoRoot: string, dir: string, outDir: string, opts: GraphifyRunOpts | null = null) {
   // part outDir에 cwd를 격리해 graphify 고정
   // `<cwd>/graphify-out/manifest.json`이 repo root가 아니라 part 아래에
   // 생성되게 한다. scan target은 절대 경로 — cwd는 cache/output sandbox만.
   const partAbs = path.join(repoRoot, outDir);
   const scanAbs = path.join(repoRoot, dir);
   fs.mkdirSync(partAbs, { recursive: true });
-  const exec = (opts && opts.exec) || execFileSync;
+  const exec = ((opts && opts.exec) || execFileSync) as GraphifyExecFn;
   // 실행 대상은 해석기가 준 값만 — 여기 리터럴 'graphify'를 두지 않는다.
   // 호출자(defaultExecGraphify)가 한 번 해석한 bin을 넘기는 것이 정상이며,
   // 미주입 시에만 여기서 한 번 더 해석한다(단위 테스트·직접 호출용).
@@ -57,15 +104,22 @@ function runGraphifyUpdate(repoRoot, dir, outDir, opts = null) {
 // 동일 경로명과 충돌할 수 있다. 소비 전에 둘 다 repo-relative/네임스페이스
 // 형태로 rewrite. opts.map 이 있으면 파생 파일명→원본 경로로 되돌리고,
 // 매핑에 없는 노드는 드롭한다(폴백 없음).
-function normalizeGraphPaths(repoRoot, partOut, dir, opts) {
-  const graph = JSON.parse(fs.readFileSync(path.join(repoRoot, partOut, 'graph.json'), 'utf8'));
+function normalizeGraphPaths(
+  repoRoot: string,
+  partOut: string,
+  dir: string,
+  opts?: { map?: Record<string, string> } | null,
+) {
+  const graph: GraphJson = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, partOut, 'graph.json'), 'utf8'),
+  ) as GraphJson;
   const idPrefix = `${dir.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_`;
-  const prefixId = (id) => (typeof id === 'string' ? idPrefix + id : id);
+  const prefixId = (id: unknown) => (typeof id === 'string' ? idPrefix + id : id);
   const map = opts && opts.map;
 
   if (map) {
-    const keptIds = new Set();
-    const nodes = [];
+    const keptIds = new Set<unknown>();
+    const nodes: GraphNode[] = [];
     for (const node of graph.nodes || []) {
       const f = node.source_file;
       if (typeof f !== 'string' || !f || !Object.prototype.hasOwnProperty.call(map, f)) continue;
@@ -88,8 +142,9 @@ function normalizeGraphPaths(repoRoot, partOut, dir, opts) {
     });
     graph.hyperedges = (graph.hyperedges || []).filter((hyperedge) => {
       if (Array.isArray(hyperedge.nodes)) {
-        hyperedge.nodes = hyperedge.nodes.map(prefixId);
-        if (!hyperedge.nodes.every((id) => keptIds.has(id))) return false;
+        const nodes = hyperedge.nodes.map(prefixId);
+        hyperedge.nodes = nodes;
+        if (!nodes.every((id: unknown) => keptIds.has(id))) return false;
       }
       const f = hyperedge.source_file;
       if (typeof f === 'string' && f) {
@@ -99,7 +154,7 @@ function normalizeGraphPaths(repoRoot, partOut, dir, opts) {
       return true;
     });
   } else {
-    const prefixFile = (f) => (typeof f === 'string' && f ? `${dir}/${f}` : f);
+    const prefixFile = (f: unknown) => (typeof f === 'string' && f ? `${dir}/${f}` : f);
     for (const node of graph.nodes || []) {
       node.id = prefixId(node.id);
       node.source_file = prefixFile(node.source_file);
@@ -122,10 +177,10 @@ function normalizeGraphPaths(repoRoot, partOut, dir, opts) {
 
 // 각 dir은 parts/ 아래 graphify state를 유지해 incremental rebuild가 graphify가
 // 쓴 id를 본다; scope graph.json은 우리가 만든 파생 artifact.
-function defaultExecGraphify(repoRoot, graph) {
+function defaultExecGraphify(repoRoot: string, graph: GraphScope) {
   // 루프마다 재해석하지 않음 — config/venv/PATH 판정을 한 번만 하고 part·merge에 공유.
   const { bin } = resolveGraphifyBin({ repoRoot });
-  let map = null;
+  let map: Record<string, string> | null = null;
   // 소비 측 계약: scanDirs || dirs. source 는 scanDirs 없이 dirs 만 쓴다.
   const scanDirs = graph.scanDirs || graph.dirs;
 
@@ -160,7 +215,7 @@ function defaultExecGraphify(repoRoot, graph) {
     fs.copyFileSync(path.join(repoRoot, parts[0]), target);
     return;
   }
-  execFileSync(bin, ['merge-graphs', ...parts, '--out', `${graph.outDir}/graph.json`], {
+  execFileSync(bin as string, ['merge-graphs', ...parts, '--out', `${graph.outDir}/graph.json`], {
     cwd: repoRoot,
     stdio: 'ignore',
   });

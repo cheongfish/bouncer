@@ -3,11 +3,19 @@
 ## 로컬 개발
 
 ```bash
-npm install    # devDependencies만 (테스트·린트용)
+npm install    # devDependencies만 (테스트·린트·타입검사용)
 npm run setup  # 커밋 메시지 템플릿 + pre-commit 훅 연결 (클론마다 1회)
-npm test       # node --test
-npm run lint   # eslint
+npm run ci     # emit → coverage → lint → typecheck → audit
 ```
+
+로컬 확인은 `npm run ci` 하나다. 순서는 배포 CJS emit 검사(`check:emit`),
+제품 코드 coverage, lint, typecheck, `npm audit --audit-level=high`다.
+coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
+하한은 line 94%, branch 82%, function 96%다. 기본 병렬 러너는 같은
+스위트에서도 branch 수치가 출렁여 하한을 깨므로 `test:coverage`는
+`--test-concurrency=1`로 돌린다. CI와 로컬 사이에도 소수 포인트
+편차가 있어 branch는 1%p 버퍼를 둔다. audit는 레지스트리에 닿아야
+하고, 레지스트리 실패를 성공으로 보지 않는다.
 
 ## 커밋·PR 규약
 
@@ -42,9 +50,9 @@ Goal & intent에서 채워 넣을 수 있습니다.
 실행해야 합니다. 템플릿은 에디터가 열릴 때만 보이므로 `git commit -m`에는
 적용되지 않습니다.
 
-pre-commit(`.githooks/pre-commit`)은 원격 CI의 빠른 스텝을 로컬에서 돌립니다.
-`scripts/lib` emit이 `scripts/src/lib`과 일치하는지 검사한 뒤 `npm run lint`를
-실행합니다. `npm test`는 매 커밋에는 넣지 않고 원격 CI에 둡니다. 우회는
+pre-commit(`.githooks/pre-commit`)은 `npm run check:emit`과 `npm run lint`만
+돌립니다. emit 검사는 CI와 같은 `scripts/check-emit.js`를 씁니다. coverage와
+audit는 매 커밋에는 넣지 않고 원격 CI에 둡니다. 우회는
 `git commit --no-verify`입니다.
 
 PR/MR 본문 템플릿은 두 곳에 같은 형식으로 있습니다.
@@ -79,9 +87,9 @@ GitLab에서 기본값으로 강제하려면 프로젝트 설정 → Merge reque
 
 ## CI와 배포 계약
 
-CI는 `main`/`develop` 푸시와 PR마다 두 가지를 모두 돌립니다. GitHub Actions
-(`.github/workflows/test.yml`)와 GitLab CI(`.gitlab-ci.yml`)를 함께 두어, 사내
-GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
+CI는 `main`/`develop` 푸시와 PR마다 같은 명령을 돌립니다. GitHub Actions
+(`.github/workflows/test.yml`)와 GitLab CI(`.gitlab-ci.yml`)는 러너 문법만
+다르고, `npm ci` 뒤에 `npm run ci`만 호출합니다.
 
 `scripts/`와 `hooks/` 아래 코드는 `node_modules`에 의존하면 안 됩니다.
 마켓플레이스 설치가 깨집니다. `test/distribution.test.js`가 이 계약을 강제합니다.
@@ -94,7 +102,21 @@ GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
 같은 값이어야 합니다. 나머지 매니페스트 일치는
 `test/cursor-plugin.test.js`가 잡습니다.
 
+## 라이선스와 기여물
+
+이 저장소는 [Apache-2.0](../LICENSE)입니다. PR·패치·문서 등 기여물은 별도의
+약정이 없으면 같은 Apache-2.0 조건으로 제공되는 것으로 봅니다. 제3자 고지
+(`scripts/vendor/js-yaml.LICENSE`, `skills/stop-slop/LICENSE`,
+`skills/agentic-code-benchmark/NOTICE.md`)는 반입 코드의 원 라이선스이므로
+삭제하지 않습니다.
+
+참여는 [Contributor Covenant 2.1](../CODE_OF_CONDUCT.md)을 따릅니다.
+
 ## 피드백
 
 사용 중 마찰·버그는 이슈 템플릿으로 남겨 주세요. 파일럿 안내는
 [PILOT.md](PILOT.md)를 보세요.
+
+보안 취약점은 공개 이슈·PR로 올리지 말고 [SECURITY.md](../SECURITY.md)의
+비공개 이메일로 제보하세요. 일반 버그와 파일럿 기록은 기존 이슈 템플릿을
+그대로 씁니다.

@@ -189,7 +189,10 @@ Blueprint: [<BP-id>](../../index.md)
     'pr.md': PR_TEMPLATE,
 };
 function readTemplate(name) {
-    const body = TEMPLATES[name];
+    // 키 목록을 유니온으로 닫으면 알 수 없는 이름에서 컴파일 오류가 나고,
+    // 런타임의 `unknown template` throw 계약을 테스트가 더 이상 칠 수 없다.
+    const catalog = TEMPLATES;
+    const body = catalog[name];
     if (typeof body !== 'string') {
         throw new Error(`unknown template: ${name}`);
     }

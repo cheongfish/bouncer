@@ -2,23 +2,41 @@
   "name": "bouncer",
   "version": "0.8.4",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Deterministic core for the Bouncer plugin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cheongfish/bouncer.git"
+  },
+  "homepage": "https://github.com/cheongfish/bouncer#readme",
+  "bugs": {
+    "url": "https://github.com/cheongfish/bouncer/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "bin": {
     "bouncer": "scripts/bouncer"
   },
   "scripts": {
     "test": "node --test",
+    "check:emit": "node scripts/check-emit.js",
+    "test:coverage": "node --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include=scripts/lib/** --test-coverage-lines=94 --test-coverage-branches=82 --test-coverage-functions=96",
+    "ci": "npm run check:emit && npm run test:coverage && npm run lint && npm run typecheck && npm audit --audit-level=high",
     "lint": "eslint .",
     "setup": "git config commit.template .gitmessage && git config core.hooksPath .githooks && echo \"commit.template and core.hooksPath set — git commit (without -m) opens the team template; pre-commit runs lint and the scripts/lib emit check\"",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "pretest": "npm run build"
+    "pretest": "npm run build",
+    "verify:security": "npm test && npm audit --audit-level=high",
+    "verify:strict": "npm test && npm run typecheck && npm run lint"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.2",
     "eslint": "^10.8.0",
-    "js-yaml": "^4.1.0",
-    "typescript": "^5.8.3"
+    "js-yaml": "^4.3.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.67.0"
   }
 }

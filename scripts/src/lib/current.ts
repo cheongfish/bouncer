@@ -1,10 +1,27 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { readDoc } = require('./frontmatter');
-const { epicDirOf, toPosix } = require('./paths');
-const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = require('./runtime-state');
-const { listTasksDocs } = require('./tasks-docs');
+const { readDoc } = require('./frontmatter') as {
+  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
+};
+const { epicDirOf, toPosix } = require('./paths') as {
+  epicDirOf: (blueprintDir: unknown) => string;
+  toPosix: (p: unknown) => string;
+};
+const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = require('./runtime-state') as {
+  readRuntimeCurrent: (opts: { repoRoot: string; deps?: unknown }) => Pointer | null;
+  writeRuntimeCurrent: (opts: {
+    repoRoot: string;
+    blueprint: unknown;
+    base: string;
+    task?: unknown;
+    deps?: unknown;
+  }) => string;
+  clearRuntimeCurrent: (opts: { repoRoot: string; deps?: unknown }) => boolean;
+};
+const { listTasksDocs } = require('./tasks-docs') as {
+  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => TasksListing;
+};
 
 const READY_TASK_STATUS = ['ready', 'in_progress'];
 
@@ -15,25 +32,59 @@ const BLUEPRINT_LINK_RE = /\]\(blueprints\/([^/)]+)\/index\.md\)/g;
 const TASK_DIGITS_RE = /^(\d{3})$/;
 const TASK_ID_RE = /^TASKS-(\d{3})$/;
 
-function readCurrent({ repoRoot, deps }) {
+type Pointer = {
+  blueprint: string;
+  base: string;
+  task: string | null;
+};
+
+type TaskEntry = {
+  id: string | null;
+  rel: string;
+  number?: number | null;
+};
+
+type TasksListing = {
+  mixed: boolean;
+  entries: TaskEntry[];
+};
+
+function bouncerOf(data: unknown): unknown {
+  // `data && data.bouncer`와 같다. `'bouncer' in data`로 바꾸면 프로토타입
+  // 필드가 생기고, data가 null일 때 예전처럼 단락되지 않을 수 있다.
+  return data ? (data as Record<string, unknown>).bouncer : data;
+}
+
+function bouncerStatus(data: unknown): unknown {
+  const bouncer = bouncerOf(data);
+  return bouncer ? (bouncer as Record<string, unknown>).status : undefined;
+}
+
+function readCurrent({ repoRoot, deps }: { repoRoot: string; deps?: unknown }): Pointer | null {
   return readRuntimeCurrent({ repoRoot, deps });
 }
 
 function writeCurrent({
   repoRoot, blueprint, base, task, deps,
-}) {
+}: {
+  repoRoot: string;
+  blueprint: unknown;
+  base: string;
+  task?: unknown;
+  deps?: unknown;
+}): string {
   return writeRuntimeCurrent({
     repoRoot, blueprint, base, task, deps,
   });
 }
 
-function clearCurrent({ repoRoot, deps }) {
+function clearCurrent({ repoRoot, deps }: { repoRoot: string; deps?: unknown }): boolean {
   return clearRuntimeCurrent({ repoRoot, deps });
 }
 
-function availableTaskEntries(listing) {
+function availableTaskEntries(listing: TasksListing): Array<{ id: string; path: string }> {
   return listing.entries
-    .filter((entry) => typeof entry.id === 'string' && entry.id)
+    .filter((entry): entry is TaskEntry & { id: string } => typeof entry.id === 'string' && !!entry.id)
     .map((entry) => ({ id: entry.id, path: entry.rel }));
 }
 
@@ -42,13 +93,13 @@ function availableTaskEntries(listing) {
  * `bouncer current` 응답에는 경로와 TASKS-NNN id 를 함께 실어 Interface 계약을 맞춘다.
  * 문서가 사라져 id 를 못 찾으면 path 만 남기고 id 는 null — 포인터를 지우지 않는다.
  */
-function presentCurrent(current, { repoRoot }) {
+function presentCurrent(current: Pointer | null | undefined, { repoRoot }: { repoRoot: string }) {
   if (!current) return null;
   const taskPath = typeof current.task === 'string' && current.task ? current.task : null;
   if (!taskPath) {
     return { blueprint: current.blueprint, base: current.base, task: null };
   }
-  let id = null;
+  let id: string | null = null;
   try {
     const listing = listTasksDocs({ repoRoot, blueprintDir: current.blueprint });
     const entry = listing.entries.find((e) => e.rel === taskPath);
@@ -69,7 +120,11 @@ function presentCurrent(current, { repoRoot }) {
  * - NNN / TASKS-NNN: 해당 문서. 없거나 형식이 틀리면 ok:false + available 목록.
  * mixed / 문서 없음: 명시 요청이면 실패, 자동이면 선택 없음.
  */
-function resolvePointerTask({ repoRoot, blueprintDir, task: taskSpec }) {
+function resolvePointerTask({ repoRoot, blueprintDir, task: taskSpec }: {
+  repoRoot: string;
+  blueprintDir: string;
+  task?: unknown;
+}) {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   const available = availableTaskEntries(listing);
   const requested = taskSpec !== undefined && taskSpec !== null && taskSpec !== '';
@@ -83,7 +138,7 @@ function resolvePointerTask({ repoRoot, blueprintDir, task: taskSpec }) {
 
   if (requested) {
     const raw = String(taskSpec);
-    let wantId = null;
+    let wantId: string | null = null;
     const digits = TASK_DIGITS_RE.exec(raw);
     const idMatch = TASK_ID_RE.exec(raw);
     if (digits) wantId = `TASKS-${digits[1]}`;
@@ -102,8 +157,8 @@ function resolvePointerTask({ repoRoot, blueprintDir, task: taskSpec }) {
   for (const entry of listing.entries) {
     try {
       const doc = readDoc(path.join(repoRoot, entry.rel));
-      const st = doc.data && doc.data.bouncer ? doc.data.bouncer.status : undefined;
-      if (READY_TASK_STATUS.includes(st)) {
+      const st = bouncerStatus(doc.data);
+      if (READY_TASK_STATUS.includes(st as string)) {
         return { ok: true, task: entry.rel, id: entry.id };
       }
     } catch (_e) {
@@ -117,7 +172,7 @@ function resolvePointerTask({ repoRoot, blueprintDir, task: taskSpec }) {
 // 깨지거나 읽을 수 없는 doc은 항목별로 skip하여 corrupt blueprint 하나가
 // ready list 전체를 지우지 않게 함 (pointer가 null일 때 execute가
 // "planned but unset"과 "nothing planned"를 구분하는 데 사용).
-function listReadyBlueprints({ repoRoot }) {
+function listReadyBlueprints({ repoRoot }: { repoRoot: string }) {
   const list: Array<{
     blueprint: string;
     status: string;
@@ -144,7 +199,7 @@ function listReadyBlueprints({ repoRoot }) {
     }
     for (const bpName of bpNames) {
       const bpAbs = path.join(blueprintsRoot, bpName);
-      let st;
+      let st: ReturnType<typeof fs.statSync>;
       try {
         st = fs.statSync(bpAbs);
       } catch (_e) {
@@ -154,9 +209,7 @@ function listReadyBlueprints({ repoRoot }) {
       const rel = toPosix(path.relative(repoRoot, bpAbs));
       try {
         const indexDoc = readDoc(path.join(bpAbs, 'index.md'));
-        const bpStatus = indexDoc.data && indexDoc.data.bouncer
-          ? indexDoc.data.bouncer.status
-          : undefined;
+        const bpStatus = bouncerStatus(indexDoc.data);
         if (bpStatus !== 'approved') continue;
         // ready = task 문서 중 하나라도 ready/in_progress.
         // 열린 task 목록은 --set 자동 선택·finalize 다음-task 확인이 같이 쓴다.
@@ -165,11 +218,9 @@ function listReadyBlueprints({ repoRoot }) {
         const openTasks: Array<{ id: string; path: string; status: string }> = [];
         for (const entry of listing.entries) {
           const tasksDoc = readDoc(path.join(repoRoot, entry.rel));
-          const taskStatus = tasksDoc.data && tasksDoc.data.bouncer
-            ? tasksDoc.data.bouncer.status
-            : undefined;
-          if (READY_TASK_STATUS.includes(taskStatus) && entry.id) {
-            openTasks.push({ id: entry.id, path: entry.rel, status: taskStatus });
+          const taskStatus = bouncerStatus(tasksDoc.data);
+          if (READY_TASK_STATUS.includes(taskStatus as string) && entry.id) {
+            openTasks.push({ id: entry.id, path: entry.rel, status: taskStatus as string });
           }
         }
         if (openTasks.length > 0) {
@@ -192,7 +243,7 @@ function listReadyBlueprints({ repoRoot }) {
 // epic index의 `## Blueprints` section만 읽어 blueprint directory 이름을
 // 링크 등장 순으로 반환. section 없음/읽기 실패 → [] (throw 없음):
 // caller는 path lexicographic order로 fallback.
-function parseEpicBlueprintOrder(epicIndexAbs) {
+function parseEpicBlueprintOrder(epicIndexAbs: string): string[] {
   let text: string;
   try {
     text = fs.readFileSync(epicIndexAbs, 'utf8');
@@ -211,26 +262,27 @@ function parseEpicBlueprintOrder(epicIndexAbs) {
   const section = nextH2 ? rest.slice(0, nextH2.index) : rest;
   const names: string[] = [];
   BLUEPRINT_LINK_RE.lastIndex = 0;
-  let m;
+  let m: RegExpExecArray | null;
   while ((m = BLUEPRINT_LINK_RE.exec(section)) !== null) {
     names.push(m[1]);
   }
   return names;
 }
 
-function readAffectedPaths(repoRoot, blueprintDir) {
+function readAffectedPaths(repoRoot: string, blueprintDir: string): string[] {
   // nextBlueprint sharedPaths 용: blueprint 전체 경로 합집합.
   // 커밋 가드의 좁히기는 commit-hook.readAffectedPaths 가 포인터 task 를 본다.
   try {
     const listing = listTasksDocs({ repoRoot, blueprintDir });
     if (listing.mixed || listing.entries.length === 0) return [];
     const out: string[] = [];
-    const seen = new Set();
+    const seen = new Set<string>();
     for (const entry of listing.entries) {
       try {
         const doc = readDoc(path.join(repoRoot, entry.rel));
-        const paths = doc.data && doc.data.bouncer
-          ? doc.data.bouncer.affected_paths
+        const bouncer = bouncerOf(doc.data);
+        const paths = bouncer
+          ? (bouncer as Record<string, unknown>).affected_paths
           : undefined;
         if (!Array.isArray(paths)) continue;
         for (const p of paths) {
@@ -253,7 +305,10 @@ function readAffectedPaths(repoRoot, blueprintDir) {
 // 없음. 후보는 listReadyBlueprints에서만; 정렬은 finalized epic 우선, 다음
 // ## Blueprints link order, epic 내 미등록은 path lexicographic, 그다음
 // 다른 epic은 epic dir name 순.
-function nextBlueprint({ repoRoot, blueprintDir }) {
+function nextBlueprint({ repoRoot, blueprintDir }: {
+  repoRoot: string;
+  blueprintDir: unknown;
+}) {
   const selfRaw = String(blueprintDir);
   const selfPosix = toPosix(selfRaw);
   const selfEpic = epicDirOf(selfPosix);
@@ -282,9 +337,9 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
   });
 
   // Epic ## Blueprints order는 epic별; distinct epic dir마다 한 번만 읽음.
-  const orderCache = new Map();
-  function orderOf(epicRel) {
-    if (orderCache.has(epicRel)) return orderCache.get(epicRel);
+  const orderCache = new Map<string, string[]>();
+  function orderOf(epicRel: string): string[] {
+    if (orderCache.has(epicRel)) return orderCache.get(epicRel) as string[];
     const abs = path.join(repoRoot, epicRel, 'index.md');
     const names = parseEpicBlueprintOrder(abs);
     orderCache.set(epicRel, names);

@@ -75,19 +75,20 @@ const AUTONOMY_ENUM = ['auto', 'interactive'];
 // init이 새 저장소 config.json에 쓰는 기본값. 키가 없어도 소비자는 auto로 읽는다.
 const DEFAULT_AUTONOMY = 'auto';
 
-function detectLegacyFormat({ repoRoot, data }: { repoRoot?: any; data?: any } = {}) {
+function detectLegacyFormat({ repoRoot, data }: { repoRoot?: unknown; data?: unknown } = {}) {
   if (repoRoot) {
     const fs = require('node:fs');
     const path = require('node:path');
-    if (fs.existsSync(path.join(repoRoot, '.sdd'))) {
+    if (fs.existsSync(path.join(repoRoot as string, '.sdd'))) {
       return { legacy: true, reason: LEGACY_GUIDANCE };
     }
   }
   if (data && typeof data === 'object') {
-    if (Object.prototype.hasOwnProperty.call(data, 'sdd')) {
+    const rec = data as Record<string, unknown>;
+    if (Object.prototype.hasOwnProperty.call(rec, 'sdd')) {
       return { legacy: true, reason: LEGACY_GUIDANCE };
     }
-    if (typeof data.type === 'string' && data.type.startsWith('sdd.')) {
+    if (typeof rec.type === 'string' && rec.type.startsWith('sdd.')) {
       return { legacy: true, reason: LEGACY_GUIDANCE };
     }
   }

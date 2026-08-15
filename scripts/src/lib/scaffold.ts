@@ -3,36 +3,83 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   CONTEXT_ROOT, normalizeRepoPath, isCanonicalEpicDir, isCanonicalBlueprintDir,
-} = require('./layout');
-const { parsePathIds, isNumericContextId } = require('./paths');
-const { renderDoc } = require('./render');
-const { parseFrontmatter } = require('./frontmatter');
-const { templateBody } = require('./templates');
-const { ensureEpicIndexEntry } = require('./epic-index');
+} = require('./layout') as {
+  CONTEXT_ROOT: string;
+  normalizeRepoPath: (value: unknown) => string;
+  isCanonicalEpicDir: (value: unknown) => boolean;
+  isCanonicalBlueprintDir: (value: unknown) => boolean;
+};
+const { parsePathIds, isNumericContextId } = require('./paths') as {
+  parsePathIds: (resourcePath: unknown) => {
+    epicId: string | null;
+    blueprintId: string | null;
+    kind: string | null;
+  };
+  isNumericContextId: (id: unknown) => boolean;
+};
+const { renderDoc } = require('./render') as {
+  renderDoc: (data: unknown, body: string) => string;
+};
+const { parseFrontmatter } = require('./frontmatter') as {
+  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
+};
+const { templateBody } = require('./templates') as {
+  templateBody: (templateName: string, vars: {
+    epicId?: string | null;
+    blueprintId?: string | null;
+    name?: string | null;
+  }) => string;
+};
+const { ensureEpicIndexEntry } = require('./epic-index') as {
+  ensureEpicIndexEntry: (opts: {
+    repoRoot: string;
+    epicId: string;
+    name: string;
+    description?: unknown;
+  }) => string | null;
+};
 const {
   TASK_UNIT_BASENAMES, expectedTaskDocIds,
-} = require('./tasks-docs');
-const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE } = require('./schema');
+} = require('./tasks-docs') as {
+  TASK_UNIT_BASENAMES: string[];
+  expectedTaskDocIds: (number: unknown) => {
+    tasks: string;
+    verification: string;
+    review: string;
+  };
+};
+const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE } = require('./schema') as {
+  DEFAULT_COMMIT_TYPE: string;
+  DEFAULT_SCALE: string;
+};
 
-function writeRel(repoRoot, rel, data, body) {
+function writeRel(repoRoot: string, rel: string, data: unknown, body: string): string {
   const abs = path.join(repoRoot, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, renderDoc(data, body));
   return rel;
 }
 
-function bouncerDoc(type, title, description, resource, tags, timestamp, bouncer) {
+function bouncerDoc(
+  type: string,
+  title: string,
+  description: string,
+  resource: string,
+  tags: string[],
+  timestamp: string,
+  bouncer: Record<string, unknown>,
+): Record<string, unknown> {
   return { type, title, description, resource, tags, timestamp, bouncer };
 }
 
-function requireNumericId(id, label) {
+function requireNumericId(id: unknown, label: string): asserts id is string {
   if (!isNumericContextId(id)) {
     throw new Error(`${label} must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(id)}`);
   }
 }
 
 /** 정본 epic 디렉터리의 zero-pad 세 자리 id를 꺼낸다. */
-function epicIdFromDir(canonicalEpicDir) {
+function epicIdFromDir(canonicalEpicDir: string): string {
   const leaf = canonicalEpicDir.split('/').pop() || '';
   const m = /^(\d{3})-/.exec(leaf);
   if (!m) {
@@ -47,18 +94,28 @@ function epicIdFromDir(canonicalEpicDir) {
  * 없는 것이지 잠긴 것이 아니다. 여기서 같이 죽으면 index.md가 아직 없는
  * 저장소나 손상된 문서에서 scaffold 자체가 막힌다.
  */
-function isClosedBlueprint(repoRoot, blueprintDirRel) {
+function isClosedBlueprint(repoRoot: string, blueprintDirRel: string): boolean {
   const abs = path.join(repoRoot, blueprintDirRel, 'index.md');
-  let data;
+  let data: unknown;
   try {
     ({ data } = parseFrontmatter(fs.readFileSync(abs, 'utf8')));
   } catch {
     return false;
   }
-  return Boolean(data && data.bouncer && data.bouncer.status === 'closed');
+  // YAML은 unknown이다. 예전 `data && data.bouncer && status === 'closed'`와
+  // 같이 falsy·비객체에서 멈추고, 객체일 때만 status를 읽는다.
+  if (!data || typeof data !== 'object') return false;
+  const bouncer = 'bouncer' in data ? data.bouncer : undefined;
+  if (!bouncer || typeof bouncer !== 'object') return false;
+  return 'status' in bouncer && bouncer.status === 'closed';
 }
 
-function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
+function scaffoldEpic({ repoRoot, epicId, name, timestamp }: {
+  repoRoot: string;
+  epicId: string;
+  name: string;
+  timestamp: string;
+}): string[] {
   requireNumericId(epicId, 'epicId');
   const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
   const rel = `${dir}/index.md`;
@@ -80,7 +137,12 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
  * 기존 blueprint 에 tasks/<NNN>/ 묶음 3종을 추가한다.
  * 거절 조건을 모두 검사한 뒤에만 파일을 쓴다 — 일부만 생성된 상태를 남기지 않기 위함.
  */
-function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
+function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }: {
+  repoRoot: string;
+  blueprintDir: string;
+  taskId: string;
+  timestamp: string;
+}): string[] {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
   }
@@ -95,7 +157,9 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
   // tasks/<NNN>/ 가 남지 않게 한다. cli.ts의 기존 catch가 이 메시지를
   // `scaffold: <메시지>` + exit 2 로 옮긴다.
   if (isClosedBlueprint(repoRoot, bp)) {
-    throw new Error(`blueprint is closed (finalized): ${bp} — scaffold a new blueprint instead of adding a task to this one`);
+    throw new Error(
+      `blueprint is closed (finalized): ${bp} — scaffold a new blueprint instead of adding a task to this one`,
+    );
   }
 
   const taskDir = `${bp}/tasks/${taskId}`;
@@ -106,7 +170,7 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
   }
 
   const ids = expectedTaskDocIds(taskId);
-  const body = (templateName) => templateBody(templateName, { epicId, blueprintId, name: taskId });
+  const body = (templateName: string) => templateBody(templateName, { epicId, blueprintId, name: taskId });
   const [tasksBase, verifyBase, reviewBase] = TASK_UNIT_BASENAMES;
 
   const tasksRel = `${taskDir}/${tasksBase}`;
@@ -114,7 +178,7 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
   const reviewRel = `${taskDir}/${reviewBase}`;
 
   // mkdir 포함 쓰기는 검사 통과 후에만. writeRel 이 dirname 을 만든다.
-  const created = [];
+  const created: string[] = [];
   created.push(writeRel(repoRoot, tasksRel,
     bouncerDoc('bouncer.tasks', `${taskId} tasks`, `Tasks for ${taskId}`, tasksRel,
       ['bouncer', 'tasks'], timestamp,
@@ -149,7 +213,13 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
   return created;
 }
 
-function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) {
+function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }: {
+  repoRoot: string;
+  epicDir: string;
+  blueprintId: string;
+  name: string;
+  timestamp: string;
+}): string[] {
   if (!isCanonicalEpicDir(epicDir)) {
     throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
   }
@@ -157,8 +227,8 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
   const canonicalEpicDir = normalizeRepoPath(epicDir);
   const epicId = epicIdFromDir(canonicalEpicDir);
   const dir = `${canonicalEpicDir}/blueprints/${blueprintId}-${name}`;
-  const created = [];
-  const body = (templateName) => templateBody(templateName, { epicId, blueprintId, name });
+  const created: string[] = [];
+  const body = (templateName: string) => templateBody(templateName, { epicId, blueprintId, name });
 
   const idx = `${dir}/index.md`;
   // commit_type·scale은 blueprint 전용(epic/tasks 등에는 쓰지 않음).
@@ -199,7 +269,11 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }) 
  * scaffoldExplain은 finalize가 반복 호출하므로 이미 있으면 조용히 []를 돌리지만,
  * 이 명령은 plan이 직접 부르므로 덮어쓰기가 사람 손에 닿는다. 존재하면 throw.
  */
-function scaffoldContextReview({ repoRoot, blueprintDir, timestamp }) {
+function scaffoldContextReview({ repoRoot, blueprintDir, timestamp }: {
+  repoRoot: string;
+  blueprintDir: string;
+  timestamp: string;
+}): string[] {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
   }
@@ -212,7 +286,10 @@ function scaffoldContextReview({ repoRoot, blueprintDir, timestamp }) {
   // finalize가 잠근 blueprint는 다시 열지 않는다. scaffoldTask와 같은 이유 —
   // 마감된 계획에 판정 문서를 붙이지 않고 새 blueprint를 연다.
   if (isClosedBlueprint(repoRoot, bp)) {
-    throw new Error(`blueprint is closed (finalized): ${bp} — scaffold a new blueprint instead of adding a context-review to this one`);
+    throw new Error(
+      'blueprint is closed (finalized): '
+      + `${bp} — scaffold a new blueprint instead of adding a context-review to this one`,
+    );
   }
 
   const rel = `${bp}/context-review.md`;
@@ -234,7 +311,11 @@ function scaffoldContextReview({ repoRoot, blueprintDir, timestamp }) {
 }
 
 /** BP explain.md가 없으면 생성한다. plan scaffold가 아니라 /bouncer-finalize에서 사용. */
-function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
+function scaffoldExplain({ repoRoot, blueprintDir, timestamp }: {
+  repoRoot: string;
+  blueprintDir: string;
+  timestamp: string;
+}): string[] {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
   }
@@ -245,7 +326,11 @@ function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
   if (!epicId || !blueprintId) {
     throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
   }
-  const slug = bp.split('/').pop().replace(new RegExp(`^${blueprintId}-`), '') || 'blueprint';
+  // split은 문자열에서 항상 한 칸 이상이라 pop()이 런타임에 비지 않는다.
+  // 타입만 undefined를 허용하므로 마지막 칸을 직접 집어 동작을 유지한다.
+  const segments = bp.split('/');
+  const leaf = segments[segments.length - 1];
+  const slug = leaf.replace(new RegExp(`^${blueprintId}-`), '') || 'blueprint';
   // 빈 배열: G15는 대상 task 엔트리가 없으면 hash 불일치가 아니라 "기록 없음".
   // 구 단일 객체 기본값은 형식 거절로 바뀌므로 더 이상 쓰지 않는다.
   return [writeRel(repoRoot, explain,

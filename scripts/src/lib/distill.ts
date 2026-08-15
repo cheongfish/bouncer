@@ -2,18 +2,64 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseFrontmatter } = require('./frontmatter');
-const { runtimePaths } = require('./runtime-state');
-const { DISTILL_INDEX, DISTILL_ROOT } = require('./layout');
-const { toPosix } = require('./paths');
+const { parseFrontmatter } = require('./frontmatter') as {
+  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
+};
+const { runtimePaths } = require('./runtime-state') as {
+  runtimePaths: (opts: { repoRoot: string }) => RuntimeLike;
+};
+const { DISTILL_INDEX, DISTILL_ROOT } = require('./layout') as {
+  DISTILL_INDEX: string;
+  DISTILL_ROOT: string;
+};
+const { toPosix } = require('./paths') as {
+  toPosix: (p: unknown) => string;
+};
 
 const DISTILL_VERSION = 1;
 
-function isRecord(value) {
+type RuntimeLike = {
+  unavailable?: unknown;
+  projectRoot?: unknown;
+};
+
+type DistillShard = {
+  id: string;
+  path: string;
+  raw: string;
+  body: string;
+  content: string;
+  always: boolean;
+  paths?: Array<string | null>;
+  pulls?: string[];
+  pathsKnown: boolean;
+  pullsKnown: boolean;
+  metadata: Record<string, unknown>;
+};
+
+type DistillSelection = {
+  full: boolean;
+  reason: string;
+  ids: string[];
+  shards: DistillShard[];
+};
+
+type DistillRouteInput = DistillShard[] | {
+  shards?: DistillShard[];
+  repoRoot?: string;
+  affectedPaths?: unknown;
+  forPaths?: unknown;
+  paths?: unknown;
+  routingEnabled?: boolean;
+  routing_enabled?: boolean;
+  config?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function normalizeRepoRelative(value) {
+function normalizeRepoRelative(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = toPosix(value).replace(/^\.\//, '').replace(/\/+/g, '/');
   if (!normalized || normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) return null;
@@ -26,7 +72,12 @@ function resolveDistillRoot({
   runtime,
   runtimePaths: suppliedRuntimePaths,
   paths: suppliedPaths,
-}: any = {}) {
+}: {
+  repoRoot?: string;
+  runtime?: RuntimeLike | null;
+  runtimePaths?: RuntimeLike | null;
+  paths?: RuntimeLike | null;
+} = {}) {
   const fallback = repoRoot || process.cwd();
   // Distill.md 파일 존재만 본다. shard 디렉터리나 frontmatter로 고르면
   // 인덱스 폴백 사유(legacyResult)와 기준 경로 선택이 한 판정으로 섞인다.
@@ -49,42 +100,42 @@ function resolveDistillRoot({
     : fallback;
 }
 
-function asList(value) {
+function asList(value: unknown): unknown[] | null {
   if (typeof value === 'string') return [value];
   return Array.isArray(value) ? value : null;
 }
 
-function metadataFrom(value) {
+function metadataFrom(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) return {};
   if (isRecord(value.distill)) return value.distill;
   if (isRecord(value.shard)) return value.shard;
   return value;
 }
 
-function declarationEntries(indexMeta: any) {
+function declarationEntries(indexMeta: Record<string, unknown>): Array<Record<string, unknown> | null> | null {
   const declarations = indexMeta.shards;
   if (Array.isArray(declarations)) {
-    return declarations.map((entry: any) => {
+    return declarations.map((entry: unknown) => {
       if (typeof entry === 'string') return { id: entry };
       if (!isRecord(entry)) return null;
       return { ...entry, id: entry.id || entry.name || entry.shard };
     });
   }
   if (isRecord(declarations)) {
-    return Object.entries(declarations).map(([id, entry]: [string, any]) => (
+    return Object.entries(declarations).map(([id, entry]) => (
       isRecord(entry) ? { ...entry, id: entry.id || id } : { id }
     ));
   }
   return null;
 }
 
-function shardRelativePath(id, declaration) {
+function shardRelativePath(id: string, declaration: Record<string, unknown>) {
   const candidate = declaration.file || declaration.path || declaration.resource;
   const rel = normalizeRepoRelative(candidate || `${DISTILL_ROOT}/${id}.md`);
   return rel;
 }
 
-function readShard(repoRoot, declaration) {
+function readShard(repoRoot: string, declaration: Record<string, unknown>): DistillShard | null {
   const id = typeof declaration.id === 'string' ? declaration.id.trim() : '';
   if (!id || id.includes('/') || id.includes('\\')) return null;
   const rel = shardRelativePath(id, declaration);
@@ -97,7 +148,7 @@ function readShard(repoRoot, declaration) {
     return null;
   }
 
-  let data = {};
+  let data: unknown = {};
   let body = raw;
   try {
     const parsed = parseFrontmatter(raw);
@@ -131,14 +182,16 @@ function readShard(repoRoot, declaration) {
     pulls: normalizedPulls,
     // 구조 validator가 별도로 누락을 보고하더라도 라우터는 이 신호를 보고
     // 선택 결과를 만들지 않는다. 누락을 빈 배열로 바꾸면 규칙을 잃는다.
+    // asList(array)는 입력을 그대로 돌려주므로 rawPaths가 배열이면
+    // normalizedPaths/normalizedPulls는 항상 있다 — ! 는 그 불변식만 적는다.
     pathsKnown: rawPaths === undefined
-      || (Array.isArray(rawPaths) && normalizedPaths.every(Boolean)),
-    pullsKnown: Array.isArray(pulls) && normalizedPulls.length === pulls.length,
+      || (Array.isArray(rawPaths) && normalizedPaths!.every(Boolean)),
+    pullsKnown: Array.isArray(pulls) && normalizedPulls!.length === pulls.length,
     metadata: meta,
   };
 }
 
-function legacyResult(repoRoot, content, reason) {
+function legacyResult(repoRoot: string, content: string, reason: string) {
   return {
     mode: 'legacy',
     valid: false,
@@ -164,7 +217,12 @@ function readShards({
   paths: suppliedPaths,
   runtime,
   runtimePaths: suppliedRuntimePaths,
-}: any = {}) {
+}: {
+  repoRoot?: string;
+  paths?: RuntimeLike | null;
+  runtime?: RuntimeLike | null;
+  runtimePaths?: RuntimeLike | null;
+} = {}) {
   const root = resolveDistillRoot({
     repoRoot,
     runtime,
@@ -194,7 +252,7 @@ function readShards({
     return legacyResult(root, raw, 'index-shards-invalid');
   }
 
-  const shards = declarations.map((declaration) => readShard(root, declaration));
+  const shards = declarations.map((declaration) => readShard(root, declaration as Record<string, unknown>));
   const ids = shards.map((entry) => entry && entry.id);
   if (
     shards.some((entry) => !entry)
@@ -222,11 +280,11 @@ function readShards({
   };
 }
 
-function escapeRegExp(value) {
+function escapeRegExp(value: string) {
   return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
 }
 
-function globRegExp(pattern) {
+function globRegExp(pattern: string) {
   let source = '^';
   for (let i = 0; i < pattern.length; i += 1) {
     const char = pattern[i];
@@ -249,7 +307,7 @@ function globRegExp(pattern) {
   return new RegExp(`${source}/?$`);
 }
 
-function matchesGlob(pattern, value) {
+function matchesGlob(pattern: string, value: string) {
   try {
     return globRegExp(pattern).test(value);
   } catch (_error) {
@@ -257,11 +315,11 @@ function matchesGlob(pattern, value) {
   }
 }
 
-function isUnderPath(file, directory) {
+function isUnderPath(file: string, directory: string) {
   return file === directory || file.startsWith(`${directory}/`);
 }
 
-function pathMayIntersect(repoRoot, patternValue, targetValue) {
+function pathMayIntersect(repoRoot: string, patternValue: unknown, targetValue: unknown) {
   const pattern = normalizeRepoRelative(patternValue);
   const target = normalizeRepoRelative(targetValue);
   if (!pattern || !target) return true;
@@ -292,7 +350,7 @@ function pathMayIntersect(repoRoot, patternValue, targetValue) {
   return targetKnown ? false : true;
 }
 
-function allSelection(shards, reason) {
+function allSelection(shards: DistillShard[], reason: string): DistillSelection {
   const list = Array.isArray(shards) ? shards : [];
   return {
     full: true,
@@ -302,7 +360,7 @@ function allSelection(shards, reason) {
   };
 }
 
-function routingFlag(options) {
+function routingFlag(options: Exclude<DistillRouteInput, DistillShard[]>) {
   if (typeof options.routingEnabled === 'boolean') return options.routingEnabled;
   if (typeof options.routing_enabled === 'boolean') return options.routing_enabled;
   const config = options.config;
@@ -317,9 +375,9 @@ function routingFlag(options) {
  * 모두 전량 결과다. 이 함수는 "관련 없어 보이는 규칙"을 제거하는 최적화가
  * 아니라, 명백히 관련된 규칙을 추가하는 보수적 라우터로만 동작한다.
  */
-function routeShards(options: any = {}) {
+function routeShards(options: DistillRouteInput = {}) {
   const input = Array.isArray(options) ? { shards: options } : options;
-  const shards: any[] = Array.isArray(input.shards) ? input.shards : [];
+  const shards: DistillShard[] = Array.isArray(input.shards) ? input.shards : [];
   const repoRoot = input.repoRoot || process.cwd();
   const affected = input.affectedPaths || input.forPaths || input.paths;
   if (!routingFlag(input)) return allSelection(shards, 'routing-disabled');
@@ -341,7 +399,7 @@ function routeShards(options: any = {}) {
       return allSelection(shards, 'shard-paths-unknown');
     }
     if (pathsMissing) continue;
-    if (affected.some((target) => shard.paths.some((pattern) => (
+    if (affected.some((target) => shard.paths!.some((pattern) => (
       pathMayIntersect(repoRoot, pattern, target)
     )))) {
       matchedPath = true;
@@ -351,13 +409,13 @@ function routeShards(options: any = {}) {
 
   if (!matchedPath) return allSelection(shards, 'no-match');
 
-  const byId = new Map<string, any>(shards.map((shard: any) => [shard.id, shard]));
-  const visiting = new Set();
-  const visited = new Set();
-  function close(id) {
+  const byId = new Map<string, DistillShard>(shards.map((shard) => [shard.id, shard]));
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  function close(id: string) {
     if (visiting.has(id)) return false;
     if (visited.has(id)) return true;
-    const shard: any = byId.get(id);
+    const shard = byId.get(id);
     if (!shard || !Array.isArray(shard.pulls)) return false;
     visiting.add(id);
     for (const pull of shard.pulls) {
@@ -386,7 +444,13 @@ function routeShards(options: any = {}) {
   };
 }
 
-function renderShards(input: any, suppliedSelection?: any) {
+function renderShards(input: {
+  mode?: string;
+  fallback?: boolean;
+  content?: string;
+  shards?: DistillShard[];
+  selection?: DistillSelection;
+} | null | undefined, suppliedSelection?: DistillSelection) {
   const state = input || {};
   if (state.mode === 'legacy' || state.fallback === true) return state.content || '';
   const shards = Array.isArray(state.shards) ? state.shards : [];

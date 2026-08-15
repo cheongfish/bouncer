@@ -14,11 +14,11 @@ const NUMBERED_TASKS_RE = /^tasks-(\d{3})\.md$/;
 const TASK_DIR_RE = /^(\d{3})$/;
 const TASK_UNIT_BASENAMES = ['tasks.md', 'verification.md', 'review.md'];
 
-function isNumberedTasksBasename(name) {
+function isNumberedTasksBasename(name: unknown): boolean {
   return typeof name === 'string' && NUMBERED_TASKS_RE.test(name);
 }
 
-function isLegacyTasksBasename(name) {
+function isLegacyTasksBasename(name: unknown): boolean {
   return name === LEGACY_TASKS_BASENAME;
 }
 
@@ -27,7 +27,7 @@ function isLegacyTasksBasename(name) {
  * verification/review 문자열을 두지 않도록 여기로 모은다.
  * 번호 붙은 레거시 tasks-{NNN}.md 도 tasks 로 본다.
  */
-function unitDocKind(basename) {
+function unitDocKind(basename: unknown): 'tasks' | 'verification' | 'review' | null {
   if (typeof basename !== 'string') return null;
   if (isNumberedTasksBasename(basename)) return 'tasks';
   const idx = TASK_UNIT_BASENAMES.indexOf(basename);
@@ -42,7 +42,7 @@ function unitDocKind(basename) {
  * - tasks.md → TASKS-{blueprintId} (레거시: 파일 이름에 번호가 없어 blueprint id를 씀)
  * - tasks-{NNN}.md → TASKS-{NNN} (파일 번호가 곧 task id)
  */
-function expectedTasksId(basename, blueprintId) {
+function expectedTasksId(basename: unknown, blueprintId: unknown): string | null {
   if (typeof basename !== 'string') return null;
   const m = NUMBERED_TASKS_RE.exec(basename);
   if (m) return `TASKS-${m[1]}`;
@@ -55,7 +55,11 @@ function expectedTasksId(basename, blueprintId) {
 /**
  * 새 묶음 문서의 기대 id 셋. number 는 '001' 또는 1  alike — 항상 zero-pad 세 자리로 정규화.
  */
-function expectedTaskDocIds(number) {
+function expectedTaskDocIds(number: unknown): {
+  tasks: string;
+  verification: string;
+  review: string;
+} {
   const digits = typeof number === 'number'
     ? String(number).padStart(3, '0')
     : String(number).padStart(3, '0');
@@ -101,13 +105,24 @@ function makeEntry({
   };
 }
 
+type TasksDocsListing = {
+  entries: TasksEntry[];
+  mixed: boolean;
+  legacy: boolean;
+  legacyFiles?: string[];
+  invalidDirs: string[];
+};
+
 /**
  * blueprint 디렉터리에서 task 묶음 목록을 번호 오름차순으로 돌려준다.
  * 우선순위: tasks/<NNN>/ 디렉터리 엔트리, 그다음 루트 레거시 파일.
  * 문서 내용은 읽지 않는다 — 이름·id·레거시/혼재 판정만.
  * invalidDirs 는 이름만 담아 두고, 거절은 002 게이트가 한다.
  */
-function listTasksDocs({ repoRoot, blueprintDir }) {
+function listTasksDocs({ repoRoot, blueprintDir }: {
+  repoRoot: string;
+  blueprintDir: string;
+}): TasksDocsListing {
   // paths ↔ tasks-docs 순환을 피하려고 함수 안에서 require.
   const { parsePathIds, toPosix } = require('./paths');
   const bp = toPosix(blueprintDir);
@@ -119,7 +134,9 @@ function listTasksDocs({ repoRoot, blueprintDir }) {
     return { entries: [], mixed: false, legacy: false, invalidDirs: [] };
   }
 
-  const { blueprintId } = parsePathIds(bp);
+  // 반환 id는 목록에 쓰지 않는다. 순환 require로 paths를 로드한 뒤 같은
+  // 경로 문자열을 파서에 넘겨, 모듈 그래프와 입력 계약을 그대로 둔다.
+  void parsePathIds(bp);
   const entries: TasksEntry[] = [];
   const invalidDirs: string[] = [];
 

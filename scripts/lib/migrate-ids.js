@@ -62,8 +62,8 @@ function discoverLegacyIds({ repoRoot }) {
         const numericEpic = !legacyEpic && NUMERIC_EPIC_DIR_RE.exec(name);
         if (numericEpic)
             hasNumeric = true;
-        let epicFromRel = null;
-        let epicToRel = null;
+        let epicFromRel;
+        let epicToRel;
         if (legacyEpic) {
             const id = legacyEpic[1];
             const slug = legacyEpic[2];
@@ -129,7 +129,7 @@ function isWorktreeDirty(repoRoot, execFileSync = realExecFileSync) {
 }
 function validateMigration({ repoRoot, plan, deps }) {
     const d = deps || {};
-    const execFileSync = d.execFileSync || realExecFileSync;
+    const execFileSync = (d.execFileSync || realExecFileSync);
     const reasons = [];
     const discovery = plan.discovery;
     if (discovery.hasLegacy && discovery.hasNumeric) {

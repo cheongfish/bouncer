@@ -11,11 +11,9 @@ const { loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, } = re
 const { checkStructural, checkDistillStructural } = require('./validate-structural');
 const { checkGate } = require('./validate-gates');
 const { parseTasksSections, parseSections, extractPathCandidates, } = require('./validate-sections');
-// 오케스트레이션 + 공개 배럴. validateBlueprint는 이 파일에 남긴다 —
-// 함수 안의 레거시 `.sdd` 문자열이 public-name-regression allowlist에
-// 이 파일명으로 고정되어 있어, 옮기면 그 테스트가 깨진다.
-// 게이트/구조/로드/파싱 구현은 형제 모듈. 순환을 만들지 않기 위해
-// 형제들은 이 파일을 require하지 않는다.
+function catchMessage(error) {
+    return error.message;
+}
 function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     if (!isCanonicalBlueprintDir(blueprintDir)) {
         return {
@@ -71,7 +69,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
         catch (error) {
             executionFailures.push({
                 code: 'G13',
-                message: error.message,
+                message: catchMessage(error),
                 file: verificationFile,
             });
         }
@@ -87,17 +85,30 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     // 적용할지 모호해지므로 구조 단계에서 거절한다.
     if (tasksListing && tasksListing.legacyFiles && tasksListing.legacyFiles.length) {
         failures.push({
-            code: 'S15', message: `legacy task layout remains: ${tasksListing.legacyFiles.join(', ')}; run bouncer migrate task-layout`, file: toPosix(blueprintDir),
+            code: 'S15',
+            message: `legacy task layout remains: ${tasksListing.legacyFiles.join(', ')}; run bouncer migrate task-layout`,
+            file: toPosix(blueprintDir),
         });
     }
-    for (const name of (tasksListing && tasksListing.invalidDirs) || [])
-        failures.push({ code: 'S16', message: `non-canonical task directory: tasks/${name}`, file: `${toPosix(blueprintDir)}/tasks/${name}` });
-    for (const entry of (tasksListing && tasksListing.entries) || [])
+    for (const name of (tasksListing && tasksListing.invalidDirs) || []) {
+        failures.push({
+            code: 'S16',
+            message: `non-canonical task directory: tasks/${name}`,
+            file: `${toPosix(blueprintDir)}/tasks/${name}`,
+        });
+    }
+    for (const entry of (tasksListing && tasksListing.entries) || []) {
         for (const leaf of ['tasks', 'verification', 'review']) {
             const rel = entry[leaf].rel;
-            if (!fs.existsSync(path.join(repoRoot, rel)))
-                failures.push({ code: 'S17', message: `task unit ${entry.number} missing ${path.posix.basename(rel)}`, file: rel });
+            if (!fs.existsSync(path.join(repoRoot, rel))) {
+                failures.push({
+                    code: 'S17',
+                    message: `task unit ${entry.number} missing ${path.posix.basename(rel)}`,
+                    file: rel,
+                });
+            }
         }
+    }
     const anyLeaf = (docs.tasksDocs && docs.tasksDocs.length > 0)
         || (docs.taskUnits && docs.taskUnits.length > 0)
         || ['verification', 'review', 'explain'].some((k) => docs[k]);
@@ -114,7 +125,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     const unitSeenRels = new Set();
     for (const key of Object.keys(docs)) {
         if (key === 'taskUnits') {
-            for (const unit of docs.taskUnits) {
+            for (const unit of docs.taskUnits || []) {
                 for (const leaf of ['tasks', 'verification', 'review']) {
                     const leafDoc = unit[leaf];
                     if (!leafDoc || unitSeenRels.has(leafDoc.rel))
@@ -129,7 +140,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
             // taskUnits가 있으면 tasks leaf는 그쪽에서 이미 검사함.
             if (hasTaskUnits)
                 continue;
-            for (const td of docs.tasksDocs)
+            for (const td of docs.tasksDocs || [])
                 checkStructural(td, failures);
             continue;
         }

@@ -20,21 +20,32 @@ const DEFAULT_CONTEXT_DIRS = ['.bouncer/context'];
 // 2) 사용자가 source_dirs: ["."] 로 graphify-out 을 다시 넣으면
 //    build 가 graphify-out 아래에 쓰기 → mtime 갱신 → rebuild 무한 루프.
 const SCAN_EXCLUDED_DIRS = new Set(['graphify-out', 'node_modules', '.git', '.worktrees']);
+function configField(cfg, key) {
+    // cfg?.key 와 같다. `'key' in cfg`로 바꾸면 프로토타입 필드가 생기고
+    // null에서 단락되지 않을 수 있다.
+    return cfg && typeof cfg === 'object' ? cfg[key] : undefined;
+}
 function realGraphifyEnabled(repoRoot) {
     // ?? {}를 붙이지 않는다. 부재를 빈 객체와 같게 보면 enabled 판정이
     // "키 없음"과 "파일 없음"을 구분하지 못하게 되고, 둘 다 false로 떨어져
     // 겉보기엔 같아 보이지만 cfg?. 전제(null 유지)가 깨진다.
     const cfg = readConfig(repoRoot);
-    return cfg?.graphify?.enabled === true;
+    const graphify = configField(cfg, 'graphify');
+    const enabled = graphify && typeof graphify === 'object'
+        ? graphify.enabled
+        : undefined;
+    return enabled === true;
 }
 function realSourceDirs(repoRoot) {
     const cfg = readConfig(repoRoot);
-    return Array.isArray(cfg?.source_dirs) ? cfg.source_dirs : [];
+    const dirs = configField(cfg, 'source_dirs');
+    return Array.isArray(dirs) ? dirs : [];
 }
 function realContextDirs(repoRoot) {
     const cfg = readConfig(repoRoot);
-    if (Array.isArray(cfg?.context_dirs))
-        return cfg.context_dirs;
+    const dirs = configField(cfg, 'context_dirs');
+    if (Array.isArray(dirs))
+        return dirs;
     return DEFAULT_CONTEXT_DIRS;
 }
 function realExistingDirs(repoRoot, dirs) {

@@ -4,7 +4,7 @@
  * CLI 공통 플래그 파서. 명령 모듈이 cli.ts를 require하지 못하게 여기 둔다
  * (순환: cli.ts → 명령 모듈 → cli.ts).
  */
-function parseFlags(rest) {
+function parseFlags(rest: string[]): Record<string, string | boolean> {
   const flags: Record<string, string | boolean> = {};
   // 위치 인자(scaffold kind, migrate kind)는 건너뛴다. 전부 플래그로 삼키면
   // 핸들러가 rest[0]을 kind로 읽지 못한다.

@@ -165,7 +165,7 @@ function gitignoreSuggestions({ repoRoot }) {
 function writeGitignoreMarkerBlock(repoRoot) {
     const abs = path.join(repoRoot, '.gitignore');
     const block = `${GITIGNORE_MARKER_START}\n${SUGGESTED_IGNORES.join('\n')}\n${GITIGNORE_MARKER_END}`;
-    let content = null;
+    let content;
     try {
         content = fs.readFileSync(abs, 'utf8');
     }
@@ -186,10 +186,11 @@ function writeGitignoreMarkerBlock(repoRoot) {
     return true;
 }
 function graphifyEnabledIsTrue(config) {
+    const graphify = config && config.graphify;
     return !!(config
-        && config.graphify
-        && typeof config.graphify === 'object'
-        && config.graphify.enabled === true);
+        && graphify
+        && typeof graphify === 'object'
+        && graphify.enabled === true);
 }
 function seedDistillConfig(repoRoot, existing) {
     if (!existing || typeof existing !== 'object' || Array.isArray(existing))
@@ -226,12 +227,15 @@ function inspectBootstrap({ repoRoot }) {
     // 올리면 이후 승격이 비객체에 키를 심는다. 깨진 JSON·비객체는 missing이
     // 아니라 partial — .bouncer가 이미 있으므로 재생성하면 기존 내용을 덮는다.
     const config = readConfig(repoRoot);
-    const valid = config
+    const rec = config
         && typeof config === 'object'
         && !Array.isArray(config)
-        && Array.isArray(config.source_dirs)
-        && typeof config.verify === 'string'
-        && typeof config.base_branch === 'string';
+        ? config
+        : null;
+    const valid = rec
+        && Array.isArray(rec.source_dirs)
+        && typeof rec.verify === 'string'
+        && typeof rec.base_branch === 'string';
     if (valid)
         return 'ready';
     return 'partial';
@@ -260,7 +264,7 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) 
         writeGitignoreMarkerBlock(repoRoot);
         gitignoreWritten = true;
     }
-    const suggestions = gitignoreSuggestions({ repoRoot });
+    const suggestions = gitignoreSuggestions({ repoRoot: repoRoot });
     if (bootstrap === 'ready') {
         // project Distill 이전에 init된 repo용 soft-seed.
         const created = [];
@@ -269,7 +273,9 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) 
         // 여기서 걸러야 비객체에 graphify.enabled를 쓰다가 파일을 잘못된 형태로
         // 덮지 않는다. null은 승격 no-op (existing이 falsy면 write 생략).
         const raw = readConfig(repoRoot);
-        const existing = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : null;
+        const existing = (raw && typeof raw === 'object' && !Array.isArray(raw))
+            ? raw
+            : null;
         const distillSeeded = seedDistillConfig(repoRoot, existing);
         const alreadyEnabled = graphifyEnabledIsTrue(existing);
         let graphifyPromotion;

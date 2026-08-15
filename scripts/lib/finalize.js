@@ -7,11 +7,12 @@ const { execFileSync } = require('node:child_process');
 const { toPosix } = require('./paths');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
 const { clearCurrent, nextBlueprint } = require('./current');
-// migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
 const { parseFrontmatter } = require('./frontmatter');
 const { renderDoc } = require('./render');
-// validate↔finalize 순환을 피하려고 scope 헬퍼는 여기 두지 않는다(재수출도 안 함).
 const { makeFinalizeAllowed, isRuntimeArtifact } = require('./scope');
+function asRecord(value) {
+    return value;
+}
 // subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
 // 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
 // 문서와 PR body에 있음.
@@ -22,11 +23,11 @@ const { makeFinalizeAllowed, isRuntimeArtifact } = require('./scope');
 // commit 경로(`bouncer commit`)가 이 빌더를 쓴다. finalize 마감 메시지는
 // buildFinalizeCommitMessage — task title/verification bullet을 넣지 않는다.
 function buildCommitMessage(docs, taskUnit) {
-    const bp = docs.blueprintIndex.data;
-    const bouncer = bp.bouncer || {};
+    const bp = asRecord(docs.blueprintIndex.data);
+    const bouncer = asRecord(bp.bouncer || {});
     const type = bouncer.commit_type || 'feat';
     const taskTitle = taskUnit && taskUnit.tasks && taskUnit.tasks.data
-        ? taskUnit.tasks.data.title
+        ? asRecord(taskUnit.tasks.data).title
         : undefined;
     // 대상 묶음이 없거나 title이 비면 blueprint로 떨어뜨려 빈 subject를 만들지 않음.
     const subjectTitle = (typeof taskTitle === 'string' && taskTitle.trim())
@@ -34,11 +35,14 @@ function buildCommitMessage(docs, taskUnit) {
         : bp.title;
     const titleOf = (key) => {
         const fromUnit = taskUnit && taskUnit[key] && taskUnit[key].data
-            ? taskUnit[key].data.title
+            ? asRecord(taskUnit[key].data).title
             : undefined;
         if (typeof fromUnit === 'string' && fromUnit)
             return fromUnit;
-        return docs[key] && docs[key].data.title ? docs[key].data.title : '';
+        const leaf = docs[key];
+        // `docs[key] && docs[key].data.title` — data가 null이면 예전처럼 throw.
+        // `leaf && leaf.data`로 접으면 TypeError가 빈 문자열로 바뀐다.
+        return leaf && asRecord(leaf.data).title ? asRecord(leaf.data).title : '';
     };
     // 정확히 2줄일 때만 유효. slice(0,2)로 앞만 남기면 3줄+ 작성 실수를 숨김.
     const normalizeIntent = (raw) => {
@@ -50,11 +54,11 @@ function buildCommitMessage(docs, taskUnit) {
         return lines.length === 2 ? lines : null;
     };
     const taskBouncer = taskUnit && taskUnit.tasks && taskUnit.tasks.data
-        ? taskUnit.tasks.data.bouncer
+        ? asRecord(taskUnit.tasks.data).bouncer
         : undefined;
     // task 문서만. blueprint commit_intent는 쓰지 않는다 — 커밋 단위가 task인데
     // 상위 문서로 폴백하면 작성 위치가 다시 갈라진다. 무효·부재면 intent 없음.
-    const intent = normalizeIntent(taskBouncer && taskBouncer.commit_intent) || [];
+    const intent = normalizeIntent(taskBouncer && asRecord(taskBouncer).commit_intent) || [];
     const what = [titleOf('verification')].filter(Boolean);
     const bodyLines = intent.length === 2
         ? [...intent, ...what]
@@ -72,8 +76,8 @@ function buildCommitMessage(docs, taskUnit) {
 // task 의도가 가장 가깝다. blueprint commit_intent는 출처가 아니다.
 // task title·verification bullet을 넣으면 이미 남긴 task 커밋과 겹친다.
 function buildFinalizeCommitMessage(docs) {
-    const bp = docs.blueprintIndex.data;
-    const bouncer = bp.bouncer || {};
+    const bp = asRecord(docs.blueprintIndex.data);
+    const bouncer = asRecord(bp.bouncer || {});
     const type = bouncer.commit_type || 'feat';
     const normalizeIntent = (raw) => {
         if (!Array.isArray(raw))
@@ -89,9 +93,9 @@ function buildFinalizeCommitMessage(docs) {
     const units = Array.isArray(docs.taskUnits) ? docs.taskUnits : [];
     for (const unit of units) {
         const taskBouncer = unit && unit.tasks && unit.tasks.data
-            ? unit.tasks.data.bouncer
+            ? asRecord(unit.tasks.data).bouncer
             : undefined;
-        const normalized = normalizeIntent(taskBouncer && taskBouncer.commit_intent);
+        const normalized = normalizeIntent(taskBouncer && asRecord(taskBouncer).commit_intent);
         if (!normalized)
             continue;
         const n = typeof unit.number === 'number' ? unit.number : -Infinity;
@@ -126,8 +130,8 @@ function resolveLockTarget({ repoRoot, blueprintDir }) {
 // null. closed → approved 역전이는 제공하지 않으므로 이 함수는 오직
 // "아직 closed가 아님" 방향으로만 경로를 반환한다.
 function closedLockPath(target) {
-    const bouncer = target.data && typeof target.data === 'object' ? target.data.bouncer : null;
-    if (!bouncer || typeof bouncer !== 'object' || bouncer.status === 'closed')
+    const bouncer = target.data && typeof target.data === 'object' ? asRecord(target.data).bouncer : null;
+    if (!bouncer || typeof bouncer !== 'object' || asRecord(bouncer).status === 'closed')
         return null;
     return target.rel;
 }
@@ -136,7 +140,7 @@ function closedLockPath(target) {
 function writeClosedLock(repoRoot, target) {
     if (!target.data || typeof target.data !== 'object')
         return;
-    target.data.bouncer.status = 'closed';
+    asRecord(asRecord(target.data).bouncer).status = 'closed';
     fs.writeFileSync(path.join(repoRoot, target.rel), renderDoc(target.data, target.body));
 }
 // out-of-scope 판정 뒤에만 부르는 stage 목록 합류. lockPath는 항상
@@ -164,8 +168,8 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     if (!v.ok)
         return { ok: false, reason: 'validate', failures: v.failures };
     const { docs } = loadBlueprintDocs({ repoRoot, blueprintDir });
-    const affectedPaths = docs.tasks && docs.tasks.data.bouncer
-        ? docs.tasks.data.bouncer.affected_paths : [];
+    const affectedPaths = docs.tasks && asRecord(docs.tasks.data).bouncer
+        ? asRecord(asRecord(docs.tasks.data).bouncer).affected_paths : [];
     const allowed = makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir });
     const changed = gitApi.changedFiles();
     const untracked = gitApi.untrackedFiles();

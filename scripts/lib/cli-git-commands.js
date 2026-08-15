@@ -5,6 +5,11 @@ const { finalize } = require('./finalize');
 const { commitTask } = require('./commit');
 const { seedWorktree } = require('./seed-worktree');
 const { planImport, applyImport } = require('./import-history');
+function catchMessage(error) {
+    // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
+    // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
+    return error.message;
+}
 function cmdCommit(rest, io) {
     const f = parseFlags(rest);
     // 커밋 대상이 없으면 commit-safety가 빈 범위를 검사하게 되므로 형식(2)으로 거절.
@@ -13,7 +18,7 @@ function cmdCommit(rest, io) {
         return 2;
     }
     const result = commitTask({
-        repoRoot: f.repo || process.cwd(),
+        repoRoot: (f.repo || process.cwd()),
         blueprintDir: f.blueprint,
         // === true: parseFlags가 값 없는 --yes만 boolean으로 둔다. `--yes 1` 같은
         // 문자열은 동의로 치지 않아 실수 커밋을 막는다.
@@ -31,7 +36,7 @@ function cmdFinalize(rest, io) {
         return 2;
     }
     const result = finalize({
-        repoRoot: f.repo || process.cwd(),
+        repoRoot: (f.repo || process.cwd()),
         blueprintDir: f.blueprint,
         // commit과 같은 동의 규칙. truthy 문자열을 통과시키면 dry-run 기본이 깨진다.
         yes: f.yes === true,
@@ -56,7 +61,7 @@ function cmdSeedWorktree(rest, io) {
         // --repo(기본 cwd)는 plan 문서가 있는 base checkout;
         // --to는 committed HEAD에서 막 만든 worktree.
         const result = seedWorktree({
-            repoRoot: f.repo || process.cwd(),
+            repoRoot: (f.repo || process.cwd()),
             blueprintDir: f.blueprint,
             worktreePath: f.to,
         });
@@ -65,7 +70,7 @@ function cmdSeedWorktree(rest, io) {
     }
     catch (error) {
         // git 실패 등 런타임. 플래그는 이미 통과했으므로 사용법(2)이 아니라 1.
-        io.err(`seed-worktree: ${error.message}\n`);
+        io.err(`seed-worktree: ${catchMessage(error)}\n`);
         return 1;
     }
 }

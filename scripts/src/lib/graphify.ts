@@ -9,7 +9,7 @@ const { readConfig } = require('./config');
  * Windows만 Scripts/ + .exe; 그 외는 bin/. 구분자는 항상 POSIX(/)로 고정해
  * config·테스트·로그가 OS cwd 구분자에 흔들리지 않게 한다.
  */
-function venvBinRel(platform) {
+function venvBinRel(platform: string) {
   if (platform === 'win32') return '.bouncer/.venv/Scripts/graphify.exe';
   return '.bouncer/.venv/bin/graphify';
 }
@@ -52,7 +52,7 @@ function resolveGraphifyBin({
   hasOnPath,
 }: {
   repoRoot?: string;
-  config?: any;
+  config?: unknown;
   platform?: string;
   exists?: (abs: string) => boolean;
   hasOnPath?: () => boolean;
@@ -62,15 +62,17 @@ function resolveGraphifyBin({
     const plat = typeof platform === 'string' ? platform : process.platform;
     const fileExists = typeof exists === 'function'
       ? exists
-      : (p) => fs.existsSync(p);
+      : (p: string) => fs.existsSync(p);
     const onPath = typeof hasOnPath === 'function' ? hasOnPath : defaultHasOnPath;
 
     // 주입이 없으면 디스크에서 읽되, 실패는 null — ?? {}를 붙이면
     // 아래 cfg && typeof cfg === 'object' 가 빈 객체를 설정 있음으로 본다.
     const cfg = config === undefined ? readConfig(root) : config;
 
-    const rawBin = cfg && typeof cfg === 'object' && cfg.graphify && typeof cfg.graphify === 'object'
-      ? cfg.graphify.bin
+    const rawBin = cfg && typeof cfg === 'object' && !Array.isArray(cfg)
+      && (cfg as Record<string, unknown>).graphify
+      && typeof (cfg as Record<string, unknown>).graphify === 'object'
+      ? ((cfg as Record<string, unknown>).graphify as Record<string, unknown>).bin
       : undefined;
     // 비문자열·빈 문자열은 "설정 없음" — 다음 후보로 내려간다.
     if (typeof rawBin === 'string' && rawBin.length > 0) {
@@ -102,7 +104,7 @@ function resolveGraphifyBin({
  * 플랫폼별 venv pip 실행 파일 상대 경로.
  * graphify와 같은 Scripts/ vs bin/ 규칙을 따르되, activate 없이 직접 호출한다.
  */
-function venvPipRel(platform) {
+function venvPipRel(platform: string) {
   if (platform === 'win32') return '.bouncer/.venv/Scripts/pip.exe';
   return '.bouncer/.venv/bin/pip';
 }
@@ -124,6 +126,13 @@ function venvPipRel(platform) {
  *   reason?: string,
  * }}
  */
+function catchMessageOrString(error: unknown): string {
+  // 예전 `e && e.message ? e.message : String(e)` 와 같다. extra null 가드를
+  // 넣으면 throw null이 TypeError 대신 'null' 문자열이 된다.
+  const message = error && (error as { message?: unknown }).message;
+  return message ? String(message) : String(error);
+}
+
 function setupGraphify({
   repoRoot,
   exec,
@@ -151,7 +160,7 @@ function setupGraphify({
       return {
         status: 'failed',
         bin: null,
-        reason: `venv: ${e && e.message ? e.message : String(e)}`,
+        reason: `venv: ${catchMessageOrString(e)}`,
       };
     }
 
@@ -163,7 +172,7 @@ function setupGraphify({
       return {
         status: 'failed',
         bin: null,
-        reason: `pip: ${e && e.message ? e.message : String(e)}`,
+        reason: `pip: ${catchMessageOrString(e)}`,
       };
     }
 
@@ -174,7 +183,7 @@ function setupGraphify({
       return {
         status: 'failed',
         bin: null,
-        reason: `graphify install: ${e && e.message ? e.message : String(e)}`,
+        reason: `graphify install: ${catchMessageOrString(e)}`,
       };
     }
 
@@ -184,7 +193,7 @@ function setupGraphify({
     return {
       status: 'failed',
       bin: null,
-      reason: e && e.message ? e.message : String(e),
+      reason: catchMessageOrString(e),
     };
   }
 }

@@ -1,11 +1,15 @@
 'use strict';
-const { toPosix } = require('./paths');
+const { toPosix } = require('./paths') as {
+  toPosix: (p: unknown) => string;
+};
 
 // 본문 파싱 층. 게이트(G)와 구조(S)가 같은 heading/경로 규칙을 보게 여기만 둔다.
 // 상위 모듈이 각자 정규식을 가지면 G10과 G16의 "비어 있음"이 어긋난다.
 // 이 파일은 형제 validate-*.ts를 require하지 않는다 — 의존 방향의 맨 아래층.
 
-const SECTION_DEFS = [
+type SectionDef = { key: string; re: RegExp };
+
+const SECTION_DEFS: SectionDef[] = [
   { key: 'goal', re: /^##\s+(Goal\s*&\s*intent|목적[·・.]?의도)\s*$/i },
   { key: 'interface', re: /^##\s+(Interface|인터페이스)\s*$/i },
   { key: 'touch', re: /^##\s+(Touch|수정할\s*부분)\s*$/i },
@@ -16,12 +20,12 @@ const SECTION_DEFS = [
   { key: 'checklist', re: /^##\s+(Checklist|체크리스트)\s*$/i },
 ];
 
-const VERIFY_SECTION_DEFS = [
+const VERIFY_SECTION_DEFS: SectionDef[] = [
   { key: 'command', re: /^##\s+(Command|명령(?:어)?)\s*$/i },
   { key: 'evidence', re: /^##\s+(Evidence|증적|증거)\s*$/i },
 ];
 
-const REVIEW_SECTION_DEFS = [
+const REVIEW_SECTION_DEFS: SectionDef[] = [
   { key: 'findings', re: /^##\s+(Findings|발견사항|리뷰\s*결과)\s*$/i },
 ];
 const REVIEW_SEVERITY = ['blocker', 'major', 'minor', 'nit'];
@@ -30,7 +34,7 @@ const REVIEW_STATUS = ['resolved', 'accepted'];
 // G10과 동일한 비어 있음 계약: 제목은 있고, comment-strip 후 본문이 있어야 함.
 // comprehension module이 어떤 section이 있는지 SSOT가 되도록 key는
 // EXPLAIN_SECTION_DEFS를 반영; regex는 parseSections 옆에 둠.
-const EXPLAIN_SECTION_HEADINGS = [
+const EXPLAIN_SECTION_HEADINGS: SectionDef[] = [
   { key: 'background', re: /^##\s+Background\s*$/i },
   { key: 'intuition', re: /^##\s+Intuition\s*$/i },
   { key: 'code', re: /^##\s+Code\s*$/i },
@@ -42,7 +46,7 @@ const EXPLAIN_SECTION_HEADINGS = [
 // 본다. 비어 있음 검사 전에 comment를 제거하면 "section은 있으나 비어 있음"이
 // template에 본문이 실리기 전과 같은 의미를 유지. tasks뿐 아니라 section을
 // 파싱하는 모든 문서에 적용.
-function stripComments(text) {
+function stripComments(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, '');
 }
 
@@ -50,10 +54,10 @@ function stripComments(text) {
 // Interface의 `<T>` generic은 그대로 허용.
 const TODO_RE = /<TODO:[^>\n]*>/;
 
-function parseSections(body, defs) {
+function parseSections(body: unknown, defs: SectionDef[]): Record<string, string | null> {
   const text = typeof body === 'string' ? stripComments(body) : '';
   const lines = text.split('\n');
-  const starts = [];
+  const starts: Array<{ key: string; line: number }> = [];
   for (let i = 0; i < lines.length; i++) {
     for (const def of defs) {
       if (def.re.test(lines[i].trim())) starts.push({ key: def.key, line: i });
@@ -69,15 +73,15 @@ function parseSections(body, defs) {
   return out;
 }
 
-function parseTasksSections(body) {
+function parseTasksSections(body: unknown): Record<string, string | null> {
   return parseSections(body, SECTION_DEFS);
 }
 
 // Touch/Do-not-touch는 백틱 경로와 민줄 경로를 섞어 쓴다. 한쪽만 모으면
 // G11(Touch 근거) / G12(금지 교차)가 표기 차이로 빗나간다.
-function extractPathCandidates(text) {
+function extractPathCandidates(text: unknown): string[] {
   const raw = typeof text === 'string' ? text : '';
-  const found = new Set();
+  const found = new Set<string>();
   for (const m of raw.matchAll(/`([^`]+)`/g)) {
     const p = toPosix(m[1].trim()).replace(/^\.\//, '');
     if (p) found.add(p);
@@ -94,15 +98,19 @@ function extractPathCandidates(text) {
 
 // 디렉터리 prefix도 교차로 본다. `scripts/` 금지가 `scripts/lib/x.js`를
 // 통과시키면 G12가 파일 단위 affected_paths를 놓친다.
-function pathsOverlap(a, b) {
-  return a === b || a.startsWith(b + '/') || b.startsWith(a + '/');
+function pathsOverlap(a: string, b: string): boolean {
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
-function pathJustifiedByTouch(ap, touchText) {
+function pathJustifiedByTouch(ap: string, touchText: string): boolean {
   if (touchText.includes(ap)) return true;
   return extractPathCandidates(touchText).some(
-    (c: string) => ap === c || ap.startsWith(c.endsWith('/') ? c : `${c}/`),
+    (c) => ap === c || ap.startsWith(c.endsWith('/') ? c : `${c}/`),
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // findings 필드 계약은 G14(execute review.md)와 G18(plan context-review.md)이
@@ -110,8 +118,13 @@ function pathJustifiedByTouch(ap, touchText) {
 // 갖게 된다. 본문 판정 문장은 읽지 않는다 — heading 존재와 id/severity/status/note.
 // findings가 있는데 배열이 아니면 []로 떨어뜨리지 않는다. 빈 배열과 같게 취급하면
 // 형식 위반이 통과한다. 부재(undefined/null)만 빈 목록으로 본다.
-function collectFindingFailures({ body, findings, sectionLabel, findingLabel }) {
-  const messages = [];
+function collectFindingFailures({ body, findings, sectionLabel, findingLabel }: {
+  body: unknown;
+  findings: unknown;
+  sectionLabel: string;
+  findingLabel: string;
+}): string[] {
+  const messages: string[] = [];
   const rs = parseSections(typeof body === 'string' ? body : '', REVIEW_SECTION_DEFS);
   if (!rs.findings) {
     messages.push(`${sectionLabel} missing ## Findings body section`);
@@ -120,16 +133,17 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel }) 
     messages.push(`${findingLabel} findings must be an array`);
     return messages;
   }
-  const list = Array.isArray(findings) ? findings : [];
+  const list: unknown[] = Array.isArray(findings) ? findings : [];
   for (const fnd of list) {
-    const id = fnd && fnd.id ? fnd.id : '(no id)';
-    if (!REVIEW_SEVERITY.includes(fnd && fnd.severity)) {
-      messages.push(`${findingLabel} finding ${id} severity invalid: ${fnd && fnd.severity}`);
+    const rec = isRecord(fnd) ? fnd : fnd as Record<string, unknown>;
+    const id = rec && rec.id ? rec.id : '(no id)';
+    if (!(REVIEW_SEVERITY as readonly unknown[]).includes(rec && rec.severity)) {
+      messages.push(`${findingLabel} finding ${id} severity invalid: ${rec && rec.severity}`);
     }
-    if (!REVIEW_STATUS.includes(fnd && fnd.status)) {
-      messages.push(`${findingLabel} finding ${id} status invalid: ${fnd && fnd.status}`);
+    if (!(REVIEW_STATUS as readonly unknown[]).includes(rec && rec.status)) {
+      messages.push(`${findingLabel} finding ${id} status invalid: ${rec && rec.status}`);
     }
-    if (fnd && fnd.status === 'accepted' && (!fnd.note || String(fnd.note).trim() === '')) {
+    if (rec && rec.status === 'accepted' && (!rec.note || String(rec.note).trim() === '')) {
       messages.push(`${findingLabel} finding ${id} accepted without note`);
     }
   }

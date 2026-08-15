@@ -6,7 +6,7 @@
     "moduleDetection": "force",
     "rootDir": "scripts/src/lib",
     "outDir": "scripts/lib",
-    "strict": false,
+    "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,

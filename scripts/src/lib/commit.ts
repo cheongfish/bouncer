@@ -1,19 +1,62 @@
 // scripts/lib/commit.js
 'use strict';
 const path = require('node:path');
-const { readDoc } = require('./frontmatter');
-const { listTasksDocs } = require('./tasks-docs');
-const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = require('./validate');
-const { realGit, buildCommitMessage } = require('./finalize');
-const { makeAllowed, isRuntimeArtifact } = require('./scope');
+const { readDoc } = require('./frontmatter') as {
+  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
+};
+const { listTasksDocs } = require('./tasks-docs') as {
+  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
+    entries?: Array<{ rel: string; id: string | null; number?: number | null }>;
+  } | null;
+};
+const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = require('./validate') as {
+  validateBlueprint: (opts: {
+    repoRoot: string;
+    blueprintDir: string;
+    gate?: string;
+  }) => { ok: boolean; failures: unknown[] };
+  loadBlueprintDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
+    docs: unknown;
+  };
+  resolveTaskUnit: (docs: unknown, opts?: {
+    repoRoot?: string;
+    blueprintDir?: string;
+  }) => TaskUnitLike | null;
+};
+const { realGit, buildCommitMessage } = require('./finalize') as {
+  realGit: (repoRoot: string) => GitApi;
+  buildCommitMessage: (docs: unknown, taskUnit: TaskUnitLike | null) => string;
+};
+const { makeAllowed, isRuntimeArtifact } = require('./scope') as {
+  makeAllowed: (opts: { affectedPaths?: unknown; blueprintDir: unknown }) => (file: unknown) => boolean;
+  isRuntimeArtifact: (file: unknown) => boolean;
+};
 
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
+
+type GitApi = {
+  changedFiles: () => string[];
+  untrackedFiles: () => string[];
+  stage: (files: string[]) => void;
+  commit: (msg: string) => void;
+};
+
+type DocLeafLike = { data?: unknown; rel?: string };
+type TaskUnitLike = {
+  number?: number | null;
+  tasks?: DocLeafLike;
+  [key: string]: unknown;
+};
 
 /**
  * 같은 blueprint에서 지금 닫는 묶음을 제외한 열린 task 중 번호가 가장 앞선 것.
  * 포인터는 건드리지 않는다 — 이동은 스킬이 확인 후 `bouncer current --set`만.
  */
-function findNextOpenTask({ repoRoot, blueprintDir, currentUnit }) {
+function findNextOpenTask({ repoRoot, blueprintDir, currentUnit }: {
+  repoRoot: string;
+  blueprintDir: string;
+  currentUnit: TaskUnitLike | null;
+}) {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   if (!listing || !Array.isArray(listing.entries) || listing.entries.length === 0) {
     return null;
@@ -31,8 +74,9 @@ function findNextOpenTask({ repoRoot, blueprintDir, currentUnit }) {
     if (typeof entry.id !== 'string' || !entry.id) continue;
     try {
       const doc = readDoc(path.join(repoRoot, entry.rel));
-      const st = doc.data && doc.data.bouncer ? doc.data.bouncer.status : undefined;
-      if (OPEN_TASK_STATUS.includes(st)) {
+      const bouncer = doc.data ? (doc.data as Record<string, unknown>).bouncer : doc.data;
+      const st = bouncer ? (bouncer as Record<string, unknown>).status : undefined;
+      if (OPEN_TASK_STATUS.includes(st as string)) {
         return { id: entry.id, path: entry.rel, status: st };
       }
     } catch (_e) {
@@ -44,6 +88,11 @@ function findNextOpenTask({ repoRoot, blueprintDir, currentUnit }) {
 
 function commitTask({
   repoRoot, blueprintDir, yes = false, git,
+}: {
+  repoRoot: string;
+  blueprintDir: string;
+  yes?: boolean;
+  git?: GitApi;
 }) {
   // 게이트·범위 실패는 반환값. git I/O 예외는 finalize와 같이 그대로 올린다.
   const gitApi = git || realGit(repoRoot);
@@ -56,8 +105,8 @@ function commitTask({
   const taskUnit = resolveTaskUnit(docs, { repoRoot, blueprintDir });
   // 커밋 단위는 task 하나 — 첫 docs.tasks 호환 필드가 아니라 대상 묶음의 경로.
   const affectedPaths = taskUnit && taskUnit.tasks && taskUnit.tasks.data
-    && taskUnit.tasks.data.bouncer
-    ? taskUnit.tasks.data.bouncer.affected_paths
+    && (taskUnit.tasks.data as Record<string, unknown>).bouncer
+    ? ((taskUnit.tasks.data as Record<string, unknown>).bouncer as Record<string, unknown>).affected_paths
     : [];
   const allowed = makeAllowed({ affectedPaths, blueprintDir });
 

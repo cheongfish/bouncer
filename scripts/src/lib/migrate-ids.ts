@@ -2,11 +2,58 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { CONTEXT_ROOT } = require('./layout');
-const { toPosix, normalizeContextId } = require('./paths');
-const { parseFrontmatter } = require('./frontmatter');
-const { renderDoc } = require('./render');
-const { readRuntimeCurrent, writeRuntimeCurrent } = require('./runtime-state');
+const { CONTEXT_ROOT } = require('./layout') as { CONTEXT_ROOT: string };
+const { toPosix, normalizeContextId } = require('./paths') as {
+  toPosix: (p: unknown) => string;
+  normalizeContextId: (value: unknown) => unknown;
+};
+const { parseFrontmatter } = require('./frontmatter') as {
+  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
+};
+const { renderDoc } = require('./render') as {
+  renderDoc: (data: unknown, body: string) => string;
+};
+const { readRuntimeCurrent, writeRuntimeCurrent } = require('./runtime-state') as {
+  readRuntimeCurrent: (opts: { repoRoot: string }) => {
+    blueprint: string;
+    base: string;
+    task?: string | null;
+  } | null;
+  writeRuntimeCurrent: (opts: {
+    repoRoot: string;
+    blueprint: unknown;
+    base: string;
+    task?: unknown;
+  }) => string;
+};
+
+type ExecFileSyncFn = (
+  file: string,
+  args?: readonly string[],
+  options?: { cwd?: unknown; encoding?: unknown; stdio?: unknown },
+) => string | Buffer;
+
+type MigrateDeps = {
+  execFileSync?: ExecFileSyncFn;
+};
+
+type EpicMove = { from: string; to: string; id: string; slug: string };
+type BlueprintMove = {
+  from: string;
+  to: string;
+  epicFrom: string;
+  epicTo: string;
+  id: string;
+  slug: string;
+};
+type Discovery = {
+  epics: EpicMove[];
+  blueprints: BlueprintMove[];
+  hasLegacy: boolean;
+  hasNumeric: boolean;
+};
+type RenameStep = { from: string; to: string; kind: 'blueprint' | 'epic' };
+type MigrationPlan = { discovery: Discovery; renames: RenameStep[] };
 
 // 구형 디렉터리만 본다 — layout/parsePathIds의 전이 허용에 기대면 BP-003이
 // 그걸 제거한 뒤 SessionStart 훅도 함께 죽는다.
@@ -20,7 +67,7 @@ const NUMERIC_BP_DIR_RE = /^(\d{3})-(.+)$/;
  * KIND-BP-를 먼저 처리해야 TASKS-BP-001이 TASKS-001로 남는다(BP-만 먼저
  * 건드리면 동작은 같지만 의도를 분명히 둔다).
  */
-function rewriteLegacyTokens(text) {
+function rewriteLegacyTokens(text: unknown): string {
   return String(text)
     .replace(/\b(TASKS|VERIFY|REVIEW|EXPLAIN)-BP-(\d{3})\b/g, '$1-$2')
     .replace(/EPIC-(\d{3}-)/g, '$1')
@@ -29,7 +76,7 @@ function rewriteLegacyTokens(text) {
     .replace(/\bBP-(\d{3})\b/g, '$1');
 }
 
-function listDirNames(abs) {
+function listDirNames(abs: string): string[] {
   if (!fs.existsSync(abs)) return [];
   try {
     return fs.readdirSync(abs);
@@ -38,7 +85,7 @@ function listDirNames(abs) {
   }
 }
 
-function isDir(abs) {
+function isDir(abs: string): boolean {
   try {
     return fs.statSync(abs).isDirectory();
   } catch (_e) {
@@ -50,7 +97,7 @@ function isDir(abs) {
  * `.bouncer/context/epics/`에서 구형 EPIC-/BP- 디렉터리만 수집한다.
  * hasNumeric은 혼재 판정용 — 신형 디렉터리가 하나라도 있으면 apply를 막는다.
  */
-function discoverLegacyIds({ repoRoot }) {
+function discoverLegacyIds({ repoRoot }: { repoRoot: string }): Discovery {
   const epicsRoot = path.join(repoRoot, CONTEXT_ROOT, 'epics');
   const epics: Array<{ from: string; to: string; id: string; slug: string }> = [];
   const blueprints: Array<{
@@ -66,8 +113,8 @@ function discoverLegacyIds({ repoRoot }) {
     const numericEpic = !legacyEpic && NUMERIC_EPIC_DIR_RE.exec(name);
     if (numericEpic) hasNumeric = true;
 
-    let epicFromRel: string | null = null;
-    let epicToRel: string | null = null;
+    let epicFromRel: string;
+    let epicToRel: string;
     if (legacyEpic) {
       const id = legacyEpic[1];
       const slug = legacyEpic[2];
@@ -92,13 +139,13 @@ function discoverLegacyIds({ repoRoot }) {
       }
       const id = legacyBp[1];
       const slug = legacyBp[2];
-      const from = toPosix(path.join(epicFromRel!, 'blueprints', bpName));
+      const from = toPosix(path.join(epicFromRel, 'blueprints', bpName));
       // apply는 bp를 epic rename보다 먼저 옮긴다. 대상은 아직 구형 epic 아래
       // (…/EPIC-001/blueprints/001-…)여야 한다. epic을 먼저 새 경로로 만들면
       // 이후 epic rename이 충돌한다.
-      const to = toPosix(path.join(epicFromRel!, 'blueprints', `${id}-${slug}`));
+      const to = toPosix(path.join(epicFromRel, 'blueprints', `${id}-${slug}`));
       blueprints.push({
-        from, to, epicFrom: epicFromRel!, epicTo: epicToRel!, id, slug,
+        from, to, epicFrom: epicFromRel, epicTo: epicToRel, id, slug,
       });
     }
   }
@@ -107,7 +154,7 @@ function discoverLegacyIds({ repoRoot }) {
   return { epics, blueprints, hasLegacy, hasNumeric };
 }
 
-function planMigration({ repoRoot }) {
+function planMigration({ repoRoot }: { repoRoot: string }): MigrationPlan {
   const discovery = discoverLegacyIds({ repoRoot });
   // bp를 먼저 — 깊은 경로를 epic rename 전에 옮겨야 중간 경로가 유효하다.
   const renames = [
@@ -117,7 +164,7 @@ function planMigration({ repoRoot }) {
   return { discovery, renames };
 }
 
-function isWorktreeDirty(repoRoot, execFileSync = realExecFileSync) {
+function isWorktreeDirty(repoRoot: string, execFileSync: ExecFileSyncFn = realExecFileSync as ExecFileSyncFn): boolean {
   try {
     const out = execFileSync('git', ['status', '--porcelain'], {
       cwd: repoRoot,
@@ -131,9 +178,13 @@ function isWorktreeDirty(repoRoot, execFileSync = realExecFileSync) {
   }
 }
 
-function validateMigration({ repoRoot, plan, deps }) {
+function validateMigration({ repoRoot, plan, deps }: {
+  repoRoot: string;
+  plan: MigrationPlan;
+  deps?: MigrateDeps | null;
+}): { ok: boolean; reasons: string[] } {
   const d = deps || {};
-  const execFileSync = d.execFileSync || realExecFileSync;
+  const execFileSync = (d.execFileSync || realExecFileSync) as ExecFileSyncFn;
   const reasons: string[] = [];
   const discovery = plan.discovery;
 
@@ -158,7 +209,7 @@ function validateMigration({ repoRoot, plan, deps }) {
   return { ok: reasons.length === 0, reasons };
 }
 
-function walkMarkdownFiles(absDir, out: string[] = []) {
+function walkMarkdownFiles(absDir: string, out: string[] = []): string[] {
   if (!fs.existsSync(absDir)) return out;
   let entries: string[];
   try {
@@ -168,7 +219,7 @@ function walkMarkdownFiles(absDir, out: string[] = []) {
   }
   for (const name of entries) {
     const abs = path.join(absDir, name);
-    let st;
+    let st: ReturnType<typeof fs.statSync>;
     try {
       st = fs.statSync(abs);
     } catch (_e) {
@@ -180,9 +231,9 @@ function walkMarkdownFiles(absDir, out: string[] = []) {
   return out;
 }
 
-function normalizeBouncerIds(bouncer) {
+function normalizeBouncerIds(bouncer: unknown): unknown {
   if (!bouncer || typeof bouncer !== 'object') return bouncer;
-  const next = { ...bouncer };
+  const next = { ...(bouncer as Record<string, unknown>) };
   if (typeof next.id === 'string') next.id = normalizeContextId(next.id);
   if (typeof next.epic_id === 'string') next.epic_id = normalizeContextId(next.epic_id);
   if (typeof next.blueprint_id === 'string') {
@@ -192,7 +243,7 @@ function normalizeBouncerIds(bouncer) {
 }
 
 /** rename 이후 트리의 md를 읽어 토큰·resource·id를 정본으로 맞춘다. */
-function rewriteContextMarkdown(repoRoot) {
+function rewriteContextMarkdown(repoRoot: string): void {
   const root = path.join(repoRoot, CONTEXT_ROOT);
   for (const abs of walkMarkdownFiles(root)) {
     const raw = fs.readFileSync(abs, 'utf8');
@@ -223,7 +274,7 @@ function rewriteContextMarkdown(repoRoot) {
   }
 }
 
-function rewritePointer(repoRoot) {
+function rewritePointer(repoRoot: string): { from: string; to: string } | null {
   const current = readRuntimeCurrent({ repoRoot });
   if (!current || typeof current.blueprint !== 'string') return null;
   const nextBlueprint = rewriteLegacyTokens(current.blueprint);
@@ -240,7 +291,11 @@ function rewritePointer(repoRoot) {
  * 계획 검증 후에만 디스크를 건드린다. rename → md rewrite → pointer 순.
  * 검증 실패 시 아무 것도 바꾸지 않고 reasons를 반환한다.
  */
-function applyMigration({ repoRoot, plan, deps }) {
+function applyMigration({ repoRoot, plan, deps }: {
+  repoRoot: string;
+  plan: MigrationPlan;
+  deps?: MigrateDeps | null;
+}) {
   const validation = validateMigration({ repoRoot, plan, deps });
   if (!validation.ok) {
     return { ok: false, reasons: validation.reasons, applied: false };
@@ -272,7 +327,7 @@ function applyMigration({ repoRoot, plan, deps }) {
  * SessionStart stderr 문구. graphSyncWarnings처럼 테스트가 문자열을 고정한다.
  * 훅은 migrate를 실행하지 않고 안내만 한다.
  */
-function legacyIdsWarnings(discovery) {
+function legacyIdsWarnings(discovery: { hasLegacy?: unknown } | null | undefined): string[] {
   if (!discovery || !discovery.hasLegacy) return [];
   return [
     'Bouncer: legacy EPIC-/BP- context directories detected. '
@@ -281,7 +336,11 @@ function legacyIdsWarnings(discovery) {
   ];
 }
 
-function migrateIds({ repoRoot, dryRun, deps }) {
+function migrateIds({ repoRoot, dryRun, deps }: {
+  repoRoot: string;
+  dryRun?: unknown;
+  deps?: MigrateDeps | null;
+}) {
   const plan = planMigration({ repoRoot });
   if (dryRun) {
     return {

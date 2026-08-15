@@ -216,5 +216,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 
 개발 환경, 커밋·PR 규약, CI는 [contributing.md](docs/contributing.md)를 보세요.
 버그와 막힌 지점은 이슈 템플릿(**버그** / **막힌 지점**)으로 받습니다.
+보안 취약점은 공개 이슈가 아니라 [SECURITY.md](SECURITY.md)의 비공개 경로로
+제보하세요. 참여 기준은 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)입니다.
 
-사내 배포용이라 라이선스를 아직 지정하지 않았습니다.
+라이선스는 [Apache-2.0](LICENSE)입니다.

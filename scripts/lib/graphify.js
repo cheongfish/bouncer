@@ -56,7 +56,9 @@ function resolveGraphifyBin({ repoRoot, config, platform, exists, hasOnPath, } =
         // 주입이 없으면 디스크에서 읽되, 실패는 null — ?? {}를 붙이면
         // 아래 cfg && typeof cfg === 'object' 가 빈 객체를 설정 있음으로 본다.
         const cfg = config === undefined ? readConfig(root) : config;
-        const rawBin = cfg && typeof cfg === 'object' && cfg.graphify && typeof cfg.graphify === 'object'
+        const rawBin = cfg && typeof cfg === 'object' && !Array.isArray(cfg)
+            && cfg.graphify
+            && typeof cfg.graphify === 'object'
             ? cfg.graphify.bin
             : undefined;
         // 비문자열·빈 문자열은 "설정 없음" — 다음 후보로 내려간다.
@@ -108,6 +110,12 @@ function venvPipRel(platform) {
  *   reason?: string,
  * }}
  */
+function catchMessageOrString(error) {
+    // 예전 `e && e.message ? e.message : String(e)` 와 같다. extra null 가드를
+    // 넣으면 throw null이 TypeError 대신 'null' 문자열이 된다.
+    const message = error && error.message;
+    return message ? String(message) : String(error);
+}
 function setupGraphify({ repoRoot, exec, platform, } = {}) {
     try {
         const root = typeof repoRoot === 'string' ? repoRoot : process.cwd();
@@ -126,7 +134,7 @@ function setupGraphify({ repoRoot, exec, platform, } = {}) {
             return {
                 status: 'failed',
                 bin: null,
-                reason: `venv: ${e && e.message ? e.message : String(e)}`,
+                reason: `venv: ${catchMessageOrString(e)}`,
             };
         }
         // 2) pip으로 graphifyy 설치 — PyPI 패키지명이 graphify가 아님에 주의.
@@ -138,7 +146,7 @@ function setupGraphify({ repoRoot, exec, platform, } = {}) {
             return {
                 status: 'failed',
                 bin: null,
-                reason: `pip: ${e && e.message ? e.message : String(e)}`,
+                reason: `pip: ${catchMessageOrString(e)}`,
             };
         }
         // 3) graphify 자체의 install(에이전트 훅 등) — activate 없이 bin 경로 직접 실행.
@@ -149,7 +157,7 @@ function setupGraphify({ repoRoot, exec, platform, } = {}) {
             return {
                 status: 'failed',
                 bin: null,
-                reason: `graphify install: ${e && e.message ? e.message : String(e)}`,
+                reason: `graphify install: ${catchMessageOrString(e)}`,
             };
         }
         return { status: 'installed', bin: binRel };
@@ -159,7 +167,7 @@ function setupGraphify({ repoRoot, exec, platform, } = {}) {
         return {
             status: 'failed',
             bin: null,
-            reason: e && e.message ? e.message : String(e),
+            reason: catchMessageOrString(e),
         };
     }
 }
