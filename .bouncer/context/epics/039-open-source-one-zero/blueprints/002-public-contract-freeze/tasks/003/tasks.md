@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '039'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 파일럿 결과를 남길 형식이 없어 검증한 조합과 검증하지 않은 조합이 설치 문서에서 같은 무게로 읽힘

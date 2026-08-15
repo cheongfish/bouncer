@@ -2,7 +2,7 @@
 
 에이전트가 "다 했습니다"라고 말하기 전에, **실행했는지** 검사하는 플러그인.
 
-같은 저장소가 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex) · [Antigravity](docs/install.md#antigravity)에서 설치됩니다.
+같은 저장소가 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex) · [Antigravity](docs/install.md#antigravity)에서 설치됩니다. 지원 여부는 [파일럿 지원 현황](docs/install.md#파일럿-지원-현황)을 확인하세요.
 
 ## Why
 

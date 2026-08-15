@@ -115,3 +115,35 @@ test('public compatibility name sets match implementation', () => {
     .filter((token) => /^[a-z_]+$/.test(token));
   assertContract(sorted(implementationConfig), sorted(documentedConfig), 'config keys');
 });
+
+function tableRows(markdown, heading, columns) {
+  const start = markdown.indexOf(`## ${heading}`);
+  assert.notStrictEqual(start, -1, `table section missing: ${heading}`);
+  const rest = markdown.slice(start);
+  const end = rest.slice(3).search(/^## /m);
+  const section = end === -1 ? rest : rest.slice(0, end + 3);
+  return section.split('\n')
+    .map((line) => line.match(/^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*(?:\|\s*([^|]+?)\s*)?(?:\|\s*([^|]+?)\s*)?\|$/))
+    .filter(Boolean)
+    .filter((match) => !match[1].startsWith('---') && match[1] !== '저장소 유형' && match[1] !== '호스트')
+    .map((match) => match.slice(1, columns + 1));
+}
+
+test('pilot matrix and install support declarations stay aligned', () => {
+  const pilot = fs.readFileSync(path.join(ROOT, 'docs/PILOT.md'), 'utf8');
+  const install = fs.readFileSync(path.join(ROOT, 'docs/install.md'), 'utf8');
+  const pilotRows = tableRows(pilot, '저장소 유형 × 호스트 파일럿 매트릭스', 4)
+    .map(([repoType, host, state]) => ({ repoType, host, state }));
+  const installRows = tableRows(install, '파일럿 지원 현황', 2);
+  assert.strictEqual(pilotRows.length, 12, 'pilot matrix must contain 12 rows');
+  assert.strictEqual(new Set(pilotRows.map((row) => row.repoType)).size, 3);
+  assert.strictEqual(new Set(pilotRows.map((row) => row.host)).size, 4);
+
+  const derived = new Map();
+  for (const { host, state } of pilotRows) {
+    assert.ok(['검증됨', '미검증'].includes(state), `unknown state: ${state}`);
+    derived.set(host, (derived.get(host) ?? true) && state === '검증됨');
+  }
+  const expected = [...derived].map(([host, ok]) => [host, ok ? '검증됨' : '미검증']);
+  assert.deepStrictEqual(installRows.sort(), expected.sort());
+});
