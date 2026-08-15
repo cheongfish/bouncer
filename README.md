@@ -132,8 +132,11 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 `/bouncer-commit` · `/bouncer-run` · `/bouncer-finalize`.
 
 **게이트 4개** — `plan` / `execute` / `commit` / `finalize`. G 코드는 게이트별
-검사, S 코드(S0–S20)는 항상 도는 구조·스키마 검사입니다. 표는
+검사, S 코드(S0–S26)는 항상 도는 구조·스키마 검사입니다. 표는
 [gates.md](docs/gates.md)에 있습니다.
+
+동결을 목표로 하는 공개 계약과 breaking change 절차는
+[compatibility.md](docs/compatibility.md)에 정리했습니다.
 
 **CLI** — 스킬이 내부에서 부르는 것을 직접 쓸 수 있습니다.
 
