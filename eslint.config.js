@@ -20,6 +20,14 @@ const STRICT_TS_FILES = [
   'scripts/src/lib/layout.ts',
   'scripts/src/lib/scope.ts',
   'scripts/src/lib/subagents.ts',
+  'scripts/src/lib/epic-index.ts',
+  'scripts/src/lib/scaffold.ts',
+  'scripts/src/lib/verification.ts',
+  'scripts/src/lib/validate-sections.ts',
+  'scripts/src/lib/validate-docs.ts',
+  'scripts/src/lib/validate-structural.ts',
+  'scripts/src/lib/validate-gates.ts',
+  'scripts/src/lib/validate.ts',
 ];
 
 module.exports = [

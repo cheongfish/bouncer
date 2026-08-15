@@ -48,7 +48,14 @@ function isClosedBlueprint(repoRoot, blueprintDirRel) {
     catch {
         return false;
     }
-    return Boolean(data && data.bouncer && data.bouncer.status === 'closed');
+    // YAML은 unknown이다. 예전 `data && data.bouncer && status === 'closed'`와
+    // 같이 falsy·비객체에서 멈추고, 객체일 때만 status를 읽는다.
+    if (!data || typeof data !== 'object')
+        return false;
+    const bouncer = 'bouncer' in data ? data.bouncer : undefined;
+    if (!bouncer || typeof bouncer !== 'object')
+        return false;
+    return 'status' in bouncer && bouncer.status === 'closed';
 }
 function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
     requireNumericId(epicId, 'epicId');
@@ -171,7 +178,8 @@ function scaffoldContextReview({ repoRoot, blueprintDir, timestamp }) {
     // finalize가 잠근 blueprint는 다시 열지 않는다. scaffoldTask와 같은 이유 —
     // 마감된 계획에 판정 문서를 붙이지 않고 새 blueprint를 연다.
     if (isClosedBlueprint(repoRoot, bp)) {
-        throw new Error(`blueprint is closed (finalized): ${bp} — scaffold a new blueprint instead of adding a context-review to this one`);
+        throw new Error('blueprint is closed (finalized): '
+            + `${bp} — scaffold a new blueprint instead of adding a context-review to this one`);
     }
     const rel = `${bp}/context-review.md`;
     if (fs.existsSync(path.join(repoRoot, rel))) {
@@ -198,7 +206,11 @@ function scaffoldExplain({ repoRoot, blueprintDir, timestamp }) {
     if (!epicId || !blueprintId) {
         throw new Error(`cannot derive epic/blueprint ids from ${bp}`);
     }
-    const slug = bp.split('/').pop().replace(new RegExp(`^${blueprintId}-`), '') || 'blueprint';
+    // split은 문자열에서 항상 한 칸 이상이라 pop()이 런타임에 비지 않는다.
+    // 타입만 undefined를 허용하므로 마지막 칸을 직접 집어 동작을 유지한다.
+    const segments = bp.split('/');
+    const leaf = segments[segments.length - 1];
+    const slug = leaf.replace(new RegExp(`^${blueprintId}-`), '') || 'blueprint';
     // 빈 배열: G15는 대상 task 엔트리가 없으면 hash 불일치가 아니라 "기록 없음".
     // 구 단일 객체 기본값은 형식 거절로 바뀌므로 더 이상 쓰지 않는다.
     return [writeRel(repoRoot, explain, bouncerDoc('bouncer.explain', `${blueprintId} explain`, `Explain for ${blueprintId}`, explain, ['bouncer', 'explain'], timestamp, {

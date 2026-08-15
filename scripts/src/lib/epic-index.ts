@@ -1,7 +1,9 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { CONTEXT_ROOT } = require('./layout');
+const { CONTEXT_ROOT } = require('./layout') as { CONTEXT_ROOT: string };
+
+type StructuralFailure = { code: string; message: string; file: string };
 
 const CONTEXT_INDEX_REL = `${CONTEXT_ROOT}/index.md`;
 // init CONTEXT_INDEX와 동일 frontmatter. 파일이 없을 때만 쓰며 기존 index를
@@ -22,7 +24,7 @@ const LEGACY_EPIC_LINK_RE = /\]\(epics\/(EPIC-\d{3}-[^/)]+)\/index\.md\)/g;
 const EPIC_DIR_NAME_RE = /^\d{3}-.+$/;
 const LEGACY_EPIC_DIR_NAME_RE = /^EPIC-\d{3}-.+$/;
 
-function listEpicDirNames(repoRoot) {
+function listEpicDirNames(repoRoot: string): string[] {
   const epicsRoot = path.join(repoRoot, CONTEXT_ROOT, 'epics');
   if (!fs.existsSync(epicsRoot)) return [];
   let names: string[];
@@ -45,7 +47,7 @@ function listEpicDirNames(repoRoot) {
 }
 
 /** 구형 EPIC- 접두 epic 디렉터리 이름. S13 거절 대상. */
-function listLegacyEpicDirNames(repoRoot) {
+function listLegacyEpicDirNames(repoRoot: string): string[] {
   const epicsRoot = path.join(repoRoot, CONTEXT_ROOT, 'epics');
   if (!fs.existsSync(epicsRoot)) return [];
   let names: string[];
@@ -67,27 +69,31 @@ function listLegacyEpicDirNames(repoRoot) {
   return dirs;
 }
 
-function parseIndexEpicDirs(text) {
+function parseIndexEpicDirs(text: string): Set<string> {
   const listed = new Set<string>();
   EPIC_LINK_RE.lastIndex = 0;
-  let m;
+  let m: RegExpExecArray | null;
   while ((m = EPIC_LINK_RE.exec(text)) !== null) {
     listed.add(m[1]);
   }
   return listed;
 }
 
-function parseLegacyIndexEpicDirs(text) {
+function parseLegacyIndexEpicDirs(text: string): Set<string> {
   const listed = new Set<string>();
   LEGACY_EPIC_LINK_RE.lastIndex = 0;
-  let m;
+  let m: RegExpExecArray | null;
   while ((m = LEGACY_EPIC_LINK_RE.exec(text)) !== null) {
     listed.add(m[1]);
   }
   return listed;
 }
 
-function formatEpicIndexLine({ epicId, name, description }) {
+function formatEpicIndexLine({ epicId, name, description }: {
+  epicId: string;
+  name: string;
+  description?: unknown;
+}): string {
   const dirName = `${epicId}-${name}`;
   const desc = typeof description === 'string' && description.trim()
     ? description.trim()
@@ -96,7 +102,12 @@ function formatEpicIndexLine({ epicId, name, description }) {
 }
 
 /** 번들 루트 index에 epic 한 줄을 넣는다. 이미 있으면 no-op. 변경 시 rel 반환. */
-function ensureEpicIndexEntry({ repoRoot, epicId, name, description }) {
+function ensureEpicIndexEntry({ repoRoot, epicId, name, description }: {
+  repoRoot: string;
+  epicId: string;
+  name: string;
+  description?: unknown;
+}): string | null {
   const abs = path.join(repoRoot, CONTEXT_INDEX_REL);
   const dirName = `${epicId}-${name}`;
   let text: string;
@@ -114,8 +125,8 @@ function ensureEpicIndexEntry({ repoRoot, epicId, name, description }) {
 }
 
 /** epic 디렉터리 ↔ `.bouncer/context/index.md` 목록 일치. S13 실패 목록. */
-function checkEpicIndexConsistency({ repoRoot }) {
-  const failures: Array<{ code: string; message: string; file: string }> = [];
+function checkEpicIndexConsistency({ repoRoot }: { repoRoot: string }): StructuralFailure[] {
+  const failures: StructuralFailure[] = [];
   const legacyDirs = listLegacyEpicDirNames(repoRoot);
   for (const d of legacyDirs) {
     failures.push({

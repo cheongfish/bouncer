@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '039'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run verify:strict
   commit_intent:
     - 문서 로딩과 게이트 판정 값이 any라 잘못된 frontmatter와 finding 형태가 타입 경계를 통과하고 있음

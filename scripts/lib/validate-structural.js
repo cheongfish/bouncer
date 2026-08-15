@@ -9,11 +9,6 @@ const { expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, }
 const { parseFrontmatter } = require('./frontmatter');
 const { PROJECT_DISTILL, DISTILL_ROOT } = require('./layout');
 const { DEFAULT_DISTILL_CONFIG, getDistillConfig, readConfig, } = require('./config');
-// 문서 하나(프론트매터)를 보는 S 코드 층. 게이트(G) 판정과 분리해 두면
-// 스키마/id 규칙을 고치는 사람이 checkGate 분기를 같이 읽지 않아도 된다.
-// graph.basis 헬퍼도 여기 둔다 — S9와 G4가 다른 구현을 가지면 같은 필드가
-// 구조 검사와 plan 게이트에서 다른 답을 낸다.
-// validate.ts를 require하지 않는다.
 // graph.basis는 레거시 문자열과 그래프별 엔트리 배열을 모두 받는다.
 // S9(구조)와 G4(plan)가 같은 헬퍼를 써야 두 경로가 다른 답을 내지 않는다.
 const GRAPH_BASIS_STATUS = ['updated', 'reused', 'fail-skip', 'skip-disabled', 'missing'];
@@ -26,13 +21,14 @@ function isValidGraphBasis(basis) {
     for (const entry of basis) {
         if (entry == null || typeof entry !== 'object' || Array.isArray(entry))
             return false;
-        if (!GRAPH_BASIS_GRAPH.includes(entry.graph))
+        const rec = entry;
+        if (!GRAPH_BASIS_GRAPH.includes(rec.graph))
             return false;
-        if (!GRAPH_BASIS_STATUS.includes(entry.status))
+        if (!GRAPH_BASIS_STATUS.includes(rec.status))
             return false;
-        if (typeof entry.query !== 'string' || !entry.query.trim())
+        if (typeof rec.query !== 'string' || !rec.query.trim())
             return false;
-        if (typeof entry.result !== 'string' || !entry.result.trim())
+        if (typeof rec.result !== 'string' || !rec.result.trim())
             return false;
     }
     return true;
@@ -84,7 +80,7 @@ function listDistillFiles(repoRoot) {
     const root = path.join(repoRoot, DISTILL_ROOT);
     try {
         return fs.readdirSync(root, { withFileTypes: true })
-            .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+            .filter((entry) => (entry.isFile() && entry.name.endsWith('.md')))
             .map((entry) => `${DISTILL_ROOT}/${entry.name}`);
     }
     catch (_e) {
@@ -169,23 +165,36 @@ function checkDistillStructural({ repoRoot, config } = {}) {
     if (!declarations || declarations.length === 0 || declarations.some((entry) => !entry)) {
         return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
     }
-    const shards = declarations.map((entry) => readDistillShard(root, entry));
+    const presentDeclarations = [];
+    for (const entry of declarations) {
+        if (!entry) {
+            return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
+        }
+        presentDeclarations.push(entry);
+    }
+    const shards = presentDeclarations.map((entry) => readDistillShard(root, entry));
     // 읽을 수 없는 등록 shard는 distill.ts가 인덱스 요약만 반환하는 폴백
     // 조건이다. 여기서 별도 경고를 내면 같은 저장소를 소비하는 경로마다
     // "샤드 모드" 판정이 달라지므로 진단 대상에서도 제외한다.
-    if (shards.some((entry) => !entry)
-        || new Set(shards.map((entry) => entry.id)).size !== shards.length) {
+    const loaded = [];
+    for (const entry of shards) {
+        if (!entry) {
+            return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
+        }
+        loaded.push(entry);
+    }
+    if (new Set(loaded.map((entry) => entry.id)).size !== loaded.length) {
         return { ok: true, sharded: false, routingEnabled: false, warnings, failures };
     }
-    const registered = new Set(shards.map((entry) => entry.rel));
+    const registered = new Set(loaded.map((entry) => entry.rel));
     for (const rel of listDistillFiles(root)) {
         if (!registered.has(rel)) {
             addDistillWarning(warnings, 'S21', `orphan Distill shard is not registered: ${rel}`, rel);
         }
     }
-    const byId = new Map(shards.map((entry) => [entry.id, entry]));
+    const byId = new Map(loaded.map((entry) => [entry.id, entry]));
     const pullsById = new Map();
-    for (const shard of shards) {
+    for (const shard of loaded) {
         const meta = shard.meta;
         const paths = meta.paths;
         const pulls = meta.pulls;
@@ -245,15 +254,15 @@ function checkDistillStructural({ repoRoot, config } = {}) {
         visiting.delete(id);
         visited.add(id);
     }
-    for (const shard of shards)
+    for (const shard of loaded)
         visit(shard.id);
     const loadedConfig = config === undefined ? readConfig(root) : config;
-    const distillConfig = getDistillConfig(loadedConfig);
-    const sourceDirs = loadedConfig && Array.isArray(loadedConfig.source_dirs)
+    getDistillConfig(loadedConfig);
+    const sourceDirs = isRecord(loadedConfig) && Array.isArray(loadedConfig.source_dirs)
         ? loadedConfig.source_dirs
         : [];
     for (const sourceDir of sourceDirs) {
-        const covered = shards.some((shard) => {
+        const covered = loaded.some((shard) => {
             if (shard.meta.always === true)
                 return true;
             return Array.isArray(shard.meta.paths)
@@ -324,34 +333,36 @@ function expectedTypeForPath(rel) {
 function checkStructural(doc, failures) {
     const { data, rel } = doc;
     const add = (code, message) => failures.push({ code, message, file: rel });
+    const rec = data;
     const legacy = detectLegacyFormat({ data });
     if (legacy.legacy) {
         add('S2', legacy.reason);
         return;
     }
     for (const f of OKF_REQUIRED) {
-        const v = data[f];
+        const v = rec[f];
         if (v === undefined || v === null || v === '')
             add('S1', `OKF field missing: ${f}`);
     }
-    if (!TYPES.includes(data.type)) {
-        add('S2', `unknown type: ${data.type}`);
+    if (!TYPES.includes(rec.type)) {
+        add('S2', `unknown type: ${rec.type}`);
         return; // type에 의존하는 검사는 진행할 수 없음
     }
+    const docType = rec.type;
     // S19: 알려진 type만 위치와 대조. 기대값이 null이면 위치 규칙이 없는 경로.
     const expectedType = expectedTypeForPath(rel);
-    if (expectedType && data.type !== expectedType) {
-        add('S19', `type ${data.type} does not match expected ${expectedType} for path`);
+    if (expectedType && rec.type !== expectedType) {
+        add('S19', `type ${rec.type} does not match expected ${expectedType} for path`);
     }
-    if (data.resource !== rel) {
-        add('S3', `resource path mismatch: ${data.resource} != ${rel}`);
+    if (rec.resource !== rel) {
+        add('S3', `resource path mismatch: ${rec.resource} != ${rel}`);
     }
-    const bouncer = data.bouncer || {};
-    const prefix = ID_PREFIX[data.type];
+    const bouncer = (rec.bouncer || {});
+    const prefix = ID_PREFIX[docType];
     // migration 이후에는 검증기가 구형 접두를 보정하지 않는다. 정본 형태가 아니면
     // S4/S5에서 그대로 거절해 일부만 migrate된 저장소가 통과하지 못하게 한다.
     const id = bouncer.id;
-    if (data.type === 'bouncer.epic' || data.type === 'bouncer.blueprint') {
+    if (docType === 'bouncer.epic' || docType === 'bouncer.blueprint') {
         if (!isNumericContextId(id)) {
             add('S4', `id "${bouncer.id}" must be a zero-padded three-digit id`);
         }
@@ -365,7 +376,7 @@ function checkStructural(doc, failures) {
     if (parsed.epicId && bouncer.epic_id !== parsed.epicId) {
         add('S5', `epic_id ${bouncer.epic_id} != path ${parsed.epicId}`);
     }
-    if (data.type !== 'bouncer.epic'
+    if (docType !== 'bouncer.epic'
         && parsed.blueprintId
         && bouncer.blueprint_id !== parsed.blueprintId) {
         add('S5', `blueprint_id ${bouncer.blueprint_id} != path ${parsed.blueprintId}`);
@@ -376,18 +387,18 @@ function checkStructural(doc, failures) {
     const dirDigitsMatch = /\/tasks\/(\d{3})\//.exec(toPosix(rel));
     if (dirDigitsMatch) {
         const ids = expectedTaskDocIds(dirDigitsMatch[1]);
-        if (data.type === 'bouncer.tasks')
+        if (docType === 'bouncer.tasks')
             expectedId = ids.tasks;
-        else if (data.type === 'bouncer.verification')
+        else if (docType === 'bouncer.verification')
             expectedId = ids.verification;
-        else if (data.type === 'bouncer.review')
+        else if (docType === 'bouncer.review')
             expectedId = ids.review;
     }
-    else if (data.type === 'bouncer.epic')
+    else if (docType === 'bouncer.epic')
         expectedId = parsed.epicId;
-    else if (data.type === 'bouncer.blueprint')
+    else if (docType === 'bouncer.blueprint')
         expectedId = parsed.blueprintId;
-    else if (data.type === 'bouncer.tasks') {
+    else if (docType === 'bouncer.tasks') {
         // task id는 파일 이름에서 유도 — 레거시는 blueprint id, 번호 문서는 NNN.
         expectedId = expectedTasksId(path.posix.basename(rel), parsed.blueprintId);
     }
@@ -396,22 +407,23 @@ function checkStructural(doc, failures) {
     if (expectedId && bouncer.id !== expectedId) {
         add('S5', `id ${bouncer.id} != expected ${expectedId} from path`);
     }
-    if (!(STATUS_ENUM[data.type] || []).includes(bouncer.status)) {
-        add('S6', `status "${bouncer.status}" not in enum for ${data.type}`);
+    if (!(STATUS_ENUM[docType] || []).includes(bouncer.status)) {
+        add('S6', `status "${bouncer.status}" not in enum for ${docType}`);
     }
     // S20: blueprint만. 부재는 0.7 문서 통과용으로 허용; 잘못된 값만 거절.
-    if (data.type === 'bouncer.blueprint'
+    if (docType === 'bouncer.blueprint'
         && bouncer.scale !== undefined
         && !SCALE_ENUM.includes(bouncer.scale)) {
-        add('S20', `scale "${bouncer.scale}" not in enum for ${data.type}`);
+        add('S20', `scale "${bouncer.scale}" not in enum for ${docType}`);
     }
-    if (data.type === 'bouncer.tasks') {
+    if (docType === 'bouncer.tasks') {
         const ap = bouncer.affected_paths;
         if (!Array.isArray(ap) || ap.length === 0) {
             add('S7', 'tasks.affected_paths missing or empty');
         }
         if (bouncer.graph != null) {
-            if (!isValidGraphBasis(bouncer.graph.basis)) {
+            const graph = bouncer.graph;
+            if (!isValidGraphBasis(graph.basis)) {
                 add('S9', 'tasks.graph.basis missing or empty');
             }
         }

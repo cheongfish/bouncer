@@ -7,10 +7,11 @@ const { readDoc } = require('./frontmatter');
 const { epicDirOf, toPosix } = require('./paths');
 const { entriesForVerify } = require('./verification');
 const { listTasksDocs, TASK_UNIT_BASENAMES, } = require('./tasks-docs');
-// 디스크에서 blueprint 문서를 모아 오는 층. 파싱 실패는 여기서 S0으로만 쌓고
-// 게이트 판정은 하지 않는다 — 로드와 판정을 한 파일에 두면 G13이 verification을
-// 다시 쓴 뒤의 문서를 읽는지, 쓰기 전의 문서를 읽는지 추적하기 어렵다.
-// validate.ts를 require하지 않는다(validate → docs 한 방향).
+function errorMessage(error) {
+    // catch 값은 unknown이다. 예전 e.message 접근을 유지해 primitive throw의
+    // 메시지는 undefined, null throw는 TypeError가 나게 둔다.
+    return error.message;
+}
 /**
  * commit 게이트 G17용 스테이징 목록. throw하지 않는다 —
  * git 실패·비저장소는 { ok:false }로 올려 게이트가 G17로 보고하게 한다.
@@ -24,7 +25,9 @@ function defaultStagedFiles({ repoRoot }) {
         return { ok: true, files: String(out).split('\n').filter(Boolean) };
     }
     catch (e) {
-        const reason = e && e.message ? e.message : 'git-failed';
+        const reason = typeof e === 'object' && e !== null && 'message' in e && e.message
+            ? String(e.message)
+            : 'git-failed';
         return { ok: false, reason };
     }
 }
@@ -41,7 +44,7 @@ function readOptionalLeaf(repoRoot, rel, parseErrors) {
         return { data, body, rel };
     }
     catch (e) {
-        parseErrors.push({ code: 'S0', message: e.message, file: rel });
+        parseErrors.push({ code: 'S0', message: errorMessage(e), file: rel });
         return undefined;
     }
 }
@@ -66,7 +69,10 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
     };
     const docs = {};
     const parseErrors = [];
-    for (const key of ['epicIndex', 'blueprintIndex', 'verification', 'review', 'explain', 'contextReview']) {
+    const optionalKeys = [
+        'epicIndex', 'blueprintIndex', 'verification', 'review', 'explain', 'contextReview',
+    ];
+    for (const key of optionalKeys) {
         const rel = rels[key];
         const abs = path.join(repoRoot, rel);
         if (fs.existsSync(abs)) {
@@ -75,7 +81,7 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
                 docs[key] = { data, body, rel };
             }
             catch (e) {
-                parseErrors.push({ code: 'S0', message: e.message, file: rel });
+                parseErrors.push({ code: 'S0', message: errorMessage(e), file: rel });
             }
         }
     }
@@ -89,7 +95,7 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
             tasksDocs.push({ data, body, rel: entry.rel });
         }
         catch (e) {
-            parseErrors.push({ code: 'S0', message: e.message, file: entry.rel });
+            parseErrors.push({ code: 'S0', message: errorMessage(e), file: entry.rel });
         }
     }
     if (tasksDocs.length > 0) {
@@ -147,8 +153,11 @@ function resolveTaskUnit(docs, { repoRoot, blueprintDir } = {}) {
 }
 /** 파일이 없을 때도 실패 file 경로를 묶음 안으로 고정한다. */
 function unitLeafRel(unit, leaf, fallbackRel) {
-    if (unit && unit[leaf] && unit[leaf].rel)
-        return unit[leaf].rel;
+    if (unit && leaf in unit) {
+        const leafDoc = unit[leaf];
+        if (leafDoc && leafDoc.rel)
+            return leafDoc.rel;
+    }
     if (unit && unit.dir) {
         const idx = ['tasks', 'verification', 'review'].indexOf(leaf);
         if (idx >= 0)
@@ -169,7 +178,11 @@ function blueprintDocsExist({ repoRoot, blueprintDir }) {
 // 문서·bouncer 부재는 throw가 아니라 undefined. 호출자가 enum 문자열과
 // 비교하므로, 없는 문서는 자연히 status 검사에서 실패한다.
 function statusOf(doc) {
-    return doc && doc.data && doc.data.bouncer ? doc.data.bouncer.status : undefined;
+    if (!doc)
+        return undefined;
+    const data = doc.data;
+    const bouncer = data && data.bouncer;
+    return bouncer ? bouncer.status : undefined;
 }
 module.exports = {
     defaultStagedFiles,

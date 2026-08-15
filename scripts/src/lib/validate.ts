@@ -1,21 +1,80 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { detectLegacyFormat } = require('./schema');
-const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
-const { toPosix } = require('./paths');
+const { detectLegacyFormat } = require('./schema') as {
+  detectLegacyFormat: (opts?: { repoRoot?: unknown; data?: unknown }) => {
+    legacy: boolean;
+    reason: string;
+  };
+};
+const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout') as {
+  CONTEXT_ROOT: string;
+  isCanonicalBlueprintDir: (value: unknown) => boolean;
+};
+const { toPosix } = require('./paths') as {
+  toPosix: (p: unknown) => string;
+};
 const {
   runVerification, entriesForVerify,
-} = require('./verification');
-const { checkEpicIndexConsistency } = require('./epic-index');
+} = require('./verification') as {
+  runVerification: (opts: { repoRoot: string; blueprintDir: string }) => {
+    ok: boolean;
+    exitCode: number;
+    command?: string;
+  };
+  entriesForVerify: (repoRoot: string, blueprintDir: string) => Array<{
+    verification?: { rel?: string };
+  }>;
+};
+const { checkEpicIndexConsistency } = require('./epic-index') as {
+  checkEpicIndexConsistency: (opts: { repoRoot: string }) => FailureEntry[];
+};
 const {
   loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf,
-} = require('./validate-docs');
-const { checkStructural, checkDistillStructural } = require('./validate-structural');
-const { checkGate } = require('./validate-gates');
+} = require('./validate-docs') as {
+  loadBlueprintDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
+    docs: BlueprintDocs;
+    rels: BlueprintRels;
+    parseErrors: FailureEntry[];
+    tasksListing?: {
+      legacyFiles?: string[];
+      invalidDirs?: string[];
+      entries?: Array<{
+        number: number | null;
+        tasks: { rel: string };
+        verification: { rel: string };
+        review: { rel: string };
+        [leaf: string]: unknown;
+      }>;
+    };
+  };
+  resolveTaskUnit: (docs: BlueprintDocs, opts?: {
+    repoRoot?: string;
+    blueprintDir?: string;
+  }) => TaskUnit | null;
+  blueprintDocsExist: (opts: { repoRoot: string; blueprintDir: string }) => boolean;
+  statusOf: (doc: DocLeaf | undefined | null) => unknown;
+};
+const { checkStructural, checkDistillStructural } = require('./validate-structural') as {
+  checkStructural: (doc: unknown, failures: FailureEntry[]) => void;
+  checkDistillStructural: (opts: { repoRoot: string }) => { failures: FailureEntry[] };
+};
+const { checkGate } = require('./validate-gates') as {
+  checkGate: (
+    gate: string,
+    docs: BlueprintDocs,
+    rels: BlueprintRels,
+    failures: FailureEntry[],
+    ctx: GateContext,
+  ) => void;
+};
 const {
   parseTasksSections, parseSections, extractPathCandidates,
-} = require('./validate-sections');
+} = require('./validate-sections') as {
+  parseTasksSections: (body: unknown) => Record<string, string | null>;
+  parseSections: (body: unknown, defs: unknown) => Record<string, string | null>;
+  extractPathCandidates: (text: unknown) => string[];
+};
 
 // 오케스트레이션 + 공개 배럴. validateBlueprint는 이 파일에 남긴다 —
 // 함수 안의 레거시 `.sdd` 문자열이 public-name-regression allowlist에
@@ -23,7 +82,52 @@ const {
 // 게이트/구조/로드/파싱 구현은 형제 모듈. 순환을 만들지 않기 위해
 // 형제들은 이 파일을 require하지 않는다.
 
-function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
+type FailureEntry = { code: string; message: string; file: string };
+type DocLeaf = { data: unknown; body: string; rel: string };
+type TaskUnit = {
+  number: number | null;
+  dir: string | null;
+  tasks?: DocLeaf;
+  verification?: DocLeaf;
+  review?: DocLeaf;
+};
+type BlueprintRels = {
+  epicIndex: string;
+  blueprintIndex: string;
+  tasks: string;
+  verification: string;
+  review: string;
+  explain: string;
+  contextReview: string;
+};
+type BlueprintDocs = {
+  epicIndex?: DocLeaf;
+  blueprintIndex?: DocLeaf;
+  verification?: DocLeaf;
+  review?: DocLeaf;
+  explain?: DocLeaf;
+  contextReview?: DocLeaf;
+  tasks?: DocLeaf;
+  tasksDocs?: DocLeaf[];
+  taskUnits?: TaskUnit[];
+};
+type GateContext = {
+  repoRoot?: string;
+  blueprintDir?: string;
+  deps?: unknown;
+  taskUnit?: TaskUnit | null;
+};
+
+function catchMessage(error: unknown): unknown {
+  return (error as { message: unknown }).message;
+}
+
+function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
+  repoRoot: string;
+  blueprintDir: string;
+  gate?: string;
+  deps?: unknown;
+}): { ok: boolean; failures: FailureEntry[] } {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     return {
       ok: false,
@@ -39,7 +143,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
   if (legacyRepo.legacy) {
     return {
       ok: false,
-      failures: [{ code: 'S2', message: legacyRepo.reason, file: '.sdd' }],
+      failures: [{ code: 'S2', message: legacyRepo.reason as string, file: '.sdd' }],
     };
   }
 
@@ -59,7 +163,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     };
   }
 
-  const executionFailures = [];
+  const executionFailures: FailureEntry[] = [];
   if (gate === 'execute') {
     // G13 file은 포인터 대상 묶음의 verification 경로. 루트 고정 경로를 쓰면
     // tasks/<NNN>/ 레이아웃에서 실패 위치가 엉킨다.
@@ -80,7 +184,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     } catch (error) {
       executionFailures.push({
         code: 'G13',
-        message: error.message,
+        message: catchMessage(error) as string,
         file: verificationFile,
       });
     }
@@ -99,18 +203,34 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
   // 적용할지 모호해지므로 구조 단계에서 거절한다.
   if (tasksListing && tasksListing.legacyFiles && tasksListing.legacyFiles.length) {
     failures.push({
-      code: 'S15', message: `legacy task layout remains: ${tasksListing.legacyFiles.join(', ')}; run bouncer migrate task-layout`, file: toPosix(blueprintDir),
+      code: 'S15',
+      message: `legacy task layout remains: ${tasksListing.legacyFiles.join(', ')}; run bouncer migrate task-layout`,
+      file: toPosix(blueprintDir),
     });
   }
-  for (const name of (tasksListing && tasksListing.invalidDirs) || []) failures.push({ code: 'S16', message: `non-canonical task directory: tasks/${name}`, file: `${toPosix(blueprintDir)}/tasks/${name}` });
-  for (const entry of (tasksListing && tasksListing.entries) || []) for (const leaf of ['tasks', 'verification', 'review']) {
-    const rel = entry[leaf].rel;
-    if (!fs.existsSync(path.join(repoRoot, rel))) failures.push({ code: 'S17', message: `task unit ${entry.number} missing ${path.posix.basename(rel)}`, file: rel });
+  for (const name of (tasksListing && tasksListing.invalidDirs) || []) {
+    failures.push({
+      code: 'S16',
+      message: `non-canonical task directory: tasks/${name}`,
+      file: `${toPosix(blueprintDir)}/tasks/${name}`,
+    });
+  }
+  for (const entry of (tasksListing && tasksListing.entries) || []) {
+    for (const leaf of ['tasks', 'verification', 'review'] as const) {
+      const rel = (entry[leaf] as { rel: string }).rel;
+      if (!fs.existsSync(path.join(repoRoot, rel))) {
+        failures.push({
+          code: 'S17',
+          message: `task unit ${entry.number} missing ${path.posix.basename(rel)}`,
+          file: rel,
+        });
+      }
+    }
   }
 
   const anyLeaf = (docs.tasksDocs && docs.tasksDocs.length > 0)
     || (docs.taskUnits && docs.taskUnits.length > 0)
-    || ['verification', 'review', 'explain'].some((k) => docs[k]);
+    || ['verification', 'review', 'explain'].some((k) => docs[k as keyof BlueprintDocs]);
   if (anyLeaf && !docs.blueprintIndex) {
     failures.push({ code: 'S8', message: 'blueprint index.md absent', file: rels.blueprintIndex });
   }
@@ -122,11 +242,11 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
   // 번호 tasks가 루트 verification/review를 공유하면 같은 rel을 두 번
   // 검사하지 않는다. unit leaf에서 못 본 루트 파일은 그대로 검사한다
   // (task-dir 레이아웃에 남은 고아 루트 증적/리뷰).
-  const unitSeenRels = new Set();
-  for (const key of Object.keys(docs)) {
+  const unitSeenRels = new Set<string>();
+  for (const key of Object.keys(docs) as Array<keyof BlueprintDocs>) {
     if (key === 'taskUnits') {
-      for (const unit of docs.taskUnits) {
-        for (const leaf of ['tasks', 'verification', 'review']) {
+      for (const unit of docs.taskUnits || []) {
+        for (const leaf of ['tasks', 'verification', 'review'] as const) {
           const leafDoc = unit[leaf];
           if (!leafDoc || unitSeenRels.has(leafDoc.rel)) continue;
           unitSeenRels.add(leafDoc.rel);
@@ -138,7 +258,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     if (key === 'tasksDocs') {
       // taskUnits가 있으면 tasks leaf는 그쪽에서 이미 검사함.
       if (hasTaskUnits) continue;
-      for (const td of docs.tasksDocs) checkStructural(td, failures);
+      for (const td of docs.tasksDocs || []) checkStructural(td, failures);
       continue;
     }
     // tasksDocs/taskUnits가 있으면 docs.tasks는 그 첫 항목이라 중복 검사하지 않는다.
