@@ -11,12 +11,36 @@ bouncer:
   id: VERIFY-003
   epic_id: '039'
   blueprint_id: '001'
-  status: pending
+  status: passed
+  verification:
+    command: npm run verify:strict
+    ran_at: '2026-08-15T16:48:56.092+09:00'
+    exit_code: 0
+    output_tail: |-
+      ✔ readVerifyCommand narrows to the pointer task document (12.186324ms)
+      ✔ runVerification records evidence into the pointer tasks/002 unit only (7.142996ms)
+      ✔ runVerification rejects missing unit verification.md without creating it (6.295925ms)
+      ℹ tests 676
+      ℹ suites 0
+      ℹ pass 676
+      ℹ fail 0
+      ℹ cancelled 0
+      ℹ skipped 0
+      ℹ todo 0
+      ℹ duration_ms 679.650797
+
+      > bouncer@0.8.4 typecheck:strict
+      > tsc --project tsconfig.strict.json
+
+
+      > bouncer@0.8.4 lint
+      > eslint .
 ---
 # Verification
 
 ## Command
-<command>
+`npm run verify:strict`
 
 ## Evidence
-<result>
+Ran at: 2026-08-15T16:48:56.092+09:00
+Exit code: 0

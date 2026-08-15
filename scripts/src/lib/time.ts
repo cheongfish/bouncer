@@ -1,7 +1,7 @@
 'use strict';
 
 /** 고정 KST 오프셋(Asia/Seoul, DST 없음)으로 instant를 ISO-8601 형식으로 포맷한다. */
-function nowIsoKst(date = new Date()) {
+function nowIsoKst(date: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
@@ -12,7 +12,7 @@ function nowIsoKst(date = new Date()) {
     second: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(date);
-  const get = (type) => {
+  const get = (type: Intl.DateTimeFormatPartTypes): string => {
     const part = parts.find((p) => p.type === type);
     return part ? part.value : '00';
   };

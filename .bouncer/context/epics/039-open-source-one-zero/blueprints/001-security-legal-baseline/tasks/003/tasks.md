@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '039'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run verify:strict
   commit_intent:
     - 경로·문서·설정 기반 모듈의 암시적 any가 상위 모듈 전체로 전파되어 strict 전환을 막고 있음

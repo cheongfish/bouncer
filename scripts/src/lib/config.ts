@@ -8,25 +8,41 @@ type ConfigResult =
   | { ok: true; value: unknown }
   | { ok: false; reason: ConfigFailReason };
 
+type DistillSettings = {
+  routing_enabled: boolean;
+  max_bytes: number;
+};
+
 // 샤드 설정은 opt-in 경로의 안전장치다. 기존 저장소에는 distill 키가 없을
 // 수 있으므로 읽기 함수의 null/shape 계약을 바꾸지 않고, init과 구조 검사만
 // 이 기본값을 사용한다. max_bytes는 하드 상한이 아니라 운영자가 분배를
 // 검토할 때 쓰는 경고 기준이며, 본문 소비를 잘라내는 값이 아니다.
-const DEFAULT_DISTILL_CONFIG = {
+const DEFAULT_DISTILL_CONFIG: DistillSettings = {
   routing_enabled: false,
   max_bytes: 64 * 1024,
 };
 
-function getDistillConfig(config: any = {}) {
-  const value = config
-    && typeof config === 'object'
-    && !Array.isArray(config)
-    && config.distill
-    && typeof config.distill === 'object'
-    && !Array.isArray(config.distill)
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getDistillConfig(config: unknown = {}): DistillSettings {
+  const value = isRecord(config)
+    && isRecord(config.distill)
     ? config.distill
     : {};
+  // 추가 키를 검증하지 않는다. 예전에는 객체를 그대로 spread했고, 여기서
+  // boolean/number만 남기면 호출자가 넣어 둔 확장 필드가 사라진다.
   return { ...DEFAULT_DISTILL_CONFIG, ...value };
+}
+
+function isEnoentError(error: unknown): boolean {
+  // catch 변수는 strict에서 unknown이다. code를 읽기 전에 객체인지 좁히지
+  // 않으면 권한 오류와 파일 부재를 같은 분기로 합치게 된다.
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ENOENT';
 }
 
 /**
@@ -50,20 +66,23 @@ function readConfigResult(repoRoot: string): ConfigResult {
   } catch (error) {
     // ENOENT만 "아직 없다". EACCES 등을 missing으로 합치면 verification이
     // 권한 문제를 파일 부재로 안내한다.
-    if (error && error.code === 'ENOENT') {
+    if (isEnoentError(error)) {
       return { ok: false, reason: 'missing' };
     }
     return { ok: false, reason: 'invalid' };
   }
   try {
-    return { ok: true, value: JSON.parse(raw) };
+    // JSON.parse의 선언 반환은 any라, 바로 객체로 쓰면 이후 모듈이 any를
+    // 전파한다. 형태 검사는 호출자 몫이므로 unknown으로만 고정한다.
+    const value: unknown = JSON.parse(raw);
+    return { ok: true, value };
   } catch (_e) {
     // 파일이 있는 상태에서 깨진 것 — missing이 아니다.
     return { ok: false, reason: 'invalid' };
   }
 }
 
-function readConfig(repoRoot: string) {
+function readConfig(repoRoot: string): unknown {
   const result = readConfigResult(repoRoot);
   // 실패를 null로 접는다. {} 는 넣지 않는다 — 호출자가 부재와 빈 설정을
   // 같게 볼지 정한다 (cli·subagents는 ?? {}, session-graph·graphify는 null).

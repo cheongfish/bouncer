@@ -2,8 +2,11 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const { epicDirOf, toPosix } = require('./paths');
-const { readShards } = require('./distill');
 const { CONTEXT_ROOT, PROJECT_DISTILL, DISTILL_SHARD_DIR } = require('./layout');
+// distill.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
+// 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
+// 런타임 경로는 동일하고, 반환 형태만 이 소비 지점이 쓰는 필드에 맞춘다.
+const { readShards } = require('./distill');
 function isUnder(file, entry) {
     const f = toPosix(file);
     const e = toPosix(entry);
@@ -30,7 +33,10 @@ function registeredDistillShardPaths(repoRoot) {
     const state = readShards({ repoRoot });
     if (!state.sharded || !state.valid)
         return new Set();
-    return new Set(state.shards
+    // shards는 이 모듈군 밖에서 오므로 원소 형태를 여기서만 읽는다. 배열이
+    // 아니면 예전처럼 .map에서 실패하게 두어 호출 계약을 바꾸지 않는다.
+    const shards = state.shards;
+    return new Set(shards
         .map((shard) => shard && shard.path)
         .filter((rel) => (typeof rel === 'string'
         && new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(toPosix(rel)))));

@@ -24,14 +24,17 @@
     "setup": "git config commit.template .gitmessage && git config core.hooksPath .githooks && echo \"commit.template and core.hooksPath set — git commit (without -m) opens the team template; pre-commit runs lint and the scripts/lib emit check\"",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "typecheck:strict": "tsc --project tsconfig.strict.json",
     "pretest": "npm run build",
-    "verify:security": "npm test && npm audit --audit-level=high"
+    "verify:security": "npm test && npm audit --audit-level=high",
+    "verify:strict": "npm test && npm run typecheck:strict && npm run lint"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.2",
     "eslint": "^10.8.0",
     "js-yaml": "^4.3.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.67.0"
   }
 }

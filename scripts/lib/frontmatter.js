@@ -9,7 +9,10 @@ function parseFrontmatter(markdown) {
     if (!match) {
         throw new Error('missing frontmatter block');
     }
-    const data = yaml.load(match[1]) || {};
+    // yaml.load는 스칼라·배열·객체를 모두 돌려줄 수 있다. 객체로 좁히면
+    // 기존 `|| {}` 폴백(falsy만 빈 객체)과 달라져 게이트 입력이 바뀐다.
+    const loaded = yaml.load(match[1]);
+    const data = loaded || {};
     return { data, body: match[2] };
 }
 function readDoc(absPath) {

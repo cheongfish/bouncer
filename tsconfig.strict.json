@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true
+  },
+  "include": [
+    "scripts/src/lib/config.ts",
+    "scripts/src/lib/frontmatter.ts",
+    "scripts/src/lib/render.ts",
+    "scripts/src/lib/time.ts",
+    "scripts/src/lib/templates.ts",
+    "scripts/src/lib/tasks-docs.ts",
+    "scripts/src/lib/paths.ts",
+    "scripts/src/lib/layout.ts",
+    "scripts/src/lib/scope.ts",
+    "scripts/src/lib/subagents.ts"
+  ]
+}

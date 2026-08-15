@@ -1,6 +1,9 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const { readConfig } = require('./config');
+function isRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 /**
  * provider 해석 순서(먼저 맞는 것이 이김):
  *   1. 명시적 `provider` 인자(skill override)
@@ -20,7 +23,8 @@ function resolveProvider(config, providerArg) {
     if (typeof providerArg === 'string' && providerArg.length > 0) {
         return providerArg;
     }
-    const pinned = config && config.subagents && config.subagents.provider;
+    const subagents = isRecord(config) ? config.subagents : undefined;
+    const pinned = isRecord(subagents) ? subagents.provider : undefined;
     if (typeof pinned === 'string' && pinned.length > 0) {
         return pinned;
     }
@@ -47,11 +51,14 @@ function resolveSubagentModel({ repoRoot, agentName, provider: providerArg, } = 
     if (!provider) {
         return { model: null, provider: null };
     }
-    const block = config && config.subagents && config.subagents[provider];
+    const subagents = isRecord(config) ? config.subagents : undefined;
+    const block = isRecord(subagents) ? subagents[provider] : undefined;
     if (!block || typeof block !== 'object') {
         return { model: null, provider };
     }
-    const value = block[agentName];
+    // agentName이 빠지면 예전 `block[undefined]`와 같이 키 'undefined'를 본다.
+    // 배열도 typeof object라 통과시켜, 인덱스 키 조회를 객체만 받도록 바꾸지 않는다.
+    const value = block[`${agentName}`];
     // 'inherit'은 "부모 세션 model 사용"을 위한 문서화된 sentinel이다.
     // 비문자열(숫자, 객체, null)도 동일하게 취급 — 절대 throw하지 않음.
     if (typeof value !== 'string' || value.length === 0 || value === 'inherit') {

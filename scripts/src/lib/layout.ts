@@ -20,15 +20,15 @@ const EPIC_DIR = /^\.bouncer\/context\/epics\/\d{3}-[^/]+$/;
 const BLUEPRINT_DIR =
   /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+$/;
 
-function normalizeRepoPath(value) {
+function normalizeRepoPath(value: unknown): string {
   return toPosix(value);
 }
 
-function isCanonicalEpicDir(value) {
+function isCanonicalEpicDir(value: unknown): boolean {
   return EPIC_DIR.test(normalizeRepoPath(value));
 }
 
-function isCanonicalBlueprintDir(value) {
+function isCanonicalBlueprintDir(value: unknown): boolean {
   return BLUEPRINT_DIR.test(normalizeRepoPath(value));
 }
 

@@ -1,6 +1,10 @@
 'use strict';
 const { readConfig } = require('./config');
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * provider 해석 순서(먼저 맞는 것이 이김):
  *   1. 명시적 `provider` 인자(skill override)
@@ -16,11 +20,12 @@ const { readConfig } = require('./config');
  * Antigravity도 plugin-root 환경 변수를 내보내지 않으므로 env 표에 분기를
  * 추가하지 않는다 — `subagents.provider: "antigravity"` 명시 pin만 허용.
  */
-function resolveProvider(config, providerArg) {
+function resolveProvider(config: unknown, providerArg: unknown): string | null {
   if (typeof providerArg === 'string' && providerArg.length > 0) {
     return providerArg;
   }
-  const pinned = config && config.subagents && config.subagents.provider;
+  const subagents = isRecord(config) ? config.subagents : undefined;
+  const pinned = isRecord(subagents) ? subagents.provider : undefined;
   if (typeof pinned === 'string' && pinned.length > 0) {
     return pinned;
   }
@@ -28,6 +33,11 @@ function resolveProvider(config, providerArg) {
   if (process.env.PLUGIN_ROOT) return 'codex';
   return null;
 }
+
+type SubagentModelResult = {
+  model: string | null;
+  provider: string | null;
+};
 
 /**
  * 활성 호스트용 named-agent model slug를 조회한다.
@@ -45,22 +55,25 @@ function resolveSubagentModel({
   repoRoot?: string;
   agentName?: string;
   provider?: string;
-} = {}) {
+} = {}): SubagentModelResult {
   // 부재·깨진 JSON은 null. ?? {}로 받아야 resolveProvider가 throw 없이
   // inherit fallback({ model: null })으로 수렴한다. session-graph는 null을
   // 구분하지만 이쪽은 "설정 없음 = 빈 설정"이 안전하다.
-  const config = readConfig(repoRoot) ?? {};
+  const config = readConfig(repoRoot as string) ?? {};
   const provider = resolveProvider(config, providerArg);
   if (!provider) {
     return { model: null, provider: null };
   }
 
-  const block = config && config.subagents && config.subagents[provider];
+  const subagents = isRecord(config) ? config.subagents : undefined;
+  const block = isRecord(subagents) ? subagents[provider] : undefined;
   if (!block || typeof block !== 'object') {
     return { model: null, provider };
   }
 
-  const value = block[agentName];
+  // agentName이 빠지면 예전 `block[undefined]`와 같이 키 'undefined'를 본다.
+  // 배열도 typeof object라 통과시켜, 인덱스 키 조회를 객체만 받도록 바꾸지 않는다.
+  const value = (block as Record<string, unknown>)[`${agentName}`];
   // 'inherit'은 "부모 세션 model 사용"을 위한 문서화된 sentinel이다.
   // 비문자열(숫자, 객체, null)도 동일하게 취급 — 절대 throw하지 않음.
   if (typeof value !== 'string' || value.length === 0 || value === 'inherit') {
