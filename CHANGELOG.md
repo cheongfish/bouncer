@@ -7,6 +7,33 @@
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-15
+
+0.8.4 이후 Distill 샤딩·승격 동의·checkout base 정렬, 그리고 공개 보안·품질
+기반(EPIC-036–039 BP001).
+
+### Added
+
+- **Distill 경로 샤딩 (EPIC-036)** — Project Distill을 경로 글롭·`pulls` 의존
+  샤드로 나누고, `bouncer distill`이 선택 로드·전량 폴백·구조 검사를 담당한다.
+- **승격 제안·단일 동의 (EPIC-037)** — `/bouncer-finalize`가 Distill 승격
+  후보를 한 목록으로 제시하고, 목록 전체에 한 번 동의한 뒤에만 쓴다.
+  `bouncer distill --all --json`이 샤드 인벤토리를 노출한다.
+
+### Changed
+
+- **Distill base = 현재 checkout (EPIC-038)** — 승격 쓰기와 finalize 커밋이
+  같은 checkout을 쓰도록 Distill base 해석을 CLI에 모은다. plan/execute/run
+  읽기는 계속 main worktree(`bouncer project-root`)다.
+- **공개 기반 차단선 (EPIC-039 BP001)** — Apache-2.0·`SECURITY.md`·CoC,
+  런타임 `js-yaml` 벤더 취약점 제거, TypeScript `strict`+lint, GitHub/GitLab
+  공통 `npm run ci`(emit·coverage·audit 포함).
+
+### Fixed
+
+- Distill 승격 base가 execute worktree와 main worktree 사이에서 어긋나
+  remainder 커밋·PR에서 빠지던 경로를 막는다.
+
 ## [0.8.4] — 2026-08-14
 
 0.8.3 이후 scripts 코어 모듈 분해와 Distill 이름 회귀 수정(EPIC-035).
