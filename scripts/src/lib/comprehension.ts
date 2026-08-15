@@ -19,7 +19,10 @@ const EXPLAIN_SECTION_DEFS = [
   'understanding',
 ];
 
-function defaultExec(repoRoot, args) {
+type GitExecResult = { status: number; stdout: string; stderr: string };
+type GitExec = (args: string[]) => GitExecResult;
+
+function defaultExec(repoRoot: string, args: string[]): GitExecResult {
   const r = spawnSync('git', args, {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -33,7 +36,7 @@ function defaultExec(repoRoot, args) {
   };
 }
 
-function isExcluded(relPath) {
+function isExcluded(relPath: unknown): boolean {
   const p = String(relPath).split('\\').join('/');
   return DIFF_EXCLUDED_PREFIXES.some(
     (prefix) => p === prefix.slice(0, -1) || p.startsWith(prefix),
@@ -44,14 +47,19 @@ function isExcluded(relPath) {
  * governance 문서를 제외한 `base`와 HEAD 사이 변경 경로의 fingerprint.
  * 절대 throw하지 않으며, 모든 실패는 `{ ok: false, reason }`이다.
  *
- * @param {{ repoRoot: string, base: string, exec?: (args: string[]) => { status: number, stdout: string, stderr: string } }} opts
+ * @param {{ repoRoot: string, base: string,
+ *   exec?: (args: string[]) => { status: number, stdout: string, stderr: string } }} opts
  * @returns {{ ok: true, sha: string } | { ok: false, reason: 'no-base' | 'not-a-repo' | 'exec-failed' }}
  */
-function computeDiffSha({ repoRoot, base, exec }) {
+function computeDiffSha({ repoRoot, base, exec }: {
+  repoRoot: string;
+  base: string;
+  exec?: GitExec;
+}): { ok: true; sha: string } | { ok: false; reason: 'no-base' | 'not-a-repo' | 'exec-failed' } {
   // 주입된 exec는 `git` 뒤 argv만 받는다; 기본값은 repoRoot에 바인딩.
   const run = typeof exec === 'function'
     ? exec
-    : (args) => defaultExec(repoRoot, args);
+    : (args: string[]) => defaultExec(repoRoot, args);
 
   try {
     const inside = run(['rev-parse', '--is-inside-work-tree']);
@@ -97,7 +105,9 @@ function computeDiffSha({ repoRoot, base, exec }) {
  * @returns {{ ok: true, entry: object }
  *   | { ok: false, reason: 'not-a-list' | 'missing' | 'incomplete' }}
  */
-function resolveComprehensionEntry(comprehension) {
+function resolveComprehensionEntry(comprehension: unknown):
+  | { ok: true; entry: Record<string, unknown> }
+  | { ok: false; reason: 'not-a-list' | 'missing' | 'incomplete' } {
   try {
     // 배열이 아니면(구 단일 객체 포함) 조회 자체가 성립하지 않는다.
     if (!Array.isArray(comprehension)) {
@@ -112,10 +122,11 @@ function resolveComprehensionEntry(comprehension) {
       return { ok: false, reason: 'incomplete' };
     }
 
-    const rangeFrom = typeof entry.range_from === 'string' ? entry.range_from : '';
-    const diffSha = typeof entry.diff_sha === 'string' ? entry.diff_sha : '';
-    const disposition = typeof entry.disposition === 'string' ? entry.disposition : '';
-    const quizScore = typeof entry.quiz_score === 'string' ? entry.quiz_score : '';
+    const rec = entry as Record<string, unknown>;
+    const rangeFrom = typeof rec.range_from === 'string' ? rec.range_from : '';
+    const diffSha = typeof rec.diff_sha === 'string' ? rec.diff_sha : '';
+    const disposition = typeof rec.disposition === 'string' ? rec.disposition : '';
+    const quizScore = typeof rec.quiz_score === 'string' ? rec.quiz_score : '';
     // 빈 필수 필드는 scaffold 잔여·퀴즈 스킵과 같다 — hash mismatch가 아니라 기록 없음.
     // quiz_score '0/0'은 값이 있으므로 통과; 막는 것은 빈 문자열뿐이다.
     if (!rangeFrom.trim() || !diffSha.trim() || !disposition.trim() || !quizScore.trim()) {

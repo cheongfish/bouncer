@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-005
   epic_id: '039'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run verify:strict
   commit_intent:
     - 포인터·커밋·finalize·마이그레이션의 Git 경계가 any라 실패 결과와 주입 의존성의 형태를 보장하지 못함

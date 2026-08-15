@@ -5,12 +5,19 @@ const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const { toPosix, parsePathIds } = require('./paths');
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
+function catchMessage(error) {
+    // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
+    // TypeError 대신 undefined가 되어 unavailable reason이 바뀐다.
+    return error.message;
+}
 function runtimePaths({ repoRoot, execFileSync = realExecFileSync, 
 // env/platform은 호출부 호환용; worktree는 이제 repo 내부.
-env: _env = process.env, platform = process.platform, }) {
+platform = process.platform, }) {
     const pathApi = platform === 'win32' ? path.win32 : path;
     let commonDir;
     try {
+        // encoding utf8이라 런타임은 문자열이다. Node 오버로드 유니온이 trim을 막아
+        // 단언만 한다 — String()으로 감싸면 Buffer 경로의 표현이 달라진다.
         commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
             cwd: repoRoot,
             encoding: 'utf8',
@@ -18,7 +25,7 @@ env: _env = process.env, platform = process.platform, }) {
         }).trim();
     }
     catch (error) {
-        return { unavailable: true, reason: error.message || 'Git common directory unavailable' };
+        return { unavailable: true, reason: catchMessage(error) || 'Git common directory unavailable' };
     }
     if (!commonDir) {
         return { unavailable: true, reason: 'Git common directory unavailable' };

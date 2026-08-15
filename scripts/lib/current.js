@@ -13,6 +13,15 @@ const BLUEPRINT_LINK_RE = /\]\(blueprints\/([^/)]+)\/index\.md\)/g;
 // --task 는 세 자리 숫자 또는 TASKS-NNN 만 받는다. 그 외 형식은 해석 실패.
 const TASK_DIGITS_RE = /^(\d{3})$/;
 const TASK_ID_RE = /^TASKS-(\d{3})$/;
+function bouncerOf(data) {
+    // `data && data.bouncer`와 같다. `'bouncer' in data`로 바꾸면 프로토타입
+    // 필드가 생기고, data가 null일 때 예전처럼 단락되지 않을 수 있다.
+    return data ? data.bouncer : data;
+}
+function bouncerStatus(data) {
+    const bouncer = bouncerOf(data);
+    return bouncer ? bouncer.status : undefined;
+}
 function readCurrent({ repoRoot, deps }) {
     return readRuntimeCurrent({ repoRoot, deps });
 }
@@ -26,7 +35,7 @@ function clearCurrent({ repoRoot, deps }) {
 }
 function availableTaskEntries(listing) {
     return listing.entries
-        .filter((entry) => typeof entry.id === 'string' && entry.id)
+        .filter((entry) => typeof entry.id === 'string' && !!entry.id)
         .map((entry) => ({ id: entry.id, path: entry.rel }));
 }
 /**
@@ -95,7 +104,7 @@ function resolvePointerTask({ repoRoot, blueprintDir, task: taskSpec }) {
     for (const entry of listing.entries) {
         try {
             const doc = readDoc(path.join(repoRoot, entry.rel));
-            const st = doc.data && doc.data.bouncer ? doc.data.bouncer.status : undefined;
+            const st = bouncerStatus(doc.data);
             if (READY_TASK_STATUS.includes(st)) {
                 return { ok: true, task: entry.rel, id: entry.id };
             }
@@ -147,9 +156,7 @@ function listReadyBlueprints({ repoRoot }) {
             const rel = toPosix(path.relative(repoRoot, bpAbs));
             try {
                 const indexDoc = readDoc(path.join(bpAbs, 'index.md'));
-                const bpStatus = indexDoc.data && indexDoc.data.bouncer
-                    ? indexDoc.data.bouncer.status
-                    : undefined;
+                const bpStatus = bouncerStatus(indexDoc.data);
                 if (bpStatus !== 'approved')
                     continue;
                 // ready = task 문서 중 하나라도 ready/in_progress.
@@ -160,9 +167,7 @@ function listReadyBlueprints({ repoRoot }) {
                 const openTasks = [];
                 for (const entry of listing.entries) {
                     const tasksDoc = readDoc(path.join(repoRoot, entry.rel));
-                    const taskStatus = tasksDoc.data && tasksDoc.data.bouncer
-                        ? tasksDoc.data.bouncer.status
-                        : undefined;
+                    const taskStatus = bouncerStatus(tasksDoc.data);
                     if (READY_TASK_STATUS.includes(taskStatus) && entry.id) {
                         openTasks.push({ id: entry.id, path: entry.rel, status: taskStatus });
                     }
@@ -225,8 +230,9 @@ function readAffectedPaths(repoRoot, blueprintDir) {
         for (const entry of listing.entries) {
             try {
                 const doc = readDoc(path.join(repoRoot, entry.rel));
-                const paths = doc.data && doc.data.bouncer
-                    ? doc.data.bouncer.affected_paths
+                const bouncer = bouncerOf(doc.data);
+                const paths = bouncer
+                    ? bouncer.affected_paths
                     : undefined;
                 if (!Array.isArray(paths))
                     continue;

@@ -2,27 +2,87 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { toPosix, parsePathIds } = require('./paths');
+const { toPosix, parsePathIds } = require('./paths') as {
+  toPosix: (p: unknown) => string;
+  parsePathIds: (resourcePath: unknown) => {
+    epicId: string | null;
+    blueprintId: string | null;
+    kind: string | null;
+  };
+};
 
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
 
+// 테스트 fake는 argv를 무시하고 문자열만 돌려주기도 한다. 최소 호출 형태만
+// 고정하고, Node 오버로드 전체를 끌어오면 주입 객체가 할당되지 않는다.
+type ExecFileSyncFn = (
+  file: string,
+  args?: readonly string[],
+  options?: { cwd?: unknown; encoding?: unknown; stdio?: unknown },
+) => string | Buffer;
+
+type InjectedFs = {
+  existsSync: (p: string) => boolean;
+  readFileSync: (p: string, encoding: string) => string;
+  writeFileSync: (p: string, data: string) => void;
+  mkdirSync: (p: string, opts?: { recursive?: boolean }) => unknown;
+  rmSync: (p: string) => void;
+  statSync: (p: string) => { isDirectory: () => boolean };
+};
+
+type RuntimeDeps = {
+  execFileSync?: ExecFileSyncFn;
+  fs?: InjectedFs;
+  env?: NodeJS.ProcessEnv;
+  platform?: string;
+};
+
+// 판별 유니온으로 두면 emit tsc(strict:false)도 currentFile 접근을 거절한다.
+// unavailable이면 바로 return하므로 단언은 죽은 경로만 달래고 런타임은 같다.
+type RuntimePaths = {
+  unavailable?: boolean;
+  reason?: string;
+  commonGitDir?: string;
+  currentFile?: string;
+  worktreeRoot?: string;
+  projectRoot?: string;
+};
+
+type RuntimePointer = {
+  blueprint: string;
+  base: string;
+  task: string | null;
+};
+
+function catchMessage(error: unknown): unknown {
+  // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
+  // TypeError 대신 undefined가 되어 unavailable reason이 바뀐다.
+  return (error as { message: unknown }).message;
+}
+
 function runtimePaths({
   repoRoot,
-  execFileSync = realExecFileSync,
+  execFileSync = realExecFileSync as ExecFileSyncFn,
   // env/platform은 호출부 호환용; worktree는 이제 repo 내부.
-  env: _env = process.env,
   platform = process.platform,
-}) {
+}: {
+  repoRoot: string;
+  execFileSync?: ExecFileSyncFn;
+  env?: NodeJS.ProcessEnv;
+  platform?: string;
+}): RuntimePaths {
   const pathApi = platform === 'win32' ? path.win32 : path;
-  let commonDir;
+  let commonDir: string;
   try {
-    commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    // encoding utf8이라 런타임은 문자열이다. Node 오버로드 유니온이 trim을 막아
+    // 단언만 한다 — String()으로 감싸면 Buffer 경로의 표현이 달라진다.
+    commonDir = (execFileSync('git', ['rev-parse', '--git-common-dir'], {
       cwd: repoRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
+    }) as string).trim();
   } catch (error) {
-    return { unavailable: true, reason: error.message || 'Git common directory unavailable' };
+    return { unavailable: true, reason: catchMessage(error) as string || 'Git common directory unavailable' };
   }
   if (!commonDir) {
     return { unavailable: true, reason: 'Git common directory unavailable' };
@@ -42,7 +102,10 @@ function runtimePaths({
   };
 }
 
-function resolvedPaths({ repoRoot, deps }) {
+function resolvedPaths({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: RuntimeDeps | null;
+}): RuntimePaths {
   const d = deps || {};
   return runtimePaths({
     repoRoot,
@@ -52,12 +115,15 @@ function resolvedPaths({ repoRoot, deps }) {
   });
 }
 
-function readRuntimeCurrent({ repoRoot, deps }) {
+function readRuntimeCurrent({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: RuntimeDeps | null;
+}): RuntimePointer | null {
   const d = { fs, ...(deps || {}) };
   const paths = resolvedPaths({ repoRoot, deps: d });
-  if (paths.unavailable || !d.fs.existsSync(paths.currentFile)) return null;
+  if (paths.unavailable || !d.fs.existsSync(paths.currentFile as string)) return null;
   try {
-    const data = JSON.parse(d.fs.readFileSync(paths.currentFile, 'utf8').trim());
+    const data = JSON.parse(d.fs.readFileSync(paths.currentFile as string, 'utf8').trim());
     if (!data || typeof data.blueprint !== 'string' || typeof data.base !== 'string') return null;
     // task 키 부재·비문자열은 미지정. 마이그레이션 없이 기존 파일을 그대로 읽는다.
     const task = typeof data.task === 'string' ? toPosix(data.task) : null;
@@ -69,36 +135,49 @@ function readRuntimeCurrent({ repoRoot, deps }) {
 
 // pointer가 제거되면 true, 없었으면 false. 호출자는 "이미 없음"을
 // 성공으로 보므로, 파일이 없어도 throw하면 안 된다.
-function clearRuntimeCurrent({ repoRoot, deps }) {
+function clearRuntimeCurrent({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: RuntimeDeps | null;
+}): boolean {
   const d = { fs, ...(deps || {}) };
   const paths = resolvedPaths({ repoRoot, deps: d });
-  if (paths.unavailable || !d.fs.existsSync(paths.currentFile)) return false;
-  d.fs.rmSync(paths.currentFile);
+  if (paths.unavailable || !d.fs.existsSync(paths.currentFile as string)) return false;
+  d.fs.rmSync(paths.currentFile as string);
   return true;
 }
 
 function writeRuntimeCurrent({
   repoRoot, blueprint, base, task, deps,
-}) {
+}: {
+  repoRoot: string;
+  blueprint: unknown;
+  base: string;
+  task?: unknown;
+  deps?: RuntimeDeps | null;
+}): string {
   const d = { fs, ...(deps || {}) };
   const paths = resolvedPaths({ repoRoot, deps: d });
   if (paths.unavailable) throw new Error(GIT_REQUIRED);
-  d.fs.mkdirSync(path.dirname(paths.currentFile), { recursive: true });
+  d.fs.mkdirSync(path.dirname(paths.currentFile as string), { recursive: true });
   // task는 문자열일 때만 파일에 쓴다 — 없으면 키 자체를 생략해 레거시 형태를 유지.
   const data: { blueprint: string; base: string; task?: string } = {
     blueprint: toPosix(blueprint),
     base,
   };
   if (typeof task === 'string') data.task = toPosix(task);
-  d.fs.writeFileSync(paths.currentFile, `${JSON.stringify(data, null, 2)}\n`);
-  return paths.currentFile;
+  d.fs.writeFileSync(paths.currentFile as string, `${JSON.stringify(data, null, 2)}\n`);
+  return paths.currentFile as string;
 }
 
 // blueprint 경로만으로 execute worktree 절대 경로를 고른다.
 // 기본은 `.worktrees/<epic>/<bp>`이고, 중첩이 없는데 평면 `.worktrees/<bp>`만
 // 있으면 그 평면을 재사용한다(옮기지 않음). mkdir은 하지 않는다 —
 // `git worktree add`가 부모 디렉터리까지 만든다.
-function worktreePathFor({ repoRoot, blueprint, deps }) {
+function worktreePathFor({ repoRoot, blueprint, deps }: {
+  repoRoot: string;
+  blueprint: unknown;
+  deps?: RuntimeDeps | null;
+}): string {
   const d = { fs, ...(deps || {}) };
   const paths = resolvedPaths({ repoRoot, deps: d });
   if (paths.unavailable) throw new Error(GIT_REQUIRED);
@@ -111,8 +190,8 @@ function worktreePathFor({ repoRoot, blueprint, deps }) {
 
   const platform = d.platform || process.platform;
   const pathApi = platform === 'win32' ? path.win32 : path;
-  const nested = pathApi.join(paths.worktreeRoot, epicId, blueprintId);
-  const flat = pathApi.join(paths.worktreeRoot, blueprintId);
+  const nested = pathApi.join(paths.worktreeRoot as string, epicId, blueprintId);
+  const flat = pathApi.join(paths.worktreeRoot as string, blueprintId);
 
   // 중첩이 디렉터리로 없고 평면만 디렉터리면 레거시 평면. 둘 다 있으면 중첩 우선.
   const nestedIsDir = (() => {

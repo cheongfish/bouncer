@@ -28,6 +28,16 @@ const STRICT_TS_FILES = [
   'scripts/src/lib/validate-structural.ts',
   'scripts/src/lib/validate-gates.ts',
   'scripts/src/lib/validate.ts',
+  'scripts/src/lib/runtime-state.ts',
+  'scripts/src/lib/current.ts',
+  'scripts/src/lib/commit-hook.ts',
+  'scripts/src/lib/commit-guard.ts',
+  'scripts/src/lib/commit.ts',
+  'scripts/src/lib/finalize.ts',
+  'scripts/src/lib/seed-worktree.ts',
+  'scripts/src/lib/comprehension.ts',
+  'scripts/src/lib/migrate-ids.ts',
+  'scripts/src/lib/migrate-task-layout.ts',
 ];
 
 module.exports = [
