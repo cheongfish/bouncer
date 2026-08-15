@@ -21,7 +21,7 @@ audit, it also supplies the caller-owned absolute Distill path, the complete
 audit metadata, and a complete caller-built map
 `id → { path: <registered relative path>, currentBody: <that shard file's body> }`.
 The map is built by finalize by resolving **every** registered
-`audit.shards[].path` relative to its already-resolved `PROJECT_ROOT` for a
+`audit.shards[].path` relative to the CLI payload `repoRoot` for a
 separate read, while preserving the registered path in the map. Use only that
 supplied map as the target-shard inventory and current-bullet source; this skill
 never invokes route or CLI itself and never rediscovers shards here. The full
@@ -58,8 +58,9 @@ only; other approved items continue.
   Korean. Keep identifiers, file paths, commands, and fenced code as-is. Do not
   open a Korean section with an English overview sentence.
 - **Distill is English.** Project Distill (caller-provided absolute Distill
-  path from finalize / plan — typically `${PROJECT_ROOT}/.bouncer/Distill.md`)
-  is agent runtime — promote durable notes in English, not Korean.
+  path: finalize builds `.bouncer/Distill.md` from the CLI payload `repoRoot`;
+  plan still passes its own absolute path) is agent runtime — promote durable
+  notes in English, not Korean.
 - **Stop slop.** After drafting Korean plan/explain bodies, apply the
   `stop-slop` skill (`skills/stop-slop/SKILL.md`) — advisory, not a gate. Strip
   filler, formulaic contrast, empty passives, and section-restating closers.

@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const crypto = require('node:crypto');
 
 const { runCli } = require('../scripts/lib/cli');
 
@@ -18,12 +19,14 @@ function capture(argv) {
   return { code, ...buf };
 }
 
-function fixture() {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-distill-'));
+function tmpRoot() {
+  return fs.realpathSync(os.tmpdir());
+}
+
+function seedDistill(repo) {
   fs.mkdirSync(path.join(repo, '.bouncer', 'distill'), { recursive: true });
   fs.mkdirSync(path.join(repo, 'scripts', 'src', 'lib'), { recursive: true });
   fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
-  execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
   fs.writeFileSync(path.join(repo, '.bouncer', 'Distill.md'), [
     '---',
     'distill:',
@@ -54,8 +57,35 @@ function fixture() {
   writeShard('core', ['  always: true', '  paths: []', '  pulls: []'], '# core');
   writeShard('source', ['  paths:', '    - scripts/**', '  pulls: [core]'], '# source');
   writeShard('docs', ['  paths:', '    - docs/**', '  pulls: []'], '# docs');
+}
+
+function fixture() {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-distill-'));
+  execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+  seedDistill(repo);
   return repo;
 }
+
+test('distill --all --json reports the linked checkout as repoRoot', () => {
+  const primary = fs.realpathSync(fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-distill-primary-')));
+  execFileSync('git', ['init'], { cwd: primary, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd: primary, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.name', 't'], { cwd: primary, stdio: 'ignore' });
+  fs.writeFileSync(path.join(primary, 'README'), 'base\n');
+  execFileSync('git', ['add', 'README'], { cwd: primary, stdio: 'ignore' });
+  execFileSync('git', ['commit', '-m', 'base'], { cwd: primary, stdio: 'ignore' });
+
+  const linked = path.join(tmpRoot(), `bouncer-cli-distill-linked-${crypto.randomBytes(6).toString('hex')}`);
+  execFileSync('git', ['worktree', 'add', '--detach', linked, 'HEAD'], {
+    cwd: primary,
+    stdio: 'ignore',
+  });
+  const linkedRoot = fs.realpathSync(linked);
+  seedDistill(linkedRoot);
+
+  const payload = JSON.parse(capture(['distill', '--all', '--json', '--repo', linkedRoot]).out);
+  assert.strictEqual(payload.repoRoot, linkedRoot);
+});
 
 test('distill --for renders only the routed body and keeps stderr empty', () => {
   const repo = fixture();

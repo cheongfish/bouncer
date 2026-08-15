@@ -39,17 +39,18 @@ they conflict.
 6. **OKF shape** — Context documents carry OKF frontmatter; Bouncer fields live
    under `bouncer:`. Bundle-root `okf_version` is only on
    `.bouncer/context/index.md`. Detail: [`rules/okf.md`](rules/okf.md).
-7. **Project Distill** — Resolve the consuming project's main worktree with
-   `bouncer project-root`; plugin root and execute worktree cwd are never Distill
-   path bases. Consume the CLI contract, not a cwd-relative file read: before
-   `/bouncer-plan` or `discovery` decides paths, run `bouncer distill --all` for
-   `${PROJECT_ROOT}/.bouncer/Distill.md` and use the complete output. After
-   `affected_paths` is confirmed, plan re-ground plus `/bouncer-execute` and
-   `/bouncer-run` run `bouncer distill --for <path>` once per affected path.
-   The CLI preserves the single-file fallback when the shard index is missing or
-   invalid. `/bouncer-finalize` first searches every current rule with
-   `bouncer distill --all --json`, then resolves every registered
-   `audit.shards` relative path from its already-resolved `PROJECT_ROOT` and
+7. **Project Distill** — `/bouncer-plan`, `/bouncer-execute`, and `/bouncer-run`
+   resolve the consuming project's main worktree with `bouncer project-root` and
+   bind `PROJECT_ROOT`. On that read path, plugin root and execute worktree cwd
+   are never Distill path bases. Consume the CLI contract, not a cwd-relative
+   file read: before `/bouncer-plan` or `discovery` decides paths, run
+   `bouncer distill --all` for `${PROJECT_ROOT}/.bouncer/Distill.md` and use
+   the complete output. After `affected_paths` is confirmed, plan re-ground plus
+   `/bouncer-execute` and `/bouncer-run` run `bouncer distill --for <path>` once
+   per affected path. The CLI preserves the single-file fallback when the shard
+   index is missing or invalid. `/bouncer-finalize` first searches every current
+   rule with `bouncer distill --all --json`, then resolves every registered
+   `audit.shards` relative path from the CLI payload `repoRoot` and
    reads each shard separately into a complete `id → {path,currentBody}` map.
    Aggregate `bouncer distill --route`/selection output is never attached as an individual
    shard body or write target. A route result never replaces the full search for
