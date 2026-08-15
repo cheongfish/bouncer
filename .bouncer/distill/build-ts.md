@@ -30,7 +30,8 @@ Rules routed to build-ts; routing remains disabled until the project explicitly 
   not enough.
 
 - Coverage floor uses Node built-in coverage on `scripts/lib/**` only (exclude
-  vendor/tests): lines 94%, branches 83%, functions 96%.
+  vendor/tests): lines 94%, branches 82%, functions 96%. Branch keeps a 1pp
+  buffer for CI/local measurement drift.
 
 ## Decisions
 

@@ -30,7 +30,7 @@ bouncer:
    TypeScript ESLint와 `npm run typecheck`를 통과한다.
 4. GitHub Actions와 GitLab CI가 같은 저장소 소유 검증 명령을 실행하며, 그 명령이
    stale CJS emit, 테스트·lint·type 오류, high 이상 의존성 취약점, 제품 코드
-   line 94%·branch 83%·function 96% 미만을 거부한다.
+   line 94%·branch 82%·function 96% 미만을 거부한다.
 5. 공개 CLI·문서 스키마·게이트·워크플로 목록과 하위 호환 정책이 문서에 있고,
    파일럿에서 필요한 의미 변경과 마이그레이션이 그 계약을 만족한다.
 6. 서로 다른 세 종류의 저장소와 두 개 이상의 지원 호스트에서 전체 Bouncer

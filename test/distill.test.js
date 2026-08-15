@@ -569,7 +569,7 @@ const ORIGINAL_BULLET_HASHES = [
   // 039/001 finalize: build-ts strict 기본값·vendor·ci·coverage 승격 (strict:false 유예 제거).
   'd3e3009a0c1d85f0d64bdbe1b76b2cb77cc1ad4371674846f8fb95589e0d9d44',
   'b82b050700a6e05d8b5249a3d24bee3f2dbec0f89e555b98ade12185aca2df89',
-  '0499549c5b3042ff24d3eb321c2e944ea556e249f8209993d1d81e568706debe',
+  '3d45893edf47844fc9f86533a0d23564428bcbafe486e2d41aca542124b2968a',
   '50aeac9315bf9743ed5dada751bc32fc176c7a34e6af5b450f18083a1e69a9bc',
 ];
 

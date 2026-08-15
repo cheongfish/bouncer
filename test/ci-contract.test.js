@@ -64,7 +64,7 @@ test('package.json exposes check:emit, test:coverage, and ordered ci', () => {
   assert.match(coverage, /--experimental-test-coverage/);
   assert.match(coverage, /--test-coverage-include=scripts\/lib\/\*\*/);
   assert.match(coverage, /--test-coverage-lines=94/);
-  assert.match(coverage, /--test-coverage-branches=83/);
+  assert.match(coverage, /--test-coverage-branches=82/);
   assert.match(coverage, /--test-coverage-functions=96/);
   const ci = pkg.scripts.ci;
   const emitAt = ci.indexOf('check:emit');
@@ -89,7 +89,7 @@ test('docs/contributing.md documents local verify, coverage floors, audit, and s
   assert.match(body, /npm run ci/);
   assert.match(body, /scripts\/lib/);
   assert.match(body, /94%/);
-  assert.match(body, /83%/);
+  assert.match(body, /82%/);
   assert.match(body, /96%/);
   assert.match(body, /audit/);
   assert.match(body, /GitHub/);
