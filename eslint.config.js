@@ -65,7 +65,9 @@ module.exports = [
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
-        project: './tsconfig.strict.json',
+        // tsc와 같은 기본 tsconfig를 본다. 별도 strict include를 두면
+        // type-aware 규칙과 npm run typecheck가 다른 계약이 된다.
+        project: './tsconfig.json',
       },
     },
     rules: {

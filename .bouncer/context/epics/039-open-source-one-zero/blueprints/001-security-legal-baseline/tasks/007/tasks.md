@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-007
   epic_id: '039'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run verify:strict
   commit_intent:
     - 별도 migration config만 strict하면 새 파일이 느슨한 기본 config로 되돌아갈 수 있음
@@ -20,6 +20,7 @@ bouncer:
     - tsconfig.json
     - tsconfig.strict.json
     - package.json
+    - eslint.config.js
   graph:
     generated_at: '2026-08-15T15:55:18+09:00'
     command: 'graphify query "TypeScript strict default tsconfig typecheck configuration cutover" --graph graphify-out/{source,context}/graph.json'
@@ -58,6 +59,8 @@ Blueprint: [001](../../index.md)
 - Delete `tsconfig.strict.json` — 단계적 전환용 임시 config를 제거한다.
 - Modify `package.json` — 임시 `typecheck:strict`를 제거하고 `verify:strict`가 기본
   `typecheck`를 사용하게 바꾼다.
+- Modify `eslint.config.js` — `parserOptions.project`를 삭제한 임시 config 대신
+  `./tsconfig.json`으로 바꾼다. 규칙 집합은 바꾸지 않는다.
 
 ## Do not touch
 - `scripts/src/lib` — 앞선 네 task에서 strict와 lint를 통과한 소스를 다시 고치지 않는다.
