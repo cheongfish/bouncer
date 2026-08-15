@@ -41,24 +41,28 @@ Blueprint: [003](../../index.md)
 ## Goal & intent
 <!-- 구현자가 다른 문서 없이 시작할 수 있게.
      수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다. -->
-문서화된 marketplace 설치와 Bouncer smoke cycle을 서로 다른 세 저장소 유형과 두
-지원 호스트에서 실행한 결과가 설치·파일럿 문서에 남는다. 태그는 이 task를 포함한
-모든 task 커밋이 병합되고 blueprint가 종료된 뒤 릴리스 운영자가 만든다.
+태그 전 최종 검증과 태그 후 Bouncer smoke cycle의 기록 절차가 설치·파일럿 문서에
+남는다. 태그 기준 smoke는 애플리케이션·모노레포·문서·설정 중심 저장소와 Claude
+Code·Cursor·Codex·Antigravity의 3×4 매트릭스에서 실행하고, 그 결과는 태그에
+연결된 GitHub Release에 남긴다. 이 task는 절차와 인계만 완료한다.
 
 ## Interface
 <!-- 계약이 리뷰에서 검증 가능하도록 제공하는 것과 거부하는 것을 함께 적습니다. -->
-- 제공: 실제 실행 증거에만 근거한 `docs/install.md` 지원 현황과 `docs/PILOT.md`
-  기록. 이후 릴리스 운영자가 최종 HEAD에 annotated `bouncer--v1.0.0` 태그를 만든다.
-- 거부: 인증·네트워크·호스트 실행이 실패하거나 증거가 없는 조합은 `검증됨`으로
-  바꾸지 않으며, 기존 태그를 삭제·강제 이동하지 않는다.
+- 제공: 태그 후 GitHub Release로 연결되는 `docs/install.md` 설치 절차와
+  `docs/PILOT.md` 기록 형식. 릴리스 운영자는 최종 HEAD에 annotated
+  `bouncer--v1.0.0` 태그를 만들고, 동일 태그의 GitHub Release에 commit SHA와
+  3×4 매트릭스별 결과를 남긴다.
+- 거부: 태그 전 smoke 결과를 확정하거나, 증거 없는 조합을 `검증됨`으로 바꾸거나,
+  기존 태그를 삭제·강제 이동하지 않는다.
 
 ## Touch
 <!-- frontmatter bouncer.affected_paths의 모든 경로가 여기서 정당화되어야 합니다 (G11).
      디렉터리가 아니라 파일 단위로, 동사(Create/Modify/Delete/Rename)를 붙입니다.
      디렉터리 하나로 뭉치면 그 안 모든 파일이 열려 G11이 사실상 통과만 합니다.
      경로는 백틱으로 감쌉니다. -->
-- Modify `docs/install.md` — 실제 smoke를 마친 호스트만 지원 현황을 갱신한다.
-- Modify `docs/PILOT.md` — 저장소 유형·호스트별 설치와 full cycle 결과를 기록한다.
+- Modify `docs/install.md` — 태그 기준 smoke 실행 절차와 GitHub Release 증거 위치를 안내한다.
+- Modify `docs/PILOT.md` — 3×4 저장소 유형·호스트별 결과를 동일 태그 GitHub Release에
+  commit SHA와 함께 남기는 형식과 미검증 상태를 기록한다.
 
 ## Do not touch
 <!-- 여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.
@@ -73,12 +77,14 @@ Blueprint: [003](../../index.md)
      예: 하위 호환 별칭을 남기지 않는다 / 기존 게이트 번호와 본문 계약을 유지한다 /
      공개 문자열은 한국어를 유지한다.
      막을 대상이 경로뿐이면 Do not touch에 적습니다. -->
-- 이 task에서는 태그를 만들지 않는다. `npm run ci`와 세 task 커밋이 병합되고
-  blueprint가 종료된 뒤에만 릴리스 운영자가 태그를 만든다.
+- 이 task에서는 태그를 만들지 않는다. 세 task 커밋이 병합된 최종 HEAD에서
+  `npm run ci`가 성공한 뒤에만 릴리스 운영자가 태그를 만든다.
 - 릴리스 운영자는 `git tag -a bouncer--v1.0.0 <merged-head>`를 사용하고, 태그가
   이미 존재하거나 다른 커밋을 가리키면 중단해 사용자에게 보고한다.
 - 태그 push와 원격 marketplace 설치에는 사용자 인증·외부 권한이 필요하므로 릴리스
   운영 시점에 별도 동의를 받는다.
+- GitHub Release 작성과 태그 후 smoke는 blueprint 완료 뒤 릴리스 운영자가 수행하는
+  외부 작업이며, 그 완료 여부는 이 task의 `npm test` 게이트가 대신 판단하지 않는다.
 
 ## Checklist
 <!-- 각 항목은 구현자가 순서대로 실행 가능해야 합니다.
@@ -86,13 +92,12 @@ Blueprint: [003](../../index.md)
      기대하는 assertion·상수·명령은 코드블록으로 그대로 적어 해석 여지를 없앱니다.
      blueprint Contract에서 이연된 테스트 본문·구현 시퀀스가 들어올 자리입니다.
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
-- [ ] `npm run ci`가 성공한 병합 HEAD를 기록한다.
-- [ ] 서로 다른 세 저장소 유형과 두 지원 호스트를 덮는 조합에서 문서화된
-  marketplace 설치와 `/bouncer-init`부터 smoke cycle을 실행한다. 각 결과를
-  `docs/PILOT.md`에 성공·실패·사용자 개입 횟수와 함께 남긴다.
-- [ ] 성공 증거가 있는 호스트만 `docs/install.md`에서 `검증됨`으로 바꾼다. 실패·미실행
-  조합은 `미검증`으로 둔다.
-- [ ] task 003 커밋을 포함한 blueprint 종료 뒤, 릴리스 운영자에게
-  `bouncer--v1.0.0` 부재·대상 commit 확인, annotated 태그 생성, 원격 push 동의를
-  인계한다. 이 실행 단계에서 태그를 만들지 않는다.
+- [ ] 태그 기준 smoke의 3개 저장소 유형 × 4개 호스트 조합, 태그 commit SHA,
+  성공·실패·사용자 개입 횟수, 동일 태그 GitHub Release 위치를 `docs/PILOT.md`에 정의한다.
+- [ ] `docs/install.md`에서 태그 후 GitHub Release로 smoke 결과를 확인하도록 안내하고,
+  smoke 전 조합은 `미검증`으로 둔다.
+- [ ] task 003 커밋을 포함한 blueprint 종료 뒤, 릴리스 운영자에게 최종 HEAD의
+  `npm run ci`, `bouncer--v1.0.0` 부재·대상 commit 확인, annotated 태그 생성,
+  원격 push 권한 동의와 태그 push, 태그 기준 smoke, 동일 태그 GitHub Release의
+  commit SHA·12개 결과·성공/실패/사용자 개입 횟수 기록 순서를 인계한다.
 - [ ] `npm test`를 실행해 설치·공개 계약 문서의 회귀 검사를 통과시킨다.

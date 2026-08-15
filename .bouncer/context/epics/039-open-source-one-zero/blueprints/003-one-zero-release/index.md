@@ -37,12 +37,12 @@ Epic: [039](../../index.md)
     `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, 루트
     `plugin.json`, `package.json`, `package-lock.json`은 모두 `1.0.0`을
     공개한다.
-  - `CHANGELOG.md`와 설치 문서는 `bouncer--v1.0.0` 태그와 각 호스트의 설치
-    절차·검증 상태를 설명한다.
+  - `CHANGELOG.md`와 설치 문서는 1.0.0 출시 준비, 각 호스트의 설치 절차, 그리고
+    태그 후 `bouncer--v1.0.0` GitHub Release에 남길 3×4 smoke 검증 상태를 설명한다.
 - 데이터·상태: 공개 CLI, 문서 스키마, 게이트 코드, 설정 키는 바꾸지 않는다.
   파일럿 표의 호스트 상태는 실제 smoke 증거가 있을 때만 `검증됨`으로 바꾼다.
-- 수용 기준: epic 성공 기준 7·8이 참이다. `npm run ci`와 task별 검증이 성공하고,
-  blueprint가 종료된 뒤 병합된 최종 HEAD에 `bouncer--v1.0.0` 태그가 하나만 존재한다.
+- 수용 기준: epic 성공 기준 7·8이 참이다. 모든 blueprint 커밋을 포함한 최종 HEAD에서
+  `npm run ci`가 성공하고, 그 HEAD에 `bouncer--v1.0.0` 태그가 하나만 존재한다.
 - 검증 명령: 각 코드·문서 task는 `npm test`, 최종 상태는 `npm run ci`로 확인한다.
 - 실패 모드·엣지 케이스:
   - 매니페스트 또는 lockfile 중 하나라도 `1.0.0`과 다르면 태그를 만들지 않는다.
@@ -59,9 +59,9 @@ Epic: [039](../../index.md)
 ## One-commit justification
 <!-- rules/governance.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.
      이 칸을 못 채우겠으면 blueprint를 쪼갤 신호입니다. -->
-- 버전·정합성 검사, 릴리스 노트, 실제 smoke 결과는 검토할 근거와 실패 원인이
-  달라 각각 한 task 커밋으로 분리한다. 태그는 task 실행 중 만들지 않고 세 커밋이
-  병합되고 blueprint가 종료된 뒤 최종 HEAD에서 생성한다.
+- 버전·정합성 검사, 릴리스 노트, 태그 전 검증·GitHub Release 기반 태그 후 smoke 절차는 검토 근거와
+  실패 원인이 달라 각각 한 task 커밋으로 분리한다. 태그는 세 커밋과 최종 검증 뒤
+  최종 HEAD에서 생성하고, smoke 증거는 태그 기준 외부 릴리스 기록에 남긴다.
 
 ## Documents
 * [Tasks 001](tasks/001/tasks.md) - 1.0.0 버전 정합성과 회귀 검사

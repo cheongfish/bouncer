@@ -11,11 +11,12 @@ bouncer:
   id: REVIEW-002
   epic_id: '039'
   blueprint_id: '003'
-  status: pending
+  status: accepted
   review:
     required: true
 ---
 # Review
 
 ## Findings
-- <finding>
+
+- Finding 없음. 태그 전 출시 준비 상태와 미검증 호스트 표기가 task 계약에 맞음.

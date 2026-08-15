@@ -33,12 +33,13 @@ bouncer:
    line 94%·branch 82%·function 96% 미만을 거부한다.
 5. 공개 CLI·문서 스키마·게이트·워크플로 목록과 하위 호환 정책이 문서에 있고,
    파일럿에서 필요한 의미 변경과 마이그레이션이 그 계약을 만족한다.
-6. 서로 다른 세 종류의 저장소와 두 개 이상의 지원 호스트에서 전체 Bouncer
-   사이클을 실행한 결과가 성공·실패·사용자 개입 횟수와 함께 남고, 미검증 조합은
-   지원 대상으로 표시되지 않는다.
+6. 태그 후 릴리스 운영에서 애플리케이션·모노레포·문서·설정 중심 저장소와
+   Claude Code·Cursor·Codex·Antigravity의 3×4 매트릭스 전체 smoke 결과가
+   `bouncer--v1.0.0` GitHub Release에 태그 commit SHA·성공·실패·사용자 개입
+   횟수와 함께 남고, 미검증 조합은 지원 대상으로 표시되지 않는다.
 7. 네 플랫폼 매니페스트와 `package.json` 버전이 `1.0.0`으로 일치하고,
-   `bouncer--v1.0.0` 태그에서 문서화된 마켓플레이스 설치와 smoke cycle이
-   재현된다.
+   모든 blueprint 커밋을 포함해 `npm run ci`가 통과한 최종 HEAD에
+   `bouncer--v1.0.0` 태그가 하나만 존재한다.
 8. 각 blueprint의 검증 명령과 최종 `npm test`가 통과한다.
 
 ## Out of scope
@@ -52,9 +53,9 @@ bouncer:
    규칙을 만든다. 외부 저장소·호스트에서의 실제 파일럿 실행은 blueprint 밖 운영
    작업이며, 그 결과가 요구하는 의미 변경과 마이그레이션은 별도로 계획한다.
 3. BP003은 남은 차단 항목이 없을 때 플러그인 매니페스트를 `1.0.0`으로 올리고
-   태그·릴리스 노트·설치 smoke 결과를 남긴다.
+   릴리스 노트·태그 전 검증·GitHub Release 기반 태그 후 smoke 운영 절차를 남긴다.
 
 ## Blueprints
 * [001 공개 기반 차단선](blueprints/001-security-legal-baseline/index.md) - 의존성·벤더·Apache-2.0·TypeScript·CI 품질 계약을 코드와 공개 문서에 고정한다
 * [002 공개 계약 동결](blueprints/002-public-contract-freeze/index.md) - 공개 표면과 하위 호환 정책을 문서·테스트로 동결하고 파일럿 기록 틀과 지원 선언 규칙을 만든다
-* [003 1.0 공개 릴리스](blueprints/003-one-zero-release/index.md) - 1.0.0 버전 정합성·릴리스 노트·세 저장소 유형과 두 호스트의 설치 smoke 증거를 확정한다
+* [003 1.0 공개 릴리스](blueprints/003-one-zero-release/index.md) - 1.0.0 버전 정합성·릴리스 노트·세 저장소 유형 × 네 호스트의 설치 smoke 운영 절차를 확정한다
