@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '039'
   blueprint_id: '003'
-  status: ready
+  status: verified
   commit_intent:
     - 실제 설치 결과로 지원 상태를 갱신함
     - 검증한 최종 HEAD만 릴리스 태그로 남김
