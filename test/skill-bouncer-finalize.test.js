@@ -124,7 +124,7 @@ test('bouncer-finalize handles empty proposals, drop mismatches, and missing ACQ
   assert.match(body, /host ACQ tool is unavailable|ACQ.*(?:missing|unavailable|없)/i);
   assert.match(body, /audit\.shards/);
   assert.match(body, /distill\s+--all\s+--json/);
-  assert.match(body, /PROJECT_ROOT/);
+  assert.match(body, /payload[^\n]{0,40}`?repoRoot`?/i);
   assert.match(body, /every|each|모든/i);
   assert.match(body, /relative[^\n]{0,20}path|상대 경로/i);
   assert.match(body, /registered relative path|등재.*상대 경로/i);

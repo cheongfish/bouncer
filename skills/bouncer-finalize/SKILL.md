@@ -15,15 +15,12 @@ Close out the active blueprint after every task has been committed via
 task commits already landed on `/bouncer-commit`. Comprehension (explain + quiz)
 runs in this skill, after the Distill promotion proposal has been handled.
 
-**Project root.** Resolve the consuming project's main worktree before Distill
-promotion:
-```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
-PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
-```
-If that fails, stop and report stderr — do not fall back to cwd or plugin root.
-The CLI resolves `${PROJECT_ROOT}/.bouncer/Distill.md`; pass its output and that
-absolute path to `spec-authoring`.
+**cwd 계약.** step 1의 Distill audit·승격 쓰기와 step 3의 `bouncer finalize`는
+같은 checkout에서 이어진다. execute worktree가 있으면 그 안에서 실행한다.
+승격 audit은 `--repo` 없이 돌리며, 그 cwd가 payload `repoRoot`다.
+`--repo`만 빼고 cwd를 main worktree에 두면 base가 main으로 돌아간다.
+step 5의 worktree 제거만 main worktree에서 한다. execute checkout 안에서
+제거하지 않는다.
 
 ## ACQ (AskUserQuestion) gates
 
@@ -64,15 +61,20 @@ appears; do not reconstruct a root `context/` path.
 
 1. **Propose and promote Distill (one consent).** Before deciding what to
    promote, run the full JSON audit:
-   `bouncer distill --all --json --repo "${PROJECT_ROOT}"`. Give the complete
-   stdout, the absolute `${PROJECT_ROOT}/.bouncer/Distill.md` path, and the
-   audit's `shards` metadata to `spec-authoring`
-   (`skills/spec-authoring/SKILL.md`). The `audit.shards` value is the only
-   shard inventory for this cycle. Using the already-resolved `PROJECT_ROOT`,
-   read **every** registered shard's relative `path` separately and construct
-   the complete caller-owned map
+   ```bash
+   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+   node "${BOUNCER_ROOT}/scripts/bouncer" distill --all --json
+   ```
+   Take the promotion base from that payload `repoRoot`. 승격 경로를
+   `project-root`로 조립하지 않는다. Give the complete stdout, the absolute path
+   (`.bouncer/Distill.md` under that `repoRoot`), and the audit's
+   `shards` metadata to
+   `spec-authoring` (`skills/spec-authoring/SKILL.md`). The `audit.shards`
+   value is the only shard inventory for this cycle. Using the already-resolved
+   payload `repoRoot`, read **every** registered shard's relative `path`
+   separately and construct the complete caller-owned map
    `id → { path: <registered relative path>, currentBody: <that file's body> }`;
-   resolve each relative path to `${PROJECT_ROOT}/<path>` only for its separate
+   resolve each relative path against that `repoRoot` only for its separate
    read. Preserve each id/path pairing and pass the map plus the full audit
    metadata to `spec-authoring`; if a read fails, stop and report it rather than
    omitting the entry or substituting a different file. The full search covers

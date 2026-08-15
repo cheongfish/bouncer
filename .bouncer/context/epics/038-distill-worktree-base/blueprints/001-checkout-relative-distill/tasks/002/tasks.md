@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '038'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - finalize가 project-root로 승격 경로를 조립해 커밋하는 checkout과 어긋났음
     - 승격 base를 distill CLI payload의 repoRoot 하나로 고정해 경로 출처를 없앰

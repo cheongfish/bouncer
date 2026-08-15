@@ -70,7 +70,7 @@ test('master rules point at project Distill path and require reading it', () => 
 
 test('workflow skills resolve PROJECT_ROOT via project-root for Distill', () => {
   for (const name of [
-    'bouncer-plan', 'bouncer-execute', 'bouncer-run', 'bouncer-finalize',
+    'bouncer-plan', 'bouncer-execute', 'bouncer-run',
   ]) {
     const md = read(`skills/${name}/SKILL.md`);
     assert.match(md, /project-root/, `${name} must call bouncer project-root`);
@@ -92,6 +92,19 @@ test('workflow skills resolve PROJECT_ROOT via project-root for Distill', () => 
       `${name} must not derive Distill from BOUNCER_ROOT`,
     );
   }
+});
+
+test('finalize promotion uses distill JSON payload repoRoot as the write base', () => {
+  const finalize = read('skills/bouncer-finalize/SKILL.md');
+  // 긍정 단정으로 base 출처를 잠근다.
+  assert.match(finalize, /payload[^\n]{0,40}`?repoRoot`?/i);
+  // 경로 조립 형태만 좁게 금지한다. `project-root`라는 낱말 자체를
+  // doesNotMatch로 막으면, "project-root로 조립하지 않는다"는 금지 문구를
+  // 본문에 쓰는 순간 테스트가 깨진다(plugin-skills shard의 알려진 함정).
+  assert.doesNotMatch(finalize, /\$\{PROJECT_ROOT\}\/\.bouncer\/Distill\.md/);
+  // cwd 계약이 본문에 남아 있어야 한다.
+  assert.match(finalize, /cwd/i);
+  assert.match(finalize, /같은 checkout|동일한 checkout/);
 });
 
 test('Distill consumers use full preflight, then path-routed CLI output', () => {
@@ -126,7 +139,7 @@ test('finalize promotion searches all Distill content and independently reads ev
   const finalize = read('skills/bouncer-finalize/SKILL.md');
   const spec = read('skills/spec-authoring/SKILL.md');
   assert.match(finalize, /distill\s+--all\s+--json/, 'promotion must start with a full JSON audit');
-  assert.match(finalize, /already-resolved[\s\S]{0,100}PROJECT_ROOT[\s\S]{0,100}(?:every|each|모든)/i);
+  assert.match(finalize, /already-resolved[\s\S]{0,100}repoRoot[\s\S]{0,100}(?:every|each|모든)/i);
   assert.match(finalize, /audit\.shards/);
   assert.match(finalize, /read[\s\S]{0,100}(?:every|each|모든)[\s\S]{0,100}shard/i);
   assert.match(finalize, /relative[^\n]{0,20}path|상대 경로/i);
