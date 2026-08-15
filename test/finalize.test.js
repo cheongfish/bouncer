@@ -395,6 +395,28 @@ test('finalize commit message has no trailers', () => {
 });
 
 
+test('finalize --yes from a linked checkout stages that checkout Distill and registered shard', () => {
+  const tmp = fs.realpathSync(os.tmpdir());
+  const primary = fs.realpathSync(fs.mkdtempSync(path.join(tmp, 'bouncer-finalize-primary-')));
+  fullBlueprint(primary);
+  const linked = path.join(tmp, `bouncer-finalize-linked-${Date.now()}-${process.pid}`);
+  execFileSync('git', ['worktree', 'add', '--detach', linked, 'HEAD'], {
+    cwd: primary,
+    stdio: 'ignore',
+  });
+  const linkedRoot = fs.realpathSync(linked);
+  // worktree add는 tracked 파일만 가져온다. blueprint 문서는 fixture가 커밋하지
+  // 않으므로 linked에 다시 심고, Distill은 이 checkout에만 둔다.
+  fullBlueprint(linkedRoot, { withGit: false });
+  writeRegisteredDistillShard(linkedRoot);
+  const g = fakeGit(['.bouncer/Distill.md', '.bouncer/distill/core.md'], []);
+  const res = finalize({
+    repoRoot: linkedRoot, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
+  });
+  assert.ok(res.staged.includes('.bouncer/Distill.md'));
+  assert.ok(res.staged.includes('.bouncer/distill/core.md'));
+});
+
 test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);

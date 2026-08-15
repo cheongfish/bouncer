@@ -12,6 +12,7 @@ const {
   readShards,
   routeShards,
   renderShards,
+  resolveDistillRoot,
 } = require('../scripts/lib/distill');
 const {
   PROJECT_DISTILL,
@@ -21,12 +22,36 @@ const {
 const { checkDistillStructural } = require('../scripts/lib/validate-structural');
 const { runCli } = require('../scripts/lib/cli');
 
+function tmpRoot() {
+  // runtimePaths는 git-common-dir을 path.resolve하므로, symlink된 tmpdir에서는
+  // mkdtemp 문자열과 main worktree 절대 경로가 한 글자도 어긋난다.
+  return fs.realpathSync(os.tmpdir());
+}
+
 function repoFixture() {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-distill-'));
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-distill-'));
   fs.mkdirSync(path.join(repo, DISTILL_ROOT), { recursive: true });
   fs.mkdirSync(path.join(repo, 'scripts/src/lib'), { recursive: true });
   fs.mkdirSync(path.join(repo, 'docs'), { recursive: true });
   return repo;
+}
+
+function initBareGit(repo) {
+  execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd: repo, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.name', 't'], { cwd: repo, stdio: 'ignore' });
+  fs.writeFileSync(path.join(repo, 'README'), 'base\n');
+  execFileSync('git', ['add', 'README'], { cwd: repo, stdio: 'ignore' });
+  execFileSync('git', ['commit', '-m', 'base'], { cwd: repo, stdio: 'ignore' });
+}
+
+function addLinkedCheckout(primary) {
+  const linked = path.join(tmpRoot(), `bouncer-distill-linked-${crypto.randomBytes(6).toString('hex')}`);
+  execFileSync('git', ['worktree', 'add', '--detach', linked, 'HEAD'], {
+    cwd: primary,
+    stdio: 'ignore',
+  });
+  return fs.realpathSync(linked);
 }
 
 function write(rel, content, repo) {
@@ -77,6 +102,26 @@ function captureCli(argv) {
   });
   return { code, ...output };
 }
+
+test('resolveDistillRoot prefers a Distill file on the linked checkout', () => {
+  const primary = fs.realpathSync(fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-distill-primary-')));
+  initBareGit(primary);
+  const linked = addLinkedCheckout(primary);
+  write(PROJECT_DISTILL, '# linked distill\n', linked);
+  assert.strictEqual(resolveDistillRoot({ repoRoot: linked }), linked);
+});
+
+test('resolveDistillRoot falls back to main worktree, then the given root', () => {
+  const primary = fs.realpathSync(fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-distill-primary-')));
+  initBareGit(primary);
+  // tracked면 worktree add가 linked에도 체크아웃해 1단계(파일 존재)에 걸린다.
+  write(PROJECT_DISTILL, '# main distill uncommitted\n', primary);
+  const linkedNoDistill = addLinkedCheckout(primary);
+  assert.strictEqual(resolveDistillRoot({ repoRoot: linkedNoDistill }), primary);
+
+  const nonGit = fs.realpathSync(fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-distill-nongit-')));
+  assert.strictEqual(resolveDistillRoot({ repoRoot: nonGit }), nonGit);
+});
 
 test('layout keeps Project Distill and shard roots in one contract', () => {
   assert.strictEqual(DISTILL_INDEX, PROJECT_DISTILL);

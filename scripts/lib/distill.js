@@ -20,9 +20,16 @@ function normalizeRepoRelative(value) {
         return null;
     return normalized;
 }
-function resolveProjectRoot(repoRoot, suppliedPaths) {
+function resolveDistillRoot({ repoRoot, runtime, runtimePaths: suppliedRuntimePaths, paths: suppliedPaths, } = {}) {
     const fallback = repoRoot || process.cwd();
-    const paths = suppliedPaths || (() => {
+    // Distill.md 파일 존재만 본다. shard 디렉터리나 frontmatter로 고르면
+    // 인덱스 폴백 사유(legacyResult)와 기준 경로 선택이 한 판정으로 섞인다.
+    if (fs.existsSync(path.join(fallback, DISTILL_INDEX))) {
+        return fallback;
+    }
+    // 세 별칭을 그대로 받는다. 호출자가 runtimePaths/paths만 넘기는데 여기서
+    // runtime만 보면 Git 없는 단위 테스트가 조용히 폴백으로 떨어진다.
+    const paths = runtime || suppliedRuntimePaths || suppliedPaths || (() => {
         try {
             return runtimePaths({ repoRoot: fallback });
         }
@@ -30,9 +37,8 @@ function resolveProjectRoot(repoRoot, suppliedPaths) {
             return null;
         }
     })();
-    // linked checkout에서 Distill을 읽으면 안 된다. 다만 단위 테스트나 아직
-    // Git으로 초기화되지 않은 새 저장소는 runtimePaths를 계산할 수 없으므로
-    // 그때만 전달받은 root를 사용해 라이브러리의 폴백 계약을 유지한다.
+    // checkout에 Distill이 없을 때만 main worktree로 돌아간다. Git이 없으면
+    // unavailable이라 전달받은 root를 유지한다(라이브러리 폴백 계약).
     return paths && !paths.unavailable && typeof paths.projectRoot === 'string'
         ? paths.projectRoot
         : fallback;
@@ -147,7 +153,12 @@ function legacyResult(repoRoot, content, reason) {
  * 위험을 피하기 위해 원래 단일 파일을 그대로 반환한다.
  */
 function readShards({ repoRoot, paths: suppliedPaths, runtime, runtimePaths: suppliedRuntimePaths, } = {}) {
-    const root = resolveProjectRoot(repoRoot, runtime || suppliedRuntimePaths || suppliedPaths);
+    const root = resolveDistillRoot({
+        repoRoot,
+        runtime,
+        runtimePaths: suppliedRuntimePaths,
+        paths: suppliedPaths,
+    });
     const indexAbs = path.join(root, DISTILL_INDEX);
     let raw;
     try {
@@ -380,6 +391,7 @@ function renderShards(input, suppliedSelection) {
 }
 module.exports = {
     DISTILL_VERSION,
+    resolveDistillRoot,
     readShards,
     routeShards,
     renderShards,

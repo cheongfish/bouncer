@@ -42,3 +42,4 @@ bouncer_schema: '0.1'
 * [035 scripts-refactor](epics/035-scripts-refactor/index.md) - Epic 035
 * [036 distill-sharding](epics/036-distill-sharding/index.md) - Epic 036
 * [037 distill-promotion-consent](epics/037-distill-promotion-consent/index.md) - Epic 037
+* [038 distill-worktree-base](epics/038-distill-worktree-base/index.md) - Epic 038

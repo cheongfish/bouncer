@@ -8,7 +8,7 @@ const { resolveGraphifyBin } = require('./graphify');
 const { migrateIds } = require('./migrate-ids');
 const { migrateTaskLayout } = require('./migrate-task-layout');
 const { runtimePaths } = require('./runtime-state');
-const { readShards, routeShards, renderShards } = require('./distill');
+const { readShards, routeShards, renderShards, resolveDistillRoot } = require('./distill');
 const { readConfig } = require('./config');
 
 const DISTILL_MODES = new Set(['for', 'all', 'route', 'audit']);
@@ -132,8 +132,11 @@ function cmdDistill(rest: string[], io: any) {
     return 1;
   }
 
-  const state = readShards({ repoRoot: paths.projectRoot, runtime: paths });
-  const config = readConfig(paths.projectRoot);
+  // Git 가용성만 runtimePaths로 판정한다. Distill 읽기 기준을 projectRoot로
+  // 고정하면 --repo로 고른 linked checkout의 Distill을 무시하게 된다.
+  const distillRoot = resolveDistillRoot({ repoRoot: requestedRoot, runtime: paths });
+  const state = readShards({ repoRoot: distillRoot, runtime: paths });
+  const config = readConfig(distillRoot);
   const configDistill = config
     && typeof config === 'object'
     && !Array.isArray(config)
