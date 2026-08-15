@@ -31,7 +31,7 @@ function runGraphifyUpdate(repoRoot, dir, outDir, opts = null) {
     const partAbs = path.join(repoRoot, outDir);
     const scanAbs = path.join(repoRoot, dir);
     fs.mkdirSync(partAbs, { recursive: true });
-    const exec = (opts && opts.exec) || execFileSync;
+    const exec = ((opts && opts.exec) || execFileSync);
     // 실행 대상은 해석기가 준 값만 — 여기 리터럴 'graphify'를 두지 않는다.
     // 호출자(defaultExecGraphify)가 한 번 해석한 bin을 넘기는 것이 정상이며,
     // 미주입 시에만 여기서 한 번 더 해석한다(단위 테스트·직접 호출용).
@@ -85,8 +85,9 @@ function normalizeGraphPaths(repoRoot, partOut, dir, opts) {
         });
         graph.hyperedges = (graph.hyperedges || []).filter((hyperedge) => {
             if (Array.isArray(hyperedge.nodes)) {
-                hyperedge.nodes = hyperedge.nodes.map(prefixId);
-                if (!hyperedge.nodes.every((id) => keptIds.has(id)))
+                const nodes = hyperedge.nodes.map(prefixId);
+                hyperedge.nodes = nodes;
+                if (!nodes.every((id) => keptIds.has(id)))
                     return false;
             }
             const f = hyperedge.source_file;

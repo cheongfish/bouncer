@@ -4,6 +4,10 @@ const { init, inspectBootstrap } = require('./init');
 const { nowIsoKst } = require('./time');
 const { realGraphifyEnabled, realSourceDirs, realContextDirs, realExistingDirs, newestMtimeUnder, realNewestMtime, realGraphMtime, resolveGraphScopes, SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT, DEFAULT_CONTEXT_DIRS, } = require('./graph-scope');
 const { realHasGraphify, defaultExecGraphify, normalizeGraphPaths, runGraphifyUpdate, partOutDir, } = require('./graph-exec');
+function catchMessageOrString(error) {
+    const message = error && error.message;
+    return message ? String(message) : String(error);
+}
 // 계획·오케스트레이션·경고 문구 + 공개 배럴.
 // 훅과 테스트는 이 파일 이름만 본다. 구현이 형제로 옮겨도 키 집합은 유지한다.
 function planOneGraph(args) {
@@ -14,7 +18,9 @@ function planOneGraph(args) {
     // config를 다시 읽지 않고 "X를 요청했지만 Y만 존재"라고 말할 수 있게 한다.
     // scanDirs/watchFiles 는 결정 객체에 그대로 실어 소비 측이 scanDirs||dirs /
     // watchFiles||[] 로 읽게 한다. configured 문구에는 섞지 않는다.
-    const base = { name, dirs: present, configured: dirs, outDir };
+    const base = {
+        name, dirs: present, configured: dirs, outDir, action: '', reason: '',
+    };
     if (scanDirs !== undefined)
         base.scanDirs = scanDirs;
     if (watchFiles !== undefined)
@@ -115,12 +121,14 @@ function syncSessionGraphs({ repoRoot, deps, execGraphify }) {
                 const outcome = run(graph);
                 // 빈 다이제스트 + graph.json 없음 = 순수 no-op → built 에 넣지 않는다.
                 // touched 면 freshness만 가라앉힌 것이므로 built 로 보고한다.
-                if (outcome && outcome.skippedEmpty && !outcome.touched)
+                const skippedEmpty = outcome && outcome.skippedEmpty;
+                const touched = outcome && outcome.touched;
+                if (outcome && skippedEmpty && !touched)
                     continue;
                 built.push(graph.name);
             }
             catch (error) {
-                failed.push({ name: graph.name, message: error && error.message ? error.message : String(error) });
+                failed.push({ name: graph.name, message: catchMessageOrString(error) });
             }
         }
     }
@@ -166,7 +174,7 @@ function graphSyncWarnings(decision) {
     for (const name of decision.missing || []) {
         if (failedNames.has(name))
             continue;
-        const graph = byName[name] || {};
+        const graph = (byName[name] || {});
         const configured = Array.isArray(graph.configured) ? graph.configured : [];
         const dirsKey = name === 'context' ? 'context_dirs' : `${name}_dirs`;
         // "none of … exist"는 skip-no-dirs/빈 present dirs일 때만 참.

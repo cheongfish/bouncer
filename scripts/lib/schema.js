@@ -71,10 +71,11 @@ function detectLegacyFormat({ repoRoot, data } = {}) {
         }
     }
     if (data && typeof data === 'object') {
-        if (Object.prototype.hasOwnProperty.call(data, 'sdd')) {
+        const rec = data;
+        if (Object.prototype.hasOwnProperty.call(rec, 'sdd')) {
             return { legacy: true, reason: LEGACY_GUIDANCE };
         }
-        if (typeof data.type === 'string' && data.type.startsWith('sdd.')) {
+        if (typeof rec.type === 'string' && rec.type.startsWith('sdd.')) {
             return { legacy: true, reason: LEGACY_GUIDANCE };
         }
     }

@@ -126,6 +126,8 @@ function readShard(repoRoot, declaration) {
         pulls: normalizedPulls,
         // 구조 validator가 별도로 누락을 보고하더라도 라우터는 이 신호를 보고
         // 선택 결과를 만들지 않는다. 누락을 빈 배열로 바꾸면 규칙을 잃는다.
+        // asList(array)는 입력을 그대로 돌려주므로 rawPaths가 배열이면
+        // normalizedPaths/normalizedPulls는 항상 있다 — ! 는 그 불변식만 적는다.
         pathsKnown: rawPaths === undefined
             || (Array.isArray(rawPaths) && normalizedPaths.every(Boolean)),
         pullsKnown: Array.isArray(pulls) && normalizedPulls.length === pulls.length,

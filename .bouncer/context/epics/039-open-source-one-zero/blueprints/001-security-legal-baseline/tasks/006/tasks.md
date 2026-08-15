@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-006
   epic_id: '039'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run verify:strict
   commit_intent:
     - 그래프·Distill·CLI 오케스트레이션의 any가 외부 명령 결과와 라우팅 상태의 잘못된 조합을 숨기고 있음

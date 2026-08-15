@@ -1,22 +1,44 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { detectLegacyFormat } = require('./schema');
-const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout');
-const { PROJECT_DISTILL_BODY } = require('./templates');
-const { nowIsoKst } = require('./time');
-const { setupGraphify } = require('./graphify');
+const { detectLegacyFormat } = require('./schema') as {
+  detectLegacyFormat: (opts: { repoRoot?: string }) => { legacy: boolean; reason?: string };
+};
+const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout') as {
+  PROJECT_DISTILL: string;
+  LEGACY_PROJECT_DISTILL: string;
+};
+const { PROJECT_DISTILL_BODY } = require('./templates') as {
+  PROJECT_DISTILL_BODY: string;
+};
+const { nowIsoKst } = require('./time') as {
+  nowIsoKst: () => string;
+};
+const { setupGraphify } = require('./graphify') as {
+  setupGraphify: (opts: { repoRoot?: string }) => GraphifySetupResult;
+};
 const {
   readConfig,
   DEFAULT_DISTILL_CONFIG,
-} = require('./config');
+} = require('./config') as {
+  readConfig: (repoRoot: string) => unknown;
+  DEFAULT_DISTILL_CONFIG: { routing_enabled: boolean; max_bytes: number };
+};
+
+type GraphifySetupResult = {
+  status: string;
+  bin: string | null;
+  reason?: string;
+};
+
+type GraphifySetupFn = (opts: { repoRoot?: string }) => GraphifySetupResult;
 
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
 // import하는 test와 동기 유지.
 const SOURCE_DIR_CANDIDATES = ['src', 'lib', 'app', 'packages', 'scripts', 'test', 'tests'];
 
-function detectSourceDirs(repoRoot) {
+function detectSourceDirs(repoRoot: string) {
   return SOURCE_DIR_CANDIDATES.filter((name) => {
     try {
       return fs.statSync(path.join(repoRoot, name)).isDirectory();
@@ -26,7 +48,7 @@ function detectSourceDirs(repoRoot) {
   });
 }
 
-function defaultConfig(repoRoot) {
+function defaultConfig(repoRoot: string) {
   return {
     // scaffold 시점에만 감지 — ready bootstrap에서는 다시 쓰지 않음.
     source_dirs: detectSourceDirs(repoRoot),
@@ -96,14 +118,14 @@ bouncer_schema: "0.1"
      * [00x 제목](epics/00x-slug/index.md) - 한 줄 설명 -->
 `;
 
-function writeFile(repoRoot, rel, content, created) {
+function writeFile(repoRoot: string, rel: string, content: string, created: string[]) {
   const abs = path.join(repoRoot, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content);
   created.push(rel);
 }
 
-function projectDistillDoc(timestamp) {
+function projectDistillDoc(timestamp?: string) {
   // 등록된 bouncer.* schema kind가 아님 — project Distill은 gate 없는 prose,
   // OKF 형태 meta만 (title/description/resource/tags/timestamp). `.bouncer/`
   // 런타임 파일이지 context OKF 번들 문서가 아니다.
@@ -120,7 +142,7 @@ timestamp: '${ts}'
 ${PROJECT_DISTILL_BODY}`;
 }
 
-function rewriteDistillResource(body) {
+function rewriteDistillResource(body: string) {
   return body.replace(
     /^resource:\s*\.bouncer\/context\/Distill\.md\s*$/m,
     `resource: ${PROJECT_DISTILL}`,
@@ -129,7 +151,7 @@ function rewriteDistillResource(body) {
 
 // 없을 때만 Distill 생성 — 정리된 project note는 덮어쓰지 않음.
 // 레거시 `.bouncer/context/Distill.md`만 있으면 새 경로로 옮긴다.
-function ensureProjectDistill(repoRoot, created, timestamp) {
+function ensureProjectDistill(repoRoot: string, created: string[], timestamp?: string) {
   const abs = path.join(repoRoot, PROJECT_DISTILL);
   if (fs.existsSync(abs)) return;
   const legacyAbs = path.join(repoRoot, LEGACY_PROJECT_DISTILL);
@@ -156,13 +178,13 @@ const SUGGESTED_IGNORES = [
 const GITIGNORE_MARKER_START = '# bouncer';
 const GITIGNORE_MARKER_END = '# /bouncer';
 
-function gitignoreSuggestions({ repoRoot }) {
-  let ignored = [];
+function gitignoreSuggestions({ repoRoot }: { repoRoot: string }) {
+  let ignored: string[] = [];
   try {
     ignored = fs.readFileSync(path.join(repoRoot, '.gitignore'), 'utf8')
       .split('\n')
-      .map((line) => line.trim().replace(/\/+$/, ''))
-      .filter((line) => line && !line.startsWith('#'));
+      .map((line: string) => line.trim().replace(/\/+$/, ''))
+      .filter((line: string) => line && !line.startsWith('#'));
   } catch (_e) {
     ignored = [];
   }
@@ -178,10 +200,10 @@ function gitignoreSuggestions({ repoRoot }) {
  * 마커 탐지는 줄 전체가 정확히 일치할 때만(substring `indexOf` 금지) —
  * `# bouncer note` 같은 사용자 주석을 마커로 오인하지 않기 위함.
  */
-function writeGitignoreMarkerBlock(repoRoot) {
+function writeGitignoreMarkerBlock(repoRoot: string) {
   const abs = path.join(repoRoot, '.gitignore');
   const block = `${GITIGNORE_MARKER_START}\n${SUGGESTED_IGNORES.join('\n')}\n${GITIGNORE_MARKER_END}`;
-  let content = null;
+  let content: string;
   try {
     content = fs.readFileSync(abs, 'utf8');
   } catch (_e) {
@@ -203,22 +225,23 @@ function writeGitignoreMarkerBlock(repoRoot) {
   return true;
 }
 
-function graphifyEnabledIsTrue(config) {
+function graphifyEnabledIsTrue(config: unknown) {
+  const graphify = config && (config as { graphify?: { enabled?: unknown } }).graphify;
   return !!(
     config
-    && config.graphify
-    && typeof config.graphify === 'object'
-    && config.graphify.enabled === true
+    && graphify
+    && typeof graphify === 'object'
+    && (graphify as { enabled?: unknown }).enabled === true
   );
 }
 
-function seedDistillConfig(repoRoot, existing) {
+function seedDistillConfig(repoRoot: string, existing: Record<string, unknown> | null) {
   if (!existing || typeof existing !== 'object' || Array.isArray(existing)) return false;
   const current = (
     existing.distill
     && typeof existing.distill === 'object'
     && !Array.isArray(existing.distill)
-  ) ? existing.distill : {};
+  ) ? existing.distill as Record<string, unknown> : {};
   const next = {
     ...DEFAULT_DISTILL_CONFIG,
     ...current,
@@ -241,22 +264,25 @@ function seedDistillConfig(repoRoot, existing) {
   return true;
 }
 
-function inspectBootstrap({ repoRoot }) {
+function inspectBootstrap({ repoRoot }: { repoRoot?: string }) {
   if (detectLegacyFormat({ repoRoot }).legacy) return 'legacy';
 
-  const bouncerAbs = path.join(repoRoot, '.bouncer');
+  const bouncerAbs = path.join(repoRoot as string, '.bouncer');
   if (!fs.existsSync(bouncerAbs)) return 'missing';
 
   // 파싱은 config.ts에 맡기고 유효성만 여기서 본다. 배열/원시값을 ready로
   // 올리면 이후 승격이 비객체에 키를 심는다. 깨진 JSON·비객체는 missing이
   // 아니라 partial — .bouncer가 이미 있으므로 재생성하면 기존 내용을 덮는다.
-  const config = readConfig(repoRoot);
-  const valid = config
+  const config = readConfig(repoRoot as string);
+  const rec = config
     && typeof config === 'object'
     && !Array.isArray(config)
-    && Array.isArray(config.source_dirs)
-    && typeof config.verify === 'string'
-    && typeof config.base_branch === 'string';
+    ? config as Record<string, unknown>
+    : null;
+  const valid = rec
+    && Array.isArray(rec.source_dirs)
+    && typeof rec.verify === 'string'
+    && typeof rec.base_branch === 'string';
   if (valid) return 'ready';
   return 'partial';
 }
@@ -270,7 +296,7 @@ function init({
 } = {} as {
   repoRoot?: string;
   timestamp?: string;
-  graphify?: { install?: boolean; setup?: Function };
+  graphify?: { install?: boolean; setup?: GraphifySetupFn };
   promote?: boolean;
   writeGitignore?: boolean;
 }) {
@@ -296,25 +322,27 @@ function init({
   // 동의 시 마커 블록을 먼저 쓰고, 제안 목록은 최종 파일 기준으로 계산한다.
   let gitignoreWritten = false;
   if (wantWriteGitignore) {
-    writeGitignoreMarkerBlock(repoRoot);
+    writeGitignoreMarkerBlock(repoRoot as string);
     gitignoreWritten = true;
   }
-  const suggestions = gitignoreSuggestions({ repoRoot });
+  const suggestions = gitignoreSuggestions({ repoRoot: repoRoot as string });
 
   if (bootstrap === 'ready') {
     // project Distill 이전에 init된 repo용 soft-seed.
-    const created = [];
-    ensureProjectDistill(repoRoot, created, timestamp);
+    const created: string[] = [];
+    ensureProjectDistill(repoRoot as string, created, timestamp);
 
     // 승격은 객체에만 키를 심는다. readConfig는 배열/원시값도 통과시키므로
     // 여기서 걸러야 비객체에 graphify.enabled를 쓰다가 파일을 잘못된 형태로
     // 덮지 않는다. null은 승격 no-op (existing이 falsy면 write 생략).
-    const raw = readConfig(repoRoot);
-    const existing = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : null;
-    const distillSeeded = seedDistillConfig(repoRoot, existing);
+    const raw = readConfig(repoRoot as string);
+    const existing = (raw && typeof raw === 'object' && !Array.isArray(raw))
+      ? raw as Record<string, unknown>
+      : null;
+    const distillSeeded = seedDistillConfig(repoRoot as string, existing);
     const alreadyEnabled = graphifyEnabledIsTrue(existing);
-    let graphifyPromotion;
-    let graphifyInstall;
+    let graphifyPromotion: string | undefined;
+    let graphifyInstall: GraphifySetupResult | undefined;
 
     // enabled가 이미 true면 승격 경로 자체가 없다 — config를 건드리지 않는다.
     if (!alreadyEnabled) {
@@ -327,7 +355,7 @@ function init({
           graphifyInstall = setup({ repoRoot });
         }
         if (existing) {
-          const nextGraphify = {
+          const nextGraphify: Record<string, unknown> = {
             ...(existing.graphify && typeof existing.graphify === 'object'
               ? existing.graphify
               : {}),
@@ -343,7 +371,7 @@ function init({
           }
           existing.graphify = nextGraphify;
           fs.writeFileSync(
-            path.join(repoRoot, '.bouncer', 'config.json'),
+            path.join(repoRoot as string, '.bouncer', 'config.json'),
             `${JSON.stringify(existing, null, 2)}\n`,
           );
         }
@@ -365,9 +393,9 @@ function init({
   }
 
   // 신규 부트스트랩
-  const created = [];
-  const config = defaultConfig(repoRoot);
-  let graphifyInstall;
+  const created: string[] = [];
+  const config = defaultConfig(repoRoot as string);
+  let graphifyInstall: GraphifySetupResult | undefined;
   if (wantInstall) {
     graphifyInstall = setup({ repoRoot });
     if (
@@ -384,9 +412,9 @@ function init({
     }
   }
 
-  writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
-  writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
-  ensureProjectDistill(repoRoot, created, timestamp);
+  writeFile(repoRoot as string, '.bouncer/context/index.md', CONTEXT_INDEX, created);
+  writeFile(repoRoot as string, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
+  ensureProjectDistill(repoRoot as string, created, timestamp);
   // gitignoreSuggestions와 같은 advisory layer: detection이 아무것도 못 찾으면
   // operator에게 source_dirs를 채우라고 알려 빈 graph(BP-001 missing warning)에
   // opt-in하지 않게 함. dir을 찾았으면 생략.

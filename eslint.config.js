@@ -6,38 +6,11 @@ const tseslint = require('typescript-eslint');
 // The rules below encode the style the codebase already uses, so the linter
 // enforces what reviewers were checking by hand. Vendored third-party code is
 // not ours to restyle. `scripts/lib/**` is tsc emit (4-space printer); style is
-// enforced on hand-written JS elsewhere. TypeScript lint is opened only for the
-// first strict module group; later commits expand this list with the same
-// recommended surface.
+// enforced on hand-written JS elsewhere. TypeScript lint covers the full
+// `scripts/src/lib/**/*.ts` glob; recommended stays on, with the CJS require
+// overrides below.
 const STRICT_TS_FILES = [
-  'scripts/src/lib/config.ts',
-  'scripts/src/lib/frontmatter.ts',
-  'scripts/src/lib/render.ts',
-  'scripts/src/lib/time.ts',
-  'scripts/src/lib/templates.ts',
-  'scripts/src/lib/tasks-docs.ts',
-  'scripts/src/lib/paths.ts',
-  'scripts/src/lib/layout.ts',
-  'scripts/src/lib/scope.ts',
-  'scripts/src/lib/subagents.ts',
-  'scripts/src/lib/epic-index.ts',
-  'scripts/src/lib/scaffold.ts',
-  'scripts/src/lib/verification.ts',
-  'scripts/src/lib/validate-sections.ts',
-  'scripts/src/lib/validate-docs.ts',
-  'scripts/src/lib/validate-structural.ts',
-  'scripts/src/lib/validate-gates.ts',
-  'scripts/src/lib/validate.ts',
-  'scripts/src/lib/runtime-state.ts',
-  'scripts/src/lib/current.ts',
-  'scripts/src/lib/commit-hook.ts',
-  'scripts/src/lib/commit-guard.ts',
-  'scripts/src/lib/commit.ts',
-  'scripts/src/lib/finalize.ts',
-  'scripts/src/lib/seed-worktree.ts',
-  'scripts/src/lib/comprehension.ts',
-  'scripts/src/lib/migrate-ids.ts',
-  'scripts/src/lib/migrate-task-layout.ts',
+  'scripts/src/lib/**/*.ts',
 ];
 
 module.exports = [

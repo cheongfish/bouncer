@@ -1,14 +1,49 @@
 'use strict';
 
-const { parseFlags } = require('./cli-flags');
-const { validateBlueprint } = require('./validate');
+const { parseFlags } = require('./cli-flags') as {
+  parseFlags: (rest: string[]) => Record<string, string | boolean>;
+};
+const { validateBlueprint } = require('./validate') as {
+  validateBlueprint: (opts: {
+    repoRoot: string;
+    blueprintDir: string;
+    gate?: string;
+  }) => { ok: boolean; failures: unknown[] };
+};
 const {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints,
   resolvePointerTask, presentCurrent,
-} = require('./current');
-const { readConfig } = require('./config');
+} = require('./current') as {
+  readCurrent: (opts: { repoRoot: string }) => {
+    blueprint: string;
+    base: string;
+    task: string | null;
+  } | null;
+  writeCurrent: (opts: {
+    repoRoot: string;
+    blueprint: unknown;
+    base: string;
+    task?: unknown;
+  }) => string;
+  clearCurrent: (opts: { repoRoot: string }) => boolean;
+  listReadyBlueprints: (opts: { repoRoot: string }) => unknown[];
+  resolvePointerTask: (opts: {
+    repoRoot: string;
+    blueprintDir: string;
+    task?: unknown;
+  }) => { ok: boolean; available?: Array<{ id: string }>; task?: unknown };
+  presentCurrent: (current: unknown, opts: { repoRoot: string }) => unknown;
+};
+const { readConfig } = require('./config') as {
+  readConfig: (repoRoot: string) => unknown;
+};
 
-function cmdCurrent(rest, io) {
+type CliIo = {
+  out: (s: string) => void;
+  err: (s: string) => void;
+};
+
+function cmdCurrent(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
   // hasOwnProperty: --set/--task 가 boolean true(값 없음)여도 "요청함"으로 본다.
   // truthy 문자열만 보면 `--set` 단독이 아래 분기를 건너뛴다.
@@ -35,7 +70,7 @@ function cmdCurrent(rest, io) {
     return 2;
   }
 
-  const repoRoot = f.repo || process.cwd();
+  const repoRoot = (f.repo || process.cwd()) as string;
 
   if (wantsClear) {
     // set보다 먼저 return. 모순은 위에서 이미 거절했으므로 여기선 포인터만 지운다.
@@ -45,7 +80,7 @@ function cmdCurrent(rest, io) {
   }
 
   if (wantsSet) {
-    const blueprintDir = f.set;
+    const blueprintDir = f.set as string;
     const result = validateBlueprint({
       repoRoot,
       blueprintDir,
@@ -70,7 +105,7 @@ function cmdCurrent(rest, io) {
     });
     if (!resolved.ok) {
       const ids = (resolved.available || [])
-        .map((t) => t.id)
+        .map((t: { id: string }) => t.id)
         .filter(Boolean)
         .join(', ');
       io.err(
@@ -85,7 +120,7 @@ function cmdCurrent(rest, io) {
       // 부재·깨진 JSON을 {}로 삼킨다. --set은 base_branch만 읽고 없으면
       // develop. session-graph는 null을 구분해 graphify.enabled를 끄지만,
       // 이쪽은 파일 부재와 빈 설정을 같게 보는 것이 기존 동작이다.
-      const config = readConfig(repoRoot) ?? {};
+      const config = (readConfig(repoRoot) ?? {}) as Record<string, unknown>;
       base = (config && typeof config.base_branch === 'string' && config.base_branch)
         ? config.base_branch
         : 'develop';

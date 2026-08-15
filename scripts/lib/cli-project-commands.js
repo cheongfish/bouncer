@@ -119,7 +119,7 @@ function cmdDistill(rest, io) {
         io.err(parsed.error);
         return 2;
     }
-    const requestedRoot = parsed.repo || process.cwd();
+    const requestedRoot = (parsed.repo || process.cwd());
     const paths = runtimePaths({ repoRoot: requestedRoot });
     if (paths.unavailable || !paths.projectRoot) {
         io.err(`distill: ${paths.reason || 'Bouncer requires a Git repository'}\n`);
@@ -130,13 +130,16 @@ function cmdDistill(rest, io) {
     const distillRoot = resolveDistillRoot({ repoRoot: requestedRoot, runtime: paths });
     const state = readShards({ repoRoot: distillRoot, runtime: paths });
     const config = readConfig(distillRoot);
-    const configDistill = config
+    const configRecord = config
         && typeof config === 'object'
         && !Array.isArray(config)
-        && config.distill
-        && typeof config.distill === 'object'
-        && !Array.isArray(config.distill)
-        ? config.distill
+        ? config
+        : null;
+    const configDistill = configRecord
+        && configRecord.distill
+        && typeof configRecord.distill === 'object'
+        && !Array.isArray(configRecord.distill)
+        ? configRecord.distill
         : null;
     // 명시된 config 값은 운영자가 현재 소비 모드를 선택한 신호이므로
     // 인덱스의 과거 메타데이터보다 우선한다. config가 없거나 깨졌을 때는
@@ -175,26 +178,26 @@ function cmdInit(rest, io) {
     // 테스트·프로그래밍 호출이 네트워크 pip을 타지 않게 라이브러리는 opt-in.
     const install = f['no-graphify'] !== true;
     const result = init({
-        repoRoot: f.repo || process.cwd(),
+        repoRoot: (f.repo || process.cwd()),
         timestamp,
         graphify: { install },
         promote: f['promote-graphify'] === true,
         writeGitignore: f['write-gitignore'] === true,
     });
-    io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
+    io.out(`${JSON.stringify(Object.assign({ ok: true }, result), null, 2)}\n`);
     // created/skipped와 무관하게 result.ok만 본다. 부분 성공을 0으로 위장하지 않음.
     return result.ok ? 0 : 1;
 }
 function cmdGraphSync(rest, io) {
     const f = parseFlags(rest);
-    const result = syncSessionGraphs({ repoRoot: f.repo || process.cwd() });
+    const result = syncSessionGraphs({ repoRoot: (f.repo || process.cwd()) });
     // missing은 상태가 아니라 오류가 아니다(그래프 부재). failed만 종료 코드를 가른다.
     io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
     return result.failed.length === 0 ? 0 : 1;
 }
 function cmdGraphifyBin(rest, io) {
     const f = parseFlags(rest);
-    const repoRoot = f.repo || process.cwd();
+    const repoRoot = (f.repo || process.cwd());
     const { bin } = resolveGraphifyBin({ repoRoot });
     if (!bin) {
         // stdout은 pipe-clean 유지 — 실패 사유는 stderr만.
@@ -207,7 +210,7 @@ function cmdGraphifyBin(rest, io) {
 }
 function cmdProjectRoot(rest, io) {
     const f = parseFlags(rest);
-    const repoRoot = f.repo || process.cwd();
+    const repoRoot = (f.repo || process.cwd());
     // Distill·워크플로가 소비하는 정본은 main worktree다. linked cwd나
     // plugin root로 대체하면 도그푸드 Distill을 오독하므로 unavailable은
     // 빈 stdout/cwd fallback 없이 stderr+1로 거절한다.
@@ -228,9 +231,10 @@ function cmdMigrate(rest, io) {
         return 2;
     }
     const f = parseFlags(flagArgs);
+    const repoRoot = (f.repo || process.cwd());
     const result = kind === 'ids'
-        ? migrateIds({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true })
-        : migrateTaskLayout({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true });
+        ? migrateIds({ repoRoot, dryRun: f['dry-run'] === true })
+        : migrateTaskLayout({ repoRoot, dryRun: f['dry-run'] === true });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     // kind는 위에서 이미 걸렀다. 라이브러리 거절(dirty/collision)은 실행 실패(1).
     return result.ok ? 0 : 1;

@@ -1,19 +1,83 @@
 'use strict';
 
-const { parseFlags } = require('./cli-flags');
-const { init } = require('./init');
-const { nowIsoKst } = require('./time');
-const { syncSessionGraphs } = require('./session-graph');
-const { resolveGraphifyBin } = require('./graphify');
-const { migrateIds } = require('./migrate-ids');
-const { migrateTaskLayout } = require('./migrate-task-layout');
-const { runtimePaths } = require('./runtime-state');
-const { readShards, routeShards, renderShards, resolveDistillRoot } = require('./distill');
-const { readConfig } = require('./config');
+const { parseFlags } = require('./cli-flags') as {
+  parseFlags: (rest: string[]) => Record<string, string | boolean>;
+};
+const { init } = require('./init') as {
+  init: (opts: Record<string, unknown>) => { ok: boolean };
+};
+const { nowIsoKst } = require('./time') as {
+  nowIsoKst: () => string;
+};
+const { syncSessionGraphs } = require('./session-graph') as {
+  syncSessionGraphs: (opts: { repoRoot: string }) => { failed: unknown[] };
+};
+const { resolveGraphifyBin } = require('./graphify') as {
+  resolveGraphifyBin: (opts: { repoRoot: string }) => { bin: string | null };
+};
+const { migrateIds } = require('./migrate-ids') as {
+  migrateIds: (opts: { repoRoot: string; dryRun?: boolean }) => { ok: boolean };
+};
+const { migrateTaskLayout } = require('./migrate-task-layout') as {
+  migrateTaskLayout: (opts: { repoRoot: string; dryRun?: boolean }) => { ok: boolean };
+};
+const { runtimePaths } = require('./runtime-state') as {
+  runtimePaths: (opts: { repoRoot: string }) => {
+    unavailable?: boolean;
+    projectRoot?: string;
+    reason?: string;
+  };
+};
+const { readShards, routeShards, renderShards, resolveDistillRoot } = require('./distill') as {
+  readShards: (opts: { repoRoot: string; runtime?: unknown }) => DistillState;
+  routeShards: (opts: Record<string, unknown>) => DistillSelection;
+  renderShards: (state: DistillState, selection: DistillSelection) => string;
+  resolveDistillRoot: (opts: { repoRoot: string; runtime?: unknown }) => string;
+};
+const { readConfig } = require('./config') as {
+  readConfig: (repoRoot: string) => unknown;
+};
+
+type CliIo = {
+  out: (s: string) => void;
+  err: (s: string) => void;
+};
+
+type DistillShard = {
+  id: string;
+  path?: string;
+  always?: boolean;
+  pathsKnown?: boolean;
+  pullsKnown?: boolean;
+  paths?: unknown;
+  pulls?: unknown;
+};
+type DistillState = {
+  shards?: DistillShard[];
+  ids?: string[];
+  sharded?: boolean;
+  valid?: boolean;
+  path?: string;
+  repoRoot?: string;
+  routingEnabled?: boolean;
+};
+type DistillSelection = {
+  full?: boolean;
+  reason?: string;
+  ids?: string[];
+  shards?: DistillShard[];
+};
+type DistillArgs = {
+  error?: string;
+  targets: string[];
+  mode: string | null;
+  repo?: string;
+  json: boolean;
+};
 
 const DISTILL_MODES = new Set(['for', 'all', 'route', 'audit']);
 
-function parseDistillArgs(rest: string[]): any {
+function parseDistillArgs(rest: string[]): DistillArgs {
   const targets: string[] = [];
   let mode: string | null = null;
   let repo: string | undefined;
@@ -58,19 +122,19 @@ function parseDistillArgs(rest: string[]): any {
   return { targets, mode, repo, json };
 }
 
-function allDistillSelection(state: any, reason: string) {
+function allDistillSelection(state: DistillState, reason: string) {
   const shards = Array.isArray(state.shards) ? state.shards : [];
   return {
     full: true,
     reason,
-    ids: Array.isArray(state.ids) ? state.ids : shards.map((shard: any) => shard.id),
+    ids: Array.isArray(state.ids) ? state.ids : shards.map((shard) => shard.id),
     shards: shards.slice(),
   };
 }
 
 function distillPayload(
-  state: any,
-  selection: any,
+  state: DistillState,
+  selection: DistillSelection,
   mode: string,
   targets: string[],
   routingEnabled = state.routingEnabled === true,
@@ -81,21 +145,21 @@ function distillPayload(
   // route/for 결과를 다시 읽지 않고도 배치 근거를 보존할 수 있다. 본문과
   // 원문은 이미 content에 있으므로 메타데이터만 새 객체로 투영한다.
   const auditShards = state.sharded === true
-    ? shards.map((shard: any) => {
-        const projected: any = {
-          id: shard.id,
-          path: shard.path,
-          always: shard.always,
-          pathsKnown: shard.pathsKnown,
-          pullsKnown: shard.pullsKnown,
-        };
-        // undefined를 빈 배열로 바꾸면 미선언과 빈 규칙을 구분할 수 없다.
-        // JSON.stringify는 undefined 필드를 생략하므로 선언된 값만 명시적으로
-        // 복사해 reader가 계산한 known 신호와 원래 메타데이터를 함께 보존한다.
-        if (shard.paths !== undefined) projected.paths = shard.paths;
-        if (shard.pulls !== undefined) projected.pulls = shard.pulls;
-        return projected;
-      })
+    ? shards.map((shard) => {
+      const projected: Record<string, unknown> = {
+        id: shard.id,
+        path: shard.path,
+        always: shard.always,
+        pathsKnown: shard.pathsKnown,
+        pullsKnown: shard.pullsKnown,
+      };
+      // undefined를 빈 배열로 바꾸면 미선언과 빈 규칙을 구분할 수 없다.
+      // JSON.stringify는 undefined 필드를 생략하므로 선언된 값만 명시적으로
+      // 복사해 reader가 계산한 known 신호와 원래 메타데이터를 함께 보존한다.
+      if (shard.paths !== undefined) projected.paths = shard.paths;
+      if (shard.pulls !== undefined) projected.pulls = shard.pulls;
+      return projected;
+    })
     : [];
   return {
     mode,
@@ -118,14 +182,14 @@ function distillPayload(
   };
 }
 
-function cmdDistill(rest: string[], io: any) {
+function cmdDistill(rest: string[], io: CliIo) {
   const parsed = parseDistillArgs(rest);
   if (parsed.error) {
     io.err(parsed.error);
     return 2;
   }
 
-  const requestedRoot = parsed.repo || process.cwd();
+  const requestedRoot = (parsed.repo || process.cwd()) as string;
   const paths = runtimePaths({ repoRoot: requestedRoot });
   if (paths.unavailable || !paths.projectRoot) {
     io.err(`distill: ${paths.reason || 'Bouncer requires a Git repository'}\n`);
@@ -137,13 +201,16 @@ function cmdDistill(rest: string[], io: any) {
   const distillRoot = resolveDistillRoot({ repoRoot: requestedRoot, runtime: paths });
   const state = readShards({ repoRoot: distillRoot, runtime: paths });
   const config = readConfig(distillRoot);
-  const configDistill = config
+  const configRecord = config
     && typeof config === 'object'
     && !Array.isArray(config)
-    && config.distill
-    && typeof config.distill === 'object'
-    && !Array.isArray(config.distill)
-    ? config.distill
+    ? config as Record<string, unknown>
+    : null;
+  const configDistill = configRecord
+    && configRecord.distill
+    && typeof configRecord.distill === 'object'
+    && !Array.isArray(configRecord.distill)
+    ? configRecord.distill as Record<string, unknown>
     : null;
   // 명시된 config 값은 운영자가 현재 소비 모드를 선택한 신호이므로
   // 인덱스의 과거 메타데이터보다 우선한다. config가 없거나 깨졌을 때는
@@ -155,12 +222,12 @@ function cmdDistill(rest: string[], io: any) {
   const selection = parsed.mode === 'all' || parsed.mode === 'audit'
     ? allDistillSelection(state, 'forced-all')
     : routeShards({
-        shards: state.shards,
-        affectedPaths: parsed.targets,
-        routingEnabled,
-        repoRoot: state.repoRoot,
-      });
-  const payload = distillPayload(state, selection, parsed.mode, parsed.targets, routingEnabled);
+      shards: state.shards,
+      affectedPaths: parsed.targets,
+      routingEnabled,
+      repoRoot: state.repoRoot,
+    });
+  const payload = distillPayload(state, selection, parsed.mode as string, parsed.targets, routingEnabled);
 
   // 본문 모드는 기존 consumer가 그대로 pipe할 수 있어야 하므로 content만 쓴다.
   // route/audit은 선택 결과 자체가 목적이라 JSON을 고정해 사람이 읽고 도구도
@@ -176,35 +243,35 @@ function cmdDistill(rest: string[], io: any) {
   return 0;
 }
 
-function cmdInit(rest, io) {
+function cmdInit(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
   const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
   // CLI 기본은 설치 on — 라이브러리 init() 기본(install:false)과 의도적으로 다르다.
   // 테스트·프로그래밍 호출이 네트워크 pip을 타지 않게 라이브러리는 opt-in.
   const install = f['no-graphify'] !== true;
   const result = init({
-    repoRoot: f.repo || process.cwd(),
+    repoRoot: (f.repo || process.cwd()) as string,
     timestamp,
     graphify: { install },
     promote: f['promote-graphify'] === true,
     writeGitignore: f['write-gitignore'] === true,
   });
-  io.out(`${JSON.stringify({ ok: true, ...result }, null, 2)}\n`);
+  io.out(`${JSON.stringify(Object.assign({ ok: true }, result), null, 2)}\n`);
   // created/skipped와 무관하게 result.ok만 본다. 부분 성공을 0으로 위장하지 않음.
   return result.ok ? 0 : 1;
 }
 
-function cmdGraphSync(rest, io) {
+function cmdGraphSync(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
-  const result = syncSessionGraphs({ repoRoot: f.repo || process.cwd() });
+  const result = syncSessionGraphs({ repoRoot: (f.repo || process.cwd()) as string });
   // missing은 상태가 아니라 오류가 아니다(그래프 부재). failed만 종료 코드를 가른다.
   io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
   return result.failed.length === 0 ? 0 : 1;
 }
 
-function cmdGraphifyBin(rest, io) {
+function cmdGraphifyBin(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
-  const repoRoot = f.repo || process.cwd();
+  const repoRoot = (f.repo || process.cwd()) as string;
   const { bin } = resolveGraphifyBin({ repoRoot });
   if (!bin) {
     // stdout은 pipe-clean 유지 — 실패 사유는 stderr만.
@@ -216,9 +283,9 @@ function cmdGraphifyBin(rest, io) {
   return 0;
 }
 
-function cmdProjectRoot(rest, io) {
+function cmdProjectRoot(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
-  const repoRoot = f.repo || process.cwd();
+  const repoRoot = (f.repo || process.cwd()) as string;
   // Distill·워크플로가 소비하는 정본은 main worktree다. linked cwd나
   // plugin root로 대체하면 도그푸드 Distill을 오독하므로 unavailable은
   // 빈 stdout/cwd fallback 없이 stderr+1로 거절한다.
@@ -231,7 +298,7 @@ function cmdProjectRoot(rest, io) {
   return 0;
 }
 
-function cmdMigrate(rest, io) {
+function cmdMigrate(rest: string[], io: CliIo) {
   const [kind, ...flagArgs] = rest;
   // kind를 플래그보다 먼저 본다. 알 수 없는 kind에 --dry-run만 있어도
   // ids/task-layout 중 하나로 떨어지면 안 된다.
@@ -240,9 +307,10 @@ function cmdMigrate(rest, io) {
     return 2;
   }
   const f = parseFlags(flagArgs);
+  const repoRoot = (f.repo || process.cwd()) as string;
   const result = kind === 'ids'
-    ? migrateIds({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true })
-    : migrateTaskLayout({ repoRoot: f.repo || process.cwd(), dryRun: f['dry-run'] === true });
+    ? migrateIds({ repoRoot, dryRun: f['dry-run'] === true })
+    : migrateTaskLayout({ repoRoot, dryRun: f['dry-run'] === true });
   io.out(`${JSON.stringify(result, null, 2)}\n`);
   // kind는 위에서 이미 걸렀다. 라이브러리 거절(dirty/collision)은 실행 실패(1).
   return result.ok ? 0 : 1;

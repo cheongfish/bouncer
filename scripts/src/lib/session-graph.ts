@@ -1,6 +1,13 @@
 'use strict';
-const { init, inspectBootstrap } = require('./init');
-const { nowIsoKst } = require('./time');
+const { init, inspectBootstrap } = require('./init') as {
+  init: (opts: { repoRoot: string; timestamp?: string }) => {
+    ok?: unknown;
+    skipped?: unknown;
+    reason?: unknown;
+  };
+  inspectBootstrap: (opts: { repoRoot: string }) => unknown;
+};
+const { nowIsoKst } = require('./time') as { nowIsoKst: () => string };
 const {
   realGraphifyEnabled,
   realSourceDirs,
@@ -14,19 +21,88 @@ const {
   DEFAULT_SOURCE_OUT,
   DEFAULT_CONTEXT_OUT,
   DEFAULT_CONTEXT_DIRS,
-} = require('./graph-scope');
+} = require('./graph-scope') as {
+  realGraphifyEnabled: (repoRoot: string) => boolean;
+  realSourceDirs: (repoRoot: string) => string[];
+  realContextDirs: (repoRoot: string) => string[];
+  realExistingDirs: (repoRoot: string, dirs: string[]) => string[];
+  newestMtimeUnder: (repoRoot: string, dir: string) => number;
+  realNewestMtime: (repoRoot: string, dirs: string[], watchFiles?: string[]) => number;
+  realGraphMtime: (repoRoot: string, outDir: string) => number | null;
+  resolveGraphScopes: (opts: { sourceDirs: string[]; contextDirs: string[] }) => GraphScope[];
+  SCAN_EXCLUDED_DIRS: Set<string>;
+  DEFAULT_SOURCE_OUT: string;
+  DEFAULT_CONTEXT_OUT: string;
+  DEFAULT_CONTEXT_DIRS: string[];
+};
 const {
   realHasGraphify,
   defaultExecGraphify,
   normalizeGraphPaths,
   runGraphifyUpdate,
   partOutDir,
-} = require('./graph-exec');
+} = require('./graph-exec') as {
+  realHasGraphify: (repoRoot: string) => boolean;
+  defaultExecGraphify: (repoRoot: string, graph: GraphPlan) => unknown;
+  normalizeGraphPaths: (...args: unknown[]) => string;
+  runGraphifyUpdate: (...args: unknown[]) => unknown;
+  partOutDir: (outDir: string, dir: string) => string;
+};
+
+type GraphScope = {
+  name: string;
+  dirs: string[];
+  outDir: string;
+  scanDirs?: string[];
+  watchFiles?: string[];
+};
+
+type GraphPlan = GraphScope & {
+  configured: unknown;
+  action: string;
+  reason: string;
+};
+
+type SessionGraphDeps = {
+  inspectBootstrap?: () => unknown;
+  init?: () => { ok?: unknown; skipped?: unknown; reason?: unknown };
+  graphifyEnabled?: () => unknown;
+  hasGraphify?: () => unknown;
+  sourceDirs?: () => string[];
+  contextDirs?: () => string[];
+  existingDirs?: (dirs: string[]) => string[];
+  newestMtime?: (dirs: string[], watchFiles?: string[]) => number;
+  graphMtime?: (outDir: string) => number | null;
+};
+
+type SessionDecision = {
+  bootstrap?: unknown;
+  action: string;
+  reason?: unknown;
+  dirs?: unknown;
+  graphs: GraphPlan[];
+  built?: string[];
+  failed?: Array<{ name: string; message: string }>;
+  missing?: string[];
+};
+
+function catchMessageOrString(error: unknown): string {
+  const message = error && (error as { message?: unknown }).message;
+  return message ? String(message) : String(error);
+}
 
 // 계획·오케스트레이션·경고 문구 + 공개 배럴.
 // 훅과 테스트는 이 파일 이름만 본다. 구현이 형제로 옮겨도 키 집합은 유지한다.
-
-function planOneGraph(args) {
+function planOneGraph(args: {
+  name: string;
+  dirs: string[];
+  outDir: string;
+  scanDirs?: string[];
+  watchFiles?: string[];
+  existingDirs: (dirs: string[]) => string[];
+  newestMtime: (dirs: string[], watchFiles?: string[]) => number;
+  graphMtime: (outDir: string) => number | null;
+}): GraphPlan {
   const { name, dirs, outDir, scanDirs, watchFiles, existingDirs, newestMtime, graphMtime } = args;
   const present = existingDirs(dirs);
   const mtime = graphMtime(outDir);
@@ -34,7 +110,9 @@ function planOneGraph(args) {
   // config를 다시 읽지 않고 "X를 요청했지만 Y만 존재"라고 말할 수 있게 한다.
   // scanDirs/watchFiles 는 결정 객체에 그대로 실어 소비 측이 scanDirs||dirs /
   // watchFiles||[] 로 읽게 한다. configured 문구에는 섞지 않는다.
-  const base: any = { name, dirs: present, configured: dirs, outDir };
+  const base: GraphPlan = {
+    name, dirs: present, configured: dirs, outDir, action: '', reason: '',
+  };
   if (scanDirs !== undefined) base.scanDirs = scanDirs;
   if (watchFiles !== undefined) base.watchFiles = watchFiles;
   if (present.length === 0) {
@@ -50,7 +128,10 @@ function planOneGraph(args) {
   return { ...base, action: 'build', reason: `${name} sources changed since last build` };
 }
 
-function planSessionGraph({ repoRoot, deps }) {
+function planSessionGraph({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: SessionGraphDeps;
+}): SessionDecision {
   const d = {
     inspectBootstrap: () => inspectBootstrap({ repoRoot }),
     init: () => init({ repoRoot, timestamp: nowIsoKst() }),
@@ -58,9 +139,9 @@ function planSessionGraph({ repoRoot, deps }) {
     hasGraphify: () => realHasGraphify(repoRoot),
     sourceDirs: () => realSourceDirs(repoRoot),
     contextDirs: () => realContextDirs(repoRoot),
-    existingDirs: (dirs) => realExistingDirs(repoRoot, dirs),
-    newestMtime: (dirs, watchFiles) => realNewestMtime(repoRoot, dirs, watchFiles),
-    graphMtime: (outDir) => realGraphMtime(repoRoot, outDir),
+    existingDirs: (dirs: string[]) => realExistingDirs(repoRoot, dirs),
+    newestMtime: (dirs: string[], watchFiles?: string[]) => realNewestMtime(repoRoot, dirs, watchFiles),
+    graphMtime: (outDir: string) => realGraphMtime(repoRoot, outDir),
     ...(deps || {}),
   };
   let bootstrap = d.inspectBootstrap();
@@ -88,14 +169,14 @@ function planSessionGraph({ repoRoot, deps }) {
     sourceDirs: d.sourceDirs(),
     contextDirs: d.contextDirs(),
   });
-  const graphs = scopes.map((scope) => planOneGraph({
+  const graphs = scopes.map((scope: GraphScope) => planOneGraph({
     ...scope,
     existingDirs: d.existingDirs,
     newestMtime: d.newestMtime,
     graphMtime: d.graphMtime,
   }));
 
-  const toBuild = graphs.filter((g) => g.action === 'build');
+  const toBuild = graphs.filter((g: GraphPlan) => g.action === 'build');
   if (toBuild.length) {
     return {
       bootstrap,
@@ -103,10 +184,10 @@ function planSessionGraph({ repoRoot, deps }) {
       // 하위 호환: 첫 build target의 dirs(hook은 graphs[]를 선호).
       dirs: toBuild[0].dirs,
       graphs,
-      reason: toBuild.map((g) => g.reason).join('; '),
+      reason: toBuild.map((g: GraphPlan) => g.reason).join('; '),
     };
   }
-  if (graphs.every((g) => g.action === 'skip-no-dirs')) {
+  if (graphs.every((g: GraphPlan) => g.action === 'skip-no-dirs')) {
     return { bootstrap, action: 'skip-no-dirs', graphs, reason: 'no graph source dirs exist' };
   }
   return { bootstrap, action: 'skip-fresh', graphs, reason: 'graphs are up to date' };
@@ -125,11 +206,15 @@ const NO_GRAPH_WORK = new Set([
  * source + context graph freshness를 계획하고 stale한 것을 재빌드한다.
  * SessionStart와 /bouncer-plan(graphify-runner) query 전에 다시 사용.
  */
-function syncSessionGraphs({ repoRoot, deps, execGraphify }) {
+function syncSessionGraphs({ repoRoot, deps, execGraphify }: {
+  repoRoot: string;
+  deps?: SessionGraphDeps;
+  execGraphify?: (graph: GraphPlan) => unknown;
+}) {
   const decision = planSessionGraph({ repoRoot, deps });
-  const run = execGraphify || ((graph) => defaultExecGraphify(repoRoot, graph));
-  const built = [];
-  const failed = [];
+  const run = execGraphify || ((graph: GraphPlan) => defaultExecGraphify(repoRoot, graph));
+  const built: string[] = [];
+  const failed: Array<{ name: string; message: string }> = [];
   if (decision.action === 'build') {
     for (const graph of decision.graphs) {
       if (graph.action !== 'build' || !graph.dirs.length) continue;
@@ -137,10 +222,12 @@ function syncSessionGraphs({ repoRoot, deps, execGraphify }) {
         const outcome = run(graph);
         // 빈 다이제스트 + graph.json 없음 = 순수 no-op → built 에 넣지 않는다.
         // touched 면 freshness만 가라앉힌 것이므로 built 로 보고한다.
-        if (outcome && outcome.skippedEmpty && !outcome.touched) continue;
+        const skippedEmpty = outcome && (outcome as { skippedEmpty?: unknown }).skippedEmpty;
+        const touched = outcome && (outcome as { touched?: unknown }).touched;
+        if (outcome && skippedEmpty && !touched) continue;
         built.push(graph.name);
       } catch (error) {
-        failed.push({ name: graph.name, message: error && error.message ? error.message : String(error) });
+        failed.push({ name: graph.name, message: catchMessageOrString(error) });
       }
     }
   }
@@ -149,14 +236,14 @@ function syncSessionGraphs({ repoRoot, deps, execGraphify }) {
   // (이전 세션 graph는 skip-no-dirs에서도 present로 친다).
   const graphMtime = (deps && deps.graphMtime)
     ? deps.graphMtime
-    : (outDir) => realGraphMtime(repoRoot, outDir);
+    : (outDir: string) => realGraphMtime(repoRoot, outDir);
   // NO_GRAPH_WORK 는 그래프를 시도하지 않은 상태. missing 을 채우거나
   // ok 를 뒤집으면 disabled/bootstrap 을 실패로 보이게 된다.
   const missing = NO_GRAPH_WORK.has(decision.action)
     ? []
     : decision.graphs
-      .filter((g) => graphMtime(g.outDir) === null)
-      .map((g) => g.name);
+      .filter((g: GraphPlan) => graphMtime(g.outDir) === null)
+      .map((g: GraphPlan) => g.name);
   return { ...decision, built, failed, missing };
 }
 
@@ -166,7 +253,7 @@ function syncSessionGraphs({ repoRoot, deps, execGraphify }) {
  * NO_GRAPH_WORK 종료는 missing을 비우므로 bootstrap 줄이 missing/failed와
  * stderr를 공유하지 않는다. 각 줄은 hook용으로 \n으로 끝난다.
  */
-function graphSyncWarnings(decision) {
+function graphSyncWarnings(decision: SessionDecision) {
   const lines = [];
   if (decision.bootstrap === 'partial') {
     lines.push(
@@ -186,14 +273,18 @@ function graphSyncWarnings(decision) {
     );
   }
   const byName = Object.fromEntries(
-    (decision.graphs || []).map((g) => [g.name, g]),
+    (decision.graphs || []).map((g: GraphPlan) => [g.name, g]),
   );
   // failed scope는 전용 줄이 있음; configured dirs가 missing이라고
   // 중복 주장하지 말 것(dirs는 있었고 build가 실패).
-  const failedNames = new Set((decision.failed || []).map((f) => f.name));
+  const failedNames = new Set((decision.failed || []).map((f: { name: string }) => f.name));
   for (const name of decision.missing || []) {
     if (failedNames.has(name)) continue;
-    const graph = byName[name] || {};
+    const graph = (byName[name] || {}) as {
+      configured?: unknown;
+      action?: unknown;
+      dirs?: unknown;
+    };
     const configured = Array.isArray(graph.configured) ? graph.configured : [];
     const dirsKey = name === 'context' ? 'context_dirs' : `${name}_dirs`;
     // "none of … exist"는 skip-no-dirs/빈 present dirs일 때만 참.
@@ -215,7 +306,7 @@ function graphSyncWarnings(decision) {
   }
   if (decision.failed && decision.failed.length) {
     lines.push(
-      `Bouncer: graphify sync failed for ${decision.failed.map((f) => f.name).join(', ')}. `
+      `Bouncer: graphify sync failed for ${decision.failed.map((f: { name: string }) => f.name).join(', ')}. `
       + 'Plan will re-check; confirm affected_paths manually if graphs stay stale.\n',
     );
   }

@@ -1,13 +1,22 @@
 'use strict';
 
-const { parseFlags } = require('./cli-flags');
-const docCommands = require('./cli-doc-commands');
-const gitCommands = require('./cli-git-commands');
-const projectCommands = require('./cli-project-commands');
-const currentCommand = require('./cli-current-command');
+const { parseFlags } = require('./cli-flags') as {
+  parseFlags: (rest: string[]) => Record<string, string | boolean>;
+};
+const docCommands = require('./cli-doc-commands') as Record<string, CliCommand>;
+const gitCommands = require('./cli-git-commands') as Record<string, CliCommand>;
+const projectCommands = require('./cli-project-commands') as Record<string, CliCommand>;
+const currentCommand = require('./cli-current-command') as Record<string, CliCommand>;
 
+// 핸들러 IO는 각 명령 파일에 type-only로 복제한다. import/export를 쓰면
+// tsc가 CJS emit에 __esModule을 넣어 공개 require 표면이 바뀐다.
+type CliIo = {
+  out: (s: string) => void;
+  err: (s: string) => void;
+};
+type CliHandler = (rest: string[], io: CliIo) => number;
 type CliCommand = {
-  run: (rest: string[], io: { out: (s: string) => void; err: (s: string) => void }) => number;
+  run: CliHandler;
   usage: string;
 };
 
@@ -44,10 +53,10 @@ const USAGE = USAGE_HEADER
   + '\n'
   + USAGE_FOOTER;
 
-function runCli(argv, io) {
+function runCli(argv: string[], io?: Partial<CliIo> | null) {
   // 테스트가 io를 주입한다. 없으면 프로세스 스트림 — stdout은 파이프용.
-  const out = io && io.out ? io.out : (s) => process.stdout.write(s);
-  const err = io && io.err ? io.err : (s) => process.stderr.write(s);
+  const out = io && io.out ? io.out : (s: string) => process.stdout.write(s);
+  const err = io && io.err ? io.err : (s: string) => process.stderr.write(s);
   const sink = { out, err };
   const [cmd, ...rest] = argv;
   // help는 stdout. 알 수 없는 명령만 stderr로 보내 stdout을 pipe-clean으로 둔다.

@@ -29,7 +29,7 @@ function cmdCurrent(rest, io) {
         io.err('current: --set requires a blueprint directory\n');
         return 2;
     }
-    const repoRoot = f.repo || process.cwd();
+    const repoRoot = (f.repo || process.cwd());
     if (wantsClear) {
         // set보다 먼저 return. 모순은 위에서 이미 거절했으므로 여기선 포인터만 지운다.
         clearCurrent({ repoRoot });
@@ -75,7 +75,7 @@ function cmdCurrent(rest, io) {
             // 부재·깨진 JSON을 {}로 삼킨다. --set은 base_branch만 읽고 없으면
             // develop. session-graph는 null을 구분해 graphify.enabled를 끄지만,
             // 이쪽은 파일 부재와 빈 설정을 같게 보는 것이 기존 동작이다.
-            const config = readConfig(repoRoot) ?? {};
+            const config = (readConfig(repoRoot) ?? {});
             base = (config && typeof config.base_branch === 'string' && config.base_branch)
                 ? config.base_branch
                 : 'develop';
