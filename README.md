@@ -2,7 +2,7 @@
 
 에이전트가 "다 했습니다"라고 말하기 전에, **실행했는지** 검사하는 플러그인.
 
-같은 저장소가 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex) · [Antigravity](docs/install.md#antigravity)에서 설치됩니다.
+같은 저장소가 [Claude Code](docs/install.md#claude-code) · [Cursor](docs/install.md#cursor) · [Codex](docs/install.md#codex) · [Antigravity](docs/install.md#antigravity)에서 설치됩니다. 지원 여부는 [파일럿 지원 현황](docs/install.md#파일럿-지원-현황)을 확인하세요.
 
 ## Why
 
@@ -132,8 +132,11 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 `/bouncer-commit` · `/bouncer-run` · `/bouncer-finalize`.
 
 **게이트 4개** — `plan` / `execute` / `commit` / `finalize`. G 코드는 게이트별
-검사, S 코드(S0–S20)는 항상 도는 구조·스키마 검사입니다. 표는
+검사, S 코드(S0–S26)는 항상 도는 구조·스키마 검사입니다. 표는
 [gates.md](docs/gates.md)에 있습니다.
+
+동결을 목표로 하는 공개 계약과 breaking change 절차는
+[compatibility.md](docs/compatibility.md)에 정리했습니다.
 
 **CLI** — 스킬이 내부에서 부르는 것을 직접 쓸 수 있습니다.
 

@@ -14,7 +14,7 @@ bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 | **commit** | 포인터 task의 G6 `tasks` `verified` · G7 `verification` `passed` · G8 `review` `accepted`(또는 `required: false`) 재확인 + G17 스테이징 경로가 그 task `affected_paths` 안인지 (G9·G15는 결번; project `.bouncer/Distill.md`는 skill + `makeAllowed`, 본문 게이트 아님) |
 | **finalize** | G16 모든 task `verified` · explain `published` · 본문 5섹션 · `comprehension` 배열의 BP 단일 엔트리(`quiz_score` 필수) · 그 엔트리 `diff_sha`가 `range_from..HEAD`(`.bouncer/context/` 제외)와 일치 |
 
-`S`로 시작하는 코드(S0–S20)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
+`S`로 시작하는 코드(S0–S26)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
 S12는 `tasks.bouncer.verify`가 있을 때 셸 체이닝·리다이렉션·`cd` 접두 같은 비단일
 실행 형식을 거절합니다. S13은 `.bouncer/context/epics/` 디렉터리와 번들 루트
 `index.md`의 OKF §6 에픽 목록이 어긋나면 실패합니다(`bouncer scaffold epic`이
@@ -29,6 +29,12 @@ status인 blueprint를 게이트 대상에서 빼는 코드입니다. S19는 문
 파일 위치가 요구하는 종류와 다르면 실패합니다(예: `tasks.md` 자리에
 `bouncer.review`). S20은 blueprint `bouncer.scale`이 있을 때 `light`/`full`
 밖이면 실패합니다(부재는 허용).
+
+S21–S26은 Project Distill 구조 검사입니다. S21은 등록되지 않은 orphan shard, S22는
+비-`always` shard의 routing 경로 누락, S23은 잘못된 `pulls`, S24는 `pulls`
+순환, S25는 `source_dirs` routing 공백, S26은 `distill.max_bytes` 초과 shard를
+뜻합니다. routing이 활성화되면 이 경고가 구조 실패가 됩니다. 전체 공개 계약은
+[compatibility.md](compatibility.md)를 보세요.
 
 섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가
 G10에 걸리는 것은 의도된 동작입니다.
