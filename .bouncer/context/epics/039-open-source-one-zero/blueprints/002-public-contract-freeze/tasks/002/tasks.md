@@ -11,12 +11,14 @@ bouncer:
   id: TASKS-002
   epic_id: '039'
   blueprint_id: '002'
-  status: ready
+  status: verified
   commit_intent:
     - 공개 표면 목록이 구현보다 뒤처져도 아무 검사도 실패하지 않아 계약이 문서 수준의 약속에 머무름
     - 목록과 구현의 이름 집합을 대조해 drift와 결번 코드 재사용을 테스트 실패로 바꿈
   affected_paths:
     - test/public-contract.test.js
+    - docs/compatibility.md
+    - config.example.json
   graph:
     generated_at: '2026-08-15T18:50:15+09:00'
     command: 'graphify query "public contract compatibility policy CLI command registry gate codes schema version skills list config keys pilot matrix host support docs" --graph graphify-out/{source,context}/graph.json'
