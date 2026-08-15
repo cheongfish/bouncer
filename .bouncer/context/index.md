@@ -43,3 +43,4 @@ bouncer_schema: '0.1'
 * [036 distill-sharding](epics/036-distill-sharding/index.md) - Epic 036
 * [037 distill-promotion-consent](epics/037-distill-promotion-consent/index.md) - Epic 037
 * [038 distill-worktree-base](epics/038-distill-worktree-base/index.md) - Epic 038
+* [039 오픈소스 1.0 공개](epics/039-open-source-one-zero/index.md) - 보안·품질·공개 계약·외부 파일럿을 닫고 플러그인 1.0을 배포한다

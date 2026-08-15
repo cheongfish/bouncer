@@ -86,3 +86,33 @@ test('plugin.json carries author attribution for release tagging', () => {
   const plugin = readJson('.claude-plugin/plugin.json');
   assert.ok(plugin.author && typeof plugin.author.name === 'string' && plugin.author.name);
 });
+
+// semver 전체를 끌어오지 않는다. 비교 대상은 패치 최소값(4.3.1)이고, 마켓플레이스
+// 런타임은 벤더 파일이라 설치본 버전이 그 하한 아래면 벤더를 따라가면 안 된다.
+function compareVersion(left, right) {
+  const a = String(left).split('.').map((n) => Number(n) || 0);
+  const b = String(right).split('.').map((n) => Number(n) || 0);
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i += 1) {
+    const da = a[i] || 0;
+    const db = b[i] || 0;
+    if (da !== db) return da > db ? 1 : -1;
+  }
+  return 0;
+}
+
+test('vendored js-yaml matches the installed package at a safe minimum version', () => {
+  // Claude Code는 npm install을 돌리지 않으므로 런타임은 scripts/vendor 복사본이다.
+  // 개발 의존성만 올려두고 벤더를 낡은 4.3.0에 두면 audit를 통과해도 배포본이
+  // 취약하다. 설치본 버전·dist 바이트·README 표기를 한 번에 묶어 드리프트를 막는다.
+  const installedVersion = readJson('node_modules/js-yaml/package.json').version;
+  const vendoredBytes = fs.readFileSync(path.join(root, 'scripts/vendor/js-yaml.js'));
+  const installedDistBytes = fs.readFileSync(
+    path.join(root, 'node_modules/js-yaml/dist/js-yaml.js'),
+  );
+  const vendorReadme = fs.readFileSync(path.join(root, 'scripts/vendor/README.md'), 'utf8');
+
+  assert.ok(compareVersion(installedVersion, '4.3.1') >= 0);
+  assert.deepStrictEqual(vendoredBytes, installedDistBytes);
+  assert.match(vendorReadme, new RegExp(`\\| ${installedVersion} \\| MIT \\|`));
+});
