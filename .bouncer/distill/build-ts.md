@@ -25,7 +25,18 @@ Rules routed to build-ts; routing remains disabled until the project explicitly 
 - Plain CJS without `import`/`export` needs `moduleDetection: force` or files
   collide as scripts across the program.
 
+- Runtime `scripts/vendor/*` must stay byte-identical to the installed package
+  file. `npm audit` does not see vendor copies, so a clean lockfile alone is
+  not enough.
+
+- Coverage floor uses Node built-in coverage on `scripts/lib/**` only (exclude
+  vendor/tests): lines 94%, branches 83%, functions 96%.
+
 ## Decisions
 
-- Mechanical TS migration may keep `strict: false` until a later tightening BP.
+- Default `tsconfig.json` is `strict: true` for all `scripts/src` TypeScript;
+  do not reintroduce a temporary `tsconfig.strict.json` migration overlay.
 
+- `npm run ci` is the single local/CI entry (`check:emit` → `test:coverage` →
+  `lint` → `typecheck` → `npm audit --audit-level=high`). GitHub Actions and
+  GitLab CI run only that after `npm ci`.
