@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '039'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm test
   commit_intent:
     - 라이선스와 비공개 보안 신고 경로가 없어 외부 사용·기여·취약점 제보의 조건이 불명확함

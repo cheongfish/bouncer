@@ -94,7 +94,21 @@ GitLab과 GitHub 어느 쪽에 올려도 같은 계약이 강제됩니다.
 같은 값이어야 합니다. 나머지 매니페스트 일치는
 `test/cursor-plugin.test.js`가 잡습니다.
 
+## 라이선스와 기여물
+
+이 저장소는 [Apache-2.0](../LICENSE)입니다. PR·패치·문서 등 기여물은 별도의
+약정이 없으면 같은 Apache-2.0 조건으로 제공되는 것으로 봅니다. 제3자 고지
+(`scripts/vendor/js-yaml.LICENSE`, `skills/stop-slop/LICENSE`,
+`skills/agentic-code-benchmark/NOTICE.md`)는 반입 코드의 원 라이선스이므로
+삭제하지 않습니다.
+
+참여는 [Contributor Covenant 2.1](../CODE_OF_CONDUCT.md)을 따릅니다.
+
 ## 피드백
 
 사용 중 마찰·버그는 이슈 템플릿으로 남겨 주세요. 파일럿 안내는
 [PILOT.md](PILOT.md)를 보세요.
+
+보안 취약점은 공개 이슈·PR로 올리지 말고 [SECURITY.md](../SECURITY.md)의
+비공개 이메일로 제보하세요. 일반 버그와 파일럿 기록은 기존 이슈 템플릿을
+그대로 씁니다.

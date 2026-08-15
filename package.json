@@ -2,7 +2,19 @@
   "name": "bouncer",
   "version": "0.8.4",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Deterministic core for the Bouncer plugin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cheongfish/bouncer.git"
+  },
+  "homepage": "https://github.com/cheongfish/bouncer#readme",
+  "bugs": {
+    "url": "https://github.com/cheongfish/bouncer/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "bin": {
     "bouncer": "scripts/bouncer"
   },
