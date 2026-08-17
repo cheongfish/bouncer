@@ -14,6 +14,47 @@ Every `context/**/*.md` document carries OKF frontmatter
 (`type`, `title`, `description`, `resource`, `tags`, `timestamp`); Bouncer
 fields live under `bouncer:`. See the schema-gates design for the full schema.
 
+## Frontmatter authorship and meaning
+
+Frontmatter is an index for people and agents before they read the document
+body. It must be grounded in the source, approved task scope, or harness
+output; do not use it to make an unverified completion claim.
+
+**Harness-owned fields.** Scaffold owns `type`, `resource`, `timestamp`, and
+`bouncer.id` (including parent ids). Keep them mechanically correct: `resource`
+is the repository-relative path to this file, and do not hand-edit an id or
+timestamp to make a document look newer. The workflow owns `bouncer.status`
+transitions and verification metadata. Only the workflow step that produces
+the relevant evidence may record a passed or accepted state.
+
+**Author-written discovery fields.** Use `title`, `description`, and `tags` to
+make the document findable without duplicating its body:
+
+- `title` states the durable intent or decision in a short noun phrase. It is
+  not an id, a file name, or a claim that the work has completed.
+- `description` is one present-tense sentence saying what the document covers
+  and why it matters. State the boundary or observable behavior, not an
+  implementation sequence or an unverified result.
+- `tags` use a small, stable project vocabulary for retrieval. Keep the
+  scaffold's `bouncer` and document-kind tag; add only durable domain tags
+  (for example `worktree`, `verification`, or `distill`). Do not add temporary
+  ticket ids, one-off filenames, or synonyms for the same concept.
+
+**Plan fields.** `bouncer.affected_paths` is the minimum approved set of
+repository-relative paths that may change. Every entry must be justified by a
+file-level `Touch` item; it is not a search-result dump or a future-work list.
+When `bouncer.verify` is present, it is one executable command that proves the
+task's acceptance criteria, not prose such as "run tests." Blueprint
+`bouncer.commit_type` describes the intended commit category and
+`bouncer.scale` describes the approved planning path; neither is changed
+merely to make an implementation easier to fit.
+
+**Generated evidence fields.** `bouncer.graph` records graphification input
+and results, while verification, review, context-review, and comprehension
+metadata record their respective workflow evidence. Treat all of them as data
+produced by their designated step. Do not manufacture values to satisfy a
+gate; correct the plan, rerun the designated step, or return to planning.
+
 A task unit is the three-document bundle
 `tasks/<NNN>/{tasks,verification,review}.md`; each file has its own OKF
 frontmatter and `resource` path. Root task layouts are input only to
