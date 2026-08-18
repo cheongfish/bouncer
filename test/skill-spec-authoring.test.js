@@ -70,6 +70,30 @@ test('spec-authoring ships completed reference examples and points SKILL.md at t
   assert.match(readSkill('spec-authoring'), /references\//);
 });
 
+test('spec-authoring documents optional Mermaid zoom with short unstyled Korean examples', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /mermaid/i);
+  assert.match(md, /줌|zoom/i);
+  assert.match(md, /epic.*whole flow|whole flow.*epic/i);
+  assert.match(md, /blueprint.*PR.*segment|PR.*segment.*blueprint/i);
+  assert.match(md, /tasks.*implementation branch|implementation branch.*tasks/i);
+  assert.match(md, /classDef[\s\S]{0,80}prohibited|prohibited[\s\S]{0,80}classDef/i);
+  assert.match(md, /colors[\s\S]{0,80}prohibited|prohibited[\s\S]{0,80}colors/i);
+  assert.match(md, /long node ids[\s\S]{0,80}prohibited|prohibited[\s\S]{0,80}long node ids/i);
+  assert.match(md, /Never put a chart in Distill/i);
+  assert.match(md, /verification\.md/);
+  assert.match(md, /review\.md/);
+});
+
+test('spec-authoring Mermaid examples keep each child zoom within its parent boxes', () => {
+  const md = readSkill('spec-authoring');
+  const charts = [...md.matchAll(/```mermaid\nflowchart LR\n([\s\S]*?)```/g)]
+    .map(([, chart]) => new Set([...chart.matchAll(/\[[^\]]+\]/g)].map(([box]) => box)));
+
+  assert.ok([...charts[1]].every((box) => charts[0].has(box)));
+  assert.ok([...charts[2]].every((box) => charts[1].has(box)));
+});
+
 test('spec-authoring derives a shard-targeted proposal and writes only after consent', () => {
   const md = readSkill('spec-authoring');
   assert.match(md, /drop[\s\S]{0,80}replace[\s\S]{0,80}add/i);

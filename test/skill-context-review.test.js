@@ -50,3 +50,10 @@ test('context-review excludes OKF fields and status that gates already check', (
   assert.match(md, /OKF/i);
   assert.match(md, /exclud|out of (scope|judgment)|gates already/i);
 });
+
+test('context-review judges Mermaid zoom conflicts without requiring a chart', () => {
+  const md = readSkill('context-review');
+  assert.match(md, /mermaid/i);
+  assert.match(md, /줌|zoom/i);
+  assert.match(md, /Chart absence is optional and not a finding/i);
+});

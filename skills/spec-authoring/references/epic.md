@@ -18,6 +18,8 @@ bouncer:
 - 문제: `config.verify` 명령이 응답하지 않으면 execute gate가 무한 대기한다. CI·로컬 모두 같은 함정이다.
 - 목표: verify 실행에 상한을 두어, 초과 시 실패로 기록하고 게이트가 진행·재시도를 결정할 수 있게 한다.
 
+이 예시는 설정 키 계약이라 흐름 변경이 아니며, Mermaid 차트를 넣지 않는다.
+
 ## Success criteria
 1. `.bouncer/config.json`과 `config.example.json`의 `verify` 객체에 `timeout_ms`(양의 정수)가 있다.
 2. `timeout_ms`를 넘긴 verify 프로세스는 종료되고, 증적에 timeout 실패가 남는다.

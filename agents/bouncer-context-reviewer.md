@@ -37,7 +37,10 @@ blueprint-root `context-review.md`. Do **not** write a task-directory
 Follow `skills/context-review/SKILL.md`. Cover all four:
 
 - **Cross-document contradiction** — epic → blueprint → tasks goal or scope
-  mismatch.
+  mismatch. When Mermaid charts are present for a flow change, judge the zoom:
+  epic whole flow → blueprint PR segment → tasks implementation branch. Flag a
+  child that contradicts its parent, adds a new box, or copies the whole parent
+  chart; chart absence is not a finding.
 - **Scope review** — `affected_paths` existence, files the Checklist omitted,
   contrast with `graph.suggested_paths`. Empty graph is a state, not a
   failure.

@@ -39,6 +39,8 @@ Blueprint: [001](../../index.md)
 ## Goal & intent
 `config.verify.timeout_ms`를 도입해 verify 실행에 선택적 상한을 둔다. 기본값은 10분(600000). 키 부재·`0`은 기존 무제한 대기와 같다. 검증 명령은 `npm test`.
 
+이 예시는 설정 키 계약이라 흐름 변경이 아니며, Mermaid 차트를 넣지 않는다.
+
 ## Interface
 - 제공: `verify.timeout_ms`가 양의 정수이면 해당 ms 후 자식 프로세스를 종료하고 timeout 실패를 증적에 남긴다. `init` 기본 config와 `config.example.json`에 `timeout_ms: 600000`이 있다.
 - 거부: 음수·NaN·문자열 `timeout_ms`는 설정 로드에서 에러로 거절한다. 하위 호환 별칭(`timeout` 등)은 두지 않는다.
