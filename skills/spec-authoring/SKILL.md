@@ -65,6 +65,44 @@ only; other approved items continue.
   `stop-slop` skill (`skills/stop-slop/SKILL.md`) — advisory, not a gate. Strip
   filler, formulaic contrast, empty passives, and section-restating closers.
 
+## Optional Mermaid zoom for flow changes
+
+When an epic changes a user, business, or system flow, the epic / blueprint /
+tasks bodies may each carry a Mermaid chart in that document's body. The chart
+text is the source: people read its preview and agents read the same fence. Do
+not require a chart for every epic; configuration-key-only work normally has no
+chart. Never put a chart in Distill, `verification.md`, or `review.md`, and do
+not add a Mermaid generator CLI or a gate for chart presence.
+
+Use the same flow at three zoom levels: the epic shows the whole flow, the
+blueprint shows this PR's segment, and a task shows its implementation branch.
+A child chart may select or refine its parent's boxes, but must not introduce a
+box absent from the parent chart or paste the parent's whole chart unchanged.
+Keep node ids short, labels Korean, and charts unstyled: `classDef`, colors,
+and long node ids are prohibited.
+
+Epic — whole flow:
+
+```mermaid
+flowchart LR
+  A[설정] --> B[실행]
+  B --> C[증적]
+```
+
+Blueprint — this PR segment:
+
+```mermaid
+flowchart LR
+  A[설정] --> B[실행]
+```
+
+Tasks — implementation branch:
+
+```mermaid
+flowchart LR
+  B[실행]
+```
+
 ## Ownership boundary (do not cross)
 
 - **Never** hand-edit harness-owned frontmatter fields such as `type`,
@@ -124,19 +162,23 @@ those placeholders ship as the commit subject and body.
    - **epic**: intent, out of scope, and numbered Success criteria. Persist the
      success criteria discovery produced — each one must be decidable true or
      false, so blueprint acceptance and review can cite it by number. "Improve
-     X" is not a criterion.
+     X" is not a criterion. For a flow change, apply the optional Mermaid zoom
+     rule above: whole flow here, with the chart fence in this body.
    - **blueprint**: what this unit delivers as one review / PR. Set `title`
      (and `bouncer.commit_type` if not `feat`) for the finalize remainder
      subject and the execute branch prefix (`<type>/<id>-<slug>`). Do **not**
      set `bouncer.commit_intent` on the blueprint — that field lives only on
-     task documents.
+     task documents. For a flow change, show only this PR segment of the epic
+     Mermaid chart.
    - **tasks**: fill every implementation-ready section in each
      `tasks/<NNN>/tasks.md` bundle before approval —
      Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
      Those sections are the sole brief for execution. Set `title` as the
      **task commit subject** (`/bouncer-commit` copies it). Set
      `bouncer.commit_intent` to **two** `~함` lines (배경·의도) drawn from
-     Goal & intent — not the subject noun phrase. Section-specific rules:
+     Goal & intent — not the subject noun phrase. For a flow change, show only
+     the implementation branch already present in the parent chart.
+     Section-specific rules:
      - **Interface**: state what the change provides *and* what it rejects.
        A contract with only the positive half cannot be reviewed against.
      - **Touch**: one entry per file with a verb (`Create`, `Modify`,

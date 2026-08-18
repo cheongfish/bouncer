@@ -40,6 +40,10 @@ blueprint-root `context-review.md` — not a task-directory `review.md`.
    Walk epic → blueprint → tasks. Flag goal or scope that disagrees across
    those documents (a success criterion the tasks never open, a Touch path
    the epic put out of scope, Interface that drops a Contract rejection).
+   If Mermaid charts are present for a flow change, also flag a child chart
+   that contradicts its parent zoom (wrong PR segment, a new box, or a copied
+   whole-flow chart). Chart absence is optional and not a finding; Mermaid is
+   a Cross-document detail, not a fifth judgment scope.
 
    ### Scope review
    For each task document, check:

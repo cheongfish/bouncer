@@ -23,6 +23,8 @@ Epic: [077](../../index.md)
 - 문제: verify가 멈추면 execute가 끝없이 기다린다.
 - 완료 조건: `verify.timeout_ms`가 config·실행·테스트에 반영되고, 초과 시 실패 증적이 남는다.
 
+이 예시는 설정 키 계약이라 흐름 변경이 아니며, Mermaid 차트를 넣지 않는다.
+
 ## Contract
 - 인터페이스: `config.verify`에 선택 키 `timeout_ms: number`를 추가한다. 검증 실행기는 이 값이 양의 정수일 때만 해당 ms 후 프로세스를 끊는다.
 - 데이터·상태: 기본 config(`init`·`config.example.json`)에 `timeout_ms: 600000`을 둔다. 키 부재·`0`은 “상한 없음”이다.

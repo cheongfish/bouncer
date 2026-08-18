@@ -79,6 +79,12 @@ test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => 
   assert.match(body, /skills\/stop-slop\/SKILL\.md/);
 });
 
+test('bouncer-plan delegates Mermaid zoom authoring to spec-authoring', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /mermaid|줌/i);
+  assert.match(body, /spec-authoring/);
+});
+
 test('bouncer-plan detects project build scripts and asks before writing tasks verify', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /docker-compose|compose\.ya?ml/);

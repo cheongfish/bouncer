@@ -95,6 +95,9 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    Interface, Touch, Do not touch, Constraints, Checklist. Those sections are the
    sole brief for `/bouncer-execute`. Write Touch per file with a verb rather than
    per directory, and put non-path rules in Constraints.
+   For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
+   whole flow → blueprint PR segment → tasks implementation branch; charts stay
+   optional and their source is each document body.
    Also replace scaffold default frontmatter `title` values (and set
    `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent`,
    when needed): `/bouncer-commit` turns each task `title` into that task's
