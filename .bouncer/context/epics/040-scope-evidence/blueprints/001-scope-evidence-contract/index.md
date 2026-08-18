@@ -11,7 +11,7 @@ bouncer:
   id: '001'
   epic_id: '040'
   blueprint_id: '001'
-  status: approved
+  status: closed
   commit_type: feat
   scale: full
 ---
