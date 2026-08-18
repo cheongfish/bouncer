@@ -5,7 +5,7 @@ const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = requ
 // finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
 const { makeAllowed, isRuntimeArtifact } = require('./scope');
 const { defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf, } = require('./validate-docs');
-const { isValidGraphBasis } = require('./validate-structural');
+const { normalizeScopeEvidence } = require('./validate-structural');
 const { VERIFY_SECTION_DEFS, EXPLAIN_SECTION_HEADINGS, TODO_RE, parseSections, parseTasksSections, extractPathCandidates, pathsOverlap, pathJustifiedByTouch, collectFindingFailures, } = require('./validate-sections');
 function asData(doc) {
     if (!doc)
@@ -84,14 +84,9 @@ function checkGate(gate, docs, rels, failures, ctx) {
             // YAML data가 null/undefined면 `.bouncer`에서 터지는 게 기존 실패 형태다.
             // `data &&`로 막으면 G4/G5가 missing 메시지로 fail-open 한다.
             const taskBouncer = tasksDoc.data.bouncer;
-            const graph = taskBouncer
-                ? taskBouncer.graph
-                : undefined;
-            const suggested = graph ? graph.suggested_paths : undefined;
-            if (!Array.isArray(suggested))
-                addTask('G4', 'tasks.graph.suggested_paths missing');
-            if (graph && !isValidGraphBasis(graph.basis)) {
-                addTask('G4', 'tasks.graph.basis missing or empty');
+            const scopeEvidence = normalizeScopeEvidence(taskBouncer);
+            if (!scopeEvidence.evidence || scopeEvidence.error) {
+                addTask('G4', scopeEvidence.error || 'tasks.scope_evidence missing');
             }
             const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
             if (!Array.isArray(ap) || ap.length === 0)

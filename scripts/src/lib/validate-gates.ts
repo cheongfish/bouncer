@@ -32,8 +32,11 @@ const {
   unitLeafRel: (unit: TaskUnit | null | undefined, leaf: string, fallbackRel: string) => string;
   statusOf: (doc: DocLeaf | undefined | null) => unknown;
 };
-const { isValidGraphBasis } = require('./validate-structural') as {
-  isValidGraphBasis: (basis: unknown) => boolean;
+const { normalizeScopeEvidence } = require('./validate-structural') as {
+  normalizeScopeEvidence: (bouncer: unknown) => {
+    evidence: Record<string, unknown> | null;
+    error: string | null;
+  };
 };
 const {
   VERIFY_SECTION_DEFS, EXPLAIN_SECTION_HEADINGS, TODO_RE,
@@ -57,8 +60,8 @@ const {
 };
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
-// 않는다. graph.basis는 structural.isValidGraphBasis를 그대로 쓴다 — 여기 다시
-// 구현하면 S9와 G4가 갈라진다. validate.ts를 require하지 않는다
+// 않는다. scope evidence는 structural.normalizeScopeEvidence를 그대로 쓴다 — 여기
+// 다시 구현하면 S9와 G4가 갈라진다. validate.ts를 require하지 않는다
 // (validate → gates → structural, 순환 금지).
 
 type FailureEntry = { code: string; message: string; file: string };
@@ -193,13 +196,9 @@ function checkGate(
       // `data &&`로 막으면 G4/G5가 missing 메시지로 fail-open 한다.
       const taskBouncer = (tasksDoc.data as Record<string, unknown>).bouncer as
         Record<string, unknown> | undefined;
-      const graph = taskBouncer
-        ? taskBouncer.graph as Record<string, unknown> | undefined
-        : undefined;
-      const suggested = graph ? graph.suggested_paths : undefined;
-      if (!Array.isArray(suggested)) addTask('G4', 'tasks.graph.suggested_paths missing');
-      if (graph && !isValidGraphBasis(graph.basis)) {
-        addTask('G4', 'tasks.graph.basis missing or empty');
+      const scopeEvidence = normalizeScopeEvidence(taskBouncer);
+      if (!scopeEvidence.evidence || scopeEvidence.error) {
+        addTask('G4', scopeEvidence.error || 'tasks.scope_evidence missing');
       }
       const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
       if (!Array.isArray(ap) || ap.length === 0) addTask('G5', 'tasks.affected_paths missing or empty');

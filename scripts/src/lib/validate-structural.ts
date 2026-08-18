@@ -93,6 +93,57 @@ function isValidGraphBasis(basis: unknown): boolean {
   return true;
 }
 
+type ScopeEvidence = {
+  producer: 'graphify';
+  generated_at: string;
+  suggested_paths: unknown[];
+  basis: unknown;
+};
+
+type ScopeEvidenceResult = { evidence: ScopeEvidence | null; error: string | null };
+
+/**
+ * tasks의 범위 근거를 새 정본과 구형 graph 형식에서 한 번만 읽는다. 새 문서는
+ * scope_evidence만 쓰게 하지만, 이미 승인된 graph 문서를 여기서 같은 내부 모양으로
+ * 바꿔야 S9와 G4가 migration 시점에 따라 다른 결론을 내리지 않는다. 이 함수는
+ * affected_paths를 절대 만지지 않는다. suggested_paths는 graphify의 제안 근거이고,
+ * 사람이 확정한 task 범위를 자동 교체하면 계획 승인 경계가 사라지기 때문이다.
+ */
+function normalizeScopeEvidence(bouncer: unknown): ScopeEvidenceResult {
+  if (!isRecord(bouncer)) return { evidence: null, error: 'scope evidence missing' };
+  const hasScopeEvidence = bouncer.scope_evidence !== undefined;
+  const hasLegacyGraph = bouncer.graph !== undefined;
+  if (hasScopeEvidence && hasLegacyGraph) {
+    return { evidence: null, error: 'tasks must not contain both scope_evidence and graph' };
+  }
+  if (!hasScopeEvidence && !hasLegacyGraph) return { evidence: null, error: null };
+
+  const source = hasScopeEvidence ? bouncer.scope_evidence : bouncer.graph;
+  if (!isRecord(source)) return { evidence: null, error: 'scope evidence must be an object' };
+  // graph는 과거 write form이라 producer/generated_at을 강제하지 않았다. 그 문서는
+  // 계속 읽되, 새 scope_evidence에는 graphify producer와 생성 시각을 명시적으로
+  // 요구해 앞으로 만들어지는 근거의 출처·시점을 잃지 않게 한다.
+  const evidence: ScopeEvidence = {
+    producer: hasScopeEvidence ? source.producer as 'graphify' : 'graphify',
+    generated_at: hasScopeEvidence ? source.generated_at as string : 'legacy graph',
+    suggested_paths: source.suggested_paths as unknown[],
+    basis: source.basis,
+  };
+  if (evidence.producer !== 'graphify') {
+    return { evidence: null, error: 'scope_evidence.producer must be graphify' };
+  }
+  if (typeof evidence.generated_at !== 'string' || !evidence.generated_at.trim()) {
+    return { evidence: null, error: 'scope_evidence.generated_at missing or empty' };
+  }
+  if (!Array.isArray(evidence.suggested_paths)) {
+    return { evidence: null, error: 'scope evidence suggested_paths missing' };
+  }
+  if (!isValidGraphBasis(evidence.basis)) {
+    return { evidence: null, error: 'scope evidence basis missing or empty' };
+  }
+  return { evidence, error: null };
+}
+
 const DISTILL_VERSION = 1;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -520,11 +571,9 @@ function checkStructural(doc: unknown, failures: FailureEntry[]): void {
     if (!Array.isArray(ap) || ap.length === 0) {
       add('S7', 'tasks.affected_paths missing or empty');
     }
-    if (bouncer.graph != null) {
-      const graph = bouncer.graph as Record<string, unknown>;
-      if (!isValidGraphBasis(graph.basis)) {
-        add('S9', 'tasks.graph.basis missing or empty');
-      }
+    const scopeEvidence = normalizeScopeEvidence(bouncer);
+    if (scopeEvidence.error) {
+      add('S9', scopeEvidence.error);
     }
     // 선택 필드: 없으면 기존 tasks.md가 모두 유효하게 유지됨. S12와
     // VERIFY_COMMAND_INVALID가 일치하도록 verification.isValidVerifyCommand를 재사용.
@@ -541,4 +590,5 @@ module.exports = {
   GRAPH_BASIS_STATUS,
   GRAPH_BASIS_GRAPH,
   isValidGraphBasis,
+  normalizeScopeEvidence,
 };

@@ -110,11 +110,12 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
     created.push(writeRel(repoRoot, tasksRel, bouncerDoc('bouncer.tasks', `${taskId} tasks`, `Tasks for ${taskId}`, tasksRel, ['bouncer', 'tasks'], timestamp, {
         id: ids.tasks, epic_id: epicId, blueprint_id: blueprintId, status: 'draft',
         affected_paths: [],
-        graph: {
+        scope_evidence: {
+            producer: 'graphify',
             generated_at: timestamp,
-            command: 'mcp:graphify',
             suggested_paths: [],
-            // 빈 리스트는 G4가 거절한다 — graphify-runner가 엔트리를 채워야 통과.
+            // 새 문서는 scope_evidence만 쓴다. 빈 리스트는 G4가 거절한다 —
+            // graphify-runner가 실제 조회 근거를 채우기 전에는 계획을 승인하지 않기 위함.
             basis: [],
         },
     }), body(tasksBase)));
