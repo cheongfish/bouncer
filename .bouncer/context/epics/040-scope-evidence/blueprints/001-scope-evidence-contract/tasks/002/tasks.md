@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '040'
   blueprint_id: '001'
-  status: ready
+  status: verified
   affected_paths:
     - rules/okf.md
     - docs/ARCHITECTURE.md

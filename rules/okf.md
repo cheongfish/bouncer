@@ -49,11 +49,19 @@ task's acceptance criteria, not prose such as "run tests." Blueprint
 `bouncer.scale` describes the approved planning path; neither is changed
 merely to make an implementation easier to fit.
 
-**Generated evidence fields.** `bouncer.graph` records graphification input
-and results, while verification, review, context-review, and comprehension
-metadata record their respective workflow evidence. Treat all of them as data
-produced by their designated step. Do not manufacture values to satisfy a
-gate; correct the plan, rerun the designated step, or return to planning.
+**Scope evidence.** `bouncer.scope_evidence` is the canonical write form for
+the candidate paths and basis used to judge a task's scope. It contains
+`generated_at`, `producer`, `suggested_paths`, and `basis`; Graphify writes
+`producer: graphify`. `suggested_paths` is advisory evidence, never an
+approved change scope: only the user-confirmed `affected_paths` may authorize
+changes. Read legacy `bouncer.graph` only for compatibility; do not author it
+in new plans.
+
+**Generated evidence fields.** `bouncer.scope_evidence`, verification, review,
+context-review, and comprehension metadata record their respective workflow
+evidence. Treat all of them as data produced by their designated step. Do not
+manufacture values to satisfy a gate; correct the plan, rerun the designated
+step, or return to planning.
 
 A task unit is the three-document bundle
 `tasks/<NNN>/{tasks,verification,review}.md`; each file has its own OKF

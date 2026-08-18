@@ -132,20 +132,22 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to
    run `bouncer graph-sync` (plan-time freshness for **source** + **context**
    graphs), query both `graphify-out/source` and `graphify-out/context`, and write
-   `bouncer.graph.suggested_paths` into `tasks/001/tasks.md`. If graphify is
+   `bouncer.scope_evidence.suggested_paths` into `tasks/001/tasks.md`. If graphify is
    unavailable, it leaves `suggested_paths` empty, records a graceful fallback
-   entry list in `bouncer.graph.basis` (per-graph `status` such as
+   entry list in `bouncer.scope_evidence.basis` with `producer: graphify` (per-graph `status` such as
    `skip-disabled` / `missing`), tells the user how to install/enable Graphify
    (`pip install graphifyy && graphify install`, then `graphify.enabled: true`),
    and says so so the user can seed paths manually.
    Scaffold leaves `basis` as an empty list on purpose, so this step must run:
-   G4 fails until a real non-empty basis (legacy string or entry array) is
-   recorded.
+   G4 fails until a real non-empty basis entry array is recorded. Existing
+   `bouncer.graph` is read only for legacy compatibility and is never a new
+   authoring target.
 
-6. **affected_paths (user-confirmed).** Propose `bouncer.affected_paths` in
-   `tasks/001/tasks.md` seeded from `suggested_paths`, then **have the user confirm or
-   edit** it. It must be non-empty (gate G5). Write the confirmed value into
-   `tasks/001/tasks.md` frontmatter.
+6. **affected_paths (user-confirmed).** Show `scope_evidence.suggested_paths`
+   as advisory candidate paths, then propose `bouncer.affected_paths` in
+   `tasks/001/tasks.md` for the user to confirm or edit. It must be non-empty
+   (gate G5). Do not seed or modify `affected_paths` automatically from Graphify;
+   write only the user's confirmed value into `tasks/001/tasks.md` frontmatter.
    Before finalizing `affected_paths` and the Checklist, you may run the
    `minimality` skill (`skills/minimality/SKILL.md`) (advisory, not a gate) to challenge new dependencies,
    abstractions, or files and record the rationale.
@@ -226,8 +228,9 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    `context-review.md` accepted with the same findings-field contract as G14
    (`## Findings` present; each finding `id` / `severity` / `status`; `accepted`
    needs a non-empty note; no `scale: light` exemption), G3 tasks ready,
-   G4 `graph.suggested_paths` present and `graph.basis` a non-empty legacy
-   string or non-empty entry list, G5
+   G4 `scope_evidence.suggested_paths` present and `scope_evidence.basis` a
+   non-empty entry list with valid `producer` (legacy `graph` is read
+   compatibility only), G5
    `affected_paths` non-empty, G10 the five gated sections present and
    placeholder-free (Constraints is authored but not gated), G11 Touch justifies every
    `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.

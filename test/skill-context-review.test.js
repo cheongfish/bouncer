@@ -20,6 +20,7 @@ test('context-review covers the four judgment scopes', () => {
   assert.match(md, /blueprint/i);
   assert.match(md, /tasks/i);
   assert.match(md, /affected_paths/);
+  assert.match(md, /scope_evidence\.suggested_paths/);
   assert.match(md, /Checklist/);
   assert.match(md, /suggested_paths/);
   assert.match(md, /stop-slop/);

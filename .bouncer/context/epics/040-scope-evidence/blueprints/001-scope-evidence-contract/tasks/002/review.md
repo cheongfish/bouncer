@@ -11,11 +11,19 @@ bouncer:
   id: REVIEW-002
   epic_id: '040'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: REVIEW-002-001
+        severity: major
+        status: resolved
+      - id: REVIEW-002-002
+        severity: major
+        status: resolved
 ---
 # Review
 
 ## Findings
-- <finding>
+- REVIEW-002-001 (major, resolved): 새 `scope_evidence.producer`는 `graphify`만 허용한다고 G4 안내에 명시함.
+- REVIEW-002-002 (major, resolved): Graphify 비활성 시 runner가 basis 상태를 기록하고 사용자가 `affected_paths`를 확인하도록 파일럿 안내를 정정함.
