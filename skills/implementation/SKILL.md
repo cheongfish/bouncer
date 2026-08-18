@@ -59,16 +59,16 @@ does.
    **Bad**:
 
    ```js
-   // graph.basis가 유효한지 검사한다.
-   function isValidGraphBasis(basis) {
+   // scope_evidence.basis가 유효한지 검사한다.
+   function isValidScopeEvidenceBasis(basis) {
    ```
 
    **Good** (why — one helper so S9 and G4 cannot diverge):
 
    ```js
-   // graph.basis는 레거시 문자열과 그래프별 엔트리 배열을 모두 받는다.
+   // scope_evidence는 새 작성 형식이며 graph는 읽기 호환으로만 정규화한다.
    // S9(구조)와 G4(plan)가 같은 헬퍼를 써야 두 경로가 다른 답을 내지 않는다.
-   function isValidGraphBasis(basis) {
+   function isValidScopeEvidenceBasis(basis) {
    ```
 
    **Bad**:

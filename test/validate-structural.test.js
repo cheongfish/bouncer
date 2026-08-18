@@ -355,7 +355,7 @@ test('legacy sdd frontmatter is rejected with bouncer-init guidance', () => {
   assert.ok(res.failures.some((f) => /bouncer-init/.test(f.message)));
 });
 
-test('tasks.graph.basis is required when graph is present', () => {
+test('legacy tasks.graph basis is required when graph is present', () => {
   const repo = mkRepo();
   const t = goodTasks();
   t.bouncer.graph = { suggested_paths: ['src/'] };
@@ -364,7 +364,7 @@ test('tasks.graph.basis is required when graph is present', () => {
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(res.ok, false);
-  assert.ok(res.failures.some((f) => /graph\.basis/.test(f.message)));
+  assert.ok(res.failures.some((f) => /basis/.test(f.message)));
 });
 
 function writeTasksWithBasis(basis) {
@@ -384,21 +384,21 @@ test('S9: legacy non-empty string basis passes', () => {
 
 test('S9: empty basis array is rejected', () => {
   const res = writeTasksWithBasis([]);
-  assert.ok(res.failures.some((f) => f.code === 'S9' && /graph\.basis/.test(f.message)));
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /basis/.test(f.message)));
 });
 
 test('S9: basis entry with bogus status is rejected', () => {
   const res = writeTasksWithBasis([{
     graph: 'source', status: 'bogus', query: 'q', result: 'r',
   }]);
-  assert.ok(res.failures.some((f) => f.code === 'S9' && /graph\.basis/.test(f.message)));
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /basis/.test(f.message)));
 });
 
 test('S9: basis entry with empty query is rejected', () => {
   const res = writeTasksWithBasis([{
     graph: 'source', status: 'updated', query: '', result: 'r',
   }]);
-  assert.ok(res.failures.some((f) => f.code === 'S9' && /graph\.basis/.test(f.message)));
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /basis/.test(f.message)));
 });
 
 test('S9: valid basis entry array passes', () => {
@@ -406,6 +406,53 @@ test('S9: valid basis entry array passes', () => {
     graph: 'source', status: 'updated', query: 'q', result: 'r',
   }]);
   assert.ok(!res.failures.some((f) => f.code === 'S9'));
+});
+
+test('S9: scope_evidence is the authoritative valid evidence shape', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.scope_evidence = {
+    producer: 'graphify',
+    generated_at: '2026-08-18T00:00:00+09:00',
+    suggested_paths: ['scripts/src/lib/'],
+    basis: 'graphify: validate structural scope',
+  };
+  // suggested_paths는 계획 근거일 뿐이며, 검증기가 affected_paths를 덮어쓰면 안 된다.
+  t.bouncer.affected_paths = ['scripts/src/lib/validate-structural.ts'];
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(!res.failures.some((f) => f.code === 'S9'));
+});
+
+test('S9: rejects mixed legacy graph and scope_evidence and an invalid producer', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.graph = { suggested_paths: ['src/'], basis: 'legacy graph' };
+  t.bouncer.scope_evidence = {
+    producer: 'manual', generated_at: '2026-08-18T00:00:00+09:00',
+    suggested_paths: ['src/'], basis: 'new graph',
+  };
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /both/.test(f.message)));
+});
+
+test('S9: scope_evidence requires the graphify producer', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.scope_evidence = {
+    producer: 'manual', generated_at: '2026-08-18T00:00:00+09:00',
+    suggested_paths: ['src/'], basis: 'manual evidence',
+  };
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /producer/.test(f.message)));
 });
 
 test('legacy root context blueprint is not a canonical validation target', () => {

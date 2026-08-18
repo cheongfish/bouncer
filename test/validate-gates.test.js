@@ -197,7 +197,37 @@ test('plan gate G4 rejects an empty basis array', () => {
   };
   const failures = [];
   checkGate('plan', docs, rels, failures);
-  assert.ok(failures.some((f) => f.code === 'G4' && /graph\.basis/.test(f.message)));
+  assert.ok(failures.some((f) => f.code === 'G4' && /basis/.test(f.message)));
+});
+
+test('plan gate G4 accepts scope_evidence, preserves affected_paths, and rejects mixed forms', () => {
+  const scopeEvidence = {
+    producer: 'graphify', generated_at: '2026-08-18T00:00:00+09:00',
+    suggested_paths: ['scripts/src/lib/'], basis: 'graphify: validate gates',
+  };
+  const accepted = {
+    epicIndex: doc('approved'), blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      scope_evidence: scopeEvidence,
+      affected_paths: ['src/auth/'],
+    }, READY_BODY),
+  };
+  const passed = [];
+  checkGate('plan', accepted, rels, passed);
+  assert.ok(!passed.some((f) => f.code === 'G4'));
+  assert.deepStrictEqual(accepted.tasks.data.bouncer.affected_paths, ['src/auth/']);
+
+  const mixed = {
+    epicIndex: doc('approved'), blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      scope_evidence: scopeEvidence,
+      graph: { suggested_paths: ['src/'], basis: 'legacy' },
+      affected_paths: ['src/auth/'],
+    }, READY_BODY),
+  };
+  const failed = [];
+  checkGate('plan', mixed, rels, failed);
+  assert.ok(failed.some((f) => f.code === 'G4' && /both/.test(f.message)));
 });
 
 test('plan gate G10 fails when a section is missing', () => {

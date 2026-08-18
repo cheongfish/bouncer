@@ -15,7 +15,8 @@ test('graphify-runner resolves bin then queries; no PATH `graphify query`', () =
   const md = readSkill('graphify-runner');
   assert.match(md, /graphify-bin/);
   assert.match(md, /GRAPHIFY_BIN/);
-  assert.match(md, /suggested_paths/);
+  assert.match(md, /bouncer\.scope_evidence\.suggested_paths/);
+  assert.match(md, /legacy read compatibility/i);
   assert.match(md, /not available|unavailable|absent|skip/i);
   assert.match(md, /bouncer\.graph|\/bouncer-plan/);
   // PATH 직접 호출 형태는 거부 — 해석된 "$GRAPHIFY_BIN" query 만 허용.
@@ -25,7 +26,9 @@ test('graphify-runner resolves bin then queries; no PATH `graphify query`', () =
 
 test('graphify-runner records basis and documents freshness policy', () => {
   const md = readSkill('graphify-runner');
-  assert.match(md, /bouncer\.graph\.basis|graph\.basis|basis/i);
+  assert.match(md, /bouncer\.scope_evidence\.basis/);
+  assert.match(md, /producer: graphify/);
+  assert.match(md, /legacy.*compatibility/i);
   assert.match(md, /SessionStart|freshness|mtime/i);
   assert.match(md, /graph-sync/);
 });

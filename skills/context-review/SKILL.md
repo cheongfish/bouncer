@@ -46,10 +46,13 @@ blueprint-root `context-review.md` — not a task-directory `review.md`.
    - `affected_paths` entries exist (or are Create targets the Checklist
      will add);
    - files the Checklist must edit that `affected_paths` omitted;
-   - `bouncer.graph.suggested_paths` versus the locked `affected_paths`
-     (directory hints vs per-file list). Graph absence or empty
+   - `bouncer.scope_evidence.suggested_paths` versus the locked `affected_paths`
+     (directory hints vs per-file list). Scope evidence absence or empty
      `suggested_paths` is a state, not a failure — record that the contrast
-     could not run, and do not fail the review for it.
+     could not run, and do not fail the review for it. Candidate paths are
+     advisory only; do not treat their omission from `affected_paths` as a
+     failure without a Checklist need. Read legacy `bouncer.graph` only when
+     reviewing an older plan, never as a new authoring recommendation.
 
    ### Korean quality
    Judge human-facing bodies under `.bouncer/context/epics/**` against

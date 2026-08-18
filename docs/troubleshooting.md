@@ -4,8 +4,8 @@
 | --- | --- |
 | `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는, 또 템플릿 안내 주석만으로는 통과하지 않습니다 |
 | `G10 tasks sections still contain <TODO: …> placeholders` | 템플릿 placeholder를 실제 내용으로 바꾸지 않았습니다 |
-| `G4 tasks.graph.basis missing or empty` | `/bouncer-plan`의 그래프 단계를 건너뛰었습니다. `basis`는 비어 있지 않은 레거시 문자열 또는 엔트리 배열(`graph`/`status`/`query`/`result`; `status`는 `updated`·`reused`·`fail-skip`·`skip-disabled`·`missing`)이어야 합니다. graphify가 꺼져 있어도 `graphify-runner`가 엔트리를 남겨야 합니다 |
-| graphify 실행 경로 해석 실패 / 경로 추천 없음 | `bouncer graphify-bin`이 config.bin → `.bouncer/.venv` → PATH에서 실행 파일을 못 찾은 상태입니다. `bouncer init`으로 설치하거나, 기존 프로젝트면 `bouncer init --promote-graphify`로 켠 뒤 다시 시도하세요. 오프라인은 [install.md](install.md) 수동 폴백. 없으면 `affected_paths`를 수동 확정하면 됩니다 |
+| `G4 tasks.scope_evidence.basis missing or empty` | `/bouncer-plan`의 Graphify evidence 단계를 건너뛰었습니다. `scope_evidence`에는 `producer: graphify`, 후보 `suggested_paths`, 비어 있지 않은 `basis` 엔트리 배열(`graph`/`status`/`query`/`result`; `status`는 `updated`·`reused`·`fail-skip`·`skip-disabled`·`missing`)이 필요합니다. graphify가 꺼져 있어도 `graphify-runner`가 엔트리를 남겨야 하며, 후보는 승인 범위가 아닙니다 |
+| graphify 실행 경로 해석 실패 / 경로 추천 없음 | `bouncer graphify-bin`이 config.bin → `.bouncer/.venv` → PATH에서 실행 파일을 못 찾은 상태입니다. `bouncer init`으로 설치하거나, 기존 프로젝트면 `bouncer init --promote-graphify`로 켠 뒤 다시 시도하세요. 오프라인은 [install.md](install.md) 수동 폴백. 없으면 사용자가 `affected_paths`를 수동 확정하면 됩니다 |
 | `G13 missing successful harness verification metadata` | `verify` 명령이 실행되지 않았거나 실패했습니다. 손으로 쓴 증적은 통과하지 않습니다 |
 | `G16 explain missing written sections` | `explain.md` 다섯 섹션(Background / Intuition / Code / Quiz / 이해 상태) 중 본문이 비어 있습니다. 헤딩·주석만으로는 통과하지 않습니다. `/bouncer-finalize`의 explain-diff 단계에서 채우세요 |
 | `G16 explain comprehension record missing` / `incomplete` | BP용 `bouncer.comprehension` 엔트리가 없거나 `quiz_score` 등 필수 필드가 비어 있습니다. 스캐폴드 직후 상태입니다 — 엔트리를 쓴 뒤 다시 검사하세요 |

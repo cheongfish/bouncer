@@ -31,7 +31,7 @@
 | 문서 | 내용 |
 | --- | --- |
 | [governance.md](../rules/governance.md) | blueprint·task 크기, 경량 경로 |
-| [okf.md](../rules/okf.md) | OKF 정렬·알려진 차이 |
+| [okf.md](../rules/okf.md) | OKF 정렬, 프론트매터 필드의 소유·작성 기준, 알려진 차이 |
 | [plugin-root.md](../rules/plugin-root.md) | `BOUNCER_HOME` 해석 순서 |
 
 진입점은 플러그인 루트 [`CLAUDE.md`](../CLAUDE.md)입니다 — 마스터 룰이자 위

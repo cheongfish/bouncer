@@ -20,9 +20,9 @@ bouncer:
     - scripts/src/lib/init.ts
     - scripts/src/lib/verification.ts
     - test/cli-verify.test.js
-  graph:
+  scope_evidence:
     generated_at: '2026-08-12T12:00:00.000+09:00'
-    command: 'mcp:graphify'
+    producer: graphify
     suggested_paths:
       - scripts/src/lib
       - test
