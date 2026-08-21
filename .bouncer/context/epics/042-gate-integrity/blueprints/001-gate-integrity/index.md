@@ -1,7 +1,7 @@
 ---
 type: bouncer.blueprint
 title: 커밋 스코프와 검증 증적 게이트 강제
-description: -a 커밋 검사 집합 확장과 하네스 소유 verify 증적 대조
+description: '-a 커밋 검사 집합 확장과 하네스 소유 verify 증적 대조'
 resource: .bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/index.md
 tags:
   - bouncer
@@ -11,7 +11,7 @@ bouncer:
   id: '001'
   epic_id: '042'
   blueprint_id: '001'
-  status: approved
+  status: closed
   commit_type: fix
   scale: full
 ---
