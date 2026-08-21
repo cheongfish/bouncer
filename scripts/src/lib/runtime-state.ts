@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const { toPosix, parsePathIds } = require('./paths') as {
   toPosix: (p: unknown) => string;
@@ -46,6 +47,7 @@ type RuntimePaths = {
   currentFile?: string;
   worktreeRoot?: string;
   projectRoot?: string;
+  ledgerFile?: string;
 };
 
 type RuntimePointer = {
@@ -204,6 +206,30 @@ function worktreePathFor({ repoRoot, blueprint, deps }: {
   return nested;
 }
 
+function verifyLedgerPathFor({ repoRoot, verificationRel, deps }: {
+  repoRoot: string;
+  verificationRel: unknown;
+  deps?: RuntimeDeps | null;
+}): RuntimePaths {
+  const paths = resolvedPaths({ repoRoot, deps });
+  if (paths.unavailable) {
+    return { unavailable: true, reason: paths.reason };
+  }
+  const d = deps || {};
+  const platform = d.platform || process.platform;
+  const pathApi = platform === 'win32' ? path.win32 : path;
+  // 원장은 current 포인터와 같이 common dir 아래에 둔다. linked worktree가
+  // 같은 레코드를 보게 하고, `.git/` 안이라 커밋 스코프에 절대 안 실린다.
+  // 파일명은 상대경로 sha256의 앞 16자면 충돌을 피하면서 경로 문자(슬래시)를
+  // 파일 이름에 넣지 않는다.
+  const digest = createHash('sha256').update(toPosix(verificationRel), 'utf8').digest('hex').slice(0, 16);
+  return {
+    ...paths,
+    ledgerFile: pathApi.join(paths.commonGitDir as string, 'bouncer', 'verify', `${digest}.json`),
+  };
+}
+
 module.exports = {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, worktreePathFor,
+  verifyLedgerPathFor,
 };

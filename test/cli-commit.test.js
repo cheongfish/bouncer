@@ -9,6 +9,7 @@ const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
+const { recordVerificationResult } = require('../scripts/lib/verification');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -81,6 +82,17 @@ function fullBlueprint(repo, { tasksStatus = 'verified' } = {}) {
     resource: `${BP_REL}/tasks/001/verification.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'passed' },
+  });
+  // commit 게이트 G13은 status: passed 손기록을 믿지 않는다. 하네스가 문서를
+  // YAML 왕복한 뒤 같은 command/ran_at/exit_code/output_sha로 원장에 남긴
+  // 경로와 맞춰야 dry-run/--yes 픽스처가 열린다.
+  recordVerificationResult({
+    repoRoot: repo,
+    verificationRel: `${BP_REL}/tasks/001/verification.md`,
+    command: 'npm test',
+    ranAt: '2026-07-27T00:00:00.000Z',
+    exitCode: 0,
+    output: 'ok',
   });
   writeDoc(repo, `${BP_REL}/tasks/001/review.md`, {
     type: 'bouncer.review', title: 'Review', description: 'd',

@@ -25,7 +25,9 @@ function base(type, id, status, extra) {
 }
 
 test('execute validation reruns the configured command instead of trusting evidence', () => {
+  const { execFileSync } = require('node:child_process');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-native-e2e-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
 
   // native Bouncer workflow: self-contained verification + review docs
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });

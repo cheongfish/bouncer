@@ -4,13 +4,20 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 const { readDoc } = require('../scripts/lib/frontmatter');
-const { executeVerify, readVerifyCommand, runVerification } = require('../scripts/lib/verification');
+const {
+  executeVerify, readVerifyCommand, runVerification, recordVerificationResult,
+} = require('../scripts/lib/verification');
+const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
+const { checkGate } = require('../scripts/lib/validate');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
 function setupRepo(verify = 'npm test') {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verification-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify }));
   const verification = path.join(repo, BP_REL, 'tasks/001/verification.md');
@@ -108,6 +115,112 @@ test('runVerification records failed command evidence', () => {
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 7);
   assert.strictEqual(verification.data.bouncer.verification.output_tail, 'partial output\nfailure output');
   assert.match(verification.body, /Exit code: 7/);
+});
+
+test('runVerification writes a verify ledger record matching the re-read output_tail', () => {
+  const repo = setupRepo();
+  const rel = `${BP_REL}/tasks/001/verification.md`;
+  runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec: () => ({ stdout: 'line one\nline two\n', stderr: '' }),
+  });
+  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
+  const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
+  const verification = readDoc(path.join(repo, rel));
+  const outputSha = createHash('sha256')
+    .update(verification.data.bouncer.verification.output_tail, 'utf8')
+    .digest('hex');
+  assert.deepStrictEqual(record, {
+    rel,
+    command: 'npm test',
+    ran_at: '2026-07-27T09:00:00.000+09:00',
+    exit_code: 0,
+    output_sha: outputSha,
+  });
+});
+
+test('failed verification still writes a ledger record that does not pass G13', () => {
+  const repo = setupRepo();
+  const rel = `${BP_REL}/tasks/001/verification.md`;
+  const failure = new Error('command failed');
+  failure.status = 7;
+  failure.stdout = 'partial output\n';
+  failure.stderr = 'failure output\n';
+  runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec: () => { throw failure; },
+  });
+  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
+  const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
+  assert.strictEqual(record.exit_code, 7);
+
+  const verification = readDoc(path.join(repo, rel));
+  verification.rel = rel;
+  const result = checkGate({
+    gate: 'execute',
+    docs: {
+      tasks: { data: { bouncer: { status: 'verified' } }, rel: `${BP_REL}/tasks/001/tasks.md` },
+      verification,
+      review: {
+        data: { bouncer: { status: 'pending', review: { required: false } } },
+        rel: `${BP_REL}/tasks/001/review.md`,
+      },
+    },
+    rels: {
+      tasks: `${BP_REL}/tasks/001/tasks.md`,
+      verification: rel,
+      review: `${BP_REL}/tasks/001/review.md`,
+    },
+    repoRoot: repo,
+  });
+  assert.ok(result.failures.some((f) => f.code === 'G13'));
+  assert.ok(result.failures.some((f) => (
+    f.code === 'G13' && /missing successful harness verification metadata/.test(f.message)
+  )));
+});
+
+test('recordVerificationResult hashes output_tail after YAML round-trip of CRLF and trailing space', () => {
+  const repo = setupRepo();
+  const rel = `${BP_REL}/tasks/001/verification.md`;
+  const output = 'ok  \r\nline two  ';
+  recordVerificationResult({
+    repoRoot: repo,
+    verificationRel: rel,
+    command: 'npm test',
+    ranAt: '2026-07-27T00:00:00.000Z',
+    exitCode: 0,
+    output,
+  });
+  const reread = readDoc(path.join(repo, rel));
+  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
+  const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
+  const outputSha = createHash('sha256')
+    .update(reread.data.bouncer.verification.output_tail, 'utf8')
+    .digest('hex');
+  assert.strictEqual(record.output_sha, outputSha);
+  reread.rel = rel;
+  const result = checkGate({
+    gate: 'execute',
+    docs: {
+      tasks: { data: { bouncer: { status: 'verified' } }, rel: `${BP_REL}/tasks/001/tasks.md` },
+      verification: reread,
+      review: {
+        data: { bouncer: { status: 'pending', review: { required: false } } },
+        rel: `${BP_REL}/tasks/001/review.md`,
+      },
+    },
+    rels: {
+      tasks: `${BP_REL}/tasks/001/tasks.md`,
+      verification: rel,
+      review: `${BP_REL}/tasks/001/review.md`,
+    },
+    repoRoot: repo,
+  });
+  assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G13'), []);
 });
 
 test('runVerification rejects a missing configured command', () => {

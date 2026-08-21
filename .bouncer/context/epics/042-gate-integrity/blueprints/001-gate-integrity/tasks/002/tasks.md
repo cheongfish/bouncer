@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '042'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run verify:strict
   commit_intent:
     - 'G13이 에이전트가 쓸 수 있는 문서만 읽어 위조된 증적을 통과시킴'
@@ -27,6 +27,8 @@ bouncer:
     - 'test/verification-runner.test.js'
     - 'test/validate-gates.test.js'
     - 'test/cli-verify.test.js'
+    - 'test/cli-commit.test.js'
+    - 'test/commit-task.test.js'
     - 'test/native-profile-e2e.test.js'
     - 'test/validate-structural.test.js'
     - 'docs/gates.md'
@@ -82,6 +84,8 @@ G13이 문서가 자기 자신과 일관된지만 보지 않고, `bouncer verify
 - Modify `test/verification-runner.test.js` — 원장이 실제로 기록되는지, 실패 실행이 어떻게 남는지.
 - Modify `test/validate-gates.test.js` — 원장 없음·불일치·정상 세 갈래의 G13 판정. 이 파일은 통과하는 `verification.md` 프론트매터를 직접 구성하므로 원장 fixture를 함께 넣어야 한다.
 - Modify `test/cli-verify.test.js` — `bouncer verify` 경로가 만드는 원장 확인.
+- Modify `test/cli-commit.test.js` — commit 게이트 G13이 원장을 요구하므로 `verification.status: passed`만 있는 fixture에 원장을 맞춘다.
+- Modify `test/commit-task.test.js` — 위와 같다. dry-run / `--yes` / nextTask fixture가 새 대조를 통과해야 한다.
 - Modify `test/native-profile-e2e.test.js` — e2e가 만드는 verify 증적이 새 대조를 통과하는지.
 - Modify `test/validate-structural.test.js` — execute 게이트를 함께 도는 구조 테스트다. 새 G13 실패가 끼어들면 fixture를 맞춘다.
 - Modify `docs/gates.md` — G13 설명을 원장 대조까지 포함하도록 고치고, commit 게이트 행에도 G13을 더한다.
@@ -132,5 +136,6 @@ G13이 문서가 자기 자신과 일관된지만 보지 않고, `bouncer verify
 - [ ] `test/runtime-state.test.js`에 `verifyLedgerPathFor`의 정상 경로와 비-Git 디렉터리 `unavailable` 분기를 넣는다.
 - [ ] `test/verification-runner.test.js`에 원장 기록 테스트를 추가한다. 실패 실행(`exit_code != 0`)도 레코드가 남고 G13은 통과하지 않는지 확인한다.
 - [ ] `test/cli-verify.test.js`와 `test/native-profile-e2e.test.js`의 verify 증적 fixture를 새 대조에 맞춘다.
+- [ ] `test/cli-commit.test.js`와 `test/commit-task.test.js`의 commit-게이트 fixture에 원장을 넣는다. `status: passed`만으로는 통과하지 않는다.
 - [ ] `docs/gates.md` · `docs/ARCHITECTURE.md` · `docs/troubleshooting.md` · `docs/compatibility.md`의 G13 서술을 고친다.
 - [ ] `npm run build` 후 `npm run verify:strict`가 통과하는지 확인한다.

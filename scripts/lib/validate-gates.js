@@ -1,11 +1,14 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+const fs = require('node:fs');
+const { createHash } = require('node:crypto');
 const { toPosix } = require('./paths');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension');
 // finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
 const { makeAllowed, isRuntimeArtifact } = require('./scope');
 const { defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf, } = require('./validate-docs');
 const { normalizeScopeEvidence } = require('./validate-structural');
+const { verifyLedgerPathFor } = require('./runtime-state');
 const { VERIFY_SECTION_DEFS, EXPLAIN_SECTION_HEADINGS, TODO_RE, parseSections, parseTasksSections, extractPathCandidates, pathsOverlap, pathJustifiedByTouch, collectFindingFailures, } = require('./validate-sections');
 function asData(doc) {
     if (!doc)
@@ -14,7 +17,98 @@ function asData(doc) {
     // 여기서 data를 빈 객체로 바꾸지 않는다. null data는 예전처럼 접근 시 터진다.
     return doc.data;
 }
+function defaultReadVerifyLedger({ repoRoot, verificationRel, deps, }) {
+    const paths = verifyLedgerPathFor({
+        repoRoot: repoRoot,
+        verificationRel,
+        deps,
+    });
+    if (paths.unavailable) {
+        return { unavailable: true, reason: paths.reason };
+    }
+    const fsApi = (deps && deps.fs) || fs;
+    if (!paths.ledgerFile || !fsApi.existsSync(paths.ledgerFile))
+        return null;
+    try {
+        const parsed = JSON.parse(fsApi.readFileSync(paths.ledgerFile, 'utf8'));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+            return null;
+        return parsed;
+    }
+    catch (_error) {
+        return null;
+    }
+}
+function checkG13(verificationDoc, addUnit, ctx) {
+    if (!verificationDoc)
+        return;
+    const vbody = typeof verificationDoc.body === 'string' ? verificationDoc.body : '';
+    const vs = parseSections(vbody, VERIFY_SECTION_DEFS);
+    const missingV = ['command', 'evidence'].filter((k) => !vs[k]);
+    if (missingV.length) {
+        addUnit('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
+    }
+    const vBouncer = verificationDoc.data.bouncer;
+    const evidence = vBouncer && vBouncer.verification;
+    const validEvidence = evidence
+        && typeof evidence.command === 'string'
+        && evidence.command.trim()
+        && typeof evidence.ran_at === 'string'
+        && evidence.ran_at.trim()
+        && evidence.exit_code === 0
+        && typeof evidence.output_tail === 'string';
+    if (!validEvidence) {
+        addUnit('G13', 'verification.md missing successful harness verification metadata', 'verification');
+        return;
+    }
+    if (!vs.command.includes(`\`${evidence.command}\``)
+        || !vs.evidence.includes('Exit code: 0')) {
+        addUnit('G13', 'verification.md body does not match harness verification metadata', 'verification');
+    }
+    // 프론트매터만 맞으면 에이전트 Write로 통과하던 구멍. 원장은 git common dir
+    // 아래 하네스 전용이라, 문서와 대조하지 않으면 `/bouncer-commit` 직접 호출도
+    // status: passed 손기록으로 열린다.
+    const deps = ctx && ctx.deps;
+    const reader = (deps && deps.readVerifyLedger) || defaultReadVerifyLedger;
+    const record = reader({
+        repoRoot: ctx && ctx.repoRoot,
+        verificationRel: verificationDoc.rel,
+        deps,
+    });
+    if (record && record.unavailable) {
+        addUnit('G13', `verification.md verify ledger unavailable (${record.reason || 'Git common directory unavailable'})`, 'verification');
+        return;
+    }
+    if (!record) {
+        addUnit('G13', 'verification.md missing harness verify ledger record', 'verification');
+        return;
+    }
+    if (record.command !== evidence.command
+        || record.ran_at !== evidence.ran_at
+        || record.exit_code !== evidence.exit_code) {
+        addUnit('G13', 'verification.md harness metadata does not match verify ledger', 'verification');
+        return;
+    }
+    const outputSha = createHash('sha256').update(String(evidence.output_tail), 'utf8').digest('hex');
+    if (record.output_sha !== outputSha) {
+        addUnit('G13', 'verification.md output_tail does not match verify ledger output_sha', 'verification');
+    }
+}
 function checkGate(gate, docs, rels, failures, ctx) {
+    if (typeof gate === 'object' && gate !== null) {
+        const opts = gate;
+        const collected = [];
+        checkGate(opts.gate, opts.docs || {}, opts.rels, collected, {
+            repoRoot: opts.repoRoot,
+            blueprintDir: opts.blueprintDir,
+            deps: opts.deps,
+            taskUnit: opts.taskUnit,
+        });
+        return { failures: collected };
+    }
+    return runCheckGate(gate, docs, rels, failures, ctx || {});
+}
+function runCheckGate(gate, docs, rels, failures, ctx) {
     const add = (code, message, fileKey) => failures.push({ code, message, file: rels[fileKey] });
     const repoRoot = ctx && ctx.repoRoot;
     const blueprintDir = ctx && ctx.blueprintDir;
@@ -149,30 +243,7 @@ function checkGate(gate, docs, rels, failures, ctx) {
         if (!reviewOk) {
             addUnit('G8', 'review not accepted and review.required != false', 'review');
         }
-        if (verificationDoc) {
-            const vbody = typeof verificationDoc.body === 'string' ? verificationDoc.body : '';
-            const vs = parseSections(vbody, VERIFY_SECTION_DEFS);
-            const missingV = ['command', 'evidence'].filter((k) => !vs[k]);
-            if (missingV.length) {
-                addUnit('G13', `verification.md missing body sections: ${missingV.join(', ')}`, 'verification');
-            }
-            const vBouncer = verificationDoc.data.bouncer;
-            const evidence = vBouncer && vBouncer.verification;
-            const validEvidence = evidence
-                && typeof evidence.command === 'string'
-                && evidence.command.trim()
-                && typeof evidence.ran_at === 'string'
-                && evidence.ran_at.trim()
-                && evidence.exit_code === 0
-                && typeof evidence.output_tail === 'string';
-            if (!validEvidence) {
-                addUnit('G13', 'verification.md missing successful harness verification metadata', 'verification');
-            }
-            else if (!vs.command.includes(`\`${evidence.command}\``)
-                || !vs.evidence.includes('Exit code: 0')) {
-                addUnit('G13', 'verification.md body does not match harness verification metadata', 'verification');
-            }
-        }
+        checkG13(verificationDoc, addUnit, ctx);
         const reviewMetaBouncer = reviewDoc
             ? reviewDoc.data.bouncer
             : undefined;
@@ -194,7 +265,7 @@ function checkGate(gate, docs, rels, failures, ctx) {
     }
     // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension(BP 단일
     // 엔트리)의 diff_sha를 range_from..HEAD와 대조. G15는 폐기(결번)됐고, commit은
-    // 아래에서 G6/G7/G8 + G17로 재판정한다.
+    // 아래에서 G6/G7/G8 + G13 + G17로 재판정한다.
     if (gate === 'finalize') {
         const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
             ? docs.tasksDocs
@@ -267,8 +338,8 @@ function checkGate(gate, docs, rels, failures, ctx) {
         }
         return;
     }
-    // commit: explain을 보지 않는다. 포인터 task 상태(G6/G7/G8)와 스테이징
-    // 스코프(G17)만 본다. G9·G15는 폐기 — 번호만 비워 둔다.
+    // commit: explain을 보지 않는다. 포인터 task 상태(G6/G7/G8)와 G13 원장 대조,
+    // 스테이징 스코프(G17)를 본다. G9·G15는 폐기 — 번호만 비워 둔다.
     if (gate === 'commit') {
         // G9 (distill.status == published)는 폐기됨 — 번호만 비워 둠.
         // G15 (explain comprehension / diff_sha)는 폐기됨 — 번호만 비워 둠.
@@ -299,6 +370,7 @@ function checkGate(gate, docs, rels, failures, ctx) {
         if (!reviewOk) {
             addUnit('G8', 'review not accepted and review.required != false', 'review');
         }
+        checkG13(verificationDoc, addUnit, ctx);
         // G17은 이미 스테이징된 경로만 본다. working-tree 변경의 out-of-scope는
         // bouncer commit이 따로 막으며, 빈 스테이징은 통과(빈 커밋 방지는 명령 몫).
         const stagedFn = (deps && deps.stagedFiles) || defaultStagedFiles;

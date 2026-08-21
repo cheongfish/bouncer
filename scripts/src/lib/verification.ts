@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { execSync } = require('node:child_process');
 const { readDoc } = require('./frontmatter') as {
   readDoc: (absPath: string) => { data: unknown; body: string; path: string };
@@ -34,6 +35,13 @@ const { readCurrent } = require('./current') as {
 };
 const { toPosix } = require('./paths') as {
   toPosix: (p: unknown) => string;
+};
+const { verifyLedgerPathFor } = require('./runtime-state') as {
+  verifyLedgerPathFor: (opts: {
+    repoRoot: string;
+    verificationRel: unknown;
+    deps?: unknown;
+  }) => { unavailable?: boolean; reason?: string; ledgerFile?: string };
 };
 const { readConfigResult } = require('./config') as {
   readConfigResult: (repoRoot: string) =>
@@ -200,7 +208,7 @@ function executeVerify(command: string, { cwd, exec = execSync }: {
 }
 
 function recordVerificationResult({
-  repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output,
+  repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, deps,
 }: {
   repoRoot: string;
   verificationRel?: string;
@@ -209,6 +217,7 @@ function recordVerificationResult({
   ranAt: string;
   exitCode: number;
   output: string;
+  deps?: unknown;
 }): void {
   // verificationRel이 정식 인자. blueprintDir은 구 호출 호환(루트 verification.md).
   const rel = verificationRel
@@ -251,6 +260,30 @@ Ran at: ${ranAt}
 Exit code: ${exitCode}
 ${evidence}`;
   fs.writeFileSync(verificationPath, renderDoc(data, body));
+  // 게이트는 디스크에서 다시 읽은 output_tail을 해싱한다. js-yaml dump/load가
+  // 개행·후행 공백을 정규화해도, 기록 쪽이 같은 왕복을 거치면 해시가 갈라지지 않는다.
+  const reread = readDoc(verificationPath);
+  const rereadBouncer = (reread.data as Record<string, unknown>).bouncer as Record<string, unknown>;
+  const rereadEvidence = rereadBouncer && rereadBouncer.verification
+    ? rereadBouncer.verification as Record<string, unknown>
+    : {};
+  const outputTail = typeof rereadEvidence.output_tail === 'string' ? rereadEvidence.output_tail : '';
+  const outputSha = createHash('sha256').update(outputTail, 'utf8').digest('hex');
+  const ledgerPaths = verifyLedgerPathFor({ repoRoot, verificationRel: rel, deps });
+  if (ledgerPaths.unavailable || !ledgerPaths.ledgerFile) {
+    // 원장 없이 문서만 남기면 에이전트 Write와 구분이 안 된다. Git을 못 쓰면
+    // verify 자체를 실패시켜 복구 경로(저장소에서 재실행)만 남긴다.
+    throw new Error(ledgerPaths.reason || 'Bouncer requires a Git repository for an active blueprint');
+  }
+  fs.mkdirSync(path.dirname(ledgerPaths.ledgerFile), { recursive: true });
+  const record = {
+    rel: toPosix(rel),
+    command,
+    ran_at: ranAt,
+    exit_code: exitCode,
+    output_sha: outputSha,
+  };
+  fs.writeFileSync(ledgerPaths.ledgerFile, `${JSON.stringify(record, null, 2)}\n`);
 }
 
 function resolveVerificationRel(repoRoot: string, blueprintDir: string): string {

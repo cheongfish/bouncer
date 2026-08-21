@@ -30,7 +30,9 @@ function doc(type, id, status, resource, extra = {}) {
 }
 
 function setupRepo(verify = 'node -e "process.exit(0)"') {
+  const { execFileSync } = require('node:child_process');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-verify-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify }));
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md',
@@ -81,6 +83,13 @@ test('verify executes the configured command and records evidence', () => {
   const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.status, 'passed');
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 0);
+  const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
+  const rel = `${BP_REL}/tasks/001/verification.md`;
+  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
+  const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
+  assert.strictEqual(record.rel, rel);
+  assert.strictEqual(record.exit_code, 0);
+  assert.strictEqual(record.command, verification.data.bouncer.verification.command);
 });
 
 test('execute gate reruns verification before evaluating gates', () => {

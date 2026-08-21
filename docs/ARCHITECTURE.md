@@ -66,7 +66,9 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 본다.
 
 - **G7**: `verification.status == passed`
-- **G13**: 활성 포인터 task 디렉터리의 `verification.md` 본문에 `## Command`와 `## Evidence` 필수
+- **G13**: 활성 포인터 task 디렉터리의 `verification.md` 본문에 `## Command`와 `## Evidence` 필수.
+  하네스가 `bouncer verify`로 남긴 Git-local 원장(`command`/`ran_at`/`exit_code`/`output_sha`)과
+  문서가 일치해야 한다. 원장 없음·불일치·Git 불가·비-0 `exit_code`는 모두 실패.
 - **G8**: `review.status == accepted`, 또는 `bouncer.review.required === false`로 정책상 통과
 - **G14**: 활성 포인터 task 디렉터리의 `review.md` 본문에 `## Findings` 필수; `bouncer.review.findings[]`는
   `{id, severity, status, note}`이며 `severity ∈ {blocker,major,minor,nit}`,
@@ -173,7 +175,8 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 ### B. 공통 문서 계약과 게이트
 
 1. 활성 task 디렉터리의 `verification.md` 본문 필수 헤딩: `## Command`, `## Evidence` (G13).
-   상태 통과는 G7 (`verification.status == passed`).
+   상태 통과는 G7 (`verification.status == passed`). G13은 문서 메타데이터를
+   Git common directory 아래 하네스 원장과 대조한다. 프론트매터만 맞으면 통과하지 않는다.
 2. 검증 명령은 블루프린트 `tasks.bouncer.verify` 선언이 있으면 그것을, 없으면
    프로젝트 설정의 `verify`를 폴백으로 쓴다.
 3. 리뷰 finding 스키마는 `bouncer.review.findings[]` + 본문 `## Findings` (G14).
