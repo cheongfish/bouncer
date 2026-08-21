@@ -47,3 +47,4 @@ bouncer_schema: '0.1'
 * [040 scope-evidence](epics/040-scope-evidence/index.md) - Epic 040
 * [041 plan-mermaid-zoom](epics/041-plan-mermaid-zoom/index.md) - Epic 041
 * [042 게이트 보증 복구](epics/042-gate-integrity/index.md) - G13·G17 두 게이트를 코드로 강제하고 보증 문구를 실제 동작에 맞춘다
+* [043 bouncer-cost-improvement](epics/043-bouncer-cost-improvement/index.md) - Epic 043
