@@ -55,29 +55,24 @@ on arm 의 `.bouncer/context/**` 계획 문서는 **심사 diff 에서 제외**�
 
 ## 하네스 결함과 그 대응 — 재현 시 반드시 읽을 것
 
-측정 도중 **도구 자신의 결함 2건**이 드러났다.
+측정 도중 도구 결함 2건이 드러났다. 재측정은 아래 **현재 계약**을 전제로 한다.
+`task-suite.md` 와 같은 실행 지침이다.
 
-### 1. `collect_metrics.py` 가 git worktree 를 거부한다
+### 1. `collect_metrics.py` 와 git worktree
 
-```
-scripts/collect_metrics.py:175
-    if not os.path.isdir(os.path.join(repo, ".git")):
-        parser.error(f"{repo} is not a git repository")
-```
+측정 당시 스크립트는 `.git` 이 디렉터리일 때만 저장소로 인정했다. linked
+worktree 의 `.git` 은 파일이라 측정 명령이 거절됐다. 당시 대응은 로컬 사본만
+`os.path.exists` 로 바꿔 실행한 것이다.
 
-worktree 는 `.git` 이 **파일**이다. 그런데 같은 스킬의
-`references/task-suite.md` 는 A/B 프로토콜로 `git worktree add` 를 지시한다.
-**문서에 적힌 절차를 그대로 따르면 첫 명령에서 죽는다.**
+**현재 계약:** `collect_metrics.py` 는 `.git` 존재만 본다. 포인터를 쓰지 않는
+일반 코드 벤치마크 arm 은 `git worktree add` 로 런을 나눠도 된다. Bouncer on
+arm 은 2절 때문에 독립 클론을 쓴다.
 
-대응: 측정을 위해 로컬 사본만 `os.path.exists` 로 바꿔 실행했다. 저장소의
-스킬 파일은 이 벤치마크에서 수정하지 않았다. 수정은 별도 task 로 처리해야
-한다.
+### 2. 포인터와 verify 원장 — git common directory 공유
 
-### 2. 활성 포인터가 저장소당 하나다 — 병렬 사이클 충돌
-
-`runtime-state.ts` 의 `runtimePaths()` 는 포인터를
-`$(git rev-parse --git-common-dir)/bouncer/current` 에 둔다. `--git-common-dir`
-는 **모든 linked worktree 가 공유**한다. 실측:
+활성 포인터는 `$(git rev-parse --git-common-dir)/bouncer/current` 한 파일이다.
+`--git-common-dir` 는 모든 linked worktree 가 공유한다. 포인터는 그 공통
+디렉터리 아래라서 linked worktree 전체가 하나를 본다. 실측:
 
 ```
 t1-on → 001-verify-dry-run
@@ -90,22 +85,19 @@ t4-on → 001-verify-dry-run   ← 자기 blueprint 아님
 해결은 포인터 task 문서로 좁혀지고(`entriesForVerify`) 커밋 스코프도 포인터를
 타므로, 충돌하면 다른 런의 문서를 읽는다.
 
-Bouncer 의 핵심 서사가 "격리된 worktree 에서 구현한다" 이고 벤치마크 스킬의
-A/B 프로토콜도 "런마다 worktree 하나" 를 요구하는데, **Bouncer 자신은 병렬
-worktree 에서 두 사이클을 동시에 돌릴 수 없다.** 이 제약은 어느 문서에도
-없다.
+verify 원장은 `<git-common-dir>/bouncer/verify/<digest>.json` 이다. digest 는
+`verification.md` 상대경로 기준이다. **같은 blueprint 경로**를 두 linked
+worktree 에서 돌리면 원장이 덮인다. 서로 다른 blueprint 경로는 digest 가 달라
+그 원장 파일을 공유하지 않는다.
 
-대응: on arm 첫 실행 4건(worktree 기반)을 **전량 폐기**하고, 저장소당 하나의
-포인터가 보장되도록 **독립 클론 4개**로 재실행했다. 이 파일의 모든 on 수치는
-재실행분이다. off arm 은 포인터를 쓰지 않으므로 영향이 없어 유지했다.
+운영 완화: 병렬 Bouncer 사이클은 독립 클론만 쓴다. 클론은 git common directory
+를 나누지 않으므로 포인터와 원장이 다른 사이클과 섞이지 않는다. 런타임 상태
+위치는 그대로다. linked worktree는 공통 디렉터리 아래 포인터와 원장을 계속
+공유한다.
 
-**측정 이후 같은 성질의 상태가 하나 더 늘었다.** PR #53(`c7df084`)이 도입한
-verify 원장은 `verifyLedgerPathFor()` 를 통해
-`<git-common-dir>/bouncer/verify/<digest>.json` 에 저장된다. 주석이 "linked
-worktree가 같은 레코드를 보게" 라고 적고 있으므로 의도된 설계다. digest 가
-`verification.md` 상대경로 기반이라 서로 다른 blueprint 끼리는 충돌하지 않지만,
-**같은 blueprint 경로를 두 worktree 에서 돌리면 원장이 덮인다.** 재측정 시에도
-worktree 가 아니라 독립 클론을 써야 한다.
+측정 대응: on arm 첫 실행 4건(worktree 기반)을 전량 폐기하고 독립 클론 4개로
+재실행했다. 이 파일의 모든 on 수치는 재실행분이다. off arm 은 포인터와 verify
+원장을 쓰지 않아 유지했다. 재측정도 on arm 은 독립 클론이다.
 
 ## 한계
 

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '043'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - linked worktree의 포인터와 verify 원장 공유가 병렬 측정을 오염시켰음
     - 독립 clone 요구와 충돌 범위를 공개 문서에서 찾을 수 있게 함

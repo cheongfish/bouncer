@@ -46,17 +46,28 @@ benchmark exists to catch.
 
 ## Running an A/B
 
-1. One git worktree per run, all from the same base commit. Runs must not see
-   each other's output.
-   ```bash
-   git worktree add ../bench-default  <base>
-   git worktree add ../bench-planmode <base>
-   ```
+1. Same base commit for every run. Runs must not see each other's output.
+
+   - **Arms that do not use a Bouncer pointer** (ordinary code benchmarks): one
+     git worktree per run. `collect_metrics.py` accepts a linked worktree
+     (`.git` may be a file).
+     ```bash
+     git worktree add ../bench-default  <base>
+     git worktree add ../bench-planmode <base>
+     ```
+   - **Bouncer on arm**: one independent clone per cycle. The active pointer
+     (`<git-common-dir>/bouncer/current`) is one file for every linked worktree.
+     The verify ledger (`<git-common-dir>/bouncer/verify/<digest>.json`) is
+     shared per `verification.md` relative-path digest: two worktrees on the
+     same blueprint path overwrite one ledger. Different blueprint paths use
+     different digests and do not share that file. A separate clone is
+     operational mitigation. Runtime state stays under git-common-dir.
+
 2. Same prompt, verbatim, in every arm. Any prompt difference *is* the variable —
    change one thing at a time.
 3. No human intervention mid-run, or the same intervention budget in every arm
    (e.g. "at most one 'continue'"). Log what you did.
-4. Collect metrics in each worktree **before** running anything else, then judge
+4. Collect metrics in each run directory **before** running anything else, then judge
    each run independently against the rubric without looking at the other runs'
    scores.
 5. Compare:

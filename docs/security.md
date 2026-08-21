@@ -50,3 +50,20 @@ fail-closed의 대가는 **오탐**입니다. `git $ANYTHING`은 커밋이 아�
 스킬과 에이전트 문서가 이 경계를 문구로 적는다. 에이전트가 문구를 무시해도
 `scripts/`는 막지 않는다. 실질 방어선은 게이트 판정을 `bouncer validate`만
 한다는 설계다.
+
+## Git common directory 런타임 상태 (알려진 한계)
+
+활성 포인터는 `<git-common-dir>/bouncer/current`에 있다. linked worktree는
+git common directory를 공유하므로 포인터는 그 공통 디렉터리당 하나다. 한
+worktree의 `current --set`이 다른 linked worktree 사이클이 읽는 포인터를
+덮어쓴다. 영향: `verify` 명령 해결과 커밋 스코프가 다른 사이클의 task 문서로
+간다.
+
+verify 원장은 `<git-common-dir>/bouncer/verify/<digest>.json`이다. digest는
+`verification.md` 상대경로 기준이다. 같은 blueprint 경로를 두 linked worktree에서
+돌리면 원장이 덮인다. 서로 다른 blueprint 경로는 digest가 달라 그 원장 파일을
+공유하지 않는다.
+
+운영 완화: 병렬 Bouncer 사이클은 독립 클론에서 돌린다. 클론은 git common
+directory를 공유하지 않는다. 런타임 상태 위치는 그대로다. linked worktree는
+공통 디렉터리 아래 포인터와 원장을 계속 공유한다.
