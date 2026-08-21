@@ -121,9 +121,16 @@ Epic: [<EPIC-id>](../../index.md)
 * [Context review](context-review.md) - 계획 문서 정합성 판정
 <!-- explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다. -->
 `,
+    // 본문 HTML 주석은 G10이 strip한 뒤 비어 있음으로 본다. 허용값은 에이전트만
+    // 보고, 프론트매터 basis[]를 채우지 않아 S9/G4는 그대로 실패한다.
     'tasks.md': `# Tasks
 
 Blueprint: [<BP-id>](../../index.md)
+
+<!-- scope_evidence.basis 엔트리 필드: graph, status, query, result.
+     graph: source | context
+     status: updated | reused | fail-skip | skip-disabled | missing
+     프론트매터 값은 []로 둔다. 이 주석을 실제 엔트리로 옮기면 빈 계획이 승인된다. -->
 
 ## Goal & intent
 <!-- 구현자가 다른 문서 없이 시작할 수 있게.
@@ -164,8 +171,25 @@ Blueprint: [<BP-id>](../../index.md)
 - [ ] <TODO: 작업 항목>
 `,
     'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
-    'review.md': '# Review\n\n## Findings\n- <finding>\n',
-    'context-review.md': '# Context review\n\n## Findings\n- <finding>\n',
+    // G14/G18은 findings[]와 status로 미완성을 거절한다. 본문에 허용값을
+    // HTML 주석으로만 두면 stripComments 후 섹션이 비지 않고(플레이스홀더 유지),
+    // 파서가 예시 finding을 실제 값으로 읽지도 않는다.
+    'review.md': `# Review
+
+## Findings
+<!-- finding: id, severity, status. accepted이면 note 필수.
+     severity: blocker | major | minor | nit
+     status: resolved | accepted -->
+- <finding>
+`,
+    'context-review.md': `# Context review
+
+## Findings
+<!-- finding: id, severity, status. accepted이면 note 필수.
+     severity: blocker | major | minor | nit
+     status: resolved | accepted -->
+- <finding>
+`,
     // G16를 tasks 템플릿이 G10에서 실패하는 것과 같은 방식으로 — 작성이
     // 필수이도록 — 주석만 있는 본문으로 다섯 섹션 제목을 둡니다.
     'explain.md': `# Explain

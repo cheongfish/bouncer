@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '043'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - scaffold가 게이트 입력 모양을 숨겨 에이전트가 실패 왕복으로 계약을 배웠음
     - 검증 값은 비워 둔 채 소비 위치에 유효한 스키마 주석을 제공함

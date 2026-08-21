@@ -119,6 +119,21 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }) {
             basis: [],
         },
     }), body(tasksBase)));
+    // yaml.dump는 주석을 직렬화하지 못한다. basis를 예시 엔트리로 채우면
+    // S9/G4가 통과해 미작성 계획이 승인되므로, dump 뒤에 YAML 주석만 끼워
+    // 필드·허용값을 보여주고 파싱 값은 []로 둔다.
+    {
+        const abs = path.join(repoRoot, tasksRel);
+        const hinted = fs.readFileSync(abs, 'utf8').replace(/^([ \t]*)basis: \[\][ \t]*$/m, [
+            '$1# 유효 엔트리 필드: graph, status, query, result — 예시는 주석이라 파싱되지 않는다',
+            '$1# - graph: source | context',
+            '$1#   status: updated | reused | fail-skip | skip-disabled | missing',
+            '$1#   query: <graphify 조회>',
+            '$1#   result: <한 줄 요약>',
+            '$1basis: []',
+        ].join('\n'));
+        fs.writeFileSync(abs, hinted);
+    }
     created.push(writeRel(repoRoot, verifyRel, bouncerDoc('bouncer.verification', `${taskId} verification`, `Verification for ${taskId}`, verifyRel, ['bouncer', 'verification'], timestamp, { id: ids.verification, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }), body(verifyBase)));
     created.push(writeRel(repoRoot, reviewRel, bouncerDoc('bouncer.review', `${taskId} review`, `Review for ${taskId}`, reviewRel, ['bouncer', 'review'], timestamp, {
         id: ids.review, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',

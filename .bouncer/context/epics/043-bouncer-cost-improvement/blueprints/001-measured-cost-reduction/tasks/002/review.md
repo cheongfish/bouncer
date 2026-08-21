@@ -11,11 +11,23 @@ bouncer:
   id: REVIEW-002
   epic_id: '043'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: minor
+        status: resolved
+      - id: F2
+        severity: nit
+        status: accepted
+        note: >-
+          review/context-review의 id·status includes는 프론트매터만으로도 참이다.
+          severity 열거와 note 단언이 힌트를 고정함.
 ---
 # Review
 
 ## Findings
-- <finding>
+
+- F1 (minor, resolved): `basis: []` 직전 YAML 주석(`# - graph: source | context`)을 테스트가 단언한다.
+- F2 (nit, accepted): review/context-review의 `id`/`status` includes는 프론트매터만으로도 통과한다. severity 열거와 `note`가 힌트를 고정함.
