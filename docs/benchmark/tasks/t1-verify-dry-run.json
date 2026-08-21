@@ -1,0 +1,22 @@
+{
+  "id": "t1",
+  "name": "verify-dry-run",
+  "shape": "small feature in existing code",
+  "probe": "기존 helper 재사용 여부 (readVerifyCommand 를 두 번 구현하는가)",
+  "base": "3f5201866b368a55baaae845981ab77b9b869bec",
+  "prompt": "`bouncer verify` 에 `--dry-run` 플래그를 추가하라.\n\n`bouncer verify --blueprint <dir> --dry-run` 은 검증 명령을 **실행하지 않고**, 그 blueprint 에 대해 해결된 verify 명령과 그 명령이 어디서 왔는지(task 문서 선언인지 `.bouncer/config.json` 인지)를 출력한 뒤 종료 코드 0 으로 끝나야 한다. verification.md 는 건드리지 않는다.\n\n해결된 명령이 유효하지 않으면 기존 `--dry-run` 없는 실행과 동일한 실패 코드로 실패해야 한다.\n\n구현은 TypeScript 소스(`scripts/src/lib/**`)에 하고, `scripts/lib/**` 는 `npm run build` 산출물이다.",
+  "done_when": [
+    "--dry-run 이 verify 명령을 실행하지 않는다 (프로세스 스폰 없음)",
+    "--dry-run 이 verification.md 를 쓰거나 수정하지 않는다",
+    "해결된 명령과 출처(task 문서 / config)를 출력한다",
+    "유효하지 않은 명령은 --dry-run 에서도 기존과 같은 코드로 실패한다",
+    "기존 verify 명령 해결 로직(readVerifyCommand)을 재사용한다 — 두 번째 해결 경로를 만들지 않는다",
+    "이 동작을 덮는 테스트가 있고, 변경을 되돌리면 실패한다"
+  ],
+  "checks": {
+    "test": "npm test",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck",
+    "build": "npm run build"
+  }
+}

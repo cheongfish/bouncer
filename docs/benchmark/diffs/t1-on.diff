@@ -1,0 +1,437 @@
+diff --git a/docs/cli.md b/docs/cli.md
+index 4a76e67..31a00bf 100644
+--- a/docs/cli.md
++++ b/docs/cli.md
+@@ -7,6 +7,7 @@
+ | --- | --- |
+ | `bouncer validate --blueprint <dir> --gate <plan\|execute\|commit\|finalize>` | 구조 검사 + 게이트 하나. 실패 코드를 보고 |
+ | `bouncer verify --blueprint <dir>` | `tasks.bouncer.verify`(있으면) 또는 `config.verify`를 실행하고 증적을 기록 |
++| `bouncer verify --blueprint <dir> --dry-run` | 실행하지 않고 해결된 명령과 출처(task 문서 / `config.json`)만 출력, `verification.md` 미변경. 명령이 무효하면 실행 없는 실행과 동일한 실패 코드 |
+ | `bouncer scaffold epic\|blueprint ...` | 올바른 프론트매터로 epic / blueprint와 첫 task 묶음 생성 |
+ | `bouncer scaffold task --blueprint <dir> --id <NNN>` | `tasks/<NNN>/{tasks,verification,review}.md` task 묶음 생성. 대상 blueprint가 `closed`(마감)면 아무 문서도 만들지 않고 새 blueprint를 만들라는 안내와 함께 종료 코드 2로 거절 |
+ | `bouncer scaffold explain --blueprint <dir>` | BP `explain.md` 생성(`comprehension: []`). `/bouncer-finalize`가 호출 |
+diff --git a/scripts/lib/cli-doc-commands.js b/scripts/lib/cli-doc-commands.js
+index 424e3eb..616c5f3 100644
+--- a/scripts/lib/cli-doc-commands.js
++++ b/scripts/lib/cli-doc-commands.js
+@@ -4,7 +4,7 @@ const { parseFlags } = require('./cli-flags');
+ const { validateBlueprint } = require('./validate');
+ const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview, } = require('./scaffold');
+ const { isNumericContextId } = require('./paths');
+-const { runVerification } = require('./verification');
++const { runVerification, dryRunVerification } = require('./verification');
+ const { nowIsoKst } = require('./time');
+ function catchMessage(error) {
+     // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
+@@ -39,11 +39,18 @@ function cmdVerify(rest, io) {
+         io.err('verify: --blueprint is required\n');
+         return 2;
+     }
++    const repoRoot = (f.repo || process.cwd());
+     try {
+-        const result = runVerification({
+-            repoRoot: (f.repo || process.cwd()),
+-            blueprintDir: f.blueprint,
+-        });
++        // --dry-run: 명령을 실행하지 않고 해결된 명령·출처만 보고한다.
++        // dryRunVerification이 runVerification과 같은 명령 해결 경로(VERIFY_*
++        // 에러 코드)를 공유하므로, 무효한 명령은 --dry-run 유무와 무관하게
++        // 같은 코드로 실패한다(catch에서 동일하게 처리).
++        if (f['dry-run']) {
++            const resolved = dryRunVerification({ repoRoot, blueprintDir: f.blueprint });
++            io.out(`${JSON.stringify({ ok: true, dryRun: true, ...resolved }, null, 2)}\n`);
++            return 0;
++        }
++        const result = runVerification({ repoRoot, blueprintDir: f.blueprint });
+         io.out(`${JSON.stringify(result, null, 2)}\n`);
+         return result.ok ? 0 : 1;
+     }
+@@ -151,8 +158,10 @@ module.exports = {
+     },
+     verify: {
+         run: cmdVerify,
+-        usage: `  verify     --blueprint <dir>
++        usage: `  verify     --blueprint <dir> [--dry-run]
+              Run the configured verify command and record its evidence.
++             --dry-run prints the resolved command and its source (task doc
++             or config.json) without running it or touching verification.md.
+ `,
+     },
+     scaffold: {
+diff --git a/scripts/lib/verification.js b/scripts/lib/verification.js
+index a6df8a8..c0766f0 100644
+--- a/scripts/lib/verification.js
++++ b/scripts/lib/verification.js
+@@ -64,7 +64,11 @@ function entriesForVerify(repoRoot, blueprintDir) {
+     }
+     return listing.entries;
+ }
+-function readVerifyCommand(repoRoot, blueprintDir) {
++// dry-run(`bouncer verify --dry-run`)이 "어디서 왔는지"를 보여줘야 해서 명령
++// 해결과 출처 태깅을 한 함수로 합쳤다. readVerifyCommand는 이 함수의 .command만
++// 돌려주는 얇은 래퍼로 남겨 기존 호출자(runVerification 등)와 테스트의 문자열
++// 반환 계약을 그대로 유지한다.
++function resolveVerifyCommand(repoRoot, blueprintDir) {
+     // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
+     // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
+     // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
+@@ -82,7 +86,7 @@ function readVerifyCommand(repoRoot, blueprintDir) {
+                         throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
+                     }
+                     // isValidVerifyCommand가 통과한 값만 문자열이다. 여기서 다시 접지 않는다.
+-                    return declared;
++                    return { command: declared, source: { type: 'task', path: entry.rel } };
+                 }
+             }
+             catch (error) {
+@@ -93,6 +97,7 @@ function readVerifyCommand(repoRoot, blueprintDir) {
+             }
+         }
+     }
++    const configRel = path.posix.join('.bouncer', 'config.json');
+     const configPath = path.join(repoRoot, '.bouncer', 'config.json');
+     // 파일 없음과 깨진 JSON을 한 오류로 합치면 VERIFY_CONFIG_MISSING이
+     // 권한·구문 문제를 가린다. 메시지 문자열은 호출자가 경로를 그대로 보게 유지.
+@@ -112,7 +117,10 @@ function readVerifyCommand(repoRoot, blueprintDir) {
+     if (typeof verify !== 'string' || verify.trim() === '') {
+         throw verificationError('VERIFY_CONFIG_INVALID', 'config.verify must be a non-empty string');
+     }
+-    return verify;
++    return { command: verify, source: { type: 'config', path: configRel } };
++}
++function readVerifyCommand(repoRoot, blueprintDir) {
++    return resolveVerifyCommand(repoRoot, blueprintDir).command;
+ }
+ function outputTail(stdout, stderr, lines = OUTPUT_TAIL_LINES) {
+     const combined = [stdout, stderr].filter(Boolean).join('');
+@@ -226,6 +234,17 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date()
+     });
+     return { ok: execution.ok, command, exitCode: execution.exitCode };
+ }
++// `bouncer verify --dry-run`: 명령을 실행도, verification.md를 건드리지도
++// 않는다. runVerification과 같은 VERIFY_BLUEPRINT_INVALID / 명령 해결 오류
++// 판정을 그대로 공유해 "실행 없는 실행"이 실행과 다른 실패 코드를 내지
++// 않게 한다. verification.md 존재 여부는 일부러 검사하지 않는다 — 그
++// 문서는 실행 결과를 기록하는 자리이고, dry-run은 기록하지 않기 때문이다.
++function dryRunVerification({ repoRoot, blueprintDir }) {
++    if (!isCanonicalBlueprintDir(blueprintDir)) {
++        throw verificationError('VERIFY_BLUEPRINT_INVALID', 'blueprintDir must be under .bouncer/context/epics');
++    }
++    return resolveVerifyCommand(repoRoot, blueprintDir);
++}
+ module.exports = {
+     OUTPUT_TAIL_LINES,
+     PASSING_OUTPUT_TAIL_LINES,
+@@ -233,7 +252,9 @@ module.exports = {
+     isValidVerifyCommand,
+     entriesForVerify,
+     readVerifyCommand,
++    resolveVerifyCommand,
+     executeVerify,
+     recordVerificationResult,
+     runVerification,
++    dryRunVerification,
+ };
+diff --git a/scripts/src/lib/cli-doc-commands.ts b/scripts/src/lib/cli-doc-commands.ts
+index 7983395..5a7483d 100644
+--- a/scripts/src/lib/cli-doc-commands.ts
++++ b/scripts/src/lib/cli-doc-commands.ts
+@@ -22,8 +22,12 @@ const {
+ const { isNumericContextId } = require('./paths') as {
+   isNumericContextId: (id: unknown) => boolean;
+ };
+-const { runVerification } = require('./verification') as {
++const { runVerification, dryRunVerification } = require('./verification') as {
+   runVerification: (opts: { repoRoot: string; blueprintDir: string }) => { ok: boolean };
++  dryRunVerification: (opts: { repoRoot: string; blueprintDir: string }) => {
++    command: string;
++    source: { type: 'task' | 'config'; path: string };
++  };
+ };
+ const { nowIsoKst } = require('./time') as {
+   nowIsoKst: () => string;
+@@ -69,11 +73,18 @@ function cmdVerify(rest: string[], io: CliIo) {
+     io.err('verify: --blueprint is required\n');
+     return 2;
+   }
++  const repoRoot = (f.repo || process.cwd()) as string;
+   try {
+-    const result = runVerification({
+-      repoRoot: (f.repo || process.cwd()) as string,
+-      blueprintDir: f.blueprint,
+-    });
++    // --dry-run: 명령을 실행하지 않고 해결된 명령·출처만 보고한다.
++    // dryRunVerification이 runVerification과 같은 명령 해결 경로(VERIFY_*
++    // 에러 코드)를 공유하므로, 무효한 명령은 --dry-run 유무와 무관하게
++    // 같은 코드로 실패한다(catch에서 동일하게 처리).
++    if (f['dry-run']) {
++      const resolved = dryRunVerification({ repoRoot, blueprintDir: f.blueprint });
++      io.out(`${JSON.stringify({ ok: true, dryRun: true, ...resolved }, null, 2)}\n`);
++      return 0;
++    }
++    const result = runVerification({ repoRoot, blueprintDir: f.blueprint });
+     io.out(`${JSON.stringify(result, null, 2)}\n`);
+     return result.ok ? 0 : 1;
+   } catch (error) {
+@@ -176,8 +187,10 @@ module.exports = {
+   },
+   verify: {
+     run: cmdVerify,
+-    usage: `  verify     --blueprint <dir>
++    usage: `  verify     --blueprint <dir> [--dry-run]
+              Run the configured verify command and record its evidence.
++             --dry-run prints the resolved command and its source (task doc
++             or config.json) without running it or touching verification.md.
+ `,
+   },
+   scaffold: {
+diff --git a/scripts/src/lib/verification.ts b/scripts/src/lib/verification.ts
+index 30c1ca5..7df3ab8 100644
+--- a/scripts/src/lib/verification.ts
++++ b/scripts/src/lib/verification.ts
+@@ -96,7 +96,17 @@ function entriesForVerify(repoRoot: string, blueprintDir: string) {
+   return listing.entries;
+ }
+ 
+-function readVerifyCommand(repoRoot: string, blueprintDir?: string): string {
++type VerifyCommandSource =
++  | { type: 'task'; path: string }
++  | { type: 'config'; path: string };
++
++type ResolvedVerifyCommand = { command: string; source: VerifyCommandSource };
++
++// dry-run(`bouncer verify --dry-run`)이 "어디서 왔는지"를 보여줘야 해서 명령
++// 해결과 출처 태깅을 한 함수로 합쳤다. readVerifyCommand는 이 함수의 .command만
++// 돌려주는 얇은 래퍼로 남겨 기존 호출자(runVerification 등)와 테스트의 문자열
++// 반환 계약을 그대로 유지한다.
++function resolveVerifyCommand(repoRoot: string, blueprintDir?: string): ResolvedVerifyCommand {
+   // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
+   // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
+   // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
+@@ -117,7 +127,7 @@ function readVerifyCommand(repoRoot: string, blueprintDir?: string): string {
+             );
+           }
+           // isValidVerifyCommand가 통과한 값만 문자열이다. 여기서 다시 접지 않는다.
+-          return declared as string;
++          return { command: declared as string, source: { type: 'task', path: entry.rel } };
+         }
+       } catch (error) {
+         if (errorCode(error) === 'VERIFY_COMMAND_INVALID') throw error;
+@@ -126,6 +136,7 @@ function readVerifyCommand(repoRoot: string, blueprintDir?: string): string {
+     }
+   }
+ 
++  const configRel = path.posix.join('.bouncer', 'config.json');
+   const configPath = path.join(repoRoot, '.bouncer', 'config.json');
+   // 파일 없음과 깨진 JSON을 한 오류로 합치면 VERIFY_CONFIG_MISSING이
+   // 권한·구문 문제를 가린다. 메시지 문자열은 호출자가 경로를 그대로 보게 유지.
+@@ -145,7 +156,11 @@ function readVerifyCommand(repoRoot: string, blueprintDir?: string): string {
+   if (typeof verify !== 'string' || verify.trim() === '') {
+     throw verificationError('VERIFY_CONFIG_INVALID', 'config.verify must be a non-empty string');
+   }
+-  return verify;
++  return { command: verify, source: { type: 'config', path: configRel } };
++}
++
++function readVerifyCommand(repoRoot: string, blueprintDir?: string): string {
++  return resolveVerifyCommand(repoRoot, blueprintDir).command;
+ }
+ 
+ function outputTail(stdout: unknown, stderr: unknown, lines = OUTPUT_TAIL_LINES): string {
+@@ -294,6 +309,24 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date()
+   return { ok: execution.ok, command, exitCode: execution.exitCode };
+ }
+ 
++// `bouncer verify --dry-run`: 명령을 실행도, verification.md를 건드리지도
++// 않는다. runVerification과 같은 VERIFY_BLUEPRINT_INVALID / 명령 해결 오류
++// 판정을 그대로 공유해 "실행 없는 실행"이 실행과 다른 실패 코드를 내지
++// 않게 한다. verification.md 존재 여부는 일부러 검사하지 않는다 — 그
++// 문서는 실행 결과를 기록하는 자리이고, dry-run은 기록하지 않기 때문이다.
++function dryRunVerification({ repoRoot, blueprintDir }: {
++  repoRoot: string;
++  blueprintDir: string;
++}): ResolvedVerifyCommand {
++  if (!isCanonicalBlueprintDir(blueprintDir)) {
++    throw verificationError(
++      'VERIFY_BLUEPRINT_INVALID',
++      'blueprintDir must be under .bouncer/context/epics',
++    );
++  }
++  return resolveVerifyCommand(repoRoot, blueprintDir);
++}
++
+ module.exports = {
+   OUTPUT_TAIL_LINES,
+   PASSING_OUTPUT_TAIL_LINES,
+@@ -301,7 +334,9 @@ module.exports = {
+   isValidVerifyCommand,
+   entriesForVerify,
+   readVerifyCommand,
++  resolveVerifyCommand,
+   executeVerify,
+   recordVerificationResult,
+   runVerification,
++  dryRunVerification,
+ };
+diff --git a/test/cli-verify.test.js b/test/cli-verify.test.js
+index 11ee13c..410f009 100644
+--- a/test/cli-verify.test.js
++++ b/test/cli-verify.test.js
+@@ -108,6 +108,70 @@ test('execute gate records failure and returns a gate failure', () => {
+   assert.strictEqual(verification.data.bouncer.verification.exit_code, 7);
+ });
+ 
++test('verify --dry-run reports the resolved command and source without executing or recording', () => {
++  const repo = setupRepo('node -e "process.exit(0)"');
++  const verificationPath = path.join(repo, BP_REL, 'tasks/001/verification.md');
++  const before = fs.readFileSync(verificationPath, 'utf8');
++  const { io, buf } = capture();
++
++  const code = runCli(['verify', '--repo', repo, '--blueprint', BP_REL, '--dry-run'], io);
++
++  assert.strictEqual(code, 0);
++  const result = JSON.parse(buf.out);
++  assert.strictEqual(result.ok, true);
++  assert.strictEqual(result.dryRun, true);
++  assert.strictEqual(result.command, 'node -e "process.exit(0)"');
++  assert.deepStrictEqual(result.source, { type: 'config', path: '.bouncer/config.json' });
++  // 실행되지 않았어야 함: verification.md가 손대지 않은 채 그대로 남는다.
++  assert.strictEqual(fs.readFileSync(verificationPath, 'utf8'), before);
++});
++
++test('verify --dry-run reports a task-declared command with its declaring path as source', () => {
++  const repo = setupRepo();
++  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`,
++    doc('bouncer.tasks', 'TASKS-001', 'verified', `${BP_REL}/tasks/001/tasks.md`, {
++      affected_paths: ['src/login.js'],
++      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
++      verify: 'node -e "process.exit(0)"',
++    }),
++    '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n'
++    + '## Touch\n`src/`\n\n## Do not touch\n`test/`\n\n## Checklist\n- [ ] z\n');
++  const { io, buf } = capture();
++
++  const code = runCli(['verify', '--repo', repo, '--blueprint', BP_REL, '--dry-run'], io);
++
++  assert.strictEqual(code, 0);
++  const result = JSON.parse(buf.out);
++  assert.strictEqual(result.command, 'node -e "process.exit(0)"');
++  assert.deepStrictEqual(result.source, { type: 'task', path: `${BP_REL}/tasks/001/tasks.md` });
++});
++
++test('verify --dry-run fails with the same code as a real run when the resolved command is invalid', () => {
++  const repo = setupRepo();
++  // task 선언 verify만 isValidVerifyCommand로 검증된다(config.verify는 셸 체이닝
++  // 허용). 동일 실패 코드를 재현하려면 task 선언에 무효 값을 둬야 한다.
++  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`,
++    doc('bouncer.tasks', 'TASKS-001', 'verified', `${BP_REL}/tasks/001/tasks.md`, {
++      affected_paths: ['src/login.js'],
++      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
++      verify: 'a && b',
++    }),
++    '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n'
++    + '## Touch\n`src/`\n\n## Do not touch\n`test/`\n\n## Checklist\n- [ ] z\n');
++
++  const { io: dryIo, buf: dryBuf } = capture();
++  const dryCode = runCli(['verify', '--repo', repo, '--blueprint', BP_REL, '--dry-run'], dryIo);
++  const { io: realIo, buf: realBuf } = capture();
++  const realCode = runCli(['verify', '--repo', repo, '--blueprint', BP_REL], realIo);
++
++  assert.strictEqual(dryCode, 1);
++  assert.strictEqual(realCode, 1);
++  // CLI는 error.code가 아니라 error.message를 stderr에 낸다(catchMessage) — 두
++  // 경로가 같은 VERIFY_COMMAND_INVALID를 던지므로 메시지 문자열도 같다.
++  assert.strictEqual(dryBuf.err, realBuf.err);
++  assert.match(dryBuf.err, /verify command must be a single executable command/);
++});
++
+ test('verify records evidence into the pointer task-dir unit', () => {
+   const { writeCurrent } = require('../scripts/lib/current');
+   const { execFileSync } = require('node:child_process');
+diff --git a/test/verification-runner.test.js b/test/verification-runner.test.js
+index a7c8056..4cc101b 100644
+--- a/test/verification-runner.test.js
++++ b/test/verification-runner.test.js
+@@ -5,7 +5,9 @@ const fs = require('node:fs');
+ const os = require('node:os');
+ const path = require('node:path');
+ const { readDoc } = require('../scripts/lib/frontmatter');
+-const { executeVerify, readVerifyCommand, runVerification } = require('../scripts/lib/verification');
++const {
++  executeVerify, readVerifyCommand, runVerification, resolveVerifyCommand, dryRunVerification,
++} = require('../scripts/lib/verification');
+ 
+ const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
+ 
+@@ -493,3 +495,71 @@ test('runVerification rejects missing unit verification.md without creating it',
+   );
+   assert.ok(!fs.existsSync(path.join(repo, missingRel)));
+ });
++
++test('resolveVerifyCommand tags a task-declared command with its source path', () => {
++  const repo = setupRepo('npm test');
++  writeTasks(repo, 'node -e "process.exit(0)"');
++  const resolved = resolveVerifyCommand(repo, BP_REL);
++  assert.deepStrictEqual(resolved, {
++    command: 'node -e "process.exit(0)"',
++    source: { type: 'task', path: `${BP_REL}/tasks/001/tasks.md` },
++  });
++});
++
++test('resolveVerifyCommand tags a config-fallback command with config.json as source', () => {
++  const repo = setupRepo('npm test');
++  writeTasks(repo, undefined);
++  const resolved = resolveVerifyCommand(repo, BP_REL);
++  assert.deepStrictEqual(resolved, {
++    command: 'npm test',
++    source: { type: 'config', path: '.bouncer/config.json' },
++  });
++});
++
++test('dryRunVerification resolves the command without executing it or touching verification.md', () => {
++  const repo = setupRepo('node -e "process.exit(0)"');
++  writeTasks(repo, undefined);
++  const verificationPath = path.join(repo, BP_REL, 'tasks/001/verification.md');
++  const before = fs.readFileSync(verificationPath, 'utf8');
++
++  const resolved = dryRunVerification({ repoRoot: repo, blueprintDir: BP_REL });
++
++  assert.deepStrictEqual(resolved, {
++    command: 'node -e "process.exit(0)"',
++    source: { type: 'config', path: '.bouncer/config.json' },
++  });
++  assert.strictEqual(fs.readFileSync(verificationPath, 'utf8'), before);
++});
++
++test('dryRunVerification rejects a non-canonical blueprint path before resolving', () => {
++  const repo = setupRepo();
++  assert.throws(
++    () => dryRunVerification({ repoRoot: repo, blueprintDir: 'not/a/canonical/dir' }),
++    { code: 'VERIFY_BLUEPRINT_INVALID' },
++  );
++});
++
++test('dryRunVerification fails with the same code as a real run when the command is invalid', () => {
++  const repo = setupRepo();
++  writeTasks(repo, 'a && b');
++  assert.throws(
++    () => dryRunVerification({ repoRoot: repo, blueprintDir: BP_REL }),
++    { code: 'VERIFY_COMMAND_INVALID' },
++  );
++  assert.throws(
++    () => runVerification({ repoRoot: repo, blueprintDir: BP_REL }),
++    { code: 'VERIFY_COMMAND_INVALID' },
++  );
++});
++
++test('dryRunVerification does not require verification.md to exist', () => {
++  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verification-dryrun-'));
++  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
++  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: 'npm test' }));
++  writeTasks(repo, undefined);
++  // 이 repo에는 tasks/001/verification.md가 없다 — runVerification이면
++  // VERIFY_DOCUMENT_MISSING이지만, dry-run은 실행/기록을 하지 않으므로
++  // 문서 부재가 실패 사유가 아니다.
++  const resolved = dryRunVerification({ repoRoot: repo, blueprintDir: BP_REL });
++  assert.strictEqual(resolved.command, 'npm test');
++});

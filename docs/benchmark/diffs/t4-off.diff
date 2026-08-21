@@ -1,0 +1,175 @@
+diff --git a/scripts/lib/verification.js b/scripts/lib/verification.js
+index a6df8a8..39f3b29 100644
+--- a/scripts/lib/verification.js
++++ b/scripts/lib/verification.js
+@@ -2,7 +2,7 @@
+ Object.defineProperty(exports, "__esModule", { value: true });
+ const fs = require('node:fs');
+ const path = require('node:path');
+-const { execSync } = require('node:child_process');
++const { execSync, spawn } = require('node:child_process');
+ const { readDoc } = require('./frontmatter');
+ const { renderDoc } = require('./render');
+ const { isCanonicalBlueprintDir } = require('./layout');
+@@ -20,6 +20,49 @@ const { readConfigResult } = require('./config');
+ const OUTPUT_TAIL_LINES = 100;
+ const PASSING_OUTPUT_TAIL_LINES = 20;
+ const MAX_VERIFY_OUTPUT_BYTES = 10 * 1024 * 1024;
++// exec()가 동기라 실행 중엔 우리 이벤트 루프가 통째로 막힌다 — 진행 중임을
++// 알리려고 setInterval/setTimeout을 걸어도 exec가 끝날 때까지 발화하지
++// 않는다. 그래서 별도 node 프로세스를 하나 띄워 그쪽 타이머로 stderr에
++// 직접(부모의 상속된 stderr로) 찍게 하고, exec가 끝나면 죽인다. 이 자식은
++// 캡처되는 stdout/output_tail과 무관 — 사용자에게 "아직 살아있다"만 알린다.
++const HEARTBEAT_INTERVAL_MS = 5000;
++function startHeartbeat(command) {
++    if (process.env.BOUNCER_VERIFY_NO_HEARTBEAT === '1') {
++        return { stop() { } };
++    }
++    let child = null;
++    try {
++        const script = [
++            'const start = Date.now();',
++            'setInterval(() => {',
++            '  const s = Math.round((Date.now() - start) / 1000);',
++            `  process.stderr.write('verify: still running after ' + s + 's (' + ${JSON.stringify(command)} + ')\\n');`,
++            `}, ${HEARTBEAT_INTERVAL_MS});`,
++        ].join('\n');
++        child = spawn(process.execPath, ['-e', script], {
++            stdio: ['ignore', 'ignore', 'inherit'],
++        });
++        // 부모(자식 heartbeat 자신)가 죽어도 매달리지 않게. stop()에서 명시적으로 kill한다.
++        if (child && typeof child.unref === 'function')
++            child.unref();
++    }
++    catch {
++        // heartbeat는 부가 기능 — 못 띄워도 verify 자체는 계속되어야 한다.
++        child = null;
++    }
++    return {
++        stop() {
++            if (!child)
++                return;
++            try {
++                child.kill();
++            }
++            catch {
++                // 이미 종료된 경우 등 — 무시.
++            }
++        },
++    };
++}
+ function verificationError(code, message) {
+     const error = new Error(message);
+     error.code = code;
+@@ -119,6 +162,7 @@ function outputTail(stdout, stderr, lines = OUTPUT_TAIL_LINES) {
+     return combined.split('\n').slice(-lines).join('\n').trim();
+ }
+ function executeVerify(command, { cwd, exec = execSync }) {
++    const heartbeat = startHeartbeat(command);
+     try {
+         const result = exec(command, {
+             cwd,
+@@ -150,6 +194,9 @@ function executeVerify(command, { cwd, exec = execSync }) {
+             output: outputTail(stdout, stderr),
+         };
+     }
++    finally {
++        heartbeat.stop();
++    }
+ }
+ function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, }) {
+     // verificationRel이 정식 인자. blueprintDir은 구 호출 호환(루트 verification.md).
+@@ -230,6 +277,7 @@ module.exports = {
+     OUTPUT_TAIL_LINES,
+     PASSING_OUTPUT_TAIL_LINES,
+     MAX_VERIFY_OUTPUT_BYTES,
++    HEARTBEAT_INTERVAL_MS,
+     isValidVerifyCommand,
+     entriesForVerify,
+     readVerifyCommand,
+diff --git a/scripts/src/lib/verification.ts b/scripts/src/lib/verification.ts
+index 30c1ca5..5f0a188 100644
+--- a/scripts/src/lib/verification.ts
++++ b/scripts/src/lib/verification.ts
+@@ -1,7 +1,7 @@
+ 'use strict';
+ const fs = require('node:fs');
+ const path = require('node:path');
+-const { execSync } = require('node:child_process');
++const { execSync, spawn } = require('node:child_process');
+ const { readDoc } = require('./frontmatter') as {
+   readDoc: (absPath: string) => { data: unknown; body: string; path: string };
+ };
+@@ -49,6 +49,47 @@ const OUTPUT_TAIL_LINES = 100;
+ const PASSING_OUTPUT_TAIL_LINES = 20;
+ const MAX_VERIFY_OUTPUT_BYTES = 10 * 1024 * 1024;
+ 
++// exec()가 동기라 실행 중엔 우리 이벤트 루프가 통째로 막힌다 — 진행 중임을
++// 알리려고 setInterval/setTimeout을 걸어도 exec가 끝날 때까지 발화하지
++// 않는다. 그래서 별도 node 프로세스를 하나 띄워 그쪽 타이머로 stderr에
++// 직접(부모의 상속된 stderr로) 찍게 하고, exec가 끝나면 죽인다. 이 자식은
++// 캡처되는 stdout/output_tail과 무관 — 사용자에게 "아직 살아있다"만 알린다.
++const HEARTBEAT_INTERVAL_MS = 5000;
++
++function startHeartbeat(command: string): { stop: () => void } {
++  if (process.env.BOUNCER_VERIFY_NO_HEARTBEAT === '1') {
++    return { stop() {} };
++  }
++  let child: ReturnType<typeof spawn> | null = null;
++  try {
++    const script = [
++      'const start = Date.now();',
++      'setInterval(() => {',
++      '  const s = Math.round((Date.now() - start) / 1000);',
++      `  process.stderr.write('verify: still running after ' + s + 's (' + ${JSON.stringify(command)} + ')\\n');`,
++      `}, ${HEARTBEAT_INTERVAL_MS});`,
++    ].join('\n');
++    child = spawn(process.execPath, ['-e', script], {
++      stdio: ['ignore', 'ignore', 'inherit'],
++    });
++    // 부모(자식 heartbeat 자신)가 죽어도 매달리지 않게. stop()에서 명시적으로 kill한다.
++    if (child && typeof child.unref === 'function') child.unref();
++  } catch {
++    // heartbeat는 부가 기능 — 못 띄워도 verify 자체는 계속되어야 한다.
++    child = null;
++  }
++  return {
++    stop() {
++      if (!child) return;
++      try {
++        child.kill();
++      } catch {
++        // 이미 종료된 경우 등 — 무시.
++      }
++    },
++  };
++}
++
+ type CodedError = Error & { code?: string };
+ 
+ function verificationError(code: string, message: string): CodedError {
+@@ -167,6 +208,7 @@ function executeVerify(command: string, { cwd, exec = execSync }: {
+   cwd: string;
+   exec?: VerifyExec;
+ }): { ok: boolean; exitCode: number; output: string } {
++  const heartbeat = startHeartbeat(command);
+   try {
+     const result = exec(command, {
+       cwd,
+@@ -196,6 +238,8 @@ function executeVerify(command: string, { cwd, exec = execSync }: {
+       exitCode: Number.isInteger(status) ? Number(status) : 1,
+       output: outputTail(stdout, stderr),
+     };
++  } finally {
++    heartbeat.stop();
+   }
+ }
+ 
+@@ -298,6 +342,7 @@ module.exports = {
+   OUTPUT_TAIL_LINES,
+   PASSING_OUTPUT_TAIL_LINES,
+   MAX_VERIFY_OUTPUT_BYTES,
++  HEARTBEAT_INTERVAL_MS,
+   isValidVerifyCommand,
+   entriesForVerify,
+   readVerifyCommand,
