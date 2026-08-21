@@ -2,7 +2,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 const root = path.join(__dirname, '..');
@@ -70,4 +72,49 @@ test('agentic-code-benchmark sits outside ARCHITECTURE §4 table but in prose; R
   assert.doesNotMatch(gov, /^\| `agentic-code-benchmark` \|/m);
   assert.match(gov, /`agentic-code-benchmark`/);
   assert.match(read('README.md'), /python3/);
+});
+
+const COLLECT_METRICS = path.join(skillDir, 'scripts', 'collect_metrics.py');
+
+function collectMetrics(repo) {
+  return spawnSync(
+    'python3',
+    [COLLECT_METRICS, '--repo', repo, '--base', 'HEAD', '--head', 'WORKTREE'],
+    { encoding: 'utf8' },
+  );
+}
+
+function tmpDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+
+test('collect_metrics.py treats .git file and directory as repos and rejects a missing .git', () => {
+  const gitFileRepo = tmpDir('acb-git-file-');
+  const gitDirRepo = tmpDir('acb-git-dir-');
+  const noGit = tmpDir('acb-no-git-');
+  try {
+    fs.writeFileSync(path.join(gitFileRepo, '.git'), 'gitdir: /nonexistent\n');
+    fs.mkdirSync(path.join(gitDirRepo, '.git'));
+
+    const fileRun = collectMetrics(gitFileRepo);
+    assert.strictEqual(fileRun.status, 0, fileRun.stderr);
+    assert.doesNotMatch(fileRun.stderr, /is not a git repository/);
+    const fileMetrics = JSON.parse(fileRun.stdout);
+    assert.strictEqual(fileMetrics.schema, 'agentic-code-benchmark/metrics/1');
+    assert.ok(Object.prototype.hasOwnProperty.call(fileMetrics, 'head_sha'));
+    assert.ok(Object.prototype.hasOwnProperty.call(fileMetrics, 'rework'));
+
+    const dirRun = collectMetrics(gitDirRepo);
+    assert.strictEqual(dirRun.status, 0, dirRun.stderr);
+    assert.doesNotMatch(dirRun.stderr, /is not a git repository/);
+    assert.strictEqual(JSON.parse(dirRun.stdout).schema, 'agentic-code-benchmark/metrics/1');
+
+    const missing = collectMetrics(noGit);
+    assert.strictEqual(missing.status, 2);
+    assert.match(missing.stderr, /is not a git repository/);
+  } finally {
+    fs.rmSync(gitFileRepo, { recursive: true, force: true });
+    fs.rmSync(gitDirRepo, { recursive: true, force: true });
+    fs.rmSync(noGit, { recursive: true, force: true });
+  }
 });

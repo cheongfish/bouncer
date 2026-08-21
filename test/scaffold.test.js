@@ -372,6 +372,59 @@ test('scaffoldBlueprint leaves scope_evidence.basis empty so G4 needs recorded e
   assert.strictEqual(tasks.bouncer.graph, undefined);
 });
 
+// 에이전트가 S9/G4·G18/G14 입력 모양을 빈 값과 함께 보게 한다.
+// 주석 예시는 파싱되면 안 되고, 검증 값은 비워 빈 계획이 승인되지 않는다.
+test('scaffold comments hint basis fields and severity without filling parsed values', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const tasksPath = path.join(repo, `${base}/tasks/001/tasks.md`);
+  const reviewPath = path.join(repo, `${base}/tasks/001/review.md`);
+  const ctxPath = path.join(repo, `${base}/context-review.md`);
+  const tasksRaw = fs.readFileSync(tasksPath, 'utf8');
+  const reviewRaw = fs.readFileSync(reviewPath, 'utf8');
+  const ctxRaw = fs.readFileSync(ctxPath, 'utf8');
+
+  // 본문 HTML 주석에도 같은 필드명이 있다. dump 후 YAML 치환을 빼도
+  // includes('graph')는 통과하므로, 프론트매터에서 basis: [] 바로 위를 고정한다.
+  const tasksFm = tasksRaw.split('---')[1] ?? '';
+  assert.match(
+    tasksFm,
+    /^[ \t]*# - graph: source \| context[ \t]*$/m,
+    'tasks.md frontmatter missing YAML graph example',
+  );
+  assert.match(
+    tasksFm,
+    /^[ \t]*#[^\n]*\n[ \t]*basis: \[\][ \t]*$/m,
+    'tasks.md missing YAML comment immediately above basis: []',
+  );
+  assert.ok(
+    tasksFm.includes('updated | reused | fail-skip | skip-disabled | missing'),
+    'tasks.md frontmatter missing basis status allowed values',
+  );
+
+  for (const [label, raw] of [['review.md', reviewRaw], ['context-review.md', ctxRaw]]) {
+    assert.ok(raw.includes('id'), `${label} missing finding id hint`);
+    assert.ok(raw.includes('severity'), `${label} missing finding severity hint`);
+    assert.ok(raw.includes('status'), `${label} missing finding status hint`);
+    assert.ok(raw.includes('note'), `${label} missing accepted note hint`);
+    assert.ok(
+      raw.includes('blocker | major | minor | nit'),
+      `${label} missing severity allowed values`,
+    );
+  }
+
+  const tasks = readDoc(tasksPath).data;
+  const ctxReview = readDoc(ctxPath).data;
+  assert.deepStrictEqual(tasks.bouncer.scope_evidence.basis, []);
+  assert.deepStrictEqual(ctxReview.bouncer.context_review.findings, []);
+  assert.strictEqual(ctxReview.bouncer.status, 'pending');
+});
+
 test('scaffoldBlueprint rejects a root context epic directory', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   assert.throws(() => scaffoldBlueprint({
