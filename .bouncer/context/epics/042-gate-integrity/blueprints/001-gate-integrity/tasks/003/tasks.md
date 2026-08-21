@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '042'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run verify:strict
   commit_intent:
     - 'README가 코드로 강제되지 않는 수준을 보증한다고 적어 리뷰를 덜 하게 만듦'

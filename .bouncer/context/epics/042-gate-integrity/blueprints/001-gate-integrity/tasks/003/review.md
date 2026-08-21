@@ -11,11 +11,13 @@ bouncer:
   id: REVIEW-003
   epic_id: '042'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings: []
 ---
 # Review
 
 ## Findings
-- <finding>
+
+- none — README G13/G17, security.md 링크, CHANGELOG Unreleased가 브리프와 맞고 추가 경로가 없다.
