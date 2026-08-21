@@ -1,0 +1,495 @@
+diff --git a/scripts/lib/verification.js b/scripts/lib/verification.js
+index a6df8a8..6cfc3ec 100644
+--- a/scripts/lib/verification.js
++++ b/scripts/lib/verification.js
+@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ const fs = require('node:fs');
+ const path = require('node:path');
+ const { execSync } = require('node:child_process');
++const { Worker } = require('node:worker_threads');
+ const { readDoc } = require('./frontmatter');
+ const { renderDoc } = require('./render');
+ const { isCanonicalBlueprintDir } = require('./layout');
+@@ -20,6 +21,50 @@ const { readConfigResult } = require('./config');
+ const OUTPUT_TAIL_LINES = 100;
+ const PASSING_OUTPUT_TAIL_LINES = 20;
+ const MAX_VERIFY_OUTPUT_BYTES = 10 * 1024 * 1024;
++// verify 명령을 이 시간(ms)보다 오래 실행하면 아직 실행 중이라는 신호를 stderr로
++// 준다. execSync는 메인 스레드를 동기 블록하므로, 이 간격마다 반복되는 신호도
++// 메인 스레드 타이머가 아니라 별도 worker 스레드에서 낸다.
++const DEFAULT_SLOW_VERIFY_HEARTBEAT_MS = 30_000;
++// worker 본문은 별도 OS 스레드에서 자체 setInterval로 도니, execSync가 메인
++// 스레드를 막고 있어도 이 타이머는 그대로 작동한다. process.stderr.write는
++// 쓰지 않는다 — worker의 가상 stdio는 메인 스레드 이벤트 루프가 데이터를
++// 릴레이해야 부모 fd로 나가는데, execSync가 메인 스레드를 막고 있으면 그
++// 릴레이가 exec가 끝난 뒤로 미뤄져 "아직 실행 중" 신호가 무의미해진다.
++// fd 2는 OS 레벨에서 프로세스의 모든 스레드가 공유하므로, fs.writeSync(2, ...)
++// 로 직접 쓰면 메인 스레드가 막혀 있어도 그 즉시 실제 stderr로 나간다.
++const HEARTBEAT_WORKER_SOURCE = `
++const fs = require('node:fs');
++const { workerData } = require('node:worker_threads');
++const startedAt = Date.now();
++const timer = setInterval(() => {
++  const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
++  fs.writeSync(2, 'verify: still running after ' + elapsedSec + 's...\\n');
++}, workerData.intervalMs);
++`;
++function defaultCreateHeartbeatWorker(data) {
++    return new Worker(HEARTBEAT_WORKER_SOURCE, { eval: true, workerData: data });
++}
++// heartbeat는 부가 신호일 뿐이다 — worker 생성이 실패해도 verify 실행 자체를
++// 막으면 안 되므로 오류를 삼키고 아무 것도 하지 않는 정지 함수를 돌려준다.
++function startSlowVerifyHeartbeat({ intervalMs = DEFAULT_SLOW_VERIFY_HEARTBEAT_MS, createWorker = defaultCreateHeartbeatWorker, } = {}) {
++    let worker;
++    try {
++        worker = createWorker({ intervalMs });
++    }
++    catch {
++        worker = undefined;
++    }
++    return () => {
++        if (!worker)
++            return;
++        try {
++            worker.terminate();
++        }
++        catch {
++            // 정지 실패도 verify 결과에 영향을 주지 않는다.
++        }
++    };
++}
+ function verificationError(code, message) {
+     const error = new Error(message);
+     error.code = code;
+@@ -118,37 +163,48 @@ function outputTail(stdout, stderr, lines = OUTPUT_TAIL_LINES) {
+     const combined = [stdout, stderr].filter(Boolean).join('');
+     return combined.split('\n').slice(-lines).join('\n').trim();
+ }
+-function executeVerify(command, { cwd, exec = execSync }) {
++function executeVerify(command, { cwd, exec = execSync, heartbeatIntervalMs = DEFAULT_SLOW_VERIFY_HEARTBEAT_MS, createHeartbeatWorker, }) {
++    const stopHeartbeat = startSlowVerifyHeartbeat({
++        intervalMs: heartbeatIntervalMs,
++        createWorker: createHeartbeatWorker,
++    });
+     try {
+-        const result = exec(command, {
+-            cwd,
+-            encoding: 'utf8',
+-            stdio: ['ignore', 'pipe', 'pipe'],
+-            maxBuffer: MAX_VERIFY_OUTPUT_BYTES,
+-        });
+-        const stdout = result && typeof result === 'object' && 'stdout' in result ? result.stdout : result;
+-        const stderr = result && typeof result === 'object' && 'stderr' in result ? result.stderr : '';
+-        return {
+-            ok: true,
+-            exitCode: 0,
+-            output: outputTail(stdout, stderr, PASSING_OUTPUT_TAIL_LINES),
+-        };
++        try {
++            const result = exec(command, {
++                cwd,
++                encoding: 'utf8',
++                stdio: ['ignore', 'pipe', 'pipe'],
++                maxBuffer: MAX_VERIFY_OUTPUT_BYTES,
++            });
++            const stdout = result && typeof result === 'object' && 'stdout' in result ? result.stdout : result;
++            const stderr = result && typeof result === 'object' && 'stderr' in result ? result.stderr : '';
++            return {
++                ok: true,
++                exitCode: 0,
++                output: outputTail(stdout, stderr, PASSING_OUTPUT_TAIL_LINES),
++            };
++        }
++        catch (error) {
++            const status = typeof error === 'object' && error !== null && 'status' in error
++                ? error.status
++                : undefined;
++            const stdout = typeof error === 'object' && error !== null && 'stdout' in error
++                ? error.stdout
++                : undefined;
++            const stderr = typeof error === 'object' && error !== null && 'stderr' in error
++                ? error.stderr
++                : undefined;
++            return {
++                ok: false,
++                exitCode: Number.isInteger(status) ? Number(status) : 1,
++                output: outputTail(stdout, stderr),
++            };
++        }
+     }
+-    catch (error) {
+-        const status = typeof error === 'object' && error !== null && 'status' in error
+-            ? error.status
+-            : undefined;
+-        const stdout = typeof error === 'object' && error !== null && 'stdout' in error
+-            ? error.stdout
+-            : undefined;
+-        const stderr = typeof error === 'object' && error !== null && 'stderr' in error
+-            ? error.stderr
+-            : undefined;
+-        return {
+-            ok: false,
+-            exitCode: Number.isInteger(status) ? Number(status) : 1,
+-            output: outputTail(stdout, stderr),
+-        };
++    finally {
++        // 실행이 임계값 전에 끝나도 항상 이 지점에서 정지한다 — heartbeat가 켜져
++        // 있었다면 조용히 종료되고, 아직 발화하지 않았다면 발화 없이 종료된다.
++        stopHeartbeat();
+     }
+ }
+ function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, }) {
+@@ -204,7 +260,7 @@ function resolveVerificationRel(repoRoot, blueprintDir) {
+     }
+     return `${toPosix(blueprintDir)}/verification.md`;
+ }
+-function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() }) {
++function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date(), heartbeatIntervalMs, createHeartbeatWorker, }) {
+     if (!isCanonicalBlueprintDir(blueprintDir)) {
+         throw verificationError('VERIFY_BLUEPRINT_INVALID', 'blueprintDir must be under .bouncer/context/epics');
+     }
+@@ -214,7 +270,9 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date()
+     if (!fs.existsSync(verificationPath)) {
+         throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
+     }
+-    const execution = executeVerify(command, { cwd: repoRoot, exec });
++    const execution = executeVerify(command, {
++        cwd: repoRoot, exec, heartbeatIntervalMs, createHeartbeatWorker,
++    });
+     const ranAt = nowIsoKst(now());
+     recordVerificationResult({
+         repoRoot,
+@@ -230,9 +288,11 @@ module.exports = {
+     OUTPUT_TAIL_LINES,
+     PASSING_OUTPUT_TAIL_LINES,
+     MAX_VERIFY_OUTPUT_BYTES,
++    DEFAULT_SLOW_VERIFY_HEARTBEAT_MS,
+     isValidVerifyCommand,
+     entriesForVerify,
+     readVerifyCommand,
++    startSlowVerifyHeartbeat,
+     executeVerify,
+     recordVerificationResult,
+     runVerification,
+diff --git a/scripts/src/lib/verification.ts b/scripts/src/lib/verification.ts
+index 30c1ca5..ab368ab 100644
+--- a/scripts/src/lib/verification.ts
++++ b/scripts/src/lib/verification.ts
+@@ -2,6 +2,9 @@
+ const fs = require('node:fs');
+ const path = require('node:path');
+ const { execSync } = require('node:child_process');
++const { Worker } = require('node:worker_threads') as {
++  Worker: new (source: string, opts: { eval: true; workerData: unknown }) => { terminate: () => unknown };
++};
+ const { readDoc } = require('./frontmatter') as {
+   readDoc: (absPath: string) => { data: unknown; body: string; path: string };
+ };
+@@ -49,6 +52,60 @@ const OUTPUT_TAIL_LINES = 100;
+ const PASSING_OUTPUT_TAIL_LINES = 20;
+ const MAX_VERIFY_OUTPUT_BYTES = 10 * 1024 * 1024;
+ 
++// verify 명령을 이 시간(ms)보다 오래 실행하면 아직 실행 중이라는 신호를 stderr로
++// 준다. execSync는 메인 스레드를 동기 블록하므로, 이 간격마다 반복되는 신호도
++// 메인 스레드 타이머가 아니라 별도 worker 스레드에서 낸다.
++const DEFAULT_SLOW_VERIFY_HEARTBEAT_MS = 30_000;
++
++type HeartbeatWorker = { terminate: () => unknown };
++type CreateHeartbeatWorker = (data: { intervalMs: number }) => HeartbeatWorker;
++
++// worker 본문은 별도 OS 스레드에서 자체 setInterval로 도니, execSync가 메인
++// 스레드를 막고 있어도 이 타이머는 그대로 작동한다. process.stderr.write는
++// 쓰지 않는다 — worker의 가상 stdio는 메인 스레드 이벤트 루프가 데이터를
++// 릴레이해야 부모 fd로 나가는데, execSync가 메인 스레드를 막고 있으면 그
++// 릴레이가 exec가 끝난 뒤로 미뤄져 "아직 실행 중" 신호가 무의미해진다.
++// fd 2는 OS 레벨에서 프로세스의 모든 스레드가 공유하므로, fs.writeSync(2, ...)
++// 로 직접 쓰면 메인 스레드가 막혀 있어도 그 즉시 실제 stderr로 나간다.
++const HEARTBEAT_WORKER_SOURCE = `
++const fs = require('node:fs');
++const { workerData } = require('node:worker_threads');
++const startedAt = Date.now();
++const timer = setInterval(() => {
++  const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
++  fs.writeSync(2, 'verify: still running after ' + elapsedSec + 's...\\n');
++}, workerData.intervalMs);
++`;
++
++function defaultCreateHeartbeatWorker(data: { intervalMs: number }): HeartbeatWorker {
++  return new Worker(HEARTBEAT_WORKER_SOURCE, { eval: true, workerData: data });
++}
++
++// heartbeat는 부가 신호일 뿐이다 — worker 생성이 실패해도 verify 실행 자체를
++// 막으면 안 되므로 오류를 삼키고 아무 것도 하지 않는 정지 함수를 돌려준다.
++function startSlowVerifyHeartbeat({
++  intervalMs = DEFAULT_SLOW_VERIFY_HEARTBEAT_MS,
++  createWorker = defaultCreateHeartbeatWorker,
++}: {
++  intervalMs?: number;
++  createWorker?: CreateHeartbeatWorker;
++} = {}): () => void {
++  let worker: HeartbeatWorker | undefined;
++  try {
++    worker = createWorker({ intervalMs });
++  } catch {
++    worker = undefined;
++  }
++  return () => {
++    if (!worker) return;
++    try {
++      worker.terminate();
++    } catch {
++      // 정지 실패도 verify 결과에 영향을 주지 않는다.
++    }
++  };
++}
++
+ type CodedError = Error & { code?: string };
+ 
+ function verificationError(code: string, message: string): CodedError {
+@@ -163,39 +220,56 @@ type VerifyExec = (
+   },
+ ) => unknown;
+ 
+-function executeVerify(command: string, { cwd, exec = execSync }: {
++function executeVerify(command: string, {
++  cwd,
++  exec = execSync,
++  heartbeatIntervalMs = DEFAULT_SLOW_VERIFY_HEARTBEAT_MS,
++  createHeartbeatWorker,
++}: {
+   cwd: string;
+   exec?: VerifyExec;
++  heartbeatIntervalMs?: number;
++  createHeartbeatWorker?: CreateHeartbeatWorker;
+ }): { ok: boolean; exitCode: number; output: string } {
++  const stopHeartbeat = startSlowVerifyHeartbeat({
++    intervalMs: heartbeatIntervalMs,
++    createWorker: createHeartbeatWorker,
++  });
+   try {
+-    const result = exec(command, {
+-      cwd,
+-      encoding: 'utf8',
+-      stdio: ['ignore', 'pipe', 'pipe'],
+-      maxBuffer: MAX_VERIFY_OUTPUT_BYTES,
+-    });
+-    const stdout = result && typeof result === 'object' && 'stdout' in result ? result.stdout : result;
+-    const stderr = result && typeof result === 'object' && 'stderr' in result ? result.stderr : '';
+-    return {
+-      ok: true,
+-      exitCode: 0,
+-      output: outputTail(stdout, stderr, PASSING_OUTPUT_TAIL_LINES),
+-    };
+-  } catch (error) {
+-    const status = typeof error === 'object' && error !== null && 'status' in error
+-      ? error.status
+-      : undefined;
+-    const stdout = typeof error === 'object' && error !== null && 'stdout' in error
+-      ? error.stdout
+-      : undefined;
+-    const stderr = typeof error === 'object' && error !== null && 'stderr' in error
+-      ? error.stderr
+-      : undefined;
+-    return {
+-      ok: false,
+-      exitCode: Number.isInteger(status) ? Number(status) : 1,
+-      output: outputTail(stdout, stderr),
+-    };
++    try {
++      const result = exec(command, {
++        cwd,
++        encoding: 'utf8',
++        stdio: ['ignore', 'pipe', 'pipe'],
++        maxBuffer: MAX_VERIFY_OUTPUT_BYTES,
++      });
++      const stdout = result && typeof result === 'object' && 'stdout' in result ? result.stdout : result;
++      const stderr = result && typeof result === 'object' && 'stderr' in result ? result.stderr : '';
++      return {
++        ok: true,
++        exitCode: 0,
++        output: outputTail(stdout, stderr, PASSING_OUTPUT_TAIL_LINES),
++      };
++    } catch (error) {
++      const status = typeof error === 'object' && error !== null && 'status' in error
++        ? error.status
++        : undefined;
++      const stdout = typeof error === 'object' && error !== null && 'stdout' in error
++        ? error.stdout
++        : undefined;
++      const stderr = typeof error === 'object' && error !== null && 'stderr' in error
++        ? error.stderr
++        : undefined;
++      return {
++        ok: false,
++        exitCode: Number.isInteger(status) ? Number(status) : 1,
++        output: outputTail(stdout, stderr),
++      };
++    }
++  } finally {
++    // 실행이 임계값 전에 끝나도 항상 이 지점에서 정지한다 — heartbeat가 켜져
++    // 있었다면 조용히 종료되고, 아직 발화하지 않았다면 발화 없이 종료된다.
++    stopHeartbeat();
+   }
+ }
+ 
+@@ -263,11 +337,15 @@ function resolveVerificationRel(repoRoot: string, blueprintDir: string): string
+   return `${toPosix(blueprintDir)}/verification.md`;
+ }
+ 
+-function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() }: {
++function runVerification({
++  repoRoot, blueprintDir, exec, now = () => new Date(), heartbeatIntervalMs, createHeartbeatWorker,
++}: {
+   repoRoot: string;
+   blueprintDir: string;
+   exec?: VerifyExec;
+   now?: () => Date;
++  heartbeatIntervalMs?: number;
++  createHeartbeatWorker?: CreateHeartbeatWorker;
+ }): { ok: boolean; command: string; exitCode: number } {
+   if (!isCanonicalBlueprintDir(blueprintDir)) {
+     throw verificationError(
+@@ -281,7 +359,9 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date()
+   if (!fs.existsSync(verificationPath)) {
+     throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
+   }
+-  const execution = executeVerify(command, { cwd: repoRoot, exec });
++  const execution = executeVerify(command, {
++    cwd: repoRoot, exec, heartbeatIntervalMs, createHeartbeatWorker,
++  });
+   const ranAt = nowIsoKst(now());
+   recordVerificationResult({
+     repoRoot,
+@@ -298,9 +378,11 @@ module.exports = {
+   OUTPUT_TAIL_LINES,
+   PASSING_OUTPUT_TAIL_LINES,
+   MAX_VERIFY_OUTPUT_BYTES,
++  DEFAULT_SLOW_VERIFY_HEARTBEAT_MS,
+   isValidVerifyCommand,
+   entriesForVerify,
+   readVerifyCommand,
++  startSlowVerifyHeartbeat,
+   executeVerify,
+   recordVerificationResult,
+   runVerification,
+diff --git a/test/verification-runner.test.js b/test/verification-runner.test.js
+index a7c8056..cc148af 100644
+--- a/test/verification-runner.test.js
++++ b/test/verification-runner.test.js
+@@ -5,7 +5,9 @@ const fs = require('node:fs');
+ const os = require('node:os');
+ const path = require('node:path');
+ const { readDoc } = require('../scripts/lib/frontmatter');
+-const { executeVerify, readVerifyCommand, runVerification } = require('../scripts/lib/verification');
++const {
++  executeVerify, readVerifyCommand, runVerification, DEFAULT_SLOW_VERIFY_HEARTBEAT_MS,
++} = require('../scripts/lib/verification');
+ 
+ const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
+ 
+@@ -493,3 +495,105 @@ test('runVerification rejects missing unit verification.md without creating it',
+   );
+   assert.ok(!fs.existsSync(path.join(repo, missingRel)));
+ });
++
++test('executeVerify starts a heartbeat worker with the default interval and stops it after a fast command', () => {
++  const calls = [];
++  const terminateCalls = [];
++  const fakeWorker = { intervalMs: undefined, terminate: () => terminateCalls.push(true) };
++  const createHeartbeatWorker = (data) => {
++    calls.push(data);
++    return fakeWorker;
++  };
++
++  const result = executeVerify('node -e "process.exit(0)"', {
++    cwd: process.cwd(),
++    exec: () => ({ stdout: 'ok\n', stderr: '' }),
++    createHeartbeatWorker,
++  });
++
++  assert.deepStrictEqual(result, { ok: true, exitCode: 0, output: 'ok' });
++  assert.deepStrictEqual(calls, [{ intervalMs: DEFAULT_SLOW_VERIFY_HEARTBEAT_MS }]);
++  assert.strictEqual(terminateCalls.length, 1);
++});
++
++test('executeVerify passes a custom heartbeatIntervalMs through to the worker factory', () => {
++  const calls = [];
++  const createHeartbeatWorker = (data) => {
++    calls.push(data);
++    return { terminate: () => {} };
++  };
++
++  executeVerify('node -e "process.exit(0)"', {
++    cwd: process.cwd(),
++    exec: () => ({ stdout: '', stderr: '' }),
++    heartbeatIntervalMs: 5,
++    createHeartbeatWorker,
++  });
++
++  assert.deepStrictEqual(calls, [{ intervalMs: 5 }]);
++});
++
++test('executeVerify still terminates the heartbeat worker when the command fails', () => {
++  const terminateCalls = [];
++  const createHeartbeatWorker = () => ({ terminate: () => terminateCalls.push(true) });
++  const failure = new Error('command failed');
++  failure.status = 3;
++  failure.stdout = '';
++  failure.stderr = 'boom\n';
++
++  const result = executeVerify('node -e "process.exit(3)"', {
++    cwd: process.cwd(),
++    exec: () => { throw failure; },
++    createHeartbeatWorker,
++  });
++
++  assert.strictEqual(result.ok, false);
++  assert.strictEqual(result.exitCode, 3);
++  assert.strictEqual(terminateCalls.length, 1);
++});
++
++test('executeVerify does not let a heartbeat worker creation failure break verification', () => {
++  const result = executeVerify('node -e "process.exit(0)"', {
++    cwd: process.cwd(),
++    exec: () => ({ stdout: 'fine\n', stderr: '' }),
++    createHeartbeatWorker: () => { throw new Error('worker unavailable'); },
++  });
++
++  assert.deepStrictEqual(result, { ok: true, exitCode: 0, output: 'fine' });
++});
++
++// execSync가 메인 스레드를 막는 동안에도 신호가 실제로 나가는지는 이
++// 프로세스 안에서 process.stderr.write를 가로채는 방식으로는 증명할 수 없다
++// — 그 방식은 결국 메인 스레드 이벤트 루프가 돌아야 전달되는 가상 파이프에
++// 의존하기 때문이다(그래서 프로덕션 코드는 fs.writeSync(2, ...)로 fd에 직접
++// 쓴다). 진짜 blocking 상황을 재현하려면 별도 OS 프로세스를 띄워 그 프로세스의
++// 실제 stderr fd를 파이프로 받아야 한다.
++function runExecuteVerifyInChildProcess(command, heartbeatIntervalMs) {
++  const { spawnSync } = require('node:child_process');
++  const script = `
++    const { executeVerify } = require(${JSON.stringify(path.join(__dirname, '..', 'scripts/lib/verification.js'))});
++    const result = executeVerify(${JSON.stringify(command)}, {
++      cwd: process.cwd(),
++      heartbeatIntervalMs: ${heartbeatIntervalMs},
++    });
++    process.exitCode = result.ok ? 0 : 1;
++  `;
++  // execFileSync만 쓰면 exit code 0(성공)일 때 stderr를 돌려받을 방법이 없다
++  // (실패했을 때 error.stderr로만 노출됨) — spawnSync는 종료 코드와 무관하게
++  // stdout/stderr를 항상 함께 돌려준다.
++  const proc = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8' });
++  return proc.stderr || '';
++}
++
++test('executeVerify (real worker) emits a still-running signal to stderr for a slow command', () => {
++  // 짧은 interval + 짧은 sleep으로 실제 worker_threads 메커니즘을 빠르게 검증한다.
++  const stderr = runExecuteVerifyInChildProcess(
++    'node -e "setTimeout(() => process.exit(0), 250)"', 40,
++  );
++  assert.match(stderr, /verify: still running after \d+s\.\.\./);
++});
++
++test('executeVerify (real worker) stays silent for a command faster than the interval', () => {
++  const stderr = runExecuteVerifyInChildProcess('node -e "process.exit(0)"', 40);
++  assert.strictEqual(stderr, '');
++});

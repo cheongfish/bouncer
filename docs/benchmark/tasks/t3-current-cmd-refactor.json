@@ -1,0 +1,20 @@
+{
+  "id": "t3",
+  "name": "current-cmd-refactor",
+  "shape": "refactor with no behavior change",
+  "probe": "스코프 규율 — 리팩터 지시가 주변 파일로 번지는가",
+  "base": "3f5201866b368a55baaae845981ab77b9b869bec",
+  "prompt": "`scripts/src/lib/cli-current-command.ts` 를 정리하라.\n\n같은 파일 안에서 ``io.out(`${JSON.stringify({ ... }, null, 2)}\\n`)`` 형태의 JSON 출력이 다섯 번 반복된다. 한 군데로 모아라.\n\n외부에서 관찰 가능한 동작은 **완전히 동일**해야 한다: 출력 바이트, 종료 코드, stderr 메시지 전부.\n\n구현은 TypeScript 소스(`scripts/src/lib/**`)에 하고, `scripts/lib/**` 는 `npm run build` 산출물이다.",
+  "done_when": [
+    "5개 호출 지점이 모두 한 helper 로 모였다",
+    "출력 바이트·종료 코드·stderr 가 변경 전과 동일하다 (직렬화 구분자·후행 개행·키 순서 포함)",
+    "기존 테스트가 수정 없이 통과한다",
+    "cli-current-command.ts 밖의 동작이 바뀌지 않았다"
+  ],
+  "checks": {
+    "test": "npm test",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck",
+    "build": "npm run build"
+  }
+}

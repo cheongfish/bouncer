@@ -24,6 +24,7 @@
 | [PILOT.md](PILOT.md) | 파일럿 안내와 알려진 마찰 |
 | [contributing.md](contributing.md) | 개발, 커밋·PR 규약, CI |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 플러그인 제품 설계 결정 (ADR) |
+| [benchmark/](benchmark/) | Bouncer on/off A/B 측정 결과·프로토콜·태스크 (2026-08-21 KST) |
 | [Changelog](../CHANGELOG.md) | 변경 이력 · [1.0.0](../CHANGELOG.md#100--2026-08-15) |
 
 ## rules — 에이전트 런타임

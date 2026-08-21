@@ -1,0 +1,80 @@
+{
+  "schema": "agentic-code-benchmark/metrics/1",
+  "label": "t2-on",
+  "task_id": "t2",
+  "repo": "/tmp/claude-1000/-home-cheongwoon-workspace/291ba43d-96f1-4029-a1ae-9c5d16559cf4/scratchpad/bench2/t2-on",
+  "base": "3f5201866b368a55baaae845981ab77b9b869bec",
+  "head": "WORKTREE",
+  "head_sha": "8331058",
+  "checks": {
+    "tests": {
+      "name": "tests",
+      "ran": true,
+      "passed": true,
+      "exit_code": 0,
+      "cmd": "npm test",
+      "duration_s": 1.49,
+      "output_tail": "\u2714 S18: imported blueprint is out of gate scope (plan) (0.461974ms)\n\u2714 S18: imported blueprint rejected without gate too (0.404923ms)\n\u2714 S19: tasks.md with wrong type reports expected and actual (0.501603ms)\n\u2714 S19: paths without a location rule do not emit S19 (0.141166ms)\n\u2714 context-review.md with matching type passes structural checks (0.693026ms)\n\u2714 S19: context-review.md with bouncer.review type reports expected and actual (0.893506ms)\n\u2714 S20: scale missing or valid values pass; lite fails (0.107103ms)\n\u2714 Distill structural checks ignore the single-file fallback and disabled routing (0.238531ms)\n\u2714 Distill structural checks report orphan, empty non-always, missing pulls, cycle, and source gaps (0.899947ms)\n\u2714 enabled Distill routing rejects every remaining structural warning (0.293634ms)\n\u2714 config-disabled Distill routing overrides an enabled index and stays fail-open (0.280659ms)\n\u2714 Distill byte threshold is a warning, not a content limit (0.275178ms)\n\u2714 public validation rejects active Distill structural warnings (0.999755ms)\n\u2714 public validation stays fail-open when config disables enabled index routing (0.837192ms)\n\u2714 runVerification records successful command evidence (17.106941ms)\n\u2714 runVerification records failed command evidence (3.722206ms)\n\u2714 runVerification rejects a missing configured command (1.635319ms)\n\u2714 runVerification rejects a missing verification document (3.126395ms)\n\u2714 runVerification rejects a non-canonical blueprint path before execution (0.470727ms)\n\u2714 executeVerify accepts successful commands with over one megabyte of output (16.601136ms)\n\u2714 a passing verification keeps no output block in the body (19.597917ms)\n\u2714 a failing verification keeps the output where a reader will see it (18.652818ms)\n\u2714 runVerification prefers tasks.bouncer.verify over config.verify (4.858781ms)\n\u2714 runVerification falls back to config.verify when tasks has no verify (3.607191ms)\n\u2714 runVerification falls back to config.verify when the task document is absent (3.426289ms)\n\u2714 readVerifyCommand rejects non-single executable commands (12.676256ms)\n\u2714 readVerifyCommand(repoRoot) still returns config.verify (0.306732ms)\n\u2714 readVerifyCommand adopts the earliest-numbered verify declaration (1.702894ms)\n\u2714 readVerifyCommand rejects invalid first declaration even if later is valid (1.838598ms)\n\u2714 readVerifyCommand narrows to the pointer task document (11.694979ms)\n\u2714 runVerification records evidence into the pointer tasks/002 unit only (8.462328ms)\n\u2714 runVerification rejects missing unit verification.md without creating it (6.718964ms)\n\u2139 tests 697\n\u2139 suites 0\n\u2139 pass 697\n\u2139 fail 0\n\u2139 cancelled 0\n\u2139 skipped 0\n\u2139 todo 0\n\u2139 duration_ms 761.645611"
+    },
+    "lint": {
+      "name": "lint",
+      "ran": true,
+      "passed": true,
+      "exit_code": 0,
+      "cmd": "npm run lint",
+      "duration_s": 2.9,
+      "output_tail": "> bouncer@1.0.0 lint\n> eslint ."
+    },
+    "typecheck": {
+      "name": "typecheck",
+      "ran": true,
+      "passed": true,
+      "exit_code": 0,
+      "cmd": "npm run typecheck",
+      "duration_s": 1.32,
+      "output_tail": "> bouncer@1.0.0 typecheck\n> tsc --noEmit"
+    },
+    "build": {
+      "name": "build",
+      "ran": true,
+      "passed": true,
+      "exit_code": 0,
+      "cmd": "npm run build",
+      "duration_s": 0.68,
+      "output_tail": "> bouncer@1.0.0 build\n> tsc"
+    }
+  },
+  "coverage": {
+    "before": null,
+    "after": null,
+    "delta": null
+  },
+  "diff": {
+    "files_changed": 11,
+    "source_files": 9,
+    "test_files": 2,
+    "lines_added": 342,
+    "lines_deleted": 5,
+    "test_lines_added": 21,
+    "test_line_share": 0.061,
+    "paths": [
+      ".bouncer/context/epics/900-bench/blueprints/001-verify-expansion/context-review.md",
+      ".bouncer/context/epics/900-bench/blueprints/001-verify-expansion/index.md",
+      ".bouncer/context/epics/900-bench/blueprints/001-verify-expansion/tasks/001/review.md",
+      ".bouncer/context/epics/900-bench/blueprints/001-verify-expansion/tasks/001/tasks.md",
+      ".bouncer/context/epics/900-bench/blueprints/001-verify-expansion/tasks/001/verification.md",
+      ".bouncer/context/epics/900-bench/index.md",
+      ".bouncer/context/index.md",
+      "scripts/lib/verification.js",
+      "scripts/src/lib/verification.ts",
+      "test/validate-structural.test.js",
+      "test/verification-runner.test.js"
+    ]
+  },
+  "rework": {
+    "commits": 1,
+    "gross_lines": 347,
+    "net_lines": 347,
+    "churn_ratio": 1.0
+  }
+}
