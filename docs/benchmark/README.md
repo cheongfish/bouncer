@@ -7,6 +7,8 @@
 같은 태스크를 Bouncer 사이클을 **강제한 채**와 **끄고** 각각 구현시킨 뒤,
 코드를 쓴 적 없는 독립 심사자가 arm 라벨을 가린 채 채점했다.
 
+**2회차**는 이 파일을 덮어쓰지 않는다. PR #53 기준선과 Task 002~004 이후 on-arm 재측정은 [round-2/README.md](round-2/README.md)에 있다. 그 표본에서 시간 배수는 1회차 off 대비 **2.80×**(목표 ≤ 2.5, 미달), test quality Δ는 **+1.75**(목표 +3.00, 미달), on 실격 **0**, G18/S9/G4 **0**이다.
+
 > **베이스 커밋 주의.** 이 측정은 `3f52018` 기준이고, 그 시점은
 > **PR #53 (`c7df084`, 2026-08-21 머지) 이전**이다. `3f52018` 에서 G13 은
 > `verification.md` 프론트매터만 읽었다 — 에이전트가 명령을 돌리지 않고
@@ -123,11 +125,12 @@ t3 이 동점이므로 "4개 중 3개에서 개선" 이 아니라 **"2개 개선
 
 ```
 docs/benchmark/
-├── README.md          이 파일 — 결과 요약
+├── README.md          이 파일 — 1회차 결과 요약
 ├── protocol.md        측정 설계·통제·하네스 결함·한계
+├── round-2/           2회차 기준선·개선 on-arm (1회차 runs/ 를 수정하지 않음)
 ├── tasks/             태스크 4개 정본 (JSON) + 선정 이유와 함정 설명
-├── runs/              런 8개 × (metrics / judgment / card / 리포트)
-└── diffs/             런 8개의 코드 diff (.bouncer/context 제외)
+├── runs/              1회차 런 8개 × (metrics / judgment / card / 리포트)
+└── diffs/             1회차 런 8개의 코드 diff (.bouncer/context 제외)
 ```
 
 `.benchmarks/` 는 스킬이 정한 대로 gitignore 된 로컬 작업 공간으로 남는다.

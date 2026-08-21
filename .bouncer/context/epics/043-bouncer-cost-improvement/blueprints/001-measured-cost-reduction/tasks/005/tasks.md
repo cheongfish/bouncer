@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-005
   epic_id: '043'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - scaffold 힌트가 실제 비용과 품질에 미친 효과를 같은 조건에서 확인해야 했음
     - 기준선과 개선 후 네 런을 나란히 기록해 성공 기준을 판정함
