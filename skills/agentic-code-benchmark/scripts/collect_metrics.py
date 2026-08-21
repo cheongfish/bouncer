@@ -172,7 +172,10 @@ def main():
     args = parser.parse_args()
 
     repo = os.path.abspath(args.repo)
-    if not os.path.isdir(os.path.join(repo, ".git")):
+    # linked worktree는 .git이 디렉터리가 아니라 gitdir: 포인터 파일이다.
+    # isdir이면 clone만 통과하고 worktree 측정이 막히므로, 존재만 본다.
+    # 임의 하위 경로·bare repo는 의도적으로 받지 않는다(.git 부재 = 기존 argparse 거절).
+    if not os.path.exists(os.path.join(repo, ".git")):
         parser.error(f"{repo} is not a git repository")
 
     # Diff first: test/build commands generate artifacts (__pycache__, dist/,

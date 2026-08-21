@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '043'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 측정기와 자체 프로토콜의 worktree 계약이 첫 저장소 검사에서 충돌했음
     - 파일과 디렉터리인 .git 표현을 모두 Git 저장소로 인식하게 함

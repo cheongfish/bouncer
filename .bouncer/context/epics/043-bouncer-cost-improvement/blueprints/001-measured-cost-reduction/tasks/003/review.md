@@ -1,7 +1,7 @@
 ---
 type: bouncer.review
-title: benchmark 저장소 인식 리뷰
-description: 한 줄 판정 수정이 CLI와 출력 계약을 보존하는지 판정한다
+title: 측정기 worktree 인식 리뷰
+description: .git 파일과 디렉터리 수용이 CLI와 테스트에 반영됐는지 판정한다
 resource: .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/003/review.md
 tags:
   - bouncer
@@ -11,11 +11,19 @@ bouncer:
   id: REVIEW-003
   epic_id: '043'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: minor
+        status: accepted
+        note: >-
+          tasks.md status verified는 execute 컨트롤러가 G6용으로 올린 값이며
+          implementer Extra가 아니다.
 ---
 # Review
 
 ## Findings
-- <finding>
+
+- F1 (minor, accepted): `tasks.md` `status: verified`는 컨트롤러가 execute 게이트용으로 찍은 전이다.
