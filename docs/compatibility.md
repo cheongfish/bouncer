@@ -56,7 +56,7 @@ G 코드는 게이트별 검사, S 코드는 항상 실행되는 구조·스키�
 | `G10` | 계획 다섯 섹션 작성 |
 | `G11` | `affected_paths`가 Touch로 정당화됨 |
 | `G12` | Do not touch와 범위가 겹치지 않음 |
-| `G13` | verify 실행 증적 성공·본문 일치 |
+| `G13` | verify 실행 증적 성공·본문 일치·하네스 원장 대조 |
 | `G14` | review findings 형식 유효 |
 | `G16` | finalize의 task·explain·comprehension·diff 검사 |
 | `G17` | 스테이징 범위가 허용 범위임 |

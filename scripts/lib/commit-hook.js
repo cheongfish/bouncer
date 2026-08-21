@@ -8,6 +8,11 @@ const { readCurrent } = require('./current');
 const { readDoc } = require('./frontmatter');
 const { listTasksDocs } = require('./tasks-docs');
 const { toPosix } = require('./paths');
+const NO_COMMIT = { commit: false, all: false };
+// 판단 불가(중첩 셸·확장·깊이 초과)는 커밋으로 칠 뿐 아니라 all-flag도
+// 있는 것으로 친다. -a 없이 스테이징만 보면 PreToolUse 시점에 인덱스가
+// 비어 범위 밖 파일이 그대로 들어간다.
+const FAIL_CLOSED = { commit: true, all: true };
 // guard는 실수를 막습니다. 의도적 우회에 대한 방어는 아닙니다
 // (docs/security.md의 threat model 참고). 명령을 판단할 수 없는 경우 —
 // 중첩 셸, 셸 확장, alias — commit으로 보고하고 통과시키지 않아
@@ -79,22 +84,59 @@ function segments(tokens) {
 function isWord(token, word) {
     return !token.quoted && token.value === word;
 }
-function aliasIsCommit(name, resolveAlias, depth) {
+function orJudgment(a, b) {
+    return { commit: a.commit || b.commit, all: a.all || b.all };
+}
+function argvHasAllFlag(tokens, start) {
+    for (let i = start; i < tokens.length; i += 1) {
+        const t = tokens[i];
+        // 따옴표 토큰은 데이터다. `git commit -m "-a"`의 "-a"를 --all로 읽으면 안 된다.
+        if (t.quoted)
+            continue;
+        const v = t.value;
+        if (v === '--message' || v === '-m') {
+            i += 1;
+            continue;
+        }
+        if (v.startsWith('--message='))
+            continue;
+        // 롱 옵션은 이름 전체가 정확히 --all일 때만. --amend/--author=/--allow-empty는
+        // '-'로 시작하고 a를 포함하지만 all-flag가 아니다.
+        if (v === '--all')
+            return true;
+        if (v.startsWith('--'))
+            continue;
+        if (v.startsWith('-')) {
+            if (v.includes('a'))
+                return true;
+            // -nm 처럼 m이 묶음에 있으면 다음 토큰은 메시지 값이다.
+            if (v.includes('m'))
+                i += 1;
+        }
+    }
+    return false;
+}
+function aliasIsCommit(name, rest, resolveAlias, depth) {
     if (typeof resolveAlias !== 'function')
-        return false;
+        return NO_COMMIT;
     let expansion;
     try {
         expansion = (resolveAlias(name) || '').trim();
     }
     catch (_e) {
-        return false;
+        return NO_COMMIT;
     }
     if (!expansion)
-        return false;
+        return NO_COMMIT;
     // `!` alias는 임의의 셸 명령을 실행합니다. 그 외는 git 자체 argv입니다.
-    return expansion.startsWith('!')
+    const nested = expansion.startsWith('!')
         ? detect(expansion.slice(1), resolveAlias, depth + 1)
         : detect(`git ${expansion}`, resolveAlias, depth + 1);
+    // alias 뒤에 붙은 원래 argv(-am 등)는 확장 문자열에 안 들어 있다.
+    if (nested.commit && argvHasAllFlag(rest, 0)) {
+        return { commit: true, all: true };
+    }
+    return nested;
 }
 function segmentIsGitCommit(tokens, resolveAlias, depth) {
     const shellIdx = tokens.findIndex((t) => !t.quoted && SHELLS.has(path.basename(t.value)));
@@ -104,37 +146,38 @@ function segmentIsGitCommit(tokens, resolveAlias, depth) {
                 const script = tokens[i + 1];
                 // 읽을 `bash -c` 내용이 없으면 무해한 게 아니라 판단 불가입니다.
                 if (!script)
-                    return true;
+                    return FAIL_CLOSED;
                 return detect(script.value, resolveAlias, depth + 1);
             }
         }
     }
     const gitIdx = tokens.findIndex((t) => isWord(t, 'git'));
     if (gitIdx === -1)
-        return false;
+        return NO_COMMIT;
     let i = gitIdx + 1;
     while (i < tokens.length) {
         const t = tokens[i];
         // 이 명령을 결정하는 단어는 런타임에 만들어집니다.
         if (EXPANSION.test(t.value))
-            return true;
+            return FAIL_CLOSED;
         if (t.value.startsWith('-')) {
             i += GIT_VALUE_FLAGS.has(t.value) ? 2 : 1;
             continue;
         }
-        if (t.value === 'commit')
-            return true;
-        return aliasIsCommit(t.value, resolveAlias, depth);
+        if (t.value === 'commit') {
+            return { commit: true, all: argvHasAllFlag(tokens, i + 1) };
+        }
+        return aliasIsCommit(t.value, tokens.slice(i + 1), resolveAlias, depth);
     }
-    return false;
+    return NO_COMMIT;
 }
 function detect(command, resolveAlias, depth) {
     if (typeof command !== 'string')
-        return false;
+        return NO_COMMIT;
     if (depth >= MAX_DEPTH)
-        return true;
+        return FAIL_CLOSED;
     return segments(tokenize(command))
-        .some((seg) => segmentIsGitCommit(seg, resolveAlias, depth));
+        .reduce((acc, seg) => orJudgment(acc, segmentIsGitCommit(seg, resolveAlias, depth)), NO_COMMIT);
 }
 function realResolveAlias(cwd) {
     return (name) => {
@@ -150,7 +193,7 @@ function realResolveAlias(cwd) {
 }
 function isGitCommit(command, { resolveAlias, cwd } = {}) {
     const resolver = resolveAlias === undefined ? realResolveAlias(cwd) : resolveAlias;
-    return detect(command, resolver, 0);
+    return detect(command, resolver, 0).commit;
 }
 function pathsFromTaskDoc(repoRoot, entryRel) {
     try {
@@ -203,6 +246,15 @@ function realStagedFiles({ repoRoot }) {
     });
     return out.split('\n').filter(Boolean);
 }
+function realTrackedModified({ repoRoot }) {
+    // -a/--all 이 담는 것은 인덱스만이 아니라 HEAD 대비 추적 중 수정이다.
+    // 삭제된 경로가 섞이므로 이름을 쓸 뿐 파일 내용은 읽지 않는다.
+    // git 실패는 삼키지 않는다: 훅 어댑터가 throw를 fail-closed로 exit 2 한다.
+    const out = execFileSync('git', ['diff', 'HEAD', '--name-only'], {
+        cwd: repoRoot, encoding: 'utf8',
+    });
+    return out.split('\n').filter(Boolean);
+}
 // active pointer는 Git common directory에 있으므로 primary와 linked worktree
 // 모두 main working tree를 찾지 않고 같은 state를 resolve합니다.
 function realMainRepoCurrent({ repoRoot, deps }) {
@@ -213,16 +265,20 @@ function evaluateCommit({ command, repoRoot, deps }) {
         readCurrent,
         readAffectedPaths,
         stagedFiles: realStagedFiles,
+        trackedModified: realTrackedModified,
         mainRepoCurrent: realMainRepoCurrent,
         ...(deps || {}),
     };
-    if (!isGitCommit(command, { cwd: repoRoot }))
+    const judgment = detect(command, realResolveAlias(repoRoot), 0);
+    if (!judgment.commit)
         return { block: false };
     const current = d.readCurrent({ repoRoot }) || d.mainRepoCurrent({ repoRoot });
     if (!current)
         return { block: false };
     const affectedPaths = d.readAffectedPaths({ repoRoot, blueprintDir: current.blueprint });
-    const files = d.stagedFiles({ repoRoot });
+    const files = judgment.all
+        ? [...new Set([...d.stagedFiles({ repoRoot }), ...d.trackedModified({ repoRoot })])]
+        : d.stagedFiles({ repoRoot });
     const { allow, violations } = checkCommitSafety({
         files, affectedPaths, blueprintDir: current.blueprint,
     });
@@ -234,5 +290,6 @@ function evaluateCommit({ command, repoRoot, deps }) {
     };
 }
 module.exports = {
-    isGitCommit, readAffectedPaths, evaluateCommit, realStagedFiles, realMainRepoCurrent,
+    isGitCommit, readAffectedPaths, evaluateCommit, realStagedFiles, realTrackedModified,
+    realMainRepoCurrent,
 };

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { execSync } = require('node:child_process');
 const { readDoc } = require('./frontmatter');
 const { renderDoc } = require('./render');
@@ -12,6 +13,7 @@ const { listTasksDocs } = require('./tasks-docs');
 // 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
 const { readCurrent } = require('./current');
 const { toPosix } = require('./paths');
+const { verifyLedgerPathFor } = require('./runtime-state');
 const { readConfigResult } = require('./config');
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
@@ -151,7 +153,7 @@ function executeVerify(command, { cwd, exec = execSync }) {
         };
     }
 }
-function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, }) {
+function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, deps, }) {
     // verificationRel이 정식 인자. blueprintDir은 구 호출 호환(루트 verification.md).
     const rel = verificationRel
         || (blueprintDir ? `${toPosix(blueprintDir)}/verification.md` : null);
@@ -194,6 +196,30 @@ Ran at: ${ranAt}
 Exit code: ${exitCode}
 ${evidence}`;
     fs.writeFileSync(verificationPath, renderDoc(data, body));
+    // 게이트는 디스크에서 다시 읽은 output_tail을 해싱한다. js-yaml dump/load가
+    // 개행·후행 공백을 정규화해도, 기록 쪽이 같은 왕복을 거치면 해시가 갈라지지 않는다.
+    const reread = readDoc(verificationPath);
+    const rereadBouncer = reread.data.bouncer;
+    const rereadEvidence = rereadBouncer && rereadBouncer.verification
+        ? rereadBouncer.verification
+        : {};
+    const outputTail = typeof rereadEvidence.output_tail === 'string' ? rereadEvidence.output_tail : '';
+    const outputSha = createHash('sha256').update(outputTail, 'utf8').digest('hex');
+    const ledgerPaths = verifyLedgerPathFor({ repoRoot, verificationRel: rel, deps });
+    if (ledgerPaths.unavailable || !ledgerPaths.ledgerFile) {
+        // 원장 없이 문서만 남기면 에이전트 Write와 구분이 안 된다. Git을 못 쓰면
+        // verify 자체를 실패시켜 복구 경로(저장소에서 재실행)만 남긴다.
+        throw new Error(ledgerPaths.reason || 'Bouncer requires a Git repository for an active blueprint');
+    }
+    fs.mkdirSync(path.dirname(ledgerPaths.ledgerFile), { recursive: true });
+    const record = {
+        rel: toPosix(rel),
+        command,
+        ran_at: ranAt,
+        exit_code: exitCode,
+        output_sha: outputSha,
+    };
+    fs.writeFileSync(ledgerPaths.ledgerFile, `${JSON.stringify(record, null, 2)}\n`);
 }
 function resolveVerificationRel(repoRoot, blueprintDir) {
     // readVerifyCommand와 동일 entriesForVerify 폴백: 포인터 매칭 → 그 묶음,

@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`git commit -a` 스코프 우회** — PreToolUse 가드가 `-a`/`--all` 계열 커밋에서
+  스테이징뿐 아니라 추적 중 수정 파일도 `affected_paths`와 대조한다. commit
+  게이트 G17은 스테이징 경로만 본다.
+- **G13 증적 대조** — execute·commit 게이트가 `verification.md`를 `bouncer verify`
+  원장과 대조한다. 원장이 없으면 프론트매터가 완전해도 G13으로 실패한다.
+
+### Changed
+
+- 기존 저장소의 원장 없는 `verification.md`는 G13으로 실패합니다. `bouncer verify`를 다시 실행하세요.
+
 ## [1.0.0] — 2026-08-15
 
 1.0.0 출시 준비 항목. 목표 릴리스일은 2026-08-15이며, 최종 태그와 smoke

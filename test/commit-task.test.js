@@ -10,6 +10,7 @@ const yaml = require('js-yaml');
 const { commitTask } = require('../scripts/lib/commit');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 const { readCurrent, writeCurrent } = require('../scripts/lib/current');
+const { recordVerificationResult } = require('../scripts/lib/verification');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -83,6 +84,16 @@ function writeTaskUnit(repo, blueprintDir, number, {
     bouncer: {
       id: `VERIFY-${number}`, epic_id: '001', blueprint_id: '001', status: 'passed',
     },
+  });
+  // 포인터 묶음의 G13은 status: passed만으로는 통과하지 않는다. writeTaskUnit이
+  // extraOpenTask에도 쓰이므로, Git이 있는 픽스처에서만 하네스 원장을 남긴다.
+  recordVerificationResult({
+    repoRoot: repo,
+    verificationRel: `${dir}/verification.md`,
+    command: 'npm test',
+    ranAt: '2026-07-27T00:00:00.000Z',
+    exitCode: 0,
+    output: 'ok',
   });
   writeDoc(repo, `${dir}/review.md`, {
     type: 'bouncer.review',

@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { checkGate, parseTasksSections, extractPathCandidates, validateBlueprint } = require('../scripts/lib/validate');
 const { TEMPLATES } = require('../scripts/lib/templates');
 
@@ -430,22 +431,112 @@ Exit code: 0
 All 42 tests passed.
 `;
 
-test('execute gate: review optional satisfies G8 (with verification body)', () => {
-  const docs = {
+function passingVerificationDoc() {
+  const verification = doc('passed', {
+    verification: {
+      command: 'npm test',
+      ran_at: '2026-07-27T00:00:00.000Z',
+      exit_code: 0,
+      output_tail: 'All 42 tests passed.',
+    },
+  }, VERIFY_BODY_OK);
+  verification.rel = rels.verification;
+  return verification;
+}
+
+function matchingLedger(verificationDoc, overrides = {}) {
+  const evidence = verificationDoc.data.bouncer.verification;
+  return {
+    rel: verificationDoc.rel,
+    command: evidence.command,
+    ran_at: evidence.ran_at,
+    exit_code: evidence.exit_code,
+    output_sha: createHash('sha256').update(String(evidence.output_tail), 'utf8').digest('hex'),
+    ...overrides,
+  };
+}
+
+function ledgerDeps(verificationDoc, record) {
+  const value = record === undefined ? matchingLedger(verificationDoc) : record;
+  return { readVerifyLedger: () => value };
+}
+
+function executeDocs(verification = passingVerificationDoc()) {
+  return {
     tasks: doc('verified'),
-    verification: doc('passed', {
-      verification: {
-        command: 'npm test',
-        ran_at: '2026-07-27T00:00:00.000Z',
-        exit_code: 0,
-        output_tail: 'All 42 tests passed.',
-      },
-    }, VERIFY_BODY_OK),
+    verification,
     review: doc('pending', { review: { required: false, reason: 'docs-only' } }),
   };
+}
+
+function g13ThreeWay(gate, extraDeps = {}) {
+  const docs = executeDocs();
+  if (gate === 'commit') {
+    docs.review = doc('accepted');
+    extraDeps = {
+      stagedFiles: () => ({ ok: true, files: [] }),
+      ...extraDeps,
+    };
+  }
+  const missing = checkGate({
+    gate,
+    docs,
+    rels,
+    deps: { ...extraDeps, readVerifyLedger: () => null },
+  });
+  const mismatch = checkGate({
+    gate,
+    docs,
+    rels,
+    deps: { ...extraDeps, ...ledgerDeps(docs.verification, matchingLedger(docs.verification, { ran_at: 'other' })) },
+  });
+  const ok = checkGate({
+    gate,
+    docs,
+    rels,
+    deps: { ...extraDeps, ...ledgerDeps(docs.verification) },
+  });
+  return { missing, mismatch, ok };
+}
+
+test('execute gate flags G13 when harness metadata is present but the verify ledger is missing', () => {
+  // 프론트매터만 손으로 채운 verification.md — 원장 없음
+  const result = checkGate({
+    gate: 'execute',
+    docs: executeDocs(),
+    rels,
+    deps: { readVerifyLedger: () => null },
+  });
+  assert.ok(result.failures.some((f) => f.code === 'G13'));
+});
+
+test('execute gate: review optional satisfies G8 (with verification body)', () => {
+  const docs = executeDocs();
   const failures = [];
-  checkGate('execute', docs, rels, failures);
+  checkGate('execute', docs, rels, failures, { deps: ledgerDeps(docs.verification) });
   assert.deepStrictEqual(failures, []);
+});
+
+test('execute gate G13 ledger missing, ran_at mismatch, and matching record', () => {
+  const { missing, mismatch, ok } = g13ThreeWay('execute');
+  assert.ok(missing.failures.some((f) => f.code === 'G13' && /missing harness verify ledger record/.test(f.message)));
+  assert.ok(mismatch.failures.some((f) => f.code === 'G13' && /does not match verify ledger/.test(f.message)));
+  assert.deepStrictEqual(ok.failures.filter((f) => f.code === 'G13'), []);
+  assert.deepStrictEqual(ok.failures, []);
+});
+
+test('execute gate G13 hashes output_tail after trailing space and CRLF survive in-memory', () => {
+  const tail = 'ok  \r\nline two  ';
+  const verification = passingVerificationDoc();
+  verification.data.bouncer.verification.output_tail = tail;
+  const docs = executeDocs(verification);
+  const result = checkGate({
+    gate: 'execute',
+    docs,
+    rels,
+    deps: ledgerDeps(verification),
+  });
+  assert.deepStrictEqual(result.failures, []);
 });
 
 test('execute gate flags G13 when verification lacks harness metadata', () => {
@@ -479,20 +570,13 @@ const REVIEW_BODY_OK = `# Review
 test('execute gate accepts review with valid findings schema', () => {
   const docs = {
     tasks: doc('verified'),
-    verification: doc('passed', {
-      verification: {
-        command: 'npm test',
-        ran_at: '2026-07-27T00:00:00.000Z',
-        exit_code: 0,
-        output_tail: 'All 42 tests passed.',
-      },
-    }, VERIFY_BODY_OK),
+    verification: passingVerificationDoc(),
     review: doc('accepted', {
       review: { findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }] },
     }, REVIEW_BODY_OK),
   };
   const failures = [];
-  checkGate('execute', docs, rels, failures);
+  checkGate('execute', docs, rels, failures, { deps: ledgerDeps(docs.verification) });
   assert.deepStrictEqual(failures, []);
 });
 
@@ -583,26 +667,28 @@ const G16_CTX = {
   },
 };
 
-/** commit 게이트: G6/G7/G8을 통과하는 포인터 단위 + 주입 가능한 stagedFiles. */
+/** commit 게이트: G6/G7/G8/G13을 통과하는 포인터 단위 + 주입 가능한 stagedFiles. */
 function commitReadyUnit(extraTasksBouncer = {}) {
   return {
     number: 1,
     dir: '.bouncer/context/epics/001-auth/blueprints/001-login/tasks/001',
     tasks: doc('verified', { affected_paths: ['src/auth/'], ...extraTasksBouncer }),
-    verification: doc('passed'),
+    verification: passingVerificationDoc(),
     review: doc('accepted'),
   };
 }
 
 function commitCtx(stagedFiles) {
+  const taskUnit = commitReadyUnit();
   return {
     repoRoot: '/tmp/unused',
     blueprintDir: '.bouncer/context/epics/001-auth/blueprints/001-login',
-    taskUnit: commitReadyUnit(),
+    taskUnit,
     deps: {
       stagedFiles: typeof stagedFiles === 'function'
         ? stagedFiles
         : () => ({ ok: true, files: stagedFiles || [] }),
+      readVerifyLedger: () => matchingLedger(taskUnit.verification),
     },
   };
 }
@@ -1270,9 +1356,18 @@ test('commit gate G6 fails when pointer tasks are not verified', () => {
   const ctx = commitCtx([]);
   ctx.taskUnit = commitReadyUnit();
   ctx.taskUnit.tasks = doc('ready', { affected_paths: ['src/auth/'] });
+  ctx.deps.readVerifyLedger = () => matchingLedger(ctx.taskUnit.verification);
   checkGate('commit', {}, rels, failures, ctx);
   assert.ok(failures.some((f) => f.code === 'G6'));
   assert.ok(!failures.some((f) => f.code === 'G15'));
+});
+
+test('commit gate G13 ledger missing, ran_at mismatch, and matching record', () => {
+  const { missing, mismatch, ok } = g13ThreeWay('commit');
+  assert.ok(missing.failures.some((f) => f.code === 'G13' && /missing harness verify ledger record/.test(f.message)));
+  assert.ok(mismatch.failures.some((f) => f.code === 'G13' && /does not match verify ledger/.test(f.message)));
+  assert.deepStrictEqual(ok.failures.filter((f) => f.code === 'G13'), []);
+  assert.ok(!ok.failures.some((f) => f.code === 'G13'));
 });
 
 test('unknown gate still throws', () => {

@@ -7,6 +7,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, worktreePathFor,
+  verifyLedgerPathFor,
 } = require('../scripts/lib/runtime-state');
 
 function git(cwd, args) {
@@ -218,4 +219,33 @@ test('worktreePathFor rejects legacy-prefixed ids and non-Git roots', () => {
     () => worktreePathFor({ repoRoot: nonGit, blueprint: bp, deps }),
     /Bouncer requires a Git repository for an active blueprint/,
   );
+});
+
+test('verifyLedgerPathFor hashes the verification rel under the Git common directory', () => {
+  const { createHash } = require('node:crypto');
+  const { primary, linked } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const rel = '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001/verification.md';
+  const primaryLedger = verifyLedgerPathFor({ repoRoot: primary, verificationRel: rel, deps });
+  const linkedLedger = verifyLedgerPathFor({ repoRoot: linked, verificationRel: rel, deps });
+
+  assert.strictEqual(primaryLedger.unavailable, undefined);
+  assert.strictEqual(linkedLedger.ledgerFile, primaryLedger.ledgerFile);
+  const digest = createHash('sha256').update(rel, 'utf8').digest('hex').slice(0, 16);
+  assert.strictEqual(
+    primaryLedger.ledgerFile,
+    path.join(primaryLedger.commonGitDir, 'bouncer', 'verify', `${digest}.json`),
+  );
+});
+
+test('verifyLedgerPathFor reports non-Git directories unavailable', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-'));
+  const result = verifyLedgerPathFor({
+    repoRoot: repo,
+    verificationRel: 'x.md',
+    deps: { execFileSync },
+  });
+  assert.strictEqual(result.unavailable, true);
+  assert.ok(result.reason);
+  assert.strictEqual(result.ledgerFile, undefined);
 });

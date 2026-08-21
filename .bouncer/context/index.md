@@ -46,3 +46,4 @@ bouncer_schema: '0.1'
 * [039 오픈소스 1.0 공개](epics/039-open-source-one-zero/index.md) - 보안·품질·공개 계약·외부 파일럿을 닫고 플러그인 1.0을 배포한다
 * [040 scope-evidence](epics/040-scope-evidence/index.md) - Epic 040
 * [041 plan-mermaid-zoom](epics/041-plan-mermaid-zoom/index.md) - Epic 041
+* [042 게이트 보증 복구](epics/042-gate-integrity/index.md) - G13·G17 두 게이트를 코드로 강제하고 보증 문구를 실제 동작에 맞춘다
