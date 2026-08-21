@@ -176,6 +176,7 @@ test('isGitCommit resolves a git alias to its expansion', () => {
     st: 'status',
   }[name] || '');
   assert.strictEqual(isGitCommit('git ci -m x', { resolveAlias }), true);
+  assert.strictEqual(isGitCommit('git ci -am x', { resolveAlias }), true);
   assert.strictEqual(isGitCommit('git save', { resolveAlias }), true);
   assert.strictEqual(isGitCommit('git st', { resolveAlias }), false);
   assert.strictEqual(isGitCommit('git unknown-sub', { resolveAlias }), false);
@@ -286,3 +287,113 @@ test('pointer task narrows affected_paths; missing task keeps the union', () => 
   });
   assert.strictEqual(allowed.block, false);
 });
+
+const AM_BP = '.bouncer/context/epics/001-x/blueprints/001-y';
+
+test('evaluateCommit blocks -am when only tracked-modified is out of scope', () => {
+  const repoRoot = '/r';
+  const blueprintDir = AM_BP;
+  const result = evaluateCommit({
+    command: 'git commit -am x',
+    repoRoot,
+    deps: {
+      readCurrent: () => ({ blueprint: blueprintDir }),
+      readAffectedPaths: () => ['src/a.js'],
+      stagedFiles: () => [],
+      trackedModified: () => ['other/b.js'],
+    },
+  });
+  assert.equal(result.block, true);
+});
+
+test('evaluateCommit propagates trackedModified git failure', () => {
+  const repoRoot = '/r';
+  const blueprintDir = AM_BP;
+  assert.throws(() => evaluateCommit({
+    command: 'git commit -am x',
+    repoRoot,
+    deps: {
+      readCurrent: () => ({ blueprint: blueprintDir }),
+      readAffectedPaths: () => ['src/a.js'],
+      stagedFiles: () => [],
+      trackedModified: () => { throw new Error('git failed'); },
+    },
+  }), /git failed/);
+});
+
+test('evaluateCommit does not inspect trackedModified without an all-flag', () => {
+  const repoRoot = '/r';
+  const blueprintDir = AM_BP;
+  const cases = [
+    'git commit -m x',
+    'git commit --amend',
+    'git commit --author=a',
+    'git commit -m "-a"',
+  ];
+  for (const command of cases) {
+    let called = false;
+    const result = evaluateCommit({
+      command,
+      repoRoot,
+      deps: {
+        readCurrent: () => ({ blueprint: blueprintDir }),
+        readAffectedPaths: () => ['src/a.js'],
+        stagedFiles: () => [],
+        trackedModified: () => {
+          called = true;
+          return ['other/b.js'];
+        },
+      },
+    });
+    assert.equal(called, false, `${command} must not call trackedModified`);
+    assert.equal(result.block, false, `${command} must not treat message/lookalike flags as --all`);
+  }
+});
+
+test('evaluateCommit treats --all and -a as all-flag; allow-empty is not', () => {
+  const repoRoot = '/r';
+  const blueprintDir = AM_BP;
+  const blockOnTracked = (command) => evaluateCommit({
+    command,
+    repoRoot,
+    deps: {
+      readCurrent: () => ({ blueprint: blueprintDir }),
+      readAffectedPaths: () => ['src/a.js'],
+      stagedFiles: () => [],
+      trackedModified: () => ['other/b.js'],
+    },
+  }).block;
+
+  assert.equal(blockOnTracked('git commit --all -m x'), true);
+  assert.equal(blockOnTracked('git commit -a -m x'), true);
+  assert.equal(blockOnTracked('git commit --allow-empty -m x'), false);
+});
+
+test('evaluateCommit fail-closed unparseable commit also inspects trackedModified', () => {
+  const r = evaluateCommit({
+    command: 'git $FLAG commit',
+    repoRoot: '/r',
+    deps: {
+      readCurrent: () => ({ blueprint: AM_BP }),
+      readAffectedPaths: () => ['src/a.js'],
+      stagedFiles: () => [],
+      trackedModified: () => ['other/b.js'],
+    },
+  });
+  assert.equal(r.block, true);
+});
+
+test('realTrackedModified lists names from git diff HEAD --name-only', () => {
+  const { realTrackedModified } = require('../scripts/lib/commit-hook');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-tracked-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'tracked.txt'), 'one\n');
+  execFileSync('git', ['add', 'tracked.txt'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'fixture',
+  ], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'tracked.txt'), 'two\n');
+  assert.deepStrictEqual(realTrackedModified({ repoRoot: repo }), ['tracked.txt']);
+});
+

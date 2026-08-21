@@ -10,15 +10,20 @@
 
 | 입력 | 처리 |
 | --- | --- |
-| `git commit -m x`, `git -C <path> commit` | 직접 탐지 |
+| `git commit -m x`, `git -C <path> commit` | 직접 탐지. 스테이징된 경로만 `affected_paths`와 대조 |
+| `git commit -am x`, `git commit -a`, `git commit --all` | 커밋으로 탐지하고, 검사 대상은 스테이징 ∪ `git diff HEAD --name-only` (추적 중 수정). 롱 옵션은 이름이 정확히 `--all`일 때만 all-flag. `--amend` · `--author=` · `--allow-empty`는 해당하지 않음. `-m`/`--message` 값과 따옴표 토큰은 플래그로 읽지 않음 |
 | `bash -c "git commit -m x"` | 중첩 셸 내부를 파싱 (`sh`/`zsh`/`dash`/`ksh`/`ash`, `-lc` 같은 결합 플래그 포함) |
-| `git $FLAG commit`, `` git `...` `` | 확장이 섞이면 판단 불가 → 커밋으로 간주 |
+| `git $FLAG commit`, `` git `...` `` | 확장이 섞이면 판단 불가 → 커밋으로 간주하고 all-flag도 있는 것으로 간주 |
 | `git ci -m x` | `git config alias.ci`를 조회해 확장. `!` 셸 별칭은 그 내용을 다시 파싱 |
-| `bash -c` 뒤에 아무것도 없음 | 판단 불가 → 커밋으로 간주 |
+| `bash -c` 뒤에 아무것도 없음 | 판단 불가 → 커밋으로 간주하고 all-flag도 있는 것으로 간주 |
+| `git diff HEAD` 실패 (`-a`/`--all` 또는 판단 불가 경로) | 예외를 삼키지 않고 전파. 훅 어댑터가 fail-closed로 차단 |
 
 fail-closed의 대가는 **오탐**입니다. `git $ANYTHING`은 커밋이 아니어도
-범위 검사를 거칩니다. 다만 범위 밖 파일이 스테이징돼 있을 때만 막히므로
-평상시에는 드러나지 않습니다.
+범위 검사를 거칩니다. 판단 불가 경로는 all-flag로도 치므로, 스테이징이 비어
+있어도 추적 중 수정이 범위 밖이면 막힙니다. pathspec으로 좁힌 `-a` 커밋
+(`git commit -a -- path/in-scope`)도 명령만 보면 all-flag라서, HEAD 대비
+범위 밖 수정이 있으면 막힐 수 있습니다. 평상시 `-m`만 쓰는 커밋은
+스테이징된 범위 밖 파일이 있을 때만 드러납니다.
 
 여전히 뚫리는 것:
 
