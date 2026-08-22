@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '044'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - Distill 승격 커밋이 검증을 한 번도 거치지 않고 저장소에 들어감
     - finalize가 스테이징 전에 검증 명령을 실행해 실패하면 커밋을 막게 함

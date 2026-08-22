@@ -10,6 +10,33 @@ const { clearCurrent, nextBlueprint } = require('./current');
 const { parseFrontmatter } = require('./frontmatter');
 const { renderDoc } = require('./render');
 const { makeFinalizeAllowed, isRuntimeArtifact } = require('./scope');
+const { readVerifyCommand, executeVerify } = require('./verification');
+function adaptInjectedVerifyExec(verifyExec) {
+    return (command, opts) => {
+        const result = verifyExec(command, opts);
+        if (result
+            && typeof result === 'object'
+            && 'ok' in result
+            && result.ok === false) {
+            const failure = result;
+            const error = new Error(typeof failure.output === 'string' ? failure.output : 'verify failed');
+            error.status = failure.exitCode;
+            error.stdout = failure.output;
+            throw error;
+        }
+        if (result && typeof result === 'object' && 'output' in result) {
+            return result.output;
+        }
+        return result;
+    };
+}
+function codedErrorCode(error) {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+        const code = error.code;
+        return typeof code === 'string' ? code : undefined;
+    }
+    return undefined;
+}
 function asRecord(value) {
     return value;
 }
@@ -162,7 +189,7 @@ function realGit(repoRoot) {
         commit: (msg) => { run(['commit', '-m', msg]); },
     };
 }
-function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, }) {
+function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, verifyExec, }) {
     const gitApi = git || realGit(repoRoot);
     const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
     if (!v.ok)
@@ -194,23 +221,27 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     // 문서를 건드리지 않고 이미 return한 상태.
     const lockTarget = resolveLockTarget({ repoRoot, blueprintDir });
     const lockPath = closedLockPath(lockTarget);
+    // 잠금 경로는 파일에 쓰기 전에 staged에 합류시킨다. 「커밋할 것이 있을
+    // 때만 검증」과 「잠금 전에 검증」을 같이 지키려면, 예전처럼
+    // writeClosedLock을 여기서 먼저 부르면 안 된다 — 실패해도 blueprint는
+    // closed인데 커밋만 없는 상태가 남고, 재실행은 already-closed로 잠금만
+    // 건너뛰어 승격분이 다시 미검증으로 들어간다.
+    const staged = mergeLocked(all, lockPath);
     if (!yes) {
         // dry-run: 쓰지 않고 "쓰게 될" 경로만 closed/staged에 반영해 보고한다.
+        // 읽기 전용 보고가 config.verify 전체를 끌고 오면 안 되므로 검증도 생략.
         return {
             ok: true,
             dryRun: true,
-            staged: mergeLocked(all, lockPath),
+            staged,
             commitMessage,
             next: computeNext(),
             closed: lockPath,
         };
     }
-    // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
-    if (lockPath)
-        writeClosedLock(repoRoot, lockTarget);
-    const staged = mergeLocked(all, lockPath);
     // 빈 커밋 금지: Distill 승격분도 잠금도 없으면 stage/commit을 건너뛰고
     // 포인터만 비운다. task 커밋은 003 `bouncer commit`이 이미 끝냈다는 전제.
+    // 스테이징 대상이 없으면 검증할 커밋도 없다.
     if (staged.length === 0) {
         const pointerCleared = clearPointer({ repoRoot });
         return {
@@ -223,6 +254,37 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             closed: lockPath,
         };
     }
+    // 승격분이 없어도 잠금만으로 커밋이 생기면 그 커밋도 저장소를 바꾼다.
+    // 예외를 두면 「어떤 finalize 커밋은 검증되지 않는다」가 된다.
+    // 해석 오류는 throw하지 않는다 — cmdFinalize/runCli에 최상위 처리기가
+    // 없어 스택이 JSON 결과를 밀어내고 종료 코드 계약(0/1)이 깨진다.
+    let command;
+    try {
+        command = readVerifyCommand(repoRoot, blueprintDir);
+    }
+    catch (error) {
+        const code = codedErrorCode(error);
+        if (code) {
+            return { ok: false, reason: 'verify', code, command: null, exitCode: null };
+        }
+        throw error;
+    }
+    const execution = executeVerify(command, {
+        cwd: repoRoot,
+        ...(verifyExec ? { exec: adaptInjectedVerifyExec(verifyExec) } : {}),
+    });
+    if (!execution.ok) {
+        return {
+            ok: false,
+            reason: 'verify',
+            code: 'VERIFY_FAILED',
+            command,
+            exitCode: execution.exitCode,
+        };
+    }
+    // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
+    if (lockPath)
+        writeClosedLock(repoRoot, lockTarget);
     gitApi.stage(staged);
     gitApi.commit(commitMessage);
     // blueprint는 끝남. pointer를 남기면 commit guard가 이후 모든 commit에

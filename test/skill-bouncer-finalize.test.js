@@ -43,6 +43,13 @@ test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR
   assert.doesNotMatch(body, /\bG15\b/);
 });
 
+test('bouncer-finalize --yes runs verify before staging with no bypass on reason verify', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /`--yes`는 스테이징 전에 검증 명령을 실행한다/);
+  assert.match(body, /reason: 'verify'/);
+  assert.match(body, /원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다/);
+});
+
 
 test('bouncer-finalize promotes BP explain notes into project Distill', () => {
   const { body } = parseFrontmatter(md);
