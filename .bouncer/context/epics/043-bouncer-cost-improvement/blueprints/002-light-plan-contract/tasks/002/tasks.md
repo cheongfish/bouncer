@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '043'
   blueprint_id: '002'
-  status: ready
+  status: verified
   commit_intent:
     - light 계약 축소가 실제 비용을 낮추면서 품질을 지키는지 재검증해야 했음
     - 같은 네 사례의 3회차를 1·2회차와 나란히 기록해 판정함
