@@ -452,3 +452,149 @@ test('scaffoldBlueprint rejects a legacy-prefixed epic dir', () => {
     repoRoot: repo, epicDir, blueprintId: '002', name: 'login', timestamp: TS,
   }), /epicDir must be under \.bouncer\/context\/epics/);
 });
+
+// --- scale: light / full 분기 ---
+// full은 회귀 방지가 목적이다: 파일 목록과 본문이 템플릿과 바이트 단위로 같아야
+// light 분기가 기존 경로를 건드리지 않았음이 증명된다.
+const { templateBody } = require('../scripts/lib/templates');
+
+function scaffoldWith(repo, scale) {
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  return scaffoldBlueprint({
+    repoRoot: repo,
+    epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001',
+    name: 'login',
+    timestamp: TS,
+    ...(scale === undefined ? {} : { scale }),
+  });
+}
+
+test('full scaffold bodies stay byte-identical to the shipped templates', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, undefined);
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const expected = {
+    'index.md': templateBody('blueprint.md', { epicId: '001', blueprintId: '001', name: 'login' }),
+    'context-review.md': templateBody('context-review.md', { epicId: '001', blueprintId: '001', name: '001' }),
+    'tasks/001/tasks.md': templateBody('tasks.md', { epicId: '001', blueprintId: '001', name: '001' }),
+    'tasks/001/verification.md': templateBody('verification.md', { epicId: '001', blueprintId: '001', name: '001' }),
+    'tasks/001/review.md': templateBody('review.md', { epicId: '001', blueprintId: '001', name: '001' }),
+  };
+  for (const [rel, body] of Object.entries(expected)) {
+    assert.strictEqual(readDoc(path.join(repo, base, rel)).body, body, rel);
+  }
+  // basis 힌트 주석은 full 계약의 일부 — light에서만 빠진다.
+  const rawTasks = fs.readFileSync(path.join(repo, base, 'tasks/001/tasks.md'), 'utf8');
+  assert.match(rawTasks, /# 유효 엔트리 필드: graph, status, query, result/);
+});
+
+test('--scale full and an omitted --scale produce identical trees', () => {
+  const omitted = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const explicit = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const a = scaffoldWith(omitted, undefined);
+  const b = scaffoldWith(explicit, 'full');
+  assert.deepStrictEqual(b, a);
+  for (const rel of a) {
+    assert.strictEqual(
+      fs.readFileSync(path.join(explicit, rel), 'utf8'),
+      fs.readFileSync(path.join(omitted, rel), 'utf8'),
+      rel,
+    );
+  }
+});
+
+test('scale light writes four plan docs and no context-review', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const created = scaffoldWith(repo, 'light');
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  assert.deepStrictEqual(created, [
+    `${base}/index.md`,
+    `${base}/tasks/001/tasks.md`,
+    `${base}/tasks/001/verification.md`,
+    `${base}/tasks/001/review.md`,
+  ]);
+  assert.strictEqual(fs.existsSync(path.join(repo, base, 'context-review.md')), false);
+  assert.strictEqual(fs.existsSync(path.join(repo, base, 'explain.md')), false);
+  const bp = readDoc(path.join(repo, base, 'index.md')).data;
+  assert.strictEqual(bp.bouncer.scale, 'light');
+  assert.strictEqual(bp.bouncer.commit_type, 'feat');
+  // 승인 범위 증적은 light에서도 그대로 비어 있는 채로 시작한다 (G4/G5).
+  const tasks = readDoc(path.join(repo, base, 'tasks/001/tasks.md')).data;
+  assert.deepStrictEqual(tasks.bouncer.affected_paths, []);
+  assert.deepStrictEqual(tasks.bouncer.scope_evidence.basis, []);
+});
+
+test('the light plan document set stays within 100 lines total', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const created = scaffoldWith(repo, 'light');
+  const total = created.reduce(
+    (sum, rel) => sum + fs.readFileSync(path.join(repo, rel), 'utf8').split('\n').length - 1,
+    0,
+  );
+  assert.ok(total <= 100, `light plan docs are ${total} lines`);
+});
+
+test('light task bodies carry only the three gated sections', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, 'light');
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const body = readDoc(path.join(repo, base, 'tasks/001/tasks.md')).body;
+  assert.match(body, /^## Goal & intent$/m);
+  assert.match(body, /^## Touch$/m);
+  assert.match(body, /^## Checklist$/m);
+  assert.doesNotMatch(body, /^## Interface$/m);
+  assert.doesNotMatch(body, /^## Do not touch$/m);
+  // 미작성 상태로는 G10을 통과할 수 없어야 한다.
+  assert.match(body, /<TODO:/);
+});
+
+test('a later task on a light blueprint keeps the light template', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldWith(repo, 'light');
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  scaffoldTask({ repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS });
+  const body = readDoc(path.join(repo, base, 'tasks/002/tasks.md')).body;
+  assert.doesNotMatch(body, /^## Interface$/m);
+});
+
+test('scaffold blueprint rejects an unknown --scale before writing anything', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  for (const bad of [['--scale', 'tiny'], ['--scale']]) {
+    const r = captureScaffold([
+      'scaffold', 'blueprint', '--repo', repo,
+      '--epic-dir', '.bouncer/context/epics/001-auth',
+      '--id', '001', '--name', 'login', '--timestamp', TS, ...bad,
+    ]);
+    assert.strictEqual(r.code, 2, bad.join(' '));
+    assert.match(r.err, /--scale must be one of light\|full/);
+    assert.strictEqual(r.out, '');
+    assert.strictEqual(
+      fs.existsSync(path.join(repo, '.bouncer/context/epics/001-auth/blueprints')),
+      false,
+    );
+  }
+});
+
+test('scaffoldBlueprint throws on an unknown scale without creating the dir', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  assert.throws(() => scaffoldWith(repo, 'tiny'), /scale must be one of light \| full/);
+  assert.strictEqual(
+    fs.existsSync(path.join(repo, '.bouncer/context/epics/001-auth/blueprints')),
+    false,
+  );
+});
+
+test('bouncer scaffold blueprint --scale light exits 0 with four created paths', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  const r = captureScaffold([
+    'scaffold', 'blueprint', '--repo', repo,
+    '--epic-dir', '.bouncer/context/epics/001-auth',
+    '--id', '001', '--name', 'login', '--timestamp', TS, '--scale', 'light',
+  ]);
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(JSON.parse(r.out).created.length, 4);
+});

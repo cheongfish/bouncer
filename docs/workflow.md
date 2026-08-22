@@ -8,7 +8,7 @@
 | 단계 | 하는 일 | 막는 게이트 |
 | --- | --- | --- |
 | `/bouncer-init` | 프로젝트당 한 번 `.bouncer/` 부트스트랩 | — |
-| `/bouncer-plan` | epic → blueprint → task 묶음 작성, 경로 추천 주입, `affected_paths` 확정, 계획 문서 리뷰, 승인, 활성 포인터 기록 | plan (G1–G5, G10–G12, G18) |
+| `/bouncer-plan` | epic → blueprint → task 묶음 작성, 경로 추천 주입, `affected_paths` 확정, 계획 문서 리뷰, 승인, 활성 포인터 기록 | plan (G1–G5, G10–G12, G18 — `scale: light`면 G18 없음) |
 | `/bouncer-execute` | worktree 재사용·생성 → 계획 문서 seed → 구현 → verify → review. **커밋하지 않음** | execute (G6–G8, G13–G14) |
 | `/bouncer-commit` | 스코프 dry-run → task 하나 커밋 → 다음 task로 포인터 이동 | commit (G6/G7/G8 + G17) |
 | `/bouncer-finalize` | Distill 승격 → explain + 퀴즈 → 남은 변경 커밋 → worktree 제거 → draft PR | finalize (G16) |
@@ -83,6 +83,16 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   `bouncer.scale`을 `light`로 바꿉니다. 무엇이 줄고 무엇이 그대로인지는
   [`rules/governance.md`](../rules/governance.md) `## Lightweight cycle`에
   있습니다.
+- **경량 계획은 문서 넷·100줄입니다.** 선언을 받으면 plan이
+  `bouncer scaffold blueprint --scale light`로 blueprint `index.md`와
+  `tasks/001/{tasks,verification,review}.md`만 만듭니다. `context-review.md`가
+  없으니 계획 문서 판정 단계도, plan 게이트의 G18도 없습니다. task 본문은
+  Goal & intent·Touch·Checklist 셋만 쓰면 G10을 통과하고, `affected_paths`
+  확정과 G4·G5·G11·G12는 일반 경로와 똑같이 받습니다.
+- **full로 돌아가려면** blueprint `index.md`의 `bouncer.scale`을 `full`로
+  되돌리고, `bouncer scaffold context-review --blueprint <dir>`로 판정 문서를
+  만든 뒤 task에 Interface·Do not touch 절을 채웁니다. 그 다음 plan 게이트를
+  다시 돌리면 G18과 다섯 절이 함께 요구됩니다.
 - **마감한 blueprint는 잠깁니다.** `finalize --yes`가 `bouncer.status`를
   `closed`로 바꾸고, 이후 포인터 후보에서 빠집니다. 다시 열려면 `index.md`의
   status를 손으로 `approved`로 되돌려야 합니다.

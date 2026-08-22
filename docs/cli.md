@@ -7,7 +7,7 @@
 | --- | --- |
 | `bouncer validate --blueprint <dir> --gate <plan\|execute\|commit\|finalize>` | 구조 검사 + 게이트 하나. 실패 코드를 보고 |
 | `bouncer verify --blueprint <dir>` | `tasks.bouncer.verify`(있으면) 또는 `config.verify`를 실행하고 증적을 기록 |
-| `bouncer scaffold epic\|blueprint ...` | 올바른 프론트매터로 epic / blueprint와 첫 task 묶음 생성 |
+| `bouncer scaffold epic\|blueprint ... [--scale light\|full]` | 올바른 프론트매터로 epic / blueprint와 첫 task 묶음 생성. `--scale`은 `blueprint`에만 쓰는 선택 인자 |
 | `bouncer scaffold task --blueprint <dir> --id <NNN>` | `tasks/<NNN>/{tasks,verification,review}.md` task 묶음 생성. 대상 blueprint가 `closed`(마감)면 아무 문서도 만들지 않고 새 blueprint를 만들라는 안내와 함께 종료 코드 2로 거절 |
 | `bouncer scaffold explain --blueprint <dir>` | BP `explain.md` 생성(`comprehension: []`). `/bouncer-finalize`가 호출 |
 | `bouncer scaffold context-review --blueprint <dir>` | BP `context-review.md` 생성. 이미 있으면 덮어쓰지 않고 거절. `closed` blueprint도 거절 |
@@ -21,6 +21,15 @@
 | `bouncer migrate ids [--dry-run]` | 구형 `EPIC-`/`BP-` context 디렉터리를 숫자 id로 이관(계획 또는 적용) |
 | `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
 | `bouncer import [--source merges\|commits] [--since <ref>] [--limit <n>] [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]` | git 히스토리를 `imported` epic/blueprint 문서로 전사. 기본은 dry-run(계획 JSON만 출력). `--yes --message`일 때만 파일을 쓰고 커밋 하나로 남김 |
+
+`scaffold blueprint --scale`은 계획 단계 문서 세트를 고른다. 생략하거나 `full`이면
+기존 다섯 문서(blueprint `index.md`, `context-review.md`,
+`tasks/001/{tasks,verification,review}.md`)를 그대로 만든다. `light`는
+`context-review.md`를 만들지 않아 네 문서가 되고, 축약 본문으로 전체 100줄
+이하가 된다. `light`/`full` 밖의 값은 파일을 하나도 만들기 전에 종료 코드 2로
+거절한다. 값이 `index.md`의 `bouncer.scale`에 그대로 남으므로, 뒤에 붙이는
+`scaffold task`도 같은 세트를 따른다. 두 경로의 게이트 차이는
+[gates.md](gates.md)에 있다.
 
 모든 명령이 `--repo <dir>`로 다른 저장소를 대상으로 실행할 수 있습니다.
 

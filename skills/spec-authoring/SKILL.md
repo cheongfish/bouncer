@@ -204,6 +204,20 @@ those placeholders ship as the commit subject and body.
        must be ⊆ Touch / `affected_paths`. If a fixture outside that set would
        fail, widen the brief or narrow verify / defer the contract change —
        do not leave the gap for execute to discover.
+     - **tasks on a light blueprint**: when blueprint `bouncer.scale` is
+       `light`, the required sections are **three** — Goal & intent, Touch,
+       Checklist. The scaffolded body has no Interface / Do not touch / Constraints
+       headings and you do not add them; G10 asks for the three only. Write
+       them shorter, not vaguer: Goal & intent is one or two sentences that
+       name the acceptance condition, Touch keeps the per-file verb entries
+       (it still has to justify every `affected_paths` entry for G11), and the
+       Checklist keeps the failing-test-first ordering. If the change needs a
+       rejection contract or a protected path spelled out, that is the signal
+       to set `scale` back to `full` rather than to smuggle the rule into
+       Goal & intent — a path you must protect has nowhere to live in a light
+       task, and G12 can only judge a Do not touch section that exists.
+       The whole light plan set is budgeted at 100 lines
+       (`rules/governance.md` `## Lightweight cycle`).
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.

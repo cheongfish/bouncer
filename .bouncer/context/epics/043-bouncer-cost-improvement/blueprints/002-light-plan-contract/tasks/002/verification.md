@@ -1,0 +1,22 @@
+---
+type: bouncer.verification
+title: light 네 런의 비용·품질 결과를 기록함
+description: 3회차 문서 줄 수·비용·품질·blind review 결과를 기록한다
+resource: .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/002/verification.md
+tags:
+  - bouncer
+  - verification
+timestamp: '2026-08-21T20:32:39.631+09:00'
+bouncer:
+  id: VERIFY-002
+  epic_id: '043'
+  blueprint_id: '002'
+  status: pending
+---
+# Verification
+
+## Command
+<command>
+
+## Evidence
+<result>

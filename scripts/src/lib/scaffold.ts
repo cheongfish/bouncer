@@ -23,12 +23,13 @@ const { renderDoc } = require('./render') as {
 const { parseFrontmatter } = require('./frontmatter') as {
   parseFrontmatter: (markdown: string) => { data: unknown; body: string };
 };
-const { templateBody } = require('./templates') as {
+const { templateBody, TEMPLATES } = require('./templates') as {
   templateBody: (templateName: string, vars: {
     epicId?: string | null;
     blueprintId?: string | null;
     name?: string | null;
   }) => string;
+  TEMPLATES: Record<string, string>;
 };
 const { ensureEpicIndexEntry } = require('./epic-index') as {
   ensureEpicIndexEntry: (opts: {
@@ -48,9 +49,10 @@ const {
     review: string;
   };
 };
-const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE } = require('./schema') as {
+const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_ENUM } = require('./schema') as {
   DEFAULT_COMMIT_TYPE: string;
   DEFAULT_SCALE: string;
+  SCALE_ENUM: string[];
 };
 
 function writeRel(repoRoot: string, rel: string, data: unknown, body: string): string {
@@ -89,25 +91,69 @@ function epicIdFromDir(canonicalEpicDir: string): string {
 }
 
 /**
- * blueprint index.md의 bouncer.status가 잠금(`closed`)인지 본다.
- * 판정을 못 하는 경우(파일 없음 / 프론트매터 파싱 실패)는 false — 잠금 신호가
- * 없는 것이지 잠긴 것이 아니다. 여기서 같이 죽으면 index.md가 아직 없는
+ * blueprint index.md의 bouncer 블록을 읽는다.
+ * 판정을 못 하는 경우(파일 없음 / 프론트매터 파싱 실패 / 비객체)는 null —
+ * "신호가 없다"이지 "그렇다"가 아니다. 여기서 같이 죽으면 index.md가 아직 없는
  * 저장소나 손상된 문서에서 scaffold 자체가 막힌다.
  */
-function isClosedBlueprint(repoRoot: string, blueprintDirRel: string): boolean {
+function readBlueprintBouncer(
+  repoRoot: string,
+  blueprintDirRel: string,
+): Record<string, unknown> | null {
   const abs = path.join(repoRoot, blueprintDirRel, 'index.md');
   let data: unknown;
   try {
     ({ data } = parseFrontmatter(fs.readFileSync(abs, 'utf8')));
   } catch {
-    return false;
+    return null;
   }
-  // YAML은 unknown이다. 예전 `data && data.bouncer && status === 'closed'`와
-  // 같이 falsy·비객체에서 멈추고, 객체일 때만 status를 읽는다.
-  if (!data || typeof data !== 'object') return false;
+  // YAML은 unknown이다. falsy·비객체에서 멈추고, 객체일 때만 안을 읽는다.
+  if (!data || typeof data !== 'object') return null;
   const bouncer = 'bouncer' in data ? data.bouncer : undefined;
-  if (!bouncer || typeof bouncer !== 'object') return false;
-  return 'status' in bouncer && bouncer.status === 'closed';
+  if (!bouncer || typeof bouncer !== 'object') return null;
+  return bouncer as Record<string, unknown>;
+}
+
+/** blueprint index.md의 bouncer.status가 잠금(`closed`)인지 본다. */
+function isClosedBlueprint(repoRoot: string, blueprintDirRel: string): boolean {
+  const bouncer = readBlueprintBouncer(repoRoot, blueprintDirRel);
+  return Boolean(bouncer && bouncer.status === 'closed');
+}
+
+/**
+ * blueprint가 선언한 scale을 돌려준다. 선언은 사람이 쓴 index.md의
+ * `bouncer.scale`뿐이다 — 경로 수·diff 크기로 추론하지 않는다.
+ * 알 수 없는 값이나 읽기 실패는 기본값(full)으로 떨어뜨린다: 문서 세트를
+ * 줄이는 쪽이 아니라 늘리는 쪽이 안전한 실패다.
+ */
+function blueprintScale(repoRoot: string, blueprintDirRel: string): string {
+  const bouncer = readBlueprintBouncer(repoRoot, blueprintDirRel);
+  const scale = bouncer ? bouncer.scale : undefined;
+  return typeof scale === 'string' && (SCALE_ENUM as unknown[]).includes(scale)
+    ? scale
+    : DEFAULT_SCALE;
+}
+
+/** 알 수 없는 scale은 파일을 하나도 쓰기 전에 거절한다. */
+function requireScale(scale: unknown): string {
+  if (scale === undefined) return DEFAULT_SCALE;
+  if (typeof scale !== 'string' || !(SCALE_ENUM as unknown[]).includes(scale)) {
+    throw new Error(`scale must be one of ${SCALE_ENUM.join(' | ')}, got ${JSON.stringify(scale)}`);
+  }
+  return scale;
+}
+
+/**
+ * scale에 맞는 템플릿 이름. light는 `<base>-light.md`가 실제로 있을 때만
+ * 그 이름을 쓰고, 없으면 공용 템플릿으로 떨어진다 — full 본문을 바이트
+ * 단위로 유지하면서, light가 full과 같은 본문을 쓰는 문서(verification)는
+ * 사본을 두지 않기 위함. 사본을 두면 공용 템플릿만 고칠 때 light가 조용히
+ * 뒤처진다.
+ */
+function templateNameFor(base: string, scale: string): string {
+  if (scale !== 'light') return base;
+  const lightName = base.replace(/\.md$/, '-light.md');
+  return lightName in TEMPLATES ? lightName : base;
 }
 
 function scaffoldEpic({ repoRoot, epicId, name, timestamp }: {
@@ -137,11 +183,12 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp }: {
  * 기존 blueprint 에 tasks/<NNN>/ 묶음 3종을 추가한다.
  * 거절 조건을 모두 검사한 뒤에만 파일을 쓴다 — 일부만 생성된 상태를 남기지 않기 위함.
  */
-function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }: {
+function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale }: {
   repoRoot: string;
   blueprintDir: string;
   taskId: string;
   timestamp: string;
+  scale?: string;
 }): string[] {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
@@ -170,7 +217,13 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }: {
   }
 
   const ids = expectedTaskDocIds(taskId);
-  const body = (templateName: string) => templateBody(templateName, { epicId, blueprintId, name: taskId });
+  // 호출자가 scale을 주지 않으면 blueprint가 선언한 값을 따른다. 나중에 붙는
+  // task도 같은 blueprint 계약을 쓰게 하려는 것 — 새 플래그를 만들지 않는다.
+  const taskScale = requireScale(scale === undefined ? blueprintScale(repoRoot, bp) : scale);
+  const isLight = taskScale === 'light';
+  const body = (templateName: string) => templateBody(
+    templateNameFor(templateName, taskScale), { epicId, blueprintId, name: taskId },
+  );
   const [tasksBase, verifyBase, reviewBase] = TASK_UNIT_BASENAMES;
 
   const tasksRel = `${taskDir}/${tasksBase}`;
@@ -198,7 +251,10 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }: {
   // yaml.dump는 주석을 직렬화하지 못한다. basis를 예시 엔트리로 채우면
   // S9/G4가 통과해 미작성 계획이 승인되므로, dump 뒤에 YAML 주석만 끼워
   // 필드·허용값을 보여주고 파싱 값은 []로 둔다.
-  {
+  // light는 이 5줄짜리 YAML 주석을 넣지 않는다 — 계획 문서 100줄 예산에서
+  // 가장 큰 고정비다. basis 자체는 light에서도 G4가 그대로 요구하고,
+  // 필드(graph/status/query/result)와 허용값은 skills/graphify-runner가 갖는다.
+  if (!isLight) {
     const abs = path.join(repoRoot, tasksRel);
     const hinted = fs.readFileSync(abs, 'utf8').replace(
       /^([ \t]*)basis: \[\][ \t]*$/m,
@@ -232,22 +288,29 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp }: {
   return created;
 }
 
-function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }: {
+function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, scale }: {
   repoRoot: string;
   epicDir: string;
   blueprintId: string;
   name: string;
   timestamp: string;
+  scale?: string;
 }): string[] {
   if (!isCanonicalEpicDir(epicDir)) {
     throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
   }
   requireNumericId(blueprintId, 'blueprintId');
+  // 알 수 없는 scale은 첫 파일을 쓰기 전에 거절한다 — 반쯤 만들어진
+  // blueprint 디렉터리를 남기지 않기 위함.
+  const bpScale = requireScale(scale);
+  const isLight = bpScale === 'light';
   const canonicalEpicDir = normalizeRepoPath(epicDir);
   const epicId = epicIdFromDir(canonicalEpicDir);
   const dir = `${canonicalEpicDir}/blueprints/${blueprintId}-${name}`;
   const created: string[] = [];
-  const body = (templateName: string) => templateBody(templateName, { epicId, blueprintId, name });
+  const body = (templateName: string) => templateBody(
+    templateNameFor(templateName, bpScale), { epicId, blueprintId, name },
+  );
 
   const idx = `${dir}/index.md`;
   // commit_type·scale은 blueprint 전용(epic/tasks 등에는 쓰지 않음).
@@ -262,19 +325,23 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp }: 
         blueprint_id: blueprintId,
         status: 'draft',
         commit_type: DEFAULT_COMMIT_TYPE,
-        scale: DEFAULT_SCALE,
+        scale: bpScale,
       }),
     body('blueprint.md')));
 
   // index.md 다음, task 묶음보다 앞. explain은 finalize 시점이라 여기 넣지 않는다.
-  created.push(...scaffoldContextReview({
-    repoRoot, blueprintDir: dir, timestamp,
-  }));
+  // light는 context-review 문서 자체를 만들지 않는다 — plan gate G18도
+  // light에서는 적용되지 않으므로 판정 대상이 없다(rules/governance.md).
+  if (!isLight) {
+    created.push(...scaffoldContextReview({
+      repoRoot, blueprintDir: dir, timestamp,
+    }));
+  }
 
   // 새 blueprint 는 tasks/001/ 묶음부터 시작한다. 루트 tasks-001.md 는 더 이상 만들지 않는다.
   // (기존 문서 인식은 listTasksDocs 가 유지 — 거절은 004.)
   const taskCreated = scaffoldTask({
-    repoRoot, blueprintDir: dir, taskId: '001', timestamp,
+    repoRoot, blueprintDir: dir, taskId: '001', timestamp, scale: bpScale,
   });
   created.push(...taskCreated);
 

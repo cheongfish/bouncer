@@ -210,6 +210,38 @@ Blueprint: [<BP-id>](../../index.md)
 <!-- 퀴즈 결과와 disposition을 task별 소제목 없이 단일 블록으로.
      comprehension 프론트매터(BP 엔트리 하나)와 맞춰 적는다. -->
 `,
+    // --- scale: light 전용 본문 ---
+    // light는 plan 단계 네 문서(blueprint index + tasks/001 세 문서) 전체 줄 수를
+    // 100줄 이하로 묶는 계약이다(rules/governance.md). 그래서 full 템플릿의 작성
+    // 가이드 주석을 옮겨오지 않는다 — 가이드는 skills/spec-authoring이 갖고,
+    // 본문에는 게이트가 요구하는 제목과 <TODO:> 자리만 남긴다.
+    // full 본문은 바이트 단위로 그대로 두고 여기서만 갈라진다.
+    'blueprint-light.md': `# <BP-id> <name>
+
+Epic: [<EPIC-id>](../../index.md) · Tasks: [001](tasks/001/tasks.md)
+
+## Intent
+- <TODO: 무엇을 바꾸고 무엇이 되면 끝인가>
+`,
+    // light G10 필수 절은 Goal & intent / Touch / Checklist 셋뿐이다.
+    // Interface·Do not touch 제목을 템플릿에 남기면 빈 절이 그대로 남아
+    // 사람이 읽을 때 full과 같은 계약으로 오해된다.
+    'tasks-light.md': `# Tasks
+
+## Goal & intent
+<TODO: 완료 후 시스템이 어떻게 달라지는가>
+
+## Touch
+- Modify \`<TODO: 수정할-파일>\` — <TODO: 왜 만지는가>
+
+## Checklist
+- [ ] <TODO: 작업 항목>
+`,
+    // verification은 light 전용 본문이 없다. full 본문에 줄일 주석이 없어
+    // 사본을 두면 드리프트만 생기므로, scaffold가 공용 `verification.md`로
+    // 떨어진다(templateNameFor).
+    // G14도 그대로. 허용값 주석만 뺀 최소 본문.
+    'review-light.md': '# Review\n\n## Findings\n- <finding>\n',
     'pr.md': PR_TEMPLATE,
 };
 function readTemplate(name) {

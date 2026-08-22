@@ -74,6 +74,13 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
    ```
+   **경량 scaffold.** step 2에서 경량으로 선언받았으면 blueprint 줄에
+   `--scale light`를 붙인다. 그러면 blueprint `index.md`와
+   `tasks/001/{tasks,verification,review}.md` 네 문서만 생기고
+   `context-review.md`는 만들지 않는다(전체 100줄 이하). 생략하거나
+   `--scale full`이면 아래 설명대로 다섯 문서가 그대로 생긴다. `light`/`full`
+   밖의 값은 문서를 하나도 만들지 않고 종료 코드 2다. 선언이 없는데 추측으로
+   `--scale light`를 붙이지 않는다.
    The epic and blueprint outputs must both remain under
    `.bouncer/context/epics/...` (dirs like `014-slug` / `001-slug`, never
    `EPIC-`/`BP-` prefixes on new scaffolds).
@@ -109,10 +116,17 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    match (blueprint `title` as subject; no blueprint `commit_intent`).
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
    **경량 선언.** 사용자가 경량 경로를 선언했으면 blueprint `index.md`
-   frontmatter의 `bouncer.scale`을 `light`로 바꾼다. scaffold가 이미
-   `scale: full`을 쓰므로 키를 새로 넣는 것이 아니라 값을 바꾼다. 부재·`full`
-   은 일반 경로이고, 소비자는 `scale === 'light'`만 본다. 작업이 커지면
-   값을 `full`로 되돌려 일반 경로로 복귀한다.
+   frontmatter의 `bouncer.scale`이 `light`여야 한다. step 3에서
+   `--scale light`로 scaffold했으면 이미 그 값이다. `--scale` 없이 scaffold하면
+   `scale: full`이 쓰이므로, 그 뒤에 경량으로 정했다면 값을 `light`로 바꾼다
+   (키를 새로 넣는 것이 아니다).
+   부재·`full`은 일반 경로이고, 소비자는 `scale === 'light'`만 본다.
+   **light 작성 범위.** light task 본문은 Goal & intent·Touch·Checklist 셋만
+   채운다 — 템플릿에 Interface·Do not touch 제목이 없고 G10도 셋만 요구한다.
+   보호할 경로나 거부 계약을 적어야 한다면 그것이 full로 돌아갈 신호다.
+   작업이 커지면 값을 `full`로 되돌리고,
+   `bouncer scaffold context-review --blueprint <dir>`로 판정 문서를 만든 뒤
+   Interface·Do not touch 절을 채워 일반 경로로 복귀한다.
    **Verify command (optional).** After the draft bodies make this blueprint's
    character clear, check the **repository root only** for any of these signals:
    `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`,
@@ -180,7 +194,14 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    Keep the earlier `--all` output as the complete preflight baseline so a
    route result cannot silently remove a rule from plan scope.
 
-7. **Context review.** After `affected_paths` is confirmed and **before**
+7. **Context review.** **Skip this entire step when the blueprint's
+   `bouncer.scale` is `light`** — that blueprint has no `context-review.md`
+   (scaffold does not create one) and the plan gate applies no G18 to it. Do
+   not scaffold the document just to run the judgment, and do not substitute a
+   lighter inline review; go to step 8. On a light plan the user's
+   `affected_paths` confirmation and G3–G5 / G10–G12 carry approved scope.
+
+   Otherwise: after `affected_paths` is confirmed and **before**
    approval, judge the plan documents. The `context-review` skill
    (`skills/context-review/SKILL.md`) is the behavioral brief either way.
    Dispatch **`bouncer-context-reviewer`** (plugin
@@ -230,13 +251,17 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G18
    `context-review.md` accepted with the same findings-field contract as G14
    (`## Findings` present; each finding `id` / `severity` / `status`; `accepted`
-   needs a non-empty note; no `scale: light` exemption), G3 tasks ready,
+   needs a non-empty note) — **G18 is not applied when blueprint
+   `bouncer.scale` is `light`**, G3 tasks ready,
    G4 `scope_evidence.suggested_paths` present and `scope_evidence.basis` a
    non-empty entry list with valid `producer` (legacy `graph` is read
    compatibility only), G5
-   `affected_paths` non-empty, G10 the five gated sections present and
-   placeholder-free (Constraints is authored but not gated), G11 Touch justifies every
+   `affected_paths` non-empty, G10 the gated sections present and
+   placeholder-free — five on a full blueprint (Constraints is authored but not
+   gated), three on `scale: light` (Goal & intent, Touch, Checklist) —, G11 Touch justifies every
    `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.
+   G4·G5·G11·G12는 light에서도 full과 같은 실패를 낸다: 축약되는 것은 서술
+   분량과 판정 문서이지 승인 범위 증적이 아니다.
    Fix any reported failure and re-run until it passes. Then point the user at
    `/bouncer-run` — it drives execute→commit until the blueprint's tasks run
    out, and `config.autonomy` (`auto` | `interactive`) already decides how often

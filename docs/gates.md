@@ -9,7 +9,7 @@ bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 
 | 게이트 | 검사 |
 | --- | --- |
-| **plan** | G1 epic `approved` · G2 blueprint `approved`(`finalize --yes`가 잠근 `closed` blueprint도 같은 G2 코드로 걸리지만 메시지는 미승인 `draft`와 다르게 마감 사유를 알린다) · G18 blueprint 루트 `context-review.md`가 `accepted`이고 `## Findings`와 findings 필드(`id`·`severity`·`status`, `accepted`에는 비지 않은 `note`)가 G14와 같은 계약 · `scale: light` 면제 없음 · G3–G5·G10–G12는 **발견된 각 task 묶음**(`tasks/<NNN>/tasks.md`)에 각각 적용 · G3 tasks `ready` · G4 `scope_evidence.suggested_paths` 존재 + `scope_evidence.basis`가 비어 있지 않은 엔트리 배열(`graph`/`status`/`query`/`result`)이며 새 `scope_evidence.producer`는 반드시 `graphify`임(구 `graph`는 읽기 호환만 함) · G5 `affected_paths` 비어있지 않음 · G10 tasks 5개 섹션 작성됨 · G11 `affected_paths`가 Touch로 정당화됨 · G12 Do not touch와 `affected_paths`가 겹치지 않음 |
+| **plan** | G1 epic `approved` · G2 blueprint `approved`(`finalize --yes`가 잠근 `closed` blueprint도 같은 G2 코드로 걸리지만 메시지는 미승인 `draft`와 다르게 마감 사유를 알린다) · G18 blueprint 루트 `context-review.md`가 `accepted`이고 `## Findings`와 findings 필드(`id`·`severity`·`status`, `accepted`에는 비지 않은 `note`)가 G14와 같은 계약(blueprint `bouncer.scale`이 `light`면 이 문서가 없으므로 G18을 적용하지 않는다) · G3–G5·G10–G12는 **발견된 각 task 묶음**(`tasks/<NNN>/tasks.md`)에 각각 적용 · G3 tasks `ready` · G4 `scope_evidence.suggested_paths` 존재 + `scope_evidence.basis`가 비어 있지 않은 엔트리 배열(`graph`/`status`/`query`/`result`)이며 새 `scope_evidence.producer`는 반드시 `graphify`임(구 `graph`는 읽기 호환만 함) · G5 `affected_paths` 비어있지 않음 · G10 tasks 섹션 작성됨(full 5개: Goal & intent·Interface·Touch·Do not touch·Checklist / light 3개: Goal & intent·Touch·Checklist) · G11 `affected_paths`가 Touch로 정당화됨 · G12 Do not touch와 `affected_paths`가 겹치지 않음 |
 | **execute** | 활성 포인터가 가리키는 task 묶음만 판정: G6 `tasks` `verified` · G7 같은 디렉터리의 `verification` `passed` · G8 같은 디렉터리의 `review` `accepted`(또는 `required: false`) · G13 `verify` 명령 실제 실행 + 종료 코드 0 + `verification.md` 본문이 기록된 메타데이터와 일치 · G14 `review.md`의 `## Findings` 존재 + 각 finding의 severity/status 유효 |
 | **commit** | 포인터 task의 G6 `tasks` `verified` · G7 `verification` `passed` · G8 `review` `accepted`(또는 `required: false`) 재확인 + G13 하네스 원장 대조(execute와 동일) + G17 스테이징 경로가 그 task `affected_paths` 안인지 (G9·G15는 결번; project `.bouncer/Distill.md`는 skill + `makeAllowed`, 본문 게이트 아님) |
 | **finalize** | G16 모든 task `verified` · explain `published` · 본문 5섹션 · `comprehension` 배열의 BP 단일 엔트리(`quiz_score` 필수) · 그 엔트리 `diff_sha`가 `range_from..HEAD`(`.bouncer/context/` 제외)와 일치 |
@@ -37,7 +37,14 @@ S21–S26은 Project Distill 구조 검사입니다. S21은 등록되지 않은 
 [compatibility.md](compatibility.md)를 보세요.
 
 섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가
-G10에 걸리는 것은 의도된 동작입니다.
+G10에 걸리는 것은 의도된 동작이며, light 템플릿도 `<TODO: …>`를 남겨 같은 방식으로
+걸립니다.
+
+**plan 게이트의 light 분기는 두 곳뿐입니다.** blueprint `index.md`의
+`bouncer.scale`이 `light`면 G18을 적용하지 않고, G10 필수 절이 세 개로 줄어듭니다.
+그 외에는 갈라지지 않습니다 — G1·G2·G3·G4·G5·G11·G12는 full과 같은 실패를 내고,
+execute·commit·finalize 게이트(G6–G8·G13·G14·G16·G17)는 scale을 읽지 않습니다.
+`scale`이 없거나 `full`이거나 알 수 없는 값이면 전부 full 계약입니다.
 
 **G13은 verify 명령을 실행한 원장과 문서를 대조합니다.** execute·commit 게이트는
 `verification.md` 프론트매터만 보지 않습니다. `bouncer verify`가 Git common

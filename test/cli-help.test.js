@@ -73,3 +73,8 @@ test('usage lists scaffold context-review --blueprint', () => {
   const r = capture([]);
   assert.match(r.out, /context-review --blueprint <dir>/);
 });
+
+test('usage lists scaffold blueprint --scale light|full', () => {
+  const r = capture([]);
+  assert.match(r.out, /blueprint --epic-dir <dir> --id <ddd> --name <slug> \[--scale light\|full\]/);
+});

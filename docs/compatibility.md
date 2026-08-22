@@ -53,14 +53,14 @@ G 코드는 게이트별 검사, S 코드는 항상 실행되는 구조·스키�
 | `G6` | task `verified` |
 | `G7` | verification `passed` |
 | `G8` | review `accepted` |
-| `G10` | 계획 다섯 섹션 작성 |
+| `G10` | 계획 섹션 작성(full 다섯, `scale: light`는 셋) |
 | `G11` | `affected_paths`가 Touch로 정당화됨 |
 | `G12` | Do not touch와 범위가 겹치지 않음 |
 | `G13` | verify 실행 증적 성공·본문 일치·하네스 원장 대조 |
 | `G14` | review findings 형식 유효 |
 | `G16` | finalize의 task·explain·comprehension·diff 검사 |
 | `G17` | 스테이징 범위가 허용 범위임 |
-| `G18` | context-review가 `accepted`이고 findings가 유효 |
+| `G18` | context-review가 `accepted`이고 findings가 유효(`scale: light` blueprint에는 적용하지 않음) |
 
 S 코드는 `S0`–`S26`이다. `S0` 파싱, `S1` OKF 필드, `S2` 타입·레거시 형식,
 `S3` resource, `S4` id 형식, `S5` id/상위 id 정합성, `S6` status, `S7` task
@@ -126,6 +126,29 @@ breaking change가 아니다.
 실행하지 않은 호스트 설치나 파일럿 검증을 성공했다고 주장하지 않는다. 호스트·
 저장소 조합의 현재 상태는 파일럿 매트릭스와 설치 지원 현황에 기록된 검증 결과를
 따른다.
+
+## 파기한 계약: light plan 문서 세트
+
+**바꾼 것.** `bouncer scaffold blueprint`에 선택 인자 `--scale light|full`을
+추가했다. `light`는 blueprint 루트 `context-review.md`를 만들지 않고 축약 본문을
+쓴다. plan 게이트는 `bouncer.scale`이 `light`인 blueprint에 **G18을 적용하지
+않고**, **G10** 필수 절을 `Goal & intent`·`Touch`·`Checklist` 셋으로 줄인다.
+
+**왜.** 좁은 범위 작업에도 340줄짜리 계획 문서와 별도 판정 왕복이 고정비로
+들어갔다. 줄인 것은 서술 분량과 판정 문서이고, 승인 범위 증적(G4·G5·G11·G12)은
+그대로 둔다.
+
+**영향.** G18의 "모든 blueprint" 계약과 G10의 "다섯 절" 계약이 깨진다. 두 코드의
+번호와 의미는 유지되며 적용 조건만 `bouncer.scale`로 갈라진다. `scale`이
+없거나 `full`이면 이전과 완전히 같다 — 생성 파일 목록, 템플릿 본문, 두 게이트
+판정 모두 바이트·동작 수준에서 동일하다. `--scale`을 쓰지 않던 기존 호출은
+영향을 받지 않고, `light`/`full` 밖의 값은 파일을 만들기 전에 종료 코드 2다.
+
+**대체 경로.** 축약이 맞지 않으면 full로 돌아간다: blueprint `index.md`의
+`bouncer.scale`을 `full`로 되돌리고 `bouncer scaffold context-review
+--blueprint <dir>`로 판정 문서를 만든 뒤, task에 `Interface`·`Do not touch`
+절을 채우고 plan 게이트를 다시 돌린다. 이미 마감한 light blueprint에 소급해
+`context-review.md`를 만들지는 않는다.
 
 ## Migration path
 

@@ -21,6 +21,23 @@ on arm 은 `scripts/bouncer` CLI 로 사이클을 수행했다. 스킬 문서
 review)을 코드 작성 **전에** 채우고 plan 게이트를 통과해야 구현을 시작할 수
 있었다.
 
+### 3회차 on arm: light 계약
+
+3회차부터 on arm 은 **light 계획 계약**으로 돌린다. scaffold 는
+`bouncer scaffold blueprint --scale light` 한 줄이고, 계획 문서는 blueprint
+`index.md` 와 `tasks/001/{tasks,verification,review}.md` 넷이다.
+`context-review.md` 는 만들지 않으므로 계획 문서 판정 왕복도, plan 게이트의
+G18 도 없다. task 본문은 `Goal & intent`·`Touch`·`Checklist` 셋만 채운다 —
+`Interface`·`Do not touch` 를 채우게 하면 측정 대상이 아닌 분량이 다시 들어온다.
+
+바뀌지 않는 것: `affected_paths` 는 사람이 확정하고, G3–G5·G11·G12 와
+execute·commit 게이트(G6–G8·G13·G14·G17)는 1·2회차와 같은 조건으로 받는다.
+따라서 3회차 Δ 는 **계획 단계 고정비의 차이**로 읽어야 하며, 게이트 강제력의
+차이가 아니다. 1·2회차 수치는 full 계약이므로 계획 문서 분량을 3회차와 직접
+빼서 비교하지 않는다 — 두 계약을 함께 보고할 때는 arm 라벨에 `on-full` /
+`on-light` 를 남긴다. 이 절 이전 문단의 4종 문서 설명은 1·2회차 기록이며
+덮어쓰지 않는다.
+
 ## 통제
 
 - 프롬프트는 두 arm 에 **토씨 하나 안 바꾸고** 동일하게 전달. `done_when` 은
