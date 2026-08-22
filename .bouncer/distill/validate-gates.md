@@ -55,6 +55,14 @@ Rules routed to validate-gates; routing remains disabled until the project expli
   `closed` blueprint, and `listReadyBlueprints` excludes it. Work on a finished
   blueprint goes to a new blueprint, not a new task on the old one.
 
+- `bouncer scaffold blueprint --scale light|full` validates against
+  `SCALE_ENUM` before the first write (exit 2 on anything else). `light` writes
+  four plan docs — blueprint `index.md` plus
+  `tasks/001/{tasks,verification,review}.md`, 97 lines as scaffolded — and no
+  `context-review.md`; plan G10 then requires only `Goal & intent`, `Touch`,
+  and `Checklist`. G3–G5, G11, G12, and every execute / commit gate are
+  unchanged on light.
+
 ## Gotchas
 
 - CLI command registry lookup must use own keys (`Object.hasOwn` or
@@ -103,6 +111,11 @@ Rules routed to validate-gates; routing remains disabled until the project expli
   `--message` alone does not apply — apply needs `--yes --message`. Empty
   `entries` on `applyImport` is `ok: true`, `committed: false`, no files and no
   commit, distinct from limit/refusal failures.
+
+- `templateNameFor` uses a `<base>-light.md` template only when that key
+  exists and otherwise falls back to the shared template — verification
+  deliberately has no light variant. Do not add a duplicate `-light` body that
+  is byte-identical to its shared template; the copies drift silently.
 
 ## Decisions
 
