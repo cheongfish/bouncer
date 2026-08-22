@@ -1376,3 +1376,114 @@ test('unknown gate still throws', () => {
     /unknown gate: nope/,
   );
 });
+
+// --- plan gate: scale light 축약 계약 ---
+// light의 유일한 발동 신호는 blueprint index.md의 bouncer.scale이다.
+const LIGHT_READY_BODY = `# Tasks
+
+## Goal & intent
+Ship login validation.
+
+## Touch
+- \`src/auth/\`
+- \`test/auth/\`
+
+## Checklist
+- [ ] implement validateLogin
+`;
+
+function lightPlanDocs(body, tasksExtra = {}) {
+  return {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved', { scale: 'light' }),
+    tasks: doc('ready', {
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+      affected_paths: ['src/auth/login.js', 'test/auth/login.test.js'],
+      ...tasksExtra,
+    }, body),
+  };
+}
+
+test('plan gate on scale light passes without a context-review document', () => {
+  const failures = [];
+  checkGate('plan', lightPlanDocs(LIGHT_READY_BODY), rels, failures);
+  assert.deepStrictEqual(failures, []);
+});
+
+test('plan gate on scale full still demands context-review (no light exemption)', () => {
+  const docs = lightPlanDocs(LIGHT_READY_BODY);
+  docs.blueprintIndex = doc('approved', { scale: 'full' });
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G18' && /context-review\.md missing/.test(f.message)));
+  // full은 Interface·Do not touch도 여전히 필수다.
+  assert.ok(failures.some(
+    (f) => f.code === 'G10' && /missing implementation-ready sections: interface, doNotTouch/.test(f.message),
+  ));
+});
+
+test('plan gate G10 on scale light requires only goal, touch, checklist', () => {
+  for (const heading of ['## Goal & intent', '## Touch', '## Checklist']) {
+    const body = LIGHT_READY_BODY.replace(`${heading}\n`, '');
+    const failures = [];
+    checkGate('plan', lightPlanDocs(body), rels, failures);
+    assert.ok(
+      failures.some((f) => f.code === 'G10'),
+      `${heading} removal must fail G10`,
+    );
+  }
+});
+
+test('plan gate G10 on scale light reports the three-section list when no tasks doc exists', () => {
+  const failures = [];
+  const docs = { epicIndex: doc('approved'), blueprintIndex: doc('approved', { scale: 'light' }) };
+  checkGate('plan', docs, rels, failures);
+  const g10 = failures.filter((f) => f.code === 'G10');
+  assert.strictEqual(g10.length, 1);
+  assert.match(g10[0].message, /sections: goal, touch, checklist$/);
+});
+
+test('the shipped light tasks template cannot pass the plan gate untouched', () => {
+  const failures = [];
+  checkGate('plan', lightPlanDocs(TEMPLATES['tasks-light.md']), rels, failures);
+  const g10 = failures.filter((f) => f.code === 'G10');
+  assert.strictEqual(g10.length, 1);
+  assert.match(g10[0].message, /placeholders: goal, touch, checklist/);
+});
+
+test('scale light keeps G4, G5, G11, and G12 identical to full', () => {
+  // G4 / G5 — 빈 scope evidence와 빈 affected_paths는 light에서도 통과하지 못한다.
+  const bare = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved', { scale: 'light' }),
+    tasks: doc('ready', { affected_paths: [] }, LIGHT_READY_BODY),
+  };
+  const bareFailures = [];
+  checkGate('plan', bare, rels, bareFailures);
+  assert.ok(bareFailures.some((f) => f.code === 'G4'));
+  assert.ok(bareFailures.some((f) => f.code === 'G5'));
+
+  // G11 — Touch가 근거를 대지 않는 경로.
+  const g11 = [];
+  checkGate('plan', lightPlanDocs(LIGHT_READY_BODY, {
+    affected_paths: ['src/payments/charge.js'],
+  }), rels, g11);
+  assert.ok(g11.some((f) => f.code === 'G11' && /src\/payments\/charge\.js/.test(f.message)));
+
+  // G12 — light 문서가 Do not touch 절을 쓰면 교차 판정은 그대로 걸린다.
+  const withAvoid = LIGHT_READY_BODY.replace(
+    '## Checklist',
+    '## Do not touch\n- `src/auth/login.js`\n\n## Checklist',
+  );
+  const g12 = [];
+  checkGate('plan', lightPlanDocs(withAvoid), rels, g12);
+  assert.ok(g12.some((f) => f.code === 'G12' && /src\/auth\/login\.js/.test(f.message)));
+});
+
+test('an unknown scale value is not treated as light', () => {
+  const docs = lightPlanDocs(LIGHT_READY_BODY);
+  docs.blueprintIndex = doc('approved', { scale: 'tiny' });
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G18'));
+});

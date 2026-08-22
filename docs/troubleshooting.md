@@ -2,7 +2,7 @@
 
 | 증상 | 원인과 대처 |
 | --- | --- |
-| `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는, 또 템플릿 안내 주석만으로는 통과하지 않습니다 |
+| `G10 tasks missing implementation-ready sections` | 해당 섹션 본문이 비어 있습니다. 헤딩만으로는, 또 템플릿 안내 주석만으로는 통과하지 않습니다. 필요한 절은 blueprint `bouncer.scale`이 정합니다 — full(부재·`full`)은 Goal & intent·Interface·Touch·Do not touch·Checklist 다섯, `light`는 Goal & intent·Touch·Checklist 셋입니다. 메시지에 나온 이름이 곧 그 blueprint의 목록이니 없는 절을 추가로 만들 필요는 없습니다 |
 | `G10 tasks sections still contain <TODO: …> placeholders` | 템플릿 placeholder를 실제 내용으로 바꾸지 않았습니다 |
 | `G4 tasks.scope_evidence.basis missing or empty` | `/bouncer-plan`의 Graphify evidence 단계를 건너뛰었습니다. `scope_evidence`에는 `producer: graphify`, 후보 `suggested_paths`, 비어 있지 않은 `basis` 엔트리 배열(`graph`/`status`/`query`/`result`; `status`는 `updated`·`reused`·`fail-skip`·`skip-disabled`·`missing`)이 필요합니다. graphify가 꺼져 있어도 `graphify-runner`가 엔트리를 남겨야 하며, 후보는 승인 범위가 아닙니다 |
 | graphify 실행 경로 해석 실패 / 경로 추천 없음 | `bouncer graphify-bin`이 config.bin → `.bouncer/.venv` → PATH에서 실행 파일을 못 찾은 상태입니다. `bouncer init`으로 설치하거나, 기존 프로젝트면 `bouncer init --promote-graphify`로 켠 뒤 다시 시도하세요. 오프라인은 [install.md](install.md) 수동 폴백. 없으면 사용자가 `affected_paths`를 수동 확정하면 됩니다 |
@@ -23,6 +23,8 @@
 | `S18 imported document is out of gate scope` | 임포트 문서는 작업 대상이 아니다. 새 blueprint를 만들라 |
 | `S19 type … does not match expected … for path` | 문서를 옮기거나 복사한 뒤 `type`을 안 고친 경우입니다. 경로가 요구하는 종류로 `type`을 맞추세요 |
 | `S20 scale "…" not in enum` | blueprint `bouncer.scale`은 `light` 또는 `full`만 허용합니다. 오타를 고치거나 필드를 빼세요 |
+| `scaffold blueprint: --scale must be one of light\|full` | `--scale` 값이 없거나 `light`/`full`이 아닙니다. 아무 문서도 만들지 않았으니 값을 고쳐 다시 실행하세요 |
+| light blueprint인데 `G18 context-review.md missing` | `bouncer.scale`이 `light`가 아닙니다(오타·`full`로 되돌림). light로 유지하려면 blueprint `index.md`의 값을 고치고, full로 돌아가는 중이라면 `bouncer scaffold context-review --blueprint <dir>`로 문서를 만든 뒤 Interface·Do not touch 절도 채우세요 |
 | `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
 | worktree에 task 묶음(`tasks/<NNN>/{tasks,verification,review}.md`)이 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |

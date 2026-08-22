@@ -11,6 +11,19 @@ finding fields; this skill only produces findings. Named agent: plugin
 (or runs this skill inline). The controller records the result into the
 blueprint-root `context-review.md` — not a task-directory `review.md`.
 
+## When this rubric applies
+
+**Full plans only.** This skill owns the `context-review.md` rubric, and that
+document exists only on a blueprint whose `bouncer.scale` is absent or `full`.
+`bouncer scaffold blueprint --scale light` does not create it, `/bouncer-plan`
+does not dispatch this judgment there, and the plan gate applies no G18 to a
+light blueprint — so there is no light variant of this rubric to run and no
+lighter judgment to substitute. If a light plan needs this judgment, the answer
+is to set `scale` back to `full` and scaffold the document
+(`bouncer scaffold context-review --blueprint <dir>`), not to review without one.
+On a light plan, approved scope rests on the user's confirmation of
+`affected_paths` and on G3–G5 / G10–G12.
+
 ## Steps
 
 1. **Load** — Read the epic `index.md`, the blueprint `index.md`, and every

@@ -47,6 +47,11 @@ Rules routed to core; routing remains disabled until the project explicitly opts
 - `affected_paths` as a wide directory (e.g. `scripts`) overlaps Do not touch
   file paths under it and fails G12 — prefer per-file paths.
 
+- The benchmark harness keeps no per-run snapshot of the plan-stage
+  `.bouncer/context` tree, and each run clone squashes to one commit, so
+  plan-gate-pass line counts are unrecoverable afterward. Capture that snapshot
+  during the run if a round needs to judge plan-stage cost.
+
 ## Decisions
 
 - This repository enables `distill.routing_enabled` only after the full
@@ -100,3 +105,8 @@ Rules routed to core; routing remains disabled until the project explicitly opts
   `bouncer advise` path is removed; do not reintroduce it as a parallel mode
   switcher.
 
+- The light contract cuts scaffold fixed cost, not plan-stage total. Round 3
+  measured four documents at 97 lines as scaffolded but 146–160 at cycle end:
+  the harness writes ~25 lines of verify evidence into `verification.md` and
+  authors add 24–38. A 100-line plan-stage goal cannot be met by shrinking
+  templates alone.

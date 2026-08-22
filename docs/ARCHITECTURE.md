@@ -105,6 +105,13 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 named agent는 `bouncer-context-reviewer`이며, named agent를 쓸 수 없는
 호스트에서는 스킬을 인라인으로 수행한다.
 
+이 판정자의 경계는 **full plan 하나뿐이다.** blueprint `bouncer.scale`이
+`light`이면 scaffold가 `context-review.md`를 만들지 않으므로 판정 대상 문서도,
+호출도, plan 게이트의 G18도 없다. `bouncer-context-reviewer`와 `context-review`
+스킬의 rubric은 그 문서가 있는 계획에만 적용되며, light 계획을 대신 판정하는
+다른 에이전트를 세우지 않는다 — light에서 승인 범위를 지키는 것은 사람의 확정과
+G3–G5·G10–G12다.
+
 `agentic-code-benchmark`는 워크플로 밖 개발자 도구다. 어떤 `/bouncer-*` 스킬도
 이를 호출하지 않고, 점수는 게이트 판정 입력이 되지 않는다. 산출물은
 `.benchmarks/`에 두고 저장소에 반입하지 않는다. Apache-2.0 반입물이라 출처

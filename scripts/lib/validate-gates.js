@@ -126,33 +126,47 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
         else if (bpStatus !== 'approved') {
             add('G2', 'blueprint.status != approved', 'blueprintIndex');
         }
+        // 축약 계약의 유일한 발동 신호는 blueprint index.md의 `bouncer.scale`이다.
+        // 사용자 선언(그리고 그것을 쓰는 scaffold --scale)만이 여기 도달한다 —
+        // 게이트는 경로 수·diff 크기로 light를 추론하지 않는다.
+        const bpData = asData(docs.blueprintIndex);
+        const bpBouncer = bpData && bpData.bouncer && typeof bpData.bouncer === 'object'
+            ? bpData.bouncer
+            : undefined;
+        const isLight = Boolean(bpBouncer && bpBouncer.scale === 'light');
         // G18은 blueprint 단위 — task 묶음 순회(G3–G5·G10–G12) 밖에 둔다.
-        // light 면제를 두지 않는 이유: bouncer.scale: light는 named-agent 디스패치
-        // (implementer/reviewer)만 인라인으로 줄이는 경로이고, 계획 문서 계약은
-        // 그대로다. scripts/는 scale을 읽지 않는다(Distill). 면제 분기를 넣으면
-        // LLM 판정이 게이트를 우회하게 되어 하드룰 4와 어긋난다. 게이트는 status와
-        // 세 필드·## Findings 절만 보고 판정 문장 자체는 읽지 않는다.
-        if (!docs.contextReview) {
-            add('G18', `context-review.md missing (${rels.contextReview}); run bouncer scaffold context-review`, 'contextReview');
-        }
-        else {
-            if (statusOf(docs.contextReview) !== 'accepted') {
-                add('G18', 'context-review.status != accepted', 'contextReview');
+        // light에는 context-review 문서가 아예 없으므로(scaffold가 만들지 않는다)
+        // 판정 대상이 없다. 이 면제는 LLM 판단이 아니라 문서 세트의 결과다:
+        // full은 여전히 status와 세 필드·## Findings 절을 그대로 요구한다.
+        if (!isLight) {
+            if (!docs.contextReview) {
+                add('G18', `context-review.md missing (${rels.contextReview}); run bouncer scaffold context-review`, 'contextReview');
             }
-            const crData = asData(docs.contextReview);
-            const crBouncer = crData && crData.bouncer
-                ? crData.bouncer
-                : {};
-            const crMeta = crBouncer.context_review;
-            for (const message of collectFindingFailures({
-                body: docs.contextReview.body,
-                findings: crMeta && crMeta.findings,
-                sectionLabel: 'context-review',
-                findingLabel: 'context-review',
-            })) {
-                add('G18', message, 'contextReview');
+            else {
+                if (statusOf(docs.contextReview) !== 'accepted') {
+                    add('G18', 'context-review.status != accepted', 'contextReview');
+                }
+                const crData = asData(docs.contextReview);
+                const crBouncer = crData && crData.bouncer
+                    ? crData.bouncer
+                    : {};
+                const crMeta = crBouncer.context_review;
+                for (const message of collectFindingFailures({
+                    body: docs.contextReview.body,
+                    findings: crMeta && crMeta.findings,
+                    sectionLabel: 'context-review',
+                    findingLabel: 'context-review',
+                })) {
+                    add('G18', message, 'contextReview');
+                }
             }
         }
+        // G10 필수 절. light는 Goal & intent·Touch·Checklist 셋만 요구한다.
+        // 승인 범위 판정(G4·G5·G11·G12)은 두 경로가 똑같이 받는다 — 줄어드는 것은
+        // 서술 분량이지 범위 증적이 아니다.
+        const sectionKeys = isLight
+            ? ['goal', 'touch', 'checklist']
+            : ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
         // plan 게이트의 task 검사는 문서마다 돌린다. file은 해당 task 경로여야
         // 어느 문서가 미달인지 알 수 있다. tasksDocs가 없으면 단위 테스트용
         // 단일 docs.tasks로 폴백.
@@ -163,7 +177,7 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             add('G3', 'tasks.status != ready', 'tasks');
             add('G4', 'tasks.graph.suggested_paths missing', 'tasks');
             add('G5', 'tasks.affected_paths missing or empty', 'tasks');
-            add('G10', 'tasks missing implementation-ready sections: goal, interface, touch, doNotTouch, checklist', 'tasks');
+            add('G10', `tasks missing implementation-ready sections: ${sectionKeys.join(', ')}`, 'tasks');
             return;
         }
         for (const tasksDoc of tasksList) {
@@ -187,7 +201,6 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
                 addTask('G5', 'tasks.affected_paths missing or empty');
             const tasksBody = tasksDoc && typeof tasksDoc.body === 'string' ? tasksDoc.body : '';
             const sections = parseTasksSections(tasksBody);
-            const sectionKeys = ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
             const missing = sectionKeys.filter((k) => !sections[k]);
             const unfilled = sectionKeys.filter((k) => sections[k] && TODO_RE.test(sections[k]));
             if (missing.length) {

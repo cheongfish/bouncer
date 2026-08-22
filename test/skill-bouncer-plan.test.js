@@ -117,3 +117,28 @@ test('bouncer-plan asks for the light path and reuses the shared maintenance epi
   assert.match(body, /묻|물어|ask/i);
   assert.match(body, /자동 판정하지 않|선언/);
 });
+
+// light 분기: scaffold 플래그와 context-review 생략을 산문에 고정한다.
+test('bouncer-plan scaffolds a light blueprint with --scale light', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /--scale light/);
+  assert.match(body, /--scale full|light\|full|`light`\/`full`/);
+  // 선언 없이 추측으로 붙이지 않는다.
+  assert.match(body, /추측|선언이 없는데|자동 판정하지 않/);
+});
+
+test('bouncer-plan skips the context-review step on scale light', () => {
+  const { body } = parseFrontmatter(md);
+  const step = body.slice(body.indexOf('7. **Context review.**'), body.indexOf('8. **Approval'));
+  assert.match(step, /light/);
+  assert.match(step, /[Ss]kip/);
+  assert.match(step, /G18/);
+  // 대체 판정을 세우지 말 것.
+  assert.match(step, /do not substitute|not substitute/i);
+});
+
+test('bouncer-plan states the light G10 section list and the unchanged scope gates', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /Goal & intent, Touch, Checklist/);
+  assert.match(body, /G4·G5·G11·G12|G4[^\n]*G12/);
+});

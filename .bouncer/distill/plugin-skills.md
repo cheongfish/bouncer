@@ -110,6 +110,10 @@ Rules routed to plugin-skills; routing remains disabled until the project explic
   return `skills/` paths, so add `skills/` / `docs/` / `agents/` by hand before
   confirm.
 
+- `--scale` is a `scaffold blueprint` flag only. `scaffold task` inherits the
+  blueprint's declared `scale`, and a `--scale` passed to it is silently
+  dropped by `parseFlags`.
+
 ## Decisions
 
 - Named-agent dispatch is four steps: `resolveSubagentModel` → named call → slug
@@ -121,8 +125,10 @@ Rules routed to plugin-skills; routing remains disabled until the project explic
   otherwise apply to `bouncer-implementer`, `bouncer-reviewer`,
   `bouncer-debugger`, and `bouncer-context-reviewer`. Optional blueprint
   `bouncer.scale: light` (plan asks the user; never auto from diff size;
-  `scripts/` does not read it) skips those steps for implementer and reviewer
-  only — run `implementation` / `review` inline. Debugger stays named, and plan
+  `scripts/` reads the declared value in four places — `scaffoldBlueprint`
+  picks the document set, `scaffoldTask` inherits it, the plan gate picks the
+  G10 / G18 contract, and S20 checks the enum) skips those steps for
+  implementer and reviewer only — run `implementation` / `review` inline. Debugger stays named, and plan
   still dispatches context-reviewer. A `/bouncer-run` drive keeps named dispatch
   even on `light`: the loop is an orchestrator, so it must not become the
   implementer or review its own diff. That exception is worded in
@@ -176,8 +182,11 @@ Rules routed to plugin-skills; routing remains disabled until the project explic
   `agents/`). The controller writes Findings into blueprint-root
   `context-review.md` and sets status; the reviewer must not. G18 (plan only)
   checks status, `## Findings`, and the G14 findings-field contract — judgment
-  prose is not the gate, and findings must not auto-edit plan docs. G18 has no
-  `scale: light` skip: light still needs `context-review.md` `accepted`. Closed
+  prose is not the gate, and findings must not auto-edit plan docs. G18 is plan-gate
+  only and is skipped entirely on `scale: light`, which scaffolds no
+  `context-review.md`. `full` — and an absent or unknown `scale`, which both
+  fall back to the full contract — still requires `context-review.md`
+  `accepted`. Closed
   032-and-earlier blueprints are not G18 targets; do not backfill
   `context-review.md`.
 

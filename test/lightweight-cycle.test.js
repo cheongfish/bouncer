@@ -72,3 +72,45 @@ test('explain-diff fixes one quiz question on scale light', () => {
   assert.match(ed, /1문항|질문 수(를)? 1/);
   assert.match(ed, /bouncer-finalize|\/bouncer-finalize/);
 });
+
+test('governance defines the light plan document set and gate branch', () => {
+  const gov = read('rules/governance.md');
+  assert.match(gov, /--scale light/);
+  assert.match(gov, /context-review\.md/);
+  assert.match(gov, /\bG18\b/);
+  assert.match(gov, /\bG10\b/);
+  assert.match(gov, /100 lines or fewer/);
+  assert.match(gov, /`Goal & intent`, `Touch`,\s+and `Checklist`/);
+  // 승인 범위 게이트는 그대로다.
+  assert.match(gov, /G3[–-]G5/);
+  assert.match(gov, /\bG11\b/);
+  assert.match(gov, /\bG12\b/);
+  assert.match(gov, /exit code 2/);
+});
+
+test('docs record the light plan contract in one voice', () => {
+  assert.match(read('docs/cli.md'), /--scale light\\\|full/);
+  assert.match(read('docs/gates.md'), /light 3개: Goal & intent·Touch·Checklist/);
+  assert.match(read('docs/gates.md'), /G18을 적용하지 않는다/);
+  assert.match(read('docs/workflow.md'), /--scale light/);
+  assert.match(read('docs/workflow.md'), /full로 돌아가려면/);
+  assert.match(read('docs/ARCHITECTURE.md'), /full plan 하나뿐이다/);
+  assert.match(read('docs/troubleshooting.md'), /light`는 Goal & intent·Touch·Checklist 셋/);
+  assert.match(read('docs/benchmark/protocol.md'), /3회차 on arm: light 계약/);
+});
+
+test('compatibility records the broken G10 and G18 contract', () => {
+  const compat = read('docs/compatibility.md');
+  assert.match(compat, /파기한 계약: light plan 문서 세트/);
+  assert.match(compat, /\*\*왜\.\*\*/);
+  assert.match(compat, /\*\*영향\.\*\*/);
+  assert.match(compat, /\*\*대체 경로\.\*\*/);
+  assert.match(compat, /scaffold context-review/);
+});
+
+test('spec-authoring documents the three light task sections', () => {
+  const sa = read('skills/spec-authoring/SKILL.md');
+  assert.match(sa, /light blueprint/);
+  assert.match(sa, /Goal & intent, Touch,\s*\n?\s*Checklist/);
+  assert.match(sa, /back to `full`/);
+});

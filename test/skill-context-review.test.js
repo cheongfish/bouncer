@@ -57,3 +57,15 @@ test('context-review judges Mermaid zoom conflicts without requiring a chart', (
   assert.match(md, /줌|zoom/i);
   assert.match(md, /Chart absence is optional and not a finding/i);
 });
+
+// light blueprint에는 context-review 문서 자체가 없다 — 이 rubric은 full 전용이다.
+test('context-review declares itself full-plan only', () => {
+  const md = readSkill('context-review');
+  assert.match(md, /[Ff]ull plans only|full-plan only/);
+  assert.match(md, /bouncer\.scale/);
+  assert.match(md, /light/);
+  assert.match(md, /G18/);
+  assert.match(md, /scaffold blueprint --scale light|does not create it/);
+  // light용 축약 rubric을 따로 만들지 않는다.
+  assert.match(md, /no light variant|set `scale` back to `full`/);
+});
