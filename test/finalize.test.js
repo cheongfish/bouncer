@@ -58,8 +58,15 @@ function fullBlueprint(repo, {
   comprehensionOk = true,
   blueprintDir = BP_REL,
   withGit = true,
+  withConfig = true,
 } = {}) {
   if (withGit) initGitWithChange(repo);
+  if (withConfig) {
+    fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+    // 해석 가능한 단일 명령. 테스트는 verifyExec로 실행을 가로채므로
+    // 실제 `true` 바이너리가 돌지 않게 스텁을 같이 넣는다.
+    fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{"verify":"true"}\n');
+  }
   const epicDir = blueprintDir.split('/blueprints/')[0];
   writeDoc(repo, `${epicDir}/index.md`, {
     type: 'bouncer.epic', title: 'Auth', description: 'd', resource: `${epicDir}/index.md`,
@@ -183,6 +190,19 @@ function fakeGit(changed, untracked) {
   };
 }
 
+function passVerify() {
+  return { ok: true, exitCode: 0, output: '' };
+}
+
+function countingVerify(result = { ok: true, exitCode: 0, output: '' }) {
+  const fn = () => {
+    fn.calls += 1;
+    return result;
+  };
+  fn.calls = 0;
+  return fn;
+}
+
 function writeRegisteredDistillShard(repo, id = 'core') {
   fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), [
@@ -224,12 +244,44 @@ test('out-of-scope file causes hard abort, nothing staged', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts', 'src/payments/charge.ts'], []);
-  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'out-of-scope');
   assert.deepStrictEqual(res.violations, ['src/payments/charge.ts']);
   assert.strictEqual(g.calls.staged, null);
   assert.strictEqual(g.calls.committed, null);
+});
+
+test('--yes verify failure skips lock, staging, and commit', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repoRoot);
+  const blueprintDir = BP_REL;
+  const fakeGit = {
+    staged: [],
+    commits: [],
+    changedFiles: () => ['src/auth/login.ts'],
+    untrackedFiles: () => [],
+    stage: (files) => { fakeGit.staged.push(...files); },
+    commit: (msg) => { fakeGit.commits.push(msg); },
+  };
+  const res = finalize({
+    repoRoot, blueprintDir, yes: true, git: fakeGit,
+    verifyExec: () => ({ ok: false, exitCode: 1, output: 'boom' }),
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'verify');
+  assert.strictEqual(res.code, 'VERIFY_FAILED');
+  assert.strictEqual(res.exitCode, 1);
+  assert.deepStrictEqual(fakeGit.staged, []);
+  assert.deepStrictEqual(fakeGit.commits, []);
+  assert.match(
+    fs.readFileSync(path.join(repoRoot, BP_REL, 'index.md'), 'utf8'),
+    /status: approved/,
+  );
+  assert.ok(!('violations' in res));
+  assert.ok(!('staged' in res));
 });
 
 test('finalize allows a registered Distill shard outside affected_paths', () => {
@@ -278,7 +330,9 @@ test('--yes stages and commits', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts'], [`${BP_REL}/explain.md`]);
-  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
   assert.strictEqual(res.committed, true);
   // blueprint는 approved 상태로 시작하므로 이 실행이 index.md를 closed로 잠그고
   // 그 경로도 함께 stage된다(브리프 인터페이스: lock 경로는 stage 대상에 합류).
@@ -294,20 +348,26 @@ test('no changes with --yes clears pointer without empty commit', () => {
   // "빈 커밋" 전제가 성립하지 않는다(항상 index.md 한 개는 stage된다).
   // 빈-커밋-스킵 분기는 "이미 closed라 잠글 것도 없음" 케이스로 옮겨 고정한다.
   fullBlueprint(repo);
+  const lockOnlyVerify = countingVerify();
   const lockOnly = finalize({
-    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit([], []).api, clearPointer: () => true,
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit([], []).api,
+    clearPointer: () => true, verifyExec: lockOnlyVerify,
   });
   assert.strictEqual(lockOnly.closed, `${BP_REL}/index.md`, 'precondition: this run performed the lock');
+  assert.strictEqual(lockOnlyVerify.calls, 1, 'lock-only commit still runs verify');
 
   const cleared = [];
   const g = fakeGit([], []);
+  const skipVerify = countingVerify();
   const res = finalize({
     repoRoot: repo,
     blueprintDir: BP_REL,
     yes: true,
     git: g.api,
     clearPointer: (args) => { cleared.push(args.repoRoot); return true; },
+    verifyExec: skipVerify,
   });
+  assert.strictEqual(skipVerify.calls, 0);
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.closed, null, 'already closed — this run must not rewrite it');
   assert.strictEqual(res.committed, false);
@@ -323,7 +383,9 @@ test('legacy root context blueprint is rejected before staging', () => {
   const legacyBp = 'context/epics/001-auth/blueprints/001-login';
   fullBlueprint(repo, { blueprintDir: legacyBp, withGit: false, comprehensionOk: false });
   const g = fakeGit([`${legacyBp}/tasks/001/tasks.md`], []);
-  const res = finalize({ repoRoot: repo, blueprintDir: legacyBp, yes: true, git: g.api });
+  const res = finalize({
+    repoRoot: repo, blueprintDir: legacyBp, yes: true, git: g.api, verifyExec: passVerify,
+  });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'validate');
   assert.ok(res.failures.some((f) => /must be under \.bouncer\/context\/epics/.test(f.message)));
@@ -343,7 +405,9 @@ test('runtime artifacts are neither violations nor staged', () => {
       '.bouncer/.venv/bin/graphify',
     ],
   );
-  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
   assert.strictEqual(res.ok, true);
   // approved blueprint → 이 실행이 잠금도 함께 stage한다(runtime artifact와
   // 무관하게 lock path는 항상 blueprintDir 밑이라 out-of-scope에 걸리지 않음).
@@ -362,6 +426,7 @@ test('a committed finalize clears the active pointer', () => {
     yes: true,
     git: g.api,
     clearPointer: (args) => { cleared.push(args.repoRoot); return true; },
+    verifyExec: passVerify,
   });
   assert.strictEqual(res.committed, true);
   assert.strictEqual(res.pointerCleared, true);
@@ -390,6 +455,7 @@ test('finalize commit message has no trailers', () => {
   const g = fakeGit(['src/auth/login.ts'], []);
   const res = finalize({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
+    verifyExec: passVerify,
   });
   assert.ok(!/Epic:|Blueprint:|Distill:|Co-Authored-By:/.test(res.commitMessage), res.commitMessage);
 });
@@ -412,6 +478,7 @@ test('finalize --yes from a linked checkout stages that checkout Distill and reg
   const g = fakeGit(['.bouncer/Distill.md', '.bouncer/distill/core.md'], []);
   const res = finalize({
     repoRoot: linkedRoot, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
+    verifyExec: passVerify,
   });
   assert.ok(res.staged.includes('.bouncer/Distill.md'));
   assert.ok(res.staged.includes('.bouncer/distill/core.md'));
@@ -421,7 +488,9 @@ test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit(['.bouncer/Distill.md'], []);
-  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.staged, ['.bouncer/Distill.md', `${BP_REL}/index.md`]);
@@ -438,6 +507,7 @@ test('finalize return includes next even when no candidates remain', () => {
     git: g.api,
     clearPointer: () => true,
     next: () => { throw new Error('should be caught'); },
+    verifyExec: passVerify,
   });
   assert.ok('next' in res);
   assert.strictEqual(res.ok, true); // 후보가 없어도 ok는 그대로
@@ -448,9 +518,12 @@ test('--yes locks the blueprint index.md to closed and stages it', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const g = fakeGit([], []);
+  const lockVerify = countingVerify();
   const res = finalize({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
+    verifyExec: lockVerify,
   });
+  assert.strictEqual(lockVerify.calls, 1);
   assert.strictEqual(res.closed, `${BP_REL}/index.md`);
   assert.ok(res.staged.includes(`${BP_REL}/index.md`));
   assert.match(
@@ -477,13 +550,15 @@ test('re-running --yes on an already-closed blueprint does not rewrite status an
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const firstRun = finalize({
-    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit([], []).api, clearPointer: () => true,
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit([], []).api,
+    clearPointer: () => true, verifyExec: passVerify,
   });
   assert.strictEqual(firstRun.closed, `${BP_REL}/index.md`);
 
   const g = fakeGit([], []);
   const res = finalize({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
+    verifyExec: passVerify,
   });
   assert.strictEqual(res.closed, null);
   assert.strictEqual(res.committed, false);
@@ -517,8 +592,42 @@ test('finalize dry-run and commit both carry injected next payload', () => {
     git: g.api,
     clearPointer: () => true,
     next: () => payload,
+    verifyExec: passVerify,
   });
   assert.strictEqual(committed.ok, true);
   assert.strictEqual(committed.committed, true);
   assert.deepStrictEqual(committed.next, payload);
+});
+
+test('dry-run does not invoke verifyExec', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const verifyExec = countingVerify();
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: false, git: fakeGit(['src/auth/login.ts'], []).api,
+    verifyExec,
+  });
+  assert.strictEqual(res.dryRun, true);
+  assert.strictEqual(verifyExec.calls, 0);
+});
+
+test('missing config.json yields VERIFY_CONFIG_MISSING without throwing', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo, { withConfig: false });
+  let threw = false;
+  let res;
+  try {
+    res = finalize({
+      repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit(['src/auth/login.ts'], []).api,
+      verifyExec: passVerify,
+    });
+  } catch (_e) {
+    threw = true;
+  }
+  assert.strictEqual(threw, false);
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'verify');
+  assert.strictEqual(res.code, 'VERIFY_CONFIG_MISSING');
+  assert.strictEqual(res.command, null);
+  assert.strictEqual(res.exitCode, null);
 });

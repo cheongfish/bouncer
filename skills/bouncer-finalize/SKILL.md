@@ -182,6 +182,8 @@ appears; do not reconstruct a root `context/` path.
    BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
    ```
+   `--yes`는 스테이징 전에 검증 명령을 실행한다. `reason: 'verify'` 실패는
+   원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다.
    Remember the worktree choice for step 5 (`remove` on A, `keep` on B).
    On **C**, fix and re-dry-run. On **D**, stop without `--yes`.
    (Empty staged set is fine — still run the ACQ so worktree choice is explicit;
