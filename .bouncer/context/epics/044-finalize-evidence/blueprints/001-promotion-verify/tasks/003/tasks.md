@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '044'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 3회차가 plan-gate 시점 줄 수를 남기지 못해 100줄 목표를 직접 재지 못함
     - 런별 스냅샷 수집과 표본 조항 적용 순서를 프로토콜에 못박음

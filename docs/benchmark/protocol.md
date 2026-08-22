@@ -49,6 +49,34 @@ execute·commit 게이트(G6–G8·G13·G14·G17)는 1·2회차와 같은 조건
 - 측정치는 다른 것을 실행하기 **전에** 수집했다(빌드 산출물이 diff 를 오염시키지
   않도록).
 
+## plan 단계 스냅샷
+
+각 런에서 `bouncer validate --gate plan` 이 통과한 직후, 구현을 시작하기 전에
+찍는다. 하네스는 런별 plan 단계 `.bouncer/context` 트리를 보관하지 않는다.
+실행 clone 은 커밋 하나로 squash 되고 `.benchmarks/` 에도 트리 사본이 없으므로,
+clone 안에만 두면 plan-gate 시점 줄 수가 사라진다.
+
+복사 대상은 blueprint `index.md` 와 `tasks/<NNN>/{tasks,verification,review}.md`
+다. full 계약이면 `context-review.md` 까지 넣는다. light 계약은
+`context-review.md` 를 만들지 않으므로 그 파일을 복사하지 않고 `wc` 인자에서도
+뺀다.
+
+남기는 곳은 실행 clone 밖, 측정 저장소의
+`docs/benchmark/round-<N>/plan-snapshots/<run>/` 이다. `DEST` 를 clone 안
+상대경로로 두면 squash 와 함께 지워진다.
+
+```bash
+BP=.bouncer/context/epics/<epic>/blueprints/<bp>
+DEST=docs/benchmark/round-<N>/plan-snapshots/<run>
+mkdir -p "$DEST"
+cp -R "$BP" "$DEST/"
+wc -l "$BP"/index.md "$BP"/context-review.md "$BP"/tasks/*/*.md > "$DEST/lines.txt"
+```
+
+`$BP` 는 해당 런 clone 안 경로다. `$DEST` 는 측정 저장소(이 파일과 같은
+저장소) 안 경로다. light 계약에서는 `wc` 줄에서 `"$BP"/context-review.md` 를
+뺀다. 100줄 목표는 이 `lines.txt` 의 합이다.
+
 ## 심사
 
 런당 독립 심사 에이전트 1명. 심사자는 **코드를 쓴 적이 없고**, arm 라벨을
@@ -69,6 +97,17 @@ on arm 의 `.bouncer/context/**` 계획 문서는 **심사 diff 에서 제외**�
 두 arm 을 같은 종류의 산출물(코드 + 테스트 + 문서)로 비교하기 위함이다.
 포함하면 on 이 scope·maintainability 에서 부당하게 깎인다. 대신 계획 문서
 분량은 비용 지표로 별도 보고한다(`comparison.md`).
+
+## 표본 제외와 실패 보고
+
+실패 보고가 표본 제외보다 앞선다: 목표 미달은 미달로 보고하고, 표본 제외는
+프로토콜 위반(사이클 미완, 사람 개입, 게이트 우회)에만 적용한다. 위 「심사
+대상에서 제외한 것」은 심사 diff 에서 계획 문서를 빼는 규칙이며, 런을 표본에서
+빼는 규칙이 아니다.
+
+3회차 on-light 네 런의 사이클 종료 줄 수는 146, 146, 151, 160이었고 넷 다
+100줄을 넘었다. 제외 조항을 그대로 적용하면 성공 표본이 0이 되므로 네 런을
+유지하고 미달로 판정했다.
 
 ## 하네스 결함과 그 대응 — 재현 시 반드시 읽을 것
 
@@ -134,3 +173,8 @@ worktree 에서 돌리면 원장이 덮인다. 서로 다른 blueprint 경로는
 - **태스크가 대부분 설계된 것이다.** t2 만 실제 코드에서 발견한 버그다.
 - **심사자도 LLM 이고 런당 1명이다.** 패널 투표나 적대적 교차검증이 없다.
 - **단일 모델·단일 세션.** 모델 간 일반화 근거 없음.
+- **3회차 계획 문서 줄 수는 plan-gate 시점 실측이 아니다.** 실행 clone 이 커밋
+  하나로 squash 되고 `.benchmarks/` 에 트리 사본이 없어, 보고값은 사이클 종료
+  줄 수(146/146/151/160)에서 하네스 몫 25줄을 뺀 파생 대리값 121/121/126/135
+  다. 다음 회차부터는 「plan 단계 스냅샷」 절이 plan 게이트 통과 직후의 줄을
+  남긴다.
