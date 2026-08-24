@@ -51,7 +51,7 @@ test('governance light path flips full to light instead of omitting the key', ()
 
 test('bouncer-execute inlines on scale light and keeps host fallback wording', () => {
   const exec = read('skills/bouncer-execute/SKILL.md');
-  assert.match(exec, /bouncer\.scale|scale:\s*light/);
+  assert.match(exec, /포인터\(`bouncer current`\)의 `scale`이 `light`면/);
   assert.match(exec, /인라인|inline/i);
   assert.match(exec, /named agents are unavailable/);
   assert.match(exec, /\bG8\b/);

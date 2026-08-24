@@ -1,7 +1,7 @@
 ---
 type: bouncer.tasks
 title: verify.timeout_ms 기본값과 실행 상한을 추가함
-description: Tasks for 001
+description: '`config.verify.timeout_ms`를 도입해 verify 실행에 선택적 상한을 둔다.'
 resource: .bouncer/context/epics/077-verify-timeout/blueprints/001-verify-timeout-ms/tasks/001/tasks.md
 tags:
   - bouncer
@@ -66,5 +66,5 @@ Blueprint: [001](../../index.md)
   // hang fixture + timeout_ms: 50 → exit non-zero, evidence matches /timeout/i
   ```
 - [ ] `node --test test/cli-verify.test.js`로 실패를 확인한다.
-- [ ] `init.ts`·`config.example.json`·`verification.ts`를 구현한다.
+- [ ] 양의 정수 `timeout_ms`일 때만 spawn 상한을 적용하고 기본값을 둔다.
 - [ ] `npm test`가 통과한다.

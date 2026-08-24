@@ -114,6 +114,12 @@ test('bouncer-execute uses the pointer task document as the brief', () => {
   assert.match(body, /pointer task directory.*review\.md|review\.md.*pointer task directory/i);
 });
 
+test('bouncer-execute step 1 excludes scope_evidence from brief injection', () => {
+  const { body } = parseFrontmatter(md);
+  // 계획 근거 감사 전용 필드라 step 1 읽기에서만 뺀다. 문서 삭제는 G4가 막는다.
+  assert.match(body, /scope_evidence[\s\S]{0,200}(주입|읽기)[\s\S]{0,40}제외/);
+});
+
 test('bouncer-execute hands off to /bouncer-commit and reuses an existing worktree', () => {
   const { body } = parseFrontmatter(md);
   // 커밋 지시는 /bouncer-commit으로 옮김 — execute에 남은 긍정 안내로 고정.
@@ -123,10 +129,18 @@ test('bouncer-execute hands off to /bouncer-commit and reuses an existing worktr
 
 test('bouncer-execute inlines implementer and reviewer on the light path', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /bouncer\.scale|scale:\s*light/);
+  // 경량 판정은 포인터 응답의 scale — blueprint index.md 를 다시 열지 않는다.
+  assert.match(body, /포인터\(`bouncer current`\)의 `scale`이 `light`면/);
   assert.match(body, /인라인/);
   // fallback 문구는 남아야 한다 — 경량 분기가 그것을 대체하면 G8이 막힌다.
   assert.match(body, /named agents are unavailable|미지원/i);
   // debugger는 축소 대상이 아니다.
   assert.match(body, /bouncer-debugger/);
+});
+
+test('bouncer-execute step 3 and step 5 light branches cite pointer scale', () => {
+  const { body } = parseFrontmatter(md);
+  const matches = body.match(/포인터\(`bouncer current`\)의 `scale`이 `light`면/g);
+  assert.strictEqual(matches && matches.length, 2);
+  assert.doesNotMatch(body, /blueprint `index\.md`의 `bouncer\.scale`/);
 });
