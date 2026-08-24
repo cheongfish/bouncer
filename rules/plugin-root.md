@@ -1,23 +1,21 @@
 # Plugin root
 
-Workflow skills run the `bouncer` CLI from the plugin directory. The variable
-that carries that location differs per agent host, so skill shell blocks resolve
-it in this order:
+Workflow skills run the `bouncer` CLI from the plugin directory. Install the
+`bouncer-root` package bin on `PATH`; every independent shell block resolves:
 
 ```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 ```
 
-| Variable | Set by |
-| --- | --- |
-| `BOUNCER_HOME` | Manual escape hatch. Always wins when set. |
-| `CLAUDE_PLUGIN_ROOT` | Claude Code (and the Codex compatibility alias). |
-| `PLUGIN_ROOT` | Codex native. |
+`--auto` searches only supported host installation candidates and selects the
+highest strict-semver version (then absolute path). `bouncer-root --select`
+prints numbered candidates and requires a TTY; `--host claude`, `--host codex`,
+or `--host antigravity` limits the search. `BOUNCER_HOME=/absolute/plugin/root`
+is a one-shot manual override and is validated before any candidate search.
 
-Cursor and Antigravity skill shells expose no plugin-root variable. There the
-user must export `BOUNCER_HOME` to the install directory — the one containing
-`scripts/bouncer`. If none of the three resolve, ask the user to set
-`BOUNCER_HOME` rather than guessing a path.
+The launcher never infers a host from `BOUNCER_HOME`, does not search the cwd,
+and does not fall back to arbitrary home-directory scans. Provider selection is
+separate: Cursor and Antigravity projects pin `subagents.provider` in config.
 
 `BOUNCER_ROOT` is the **plugin** install (skills, `scripts/bouncer`, master
 rules). The **consuming project's** main worktree is separate: resolve it with
@@ -27,6 +25,5 @@ worktree cwd as the Distill base. When this repository dogfoods the plugin,
 plugin root and project root may be the same path — that is a normal input, not
 a special case.
 
-Hooks resolve separately: `hooks/hooks.json` uses `${CLAUDE_PLUGIN_ROOT}`
-verbatim (Claude and Codex substitute it), while Cursor hooks use relative
-paths.
+Hooks resolve independently from workflow launcher shells; they do not transmit
+plugin-root variables to those shells. Cursor hooks use relative paths.

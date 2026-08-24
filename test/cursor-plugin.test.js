@@ -16,8 +16,12 @@ const { writeCurrent } = require('../scripts/lib/current');
 const root = path.join(__dirname, '..');
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
 
-const BOUNCER_ROOT_LINE =
-  'BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"';
+const BOUNCER_ROOT_LINE = 'BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?';
+const LAUNCHER_SKILLS = [
+  'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit',
+  'bouncer-finalize', 'bouncer-run', 'explain-diff', 'graphify-runner',
+  'migrate-ids', 'review',
+];
 
 test('the four plugin manifests agree on name and version', () => {
   const expectedVersion = '1.1.0';
@@ -89,42 +93,25 @@ test('the Codex marketplace lists bouncer at the repository root', () => {
   assert.deepStrictEqual(entry.source, { source: 'local', path: './' });
 });
 
-// Workflow skill markdown is not agent-substituted the way Claude rewrites
-// ${CLAUDE_PLUGIN_ROOT} in hooks.json. Every use must go through the
-// BOUNCER_ROOT resolution line. Cursor hook files use relative paths and must
-// not name Claude's token. hooks/hooks.json keeps ${CLAUDE_PLUGIN_ROOT} because
-// Claude and Codex both substitute that token (Codex also exports it as a
-// compatibility alias for PLUGIN_ROOT).
-test('commands and Cursor hooks do not leave CLAUDE_PLUGIN_ROOT as a path prefix', () => {
-  const skillsRoot = path.join(root, 'skills');
-  const workflowSkills = fs.readdirSync(skillsRoot)
-    .filter((name) => name.startsWith('bouncer-'))
-    .map((name) => path.join(skillsRoot, name, 'SKILL.md'));
-  assert.ok(workflowSkills.length >= 4, 'expected bouncer-* workflow skills');
-  for (const file of workflowSkills) {
+test('workflow shells resolve roots through the installed launcher', () => {
+  for (const name of LAUNCHER_SKILLS) {
+    const file = path.join(root, 'skills', name, 'SKILL.md');
     const src = fs.readFileSync(file, 'utf8');
     const label = path.relative(root, file);
     assert.ok(
-      !src.includes('${CLAUDE_PLUGIN_ROOT}/'),
-      `${label} interpolates CLAUDE_PLUGIN_ROOT directly`,
+      !src.includes('CLAUDE_PLUGIN_ROOT') && !src.includes('PLUGIN_ROOT'),
+      `${label} must not interpolate host root variables`,
     );
     assert.ok(
       src.includes(BOUNCER_ROOT_LINE),
       `${label} is missing the BOUNCER_ROOT resolution line`,
     );
-    if (src.includes('bouncer" ') || src.includes('scripts/bouncer')) {
-      assert.ok(src.includes('${BOUNCER_ROOT}/'), `${label} does not use BOUNCER_ROOT`);
-    }
+    assert.ok(src.includes('${BOUNCER_ROOT}'), `${label} does not use BOUNCER_ROOT`);
   }
   const cursorHooks = fs.readFileSync(path.join(root, 'hooks/cursor-hooks.json'), 'utf8');
   assert.ok(
     !cursorHooks.includes('CLAUDE_PLUGIN_ROOT'),
     'cursor-hooks.json must not name CLAUDE_PLUGIN_ROOT',
-  );
-  const claudeHooks = fs.readFileSync(path.join(root, 'hooks/hooks.json'), 'utf8');
-  assert.ok(
-    claudeHooks.includes('${CLAUDE_PLUGIN_ROOT}/'),
-    'hooks/hooks.json must keep the Claude/Codex substitution token',
   );
 });
 
@@ -132,11 +119,8 @@ test('commands and Cursor hooks do not leave CLAUDE_PLUGIN_ROOT as a path prefix
 // earlier block is gone by the time a later one runs. A block that reads
 // ${BOUNCER_ROOT} without setting it first resolves to an empty prefix and
 // runs `node /scripts/bouncer`.
-test('every shell block that reads BOUNCER_ROOT also assigns it', () => {
-  const skillsRoot = path.join(root, 'skills');
-  const workflowSkills = fs.readdirSync(skillsRoot)
-    .filter((name) => name.startsWith('bouncer-'))
-    .map((name) => path.join(skillsRoot, name, 'SKILL.md'));
+test('every launcher shell block resolves BOUNCER_ROOT independently', () => {
+  const workflowSkills = LAUNCHER_SKILLS.map((name) => path.join(root, 'skills', name, 'SKILL.md'));
   const offenders = [];
   for (const file of workflowSkills) {
     const src = fs.readFileSync(file, 'utf8');
@@ -149,7 +133,7 @@ test('every shell block that reads BOUNCER_ROOT also assigns it', () => {
       }
     }
   }
-  assert.deepStrictEqual(offenders, [], `blocks read BOUNCER_ROOT without setting it:\n${offenders.join('\n')}`);
+  assert.deepStrictEqual(offenders, [], `blocks read BOUNCER_ROOT without launcher:\n${offenders.join('\n')}`);
 });
 
 function runCursorHook(payload, cwd) {

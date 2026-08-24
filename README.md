@@ -98,8 +98,8 @@ codex plugin add bouncer@chunjae-tools
 agy plugin install <사내-git-url>
 ```
 
-`BOUNCER_HOME`과 `subagents.provider: "antigravity"` 설정은
-[docs/install.md](docs/install.md#antigravity)를 보세요.
+`bouncer-root` 설치 후보 선택과 `subagents.provider: "antigravity"` pin은
+별개입니다. [docs/install.md](docs/install.md#플러그인-루트-bouncer-root)를 보세요.
 
 ## Quickstart
 

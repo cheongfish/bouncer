@@ -36,7 +36,7 @@ by name.
 
    1. Resolve the model (never throws; `null` means parent-session inherit):
       ```bash
-      BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-reviewer'})))"
       ```
    2. Call named agent `bouncer-reviewer` with that `model` (attach the filled

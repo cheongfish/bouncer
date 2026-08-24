@@ -17,7 +17,7 @@ the user at `/bouncer-commit`.
 **Project root.** Resolve the consuming project's main worktree (same value from
 a linked execute worktree cwd):
 ```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
 ```
 If that fails, stop and report stderr — do not treat the execute worktree or
@@ -45,7 +45,7 @@ evidence. The debugger never applies the fix.
 
 1. **Read the pointer.** Load the active blueprint dir, base branch, and task brief:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current
    ```
    If `current` is `null`:
@@ -82,7 +82,7 @@ evidence. The debugger never applies the fix.
      `.worktrees/<bp-id>` is returned by the helper so the reuse branch still
      hits; do not migrate or rename it:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    WORKTREE_PATH="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
    if [ -d "${WORKTREE_PATH}" ]; then
      : # reuse existing blueprint worktree
@@ -95,7 +95,7 @@ evidence. The debugger never applies the fix.
    Always run seed next (also on reuse — no-op when nothing remains to move),
    **from the base `cwd`**, so the worktree has the task brief for step 3:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" seed-worktree \
      --blueprint <pointer.blueprint> --to "${WORKTREE_PATH}"
    ```
@@ -131,7 +131,7 @@ evidence. The debugger never applies the fix.
 
    1. Resolve the model:
       ```bash
-      BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-implementer'})))"
       ```
    2. Call named agent `bouncer-implementer` with that `model`, passing only
@@ -181,7 +181,7 @@ evidence. The debugger never applies the fix.
 
    1. Resolve the model:
       ```bash
-      BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-debugger'})))"
       ```
    2. Call named agent `bouncer-debugger` with that `model`, passing the
@@ -237,7 +237,7 @@ evidence. The debugger never applies the fix.
 
 6. **Gate.** Run `validate --gate execute`:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
    ```
    Before evaluating G6–G14, `validate --gate execute` runs the configured

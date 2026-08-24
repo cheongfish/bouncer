@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '048'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 호스트별 루트 환경변수 계약이 스킬 셸까지 보장된다고 볼 수 없는 상태임
     - 같은 선택 정책과 provider 경계를 모든 진입점에서 일관되게 보여야 함
