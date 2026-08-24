@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '045'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 에이전트 문서 넷의 권한 절과 절차 절 이름이 갈리고 출력 계약이 마지막이 아닌 문서가 있음
     - 권한·가드·절차·출력 계약 순서를 넷에 공통으로 두고 출력 계약을 마지막으로 옮김
