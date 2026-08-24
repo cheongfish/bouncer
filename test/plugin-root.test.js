@@ -82,3 +82,27 @@ test('--host rejects unsupported Cursor', () => {
   assert.strictEqual(result.code, 1);
   assert.match(result.err, /claude, codex, or antigravity/);
 });
+
+test('CLI defaults cover stdout, stderr, stdin selection, and selection errors', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-root-'));
+  const candidate = fixture(home, 'claude', '1.0.0');
+  const writes = [];
+  const originalOut = process.stdout.write;
+  const originalErr = process.stderr.write;
+  const originalRead = fs.readFileSync;
+  process.stdout.write = (text) => { writes.push(`out:${text}`); return true; };
+  process.stderr.write = (text) => { writes.push(`err:${text}`); return true; };
+  fs.readFileSync = (target, ...args) => (target === 0 ? '1\n' : originalRead(target, ...args));
+  try {
+    assert.strictEqual(runBouncerRoot(['--select'], { homeDir: home, isTTY: true }), 0);
+    assert.ok(writes.includes(`out:${candidate}\n`));
+    assert.strictEqual(runBouncerRoot(['--unknown']), 1);
+    assert.match(writes.at(-1), /unknown argument/);
+    assert.strictEqual(capture(['--select'], { homeDir: home, isTTY: true, readInput: () => '0' }).code, 1);
+    assert.strictEqual(capture(['--select'], { homeDir: home, isTTY: true, env: { BOUNCER_HOME: '/bad' } }).code, 1);
+  } finally {
+    process.stdout.write = originalOut;
+    process.stderr.write = originalErr;
+    fs.readFileSync = originalRead;
+  }
+});
