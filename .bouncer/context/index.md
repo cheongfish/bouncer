@@ -50,3 +50,4 @@ bouncer_schema: '0.1'
 * [043 bouncer-cost-improvement](epics/043-bouncer-cost-improvement/index.md) - Epic 043
 * [044 승격 증적과 측정 프로토콜](epics/044-finalize-evidence/index.md) - Distill 승격 커밋을 검증 아래 두고 다음 회차 측정 프로토콜의 빈틈을 닫는다
 * [045 skill-shape](epics/045-skill-shape/index.md) - Epic 045
+* [046 review-loop-cap](epics/046-review-loop-cap/index.md) - Epic 046

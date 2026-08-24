@@ -72,6 +72,8 @@ test('bouncer-run caps verify at 1 debugger cycle and review round-trips at 2', 
   // 상한은 숫자로 고정. "몇 번쯤"은 읽는 사람이 판단하게 남겨 두면 안 됨.
   assert.match(body, /1회/);
   assert.match(body, /2회/);
+  // 리뷰 왕복 숫자의 소유권은 execute — 루프는 참조만 한다.
+  assert.match(body, /왕복은[\s\S]{0,40}\/bouncer-execute[\s\S]{0,20}2회/);
   assert.match(body, /accepted/);
   assert.match(body, /\/bouncer-plan/);
 });
