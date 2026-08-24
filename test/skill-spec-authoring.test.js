@@ -94,6 +94,16 @@ test('spec-authoring Mermaid examples keep each child zoom within its parent box
   assert.ok([...charts[2]].every((box) => charts[1].has(box)));
 });
 
+test('spec-authoring tasks section binds description, commit_intent, and Checklist roles', () => {
+  // 같은 변경을 title·description·commit_intent·Goal·Interface에 다섯 번 쓰지 않도록
+  // 역할 경계 세 줄을 긍정 매치로 고정한다. 금지 문구의 부재 단언은 쓰지 않는다 —
+  // 게이트가 검사하는 것은 섹션 존재이지 진술 횟수가 아니다.
+  const body = readSkill('spec-authoring');
+  assert.match(body, /description[\s\S]{0,120}Goal & intent[\s\S]{0,80}(유도|첫 문장)/);
+  assert.match(body, /commit_intent[\s\S]{0,160}(커밋 메시지 생성 전용|SSOT)/);
+  assert.match(body, /Checklist[\s\S]{0,160}Touch[\s\S]{0,80}(다시 열거하지|재열거하지)/);
+});
+
 test('spec-authoring derives a shard-targeted proposal and writes only after consent', () => {
   const md = readSkill('spec-authoring');
   assert.match(md, /drop[\s\S]{0,80}replace[\s\S]{0,80}add/i);

@@ -51,6 +51,15 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
      Goal & intent — not the subject noun phrase. For a flow change, show only
      the implementation branch already present in the parent chart.
      Section-specific rules:
+     - **description**: `description`은 `## Goal & intent` 첫 문장에서 유도하고
+       같은 내용을 두 번 작성하지 않는다. 필드를 비우거나 삭제하지 않는다 —
+       OKF 필수값이고 scaffold가 소유한다. 규율은 사람이 두 번 쓰지 않는 것이지
+       값이 없어도 된다는 뜻이 아니다.
+     - **commit_intent**: `commit_intent`는 커밋 메시지 생성 전용이다. 브리프
+       서술과 겹치면 `## Goal & intent`가 SSOT다. 형식(정확히 두 개의 한국어
+       `~함`/`~임` 줄, task 문서 전용)은 바꾸지 않는다.
+     - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
+       다시 열거하지 않고 절차만 담는다.
      - **Interface**: state what the change provides *and* what it rejects.
        A contract with only the positive half cannot be reviewed against.
      - **Touch**: one entry per file with a verb (`Create`, `Modify`,
