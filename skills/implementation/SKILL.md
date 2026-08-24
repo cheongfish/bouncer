@@ -46,6 +46,57 @@ the user asks for this skill by name.
    ceiling and upgrade path. Trivial one-liners that are self-evident need
    no comment.
 
+   On every non-trivial function or method, also write a docstring. The
+   contract is four parts — the items must exist; notation follows each
+   language's idiom, not a shared template:
+
+   - **Summary** — what the function does, plus caller-relevant behavior such
+     as failure, retry, and side effects.
+   - **Args** — one line per parameter.
+   - **Returns** — the return type and what it means; if the result branches,
+     document each branch.
+   - **Language** — Korean regardless of the implementation language.
+     Identifiers, type names, and paths stay verbatim.
+
+   TypeScript uses JSDoc (`@param {type} name - description`). Python uses
+   `Args:` / `Returns:` with `name (type): description`. Do not mix the two
+   forms.
+
+   TypeScript (JSDoc):
+
+   ```ts
+   /**
+    * 활성 포인터가 가리키는 task 문서의 검증 명령을 해석한다.
+    * 포인터가 존재하는 task를 지목하면 그 문서의 `bouncer.verify`만 읽고,
+    * 아니면 번호 순으로 첫 선언을 취한 뒤 `config.verify`로 폴백한다.
+    *
+    * @param {string} repoRoot - 저장소 루트 절대 경로
+    * @param {Pointer | null} pointer - 활성 포인터. null이면 문서 순회로 간다
+    * @returns {string} 실행 가능한 단일 argv 문자열
+    */
+   ```
+
+   Python:
+
+   ```python
+   def resolve_verify_command(repo_root: str, pointer: Pointer | None) -> str:
+       """활성 포인터가 가리키는 task 문서의 검증 명령을 해석한다.
+
+       포인터가 존재하는 task를 지목하면 그 문서의 `bouncer.verify`만 읽고,
+       아니면 번호 순으로 첫 선언을 취한 뒤 `config.verify`로 폴백한다.
+
+       Args:
+           repo_root (str): 저장소 루트 절대 경로
+           pointer (Pointer | None): 활성 포인터. None이면 문서 순회로 간다
+
+       Returns:
+           str: 실행 가능한 단일 argv 문자열
+       """
+   ```
+
+   On a long procedure, number the body steps (`# 1.` `# 2.`) and, at each
+   non-obvious decision, leave the rationale in that same place.
+
    Contra examples from this repository (`scripts/lib/validate.js`). Each
    pair comments the same code — **Bad** restates what; **Good** records why.
 

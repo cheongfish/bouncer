@@ -49,3 +49,20 @@ test('implementation shows good/bad comment contra examples from validate.js', (
   assert.match(md, /같은 헬퍼를 써야/);
   assert.match(md, /재승인 경로가 없/);
 });
+
+test('implementation requires Korean docstrings with args and returns', () => {
+  const md = readSkill('implementation');
+  // 파일 전체가 아니라 Detailed comments 단계 구간에만 단정을 건다.
+  // skill-minimality.test.js가 `## Decision ladder` 구간을 자르는 것과 같은 방식.
+  const step = md.match(/\*\*Detailed comments\*\*[\s\S]*?(?=\n\d+\. \*\*|\n## )/);
+  assert.ok(step, 'implementation must keep a Detailed comments step');
+  const s = step[0];
+  assert.match(s, /docstring/i);
+  assert.match(s, /Args|인자/);
+  assert.match(s, /Returns|반환/);
+  // 언어 무관 규정: 구현 언어와 상관없이 한국어라는 문장이 있어야 한다.
+  assert.match(s, /regardless of[^\n]{0,40}language|구현 언어와 (?:무관|상관)/i);
+  // 두 언어의 형태 예시가 모두 있어야 한다. JSDoc은 중괄호 타입이어야 한다.
+  assert.match(s, /@param \{[^}]+\} \w+/);
+  assert.match(s, /Args:/);
+});
