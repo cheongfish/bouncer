@@ -812,6 +812,20 @@ test('Distill byte threshold is a warning, not a content limit', () => {
   assert.deepStrictEqual(result.failures, []);
 });
 
+test('default Distill max_bytes warns above 6144 and passes below', () => {
+  const repo = mkRepo();
+  writeDistillIndex(repo, ['big', 'small']);
+  // 6144 위/아래 두 샤드. config에 distill.max_bytes 를 넣지 않는다.
+  writeDistillShard(repo, 'big', { paths: ['src/**'], pulls: [], body: 'x'.repeat(8877) });
+  writeDistillShard(repo, 'small', { paths: ['src/**'], pulls: [], body: 'x'.repeat(5842) });
+
+  const result = distillWarnings(repo);
+  const s26 = result.warnings.filter((entry) => entry.code === 'S26');
+  assert.ok(s26.some((entry) => /: big \(/.test(entry.message) || /big \(/.test(entry.message)));
+  assert.ok(!s26.some((entry) => /small/.test(entry.message)));
+  assert.deepStrictEqual(result.failures, []);
+});
+
 test('public validation rejects active Distill structural warnings', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());

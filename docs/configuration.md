@@ -16,7 +16,7 @@
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (저장소 상대) | `bouncer graphify-bin` 해석 1순위 | `".bouncer/.venv/bin/graphify"` |
 | `distill.routing_enabled` | `true` \| `false` | `bouncer distill --for` 선택 소비 | `true` — 구조 preflight 통과 후 활성화 |
-| `distill.max_bytes` | 양의 정수 바이트 값 | Distill 구조 validator의 경고 기준 | `65536` — 본문을 자르지 않음 |
+| `distill.max_bytes` | 양의 정수 바이트 값 | Distill 구조 validator의 경고 기준 | `6144` — 본문을 자르지 않음 |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` | `"develop"` |
 | `pr.labels` | 문자열 배열 | `/bouncer-finalize` | `["bouncer"]` |
@@ -42,9 +42,13 @@ validator의 경고는 활성화 가능 여부를 판정하는 구조화된 결�
 
 `distill.max_bytes`는 선택 결과의 하드 상한이 아니다. validator가 shard의
 UTF-8 byte 수가 기준을 넘었다는 경고(S26)를 내는 관찰 기준일 뿐이며, 결과를
-잘라내거나 shard를 버리지 않는다. 활성화된 저장소에서 구조 경고가 남아
-있으면 validator가 활성화를 거부하므로, 먼저 경고를 해소한 뒤 true로
-전환한다.
+잘라내거나 shard를 버리지 않는다. 기본값은 6KB(6144)다 — 대략 7.1 바이트/
+단어 환산으로 ≈865 단어이며, 이 저장소 분포에서 8KB·13KB급 샤드는 경고하고
+5.8KB급은 통과시킨다. `bouncer distill --all`은 같은 기준으로 샤드별·총합
+바이트를 stderr에만 남긴다. 그 초과 요약은 `/bouncer-finalize` 승격 ACQ와
+`/bouncer-plan` 프리플라이트 한 줄 보고에만 보이며 게이트가 아니다. 활성화된
+저장소에서 구조 경고가 남아 있으면 validator가 활성화를 거부하므로, 먼저
+경고를 해소한 뒤 true로 전환한다.
 
 ## verify 래퍼 패턴
 

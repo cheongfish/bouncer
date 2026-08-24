@@ -142,3 +142,9 @@ test('bouncer-plan states the light G10 section list and the unchanged scope gat
   assert.match(body, /Goal & intent, Touch, Checklist/);
   assert.match(body, /G4·G5·G11·G12|G4[^\n]*G12/);
 });
+
+// 프리플라이트 --all 직후 총량은 한 줄만 — 샤드별 표는 세션 주입이 된다.
+test('bouncer-plan reports Distill total size in one line after preflight', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /프리플라이트[\s\S]{0,80}총량[\s\S]{0,40}한 줄/);
+});

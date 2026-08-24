@@ -428,6 +428,23 @@ test('byte threshold warns without truncating the routed result', () => {
   assert.strictEqual(rendered, state.shards[0].body);
 });
 
+test('default Distill max_bytes path warns above 6144 and passes below', () => {
+  const repo = repoFixture();
+  index(repo, ['big', 'small']);
+  // 6144 위/아래. config에 distill.max_bytes 를 넣지 않아 DEFAULT를 탄다.
+  shard({ id: 'big', paths: ['src/**'], pulls: [], body: 'x'.repeat(8877) }, repo);
+  shard({ id: 'small', paths: ['src/**'], pulls: [], body: 'x'.repeat(5842) }, repo);
+
+  const structural = checkDistillStructural({
+    repoRoot: repo,
+    config: { source_dirs: ['src'], distill: { routing_enabled: false } },
+  });
+  const s26 = structural.warnings.filter((entry) => entry.code === 'S26');
+  assert.ok(s26.some((entry) => /big/.test(entry.message)));
+  assert.ok(!s26.some((entry) => /small/.test(entry.message)));
+  assert.deepStrictEqual(structural.failures, []);
+});
+
 function bulletHashes(markdown) {
   let current = null;
   const blocks = [];

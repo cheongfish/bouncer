@@ -46,7 +46,7 @@ test('init writes the exact config.json shape', () => {
     source_dirs: [],
     context_dirs: ['.bouncer/context'],
     graphify: { enabled: true },
-    distill: { routing_enabled: false, max_bytes: 65536 },
+    distill: { routing_enabled: false, max_bytes: 6144 },
     verify: 'npm test',
     base_branch: 'develop',
     autonomy: 'auto',
@@ -92,7 +92,7 @@ test('init seeds disabled Distill routing defaults without creating shards', () 
   assert.strictEqual(first.ok, true);
   assert.deepStrictEqual(firstConfig.distill, {
     routing_enabled: false,
-    max_bytes: 65536,
+    max_bytes: 6144,
   });
   assert.strictEqual(read(repo, '.bouncer/Distill.md'), legacy);
   assert.ok(!exists(repo, '.bouncer/distill'));
@@ -115,7 +115,7 @@ test('ready init seeds missing disabled Distill settings but preserves enabled r
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')).distill, {
     routing_enabled: false,
-    max_bytes: 65536,
+    max_bytes: 6144,
   });
 
   const enabled = JSON.parse(read(repo, '.bouncer/config.json'));

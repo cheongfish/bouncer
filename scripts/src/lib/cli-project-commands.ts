@@ -34,8 +34,9 @@ const { readShards, routeShards, renderShards, resolveDistillRoot } = require('.
   renderShards: (state: DistillState, selection: DistillSelection) => string;
   resolveDistillRoot: (opts: { repoRoot: string; runtime?: unknown }) => string;
 };
-const { readConfig } = require('./config') as {
+const { readConfig, getDistillConfig } = require('./config') as {
   readConfig: (repoRoot: string) => unknown;
+  getDistillConfig: (config?: unknown) => { routing_enabled: boolean; max_bytes: number };
 };
 
 type CliIo = {
@@ -46,6 +47,7 @@ type CliIo = {
 type DistillShard = {
   id: string;
   path?: string;
+  raw?: string;
   always?: boolean;
   pathsKnown?: boolean;
   pullsKnown?: boolean;
@@ -130,6 +132,45 @@ function allDistillSelection(state: DistillState, reason: string) {
     ids: Array.isArray(state.ids) ? state.ids : shards.map((shard) => shard.id),
     shards: shards.slice(),
   };
+}
+
+/**
+ * `distill --all` 전용 크기 관측을 stderr로 낸다.
+ * stdout 파이프 청결을 유지하고, S26과 같은 raw UTF-8 바이트로 잰다.
+ * max_bytes는 경고 표시만 붙이며 본문을 자르거나 샤드를 빼지 않는다.
+ *
+ * @param {DistillState} state - readShards 결과. sharded가 아니면 단일 파일 폴백.
+ * @param {string} content - 렌더된 stdout 본문. 단일 파일 폴백 총량에 쓴다.
+ * @param {unknown} config - `.bouncer/config.json` 값. max_bytes 기준에 사용.
+ * @param {CliIo} io - 출력 포트. err만 사용한다.
+ * @returns {void}
+ */
+function writeDistillAllSizeSummary(
+  state: DistillState,
+  content: string,
+  config: unknown,
+  io: CliIo,
+): void {
+  const maxBytes = getDistillConfig(config).max_bytes;
+  // 인덱스 부재·무효 폴백에는 샤드 목록이 없다. across 0 shards 로 적으면
+  // 빈 인덱스로 오해되므로 (single-file) 한 줄만 낸다.
+  if (state.sharded !== true) {
+    io.err(`distill: total ${Buffer.byteLength(content, 'utf8')} bytes (single-file)\n`);
+    return;
+  }
+  const shards = Array.isArray(state.shards) ? state.shards : [];
+  let total = 0;
+  for (const shard of shards) {
+    const bytes = Buffer.byteLength(typeof shard.raw === 'string' ? shard.raw : '', 'utf8');
+    total += bytes;
+    // 초과 표시는 같은 줄에 붙여 plan/프리플라이트가 한 패스로 걸러 읽을 수 있게 한다.
+    if (bytes > maxBytes) {
+      io.err(`distill: ${shard.id} ${bytes} (exceeds ${maxBytes})\n`);
+    } else {
+      io.err(`distill: ${shard.id} ${bytes}\n`);
+    }
+  }
+  io.err(`distill: total ${total} bytes across ${shards.length} shards\n`);
 }
 
 function distillPayload(
@@ -234,6 +275,11 @@ function cmdDistill(rest: string[], io: CliIo) {
   // 같은 출력을 파싱하게 한다. fail-open 진단은 본문과 섞지 않고 stderr로 보낸다.
   if ((parsed.mode === 'for' || parsed.mode === 'route') && selection.reason !== 'matched') {
     io.err(`distill: ${selection.reason}; using all shards\n`);
+  }
+  // 크기 요약은 --all 전용. --for/--route에 붙이면 선택 결과를 총량으로
+  // 오해하고, --audit 은 audit.err === '' 계약을 깨뜨린다.
+  if (parsed.mode === 'all') {
+    writeDistillAllSizeSummary(state, payload.content, config, io);
   }
   if (parsed.json || parsed.mode === 'route' || parsed.mode === 'audit') {
     io.out(`${JSON.stringify(payload, null, 2)}\n`);

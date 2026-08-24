@@ -141,6 +141,58 @@ test('distill --all and --audit ignore routing and select every shard', () => {
   assert.strictEqual(audit.err, '');
 });
 
+test('distill --all reports shard byte sizes on stderr without touching stdout', () => {
+  const repo = fixture();
+  const expectedOut = '# core\n\n\n# source\n\n\n# docs\n';
+  const r = capture(['distill', '--all', '--repo', repo]);
+
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(r.out, expectedOut);
+  assert.match(r.err, /distill: total \d+ bytes across \d+ shards/);
+  assert.doesNotMatch(r.out, /distill: total/);
+  assert.match(r.err, /distill: core \d+/);
+  assert.match(r.err, /distill: source \d+/);
+  assert.match(r.err, /distill: docs \d+/);
+
+  // --for / --audit 는 선택·감사 출력에 총량을 붙이지 않는다.
+  const forResult = capture(['distill', '--repo', repo, '--for', 'docs/index.md']);
+  assert.doesNotMatch(forResult.err, /distill: total/);
+  const audit = capture(['distill', '--repo', repo, '--audit', '--json']);
+  assert.strictEqual(audit.err, '');
+});
+
+test('distill --all marks shards that exceed max_bytes on the same stderr line', () => {
+  const repo = fixture();
+  // fixture config에는 max_bytes가 없어 DEFAULT(6144)를 탄다.
+  fs.writeFileSync(path.join(repo, '.bouncer', 'distill', 'docs.md'), [
+    '---',
+    'distill:',
+    '  id: docs',
+    '  paths:',
+    '    - docs/**',
+    '  pulls: []',
+    '---',
+    'x'.repeat(7000),
+    '',
+  ].join('\n'));
+  const r = capture(['distill', '--all', '--repo', repo]);
+
+  assert.strictEqual(r.code, 0);
+  assert.match(r.err, /distill: docs \d+ \(exceeds 6144\)/);
+  assert.doesNotMatch(r.out, /exceeds/);
+});
+
+test('distill --all single-file fallback reports total without a zero shard count', () => {
+  const repo = fixture();
+  fs.unlinkSync(path.join(repo, '.bouncer', 'Distill.md'));
+  const r = capture(['distill', '--all', '--repo', repo]);
+
+  assert.strictEqual(r.code, 0);
+  assert.match(r.err, /distill: total \d+ bytes \(single-file\)/);
+  assert.doesNotMatch(r.err, /across 0 shards/);
+  assert.doesNotMatch(r.out, /distill: total/);
+});
+
 test('distill --route and --json expose deterministic routing metadata', () => {
   const repo = fixture();
   const route = capture(['distill', '--repo', repo, '--route', 'docs/index.md']);

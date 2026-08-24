@@ -68,14 +68,20 @@ appears; do not reconstruct a root `context/` path.
 
    Present the complete list once in one ACQ with three choices: **approve** the
    whole list, **revise** it (re-present the revised whole list), or **skip** it.
-   Never ask per bullet. If the host ACQ tool is unavailable, render this same
-   list and the same three choices in chat and wait; no response is consent.
-   `config.autonomy: auto` and `bouncer.scale: light` do not skip this finalization
-   ACQ. Approval is the only signal that permits Distill writes, and consent is
-   session-only: do not persist it in config, frontmatter, or a new document
-   field. On rejection/skip, write no promotion files but continue with step 2,
-   the quiz, G16, and the remainder path. If there are zero candidates, report
-   that there is nothing to promote and do not show an ACQ.
+   Never ask per bullet. 같은 `distill --all --json` 호출의 stderr에 나온 상한
+   초과 샤드를 이 ACQ 목록에 함께 보여 준다(`audit.shards`에는 바이트가 없으므로
+   stdout JSON이 아니라 stderr 요약이 출처다). 초과는 정보일 뿐 게이트·자동
+   절삭·자동 거절이 아니다 — 잘못된 절삭은 다음 사이클이 같은 규칙을 다시
+   발견해야 하므로 강제가 아니다. 상한 초과 샤드를 대상으로 하는 제안은
+   `add`보다 `replace`/`drop`을 먼저 검토한다. If the host ACQ tool is
+   unavailable, render this same list and the same three choices in chat and
+   wait; no response is consent. `config.autonomy: auto` and `bouncer.scale:
+   light` do not skip this finalization ACQ. Approval is the only signal that
+   permits Distill writes, and consent is session-only: do not persist it in
+   config, frontmatter, or a new document field. On rejection/skip, write no
+   promotion files but continue with step 2, the quiz, G16, and the remainder
+   path. If there are zero candidates, report that there is nothing to promote
+   and do not show an ACQ.
 
    If `audit.shards` is empty because the CLI used its single-file fallback,
    use the reserved session-only target shard id `single-file`, with the
