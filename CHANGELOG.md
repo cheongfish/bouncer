@@ -7,6 +7,28 @@
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-08-24
+
+1.1.0 이후 execute 리뷰 상한·컨텍스트 주입 절감·플러그인 루트 launcher.
+
+### Added
+
+- **호스트 후보 플러그인 루트 launcher** — PATH의 `bouncer-root`가
+  Codex·Claude·Antigravity 설치 후보를 검증하고 `--auto`/`--select`로 루트를
+  고른다. `BOUNCER_HOME`은 여전히 최우선 override다.
+- **Distill 샤드 규율** — 기본 `distill.max_bytes`를 6KB로 조이고,
+  `bouncer distill --all` stderr 요약·finalize 승격 ACQ·plan 프리플라이트 한 줄
+  보고로 S26 초과를 노출한다.
+- **포인터 `scale`** — `bouncer current` 페이로드가 blueprint `scale`을 실어
+  execute 경량 분기가 index.md를 다시 읽지 않게 한다.
+
+### Changed
+
+- **execute 리뷰 재검 상한** — 리뷰 fix 왕복을 2회로 제한하고 상한 도달 시
+  `/bouncer-plan`으로 에스컬레이션한다. `/bouncer-run`은 그 숫자를 참조만 한다.
+- **브리프 주입 축소** — execute가 `scope_evidence`를 주입에서 빼고,
+  `spec-authoring`이 description·commit_intent·Checklist 역할 경계를 고정한다.
+
 ## [1.1.0] — 2026-08-24
 
 1.0.0 매니페스트 이후 쌓인 기능·게이트 보강. `bouncer--v1.0.0` 태그는 만들지

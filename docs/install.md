@@ -21,33 +21,33 @@ Claude Code · Cursor · Codex · Antigravity가 **같은 저장소**를 플러�
 | Codex | 미검증 |
 | Antigravity | 미검증 |
 
-## 1.1.0 릴리스 검증 절차
+## 1.2.0 릴리스 검증 절차
 
-설치 smoke는 최종 브랜치나 작업 중인 커밋이 아니라 `bouncer--v1.1.0` 태그가
+설치 smoke는 최종 브랜치나 작업 중인 커밋이 아니라 `bouncer--v1.2.0` 태그가
 가리키는 동일한 커밋을 대상으로 한다. 릴리스 운영자는 모든 task 커밋이 병합된
 최종 HEAD에서 다음 순서를 지킨다.
 
 1. 최종 HEAD에서 `npm run ci`가 성공하는지 확인한다.
-2. `bouncer--v1.1.0`이 아직 없고 다른 커밋을 가리키는 기존 태그도 아님을
+2. `bouncer--v1.2.0`이 아직 없고 다른 커밋을 가리키는 기존 태그도 아님을
    확인한다. 충돌하면 태그를 삭제하거나 강제로 이동하지 않고 중단한다.
 3. 검증한 최종 HEAD에 annotated 태그를 만든다.
 
    ```bash
-   git tag -a bouncer--v1.1.0 <merged-head>
+   git tag -a bouncer--v1.2.0 <merged-head>
    ```
 
 4. 원격 태그 push 권한과 marketplace 설치 권한에 대해 별도 동의를 받은 뒤
    태그를 push한다.
 
    ```bash
-   git push origin bouncer--v1.1.0
+   git push origin bouncer--v1.2.0
    ```
 
 5. push가 끝난 뒤에만 태그 기준으로 애플리케이션 저장소·모노레포·문서·설정
    중심 저장소와 Claude Code·Cursor·Codex·Antigravity의 12개 조합을 설치
-   smoke한다. 각 조합의 결과는 [PILOT.md](PILOT.md#110-태그-기준-smoke-및-릴리스-기록)에
+   smoke한다. 각 조합의 결과는 [PILOT.md](PILOT.md#120-태그-기준-smoke-및-릴리스-기록)에
    기록한다.
-6. smoke가 끝나면 **같은 `bouncer--v1.1.0` 태그의 GitHub Release**에 태그
+6. smoke가 끝나면 **같은 `bouncer--v1.2.0` 태그의 GitHub Release**에 태그
    commit SHA와 12개 조합 각각의 성공 횟수·실패 횟수·사용자 개입 횟수를
    남긴다. 태그 기준 smoke 전에는 모든 조합을 `미검증`으로 유지한다.
 
