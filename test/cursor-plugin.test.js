@@ -20,7 +20,7 @@ const BOUNCER_ROOT_LINE =
   'BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"';
 
 test('the four plugin manifests agree on name and version', () => {
-  const expectedVersion = '1.0.0';
+  const expectedVersion = '1.1.0';
   const claude = readJson('.claude-plugin/plugin.json');
   const cursor = readJson('.cursor-plugin/plugin.json');
   const codex = readJson('.codex-plugin/plugin.json');

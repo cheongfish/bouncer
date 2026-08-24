@@ -7,6 +7,30 @@
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-24
+
+1.0.0 매니페스트 이후 쌓인 기능·게이트 보강. `bouncer--v1.0.0` 태그는 만들지
+않았고, 다음 공개 태그는 `bouncer--v1.1.0`이다.
+
+### Added
+
+- **light 계획 계약** — `bouncer scaffold blueprint --scale light`가 축약 본문을
+  쓰고 `context-review.md`를 만들지 않는다. `scale: light` blueprint는 G18을
+  적용하지 않고 G10 필수 절을 Goal·Touch·Checklist 셋으로 줄인다. `scale`이
+  없거나 `full`이면 이전과 같다.
+- **범위 판단 근거 계약** — task 브리프의 graph 추천 경로와 basis를 정규화해
+  범위 판단 근거를 문서 계약으로 고정한다.
+- **측정 기반 비용 절감** — scaffold 스키마 힌트와 강화 게이트 기준선 측정을
+  남기고, 병렬 측정 공유 상태 제약을 문서화한다.
+- **on/off A/B 벤치마크 발행** — 측정 프로토콜과 1회차 결과를 `docs/benchmark/`에
+  둔다.
+
+### Changed
+
+- **스킬·에이전트 본문 골격** — 워크플로·서브스킬·에이전트 문서를 같은 본문
+  골격에 맞춘다. 구현 산출물의 한국어 docstring 계약을 구현 스킬에 둔다.
+- 기존 저장소의 원장 없는 `verification.md`는 G13으로 실패합니다. `bouncer verify`를 다시 실행하세요.
+
 ### Fixed
 
 - **`git commit -a` 스코프 우회** — PreToolUse 가드가 `-a`/`--all` 계열 커밋에서
@@ -14,10 +38,8 @@
   게이트 G17은 스테이징 경로만 본다.
 - **G13 증적 대조** — execute·commit 게이트가 `verification.md`를 `bouncer verify`
   원장과 대조한다. 원장이 없으면 프론트매터가 완전해도 G13으로 실패한다.
-
-### Changed
-
-- 기존 저장소의 원장 없는 `verification.md`는 G13으로 실패합니다. `bouncer verify`를 다시 실행하세요.
+- **finalize 승격 검증** — Distill 승격 후 검증을 스테이징 전에 돌리던 순서를
+  고치고, 불릿 감사를 샤드 파일에서 유도한다.
 
 ## [1.0.0] — 2026-08-15
 
