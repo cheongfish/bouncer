@@ -16,7 +16,8 @@
     "node": ">=24"
   },
   "bin": {
-    "bouncer": "scripts/bouncer"
+    "bouncer": "scripts/bouncer",
+    "bouncer-root": "scripts/bouncer-root"
   },
   "scripts": {
     "test": "node --test",

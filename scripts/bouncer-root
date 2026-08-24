@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+'use strict';
+const { runBouncerRoot } = require('./lib/bouncer-root');
+process.exit(runBouncerRoot(process.argv.slice(2)));

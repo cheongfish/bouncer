@@ -7,10 +7,13 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
 
-test('package.json exposes the bouncer name and bin', () => {
+test('package.json exposes the bouncer and bouncer-root bins', () => {
   const pkg = readJson('package.json');
   assert.strictEqual(pkg.name, 'bouncer');
-  assert.deepStrictEqual(pkg.bin, { bouncer: 'scripts/bouncer' });
+  assert.deepStrictEqual(pkg.bin, {
+    bouncer: 'scripts/bouncer',
+    'bouncer-root': 'scripts/bouncer-root',
+  });
 });
 
 // hooks/hooks.json is loaded by convention. Naming it in the manifest as well
