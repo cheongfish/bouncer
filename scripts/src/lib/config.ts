@@ -17,9 +17,15 @@ type DistillSettings = {
 // 수 있으므로 읽기 함수의 null/shape 계약을 바꾸지 않고, init과 구조 검사만
 // 이 기본값을 사용한다. max_bytes는 하드 상한이 아니라 운영자가 분배를
 // 검토할 때 쓰는 경고 기준이며, 본문 소비를 잘라내는 값이 아니다.
+//
+// 6 * 1024(6144) 근거: 이 저장소 영문 샤드는 대략 7.1 바이트/단어라
+// 6144 ≈ 865 단어다. 현재 분포에서 plugin-skills(13,445)·validate-gates(8,877)
+// 는 S26에 걸리고 core(5,842)는 통과한다. 64KB는 실제 샤드보다 5배 커서
+// 경고가 사실상 놀고 있었다. 이미 max_bytes를 명시한 config.json은
+// 이 기본값 변경의 영향을 받지 않는다.
 const DEFAULT_DISTILL_CONFIG: DistillSettings = {
   routing_enabled: false,
-  max_bytes: 64 * 1024,
+  max_bytes: 6 * 1024,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
