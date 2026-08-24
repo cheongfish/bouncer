@@ -5,6 +5,8 @@ distill:
     - .worktrees/**
     - scripts/src/lib/seed-worktree.ts
     - scripts/src/lib/runtime-state.ts
+    - scripts/src/lib/scope.ts
+    - scripts/src/lib/commit-hook.ts
   pulls: []
 ---
 # git-worktree
