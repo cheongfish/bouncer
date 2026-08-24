@@ -238,3 +238,9 @@ evidence. The debugger never applies the fix.
    then checks G6 tasks verified, G7 verification passed, G8 review accepted
    (or `required: false`). Fix and re-run until it passes, then point the user
    at `/bouncer-commit`.
+
+## ACQ (AskUserQuestion) gates
+
+This skill has **no ACQ gates**. Numbered steps may stop and tell the user to
+run `/bouncer-plan` or `/bouncer-commit`, but they do not ask for consent via
+AskUserQuestion. Subagent model-slug retries use `inherit` without a user ACQ.

@@ -14,8 +14,10 @@ const WORKFLOW = [
 const SUB_PATHS = [
   'discovery', 'spec-authoring', 'implementation', 'verification',
   'review', 'minimality', 'debugging', 'graphify-runner', 'explain-diff',
-  'stop-slop',
+  'stop-slop', 'context-review', 'migrate-ids',
 ];
+
+const STEPS_EXEMPT = new Set(['minimality', 'stop-slop']);
 
 function readWorkflow(name) {
   return fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
@@ -88,5 +90,45 @@ test('commands/ directory is gone', () => {
 test('GENERIC_SKILLS does not list workflow skills', () => {
   for (const name of WORKFLOW) {
     assert.ok(!GENERIC_SKILLS.includes(name), name);
+  }
+});
+
+test('workflow skills end with an ACQ gates section', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    const heads = [...md.matchAll(/^## .*$/gm)].map((m) => m[0]);
+    // 존재만이 아니라 마지막 절인지까지 본다 — 성공 조건 2가 위치를 요구한다.
+    assert.strictEqual(heads[heads.length - 1], '## ACQ (AskUserQuestion) gates', name);
+  }
+});
+
+test('workflow skill bodies use English headings', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
+    assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
+  }
+});
+
+test('sub-skills carry the shared body skeleton in order', () => {
+  for (const name of SUB_PATHS) {
+    const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    const want = ['## When this applies'];
+    if (!STEPS_EXEMPT.has(name)) want.push('## Steps');
+    want.push('## Guardrails', '## Return');
+    let at = -1;
+    for (const h of want) {
+      const i = md.indexOf(`\n${h}\n`);
+      assert.ok(i > at, `${name} missing or misordered ${h}`);
+      at = i;
+    }
+  }
+});
+
+test('sub-skill bodies use English headings', () => {
+  for (const name of SUB_PATHS) {
+    const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
+    assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
   }
 });

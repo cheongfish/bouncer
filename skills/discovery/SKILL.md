@@ -8,7 +8,14 @@ description: "This skill should be used when clarifying a feature or change requ
 Turn a raw request into a shared understanding before any scaffolding or
 implementation starts.
 
-## Flow
+## When this applies
+
+When clarifying a feature or change request into goal, scope, non-goals, and
+success criteria before planning or scaffolding. Confirm the framing with the
+user first. Used from `/bouncer-plan`, or when the user asks for this skill by
+name.
+
+## Steps
 
 1. **Pre-read** — Before framing, consume the complete output of the caller's
    `bouncer distill --all` preflight together with epic indexes under
@@ -40,7 +47,16 @@ In one clarifying pass, cover at least:
 - Failure modes (what breaks, and what the change must reject)
 - Overlap with existing epic/blueprint streams and Distill.md
 
-## Handoff
+## Guardrails
+
+- Do not scaffold documents or change code during discovery.
+- Prefer concrete, testable success criteria over vague aspirations.
+- If the request is still ambiguous after one clarifying pass, ask again rather
+  than inventing scope.
+- Do not stop discovery solely because epic indexes or Distill.md are missing;
+  record Overlap as "none" and continue.
+
+## Return
 
 Pass these named outputs to `/bouncer-plan` (do not persist them as new files):
 
@@ -50,12 +66,3 @@ Pass these named outputs to `/bouncer-plan` (do not persist them as new files):
 - `Success criteria`
 - `Edge cases & failure modes`
 - `Overlap`
-
-## Guardrails
-
-- Do not scaffold documents or change code during discovery.
-- Prefer concrete, testable success criteria over vague aspirations.
-- If the request is still ambiguous after one clarifying pass, ask again rather
-  than inventing scope.
-- Do not stop discovery solely because epic indexes or Distill.md are missing;
-  record Overlap as "none" and continue.

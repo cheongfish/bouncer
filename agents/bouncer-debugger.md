@@ -31,9 +31,9 @@ invent requirements outside the brief.
 - If blocked by ambiguity, report it in the Output contract; do not expand
   scope.
 
-## Procedure (4 stages)
+## Procedure
 
-Follow `skills/debugging/SKILL.md`. Complete each stage before the next:
+Follow `skills/debugging/SKILL.md`. Complete each of the 4 stages before the next:
 
 1. **Root cause** — Reproduce the failure. Capture the command, inputs, and
    observed result. Narrow to the smallest failing unit and separate symptom

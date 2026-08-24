@@ -10,6 +10,12 @@ skill is **advisory** — it is not a gate. It shapes plans and reviews, not
 success status. Implementation applies the same ladder while coding; this skill
 challenges plans and diffs before they grow.
 
+## When this applies
+
+- **Plan:** recommended before finalizing `affected_paths` and the Checklist.
+- **Review:** recommended while judging the diff for new deps/abstractions and
+  the over-engineering lens below.
+
 ## Decision ladder (in order)
 
 Stop at the first rung that holds:
@@ -68,7 +74,7 @@ When judging a plan or diff, flag candidates to delete or simplify:
 - Directory-wide Touch that opens more files than the checklist needs
 - Symptom patch where a shared root-cause fix would be smaller
 
-## Conflict handling
+## Guardrails
 
 - If a minimality suggestion conflicts with an approved task, do not act
   unilaterally. Escalate: send the work back to planning for re-approval.
@@ -76,8 +82,7 @@ When judging a plan or diff, flag candidates to delete or simplify:
   `affected_paths` short when Interface changes a shared shape — that is a
   planning miss, not minimality. Escalate to widen Touch or defer the change.
 
-## When to run
+## Return
 
-- **Plan:** recommended before finalizing `affected_paths` and the Checklist.
-- **Review:** recommended while judging the diff for new deps/abstractions and
-  the over-engineering lens above.
+Report minimality suggestions and any conflicts that need planning escalation.
+Advisory only — do not invent gate or review acceptance.

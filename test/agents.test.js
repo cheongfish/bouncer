@@ -8,13 +8,17 @@ const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const root = path.join(__dirname, '..');
 const agentsDir = path.join(root, 'agents');
 
+// 네 named agent — 골격·frontmatter 단언이 공유하는 이름 목록.
+const AGENTS = [
+  'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
+  'bouncer-context-reviewer',
+];
+const READONLY = ['bouncer-reviewer', 'bouncer-debugger', 'bouncer-context-reviewer'];
+
 // context-reviewer는 execute 삼인조와 같이 inherit 슬롯·readonly를 쓰지만,
 // 판정 대상이 계획 문서 전체이고 산출은 BP 루트 context-review.md라
 // tasks/<NNN>/tasks.md 단독 브리프·task-dir review.md 단언 순회에는 넣지 않는다.
-for (const name of [
-  'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
-  'bouncer-context-reviewer',
-]) {
+for (const name of AGENTS) {
   test(`agents/${name}.md exists with name == basename and model inherit`, () => {
     const filePath = path.join(agentsDir, `${name}.md`);
     assert.ok(fs.existsSync(filePath), `missing ${filePath}`);
@@ -69,4 +73,25 @@ test('bouncer-implementer points comment rule at hard rule 9 without restating i
   // Rule body lives in master rules + implementation skill — no second copy.
   assert.doesNotMatch(md, /known ceilings/);
   assert.doesNotMatch(md, /Prefer thoroughness/);
+});
+
+test('agent docs share the body skeleton and end with the output contract', () => {
+  for (const name of AGENTS) {
+    const md = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
+    const heads = [...md.matchAll(/^## .*$/gm)].map((m) => m[0]);
+    assert.strictEqual(heads[0], '## Authority', name);
+    // 가드 절은 권한 바로 뒤. 도메인 절(Scope, Rubric 등)은 그 아래로 간다.
+    const guard = READONLY.includes(name) ? '## Hard guards (read-only)' : '## Hard guards';
+    assert.strictEqual(heads[1], guard, name);
+    assert.ok(heads.includes('## Procedure') || READONLY.includes(name), name);
+    assert.strictEqual(heads[heads.length - 1], '## Output contract', name);
+  }
+});
+
+test('agent doc bodies use English headings', () => {
+  for (const name of AGENTS) {
+    const md = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
+    const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
+    assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
+  }
 });

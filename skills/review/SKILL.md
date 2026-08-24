@@ -11,6 +11,13 @@ only produces findings and dispositions.
 Dispatch template: [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) (call
 brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 
+## When this applies
+
+When reviewing a change against the tasks brief. Records `## Findings` with
+severity and disposition; never accepts while an actionable finding remains
+unresolved. Used from `/bouncer-execute`, or when the user asks for this skill
+by name.
+
 ## Steps
 
 1. **Load** — Read the existing `<pointer task directory>/review.md` (do not
@@ -109,3 +116,8 @@ brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 - Verify each finding before acting; keep commits within allowed paths.
 - If review is marked not required by policy (`bouncer.review.required === false`),
   skip and leave status unchanged.
+
+## Return
+
+Report findings with severity and disposition. Never claim acceptance while an
+actionable finding remains unresolved.
