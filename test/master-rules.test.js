@@ -46,6 +46,18 @@ test('workflow skills instruct reading CLAUDE.md before steps', () => {
   assert.match(spec, /CLAUDE\.md/);
 });
 
+test('master rules use the installed bouncer-root launcher', () => {
+  const claude = read('CLAUDE.md');
+  const rule = read('rules/plugin-root.md');
+  for (const source of [claude, rule]) {
+    assert.match(source, /bouncer-root --auto/);
+    assert.match(source, /BOUNCER_HOME/);
+    assert.doesNotMatch(source, /CLAUDE_PLUGIN_ROOT:-\$\{PLUGIN_ROOT/);
+  }
+  assert.match(rule, /--select/);
+  assert.match(rule, /provider/i);
+});
+
 test('hard rule 5 workflow order includes commit between execute and finalize', () => {
   const claude = read('CLAUDE.md');
   assert.match(

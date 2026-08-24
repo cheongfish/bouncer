@@ -8,6 +8,15 @@ const { execFileSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 
+test('public installation documentation distinguishes root selection from provider selection', () => {
+  const install = fs.readFileSync(path.join(root, 'docs/install.md'), 'utf8');
+  assert.match(install, /bouncer-root --auto/);
+  assert.match(install, /bouncer-root --select/);
+  assert.match(install, /BOUNCER_HOME.*provider|provider.*BOUNCER_HOME/is);
+  assert.match(install, /Cursor[\s\S]{0,300}BOUNCER_HOME/);
+  assert.match(install, /Cursor[\s\S]{0,300}지원 후보/);
+});
+
 /**
  * Records, not authored surfaces. `.bouncer/context/` holds captured evidence —
  * verification.md quotes whatever the verify command printed, which for this

@@ -21,7 +21,7 @@ otherwise ask before scaffolding.
 
 **Project root.** Resolve the consuming project's main worktree before Distill:
 ```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
 ```
 If that fails, stop and report stderr — do not fall back to cwd or plugin root.
@@ -71,7 +71,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <ddd> --name <slug>
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
@@ -211,7 +211,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 
    1. Resolve the model:
       ```bash
-      BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-context-reviewer'})))"
       ```
    2. Call named agent `bouncer-context-reviewer` with that `model`, passing
@@ -238,7 +238,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 
 9. **Pointer.** Record the active blueprint:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current --set <blueprint dir>
    ```
    Writes the pointer under the Git common directory (`bouncer/current`) as
@@ -247,7 +247,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 
 10. **Gate.** Run `bouncer validate --gate plan` and report:
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G18

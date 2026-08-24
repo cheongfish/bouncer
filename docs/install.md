@@ -88,18 +88,17 @@ Cursor의 기본 탐색 경로와 레이아웃이 같아 그대로 잡힙니다.
 **판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다. 훅은 상대 경로를
 쓰므로 아래 `BOUNCER_HOME`과 무관합니다.
 
-**`BOUNCER_HOME` (필수에 가깝다).** Cursor 스킬 셸에는 `CLAUDE_PLUGIN_ROOT` /
-`PLUGIN_ROOT`가 없습니다. `/bouncer-plan`·`/bouncer-execute` 등이
-`node …/scripts/bouncer`를 실행하려면 플러그인 루트를 직접 알려 줘야 합니다.
+Cursor 설치 경로는 `bouncer-root --auto`의 지원 후보가 아닙니다. Cursor에서
+워크플로를 실행하려면 실제 플러그인 루트를 한 번 지정하세요.
 
 ```bash
-# scripts/bouncer 가 있는 디렉터리 — 실제 설치 경로로 바꾸세요
-export BOUNCER_HOME=~/.cursor/plugins/local/bouncer
+export BOUNCER_HOME=/absolute/path/to/bouncer
+bouncer-root --auto
 ```
 
-셸 프로필이나 프로젝트 환경에 넣어 두면 세션마다 다시 설정하지 않아도 됩니다.
-값이 비면 경로가 `/scripts/bouncer`처럼 깨져 CLI 호출이 실패합니다. 해석 순서는
-아래 [플러그인 루트](#플러그인-루트-bouncer_home)를 보세요.
+`BOUNCER_HOME`은 그 셸의 launcher 호출에만 쓰이는 검증된 루트 오버라이드입니다.
+Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하세요. 이는
+루트 해석과 별개의 설정입니다.
 
 ## Codex
 
@@ -135,17 +134,8 @@ agy plugin install <사내-git-url>
 `CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT`가 없어 자동 판별 신호가 없습니다.
 Cursor와 같이 provider를 명시하세요.
 
-**`BOUNCER_HOME` (필수에 가깝다).** `/bouncer-plan`·`/bouncer-execute` 등이
-`node …/scripts/bouncer`를 실행하려면 플러그인 루트를 직접 알려 줘야 합니다.
-
-```bash
-# scripts/bouncer 가 있는 디렉터리 — 실제 설치 경로로 바꾸세요
-export BOUNCER_HOME=~/.gemini/antigravity-ide/plugins/bouncer
-```
-
-셸 프로필이나 프로젝트 환경에 넣어 두면 세션마다 다시 설정하지 않아도 됩니다.
-값이 비면 경로가 `/scripts/bouncer`처럼 깨져 CLI 호출이 실패합니다. 해석 순서는
-아래 [플러그인 루트](#플러그인-루트-bouncer_home)를 보세요.
+워크플로는 PATH의 `bouncer-root --auto`로 설치 후보를 고릅니다. provider pin은
+루트 탐색과 별개로 유지합니다.
 
 ### 릴리스 전 수동 확인
 
@@ -166,19 +156,22 @@ CI는 Antigravity 호스트를 띄울 수 없어 아래는 자동 검증 밖입�
   매니페스트를 집어갈 여지가 있다. 두 호스트의 테스트는
   `.claude-plugin/plugin.json`을 경로로 직접 읽어 이 회귀를 잡지 못한다
 
-## 플러그인 루트 (`BOUNCER_HOME`)
+## 플러그인 루트 (`bouncer-root`)
 
-스킬이 `bouncer` CLI를 어디서 실행할지 알아야 합니다. Claude Code와 Codex는
-그 경로를 환경변수로 넣어주지만, **Cursor와 Antigravity는 넣어주지 않습니다.**
-두 호스트에서는 `BOUNCER_HOME`을 설치 디렉터리(`scripts/bouncer`가 있는 곳)로
-직접 export 하세요.
+패키지가 설치하면 `bouncer-root` bin이 PATH에 등록됩니다. 기본 실행은 모든
+지원 설치 후보에서 최신 strict-semver 버전을 고릅니다.
 
 ```bash
-export BOUNCER_HOME=/path/to/bouncer
+bouncer-root --auto
+bouncer-root --select
+bouncer-root --host codex --auto
 ```
 
-스킬이 세 변수를 어떤 순서로 해석하는지는
-[`rules/plugin-root.md`](../rules/plugin-root.md)에 있습니다.
+`--select`는 TTY에서만 번호 선택을 받습니다. 하나의 명시적 루트를 써야 하면
+그 명령에만 `BOUNCER_HOME=/absolute/plugin/root`를 붙이세요. Cursor 워크플로는
+지원 후보가 없으므로 같은 값을 셸 환경에 설정해야 합니다. 이 값은 provider를
+추론하지 않으며, Cursor와 Antigravity의 `subagents.provider` pin을 대체하지
+않습니다. 세부 규칙은 [`rules/plugin-root.md`](../rules/plugin-root.md)에 있습니다.
 
 ## 선택: Graphify (경로 추천)
 

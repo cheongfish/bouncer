@@ -130,12 +130,13 @@ numbered step says otherwise.
 
 ## Plugin root
 
-Shell blocks in workflow skills resolve the plugin with:
+Shell blocks in workflow skills resolve the plugin through the PATH-installed
+launcher. `--auto` selects the highest valid installed version deterministically:
 
 ```bash
-BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 ```
 
-Read this file (and the linked docs) from that root. If none of those variables
-are set, ask the user to set `BOUNCER_HOME` to the directory that contains
-`scripts/bouncer`.
+Read this file (and the linked docs) from that root. `BOUNCER_HOME` is a
+one-shot launcher override, not a host or provider signal. Use
+`bouncer-root --select` only when an interactive choice is needed.

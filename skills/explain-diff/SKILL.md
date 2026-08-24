@@ -74,7 +74,7 @@ status published. Not a workflow entry point.
    worktree):
 
    ```bash
-   BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node -e 'const { computeDiffSha } = require(process.argv[1] + "/scripts/lib/comprehension");
    console.log(JSON.stringify(computeDiffSha({ repoRoot: process.cwd(), base: process.argv[2] })));' \
      "${BOUNCER_ROOT}" <range_from>
