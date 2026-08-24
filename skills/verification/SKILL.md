@@ -8,6 +8,12 @@ description: "This skill should be used when investigating verification results.
 Prepare the verification **deliverable context**. The execute gate is the
 evidence authority: it runs the configured command and records the result.
 
+## When this applies
+
+When investigating verification results. Never hand-writes success evidence;
+the execute gate runs the configured command and records it. Used from
+`/bouncer-execute`, or when the user asks for this skill by name.
+
 ## Steps
 
 1. **Load** — Read the existing `<pointer task directory>/verification.md`
@@ -34,3 +40,9 @@ evidence authority: it runs the configured command and records the result.
 - The configured command runs on every execute-gate attempt. Expensive or
   external verification needs a future explicit skip policy; it must not be
   silently skipped.
+
+## Return
+
+Report the investigation outcome and whether the execute gate still needs to
+record evidence. Never hand-write success evidence or claim a pass the harness
+did not record.

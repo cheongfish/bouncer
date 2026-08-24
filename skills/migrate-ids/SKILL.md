@@ -12,16 +12,11 @@ canonical numeric names (`014-slug`, `001-slug`, `TASKS-001`).
 This skill does **not** invent a second procedure — it drives
 `bouncer migrate ids`.
 
-## Guardrails
+## When this applies
 
-- **Never apply without a dry-run and explicit user confirmation.** Show the
-  dry-run plan first; only then run apply.
-- Do not hand-rename under `.bouncer/context/epics/` — the CLI owns the
-  atomic plan (validate → rename bp dirs → rename epic dirs → rewrite).
-- Do not run apply on a mixed new+legacy tree, a destination collision, or a
-  dirty worktree; fix those first.
-- Cursor has no SessionStart equivalent — rely on this skill / the CLI there.
-- Do not create skill files at runtime; this skill is already shipped.
+When migrating legacy `EPIC-` / `BP-` context directories to numeric ids, or when
+SessionStart warns about legacy naming. Runs dry-run, confirms with the user,
+then applies. Used when the user asks for this skill by name.
 
 ## Steps
 
@@ -47,3 +42,20 @@ This skill does **not** invent a second procedure — it drives
 4. **Spot-check.** Open one migrated blueprint and confirm body tokens no
    longer say `EPIC-` / `BP-` / `TASKS-BP-`, and that `bouncer validate
    --blueprint <new-dir>` is clean of S5 path/id mismatches.
+
+## Guardrails
+
+- **Never apply without a dry-run and explicit user confirmation.** Show the
+  dry-run plan first; only then run apply.
+- Do not hand-rename under `.bouncer/context/epics/` — the CLI owns the
+  atomic plan (validate → rename bp dirs → rename epic dirs → rewrite).
+- Do not run apply on a mixed new+legacy tree, a destination collision, or a
+  dirty worktree; fix those first.
+- Cursor has no SessionStart equivalent — rely on this skill / the CLI there.
+- Do not create skill files at runtime; this skill is already shipped.
+
+## Return
+
+Report the dry-run plan (or that nothing to migrate), whether apply ran after
+confirmation, and any `ok: false` reasons. Do not invent a successful migration
+without the CLI result.

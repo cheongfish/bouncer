@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '045'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 서브스킬 열두 개의 절 이름이 갈려 있고 산출을 보고하는 절이 둘에만 있음
     - 네 골격 절을 열두 개에 공통으로 두고 도메인 고유 절은 그대로 남김

@@ -14,7 +14,7 @@ Adapted from [Hardik Pandya's stop-slop](https://hvpandya.com) (MIT). Keep this
 folder's `LICENSE` with the original copyright. Skill instructions stay English
 (plugin convention); targets and examples are Korean context docs.
 
-## Scope
+## When this applies
 
 **In scope:** epic / blueprint / tasks / explain body prose under
 `.bouncer/context/` that a human reads (Korean).
@@ -66,6 +66,13 @@ revise. Do **not** treat the score as gate evidence.
 ## Examples
 
 See [references/examples.md](references/examples.md).
+
+## Guardrails
+
+- Advisory only — not a gate. Does not score plan/execute/finalize success.
+- Do not run this skill on project Distill (`.bouncer/Distill.md`).
+- Keep paths, ids, commands, and fenced code as-is.
+- Do not invent verification.md or gate outcomes.
 
 ## Return
 

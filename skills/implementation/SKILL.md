@@ -10,7 +10,15 @@ smallest working diff — then explain non-obvious intent in Korean comments so
 the next reader does not have to rediscover why the change looks the way it
 does.
 
-## Flow
+## When this applies
+
+When implementing from an approved tasks brief. Makes focused changes inside
+allowed paths, climbs the minimality ladder before writing code, documents
+non-obvious intent with detailed Korean comments, keeps tests green, and
+reports any deviations from the plan. Used from `/bouncer-execute`, or when
+the user asks for this skill by name.
+
+## Steps
 
 1. **Approved tasks** — Treat the task brief (`tasks/<NNN>/tasks.md`: Goal & intent, Interface, Touch, Do not touch, Constraints,
    Checklist) as the sole authority. Do not invent requirements.
@@ -120,3 +128,8 @@ does.
 - If verification fails, hand off to debugging rather than papering over the
   failure. The controller re-dispatches implementer with the debugger report
   as evidence; do not apply a stacked guess in the same turn.
+
+## Return
+
+Report which paths changed, checklist coverage, tests run, and any deviations
+from the brief. Do not invent verification or gate outcomes.

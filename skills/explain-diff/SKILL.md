@@ -10,6 +10,13 @@ Called only from `/bouncer-finalize` after `scaffold explain` (create the file
 if missing). This skill does **not** replace `scaffold explain` — if the file
 is missing, stop and tell the caller to scaffold first.
 
+## When this applies
+
+From `/bouncer-finalize` after scaffold explain. Authors BP `explain.md`
+sections, runs the quiz for pointer-base..HEAD, writes one
+`bouncer.comprehension` blueprint entry with required `quiz_score`, and sets
+status published. Not a workflow entry point.
+
 ## Steps
 
 1. **Author the five sections.** Fill the body under these headings in
@@ -102,3 +109,9 @@ is missing, stop and tell the caller to scaffold first.
 - Do not edit `scripts/lib/comprehension` or gate logic; call the existing API.
 - Do not block finalize on score. G16 checks the record and hash match for the
   blueprint entry, not the grade. An unanswered quiz still aborts the caller.
+
+## Return
+
+Report that `explain.md` sections were authored, the quiz outcome
+(`quiz_score`), and the single comprehension entry / published status. Do not
+invent a skip path or empty `quiz_score`.

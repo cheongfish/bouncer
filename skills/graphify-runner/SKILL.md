@@ -46,6 +46,13 @@ Never omit an entry because a query could not run — leave the entry with the
 matching `status` so G4 still sees a recorded basis (graph absence is a state,
 not an error).
 
+## When this applies
+
+During `/bouncer-plan`, to query the prebuilt source-code graph for candidate
+paths, roll them up to directory granularity, and write
+`bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`). Also when
+the user asks for this skill by name.
+
 ## Steps
 
 1. **Freshness re-check (plan-time).** Always sync before querying — do not rely
@@ -126,7 +133,7 @@ not an error).
    advisory evidence only: `/bouncer-plan` asks the user to confirm or edit
    `affected_paths` and writes no scope without that approval.
 
-## Notes
+## Guardrails
 
 - `scope_evidence.suggested_paths` is advisory input only; the user always
   confirms the authoritative `affected_paths`.
@@ -137,3 +144,8 @@ not an error).
   sites stay aligned. If a graph is missing or rebuild fails, still leave a
   `basis` entry with the mapped `status`, then skip the query and require the user to confirm
   `affected_paths` manually.
+
+## Return
+
+Return the candidate paths to `/bouncer-plan`. They are advisory evidence only:
+the user confirms `affected_paths`. Do not invent gate success.

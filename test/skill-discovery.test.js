@@ -32,7 +32,7 @@ test('discovery asks for edge cases, failure modes, and stream overlap', () => {
 
 test('discovery names the handoff contract it passes to planning', () => {
   const md = readSkill('discovery');
-  assert.match(md, /Handoff/i);
+  assert.match(md, /Return/);
   assert.match(md, /Edge cases & failure modes/);
   assert.match(md, /Overlap/);
   // missing path must be present in body

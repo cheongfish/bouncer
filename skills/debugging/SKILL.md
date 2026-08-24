@@ -10,7 +10,14 @@ Investigate failures with an evidence-first four-stage loop. Named agent
 a report; the controller re-dispatches `bouncer-implementer` with that report
 as evidence. The debugger never applies the fix.
 
-## Stages
+## When this applies
+
+When a change fails verification or behaves unexpectedly. Investigates root
+cause before proposing a fix; follows Root cause → Pattern → Hypothesis →
+Implementation. Used from `/bouncer-execute` on verify failure, or when the
+user asks for this skill by name.
+
+## Steps
 
 ### 1. Root cause
 
@@ -59,3 +66,9 @@ failing tests to force green.
 - On the same failing verify, redispatch / retry at most **1** time
   (unsuccessful fix cycle); then escalate to architecture / `/bouncer-plan` —
   do not loop indefinitely.
+
+## Return
+
+Report reproduction, pattern match, the single hypothesis, and the minimum fix
+proposal plus required regression test. Named debugger never edits; do not
+invent verify success.

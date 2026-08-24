@@ -11,14 +11,27 @@ bouncer:
   id: REVIEW-002
   epic_id: '045'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: major
+        status: resolved
+      - id: F2
+        severity: major
+        status: resolved
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+- id: F1
+  severity: major
+  status: resolved
+  summary: minimality deixis fixed — "lens below"
+  evidence: skills/minimality/SKILL.md:17
+- id: F2
+  severity: major
+  status: resolved
+  summary: spec-authoring deixis fixed — "rule below"
+  evidence: skills/spec-authoring/SKILL.md:38

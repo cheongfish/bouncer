@@ -11,7 +11,7 @@ finding fields; this skill only produces findings. Named agent: plugin
 (or runs this skill inline). The controller records the result into the
 blueprint-root `context-review.md` — not a task-directory `review.md`.
 
-## When this rubric applies
+## When this applies
 
 **Full plans only.** This skill owns the `context-review.md` rubric, and that
 document exists only on a blueprint whose `bouncer.scale` is absent or `full`.
@@ -104,3 +104,8 @@ On a light plan, approved scope rests on the user's confirmation of
   controller owns recording and status transitions.
 - Never accept an `accepted` finding without a note.
 - If blocked by ambiguity, record it as a Finding; do not expand scope.
+
+## Return
+
+Return a Findings list only. The controller records `context-review.md`; this
+skill does not edit plan documents or flip status.
