@@ -6,13 +6,14 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 
 const {
   readShards,
   routeShards,
   renderShards,
   resolveDistillRoot,
+  pathMayIntersect,
 } = require('../scripts/lib/distill');
 const {
   PROJECT_DISTILL,
@@ -533,4 +534,43 @@ test('repository Distill shards preserve every original bullet and remain fully 
   // 샤드 본문 자체가 줄면 기대값도 함께 줄어 잡히지 않는다 — 의도된 사각지대.
   const dropped = { ...state, shards: state.shards.slice(1) };
   assert.notDeepStrictEqual(bulletHashes(renderShards(dropped)), expected);
+});
+
+function globStaticPrefix(pattern) {
+  const wildcard = pattern.search(/[?*]/);
+  const prefix = wildcard === -1 ? pattern : pattern.slice(0, wildcard);
+  return prefix.replace(/\/+$/, '');
+}
+
+function isGitIgnored(repo, target) {
+  if (!target) return false;
+  // exit 0 = 무시됨, 1 = 아님. --quiet면 stdout이 비어 종료코드로만 판별한다.
+  return spawnSync('git', ['check-ignore', '--quiet', '--', target], { cwd: repo }).status === 0;
+}
+
+test('every registered Distill shard glob reaches at least one tracked file', () => {
+  const repo = path.resolve(__dirname, '..');
+  const index = readDoc(path.join(repo, PROJECT_DISTILL));
+  const shards = index.data.distill.shards;
+  const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: repo, maxBuffer: 1 << 26 })
+    .toString()
+    .split('\0')
+    .filter(Boolean);
+  assert.ok(tracked.length > 0);
+
+  // 라우팅은 글롭이 실제 파일에 닿아야만 샤드를 싣는다. 어느 파일에도 닿지
+  // 않는 글롭은 조용히 사장되므로 — `scripts/src/lib/git*.ts`가 그랬다 —
+  // 렌더 감사와 별개로 도달성을 따로 잡는다. 판정에는 라우터가 실제로 쓰는
+  // pathMayIntersect를 그대로 써서 테스트와 런타임 의미가 갈라지지 않게 한다.
+  const unreachable = [];
+  for (const shard of shards) {
+    for (const pattern of shard.paths || []) {
+      if (tracked.some((file) => pathMayIntersect(repo, pattern, file))) continue;
+      // `.worktrees/**`처럼 gitignore된 런타임 디렉터리는 추적 파일이 없는 것이
+      // 정상이다. 오타로 죽은 글롭과 구분하려고 무시 여부를 git에 직접 묻는다.
+      if (isGitIgnored(repo, globStaticPrefix(pattern))) continue;
+      unreachable.push(`${shard.id}: ${pattern}`);
+    }
+  }
+  assert.deepStrictEqual(unreachable, []);
 });

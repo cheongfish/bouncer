@@ -28,7 +28,8 @@ distill:
     - id: git-worktree
       paths:
         - .worktrees/**
-        - scripts/src/lib/git*.ts
+        - scripts/src/lib/seed-worktree.ts
+        - scripts/src/lib/runtime-state.ts
       pulls: []
     - id: graph
       paths:
