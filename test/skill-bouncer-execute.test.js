@@ -123,10 +123,18 @@ test('bouncer-execute hands off to /bouncer-commit and reuses an existing worktr
 
 test('bouncer-execute inlines implementer and reviewer on the light path', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /bouncer\.scale|scale:\s*light/);
+  // 경량 판정은 포인터 응답의 scale — blueprint index.md 를 다시 열지 않는다.
+  assert.match(body, /포인터\(`bouncer current`\)의 `scale`이 `light`면/);
   assert.match(body, /인라인/);
   // fallback 문구는 남아야 한다 — 경량 분기가 그것을 대체하면 G8이 막힌다.
   assert.match(body, /named agents are unavailable|미지원/i);
   // debugger는 축소 대상이 아니다.
   assert.match(body, /bouncer-debugger/);
+});
+
+test('bouncer-execute step 3 and step 5 light branches cite pointer scale', () => {
+  const { body } = parseFrontmatter(md);
+  const matches = body.match(/포인터\(`bouncer current`\)의 `scale`이 `light`면/g);
+  assert.strictEqual(matches && matches.length, 2);
+  assert.doesNotMatch(body, /blueprint `index\.md`의 `bouncer\.scale`/);
 });

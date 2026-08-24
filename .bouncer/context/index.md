@@ -51,3 +51,4 @@ bouncer_schema: '0.1'
 * [044 승격 증적과 측정 프로토콜](epics/044-finalize-evidence/index.md) - Distill 승격 커밋을 검증 아래 두고 다음 회차 측정 프로토콜의 빈틈을 닫는다
 * [045 skill-shape](epics/045-skill-shape/index.md) - Epic 045
 * [046 review-loop-cap](epics/046-review-loop-cap/index.md) - Epic 046
+* [047 컨텍스트 주입량 절감](epics/047-context-injection/index.md) - 포인터·브리프·Distill 프리플라이트에서 한 사이클 주입량을 줄이고 게이트 계약은 그대로 둔다

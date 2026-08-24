@@ -112,11 +112,12 @@ evidence. The debugger never applies the fix.
 3. **Implement (task brief is the sole authority).** The `implementation`
    skill remains the behavioral brief either way.
 
-   **경량 분기.** blueprint `index.md`의 `bouncer.scale`이 `light`면 named
+   **경량 분기.** 포인터(`bouncer current`)의 `scale`이 `light`면 named
    디스패치 네 단계(`resolveSubagentModel` → named 호출 → slug 거절 시
    `inherit` 재시도 → 미지원 시 fallback)를 건너뛰고 `implementation` 스킬을
    인라인으로 실행한다. 선언에 의한 선택이며, 아래 4번의 호스트 fallback과는
-   별개 문장이다.
+   별개 문장이다. `scale`의 SSOT는 blueprint `index.md`이지만, 이 판정은
+   step 1에서 이미 받은 포인터 응답만 쓴다 — `index.md`를 다시 열지 않는다.
 
    **주행 예외.** `/bouncer-run` 주행 중에는 경량 선언이어도 이 인라인 분기를
    쓰지 않고 named 디스패치를 쓴다. 루프 세션이 곧 implementer가 되면 리포트만
@@ -210,10 +211,11 @@ evidence. The debugger never applies the fix.
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
    Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order:
    (1) fill `skills/review/assets/reviewer-prompt.md` (brief, base/HEAD, constraints);
-   (2) **경량 분기.** blueprint `index.md`의 `bouncer.scale`이 `light`면 named
+   (2) **경량 분기.** 포인터(`bouncer current`)의 `scale`이 `light`면 named
        디스패치 네 단계를 건너뛰고, 채운 `skills/review/assets/reviewer-prompt.md`로 `review` 스킬을
        인라인 read-only로 실행한다. `/bouncer-run` 주행 중에는 step 3의 주행
-       예외와 같이 이 분기를 쓰지 않는다. 그 외에는 resolve model via
+       예외와 같이 이 분기를 쓰지 않는다. step 3과 같이 `index.md`를 다시
+       열지 않고 step 1 포인터의 `scale`만 쓴다. 그 외에는 resolve model via
        `resolveSubagentModel` for `bouncer-reviewer`, then dispatch named agent
        `bouncer-reviewer` with that model (retry `inherit` if the slug is
        rejected). If named agents are unavailable (e.g. Codex), fall back to a

@@ -89,15 +89,43 @@ function availableTaskEntries(listing: TasksListing): Array<{ id: string; path: 
 }
 
 /**
+ * blueprint `index.md`의 `bouncer.scale`을 응답 전용으로 읽는다.
+ * 포인터 파일에 넣지 않는 이유: 문서 수정 후 stale. 호출 시점마다 다시 계산한다.
+ * enum 검사는 S20의 몫 — 알 수 없는 문자열도 그대로 노출하고, 읽기/파싱 실패는 null.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} blueprintDir - 포인터의 blueprint 상대 경로
+ * @returns {string | null} 문자열 scale, 없거나 문자열이 아니면 null
+ */
+function readBlueprintScale(repoRoot: string, blueprintDir: string): string | null {
+  try {
+    const doc = readDoc(path.join(repoRoot, blueprintDir, 'index.md'));
+    const bouncer = bouncerOf(doc.data);
+    const scale = bouncer ? (bouncer as Record<string, unknown>).scale : undefined;
+    return typeof scale === 'string' ? scale : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+/**
  * CLI 출력용. 포인터 파일의 task 는 rel path 문자열만 보관하고,
- * `bouncer current` 응답에는 경로와 TASKS-NNN id 를 함께 실어 Interface 계약을 맞춘다.
+ * `bouncer current` 응답에는 경로와 TASKS-NNN id, 그리고 호출 시점의 `scale`
+ * 파생값을 함께 실어 Interface 계약을 맞춘다.
  * 문서가 사라져 id 를 못 찾으면 path 만 남기고 id 는 null — 포인터를 지우지 않는다.
+ * scale 읽기 실패도 같다: null 로 흡수하고 포인터는 유지한다.
+ *
+ * @param {Pointer | null | undefined} current - 포인터 파일 내용. 없으면 null
+ * @param {{ repoRoot: string }} opts - repoRoot 는 blueprint index 절대 경로 계산용
+ * @returns {object | null} task 없음: `{ blueprint, base, task: null, scale }`.
+ *   task 있음: `{ blueprint, base, task: { path, id }, scale }`. 포인터 없으면 null.
  */
 function presentCurrent(current: Pointer | null | undefined, { repoRoot }: { repoRoot: string }) {
   if (!current) return null;
+  const scale = readBlueprintScale(repoRoot, current.blueprint);
   const taskPath = typeof current.task === 'string' && current.task ? current.task : null;
   if (!taskPath) {
-    return { blueprint: current.blueprint, base: current.base, task: null };
+    return { blueprint: current.blueprint, base: current.base, task: null, scale };
   }
   let id: string | null = null;
   try {
@@ -111,6 +139,7 @@ function presentCurrent(current: Pointer | null | undefined, { repoRoot }: { rep
     blueprint: current.blueprint,
     base: current.base,
     task: { path: taskPath, id },
+    scale,
   };
 }
 

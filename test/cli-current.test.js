@@ -145,7 +145,8 @@ test('current with a pointer omits ready', () => {
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
-  assert.deepStrictEqual(parsed.current, { blueprint: BP_REL, base: 'develop', task: null });
+  // writePlanPassingBlueprint 없이 포인터만 쓰면 index.md 가 없어 scale 은 null.
+  assert.deepStrictEqual(parsed.current, { blueprint: BP_REL, base: 'develop', task: null, scale: null });
   assert.strictEqual(parsed.ready, undefined);
 });
 
@@ -162,7 +163,31 @@ test('current --set writes pointer when plan gate passes', () => {
     blueprint: BP_REL,
     base: 'develop',
     task: { path: `${BP_REL}/tasks/001/tasks.md`, id: 'TASKS-001' },
+    scale: null,
   });
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
+    blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+});
+
+test('current --set presents bouncer.scale from blueprint index', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login blueprint', description: '001',
+    resource: `${BP_REL}/index.md`,
+    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+      scale: 'full',
+    },
+  });
+  const r = capture(['current', '--repo', repo, '--set', BP_REL]);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.current.scale, 'full');
+  // 파생값은 응답에만 싣는다. 포인터 파일 스키마는 { blueprint, task, base }.
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
     blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks/001/tasks.md`,
   });
@@ -289,6 +314,7 @@ test('current --set --task 002 records that task document', () => {
     blueprint: BP_REL,
     base: 'develop',
     task: { path: `${BP_REL}/tasks/002/tasks.md`, id: 'TASKS-002' },
+    scale: null,
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
     blueprint: BP_REL,

@@ -17,7 +17,7 @@
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer project-root [--repo <dir>]` | 소비 저장소 main worktree 절대 경로 한 줄(stdout만). primary·linked worktree에서 같은 값. 비-Git이면 stderr + 종료 코드 1(빈 stdout·cwd 대체 없음) |
 | `bouncer distill --for <path> [--json]` | 대상 경로에 맞는 Distill 본문을 출력. `--all`은 routing 설정과 무관하게 전량 본문을 출력하고, `--route <path>`는 선택 JSON, `--audit`는 전량 감사 JSON을 출력 |
-| `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>]] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); 포인터 파일은 path 문자열만 저장. 없으면 `ready` 후보 |
+| `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>]] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); `scale`은 호출 시점에 blueprint `index.md`의 `bouncer.scale`에서 파생한 문자열(없거나 읽을 수 없으면 `null`). 포인터 파일은 `{ blueprint, task?, base }`만 저장. 없으면 `ready` 후보 |
 | `bouncer migrate ids [--dry-run]` | 구형 `EPIC-`/`BP-` context 디렉터리를 숫자 id로 이관(계획 또는 적용) |
 | `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
 | `bouncer import [--source merges\|commits] [--since <ref>] [--limit <n>] [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]` | git 히스토리를 `imported` epic/blueprint 문서로 전사. 기본은 dry-run(계획 JSON만 출력). `--yes --message`일 때만 파일을 쓰고 커밋 하나로 남김 |
