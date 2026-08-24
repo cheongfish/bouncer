@@ -114,6 +114,12 @@ test('bouncer-execute uses the pointer task document as the brief', () => {
   assert.match(body, /pointer task directory.*review\.md|review\.md.*pointer task directory/i);
 });
 
+test('bouncer-execute step 1 excludes scope_evidence from brief injection', () => {
+  const { body } = parseFrontmatter(md);
+  // 계획 근거 감사 전용 필드라 step 1 읽기에서만 뺀다. 문서 삭제는 G4가 막는다.
+  assert.match(body, /scope_evidence[\s\S]{0,200}(주입|읽기)[\s\S]{0,40}제외/);
+});
+
 test('bouncer-execute hands off to /bouncer-commit and reuses an existing worktree', () => {
   const { body } = parseFrontmatter(md);
   // 커밋 지시는 /bouncer-commit으로 옮김 — execute에 남은 긍정 안내로 고정.

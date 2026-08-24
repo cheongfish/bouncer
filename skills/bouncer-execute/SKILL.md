@@ -61,6 +61,9 @@ evidence. The debugger never applies the fix.
    task bundle document (`tasks/<NNN>/tasks.md`)
    as today. Later steps
    use that same brief path — do not re-pick a different task document mid-run.
+   브리프를 읽을 때 `bouncer.scope_evidence`는 읽기·주입 대상에서 제외한다.
+   계획 근거 감사 전용(작성은 graphify-runner, 판정은 G4, 대조는 context-review)이라
+   execute 경로에는 소비자가 없고, G4 입력이므로 문서에서는 지우지 않는다.
 
 2. **Worktree.** All tasks on the same blueprint **share one** execute worktree
    at `<repo>/.worktrees/<epic-id>/<bp-id>`. If that path already exists, **reuse it** —
