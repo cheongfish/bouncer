@@ -545,7 +545,12 @@ function globStaticPrefix(pattern) {
 function isGitIgnored(repo, target) {
   if (!target) return false;
   // exit 0 = 무시됨, 1 = 아님. --quiet면 stdout이 비어 종료코드로만 판별한다.
-  return spawnSync('git', ['check-ignore', '--quiet', '--', target], { cwd: repo }).status === 0;
+  // `.worktrees/`처럼 디렉터리 전용 ignore는 경로가 아직 없으면 `.worktrees`(슬래시
+  // 없음)를 파일로 보고 매칭에 실패한다. CI 클린 체크아웃에서도 면제되게 슬래시
+  // 붙은 형태를 한 번 더 묻는다.
+  const check = (t) =>
+    spawnSync('git', ['check-ignore', '--quiet', '--', t], { cwd: repo }).status === 0;
+  return check(target) || check(`${target}/`);
 }
 
 test('every registered Distill shard glob reaches at least one tracked file', () => {
