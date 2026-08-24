@@ -7,7 +7,7 @@ const { parsePathIds, isNumericContextId } = require('./paths');
 const { renderDoc } = require('./render');
 const { parseFrontmatter } = require('./frontmatter');
 const { templateBody, TEMPLATES } = require('./templates');
-const { ensureEpicIndexEntry } = require('./epic-index');
+const { ensureEpicIndexEntry, listEpicDirNames } = require('./epic-index');
 const { TASK_UNIT_BASENAMES, expectedTaskDocIds, } = require('./tasks-docs');
 const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_ENUM } = require('./schema');
 function writeRel(repoRoot, rel, data, body) {
@@ -99,6 +99,15 @@ function templateNameFor(base, scale) {
 function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
     requireNumericId(epicId, 'epicId');
     const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
+    // 번호는 다른 slug로 다시 쓰면 새 디렉터리에 그대로 써지고, 경로에서 id를
+    // 파생하는 S5도 통과한다. 그래서 같은 번호를 쓰는 epic이 둘 생겨도 아무
+    // 단계에서 걸리지 않는다(024가 그랬다). 같은 이름의 재실행은 종전대로 두고,
+    // 다른 slug가 번호를 재사용하는 경우만 쓰기 전에 거절한다.
+    const conflicting = listEpicDirNames(repoRoot)
+        .filter((entry) => entry.slice(0, 3) === epicId && entry !== `${epicId}-${name}`);
+    if (conflicting.length > 0) {
+        throw new Error(`epic id ${epicId} is already used by ${conflicting.join(', ')} — pick an unused id`);
+    }
     const rel = `${dir}/index.md`;
     const description = `Epic ${epicId}`;
     const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, description, rel, ['bouncer', 'epic'], timestamp, { id: epicId, epic_id: epicId, status: 'draft' });

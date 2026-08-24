@@ -51,6 +51,23 @@ test('scaffoldEpic is idempotent on the bundle context index line', () => {
   assert.strictEqual([...bundle.matchAll(/001-auth/g)].length, 1);
 });
 
+test('scaffoldEpic refuses a number another epic slug already uses', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '024', name: 'lightweight-cycle', timestamp: TS });
+  assert.throws(
+    () => scaffoldEpic({ repoRoot: repo, epicId: '024', name: 'light-path', timestamp: TS }),
+    /epic id 024 is already used by 024-lightweight-cycle/,
+  );
+  // 거절은 첫 쓰기 앞에 서야 한다. 뒤에 서면 epic 문서만 생기고 번들 목록은
+  // 갱신되지 않은 반쪽 상태가 남는다.
+  assert.strictEqual(
+    fs.existsSync(path.join(repo, CONTEXT_ROOT, 'epics', '024-light-path')),
+    false,
+  );
+  const bundle = fs.readFileSync(path.join(repo, '.bouncer/context/index.md'), 'utf8');
+  assert.doesNotMatch(bundle, /024-light-path/);
+});
+
 test('scaffoldBlueprint writes five plan docs (no explain) with numeric child ids', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
