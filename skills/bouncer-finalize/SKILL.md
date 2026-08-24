@@ -22,33 +22,6 @@ runs in this skill, after the Distill promotion proposal has been handled.
 step 5의 worktree 제거만 main worktree에서 한다. execute checkout 안에서
 제거하지 않는다.
 
-## ACQ (AskUserQuestion) gates
-
-Human-facing confirmations in this skill are **ACQ** gates. Prefer the host
-`AskUserQuestion` / `AskQuestion` UI when available; if the tool is missing,
-render the same skeleton in chat and wait for an A/B/… reply. Do **not** treat
-a bare `/bouncer-finalize` as consent for remainder commit, PR, or pointer
-advance.
-
-**Option order (strict):** recommended proceed first → revise → alternative →
-cancel/stop last. Mark one `(Recommended)` when you have a clear preference and
-put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body.
-
-```markdown
-**AskUserQuestion:**
-
-1. **Re-ground**: {한 줄 — 무엇을 결정하는지}
-2. **Recommend-why**: {왜 1번을 추천하는지}
-3. **Options** (recommended-first):
-   - A) {Proceed} (Recommended)
-   - B) {Revise / alternative}
-   - C) {Cancel}
-```
-
-**Gates in this skill:** Distill promotion proposal (step 1) · Remainder commit
-+ worktree (step 3) · PR (step 4) · Next blueprint (step 6). Worktree removal
-is **not** a separate gate — it is chosen in step 3.
-
 **Preflight.** Load the active blueprint:
 ```bash
 BOUNCER_ROOT="${BOUNCER_HOME:-${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}}"
@@ -316,3 +289,30 @@ appears; do not reconstruct a root `context/` path.
    whether the active pointer was advanced to the next blueprint or left
    cleared. Keep it to those facts — no recap of the steps the user just
    watched run.
+
+## ACQ (AskUserQuestion) gates
+
+Human-facing confirmations in this skill are **ACQ** gates. Prefer the host
+`AskUserQuestion` / `AskQuestion` UI when available; if the tool is missing,
+render the same skeleton in chat and wait for an A/B/… reply. Do **not** treat
+a bare `/bouncer-finalize` as consent for remainder commit, PR, or pointer
+advance.
+
+**Option order (strict):** recommended proceed first → revise → alternative →
+cancel/stop last. Mark one `(Recommended)` when you have a clear preference and
+put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body.
+
+```markdown
+**AskUserQuestion:**
+
+1. **Re-ground**: {한 줄 — 무엇을 결정하는지}
+2. **Recommend-why**: {왜 1번을 추천하는지}
+3. **Options** (recommended-first):
+   - A) {Proceed} (Recommended)
+   - B) {Revise / alternative}
+   - C) {Cancel}
+```
+
+**Gates in this skill:** Distill promotion proposal (step 1) · Remainder commit
++ worktree (step 3) · PR (step 4) · Next blueprint (step 6). Worktree removal
+is **not** a separate gate — it is chosen in step 3.

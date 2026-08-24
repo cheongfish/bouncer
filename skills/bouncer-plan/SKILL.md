@@ -268,3 +268,26 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    they are asked, so do not offer `/bouncer-execute` as the normal next step.
    Mention `/bouncer-execute` only if they ask for a single task or need to
    recover a stopped drive.
+
+## ACQ (AskUserQuestion) gates
+
+Human-facing confirmations in this skill are **ACQ** gates. The numbered steps
+hold the prompts; this section only lists where they fire.
+
+**Gates in this skill:**
+- Before step 1 — if the invocation had no description, ask for the request
+  before scaffolding.
+- Step 1 **Discover** — confirm Goal / Scope / Non-goals / Success criteria /
+  Edge cases & failure modes / Overlap with the user before scaffolding.
+- Step 2 **ID allocation** — show the suggested epic/blueprint id and let the
+  user override it; ask whether the work is light-scope (`경량 경로`) — do not
+  auto-judge.
+- Step 4 **Author** — when repo-root verify signals are present, ask whether to
+  set `tasks.bouncer.verify` for this blueprint.
+- Step 6 **affected_paths** — show `scope_evidence.suggested_paths`, then ask
+  the user to confirm or edit `bouncer.affected_paths` before writing it.
+- Step 8 **Approval** — ask for explicit plan approval before status
+  transitions and the pointer write.
+
+Steps 3, 5, 7, 9, and 10 do not ask; they scaffold, inject graph suggestions,
+run context review, set the pointer, or run `validate --gate plan`.

@@ -80,3 +80,19 @@ Do not author any epic or blueprint here — `/bouncer-init` only scaffolds `.bo
 Document skeletons, product rules, and master rules live in the plugin
 (`scripts/lib/templates.js`, `rules/governance.md`, `rules/okf.md`,
 `CLAUDE.md`); init does not install them into the project.
+
+## ACQ (AskUserQuestion) gates
+
+Human-facing confirmations in this skill are **ACQ** gates. The numbered steps
+hold the prompts; this section only lists where they fire.
+
+**Gates in this skill:**
+- Step 3 **Promotion ACQ** — when the init result carries
+  `graphifyPromotion: 'candidate'`, ask enable+install / enable-only / leave
+  as-is before any config write.
+- Step 3 **Gitignore ACQ** — when `gitignoreSuggestions` is non-empty, ask
+  whether to write the `# bouncer` … `# /bouncer` marker block before
+  `--write-gitignore`.
+
+Steps 1–2 and 4–5 do not ask; they report bootstrap outcome or point at
+`/bouncer-plan`.

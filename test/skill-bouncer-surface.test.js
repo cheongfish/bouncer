@@ -90,3 +90,20 @@ test('GENERIC_SKILLS does not list workflow skills', () => {
     assert.ok(!GENERIC_SKILLS.includes(name), name);
   }
 });
+
+test('workflow skills end with an ACQ gates section', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    const heads = [...md.matchAll(/^## .*$/gm)].map((m) => m[0]);
+    // 존재만이 아니라 마지막 절인지까지 본다 — 성공 조건 2가 위치를 요구한다.
+    assert.strictEqual(heads[heads.length - 1], '## ACQ (AskUserQuestion) gates', name);
+  }
+});
+
+test('workflow skill bodies use English headings', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
+    assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
+  }
+});

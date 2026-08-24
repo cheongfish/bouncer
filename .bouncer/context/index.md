@@ -49,3 +49,4 @@ bouncer_schema: '0.1'
 * [042 게이트 보증 복구](epics/042-gate-integrity/index.md) - G13·G17 두 게이트를 코드로 강제하고 보증 문구를 실제 동작에 맞춘다
 * [043 bouncer-cost-improvement](epics/043-bouncer-cost-improvement/index.md) - Epic 043
 * [044 승격 증적과 측정 프로토콜](epics/044-finalize-evidence/index.md) - Distill 승격 커밋을 검증 아래 두고 다음 회차 측정 프로토콜의 빈틈을 닫는다
+* [045 skill-shape](epics/045-skill-shape/index.md) - Epic 045
