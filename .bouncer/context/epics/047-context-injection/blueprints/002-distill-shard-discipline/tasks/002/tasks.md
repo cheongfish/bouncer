@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '047'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_type: docs
   commit_intent:

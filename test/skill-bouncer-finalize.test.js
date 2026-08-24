@@ -146,3 +146,10 @@ test('bouncer-finalize handles empty proposals, drop mismatches, and missing ACQ
   assert.match(body, /single-file/);
   assert.match(body, /absolute path|절대 경로/i);
 });
+
+// 상한 초과는 ACQ 정보·replace/drop 우선 검토일 뿐, 게이트·자동 절삭이 아니다.
+test('bouncer-finalize surfaces over-limit shards in the promotion ACQ', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /상한[\s\S]{0,80}초과[\s\S]{0,120}ACQ|ACQ[\s\S]{0,160}초과/);
+  assert.match(body, /`add`[\s\S]{0,60}`replace`[\s\S]{0,20}`drop`/);
+});

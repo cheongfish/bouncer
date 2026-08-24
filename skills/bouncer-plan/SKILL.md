@@ -31,9 +31,11 @@ absolute path to `discovery` / `spec-authoring`.
 **Project Distill.** Before discovery or authoring, run the full CLI preflight
 `bouncer distill --all --repo "${PROJECT_ROOT}"` and consume its stdout. This
 is required before any `affected_paths` or other route target is proposed; do
-not use `--for` yet. If the CLI reports a missing project or cannot read
-Distill, stop and tell the user to run `bouncer init` (or repair the project).
-An invalid or absent shard index is still the CLI's single-file fallback, so do
+not use `--for` yet. 프리플라이트 `--all` 직후 stderr의 총량을 사용자에게
+한 줄로 보고한다 — 샤드별 표는 세션에 출력하지 않는다(그 자체가 주입이 된다).
+초과는 정보일 뿐 게이트가 아니다. If the CLI reports a missing project or
+cannot read Distill, stop and tell the user to run `bouncer init` (or repair
+the project). An invalid or absent shard index is still the CLI's single-file fallback, so do
 not substitute a cwd-relative file or a Distill under `BOUNCER_ROOT`. Apply
 matching Invariants / Gotchas / Decisions from the full output when framing
 scope and Constraints.
