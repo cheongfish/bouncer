@@ -21,6 +21,10 @@ function fixture(home, host, version, marketplace = 'chunjae-tools', metadata = 
 function capture(argv, options) {
   const result = { out: '', err: '' };
   result.code = runBouncerRoot(argv, {
+    // 후보 해석은 앰비언트 BOUNCER_HOME을 먼저 읽는다. 개발자 셸에 그 변수가
+    // 있으면 fixture가 아니라 그 경로가 뽑혀 이 파일의 단언이 통째로 흔들리므로,
+    // 기본값을 빈 env로 고정한다. 오버라이드 자체를 검증하는 호출만 env를 넘긴다.
+    env: {},
     ...options,
     out: (s) => { result.out += s; },
     err: (s) => { result.err += s; },
@@ -94,7 +98,7 @@ test('CLI defaults cover stdout, stderr, stdin selection, and selection errors',
   process.stderr.write = (text) => { writes.push(`err:${text}`); return true; };
   fs.readFileSync = (target, ...args) => (target === 0 ? '1\n' : originalRead(target, ...args));
   try {
-    assert.strictEqual(runBouncerRoot(['--select'], { homeDir: home, isTTY: true }), 0);
+    assert.strictEqual(runBouncerRoot(['--select'], { homeDir: home, isTTY: true, env: {} }), 0);
     assert.ok(writes.includes(`out:${candidate}\n`));
     assert.strictEqual(runBouncerRoot(['--unknown']), 1);
     assert.match(writes.at(-1), /unknown argument/);
