@@ -91,6 +91,13 @@ test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', (
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
 
+test('bouncer-execute caps review round-trips at 2 and escalates', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /at most \*\*2\*\* review round-trips/);
+  assert.match(body, /round-trips[\s\S]{0,200}\/bouncer-plan/);
+  // 상한을 accepted 전환으로 빠져나가면 G8이 헛통과함.
+  assert.match(body, /never flip[\s\S]{0,80}accepted/);
+});
 
 test('bouncer-execute preflight reads project Distill', () => {
   const { body } = parseFrontmatter(md);

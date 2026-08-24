@@ -222,7 +222,9 @@ evidence. The debugger never applies the fix.
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status (인라인 경로에서도 Findings 기록과 status는 컨트롤러 몫);
    (4) if any actionable finding remains unresolved, fix within scope and
-   re-review;
+   re-review — at most **2** review round-trips on the same task. On reaching
+   that ceiling, escalate to `/bouncer-plan` instead of fixing again, and
+   never flip a remaining finding to `accepted` to clear it;
    (5) only when every finding is `resolved` or `accepted` with a note, set
    `review → accepted`.
    While reviewing, you may run the `minimality` skill (`skills/minimality/SKILL.md`) (advisory) to flag

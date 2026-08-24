@@ -116,7 +116,8 @@ blueprint가 경량으로 선언돼 있어도 주행 중에는 execute의 인라
    (debugger 리포트가 implementer의 증거다). 같은 verify가 또
    실패하면 주행을 멈춘다. 루프가 이 숫자 위에 별도 상한을 씌우지 않는다.
    named 디스패치 네 단계는 execute 소유이며 여기 복사하지 않는다.
-   리뷰 finding이 남아 implementer에게 되돌리는 왕복은 **2회**까지다.
+   리뷰 finding이 남아 implementer에게 되돌리는 왕복은 `/bouncer-execute`가
+   정한 대로 **2회**까지다. 루프가 이 숫자 위에 별도 상한을 씌우지 않는다.
    상한에 닿으면 `/bouncer-plan`으로 에스컬레이션한다. 루프가 finding을
    `accepted`로 바꾸지 않는다.
 
