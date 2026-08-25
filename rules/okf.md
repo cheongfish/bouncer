@@ -47,7 +47,9 @@ When `bouncer.verify` is present, it is one executable command that proves the
 task's acceptance criteria, not prose such as "run tests." Blueprint
 `bouncer.commit_type` describes the intended commit category and
 `bouncer.scale` describes the approved planning path; neither is changed
-merely to make an implementation easier to fit.
+merely to make an implementation easier to fit. Epic and blueprint
+`bouncer.supersedes` lists document paths this one replaces; validation checks
+shape only (absent or an array of non-empty strings), not referential integrity.
 
 **Scope evidence.** `bouncer.scope_evidence` is the canonical write form for
 the candidate paths and basis used to judge a task's scope. It contains

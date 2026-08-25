@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, } = require('./schema');
+const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, } = require('./schema');
 const { parsePathIds, toPosix, isNumericContextId, } = require('./paths');
 const { isValidVerifyCommand } = require('./verification');
 const { expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = require('./tasks-docs');
@@ -458,6 +458,12 @@ function checkStructural(doc, failures) {
         && bouncer.scale !== undefined
         && !SCALE_ENUM.includes(bouncer.scale)) {
         add('S20', `scale "${bouncer.scale}" not in enum for ${docType}`);
+    }
+    // S27: epic·blueprint만. 부재는 통과(소급 없음). 형식만 schema.isValidSupersedes —
+    // 경로 존재·자기참조·순환·중복은 검사하지 않는다.
+    if ((docType === 'bouncer.epic' || docType === 'bouncer.blueprint')
+        && !isValidSupersedes(bouncer.supersedes)) {
+        add('S27', 'supersedes must be an array of non-empty document paths');
     }
     if (docType === 'bouncer.tasks') {
         const ap = bouncer.affected_paths;

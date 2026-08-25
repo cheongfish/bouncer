@@ -746,6 +746,36 @@ test('S20: scale missing or valid values pass; lite fails', () => {
   assert.deepStrictEqual(codesFor({ scale: 'lite' }), ['S20']);
 });
 
+test('S27: supersedes missing or path arrays pass; non-array and blank entries fail', () => {
+  assert.deepStrictEqual(codesFor({}), []);
+  assert.deepStrictEqual(codesFor({ supersedes: [] }), []);
+  assert.deepStrictEqual(
+    codesFor({ supersedes: ['.bouncer/context/epics/033-x/index.md'] }),
+    [],
+  );
+  assert.deepStrictEqual(codesFor({ supersedes: '033' }), ['S27']);
+  assert.deepStrictEqual(codesFor({ supersedes: [''] }), ['S27']);
+  assert.deepStrictEqual(codesFor({ supersedes: ['  '] }), ['S27']);
+  assert.deepStrictEqual(codesFor({ supersedes: [{}] }), ['S27']);
+
+  const epicFailures = [];
+  checkStructural(
+    {
+      data: {
+        ...epicDoc(),
+        bouncer: { ...epicDoc().bouncer, supersedes: '033' },
+      },
+      rel: '.bouncer/context/epics/001-auth/index.md',
+    },
+    epicFailures,
+  );
+  assert.deepStrictEqual(epicFailures.map((f) => f.code), ['S27']);
+
+  const epicOk = [];
+  checkStructural({ data: epicDoc(), rel: '.bouncer/context/epics/001-auth/index.md' }, epicOk);
+  assert.ok(!epicOk.some((f) => f.code === 'S27'));
+});
+
 test('Distill structural checks ignore the single-file fallback and disabled routing', () => {
   const repo = mkRepo();
   writeRaw(repo, '.bouncer/Distill.md', '# legacy\n');

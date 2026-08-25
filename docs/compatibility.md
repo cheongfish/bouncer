@@ -63,12 +63,12 @@ G 코드는 게이트별 검사, S 코드는 항상 실행되는 구조·스키�
 | `G17` | 스테이징 범위가 허용 범위임 |
 | `G18` | context-review가 `accepted`이고 findings가 유효(`scale: light` blueprint에는 적용하지 않음) |
 
-S 코드는 `S0`–`S26`이다. `S0` 파싱, `S1` OKF 필드, `S2` 타입·레거시 형식,
+S 코드는 `S0`–`S27`이다. `S0` 파싱, `S1` OKF 필드, `S2` 타입·레거시 형식,
 `S3` resource, `S4` id 형식, `S5` id/상위 id 정합성, `S6` status, `S7` task
 `affected_paths`, `S8` index 누락, `S9` graph basis, `S10` blueprint 경로,
 `S11` blueprint 문서 부재, `S12` 단일 verify 명령, `S13` epic index 목록, `S15` 레거시 task
 파일, `S16` task 디렉터리, `S17` task 세 문서, `S18` imported blueprint,
-`S19` type과 위치, `S20` blueprint scale을 검사한다.
+`S19` type과 위치, `S20` blueprint scale, `S27` epic·blueprint supersedes를 검사한다.
 
 `S21`은 등록되지 않은 Distill orphan shard, `S22`는 비-`always` shard의 routing
 경로 누락, `S23`은 잘못된 `pulls`, `S24`는 `pulls` 순환, `S25`는

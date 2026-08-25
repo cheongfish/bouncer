@@ -14,7 +14,7 @@ bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 | **commit** | 포인터 task의 G6 `tasks` `verified` · G7 `verification` `passed` · G8 `review` `accepted`(또는 `required: false`) 재확인 + G13 하네스 원장 대조(execute와 동일) + G17 스테이징 경로가 그 task `affected_paths` 안인지 (G9·G15는 결번; project `.bouncer/Distill.md`는 skill + `makeAllowed`, 본문 게이트 아님) |
 | **finalize** | G16 모든 task `verified` · explain `published` · 본문 5섹션 · `comprehension` 배열의 BP 단일 엔트리(`quiz_score` 필수) · 그 엔트리 `diff_sha`가 `range_from..HEAD`(`.bouncer/context/` 제외)와 일치 |
 
-`S`로 시작하는 코드(S0–S26)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
+`S`로 시작하는 코드(S0–S27)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
 S12는 `tasks.bouncer.verify`가 있을 때 셸 체이닝·리다이렉션·`cd` 접두 같은 비단일
 실행 형식을 거절합니다. S13은 `.bouncer/context/epics/` 디렉터리와 번들 루트
 `index.md`의 OKF §6 에픽 목록이 어긋나면 실패합니다(`bouncer scaffold epic`이
@@ -28,7 +28,9 @@ S15는 blueprint 루트에 남은 `tasks.md`·`tasks-<NNN>.md`를 거절합니�
 status인 blueprint를 게이트 대상에서 빼는 코드입니다. S19는 문서 `type`이
 파일 위치가 요구하는 종류와 다르면 실패합니다(예: `tasks.md` 자리에
 `bouncer.review`). S20은 blueprint `bouncer.scale`이 있을 때 `light`/`full`
-밖이면 실패합니다(부재는 허용).
+밖이면 실패합니다(부재는 허용). S27은 epic·blueprint `bouncer.supersedes`가
+있을 때 비어 있지 않은 문서 경로 문자열 배열이 아니면 실패합니다(부재·빈 배열은
+허용; 참조 무결성은 검사하지 않음).
 
 S21–S26은 Project Distill 구조 검사입니다. S21은 등록되지 않은 orphan shard, S22는
 비-`always` shard의 routing 경로 누락, S23은 잘못된 `pulls`, S24는 `pulls`

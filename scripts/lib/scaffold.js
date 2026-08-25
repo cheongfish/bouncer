@@ -110,7 +110,9 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp }) {
     }
     const rel = `${dir}/index.md`;
     const description = `Epic ${epicId}`;
-    const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, description, rel, ['bouncer', 'epic'], timestamp, { id: epicId, epic_id: epicId, status: 'draft' });
+    const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, description, rel, ['bouncer', 'epic'], timestamp, 
+    // supersedes는 epic·blueprint 전용. 빈 배열은 "자리만" — 값은 사람이 채운다.
+    { id: epicId, epic_id: epicId, status: 'draft', supersedes: [] });
     const body = templateBody('epic.md', { epicId, name });
     const created = [writeRel(repoRoot, rel, data, body)];
     // OKF §6 번들 루트 목록 — scaffold가 소유. 이미 있으면 no-op.
@@ -212,6 +214,7 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
     const body = (templateName) => templateBody(templateNameFor(templateName, bpScale), { epicId, blueprintId, name });
     const idx = `${dir}/index.md`;
     // commit_type·scale은 blueprint 전용(epic/tasks 등에는 쓰지 않음).
+    // supersedes는 epic·blueprint 공용 — 빈 배열로 자리만 잡고 값은 사람이 채운다.
     // status 뒤에 두어 frontmatter 키 순서를 고정한다. 경량 선언은 plan이
     // scale을 light로 바꾸고, 되돌릴 때는 full로 되돌린다(키 삭제 아님).
     created.push(writeRel(repoRoot, idx, bouncerDoc('bouncer.blueprint', `${blueprintId} ${name}`, `Blueprint ${blueprintId}`, idx, ['bouncer', 'blueprint'], timestamp, {
@@ -221,6 +224,7 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
         status: 'draft',
         commit_type: DEFAULT_COMMIT_TYPE,
         scale: bpScale,
+        supersedes: [],
     }), body('blueprint.md')));
     // index.md 다음, task 묶음보다 앞. explain은 finalize 시점이라 여기 넣지 않는다.
     // light는 context-review 문서 자체를 만들지 않는다 — plan gate G18도
