@@ -54,3 +54,4 @@ bouncer_schema: '0.1'
 * [047 컨텍스트 주입량 절감](epics/047-context-injection/index.md) - 포인터·브리프·Distill 프리플라이트에서 한 사이클 주입량을 줄이고 게이트 계약은 그대로 둔다
 * [048 plugin-root-resolution](epics/048-plugin-root-resolution/index.md) - Epic 048
 * [049 context-searchability](epics/049-context-searchability/index.md) - Epic 049
+* [050 cycle-friction](epics/050-cycle-friction/index.md) - Epic 050
