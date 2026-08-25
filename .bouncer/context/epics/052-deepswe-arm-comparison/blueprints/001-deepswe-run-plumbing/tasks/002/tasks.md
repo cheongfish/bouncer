@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '052'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 표본 런은 패치가 둘 이상이면 metrics.json을 통째로 건너뛰어, 여러 태스크를 도는 회차에서 태스크별 측정이 하나도 남지 않았음
     - 결과 경로를 tasks/<task-id>/ 단위로 통일하고 태스크마다 산출물과 measured 한 벌을 앉힘

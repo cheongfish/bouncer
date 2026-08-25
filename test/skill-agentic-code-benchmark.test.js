@@ -193,6 +193,51 @@ function runnerArgs(runId, extra = []) {
   return [RUN_DEEPSWE, '--run-id', runId, '--arm', 'vanilla', '--agent', 'claude', ...extra];
 }
 
+// Pier가 작업 경로에 태스크 단위를 남기는 스텁. 한 벌은 reward.json + 패치 +
+// git 커밋이 있는 워크스페이스다. 디렉터리 이름은 태스크 id가 아니다 — 러너가
+// 산출물에서 id를 유도해야 한다.
+function pierLeavesUnits(units) {
+  const APPLYABLE_PATCH = [
+    'diff --git a/added.txt b/added.txt',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/added.txt',
+    '@@ -0,0 +1 @@',
+    '+hello',
+    '',
+  ].join('\n');
+  const lines = ['#!/bin/sh', 'set -e'];
+  for (const unit of units) {
+    lines.push(`mkdir -p "${unit.dir}/ws"`);
+    if (unit.reward !== false) {
+      const payload = unit.reward != null
+        ? unit.reward
+        : JSON.stringify({ task_id: unit.taskId, reward: 1 });
+      lines.push(`cat > "${unit.dir}/reward.json" << 'EOF'\n${payload}\nEOF`);
+    }
+    if (unit.extraFiles) {
+      for (const [name, body] of Object.entries(unit.extraFiles)) {
+        lines.push(`cat > "${unit.dir}/${name}" << 'EOF'\n${body}\nEOF`);
+      }
+    }
+    if (unit.patch !== false) {
+      lines.push(`cat > "${unit.dir}/model_patch.diff" << 'EOF'\n${APPLYABLE_PATCH}EOF`);
+    }
+    lines.push(`git -C "${unit.dir}/ws" init`);
+    lines.push(`git -C "${unit.dir}/ws" config user.email t@t`);
+    lines.push(`git -C "${unit.dir}/ws" config user.name t`);
+    lines.push(`echo base > "${unit.dir}/ws/file.txt"`);
+    lines.push(`git -C "${unit.dir}/ws" add file.txt`);
+    lines.push(`git -C "${unit.dir}/ws" commit -m init`);
+  }
+  lines.push('exit 0', '');
+  return lines.join('\n');
+}
+
+function resultsPath(root, runId) {
+  return path.join(root, 'docs', 'benchmark', 'deepswe', 'results', runId);
+}
+
 function runRunner(root, binDir, args) {
   return spawnSync(PYTHON, ['python3', ...args], {
     cwd: root,
@@ -254,11 +299,116 @@ test('run_deepswe.py never mistakes suite fixtures inside the clone for its own 
     assert.strictEqual(run.status, 0, run.stderr);
     const results = path.join(root, 'docs', 'benchmark', 'deepswe', 'results', 'r-fixture');
     assert.ok(fs.existsSync(path.join(results, 'run.log')), 'run.log must land in the results path');
-    // 클론이 실어 온 reward.json이 이 런의 보상으로 옮겨지면 거짓 수용이 된다.
-    assert.ok(!fs.existsSync(path.join(results, 'reward.json')), 'clone fixture must not be moved into results');
-    // 스위트 gold 패치가 잡히면 "패치 여러 개"로 metrics.json이 통째로 건너뛰어진다.
-    assert.doesNotMatch(run.stderr, /patches found/);
+    // 클론 픽스처가 태스크 단위로 잡히면 새 레이아웃에도 거짓 수용이 된다.
+    assert.ok(!fs.existsSync(path.join(results, 'tasks')), 'clone fixture must not become a task unit');
     assert.match(run.stderr, /no patch left by pier/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py writes one measured bundle per task directory Pier left', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({
+    pier: pierLeavesUnits([
+      { dir: 'unit-a', taskId: 'demo-a' },
+      { dir: 'unit-b', taskId: 'demo-b' },
+    ]),
+  });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-multi'));
+    assert.strictEqual(run.status, 0, run.stderr);
+    const results = resultsPath(root, 'r-multi');
+    assert.ok(fs.existsSync(path.join(results, 'run.log')));
+    for (const id of ['demo-a', 'demo-b']) {
+      assert.ok(fs.existsSync(path.join(results, 'tasks', id, 'reward.json')));
+      assert.ok(fs.existsSync(path.join(results, 'tasks', id, 'metrics.json')));
+    }
+    assert.doesNotMatch(run.stderr, /covers one task only/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py uses the tasks/<task-id>/ layout for a single-task run', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({
+    pier: pierLeavesUnits([{ dir: 'unit-one', taskId: 'demo-task' }]),
+  });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-single', ['--task', 'demo-task']));
+    assert.strictEqual(run.status, 0, run.stderr);
+    const results = resultsPath(root, 'r-single');
+    assert.ok(fs.existsSync(path.join(results, 'run.log')));
+    assert.ok(fs.existsSync(path.join(results, 'tasks', 'demo-task', 'reward.json')));
+    assert.ok(fs.existsSync(path.join(results, 'tasks', 'demo-task', 'metrics.json')));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py drops a unit with no task id and keeps the rest', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({
+    pier: pierLeavesUnits([
+      { dir: 'unit-keep', taskId: 'demo-task' },
+      {
+        dir: 'unit-drop',
+        reward: JSON.stringify({ reward: 1 }),
+        extraFiles: {
+          'ctrf.json': '{"results":{}}',
+          'test-stdout.txt': 'orphan stdout',
+        },
+      },
+    ]),
+  });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-orphan'));
+    assert.strictEqual(run.status, 0, run.stderr);
+    const results = resultsPath(root, 'r-orphan');
+    assert.ok(fs.existsSync(path.join(results, 'run.log')));
+    assert.ok(fs.existsSync(path.join(results, 'tasks', 'demo-task', 'reward.json')));
+    assert.ok(fs.existsSync(path.join(results, 'tasks', 'demo-task', 'metrics.json')));
+    assert.ok(!fs.existsSync(path.join(results, 'tasks', 'unit-drop')));
+    assert.ok(!fs.existsSync(path.join(results, 'reward.json')));
+    assert.ok(!fs.existsSync(path.join(results, 'ctrf.json')));
+    assert.ok(!fs.existsSync(path.join(results, 'test-stdout.txt')));
+    assert.ok(!fs.existsSync(path.join(results, 'metrics.json')));
+    const listed = fs.existsSync(path.join(results, 'tasks'))
+      ? fs.readdirSync(path.join(results, 'tasks'))
+      : [];
+    assert.deepStrictEqual(listed, ['demo-task']);
+    assert.match(run.stderr, /task id unresolved/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py treats a path-escaping task id as unresolved and writes nothing outside results', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({
+    pier: pierLeavesUnits([
+      { dir: 'unit-keep', taskId: 'demo-task' },
+      { dir: 'unit-escape', taskId: '../escape' },
+    ]),
+  });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-escape'));
+    assert.strictEqual(run.status, 0, run.stderr);
+    const results = resultsPath(root, 'r-escape');
+    assert.ok(fs.existsSync(path.join(results, 'run.log')));
+    assert.ok(fs.existsSync(path.join(results, 'tasks', 'demo-task', 'reward.json')));
+    assert.ok(fs.existsSync(path.join(results, 'tasks', 'demo-task', 'metrics.json')));
+    assert.ok(!fs.existsSync(path.join(results, 'tasks', '..', 'escape')));
+    assert.ok(!fs.existsSync(path.join(root, 'docs', 'benchmark', 'deepswe', 'results', 'escape')));
+    assert.ok(!fs.existsSync(path.join(root, 'docs', 'benchmark', 'deepswe', 'escape')));
+    assert.ok(!fs.existsSync(path.join(root, 'escape')));
+    const listed = fs.readdirSync(path.join(results, 'tasks'));
+    assert.deepStrictEqual(listed, ['demo-task']);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(binDir, { recursive: true, force: true });

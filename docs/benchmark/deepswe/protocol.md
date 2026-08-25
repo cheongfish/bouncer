@@ -57,19 +57,33 @@ python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
 ```
 
 표본 전체를 돌 때는 `--task` 대신 `--n-tasks 10 --sample-seed 20260825`을 준다.
-`--task`와 `--n-tasks`는 서로 배타라 같이 주면 러너가 거부한다. 결과는
-`docs/benchmark/deepswe/results/<run-id>/`에 남고 작업 경로는 지워진다.
+`--task`와 `--n-tasks`는 서로 배타라 같이 주면 러너가 거부한다.
 
-러너가 남긴 것은 `metrics.json`(측정)과 Pier의 `reward.json`·`ctrf.json`(판정)이
-따로 있는 상태다. 런당 기록 값 표가 읽는 병합 JSON은 브리지가 만든다.
+결과는 아래 레이아웃으로 남고 작업 경로는 지워진다. 태스크가 하나여도 여럿이어도
+같은 모양이다. `run.log`만 런 루트에 한 장이고, 측정·판정 파일은 태스크마다
+`tasks/<task-id>/` 아래 한 벌이다. Pier가 남기지 않은 파일은 키가 아니라 파일
+자체가 없다.
+
+```
+docs/benchmark/deepswe/results/<run-id>/
+  run.log
+  tasks/<task-id>/reward.json
+  tasks/<task-id>/ctrf.json
+  tasks/<task-id>/test-stdout.txt
+  tasks/<task-id>/metrics.json
+```
+
+러너가 남긴 것은 `tasks/<task-id>/metrics.json`(측정)과 Pier의
+`tasks/<task-id>/reward.json`·`ctrf.json`(판정)이 따로 있는 상태다. 런당 기록
+값 표가 읽는 병합 JSON은 브리지가 만든다.
 
 ```bash
 python3 skills/agentic-code-benchmark/scripts/bridge_pier.py \
-  --metrics docs/benchmark/deepswe/results/<run-id>/metrics.json \
-  --reward docs/benchmark/deepswe/results/<run-id>/reward.json \
-  --ctrf docs/benchmark/deepswe/results/<run-id>/ctrf.json \
+  --metrics docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/metrics.json \
+  --reward docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/reward.json \
+  --ctrf docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/ctrf.json \
   --arm vanilla \
-  --out docs/benchmark/deepswe/results/<run-id>/merged.json
+  --out docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/merged.json
 ```
 
 ### superpowers

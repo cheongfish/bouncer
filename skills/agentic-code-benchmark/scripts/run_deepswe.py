@@ -2,10 +2,12 @@
 """Run the DeepSWE suite once and keep only the artifacts.
 
 One invocation clones datacurve-ai/deep-swe into an ignored work path, drives
-`pier run` over the clone's `tasks` directory, rebuilds the measured copy from
-the patch Pier left, calls collect_metrics.py on that copy, moves the artifacts
-into docs/benchmark/deepswe/results/<run-id>/ and removes the work path. The
-work path is removed on success, on failure and on Ctrl-C alike.
+`pier run` over the clone's `tasks` directory, rebuilds a measured copy per
+task from the patch Pier left, calls collect_metrics.py on each copy, moves
+the artifacts into docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/
+(with one run.log at the run root) and removes the work path. The work path
+is removed on success, on failure and on Ctrl-C alike. A one-task run uses
+the same layout; there is no flat single-task fallback.
 
 Why metrics.json is produced here: Pier runs the agent inside a container, so
 collect_metrics.py can never reach that workspace git. Without the copy this
@@ -122,8 +124,50 @@ def walk_outputs(root, skip):
         yield dirpath, dirs, files
 
 
+def find_task_units(root, skip):
+    """Pier 산출물·패치를 그걸 직접 담은 디렉터리별로 묶는다.
+
+    결과 경로는 `tasks/<task-id>/` 아래만 자리가 있다. 작업 경로 전체에서
+    이름당 파일 하나(가장 최신)를 고르면 나머지 태스크를 담을 키가 없다.
+    같은 디렉터리에 놓인 산출물과 패치를 한 단위로 본다. 그 디렉터리 이름은
+    태스크 id가 아니고, id는 단위 안에서 resolve_task_id로 유도한다.
+
+    Args:
+        root (str): 탐색 시작 경로 (보통 이 런의 작업 경로)
+        skip (str | None): 내려가지 않을 클론 경로
+
+    Returns:
+        dict[str, dict]: 단위 디렉터리 → {"artifacts": {이름: 경로}, "patches": [경로]}
+    """
+    units = {}
+    for dirpath, _dirs, files in walk_outputs(root, skip):
+        artifacts = {}
+        patches = []
+        for name in files:
+            full = os.path.join(dirpath, name)
+            if name in PIER_ARTIFACTS:
+                artifacts[name] = full
+            if name in PATCH_NAMES or name.endswith(".patch"):
+                patches.append(full)
+        if artifacts or patches:
+            units[dirpath] = {"artifacts": artifacts, "patches": sorted(patches)}
+    return units
+
+
 def find_files(root, names, skip=None):
-    """Return the newest match for each of `names` under root, minus the clone."""
+    """`root` 아래(클론 제외)에서 `names`의 가장 최신 파일을 이름별로 돌려준다.
+
+    전역이 아니라 태스크 단위 디렉터리를 root로 넘긴다. 단위 안에서 같은 이름이
+    둘이면 최신만 남긴다 — 그 단위의 산출물은 결과 경로에 이름당 한 장이다.
+
+    Args:
+        root (str): 태스크 단위 디렉터리
+        names (set[str] | iterable[str]): 찾을 파일 이름
+        skip (str | None): 클론 경로
+
+    Returns:
+        dict[str, str]: 파일 이름 → 경로. 없으면 그 키 자체가 없다
+    """
     found = {}
     for dirpath, _dirs, files in walk_outputs(root, skip):
         for name in files:
@@ -140,6 +184,15 @@ def find_files(root, names, skip=None):
 
 
 def find_patches(root, skip=None):
+    """`root` 아래(클론 제외)의 패치 경로를 정렬해 돌려준다.
+
+    Args:
+        root (str): 태스크 단위 디렉터리
+        skip (str | None): 클론 경로
+
+    Returns:
+        list[str]: 패치 파일 절대/상대 경로
+    """
     hits = []
     for dirpath, _dirs, files in walk_outputs(root, skip):
         for name in files:
@@ -149,15 +202,45 @@ def find_patches(root, skip=None):
 
 
 def find_workspace(root, skip):
-    """Find a host-side repo checkout Pier left behind, if any.
+    """이 태스크 단위 안에서 Pier가 남긴 호스트 쪽 체크아웃을 찾는다.
 
-    Pier가 워크스페이스를 호스트에 남기지 않는 구성이면 사본을 만들 수 없다.
-    그 경우 metrics.json을 만들지 않고 사실만 적는다.
+    작업 경로 전체의 첫 `.git`을 쓰면 다른 태스크의 워크스페이스를 재게 된다.
+    단위 디렉터리로 범위를 좁힌다. 호스트에 체크아웃이 없으면 사본을 만들 수
+    없으니 metrics.json은 만들지 않고 사실만 적는다.
+
+    Args:
+        root (str): 태스크 단위 디렉터리
+        skip (str | None): 클론 경로. 클론 안의 스위트 픽스처 `.git`은 제외
+
+    Returns:
+        str | None: `.git`이 있는 디렉터리, 없으면 None
     """
     for dirpath, dirs, files in walk_outputs(root, skip):
         if ".git" in dirs or ".git" in files:
             return dirpath
     return None
+
+
+def usable_task_id(task_id):
+    """태스크 id가 결과 경로의 한 조각으로 써도 안전할 때만 그대로 돌려준다.
+
+    `tasks/<task-id>/`는 경로 한 단이다. `/`나 `..`이 들어가면 결과 경로 밖을
+    가리키거나 상위 디렉터리를 넘는다. 순번으로 이름을 지어내지 않고, 유도
+    실패와 같이 그 단위를 버린다.
+
+    Args:
+        task_id (str | None): resolve_task_id가 낸 값
+
+    Returns:
+        str | None: 안전한 한 조각이거나, 쓰면 안 되면 None
+    """
+    if not task_id or not isinstance(task_id, str):
+        return None
+    if "/" in task_id or (os.sep != "/" and os.sep in task_id) or ".." in task_id:
+        return None
+    if task_id in (".",):
+        return None
+    return task_id
 
 
 def read_json(path):
@@ -211,31 +294,45 @@ def resolve_base(clone, task_id, copy_dir):
     return git_out(["rev-parse", "HEAD"], copy_dir) or None
 
 
-def build_measured_copy(work, clone, task_id, handle):
-    """Copy the workspace, check out the task base, apply Pier's patch.
+def build_measured_copy(work, clone, task_id, handle, unit_dir):
+    """이 태스크 단위의 워크스페이스를 복사하고 base에 패치를 얹는다.
 
-    Returns (copy_dir, base) or None when the chain cannot be completed. 빈
-    diff로 measured 필드를 채우면 "재지 않음"이 "아무것도 안 고침"으로 읽힌다.
+    패치가 없거나 사본 체인을 끝내지 못하면 None이다. 빈 diff로 measured
+    필드를 채우면 "재지 않음"이 "아무것도 안 고침"으로 읽힌다. 사본 경로는
+    태스크마다 갈라서 한 런의 사본이 서로를 덮지 않게 한다.
+
+    Args:
+        work (str): 런 작업 경로
+        clone (str): deep-swe 클론 경로 (패치·워크스페이스 탐색에서 제외)
+        task_id (str): 이미 안전하게 걸러진 태스크 id
+        handle (TextIO): run.log
+        unit_dir (str): 이 태스크의 산출물·패치가 있는 디렉터리
+
+    Returns:
+        tuple[str, str] | None: (copy_dir, base) 또는 체인을 못 끝냈으면 None
     """
-    patches = find_patches(work, clone)
+    patches = find_patches(unit_dir, clone)
     if not patches:
-        log(handle, "no patch left by pier; skipping metrics.json")
+        log(handle, f"no patch left by pier for {task_id}; skipping metrics.json")
         return None
     if len(patches) > 1:
-        log(handle, f"{len(patches)} patches found; metrics.json covers one task only, skipping")
+        # 전역 "패치 둘이면 런 전체를 skip"은 태스크 반복으로 대체됐다.
+        # 한 단위 안에 패치가 둘이면 어느 것을 얹을지 임의로 고르지 않는다.
+        log(handle, f"{len(patches)} patches in task {task_id}; skipping metrics.json")
         return None
-    workspace = find_workspace(work, clone)
+    workspace = find_workspace(unit_dir, clone)
     if not workspace:
-        log(handle, "pier left no host-side workspace checkout; skipping metrics.json")
+        log(handle, f"pier left no host-side workspace checkout for {task_id}; skipping metrics.json")
         return None
 
-    # 워크스페이스는 ".git이 있는 첫 디렉터리" 휴리스틱으로 고른다. 어느
+    # 워크스페이스는 이 단위 안에서 ".git이 있는 첫 디렉터리"다. 어느
     # 디렉터리를 재고 어느 패치를 얹었는지 run.log에 남겨야 나중에 metrics.json이
     # 엉뚱한 체크아웃을 잰 건지 확인할 수 있다.
-    log(handle, f"measured workspace: {workspace}")
-    log(handle, f"measured patch: {patches[0]}")
+    log(handle, f"measured workspace ({task_id}): {workspace}")
+    log(handle, f"measured patch ({task_id}): {patches[0]}")
 
-    copy_dir = os.path.join(work, "measured")
+    os.makedirs(os.path.join(work, "measured"), exist_ok=True)
+    copy_dir = os.path.join(work, "measured", task_id)
     shutil.copytree(workspace, copy_dir, symlinks=True)
     base = resolve_base(clone, task_id, copy_dir)
     if not base:
@@ -341,35 +438,64 @@ def main(argv=None):
             if code != 0:
                 fail(f"pier run exited {code}", 1)
 
-            artifacts = find_files(work, set(PIER_ARTIFACTS), skip=clone)
-            for name in PIER_ARTIFACTS:
-                if name not in artifacts:
-                    log(handle, f"pier left no {name}")
+            # 1. 클론을 뺀 작업 경로에서 디렉터리별 산출물 묶음을 모은다.
+            units = find_task_units(work, clone)
+            accepted = []
+            any_patch = False
+            for unit_dir in sorted(units):
+                # 묶음은 디렉터리 단위로 이미 잘렸다. 그 안에서만 이름당 최신을
+                # 고르면 전역 "파일 하나" 규칙이 다른 태스크를 지우지 않는다.
+                artifacts = find_files(unit_dir, set(PIER_ARTIFACTS), skip=clone)
+                patches = find_patches(unit_dir, skip=clone)
+                if patches:
+                    any_patch = True
+                # 2. id는 디렉터리 이름이 아니라 그 안 산출물·패치에서 유도한다.
+                #    안전하지 않은 값은 유도 실패와 같다 — 순번으로 짓지 않는다.
+                task_id = usable_task_id(
+                    resolve_task_id(args.task, clone, artifacts, patches),
+                )
+                if not task_id:
+                    dropped = [artifacts[name] for name in PIER_ARTIFACTS if name in artifacts]
+                    dropped.extend(patches)
+                    what = ", ".join(dropped) if dropped else unit_dir
+                    log(handle, f"task id unresolved; discarding {what}")
+                    continue
+                # 3. 측정 사본은 태스크마다 다른 이름. 패치 둘 이상이면 그
+                #    단위의 metrics만 건너뛰고 나머지 태스크는 계속 간다.
+                measured = build_measured_copy(work, clone, task_id, handle, unit_dir)
+                metrics_path = os.path.join(work, "measured", f"{task_id}.metrics.json")
+                if measured:
+                    copy_dir, base = measured
+                    collect = os.path.join(os.path.dirname(os.path.abspath(__file__)), "collect_metrics.py")
+                    # --task-id는 반드시 준다. 빠지면 002의 태스크 id 대조가 무의미해진다.
+                    code = stream([
+                        sys.executable or "python3", collect,
+                        "--repo", copy_dir, "--base", base, "--head", "WORKTREE",
+                        "--task-id", task_id, "--label", args.run_id,
+                        "--out", metrics_path,
+                    ], handle)
+                    if code != 0:
+                        log(handle, f"collect_metrics.py exited {code}; no metrics.json for {task_id}")
+                accepted.append((task_id, artifacts, metrics_path))
 
-            task_id = resolve_task_id(args.task, clone, artifacts, find_patches(work, clone))
-            measured = build_measured_copy(work, clone, task_id, handle)
-            metrics_path = os.path.join(work, "metrics.json")
-            if measured and not task_id:
-                log(handle, "task id unresolved; skipping metrics.json so task_id never lands null")
-            elif measured:
-                copy_dir, base = measured
-                collect = os.path.join(os.path.dirname(os.path.abspath(__file__)), "collect_metrics.py")
-                # --task-id는 반드시 준다. 빠지면 002의 태스크 id 대조가 무의미해진다.
-                code = stream([
-                    sys.executable or "python3", collect,
-                    "--repo", copy_dir, "--base", base, "--head", "WORKTREE",
-                    "--task-id", task_id, "--label", args.run_id,
-                    "--out", metrics_path,
-                ], handle)
-                if code != 0:
-                    log(handle, f"collect_metrics.py exited {code}; no metrics.json")
+            # 단위가 하나도 없거나 패치가 전부 클론 안에만 있으면, 예전에 전역
+            # 탐색이 남기던 같은 한 줄을 남겨 픽스처 오인 테스트가 잡을 수 있게 한다.
+            if not any_patch:
+                log(handle, "no patch left by pier; skipping metrics.json")
 
         os.makedirs(results)
         staged["created"] = True
-        for name in (*PIER_ARTIFACTS, "metrics.json"):
-            source = artifacts.get(name, os.path.join(work, name))
-            if os.path.exists(source):
-                shutil.move(source, os.path.join(results, name))
+        # 4. 받아 둔 단위만 tasks/<task-id>/ 아래로 옮긴다. id를 못 구한 단위는
+        #    결과 경로에 자리가 없으므로 reward·ctrf·stdout도 남기지 않는다.
+        for task_id, artifacts, metrics_path in accepted:
+            dest = os.path.join(results, "tasks", task_id)
+            os.makedirs(dest, exist_ok=True)
+            for name in PIER_ARTIFACTS:
+                source = artifacts.get(name)
+                if source and os.path.exists(source):
+                    shutil.move(source, os.path.join(dest, name))
+            if os.path.exists(metrics_path):
+                shutil.move(metrics_path, os.path.join(dest, "metrics.json"))
         shutil.move(log_path, os.path.join(results, "run.log"))
         # run.log까지 옮겨진 시점부터가 온전한 결과 경로다.
         staged["complete"] = True

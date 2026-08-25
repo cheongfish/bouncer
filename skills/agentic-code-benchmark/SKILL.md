@@ -144,12 +144,12 @@ python3 scripts/run_deepswe.py \
 
 # 2. merge the Pier verdict into the measured metrics document
 python3 scripts/bridge_pier.py \
-  --metrics <results>/metrics.json --reward <results>/reward.json \
-  --ctrf <results>/ctrf.json --arm vanilla --out <results>/merged.json
+  --metrics <results>/tasks/<task-id>/metrics.json --reward <results>/tasks/<task-id>/reward.json \
+  --ctrf <results>/tasks/<task-id>/ctrf.json --arm vanilla --out <results>/tasks/<task-id>/merged.json
 
 # 3. score the merged document exactly as any other metrics file
 python3 scripts/scorecard.py score \
-  --metrics <results>/merged.json --judgment <judgment>.json --out <card>.json
+  --metrics <results>/tasks/<task-id>/merged.json --judgment <judgment>.json --out <card>.json
 ```
 
 `run_deepswe.py` needs `pier` and `docker` on `PATH` and refuses before cloning
