@@ -4,7 +4,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
+const timers = require('node:timers');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 const root = path.join(__dirname, '..');
@@ -30,7 +31,9 @@ test('agentic-code-benchmark frontmatter and shipped files', () => {
     'NOTICE.md',
     'references/rubric.md',
     'references/task-suite.md',
+    'scripts/bridge_pier.py',
     'scripts/collect_metrics.py',
+    'scripts/run_deepswe.py',
     'scripts/scorecard.py',
   ]) {
     assert.ok(
@@ -139,5 +142,497 @@ test('collect_metrics.py records only supplied usage flags and omits the key oth
     assert.ok(!Object.prototype.hasOwnProperty.call(withoutUsage, 'usage'));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+const RUN_DEEPSWE = path.join(skillDir, 'scripts', 'run_deepswe.py');
+const PYTHON = '/usr/bin/env';
+const REAL_GIT = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+
+function writeStub(dir, name, body) {
+  const file = path.join(dir, name);
+  fs.writeFileSync(file, body, { mode: 0o755 });
+  fs.chmodSync(file, 0o755);
+  return file;
+}
+
+// deep-swe 클론은 네트워크를 타므로, 테스트는 `git clone`만 가로채는 스텁을 PATH 앞에 둔다.
+// clone 외 서브커맨드는 실제 git으로 넘겨 러너의 다른 git 사용을 막지 않는다.
+// cloneFixtures: 스위트가 태스크 디렉터리에 함께 실어 보내는 산출물 모양 파일들.
+// 러너가 이걸 자기 실행 결과로 오인하지 않는지 고정하는 데 쓴다.
+function makeStubs({ pier, cloneFixtures = false }) {
+  const dir = tmpDir('acb-stub-bin-');
+  writeStub(dir, 'git', [
+    '#!/bin/sh',
+    'if [ "$1" = "clone" ]; then',
+    '  for a in "$@"; do dest="$a"; done',
+    '  mkdir -p "$dest/tasks/demo-task" || exit 1',
+    ...(cloneFixtures ? [
+      '  echo \'{"task_id": "demo-task", "reward": 1}\' > "$dest/tasks/demo-task/reward.json"',
+      '  echo "gold diff" > "$dest/tasks/demo-task/gold.patch"',
+    ] : []),
+    '  exit 0',
+    'fi',
+    `exec ${REAL_GIT} "$@"`,
+    '',
+  ].join('\n'));
+  writeStub(dir, 'docker', '#!/bin/sh\nexit 0\n');
+  if (pier) writeStub(dir, 'pier', pier);
+  return dir;
+}
+
+// 저장소 루트 판정은 `.git` 존재만 본다. 실제 저장소 안에 작업 경로를 만들지 않도록
+// 임시 디렉터리를 가짜 루트로 세운다.
+function fakeRepoRoot() {
+  const root = tmpDir('acb-repo-');
+  fs.mkdirSync(path.join(root, '.git'));
+  return root;
+}
+
+function runnerArgs(runId, extra = []) {
+  return [RUN_DEEPSWE, '--run-id', runId, '--arm', 'vanilla', '--agent', 'claude', ...extra];
+}
+
+function runRunner(root, binDir, args) {
+  return spawnSync(PYTHON, ['python3', ...args], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${binDir}:/usr/bin:/bin` },
+  });
+}
+
+function workPath(root, runId) {
+  return path.join(root, '.benchmarks', 'deepswe', runId);
+}
+
+test('run_deepswe.py refuses before cloning when pier is missing from PATH', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({ pier: null });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-nopier'));
+    assert.notStrictEqual(run.status, 0);
+    assert.match(run.stderr, /pier/i);
+    assert.ok(!fs.existsSync(workPath(root, 'r-nopier')), 'work path must not be created');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py rejects --task together with --n-tasks', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({ pier: '#!/bin/sh\nexit 0\n' });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-conflict', ['--task', 'demo-task', '--n-tasks', '10']));
+    assert.notStrictEqual(run.status, 0);
+    assert.ok(!fs.existsSync(workPath(root, 'r-conflict')), 'work path must not be created');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py exits non-zero and removes the work path when pier fails', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({ pier: '#!/bin/sh\necho boom >&2\nexit 3\n' });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-pierfail'));
+    assert.notStrictEqual(run.status, 0);
+    assert.ok(!fs.existsSync(workPath(root, 'r-pierfail')), 'work path must be removed');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py never mistakes suite fixtures inside the clone for its own artifacts', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({ pier: '#!/bin/sh\nexit 0\n', cloneFixtures: true });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-fixture'));
+    assert.strictEqual(run.status, 0, run.stderr);
+    const results = path.join(root, 'docs', 'benchmark', 'deepswe', 'results', 'r-fixture');
+    assert.ok(fs.existsSync(path.join(results, 'run.log')), 'run.log must land in the results path');
+    // 클론이 실어 온 reward.json이 이 런의 보상으로 옮겨지면 거짓 수용이 된다.
+    assert.ok(!fs.existsSync(path.join(results, 'reward.json')), 'clone fixture must not be moved into results');
+    // 스위트 gold 패치가 잡히면 "패치 여러 개"로 metrics.json이 통째로 건너뛰어진다.
+    assert.doesNotMatch(run.stderr, /patches found/);
+    assert.match(run.stderr, /no patch left by pier/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+// 종료 코드를 128+signum으로 못박는다. 그래야 러너의 signal 핸들러가 실제로
+// 걸렸는지 확인된다 — try/finally만으로도 SIGINT는 KeyboardInterrupt로 정리되지만,
+// SIGTERM은 기본 처리로 프로세스가 즉사해 finally가 아예 돌지 않는다.
+async function interruptRunner(runId, signalName) {
+  const root = fakeRepoRoot();
+  const started = path.join(root, 'pier-started');
+  const binDir = makeStubs({
+    pier: `#!/bin/sh\n: > ${started}\nsleep 30\n`,
+  });
+  const child = spawn(PYTHON, ['python3', ...runnerArgs(runId)], {
+    cwd: root,
+    env: { ...process.env, PATH: `${binDir}:/usr/bin:/bin` },
+    stdio: 'ignore',
+  });
+  try {
+    const exited = new Promise((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })));
+    const deadline = Date.now() + 20000;
+    while (!fs.existsSync(started) && Date.now() < deadline) {
+      await new Promise((resolve) => timers.setTimeout(resolve, 50));
+    }
+    assert.ok(fs.existsSync(started), 'stub pier never started');
+    child.kill(signalName);
+    const end = await exited;
+    assert.strictEqual(
+      end.code,
+      128 + os.constants.signals[signalName],
+      `${signalName} must exit through the runner's handler (got code=${end.code} signal=${end.signal})`,
+    );
+    assert.ok(!fs.existsSync(workPath(root, runId)), `work path must be removed on ${signalName}`);
+  } finally {
+    child.kill('SIGKILL');
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+}
+
+test('run_deepswe.py removes the work path when interrupted with SIGINT', async () => {
+  await interruptRunner('r-sigint', 'SIGINT');
+});
+
+test('run_deepswe.py removes the work path when terminated with SIGTERM', async () => {
+  await interruptRunner('r-sigterm', 'SIGTERM');
+});
+
+const BRIDGE_PIER = path.join(skillDir, 'scripts', 'bridge_pier.py');
+const SCORECARD = path.join(skillDir, 'scripts', 'scorecard.py');
+
+function bridge(args) {
+  return spawnSync('python3', [BRIDGE_PIER, ...args], { encoding: 'utf8' });
+}
+
+function writeJson(dir, name, payload) {
+  const file = path.join(dir, name);
+  fs.writeFileSync(file, typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2));
+  return file;
+}
+
+// collect_metrics.py가 실제로 내는 모양 그대로. 병합이 최상위 키를 하나도
+// 떨어뜨리지 않는지 보려면 선택 키(usage)까지 들어 있어야 한다.
+function metricsFixture(overrides = {}) {
+  return {
+    schema: 'agentic-code-benchmark/metrics/1',
+    label: 'r-bridge',
+    task_id: 'demo-task',
+    repo: '/tmp/demo',
+    base: 'HEAD~1',
+    head: 'WORKTREE',
+    head_sha: 'abc1234',
+    checks: {
+      tests: { name: 'tests', ran: true, passed: true, cmd: 'npm test' },
+      lint: { name: 'lint', ran: false, passed: null, cmd: null },
+      typecheck: { name: 'typecheck', ran: false, passed: null, cmd: null },
+      build: { name: 'build', ran: false, passed: null, cmd: null },
+    },
+    coverage: { before: null, after: null, delta: null },
+    diff: {
+      files_changed: 2,
+      source_files: 1,
+      test_files: 1,
+      lines_added: 40,
+      lines_deleted: 3,
+      test_lines_added: 20,
+      test_line_share: 0.5,
+      paths: ['src/a.py', 'test/a_test.py'],
+    },
+    rework: { commits: 1, gross_lines: 43, net_lines: 43, churn_ratio: 1.0 },
+    usage: { tokens_in: 1200 },
+    ...overrides,
+  };
+}
+
+test('bridge_pier.py merges the pier verdict without dropping any metrics key', () => {
+  const dir = tmpDir('acb-bridge-ok-');
+  try {
+    const metrics = metricsFixture();
+    const metricsPath = writeJson(dir, 'metrics.json', metrics);
+    const rewardPath = writeJson(dir, 'reward.json', {
+      task_id: 'demo-task',
+      passed: true,
+      reward: 1.0,
+    });
+    const out = path.join(dir, 'merged.json');
+
+    const run = bridge(['--metrics', metricsPath, '--reward', rewardPath, '--arm', 'bouncer', '--out', out]);
+    assert.strictEqual(run.status, 0, run.stderr);
+
+    const merged = JSON.parse(fs.readFileSync(out, 'utf8'));
+    for (const key of Object.keys(metrics)) {
+      assert.deepStrictEqual(merged[key], metrics[key], `key ${key} must survive the merge`);
+    }
+    assert.strictEqual(merged.schema, 'agentic-code-benchmark/metrics/1');
+    assert.deepStrictEqual(merged.verdict, {
+      source: 'pier',
+      task_id: 'demo-task',
+      arm: 'bouncer',
+      passed: true,
+      reward: 1.0,
+    });
+    // --ctrf 없이 부른 호출은 pass_fraction을 지어내지 않는다.
+    assert.ok(!Object.prototype.hasOwnProperty.call(merged.verdict, 'pass_fraction'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('bridge_pier.py carries a failing reward through to verdict.passed', () => {
+  const dir = tmpDir('acb-bridge-fail-');
+  try {
+    const metricsPath = writeJson(dir, 'metrics.json', metricsFixture());
+    const rewardPath = writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: false, reward: 0 });
+    const out = path.join(dir, 'merged.json');
+
+    const run = bridge(['--metrics', metricsPath, '--reward', rewardPath, '--arm', 'vanilla', '--out', out]);
+    assert.strictEqual(run.status, 0, run.stderr);
+
+    const merged = JSON.parse(fs.readFileSync(out, 'utf8'));
+    assert.strictEqual(merged.verdict.passed, false);
+    assert.strictEqual(merged.verdict.reward, 0);
+    assert.strictEqual(merged.verdict.arm, 'vanilla');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('bridge_pier.py infers passed from the reward sign when no pass flag is present', () => {
+  // 판정 다섯 필드 가운데 passed만 유일하게 유도된 값이다. 나머지는 그대로 옮겨
+  // 적으므로 여기가 어긋나면 아무 테스트도 잡지 못한다.
+  const cases = [
+    { reward: 1, expected: true },
+    { reward: 0, expected: false },
+    { reward: -0.5, expected: false },
+  ];
+  for (const scenario of cases) {
+    const dir = tmpDir('acb-bridge-infer-');
+    try {
+      const metricsPath = writeJson(dir, 'metrics.json', metricsFixture());
+      const rewardPath = writeJson(dir, 'reward.json', { task_id: 'demo-task', reward: scenario.reward });
+      const out = path.join(dir, 'merged.json');
+      const run = bridge(['--metrics', metricsPath, '--reward', rewardPath, '--arm', 'vanilla', '--out', out]);
+      assert.strictEqual(run.status, 0, run.stderr);
+      const verdict = JSON.parse(fs.readFileSync(out, 'utf8')).verdict;
+      assert.strictEqual(verdict.passed, scenario.expected, `reward ${scenario.reward}`);
+      assert.strictEqual(verdict.reward, scenario.reward);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('bridge_pier.py never reads reward or pass flags out of a nested object', () => {
+  // 태스크 id는 한 겹 아래까지 본다(잘못 집으면 불일치로 거부되니 안전하게 실패).
+  // 판정 값은 잘못 집으면 그대로 기록되므로 최상위만 본다.
+  const dir = tmpDir('acb-bridge-nested-');
+  try {
+    const metricsPath = writeJson(dir, 'metrics.json', metricsFixture());
+    const rewardPath = writeJson(dir, 'reward.json', {
+      report: { task_id: 'demo-task' },
+      metadata: { score: 3 },
+      tests: { success: true },
+    });
+    const out = path.join(dir, 'merged.json');
+    const run = bridge(['--metrics', metricsPath, '--reward', rewardPath, '--arm', 'vanilla', '--out', out]);
+    // 최상위에 숫자 보상이 없으므로 지어내지 않고 거부한다.
+    assert.notStrictEqual(run.status, 0, run.stderr);
+    assert.ok(!fs.existsSync(out));
+
+    // 같은 문서에 최상위 보상만 더하면, 통과 플래그는 여전히 중첩에서 오지 않고
+    // 보상 부호로 유도된다.
+    const topLevel = writeJson(dir, 'reward-top.json', {
+      report: { task_id: 'demo-task' },
+      tests: { success: true },
+      reward: 0,
+    });
+    const out2 = path.join(dir, 'merged2.json');
+    const run2 = bridge(['--metrics', metricsPath, '--reward', topLevel, '--arm', 'vanilla', '--out', out2]);
+    assert.strictEqual(run2.status, 0, run2.stderr);
+    assert.strictEqual(JSON.parse(fs.readFileSync(out2, 'utf8')).verdict.passed, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('bridge_pier.py adds pass_fraction only when --ctrf carries a readable summary', () => {
+  const dir = tmpDir('acb-bridge-ctrf-');
+  try {
+    const metricsPath = writeJson(dir, 'metrics.json', metricsFixture());
+    const rewardPath = writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: true, reward: 1 });
+    const ctrfPath = writeJson(dir, 'ctrf.json', {
+      results: { summary: { tests: 8, passed: 6, failed: 2 } },
+    });
+    const readable = path.join(dir, 'with-ctrf.json');
+    const withCtrf = bridge([
+      '--metrics', metricsPath, '--reward', rewardPath, '--arm', 'vanilla',
+      '--ctrf', ctrfPath, '--out', readable,
+    ]);
+    assert.strictEqual(withCtrf.status, 0, withCtrf.stderr);
+    assert.strictEqual(JSON.parse(fs.readFileSync(readable, 'utf8')).verdict.pass_fraction, 0.75);
+
+    // 읽지 못한 ctrf는 0이 아니라 키 부재로 남는다.
+    const brokenCtrf = writeJson(dir, 'broken-ctrf.json', '{ not json');
+    const unreadable = path.join(dir, 'broken-ctrf-out.json');
+    const withBroken = bridge([
+      '--metrics', metricsPath, '--reward', rewardPath, '--arm', 'vanilla',
+      '--ctrf', brokenCtrf, '--out', unreadable,
+    ]);
+    assert.strictEqual(withBroken.status, 0, withBroken.stderr);
+    const verdict = JSON.parse(fs.readFileSync(unreadable, 'utf8')).verdict;
+    assert.ok(!Object.prototype.hasOwnProperty.call(verdict, 'pass_fraction'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('bridge_pier.py refuses bad inputs and never leaves a partial --out', () => {
+  const cases = [
+    {
+      name: 'reward file missing',
+      setup: (dir) => ({
+        metrics: writeJson(dir, 'metrics.json', metricsFixture()),
+        reward: path.join(dir, 'absent-reward.json'),
+      }),
+    },
+    {
+      name: 'reward file unparseable',
+      setup: (dir) => ({
+        metrics: writeJson(dir, 'metrics.json', metricsFixture()),
+        reward: writeJson(dir, 'reward.json', '{ broken'),
+      }),
+    },
+    {
+      name: 'task id mismatch',
+      setup: (dir) => ({
+        metrics: writeJson(dir, 'metrics.json', metricsFixture()),
+        reward: writeJson(dir, 'reward.json', { task_id: 'other-task', passed: true, reward: 1 }),
+      }),
+    },
+    {
+      name: 'metrics task_id is null',
+      setup: (dir) => ({
+        metrics: writeJson(dir, 'metrics.json', metricsFixture({ task_id: null })),
+        reward: writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: true, reward: 1 }),
+      }),
+    },
+    {
+      name: 'metrics schema mismatch',
+      setup: (dir) => ({
+        metrics: writeJson(dir, 'metrics.json', metricsFixture({ schema: 'agentic-code-benchmark/metrics/2' })),
+        reward: writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: true, reward: 1 }),
+      }),
+    },
+    {
+      name: 'metrics file missing',
+      setup: (dir) => ({
+        metrics: path.join(dir, 'absent-metrics.json'),
+        reward: writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: true, reward: 1 }),
+      }),
+    },
+    {
+      name: 'metrics file unparseable',
+      setup: (dir) => ({
+        metrics: writeJson(dir, 'metrics.json', '{ broken'),
+        reward: writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: true, reward: 1 }),
+      }),
+    },
+    {
+      name: 'reward carries no numeric reward',
+      setup: (dir) => ({
+        metrics: writeJson(dir, 'metrics.json', metricsFixture()),
+        reward: writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: true }),
+      }),
+    },
+    {
+      name: 'out path already taken',
+      setup: (dir) => {
+        fs.writeFileSync(path.join(dir, 'merged.json'), 'existing\n');
+        return {
+          metrics: writeJson(dir, 'metrics.json', metricsFixture()),
+          reward: writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: true, reward: 1 }),
+          keepOut: true,
+        };
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const dir = tmpDir('acb-bridge-reject-');
+    try {
+      const { metrics, reward, keepOut } = scenario.setup(dir);
+      const out = path.join(dir, 'merged.json');
+      const run = bridge(['--metrics', metrics, '--reward', reward, '--arm', 'vanilla', '--out', out]);
+      assert.notStrictEqual(run.status, 0, `${scenario.name}: must exit non-zero`);
+      if (keepOut) {
+        assert.strictEqual(fs.readFileSync(out, 'utf8'), 'existing\n', `${scenario.name}: must not overwrite`);
+      } else {
+        assert.ok(!fs.existsSync(out), `${scenario.name}: --out must not be created`);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('bridge_pier.py output scores through an unmodified scorecard.py', () => {
+  const dir = tmpDir('acb-bridge-score-');
+  try {
+    const metricsPath = writeJson(dir, 'metrics.json', metricsFixture());
+    const rewardPath = writeJson(dir, 'reward.json', { task_id: 'demo-task', passed: true, reward: 1 });
+    const merged = path.join(dir, 'merged.json');
+    const bridged = bridge(['--metrics', metricsPath, '--reward', rewardPath, '--arm', 'bouncer', '--out', merged]);
+    assert.strictEqual(bridged.status, 0, bridged.stderr);
+
+    const judgment = writeJson(dir, 'judgment.json', {
+      label: 'r-bridge',
+      task_id: 'demo-task',
+      agent_config: 'test',
+      dimensions: Object.fromEntries(
+        ['correctness', 'scope', 'tests', 'fit', 'maintainability']
+          .map((key) => [key, { score: 4, evidence: 'checked by hand' }]),
+      ),
+      blocking_findings: [],
+      notes: '',
+    });
+    const card = path.join(dir, 'scorecard.json');
+    const scored = spawnSync(
+      'python3',
+      [SCORECARD, 'score', '--metrics', merged, '--judgment', judgment, '--out', card],
+      { encoding: 'utf8' },
+    );
+    assert.strictEqual(scored.status, 0, scored.stderr);
+    const parsed = JSON.parse(fs.readFileSync(card, 'utf8'));
+    assert.strictEqual(parsed.schema, 'agentic-code-benchmark/scorecard/1');
+    assert.ok(parsed.composite > 0, 'merged metrics must still produce a composite');
+    // verdict는 채점 입력이 아니다. scorecard.py가 그 값을 집어 들면 안 된다.
+    assert.ok(!Object.prototype.hasOwnProperty.call(parsed, 'verdict'));
+
+    // 출력 키가 없다는 것만으로는 약하다. verdict가 가중치에 새어 들어가면 키는
+    // 그대로여도 점수가 움직인다. 병합 전 metrics를 같은 판단으로 한 번 더
+    // 채점해 점수가 한 자리도 달라지지 않는 것으로 고정한다.
+    const baseCard = path.join(dir, 'scorecard-base.json');
+    const baseScored = spawnSync(
+      'python3',
+      [SCORECARD, 'score', '--metrics', metricsPath, '--judgment', judgment, '--out', baseCard],
+      { encoding: 'utf8' },
+    );
+    assert.strictEqual(baseScored.status, 0, baseScored.stderr);
+    const baseParsed = JSON.parse(fs.readFileSync(baseCard, 'utf8'));
+    assert.strictEqual(parsed.composite, baseParsed.composite, 'verdict must not move the composite');
+    assert.deepStrictEqual(parsed.objective, baseParsed.objective, 'verdict must not move the objective');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -52,6 +52,13 @@ Project-wide rules that apply to every path.
   plan-gate-pass line counts are unrecoverable afterward. Capture that snapshot
   during the run if a round needs to judge plan-stage cost.
 
+- Name/content scans that enumerate with `git ls-files` see tracked files only,
+  so a new file is invisible to them while it is untracked. An execute gate can
+  therefore record `verify` green and the very same command fail immediately
+  after the commit makes that file tracked. Add the allowlist entry in the same
+  commit that creates the file; do not plan a step that waits to observe the
+  red test first.
+
 ## Decisions
 
 - This repository enables `distill.routing_enabled` only after the full
