@@ -92,9 +92,9 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
   that test in `affected_paths`); otherwise execute cannot put a new skill in
   the table.
 
-- discovery pre-read (`.bouncer/context/epics/` indexes, `.bouncer/Distill.md`)
-  is required for framing, but missing files are not a hard stop — record
-  Overlap as `"none"` and continue.
+- discovery pre-read is epic indexes plus `bouncer distill --preflight`
+  (always-shard bodies and full shard inventory), not `--all` stdout. Missing
+  files are not a hard stop — record Overlap as `"none"` and continue.
 
 - 「Behavior-changing diff without adding/updating tests」 is a Code quality
   review candidate (`minor` / `major`); docs-only and configuration-only diffs
@@ -199,9 +199,11 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
   `- Explain: <explain path>`, not a Distill path. Shortest surface is skill
   prose + template strings — no `finalize.ts` PR builder.
 
-- Finalize promotion audits all Distill shards through the CLI, reads each
-  registered shard separately under `PROJECT_ROOT`, and uses one complete
-  consented proposal; aggregate route output is never a shard body.
+- Finalize promotion takes `bouncer distill --all --json`, splits payload
+  `content` on `# <id>` boundaries into `id → {path, currentBody}`, and uses
+  one complete consented proposal. Do not re-read shard files. If the split
+  id set differs from `audit.shards`, do not promote. Aggregate route output
+  is never a shard body.
 
 - discovery Confirmation hands off six named outputs: `Goal`, `Scope`,
   `Non-goals`, `Success criteria`, `Edge cases & failure modes`, `Overlap`.

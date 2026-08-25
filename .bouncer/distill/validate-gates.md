@@ -12,6 +12,12 @@ Rules for validation, verification, and gate contracts.
 
 ## Invariants
 
+- `bouncer distill --preflight [--json]` renders `always: true` shard bodies
+  and ships the full registered shard inventory in `audit`. It takes no path
+  args (exit 2 if given). Missing or invalid shard index fail-opens to the
+  single-file dump. If no `always` shard is registered, selection may be empty
+  but the inventory still ships and the empty-selection reason goes to stderr.
+
 - `.bouncer/config.json` is parsed only in `scripts/src/lib/config.ts`
   (`readConfigResult` / `readConfig`). `missing` is ENOENT only; any other read
   or JSON error is `invalid`. Neither function checks value shape. Callers keep
