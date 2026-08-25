@@ -1,0 +1,16 @@
+{
+  "id": "kst-calendar-date",
+  "base": "cb15a3c",
+  "prompt": "`scripts/src/lib/time.ts`에 Asia/Seoul 달력 날짜만 돌려주는 함수를 추가하라. 입력은 `nowIsoKst`와 같이 `Date`이고 기본값은 현재 시각이다. 반환은 `YYYY-MM-DD` 문자열이며 시각과 오프셋은 넣지 않는다. UTC 자정이 KST 같은 날·다음 날로 넘어가는 경계는 기존 `nowIsoKst`와 같은 규칙을 쓴다. `test/time.test.js`에서 고정 `Date`로 단언한다. `nowIsoKst`의 현재 문자열 형식은 바꾸지 않는다.",
+  "done_when": [
+    "새 함수가 `2026-08-03T00:00:00.000Z`에 대해 `2026-08-03`을 반환한다",
+    "UTC 16:00는 KST 다음 달력 날이 된다",
+    "`nowIsoKst` 기존 단언이 그대로 통과한다",
+    "`test/time.test.js`가 새 함수를 커버한다"
+  ],
+  "checks": {
+    "test": "npm test -- test/time.test.js",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck"
+  }
+}

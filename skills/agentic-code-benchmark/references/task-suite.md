@@ -1,4 +1,4 @@
-# Task Suites and A/B Protocol
+# Task Suites and Three-Arm Protocol
 
 One task is an anecdote. This file covers how to get from a single scorecard to a
 number you can defend.
@@ -44,35 +44,45 @@ Pull tasks from your own merged PRs. Synthetic tasks reward agents that write
 plausible code rather than code that fits your repo — the exact failure the
 benchmark exists to catch.
 
-## Running an A/B
+## Running three arms (or a two-arm A/B)
+
+Default comparison axis is three arms: **vanilla** (no plugin), **superpowers**
+(that plugin only; it must already be installed — install is out of this file),
+**bouncer** (forced Bouncer cycle). A two-arm A/B is the same protocol with one
+arm dropped. Controls inherited from rounds 1–3: same model, zero human
+intervention, identical checks, collect metrics before any other command in that
+run.
 
 1. Same base commit for every run. Runs must not see each other's output.
 
-   - **Arms that do not use a Bouncer pointer** (ordinary code benchmarks): one
-     git worktree per run. `collect_metrics.py` accepts a linked worktree
-     (`.git` may be a file).
+   - **vanilla and superpowers** (no Bouncer pointer): one git worktree per run.
+     `collect_metrics.py` accepts a linked worktree (`.git` may be a file).
      ```bash
-     git worktree add ../bench-default  <base>
-     git worktree add ../bench-planmode <base>
+     git worktree add ../bench-vanilla     <base>
+     git worktree add ../bench-superpowers <base>
      ```
-   - **Bouncer on arm**: one independent clone per cycle. The active pointer
+   - **bouncer**: one independent clone per cycle. The active pointer
      (`<git-common-dir>/bouncer/current`) is one file for every linked worktree.
      The verify ledger (`<git-common-dir>/bouncer/verify/<digest>.json`) is
      shared per `verification.md` relative-path digest: two worktrees on the
      same blueprint path overwrite one ledger. Different blueprint paths use
      different digests and do not share that file. A separate clone is
      operational mitigation. Runtime state stays under git-common-dir.
+     After `bouncer validate --gate plan` passes, snapshot the plan-stage
+     `.bouncer/context` tree outside the clone (the harness does not keep it,
+     and the run squash is one commit). See `docs/benchmark/protocol.md`.
 
 2. Same prompt, verbatim, in every arm. Any prompt difference *is* the variable —
    change one thing at a time.
-3. No human intervention mid-run, or the same intervention budget in every arm
-   (e.g. "at most one 'continue'"). Log what you did.
-4. Collect metrics in each run directory **before** running anything else, then judge
-   each run independently against the rubric without looking at the other runs'
-   scores.
-5. Compare:
+3. No human intervention mid-run. Log if you broke that.
+4. Collect metrics in each run directory **before** running anything else. Pass
+   `--tokens-in`, `--tokens-out`, `--wall-s`, `--tool-calls` when you have those
+   integers; `usage` is omitted entirely if you pass none. Then judge each run
+   independently against the rubric without looking at the other runs' scores.
+5. Compare (first file is the baseline):
    ```bash
-   python3 scripts/scorecard.py compare bench-default.card.json bench-planmode.card.json
+   python3 scripts/scorecard.py compare \
+     bench-vanilla.card.json bench-superpowers.card.json bench-bouncer.card.json
    ```
 
 ## Reading the result honestly

@@ -1,180 +1,118 @@
 # 측정 프로토콜
 
-**측정일: 2026-08-21 (KST)**
-**베이스 커밋: `3f5201866b368a55baaae845981ab77b9b869bec`**
-**도구: `skills/agentic-code-benchmark`** (측정 40 + 심사 60 = 0–100 합성 점수)
+이후 회차는 아래 세 arm으로 태스크 스위트(`docs/benchmark/tasks/`)를 돌린다.
+1–3회차는 off / on(또는 on-light) 두 arm이었다. 그 회차의 수치와 설계 서술은
+[history.md](history.md)와 git 히스토리에 있다. 이 문서는 그 기록을 고치지 않고,
+다음 회차가 같은 스위트를 세 arm으로 재현할 때 쓸 통제와 절차만 적는다.
 
-## 설계
-
-태스크 4개 × arm 2개 = 구현 런 8개. 모든 런이 같은 베이스 커밋에서 출발하고,
-서로의 산출물을 보지 못한다.
+## Arm
 
 | arm | 조건 |
 | --- | --- |
-| **off** | 저장소를 주고 태스크 프롬프트만 전달. 검증 방식·커밋 여부 자유 |
-| **on** | 같은 프롬프트 + Bouncer 사이클 강제 (plan → 게이트 → pointer → execute → `bouncer verify` → execute 게이트 → `bouncer commit`) |
+| **vanilla** | 플러그인 없음. 저장소와 태스크 프롬프트만 주고, 검증·커밋 방식은 에이전트가 고른다. |
+| **superpowers** | superpowers 플러그인만 설치·활성. Bouncer 사이클은 강제하지 않는다. |
+| **bouncer** | Bouncer 사이클 강제: plan → plan 게이트 → pointer → execute → `bouncer verify` → execute 게이트 → `bouncer commit`. 게이트 실패 코드는 고친다. `--no-verify`와 가드 우회는 금지. |
 
-on arm 은 `scripts/bouncer` CLI 로 사이클을 수행했다. 스킬 문서
-(`bouncer-plan` / `bouncer-execute` / `bouncer-commit`)와 `rules/governance.md`
-를 읽게 하고, 게이트 실패 코드는 반드시 고치게 했다(`--no-verify` 금지,
-가드 우회 금지). 계획 문서 4종(blueprint index, context-review, tasks,
-review)을 코드 작성 **전에** 채우고 plan 게이트를 통과해야 구현을 시작할 수
-있었다.
+superpowers arm은 그 플러그인이 측정 호스트에 이미 설치되어 있어야 한다.
+설치 절차는 이 문서 밖이다. 설치가 안 된 호스트에서는 이 arm을 돌리지 않는다.
 
-### 3회차 on arm: light 계약
+## 공통 통제
 
-3회차부터 on arm 은 **light 계획 계약**으로 돌린다. scaffold 는
+3회차까지 쓴 통제는 그대로 둔다. 같은 모델, 런 중 사람 개입 0회, 런마다 같은
+checks, 측정치는 그 런에서 다른 명령을 돌리기 **전에** 수집한다.
+
+추가로 세 arm에 같이 적용한다.
+
+- 같은 base 커밋. 런은 서로의 산출물을 보지 못한다.
+- 프롬프트는 토씨 하나 안 바꾸고 동일하게 전달한다. `done_when`은 심사자에게만
+  주고 구현 에이전트에게는 주지 않는다.
+- 사람 개입 0회. 세 arm 모두 "물어볼 사람이 없다"고 명시한다.
+- checks는 스위트 JSON의 `checks`를 모든 런에 그대로 쓴다. arm마다 명령을
+  바꾸지 않는다.
+- 측정치는 빌드 산출물이 diff를 더럽히기 전에 수집한다. `collect_metrics.py`를
+  그 런 디렉터리에서 먼저 돌린다.
+
+## Arm별 절차
+
+세 arm 모두 독립 작업 공간에서 같은 base로 시작한다. vanilla와 superpowers는
+포인터를 쓰지 않으므로 `git worktree add`로 런을 나눠도 된다.
+`collect_metrics.py`는 `.git` 존재만 본다.
+
+**vanilla.** 플러그인을 끈 세션에 프롬프트만 넣는다. Bouncer CLI와 `/bouncer-*`
+를 호출하지 않는다.
+
+**superpowers.** superpowers만 켠 세션에 같은 프롬프트를 넣는다. Bouncer
+스킬·게이트·`scripts/bouncer`를 호출하지 않는다.
+
+**bouncer.** 독립 클론 하나당 사이클 하나. 활성 포인터
+(`<git-common-dir>/bouncer/current`)와 verify 원장
+(`<git-common-dir>/bouncer/verify/<digest>.json`)은 linked worktree가 공유하므로,
+같은 git common directory 아래 두 사이클을 돌리지 않는다. 클론은
+`--no-hardlinks --no-local`로 뜬 뒤 base에 detach한다.
+
+사이클은 light 계획 계약이다. scaffold는
 `bouncer scaffold blueprint --scale light` 한 줄이고, 계획 문서는 blueprint
-`index.md` 와 `tasks/001/{tasks,verification,review}.md` 넷이다.
-`context-review.md` 는 만들지 않으므로 계획 문서 판정 왕복도, plan 게이트의
-G18 도 없다. task 본문은 `Goal & intent`·`Touch`·`Checklist` 셋만 채운다 —
-`Interface`·`Do not touch` 를 채우게 하면 측정 대상이 아닌 분량이 다시 들어온다.
+`index.md`와 `tasks/001/{tasks,verification,review}.md`다. `affected_paths`는
+사람이 확정한다. plan 게이트 통과 직후 아래 「plan 단계 스냅샷」을 찍고 나서
+구현을 시작한다.
 
-바뀌지 않는 것: `affected_paths` 는 사람이 확정하고, G3–G5·G11·G12 와
-execute·commit 게이트(G6–G8·G13·G14·G17)는 1·2회차와 같은 조건으로 받는다.
-따라서 3회차 Δ 는 **계획 단계 고정비의 차이**로 읽어야 하며, 게이트 강제력의
-차이가 아니다. 1·2회차 수치는 full 계약이므로 계획 문서 분량을 3회차와 직접
-빼서 비교하지 않는다 — 두 계약을 함께 보고할 때는 arm 라벨에 `on-full` /
-`on-light` 를 남긴다. 이 절 이전 문단의 4종 문서 설명은 1·2회차 기록이며
-덮어쓰지 않는다.
+on arm의 `.bouncer/context/**` 계획 문서는 심사 diff에서 뺀다. 세 arm을 같은
+종류의 산출물(코드 + 테스트 + 문서)로 비교하기 위해서다. 계획 문서 분량은 비용
+지표로만 남긴다.
 
-## 통제
+## 런당 기록 값
 
-- 프롬프트는 두 arm 에 **토씨 하나 안 바꾸고** 동일하게 전달. `done_when` 은
-  심사자에게만 주고 구현 에이전트에게는 주지 않았다.
-- 모든 런 동일 모델(Claude Sonnet), 동일 서브에이전트 타입, 단발.
-- 런 중 사람 개입 0회. 두 arm 모두 "물어볼 사람이 없다" 고 명시.
-- 체크 명령은 8런 전부 동일: `npm test` / `npm run lint` / `npm run typecheck`
-  / `npm run build`.
-- 측정치는 다른 것을 실행하기 **전에** 수집했다(빌드 산출물이 diff 를 오염시키지
-  않도록).
+런마다 아래를 남긴다. `usage`는 기록 전용이다. `scorecard.py`의
+`objective_breakdown`과 합성 점수에 넣지 않는다.
+
+| 값 | 출처 |
+| --- | --- |
+| `arm` | `vanilla` / `superpowers` / `bouncer` |
+| `task_id` | 스위트 JSON `id` |
+| `label` | 예: `t1-vanilla` |
+| checks, coverage, diff, rework | `collect_metrics.py` 본문. 스키마 `agentic-code-benchmark/metrics/1` |
+| `usage.tokens_in` | `--tokens-in`. 프롬프트+완료 입력 토큰 |
+| `usage.tokens_out` | `--tokens-out` |
+| `usage.wall_s` | `--wall-s`. 구현 세션 벽시계(초) |
+| `usage.tool_calls` | `--tool-calls` |
+| plan-gate 줄 수 | bouncer arm만. 「plan 단계 스냅샷」의 `lines.txt` |
+
+`collect_metrics.py`에 플래그를 준 키만 `usage`에 실린다. 재지 않은 값은 키를
+만들지 않는다. 0으로 채우면 "재지 않음"과 "0이었음"을 구분할 수 없다.
 
 ## plan 단계 스냅샷
 
-각 런에서 `bouncer validate --gate plan` 이 통과한 직후, 구현을 시작하기 전에
-찍는다. 하네스는 런별 plan 단계 `.bouncer/context` 트리를 보관하지 않는다.
-실행 clone 은 커밋 하나로 squash 되고 `.benchmarks/` 에도 트리 사본이 없으므로,
-clone 안에만 두면 plan-gate 시점 줄 수가 사라진다.
+하네스는 런별 plan 단계 `.bouncer/context` 트리를 보관하지 않는다. 실행 clone은
+커밋 하나로 squash되고 `.benchmarks/`에도 트리 사본이 없으므로, clone 안에만
+두면 plan-gate 시점 줄 수가 사라진다. 3회차 계획 문서 줄 수가 사이클 종료 대리값이
+된 이유다. 이후 회차는 plan 게이트가 통과한 직후, 구현을 시작하기 전에 찍는다.
 
-복사 대상은 blueprint `index.md` 와 `tasks/<NNN>/{tasks,verification,review}.md`
-다. full 계약이면 `context-review.md` 까지 넣는다. light 계약은
-`context-review.md` 를 만들지 않으므로 그 파일을 복사하지 않고 `wc` 인자에서도
-뺀다.
+복사 대상은 blueprint `index.md`와 `tasks/<NNN>/{tasks,verification,review}.md`다.
+light 계약은 `context-review.md`를 만들지 않으므로 그 파일을 복사하지 않고 `wc`
+인자에서도 뺀다.
 
 남기는 곳은 실행 clone 밖, 측정 저장소의
-`docs/benchmark/round-<N>/plan-snapshots/<run>/` 이다. `DEST` 를 clone 안
-상대경로로 두면 squash 와 함께 지워진다.
+`docs/benchmark/round-<N>/plan-snapshots/<run>/`이다. `DEST`를 clone 안
+상대경로로 두면 squash와 함께 지워진다.
 
 ```bash
 BP=.bouncer/context/epics/<epic>/blueprints/<bp>
 DEST=docs/benchmark/round-<N>/plan-snapshots/<run>
 mkdir -p "$DEST"
 cp -R "$BP" "$DEST/"
-wc -l "$BP"/index.md "$BP"/context-review.md "$BP"/tasks/*/*.md > "$DEST/lines.txt"
+wc -l "$BP"/index.md "$BP"/tasks/*/*.md > "$DEST/lines.txt"
 ```
 
-`$BP` 는 해당 런 clone 안 경로다. `$DEST` 는 측정 저장소(이 파일과 같은
-저장소) 안 경로다. light 계약에서는 `wc` 줄에서 `"$BP"/context-review.md` 를
-뺀다. 100줄 목표는 이 `lines.txt` 의 합이다.
+`$BP`는 해당 런 clone 안 경로다. `$DEST`는 측정 저장소(이 파일과 같은 저장소)
+안 경로다.
 
 ## 심사
 
-런당 독립 심사 에이전트 1명. 심사자는 **코드를 쓴 적이 없고**, arm 라벨을
-가린 채(`run-A` … `run-H`) 자기 런의 diff·원본 프롬프트·루브릭만 받았다.
-다른 런의 점수는 보지 못했다.
+런당 독립 심사 에이전트 1명. 심사자는 코드를 쓴 적이 없고, arm 라벨을 가린 채
+자기 런의 diff·원본 프롬프트·루브릭만 받는다. 다른 런의 점수는 보지 못한다.
 
-블라인드를 위해 심사용 저장소를 **중립 이름의 새 클론**으로 만들고 해당 diff 만
-적용했다(디렉터리명이 arm 을 노출하지 않도록). 심사자에게는 저장소 변형을
-허용했고 — 측정치와 diff 는 이미 확보된 뒤였다 — revert 체크(소스만 되돌리고
-테스트를 돌려 통과하면 그 테스트는 변경을 검증하지 않는다)를 실제로 실행하게
-했다. 심사 요약에 실행했는지 추론했는지 명시하도록 요구했다.
+블라인드를 위해 심사용 저장소를 중립 이름의 새 클론으로 만들고 해당 diff만
+적용한다. 심사 요약에 revert 체크를 실행했는지 추론했는지를 명시한다.
 
-블라인드 라벨 대응은 각 `runs/*.judgment.json` 의 `blind_label` 필드에 남겼다.
-
-## 심사 대상에서 제외한 것
-
-on arm 의 `.bouncer/context/**` 계획 문서는 **심사 diff 에서 제외**했다.
-두 arm 을 같은 종류의 산출물(코드 + 테스트 + 문서)로 비교하기 위함이다.
-포함하면 on 이 scope·maintainability 에서 부당하게 깎인다. 대신 계획 문서
-분량은 비용 지표로 별도 보고한다(`comparison.md`).
-
-## 표본 제외와 실패 보고
-
-실패 보고가 표본 제외보다 앞선다: 목표 미달은 미달로 보고하고, 표본 제외는
-프로토콜 위반(사이클 미완, 사람 개입, 게이트 우회)에만 적용한다. 위 「심사
-대상에서 제외한 것」은 심사 diff 에서 계획 문서를 빼는 규칙이며, 런을 표본에서
-빼는 규칙이 아니다.
-
-3회차 on-light 네 런의 사이클 종료 줄 수는 146, 146, 151, 160이었고 넷 다
-100줄을 넘었다. 제외 조항을 그대로 적용하면 성공 표본이 0이 되므로 네 런을
-유지하고 미달로 판정했다.
-
-## 하네스 결함과 그 대응 — 재현 시 반드시 읽을 것
-
-측정 도중 도구 결함 2건이 드러났다. 재측정은 아래 **현재 계약**을 전제로 한다.
-`task-suite.md` 와 같은 실행 지침이다.
-
-### 1. `collect_metrics.py` 와 git worktree
-
-측정 당시 스크립트는 `.git` 이 디렉터리일 때만 저장소로 인정했다. linked
-worktree 의 `.git` 은 파일이라 측정 명령이 거절됐다. 당시 대응은 로컬 사본만
-`os.path.exists` 로 바꿔 실행한 것이다.
-
-**현재 계약:** `collect_metrics.py` 는 `.git` 존재만 본다. 포인터를 쓰지 않는
-일반 코드 벤치마크 arm 은 `git worktree add` 로 런을 나눠도 된다. Bouncer on
-arm 은 2절 때문에 독립 클론을 쓴다.
-
-### 2. 포인터와 verify 원장 — git common directory 공유
-
-활성 포인터는 `$(git rev-parse --git-common-dir)/bouncer/current` 한 파일이다.
-`--git-common-dir` 는 모든 linked worktree 가 공유한다. 포인터는 그 공통
-디렉터리 아래라서 linked worktree 전체가 하나를 본다. 실측:
-
-```
-t1-on → 001-verify-dry-run
-t2-on → 001-verify-dry-run   ← 자기 blueprint 아님
-t3-on → 001-verify-dry-run   ← 자기 blueprint 아님
-t4-on → 001-verify-dry-run   ← 자기 blueprint 아님
-```
-
-마지막에 `current --set` 한 런이 나머지의 포인터를 덮어쓴다. `verify` 의 명령
-해결은 포인터 task 문서로 좁혀지고(`entriesForVerify`) 커밋 스코프도 포인터를
-타므로, 충돌하면 다른 런의 문서를 읽는다.
-
-verify 원장은 `<git-common-dir>/bouncer/verify/<digest>.json` 이다. digest 는
-`verification.md` 상대경로 기준이다. **같은 blueprint 경로**를 두 linked
-worktree 에서 돌리면 원장이 덮인다. 서로 다른 blueprint 경로는 digest 가 달라
-그 원장 파일을 공유하지 않는다.
-
-운영 완화: 병렬 Bouncer 사이클은 독립 클론만 쓴다. 클론은 git common directory
-를 나누지 않으므로 포인터와 원장이 다른 사이클과 섞이지 않는다. 런타임 상태
-위치는 그대로다. linked worktree는 공통 디렉터리 아래 포인터와 원장을 계속
-공유한다.
-
-측정 대응: on arm 첫 실행 4건(worktree 기반)을 전량 폐기하고 독립 클론 4개로
-재실행했다. 이 파일의 모든 on 수치는 재실행분이다. off arm 은 포인터와 verify
-원장을 쓰지 않아 유지했다. 재측정도 on arm 은 독립 클론이다.
-
-## 한계
-
-- **베이스 커밋이 PR #53 이전이다.** `3f52018` 시점의 G13 은 `verification.md`
-  프론트매터만 읽어 손으로 쓴 `status: passed` 를 통과시켰고, 커밋 스코프 가드는
-  `git commit -a` 로 우회됐다 — 둘 다 `c7df084` 에서 수정됐다. 따라서 이 실험의
-  on arm 은 게이트가 강제해서가 아니라 **프롬프트 지시를 자발적으로 따라서**
-  프로토콜을 지켰다. 측정치는 유효하지만 잰 대상은 "게이트의 강제력" 이 아니라
-  "프로토콜 준수의 효과" 다. 재측정은 `c7df084` 이상에서 해야 둘이 일치한다.
-- **n=4.** 스킬 권장 5–8 미만.
-- **셀당 반복 1회.** 태스크별 분산 미측정. t3 의 Δ 0.00 이 진짜 동점인지 노이즈인지
-  구분 불가.
-- **on arm 은 CLI 에뮬레이션이다.** 설치된 플러그인이 아니라 `scripts/bouncer` 를
-  직접 호출했다. 따라서 `/bouncer-*` 슬래시 커맨드 경로와 **PreToolUse 커밋 훅
-  (`hooks/commit-safety.js`) 은 이번 실험에서 실행되지 않았다.** G17 의
-  Bash 훅 경로는 미검증이다. 검증된 것은 `bouncer commit` 의 스코프 검사뿐이다.
-- **태스크가 대부분 설계된 것이다.** t2 만 실제 코드에서 발견한 버그다.
-- **심사자도 LLM 이고 런당 1명이다.** 패널 투표나 적대적 교차검증이 없다.
-- **단일 모델·단일 세션.** 모델 간 일반화 근거 없음.
-- **3회차 계획 문서 줄 수는 plan-gate 시점 실측이 아니다.** 실행 clone 이 커밋
-  하나로 squash 되고 `.benchmarks/` 에 트리 사본이 없어, 보고값은 사이클 종료
-  줄 수(146/146/151/160)에서 하네스 몫 25줄을 뺀 파생 대리값 121/121/126/135
-  다. 다음 회차부터는 「plan 단계 스냅샷」 절이 plan 게이트 통과 직후의 줄을
-  남긴다.
+실패 보고가 표본 제외보다 앞선다. 목표 미달은 미달로 보고하고, 표본 제외는
+프로토콜 위반(사이클 미완, 사람 개입, 게이트 우회)에만 적용한다.

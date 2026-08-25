@@ -96,7 +96,6 @@ test('docs record the light plan contract in one voice', () => {
   assert.match(read('docs/workflow.md'), /full로 돌아가려면/);
   assert.match(read('docs/ARCHITECTURE.md'), /full plan 하나뿐이다/);
   assert.match(read('docs/troubleshooting.md'), /light`는 Goal & intent·Touch·Checklist 셋/);
-  assert.match(read('docs/benchmark/protocol.md'), /3회차 on arm: light 계약/);
 });
 
 test('compatibility records the broken G10 and G18 contract', () => {

@@ -1,0 +1,16 @@
+{
+  "id": "json-parse-position",
+  "base": "cb15a3c",
+  "prompt": "`.bouncer/config.json`이 깨진 JSON이면 `scripts/src/lib/config.ts`의 `readConfigResult`는 `reason: 'invalid'`만 돌린다. `SyntaxError`에서 줄/칸을 읽을 수 있으면 그 위치를 결과에 담아라. `scripts/src/lib/verification.ts`는 `VERIFY_CONFIG_INVALID`를 던질 때 메시지에 경로와 위치를 넣고, 같은 위치 값을 오류 객체의 필드로도 붙여라. `scripts/src/lib/cli-doc-commands.ts`의 `verify` stderr는 메시지 문자열만 믿지 말고 그 필드를 읽어 위치를 보여야 한다. 파일이 없는 경우(`missing`)와 권한 오류 분기는 지금과 같다. `test/verification-runner.test.js`에 깨진 JSON fixture를 넣고 메시지에 위치가 있는지 본다.",
+  "done_when": [
+    "깨진 JSON에서 `readConfigResult`가 invalid이고 줄/칸을 노출한다",
+    "`VERIFY_CONFIG_INVALID` 오류 객체와 `cli-doc-commands.ts`의 `verify` stderr에 경로와 위치가 함께 있다",
+    "없는 파일은 계속 missing이다",
+    "구현의 위치 필드를 빼면 새 테스트가 실패한다"
+  ],
+  "checks": {
+    "test": "npm test -- test/verification-runner.test.js",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck"
+  }
+}
