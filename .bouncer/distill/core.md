@@ -8,7 +8,7 @@ distill:
 ---
 # core
 
-Rules routed to core; routing remains disabled until the project explicitly opts in.
+Project-wide rules that apply to every path.
 
 ## Invariants
 

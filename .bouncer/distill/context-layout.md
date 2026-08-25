@@ -8,7 +8,7 @@ distill:
 ---
 # context-layout
 
-Rules routed to context-layout; routing remains disabled until the project explicitly opts in.
+Rules for context ids, task layout, and migration.
 
 ## Invariants
 

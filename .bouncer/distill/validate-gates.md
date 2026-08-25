@@ -8,7 +8,7 @@ distill:
 ---
 # validate-gates
 
-Rules routed to validate-gates; routing remains disabled until the project explicitly opts in.
+Rules for validation, verification, and gate contracts.
 
 ## Invariants
 

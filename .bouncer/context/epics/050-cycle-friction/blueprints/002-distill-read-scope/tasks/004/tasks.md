@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '050'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - config.json이 라우팅을 켰는데도 Distill.md는 false를 적고 샤드마다 비활성 안내를 실어 보냈음
@@ -25,6 +25,7 @@ bouncer:
     - .bouncer/distill/graph.md
     - .bouncer/distill/plugin-skills.md
     - .bouncer/distill/build-ts.md
+    - test/distill.test.js
   scope_evidence:
     producer: graphify
     generated_at: '2026-08-25T12:35:04.162+09:00'
@@ -59,6 +60,7 @@ opts in」이다. 읽는 쪽 컨텍스트에 매번 실려 가는 거짓 진술�
   - `.bouncer/Distill.md` frontmatter `distill.routing_enabled`가 `true`.
   - 각 샤드 본문의 `# <id>` 다음 안내 문단을 그 샤드가 무엇을 담는지
     한 줄로 말하는 영어 문장으로 교체한다.
+  - `test/distill.test.js`가 인덱스 `routing_enabled`를 `true`로 고정한다.
 - 거부:
   - `## Invariants` / `## Gotchas` / `## Decisions` 아래 규칙 문장을
     더하거나 빼거나 고치는 것. 이번에 바뀌는 것은 헤딩 아래 안내 문단과
@@ -74,6 +76,8 @@ opts in」이다. 읽는 쪽 컨텍스트에 매번 실려 가는 거짓 진술�
 - Modify `.bouncer/distill/graph.md` — 안내 문단 교체.
 - Modify `.bouncer/distill/plugin-skills.md` — 안내 문단 교체.
 - Modify `.bouncer/distill/build-ts.md` — 안내 문단 교체.
+- Modify `test/distill.test.js` — 인덱스가 `routing_enabled: true`임을 고정하는
+  assert를 맞춘다.
 
 ## Do not touch
 - `.bouncer/config.json` — 이미 사실이 적힌 쪽이다.
@@ -104,4 +108,5 @@ opts in」이다. 읽는 쪽 컨텍스트에 매번 실려 가는 거짓 진술�
       아무것도 내지 않음을 확인한다.
 - [ ] `node scripts/bouncer distill --all --repo "$PWD" >/dev/null`이 종료 코드
       0이고 stderr 총량 줄이 여전히 7 shards임을 확인한다.
+- [ ] `test/distill.test.js`에서 인덱스 `routing_enabled`를 `true`로 고정한다.
 - [ ] `npm run ci` 통과를 확인한다.

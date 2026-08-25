@@ -494,7 +494,7 @@ test('repository Distill shards preserve every original bullet and remain fully 
 
   assert.strictEqual(state.mode, 'sharded');
   assert.strictEqual(state.valid, true);
-  assert.strictEqual(state.routing_enabled, false);
+  assert.strictEqual(state.routing_enabled, true);
   assert.deepStrictEqual(state.ids, [
     'core',
     'validate-gates',
@@ -518,10 +518,13 @@ test('repository Distill shards preserve every original bullet and remain fully 
   const rendered = renderShards(state);
   assert.deepStrictEqual(bulletHashes(rendered), expected);
 
+  // 저장소 인덱스가 routing_enabled: true여도 fail-open(전체 렌더)은 플래그
+  // 값이 아니라 routingEnabled: false 강제 주입으로 검증한다. 인덱스 값을
+  // 그대로 넘기면 라우팅이 켜져 full=true가 깨진다.
   const disabledSelection = routeShards({
     shards: state.shards,
     affectedPaths: ['scripts/src/lib/validate.ts'],
-    routingEnabled: state.routing_enabled,
+    routingEnabled: false,
     repoRoot: repo,
   });
   assert.strictEqual(disabledSelection.full, true);

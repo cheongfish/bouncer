@@ -11,7 +11,7 @@ distill:
 ---
 # git-worktree
 
-Rules routed to git-worktree; routing remains disabled until the project explicitly opts in.
+Rules for worktree, commit-safety, and finalize boundaries.
 
 ## Invariants
 

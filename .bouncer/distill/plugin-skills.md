@@ -10,7 +10,7 @@ distill:
 ---
 # plugin-skills
 
-Rules routed to plugin-skills; routing remains disabled until the project explicitly opts in.
+Rules for plugin manifests, skills, agents, and trust boundaries.
 
 ## Invariants
 

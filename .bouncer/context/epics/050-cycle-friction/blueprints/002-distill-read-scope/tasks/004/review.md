@@ -11,14 +11,12 @@ bouncer:
   id: REVIEW-004
   epic_id: '050'
   blueprint_id: '002'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings: []
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+없음. Distill.md 플래그, 7개 샤드 안내 문단, `test/distill.test.js` 고정이 브리프와 일치함.

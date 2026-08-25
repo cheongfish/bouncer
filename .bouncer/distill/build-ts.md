@@ -9,7 +9,7 @@ distill:
 ---
 # build-ts
 
-Rules routed to build-ts; routing remains disabled until the project explicitly opts in.
+Rules for TypeScript emit and Node-only consumers.
 
 ## Invariants
 
