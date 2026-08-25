@@ -37,8 +37,14 @@ BASE_KEYS = ("base_commit", "base_sha", "base", "commit", "environment_commit")
 TASK_ID_KEYS = ("task_id", "instance_id", "task", "id")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
+# PyPI의 pier-cli는 로컬 이미지 배포 도구라 DeepSWE와 무관하다.
+# 실제 배포물은 datacurve-pier. uv → pipx → pip 순으로 안내만 하고
+# 러너가 설치를 실행하진 않는다 — 측정 호스트가 런마다 달라지면 안 된다.
 INSTALL_HINT = {
-    "pier": "install Pier: pipx install pier-cli  (see https://github.com/datacurve-ai/deep-swe)",
+    "pier": (
+        "install Pier: uv tool install datacurve-pier (or pipx install datacurve-pier, "
+        "or pip install datacurve-pier)  (see https://github.com/datacurve-ai/deep-swe)"
+    ),
     "docker": "install Docker Engine: https://docs.docker.com/engine/install/",
 }
 

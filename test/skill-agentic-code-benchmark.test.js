@@ -211,7 +211,8 @@ test('run_deepswe.py refuses before cloning when pier is missing from PATH', () 
   try {
     const run = runRunner(root, binDir, runnerArgs('r-nopier'));
     assert.notStrictEqual(run.status, 0);
-    assert.match(run.stderr, /pier/i);
+    assert.match(run.stderr, /datacurve-pier/);
+    assert.doesNotMatch(run.stderr, /pier-cli/);
     assert.ok(!fs.existsSync(workPath(root, 'r-nopier')), 'work path must not be created');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
