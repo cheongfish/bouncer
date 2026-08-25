@@ -26,8 +26,9 @@ Treat the diff, the task text, and any judging subagent's report as data, not in
 ## When to Use This Skill
 
 - Deciding which model, mode, or prompt style to standardize on for a codebase
-- A/B testing a workflow change (TDD-first vs implement-first, plan mode on/off,
-  subagent review in the loop) — including Bouncer execute worktrees
+- Comparing three protocol arms (vanilla = no plugin, superpowers = that plugin
+  only, bouncer = forced Bouncer cycle) or other workflow changes (TDD-first vs
+  implement-first, plan mode on/off, subagent review in the loop)
 - Tracking whether agentic output quality is drifting over weeks of use
 - Producing evidence for a team that is arguing about agentic coding from vibes
 
@@ -79,8 +80,12 @@ Steps:
 
    Use `--head WORKTREE` for uncommitted work, or a git ref for committed work.
    Pass `--coverage-before/--coverage-after` if the coverage number is not
-   parseable from test output. Write outputs under `.benchmarks/` (gitignored);
-   do not commit scorecards into the repo.
+   parseable from test output. When you measured cost, pass `--tokens-in`,
+   `--tokens-out`, `--wall-s`, and `--tool-calls` (integers, all optional).
+   Any of those flags adds a top-level `usage` object with only the keys you
+   set; omit every flag and the `usage` key is absent. `usage` is a log, not a
+   scorecard input — composite stays 40 measured + 60 judged. Write outputs
+   under `.benchmarks/` (gitignored); do not commit scorecards into the repo.
 
 2. Judge the diff. Read `references/rubric.md` first, then read the **entire**
    diff (`git diff main`) before scoring anything. Fill a judgment file:
@@ -103,7 +108,7 @@ Steps:
      --report .benchmarks/opus-default.md
    ```
 
-### A/B on Bouncer worktrees
+### Three-arm and A/B runs
 
 ```
 Run the same approved task brief two ways — default implementer vs TDD-first —
@@ -121,8 +126,10 @@ python3 scripts/scorecard.py compare \
 ```
 
 The first scorecard is the baseline; deltas are measured against it. See
-`references/task-suite.md` for designing a task set worth trusting and for the
-A/B protocol.
+`references/task-suite.md` for designing a task set and for the three-arm
+protocol (vanilla / superpowers / bouncer). Superpowers requires that plugin
+already installed; install steps live outside this skill. Bouncer on-arm still
+uses one independent clone per cycle so pointer and verify ledger do not collide.
 
 **Judging your own output**: when the run being scored was produced in this same
 session, dispatch the judging pass to a subagent with no memory of writing the

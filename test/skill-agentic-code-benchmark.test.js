@@ -76,10 +76,10 @@ test('agentic-code-benchmark sits outside ARCHITECTURE §4 table but in prose; R
 
 const COLLECT_METRICS = path.join(skillDir, 'scripts', 'collect_metrics.py');
 
-function collectMetrics(repo) {
+function collectMetrics(repo, extraArgs = []) {
   return spawnSync(
     'python3',
-    [COLLECT_METRICS, '--repo', repo, '--base', 'HEAD', '--head', 'WORKTREE'],
+    [COLLECT_METRICS, '--repo', repo, '--base', 'HEAD', '--head', 'WORKTREE', ...extraArgs],
     { encoding: 'utf8' },
   );
 }
@@ -116,5 +116,28 @@ test('collect_metrics.py treats .git file and directory as repos and rejects a m
     fs.rmSync(gitFileRepo, { recursive: true, force: true });
     fs.rmSync(gitDirRepo, { recursive: true, force: true });
     fs.rmSync(noGit, { recursive: true, force: true });
+  }
+});
+
+test('collect_metrics.py records only supplied usage flags and omits the key otherwise', () => {
+  const repo = tmpDir('acb-usage-');
+  try {
+    fs.mkdirSync(path.join(repo, '.git'));
+
+    const withFlags = collectMetrics(repo, ['--tokens-in', '1200', '--wall-s', '300']);
+    assert.strictEqual(withFlags.status, 0, withFlags.stderr);
+    const withUsage = JSON.parse(withFlags.stdout);
+    assert.strictEqual(withUsage.schema, 'agentic-code-benchmark/metrics/1');
+    assert.strictEqual(withUsage.usage.tokens_in, 1200);
+    assert.strictEqual(withUsage.usage.wall_s, 300);
+    assert.ok(!Object.prototype.hasOwnProperty.call(withUsage.usage, 'tool_calls'));
+    assert.ok(!Object.prototype.hasOwnProperty.call(withUsage.usage, 'tokens_out'));
+
+    const noFlags = collectMetrics(repo);
+    assert.strictEqual(noFlags.status, 0, noFlags.stderr);
+    const withoutUsage = JSON.parse(noFlags.stdout);
+    assert.ok(!Object.prototype.hasOwnProperty.call(withoutUsage, 'usage'));
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
   }
 });

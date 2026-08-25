@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '050'
   blueprint_id: '003'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 벤치마크가 Bouncer on/off 2 arm이라 다른 플러그인과 견줄 축이 없고 토큰이 아예 기록되지 않았음
@@ -22,6 +22,7 @@ bouncer:
     - skills/agentic-code-benchmark/SKILL.md
     - skills/agentic-code-benchmark/references/task-suite.md
     - test/skill-agentic-code-benchmark.test.js
+    - test/public-name-regression.test.js
   scope_evidence:
     producer: graphify
     generated_at: '2026-08-25T14:10:00+09:00'
@@ -81,6 +82,9 @@ Blueprint: [003](../../index.md)
   A/B 절을 3 arm으로 넓힌다.
 - Modify `test/skill-agentic-code-benchmark.test.js` — 플래그 유무에 따른
   `usage` 존재/부재 assert 추가.
+- Modify `test/public-name-regression.test.js` — 벤치마크 비교 arm으로
+  세 번째 플러그인 이름을 적는 파일만 허용한다. Bouncer가 그 플러그인을
+  워크플로로 통합했다는 서술은 계속 막는다.
 
 ## Do not touch
 - `skills/agentic-code-benchmark/scripts/scorecard.py` — `.get()`으로만
@@ -107,6 +111,10 @@ Blueprint: [003](../../index.md)
   `.bouncer/context` 트리를 보관하지 않고 실행 clone은 커밋 하나로 squash되므로,
   그 절차가 빠지면 계획 단계 비용을 사후에 잴 수 없다.
 - 파이썬 주석은 영어, 문서 본문은 한국어.
+- 공개 이름 회귀는 Bouncer 제품 표면에 세 번째 플러그인 통합을 쓰지
+  못하게 한다. 벤치마크 프로토콜·하네스 스킬이 비교 arm으로 그 이름을
+  적는 것은 통합이 아니다. 허용 목록은 그 비교 문서에만 열고, 목록을
+  비우거나 제품 문서를 넣지 않는다.
 
 ## Checklist
 - [ ] `test/skill-agentic-code-benchmark.test.js`에 실패 테스트를 먼저
@@ -122,6 +130,9 @@ Blueprint: [003](../../index.md)
 - [ ] `docs/benchmark/protocol.md`를 arm 표 · 공통 통제 조건 · arm별 절차 ·
       런당 기록 값 순으로 쓴다.
 - [ ] `SKILL.md`와 `references/task-suite.md`에 `usage`와 arm 축을 반영한다.
+- [ ] `test/public-name-regression.test.js`에 비교 arm 문서 허용 목록을
+      넣고, `docs/ARCHITECTURE.md`와 설치 문서에는 그 이름이 계속
+      없는지 확인한다.
 - [ ] 같은 metrics로 `scorecard.py`를 변경 전후 한 번씩 돌려 합성 점수가
       같은지 확인한다.
 - [ ] `npm run ci` 통과를 확인한다.

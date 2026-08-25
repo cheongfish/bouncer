@@ -169,6 +169,13 @@ def main():
                         help="post-change coverage %% (else parsed from --test-cmd output)")
     parser.add_argument("--timeout", type=int, default=900, help="per-command timeout in seconds")
     parser.add_argument("--out", default=None, help="write JSON here instead of stdout")
+    # Optional run-cost fields. default=None so argparse omits them unless
+    # the caller passed a flag; filling 0 would collapse "not measured" into
+    # a real zero and make usage look scored.
+    parser.add_argument("--tokens-in", type=int, default=None)
+    parser.add_argument("--tokens-out", type=int, default=None)
+    parser.add_argument("--wall-s", type=int, default=None)
+    parser.add_argument("--tool-calls", type=int, default=None)
     args = parser.parse_args()
 
     repo = os.path.abspath(args.repo)
@@ -229,6 +236,22 @@ def main():
         },
         "rework": rework,
     }
+
+    # Record-only: scorecard.py reads checks/coverage/rework, not this object.
+    # Emit the key only when at least one flag was set, and only those keys,
+    # so a later round can tell "unmeasured" from "zero".
+    usage = {
+        key: value
+        for key, value in (
+            ("tokens_in", args.tokens_in),
+            ("tokens_out", args.tokens_out),
+            ("wall_s", args.wall_s),
+            ("tool_calls", args.tool_calls),
+        )
+        if value is not None
+    }
+    if usage:
+        metrics["usage"] = usage
 
     payload = json.dumps(metrics, indent=2)
     if args.out:
