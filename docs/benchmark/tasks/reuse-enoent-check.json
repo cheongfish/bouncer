@@ -1,0 +1,16 @@
+{
+  "id": "reuse-enoent-check",
+  "base": "cb15a3c",
+  "prompt": "`scripts/src/lib/config.ts`의 `isEnoentError`는 파일 부재만 가린다. `scripts/src/lib/verification.ts`는 문서 읽기 실패를 `errorCode(error) === 'ENOENT'`로 따로 본다. `isEnoentError`를 export하고 verification 쪽 ENOENT 분기가 그걸 쓰게 하라. `VERIFY_DOCUMENT_MISSING`과 `VERIFY_CONFIG_MISSING`의 코드·메시지는 유지한다. `test/verification-runner.test.js`의 부재 문서 케이스가 통과해야 한다.",
+  "done_when": [
+    "`isEnoentError`가 `config.ts`에서 export된다",
+    "verification의 ENOENT 분기가 그 함수를 호출한다",
+    "없는 verification 문서는 예전과 같은 오류 코드를 낸다",
+    "`test/verification-runner.test.js`가 통과한다"
+  ],
+  "checks": {
+    "test": "npm test -- test/verification-runner.test.js",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck"
+  }
+}

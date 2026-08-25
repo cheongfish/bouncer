@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '050'
   blueprint_id: '003'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 태스크 넷이 이 저장소를 보고 손으로 만든 것이라 선정 근거가 남아 있지 않았음

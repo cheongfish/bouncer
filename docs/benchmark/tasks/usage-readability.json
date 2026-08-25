@@ -1,0 +1,16 @@
+{
+  "id": "usage-readability",
+  "base": "cb15a3c",
+  "prompt": "`scripts/src/lib/cli.ts`가 조립하는 usage 텍스트와 `test/cli-help.test.js`를 보고, 인자 없이 실행했을 때 나오는 도움말을 더 읽기 쉽게 고쳐라. 서브커맨드 이름 목록은 빠지면 안 된다. `--help`, `-h`, `help` 세 경로의 출력은 서로 같아야 한다. 알 수 없는 명령은 지금처럼 stderr로 usage를 보내고 종료 코드 2다. 레이아웃(들여쓰기, 섹션, 한 줄 설명)은 네가 고른다.",
+  "done_when": [
+    "빈 argv, `--help`, `-h`, `help`의 stdout이 서로 같다",
+    "`test/cli-help.test.js`가 나열하는 서브커맨드 이름이 usage에 있다",
+    "미등록 명령은 stderr에 usage를 포함하고 코드 2로 끝난다",
+    "도움말 본문이 리팩터 전과 바이트가 다르더라도 위 계약을 지킨다"
+  ],
+  "checks": {
+    "test": "npm test -- test/cli-help.test.js",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "cursor-host-lookup",
+  "base": "cb15a3c",
+  "prompt": "`scripts/src/lib/plugin-root.ts`의 `HOSTS`와 `BouncerHost`는 claude, codex, antigravity뿐이다. Cursor 설치 루트(`$HOME/.cursor/plugins/local/bouncer`)는 `test/plugin-root.test.js`의 `fixture(..., 'cursor', ...)`가 이미 조립한다. `--host cursor`가 그 후보를 고르게 하라. `scripts/src/lib/bouncer-root.ts`의 `--host` 오류 문구와 `rules/plugin-root.md`의 `--host` 나열에도 cursor를 포함하라. 버전·이름 판정은 기존 `readCandidate`와 같다. claude/codex/antigravity 해석은 유지한다.",
+  "done_when": [
+    "`--host cursor`가 유효한 Cursor 플러그인 루트를 stdout에 인쇄하고 종료 코드 0이다",
+    "`plugin-root.ts`와 `bouncer-root.ts`와 `rules/plugin-root.md`가 모두 cursor를 지원 호스트로 나열한다",
+    "`test/plugin-root.test.js`의 `--host rejects unsupported Cursor` 단언이 새 동작에 맞게 바뀌었고 Cursor 성공 케이스가 있다",
+    "claude/codex 정렬 테스트가 통과한다"
+  ],
+  "checks": {
+    "test": "npm test -- test/plugin-root.test.js",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck"
+  }
+}
