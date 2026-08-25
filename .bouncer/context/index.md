@@ -55,3 +55,4 @@ bouncer_schema: '0.1'
 * [048 plugin-root-resolution](epics/048-plugin-root-resolution/index.md) - Epic 048
 * [049 context-searchability](epics/049-context-searchability/index.md) - Epic 049
 * [050 cycle-friction](epics/050-cycle-friction/index.md) - Epic 050
+* [051 deepswe-original-benchmark](epics/051-deepswe-original-benchmark/index.md) - Epic 051
