@@ -8,7 +8,7 @@ tags:
 timestamp: '2026-08-07T11:14:36+09:00'
 distill:
   version: 1
-  routing_enabled: false
+  routing_enabled: true
   shards:
     - id: core
       always: true

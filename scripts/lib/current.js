@@ -282,15 +282,84 @@ function readAffectedPaths(repoRoot, blueprintDir) {
         return [];
     }
 }
+/**
+ * finalize 대상과 같은 epic에 남은 미마감 형제를 보고용으로 스캔한다.
+ * `--set` 후보 조건은 다시 구현하지 않는다 — `ready`는 같은 호출의
+ * `listReadyBlueprints` 결과에 경로가 있는지로만 붙인다. draft처럼 후보가
+ * 아닌 형제도 인계 확인에 떠야 하고, 후보 조건을 복제하면 `bouncer current`
+ * 의 ready 목록과 어긋날 수 있기 때문.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {unknown} blueprintDir - finalize 대상 blueprint 상대 경로
+ * @param {Array<{ blueprint: string }>} readyBlueprints - 같은 호출의 `listReadyBlueprints` 결과
+ * @returns {SameEpicPendingEntry[]} `blueprint` 경로 사전순. 자신·`closed`·다른 epic·깨진 `index.md`는 제외하며 항상 배열
+ */
+function listSameEpicPending({ repoRoot, blueprintDir, readyBlueprints, }) {
+    const selfRaw = String(blueprintDir);
+    const selfPosix = toPosix(selfRaw);
+    const selfEpic = epicDirOf(selfPosix);
+    const pending = [];
+    const blueprintsRoot = path.join(repoRoot, selfEpic, 'blueprints');
+    if (!fs.existsSync(blueprintsRoot))
+        return pending;
+    let bpNames;
+    try {
+        bpNames = fs.readdirSync(blueprintsRoot);
+    }
+    catch (_e) {
+        return pending;
+    }
+    // 경로 문자열 equality만 — listReadyBlueprints가 이미 POSIX rel을 씀.
+    const readySet = new Set(readyBlueprints.map((entry) => entry.blueprint));
+    for (const bpName of bpNames) {
+        const bpAbs = path.join(blueprintsRoot, bpName);
+        let st;
+        try {
+            st = fs.statSync(bpAbs);
+        }
+        catch (_e) {
+            continue;
+        }
+        if (!st.isDirectory())
+            continue;
+        const rel = toPosix(path.relative(repoRoot, bpAbs));
+        // nextBlueprint 자기 제외와 동일: 정규화 전 문자열과 POSIX 경로 모두.
+        if (rel === selfRaw || rel === selfPosix)
+            continue;
+        try {
+            const indexDoc = readDoc(path.join(bpAbs, 'index.md'));
+            const bpStatus = bouncerStatus(indexDoc.data);
+            // closed는 터미널 — 잔여 인계에 올리면 이미 끝난 계획을 다시 고르게 됨.
+            // 문자열이 아니면 상태를 보고할 수 없으므로 이 항목만 건너뛴다.
+            if (typeof bpStatus !== 'string' || bpStatus === 'closed')
+                continue;
+            pending.push({
+                blueprint: rel,
+                blueprintStatus: bpStatus,
+                ready: readySet.has(rel),
+            });
+        }
+        catch (_e) {
+            // 깨진 index 하나가 잔여 목록 전체를 지우면 안 됨.
+        }
+    }
+    pending.sort((a, b) => a.blueprint.localeCompare(b.blueprint));
+    return pending;
+}
 // finalize 대상 이후 다음 ready blueprint 계산 — 순수 계산, write/git/process
 // 없음. 후보는 listReadyBlueprints에서만; 정렬은 finalized epic 우선, 다음
 // ## Blueprints link order, epic 내 미등록은 path lexicographic, 그다음
-// 다른 epic은 epic dir name 순.
+// 다른 epic은 epic dir name 순. sameEpicPending은 같은 epic의 미마감 형제
+// 보고용이며 후보 필터와 독립이다.
 function nextBlueprint({ repoRoot, blueprintDir }) {
     const selfRaw = String(blueprintDir);
     const selfPosix = toPosix(selfRaw);
     const selfEpic = epicDirOf(selfPosix);
-    const ready = listReadyBlueprints({ repoRoot }).filter((entry) => {
+    const readyAll = listReadyBlueprints({ repoRoot });
+    const sameEpicPending = listSameEpicPending({
+        repoRoot, blueprintDir, readyBlueprints: readyAll,
+    });
+    const ready = readyAll.filter((entry) => {
         const bp = entry.blueprint;
         return bp !== selfRaw && bp !== selfPosix;
     });
@@ -339,7 +408,7 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
         return a.blueprint.localeCompare(b.blueprint);
     });
     if (ranked.length === 0)
-        return { next: null, remaining: [] };
+        return { next: null, remaining: [], sameEpicPending };
     const finalizedPaths = readAffectedPaths(repoRoot, selfPosix);
     const [head, ...rest] = ranked;
     const candidatePaths = readAffectedPaths(repoRoot, head.blueprint);
@@ -354,6 +423,7 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
             sharedPaths,
         },
         remaining: rest.map(({ blueprint, epic, sameEpic }) => ({ blueprint, epic, sameEpic })),
+        sameEpicPending,
     };
 }
 module.exports = {

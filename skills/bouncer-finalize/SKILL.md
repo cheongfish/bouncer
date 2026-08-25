@@ -33,30 +33,42 @@ Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
 appears; do not reconstruct a root `context/` path.
 
 1. **Propose and promote Distill (one consent).** Before deciding what to
-   promote, run the full JSON audit:
+   promote, run the full JSON audit once:
    ```bash
 BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" distill --all --json
    ```
    Take the promotion base from that payload `repoRoot`. 승격 경로를
-   `project-root`로 조립하지 않는다. Give the complete stdout, the absolute path
-   (`.bouncer/Distill.md` under that `repoRoot`), and the audit's
-   `shards` metadata to
-   `spec-authoring` (`skills/spec-authoring/SKILL.md`). The `audit.shards`
-   value is the only shard inventory for this cycle. Using the already-resolved
-   payload `repoRoot`, read **every** registered shard's relative `path`
-   separately and construct the complete caller-owned map
-   `id → { path: <registered relative path>, currentBody: <that file's body> }`;
-   resolve each relative path against that `repoRoot` only for its separate
-   read. Preserve each id/path pairing and pass the map plus the full audit
-   metadata to `spec-authoring`; if a read fails, stop and report it rather than
-   omitting the entry or substituting a different file. The full search covers
-   every current rule, including shards, against BP `explain.md`; never use a
-   routed subset as the promotion
-   inventory. `audit.content`, selection content, and any aggregate
-   `--route` output are not shard bodies and must never be attached to an
-   individual shard's `currentBody` or write target. `spec-authoring` receives
-   this caller-supplied data only and never invokes the CLI or route itself.
+   `project-root`로 조립하지 않는다. The `audit.shards`
+   value is the only shard inventory for this cycle. Do not hand stdout, the
+   Distill path, `audit.shards`, or a map to `spec-authoring` until the split
+   id set is checked.
+
+   From that same payload, split `content` into the complete caller-owned map
+   `id → { path: <registered relative path>, currentBody: <split body> }`. Do
+   not open shard files again — `--all --json` already carried every body.
+   Boundaries are only lines that are `# <id>` whose `id` is in the known
+   set `audit.shards[].id`. Arbitrary `# ` headings inside a body are not
+   boundaries; treating them as such would slice one shard into several.
+   Resolve each map `path` as payload `repoRoot` + the registered relative
+   path `audit.shards[].path` (keep that relative path in the map). Preserve
+   each id/path pairing.
+
+   If the id set from the split differs from the id set of `audit.shards`,
+   do not proceed with promotion: report the failure (a partial map is not
+   a substitute) and continue with step 2, the quiz, G16, and the remainder
+   path. Completeness outranks cost. On that mismatch do not call
+   `spec-authoring`. When the two id sets match, pass the full JSON audit
+   and the complete shard map, the absolute path
+   (`.bouncer/Distill.md` under that `repoRoot`), and `audit.shards` to
+   `spec-authoring` (`skills/spec-authoring/SKILL.md`). The full search
+   covers every current rule, including shards, against BP `explain.md`; never
+   use a routed subset as the promotion inventory.
+   Selection content and any aggregate `--route` output are not shard bodies
+   and must never be attached to an individual shard's `currentBody` or write
+   target. Unsplit `content` is also not a write target — only the known-id
+   split fills `currentBody`. `spec-authoring` receives this caller-supplied,
+   payload-derived data only and never invokes the CLI or route itself.
 
    Before any file write, `spec-authoring` returns one complete proposal list.
    Each entry has these review fields: action (`drop` | `replace` |
@@ -256,19 +268,31 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    lives on `/bouncer-commit`). Advancement is confirm-then-
    `bouncer current --set …` only — never automatic.
 
-   Read `next` from the `finalize --yes` JSON output (or from the dry-run output
-   when there was nothing left to commit and `--yes` was never run). If
-   `next.next` is `null`, skip this branch.
-   - Show the candidate (`next.next.blueprint`, `next.next.sameEpic`,
-     `next.remaining` length).
-   - If `next.next.sharedPaths` is non-empty, warn that the next blueprint
-     likely needs to branch from this commit (overlap) — do not block
-     advancing.
-   - If the execute worktree was left in place, warn that the shared pointer
-     means that worktree's commit guard will start enforcing the *new*
-     blueprint's `affected_paths`.
+   Read `next.next` and `next.sameEpicPending` from the `finalize --yes` JSON
+   output (or from the dry-run output when there was nothing left to commit and
+   `--yes` was never run). If `next.next` is `null` **and** `next.sameEpicPending`
+   is empty, skip this branch.
 
-   **AskUserQuestion — Next blueprint**
+   If `next.sameEpicPending` is non-empty, list each remaining sibling's
+   `blueprint` path and `blueprintStatus`. The `--set` target is always
+   `next.next.blueprint` (one path) when that field is non-null — do **not**
+   write that same path again in the remainder list. `ready: false` entries
+   are not `--set` options; tell the user to continue them with `/bouncer-plan`.
+   `draft` 형제에 대해 `bouncer current --set`을 제안하지 않는다 — plan 게이트
+   G2가 거절하는 명령이다.
+   - If `next.next` is non-null, show the candidate (`next.next.blueprint`,
+     `next.next.sameEpic`, `next.remaining` length).
+     - If `next.next.sharedPaths` is non-empty, warn that the next blueprint
+       likely needs to branch from this commit (overlap) — do not block
+       advancing.
+     - If the execute worktree was left in place, warn that the shared pointer
+       means that worktree's commit guard will start enforcing the *new*
+       blueprint's `affected_paths`.
+   - If `next.next` is `null` but `sameEpicPending` is not empty, do **not**
+     offer `--set`; show the pending list and point remaining work at
+     `/bouncer-plan`.
+
+   **AskUserQuestion — Next blueprint** (only when `next.next` is non-null)
    1. **Re-ground**: 다음 ready blueprint로 포인터를 옮길지.
    2. **Recommend-why**: 같은 epic 흐름이면 `--set`이 다음 plan/execute 진입을
       명확히 함 (overlap이 있으면 그 커밋에서 분기해야 함을 사유에 포함).

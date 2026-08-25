@@ -16,7 +16,7 @@
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 worktree로 이전하고 base를 원상복구. 옮길 것이 없으면 성공 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer project-root [--repo <dir>]` | 소비 저장소 main worktree 절대 경로 한 줄(stdout만). primary·linked worktree에서 같은 값. 비-Git이면 stderr + 종료 코드 1(빈 stdout·cwd 대체 없음) |
-| `bouncer distill --for <path> [--json]` | 대상 경로에 맞는 Distill 본문을 출력. `--all`은 routing 설정과 무관하게 전량 본문을 출력하고, `--route <path>`는 선택 JSON, `--audit`는 전량 감사 JSON을 출력 |
+| `bouncer distill --for <path> [--json]` | 대상 경로에 맞는 Distill 본문을 출력. `--all`은 routing 설정과 무관하게 전량 본문을 출력하고, `--preflight`는 `always` 샤드 본문과 등록 인벤토리만, `--route <path>`는 선택 JSON, `--audit`는 전량 감사 JSON을 출력 |
 | `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>]] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); `scale`은 호출 시점에 blueprint `index.md`의 `bouncer.scale`에서 파생한 문자열(없거나 읽을 수 없으면 `null`). 포인터 파일은 `{ blueprint, task?, base }`만 저장. 없으면 `ready` 후보 |
 | `bouncer migrate ids [--dry-run]` | 구형 `EPIC-`/`BP-` context 디렉터리를 숫자 id로 이관(계획 또는 적용) |
 | `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
@@ -37,7 +37,9 @@
 선택 메타데이터(`ids`, `full`, `reason`, `targetPaths`)를 JSON으로 감쌉니다.
 라우팅이 비활성화되었거나 매칭·메타데이터가 불확실하면 전량을 사용하고 진단은
 stderr로만 보냅니다. `--all`과 `--audit`는 항상 인덱스의 모든 샤드를 대상으로
-합니다. `--route`와 `--audit`은 선택/감사 정보가 목적이므로 JSON을 출력합니다.
+합니다. `--preflight`는 경로 확정 전에 `always: true` 샤드 본문만 고르고,
+`audit.shards`에는 등록 전체를 그대로 담습니다. `--route`와 `--audit`은
+선택/감사 정보가 목적이므로 JSON을 출력합니다.
 JSON의 `audit.shards`는 인덱스에 등록된 전체 샤드를 등록 순서대로 담으며, 각 항목은
 `id`, `path`, `always`, `pathsKnown`, `pullsKnown`과 선언된 경우의 `paths`, `pulls`만
 포함합니다. 본문·원문은 포함하지 않고, `--route`/`--for`에서 선택된 샤드로 줄어들지

@@ -8,7 +8,7 @@ distill:
 ---
 # graph
 
-Rules routed to graph; routing remains disabled until the project explicitly opts in.
+Rules for Graphify, digest, freshness, and graph absence.
 
 ## Invariants
 

@@ -42,3 +42,12 @@ test('discovery names the handoff contract it passes to planning', () => {
 test('generic skills omit legacy protocol and methodology assumptions', () => {
   assert.doesNotMatch(readAllGenericSkills(), /superpowers/i);
 });
+
+// 프레이밍 사전 읽기는 preflight 출력 + baseline 경로. 전량 --all stdout 주입이 아니다.
+test('discovery pre-read consumes --preflight plus baseline path, not full --all stdout', () => {
+  const md = readSkill('discovery');
+  assert.match(md, /--preflight/);
+  assert.match(md, /baseline/);
+  assert.doesNotMatch(md, /complete output of the caller's[\s\S]{0,80}distill --all/);
+  assert.match(md, /none/);
+});

@@ -302,7 +302,7 @@ function finalize({
     try {
       return next({ repoRoot, blueprintDir });
     } catch (_e) {
-      return { next: null, remaining: [] };
+      return { next: null, remaining: [], sameEpicPending: [] };
     }
   };
 

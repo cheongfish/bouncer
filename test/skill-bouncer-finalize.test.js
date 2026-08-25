@@ -99,6 +99,28 @@ test('bouncer-finalize next handoff is next blueprint only (task advance lives o
   assert.doesNotMatch(body, /AskUserQuestion — Next task|Next task ACQ/i);
 });
 
+test('bouncer-finalize splits sameEpicPending into --set vs /bouncer-plan', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /sameEpicPending/);
+  assert.match(body, /draft.*형제[\s\S]{0,80}--set.*제안하지 않는다/);
+  assert.match(body, /\/bouncer-plan/);
+  assert.match(body, /ready: false/);
+});
+
+test('bouncer-finalize gates overlap and leftover-worktree warnings on next.next', () => {
+  const { body } = parseFrontmatter(md);
+  // sharedPaths / leftover-worktree는 next.next가 있을 때만 — draft-only
+  // 잔여에서 null 접근이나 가짜 "다음 blueprint" 경고가 나면 안 됨.
+  assert.match(
+    body,
+    /If `next\.next` is non-null[\s\S]+?next\.next\.sharedPaths[\s\S]+?If `next\.next` is `null` but `sameEpicPending`/,
+  );
+  assert.match(
+    body,
+    /If `next\.next` is non-null[\s\S]+?\*new\*[\s\S]+?affected_paths[\s\S]+?If `next\.next` is `null` but `sameEpicPending`/,
+  );
+});
+
 test('bouncer-finalize presents one ordered promotion proposal with complete item shape', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /proposal|제안/i);
@@ -136,8 +158,32 @@ test('bouncer-finalize handles empty proposals, drop mismatches, and missing ACQ
   assert.match(body, /relative[^\n]{0,20}path|상대 경로/i);
   assert.match(body, /registered relative path|등재.*상대 경로/i);
   assert.match(body, /id\/path pairing|id.*path.*pairing|id.*경로.*짝/i);
-  assert.match(body, /separate[\s\S]{0,10}read|read each.*separately|각.*따로.*읽/i);
-  assert.match(body, /read fails|읽기.*실패/i);
+  // 한 번의 --all --json payload에서 content를 갈라 currentBody를 채운다.
+  // 샤드 파일을 각각 다시 읽는 두 번째 패스는 계약에서 빠진다.
+  assert.match(body, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
+  assert.match(body, /# <id>|# `<id>`/);
+  assert.match(body, /known[\s\S]{0,80}id|알려진[\s\S]{0,40}id/i);
+  assert.match(body, /id[\s\S]{0,80}(?:set|집합)[\s\S]{0,120}(?:mismatch|differ|다르|불일치)/i);
+  // 불일치 스킵 전용 문구. `승격하지 않는다`는 이해 상태 금지와 겹친다.
+  assert.match(body, /do not proceed with promotion/);
+  assert.match(body, /partial map/);
+  assert.match(body, /continue with step 2/);
+  assert.match(body, /(?:only )?when the two id sets match/i);
+  // 매치 성공 뒤에는 add/replace/drop 검색이 전량 `--all --json` 감사를 받는다.
+  // 구 문장(검사 전 `Give the complete stdout, the absolute path`)만 금지한다 —
+  // 성공 경로의 complete stdout/JSON 핸드오프를 통째로 막지 않는다.
+  assert.match(
+    body,
+    /when the two id sets match[\s\S]{0,280}(?:full JSON audit|complete stdout)[\s\S]{0,160}(?:complete )?(?:shard )?map/i,
+  );
+  assert.doesNotMatch(
+    body,
+    /Give the complete stdout, the absolute path[\s\S]{0,180}spec-authoring/,
+  );
+  assert.doesNotMatch(
+    body,
+    /read[\s\S]{0,80}(?:every|each|모든)[\s\S]{0,80}shard[\s\S]{0,80}separately|각[\s\S]{0,20}샤드[\s\S]{0,40}따로[\s\S]{0,20}읽/i,
+  );
   assert.match(body, /currentBody/);
   assert.match(body, /id[^\n]{0,80}(?:path|currentBody)/i);
   assert.match(body, /aggregate|selection|합산|선택 결과/i);

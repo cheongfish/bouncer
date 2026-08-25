@@ -102,14 +102,22 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.
-   - **project Distill** (caller-provided absolute path and the complete
-     `bouncer distill --all` output from plan/finalize — never invent a path from
-     plugin root or cwd): curate runtime cautions under `## Invariants`,
-     `## Gotchas`, `## Decisions` in **English**. Search the full output before
-     deciding whether a durable note is new, replaces a current sentence, or
-     should be dropped. Finalize reads each registered shard separately and
+   - **project Distill** (caller-provided absolute Distill path — never invent a
+     path from plugin root or cwd): at plan time the evidence is the re-grounded
+     `bouncer distill --for` results plus the caller's `--preflight` output;
+     open the caller-provided `--all` baseline file only when a full dump is
+     needed. If that baseline file is missing, instruct the caller to re-run
+     `bouncer distill --all` — do not treat a route result as the baseline.
+     Finalize still supplies the complete `bouncer distill --all --json` audit
+     (see Distill promotion below). Curate runtime cautions under
+     `## Invariants`, `## Gotchas`, `## Decisions` in **English**. Search the
+     re-grounded `--for` results plus the supplied preflight (plan; open the
+     baseline file when a full dump is needed) or the full audit (finalize)
+     before deciding whether a durable note is new, replaces a current
+     sentence, or should be dropped.
+     Finalize splits that payload `content` on known `# <id>` boundaries and
      supplies the `id → {path, currentBody}` map; this skill receives that
-     caller-supplied data and never invokes CLI or route itself. Aggregate
+     caller-supplied, payload-derived data and never invokes CLI or route itself. Aggregate
      selection output is never a shard body. Put only what the next plan/execute must not
      rediscover. Decisions are **current** valid choices; replace the sentence
      when it changes — never append a timeline. If current Distill conflicts with
@@ -132,17 +140,19 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
 When `/bouncer-finalize` sends the complete `bouncer distill --all --json`
 audit, it also supplies the caller-owned absolute Distill path, the complete
 audit metadata, and a complete caller-built map
-`id → { path: <registered relative path>, currentBody: <that shard file's body> }`.
-The map is built by finalize by resolving **every** registered
-`audit.shards[].path` relative to the CLI payload `repoRoot` for a
-separate read, while preserving the registered path in the map. Use only that
-supplied map as the target-shard inventory and current-bullet source; this skill
-never invokes route or CLI itself and never rediscovers shards here. The full
-audit's aggregate `content`, any selection body, and any
-aggregate `--route` output are metadata/search results, never a shard
-`currentBody`; never attach them to an individual shard. Search the supplied
-full audit before deciding whether a candidate is new, replaces a current
-sentence, or should be dropped.
+`id → { path: <registered relative path>, currentBody: <split body from payload content> }`.
+The map is payload-derived: finalize splits `content` on known `# <id>`
+boundaries and resolves each `audit.shards[].path` relative to the CLI
+payload `repoRoot`, preserving the registered relative path in the map. Use
+only that supplied map as the target-shard inventory and current-bullet
+source; this skill never invokes route or CLI itself and never rediscovers
+shards here. If finalize reports that the split id set and `audit.shards`
+id set differ, do not invent a partial map here — there is no promotion
+input. Any selection body and any aggregate `--route` output are
+metadata/search results, never a shard `currentBody`; never attach them to
+an individual shard. Unsplit aggregate `content` is also not a write target.
+Search the supplied full audit before deciding whether a candidate is new,
+replaces a current sentence, or should be dropped.
 
 If the audit reports the single-file fallback (`audit.shards` is empty and the
 audit is not sharded), finalize supplies the caller-provided absolute Distill

@@ -511,7 +511,7 @@ test('finalize return includes next even when no candidates remain', () => {
   });
   assert.ok('next' in res);
   assert.strictEqual(res.ok, true); // 후보가 없어도 ok는 그대로
-  assert.deepStrictEqual(res.next, { next: null, remaining: [] });
+  assert.deepStrictEqual(res.next, { next: null, remaining: [], sameEpicPending: [] });
 });
 
 test('--yes locks the blueprint index.md to closed and stages it', () => {

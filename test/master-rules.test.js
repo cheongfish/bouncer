@@ -122,13 +122,17 @@ test('finalize promotion uses distill JSON payload repoRoot as the write base', 
 test('Distill consumers use full preflight, then path-routed CLI output', () => {
   const plan = read('skills/bouncer-plan/SKILL.md');
   const discovery = read('skills/discovery/SKILL.md');
+  // plan: --all은 baseline 파일, 컨텍스트 주입은 --preflight.
   assert.match(plan, /distill\s+--all/);
-  assert.match(discovery, /distill\s+--all/);
+  assert.match(plan, /distill\s+--preflight/);
+  assert.match(discovery, /--preflight/);
+  assert.match(discovery, /baseline/);
+  assert.doesNotMatch(discovery, /complete output of the caller's[\s\S]{0,80}distill --all/);
   assert.match(plan, /affected_paths[\s\S]{0,500}distill\s+--for|distill\s+--for[\s\S]{0,500}affected_paths/);
 
   for (const name of ['bouncer-plan', 'discovery', 'bouncer-finalize']) {
     const md = read(`skills/${name}/SKILL.md`);
-    assert.match(md, /distill\s+--all/, `${name} must consume its CLI mode`);
+    assert.match(md, /distill\s+--all/, `${name} must still name distill --all`);
     assert.match(md, /single-file fallback|단일 파일.*폴백/i, `${name} must preserve legacy fallback`);
   }
 
@@ -147,16 +151,18 @@ test('bouncer-run gives implementer the current task Distill re-ground', () => {
   assert.doesNotMatch(run, /직전 task의\s+`distill --for` 출력/);
 });
 
-test('finalize promotion searches all Distill content and independently reads every shard', () => {
+test('finalize promotion searches all Distill content and splits payload content into the shard map', () => {
   const finalize = read('skills/bouncer-finalize/SKILL.md');
   const spec = read('skills/spec-authoring/SKILL.md');
   assert.match(finalize, /distill\s+--all\s+--json/, 'promotion must start with a full JSON audit');
-  assert.match(finalize, /already-resolved[\s\S]{0,100}repoRoot[\s\S]{0,100}(?:every|each|모든)/i);
+  assert.match(finalize, /payload[^\n]{0,40}`?repoRoot`?/i);
   assert.match(finalize, /audit\.shards/);
-  assert.match(finalize, /read[\s\S]{0,100}(?:every|each|모든)[\s\S]{0,100}shard/i);
+  assert.match(finalize, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
+  assert.match(finalize, /# <id>|# `<id>`/);
   assert.match(finalize, /relative[^\n]{0,20}path|상대 경로/i);
   assert.match(finalize, /currentBody/);
   assert.match(finalize, /id[^\n]{0,80}(?:path|currentBody)/i);
+  assert.match(finalize, /id[\s\S]{0,80}(?:set|집합)[\s\S]{0,120}(?:mismatch|differ|다르|불일치)/i);
   assert.doesNotMatch(finalize, /distill\s+--route/);
   assert.match(finalize, /aggregate|selection|합산|선택 결과/i);
   assert.match(finalize, /never[^\n]{0,100}(?:attach|associate|individual shard|개별 샤드)/i);
@@ -174,8 +180,10 @@ test('finalize promotion searches all Distill content and independently reads ev
 test('master rules preserve single-file Distill fallback and CLI trust boundary', () => {
   const claude = read('CLAUDE.md');
   assert.match(claude, /distill\s+--all/);
+  assert.match(claude, /distill\s+--preflight/);
   assert.match(claude, /distill\s+--for/);
   assert.match(claude, /distill\s+--route/);
+  assert.match(claude, /baseline/);
   assert.match(claude, /single-file fallback|단일 파일.*폴백/i);
   assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
   assert.match(claude, /affected_paths/);
@@ -222,5 +230,23 @@ test('hard rule 7 requires finalize promotion consent and caller-provided shard 
   const claude = read('CLAUDE.md');
   assert.match(claude, /finalize[\s\S]{0,260}(?:consent|동의|승인)/i);
   assert.match(claude, /audit\.shards/);
+  // finalize만: payload content를 알려진 # <id> 경계로 갈라 맵을 만든다.
+  // plan 두 층(--preflight / --for) 문장은 이 테스트가 건드리지 않는다.
+  assert.match(claude, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
+  assert.match(claude, /# <id>|# `<id>`/);
+  assert.match(claude, /id[\s\S]{0,80}(?:set|집합)[\s\S]{0,160}(?:mismatch|differ|다르|불일치)/i);
+  // 맵 전달은 id 집합이 맞을 때만. 불일치는 보고 후 계속이며 spec-authoring 호출이 아니다.
+  assert.match(
+    claude,
+    /(?:when the two id sets match|only when the two id sets match)[\s\S]{0,200}spec-authoring/i,
+  );
+  assert.doesNotMatch(
+    claude,
+    /Finalize must pass the full JSON audit and\s+complete shard map to spec-authoring/,
+  );
+  assert.doesNotMatch(
+    claude,
+    /reads each shard separately|각 샤드를 따로 읽/,
+  );
   assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
 });

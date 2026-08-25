@@ -8,7 +8,7 @@ distill:
 ---
 # core
 
-Rules routed to core; routing remains disabled until the project explicitly opts in.
+Project-wide rules that apply to every path.
 
 ## Invariants
 
@@ -88,8 +88,14 @@ Rules routed to core; routing remains disabled until the project explicitly opts
   `bouncer init` soft-seeds a missing Distill on an already-ready bootstrap and
   never overwrites curated content. Promotion requires `makeAllowed` to
   whitelist that path, or finalize aborts as out-of-scope. Workflow skills bind
-  `PROJECT_ROOT` via the CLI; `discovery` / `spec-authoring` take a
-  caller-provided absolute Distill path only (no `BOUNCER_ROOT` resolve).
+  `PROJECT_ROOT` via the CLI. Before `/bouncer-plan` or `discovery` decides
+  paths, inject `bouncer distill --preflight` and keep a session-scratch
+  baseline file from `bouncer distill --all`; do not put `--all` stdout into
+  context. After `affected_paths` is confirmed, re-ground with
+  `bouncer distill --for <path>`. If the baseline file is missing, re-run
+  `--all` — do not treat a route result as the baseline. `discovery` /
+  `spec-authoring` take the caller-provided absolute Distill path, preflight
+  output, and baseline file path only (no `BOUNCER_ROOT` resolve).
 
 - Plan inventory for wording cutovers: search first, then Touch, then Goal. Goal
   does not outrank Touch. The same closed set is the commit unit

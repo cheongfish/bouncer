@@ -148,3 +148,14 @@ test('bouncer-plan reports Distill total size in one line after preflight', () =
   const { body } = parseFrontmatter(md);
   assert.match(body, /프리플라이트[\s\S]{0,80}총량[\s\S]{0,40}한 줄/);
 });
+
+// 컨텍스트에는 --preflight만. --all 전량은 스크래치 baseline 파일이고 주입이 아니다.
+test('bouncer-plan injects Distill --preflight and stores --all as a scratch baseline', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /distill\s+--preflight/);
+  assert.match(body, /baseline/);
+  assert.match(body, /scratch|mktemp|TMPDIR/i);
+  assert.doesNotMatch(body, /consume its stdout/);
+  assert.doesNotMatch(body, /and use\s+the complete output/i);
+  assert.match(body, /must not replace|does not replace|대체하지/);
+});

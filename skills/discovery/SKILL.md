@@ -17,14 +17,17 @@ name.
 
 ## Steps
 
-1. **Pre-read** — Before framing, consume the complete output of the caller's
-   `bouncer distill --all` preflight together with epic indexes under
+1. **Pre-read** — Before framing, consume the caller's
+   `bouncer distill --preflight` output together with the absolute path of
+   the `--all` baseline file and epic indexes under
    `.bouncer/context/epics/`. The caller also supplies the absolute Distill
    path from `/bouncer-plan` for provenance; it is never derived from plugin
    root or cwd. Do not consume `--for` or another selective route before the
-   request has confirmed paths. If an index, Distill path, or shard index is
-   missing, record Overlap as "none" when the CLI's single-file fallback is
-   empty, and continue — pre-read is not a hard stop.
+   request has confirmed paths. If the baseline file is missing, instruct the
+   caller to re-run `bouncer distill --all`; do not substitute a route result
+   for the baseline. If an index, Distill path, or shard index is missing,
+   record Overlap as "none" when the CLI's single-file fallback is empty, and
+   continue — pre-read is not a hard stop.
 2. **Request** — Capture the user's ask in their words; note constraints and
    open questions.
 3. **Goal** — State the outcome in one or two sentences.
@@ -46,6 +49,7 @@ In one clarifying pass, cover at least:
 - Edge cases the change must survive
 - Failure modes (what breaks, and what the change must reject)
 - Overlap with existing epic/blueprint streams and Distill.md
+  (caller `--preflight` output plus the `--all` baseline path)
 
 ## Guardrails
 
