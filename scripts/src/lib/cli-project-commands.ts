@@ -77,7 +77,7 @@ type DistillArgs = {
   json: boolean;
 };
 
-const DISTILL_MODES = new Set(['for', 'all', 'route', 'audit']);
+const DISTILL_MODES = new Set(['for', 'all', 'preflight', 'route', 'audit']);
 
 function parseDistillArgs(rest: string[]): DistillArgs {
   const targets: string[] = [];
@@ -107,18 +107,26 @@ function parseDistillArgs(rest: string[]): DistillArgs {
       targets.push(value);
       continue;
     }
-    if (token === '--all' || token === '--audit') {
+    if (token === '--all' || token === '--audit' || token === '--preflight') {
       const nextMode = token.slice(2);
       if (mode && mode !== nextMode) return fail('modes cannot be combined');
       mode = nextMode;
       continue;
     }
     if (token.startsWith('--')) return fail(`unknown option: ${token}`);
+    // --for/--route 만 경로를 먹는다. 나머지 모드에 남은 위치 인자는
+    // unexpected가 아니라 path 거부로 모아 세 모드의 거절 문구가 갈라지지 않게 한다.
+    if (mode === 'all' || mode === 'audit' || mode === 'preflight') {
+      targets.push(token);
+      continue;
+    }
     return fail(`unexpected argument: ${token}`);
   }
 
-  if (!mode || !DISTILL_MODES.has(mode)) return fail('one of --for, --all, --route, or --audit is required');
-  if ((mode === 'all' || mode === 'audit') && targets.length > 0) {
+  if (!mode || !DISTILL_MODES.has(mode)) {
+    return fail('one of --for, --all, --preflight, --route, or --audit is required');
+  }
+  if ((mode === 'all' || mode === 'audit' || mode === 'preflight') && targets.length > 0) {
     return fail(`${mode} does not accept a path`);
   }
   return { targets, mode, repo, json };
@@ -131,6 +139,30 @@ function allDistillSelection(state: DistillState, reason: string) {
     reason,
     ids: Array.isArray(state.ids) ? state.ids : shards.map((shard) => shard.id),
     shards: shards.slice(),
+  };
+}
+
+/**
+ * 경로가 아직 없는 계획 초반용 선택. always 본문만 고르고, 인벤토리는
+ * distillPayload가 등록 전체를 따로 투영한다.
+ *
+ * @param {DistillState} state - readShards 결과
+ * @returns {{full: boolean, reason: string, ids: string[], shards: DistillShard[]}}
+ *   샤드가 아니면 전량(`not-sharded`). 아니면 `always === true`만 (`preflight-always`).
+ */
+function alwaysDistillSelection(state: DistillState) {
+  // 인덱스 무효·단일 파일에는 always 필터를 걸 샤드 목록이 없다.
+  // 빈 선택으로 내면 본문이 사라져 프리플라이트가 침묵하므로 전량 폴백.
+  if (state.sharded !== true) {
+    return allDistillSelection(state, 'not-sharded');
+  }
+  const shards = Array.isArray(state.shards) ? state.shards : [];
+  const selected = shards.filter((shard) => shard.always === true);
+  return {
+    full: false,
+    reason: 'preflight-always',
+    ids: selected.map((shard) => shard.id),
+    shards: selected,
   };
 }
 
@@ -262,12 +294,14 @@ function cmdDistill(rest: string[], io: CliIo) {
     : state.routingEnabled === true;
   const selection = parsed.mode === 'all' || parsed.mode === 'audit'
     ? allDistillSelection(state, 'forced-all')
-    : routeShards({
-      shards: state.shards,
-      affectedPaths: parsed.targets,
-      routingEnabled,
-      repoRoot: state.repoRoot,
-    });
+    : parsed.mode === 'preflight'
+      ? alwaysDistillSelection(state)
+      : routeShards({
+        shards: state.shards,
+        affectedPaths: parsed.targets,
+        routingEnabled,
+        repoRoot: state.repoRoot,
+      });
   const payload = distillPayload(state, selection, parsed.mode as string, parsed.targets, routingEnabled);
 
   // 본문 모드는 기존 consumer가 그대로 pipe할 수 있어야 하므로 content만 쓴다.
@@ -275,6 +309,15 @@ function cmdDistill(rest: string[], io: CliIo) {
   // 같은 출력을 파싱하게 한다. fail-open 진단은 본문과 섞지 않고 stderr로 보낸다.
   if ((parsed.mode === 'for' || parsed.mode === 'route') && selection.reason !== 'matched') {
     io.err(`distill: ${selection.reason}; using all shards\n`);
+  }
+  // always가 0이면 content는 비지만 인벤토리는 나가야 한다. stdout에 섞으면
+  // pipe-clean이 깨지므로 선택은 비었고 샤드 인덱스일 때만 stderr로 알린다.
+  if (
+    parsed.mode === 'preflight'
+    && state.sharded === true
+    && (!Array.isArray(selection.ids) || selection.ids.length === 0)
+  ) {
+    io.err('distill: preflight selected no always shard\n');
   }
   // 크기 요약은 --all 전용. --for/--route에 붙이면 선택 결과를 총량으로
   // 오해하고, --audit 은 audit.err === '' 계약을 깨뜨린다.
@@ -388,7 +431,7 @@ module.exports = {
   distill: {
     run: cmdDistill,
     usage: `  distill    --for <path> [--json]
-             --all [--json] | --route <path> | --audit [--json]
+             --all [--json] | --preflight [--json] | --route <path> | --audit [--json]
              Render routed Project Distill content or inspect its selection.
 `,
   },

@@ -307,3 +307,105 @@ test('distill rejects unknown and mixed modes on stderr without stdout', () => {
     assert.match(result.err, /distill:/);
   }
 });
+
+function expandToSevenShards(repo) {
+  fs.writeFileSync(path.join(repo, '.bouncer', 'Distill.md'), [
+    '---',
+    'distill:',
+    '  version: 1',
+    '  routing_enabled: false',
+    '  shards:',
+    '    - core',
+    '    - source',
+    '    - docs',
+    '    - extra-a',
+    '    - extra-b',
+    '    - extra-c',
+    '    - extra-d',
+    '---',
+    '# summary',
+    '',
+  ].join('\n'));
+  for (const id of ['extra-a', 'extra-b', 'extra-c', 'extra-d']) {
+    fs.writeFileSync(path.join(repo, '.bouncer', 'distill', `${id}.md`), [
+      '---',
+      'distill:',
+      `  id: ${id}`,
+      '  paths: []',
+      '  pulls: []',
+      '---',
+      `# ${id}`,
+      '',
+    ].join('\n'));
+  }
+}
+
+test('distill --preflight selects only always core and keeps a 7-shard inventory', () => {
+  const repo = fixture();
+  expandToSevenShards(repo);
+  const preflight = capture(['distill', '--repo', repo, '--preflight', '--json']);
+  const all = capture(['distill', '--repo', repo, '--all', '--json']);
+
+  assert.strictEqual(preflight.code, 0);
+  const payload = JSON.parse(preflight.out);
+  const allPayload = JSON.parse(all.out);
+  assert.strictEqual(payload.mode, 'preflight');
+  assert.deepStrictEqual(payload.ids, ['core']);
+  assert.strictEqual(payload.reason, 'preflight-always');
+  assert.strictEqual(payload.audit.shards.length, 7);
+  assert.ok(payload.content.length < allPayload.content.length);
+  assert.doesNotMatch(preflight.err, /distill: total/);
+});
+
+test('distill without a mode requires --preflight in the usage error', () => {
+  const repo = fixture();
+  const result = capture(['distill', '--repo', repo]);
+  assert.strictEqual(result.code, 2);
+  assert.strictEqual(result.out, '');
+  assert.strictEqual(
+    result.err,
+    'distill: one of --for, --all, --preflight, --route, or --audit is required\n',
+  );
+});
+
+test('distill --preflight rejects a path argument', () => {
+  const repo = fixture();
+  const result = capture(['distill', '--repo', repo, '--preflight', 'scripts/src/lib/cli.ts']);
+  assert.strictEqual(result.code, 2);
+  assert.strictEqual(result.out, '');
+  assert.strictEqual(result.err, 'distill: preflight does not accept a path\n');
+});
+
+test('distill --preflight falls back to the full body when Distill is not sharded', () => {
+  const repo = fixture();
+  fs.unlinkSync(path.join(repo, '.bouncer', 'Distill.md'));
+  const result = capture(['distill', '--repo', repo, '--preflight', '--json']);
+  const payload = JSON.parse(result.out);
+
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(payload.reason, 'not-sharded');
+  assert.strictEqual(payload.full, true);
+  assert.strictEqual(payload.audit.sharded, false);
+});
+
+test('distill --preflight warns on stderr when no always shard exists', () => {
+  const repo = fixture();
+  fs.writeFileSync(path.join(repo, '.bouncer', 'distill', 'core.md'), [
+    '---',
+    'distill:',
+    '  id: core',
+    '  always: false',
+    '  paths: []',
+    '  pulls: []',
+    '---',
+    '# core',
+    '',
+  ].join('\n'));
+  const result = capture(['distill', '--repo', repo, '--preflight', '--json']);
+  const payload = JSON.parse(result.out);
+
+  assert.strictEqual(result.code, 0);
+  assert.deepStrictEqual(payload.ids, []);
+  assert.strictEqual(payload.audit.shards.length, 3);
+  assert.strictEqual(result.err, 'distill: preflight selected no always shard\n');
+});

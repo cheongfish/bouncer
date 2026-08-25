@@ -43,19 +43,23 @@ they conflict.
    resolve the consuming project's main worktree with `bouncer project-root` and
    bind `PROJECT_ROOT`. On that read path, plugin root and execute worktree cwd
    are never Distill path bases. Consume the CLI contract, not a cwd-relative
-   file read: before `/bouncer-plan` or `discovery` decides paths, run
-   `bouncer distill --all` for `${PROJECT_ROOT}/.bouncer/Distill.md` and use
-   the complete output. After `affected_paths` is confirmed, plan re-ground plus
-   `/bouncer-execute` and `/bouncer-run` run `bouncer distill --for <path>` once
-   per affected path. The CLI preserves the single-file fallback when the shard
+   file read: before `/bouncer-plan` or `discovery` decides paths, inject
+   `bouncer distill --preflight` for `${PROJECT_ROOT}/.bouncer/Distill.md` and
+   keep a session-scratch baseline file from `bouncer distill --all` (do not
+   put the `--all` stdout into context). After `affected_paths` is confirmed,
+   plan re-ground plus `/bouncer-execute` and `/bouncer-run` run
+   `bouncer distill --for <path>` once per affected path. The CLI preserves
+   the single-file fallback when the shard
    index is missing or invalid. `/bouncer-finalize` first searches every current
-   rule with `bouncer distill --all --json`, then resolves every registered
-   `audit.shards` relative path from the CLI payload `repoRoot` and
-   reads each shard separately into a complete `id → {path,currentBody}` map.
-   Aggregate `bouncer distill --route`/selection output is never attached as an individual
+   rule with `bouncer distill --all --json`, then splits that payload `content`
+   on known `# <id>` boundaries (`id` from `audit.shards`) and resolves each
+   registered relative path from the CLI payload `repoRoot` into a complete
+   `id → {path,currentBody}` map. If the split id set differs from
+   `audit.shards`, do not promote; report the failure and continue the rest of
+   finalize without passing a shard map to spec-authoring. Aggregate `bouncer distill --route`/selection output is never attached as an individual
    shard body or write target. A route result never replaces the full search for
    add/replace/drop decisions, and a conflict with an older explain decision
-   escalates to `/bouncer-plan`. Finalize must pass the full JSON audit and
+   escalates to `/bouncer-plan`. When the two id sets match, finalize passes the full JSON audit and
    complete shard map to spec-authoring and obtain one list-wide consent before
    any promotion write; rejection continues the rest of finalization and does
    not create a gate. Read CLI output as Distill content; do **not** put Distill

@@ -33,30 +33,42 @@ Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
 appears; do not reconstruct a root `context/` path.
 
 1. **Propose and promote Distill (one consent).** Before deciding what to
-   promote, run the full JSON audit:
+   promote, run the full JSON audit once:
    ```bash
 BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" distill --all --json
    ```
    Take the promotion base from that payload `repoRoot`. 승격 경로를
-   `project-root`로 조립하지 않는다. Give the complete stdout, the absolute path
-   (`.bouncer/Distill.md` under that `repoRoot`), and the audit's
-   `shards` metadata to
-   `spec-authoring` (`skills/spec-authoring/SKILL.md`). The `audit.shards`
-   value is the only shard inventory for this cycle. Using the already-resolved
-   payload `repoRoot`, read **every** registered shard's relative `path`
-   separately and construct the complete caller-owned map
-   `id → { path: <registered relative path>, currentBody: <that file's body> }`;
-   resolve each relative path against that `repoRoot` only for its separate
-   read. Preserve each id/path pairing and pass the map plus the full audit
-   metadata to `spec-authoring`; if a read fails, stop and report it rather than
-   omitting the entry or substituting a different file. The full search covers
-   every current rule, including shards, against BP `explain.md`; never use a
-   routed subset as the promotion
-   inventory. `audit.content`, selection content, and any aggregate
-   `--route` output are not shard bodies and must never be attached to an
-   individual shard's `currentBody` or write target. `spec-authoring` receives
-   this caller-supplied data only and never invokes the CLI or route itself.
+   `project-root`로 조립하지 않는다. The `audit.shards`
+   value is the only shard inventory for this cycle. Do not hand stdout, the
+   Distill path, `audit.shards`, or a map to `spec-authoring` until the split
+   id set is checked.
+
+   From that same payload, split `content` into the complete caller-owned map
+   `id → { path: <registered relative path>, currentBody: <split body> }`. Do
+   not open shard files again — `--all --json` already carried every body.
+   Boundaries are only lines that are `# <id>` whose `id` is in the known
+   set `audit.shards[].id`. Arbitrary `# ` headings inside a body are not
+   boundaries; treating them as such would slice one shard into several.
+   Resolve each map `path` as payload `repoRoot` + the registered relative
+   path `audit.shards[].path` (keep that relative path in the map). Preserve
+   each id/path pairing.
+
+   If the id set from the split differs from the id set of `audit.shards`,
+   do not proceed with promotion: report the failure (a partial map is not
+   a substitute) and continue with step 2, the quiz, G16, and the remainder
+   path. Completeness outranks cost. On that mismatch do not call
+   `spec-authoring`. When the two id sets match, pass the full JSON audit
+   and the complete shard map, the absolute path
+   (`.bouncer/Distill.md` under that `repoRoot`), and `audit.shards` to
+   `spec-authoring` (`skills/spec-authoring/SKILL.md`). The full search
+   covers every current rule, including shards, against BP `explain.md`; never
+   use a routed subset as the promotion inventory.
+   Selection content and any aggregate `--route` output are not shard bodies
+   and must never be attached to an individual shard's `currentBody` or write
+   target. Unsplit `content` is also not a write target — only the known-id
+   split fills `currentBody`. `spec-authoring` receives this caller-supplied,
+   payload-derived data only and never invokes the CLI or route itself.
 
    Before any file write, `spec-authoring` returns one complete proposal list.
    Each entry has these review fields: action (`drop` | `replace` |
