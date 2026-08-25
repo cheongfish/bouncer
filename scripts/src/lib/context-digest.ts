@@ -9,6 +9,10 @@ const { readShards } = require('./distill') as {
   };
 };
 const { DISTILL_SHARD_DIR } = require('./layout') as { DISTILL_SHARD_DIR: string };
+const { TASK_DIR_RE, TASK_UNIT_BASENAMES } = require('./tasks-docs') as {
+  TASK_DIR_RE: RegExp;
+  TASK_UNIT_BASENAMES: string[];
+};
 
 /** graphify가 스캔할 파생 트리 (gitignore 대상 graphify-out 아래). */
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
@@ -20,8 +24,12 @@ const DIGEST_MAP_REL = 'graphify-out/context-src/map.json';
 const DIGEST_WATCH_FILES = ['.bouncer/Distill.md'];
 
 /**
- * 화이트리스트 문서만 헤딩 배열을 돌려준다. 그 외(tasks/verification/review,
- * blueprint index 등)는 null — 파생 파일을 만들지 않는다.
+ * 그래프 검색 신호가 되는 화이트리스트 문서의 헤딩 배열만 돌려준다.
+ * blueprint와 task의 계약·의도는 포함하되 verification/review와 구형 task 문서는
+ * 실행 기록이나 레거시 형식이므로 파생 파일을 만들지 않는다.
+ *
+ * @param {unknown} rel - 저장소 상대 문서 경로
+ * @returns {string[] | null} 추출할 헤딩 배열 또는 비대상 경로의 null
  */
 function digestRulesFor(rel: unknown): string[] | null {
   const norm = String(rel || '').replace(/\\/g, '/');
@@ -34,6 +42,13 @@ function digestRulesFor(rel: unknown): string[] | null {
   }
   if (/\/blueprints\/[^/]+\/explain\.md$/.test(norm)) {
     return ['## Background', '## Intuition', '## Code'];
+  }
+  if (/^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/index\.md$/.test(norm)) {
+    return ['## Intent', '## Contract'];
+  }
+  const unit = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/([^/]+)\/([^/]+)$/.exec(norm);
+  if (unit && TASK_DIR_RE.test(unit[1]) && unit[2] === TASK_UNIT_BASENAMES[0]) {
+    return ['## Goal & intent', '## Interface'];
   }
   return null;
 }
