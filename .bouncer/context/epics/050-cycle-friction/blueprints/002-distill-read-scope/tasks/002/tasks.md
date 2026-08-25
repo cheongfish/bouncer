@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '050'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 같은 42.7KB가 plan·discovery·spec-authoring에 최대 세 번 실려 계획 초반 비용이 몰려 있었음

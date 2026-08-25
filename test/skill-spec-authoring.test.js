@@ -104,6 +104,15 @@ test('spec-authoring tasks section binds description, commit_intent, and Checkli
   assert.match(body, /Checklist[\s\S]{0,160}Touch[\s\S]{0,80}(다시 열거하지|재열거하지)/);
 });
 
+// 계획 작성 근거는 재접지 --for + preflight. 전량 --all stdout 소비 문구는 두지 않는다.
+test('spec-authoring plan-time Distill uses preflight and --for, not complete --all stdout', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /--preflight/);
+  assert.match(md, /baseline/);
+  assert.match(md, /distill\s+--for|--for/);
+  assert.doesNotMatch(md, /complete `bouncer distill --all` output/);
+});
+
 test('spec-authoring derives a shard-targeted proposal and writes only after consent', () => {
   const md = readSkill('spec-authoring');
   assert.match(md, /drop[\s\S]{0,80}replace[\s\S]{0,80}add/i);

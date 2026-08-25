@@ -102,12 +102,20 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.
-   - **project Distill** (caller-provided absolute path and the complete
-     `bouncer distill --all` output from plan/finalize — never invent a path from
-     plugin root or cwd): curate runtime cautions under `## Invariants`,
-     `## Gotchas`, `## Decisions` in **English**. Search the full output before
-     deciding whether a durable note is new, replaces a current sentence, or
-     should be dropped. Finalize reads each registered shard separately and
+   - **project Distill** (caller-provided absolute Distill path — never invent a
+     path from plugin root or cwd): at plan time the evidence is the re-grounded
+     `bouncer distill --for` results plus the caller's `--preflight` output;
+     open the caller-provided `--all` baseline file only when a full dump is
+     needed. If that baseline file is missing, instruct the caller to re-run
+     `bouncer distill --all` — do not treat a route result as the baseline.
+     Finalize still supplies the complete `bouncer distill --all --json` audit
+     (see Distill promotion below). Curate runtime cautions under
+     `## Invariants`, `## Gotchas`, `## Decisions` in **English**. Search the
+     re-grounded `--for` results plus the supplied preflight (plan; open the
+     baseline file when a full dump is needed) or the full audit (finalize)
+     before deciding whether a durable note is new, replaces a current
+     sentence, or should be dropped.
+     Finalize reads each registered shard separately and
      supplies the `id → {path, currentBody}` map; this skill receives that
      caller-supplied data and never invokes CLI or route itself. Aggregate
      selection output is never a shard body. Put only what the next plan/execute must not

@@ -122,13 +122,17 @@ test('finalize promotion uses distill JSON payload repoRoot as the write base', 
 test('Distill consumers use full preflight, then path-routed CLI output', () => {
   const plan = read('skills/bouncer-plan/SKILL.md');
   const discovery = read('skills/discovery/SKILL.md');
+  // plan: --all은 baseline 파일, 컨텍스트 주입은 --preflight.
   assert.match(plan, /distill\s+--all/);
-  assert.match(discovery, /distill\s+--all/);
+  assert.match(plan, /distill\s+--preflight/);
+  assert.match(discovery, /--preflight/);
+  assert.match(discovery, /baseline/);
+  assert.doesNotMatch(discovery, /complete output of the caller's[\s\S]{0,80}distill --all/);
   assert.match(plan, /affected_paths[\s\S]{0,500}distill\s+--for|distill\s+--for[\s\S]{0,500}affected_paths/);
 
   for (const name of ['bouncer-plan', 'discovery', 'bouncer-finalize']) {
     const md = read(`skills/${name}/SKILL.md`);
-    assert.match(md, /distill\s+--all/, `${name} must consume its CLI mode`);
+    assert.match(md, /distill\s+--all/, `${name} must still name distill --all`);
     assert.match(md, /single-file fallback|단일 파일.*폴백/i, `${name} must preserve legacy fallback`);
   }
 
@@ -174,8 +178,10 @@ test('finalize promotion searches all Distill content and independently reads ev
 test('master rules preserve single-file Distill fallback and CLI trust boundary', () => {
   const claude = read('CLAUDE.md');
   assert.match(claude, /distill\s+--all/);
+  assert.match(claude, /distill\s+--preflight/);
   assert.match(claude, /distill\s+--for/);
   assert.match(claude, /distill\s+--route/);
+  assert.match(claude, /baseline/);
   assert.match(claude, /single-file fallback|단일 파일.*폴백/i);
   assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
   assert.match(claude, /affected_paths/);

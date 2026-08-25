@@ -43,11 +43,13 @@ they conflict.
    resolve the consuming project's main worktree with `bouncer project-root` and
    bind `PROJECT_ROOT`. On that read path, plugin root and execute worktree cwd
    are never Distill path bases. Consume the CLI contract, not a cwd-relative
-   file read: before `/bouncer-plan` or `discovery` decides paths, run
-   `bouncer distill --all` for `${PROJECT_ROOT}/.bouncer/Distill.md` and use
-   the complete output. After `affected_paths` is confirmed, plan re-ground plus
-   `/bouncer-execute` and `/bouncer-run` run `bouncer distill --for <path>` once
-   per affected path. The CLI preserves the single-file fallback when the shard
+   file read: before `/bouncer-plan` or `discovery` decides paths, inject
+   `bouncer distill --preflight` for `${PROJECT_ROOT}/.bouncer/Distill.md` and
+   keep a session-scratch baseline file from `bouncer distill --all` (do not
+   put the `--all` stdout into context). After `affected_paths` is confirmed,
+   plan re-ground plus `/bouncer-execute` and `/bouncer-run` run
+   `bouncer distill --for <path>` once per affected path. The CLI preserves
+   the single-file fallback when the shard
    index is missing or invalid. `/bouncer-finalize` first searches every current
    rule with `bouncer distill --all --json`, then resolves every registered
    `audit.shards` relative path from the CLI payload `repoRoot` and
