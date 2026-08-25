@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '050'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - finalize가 --all --json 감사 뒤 등록 샤드를 파일에서 다시 전량 읽어 같은 본문이 두 번 실렸음

@@ -11,14 +11,23 @@ bouncer:
   id: REVIEW-003
   epic_id: '050'
   blueprint_id: '002'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F001
+        severity: minor
+        status: resolved
+      - id: F002
+        severity: minor
+        status: resolved
+      - id: F003
+        severity: major
+        status: resolved
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+- F001 (minor, resolved): spec-authoring 호출을 id 집합 확인 뒤로 옮기고, 불일치 시 핸드오프하지 않음.
+- F002 (minor, resolved): 불일치 스킵 문구를 고유 표현으로 테스트에 고정함.
+- F003 (major, resolved): 일치 경로에서 `--all --json` 전체 감사와 shard map을 함께 넘기도록 맞춤.

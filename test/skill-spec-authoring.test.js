@@ -124,7 +124,12 @@ test('spec-authoring derives a shard-targeted proposal and writes only after con
   assert.match(md, /only after|after.*consent|동의.*(?:이후|뒤).*쓴|동의.*쓰기/i);
   assert.match(md, /current body|현재 본문|body content/);
   assert.match(md, /registered relative path|등재.*상대 경로/i);
-  assert.match(md, /separate[\s\S]{0,10}read|read each.*separately|각.*따로.*읽/i);
+  // 승격 맵은 finalize가 payload content를 갈라 넘긴 것이지, 샤드 파일 재읽기가 아니다.
+  assert.match(md, /payload[\s\S]{0,80}(?:content|derived|유래)|content[\s\S]{0,80}(?:split|갈라|분해)/i);
+  assert.doesNotMatch(
+    md,
+    /reads each registered shard separately|각 등록(?:된)? 샤드를 따로 읽/,
+  );
   assert.match(md, /single-file/);
   assert.match(md, /never invoke.*route|never invokes route|route.*자체/);
   assert.match(md, /caller-supplied|caller-provided|호출자.*(?:제공|넘긴)/i);
