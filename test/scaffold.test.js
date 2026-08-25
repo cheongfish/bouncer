@@ -120,6 +120,12 @@ test('scaffoldBlueprint writes five plan docs (no explain) with numeric child id
   const epic = readDoc(path.join(repo, '.bouncer/context/epics/001-auth/index.md')).data;
   assert.strictEqual(epic.bouncer.scale, undefined);
   assert.strictEqual(epic.bouncer.commit_type, undefined);
+  // supersedes는 epic·blueprint 전용 빈 배열. task·verification·review에는 두지 않는다.
+  assert.deepStrictEqual(epic.bouncer.supersedes, []);
+  assert.deepStrictEqual(bp.bouncer.supersedes, []);
+  assert.strictEqual(tasks.bouncer.supersedes, undefined);
+  assert.strictEqual(verify.bouncer.supersedes, undefined);
+  assert.strictEqual(review.bouncer.supersedes, undefined);
 });
 
 test('scaffoldTask adds a numbered unit and refuses overwrite', () => {

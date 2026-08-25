@@ -75,6 +75,23 @@ const AUTONOMY_ENUM = ['auto', 'interactive'];
 // init이 새 저장소 config.json에 쓰는 기본값. 키가 없어도 소비자는 auto로 읽는다.
 const DEFAULT_AUTONOMY = 'auto';
 
+/**
+ * epic·blueprint `bouncer.supersedes` 형식만 판정한다.
+ * 부재(undefined)와 빈 배열은 통과 — 기존 문서 소급 없이 신규부터 자리를 쓰기 위함.
+ * 참조 무결성(존재·자기참조·순환·중복)은 검사하지 않는다. S27이 이 헬퍼만 본다.
+ *
+ * @param {unknown} value - 프론트매터의 supersedes 값. 키가 없으면 undefined
+ * @returns {boolean} 허용 형태면 true, 그 외(null·비배열·공백/비문자열 원소)면 false
+ */
+function isValidSupersedes(value: unknown): boolean {
+  // 키 부재만 허용. null은 "명시적으로 잘못된 값"이라 거절한다(scale 부재 계약과 구분).
+  if (value === undefined) return true;
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (entry) => typeof entry === 'string' && entry.trim() !== '',
+  );
+}
+
 function detectLegacyFormat({ repoRoot, data }: { repoRoot?: unknown; data?: unknown } = {}) {
   if (repoRoot) {
     const fs = require('node:fs');
@@ -99,5 +116,5 @@ module.exports = {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, KIND_TO_TYPE,
   LEGACY_GUIDANCE, detectLegacyFormat,
   BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE,
-  AUTONOMY_ENUM, DEFAULT_AUTONOMY,
+  AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
 };

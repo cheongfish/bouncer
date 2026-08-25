@@ -23,6 +23,7 @@
 | `S18 imported document is out of gate scope` | 임포트 문서는 작업 대상이 아니다. 새 blueprint를 만들라 |
 | `S19 type … does not match expected … for path` | 문서를 옮기거나 복사한 뒤 `type`을 안 고친 경우입니다. 경로가 요구하는 종류로 `type`을 맞추세요 |
 | `S20 scale "…" not in enum` | blueprint `bouncer.scale`은 `light` 또는 `full`만 허용합니다. 오타를 고치거나 필드를 빼세요 |
+| `S27 supersedes must be an array of non-empty document paths` | 값을 문서 경로 문자열 배열로 쓰거나 필드를 빼세요 |
 | `scaffold blueprint: --scale must be one of light\|full` | `--scale` 값이 없거나 `light`/`full`이 아닙니다. 아무 문서도 만들지 않았으니 값을 고쳐 다시 실행하세요 |
 | light blueprint인데 `G18 context-review.md missing` | `bouncer.scale`이 `light`가 아닙니다(오타·`full`로 되돌림). light로 유지하려면 blueprint `index.md`의 값을 고치고, full로 돌아가는 중이라면 `bouncer scaffold context-review --blueprint <dir>`로 문서를 만든 뒤 Interface·Do not touch 절도 채우세요 |
 | `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |

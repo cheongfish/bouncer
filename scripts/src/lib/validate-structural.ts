@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat,
-  KIND_TO_TYPE, SCALE_ENUM,
+  KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes,
 } = require('./schema') as {
   OKF_REQUIRED: string[];
   TYPES: string[];
@@ -15,6 +15,7 @@ const {
   };
   KIND_TO_TYPE: Record<string, string>;
   SCALE_ENUM: string[];
+  isValidSupersedes: (value: unknown) => boolean;
 };
 const {
   parsePathIds, toPosix, isNumericContextId,
@@ -564,6 +565,15 @@ function checkStructural(doc: unknown, failures: FailureEntry[]): void {
     && !(SCALE_ENUM as unknown[]).includes(bouncer.scale)
   ) {
     add('S20', `scale "${bouncer.scale}" not in enum for ${docType}`);
+  }
+
+  // S27: epic·blueprint만. 부재는 통과(소급 없음). 형식만 schema.isValidSupersedes —
+  // 경로 존재·자기참조·순환·중복은 검사하지 않는다.
+  if (
+    (docType === 'bouncer.epic' || docType === 'bouncer.blueprint')
+    && !isValidSupersedes(bouncer.supersedes)
+  ) {
+    add('S27', 'supersedes must be an array of non-empty document paths');
   }
 
   if (docType === 'bouncer.tasks') {

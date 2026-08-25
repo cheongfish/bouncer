@@ -44,6 +44,17 @@ test('schema exports bouncer_schema and blueprint scale/commit_type defaults', (
   assert.strictEqual(schema.DEFAULT_AUTONOMY, 'auto');
 });
 
+test('isValidSupersedes accepts absent or non-empty path arrays', () => {
+  assert.strictEqual(schema.isValidSupersedes(undefined), true);
+  assert.strictEqual(schema.isValidSupersedes([]), true);
+  assert.strictEqual(schema.isValidSupersedes(['.bouncer/context/epics/033-x/index.md']), true);
+  assert.strictEqual(schema.isValidSupersedes('033'), false);
+  assert.strictEqual(schema.isValidSupersedes([{}]), false);
+  assert.strictEqual(schema.isValidSupersedes(['']), false);
+  assert.strictEqual(schema.isValidSupersedes(['  ']), false);
+  assert.strictEqual(schema.isValidSupersedes(null), false);
+});
+
 test('detectLegacyFormat flags .sdd dirs, sdd keys, and sdd.* types', () => {
   const fs = require('node:fs');
   const os = require('node:os');
