@@ -33,14 +33,15 @@ bouncer:
    판단과 그 근거가 함께 적힌다.
 5. 축소하기로 한 구간의 스킬 지침이 실제로 바뀌고, 축소 후에도 execute가 받는
    Invariant·Gotcha·Decision이 `affected_paths` 기준으로는 줄지 않는다.
-6. DeepSWE에서 고른 태스크 10개의 정본 명세가 `.benchmarks/tasks/`에 남고,
-   vanilla·superpowers·bouncer 세 arm이 기존과 같은 메트릭(토큰·툴콜·벽시계와
-   0–100 합성 점수)으로 한 비교표에 정리된다.
+6. DeepSWE 기반 태스크 10개의 정본 명세가 `docs/benchmark/tasks/`에 남고,
+   vanilla·superpowers·bouncer 세 arm의 통제 조건과 실행 절차가
+   `docs/benchmark/protocol.md`에 적힌다. 런 기록은 토큰·툴콜·벽시계를 채점하지
+   않는 `usage` 블록으로 싣고, 0–100 합성 점수 계산은 그대로다.
 
 ## Out of scope
 - 기존 `--for` / `--all` / `--route` / `--audit`의 출력 스키마와 라우팅 규칙 변경 — CLI에 더하는 것은 프리플라이트 선택 모드 하나이고, 나머지는 읽는 쪽 지침만 손댄다.
 - 새 게이트 번호 신설과 기존 G/S 코드의 판정 변경.
-- `agentic-code-benchmark` 채점 루브릭과 메트릭 정의 변경 — 회차만 늘린다.
+- `agentic-code-benchmark` 채점 루브릭과 0–100 합성 점수의 가중치 변경 — 런 기록에 채점하지 않는 `usage` 블록을 더하는 것까지만 허용한다.
 - 포인터 자동 전진 — 인계는 언제나 확인 후 `bouncer current --set`이다.
 - 034·012·036이 만든 계약(측정 프로토콜, `nextBlueprint` 정렬, 샤드 라우팅) 자체의 재설계.
 

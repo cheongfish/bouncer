@@ -65,29 +65,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 
 ## Measured results
 
-태스크 4개를 Bouncer on/off로 각각 구현한 뒤, 블라인드 심사로
-`agentic-code-benchmark`를 채점했습니다. **2026-08-21 (KST)**, 베이스 `3f52018`.
-
-| task | 형태 | off | on | Δ |
-| --- | --- | --- | --- | --- |
-| t1 | 기존 코드에 작은 기능 | 83.19 (B) | 95.19 (A) | +12.00 |
-| t2 | 리포트 기반 버그 수정 | 85.59 (B) | 99.99 (A) | +14.40 |
-| t3 | 동작 불변 리팩터링 | 95.19 (A) | 95.19 (A) | **0.00** |
-| t4 | 모호한 요구 | **35.0 (F, 실격)** | 92.79 (A) | +57.79 |
-
-정상 3개 평균 **87.99 → 96.79 (+8.80)**. 실격은 off 1건, on 0건.
-이득의 대부분은 **Test quality +3.00**이고, Scope discipline은 **±0.00**입니다
-(off가 이미 테스트를 거의 안 썼고, 범위 점수는 이미 높았습니다).
-
-비용 (합계 배수):
-
-| | off | on | 배수 |
-| --- | --- | --- | --- |
-| Tokens | 202,268 | 442,061 | **2.19×** |
-| Wall time | 8.7분 | 28.8분 | **3.32×** |
-
-작은 작업일수록 wall time 배수가 큽니다 (t2: 코드 7줄, **7.26×**).
-방법·한계·후속 회차는 [docs/benchmark/](docs/benchmark/)에 있습니다.
+회차별 수치는 [docs/benchmark/history.md](docs/benchmark/history.md)에 있다. 새 스위트는 준비 중이다.
 
 ## Requirements
 
@@ -106,7 +84,7 @@ git add .bouncer && git commit -m "chore: bootstrap bouncer"
 
 설계 배경은 [ARCHITECTURE.md](docs/ARCHITECTURE.md), 커밋 가드가 막지 못하는 것은
 [security.md](docs/security.md)에 정리되어 있습니다.
-효과 측정 결과와 그 한계는 [docs/benchmark/](docs/benchmark/)입니다.
+효과 측정 회차 기록은 [docs/benchmark/history.md](docs/benchmark/history.md)이다.
 
 ## Contributing · License
 
