@@ -99,6 +99,28 @@ test('bouncer-finalize next handoff is next blueprint only (task advance lives o
   assert.doesNotMatch(body, /AskUserQuestion — Next task|Next task ACQ/i);
 });
 
+test('bouncer-finalize splits sameEpicPending into --set vs /bouncer-plan', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /sameEpicPending/);
+  assert.match(body, /draft.*형제[\s\S]{0,80}--set.*제안하지 않는다/);
+  assert.match(body, /\/bouncer-plan/);
+  assert.match(body, /ready: false/);
+});
+
+test('bouncer-finalize gates overlap and leftover-worktree warnings on next.next', () => {
+  const { body } = parseFrontmatter(md);
+  // sharedPaths / leftover-worktree는 next.next가 있을 때만 — draft-only
+  // 잔여에서 null 접근이나 가짜 "다음 blueprint" 경고가 나면 안 됨.
+  assert.match(
+    body,
+    /If `next\.next` is non-null[\s\S]+?next\.next\.sharedPaths[\s\S]+?If `next\.next` is `null` but `sameEpicPending`/,
+  );
+  assert.match(
+    body,
+    /If `next\.next` is non-null[\s\S]+?\*new\*[\s\S]+?affected_paths[\s\S]+?If `next\.next` is `null` but `sameEpicPending`/,
+  );
+});
+
 test('bouncer-finalize presents one ordered promotion proposal with complete item shape', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /proposal|제안/i);

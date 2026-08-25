@@ -256,19 +256,31 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    lives on `/bouncer-commit`). Advancement is confirm-then-
    `bouncer current --set …` only — never automatic.
 
-   Read `next` from the `finalize --yes` JSON output (or from the dry-run output
-   when there was nothing left to commit and `--yes` was never run). If
-   `next.next` is `null`, skip this branch.
-   - Show the candidate (`next.next.blueprint`, `next.next.sameEpic`,
-     `next.remaining` length).
-   - If `next.next.sharedPaths` is non-empty, warn that the next blueprint
-     likely needs to branch from this commit (overlap) — do not block
-     advancing.
-   - If the execute worktree was left in place, warn that the shared pointer
-     means that worktree's commit guard will start enforcing the *new*
-     blueprint's `affected_paths`.
+   Read `next.next` and `next.sameEpicPending` from the `finalize --yes` JSON
+   output (or from the dry-run output when there was nothing left to commit and
+   `--yes` was never run). If `next.next` is `null` **and** `next.sameEpicPending`
+   is empty, skip this branch.
 
-   **AskUserQuestion — Next blueprint**
+   If `next.sameEpicPending` is non-empty, list each remaining sibling's
+   `blueprint` path and `blueprintStatus`. The `--set` target is always
+   `next.next.blueprint` (one path) when that field is non-null — do **not**
+   write that same path again in the remainder list. `ready: false` entries
+   are not `--set` options; tell the user to continue them with `/bouncer-plan`.
+   `draft` 형제에 대해 `bouncer current --set`을 제안하지 않는다 — plan 게이트
+   G2가 거절하는 명령이다.
+   - If `next.next` is non-null, show the candidate (`next.next.blueprint`,
+     `next.next.sameEpic`, `next.remaining` length).
+     - If `next.next.sharedPaths` is non-empty, warn that the next blueprint
+       likely needs to branch from this commit (overlap) — do not block
+       advancing.
+     - If the execute worktree was left in place, warn that the shared pointer
+       means that worktree's commit guard will start enforcing the *new*
+       blueprint's `affected_paths`.
+   - If `next.next` is `null` but `sameEpicPending` is not empty, do **not**
+     offer `--set`; show the pending list and point remaining work at
+     `/bouncer-plan`.
+
+   **AskUserQuestion — Next blueprint** (only when `next.next` is non-null)
    1. **Re-ground**: 다음 ready blueprint로 포인터를 옮길지.
    2. **Recommend-why**: 같은 epic 흐름이면 `--set`이 다음 plan/execute 진입을
       명확히 함 (overlap이 있으면 그 커밋에서 분기해야 함을 사유에 포함).

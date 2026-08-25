@@ -214,7 +214,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             return next({ repoRoot, blueprintDir });
         }
         catch (_e) {
-            return { next: null, remaining: [] };
+            return { next: null, remaining: [], sameEpicPending: [] };
         }
     };
     // out-of-scope 검사(위)를 통과한 뒤에만 잠금 판정을 본다 — 위반이 있으면

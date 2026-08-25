@@ -284,6 +284,7 @@ test('nextBlueprint returns null when no candidates remain', () => {
   assert.deepStrictEqual(nextBlueprint({ repoRoot: repo, blueprintDir: only }), {
     next: null,
     remaining: [],
+    sameEpicPending: [],
   });
 });
 
@@ -309,7 +310,120 @@ test('nextBlueprint excludes a closed blueprint from candidates', () => {
   });
 
   const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
-  assert.deepStrictEqual(res, { next: null, remaining: [] });
+  assert.deepStrictEqual(res, { next: null, remaining: [], sameEpicPending: [] });
+});
+
+test('nextBlueprint sameEpicPending includes a draft sibling when no ready candidates remain', () => {
+  const repo = tmpRepo();
+  const finalized = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const draft = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '002-b', epicId: '001', bpId: '002',
+    bpStatus: 'draft', tasksStatus: 'ready',
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  assert.strictEqual(res.next, null);
+  assert.deepStrictEqual(res.sameEpicPending, [{
+    blueprint: draft,
+    blueprintStatus: 'draft',
+    ready: false,
+  }]);
+});
+
+test('nextBlueprint sameEpicPending excludes closed siblings, other epics, and self', () => {
+  const repo = tmpRepo();
+  const finalized = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '002-closed', epicId: '001', bpId: '002',
+    bpStatus: 'closed', tasksStatus: 'ready',
+  });
+  writeBp(repo, {
+    epicSlug: 'E-other', bpSlug: '001-x', epicId: '099', bpId: '001',
+    bpStatus: 'draft', tasksStatus: 'ready',
+  });
+  const draft = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '003-draft', epicId: '001', bpId: '003',
+    bpStatus: 'draft', tasksStatus: 'ready',
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  assert.deepStrictEqual(res.sameEpicPending.map((e) => e.blueprint), [draft]);
+  assert.ok(!res.sameEpicPending.some((e) => e.blueprint === finalized));
+  assert.ok(!res.sameEpicPending.some((e) => e.blueprintStatus === 'closed'));
+  assert.ok(!res.sameEpicPending.some((e) => e.blueprint.includes('E-other')));
+});
+
+test('nextBlueprint sameEpicPending coexists with a ready next candidate and sorts by path', () => {
+  const repo = tmpRepo();
+  const finalized = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const readySibling = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '002-b', epicId: '001', bpId: '002',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const draftSibling = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '003-c', epicId: '001', bpId: '003',
+    bpStatus: 'draft', tasksStatus: 'ready',
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  assert.strictEqual(res.next.blueprint, readySibling);
+  assert.deepStrictEqual(res.sameEpicPending, [
+    { blueprint: readySibling, blueprintStatus: 'approved', ready: true },
+    { blueprint: draftSibling, blueprintStatus: 'draft', ready: false },
+  ]);
+});
+
+test('nextBlueprint sameEpicPending marks approved-but-verified siblings ready:false', () => {
+  const repo = tmpRepo();
+  const finalized = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const verified = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '002-b', epicId: '001', bpId: '002',
+    bpStatus: 'approved', tasksStatus: 'verified',
+  });
+
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  assert.strictEqual(res.next, null);
+  assert.deepStrictEqual(res.sameEpicPending, [{
+    blueprint: verified,
+    blueprintStatus: 'approved',
+    ready: false,
+  }]);
+});
+
+test('nextBlueprint sameEpicPending skips broken siblings without throwing', () => {
+  const repo = tmpRepo();
+  const finalized = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready',
+  });
+  const draft = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '004-ok', epicId: '001', bpId: '004',
+    bpStatus: 'draft', tasksStatus: 'ready',
+  });
+  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/E-1/blueprints/002-missing'), { recursive: true });
+  const brokenDir = path.join(repo, '.bouncer/context/epics/E-1/blueprints/003-broken');
+  fs.mkdirSync(brokenDir, { recursive: true });
+  fs.writeFileSync(path.join(brokenDir, 'index.md'), 'this is not parseable frontmatter\n');
+
+  assert.doesNotThrow(() => nextBlueprint({ repoRoot: repo, blueprintDir: finalized }));
+  const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
+  assert.deepStrictEqual(res.sameEpicPending, [{
+    blueprint: draft,
+    blueprintStatus: 'draft',
+    ready: false,
+  }]);
 });
 
 test('nextBlueprint sharedPaths is the affected_paths intersection in candidate order', () => {
