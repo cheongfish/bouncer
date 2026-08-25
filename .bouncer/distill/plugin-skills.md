@@ -114,6 +114,22 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
   blueprint's declared `scale`, and a `--scale` passed to it is silently
   dropped by `parseFlags`.
 
+- `collect_metrics.py` optional `--tokens-in` / `--tokens-out` / `--wall-s` /
+  `--tool-calls` (`type=int`, default unset). If any is given, emit a top-level
+  `usage` object with only those keys; if none, omit `usage`. Do not fill
+  missing keys with `0`. `usage` is recording only — not scorecard input.
+  Keep the metrics schema string `agentic-code-benchmark/metrics/1`.
+
+- `test/public-name-regression.test.js` allowlists a third-party comparison-arm
+  name only in `docs/benchmark/protocol.md`,
+  `skills/agentic-code-benchmark/SKILL.md`, and
+  `skills/agentic-code-benchmark/references/task-suite.md`. Product surfaces
+  (`docs/ARCHITECTURE.md`, `docs/install.md`) still must not mention it.
+
+- Benchmark task JSON `base` is one round-wide short sha. An execution round
+  bulk-updates all ten files; the sha written when the suite was authored is
+  not the run base.
+
 ## Decisions
 
 - Named-agent dispatch is four steps: `resolveSubagentModel` → named call → slug
@@ -238,7 +254,12 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
   upstream repo, path, license id, and URL when the upstream (and this repo)
   has no `LICENSE` file to copy. Put convention output dirs (e.g.
   `.benchmarks/`) in `.gitignore` so commit-safety does not see them as scope
-  noise.
+  noise. Canonical authored suite files live under `docs/benchmark/`
+  (`history.md`, `tasks/*.json`, `task-selection.md`, `protocol.md`), not
+  under `.benchmarks/`.
+
+- Benchmark arms are a protocol axis (vanilla / third-party comparison plugin /
+  bouncer), not a field on task JSON. Keep prompts arm-neutral.
 
 - Trust-boundary skills that assert `DISTINCTION_RE` need the exact English
   sentence the brief locks — paraphrase ("input, not direction") fails the

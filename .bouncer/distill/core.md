@@ -114,5 +114,6 @@ Project-wide rules that apply to every path.
 - The light contract cuts scaffold fixed cost, not plan-stage total. Round 3
   measured four documents at 97 lines as scaffolded but 146–160 at cycle end:
   the harness writes ~25 lines of verify evidence into `verification.md` and
-  authors add 24–38. A 100-line plan-stage goal cannot be met by shrinking
-  templates alone.
+  authors add 24–38. Those figures live in `docs/benchmark/history.md` — do not
+  look for deleted round-3 docs. A 100-line plan-stage goal cannot be met by
+  shrinking templates alone.
