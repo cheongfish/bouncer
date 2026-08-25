@@ -134,8 +134,10 @@ Pier verifier가 낸다. 그 비대칭을 문서가 숨기지 않고 적는다.
 - [ ] 런당 기록 값 표를 적는다: `arm`, `task_id`, Pier `verdict`,
       `collect_metrics.py` measured 필드, `usage.*`.
 - [ ] `test/public-name-regression.test.js`의 `COMPARISON_ARM_ALLOWLIST`에
-      새 문서를 더하기 **전에** `node --test test/public-name-regression.test.js`
-      가 깨지는 것을 먼저 확인한다.
+      `docs/benchmark/deepswe/protocol.md`를 더한다. 문서를 만드는 그 커밋에
+      함께 넣는다 — 그 스캔은 `git ls-files` 기준이라 문서가 untracked인
+      동안에는 위반이 드러나지 않으므로, 먼저 빨간 테스트를 보려고 기다리지
+      않는다. 확인은 목록에 그 경로가 들어갔는지로 한다.
 - [ ] `SKILL.md`에 DeepSWE 절을 더한 뒤
       `node --test test/skill-agentic-code-benchmark.test.js`를 돌린다. 깨지면
       그 테스트를 고치고, 깨지지 않으면 그 파일을 손대지 않는다.

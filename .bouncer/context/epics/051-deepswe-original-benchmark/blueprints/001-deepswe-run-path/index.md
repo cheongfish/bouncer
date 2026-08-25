@@ -79,8 +79,11 @@ Epic: [051](../../index.md)
      arm의 통제 조건과 arm별 실행 절차를 담고, bouncer arm 절차에 태스크
      저장소에 `bouncer init`을 깐 뒤 사이클을 강제하는 단계가 있다.
   6. `test/public-name-regression.test.js`의 `COMPARISON_ARM_ALLOWLIST`가
-     새 `docs/benchmark/deepswe/protocol.md`를 포함해, 그 문서가 비교 arm
-     이름을 적어도 공개 이름 회귀 테스트가 통과한다.
+     `skills/agentic-code-benchmark/scripts/run_deepswe.py`와 새
+     `docs/benchmark/deepswe/protocol.md`를 포함해, 러너의 `--arm` 값과 그
+     문서가 비교 arm 이름을 적어도 공개 이름 회귀 테스트가 통과한다. 러너는
+     002가, 문서는 003이 더한다 — 그 스캔은 `git ls-files` 기준이라 파일이
+     커밋되기 전에는 위반이 드러나지 않는다.
   7. 태스크 1개 × arm 1개 스모크 실행을 시도하고, 그 명령줄과 결과가
      `protocol.md`에 인용된다. 성공이면 합쳐진 JSON 한 장이
      `docs/benchmark/deepswe/results/` 아래에 있고, 환경 문제로 끝나지
@@ -96,6 +99,12 @@ Epic: [051](../../index.md)
   - Pier가 패치를 남기지 않았거나 base 커밋에 얹히지 않으면 `metrics.json`을
     만들지 않고 그 사실을 stderr에 적는다. 빈 diff로 measured 필드를 채우면
     "재지 않음"이 "아무것도 안 고침"으로 읽힌다.
+  - 태스크 여러 개를 한 번에 도는 표본 런(`--n-tasks`)도 `metrics.json`을
+    내지 않는다. `metrics.json`과 `--task-id`가 단수라 태스크별 measured
+    필드를 담을 이름이 없기 때문이다. 이 blueprint는 태스크 1개 스모크까지만
+    재고, 표본 런의 태스크별 metrics 이름·스키마는 10개 전수 실행을 맡는
+    다음 에픽이 정한다. `sample.md`가 적은 `--n-tasks 10` 명령줄은 Pier
+    산출물까지는 남기지만 measured 한 장은 아직 남기지 않는다.
   - `reward.json`이 없거나 파싱에 실패하면 `bridge_pier.py`는 비영 코드로
     끝나고 `--out`을 만들지 않는다. 부분 결과를 남기면 "판정 없음"이 "실패"로
     읽힌다.
@@ -130,6 +139,10 @@ Epic: [051](../../index.md)
   절차를 적고 스모크로 증명한다(003). 리뷰어는 "다음 회차를 이 저장소만 보고
   원본에서 돌릴 수 있는가" 하나만 판단하면 되므로 blueprint 하나가 리뷰
   단위로 맞다.
+- 002는 이름 허용 목록 한 줄을 함께 진다. 001의 러너가 커밋되어 tracked가 된
+  순간 공개 이름 회귀가 깨졌고, 그 한 줄이 없으면 002 자신의 `npm run ci`가
+  통과하지 못한다. 별개 기능이 아니라 002가 서기 위한 조건이라 같은 커밋에
+  둔다.
 
 ## Documents
 * [Tasks 001](tasks/001/tasks.md) - 임시 클론 수명주기 러너와 seed 샘플 정본

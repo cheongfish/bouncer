@@ -11,14 +11,15 @@ bouncer:
   id: TASKS-002
   epic_id: '051'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - Pier가 내는 통과 판정과 이 저장소가 내는 measured 필드가 서로 다른 파일에 흩어져 런 하나를 한 장으로 볼 수 없었음
-    - reward.json을 metrics JSON의 verdict 블록으로 병합하는 브리지를 붙임
+    - reward.json을 metrics JSON의 verdict 블록으로 병합하는 브리지를 붙이고, 러너가 tracked가 되며 깨진 공개 이름 회귀를 같은 커밋에서 되살림
   affected_paths:
     - skills/agentic-code-benchmark/scripts/bridge_pier.py
     - test/skill-agentic-code-benchmark.test.js
+    - test/public-name-regression.test.js
   scope_evidence:
     producer: graphify
     generated_at: '2026-08-25T16:40:00+09:00'
@@ -61,6 +62,14 @@ Blueprint: [001](../../index.md)
 선택 키이므로, `scorecard.py score --metrics <o> --judgment <j> --out <s>`가 코드 수정 없이
 그대로 돈다.
 
+이 태스크가 이름 허용 목록 한 줄을 함께 지는 이유가 있다. 001이 커밋되면서
+`run_deepswe.py`가 tracked가 되었고, `test/public-name-regression.test.js`의
+비교 arm 스캔이 `git ls-files` 기준이라 그 순간부터 `--arm`의 `choices`에 있는
+`superpowers`를 위반으로 잡는다. 001의 execute 게이트가 녹색이었던 것은 그때
+그 파일이 untracked라 스캔 대상이 아니었기 때문이다. 001은 이미 닫혔고 003은
+`protocol.md`만 그 목록에 올리므로, 이 한 줄을 여기서 지지 않으면 002의
+`npm run ci`가 통과할 수 없다.
+
 ## Interface
 - 제공:
   - `bridge_pier.py`. 필수 `--metrics`, `--reward`, `--arm`, `--out`.
@@ -90,6 +99,12 @@ Blueprint: [001](../../index.md)
   `scripts/bridge_pier.py`를 더하고, 병합 결과가 입력 키를 잃지 않는 것,
   거부 네 가지, 그리고 병합 결과가 `scorecard.py`에 그대로 들어가는 것을
   고정한다.
+- Modify `test/public-name-regression.test.js` — `COMPARISON_ARM_ALLOWLIST`에
+  `skills/agentic-code-benchmark/scripts/run_deepswe.py`를 더한다. 그 목록의
+  다른 항목이 저마다 이유 주석을 달고 있으므로, 스크립트가 문서 목록에 끼는
+  이유(`--arm` 값이 사용자가 치는 실제 값이라 리터럴을 피할 수 없음)를 한 줄
+  주석으로 남긴다. 그 두 줄 외의 편집은 하지 않는다 — 다른 목록·정규식·스캔
+  기준은 그대로 둔다.
 
 ## Do not touch
 - `skills/agentic-code-benchmark/scripts/scorecard.py` — 이 태스크의 요지는
@@ -123,4 +138,8 @@ Blueprint: [001](../../index.md)
       `scorecard.py`는 손대지 않는다.
 - [ ] `--ctrf`를 주지 않은 호출의 출력에 `pass_fraction` 키가 없는 것을
       테스트로 고정한다.
+- [ ] `test/public-name-regression.test.js`의 `COMPARISON_ARM_ALLOWLIST`에
+      `skills/agentic-code-benchmark/scripts/run_deepswe.py`를 더한다. 더하기
+      전에 `node --test test/public-name-regression.test.js`로 그 파일이
+      위반으로 잡히는 것을 보고, 더한 뒤 통과하는 것을 본다.
 - [ ] `npm run ci` 통과.
