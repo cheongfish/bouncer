@@ -78,6 +78,7 @@ const SUPERPOWERS_NEGATIVE_TESTS = new Set([
  */
 const COMPARISON_ARM_ALLOWLIST = new Set([
   'docs/benchmark/protocol.md',
+  'docs/benchmark/deepswe/protocol.md',
   'skills/agentic-code-benchmark/SKILL.md',
   'skills/agentic-code-benchmark/references/task-suite.md',
   // 러너는 문서가 아니지만 `--arm` choices 가 사용자가 실제로 치는 값이라 리터럴을 뺄 수 없다.

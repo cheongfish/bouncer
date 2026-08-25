@@ -131,6 +131,35 @@ protocol (vanilla / superpowers / bouncer). Superpowers requires that plugin
 already installed; install steps live outside this skill. Bouncer on-arm still
 uses one independent clone per cycle so pointer and verify ledger do not collide.
 
+### DeepSWE original suite
+
+The sections above benchmark a change in *this* repository. To run the DeepSWE
+original suite instead (third-party tasks, Pier as the verifier), the path is
+three scripts in a row:
+
+```bash
+# 1. clone the suite, drive one task through pier, keep only the artifacts
+python3 scripts/run_deepswe.py \
+  --run-id <run-id> --arm vanilla --agent <agent> --task <task-id>
+
+# 2. merge the Pier verdict into the measured metrics document
+python3 scripts/bridge_pier.py \
+  --metrics <results>/metrics.json --reward <results>/reward.json \
+  --ctrf <results>/ctrf.json --arm vanilla --out <results>/merged.json
+
+# 3. score the merged document exactly as any other metrics file
+python3 scripts/scorecard.py score \
+  --metrics <results>/merged.json --judgment <judgment>.json --out <card>.json
+```
+
+`run_deepswe.py` needs `pier` and `docker` on `PATH` and refuses before cloning
+when either is missing. It drives the vanilla arm directly; the superpowers and
+bouncer arms are set up by hand, and the merged document's `verdict` block
+records the Pier judgment rather than feeding the composite. The controls, the
+per-arm procedures, and the run-level record fields live in
+`docs/benchmark/deepswe/protocol.md`; the task sample seed lives in
+`docs/benchmark/deepswe/sample.md`.
+
 **Judging your own output**: when the run being scored was produced in this same
 session, dispatch the judging pass to a subagent with no memory of writing the
 code, and give it only the diff, the original task text and the rubric. Self-

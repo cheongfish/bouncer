@@ -1,6 +1,6 @@
 ---
 type: bouncer.tasks
-title: 3 arm 프로토콜을 원본 기준으로 적고 스모크로 증명함
+title: 3 arm 프로토콜을 DeepSWE 원본 기준으로 적음
 description: DeepSWE 원본에서 vanilla·superpowers·bouncer 세 arm을 돌리는 절차를 적고 1태스크×1arm 스모크 실행 결과를 남긴다
 resource: .bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/003/tasks.md
 tags:
@@ -11,11 +11,11 @@ bouncer:
   id: TASKS-003
   epic_id: '051'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - arm별 절차가 이 저장소 스위트 기준이라 남의 저장소에서는 그대로 쓸 수 없었음
-    - DeepSWE 원본 기준 3 arm 절차를 적고 스모크 실행 한 건으로 배관을 증명함
+    - DeepSWE 원본 기준 3 arm 절차를 적고, 스모크를 시도해 pier 부재로 멈춘 지점을 그대로 남김
   affected_paths:
     - docs/benchmark/deepswe/protocol.md
     - docs/benchmark/deepswe/results
