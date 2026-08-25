@@ -12,15 +12,25 @@ const {
   CONTEXT_DIGEST_OUT,
 } = require('../scripts/lib/context-digest');
 
-test('digestRulesFor whitelists Distill, explain, and epic index only', () => {
+test('digestRulesFor whitelists Distill, epic index, explain, blueprint index, and task brief', () => {
   assert.deepEqual(digestRulesFor('.bouncer/Distill.md'), ['## Decisions']);
   assert.deepEqual(
     digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/explain.md'),
     ['## Background', '## Intuition', '## Code'],
   );
   assert.deepEqual(digestRulesFor('.bouncer/context/epics/026-x/index.md'), ['## Success criteria']);
-  assert.equal(digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/index.md'), null);
-  assert.equal(digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/tasks/001/tasks.md'), null);
+  assert.deepEqual(
+    digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/index.md'),
+    ['## Intent', '## Contract'],
+  );
+  assert.deepEqual(
+    digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/tasks/001/tasks.md'),
+    ['## Goal & intent', '## Interface'],
+  );
+  assert.equal(digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/tasks/1/tasks.md'), null);
+  assert.equal(digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/tasks.md'), null);
+  assert.equal(digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/tasks-001.md'), null);
+  assert.equal(digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/tasks/001/index.md'), null);
   assert.equal(digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/tasks/001/verification.md'), null);
   assert.equal(digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/tasks/001/review.md'), null);
 });
@@ -67,8 +77,11 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
     path.join(repo, `${bp}/explain.md`),
     '## Background\n\nb\n\n## Intuition\n\ni\n\n## Code\n\nc\n',
   );
-  fs.writeFileSync(path.join(repo, `${bp}/index.md`), '## Intent\n\nnope\n');
-  fs.writeFileSync(path.join(repo, `${bp}/tasks/001/tasks.md`), '## Checklist\n\n- [ ] x\n');
+  fs.writeFileSync(path.join(repo, `${bp}/index.md`), '## Intent\n\nnope\n\n## Contract\n\ncontract\n');
+  fs.writeFileSync(
+    path.join(repo, `${bp}/tasks/001/tasks.md`),
+    '## Goal & intent\n\ngoal\n\n## Interface\n\ninterface\n\n## Checklist\n\n- [ ] x\n',
+  );
 
   // 026-x 와 026.x 는 비알파벳을 `-` 로 접으면 같은 슬러그가 된다.
   fs.mkdirSync(path.join(repo, '.bouncer/context/epics/026.x'), { recursive: true });
@@ -82,7 +95,7 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
     contextDirs: ['.bouncer/context'],
   });
   assert.equal(first.dir, CONTEXT_DIGEST_OUT);
-  assert.ok(first.count >= 4);
+  assert.ok(first.count >= 6);
   assert.ok(fs.existsSync(path.join(repo, CONTEXT_DIGEST_OUT, 'map.json')));
 
   const map = JSON.parse(fs.readFileSync(path.join(repo, first.dir, 'map.json'), 'utf8'));
@@ -90,8 +103,8 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
   assert.ok(originals.includes('.bouncer/Distill.md'));
   assert.ok(originals.includes(`${epic}/index.md`));
   assert.ok(originals.includes(`${bp}/explain.md`));
-  assert.ok(!originals.some((p) => p.endsWith('/tasks.md')));
-  assert.ok(!originals.some((p) => p.endsWith('/blueprints/001-y/index.md')));
+  assert.ok(originals.includes(`${bp}/index.md`));
+  assert.ok(originals.includes(`${bp}/tasks/001/tasks.md`));
 
   // Collision: 026-x and 026.x both fold toward bouncer-context-epics-026-x-index-md
   const flatNames = Object.keys(map).filter((k) => k.includes('026'));

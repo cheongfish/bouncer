@@ -97,11 +97,13 @@ plan 게이트 `S12`와 런타임 `VERIFY_COMMAND_INVALID`에 걸립니다. 컨�
 
 `context_dirs`의 빌드는 화이트리스트 섹션만 뽑은 파생 트리
 `graphify-out/context-src/`를 스캔하고, `map.json`으로 결과 경로를 원본으로
-되돌립니다. 화이트리스트는 셋입니다.
+되돌립니다. 화이트리스트는 다음과 같습니다.
 
-- BP `explain.md`의 `## Background` / `## Intuition` / `## Code`
-- epic `index.md`의 `## Success criteria`
 - `.bouncer/Distill.md`의 `## Decisions`
+- epic `index.md`의 `## Success criteria`
+- BP `explain.md`의 `## Background` / `## Intuition` / `## Code`
+- BP `index.md`의 `## Intent` / `## Contract`
+- `tasks/<NNN>/tasks.md`의 `## Goal & intent` / `## Interface`
 
 Graphify 설치와 오프라인 폴백은 [install.md](install.md#선택-graphify-경로-추천)에
 있습니다.

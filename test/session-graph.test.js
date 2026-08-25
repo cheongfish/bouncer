@@ -502,7 +502,7 @@ test('Distill.md mtime alone marks context graph stale', () => {
 
 test('empty context digest skips graphify, keeps prior graph, settles freshness', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-empty-digest-'));
-  // 화이트리스트 문서 없음 → digest count === 0
+  // task 브리프는 화이트리스트지만 추출 대상 섹션이 없어 digest count === 0
   fs.mkdirSync(path.join(repo, '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001'), { recursive: true });
   fs.writeFileSync(
     path.join(repo, '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001/tasks.md'),
