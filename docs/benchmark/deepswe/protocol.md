@@ -57,19 +57,33 @@ python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
 ```
 
 표본 전체를 돌 때는 `--task` 대신 `--n-tasks 10 --sample-seed 20260825`을 준다.
-`--task`와 `--n-tasks`는 서로 배타라 같이 주면 러너가 거부한다. 결과는
-`docs/benchmark/deepswe/results/<run-id>/`에 남고 작업 경로는 지워진다.
+`--task`와 `--n-tasks`는 서로 배타라 같이 주면 러너가 거부한다.
 
-러너가 남긴 것은 `metrics.json`(측정)과 Pier의 `reward.json`·`ctrf.json`(판정)이
-따로 있는 상태다. 런당 기록 값 표가 읽는 병합 JSON은 브리지가 만든다.
+결과는 아래 레이아웃으로 남고 작업 경로는 지워진다. 태스크가 하나여도 여럿이어도
+같은 모양이다. `run.log`만 런 루트에 한 장이고, 측정·판정 파일은 태스크마다
+`tasks/<task-id>/` 아래 한 벌이다. Pier가 남기지 않은 파일은 키가 아니라 파일
+자체가 없다.
+
+```
+docs/benchmark/deepswe/results/<run-id>/
+  run.log
+  tasks/<task-id>/reward.json
+  tasks/<task-id>/ctrf.json
+  tasks/<task-id>/test-stdout.txt
+  tasks/<task-id>/metrics.json
+```
+
+러너가 남긴 것은 `tasks/<task-id>/metrics.json`(측정)과 Pier의
+`tasks/<task-id>/reward.json`·`ctrf.json`(판정)이 따로 있는 상태다. 런당 기록
+값 표가 읽는 병합 JSON은 브리지가 만든다.
 
 ```bash
 python3 skills/agentic-code-benchmark/scripts/bridge_pier.py \
-  --metrics docs/benchmark/deepswe/results/<run-id>/metrics.json \
-  --reward docs/benchmark/deepswe/results/<run-id>/reward.json \
-  --ctrf docs/benchmark/deepswe/results/<run-id>/ctrf.json \
+  --metrics docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/metrics.json \
+  --reward docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/reward.json \
+  --ctrf docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/ctrf.json \
   --arm vanilla \
-  --out docs/benchmark/deepswe/results/<run-id>/merged.json
+  --out docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/merged.json
 ```
 
 ### superpowers
@@ -199,10 +213,11 @@ python3 -m pip --version          # No module named pip
 command -v pipx pip3              # 둘 다 없음
 ```
 
-`docker`와 네트워크는 있지만 `pier`가 없고, 이 호스트에는 `pip`도 `pipx`도 없어
-`pipx install pier-cli`로 채울 수 없다. 이 배관은 Pier가 설치된 호스트에서 다시
-시도해야 한다. `docs/benchmark/deepswe/results/`는 그래서 비어 있다 —
-`.gitkeep` 하나뿐이다. 합성한 결과 JSON을 그 자리에 대신 두지 않는다.
+그때는 `docker`와 네트워크는 있었지만 `pier`가 없었고, 그 호스트에는 `pip`도
+`pipx`도 없어서 안내 문구의 `pipx install pier-cli`로는 채울 수 없었다. 그 회차의
+`docs/benchmark/deepswe/results/`는 `.gitkeep` 하나뿐이었다. 합성한 결과 JSON을
+그 자리에 대신 두지 않았다. Pier 패키지 이름은 그 뒤에
+`uv tool install datacurve-pier`로 고쳤고, 같은 날 그 설치로 다시 돌렸다.
 
 ### 작업 경로가 남지 않았는지 확인
 
@@ -215,5 +230,113 @@ ls -d .benchmarks/deepswe/smoke-20260825
 ```
 
 이 시도에서는 선행 조건 검사가 먼저 걸려 작업 경로가 애초에 만들어지지 않았다.
-Pier가 있는 호스트에서 다시 돌린 뒤에도 같은 명령으로 확인한다. 경로가 남아
-있으면 러너의 정리 경로가 깨진 것이므로 그 회차 결과를 쓰지 않는다.
+Pier를 깐 뒤의 시도에서도 같은 명령으로 확인한다. 경로가 남아 있으면 러너의
+정리 경로가 깨진 것이므로 그 회차 결과를 쓰지 않는다.
+
+## 스모크 시도 (2026-08-25, Pier 설치 후)
+
+앞 시도가 끝난 뒤 같은 호스트에서 Pier를 설치하고 vanilla 1태스크를 다시 돌렸다.
+이 회차도 병합 JSON을 남기지 못했다. `pier run`은 0으로 끝났지만
+`metrics.json`이 없고, `run.log`에 호스트 쪽 체크아웃이 없다는 한 줄이 남았다.
+
+호스트 준비:
+
+```bash
+uv tool install datacurve-pier
+# Installed 1 executable: pier
+pier --version
+# 0.3.1
+docker info >/dev/null; echo $?
+# 0
+```
+
+태스크 id:
+
+```bash
+git clone --depth 1 --filter=blob:none --no-checkout \
+  https://github.com/datacurve-ai/deep-swe /tmp/deep-swe-052
+git -C /tmp/deep-swe-052 ls-tree --name-only HEAD tasks/ | head -20
+# tasks/README.md
+# tasks/abs-module-cache-flags
+# ...
+```
+
+`--agent claude`는 Pier 0.3.1이 거절한다.
+
+```
+Invalid value for '-a' / '--agent': 'claude' is not one of 'oracle', 'nop',
+'claude-code', 'antigravity-sdk', 'codex', 'cursor-cli', 'gemini-cli',
+'mini-swe-agent', 'swe-agent', 'opencode'.
+```
+
+그래서 러너에는 Pier가 받는 이름 `claude-code`를 넘겼다.
+
+```bash
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id smoke-052-vanilla --arm vanilla --agent claude-code \
+  --task abs-module-cache-flags
+```
+
+stdout:
+
+```
+/home/cheongwoon/workspace/chunjae/etc/bouncer/.worktrees/052/001/docs/benchmark/deepswe/results/smoke-052-vanilla
+```
+
+stderr (종료 코드 0):
+
+```
+run-id=smoke-052-vanilla arm=vanilla agent=claude-code model=-
+Cloning into '/home/cheongwoon/workspace/chunjae/etc/bouncer/.worktrees/052/001/.benchmarks/deepswe/smoke-052-vanilla/deep-swe'...
+  1/1 F2P: 0.000 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:04:03 0:00:00
+
+adhoc • claude-code
+┏━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┓
+┃ Tria… ┃ Exce… ┃   F2P ┃ F2P_… ┃ F2P_… ┃   P2P ┃ P2P_… ┃ P2P_… ┃ Part… ┃ Rew… ┃
+┡━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━┩
+│     1 │     1 │ 0.000 │ 0.000 │ 20.0… │ 1.000 │ 3.000 │ 3.000 │ 0.130 │ 0.0… │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┴──────┘
+
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Reward              ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ 0                   │     1 │
+│ 20                  │     1 │
+│ 0                   │     1 │
+│ 3                   │     1 │
+│ 3                   │     1 │
+│ 0.0                 │     1 │
+│ 1.0                 │     1 │
+│ 0.13043478260869565 │     1 │
+└─────────────────────┴───────┘
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Exception                 ┃ Count ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ NonZeroAgentExitCodeError │     1 │
+└───────────────────────────┴───────┘
+
+Job Info
+Total runtime: 4m 3s
+Results written to jobs/2026-08-25__22-13-02/result.json
+Inspect results by running `pier view jobs`
+
+pier left no host-side workspace checkout for abs-module-cache-flags; skipping metrics.json
+```
+
+러너가 결과 디렉터리에 `run.log`와 `tasks/abs-module-cache-flags/{reward.json,ctrf.json,test-stdout.txt}`를
+옮겼다. `metrics.json`은 없다. `bridge_pier.py`는 부르지 않았다. 예외 표는
+`NonZeroAgentExitCodeError` 한 건이다. 에이전트가 패치를 안 남긴 채로 verifier가
+베이스를 채점한 상태다.
+
+`pier run`이 0인데 `metrics.json`이 없고 `run.log`에
+`pier left no host-side workspace checkout`이 있으면 러너 쪽이다. 이 블루프린트는
+그 실패를 문서로 닫고, 호스트 체크아웃 구멍은 다음 블루프린트가 고친다. 실패한
+런의 JSON은 결과 디렉터리에 남기지 않았다.
+
+작업 경로:
+
+```bash
+ls -d .benchmarks/deepswe/smoke-052-vanilla
+# ls: cannot access '.benchmarks/deepswe/smoke-052-vanilla': No such file or directory
+```

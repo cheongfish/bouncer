@@ -56,3 +56,4 @@ bouncer_schema: '0.1'
 * [049 context-searchability](epics/049-context-searchability/index.md) - Epic 049
 * [050 cycle-friction](epics/050-cycle-friction/index.md) - Epic 050
 * [051 deepswe-original-benchmark](epics/051-deepswe-original-benchmark/index.md) - Epic 051
+* [052 deepswe-arm-comparison](epics/052-deepswe-arm-comparison/index.md) - Epic 052
