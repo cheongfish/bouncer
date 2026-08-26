@@ -14,9 +14,12 @@ Why metrics.json is produced here: Pier runs the agent inside a container, so
 collect_metrics.py can never reach that workspace git. Without the copy this
 runner rebuilds, the `--metrics` input of the scorecard bridge would not exist.
 
-`--arm` is a label only. This runner can drive the vanilla arm directly through
-`pier run --agent`; the superpowers and bouncer arms are set up by the
-procedure in docs/benchmark/protocol.md. stdlib only.
+`--arm` selects the execution condition for that invocation. vanilla is
+`pier run --agent` with no plugin. superpowers enables only that plugin and
+never creates `.bouncer/`. bouncer leaves `bouncer init`, a light scaffold, and
+`bouncer current --set` in the work path before `pier run`; the Pier agent
+runs plan/execute/commit. Missing superpowers exits non-zero without installing
+it or writing a results path. stdlib only.
 """
 
 import argparse
@@ -53,7 +56,14 @@ INSTALL_HINT = {
         "or pip install datacurve-pier)  (see https://github.com/datacurve-ai/deep-swe)"
     ),
     "docker": "install Docker Engine: https://docs.docker.com/engine/install/",
+    "bouncer": "install the Bouncer CLI on PATH; this runner does not install it",
 }
+
+# 비교 플러그인 arm 이름. 설치 명령은 돌리지 않고 PATH 존재만 본다.
+PLUGIN_ARM = "superpowers"
+# light scaffold 고정 id. 런마다 새 작업 경로라 001이 충돌하지 않는다.
+BOUNCER_EPIC_SLUG = "deepswe-bench"
+BOUNCER_BP_SLUG = "task"
 
 
 def fail(message, code=2):
@@ -447,13 +457,191 @@ def build_measured_copy(work, clone, task_id, handle, unit_dir):
     return copy_dir, base
 
 
+def require_host_tools(arm):
+    """클론 전에 PATH에서 arm이 필요로 하는 도구를 확인한다.
+
+    없는 도구를 여기서 설치하지 않는다. 측정 호스트가 런마다 달라지면 비교가
+    깨진다. 비교 플러그인 arm은 부재 시 결과 경로를 만들기 전에 비영으로 끝낸다.
+
+    Args:
+        arm (str): `--arm` 값. vanilla / superpowers / bouncer
+
+    Returns:
+        None: 통과하면 그대로 진행한다. 없으면 fail()로 프로세스가 끝난다.
+    """
+    for tool in ("pier", "docker"):
+        if shutil.which(tool) is None:
+            fail(f"{tool} not found on PATH. {INSTALL_HINT[tool]}")
+    if arm == PLUGIN_ARM and shutil.which(PLUGIN_ARM) is None:
+        # 설치를 시도하지 않는다. 한 줄 이유만 stderr로 남기고 결과 JSON은 없다.
+        fail(
+            f"{PLUGIN_ARM} not found on the host. install it first; "
+            "this runner does not install it",
+        )
+    if arm == "bouncer" and shutil.which("bouncer") is None:
+        fail(f"bouncer not found on PATH. {INSTALL_HINT['bouncer']}")
+
+
+def _replace_once(path, pattern, replacement):
+    """파일에서 정규식 한 건만 바꾸고, 못 바꾸면 준비를 멈춘다.
+
+    Args:
+        path (str): 절대 경로
+        pattern (str): 반드시 한 번 맞아야 하는 패턴
+        replacement (str): 치환 문자열. 백슬래시는 리터럴로 둔다.
+
+    Returns:
+        None: 성공 시 파일을 덮어쓴다. 0건·2건 이상이면 fail().
+    """
+    text = open(path, encoding="utf-8").read()
+    updated, n = re.subn(pattern, replacement, text, count=1, flags=re.M)
+    if n != 1:
+        fail(f"could not update {path}: expected one match for {pattern!r}, got {n}", 1)
+    open(path, "w", encoding="utf-8").write(updated)
+
+
+def fill_light_plan(work):
+    """scaffold 직후 템플릿이 plan 게이트를 통과하도록 light 본문만 채운다.
+
+    `bouncer current --set`은 포인터를 쓰기 전에 plan 게이트를 그대로 돈다.
+    light scaffold 기본값은 epic/blueprint=`draft`, tasks=`draft`, 빈
+    `affected_paths`, 빈 `basis`, `<TODO:>` 본문이라 게이트가 거절한다.
+    `--no-verify`로 건너뛰면 안 되므로, 러너가 쓰는 문서가 실제로 통과하게
+    만든다. execute/commit CLI는 여전히 부르지 않는다.
+
+    Args:
+        work (str): 이 런의 작업 경로
+
+    Returns:
+        None: 파일이 없거나 치환이 한 건이 아니면 fail()로 끝낸다.
+    """
+    epic_rel = os.path.join(".bouncer", "context", "epics", f"001-{BOUNCER_EPIC_SLUG}")
+    bp_rel = os.path.join(epic_rel, "blueprints", f"001-{BOUNCER_BP_SLUG}")
+    epic = os.path.join(work, epic_rel, "index.md")
+    blueprint = os.path.join(work, bp_rel, "index.md")
+    tasks = os.path.join(work, bp_rel, "tasks", "001", "tasks.md")
+    for path in (epic, blueprint, tasks):
+        if not os.path.isfile(path):
+            fail(f"light scaffold missing {path}", 1)
+    # 프론트매터 status 한 줄만 바꾼다. 본문 플레이스홀더의 "draft"와 섞이지 않게
+    # YAML 들여쓰기 두 칸을 고정한다.
+    _replace_once(epic, r"^  status: draft$", "  status: approved")
+    _replace_once(blueprint, r"^  status: draft$", "  status: approved")
+    _replace_once(tasks, r"^  status: draft$", "  status: ready")
+    # 측정 대상은 스위트 클론이다. Touch 백틱과 같은 문자열이어야 G11이 통과한다.
+    _replace_once(tasks, r"^  affected_paths: \[\]$", "  affected_paths:\n    - deep-swe")
+    # --no-graphify 런이라 그래프를 돌리지 않았다. 빈 basis는 S9/G4다.
+    _replace_once(
+        tasks,
+        r"^    basis: \[\]$",
+        "    basis:\n"
+        "      - graph: source\n"
+        "        status: skip-disabled\n"
+        "        query: deepswe bench workspace\n"
+        "        result: graphify skipped (--no-graphify); clone is the work tree",
+    )
+    _replace_once(
+        tasks,
+        r"^<TODO: 완료 후 시스템이 어떻게 달라지는가>$",
+        "Pier가 준 DeepSWE 태스크를 Bouncer light 사이클로 구현한다.",
+    )
+    _replace_once(
+        tasks,
+        r"^- Modify `<TODO: 수정할-파일>` — <TODO: 왜 만지는가>$",
+        "- Modify `deep-swe` — 스위트 클론이 에이전트가 고치는 작업 트리이다.",
+    )
+    _replace_once(
+        tasks,
+        r"^- \[ \] <TODO: 작업 항목>$",
+        "- [ ] Pier 태스크를 구현하고 검증한다.",
+    )
+
+
+def prepare_bouncer_workspace(work, handle):
+    """`pier run` 전에 light 사이클 골격만 작업 경로에 남긴다.
+
+    init → epic/blueprint scaffold → light 본문 채움 → current --set 까지가
+    러너 몫이다. plan 게이트 이후 execute/commit은 Pier 에이전트가 돌린다.
+    `--no-verify`와 validate CLI는 여기서 부르지 않는다 — 게이트 우회로
+    통과시키지 않기 위해.
+
+    Args:
+        work (str): 이 런의 작업 경로. `.bouncer/`를 여기에 만든다.
+        handle (TextIO): run.log
+
+    Returns:
+        None: 한 단계라도 비영이면 fail()로 끝낸다.
+    """
+    # 작업 경로는 호스트 저장소 아래 `.benchmarks/`라, git init을 안 하면
+    # `current --set`이 부모 `.git/bouncer/current`에 포인터를 쓴다. 중첩
+    # 저장소로 만들어야 이 런의 워크스페이스에만 남는다.
+    init_git = ["git", "init"]
+    git_code = stream(init_git, handle, cwd=work)
+    if git_code != 0:
+        fail(f"{' '.join(init_git)} exited {git_code}", 1)
+    # graphify pip 설치는 arm 조건이 아니다. 측정 호스트를 런마다 바꾸지 않는다.
+    epic_dir = os.path.join(".bouncer", "context", "epics", f"001-{BOUNCER_EPIC_SLUG}")
+    bp_dir = os.path.join(epic_dir, "blueprints", f"001-{BOUNCER_BP_SLUG}")
+    steps = (
+        ["bouncer", "init", "--no-graphify"],
+        ["bouncer", "scaffold", "epic", "--id", "001", "--name", BOUNCER_EPIC_SLUG],
+        [
+            "bouncer", "scaffold", "blueprint",
+            "--epic-dir", epic_dir, "--id", "001", "--name", BOUNCER_BP_SLUG,
+            "--scale", "light",
+        ],
+    )
+    for cmd in steps:
+        code = stream(cmd, handle, cwd=work)
+        if code != 0:
+            fail(f"{' '.join(cmd)} exited {code}", 1)
+    fill_light_plan(work)
+    set_cmd = ["bouncer", "current", "--set", bp_dir, "--task", "001"]
+    code = stream(set_cmd, handle, cwd=work)
+    if code != 0:
+        fail(f"{' '.join(set_cmd)} exited {code}", 1)
+
+
+def pier_command(target, args):
+    """arm 조건이 섞인 `pier run` argv를 만든다.
+
+    판정은 Pier verifier다. 여기 인자로 통과를 다시 매기지 않는다.
+    vanilla와 bouncer는 플러그인 환경 변수를 넣지 않는다. 비교 플러그인 arm만
+    `--ae`로 그 플러그인을 켠다. Pier 자체에 plugin 플래그가 없기 때문이다.
+
+    Args:
+        target (str): `-p`에 넘길 태스크 또는 tasks 디렉터리
+        args (argparse.Namespace): 파싱된 CLI
+
+    Returns:
+        list[str]: subprocess로 넘길 argv
+    """
+    cmd = ["pier", "run", "-p", target, "--agent", args.agent]
+    if args.arm == PLUGIN_ARM:
+        cmd += ["--ae", f"CLAUDE_CODE_PLUGIN={PLUGIN_ARM}"]
+    if args.model:
+        cmd += ["--model", args.model]
+    if not args.task:
+        if args.n_tasks:
+            cmd += ["--n-tasks", str(args.n_tasks)]
+        if args.sample_seed:
+            cmd += ["--sample-seed", str(args.sample_seed)]
+    return cmd
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description="Clone deep-swe, run it through pier, keep only the artifacts.",
     )
     parser.add_argument("--run-id", required=True, help="run identifier; names both the work and result path")
-    parser.add_argument("--arm", required=True, choices=("vanilla", "superpowers", "bouncer"),
-                        help="label only; superpowers/bouncer arms are set up by protocol.md")
+    parser.add_argument(
+        "--arm", required=True, choices=("vanilla", PLUGIN_ARM, "bouncer"),
+        help=(
+            "sets the arm run condition: vanilla=no plugin; "
+            f"{PLUGIN_ARM}=that plugin only; "
+            "bouncer=init+light scaffold before pier"
+        ),
+    )
     parser.add_argument("--agent", required=True, help="agent name passed to pier run --agent")
     parser.add_argument("--model", default=None, help="model passed to pier run --model")
     parser.add_argument("--sample-seed", default=None, help="sampling seed for a multi-task run")
@@ -475,9 +663,7 @@ def main(argv=None):
         fail(f"{repo_root} is not a repository root; run this from the repo root")
 
     # 선행 조건은 클론을 뜨기 전에 본다. 네트워크를 태우고 나서 없다고 말하지 않는다.
-    for tool in ("pier", "docker"):
-        if shutil.which(tool) is None:
-            fail(f"{tool} not found on PATH. {INSTALL_HINT[tool]}")
+    require_host_tools(args.arm)
 
     results_root_abs = os.path.abspath(os.path.join(repo_root, RESULT_ROOT))
     results = os.path.join(results_root_abs, args.run_id)
@@ -526,14 +712,10 @@ def main(argv=None):
                 target = os.path.join(clone, "tasks", args.task)
             else:
                 target = os.path.join(clone, "tasks")
-            pier = ["pier", "run", "-p", target, "--agent", args.agent]
-            if args.model:
-                pier += ["--model", args.model]
-            if not args.task:
-                if args.n_tasks:
-                    pier += ["--n-tasks", str(args.n_tasks)]
-                if args.sample_seed:
-                    pier += ["--sample-seed", str(args.sample_seed)]
+            # arm 워크스페이스는 pier보다 먼저. 스텁은 이 시점의 `.bouncer/` 유무를 본다.
+            if args.arm == "bouncer":
+                prepare_bouncer_workspace(work, handle)
+            pier = pier_command(target, args)
             code = stream(pier, handle, cwd=work)
             if code != 0:
                 fail(f"pier run exited {code}", 1)

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '052'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 러너의 --arm이 산출물 라벨이라 세 arm을 한 줄로 세울 수 없었음

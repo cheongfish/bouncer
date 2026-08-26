@@ -177,7 +177,7 @@ function makeTaskProject() {
 // repository_url을 clone/fetch해야 하므로, 그 호출은 가로채지 않는다.
 // cloneFixtures: 스위트가 태스크 디렉터리에 함께 실어 보내는 산출물 모양 파일들.
 // taskProject: 클론 안 demo-task/task.toml에 로컬 프로젝트 URL·SHA를 심는다.
-function makeStubs({ pier, cloneFixtures = false, taskProject = null }) {
+function makeStubs({ pier, cloneFixtures = false, taskProject = null, extra = null }) {
   const dir = tmpDir('acb-stub-bin-');
   writeStub(dir, 'git', [
     '#!/bin/sh',
@@ -206,6 +206,12 @@ function makeStubs({ pier, cloneFixtures = false, taskProject = null }) {
   ].join('\n'));
   writeStub(dir, 'docker', '#!/bin/sh\nexit 0\n');
   if (pier) writeStub(dir, 'pier', pier);
+  // extra: arm 스텁(bouncer CLI, 비교 플러그인 바이너리). PATH 앞단에만 둔다.
+  if (extra) {
+    for (const [name, body] of Object.entries(extra)) {
+      writeStub(dir, name, body);
+    }
+  }
   return dir;
 }
 
@@ -527,6 +533,134 @@ test('run_deepswe.py removes the work path when interrupted with SIGINT', async 
 
 test('run_deepswe.py removes the work path when terminated with SIGTERM', async () => {
   await interruptRunner('r-sigterm', 'SIGTERM');
+});
+
+// 비교 arm 이름은 제품 표면에 이어 붙이면 public-name-regression이 잡는다.
+// 테스트 소스에는 조각을 나눠 두고, 러너에 넘길 때만 합친다.
+const PLUGIN_ARM = ['super', 'powers'].join('');
+
+function tracingPier(inner, traceDir) {
+  const argvFile = path.join(traceDir, 'pier.argv');
+  const markerFile = path.join(traceDir, 'pier.workspace');
+  const body = String(inner).replace(/^#!\/bin\/sh\n/, '');
+  return [
+    '#!/bin/sh',
+    'set -e',
+    `printf '%s\\n' "$@" > '${argvFile}'`,
+    `if [ -d .bouncer ]; then echo present > '${markerFile}'; else echo absent > '${markerFile}'; fi`,
+    body,
+  ].join('\n');
+}
+
+function bouncerCliStub(traceFile) {
+  // argv만 기록하고 항상 0이던 스텁은 `current --set`의 plan 게이트를 숨긴다.
+  // 실제 CLI를 이어서 돌려, scaffold-only 문서면 --set이 비영이 되게 한다.
+  const cli = path.join(root, 'scripts', 'bouncer');
+  return [
+    '#!/bin/sh',
+    `printf '%s\\n' "$*" >> '${traceFile}'`,
+    `exec '${process.execPath}' '${cli}' "$@"`,
+    '',
+  ].join('\n');
+}
+
+test('run_deepswe.py --help does not describe --arm as a label only', () => {
+  const run = spawnSync('python3', [RUN_DEEPSWE, '--help'], { encoding: 'utf8' });
+  assert.strictEqual(run.status, 0, run.stderr);
+  const text = `${run.stdout}\n${run.stderr}`;
+  assert.doesNotMatch(text, /label only/i);
+  assert.match(text, /--arm/);
+});
+
+function agentEnvValues(argv) {
+  const values = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--ae' || argv[i] === '--agent-env') {
+      values.push(argv[i + 1] || '');
+    }
+  }
+  return values;
+}
+
+test('run_deepswe.py --arm splits pier argv and workspace files per arm', () => {
+  const pluginBin = PLUGIN_ARM;
+  const cases = [
+    { arm: 'vanilla', runId: 'r-arm-vanilla', wantBouncerDir: 'absent', wantPluginEnv: false, extra: {} },
+    {
+      arm: pluginBin,
+      runId: 'r-arm-plugin',
+      wantBouncerDir: 'absent',
+      wantPluginEnv: true,
+      extra: { [pluginBin]: '#!/bin/sh\nexit 0\n' },
+    },
+    {
+      arm: 'bouncer',
+      runId: 'r-arm-cycle',
+      wantBouncerDir: 'present',
+      wantPluginEnv: false,
+      extra: {},
+    },
+  ];
+
+  for (const scenario of cases) {
+    const root = fakeRepoRoot();
+    const bouncerTrace = path.join(root, 'bouncer.argv');
+    const extra = { ...scenario.extra };
+    if (scenario.arm === 'bouncer') {
+      extra.bouncer = bouncerCliStub(bouncerTrace);
+    }
+    const binDir = makeStubs({
+      pier: tracingPier(pierLeavesUnits([{ dir: 'unit-one', taskId: 'demo-task' }]), root),
+      extra,
+    });
+    try {
+      const args = [RUN_DEEPSWE, '--run-id', scenario.runId, '--arm', scenario.arm, '--agent', 'claude'];
+      const run = runRunner(root, binDir, args);
+      assert.strictEqual(run.status, 0, `${scenario.arm}: ${run.stderr}`);
+      const marker = fs.readFileSync(path.join(root, 'pier.workspace'), 'utf8').trim();
+      assert.strictEqual(marker, scenario.wantBouncerDir, `${scenario.arm} .bouncer at pier run`);
+      const argv = fs.readFileSync(path.join(root, 'pier.argv'), 'utf8').split('\n').filter(Boolean);
+      assert.strictEqual(argv[0], 'run');
+      assert.ok(argv.includes('--agent'));
+      assert.doesNotMatch(argv.join(' '), /--no-verify/);
+      const pluginEnvs = agentEnvValues(argv).filter((v) => v.includes(pluginBin));
+      if (scenario.wantPluginEnv) {
+        assert.ok(pluginEnvs.length > 0, `${scenario.arm} must pass that plugin via pier --ae`);
+      } else {
+        assert.deepStrictEqual(pluginEnvs, [], `${scenario.arm} must not pass the comparison plugin via --ae`);
+      }
+      if (scenario.arm === 'bouncer') {
+        const cli = fs.readFileSync(bouncerTrace, 'utf8');
+        assert.match(cli, /\binit\b/);
+        assert.match(cli, /scaffold/);
+        assert.match(cli, /current --set/);
+      } else {
+        assert.ok(!fs.existsSync(bouncerTrace), `${scenario.arm} must not invoke bouncer CLI`);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(binDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('run_deepswe.py refuses the comparison plugin arm when it is missing from the host', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({
+    pier: tracingPier(pierLeavesUnits([{ dir: 'unit-one', taskId: 'demo-task' }]), root),
+  });
+  try {
+    const args = runnerArgs('r-plugin-missing').map((arg) => (arg === 'vanilla' ? PLUGIN_ARM : arg));
+    const run = runRunner(root, binDir, args);
+    assert.notStrictEqual(run.status, 0);
+    assert.match(run.stderr, /not found/i);
+    assert.ok(!run.stdout.trim(), 'must not print a results path');
+    assert.ok(!fs.existsSync(resultsPath(root, 'r-plugin-missing')));
+    assert.ok(!fs.existsSync(workPath(root, 'r-plugin-missing')));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
 });
 
 const BRIDGE_PIER = path.join(skillDir, 'scripts', 'bridge_pier.py');

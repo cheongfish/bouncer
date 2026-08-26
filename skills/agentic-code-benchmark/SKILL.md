@@ -153,11 +153,16 @@ python3 scripts/scorecard.py score \
 ```
 
 `run_deepswe.py` needs `pier` and `docker` on `PATH` and refuses before cloning
-when either is missing. It drives the vanilla arm directly; the superpowers and
-bouncer arms are set up by hand, and the merged document's `verdict` block
-records the Pier judgment rather than feeding the composite. The controls, the
-per-arm procedures, and the run-level record fields live in
-`docs/benchmark/deepswe/protocol.md`; the task sample seed lives in
+when either is missing. `--arm vanilla|superpowers|bouncer` sets that arm's run
+condition in one invocation: vanilla is plugin-free `pier run --agent`,
+superpowers enables only that plugin and never creates `.bouncer/`, and bouncer
+leaves `bouncer init`, a light scaffold filled so `bouncer current --set`
+passes the plan gate, and that pointer before `pier run`. Execute/commit after
+the plan gate is the Pier agent's job. Missing superpowers
+exits non-zero without installing it or writing a results path. The merged
+document's `verdict` block records the Pier judgment rather than feeding the
+composite. The controls, the per-arm procedures, and the run-level record fields
+live in `docs/benchmark/deepswe/protocol.md`; the task sample seed lives in
 `docs/benchmark/deepswe/sample.md`.
 
 **Judging your own output**: when the run being scored was produced in this same
