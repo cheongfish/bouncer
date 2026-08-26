@@ -11,9 +11,13 @@ bouncer:
   id: REVIEW-002
   epic_id: '053'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: nit
+        status: resolved
 ---
 # Review
 
@@ -21,4 +25,8 @@ bouncer:
 <!-- finding: id, severity, status. accepted이면 note 필수.
      severity: blocker | major | minor | nit
      status: resolved | accepted -->
-- <finding>
+
+- id: F1
+  severity: nit
+  status: resolved
+  summary: step 5 `the blueprint.` 뒤 여분 공백 — 단일 공백으로 정리함

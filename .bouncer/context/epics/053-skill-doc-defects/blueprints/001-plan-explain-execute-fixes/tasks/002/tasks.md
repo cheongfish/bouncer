@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '053'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 'plan이 `graphify.enabled: true` 손편집을 안내해 init·graphify-runner가 못박은 config CLI 전용 원칙과 어긋남'
     - '활성화 경로를 `bouncer init --promote-graphify` 하나로 모아 사용자가 config를 직접 열지 않게 함'

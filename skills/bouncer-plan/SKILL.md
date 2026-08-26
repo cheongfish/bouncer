@@ -164,8 +164,10 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    the blueprint. If graphify is unavailable, it leaves `suggested_paths` empty,
    records a graceful fallback entry list in `bouncer.scope_evidence.basis` with
    `producer: graphify` (per-graph `status` such as `skip-disabled` / `missing`),
-   tells the user how to install/enable Graphify
-   (`pip install graphifyy && graphify install`, then `graphify.enabled: true`),
+   tells the user how to enable Graphify
+   (`bouncer init` for a fresh bootstrap, or `bouncer init --promote-graphify`
+   on an existing project — same path graphify-runner prints; do not edit
+   `config.json` by hand),
    and says so so the user can seed paths manually.
    Scaffold leaves `basis` as an empty list on purpose, so this step must run:
    G4 fails until a real non-empty basis entry array is recorded. Existing

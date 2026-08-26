@@ -167,3 +167,11 @@ test('bouncer-plan authors every task bundle, not only 001', () => {
   assert.doesNotMatch(body, /tasks\/001\/tasks\.md/);
   assert.match(body, /tasks\/<NNN>\/tasks\.md/);
 });
+
+// graphify 활성화는 config 손편집·pip 직접 안내가 아니라 CLI 경로만 가리킨다.
+test('bouncer-plan points graphify enablement at the CLI only', () => {
+  const { body } = parseFrontmatter(md);
+  assert.doesNotMatch(body, /graphify\.enabled:\s*true/);
+  assert.doesNotMatch(body, /pip install graphifyy/);
+  assert.match(body, /init --promote-graphify/);
+});
