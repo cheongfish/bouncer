@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '053'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - '경량 경로가 같은 세션에 구현과 리뷰를 함께 맡겨 자기 diff를 자기가 판정함'
     - '리뷰만 named로 되돌려 구현과 판정의 분리를 회복함'

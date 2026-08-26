@@ -49,10 +49,12 @@ test('governance light path flips full to light instead of omitting the key', ()
   assert.doesNotMatch(gov, /omit(ting)? the key|키를 쓰지 않/i);
 });
 
-test('bouncer-execute inlines on scale light and keeps host fallback wording', () => {
+test('bouncer-execute inlines implementer on scale light and keeps host fallback wording', () => {
   const exec = read('skills/bouncer-execute/SKILL.md');
   assert.match(exec, /포인터\(`bouncer current`\)의 `scale`이 `light`면/);
   assert.match(exec, /인라인|inline/i);
+  // 리뷰는 경량에서도 named — step 5 경량 인라인 분기가 없어야 한다.
+  assert.doesNotMatch(exec, /`scale`이 `light`면[\s\S]{0,200}인라인 read-only/);
   assert.match(exec, /named agents are unavailable/);
   assert.match(exec, /\bG8\b/);
   assert.match(exec, /bouncer-debugger/);

@@ -212,17 +212,15 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    `/bouncer-plan` rather than looping.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
-   Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order:
+   Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order —
+   `scale`과 무관하게 named 디스패치 네 단계를 탄다 (경량 인라인은 step 3
+   implement에만 적용):
    (1) fill `skills/review/assets/reviewer-prompt.md` (brief, base/HEAD, constraints);
-   (2) **경량 분기.** 포인터(`bouncer current`)의 `scale`이 `light`면 named
-       디스패치 네 단계를 건너뛰고, 채운 `skills/review/assets/reviewer-prompt.md`로 `review` 스킬을
-       인라인 read-only로 실행한다. `/bouncer-run` 주행 중에는 step 3의 주행
-       예외와 같이 이 분기를 쓰지 않는다. step 3과 같이 `index.md`를 다시
-       열지 않고 step 1 포인터의 `scale`만 쓴다. 그 외에는 resolve model via
-       `resolveSubagentModel` for `bouncer-reviewer`, then dispatch named agent
-       `bouncer-reviewer` with that model (retry `inherit` if the slug is
-       rejected). If named agents are unavailable (e.g. Codex), fall back to a
-       **fresh generic** subagent or inline read-only pass with the same prompt;
+   (2) resolve model via `resolveSubagentModel` for `bouncer-reviewer`, then
+       dispatch named agent `bouncer-reviewer` with that model (retry `inherit`
+       if the slug is rejected). If named agents are unavailable (e.g. Codex),
+       fall back to a **fresh generic** subagent or inline read-only pass with
+       the same prompt;
    (3) as controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status (인라인 경로에서도 Findings 기록과 status는 컨트롤러 몫);
