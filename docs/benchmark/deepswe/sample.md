@@ -30,6 +30,27 @@ seed만 정본으로 들고 있다.
 표본 표와는 별개다. 그 스모크는 호스트 쪽 워크스페이스 체크아웃이 없어 병합
 JSON을 남기지 못했고, 아래 표는 그대로 비어 있다.
 
+## 052 비교 태스크 3개
+
+이 절은 052 블루프린트 비교표가 도는 태스크 id만 고정한다. 출처는 원본 클론
+`tasks/`에서 README가 아닌 앞 세 디렉터리이고, 스모크 id
+`abs-module-cache-flags`가 그 안에 들어 있다. 열 개 표본 표(`--n-tasks 10`)와는
+다른 집합이다.
+
+```bash
+git clone --depth 1 --filter=blob:none --no-checkout \
+  https://github.com/datacurve-ai/deep-swe /tmp/deep-swe-052-task003
+git -C /tmp/deep-swe-052-task003 ls-tree -d --name-only HEAD tasks/ | head -3
+```
+
+| # | 태스크 id |
+| --- | --- |
+| 1 | `abs-module-cache-flags` |
+| 2 | `abs-stepped-slices` |
+| 3 | `actionlint-action-pinning-lint` |
+
+런 id는 `052-<arm>-<task-id>`다. 표본 seed로 다시 뽑지 않는다.
+
 ## 뽑힌 태스크 id
 
 아직 비어 있다. 열 개 표는 `--n-tasks 10 --sample-seed 20260825`로 첫 샘플 런을

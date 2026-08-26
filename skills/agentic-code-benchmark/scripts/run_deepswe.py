@@ -3,7 +3,8 @@
 
 One invocation clones datacurve-ai/deep-swe into an ignored work path, drives
 `pier run` over the clone's `tasks` directory, rebuilds a measured copy per
-task from the patch Pier left, calls collect_metrics.py on each copy, moves
+task from the patch Pier left (host checkout if present, otherwise the task
+project at base from task metadata), calls collect_metrics.py on each copy, moves
 the artifacts into docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/
 (with one run.log at the run root) and removes the work path. The work path
 is removed on success, on failure and on Ctrl-C alike. A one-task run uses
@@ -13,9 +14,12 @@ Why metrics.json is produced here: Pier runs the agent inside a container, so
 collect_metrics.py can never reach that workspace git. Without the copy this
 runner rebuilds, the `--metrics` input of the scorecard bridge would not exist.
 
-`--arm` is a label only. This runner can drive the vanilla arm directly through
-`pier run --agent`; the superpowers and bouncer arms are set up by the
-procedure in docs/benchmark/protocol.md. stdlib only.
+`--arm` selects the execution condition for that invocation. vanilla is
+`pier run --agent` with no plugin. superpowers enables only that plugin and
+never creates `.bouncer/`. bouncer leaves `bouncer init`, a light scaffold, and
+`bouncer current --set` in the work path before `pier run`; the Pier agent
+runs plan/execute/commit. Missing superpowers exits non-zero without installing
+it or writing a results path. stdlib only.
 """
 
 import argparse
@@ -33,9 +37,13 @@ RESULT_ROOT = os.path.join("docs", "benchmark", "deepswe", "results")
 # Pier가 남기는 산출물. metrics.json과 run.log는 이 러너가 직접 만든다.
 PIER_ARTIFACTS = ("reward.json", "ctrf.json", "test-stdout.txt")
 PATCH_NAMES = ("model_patch.diff", "patch.diff", "agent.patch", "model.patch")
-# 태스크 메타데이터가 base 커밋을 적는 키. DeepSWE 태스크 JSON은 저장소마다
-# 이름이 갈려서, 먼저 맞는 키 하나를 쓴다.
-BASE_KEYS = ("base_commit", "base_sha", "base", "commit", "environment_commit")
+# 태스크 메타데이터가 base 커밋을 적는 키. Harbor task.toml은
+# base_commit_hash이고, JSON 태스크는 저장소마다 이름이 갈린다.
+BASE_KEYS = (
+    "base_commit_hash", "base_commit", "base_sha", "base", "commit", "environment_commit",
+)
+# 측정 대상은 스위트 클론이 아니라 태스크가 가리키는 프로젝트 저장소다.
+REPO_URL_KEYS = ("repository_url", "repo_url", "repo")
 TASK_ID_KEYS = ("task_id", "instance_id", "task", "id")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
@@ -48,7 +56,14 @@ INSTALL_HINT = {
         "or pip install datacurve-pier)  (see https://github.com/datacurve-ai/deep-swe)"
     ),
     "docker": "install Docker Engine: https://docs.docker.com/engine/install/",
+    "bouncer": "install the Bouncer CLI on PATH; this runner does not install it",
 }
+
+# 비교 플러그인 arm 이름. 설치 명령은 돌리지 않고 PATH 존재만 본다.
+PLUGIN_ARM = "superpowers"
+# light scaffold 고정 id. 런마다 새 작업 경로라 001이 충돌하지 않는다.
+BOUNCER_EPIC_SLUG = "deepswe-bench"
+BOUNCER_BP_SLUG = "task"
 
 
 def fail(message, code=2):
@@ -205,8 +220,8 @@ def find_workspace(root, skip):
     """이 태스크 단위 안에서 Pier가 남긴 호스트 쪽 체크아웃을 찾는다.
 
     작업 경로 전체의 첫 `.git`을 쓰면 다른 태스크의 워크스페이스를 재게 된다.
-    단위 디렉터리로 범위를 좁힌다. 호스트에 체크아웃이 없으면 사본을 만들 수
-    없으니 metrics.json은 만들지 않고 사실만 적는다.
+    단위 디렉터리로 범위를 좁힌다. 없으면 호출 쪽이 태스크 프로젝트 트리를
+    메타데이터로 복원한다. `.git` 부재만으로 metrics.json을 건너뛰지 않는다.
 
     Args:
         root (str): 태스크 단위 디렉터리
@@ -281,25 +296,107 @@ def resolve_task_id(explicit, clone, artifacts, patches):
     return None
 
 
+def pick_toml(path, keys):
+    """TOML에서 `keys` 순서대로 첫 비어 있지 않은 따옴표 문자열을 돌려준다.
+
+    Harbor `task.toml`의 repository_url·base_commit_hash는 한 줄 문자열이다.
+    전체 TOML 파서는 러너가 안 읽는 테이블까지 끌어들이므로 쓰지 않는다.
+
+    Args:
+        path (str): task.toml 경로
+        keys (tuple[str, ...]): 우선순위 키
+
+    Returns:
+        str | None: 첫 매칭 값, 없으면 None
+    """
+    found = {}
+    try:
+        with open(path, "r", errors="replace") as handle:
+            for line in handle:
+                match = re.match(r'^\s*([A-Za-z0-9_]+)\s*=\s*"(.*)"\s*$', line)
+                if not match:
+                    continue
+                key, value = match.group(1), match.group(2).strip()
+                if key in keys and value:
+                    found[key] = value
+    except OSError:
+        return None
+    for key in keys:
+        if key in found:
+            return found[key]
+    return None
+
+
+def collect_task_field(clone, task_id, keys):
+    """클론의 태스크 디렉터리에서 JSON·TOML 메타의 첫 필드를 읽는다.
+
+    Args:
+        clone (str): deep-swe 클론 경로
+        task_id (str | None): 태스크 id
+        keys (tuple[str, ...]): 찾을 키
+
+    Returns:
+        str | None: 첫 값, 없거나 디렉터리가 없으면 None
+    """
+    if not task_id:
+        return None
+    task_dir = os.path.join(clone, "tasks", task_id)
+    try:
+        names = sorted(os.listdir(task_dir))
+    except OSError:
+        return None
+    for name in names:
+        full = os.path.join(task_dir, name)
+        if name.endswith(".json"):
+            value = pick(read_json(full), keys)
+            if value:
+                return value
+        if name.endswith(".toml"):
+            value = pick_toml(full, keys)
+            if value:
+                return value
+    return None
+
+
 def resolve_base(clone, task_id, copy_dir):
     """Task base commit: task metadata first, else the untouched copy's HEAD."""
-    task_dir = os.path.join(clone, "tasks", task_id) if task_id else None
-    if task_dir and os.path.isdir(task_dir):
-        for name in sorted(os.listdir(task_dir)):
-            if not name.endswith(".json"):
-                continue
-            base = pick(read_json(os.path.join(task_dir, name)), BASE_KEYS)
-            if base:
-                return base
+    base = collect_task_field(clone, task_id, BASE_KEYS)
+    if base:
+        return base
     return git_out(["rev-parse", "HEAD"], copy_dir) or None
 
 
+def restore_task_project(copy_dir, repo_url, handle):
+    """태스크 프로젝트 저장소를 빈 측정 사본에 origin으로 붙인다.
+
+    스위트 클론의 `tasks/`를 `--repo`로 쓰지 않기 위해 사본은 항상
+    `work/measured/<task-id>`에 새로 만든다. `git clone --depth 1`은 기본
+    브랜치 tip만 가져와 Harbor `base_commit_hash`가 빠지므로, 여기서는
+    init+remote만 하고 SHA fetch는 호출 쪽이 한다.
+
+    Args:
+        copy_dir (str): 측정 사본 경로
+        repo_url (str): 프로젝트 URL 또는 로컬 경로
+        handle (TextIO): run.log
+
+    Returns:
+        bool: init과 remote 추가가 성공하면 True
+    """
+    os.makedirs(copy_dir, exist_ok=True)
+    if stream(["git", "init"], handle, cwd=copy_dir) != 0:
+        return False
+    if stream(["git", "remote", "add", "origin", repo_url], handle, cwd=copy_dir) != 0:
+        return False
+    return True
+
+
 def build_measured_copy(work, clone, task_id, handle, unit_dir):
-    """이 태스크 단위의 워크스페이스를 복사하고 base에 패치를 얹는다.
+    """이 태스크 단위의 패치를 태스크 프로젝트 base 위에 얹은 측정 사본을 만든다.
 
     패치가 없거나 사본 체인을 끝내지 못하면 None이다. 빈 diff로 measured
-    필드를 채우면 "재지 않음"이 "아무것도 안 고침"으로 읽힌다. 사본 경로는
-    태스크마다 갈라서 한 런의 사본이 서로를 덮지 않게 한다.
+    필드를 채우면 "재지 않음"이 "아무것도 안 고침"으로 읽힌다. 호스트 `.git`이
+    없어도 태스크 메타의 프로젝트 트리를 복원한다. 사본 경로는 태스크마다
+    갈라서 한 런의 사본이 서로를 덮지 않게 한다.
 
     Args:
         work (str): 런 작업 경로
@@ -320,24 +417,37 @@ def build_measured_copy(work, clone, task_id, handle, unit_dir):
         # 한 단위 안에 패치가 둘이면 어느 것을 얹을지 임의로 고르지 않는다.
         log(handle, f"{len(patches)} patches in task {task_id}; skipping metrics.json")
         return None
+    # 호스트 `.git`이 없어도 측정은 태스크 프로젝트에서 한다. Pier/Harbor는
+    # 컨테이너 안에서 커밋하고 패치만 호스트에 남긴다. 스위트 클론 `tasks/`를
+    # 재면 gold 픽스처와 instruction을 에이전트 diff로 오인한다.
     workspace = find_workspace(unit_dir, clone)
-    if not workspace:
-        log(handle, f"pier left no host-side workspace checkout for {task_id}; skipping metrics.json")
-        return None
-
-    # 워크스페이스는 이 단위 안에서 ".git이 있는 첫 디렉터리"다. 어느
-    # 디렉터리를 재고 어느 패치를 얹었는지 run.log에 남겨야 나중에 metrics.json이
-    # 엉뚱한 체크아웃을 잰 건지 확인할 수 있다.
-    log(handle, f"measured workspace ({task_id}): {workspace}")
-    log(handle, f"measured patch ({task_id}): {patches[0]}")
-
     os.makedirs(os.path.join(work, "measured"), exist_ok=True)
     copy_dir = os.path.join(work, "measured", task_id)
-    shutil.copytree(workspace, copy_dir, symlinks=True)
+
+    if workspace:
+        log(handle, f"measured workspace ({task_id}): {workspace}")
+        shutil.copytree(workspace, copy_dir, symlinks=True)
+    else:
+        repo_url = collect_task_field(clone, task_id, REPO_URL_KEYS)
+        if not repo_url:
+            log(handle, f"task project repository not found for {task_id}; skipping metrics.json")
+            return None
+        log(handle, f"restored task project ({task_id}): {repo_url}")
+        if not restore_task_project(copy_dir, repo_url, handle):
+            log(handle, f"could not init task project copy for {task_id}; skipping metrics.json")
+            return None
+
+    log(handle, f"measured patch ({task_id}): {patches[0]}")
     base = resolve_base(clone, task_id, copy_dir)
     if not base:
         log(handle, "task base commit not found; skipping metrics.json")
         return None
+    if not workspace:
+        # 얕은 default-branch clone은 tip만 가져온다. SHA를 origin에서 직접 받는다.
+        if stream(["git", "fetch", "--depth", "1", "origin", base], handle, cwd=copy_dir) != 0:
+            if stream(["git", "fetch", "origin", base], handle, cwd=copy_dir) != 0:
+                log(handle, f"base commit {base} not checkoutable in the copy; skipping metrics.json")
+                return None
     if stream(["git", "checkout", "--detach", base], handle, cwd=copy_dir) != 0:
         log(handle, f"base commit {base} not checkoutable in the copy; skipping metrics.json")
         return None
@@ -347,13 +457,191 @@ def build_measured_copy(work, clone, task_id, handle, unit_dir):
     return copy_dir, base
 
 
+def require_host_tools(arm):
+    """클론 전에 PATH에서 arm이 필요로 하는 도구를 확인한다.
+
+    없는 도구를 여기서 설치하지 않는다. 측정 호스트가 런마다 달라지면 비교가
+    깨진다. 비교 플러그인 arm은 부재 시 결과 경로를 만들기 전에 비영으로 끝낸다.
+
+    Args:
+        arm (str): `--arm` 값. vanilla / superpowers / bouncer
+
+    Returns:
+        None: 통과하면 그대로 진행한다. 없으면 fail()로 프로세스가 끝난다.
+    """
+    for tool in ("pier", "docker"):
+        if shutil.which(tool) is None:
+            fail(f"{tool} not found on PATH. {INSTALL_HINT[tool]}")
+    if arm == PLUGIN_ARM and shutil.which(PLUGIN_ARM) is None:
+        # 설치를 시도하지 않는다. 한 줄 이유만 stderr로 남기고 결과 JSON은 없다.
+        fail(
+            f"{PLUGIN_ARM} not found on the host. install it first; "
+            "this runner does not install it",
+        )
+    if arm == "bouncer" and shutil.which("bouncer") is None:
+        fail(f"bouncer not found on PATH. {INSTALL_HINT['bouncer']}")
+
+
+def _replace_once(path, pattern, replacement):
+    """파일에서 정규식 한 건만 바꾸고, 못 바꾸면 준비를 멈춘다.
+
+    Args:
+        path (str): 절대 경로
+        pattern (str): 반드시 한 번 맞아야 하는 패턴
+        replacement (str): 치환 문자열. 백슬래시는 리터럴로 둔다.
+
+    Returns:
+        None: 성공 시 파일을 덮어쓴다. 0건·2건 이상이면 fail().
+    """
+    text = open(path, encoding="utf-8").read()
+    updated, n = re.subn(pattern, replacement, text, count=1, flags=re.M)
+    if n != 1:
+        fail(f"could not update {path}: expected one match for {pattern!r}, got {n}", 1)
+    open(path, "w", encoding="utf-8").write(updated)
+
+
+def fill_light_plan(work):
+    """scaffold 직후 템플릿이 plan 게이트를 통과하도록 light 본문만 채운다.
+
+    `bouncer current --set`은 포인터를 쓰기 전에 plan 게이트를 그대로 돈다.
+    light scaffold 기본값은 epic/blueprint=`draft`, tasks=`draft`, 빈
+    `affected_paths`, 빈 `basis`, `<TODO:>` 본문이라 게이트가 거절한다.
+    `--no-verify`로 건너뛰면 안 되므로, 러너가 쓰는 문서가 실제로 통과하게
+    만든다. execute/commit CLI는 여전히 부르지 않는다.
+
+    Args:
+        work (str): 이 런의 작업 경로
+
+    Returns:
+        None: 파일이 없거나 치환이 한 건이 아니면 fail()로 끝낸다.
+    """
+    epic_rel = os.path.join(".bouncer", "context", "epics", f"001-{BOUNCER_EPIC_SLUG}")
+    bp_rel = os.path.join(epic_rel, "blueprints", f"001-{BOUNCER_BP_SLUG}")
+    epic = os.path.join(work, epic_rel, "index.md")
+    blueprint = os.path.join(work, bp_rel, "index.md")
+    tasks = os.path.join(work, bp_rel, "tasks", "001", "tasks.md")
+    for path in (epic, blueprint, tasks):
+        if not os.path.isfile(path):
+            fail(f"light scaffold missing {path}", 1)
+    # 프론트매터 status 한 줄만 바꾼다. 본문 플레이스홀더의 "draft"와 섞이지 않게
+    # YAML 들여쓰기 두 칸을 고정한다.
+    _replace_once(epic, r"^  status: draft$", "  status: approved")
+    _replace_once(blueprint, r"^  status: draft$", "  status: approved")
+    _replace_once(tasks, r"^  status: draft$", "  status: ready")
+    # 측정 대상은 스위트 클론이다. Touch 백틱과 같은 문자열이어야 G11이 통과한다.
+    _replace_once(tasks, r"^  affected_paths: \[\]$", "  affected_paths:\n    - deep-swe")
+    # --no-graphify 런이라 그래프를 돌리지 않았다. 빈 basis는 S9/G4다.
+    _replace_once(
+        tasks,
+        r"^    basis: \[\]$",
+        "    basis:\n"
+        "      - graph: source\n"
+        "        status: skip-disabled\n"
+        "        query: deepswe bench workspace\n"
+        "        result: graphify skipped (--no-graphify); clone is the work tree",
+    )
+    _replace_once(
+        tasks,
+        r"^<TODO: 완료 후 시스템이 어떻게 달라지는가>$",
+        "Pier가 준 DeepSWE 태스크를 Bouncer light 사이클로 구현한다.",
+    )
+    _replace_once(
+        tasks,
+        r"^- Modify `<TODO: 수정할-파일>` — <TODO: 왜 만지는가>$",
+        "- Modify `deep-swe` — 스위트 클론이 에이전트가 고치는 작업 트리이다.",
+    )
+    _replace_once(
+        tasks,
+        r"^- \[ \] <TODO: 작업 항목>$",
+        "- [ ] Pier 태스크를 구현하고 검증한다.",
+    )
+
+
+def prepare_bouncer_workspace(work, handle):
+    """`pier run` 전에 light 사이클 골격만 작업 경로에 남긴다.
+
+    init → epic/blueprint scaffold → light 본문 채움 → current --set 까지가
+    러너 몫이다. plan 게이트 이후 execute/commit은 Pier 에이전트가 돌린다.
+    `--no-verify`와 validate CLI는 여기서 부르지 않는다 — 게이트 우회로
+    통과시키지 않기 위해.
+
+    Args:
+        work (str): 이 런의 작업 경로. `.bouncer/`를 여기에 만든다.
+        handle (TextIO): run.log
+
+    Returns:
+        None: 한 단계라도 비영이면 fail()로 끝낸다.
+    """
+    # 작업 경로는 호스트 저장소 아래 `.benchmarks/`라, git init을 안 하면
+    # `current --set`이 부모 `.git/bouncer/current`에 포인터를 쓴다. 중첩
+    # 저장소로 만들어야 이 런의 워크스페이스에만 남는다.
+    init_git = ["git", "init"]
+    git_code = stream(init_git, handle, cwd=work)
+    if git_code != 0:
+        fail(f"{' '.join(init_git)} exited {git_code}", 1)
+    # graphify pip 설치는 arm 조건이 아니다. 측정 호스트를 런마다 바꾸지 않는다.
+    epic_dir = os.path.join(".bouncer", "context", "epics", f"001-{BOUNCER_EPIC_SLUG}")
+    bp_dir = os.path.join(epic_dir, "blueprints", f"001-{BOUNCER_BP_SLUG}")
+    steps = (
+        ["bouncer", "init", "--no-graphify"],
+        ["bouncer", "scaffold", "epic", "--id", "001", "--name", BOUNCER_EPIC_SLUG],
+        [
+            "bouncer", "scaffold", "blueprint",
+            "--epic-dir", epic_dir, "--id", "001", "--name", BOUNCER_BP_SLUG,
+            "--scale", "light",
+        ],
+    )
+    for cmd in steps:
+        code = stream(cmd, handle, cwd=work)
+        if code != 0:
+            fail(f"{' '.join(cmd)} exited {code}", 1)
+    fill_light_plan(work)
+    set_cmd = ["bouncer", "current", "--set", bp_dir, "--task", "001"]
+    code = stream(set_cmd, handle, cwd=work)
+    if code != 0:
+        fail(f"{' '.join(set_cmd)} exited {code}", 1)
+
+
+def pier_command(target, args):
+    """arm 조건이 섞인 `pier run` argv를 만든다.
+
+    판정은 Pier verifier다. 여기 인자로 통과를 다시 매기지 않는다.
+    vanilla와 bouncer는 플러그인 환경 변수를 넣지 않는다. 비교 플러그인 arm만
+    `--ae`로 그 플러그인을 켠다. Pier 자체에 plugin 플래그가 없기 때문이다.
+
+    Args:
+        target (str): `-p`에 넘길 태스크 또는 tasks 디렉터리
+        args (argparse.Namespace): 파싱된 CLI
+
+    Returns:
+        list[str]: subprocess로 넘길 argv
+    """
+    cmd = ["pier", "run", "-p", target, "--agent", args.agent]
+    if args.arm == PLUGIN_ARM:
+        cmd += ["--ae", f"CLAUDE_CODE_PLUGIN={PLUGIN_ARM}"]
+    if args.model:
+        cmd += ["--model", args.model]
+    if not args.task:
+        if args.n_tasks:
+            cmd += ["--n-tasks", str(args.n_tasks)]
+        if args.sample_seed:
+            cmd += ["--sample-seed", str(args.sample_seed)]
+    return cmd
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description="Clone deep-swe, run it through pier, keep only the artifacts.",
     )
     parser.add_argument("--run-id", required=True, help="run identifier; names both the work and result path")
-    parser.add_argument("--arm", required=True, choices=("vanilla", "superpowers", "bouncer"),
-                        help="label only; superpowers/bouncer arms are set up by protocol.md")
+    parser.add_argument(
+        "--arm", required=True, choices=("vanilla", PLUGIN_ARM, "bouncer"),
+        help=(
+            "sets the arm run condition: vanilla=no plugin; "
+            f"{PLUGIN_ARM}=that plugin only; "
+            "bouncer=init+light scaffold before pier"
+        ),
+    )
     parser.add_argument("--agent", required=True, help="agent name passed to pier run --agent")
     parser.add_argument("--model", default=None, help="model passed to pier run --model")
     parser.add_argument("--sample-seed", default=None, help="sampling seed for a multi-task run")
@@ -375,9 +663,7 @@ def main(argv=None):
         fail(f"{repo_root} is not a repository root; run this from the repo root")
 
     # 선행 조건은 클론을 뜨기 전에 본다. 네트워크를 태우고 나서 없다고 말하지 않는다.
-    for tool in ("pier", "docker"):
-        if shutil.which(tool) is None:
-            fail(f"{tool} not found on PATH. {INSTALL_HINT[tool]}")
+    require_host_tools(args.arm)
 
     results_root_abs = os.path.abspath(os.path.join(repo_root, RESULT_ROOT))
     results = os.path.join(results_root_abs, args.run_id)
@@ -426,14 +712,10 @@ def main(argv=None):
                 target = os.path.join(clone, "tasks", args.task)
             else:
                 target = os.path.join(clone, "tasks")
-            pier = ["pier", "run", "-p", target, "--agent", args.agent]
-            if args.model:
-                pier += ["--model", args.model]
-            if not args.task:
-                if args.n_tasks:
-                    pier += ["--n-tasks", str(args.n_tasks)]
-                if args.sample_seed:
-                    pier += ["--sample-seed", str(args.sample_seed)]
+            # arm 워크스페이스는 pier보다 먼저. 스텁은 이 시점의 `.bouncer/` 유무를 본다.
+            if args.arm == "bouncer":
+                prepare_bouncer_workspace(work, handle)
+            pier = pier_command(target, args)
             code = stream(pier, handle, cwd=work)
             if code != 0:
                 fail(f"pier run exited {code}", 1)

