@@ -95,3 +95,23 @@ test('agent doc bodies use English headings', () => {
     assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
   }
 });
+
+test('mdToCodexToml preserves name description body and readonly sandbox', () => {
+  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  for (const name of AGENTS) {
+    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    const { data, body } = parseFrontmatter(md);
+    const toml = mdToCodexToml(md);
+    assert.ok(toml.startsWith(GENERATED_MARKER), name);
+    assert.match(toml, new RegExp(`name = "${name}"`));
+    assert.ok(toml.includes(`description = ${JSON.stringify(data.description)}`), name);
+    assert.match(toml, /developer_instructions = """/);
+    assert.ok(toml.includes(body.trim().slice(0, 40)), name);
+    if (READONLY.includes(name)) {
+      assert.match(toml, /sandbox_mode = "read-only"/);
+    } else {
+      assert.doesNotMatch(toml, /sandbox_mode/);
+    }
+    assert.doesNotMatch(toml, /^model\s*=/m);
+  }
+});

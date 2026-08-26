@@ -38,7 +38,9 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
 
 - Do not redeclare an `agents` path in plugin manifests. Claude rejects the
   plugin when a convention path is listed again; Cursor auto-discovers `agents/`
-  when unset.
+  when unset. Codex plugin agent roles are a different surface (TOML / optional
+  `agents` component in `.codex-plugin/plugin.json`); that does not license
+  redeclaring `agents/` on Claude or Cursor manifests.
 
 - Do not assume `.bouncer/templates/` exists — scaffold/PR bodies come from
   built-in `scripts/lib/templates.js` unless a project override is intentionally
@@ -153,11 +155,15 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
 - Named-agent dispatch is four steps: `resolveSubagentModel` → named call → slug
   reject retries with `inherit` (and notify the user) → named-agent unsupported
   falls back to generic/inline. Keep the fallback wording or G8 blocks on hosts
-  without `agents/`. Codex is out of named-agent routing entirely (the plugin
-  cannot deploy `agents/`), so review, implementer, debugger, and
-  context-reviewer always take the generic/inline fallback there. The four steps
-  otherwise apply to `bouncer-implementer`, `bouncer-reviewer`,
-  `bouncer-debugger`, and `bouncer-context-reviewer`. Optional blueprint
+  that cannot load plugin named agents. Codex is in named-agent routing: it
+  loads custom agents from project `.codex/agents/*.toml` (not plugin
+  `agents/*.md`). `bouncer init` converts the markdown personas into those
+  TOML files; a leading `# bouncer-generated` marker lets a later init
+  refresh them, and unmarked files stay user-owned. Do not skip named
+  dispatch because the host is Codex. Personas stay in `agents/*.md`. The
+  four steps apply to `bouncer-implementer`,
+  `bouncer-reviewer`, `bouncer-debugger`, and `bouncer-context-reviewer`.
+  Optional blueprint
   `bouncer.scale: light` (plan asks the user; never auto from diff size;
   `scripts/` reads the declared value in four places — `scaffoldBlueprint`
   picks the document set, `scaffoldTask` inherits it, the plan gate picks the

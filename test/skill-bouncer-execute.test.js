@@ -60,7 +60,7 @@ test('bouncer-execute step 4 dispatches bouncer-debugger on verify failure', () 
   assert.match(body, /bouncer-debugger/);
   assert.match(body, /resolveSubagentModel/);
   assert.match(body, /inherit/);
-  // Named-unsupported hosts (e.g. Codex) must keep an inline/generic fallback.
+  // Hosts that cannot load named agents must keep an inline/generic fallback.
   assert.match(body, /named agents are unavailable|fall back|inline/i);
   assert.match(body, /debugging/);
 });

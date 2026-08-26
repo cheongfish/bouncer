@@ -100,7 +100,7 @@ test('bouncer-plan dispatches context-review before approval with named-agent fa
   assert.match(body, /bouncer-context-reviewer/);
   assert.match(body, /resolveSubagentModel/);
   assert.match(body, /inherit/);
-  // Codex처럼 agents/를 배포할 수 없으면 단계를 건너뛰지 않고 인라인한다.
+  // named agent를 로드하지 못하면 단계를 건너뛰지 않고 인라인한다.
   assert.match(body, /named agents are unavailable|fall back|inline/i);
   const reviewAt = body.search(/context-review|bouncer-context-reviewer/);
   const approvalAt = body.search(/\*\*Approval/);

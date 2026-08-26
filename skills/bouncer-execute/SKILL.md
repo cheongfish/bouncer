@@ -139,10 +139,11 @@ evidence. The debugger never applies the fix.
       authority: Goal & intent, Interface, Touch, Do not touch, Constraints,
       Checklist.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
-   4. If named agents are unavailable (e.g. Codex), fall back to running the
+   4. If named agents are unavailable, fall back to running the
       `implementation` skill inline (or a fresh generic subagent with the same
-      brief). The inline path still faces the same G6–G8 judgment after verify
-      and review.
+      brief). Do not skip named dispatch just because the host is Codex —
+      Codex supports named/custom agents. The inline path still faces the same
+      G6–G8 judgment after verify and review.
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —
@@ -189,9 +190,9 @@ evidence. The debugger never applies the fix.
       task brief from step 1) as decision authority: Goal & intent,
       Interface, Touch, Do not touch, Constraints, Checklist.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
-   4. If named agents are unavailable (e.g. Codex), fall back to running the
+   4. If named agents are unavailable, fall back to running the
       `debugging` skill inline (or a fresh generic read-only subagent with the
-      same brief).
+      same brief). Do not skip named dispatch just because the host is Codex.
 
    The debugger must **not** edit files, commit, or flip document status — it
    returns a root-cause report only. Then dispatch **`bouncer-implementer`**
@@ -218,9 +219,9 @@ evidence. The debugger never applies the fix.
    (1) fill `skills/review/assets/reviewer-prompt.md` (brief, base/HEAD, constraints);
    (2) resolve model via `resolveSubagentModel` for `bouncer-reviewer`, then
        dispatch named agent `bouncer-reviewer` with that model (retry `inherit`
-       if the slug is rejected). If named agents are unavailable (e.g. Codex),
-       fall back to a **fresh generic** subagent or inline read-only pass with
-       the same prompt;
+       if the slug is rejected). If named agents are unavailable, fall back to
+       a **fresh generic** subagent or inline read-only pass with the same
+       prompt — do not skip named dispatch just because the host is Codex;
    (3) as controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status (인라인 경로에서도 Findings 기록과 status는 컨트롤러 몫);

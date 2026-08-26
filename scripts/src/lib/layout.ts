@@ -15,6 +15,9 @@ const DISTILL_ROOT = '.bouncer/distill';
 // 일반 Markdown을 Distill 샤드로 승격하거나 그래프 입력으로 삼지 않는다.
 const DISTILL_SHARD_DIR = DISTILL_ROOT;
 const DISTILL_INDEX = PROJECT_DISTILL;
+// Codex는 플러그인 `agents/*.md`를 named role로 읽지 않는다. 프로젝트
+// `.codex/agents/*.toml`만 스캔하므로 init이 여기에 심는다.
+const CODEX_AGENTS_DIR = '.codex/agents';
 // context 디렉터리는 접두 없는 zero-pad 세 자리 id만 정본으로 인정한다.
 const EPIC_DIR = /^\.bouncer\/context\/epics\/\d{3}-[^/]+$/;
 const BLUEPRINT_DIR =
@@ -39,6 +42,7 @@ module.exports = {
   DISTILL_ROOT,
   DISTILL_SHARD_DIR,
   DISTILL_INDEX,
+  CODEX_AGENTS_DIR,
   normalizeRepoPath,
   isCanonicalEpicDir,
   isCanonicalBlueprintDir,

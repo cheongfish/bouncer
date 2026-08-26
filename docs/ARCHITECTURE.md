@@ -178,7 +178,11 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 3. 에이전트 표면마다 별도 호환 프로필을 두지 않고, 동일 Bouncer 계약을 사용한다.
 4. 서브에이전트 모델 권고는 런타임 힌트이며 게이트 입력이 아니므로 A.3과
    충돌하지 않는다.
-5. Codex는 named agent 라우팅에서 제외한다.
+5. Named agent 라우팅은 Claude Code, Cursor, Codex, Antigravity가 모두
+   대상이다. 호스트가 플러그인 named agent를 로드하지 못할 때만
+   generic/인라인 폴백을 탄다. Codex는 `agents/*.md`를 읽지 않으므로
+   `bouncer init`이 프로젝트 `.codex/agents/*.toml`을 심는다. 페르소나
+   원본은 `agents/*.md`다.
 
 ### B. 공통 문서 계약과 게이트
 

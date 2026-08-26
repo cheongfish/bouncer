@@ -24,8 +24,12 @@ Bootstrap this project for Bouncer.
    - If bootstrap is ready but Distill was missing, report that Distill was
      seeded (`project-distill-seeded`) and list `.bouncer/Distill.md`. If init
      migrated a legacy `.bouncer/context/Distill.md`, report the new path.
+   - If bootstrap is ready but `.codex/agents/*.toml` were missing, report
+     `codex-agents-seeded` and list those paths. Codex loads named agents
+     from that directory, not from the plugin `agents/*.md`.
    - Otherwise, list the created files (`.bouncer/config.json`,
-     `.bouncer/context/index.md`, `.bouncer/Distill.md`).
+     `.bouncer/context/index.md`, `.bouncer/Distill.md`,
+     `.codex/agents/*.toml`).
    - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
    - **Graphify install fork** (from `graphifyInstall` when present):
      - Success / reuse (`status` `installed` or `reused`): report the outcome
@@ -63,7 +67,7 @@ Bootstrap this project for Bouncer.
      inside the marker block.
 4. Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
-   git add .bouncer && git commit -m "chore: bootstrap bouncer"
+   git add .bouncer .codex/agents && git commit -m "chore: bootstrap bouncer"
    ```
    Two reasons, both worth stating:
    - `.bouncer/config.json` is not in the scope a blueprint may commit, so leaving
@@ -76,7 +80,8 @@ Bootstrap this project for Bouncer.
 5. Point the user at `/bouncer-plan` as the next step, and mention they can edit
    `.bouncer/config.json` (`source_dirs`, `verify`, `base_branch`, `pr`) first.
 
-Do not author any epic or blueprint here — `/bouncer-init` only scaffolds `.bouncer/`.
+Do not author any epic or blueprint here — `/bouncer-init` only scaffolds
+`.bouncer/` and Codex named-agent TOML under `.codex/agents/`.
 Document skeletons, product rules, and master rules live in the plugin
 (`scripts/lib/templates.js`, `rules/governance.md`, `rules/okf.md`,
 `CLAUDE.md`); init does not install them into the project.

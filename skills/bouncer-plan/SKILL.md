@@ -234,9 +234,10 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
       judgment. Compose that prompt inline in this step (no `assets/`
       template — the paths are already known). Ask for a Findings list only.
    3. If the host rejects the model slug, retry with `inherit` and tell the user.
-   4. If named agents are unavailable (e.g. Codex), fall back to running the
+   4. If named agents are unavailable, fall back to running the
       `context-review` skill inline (or a fresh generic read-only subagent with
-      the same brief). Do **not** skip this step.
+      the same brief). Do not skip named dispatch just because the host is
+      Codex. Do **not** skip this step.
 
    As controller, update existing blueprint-root `context-review.md` body
    `## Findings` and `bouncer.context_review.findings[]` from the reviewer

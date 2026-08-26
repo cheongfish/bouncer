@@ -20,6 +20,10 @@ test('init scaffolds the safe .bouncer tree', () => {
   assert.strictEqual(res.skipped, false);
   for (const rel of [
     '.bouncer/config.json', '.bouncer/context/index.md',
+    '.codex/agents/bouncer-reviewer.toml',
+    '.codex/agents/bouncer-implementer.toml',
+    '.codex/agents/bouncer-debugger.toml',
+    '.codex/agents/bouncer-context-reviewer.toml',
   ]) {
     assert.ok(exists(repo, rel), `missing ${rel}`);
   }
@@ -618,4 +622,44 @@ test('writeGitignore without flag leaves .gitignore bytes unchanged and does not
   const noGi = init({ repoRoot: empty, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.strictEqual(noGi.gitignoreWritten, false);
   assert.ok(!exists(empty, '.gitignore'));
+});
+
+test('init seeds Codex named-agent toml from plugin markdown', () => {
+  const repo = tmpRepo();
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  for (const name of [
+    'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
+    'bouncer-context-reviewer',
+  ]) {
+    const rel = `.codex/agents/${name}.toml`;
+    assert.ok(res.created.includes(rel), `missing ${rel} in created`);
+    const toml = read(repo, rel);
+    assert.ok(toml.startsWith(GENERATED_MARKER));
+    assert.match(toml, new RegExp(`name = "${name}"`));
+  }
+});
+
+test('init refreshes generated Codex toml and leaves user-owned files', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const generated = '.codex/agents/bouncer-reviewer.toml';
+  const owned = '.codex/agents/bouncer-implementer.toml';
+  fs.writeFileSync(path.join(repo, generated), '# bouncer-generated\nstale = true\n');
+  fs.writeFileSync(path.join(repo, owned), 'name = "custom"\n');
+  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(again.reason, 'already-initialized');
+  assert.deepStrictEqual(again.created, []);
+  assert.match(read(repo, generated), /name = "bouncer-reviewer"/);
+  assert.strictEqual(read(repo, owned), 'name = "custom"\n');
+});
+
+test('ready init seeds missing Codex toml without touching Distill reason', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  fs.rmSync(path.join(repo, '.codex'), { recursive: true, force: true });
+  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(again.reason, 'codex-agents-seeded');
+  assert.ok(again.created.includes('.codex/agents/bouncer-reviewer.toml'));
+  assert.ok(!again.created.includes('.bouncer/Distill.md'));
 });

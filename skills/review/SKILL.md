@@ -43,9 +43,10 @@ by name.
       brief slot as the call prompt).
    3. If the host rejects the model slug, retry with `inherit` and tell the
       user the slug was refused.
-   4. If the host has no named-agent support (e.g. Codex), fall back to a
-      **fresh generic** subagent with the same prompt, or an inline read-only
-      pass when no subagent tool exists.
+   4. If named agents are unavailable, fall back to a **fresh generic**
+      subagent with the same prompt, or an inline read-only pass when no
+      subagent tool exists. Do not skip named dispatch just because the host
+      is Codex — Codex supports named/custom agents.
 
    Judge the diff with:
 

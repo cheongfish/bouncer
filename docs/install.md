@@ -109,6 +109,14 @@ Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하
 - **스킬** (`skills/`)은 Codex·Claude·Cursor가 공통으로 읽는 표면입니다.
   워크플로 진입점 네 개(`/bouncer-init`·`/bouncer-plan`·`/bouncer-execute`·
   `/bouncer-finalize`)도 `skills/bouncer-*/SKILL.md`에 있습니다.
+- **named agent**는 Codex도 지원합니다. 커스텀 에이전트는 프로젝트
+  `.codex/agents/*.toml`입니다. 플러그인 설치는 이 역할을 등록하지 않으므로
+  `bouncer init`이 `agents/*.md`를 TOML로 바꿔 그 경로에 심습니다. 첫 줄이
+  `# bouncer-generated`인 파일은 다음 init이 md와 다시 맞추고, 마커 없는
+  파일은 덮지 않습니다. spawn 이름은 파일의 `name` 필드입니다
+  (`bouncer-reviewer` 등). 호스트가 그 역할을 로드하지 못할 때만 스킬의
+  generic/인라인 폴백을 타며, Codex라는 이유만으로 named 디스패치를
+  건너뛰지 않습니다.
 - **커밋 가드**는 Codex가 기본 탐색하는 `hooks/hooks.json`의 `PreToolUse`/`Bash`
   경로로 걸립니다. 판정은 Claude Code와 같은 `hooks/commit-safety.js`이며, Codex는
   종료 코드 `2`와 stderr 사유로 차단합니다. 플러그인 훅은 사용자가 정의를
@@ -127,8 +135,9 @@ agy plugin install <사내-git-url>
 ```
 
 스킬(`skills/*/SKILL.md`)과 named agent(`agents/*.md`)는 관례 경로로 그대로
-잡힙니다. Codex와 달리 named agent가 지원되므로 fallback 경로로 내려가지
-않습니다. 훅은 `hooks/hooks.json` 관례 경로에 있습니다.
+잡힙니다. Codex도 named/custom agent를 지원하므로, Antigravity에서도
+로드에 실패할 때만 fallback으로 내려갑니다. 훅은 `hooks/hooks.json` 관례
+경로에 있습니다.
 
 **`subagents.provider: "antigravity"` (필수).** Antigravity 스킬 셸에는
 `CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT`가 없어 자동 판별 신호가 없습니다.
