@@ -1,7 +1,7 @@
 ---
 type: bouncer.blueprint
 title: 호스트 체크아웃 없이 measured를 내고 세 arm 비교표를 남김
-description: 'Pier가 호스트 체크아웃을 안 남겨도 패치로 metrics.json을 내고, --arm이 실행 조건을 만들며, 3×3런 비교표를 남긴다'
+description: Pier가 호스트 체크아웃을 안 남겨도 패치로 metrics.json을 내고, --arm이 실행 조건을 만들며, 3×3런 비교표를 남긴다
 resource: .bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/index.md
 tags:
   - bouncer
@@ -11,7 +11,7 @@ bouncer:
   id: '002'
   epic_id: '052'
   blueprint_id: '002'
-  status: approved
+  status: closed
   commit_type: feat
   scale: full
   supersedes: []

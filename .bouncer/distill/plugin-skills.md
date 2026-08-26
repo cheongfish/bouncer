@@ -122,9 +122,27 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
 
 - `test/public-name-regression.test.js` allowlists a third-party comparison-arm
   name only in `docs/benchmark/protocol.md`,
-  `skills/agentic-code-benchmark/SKILL.md`, and
-  `skills/agentic-code-benchmark/references/task-suite.md`. Product surfaces
-  (`docs/ARCHITECTURE.md`, `docs/install.md`) still must not mention it.
+  `skills/agentic-code-benchmark/SKILL.md`,
+  `skills/agentic-code-benchmark/references/task-suite.md`,
+  `docs/benchmark/deepswe/comparison.md`, and `docs/benchmark/history.md`.
+  Product surfaces (`docs/ARCHITECTURE.md`, `docs/install.md`) still must not
+  mention it.
+
+- When Pier leaves no host `.git`, restore the task project from Harbor
+  `task.toml` `repository_url` and `base_commit_hash`, apply the patch, and
+  pass that tree to `collect_metrics.py`. Do not use the suite clone `tasks/`
+  as `--repo`. Skip `metrics.json` when there is no patch.
+
+- `run_deepswe.py --arm` sets the run condition, not an artifact label.
+  vanilla is plugin-free `pier run`. The third-party comparison-plugin arm
+  enables only that plugin and never creates `.bouncer/`; if the plugin is
+  missing, exit non-zero without installing and without a results path.
+  bouncer runs init, fills a light plan so `current --set` passes the plan
+  gate, then `--set` on the work path before `pier run`. The runner does not
+  call execute/commit CLI.
+
+- DeepSWE comparison tables copy pass rate and usage from run artifacts only.
+  Leave missing cells empty; do not fill `0`.
 
 - Benchmark task JSON `base` is one round-wide short sha. An execution round
   bulk-updates all ten files; the sha written when the suite was authored is
