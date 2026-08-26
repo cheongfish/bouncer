@@ -36,16 +36,19 @@ bouncer:
    에는 합성 JSON이 없다.
 4. `--arm superpowers`와 `--arm bouncer`가 라벨이 아니라 그 arm의 실행 조건을
    만든다. 러너 한 줄로 세 arm이 모두 선다.
-5. 태스크 3개 × arm 3개 = 9런이 같은 태스크 집합·같은 base에서 돌고, 통과
-   판정은 아홉 런 모두 Pier verifier가 낸다.
+5. 태스크 3개 × arm 3개 = 9런을 같은 태스크 집합·같은 base에서 시도한다.
+   산출물이 있는 런의 통과 판정은 Pier verifier다. 환경·플러그인 부재로
+   죽은 런은 빈 칸이고, 그 칸을 통과로 채우지 않는다.
 6. arm 비교표 한 장이 arm별 통과율과 `usage`(`wall_s`, `tokens_in`,
-   `tokens_out`)를 나란히 놓고, 그 표가 `docs/benchmark/deepswe/`와
-   `docs/benchmark/history.md`의 회차 기록에 남는다.
+   `tokens_out`)를 나란히 놓고, 그 표가 `docs/benchmark/deepswe/comparison.md`에
+   있으며 `docs/benchmark/history.md`에 DeepSWE 회차 절이 덧붙는다. 050 1–3회차
+   표 열은 바꾸지 않는다.
 
 ## Out of scope
-- 태스크 10개 전수(30런). 9런 비교표가 선 뒤의 다음 회차다. `sample.md`의
-  seed와 `--n-tasks 10` 명령줄은 그대로 두고, 이 에픽은 그 표본의 앞 3개만
-  돈다.
+- 태스크 10개 전수(30런). `sample.md`의 seed와 `--n-tasks 10` 명령줄은 그대로
+  두고 열 개 표는 비운다. 이 에픽이 도는 3개는 DeepSWE 원본 클론 `tasks/`에서
+  README가 아닌 앞 세 디렉터리이며, 스모크 id `abs-module-cache-flags`를
+  포함한다. 출처는 `docs/benchmark/tasks/`가 아니다.
 - `scorecard.py`의 루브릭 차원·가중치·40/60 합성 점수 구성 변경.
 - 050이 만든 이 저장소 스위트 — `docs/benchmark/protocol.md`,
   `docs/benchmark/task-selection.md`, `docs/benchmark/tasks/*.json`. 회차
@@ -57,7 +60,6 @@ bouncer:
 
 ## Blueprints
 * [001 DeepSWE 실행 배관](blueprints/001-deepswe-run-plumbing/index.md) - 설치 안내 정정, 태스크별 measured 레이아웃, vanilla 스모크 실패 증적 — `skills/agentic-code-benchmark/scripts/run_deepswe.py`, `docs/benchmark/deepswe/`
+* [002 체크아웃·arm·비교표](blueprints/002-checkout-arms-comparison/index.md) - 호스트 체크아웃 구멍, `--arm` 실행 조건, 9런 비교표 — `skills/agentic-code-benchmark/scripts/run_deepswe.py`, `docs/benchmark/deepswe/`, `docs/benchmark/history.md`
 
-성공 조건 1–3은 001이 닫는다. 4(arm 자동화), 5(9런 실행), 6(비교표)과 호스트
-체크아웃 구멍은 아직 blueprint에 배정되지 않았다 — 001이 배관과 실패 증적을
-남긴 뒤 `/bouncer-plan`을 다시 열어 배정한다. 그때까지 이 목록은 001 한 줄이다.
+성공 조건 1–3은 001이 닫았다. 4–6과 호스트 체크아웃 구멍은 002가 닫는다.

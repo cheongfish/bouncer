@@ -3,7 +3,8 @@
 
 One invocation clones datacurve-ai/deep-swe into an ignored work path, drives
 `pier run` over the clone's `tasks` directory, rebuilds a measured copy per
-task from the patch Pier left, calls collect_metrics.py on each copy, moves
+task from the patch Pier left (host checkout if present, otherwise the task
+project at base from task metadata), calls collect_metrics.py on each copy, moves
 the artifacts into docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/
 (with one run.log at the run root) and removes the work path. The work path
 is removed on success, on failure and on Ctrl-C alike. A one-task run uses
@@ -33,9 +34,13 @@ RESULT_ROOT = os.path.join("docs", "benchmark", "deepswe", "results")
 # Pier가 남기는 산출물. metrics.json과 run.log는 이 러너가 직접 만든다.
 PIER_ARTIFACTS = ("reward.json", "ctrf.json", "test-stdout.txt")
 PATCH_NAMES = ("model_patch.diff", "patch.diff", "agent.patch", "model.patch")
-# 태스크 메타데이터가 base 커밋을 적는 키. DeepSWE 태스크 JSON은 저장소마다
-# 이름이 갈려서, 먼저 맞는 키 하나를 쓴다.
-BASE_KEYS = ("base_commit", "base_sha", "base", "commit", "environment_commit")
+# 태스크 메타데이터가 base 커밋을 적는 키. Harbor task.toml은
+# base_commit_hash이고, JSON 태스크는 저장소마다 이름이 갈린다.
+BASE_KEYS = (
+    "base_commit_hash", "base_commit", "base_sha", "base", "commit", "environment_commit",
+)
+# 측정 대상은 스위트 클론이 아니라 태스크가 가리키는 프로젝트 저장소다.
+REPO_URL_KEYS = ("repository_url", "repo_url", "repo")
 TASK_ID_KEYS = ("task_id", "instance_id", "task", "id")
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
@@ -205,8 +210,8 @@ def find_workspace(root, skip):
     """이 태스크 단위 안에서 Pier가 남긴 호스트 쪽 체크아웃을 찾는다.
 
     작업 경로 전체의 첫 `.git`을 쓰면 다른 태스크의 워크스페이스를 재게 된다.
-    단위 디렉터리로 범위를 좁힌다. 호스트에 체크아웃이 없으면 사본을 만들 수
-    없으니 metrics.json은 만들지 않고 사실만 적는다.
+    단위 디렉터리로 범위를 좁힌다. 없으면 호출 쪽이 태스크 프로젝트 트리를
+    메타데이터로 복원한다. `.git` 부재만으로 metrics.json을 건너뛰지 않는다.
 
     Args:
         root (str): 태스크 단위 디렉터리
@@ -281,25 +286,107 @@ def resolve_task_id(explicit, clone, artifacts, patches):
     return None
 
 
+def pick_toml(path, keys):
+    """TOML에서 `keys` 순서대로 첫 비어 있지 않은 따옴표 문자열을 돌려준다.
+
+    Harbor `task.toml`의 repository_url·base_commit_hash는 한 줄 문자열이다.
+    전체 TOML 파서는 러너가 안 읽는 테이블까지 끌어들이므로 쓰지 않는다.
+
+    Args:
+        path (str): task.toml 경로
+        keys (tuple[str, ...]): 우선순위 키
+
+    Returns:
+        str | None: 첫 매칭 값, 없으면 None
+    """
+    found = {}
+    try:
+        with open(path, "r", errors="replace") as handle:
+            for line in handle:
+                match = re.match(r'^\s*([A-Za-z0-9_]+)\s*=\s*"(.*)"\s*$', line)
+                if not match:
+                    continue
+                key, value = match.group(1), match.group(2).strip()
+                if key in keys and value:
+                    found[key] = value
+    except OSError:
+        return None
+    for key in keys:
+        if key in found:
+            return found[key]
+    return None
+
+
+def collect_task_field(clone, task_id, keys):
+    """클론의 태스크 디렉터리에서 JSON·TOML 메타의 첫 필드를 읽는다.
+
+    Args:
+        clone (str): deep-swe 클론 경로
+        task_id (str | None): 태스크 id
+        keys (tuple[str, ...]): 찾을 키
+
+    Returns:
+        str | None: 첫 값, 없거나 디렉터리가 없으면 None
+    """
+    if not task_id:
+        return None
+    task_dir = os.path.join(clone, "tasks", task_id)
+    try:
+        names = sorted(os.listdir(task_dir))
+    except OSError:
+        return None
+    for name in names:
+        full = os.path.join(task_dir, name)
+        if name.endswith(".json"):
+            value = pick(read_json(full), keys)
+            if value:
+                return value
+        if name.endswith(".toml"):
+            value = pick_toml(full, keys)
+            if value:
+                return value
+    return None
+
+
 def resolve_base(clone, task_id, copy_dir):
     """Task base commit: task metadata first, else the untouched copy's HEAD."""
-    task_dir = os.path.join(clone, "tasks", task_id) if task_id else None
-    if task_dir and os.path.isdir(task_dir):
-        for name in sorted(os.listdir(task_dir)):
-            if not name.endswith(".json"):
-                continue
-            base = pick(read_json(os.path.join(task_dir, name)), BASE_KEYS)
-            if base:
-                return base
+    base = collect_task_field(clone, task_id, BASE_KEYS)
+    if base:
+        return base
     return git_out(["rev-parse", "HEAD"], copy_dir) or None
 
 
+def restore_task_project(copy_dir, repo_url, handle):
+    """태스크 프로젝트 저장소를 빈 측정 사본에 origin으로 붙인다.
+
+    스위트 클론의 `tasks/`를 `--repo`로 쓰지 않기 위해 사본은 항상
+    `work/measured/<task-id>`에 새로 만든다. `git clone --depth 1`은 기본
+    브랜치 tip만 가져와 Harbor `base_commit_hash`가 빠지므로, 여기서는
+    init+remote만 하고 SHA fetch는 호출 쪽이 한다.
+
+    Args:
+        copy_dir (str): 측정 사본 경로
+        repo_url (str): 프로젝트 URL 또는 로컬 경로
+        handle (TextIO): run.log
+
+    Returns:
+        bool: init과 remote 추가가 성공하면 True
+    """
+    os.makedirs(copy_dir, exist_ok=True)
+    if stream(["git", "init"], handle, cwd=copy_dir) != 0:
+        return False
+    if stream(["git", "remote", "add", "origin", repo_url], handle, cwd=copy_dir) != 0:
+        return False
+    return True
+
+
 def build_measured_copy(work, clone, task_id, handle, unit_dir):
-    """이 태스크 단위의 워크스페이스를 복사하고 base에 패치를 얹는다.
+    """이 태스크 단위의 패치를 태스크 프로젝트 base 위에 얹은 측정 사본을 만든다.
 
     패치가 없거나 사본 체인을 끝내지 못하면 None이다. 빈 diff로 measured
-    필드를 채우면 "재지 않음"이 "아무것도 안 고침"으로 읽힌다. 사본 경로는
-    태스크마다 갈라서 한 런의 사본이 서로를 덮지 않게 한다.
+    필드를 채우면 "재지 않음"이 "아무것도 안 고침"으로 읽힌다. 호스트 `.git`이
+    없어도 태스크 메타의 프로젝트 트리를 복원한다. 사본 경로는 태스크마다
+    갈라서 한 런의 사본이 서로를 덮지 않게 한다.
 
     Args:
         work (str): 런 작업 경로
@@ -320,24 +407,37 @@ def build_measured_copy(work, clone, task_id, handle, unit_dir):
         # 한 단위 안에 패치가 둘이면 어느 것을 얹을지 임의로 고르지 않는다.
         log(handle, f"{len(patches)} patches in task {task_id}; skipping metrics.json")
         return None
+    # 호스트 `.git`이 없어도 측정은 태스크 프로젝트에서 한다. Pier/Harbor는
+    # 컨테이너 안에서 커밋하고 패치만 호스트에 남긴다. 스위트 클론 `tasks/`를
+    # 재면 gold 픽스처와 instruction을 에이전트 diff로 오인한다.
     workspace = find_workspace(unit_dir, clone)
-    if not workspace:
-        log(handle, f"pier left no host-side workspace checkout for {task_id}; skipping metrics.json")
-        return None
-
-    # 워크스페이스는 이 단위 안에서 ".git이 있는 첫 디렉터리"다. 어느
-    # 디렉터리를 재고 어느 패치를 얹었는지 run.log에 남겨야 나중에 metrics.json이
-    # 엉뚱한 체크아웃을 잰 건지 확인할 수 있다.
-    log(handle, f"measured workspace ({task_id}): {workspace}")
-    log(handle, f"measured patch ({task_id}): {patches[0]}")
-
     os.makedirs(os.path.join(work, "measured"), exist_ok=True)
     copy_dir = os.path.join(work, "measured", task_id)
-    shutil.copytree(workspace, copy_dir, symlinks=True)
+
+    if workspace:
+        log(handle, f"measured workspace ({task_id}): {workspace}")
+        shutil.copytree(workspace, copy_dir, symlinks=True)
+    else:
+        repo_url = collect_task_field(clone, task_id, REPO_URL_KEYS)
+        if not repo_url:
+            log(handle, f"task project repository not found for {task_id}; skipping metrics.json")
+            return None
+        log(handle, f"restored task project ({task_id}): {repo_url}")
+        if not restore_task_project(copy_dir, repo_url, handle):
+            log(handle, f"could not init task project copy for {task_id}; skipping metrics.json")
+            return None
+
+    log(handle, f"measured patch ({task_id}): {patches[0]}")
     base = resolve_base(clone, task_id, copy_dir)
     if not base:
         log(handle, "task base commit not found; skipping metrics.json")
         return None
+    if not workspace:
+        # 얕은 default-branch clone은 tip만 가져온다. SHA를 origin에서 직접 받는다.
+        if stream(["git", "fetch", "--depth", "1", "origin", base], handle, cwd=copy_dir) != 0:
+            if stream(["git", "fetch", "origin", base], handle, cwd=copy_dir) != 0:
+                log(handle, f"base commit {base} not checkoutable in the copy; skipping metrics.json")
+                return None
     if stream(["git", "checkout", "--detach", base], handle, cwd=copy_dir) != 0:
         log(handle, f"base commit {base} not checkoutable in the copy; skipping metrics.json")
         return None

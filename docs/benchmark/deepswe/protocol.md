@@ -41,8 +41,11 @@ Pier verifier가 낸다. 태스크의 숨은 테스트를 통과했는지는 arm
 - **판정은 Pier verifier 하나.** 사람이 통과 여부를 다시 매기지 않는다.
   루브릭 심사를 붙이더라도 그것은 품질 점수지 통과 판정이 아니다.
 - **측정은 빌드 산출물이 diff를 더럽히기 전에.** `run_deepswe.py`가 Pier가 남긴
-  패치를 base 위에 다시 얹은 사본에서 `collect_metrics.py`를 돌리므로, 이
-  순서는 러너 안에서 지켜진다.
+  패치를 태스크 프로젝트의 base 위에 다시 얹은 사본에서 `collect_metrics.py`를
+  돌리므로, 이 순서는 러너 안에서 지켜진다. 측정 사본은 호스트에 `.git`
+  체크아웃이 없어도 된다. 태스크 메타(`task.toml`의 `repository_url`과
+  `base_commit_hash`)로 그 프로젝트 트리를 복원한 뒤 패치를 얹는다. 스위트
+  클론의 `tasks/` 트리는 `--repo`로 넘기지 않는다.
 
 ## Arm별 절차
 

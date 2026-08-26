@@ -156,22 +156,50 @@ function writeStub(dir, name, body) {
   return file;
 }
 
-// deep-swe 클론은 네트워크를 타므로, 테스트는 `git clone`만 가로채는 스텁을 PATH 앞에 둔다.
-// clone 외 서브커맨드는 실제 git으로 넘겨 러너의 다른 git 사용을 막지 않는다.
+// 태스크 프로젝트 픽스처. 호스트 `.git`이 없을 때 러너가 task.toml의
+// repository_url·base_commit_hash로 복원하는 경로를 단위 테스트에서 닫기 위해,
+// GitHub를 치지 않는 로컬 저장소와 SHA를 만든다.
+function makeTaskProject() {
+  const dir = tmpDir('acb-task-project-');
+  const git = (args) => spawnSync(REAL_GIT, args, { cwd: dir, encoding: 'utf8' });
+  git(['init']);
+  git(['config', 'user.email', 't@t']);
+  git(['config', 'user.name', 't']);
+  fs.writeFileSync(path.join(dir, 'file.txt'), 'base\n');
+  git(['add', 'file.txt']);
+  git(['commit', '-m', 'init']);
+  const sha = git(['rev-parse', 'HEAD']).stdout.trim();
+  return { dir, sha };
+}
+
+// deep-swe 클론은 네트워크를 타므로, 테스트는 그 URL의 `git clone`만 가로채는
+// 스텁을 PATH 앞에 둔다. 태스크 프로젝트 복원은 실제 git이 로컬
+// repository_url을 clone/fetch해야 하므로, 그 호출은 가로채지 않는다.
 // cloneFixtures: 스위트가 태스크 디렉터리에 함께 실어 보내는 산출물 모양 파일들.
-// 러너가 이걸 자기 실행 결과로 오인하지 않는지 고정하는 데 쓴다.
-function makeStubs({ pier, cloneFixtures = false }) {
+// taskProject: 클론 안 demo-task/task.toml에 로컬 프로젝트 URL·SHA를 심는다.
+function makeStubs({ pier, cloneFixtures = false, taskProject = null }) {
   const dir = tmpDir('acb-stub-bin-');
   writeStub(dir, 'git', [
     '#!/bin/sh',
     'if [ "$1" = "clone" ]; then',
-    '  for a in "$@"; do dest="$a"; done',
-    '  mkdir -p "$dest/tasks/demo-task" || exit 1',
+    '  case "$*" in',
+    '  *datacurve-ai/deep-swe*)',
+    '    for a in "$@"; do dest="$a"; done',
+    '    mkdir -p "$dest/tasks/demo-task" || exit 1',
     ...(cloneFixtures ? [
-      '  echo \'{"task_id": "demo-task", "reward": 1}\' > "$dest/tasks/demo-task/reward.json"',
-      '  echo "gold diff" > "$dest/tasks/demo-task/gold.patch"',
+      '    echo \'{"task_id": "demo-task", "reward": 1}\' > "$dest/tasks/demo-task/reward.json"',
+      '    echo "gold diff" > "$dest/tasks/demo-task/gold.patch"',
     ] : []),
-    '  exit 0',
+    ...(taskProject ? [
+      '    cat > "$dest/tasks/demo-task/task.toml" << \'EOF\'',
+      '[metadata]',
+      `repository_url = "${taskProject.dir}"`,
+      `base_commit_hash = "${taskProject.sha}"`,
+      'EOF',
+    ] : []),
+    '    exit 0',
+    '  ;;',
+    '  esac',
     'fi',
     `exec ${REAL_GIT} "$@"`,
     '',
@@ -223,12 +251,16 @@ function pierLeavesUnits(units) {
     if (unit.patch !== false) {
       lines.push(`cat > "${unit.dir}/model_patch.diff" << 'EOF'\n${APPLYABLE_PATCH}EOF`);
     }
-    lines.push(`git -C "${unit.dir}/ws" init`);
-    lines.push(`git -C "${unit.dir}/ws" config user.email t@t`);
-    lines.push(`git -C "${unit.dir}/ws" config user.name t`);
-    lines.push(`echo base > "${unit.dir}/ws/file.txt"`);
-    lines.push(`git -C "${unit.dir}/ws" add file.txt`);
-    lines.push(`git -C "${unit.dir}/ws" commit -m init`);
+    // workspace: false 는 Pier가 패치만 남기고 호스트에 `.git` 체크아웃을
+    // 안 남긴 2026-08-25 실패 형태. git init을 빼야 그 구멍을 재현한다.
+    if (unit.workspace !== false) {
+      lines.push(`git -C "${unit.dir}/ws" init`);
+      lines.push(`git -C "${unit.dir}/ws" config user.email t@t`);
+      lines.push(`git -C "${unit.dir}/ws" config user.name t`);
+      lines.push(`echo base > "${unit.dir}/ws/file.txt"`);
+      lines.push(`git -C "${unit.dir}/ws" add file.txt`);
+      lines.push(`git -C "${unit.dir}/ws" commit -m init`);
+    }
   }
   lines.push('exit 0', '');
   return lines.join('\n');
@@ -301,6 +333,44 @@ test('run_deepswe.py never mistakes suite fixtures inside the clone for its own 
     assert.ok(fs.existsSync(path.join(results, 'run.log')), 'run.log must land in the results path');
     // 클론 픽스처가 태스크 단위로 잡히면 새 레이아웃에도 거짓 수용이 된다.
     assert.ok(!fs.existsSync(path.join(results, 'tasks')), 'clone fixture must not become a task unit');
+    assert.match(run.stderr, /no patch left by pier/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py writes metrics.json from a restored task project when Pier left no workspace .git', () => {
+  const root = fakeRepoRoot();
+  const project = makeTaskProject();
+  const binDir = makeStubs({
+    pier: pierLeavesUnits([{ dir: 'unit-one', taskId: 'demo-task', workspace: false }]),
+    taskProject: project,
+  });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-no-host-git'));
+    assert.strictEqual(run.status, 0, run.stderr);
+    const results = resultsPath(root, 'r-no-host-git');
+    assert.ok(fs.existsSync(path.join(results, 'tasks', 'demo-task', 'metrics.json')));
+    assert.doesNotMatch(run.stderr, /pier left no host-side workspace checkout/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(binDir, { recursive: true, force: true });
+    fs.rmSync(project.dir, { recursive: true, force: true });
+  }
+});
+
+test('run_deepswe.py still skips metrics.json when Pier left reward.json but no patch', () => {
+  const root = fakeRepoRoot();
+  const binDir = makeStubs({
+    pier: pierLeavesUnits([{ dir: 'unit-one', taskId: 'demo-task', patch: false }]),
+  });
+  try {
+    const run = runRunner(root, binDir, runnerArgs('r-no-patch'));
+    assert.strictEqual(run.status, 0, run.stderr);
+    const results = resultsPath(root, 'r-no-patch');
+    assert.ok(fs.existsSync(path.join(results, 'tasks', 'demo-task', 'reward.json')));
+    assert.ok(!fs.existsSync(path.join(results, 'tasks', 'demo-task', 'metrics.json')));
     assert.match(run.stderr, /no patch left by pier/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
