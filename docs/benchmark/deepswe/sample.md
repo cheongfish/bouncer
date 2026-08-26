@@ -23,14 +23,23 @@ python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
 --sample-seed 20260825`으로 넘긴다. 표본을 고르는 주체는 Pier이고, 이 저장소는
 seed만 정본으로 들고 있다.
 
+## 스모크 태스크 id
+
+2026-08-25 vanilla 1태스크 스모크는 원본 스위트 `tasks/` 트리의 첫 태스크
+디렉터리 `abs-module-cache-flags`를 골랐다. 이 칸은 그 선택만 고정한다. 열 개
+표본 표와는 별개다. 그 스모크는 호스트 쪽 워크스페이스 체크아웃이 없어 병합
+JSON을 남기지 못했고, 아래 표는 그대로 비어 있다.
+
 ## 뽑힌 태스크 id
 
-아직 비어 있다. 이 태스크는 스위트를 실제로 돌리지 않는다.
+아직 비어 있다. 열 개 표는 `--n-tasks 10 --sample-seed 20260825`로 첫 샘플 런을
+돌린 직후에 채운다. 출처는 그 런 `docs/benchmark/deepswe/results/<run-id>/run.log`에
+남은 `pier run` 실행 매니페스트(선택된 태스크 나열)다. 손으로 고른 목록을
+정본이라 적지 않는다.
 
-<!-- 채우는 시점: 위 명령줄로 첫 샘플 런을 돌린 직후.
-     채우는 출처: 그 런의 결과 경로 docs/benchmark/deepswe/results/<run-id>/ 안
-     `run.log`에 남은 `pier run` 실행 매니페스트(선택된 태스크 나열)다.
-     손으로 고른 목록을 정본이라 적지 않는다. -->
+<!-- 채우는 시점: 위 샘플링 명령줄로 첫 샘플 런을 돌린 직후.
+     채우는 출처: 그 런의 run.log 매니페스트.
+     스모크 1태스크 선택(abs-module-cache-flags)으로 이 표를 채우지 않는다. -->
 
 | # | 태스크 id |
 | --- | --- |

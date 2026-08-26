@@ -30,9 +30,10 @@ bouncer:
 2. 태스크를 둘 이상 도는 표본 런이 태스크마다 measured JSON 한 장을 남기고,
    그 파일이 어느 경로에 어떤 이름으로 앉는지가 `docs/benchmark/deepswe/`
    문서에 정본으로 있다. 태스크 하나짜리 런도 같은 레이아웃을 따른다.
-3. vanilla arm 스모크 1런이 실제로 성공해 `verdict`가 실린 병합 JSON이
-   `docs/benchmark/deepswe/results/` 아래에 있다. 실패한 시도를 성공으로 적거나
-   합성한 결과 JSON을 그 자리에 두지 않는다.
+3. vanilla arm 스모크 1런을 시도한 명령·출력과, Pier가 호스트에 워크스페이스
+   체크아웃을 남기지 않아 병합 JSON을 못 만든 원인이
+   `docs/benchmark/deepswe/protocol.md`에 있다. `docs/benchmark/deepswe/results/`
+   에는 합성 JSON이 없다.
 4. `--arm superpowers`와 `--arm bouncer`가 라벨이 아니라 그 arm의 실행 조건을
    만든다. 러너 한 줄로 세 arm이 모두 선다.
 5. 태스크 3개 × arm 3개 = 9런이 같은 태스크 집합·같은 base에서 돌고, 통과
@@ -55,9 +56,8 @@ bouncer:
 - `.benchmarks/`를 `.gitignore`에서 빼는 일.
 
 ## Blueprints
-* [001 DeepSWE 실행 배관](blueprints/001-deepswe-run-plumbing/index.md) - 설치 안내 정정, 태스크별 measured 레이아웃, vanilla 스모크 성공 — `skills/agentic-code-benchmark/scripts/run_deepswe.py`, `docs/benchmark/deepswe/`
+* [001 DeepSWE 실행 배관](blueprints/001-deepswe-run-plumbing/index.md) - 설치 안내 정정, 태스크별 measured 레이아웃, vanilla 스모크 실패 증적 — `skills/agentic-code-benchmark/scripts/run_deepswe.py`, `docs/benchmark/deepswe/`
 
-성공 조건 1–3은 001이 닫는다. 4(arm 자동화), 5(9런 실행), 6(비교표)은 아직
-blueprint에 배정되지 않았다 — 001이 실제로 도는 배관을 세운 뒤 `/bouncer-plan`을
-다시 열어 배정한다. 배관이 서기 전에 자동화와 실행을 계획하면 그 계획이 첫
-실행에서 무너진다. 그때까지 이 목록은 001 한 줄이다.
+성공 조건 1–3은 001이 닫는다. 4(arm 자동화), 5(9런 실행), 6(비교표)과 호스트
+체크아웃 구멍은 아직 blueprint에 배정되지 않았다 — 001이 배관과 실패 증적을
+남긴 뒤 `/bouncer-plan`을 다시 열어 배정한다. 그때까지 이 목록은 001 한 줄이다.

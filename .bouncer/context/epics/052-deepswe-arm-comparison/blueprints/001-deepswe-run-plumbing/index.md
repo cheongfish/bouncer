@@ -1,7 +1,7 @@
 ---
 type: bouncer.blueprint
 title: DeepSWE 실행 배관을 실제로 도는 상태로 만듦
-description: 설치 안내를 실제 패키지로 고치고 태스크별 measured 레이아웃을 세운 뒤 vanilla 스모크를 성공시킨다
+description: 설치 안내를 실제 패키지로 고치고 태스크별 measured 레이아웃을 세운 뒤 vanilla 스모크 실패를 문서에 고정한다
 resource: .bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/index.md
 tags:
   - bouncer
@@ -28,8 +28,9 @@ Epic: [052](../../index.md)
   결과 디렉터리에는 `.gitkeep`뿐이다.
 - 완료 조건: 러너가 안내한 명령으로 `pier`를 실제로 놓을 수 있고, 태스크가
   하나든 여럿이든 태스크마다 measured 한 장이 정해진 자리에 앉으며, vanilla
-  스모크 1런이 성공해 `verdict`가 실린 병합 JSON이 결과 디렉터리에 남는다.
-  arm 자동화와 9런 실행은 이 blueprint 밖이다.
+  스모크 1런의 실패 원인(호스트 체크아웃 없음)이 protocol에 실제 출력으로
+  남고 결과 디렉터리에 합성 JSON이 없다. arm 자동화와 9런 실행, 체크아웃
+  구멍 수정은 이 blueprint 밖이다.
 
 ## Contract
 - 인터페이스:
@@ -69,14 +70,15 @@ Epic: [052](../../index.md)
   3. 태스크 하나짜리 런의 결과도 `tasks/<task-id>/` 아래에 앉는다.
   4. 태스크 id를 유도하지 못한 태스크는 `metrics.json` 없이 `run.log`에
      사실이 남고, 러너는 나머지 태스크를 계속 처리한다.
-  5. vanilla arm 스모크 1런이 실제 Pier로 성공하고, `bridge_pier.py`가 낸
-     병합 JSON이 `docs/benchmark/deepswe/results/<run-id>/tasks/<task-id>/`
-     아래에 커밋된다. 그 JSON의 `verdict.source`는 `pier`다.
+  5. vanilla arm 스모크의 실패 원인(Pier가 호스트에 워크스페이스 체크아웃을
+     남기지 않음)이 `docs/benchmark/deepswe/protocol.md`에 있고,
+     `docs/benchmark/deepswe/results/`에 합성 JSON이 없다.
   6. `docs/benchmark/deepswe/protocol.md`의 명령줄과 결과 레이아웃 서술이
-     위 레이아웃과 일치하고, 「스모크 시도」 절이 성공한 실행으로 갱신된다.
-  7. `docs/benchmark/deepswe/sample.md`의 「뽑힌 태스크 id」가 스모크 런이
-     실제로 돈 태스크로 채워지거나, 아직 표본 전체를 돌지 않았다는 사실과
-     채워질 시점이 그 자리에 남는다.
+     위 레이아웃과 일치하고, 「스모크 시도」 절이 Pier 설치 후 실패 시도를
+     실제 출력으로 남긴다. 2026-08-25 `pier-cli` 실패 기록은 유지한다.
+  7. `docs/benchmark/deepswe/sample.md`에 스모크가 고른 id
+     `abs-module-cache-flags`가 있고, 열 개 표는 `--n-tasks 10` 이후에
+     채운다고 적혀 있다.
   8. `npm run ci` 통과.
 - 검증 명령: `npm run ci`
 - 실패 모드·엣지 케이스:
@@ -90,12 +92,11 @@ Epic: [052](../../index.md)
     산출물로 오인되면 안 된다. 051이 세운 clone skip은 태스크 단위 수집에도
     그대로 걸린다.
   - 같은 `<run-id>`가 결과 디렉터리에 이미 있으면 덮어쓰지 않고 거부한다.
-  - 스모크가 환경 문제(이미지 pull 실패, API 키 부재, 컨테이너 한도)로 끝나지
-    못하면 성공했다고 적지 않는다. 실패한 명령줄과 로그 위치를 그대로 적고
-    `/bouncer-plan`으로 에스컬레이션한다. 합성한 결과 JSON을 결과 디렉터리에
-    두는 것만이 위반이다.
-  - 스모크가 실제 에이전트 세션을 돌리므로 토큰과 시간이 든다. 태스크는 하나로
-    묶고, 실패해도 같은 `--run-id`를 재사용하지 않는다.
+  - 스모크가 호스트 체크아웃 없이 끝나면 성공했다고 적지 않는다. 실패한
+    명령줄과 출력을 protocol에 남기고 합성 JSON을 결과 디렉터리에 두지 않는다.
+    그 구멍을 003에서 고치거나 같은 스모크를 다시 돌리는 것이 위반이다.
+  - 스모크가 실제 에이전트 세션을 돌리므로 토큰과 시간이 든다. 이 태스크는
+    이미 돈 실패를 문서에 고정하고 재실행하지 않는다.
 
 ## Out of scope
 - `--arm superpowers` / `--arm bouncer` 자동화. 이 blueprint에서 두 값은 051이
@@ -104,10 +105,12 @@ Epic: [052](../../index.md)
 - `scorecard.py`·`collect_metrics.py`의 계산 로직. 이 blueprint는 그 산출물이
   앉는 경로만 바꾼다.
 - 050이 만든 이 저장소 스위트 문서와 `docs/benchmark/tasks/*.json`.
+- Pier가 호스트에 워크스페이스 체크아웃을 남기지 않는 구멍. 003은 그 실패를
+  문서에 남기고, 수정은 다음 blueprint다.
 
 ## One-commit justification
 - 이 blueprint는 태스크 세 개짜리 번들이고, 각 태스크가 한 커밋이다. 설치
-  안내 정정, 태스크별 레이아웃, 실제 스모크는 서로 다른 실패 모드를 닫고
+  안내 정정, 태스크별 레이아웃, 스모크 실패 증적은 서로 다른 실패 모드를 닫고
   따로 되돌릴 수 있어야 한다. 리뷰·PR 단위는 blueprint 하나로 유지한다.
 
 ## Documents
@@ -117,7 +120,7 @@ Epic: [052](../../index.md)
 * [Tasks 002](tasks/002/tasks.md) - 태스크별 measured 레이아웃
 * [Verification 002](tasks/002/verification.md) - 검증 명령과 증적
 * [Review 002](tasks/002/review.md) - 리뷰 발견사항
-* [Tasks 003](tasks/003/tasks.md) - vanilla 스모크 성공과 문서 갱신
+* [Tasks 003](tasks/003/tasks.md) - vanilla 스모크 실패 증적과 문서 고정
 * [Verification 003](tasks/003/verification.md) - 검증 명령과 증적
 * [Review 003](tasks/003/review.md) - 리뷰 발견사항
 * [Context review](context-review.md) - 계획 문서 정합성 판정
