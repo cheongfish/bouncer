@@ -17,3 +17,20 @@
 **3회차.** light 계획 계약 on-arm. 계획 문서 4종은 사이클 종료 146~160줄(목표 ≤100 미달). `wall_s` 합 1110, `tool_calls_est` 합 86. 문서 세트와 계약이 1·2회차와 달라 값을 빼 비교하지 않는다.
 
 표에 없는 런 산출물·프로토콜·서술은 git 히스토리에 있다.
+
+## DeepSWE 원본
+
+이 절은 DeepSWE 원본 스위트 3 arm 비교다. 위 1–3회차 표(이 저장소 자체
+스위트)와 열이 다르다. 그 표의 숫자는 여기서 건드리지 않는다.
+
+통과율은 Pier `reward.json`(`reward > 0`). `wall_s` / `tokens_in` / `tokens_out`
+합은 `metrics.json`의 `usage` 키만 더한다. 키가 없으면 칸을 비운다.
+
+| 회차 | 측정일 | 태스크 | vanilla 통과 | superpowers 통과 | bouncer 통과 | wall_s 합 | tokens_in 합 | tokens_out 합 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 2026-08-26 (KST) | `abs-module-cache-flags`, `abs-stepped-slices`, `actionlint-action-pinning-lint` | 0/3 | | | | | |
+
+비교표와 9런 명령줄은 `docs/benchmark/deepswe/comparison.md`,
+`docs/benchmark/deepswe/protocol.md`에 있다. 베이스 커밋은 이 회차를 남긴
+워크트리 `3339e0c`다.
+

@@ -309,3 +309,101 @@ pier left no host-side workspace checkout for abs-module-cache-flags; skipping m
 ls -d .benchmarks/deepswe/smoke-052-vanilla
 # ls: cannot access '.benchmarks/deepswe/smoke-052-vanilla': No such file or directory
 ```
+
+## 052 비교 9런 (2026-08-26)
+
+같은 태스크 3개 × arm 3개. 저장소 루트
+`/home/cheongwoon/workspace/chunjae/etc/bouncer/.worktrees/052/002`에서 쳤다.
+`--agent`는 Pier 0.3.1이 받는 `claude-code`다. `--n-tasks 10`은 쓰지 않았다.
+
+### superpowers (환경 종료, 결과 경로 없음)
+
+호스트에 `superpowers` 실행 파일이 없다. 러너는 설치를 시도하지 않고 클론 전에
+끝냈다. 세 태스크 모두 같다.
+
+```bash
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-superpowers-abs-module-cache-flags --arm superpowers \
+  --agent claude-code --task abs-module-cache-flags
+# exit 2
+# stderr: superpowers not found on the host. install it first; this runner does not install it
+
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-superpowers-abs-stepped-slices --arm superpowers \
+  --agent claude-code --task abs-stepped-slices
+# exit 2 (같은 stderr)
+
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-superpowers-actionlint-action-pinning-lint --arm superpowers \
+  --agent claude-code --task actionlint-action-pinning-lint
+# exit 2 (같은 stderr)
+```
+
+결과 경로 `docs/benchmark/deepswe/results/052-superpowers-<task-id>/`는 없다.
+
+### bouncer (환경 종료, 결과 경로 없음)
+
+PATH에 `bouncer`가 없다. 러너는 설치를 시도하지 않았다. 세 태스크 모두 같다.
+
+```bash
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-bouncer-abs-module-cache-flags --arm bouncer \
+  --agent claude-code --task abs-module-cache-flags
+# exit 2
+# stderr: bouncer not found on PATH. install the Bouncer CLI on PATH; this runner does not install it
+
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-bouncer-abs-stepped-slices --arm bouncer \
+  --agent claude-code --task abs-stepped-slices
+# exit 2 (같은 stderr)
+
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-bouncer-actionlint-action-pinning-lint --arm bouncer \
+  --agent claude-code --task actionlint-action-pinning-lint
+# exit 2 (같은 stderr)
+```
+
+결과 경로 `docs/benchmark/deepswe/results/052-bouncer-<task-id>/`는 없다.
+
+### vanilla (종료 0, 결과 경로 있음, metrics 없음)
+
+```bash
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-vanilla-abs-module-cache-flags --arm vanilla \
+  --agent claude-code --task abs-module-cache-flags
+# exit 0
+# stdout: .../docs/benchmark/deepswe/results/052-vanilla-abs-module-cache-flags
+
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-vanilla-abs-stepped-slices --arm vanilla \
+  --agent claude-code --task abs-stepped-slices
+# exit 0
+# stdout: .../docs/benchmark/deepswe/results/052-vanilla-abs-stepped-slices
+
+python3 skills/agentic-code-benchmark/scripts/run_deepswe.py \
+  --run-id 052-vanilla-actionlint-action-pinning-lint --arm vanilla \
+  --agent claude-code --task actionlint-action-pinning-lint
+# exit 0
+# stdout: .../docs/benchmark/deepswe/results/052-vanilla-actionlint-action-pinning-lint
+```
+
+세 런 모두 `run.log`와 `tasks/<task-id>/{reward.json,ctrf.json,test-stdout.txt}`가
+있다. `reward`는 0이다. `run.log`는 `NonZeroAgentExitCodeError`와 빈 패치
+(`No valid patches in input` → skip `metrics.json`)를 적는다.
+`metrics.json`과 `merged.json`은 없다. `bridge_pier.py`는 부르지 않았다.
+
+```
+docs/benchmark/deepswe/results/052-vanilla-abs-module-cache-flags/
+docs/benchmark/deepswe/results/052-vanilla-abs-stepped-slices/
+docs/benchmark/deepswe/results/052-vanilla-actionlint-action-pinning-lint/
+```
+
+작업 경로:
+
+```bash
+ls -d .benchmarks/deepswe/052-vanilla-abs-module-cache-flags \
+      .benchmarks/deepswe/052-vanilla-abs-stepped-slices \
+      .benchmarks/deepswe/052-vanilla-actionlint-action-pinning-lint
+# ls: cannot access '...': No such file or directory (세 경로 모두)
+```
+

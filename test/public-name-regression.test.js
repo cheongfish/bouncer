@@ -79,6 +79,9 @@ const SUPERPOWERS_NEGATIVE_TESTS = new Set([
 const COMPARISON_ARM_ALLOWLIST = new Set([
   'docs/benchmark/protocol.md',
   'docs/benchmark/deepswe/protocol.md',
+  // 052 비교표와 회차 표가 arm 열 이름을 그대로 적는다. 제품 통합이 아니다.
+  'docs/benchmark/deepswe/comparison.md',
+  'docs/benchmark/history.md',
   'skills/agentic-code-benchmark/SKILL.md',
   'skills/agentic-code-benchmark/references/task-suite.md',
   // 러너는 문서가 아니지만 `--arm` choices 가 사용자가 실제로 치는 값이라 리터럴을 뺄 수 없다.
