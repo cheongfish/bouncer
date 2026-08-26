@@ -5,3 +5,4 @@ graphify-out/
 .bouncer/.venv/
 .cursor/
 .claude/
+.codex/
