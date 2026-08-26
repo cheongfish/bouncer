@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '053'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 'explain-diff가 `explain.md` 부재 시 만들라는 문장과 멈추라는 문장을 나란히 둬 행동이 갈림'
     - 'scaffold 책임이 `/bouncer-finalize` step 2에 있으므로 멈춤 경로만 남겨 한 가지로 읽히게 함'
