@@ -6,9 +6,9 @@ description: "This skill should be used from /bouncer-finalize after scaffold ex
 # Explain Diff
 
 Author and record comprehension for the active blueprint's `explain.md`.
-Called only from `/bouncer-finalize` after `scaffold explain` (create the file
-if missing). This skill does **not** replace `scaffold explain` — if the file
-is missing, stop and tell the caller to scaffold first.
+Called only from `/bouncer-finalize` after `scaffold explain`. This skill does
+**not** replace `scaffold explain` — if the file is missing, stop and tell the
+caller to scaffold first.
 
 ## When this applies
 
@@ -74,7 +74,7 @@ status published. Not a workflow entry point.
    worktree):
 
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node -e 'const { computeDiffSha } = require(process.argv[1] + "/scripts/lib/comprehension");
    console.log(JSON.stringify(computeDiffSha({ repoRoot: process.cwd(), base: process.argv[2] })));' \
      "${BOUNCER_ROOT}" <range_from>

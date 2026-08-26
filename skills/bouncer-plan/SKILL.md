@@ -78,7 +78,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <ddd> --name <slug>
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
@@ -106,10 +106,11 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    scaffolds it with `bouncer scaffold explain`.
 
 4. **Author.** Use the `spec-authoring` skill (`skills/spec-authoring/SKILL.md`) to write the epic, blueprint, and
-   tasks bodies in **Korean** (paths, ids, and code fences stay as-is). Fill every
-   implementation-ready section in `tasks/001/tasks.md` before approval — Goal & intent,
-   Interface, Touch, Do not touch, Constraints, Checklist. Those sections are the
-   sole brief for `/bouncer-execute`. Write Touch per file with a verb rather than
+   tasks bodies in **Korean** (paths, ids, and code fences stay as-is). For every
+   `tasks/<NNN>/tasks.md` under the blueprint, fill every implementation-ready
+   section before approval — Goal & intent, Interface, Touch, Do not touch,
+   Constraints, Checklist. Those sections are the sole brief for
+   `/bouncer-execute`. Write Touch per file with a verb rather than
    per directory, and put non-path rules in Constraints.
    For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
    whole flow → blueprint PR segment → tasks implementation branch; charts stay
@@ -144,39 +145,44 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    do not read script bodies). If at least one signal applies, ask the user
    whether to set `tasks.bouncer.verify` for this blueprint (「이 blueprint의
    검증 명령을 `tasks.bouncer.verify`에 지정할까요?」). On accept, write a
-   **single** executable argv string into `tasks/001/tasks.md` frontmatter `bouncer.verify`
-   (예: `npm run test:e2e`, `make test`). If none of the signals above apply, or
-   the user refuses, leave `bouncer.verify` unset so execute keeps the global
-   `config.verify`. Never write `bouncer.verify` from detection alone, and never
-   edit `config.verify` / `.bouncer/config.json` here. Do not propose values that
-   mix `&&`, `;`, pipes, redirection, or a `cd` prefix — verify is a single argv
-   so the evidence command stays reproducible from the repo root; tell the user
-   to wrap container-up + test in one project script.
+   **single** executable argv string into each task document's frontmatter
+   `bouncer.verify` under `tasks/<NNN>/tasks.md` (예: `npm run test:e2e`,
+   `make test`). If none of the signals above apply, or the user refuses, leave
+   `bouncer.verify` unset so execute keeps the global `config.verify`. Never
+   write `bouncer.verify` from detection alone, and never edit `config.verify` /
+   `.bouncer/config.json` here. Do not propose values that mix `&&`, `;`, pipes,
+   redirection, or a `cd` prefix — verify is a single argv so the evidence
+   command stays reproducible from the repo root; tell the user to wrap
+   container-up + test in one project script.
    After the draft, run `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) on
    the authored bodies before approval.
 
 5. **Graph suggestions.** Use the `graphify-runner` skill (`skills/graphify-runner/SKILL.md`) to
    run `bouncer graph-sync` (plan-time freshness for **source** + **context**
    graphs), query both `graphify-out/source` and `graphify-out/context`, and write
-   `bouncer.scope_evidence.suggested_paths` into `tasks/001/tasks.md`. If graphify is
-   unavailable, it leaves `suggested_paths` empty, records a graceful fallback
-   entry list in `bouncer.scope_evidence.basis` with `producer: graphify` (per-graph `status` such as
-   `skip-disabled` / `missing`), tells the user how to install/enable Graphify
-   (`pip install graphifyy && graphify install`, then `graphify.enabled: true`),
+   `bouncer.scope_evidence.suggested_paths` into each `tasks/<NNN>/tasks.md` under
+   the blueprint. If graphify is unavailable, it leaves `suggested_paths` empty,
+   records a graceful fallback entry list in `bouncer.scope_evidence.basis` with
+   `producer: graphify` (per-graph `status` such as `skip-disabled` / `missing`),
+   tells the user how to enable Graphify
+   (`bouncer init` for a fresh bootstrap, or `bouncer init --promote-graphify`
+   on an existing project — same path graphify-runner prints; do not edit
+   `config.json` by hand),
    and says so so the user can seed paths manually.
    Scaffold leaves `basis` as an empty list on purpose, so this step must run:
    G4 fails until a real non-empty basis entry array is recorded. Existing
    `bouncer.graph` is read only for legacy compatibility and is never a new
    authoring target.
 
-6. **affected_paths (user-confirmed).** Show `scope_evidence.suggested_paths`
-   as advisory candidate paths, then propose `bouncer.affected_paths` in
-   `tasks/001/tasks.md` for the user to confirm or edit. It must be non-empty
-   (gate G5). Do not seed or modify `affected_paths` automatically from Graphify;
-   write only the user's confirmed value into `tasks/001/tasks.md` frontmatter.
-   Before finalizing `affected_paths` and the Checklist, you may run the
-   `minimality` skill (`skills/minimality/SKILL.md`) (advisory, not a gate) to challenge new dependencies,
-   abstractions, or files and record the rationale.
+6. **affected_paths (user-confirmed).** For each `tasks/<NNN>/tasks.md` under the
+   blueprint, show that task's `scope_evidence.suggested_paths` as advisory
+   candidate paths, then propose `bouncer.affected_paths` for the user to confirm
+   or edit. Each list must be non-empty (gate G5). Do not seed or modify
+   `affected_paths` automatically from Graphify; write only the user's confirmed
+   value into that task document's frontmatter. Before finalizing
+   `affected_paths` and the Checklist, you may run the `minimality` skill
+   (`skills/minimality/SKILL.md`) (advisory, not a gate) to challenge new
+   dependencies, abstractions, or files and record the rationale.
    **Contract blast check (before user confirm).** When the task Interface
    changes a serialized shape, gate input, or exported contract (field names,
    object→list, helper return shape), search the repo for constructors and
@@ -196,13 +202,13 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    the list (Goal ⊆ Touch). Commit scope is the same set: every path that must
    be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
    blocks it.
-   **Distill re-ground.** After the user confirms `affected_paths`, run
-   `bouncer distill --for <path> --repo "${PROJECT_ROOT}"` once for each
-   confirmed path and give the routed output to the final authoring/gate
-   context. This is the first selective read; if the list changes, repeat it.
-   Keep the earlier `--all` baseline file; a route result must not replace
-   that baseline. If the file is gone, re-run `--all` — do not substitute
-   routed output.
+   **Distill re-ground.** After the user confirms each task's `affected_paths`,
+   run `bouncer distill --for <path> --repo "${PROJECT_ROOT}"` once for each
+   confirmed path of that task and give the routed output to the final
+   authoring/gate context. This is the first selective read; if a task's list
+   changes, repeat it for that task. Keep the earlier `--all` baseline file; a
+   route result must not replace that baseline. If the file is gone, re-run
+   `--all` — do not substitute routed output.
 
 7. **Context review.** **Skip this entire step when the blueprint's
    `bouncer.scale` is `light`** — that blueprint has no `context-review.md`
@@ -219,7 +225,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    1. Resolve the model:
       ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-context-reviewer'})))"
       ```
    2. Call named agent `bouncer-context-reviewer` with that `model`, passing
@@ -246,7 +252,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
 9. **Pointer.** Record the active blueprint:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current --set <blueprint dir>
    ```
    Writes the pointer under the Git common directory (`bouncer/current`) as
@@ -255,7 +261,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
 10. **Gate.** Run `bouncer validate --gate plan` and report:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G18

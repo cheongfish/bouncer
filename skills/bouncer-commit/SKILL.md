@@ -33,7 +33,7 @@ or single task bundle (same rule as execute).
    Goal & intent (no Epic/Blueprint ids, no file paths), then proceed.
    Dry-run first:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" commit --blueprint <pointer.blueprint>
    ```
    This checks every uncommitted change (tracked or untracked) against the
@@ -46,7 +46,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
 2. **Validate.** Run the commit gate — `validate --gate commit`:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate commit
    ```
    Gate `commit` re-checks G6/G7/G8 for the pointer task and G17 (staged paths
@@ -72,7 +72,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    On **A**, commit:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" commit --blueprint <pointer.blueprint> --yes
    ```
    On **B**, fix and re-dry-run from step 1. On **C**, stop without `--yes`.
@@ -100,7 +100,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    - If A, run:
      ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+     BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      node "${BOUNCER_ROOT}/scripts/bouncer" current --set <pointer.blueprint> --task <NNN>
      ```
      Then point the user at `/bouncer-execute` for the next task (same worktree).

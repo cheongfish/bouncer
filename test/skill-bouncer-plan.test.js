@@ -159,3 +159,19 @@ test('bouncer-plan injects Distill --preflight and stores --all as a scratch bas
   assert.doesNotMatch(body, /and use\s+the complete output/i);
   assert.match(body, /must not replace|does not replace|대체하지/);
 });
+
+// plan 게이트는 발견된 각 task 묶음에 G4·G5·G10–G12를 적용하므로,
+// Author/Graph/affected_paths도 tasks/001만 지목하면 안 되고 전 묶음을 순회해야 한다.
+test('bouncer-plan authors every task bundle, not only 001', () => {
+  const { body } = parseFrontmatter(md);
+  assert.doesNotMatch(body, /tasks\/001\/tasks\.md/);
+  assert.match(body, /tasks\/<NNN>\/tasks\.md/);
+});
+
+// graphify 활성화는 config 손편집·pip 직접 안내가 아니라 CLI 경로만 가리킨다.
+test('bouncer-plan points graphify enablement at the CLI only', () => {
+  const { body } = parseFrontmatter(md);
+  assert.doesNotMatch(body, /graphify\.enabled:\s*true/);
+  assert.doesNotMatch(body, /pip install graphifyy/);
+  assert.match(body, /init --promote-graphify/);
+});

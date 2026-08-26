@@ -58,7 +58,7 @@ the user asks for this skill by name.
 1. **Freshness re-check (plan-time).** Always sync before querying — do not rely
    on SessionStart alone:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" graph-sync
    ```
    Rebuilds any stale **source** / **context** graph (mtime of configured dirs
@@ -69,7 +69,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 2. **Resolve executable and availability.** Resolve the graphify binary through
    the single CLI interpreter — never invoke `graphify` by bare name:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    GRAPHIFY_BIN="$(node "${BOUNCER_ROOT}/scripts/bouncer" graphify-bin)" || GRAPHIFY_BIN=""
    ```
    An empty `GRAPHIFY_BIN` is a state (resolution miss), not a skill error —

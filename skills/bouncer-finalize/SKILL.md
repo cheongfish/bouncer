@@ -35,7 +35,7 @@ appears; do not reconstruct a root `context/` path.
 1. **Propose and promote Distill (one consent).** Before deciding what to
    promote, run the full JSON audit once:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" distill --all --json
    ```
    Take the promotion base from that payload `repoRoot`. 승격 경로를
@@ -116,7 +116,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
 2. **Explain + quiz.** Create BP `explain.md` if it is missing:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold explain --blueprint <pointer.blueprint>
    ```
    Then use the `explain-diff` skill (`skills/explain-diff/SKILL.md`) to author
@@ -131,7 +131,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 3. **Validate + remainder commit (deterministic core) + worktree choice.**
    Run the finalize gate first:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate finalize
    ```
    Gate `finalize` checks G16 (every task `verified`, explain published with one
@@ -146,7 +146,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    task from Goal & intent / explain (no Epic/Blueprint ids, no file paths),
    then proceed. Dry-run:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint>
    ```
    This checks every remaining uncommitted change (tracked or untracked) against
@@ -170,7 +170,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    On **A** or **B**, commit:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
    ```
    `--yes`는 스테이징 전에 검증 명령을 실행한다. `reason: 'verify'` 실패는
@@ -251,7 +251,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      siblings remain. Leave the feature branch on remote/local refs unless the
      user also asks to delete it — merge remains their responsibility.
      ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+     BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      WORKTREE_PATH="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
      git worktree remove "${WORKTREE_PATH}"
      if [ "$(basename "$(dirname "$(dirname "${WORKTREE_PATH}")")")" = ".worktrees" ]; then
@@ -304,7 +304,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    - If yes / A, run:
      ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+     BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      node "${BOUNCER_ROOT}/scripts/bouncer" current --set <next.blueprint>
      ```
      (`<next.blueprint>` is `next.next.blueprint` from the finalize payload.)

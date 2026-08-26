@@ -80,3 +80,9 @@ test('explain-diff fixes the light path at one question', () => {
   // 일반 경로의 1–10 판단은 유지된다.
   assert.match(md, /1–10|1-10/);
 });
+
+test('explain-diff gives one behavior when explain.md is missing', () => {
+  const md = fs.readFileSync(path.join(root, 'skills', 'explain-diff', 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(md, /create\s+the\s+file\s+if\s+missing/i);
+  assert.match(md, /stop\s+and\s+tell\s+the\s+caller\s+to\s+scaffold\s+first/i);
+});

@@ -48,13 +48,14 @@ What shrinks (five things only):
    shared **maintenance epic** (slug `maintenance`). If that epic is missing,
    create it once with normal numbering, then keep stacking blueprints under it.
    Never close that epic.
-4. **Agent round-trips** — when `bouncer.scale` is `light`, run implementer and
-   reviewer **inline** (same session) instead of named-agent dispatch. Keep the
-   host `named agents are unavailable` fallback wording as a separate sentence
-   — do not replace it with the light branch. `bouncer-debugger` stays named.
-   During a `/bouncer-run` drive the loop keeps named dispatch even on `light`:
-   the loop is an orchestrator that reads subagent reports, so it must not
-   become the implementer or review its own diff. See `/bouncer-execute`.
+4. **Agent round-trips** — when `bouncer.scale` is `light`, run the implementer
+   **inline** (same session) instead of named-agent dispatch. Keep the host
+   `named agents are unavailable` fallback wording as a separate sentence —
+   do not replace it with the light branch. Reviewer and `bouncer-debugger`
+   stay named. During a `/bouncer-run` drive the loop keeps named dispatch for
+   implement too even on `light`: the loop is an orchestrator that reads
+   subagent reports, so it must not become the implementer. See
+   `/bouncer-execute`.
 5. **Quiz size** — `explain-diff` asks **one question** when `scale: light`
    (still within the usual 1–10 range rules otherwise). See
    `skills/explain-diff/SKILL.md`.
@@ -76,8 +77,10 @@ the plan gate picks the G10 / G18 contract, and structural validation (S20)
 checks the value against the enum. Every one of them reads the declared
 `bouncer.scale` value and nothing else; none infers size.
 
-Limit of inline review: the same session judges **its own diff** (self-review).
-If that judgment is unclear, set `scale` back to `full` and return to the
-named-agent path. Returning to `full` on an already-scaffolded light blueprint
+Limit of implement inline: the writing session still authored the change a
+named reviewer will score against **its own diff** (self-review pressure on
+the writer, not a same-session review verdict). If that separation feels too
+thin, set `scale` back to `full` and return to the named-agent path for
+implement too. Returning to `full` on an already-scaffolded light blueprint
 means authoring the missing sections and running
 `bouncer scaffold context-review --blueprint <dir>` before the plan gate.

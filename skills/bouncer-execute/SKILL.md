@@ -45,7 +45,7 @@ evidence. The debugger never applies the fix.
 
 1. **Read the pointer.** Load the active blueprint dir, base branch, and task brief:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current
    ```
    If `current` is `null`:
@@ -82,7 +82,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      `.worktrees/<bp-id>` is returned by the helper so the reuse branch still
      hits; do not migrate or rename it:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    WORKTREE_PATH="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
    if [ -d "${WORKTREE_PATH}" ]; then
      : # reuse existing blueprint worktree
@@ -95,7 +95,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    Always run seed next (also on reuse — no-op when nothing remains to move),
    **from the base `cwd`**, so the worktree has the task brief for step 3:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" seed-worktree \
      --blueprint <pointer.blueprint> --to "${WORKTREE_PATH}"
    ```
@@ -131,7 +131,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    1. Resolve the model:
       ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-implementer'})))"
       ```
    2. Call named agent `bouncer-implementer` with that `model`, passing only
@@ -181,7 +181,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    1. Resolve the model:
       ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-debugger'})))"
       ```
    2. Call named agent `bouncer-debugger` with that `model`, passing the
@@ -212,17 +212,15 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    `/bouncer-plan` rather than looping.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
-   Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order:
+   Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order —
+   `scale`과 무관하게 named 디스패치 네 단계를 탄다 (경량 인라인은 step 3
+   implement에만 적용):
    (1) fill `skills/review/assets/reviewer-prompt.md` (brief, base/HEAD, constraints);
-   (2) **경량 분기.** 포인터(`bouncer current`)의 `scale`이 `light`면 named
-       디스패치 네 단계를 건너뛰고, 채운 `skills/review/assets/reviewer-prompt.md`로 `review` 스킬을
-       인라인 read-only로 실행한다. `/bouncer-run` 주행 중에는 step 3의 주행
-       예외와 같이 이 분기를 쓰지 않는다. step 3과 같이 `index.md`를 다시
-       열지 않고 step 1 포인터의 `scale`만 쓴다. 그 외에는 resolve model via
-       `resolveSubagentModel` for `bouncer-reviewer`, then dispatch named agent
-       `bouncer-reviewer` with that model (retry `inherit` if the slug is
-       rejected). If named agents are unavailable (e.g. Codex), fall back to a
-       **fresh generic** subagent or inline read-only pass with the same prompt;
+   (2) resolve model via `resolveSubagentModel` for `bouncer-reviewer`, then
+       dispatch named agent `bouncer-reviewer` with that model (retry `inherit`
+       if the slug is rejected). If named agents are unavailable (e.g. Codex),
+       fall back to a **fresh generic** subagent or inline read-only pass with
+       the same prompt;
    (3) as controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status (인라인 경로에서도 Findings 기록과 status는 컨트롤러 몫);
@@ -237,7 +235,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
 6. **Gate.** Run `validate --gate execute`:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
    ```
    Before evaluating G6–G14, `validate --gate execute` runs the configured

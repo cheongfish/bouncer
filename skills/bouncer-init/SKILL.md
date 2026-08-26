@@ -15,7 +15,7 @@ Bootstrap this project for Bouncer.
 1. Run `bouncer init` (idempotent for config; seeds missing project Distill;
    attempts graphify venv install by default):
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" init
    ```
 2. Report the bootstrap and install result:
@@ -43,7 +43,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      - **C)** Leave as-is
      On **A** or **B** only, run (A installs; B enables without install):
      ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+     BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      # A) enable + install
      node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify
      # B) enable only
@@ -55,7 +55,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      entries and ask whether to write the `# bouncer` … `# /bouncer` marker
      block. On consent only:
      ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+     BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      node "${BOUNCER_ROOT}/scripts/bouncer" init --write-gitignore
      ```
      On decline, report the suggested entries and leave `.gitignore`
