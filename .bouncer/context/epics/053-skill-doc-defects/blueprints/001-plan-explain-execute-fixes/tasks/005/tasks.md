@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-005
   epic_id: '053'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - '들여쓴 코드펜스 안에서 `BOUNCER_ROOT` 줄만 컬럼 0이라 블록 정렬이 어긋남'
     - '35곳을 주변 들여쓰기에 맞춰 복사해 붙일 때 혼동이 없게 함'

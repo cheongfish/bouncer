@@ -45,7 +45,7 @@ evidence. The debugger never applies the fix.
 
 1. **Read the pointer.** Load the active blueprint dir, base branch, and task brief:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current
    ```
    If `current` is `null`:
@@ -82,7 +82,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      `.worktrees/<bp-id>` is returned by the helper so the reuse branch still
      hits; do not migrate or rename it:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    WORKTREE_PATH="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
    if [ -d "${WORKTREE_PATH}" ]; then
      : # reuse existing blueprint worktree
@@ -95,7 +95,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    Always run seed next (also on reuse — no-op when nothing remains to move),
    **from the base `cwd`**, so the worktree has the task brief for step 3:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" seed-worktree \
      --blueprint <pointer.blueprint> --to "${WORKTREE_PATH}"
    ```
@@ -131,7 +131,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    1. Resolve the model:
       ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-implementer'})))"
       ```
    2. Call named agent `bouncer-implementer` with that `model`, passing only
@@ -181,7 +181,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    1. Resolve the model:
       ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-debugger'})))"
       ```
    2. Call named agent `bouncer-debugger` with that `model`, passing the
@@ -235,7 +235,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
 6. **Gate.** Run `validate --gate execute`:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
    ```
    Before evaluating G6–G14, `validate --gate execute` runs the configured

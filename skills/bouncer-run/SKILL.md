@@ -60,7 +60,7 @@ blueprint가 경량으로 선언돼 있어도 주행 중에는 execute의 인라
    `AUTONOMY_ENUM` 밖이면 사용자에게 알린 뒤 `auto`로 진행한다.
    활성 포인터를 읽는다:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current
    ```
    `current`가 `null`이면 주행하지 않고 `/bouncer-plan`으로 보낸다.
@@ -94,7 +94,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    바로 `bouncer current --set <bp> --task <NNN>`으로 다음 task로 옮긴다.
    `interactive`는 `--set`을 step 5 ACQ 뒤로 미룬다:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current --set <pointer.blueprint> --task <NNN>
    ```
    `committed: false`(빈 staged)는 실패가 아니다. 다음 task로 이어간다.

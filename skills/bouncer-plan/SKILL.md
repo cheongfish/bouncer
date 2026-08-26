@@ -78,7 +78,7 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <ddd> --name <slug>
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
@@ -225,7 +225,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
    1. Resolve the model:
       ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
       node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-context-reviewer'})))"
       ```
    2. Call named agent `bouncer-context-reviewer` with that `model`, passing
@@ -252,7 +252,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
 9. **Pointer.** Record the active blueprint:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current --set <blueprint dir>
    ```
    Writes the pointer under the Git common directory (`bouncer/current`) as
@@ -261,7 +261,7 @@ BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
 
 10. **Gate.** Run `bouncer validate --gate plan` and report:
    ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G18
