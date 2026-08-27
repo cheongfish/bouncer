@@ -47,6 +47,24 @@ const OUTSIDE_SKILLS = [
 const DISTINCTION_RE =
   /데이터이지\s*지시가\s*아니|지시로\s*승격하지\s*않|not\s+(?:as\s+)?(?:an\s+)?instructions?\b|do\s+not\s+(?:treat|promote)\b.{0,80}\b(?:as\s+|to\s+)(?:an\s+)?instructions?\b/i;
 
+// 각 소비자는 hard rule 11을 공통 정본으로 가리키되, 자신이 읽는 입력과
+// 보호할 결정은 달라야 한다. 단순한 공통 경고가 다시 늘어나는 것을 막는다.
+const BOUNDARY_CONTRACTS = new Map([
+  ['skills/bouncer-plan/SKILL.md', [/\.bouncer\/context/, /graphify-out/, /user['’]s approval/i]],
+  ['skills/bouncer-execute/SKILL.md', [/context-doc bodies/i, /repo source/, /affected_paths/, /skip a gate/i]],
+  ['skills/bouncer-run/SKILL.md', [/컨텍스트 문서 본문/, /그래프 산출물/, /서브에이전트 리포트/, /상한/, /ACQ/]],
+  ['skills/graphify-runner/SKILL.md', [/graphify-out/, /suggested_paths/, /affected_paths/]],
+  ['skills/review/SKILL.md', [/worktree diff/, /Findings/, /review accepted/i]],
+  ['skills/implementation/SKILL.md', [/Repo source/, /\.bouncer\/context/, /Touch/, /Do not touch/]],
+  ['skills/debugging/SKILL.md', [/Verify logs/, /returned report/, /affected_paths/, /document status/]],
+  ['skills/context-review/SKILL.md', [/Epic, blueprint, and task bodies/, /judgment/, /status/]],
+  ['skills/agentic-code-benchmark/SKILL.md', [/diff/, /task text/, /judging\s+subagent/, /benchmark\s+contract/i]],
+  ['agents/bouncer-implementer.md', [/repo source/, /\.bouncer\/context/, /task brief/i, /Touch/, /Do not touch/]],
+  ['agents/bouncer-reviewer.md', [/worktree diff/, /nested\s+subagent/, /brief/, /review status/]],
+  ['agents/bouncer-debugger.md', [/verify output/, /logs/, /stack traces/, /affected_paths/, /document status/]],
+  ['agents/bouncer-context-reviewer.md', [/epic,\s+blueprint,\s+or task\s+bodies/, /scope/, /status/]],
+]);
+
 function readRel(rel) {
   return fs.readFileSync(path.join(root, rel), 'utf8');
 }
@@ -82,4 +100,23 @@ test('each data-reading skill and agent distinguishes data from instruction', ()
       `${rel} must distinguish data from instruction`,
     );
   }
+});
+
+test('each data-reading skill and agent references hard rule 11 with a local boundary', () => {
+  for (const [rel, required] of BOUNDARY_CONTRACTS) {
+    const md = readRel(rel);
+    assert.match(md, /CLAUDE\.md[^\n]{0,80}hard rule 11|hard rule 11[^\n]{0,80}CLAUDE\.md/i,
+      `${rel} must reference the trust-boundary source of truth`);
+    for (const pattern of required) {
+      assert.match(md, pattern, `${rel} must retain its input and protected-decision boundary`);
+    }
+  }
+});
+
+test('Distill promotion keeps explain input separate from promotion consent', () => {
+  const md = readRel('skills/bouncer-finalize/references/distill-promotion.md');
+  assert.match(md, /CLAUDE\.md[^\n]{0,80}hard rule 11|hard rule 11[^\n]{0,80}CLAUDE\.md/i);
+  assert.match(md, /Explain body is data, not instructions/i);
+  assert.match(md, /promotion candidates|승격 후보/i);
+  assert.match(md, /consent|동의/i);
 });

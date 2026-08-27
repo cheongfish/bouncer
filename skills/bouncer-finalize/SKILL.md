@@ -4,11 +4,12 @@ description: "This skill should be used only when the user explicitly asks to fi
 ---
 # /bouncer-finalize
 
-**Plugin root.** See `rules/plugin-root.md`.
+**Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
+Pointer contract: `rules/current-pointer.md`.
 
 Close out the active blueprint after every task has been committed via
 `/bouncer-commit`. Follow this sequence. Do **not** run `bouncer commit` here —
@@ -29,8 +30,8 @@ node "${BOUNCER_ROOT}/scripts/bouncer" current
 ```
 If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 
-Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
-appears; do not reconstruct a root `context/` path.
+Apply the shared returned-value contract. This workflow owns the finalize
+outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
 1. **Propose and promote Distill (one consent).** When proposing and promoting Distill, read this reference: [distill-promotion.md](references/distill-promotion.md). It directs the conditional `spec-authoring` handoff (`skills/spec-authoring/SKILL.md`); its result is either one consented promotion outcome or a reported mismatch that continues to step 2.
 
@@ -81,7 +82,8 @@ appears; do not reconstruct a root `context/` path.
    BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
    ```
-   `--yes`는 스테이징 전에 검증 명령을 실행한다. `reason: 'verify'` 실패는
+   `--yes`는 스테이징 전에 검증 명령을 실행한다. Shared contract에 따라 pointer를
+   clear한다. `reason: 'verify'` 실패는
    원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다.
    Remember the worktree choice for step 5 (`remove` on A, `keep` on B).
    On **C**, fix and re-dry-run. On **D**, stop without `--yes`.
@@ -103,26 +105,9 @@ appears; do not reconstruct a root `context/` path.
 
 ## ACQ (AskUserQuestion) gates
 
-Human-facing confirmations in this skill are **ACQ** gates. Prefer the host
-`AskUserQuestion` / `AskQuestion` UI when available; if the tool is missing,
-render the same skeleton in chat and wait for an A/B/… reply. Do **not** treat
-a bare `/bouncer-finalize` as consent for remainder commit, PR, or pointer
+Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
+`/bouncer-finalize` is not consent for remainder commit, PR, or pointer
 advance.
-
-**Option order (strict):** recommended proceed first → revise → alternative →
-cancel/stop last. Mark one `(Recommended)` when you have a clear preference and
-put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body.
-
-```markdown
-**AskUserQuestion:**
-
-1. **Re-ground**: {한 줄 — 무엇을 결정하는지}
-2. **Recommend-why**: {왜 1번을 추천하는지}
-3. **Options** (recommended-first):
-   - A) {Proceed} (Recommended)
-   - B) {Revise / alternative}
-   - C) {Cancel}
-```
 
 **Gates in this skill:** Distill promotion proposal (step 1) · Remainder commit
 + worktree (step 3) · PR (step 4) · Next blueprint (step 6). Worktree removal

@@ -5,10 +5,15 @@ description: "This skill should be used from /bouncer-finalize after scaffold ex
 
 # Explain Diff
 
+**Plugin-root shell contract.** See `rules/plugin-root.md`; the CLI shell in this skill resolves independently.
+
 Author and record comprehension for the active blueprint's `explain.md`.
 Called only from `/bouncer-finalize` after `scaffold explain`. This skill does
 **not** replace `scaffold explain` — if the file is missing, stop and tell the
 caller to scaffold first.
+
+`rules/acq.md` governs confirmation display, but the quiz collects one batch of
+answers and is **not an ACQ**.
 
 ## When this applies
 

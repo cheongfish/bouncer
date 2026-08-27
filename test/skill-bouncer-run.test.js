@@ -37,6 +37,14 @@ test('bouncer-run is an explicit-ask workflow skill that loops execute then comm
   assert.match(body, /\/bouncer-plan/);
 });
 
+test('bouncer-run delegates shared pointer invariants while retaining autonomy exceptions', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /rules\/current-pointer\.md/);
+  assert.match(body, /auto/);
+  assert.match(body, /interactive/);
+  assert.match(body, /시작 ACQ.*auto|auto.*시작 ACQ/);
+});
+
 test('bouncer-run preflight stops on a null pointer or a closed blueprint', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /scripts\/bouncer"\s+current\b/);

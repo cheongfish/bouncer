@@ -47,6 +47,62 @@ test('workflow skills instruct reading CLAUDE.md before steps', () => {
   assert.match(spec, /CLAUDE\.md/);
 });
 
+test('ACQ display contract is centralized and workflows cite it', () => {
+  const acq = read('rules/acq.md');
+  assert.match(acq, /recommended proceed option first/i);
+  assert.match(acq, /\(Recommended\)/);
+  assert.match(acq, /AskUserQuestion.*AskQuestion/i);
+  assert.match(acq, /same options.*chat|chat.*same options/i);
+  assert.match(acq, /bare `\/bouncer-/i);
+
+  for (const name of [
+    'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit',
+    'bouncer-finalize', 'bouncer-run',
+  ]) {
+    assert.match(read(`skills/${name}/SKILL.md`), /rules\/acq\.md/, `${name} must cite ACQ display contract`);
+  }
+});
+
+test('current-pointer contract is centralized and pointer consumers cite it', () => {
+  const pointer = read('rules/current-pointer.md');
+  assert.match(pointer, /bouncer current/);
+  assert.match(pointer, /returned `blueprint`.*verbatim|반환된 `blueprint`.*그대로/i);
+  assert.match(pointer, /current\.task\.path/);
+  assert.match(pointer, /first.*single|첫.*단일/i);
+  assert.match(pointer, /confirm-then-set|확인.*--set/i);
+  assert.match(pointer, /plan gate|plan 게이트/i);
+  assert.match(pointer, /Git common directory|Git 공용 디렉터리/i);
+
+  for (const name of [
+    'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize', 'bouncer-run',
+  ]) {
+    assert.match(read(`skills/${name}/SKILL.md`), /rules\/current-pointer\.md/, `${name} must cite pointer contract`);
+  }
+  assert.match(read('skills/bouncer-finalize/references/cleanup-handoff.md'), /rules\/current-pointer\.md/);
+});
+
+test('subagent model contract is centralized and named dispatch consumers cite it', () => {
+  const model = read('rules/subagent-model.md');
+  assert.match(model, /resolveSubagentModel/);
+  assert.match(model, /result\.model/);
+  assert.match(model, /result\.model` is `null`, omit the model argument/i);
+  assert.match(model, /parent-session inheritance/i);
+  assert.match(model, /named dispatch/i);
+  assert.match(model, /rejected.*slug[\s\S]{0,120}inherit/i);
+  assert.match(model, /named agents are unavailable/i);
+  assert.match(model, /non-string|비문자열/i);
+  assert.match(model, /Codex/i);
+
+  for (const rel of [
+    'skills/bouncer-plan/references/context-review.md',
+    'skills/bouncer-execute/references/agent-dispatch.md',
+    'skills/bouncer-execute/references/verification-recovery.md',
+    'skills/review/SKILL.md',
+  ]) {
+    assert.match(read(rel), /rules\/subagent-model\.md/, `${rel} must cite the shared model contract`);
+  }
+});
+
 test('master rules use the installed bouncer-root launcher', () => {
   const claude = read('CLAUDE.md');
   const rule = read('rules/plugin-root.md');
@@ -57,6 +113,35 @@ test('master rules use the installed bouncer-root launcher', () => {
   }
   assert.match(rule, /--select/);
   assert.match(rule, /provider/i);
+});
+
+test('plugin-root contract is shared while launcher shells resolve independently', () => {
+  const consumers = [
+    'skills/bouncer-init/SKILL.md',
+    'skills/bouncer-plan/SKILL.md',
+    'skills/bouncer-execute/SKILL.md',
+    'skills/bouncer-commit/SKILL.md',
+    'skills/bouncer-finalize/SKILL.md',
+    'skills/bouncer-run/SKILL.md',
+    'skills/bouncer-finalize/references/cleanup-handoff.md',
+    'skills/bouncer-finalize/references/distill-promotion.md',
+    'skills/bouncer-finalize/references/explain-quiz.md',
+    'skills/explain-diff/SKILL.md',
+    'skills/graphify-runner/SKILL.md',
+    'skills/migrate-ids/SKILL.md',
+  ];
+  const launcher = 'BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?';
+
+  for (const rel of consumers) {
+    const source = read(rel);
+    assert.match(source, /rules\/plugin-root\.md/, `${rel} must cite the shared contract`);
+    assert.ok(source.includes(launcher), `${rel} must retain independent launcher resolution`);
+
+    const launcherBlocks = source.match(/```bash\n[\s\S]*?```/g) || [];
+    for (const block of launcherBlocks.filter((value) => value.includes('${BOUNCER_ROOT}'))) {
+      assert.ok(block.includes(launcher), `${rel} must resolve BOUNCER_ROOT in each launcher shell`);
+    }
+  }
 });
 
 test('hard rule 5 workflow order includes commit between execute and finalize', () => {
@@ -192,6 +277,11 @@ test('master rules preserve single-file Distill fallback and CLI trust boundary'
   assert.match(claude, /relative[^\n]{0,20}path|상대 경로/i);
   assert.match(claude, /aggregate|selection|합산|선택 결과/i);
   assert.match(claude, /never[^\n]{0,120}(?:attach|associate|individual shard|개별 샤드)/i);
+  assert.strictEqual(
+    (claude.match(/^11\.\s+\*\*Trust boundary\*\*/gm) || []).length,
+    1,
+    'CLAUDE.md hard rule 11 is the single trust-boundary source of truth',
+  );
 });
 
 test('discovery and spec-authoring take caller-provided absolute Distill paths', () => {

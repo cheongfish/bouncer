@@ -1,5 +1,6 @@
 # Plugin root
 
+This is the single contract for plugin-root selection and rule loading.
 Workflow skills run the `bouncer` CLI from the plugin directory. Install the
 `bouncer-root` package bin on `PATH`; every independent shell block resolves:
 
@@ -27,3 +28,12 @@ a special case.
 
 Hooks resolve independently from workflow launcher shells; they do not transmit
 plugin-root variables to those shells. Cursor hooks use relative paths.
+
+## Master and product rules
+
+Before a workflow's numbered steps, read `${BOUNCER_ROOT}/CLAUDE.md`; `AGENTS.md`
+imports `@CLAUDE.md` for Codex and Cursor. Then load the product rules needed by
+that workflow, normally `rules/governance.md` and `rules/okf.md`. The workflow
+skill keeps its `Plugin root` and `Master rules` labels so this loading point is
+visible, but does not restate this contract. `bouncer init` does not install
+these plugin-owned rules into the consuming project.

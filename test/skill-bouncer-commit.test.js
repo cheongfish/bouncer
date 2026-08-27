@@ -30,3 +30,10 @@ test('bouncer-commit reuses finalize ACQ skeleton and does not invent CLI', () =
   assert.match(body, /scripts\/bouncer"\s+current\b/);
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
 });
+
+test('bouncer-commit delegates pointer selection and confirm-then-set invariants', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /rules\/current-pointer\.md/);
+  assert.match(body, /nextTask/);
+  assert.match(body, /ACQ/);
+});

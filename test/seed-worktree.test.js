@@ -56,9 +56,53 @@ function status(repo) {
   return git(repo, ['status', '--porcelain']).trim();
 }
 
-function seed(repo, to) {
-  return seedWorktree({ repoRoot: repo, blueprintDir: BP_REL, worktreePath: to });
+function seed(repo, to, deps) {
+  return seedWorktree({ repoRoot: repo, blueprintDir: BP_REL, worktreePath: to, deps });
 }
+
+test('a fresh worktree forces locked development dependencies before seeding documents', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(wt, 'package-lock.json', '{}\n');
+  const calls = [];
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    const res = seed(repo, wt, {
+      execFileSync(command, args, options) {
+        calls.push({ command, args, options });
+      },
+    });
+
+    assert.strictEqual(res.ok, true);
+    assert.deepStrictEqual(calls, [{
+      command: 'npm',
+      // Production host defaults must not omit the CI test runner and other dev tools.
+      args: ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
+      options: { cwd: wt, stdio: 'inherit' },
+    }]);
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+  }
+});
+
+test('a reused worktree with npm’s lock marker does not reinstall dependencies', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(wt, 'package-lock.json', '{}\n');
+  write(wt, 'node_modules/.package-lock.json', '{}\n');
+  const calls = [];
+
+  const res = seed(repo, wt, {
+    execFileSync(command, args, options) {
+      calls.push({ command, args, options });
+    },
+  });
+
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(calls, []);
+});
 
 test('an untracked plan tree moves to the worktree and leaves the base clean', () => {
   const repo = makeRepo();

@@ -83,6 +83,22 @@ test('execute, commit, and finalize stop when current is null; plan stops withou
   assert.match(plan, /Preflight|missing|없/i);
 });
 
+test('pointer consumers retain only their local application while using the CLI contract', () => {
+  const execute = readWorkflow('bouncer-execute');
+  const commit = readWorkflow('bouncer-commit');
+  const finalize = readWorkflow('bouncer-finalize');
+  const run = readWorkflow('bouncer-run');
+  for (const md of [execute, commit, finalize, run]) {
+    assert.match(md, /rules\/current-pointer\.md/);
+    assert.match(md, /scripts\/bouncer"\s+current\b/);
+    assert.doesNotMatch(md, /scripts\/lib\/current/);
+  }
+  assert.match(execute, /scale.*light|light.*scale/i, 'execute keeps its local status/scale stop condition');
+  assert.match(commit, /nextTask/, 'commit keeps its local next-task handoff');
+  assert.match(finalize, /finalize --yes/, 'finalize keeps its local clear/handoff consequence');
+  assert.match(run, /autonomy/, 'run keeps its autonomy-specific advance behavior');
+});
+
 test('commands/ directory is gone', () => {
   assert.ok(!fs.existsSync(path.join(root, 'commands')));
 });
@@ -99,6 +115,13 @@ test('workflow skills end with an ACQ gates section', () => {
     const heads = [...md.matchAll(/^## .*$/gm)].map((m) => m[0]);
     // 존재만이 아니라 마지막 절인지까지 본다 — 성공 조건 2가 위치를 요구한다.
     assert.strictEqual(heads[heads.length - 1], '## ACQ (AskUserQuestion) gates', name);
+  }
+});
+
+test('workflow ACQ catalogs delegate shared display details to rules/acq.md', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    assert.match(md, /rules\/acq\.md/, `${name} must cite the display contract`);
   }
 });
 

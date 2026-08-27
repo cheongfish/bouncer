@@ -4,7 +4,7 @@ description: "This skill should be used only when the user explicitly asks to bo
 ---
 # /bouncer-init
 
-**Plugin root.** See `rules/plugin-root.md`.
+**Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
@@ -88,8 +88,8 @@ Document skeletons, product rules, and master rules live in the plugin
 
 ## ACQ (AskUserQuestion) gates
 
-Human-facing confirmations in this skill are **ACQ** gates. The numbered steps
-hold the prompts; this section only lists where they fire.
+Use `rules/acq.md` for the shared ACQ display and chat fallback. The numbered
+steps hold this workflow's timing and consequences.
 
 **Gates in this skill:**
 - Step 3 **Promotion ACQ** — when the init result carries

@@ -7,6 +7,28 @@ const { execFileSync } = require('node:child_process');
 const { epicDirOf, toPosix } = require('./paths');
 const { CONTEXT_ROOT } = require('./layout');
 const { isUnder } = require('./scope');
+// Execute worktree는 git이 추적한 파일만 받으므로 무시되는 node_modules는 항상
+// 비어 있다. npm이 만든 숨은 lock marker는 lockfile과 함께 모든 의존성이 준비된
+// checkout에만 남는다. 이 marker가 없을 때만 lockfile 기반 설치를 해 재사용 task가
+// 매번 node_modules를 지우지 않게 한다.
+function prepareDependencies(worktreePath, deps) {
+    if (!fs.existsSync(path.join(worktreePath, 'package-lock.json'))
+        || fs.existsSync(path.join(worktreePath, 'node_modules', '.package-lock.json')))
+        return { ok: true };
+    try {
+        // 실행 host가 NODE_ENV=production 또는 omit=dev를 설정해도, execute의
+        // 검증에는 devDependencies가 필요하다. 명시적으로 포함해 host 설정이
+        // 새 worktree의 검증 가능 여부를 바꾸지 못하게 한다.
+        (deps.execFileSync || execFileSync)('npm', ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
+            cwd: worktreePath,
+            stdio: 'inherit',
+        });
+        return { ok: true };
+    }
+    catch (error) {
+        return { ok: false, reason: 'dependency-install-failed', message: error.message };
+    }
+}
 // plan 워크플로에는 commit 단계가 없으므로 epic/blueprint 문서는 base working tree에만
 // 존재합니다. `git worktree add`는 커밋된 HEAD를 checkout하므로 execute worktree는
 // 구현에 필요한 brief 없이 시작합니다. 이 모듈은 plan context 문서만 정확히 옮기고
@@ -81,18 +103,21 @@ function pruneEmptyDirs(repoRoot, rel) {
         dir = path.dirname(dir);
     }
 }
-function seedWorktree({ repoRoot, blueprintDir, worktreePath, git, }) {
+function seedWorktree({ repoRoot, blueprintDir, worktreePath, git, deps, }) {
     const gitApi = git || realGit(repoRoot);
     const isTarget = makeIsTarget({ blueprintDir });
     const changed = gitApi.changedFiles();
     const untracked = gitApi.untrackedFiles();
     const changedSet = new Set(changed);
     const targets = [...new Set([...changed, ...untracked])].filter(isTarget).sort();
-    if (!targets.length)
-        return { ok: true, moved: [], restored: [] };
     if (!fs.existsSync(worktreePath) || !fs.statSync(worktreePath).isDirectory()) {
         return { ok: false, reason: 'missing-worktree', worktreePath };
     }
+    const prepared = prepareDependencies(worktreePath, deps || {});
+    if (!prepared.ok)
+        return prepared;
+    if (!targets.length)
+        return { ok: true, moved: [], restored: [] };
     // Phase 1 — 복사 후 확인. `git checkout --`와 `git rm --cached`는 되돌릴 수
     // 없으므로, 모든 target이 worktree에 동일한 바이트로 존재하는 것이 확인될 때까지
     // base는 건드리지 않습니다. 거기서 다른 파일이면 이전 실행이 중단됐거나

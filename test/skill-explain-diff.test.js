@@ -81,6 +81,12 @@ test('explain-diff fixes the light path at one question', () => {
   assert.match(md, /1–10|1-10/);
 });
 
+test('explain-diff keeps its one-shot quiz response separate from ACQ', () => {
+  const md = fs.readFileSync(path.join(root, 'skills/explain-diff/SKILL.md'), 'utf8');
+  assert.match(md, /rules\/acq\.md/);
+  assert.match(md, /not an ACQ|ACQ.*not/i);
+});
+
 test('explain-diff gives one behavior when explain.md is missing', () => {
   const md = fs.readFileSync(path.join(root, 'skills', 'explain-diff', 'SKILL.md'), 'utf8');
   assert.doesNotMatch(md, /create\s+the\s+file\s+if\s+missing/i);
