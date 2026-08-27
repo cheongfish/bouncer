@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '054'
   blueprint_id: '003'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - execute의 agent·복구 상세를 해당 분기에 진입할 때만 읽도록 분리함

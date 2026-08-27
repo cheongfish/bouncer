@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 
@@ -50,7 +51,7 @@ test('governance light path flips full to light instead of omitting the key', ()
 });
 
 test('bouncer-execute inlines implementer on scale light and keeps host fallback wording', () => {
-  const exec = read('skills/bouncer-execute/SKILL.md');
+  const exec = readWorkflowBundle('bouncer-execute');
   assert.match(exec, /포인터\(`bouncer current`\)의 `scale`이 `light`면/);
   assert.match(exec, /인라인|inline/i);
   // 리뷰는 경량에서도 named — step 5 경량 인라인 분기가 없어야 한다.

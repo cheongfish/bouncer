@@ -4,9 +4,10 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
-const { readSkill } = require('./helpers/read-skill');
+const { readSkill, readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
+const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 test('debugging has valid frontmatter identity', () => {
   const md = readSkill('debugging');
@@ -43,13 +44,13 @@ test('debugger redispatch cap is **1** across execute, debugging, agent, and run
   // run은 TASKS-002가 이미 "**1회**"(숫자+회를 한 강조)로 적었고, 이 task는
   // 본문을 고치지 않으므로 그 형태도 CAP에 포함한다.
   const CAP = /at most\s+\*\*1\*\*|최대\s+\*\*1\*\*회|\*\*1\*\*회|\*\*1회\*\*/;
-  for (const rel of [
-    'skills/bouncer-execute/SKILL.md',
-    'skills/debugging/SKILL.md',
-    'agents/bouncer-debugger.md',
-    'skills/bouncer-run/SKILL.md',
-  ]) {
-    const md = fs.readFileSync(path.join(root, rel), 'utf8');
+  const sources = [
+    ['bouncer-execute workflow bundle', readWorkflowBundle('bouncer-execute')],
+    ['skills/debugging/SKILL.md', read('skills/debugging/SKILL.md')],
+    ['agents/bouncer-debugger.md', read('agents/bouncer-debugger.md')],
+    ['skills/bouncer-run/SKILL.md', read('skills/bouncer-run/SKILL.md')],
+  ];
+  for (const [rel, md] of sources) {
     assert.match(md, CAP, rel);
     assert.doesNotMatch(md, /at most \*\*3\*\*/, rel);
   }

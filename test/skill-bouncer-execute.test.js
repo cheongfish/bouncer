@@ -4,9 +4,33 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
-const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-execute', 'SKILL.md'), 'utf8');
+const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-execute', 'SKILL.md'), 'utf8');
+const md = readWorkflowBundle('bouncer-execute');
+
+test('bouncer-execute conditionally routes dispatch and verify recovery references', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const routes = [
+    [
+      'agent-dispatch.md',
+      'When dispatching a named agent or applying its fallback, read this reference.',
+    ],
+    [
+      'verification-recovery.md',
+      'On verify failure, when recovering through debugger then implementer, read this reference.',
+    ],
+  ];
+  for (const [file, condition] of routes) {
+    assert.match(body, new RegExp(`\\[${file.replace('.', '\\.') }\\]`));
+    const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-execute', 'references', file), 'utf8');
+    assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
+  }
+  assert.match(body, /current\.task\.path/);
+  assert.match(body, /G6[\s\S]{0,300}G14/);
+  assert.doesNotMatch(body, /agentName:'bouncer-implementer'|Minimum fix proposal/);
+});
 
 test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   const { data, body } = parseFrontmatter(md);
