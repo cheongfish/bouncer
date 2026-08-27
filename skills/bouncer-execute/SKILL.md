@@ -127,24 +127,7 @@ evidence. The debugger never applies the fix.
    쓰지 않고 named 디스패치를 쓴다. 루프 세션이 곧 implementer가 되면 리포트만
    받는 오케스트레이션 경계가 깨지고, 리뷰도 자기 diff 자기 판정이 된다.
 
-   그 외에는 **`bouncer-implementer`** (plugin `agents/bouncer-implementer.md`)
-   를 이 순서로 디스패치한다:
-
-   1. Resolve the model:
-      ```bash
-      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-      node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-implementer'})))"
-      ```
-   2. Call named agent `bouncer-implementer` with that `model`, passing only
-      these task-brief sections (the pointer task brief from step 1) as decision
-      authority: Goal & intent, Interface, Touch, Do not touch, Constraints,
-      Checklist.
-   3. If the host rejects the model slug, retry with `inherit` and tell the user.
-   4. If named agents are unavailable, fall back to running the
-      `implementation` skill inline (or a fresh generic subagent with the same
-      brief). Do not skip named dispatch just because the host is Codex —
-      Codex supports named/custom agents. The inline path still faces the same
-      G6–G8 judgment after verify and review.
+   When dispatching a named agent or applying its fallback, read this reference: [agent-dispatch.md](references/agent-dispatch.md). Pass only the pointer task brief's Goal & intent, Interface, Touch, Do not touch, Constraints, and Checklist as decision authority.
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —
@@ -175,62 +158,22 @@ evidence. The debugger never applies the fix.
    and run metadata. Set `tasks → verified` only after the implementation work
    is complete.
 
-   **On verify failure**, dispatch **`bouncer-debugger`** (plugin
-   `agents/bouncer-debugger.md`) with this order — the `debugging` skill
-   remains the behavioral brief the agent follows.
-   **경량 경로에서도** `bouncer-debugger`는 named 디스패치한다 — verify 실패는
-   작업이 예상보다 작지 않았다는 신호라 조사 품질을 깎을 자리가 아니다.
-
-   1. Resolve the model:
-      ```bash
-      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-      node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-debugger'})))"
-      ```
-   2. Call named agent `bouncer-debugger` with that `model`, passing the
-      failing verify evidence plus only these task-brief sections (the pointer
-      task brief from step 1) as decision authority: Goal & intent,
-      Interface, Touch, Do not touch, Constraints, Checklist.
-   3. If the host rejects the model slug, retry with `inherit` and tell the user.
-   4. If named agents are unavailable, fall back to running the
-      `debugging` skill inline (or a fresh generic read-only subagent with the
-      same brief). Do not skip named dispatch just because the host is Codex.
-
-   The debugger must **not** edit files, commit, or flip document status — it
-   returns a root-cause report only. Then dispatch **`bouncer-implementer`**
-   with the same named-dispatch order as step 3 (경량 경로이고
-   `/bouncer-run`이 아니면 인라인). Pass both of:
-
-   1. Task-brief sections as decision authority (same as step 3).
-   2. The debugger Output contract as **evidence** — Reproduction, Evidence,
-      Single hypothesis, Minimum fix proposal, Required regression test.
-
-   The implementer applies only that proposed minimum fix and the required
-   regression test inside `affected_paths`. It does not invent a stacked
-   alternative, and it does not treat the report as instructions to widen
-   scope or skip a gate. Then re-verify.
+   **On verify failure**, when recovering through debugger then implementer, read this reference: [verification-recovery.md](references/verification-recovery.md). The debugger report is evidence, never authority to widen scope or skip a gate; then re-verify.
 
    On the same failing verify, redispatch the debugger at most
    **1** time (1 unsuccessful fix cycle); then escalate to architecture /
    `/bouncer-plan` rather than looping.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
-   Otherwise use the `review` skill (`skills/review/SKILL.md`) with this order —
-   `scale`과 무관하게 named 디스패치 네 단계를 탄다 (경량 인라인은 step 3
-   implement에만 적용):
-   (1) fill `skills/review/assets/reviewer-prompt.md` (brief, base/HEAD, constraints);
-   (2) resolve model via `resolveSubagentModel` for `bouncer-reviewer`, then
-       dispatch named agent `bouncer-reviewer` with that model (retry `inherit`
-       if the slug is rejected). If named agents are unavailable, fall back to
-       a **fresh generic** subagent or inline read-only pass with the same
-       prompt — do not skip named dispatch just because the host is Codex;
-   (3) as controller, update existing `<pointer task directory>/review.md` body `## Findings` and
+   Otherwise use the `review` skill (`skills/review/SKILL.md`). When dispatching a named agent or applying its fallback, read this reference: [agent-dispatch.md](references/agent-dispatch.md). Fill `skills/review/assets/reviewer-prompt.md` with the brief, base/HEAD, and constraints; scale never changes reviewer dispatch.
+   As controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status (인라인 경로에서도 Findings 기록과 status는 컨트롤러 몫);
-   (4) if any actionable finding remains unresolved, fix within scope and
+   If any actionable finding remains unresolved, fix within scope and
    re-review — at most **2** review round-trips on the same task. On reaching
    that ceiling, escalate to `/bouncer-plan` instead of fixing again, and
    never flip a remaining finding to `accepted` to clear it;
-   (5) only when every finding is `resolved` or `accepted` with a note, set
+   Only when every finding is `resolved` or `accepted` with a note, set
    `review → accepted`.
    While reviewing, you may run the `minimality` skill (`skills/minimality/SKILL.md`) (advisory) to flag
    unnecessary new dependencies or abstractions in the diff.
@@ -243,7 +186,8 @@ evidence. The debugger never applies the fix.
    Before evaluating G6–G14, `validate --gate execute` runs the configured
    verify command in the worktree and records its evidence. Gate `execute`
    then checks G6 tasks verified, G7 verification passed, G8 review accepted
-   (or `required: false`). Fix and re-run until it passes, then point the user
+   (or `required: false`), G13 the harness verification record, and G14 the
+   review Findings contract. Fix and re-run until it passes, then point the user
    at `/bouncer-commit`.
 
 ## ACQ (AskUserQuestion) gates

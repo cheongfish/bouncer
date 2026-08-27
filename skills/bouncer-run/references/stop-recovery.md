@@ -1,0 +1,3 @@
+On verify re-failure, review ceiling, scope violation, or user decline, read this reference.
+
+Leave the pointer on the failed task (or the task just closed after a decline) and leave the execute worktree in place. Resume by manually closing that task with `/bouncer-execute`, then start `/bouncer-run` again. Never auto-retry the run; a scope violation remains stopped where execute or commit stopped and does not widen `affected_paths`. Verify re-failure and the review-round-trip ceiling escalate to `/bouncer-plan` under step 4's existing limits. Do not enter `/bouncer-finalize` from this stop path.

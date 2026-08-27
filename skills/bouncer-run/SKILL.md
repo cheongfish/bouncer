@@ -138,11 +138,7 @@ blueprint가 경량으로 선언돼 있어도 주행 중에는 execute의 인라
 
    A가 아니면 멈춘다. B와 C 모두 포인터는 방금 닫은 task에 남는다.
 
-6. **중단.** verify 재실패, 리뷰 왕복 상한, 범위 위반, 또는 사용자가
-   거절하면 포인터를 실패한(또는 방금 닫은) task에 남기고 execute
-   worktree도 남긴다. 재개는 `/bouncer-execute`로 그 task만 수동으로
-   닫은 뒤 다시 `/bouncer-run`을 건다. `/bouncer-run`을 자동 재시도하지
-   않는다.
+6. **중단.** On verify re-failure, review ceiling, scope violation, or user decline, read this reference: [stop-recovery.md](references/stop-recovery.md). Do not alter limits, retry automatically, or enter finalize.
 
 7. **종료.** `nextTask`가 `null`이거나 열린 task를 소진하면 멈추고
    `/bouncer-finalize`를 안내한다. 이 스킬이 finalize에 진입하지 않는다.

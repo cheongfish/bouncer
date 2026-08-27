@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -107,7 +108,7 @@ test('workflow skills resolve PROJECT_ROOT via project-root for Distill', () => 
 });
 
 test('finalize promotion uses distill JSON payload repoRoot as the write base', () => {
-  const finalize = read('skills/bouncer-finalize/SKILL.md');
+  const finalize = readWorkflowBundle('bouncer-finalize');
   // 긍정 단정으로 base 출처를 잠근다.
   assert.match(finalize, /payload[^\n]{0,40}`?repoRoot`?/i);
   // 경로 조립 형태만 좁게 금지한다. `project-root`라는 낱말 자체를
@@ -131,7 +132,7 @@ test('Distill consumers use full preflight, then path-routed CLI output', () => 
   assert.match(plan, /affected_paths[\s\S]{0,500}distill\s+--for|distill\s+--for[\s\S]{0,500}affected_paths/);
 
   for (const name of ['bouncer-plan', 'discovery', 'bouncer-finalize']) {
-    const md = read(`skills/${name}/SKILL.md`);
+    const md = name === 'bouncer-finalize' ? readWorkflowBundle(name) : read(`skills/${name}/SKILL.md`);
     assert.match(md, /distill\s+--all/, `${name} must still name distill --all`);
     assert.match(md, /single-file fallback|단일 파일.*폴백/i, `${name} must preserve legacy fallback`);
   }
@@ -152,7 +153,7 @@ test('bouncer-run gives implementer the current task Distill re-ground', () => {
 });
 
 test('finalize promotion searches all Distill content and splits payload content into the shard map', () => {
-  const finalize = read('skills/bouncer-finalize/SKILL.md');
+  const finalize = readWorkflowBundle('bouncer-finalize');
   const spec = read('skills/spec-authoring/SKILL.md');
   assert.match(finalize, /distill\s+--all\s+--json/, 'promotion must start with a full JSON audit');
   assert.match(finalize, /payload[^\n]{0,40}`?repoRoot`?/i);

@@ -4,9 +4,34 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
-const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
+const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
+const md = readWorkflowBundle('bouncer-finalize');
+
+test('bouncer-finalize conditionally routes four reference contracts while keeping core in SKILL.md', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const routes = [
+    ['distill-promotion.md', 'When proposing and promoting Distill, read this reference.'],
+    ['explain-quiz.md', 'When authoring or refreshing explain and running the quiz, read this reference.'],
+    ['draft-pr.md', 'When the user chooses to consider a draft PR, read this reference.'],
+    [
+      'cleanup-handoff.md',
+      'After the remainder choice, when cleaning up the worktree or handing off the next blueprint, '
+        + 'read this reference.',
+    ],
+  ];
+  for (const [file, condition] of routes) {
+    assert.match(body, new RegExp(`\\[${file.replace('.', '\\.') }\\]`));
+    const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'references', file), 'utf8');
+    assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
+  }
+  assert.match(body, /validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize/);
+  assert.match(body, /finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes/);
+  assert.match(body, /reason: 'verify'/);
+  assert.doesNotMatch(body, /full JSON audit once|gh pr create|git worktree remove/);
+});
 
 test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR, and graceful skip', () => {
   const { data, body } = parseFrontmatter(md);
@@ -197,5 +222,5 @@ test('bouncer-finalize handles empty proposals, drop mismatches, and missing ACQ
 test('bouncer-finalize surfaces over-limit shards in the promotion ACQ', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /상한[\s\S]{0,80}초과[\s\S]{0,120}ACQ|ACQ[\s\S]{0,160}초과/);
-  assert.match(body, /`add`[\s\S]{0,60}`replace`[\s\S]{0,20}`drop`/);
+  assert.match(body, /`replace`[\s\S]{0,60}`drop`[\s\S]{0,20}`add`/);
 });

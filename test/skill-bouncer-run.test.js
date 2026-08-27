@@ -4,9 +4,20 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
-const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-run', 'SKILL.md'), 'utf8');
+const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-run', 'SKILL.md'), 'utf8');
+const md = readWorkflowBundle('bouncer-run');
+
+test('bouncer-run conditionally routes stop recovery', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const condition = 'On verify re-failure, review ceiling, scope violation, or user decline, read this reference.';
+  assert.match(body, /\[stop-recovery\.md\]/);
+  const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-run', 'references', 'stop-recovery.md'), 'utf8');
+  assert.ok(reference.startsWith(condition));
+  assert.doesNotMatch(body, /자동 재시도하지|Leave the pointer on the failed task/);
+});
 
 test('bouncer-run is an explicit-ask workflow skill that loops execute then commit', () => {
   const { data, body } = parseFrontmatter(md);
@@ -83,7 +94,7 @@ test('bouncer-run keeps pointer and worktree on stop and forbids auto-retry', ()
   assert.match(body, /포인터/);
   assert.match(body, /worktree/i);
   assert.match(body, /\/bouncer-execute/);
-  assert.match(body, /자동 재시/);
+  assert.match(body, /자동 재시|auto-retry/i);
 });
 
 test('bouncer-run reads autonomy and falls back to auto outside AUTONOMY_ENUM', () => {

@@ -56,6 +56,13 @@ module.exports = [
       'no-unused-vars': ['error', { caughtErrorsIgnorePattern: '^_' }],
     },
   },
+  {
+    files: ['test/**'],
+    rules: {
+      // 계약 fixture의 긴 산문과 정규식은 줄을 나누면 의도가 흐려진다.
+      'max-len': 'off',
+    },
+  },
   ...tseslint.configs.recommended.map((conf) => ({
     ...conf,
     files: STRICT_TS_FILES,
