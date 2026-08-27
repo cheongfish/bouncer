@@ -9,6 +9,7 @@ description: "This skill should be used only when the user explicitly asks to co
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
+Pointer contract: `rules/current-pointer.md`.
 
 Close one task on the active blueprint. Follow this sequence. Do **not** open a
 draft PR, remove the execute worktree, or run `explain-diff` here — those are
@@ -21,10 +22,8 @@ node "${BOUNCER_ROOT}/scripts/bouncer" current
 ```
 If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 
-Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
-appears; do not reconstruct a root `context/` path. **Task brief** =
-`current.task.path` when set; when `task` is `null`, use the resolver's first
-or single task bundle (same rule as execute).
+Apply the shared returned-value and task-brief selection contract. This
+workflow only supplies the current task's scope and its post-commit handoff.
 
 1. **Scope dry-run.** Ensure the target task frontmatter has
    `bouncer.commit_intent` as **exactly two** Korean `~함` / `~임` strings for
@@ -81,9 +80,8 @@ or single task bundle (same rule as execute).
 
 5. **Next-task handoff.** After a successful step 4 (including empty staged set
    with `committed: false`), offer to advance the active pointer with an **ACQ**
-   — do **not** recompute candidates yourself beyond reading `bouncer current` /
-   the commit payload's `nextTask`. Advancement is confirm-then-
-   `bouncer current --set …` only — never automatic.
+   — use the commit payload's `nextTask` as required by `rules/current-pointer.md`.
+   This direct invocation keeps the shared confirm-then-set rule.
 
    If `nextTask` is non-null, show the candidate task id and path
    (`tasks/<NNN>/tasks.md`).

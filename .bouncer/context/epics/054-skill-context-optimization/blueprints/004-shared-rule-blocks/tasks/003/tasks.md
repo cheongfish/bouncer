@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '054'
   blueprint_id: '004'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - workflow마다 반복된 active pointer 처리 규칙을 한 정본으로 모음

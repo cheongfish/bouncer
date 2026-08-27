@@ -11,7 +11,7 @@ bouncer:
   id: REVIEW-003
   epic_id: '054'
   blueprint_id: '004'
-  status: pending
+  status: accepted
   review:
     required: true
 ---

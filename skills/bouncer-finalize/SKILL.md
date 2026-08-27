@@ -9,6 +9,7 @@ description: "This skill should be used only when the user explicitly asks to fi
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
+Pointer contract: `rules/current-pointer.md`.
 
 Close out the active blueprint after every task has been committed via
 `/bouncer-commit`. Follow this sequence. Do **not** run `bouncer commit` here —
@@ -29,8 +30,8 @@ node "${BOUNCER_ROOT}/scripts/bouncer" current
 ```
 If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 
-Use the returned `blueprint` value verbatim wherever `<pointer.blueprint>`
-appears; do not reconstruct a root `context/` path.
+Apply the shared returned-value contract. This workflow owns the finalize
+outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
 1. **Propose and promote Distill (one consent).** When proposing and promoting Distill, read this reference: [distill-promotion.md](references/distill-promotion.md). It directs the conditional `spec-authoring` handoff (`skills/spec-authoring/SKILL.md`); its result is either one consented promotion outcome or a reported mismatch that continues to step 2.
 
@@ -81,7 +82,8 @@ appears; do not reconstruct a root `context/` path.
    BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
    ```
-   `--yes`는 스테이징 전에 검증 명령을 실행한다. `reason: 'verify'` 실패는
+   `--yes`는 스테이징 전에 검증 명령을 실행한다. Shared contract에 따라 pointer를
+   clear한다. `reason: 'verify'` 실패는
    원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다.
    Remember the worktree choice for step 5 (`remove` on A, `keep` on B).
    On **C**, fix and re-dry-run. On **D**, stop without `--yes`.

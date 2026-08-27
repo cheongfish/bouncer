@@ -9,6 +9,7 @@ description: "This skill should be used only when the user explicitly asks to pl
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
+Pointer contract: `rules/current-pointer.md`.
 
 Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
@@ -205,9 +206,9 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" current --set <blueprint dir>
    ```
-   Writes the pointer under the Git common directory (`bouncer/current`) as
-   `{ "blueprint": "<dir>", "base": "<config.base_branch or develop>" }`.
-   `--set` runs the plan gate first and refuses to write on failure.
+   This is the approved initial-pointer application of the shared
+   `rules/current-pointer.md` contract; its `--set` plan-gate refusal stops
+   this workflow.
 
 10. **Gate.** Run `bouncer validate --gate plan` and report:
    ```bash

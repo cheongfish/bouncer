@@ -9,6 +9,7 @@ description: "This skill should be used only when the user explicitly asks to ru
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
+Pointer contract: `rules/current-pointer.md`.
 
 **Project root.** Resolve once at drive start (and reuse on every re-ground):
 ```bash
@@ -70,7 +71,8 @@ blueprint가 경량으로 선언돼 있어도 주행 중에는 execute의 인라
    `bouncer current`는 포인터가 있을 때 `ready` 목록을 붙이지 않는다.
    blueprint가 `closed`이거나 열린 task(`ready` / `in_progress`)가 없으면
    주행하지 않고 `/bouncer-finalize`로 보낸다. 반환된 `blueprint` 값을
-   이후 `<pointer.blueprint>`에 그대로 쓴다.
+   이후 `<pointer.blueprint>`에 그대로 쓴다. 반환값·task 선택은
+   `rules/current-pointer.md`를 적용한다.
 
 2. **시작 ACQ.** 남은 task 목록과 각 task의 `affected_paths`를 보인 뒤
    주행 여부를 묻는다. 옵션 순서는 추천 진행 → 수정 → 취소.
@@ -91,7 +93,8 @@ blueprint가 경량으로 선언돼 있어도 주행 중에는 execute의 인라
 3. **반복 단위.** `/bouncer-execute`를 그 스킬의 절차대로 수행하고, 이어
    `/bouncer-commit`을 수행한다. `auto`와 `interactive` 모두 그 스킬의
    commit ACQ와 next-task ACQ를 건너뛰고 `--yes`까지 진행한다.
-   `bouncer commit` JSON의 `nextTask`를 읽는다. `auto`이고 값이 있으면
+   `bouncer commit` JSON의 `nextTask`를 읽는다. shared pointer contract의
+   예외대로, 시작 ACQ는 `auto`의 다음 task 이동을 미리 승인한다. 값이 있으면
    바로 `bouncer current --set <bp> --task <NNN>`으로 다음 task로 옮긴다.
    `interactive`는 `--set`을 step 5 ACQ 뒤로 미룬다:
    ```bash

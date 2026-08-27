@@ -63,6 +63,24 @@ test('ACQ display contract is centralized and workflows cite it', () => {
   }
 });
 
+test('current-pointer contract is centralized and pointer consumers cite it', () => {
+  const pointer = read('rules/current-pointer.md');
+  assert.match(pointer, /bouncer current/);
+  assert.match(pointer, /returned `blueprint`.*verbatim|반환된 `blueprint`.*그대로/i);
+  assert.match(pointer, /current\.task\.path/);
+  assert.match(pointer, /first.*single|첫.*단일/i);
+  assert.match(pointer, /confirm-then-set|확인.*--set/i);
+  assert.match(pointer, /plan gate|plan 게이트/i);
+  assert.match(pointer, /Git common directory|Git 공용 디렉터리/i);
+
+  for (const name of [
+    'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize', 'bouncer-run',
+  ]) {
+    assert.match(read(`skills/${name}/SKILL.md`), /rules\/current-pointer\.md/, `${name} must cite pointer contract`);
+  }
+  assert.match(read('skills/bouncer-finalize/references/cleanup-handoff.md'), /rules\/current-pointer\.md/);
+});
+
 test('master rules use the installed bouncer-root launcher', () => {
   const claude = read('CLAUDE.md');
   const rule = read('rules/plugin-root.md');

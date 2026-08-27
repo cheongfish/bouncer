@@ -116,6 +116,14 @@ test('bouncer-finalize offers next-blueprint handoff via current --set after con
   assert.match(body, /ask|confirm|승낙/i);
 });
 
+test('bouncer-finalize delegates pointer clear and next-blueprint set invariants', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const handoff = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'references', 'cleanup-handoff.md'), 'utf8');
+  assert.match(body, /rules\/current-pointer\.md/);
+  assert.match(handoff, /rules\/current-pointer\.md/);
+  assert.match(handoff, /next\.next/);
+});
+
 test('bouncer-finalize next handoff is next blueprint only (task advance lives on commit)', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /current --set/);

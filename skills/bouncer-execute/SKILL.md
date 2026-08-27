@@ -9,6 +9,7 @@ description: "This skill should be used only when the user explicitly asks to ex
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
+Pointer contract: `rules/current-pointer.md`.
 
 Implement the active blueprint's current task. Follow this sequence. Do **not**
 run `git commit` or `bouncer commit` here — after the execute gate passes, point
@@ -54,14 +55,11 @@ evidence. The debugger never applies the fix.
      `bouncer current --set <dir>` (or `/bouncer-plan` if they meant a different
      blueprint), then stop.
    - When `ready` is empty, stop and tell the user to run `/bouncer-plan` first.
-   Use the returned `blueprint` value verbatim for every document read and
-   `--blueprint` argument below; do not reconstruct a root `context/` path.
-   CLI `current.task` is `{ path, id }` when set (pointer file stores path only).
-   **Task brief** = `current.task.path` (repo-relative) when `current.task` is
-   non-null. When `task` is `null`, use the resolver's single or first task
-   task bundle document (`tasks/<NNN>/tasks.md`)
-   as today. Later steps
-   use that same brief path — do not re-pick a different task document mid-run.
+   Apply the shared rule's returned-value and task-brief selection contract:
+   `current.task.path` is the task brief when present; otherwise use its
+   first/single resolver result. This workflow's local null outcome is the
+   ready-candidate / `/bouncer-plan` stop above; later steps retain the selected
+   `tasks/<NNN>/tasks.md` brief and do not re-pick it.
    브리프를 읽을 때 `bouncer.scope_evidence`는 읽기·주입 대상에서 제외한다.
    계획 근거 감사 전용(작성은 graphify-runner, 판정은 G4, 대조는 context-review)이라
    execute 경로에는 소비자가 없고, G4 입력이므로 문서에서는 지우지 않는다.
@@ -102,14 +100,14 @@ evidence. The debugger never applies the fix.
    ```
    It first prepares lockfile-pinned development dependencies when this
    worktree has no npm lock marker, then moves only the plan context documents
+   (including each task bundle's `tasks.md`)
    (blueprint tree, epic index, context index) and returns the base to its
    committed state; unrelated dirty files stay in the base. A `conflict` result means the worktree already holds
    a different version — resolve it by hand rather than re-running. When there
    is nothing left to move, seed returns success with an empty `moved` list.
 
-   The active pointer is stored under the Git common directory, so the worktree
-   resolves the same pointer without copying it into the repository. **Set every
-   subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`**. Do **not**
+   The shared pointer contract makes this worktree observe the main worktree's
+   active pointer without copying it. **Set every subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`**. Do **not**
    run `git -C "${WORKTREE_PATH}" ...` from the project root — the
    `commit-safety` PreToolUse hook uses the command's actual working directory
    and would otherwise inspect the wrong index.
