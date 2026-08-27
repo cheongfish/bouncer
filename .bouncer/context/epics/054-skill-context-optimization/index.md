@@ -30,7 +30,7 @@ flowchart LR
 ```
 
 ## Success criteria
-1. `implementation` / `review` / `debugging` / `context-review` 네 역할에서 절차·guardrail·출력 계약 문장이 `agents/*.md` 한 곳에만 있다. 판정 절차: 네 `skills/*/SKILL.md` 본문을 항목 단위로 읽어 (a) 어떤 agent를 부르는가, (b) 넘길 task brief 절, (c) 결과에서 읽을 필드, (d) 재호출 상한, (e) fallback 조건, (f) status·gate 소유권 — 이 여섯 항목 밖의 문장이 0건임을 확인하고, 정적 지표 3번의 `wc -w`가 네 스킬 모두에서 변경 전보다 줄었음을 확인한다.
+1. `implementation` / `review` / `debugging` / `context-review` 네 역할에서 절차·guardrail·출력 계약 문장이 `agents/*.md` 한 곳에만 있다. 판정 절차: 네 `skills/*/SKILL.md` 본문을 항목 단위로 읽어 (a) 어떤 agent를 부르는가, (b) 넘길 task brief 절, (c) 결과에서 읽을 필드, (d) 재호출 상한, (e) fallback 조건, (f) status·gate 소유권 — 이 여섯 항목과 blueprint 002가 명시한 고유 정본 절(implementation의 주석 루브릭, context-review의 full-plan 게이트) 밖의 문장이 0건임을 확인하고, 정적 지표 3번의 `wc -w`가 네 스킬 모두에서 변경 전보다 줄었음을 확인한다.
 2. named agent가 없을 때의 인라인 fallback 경로가 네 역할 모두에서 살아 있고, 그 경로에서만 같은 agent 계약을 읽도록 지시된다.
 3. `skills/bouncer-{plan,execute,finalize,run}/SKILL.md`에서 게이트 절차가 `references/`로 옮겨진 것이 0건이다. 판정 절차: 각 blueprint의 diff에서 본문 → `references/`로 이동한 블록을 모두 열거하고, 블록마다 `bouncer validate --gate` / `bouncer current` / commit scope / verification·evidence 파일 경로를 지시하는 문장이 있는지 본다. 하나라도 있으면 그 블록은 본문으로 되돌린다.
 4. 새로 만든 `references/*.md`마다 첫 문단에 그 파일을 읽는 조건이 한 문장으로 적혀 있고, 진입 `SKILL.md`의 해당 단계가 같은 조건으로 그 파일을 가리킨다.

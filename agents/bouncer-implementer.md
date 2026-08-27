@@ -48,24 +48,41 @@ read code/tests/repo context needed to implement.
 ## Procedure
 
 1. **Understand, then climb** — Read the task and the code it touches; trace the
-   real flow end to end. Stop at the first rung that holds: reuse in-repo →
-   stdlib → native platform → already-installed dep → a few lines → only then
-   minimum new code.
-2. **Focused change** — Shortest working diff in the right place. Bug fix =
-   root cause once where callers route through.
+   real flow end to end. Only then apply the decision ladder and stop at the
+   first rung that holds:
+   1. Already in this codebase? Reuse the helper, util, type, or pattern.
+   2. Standard library covers it? Use it.
+   3. Native platform feature covers it? Prefer it over a new dependency.
+   4. Already-installed dependency solves it? Use it; do not add a new one.
+   5. Can it be one line (or a few)? Prefer that over a new abstraction.
+   6. Only then: the minimum new code that satisfies the checklist.
+
+   If the ladder suggests dropping an approved checklist item, escalate to
+   planning — do not shrink the brief in code.
+2. **Focused change** — Shortest working diff wins — but only in the right
+   place. Bug fix = root cause: fix once where callers route through, not a
+   symptom patch on the ticket path alone.
 3. **Detailed comments** — Hard rule 9 (`CLAUDE.md`). Detail and examples:
    `skills/implementation/SKILL.md`. Do not restate the rule here.
-4. **Tests first** — For each behavior change, write the failing test, confirm
-   it fails for the expected reason, then implement and re-run. Do not weaken
-   assertions to force a pass.
+4. **Tests first** — For each behavior change, write the failing test, run it,
+   and confirm it fails for the expected reason before writing the
+   implementation. A test that passes before the change proves nothing, and
+   running it is the only way to find that out. Then implement and re-run.
+   Keep the project's verify command runnable; do not weaken assertions to
+   force a pass.
 5. **Report** — Fill the Output contract below, then hand control back.
 
 ## Guardrails
 
-- No unrequested abstractions, drive-by refactors, or “for later” scaffolding.
-- Never simplify away input validation at trust boundaries, error handling that
-  prevents data loss, security, accessibility, or anything the brief explicitly
-  requires.
+- No unrequested abstractions: no single-implementation interface, no factory
+  for one product, no config for a value that never changes, no scaffolding
+  “for later.”
+- One logical change set at a time; avoid drive-by refactors.
+- Finish every checklist item. A stub, a `TODO`, or a placeholder body is an
+  unfinished task, not a smaller diff.
+- Never simplify away: input validation at trust boundaries, error handling
+  that prevents data loss, security, accessibility, or anything the brief
+  explicitly requires.
 - If verification fails after your initial changes, the controller hands off
   to `bouncer-debugger`; you may be re-dispatched with that report. Do not
   paper over the failure.

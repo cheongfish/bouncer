@@ -75,6 +75,21 @@ test('bouncer-implementer points comment rule at hard rule 9 without restating i
   assert.doesNotMatch(md, /Prefer thoroughness/);
 });
 
+// 최소성 사다리의 정본은 이 agent 문서다(스킬에서 옮겨옴).
+test('implementation climbs a minimality ladder before writing code', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  assert.match(md, /decision ladder|Understand, then climb/i);
+  assert.match(md, /[Rr]euse|Already in this codebase/);
+  assert.match(md, /[Ss]tandard library|stdlib/i);
+  assert.match(md, /[Nn]ative platform|[Aa]lready-installed dependency/i);
+  assert.match(md, /minimum new code|minimum code/i);
+  // 사다리 전용 탈출구: 승인된 체크리스트 항목을 사다리 근거로 버리려 할 때의
+  // escalate 문장을 직접 겨눈다. 맨 "planning"은 Output contract의
+  // "Needs planning"에도 걸려서 사다리를 지워도 통과했다.
+  assert.match(md, /dropping an approved checklist item[\s\S]{0,80}escalate/i);
+  assert.match(md, /do not shrink the brief in code/i);
+});
+
 test('agent docs share the body skeleton and end with the output contract', () => {
   for (const name of AGENTS) {
     const md = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
