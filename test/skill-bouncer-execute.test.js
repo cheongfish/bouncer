@@ -72,20 +72,20 @@ test('bouncer-execute step 2 seeds the worktree with the plan documents', () => 
 
 test('bouncer-execute step 3 routes implementation through bouncer-implementer', () => {
   const { body } = parseFrontmatter(md);
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
   assert.match(body, /bouncer-implementer/);
-  assert.match(body, /resolveSubagentModel/);
-  assert.match(body, /inherit/);
+  assert.match(dispatch, /rules\/subagent-model\.md/);
   assert.match(body, /controller/i);
   assert.match(body, /commit-safety|git commit/i);
 });
 
 test('bouncer-execute step 4 dispatches bouncer-debugger on verify failure', () => {
   const { body } = parseFrontmatter(md);
+  const recovery = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/verification-recovery.md'), 'utf8');
   assert.match(body, /bouncer-debugger/);
-  assert.match(body, /resolveSubagentModel/);
-  assert.match(body, /inherit/);
+  assert.match(recovery, /rules\/subagent-model\.md/);
   // Hosts that cannot load named agents must keep an inline/generic fallback.
-  assert.match(body, /named agents are unavailable|fall back|inline/i);
+  assert.match(recovery, /debugging.*inline|generic.*read-only/i);
   assert.match(body, /debugging/);
 });
 
@@ -101,11 +101,11 @@ test('bouncer-execute re-dispatches implementer with the debugger report after v
 
 test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', () => {
   const { body } = parseFrontmatter(md);
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
   assert.match(body, /skills\/review\/assets\/reviewer-prompt\.md/);
   assert.match(body, /bouncer-reviewer/);
-  assert.match(body, /resolveSubagentModel/);
-  assert.match(body, /inherit/);
-  assert.match(body, /fresh generic|generic.*subagent/i);
+  assert.match(dispatch, /rules\/subagent-model\.md/);
+  assert.match(dispatch, /fresh generic|generic.*subagent/i);
   assert.match(body, /controller/i);
   assert.match(body, /## Findings/);
   assert.match(body, /bouncer\.review\.findings/);

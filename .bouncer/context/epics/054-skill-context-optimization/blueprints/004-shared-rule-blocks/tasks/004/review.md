@@ -11,9 +11,13 @@ bouncer:
   id: REVIEW-004
   epic_id: '054'
   blueprint_id: '004'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: R004-1
+        severity: major
+        status: resolved
 ---
 # Review
 
@@ -21,4 +25,8 @@ bouncer:
 <!-- finding: id, severity, status. accepted이면 note 필수.
      severity: blocker | major | minor | nit
      status: resolved | accepted -->
-- <finding>
+- id: R004-1
+  severity: major
+  status: resolved
+  evidence: `resolveSubagentModel` 반환 객체 전체가 아닌 `result.model`만 named dispatch에 전달해야 함.
+  disposition: 공통 model 규칙과 계약 테스트로 해소함.

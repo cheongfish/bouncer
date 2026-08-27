@@ -5,7 +5,15 @@ description: "This skill should be used when reviewing a change against the task
 
 # Review
 
-**Plugin-root shell contract.** See `rules/plugin-root.md`; the reviewer-model shell resolves independently.
+**Plugin-root shell contract.** See `rules/plugin-root.md`. Apply the shared
+model and host-fallback order in [`rules/subagent-model.md`](../../rules/subagent-model.md).
+
+```bash
+BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+```
+
+The shared rule owns the `resolveSubagentModel` invocation; its independent
+workflow shell receives `${BOUNCER_ROOT}` from this launcher resolution.
 
 Produce the review **deliverable contract**. Gates judge the result; this skill
 only produces findings and dispositions.
@@ -34,21 +42,10 @@ by name.
    Mark the review accepted only when no actionable finding remains unresolved
    (every finding `resolved`, or `accepted` with a note).
 3. **Review** — Fill [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) and dispatch
-   **`bouncer-reviewer`** with this order:
-
-   1. Resolve the model (never throws; `null` means parent-session inherit):
-      ```bash
-      BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-      node -e "console.log(JSON.stringify(require('${BOUNCER_ROOT}/scripts/lib/subagents').resolveSubagentModel({repoRoot:process.cwd(),agentName:'bouncer-reviewer'})))"
-      ```
-   2. Call named agent `bouncer-reviewer` with that `model` (attach the filled
-      brief slot as the call prompt).
-   3. If the host rejects the model slug, retry with `inherit` and tell the
-      user the slug was refused.
-   4. If named agents are unavailable, fall back to a **fresh generic**
-      subagent with the same prompt, or an inline read-only pass when no
-      subagent tool exists. Do not skip named dispatch just because the host
-      is Codex — Codex supports named/custom agents.
+   **`bouncer-reviewer`** with the resolved model (attach the filled brief slot
+   as the call prompt). If named agents are unavailable, use a **fresh generic**
+   subagent with the same prompt, or an inline read-only pass when no subagent
+   tool exists.
 
    Judge the diff with the rubric in the named agent
    `agents/bouncer-reviewer.md`. That doc is the single source for the judging

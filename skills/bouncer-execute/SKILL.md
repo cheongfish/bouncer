@@ -115,10 +115,9 @@ evidence. The debugger never applies the fix.
 3. **Implement (task brief is the sole authority).** The `implementation`
    skill remains the behavioral brief either way.
 
-   **경량 분기.** 포인터(`bouncer current`)의 `scale`이 `light`면 named
-   디스패치 네 단계(`resolveSubagentModel` → named 호출 → slug 거절 시
-   `inherit` 재시도 → 미지원 시 fallback)를 건너뛰고 `implementation` 스킬을
-   인라인으로 실행한다. 선언에 의한 선택이며, 아래 4번의 호스트 fallback과는
+   **경량 분기.** 포인터(`bouncer current`)의 `scale`이 `light`면 shared model
+   dispatch contract를 건너뛰고 `implementation` 스킬을 인라인으로 실행한다.
+   선언에 의한 선택이며, 아래 4번의 호스트 fallback과는
    별개 문장이다. `scale`의 SSOT는 blueprint `index.md`이지만, 이 판정은
    step 1에서 이미 받은 포인터 응답만 쓴다 — `index.md`를 다시 열지 않는다.
 
@@ -126,7 +125,9 @@ evidence. The debugger never applies the fix.
    쓰지 않고 named 디스패치를 쓴다. 루프 세션이 곧 implementer가 되면 리포트만
    받는 오케스트레이션 경계가 깨지고, 리뷰도 자기 diff 자기 판정이 된다.
 
-   When dispatching a named agent or applying its fallback, read this reference: [agent-dispatch.md](references/agent-dispatch.md). Pass only the pointer task brief's Goal & intent, Interface, Touch, Do not touch, Constraints, and Checklist as decision authority.
+   When dispatching a named agent or applying its fallback, apply
+   [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this
+   reference: [agent-dispatch.md](references/agent-dispatch.md). Pass only the pointer task brief's Goal & intent, Interface, Touch, Do not touch, Constraints, and Checklist as decision authority.
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —
@@ -157,14 +158,16 @@ evidence. The debugger never applies the fix.
    and run metadata. Set `tasks → verified` only after the implementation work
    is complete.
 
-   **On verify failure**, when recovering through debugger then implementer, read this reference: [verification-recovery.md](references/verification-recovery.md). The debugger report is evidence, never authority to widen scope or skip a gate; then re-verify.
+   **On verify failure**, when recovering through debugger then implementer,
+   apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read
+   this reference: [verification-recovery.md](references/verification-recovery.md). The debugger report is evidence, never authority to widen scope or skip a gate; then re-verify.
 
    On the same failing verify, redispatch the debugger at most
    **1** time (1 unsuccessful fix cycle); then escalate to architecture /
    `/bouncer-plan` rather than looping.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
-   Otherwise use the `review` skill (`skills/review/SKILL.md`). When dispatching a named agent or applying its fallback, read this reference: [agent-dispatch.md](references/agent-dispatch.md). Fill `skills/review/assets/reviewer-prompt.md` with the brief, base/HEAD, and constraints; scale never changes reviewer dispatch.
+   Otherwise use the `review` skill (`skills/review/SKILL.md`). When dispatching a named agent or applying its fallback, apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this reference: [agent-dispatch.md](references/agent-dispatch.md). Fill `skills/review/assets/reviewer-prompt.md` with the brief, base/HEAD, and constraints; scale never changes reviewer dispatch.
    As controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status (인라인 경로에서도 Findings 기록과 status는 컨트롤러 몫);
@@ -194,4 +197,4 @@ evidence. The debugger never applies the fix.
 `rules/acq.md` defines shared ACQ display and chat fallback. This skill has
 **no ACQ gates**. Numbered steps may stop and tell the user to
 run `/bouncer-plan` or `/bouncer-commit`, but they do not ask for consent via
-AskUserQuestion. Subagent model-slug retries use `inherit` without a user ACQ.
+AskUserQuestion. The shared model contract's slug retry needs no user ACQ.

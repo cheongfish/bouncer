@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '054'
   blueprint_id: '004'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - named agent마다 반복된 model 해석과 fallback 절차를 한 정본으로 모음

@@ -81,6 +81,28 @@ test('current-pointer contract is centralized and pointer consumers cite it', ()
   assert.match(read('skills/bouncer-finalize/references/cleanup-handoff.md'), /rules\/current-pointer\.md/);
 });
 
+test('subagent model contract is centralized and named dispatch consumers cite it', () => {
+  const model = read('rules/subagent-model.md');
+  assert.match(model, /resolveSubagentModel/);
+  assert.match(model, /result\.model/);
+  assert.match(model, /result\.model` is `null`, omit the model argument/i);
+  assert.match(model, /parent-session inheritance/i);
+  assert.match(model, /named dispatch/i);
+  assert.match(model, /rejected.*slug[\s\S]{0,120}inherit/i);
+  assert.match(model, /named agents are unavailable/i);
+  assert.match(model, /non-string|비문자열/i);
+  assert.match(model, /Codex/i);
+
+  for (const rel of [
+    'skills/bouncer-plan/references/context-review.md',
+    'skills/bouncer-execute/references/agent-dispatch.md',
+    'skills/bouncer-execute/references/verification-recovery.md',
+    'skills/review/SKILL.md',
+  ]) {
+    assert.match(read(rel), /rules\/subagent-model\.md/, `${rel} must cite the shared model contract`);
+  }
+});
+
 test('master rules use the installed bouncer-root launcher', () => {
   const claude = read('CLAUDE.md');
   const rule = read('rules/plugin-root.md');
@@ -101,14 +123,12 @@ test('plugin-root contract is shared while launcher shells resolve independently
     'skills/bouncer-commit/SKILL.md',
     'skills/bouncer-finalize/SKILL.md',
     'skills/bouncer-run/SKILL.md',
-    'skills/bouncer-plan/references/context-review.md',
     'skills/bouncer-finalize/references/cleanup-handoff.md',
     'skills/bouncer-finalize/references/distill-promotion.md',
     'skills/bouncer-finalize/references/explain-quiz.md',
     'skills/explain-diff/SKILL.md',
     'skills/graphify-runner/SKILL.md',
     'skills/migrate-ids/SKILL.md',
-    'skills/review/SKILL.md',
   ];
   const launcher = 'BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?';
 

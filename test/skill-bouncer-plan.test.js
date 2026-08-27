@@ -122,12 +122,12 @@ test('bouncer-plan detects project build scripts and asks before writing tasks v
 
 test('bouncer-plan dispatches context-review before approval with named-agent fallback', () => {
   const { body } = parseFrontmatter(md);
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-plan/references/context-review.md'), 'utf8');
   assert.match(body, /skills\/context-review\/SKILL\.md/);
-  assert.match(body, /bouncer-context-reviewer/);
-  assert.match(body, /resolveSubagentModel/);
-  assert.match(body, /inherit/);
+  assert.match(dispatch, /bouncer-context-reviewer/);
+  assert.match(dispatch, /rules\/subagent-model\.md/);
   // named agent를 로드하지 못하면 단계를 건너뛰지 않고 인라인한다.
-  assert.match(body, /named agents are unavailable|fall back|inline/i);
+  assert.match(dispatch, /context-review.*inline|generic.*read-only/i);
   const reviewAt = body.search(/context-review|bouncer-context-reviewer/);
   const approvalAt = body.search(/\*\*Approval/);
   assert.ok(reviewAt > -1 && approvalAt > reviewAt, 'context-review step must precede Approval');
