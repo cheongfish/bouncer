@@ -1,5 +1,7 @@
 # 측정 프로토콜
 
+Bouncer 지시문 비용(정적 지표, 회귀 시나리오 7종, 런당 기록)은 [context-cost.md](context-cost.md)에 있다.
+
 이후 회차는 아래 세 arm으로 태스크 스위트(`docs/benchmark/tasks/`)를 돌린다.
 1–3회차는 off / on(또는 on-light) 두 arm이었다. 그 회차의 수치와 설계 서술은
 [history.md](history.md)와 git 히스토리에 있다. 이 문서는 그 기록을 고치지 않고,
