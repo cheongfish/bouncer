@@ -250,3 +250,22 @@ test('hard rule 7 requires finalize promotion consent and caller-provided shard 
   );
   assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
 });
+
+test('Distill re-ground uses one repeated-flag call for every confirmed path', () => {
+  for (const rel of [
+    'CLAUDE.md',
+    'skills/bouncer-plan/SKILL.md',
+    'skills/bouncer-execute/SKILL.md',
+    'skills/bouncer-run/SKILL.md',
+    '.bouncer/distill/core.md',
+  ]) {
+    const md = read(rel);
+    assert.doesNotMatch(md, /once\s+(?:per|for each)[\s\S]{0,80}path|경로마다[\s\S]{0,80}한 번/i);
+    assert.match(md, /--for[\s\S]{0,160}--for/, `${rel} must show repeated --for flags`);
+  }
+  assert.match(
+    read('skills/bouncer-plan/SKILL.md'),
+    /node "\$\{BOUNCER_ROOT\}\/scripts\/bouncer" distill\s+\\\n\s+--for <path-1>\s+\\\n\s+--for <path-2>/,
+    'plan must show the multiline repeated-flag shell form',
+  );
+});

@@ -19,9 +19,10 @@ If that fails, stop and report stderr — do not fall back to cwd or plugin root
 
 **Project Distill.** The CLI reads `${PROJECT_ROOT}/.bouncer/Distill.md`; do not
 read a cwd-relative file. After each pointer task's `affected_paths` is loaded,
-re-ground with `bouncer distill --for <path> --repo "${PROJECT_ROOT}"` once per
-path and pass that selected output through to `/bouncer-execute`. An absent or
-invalid shard index remains the CLI's single-file fallback. If the CLI fails,
+re-ground with one `bouncer distill --for <path-1> --for <path-2> ... --repo
+"${PROJECT_ROOT}"` call containing every confirmed path and pass that selected
+output through to `/bouncer-execute`. An absent or invalid shard index remains
+the CLI's single-file fallback. If the CLI fails,
 stop rather than substituting the run cwd or plugin root. Honor matching
 Invariants / Gotchas / Decisions, and repeat the re-ground after every task
 advance.

@@ -203,12 +203,20 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
    be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
    blocks it.
    **Distill re-ground.** After the user confirms each task's `affected_paths`,
-   run `bouncer distill --for <path> --repo "${PROJECT_ROOT}"` once for each
-   confirmed path of that task and give the routed output to the final
-   authoring/gate context. This is the first selective read; if a task's list
+   use every confirmed `affected_paths` in the following `bouncer distill --for`
+   repeated-flag call and give the routed output to the final authoring/gate
+   context. This is the first selective read; if a task's list
    changes, repeat it for that task. Keep the earlier `--all` baseline file; a
    route result must not replace that baseline. If the file is gone, re-run
    `--all` — do not substitute routed output.
+   ```bash
+   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
+   node "${BOUNCER_ROOT}/scripts/bouncer" distill \
+     --for <path-1> \
+     --for <path-2> \
+     ... \
+     --repo "${PROJECT_ROOT}"
+   ```
 
 7. **Context review.** **Skip this entire step when the blueprint's
    `bouncer.scale` is `light`** — that blueprint has no `context-review.md`

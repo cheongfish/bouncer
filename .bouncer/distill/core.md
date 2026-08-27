@@ -98,8 +98,9 @@ Project-wide rules that apply to every path.
   `PROJECT_ROOT` via the CLI. Before `/bouncer-plan` or `discovery` decides
   paths, inject `bouncer distill --preflight` and keep a session-scratch
   baseline file from `bouncer distill --all`; do not put `--all` stdout into
-  context. After `affected_paths` is confirmed, re-ground with
-  `bouncer distill --for <path>`. If the baseline file is missing, re-run
+  context. After `affected_paths` is confirmed, re-ground with one
+  `bouncer distill --for <path-1> --for <path-2> ... --repo "${PROJECT_ROOT}"`
+  call containing every confirmed path. If the baseline file is missing, re-run
   `--all` — do not treat a route result as the baseline. `discovery` /
   `spec-authoring` take the caller-provided absolute Distill path, preflight
   output, and baseline file path only (no `BOUNCER_ROOT` resolve).

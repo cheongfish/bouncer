@@ -96,6 +96,31 @@ test('distill --for renders only the routed body and keeps stderr empty', () => 
   assert.strictEqual(result.err, '');
 });
 
+test('distill --for unions repeated selections and deduplicates shared shards', () => {
+  const repo = fixture();
+  const docs = JSON.parse(capture(['distill', '--repo', repo, '--for', 'docs/index.md', '--json']).out);
+  const docsAndScripts = JSON.parse(capture([
+    'distill', '--repo', repo, '--for', 'docs/index.md', '--for', 'scripts/src/lib/cli.ts', '--json',
+  ]).out);
+  const scriptsPair = JSON.parse(capture([
+    'distill', '--repo', repo, '--for', 'scripts/src/lib/cli.ts', '--for', 'scripts/src/lib/other.ts', '--json',
+  ]).out);
+
+  assert.deepStrictEqual(docs.ids, ['core', 'docs']);
+  assert.deepStrictEqual(docsAndScripts.ids, ['core', 'source', 'docs']);
+  assert.strictEqual(docsAndScripts.content, '# core\n\n\n# source\n\n\n# docs\n');
+  assert.deepStrictEqual(scriptsPair.ids, ['core', 'source']);
+});
+
+test('distill --for rejects a bare path after its flag', () => {
+  const repo = fixture();
+  const result = capture(['distill', '--repo', repo, '--for', 'docs/index.md', 'scripts/src/lib/cli.ts']);
+
+  assert.strictEqual(result.code, 2);
+  assert.strictEqual(result.out, '');
+  assert.strictEqual(result.err, 'distill: unexpected argument: scripts/src/lib/cli.ts\n');
+});
+
 test('distill --all and --audit ignore routing and select every shard', () => {
   const repo = fixture();
   const all = capture(['distill', '--repo', repo, '--all']);
