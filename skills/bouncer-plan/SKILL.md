@@ -237,8 +237,8 @@ Skill flow (recommended): `discovery` (`skills/discovery/SKILL.md`) → `spec-au
 
 ## ACQ (AskUserQuestion) gates
 
-Human-facing confirmations in this skill are **ACQ** gates. The numbered steps
-hold the prompts; this section only lists where they fire.
+Use `rules/acq.md` for the shared ACQ display and chat fallback. The numbered
+steps hold this workflow's timing and consequences.
 
 **Gates in this skill:**
 - Before step 1 — if the invocation had no description, ask for the request

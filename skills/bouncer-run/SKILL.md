@@ -145,25 +145,8 @@ blueprint가 경량으로 선언돼 있어도 주행 중에는 execute의 인라
 
 ## ACQ (AskUserQuestion) gates
 
-Human-facing confirmations in this skill are **ACQ** gates. Prefer the host
-`AskUserQuestion` / `AskQuestion` UI when available; if the tool is missing,
-render the same skeleton in chat and wait for an A/B/… reply. Do **not** treat
-a bare `/bouncer-run` as consent to start the loop.
-
-**Option order (strict):** recommended proceed first → revise → alternative →
-cancel/stop last. Mark one `(Recommended)` when you have a clear preference and
-put **Recommend-why** (1–2 Korean sentences, `~함`/`~임`) in the prompt body.
-
-```markdown
-**AskUserQuestion:**
-
-1. **Re-ground**: {한 줄 — 무엇을 결정하는지}
-2. **Recommend-why**: {왜 1번을 추천하는지}
-3. **Options** (recommended-first):
-   - A) {Proceed} (Recommended)
-   - B) {Revise / alternative}
-   - C) {Cancel}
-```
+Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
+`/bouncer-run` is not consent to start the loop.
 
 **Gates in this skill:** Start (step 2). `interactive` only: Next-task boundary
 (step 5). 두 모드 모두 `/bouncer-commit`의 commit ACQ와 next-task ACQ를

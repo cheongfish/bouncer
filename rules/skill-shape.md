@@ -28,7 +28,9 @@ Required body order after YAML frontmatter:
 3. **Plugin root** and **Master rules** blocks (labels and `CLAUDE.md` cite stay).
 4. Top-level numbered procedure (`1.` `2.` `3.` …) — the only procedural spine.
 5. `## ACQ (AskUserQuestion) gates` — **last** H2. Catalog which steps ask what.
-   If the skill never asks, say so in this section.
+   Cite `rules/acq.md` for shared display and chat-fallback behavior; retain
+   only gate timing and answer consequences here. If the skill never asks, say
+   so in this section.
 
 ## Subskills (`skills/<name>/SKILL.md`, non-workflow)
 

@@ -11,9 +11,13 @@ bouncer:
   id: REVIEW-002
   epic_id: '054'
   blueprint_id: '004'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: R002-1
+        severity: major
+        status: resolved
 ---
 # Review
 
@@ -21,4 +25,8 @@ bouncer:
 <!-- finding: id, severity, status. accepted이면 note 필수.
      severity: blocker | major | minor | nit
      status: resolved | accepted -->
-- <finding>
+- id: R002-1
+  severity: major
+  status: resolved
+  evidence: Distill promotion reference가 공통 host-tool/chat fallback 표시 계약을 중복함.
+  disposition: 공통 `rules/acq.md` 참조만 남기도록 해소함.

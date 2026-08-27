@@ -47,6 +47,22 @@ test('workflow skills instruct reading CLAUDE.md before steps', () => {
   assert.match(spec, /CLAUDE\.md/);
 });
 
+test('ACQ display contract is centralized and workflows cite it', () => {
+  const acq = read('rules/acq.md');
+  assert.match(acq, /recommended proceed option first/i);
+  assert.match(acq, /\(Recommended\)/);
+  assert.match(acq, /AskUserQuestion.*AskQuestion/i);
+  assert.match(acq, /same options.*chat|chat.*same options/i);
+  assert.match(acq, /bare `\/bouncer-/i);
+
+  for (const name of [
+    'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit',
+    'bouncer-finalize', 'bouncer-run',
+  ]) {
+    assert.match(read(`skills/${name}/SKILL.md`), /rules\/acq\.md/, `${name} must cite ACQ display contract`);
+  }
+});
+
 test('master rules use the installed bouncer-root launcher', () => {
   const claude = read('CLAUDE.md');
   const rule = read('rules/plugin-root.md');

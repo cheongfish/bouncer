@@ -102,6 +102,13 @@ test('workflow skills end with an ACQ gates section', () => {
   }
 });
 
+test('workflow ACQ catalogs delegate shared display details to rules/acq.md', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    assert.match(md, /rules\/acq\.md/, `${name} must cite the display contract`);
+  }
+});
+
 test('workflow skill bodies use English headings', () => {
   for (const name of WORKFLOW) {
     const md = readWorkflow(name);

@@ -1,5 +1,8 @@
 After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference.
 
+Use `rules/acq.md` for the shared ACQ display and chat fallback; this reference
+only defines the cleanup and handoff choices below.
+
 **Plugin-root shell contract.** See `rules/plugin-root.md`; the main-worktree cleanup shell below remains independent.
 
 After the PR branch, apply the step-3 choice without re-asking. For remove (A), run from the main worktree, not the execute checkout; add `--force` only after dirty-tree warning ACQ. Resolve `worktreePathFor`, run `git worktree remove`, then only `rmdir` an empty nested epic parent when the grandparent basename is `.worktrees`; never remove the `.worktrees` root for reused flat paths. Keep the feature branch unless asked to delete it. For keep (B), report its path.

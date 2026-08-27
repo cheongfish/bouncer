@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '054'
   blueprint_id: '004'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - workflow마다 반복된 사용자 확인 표시 계약을 한 규칙으로 모음

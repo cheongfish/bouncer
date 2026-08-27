@@ -12,6 +12,9 @@ Called only from `/bouncer-finalize` after `scaffold explain`. This skill does
 **not** replace `scaffold explain` — if the file is missing, stop and tell the
 caller to scaffold first.
 
+`rules/acq.md` governs confirmation display, but the quiz collects one batch of
+answers and is **not an ACQ**.
+
 ## When this applies
 
 From `/bouncer-finalize` after scaffold explain. Authors BP `explain.md`

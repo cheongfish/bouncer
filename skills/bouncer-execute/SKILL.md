@@ -193,6 +193,7 @@ evidence. The debugger never applies the fix.
 
 ## ACQ (AskUserQuestion) gates
 
-This skill has **no ACQ gates**. Numbered steps may stop and tell the user to
+`rules/acq.md` defines shared ACQ display and chat fallback. This skill has
+**no ACQ gates**. Numbered steps may stop and tell the user to
 run `/bouncer-plan` or `/bouncer-commit`, but they do not ask for consent via
 AskUserQuestion. Subagent model-slug retries use `inherit` without a user ACQ.

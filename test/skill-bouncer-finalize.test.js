@@ -169,13 +169,14 @@ test('bouncer-finalize uses one three-way consent and keeps the cycle moving on 
   assert.match(body, /light[\s\S]{0,180}(?:not|does not|생략하지)/i);
 });
 
-test('bouncer-finalize handles empty proposals, drop mismatches, and missing ACQ tools', () => {
+test('bouncer-finalize handles empty proposals and delegates ACQ fallback to the shared contract', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /zero candidates|0건|후보.*없/);
   assert.match(body, /mismatch|불일치/i);
   assert.match(body, /that item as failed/);
   assert.match(body, /other approved entries/);
-  assert.match(body, /host ACQ tool is unavailable|ACQ.*(?:missing|unavailable|없)/i);
+  assert.match(body, /rules\/acq\.md/);
+  assert.doesNotMatch(body, /host ACQ tool is unavailable|render the same choices in chat and wait/i);
   assert.match(body, /audit\.shards/);
   assert.match(body, /distill\s+--all\s+--json/);
   assert.match(body, /payload[^\n]{0,40}`?repoRoot`?/i);
