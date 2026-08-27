@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '054'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 재구조화 전 정적 지표가 어디에도 기록되지 않아 절감폭을 사후에 판정할 수 없었음

@@ -2,7 +2,7 @@
 
 이후 회차가 Bouncer 지시문 비용을 같은 명령으로 뽑고, 같은 일곱 시나리오로 실행 지표를 재현할 때 쓰는 계약이다. epic 054의 baseline과 최종 회차가 이 절을 공유한다.
 
-다섯 정적 지표는 epic 성공 조건 1·5·6이 남긴 흔적이다. 조건 2·3·4는 리뷰가 문서를 읽고 판정한다. 이 파일은 수치를 적지 않는다. `## Baseline` 표는 이후 task가 채운다.
+다섯 정적 지표는 epic 성공 조건 1·5·6이 남긴 흔적이다. 조건 2·3·4는 리뷰가 문서를 읽고 판정한다. 정적 수치는 `## Baseline` 정적 표에 있다. 실행 지표 표는 비어 두고 blueprint 006이 채운다.
 
 시나리오를 돌릴 때 [공통 통제](protocol.md#공통-통제)와 [plan 단계 스냅샷](protocol.md#plan-단계-스냅샷)을 따른다.
 
@@ -77,10 +77,17 @@ ls skills/*/SKILL.md | wc -l
 
 ## Baseline
 
-정적 표는 task 002가 채운다. 실행 표는 blueprint 006이 채운다.
+측정일: 2026-08-27. 베이스 커밋: `1c73980`. 측정 시점 스킬 수: 19.
+
+실행 표는 blueprint 006이 채운다.
 
 | 지표 | 값 |
 | --- | --- |
+| description 총 문자 수 | 6090 |
+| 진입 SKILL.md별 단어 수 | bouncer-init 658, bouncer-plan 2538, bouncer-execute 1907, bouncer-commit 869, bouncer-run 1082, bouncer-finalize 2740 |
+| 역할별 rubric 문서 쌍의 단어 수 | implementation 1239 / bouncer-implementer 651, review 876 / bouncer-reviewer 594, debugging 449 / bouncer-debugger 440, context-review 852 / bouncer-context-reviewer 467 |
+| BOUNCER_ROOT 해석 블록을 품은 스킬 수 | 10 |
+| 측정 시점 스킬 수 (모수) | 19 |
 
 | id | tokens_in | tokens_out | wall_s | tool_calls | gate 통과율 | review finding 수 | scope 위반 수 | 산출물 경로 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
