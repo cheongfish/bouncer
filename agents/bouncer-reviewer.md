@@ -67,6 +67,11 @@ acceptance.
 
 ## Calibration (severity)
 
+Severity is a **label, not a filter**. Report every real issue the pass finds,
+`nit` included, and let the controller's disposition step decide what blocks
+acceptance. Never withhold a finding to keep the list short or to look
+conservative — filtering happens after reporting, not during it.
+
 Map findings to severity without inflation:
 
 - `blocker` — must fix before accept (broken verify, Do not touch breach,

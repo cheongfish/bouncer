@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '054'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 컨트롤러가 reviewer를 부르기 직전에 reviewer가 쓸 루브릭 전문을 먼저 읽고 있었음

@@ -90,6 +90,35 @@ test('implementation climbs a minimality ladder before writing code', () => {
   assert.match(md, /do not shrink the brief in code/i);
 });
 
+// review 판정 기준의 정본은 이 agent 문서다(스킬 Step 3에서 옮겨옴).
+test('bouncer-reviewer owns the full judging rubric', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  assert.match(md, /Spec compliance/i);
+  assert.match(md, /Missing/);
+  assert.match(md, /Extra/);
+  assert.match(md, /Misunderstood/);
+  assert.match(md, /Code quality/i);
+  assert.match(md, /Calibration/i);
+  assert.match(md, /Over-engineering/i);
+  assert.match(md, /unrequested abstraction|stdlib|root-cause/i);
+  assert.match(md, /why-comments|explanatory comments|\bwhy\b/i);
+});
+
+// Do not touch(경로)와 Constraints(그 외)를 가르는 문장, Interface의 거부 절반.
+test('bouncer-reviewer judges Constraints and the rejection half of Interface', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  assert.match(md, /Constraint breach/i);
+  assert.match(md, /rejects/i);
+});
+
+// severity를 보고 필터로 쓰면 nit이 통째로 사라져서 컨트롤러가 처분할 대상이
+// 없어진다. 필터링은 보고 뒤에 컨트롤러가 한다는 문장을 직접 겨눈다.
+test('bouncer-reviewer treats severity as a label, not a reporting filter', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  assert.match(md, /label, not a filter/i);
+  assert.match(md, /[Nn]ever withhold a finding/);
+});
+
 test('agent docs share the body skeleton and end with the output contract', () => {
   for (const name of AGENTS) {
     const md = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
