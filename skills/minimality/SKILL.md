@@ -1,6 +1,6 @@
 ---
 name: minimality
-description: "This skill should be used during planning and review to challenge unnecessary code, dependencies, and abstractions within approved scope — reuse first, prefer stdlib/platform/installed deps, prefer the shortest working surface, record the rationale, and escalate scope conflicts back to planning. It is advisory, not a gate. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use during planning and review, or when named, to challenge extra code, dependencies, and abstractions; advisory, not a gate."
 ---
 
 # Minimality

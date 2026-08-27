@@ -1,6 +1,6 @@
 ---
 name: stop-slop
-description: "This skill should be used when drafting or revising human-readable Bouncer context prose to strip AI writing tells. It is advisory, not a gate. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use when drafting or revising Korean Bouncer context prose, or when named, to strip AI writing tells; advisory, not a gate."
 ---
 
 # Stop Slop

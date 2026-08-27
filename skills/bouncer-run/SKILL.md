@@ -1,6 +1,6 @@
 ---
 name: bouncer-run
-description: "This skill should be used only when the user explicitly asks to run the active Bouncer blueprint through remaining tasks (for example /bouncer-run). It repeats /bouncer-execute then /bouncer-commit until no open tasks remain, stopping at verify, review, or scope failures."
+description: "Use only when the user explicitly asks /bouncer-run; it repeats /bouncer-execute then /bouncer-commit until no open tasks remain."
 ---
 # /bouncer-run
 

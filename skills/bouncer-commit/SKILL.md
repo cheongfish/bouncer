@@ -1,6 +1,6 @@
 ---
 name: bouncer-commit
-description: "This skill should be used only when the user explicitly asks to commit the active Bouncer task (for example /bouncer-commit). It preflights the pointer, dry-runs scope, passes the commit gate, ACQ-confirms `bouncer commit --yes`, then ACQs for the next task via `bouncer current --set`."
+description: "Use only when the user explicitly asks /bouncer-commit; it commits the active Bouncer task after the commit gate."
 ---
 # /bouncer-commit
 

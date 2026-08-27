@@ -1,6 +1,6 @@
 ---
 name: bouncer-init
-description: "This skill should be used only when the user explicitly asks to bootstrap Bouncer (for example /bouncer-init). It bootstraps the .bouncer/ governance directory for Bouncer (idempotent)."
+description: "Use only when the user explicitly asks /bouncer-init; it bootstraps the .bouncer/ governance directory for Bouncer (idempotent)."
 ---
 # /bouncer-init
 

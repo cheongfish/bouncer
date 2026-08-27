@@ -9,7 +9,10 @@ test('context-review has valid frontmatter identity', () => {
   const { data } = parseFrontmatter(md);
   assert.strictEqual(data.name, 'context-review');
   assert.ok(typeof data.description === 'string' && data.description.length > 0);
-  assert.match(String(data.description), /This skill should be used/i);
+  // plan 내부 사용과 사용자 직접 요청(이름 호출)을 한 문장에 둔다.
+  assert.match(String(data.description), /^Use during \/bouncer-plan/);
+  assert.match(String(data.description), /when named/);
+  assert.match(String(data.description), /Findings/);
   assert.doesNotMatch(String(data.description), /##/);
 });
 

@@ -1,6 +1,6 @@
 ---
 name: bouncer-plan
-description: "This skill should be used only when the user explicitly asks to plan a Bouncer blueprint (for example /bouncer-plan). It authors an epic/blueprint/tasks, scaffolds the docs, injects graph suggestions, confirms affected_paths, reviews plan documents, approves, and passes the plan gate."
+description: "Use only when the user explicitly asks /bouncer-plan; it authors epic, blueprint, and tasks, then passes the plan gate."
 ---
 # /bouncer-plan
 

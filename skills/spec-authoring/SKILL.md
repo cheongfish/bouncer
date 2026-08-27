@@ -1,6 +1,6 @@
 ---
 name: spec-authoring
-description: "This skill should be used when authoring the body of planning documents or promoting durable notes into project Distill. It writes body content only; it never edits harness-owned frontmatter fields. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use during /bouncer-plan or /bouncer-finalize, or when named, to write plan or Distill bodies only (never harness frontmatter)."
 ---
 
 # Spec Authoring

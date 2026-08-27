@@ -1,6 +1,6 @@
 ---
 name: implementation
-description: "This skill should be used when implementing from an approved tasks brief. It makes focused changes inside allowed paths, documents non-obvious intent with detailed Korean comments, keeps tests green, and reports any deviations from the plan. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use from /bouncer-execute, or when named, to implement an approved task brief inside affected_paths only."
 ---
 
 # Implementation

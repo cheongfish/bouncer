@@ -1,6 +1,6 @@
 ---
 name: agentic-code-benchmark
-description: Benchmarks the quality of code produced by AI coding agents. Scores a run 0-100 by combining measured signals (tests, lint, types, build, coverage delta, diff churn) with a judged rubric, then compares runs across models, prompts, or workflows so you can tell which setup actually produces better code.
+description: "Compare or score AI coding-agent runs across models, prompts, or workflows by combining measured signals with a judged rubric into a 0-100 score."
 ---
 
 # Agentic Code Benchmark

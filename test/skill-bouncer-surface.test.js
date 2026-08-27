@@ -27,7 +27,9 @@ test('workflow skills use directory-matching names and explicit-invocation descr
   for (const name of WORKFLOW) {
     const { data } = parseFrontmatter(readWorkflow(name));
     assert.strictEqual(data.name, name);
-    assert.match(String(data.description), /This skill should be used only when the user explicitly asks/i);
+    // 명시 호출 전용: /<skill-name> 직접 요청에서만 선택되고 핵심 산출물을 한 문장에 둔다.
+    assert.match(String(data.description), /^Use only when the user explicitly asks \//);
+    assert.match(String(data.description), new RegExp(`/${name}(?:\\b|[^a-z-]|$)`));
   }
 });
 

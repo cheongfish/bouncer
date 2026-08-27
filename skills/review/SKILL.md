@@ -1,6 +1,6 @@
 ---
 name: review
-description: "This skill should be used when reviewing a change against the tasks brief. It records ## Findings with severity and disposition; it never accepts while an actionable finding remains unresolved. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use from /bouncer-execute, or when named, to judge the worktree diff against the task brief and record Findings only."
 ---
 
 # Review
