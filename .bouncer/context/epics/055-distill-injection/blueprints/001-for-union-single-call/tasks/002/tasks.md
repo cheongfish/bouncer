@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '055'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 재접지를 경로마다 부르게 한 지시 때문에 공통 샤드 본문이 경로 수만큼 반복 주입되어 왔음
     - 확정 경로 전부를 한 번에 넘겨 합집합만 주입하도록 지시를 바꿔 중복분을 걷어냄

@@ -24,9 +24,10 @@ If that fails, stop and report stderr — do not treat the execute worktree or
 plugin root as Distill base.
 
 **Project Distill.** Do not read a cwd-relative file. After step 1 identifies
-the pointer task and its confirmed `affected_paths`, run
-`bouncer distill --for <path> --repo "${PROJECT_ROOT}"` once per path and give
-the selected CLI output to the implementer. The CLI reads
+the pointer task and its confirmed `affected_paths`, make one
+`bouncer distill --for <path-1> --for <path-2> ... --repo "${PROJECT_ROOT}"`
+call containing every confirmed path and give the selected CLI output to the
+implementer. The CLI reads
 `${PROJECT_ROOT}/.bouncer/Distill.md` and preserves the single-file fallback
 when its shard index is absent or invalid. If the CLI fails, stop and report it;
 do not substitute the execute worktree or plugin root. Honor matching

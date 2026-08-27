@@ -47,8 +47,9 @@ they conflict.
    `bouncer distill --preflight` for `${PROJECT_ROOT}/.bouncer/Distill.md` and
    keep a session-scratch baseline file from `bouncer distill --all` (do not
    put the `--all` stdout into context). After `affected_paths` is confirmed,
-   plan re-ground plus `/bouncer-execute` and `/bouncer-run` run
-   `bouncer distill --for <path>` once per affected path. The CLI preserves
+   plan re-ground plus `/bouncer-execute` and `/bouncer-run` make one
+   `bouncer distill --for <path-1> --for <path-2> ... --repo "${PROJECT_ROOT}"`
+   call containing every confirmed affected path. The CLI preserves
    the single-file fallback when the shard
    index is missing or invalid. `/bouncer-finalize` first searches every current
    rule with `bouncer distill --all --json`, then splits that payload `content`
