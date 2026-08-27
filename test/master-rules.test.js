@@ -277,6 +277,11 @@ test('master rules preserve single-file Distill fallback and CLI trust boundary'
   assert.match(claude, /relative[^\n]{0,20}path|상대 경로/i);
   assert.match(claude, /aggregate|selection|합산|선택 결과/i);
   assert.match(claude, /never[^\n]{0,120}(?:attach|associate|individual shard|개별 샤드)/i);
+  assert.strictEqual(
+    (claude.match(/^11\.\s+\*\*Trust boundary\*\*/gm) || []).length,
+    1,
+    'CLAUDE.md hard rule 11 is the single trust-boundary source of truth',
+  );
 });
 
 test('discovery and spec-authoring take caller-provided absolute Distill paths', () => {

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-005
   epic_id: '054'
   blueprint_id: '004'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 데이터와 지시의 신뢰 경계 정본을 CLAUDE hard rule에 유지함
