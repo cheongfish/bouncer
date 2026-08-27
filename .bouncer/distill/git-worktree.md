@@ -67,8 +67,9 @@ Rules for worktree, commit-safety, and finalize boundaries.
   is null.
 
 - Plan artifacts reach the execute worktree through `bouncer seed-worktree`, run
-  in the base checkout right after `git worktree add`; the moved set is the plan
-  context documents only, and the base is returned to HEAD.
+  in the base checkout right after `git worktree add`. It requires **both**
+  `--blueprint <dir>` and `--to <worktree>`; either alone exits 2. The moved set
+  is the plan context documents only, and the base is returned to HEAD.
 
 - Execute worktree paths come from `runtime-state.worktreePathFor({ repoRoot,
   blueprint })`: `<repo>/.worktrees/<epic-id>/<bp-id>` (ids from `parsePathIds`

@@ -20,14 +20,17 @@ test('implementation follows approved tasks → focused change → tests → dev
   assert.match(md, /deviation/i);
 });
 
-test('implementation climbs a minimality ladder before writing code', () => {
+// 역할 rubric(사다리)의 정본은 agents/bouncer-implementer.md로 옮겼다.
+// 이 스킬에는 호출 계약과 주석 루브릭만 남는다 — 사다리 사본이 다시 생기면 실패.
+test('implementation keeps the call contract and defers the role rubric to the agent', () => {
   const md = readSkill('implementation');
-  assert.match(md, /decision ladder|Understand, then climb/i);
-  assert.match(md, /[Rr]euse|Already in this codebase/);
-  assert.match(md, /[Ss]tandard library|stdlib/i);
-  assert.match(md, /[Nn]ative platform|[Aa]lready-installed dependency/i);
-  assert.match(md, /minimum new code|minimum code/i);
-  assert.match(md, /escalat|plann?ing/i);
+  assert.match(md, /tasks\/<NNN>\/tasks\.md/);
+  assert.match(md, /sole authority/i);
+  assert.match(md, /agents\/bouncer-implementer\.md/);
+  assert.match(md, /## Return/);
+  assert.doesNotMatch(md, /Already in this codebase/);
+  assert.doesNotMatch(md, /decision ladder/i);
+  assert.doesNotMatch(md, /No unrequested abstractions/);
 });
 
 test('implementation requires detailed why-comments on non-trivial changes', () => {
@@ -54,8 +57,8 @@ test('implementation requires Korean docstrings with args and returns', () => {
   const md = readSkill('implementation');
   // 파일 전체가 아니라 Detailed comments 단계 구간에만 단정을 건다.
   // skill-minimality.test.js가 `## Decision ladder` 구간을 자르는 것과 같은 방식.
-  const step = md.match(/\*\*Detailed comments\*\*[\s\S]*?(?=\n\d+\. \*\*|\n## )/);
-  assert.ok(step, 'implementation must keep a Detailed comments step');
+  const step = md.match(/^## Detailed comments$[\s\S]*?(?=\n## )/m);
+  assert.ok(step, 'implementation must keep a Detailed comments section');
   const s = step[0];
   assert.match(s, /docstring/i);
   assert.match(s, /Args|인자/);

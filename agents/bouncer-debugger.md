@@ -33,20 +33,28 @@ invent requirements outside the brief.
 
 ## Procedure
 
-Follow `skills/debugging/SKILL.md`. Complete each of the 4 stages before the next:
+Complete each of the 4 stages before the next.
 
-1. **Root cause** — Reproduce the failure. Capture the command, inputs, and
-   observed result. Narrow to the smallest failing unit and separate symptom
-   from cause. Do **not** propose fixes in this stage.
-2. **Pattern** — Check whether this failure matches a known in-repo pattern
-   (similar test, Distill gotcha, prior fix). Record what matches and what
-   does not.
-3. **Hypothesis** — State **one** concrete hypothesis that explains the
-   evidence. Reject stacked speculative guesses.
-4. **Implementation** — Propose the **minimum** fix and the regression test
-   that should fail before the fix exists. Do not apply either; the
-   controller re-dispatches `bouncer-implementer` with this report as
+1. **Root cause** — Reproduce the failure: capture the command, input, and
+   observed result, then narrow to the smallest failing unit that separates
+   symptom from cause.
+   **Gate:** Do not propose fixes before root-cause investigation. No fix
+   ideas, patches, or “try this” suggestions until this stage has a concrete
+   cause candidate backed by evidence.
+2. **Pattern** — Report whether this failure matches a known in-repo pattern
+   (similar test, Distill gotcha, prior fix) and what differs.
+   **Gate:** Advance only after the root-cause stage has a reproducible
+   failure and a narrowed locus.
+3. **Hypothesis** — State exactly **one** hypothesis that explains the
    evidence.
+   **Gate:** Reject stacked speculative guesses. If evidence contradicts the
+   hypothesis, return to Root cause — do not pile on a second theory.
+4. **Implementation** — Propose the minimum fix that addresses the single
+   hypothesis, plus a failing regression test that should exist before the fix
+   lands. Do not apply either.
+   **Gate:** Propose only what the cause requires. Do not weaken or delete
+   failing tests to force green, and if the fix would expand approved scope,
+   stop and escalate rather than proposing a silent scope change.
 
 ## Redispatch limit
 

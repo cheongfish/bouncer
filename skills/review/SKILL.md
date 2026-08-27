@@ -48,59 +48,9 @@ by name.
       subagent tool exists. Do not skip named dispatch just because the host
       is Codex — Codex supports named/custom agents.
 
-   Judge the diff with:
-
-   ### Spec compliance
-   - **Missing** — Checklist / Interface requirement absent from the diff.
-     Interface states what the change rejects as well as what it provides;
-     an unimplemented rejection path is Missing, not a nit.
-   - **Extra** — outside Touch / Interface (scope creep), or a Do not touch breach
-   - **Misunderstood** — intent present but implemented incorrectly
-   - **Constraint breach** — a Constraints rule broken inside an allowed path.
-     Do not touch covers paths; Constraints covers everything else, so a diff
-     can stay entirely within `affected_paths` and still violate the brief.
-
-   ### Code quality
-   Defects introduced by this change: incorrect logic, broken contracts/tests,
-   unsafe error handling, brittle structure, unclear new interfaces.
-   Also flag missing explanatory comments on non-trivial new logic (why,
-   invariants, trade-offs, known ceilings) — not narrating what the next line
-   already says.
-   Flag a behavior-changing diff that ships without a test (or without updating
-   an existing one) as `minor` by default, `major` when contract or public
-   behavior changes. Do **not** apply this to docs-only or configuration-only
-   diffs.
-
-   ### Over-engineering (advisory → finding when actionable)
-   Prefer deletion / simplification findings when the diff invents surface the
-   brief did not need:
-   - reinvented stdlib or native platform capability
-   - new dependency that installed code or a few lines already cover
-   - unrequested abstraction (single-implementation interface, one-product
-     factory, config for a never-changing value, scaffolding “for later”)
-   - symptom patch where a shared root-cause fix would be a smaller correct
-     diff
-   Do **not** treat thorough why-comments as bloat. Do **not** demand dropping
-   an approved Checklist item — that is a planning escalate, not a “fix in
-   place” acceptance.
-
-   ### Calibration
-   Severity is a **label, not a filter**. Report every real issue the pass
-   finds, `nit` included, and let the controller's disposition step decide what
-   blocks acceptance. Never withhold a finding to keep the list short or to look
-   conservative — filtering happens after reporting, not during it.
-
-   Map findings to severity without inflation:
-   - `blocker` — must fix before accept (broken verify, Do not touch breach,
-     false acceptance risk)
-   - `major` — Spec Missing / Misunderstood / Constraint breach, Extra scope
-     creep (not Do not touch), or serious quality defect
-   - `minor` — real issue, limited blast radius
-   - `nit` — style/clarity only
-
-   Over-engineering findings are `minor` by default, `nit` when purely
-   stylistic, and only `major` when they are already Extra scope creep or a
-   real quality defect. Simpler-is-possible is not a blocker.
+   Judge the diff with the rubric in the named agent
+   `agents/bouncer-reviewer.md`. That doc is the single source for the judging
+   criteria and the severity mapping; do not restate them here.
 
    Order: **dispatch → controller records Findings → disposition → accepted**.
    The controller (not the subagent) updates existing `<pointer task directory>/review.md` body

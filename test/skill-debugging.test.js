@@ -24,11 +24,6 @@ test('debugging names the four stages Root cause → Pattern → Hypothesis → 
   assert.match(md, /Implementation/i);
 });
 
-test('debugging forbids proposing fixes before root-cause investigation', () => {
-  const md = readSkill('debugging');
-  assert.match(md, /do not propose fixes before root-cause investigation/i);
-});
-
 test('debugging hands the report to implementer via controller re-dispatch', () => {
   const md = readSkill('debugging');
   assert.match(md, /re-dispatches `bouncer-implementer`/);
