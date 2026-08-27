@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '054'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 조사 4단계와 각 Gate가 스킬과 agent 문서에 두 벌로 있어 verify 실패 경로에서 양쪽이 함께 읽혔음

@@ -90,6 +90,15 @@ test('implementation climbs a minimality ladder before writing code', () => {
   assert.match(md, /do not shrink the brief in code/i);
 });
 
+// 조사 4단계의 Gate 정본은 이 agent 문서다(skills/debugging Steps에서 옮겨옴).
+// 스킬 쪽 doesNotMatch까지 함께 봐야 '복사가 아니라 이동'이 지켜졌음을 보장한다.
+test('debugging forbids proposing fixes before root-cause investigation', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-debugger.md'), 'utf8');
+  assert.match(md, /do not propose fixes before root-cause investigation/i);
+  const skill = fs.readFileSync(path.join(root, 'skills/debugging/SKILL.md'), 'utf8');
+  assert.doesNotMatch(skill, /do not propose fixes before root-cause investigation/i);
+});
+
 // review 판정 기준의 정본은 이 agent 문서다(스킬 Step 3에서 옮겨옴).
 test('bouncer-reviewer owns the full judging rubric', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
