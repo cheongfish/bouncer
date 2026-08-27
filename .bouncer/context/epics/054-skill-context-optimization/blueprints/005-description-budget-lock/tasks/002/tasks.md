@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '054'
   blueprint_id: '005'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - description 축약 수치와 역할별 정본 경계가 문서 기준뿐이라 후속 변경에서 조용히 되돌아갈 수 있었음
