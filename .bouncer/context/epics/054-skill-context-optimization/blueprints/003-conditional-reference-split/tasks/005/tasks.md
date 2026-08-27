@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-005
   epic_id: '054'
   blueprint_id: '003'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 테스트 계약 데이터가 줄 길이 규칙으로 CI를 막지 않게 함
