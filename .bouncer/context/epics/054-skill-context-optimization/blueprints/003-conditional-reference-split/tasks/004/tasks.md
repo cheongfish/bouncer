@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '054'
   blueprint_id: '003'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 정상 run 경로가 실패 복구 상세를 미리 읽는 비용을 줄임
