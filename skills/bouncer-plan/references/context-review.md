@@ -1,5 +1,7 @@
 When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference.
 
+**Plugin-root shell contract.** See `rules/plugin-root.md`; the model-resolution shell below remains independent.
+
 Before approval, judge the plan documents. The `context-review` skill (`skills/context-review/SKILL.md`) is the behavioral brief. Dispatch **`bouncer-context-reviewer`** (plugin `agents/bouncer-context-reviewer.md`) in this order:
 
 1. Resolve the model:

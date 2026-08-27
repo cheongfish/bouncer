@@ -5,6 +5,8 @@ description: "This skill should be used when reviewing a change against the task
 
 # Review
 
+**Plugin-root shell contract.** See `rules/plugin-root.md`; the reviewer-model shell resolves independently.
+
 Produce the review **deliverable contract**. Gates judge the result; this skill
 only produces findings and dispositions.
 

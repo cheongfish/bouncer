@@ -5,6 +5,8 @@ description: "This skill should be used during /bouncer-plan to query the prebui
 
 # Graphify Runner
 
+**Plugin-root shell contract.** See `rules/plugin-root.md`; each graph CLI shell resolves independently.
+
 Turn a blueprint's intent into `bouncer.scope_evidence.suggested_paths` by querying two
 graphs under `graphify-out/`:
 

@@ -1,5 +1,7 @@
 When authoring or refreshing explain and running the quiz, read this reference.
 
+**Plugin-root shell contract.** See `rules/plugin-root.md`; the explain-scaffold shell below remains independent.
+
 Create a missing BP `explain.md` with:
 ```bash
 BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?

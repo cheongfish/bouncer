@@ -4,7 +4,7 @@ description: "This skill should be used only when the user explicitly asks to ex
 ---
 # /bouncer-execute
 
-**Plugin root.** See `rules/plugin-root.md`.
+**Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
@@ -100,9 +100,10 @@ evidence. The debugger never applies the fix.
    node "${BOUNCER_ROOT}/scripts/bouncer" seed-worktree \
      --blueprint <pointer.blueprint> --to "${WORKTREE_PATH}"
    ```
-   It moves only the plan context documents (blueprint tree, epic index,
-   context index) and returns the base to its committed state; unrelated dirty
-   files stay in the base. A `conflict` result means the worktree already holds
+   It first prepares lockfile-pinned development dependencies when this
+   worktree has no npm lock marker, then moves only the plan context documents
+   (blueprint tree, epic index, context index) and returns the base to its
+   committed state; unrelated dirty files stay in the base. A `conflict` result means the worktree already holds
    a different version — resolve it by hand rather than re-running. When there
    is nothing left to move, seed returns success with an empty `moved` list.
 

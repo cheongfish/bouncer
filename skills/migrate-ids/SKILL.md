@@ -5,6 +5,8 @@ description: "This skill should be used when migrating legacy EPIC-/BP- context 
 
 # Migrate Ids
 
+**Plugin-root shell contract.** See `rules/plugin-root.md`; each migration shell resolves independently.
+
 Move legacy `EPIC-\d{3}-*` / `BP-\d{3}-*` context directories (and matching
 frontmatter, `resource`, body tokens, bundle index, and the active pointer) to
 canonical numeric names (`014-slug`, `001-slug`, `TASKS-001`).

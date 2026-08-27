@@ -1,5 +1,7 @@
 When proposing and promoting Distill, read this reference.
 
+**Plugin-root shell contract.** See `rules/plugin-root.md`; the execute-checkout audit shell below remains independent.
+
 Run one full JSON audit, without `--repo`, in the execute checkout:
 ```bash
 BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?

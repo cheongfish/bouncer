@@ -59,6 +59,37 @@ test('master rules use the installed bouncer-root launcher', () => {
   assert.match(rule, /provider/i);
 });
 
+test('plugin-root contract is shared while launcher shells resolve independently', () => {
+  const consumers = [
+    'skills/bouncer-init/SKILL.md',
+    'skills/bouncer-plan/SKILL.md',
+    'skills/bouncer-execute/SKILL.md',
+    'skills/bouncer-commit/SKILL.md',
+    'skills/bouncer-finalize/SKILL.md',
+    'skills/bouncer-run/SKILL.md',
+    'skills/bouncer-plan/references/context-review.md',
+    'skills/bouncer-finalize/references/cleanup-handoff.md',
+    'skills/bouncer-finalize/references/distill-promotion.md',
+    'skills/bouncer-finalize/references/explain-quiz.md',
+    'skills/explain-diff/SKILL.md',
+    'skills/graphify-runner/SKILL.md',
+    'skills/migrate-ids/SKILL.md',
+    'skills/review/SKILL.md',
+  ];
+  const launcher = 'BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?';
+
+  for (const rel of consumers) {
+    const source = read(rel);
+    assert.match(source, /rules\/plugin-root\.md/, `${rel} must cite the shared contract`);
+    assert.ok(source.includes(launcher), `${rel} must retain independent launcher resolution`);
+
+    const launcherBlocks = source.match(/```bash\n[\s\S]*?```/g) || [];
+    for (const block of launcherBlocks.filter((value) => value.includes('${BOUNCER_ROOT}'))) {
+      assert.ok(block.includes(launcher), `${rel} must resolve BOUNCER_ROOT in each launcher shell`);
+    }
+  }
+});
+
 test('hard rule 5 workflow order includes commit between execute and finalize', () => {
   const claude = read('CLAUDE.md');
   assert.match(

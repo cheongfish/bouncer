@@ -4,7 +4,7 @@ description: "This skill should be used only when the user explicitly asks to ru
 ---
 # /bouncer-run
 
-**Plugin root.** See `rules/plugin-root.md`.
+**Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:

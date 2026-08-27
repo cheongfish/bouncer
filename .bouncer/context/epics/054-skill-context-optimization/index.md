@@ -34,7 +34,7 @@ flowchart LR
 2. named agent가 없을 때의 인라인 fallback 경로가 네 역할 모두에서 살아 있고, 그 경로에서만 같은 agent 계약을 읽도록 지시된다.
 3. `skills/bouncer-{plan,execute,finalize,run}/SKILL.md`에서 게이트 절차가 `references/`로 옮겨진 것이 0건이다. 판정 절차: 각 blueprint의 diff에서 본문 → `references/`로 이동한 블록을 모두 열거하고, 블록마다 `bouncer validate --gate` / `bouncer current` / commit scope / verification·evidence 파일 경로를 지시하는 문장이 있는지 본다. 하나라도 있으면 그 블록은 본문으로 되돌린다.
 4. 새로 만든 `references/*.md`마다 첫 문단에 그 파일을 읽는 조건이 한 문장으로 적혀 있고, 진입 `SKILL.md`의 해당 단계가 같은 조건으로 그 파일을 가리킨다.
-5. `BOUNCER_ROOT` 해석, ACQ 옵션 순서와 출력 형식, `bouncer current` 처리, named agent model 해석과 `inherit` fallback, 데이터·지시 trust boundary — 다섯 블록이 `rules/` 아래 각각 한 파일에만 정본으로 있고, 진입 스킬에는 적용 지점과 예외만 남는다.
+5. `BOUNCER_ROOT` 해석, ACQ 옵션 순서와 출력 형식, `bouncer current` 처리, named agent model 해석과 `inherit` fallback은 `rules/` 아래 각각 한 파일에만 정본으로 있다. 데이터·지시 trust boundary는 Out of scope에 따라 `CLAUDE.md` hard rule 11을 정본으로 유지하며, 진입 스킬에는 다섯 블록의 적용 지점과 예외만 남는다.
 6. `skills/*/SKILL.md`의 `description` 총합이 3,000자 이하이고 개별 description이 180자 이하다.
 7. 0단계 baseline과 최종 회차가 같은 7개 회귀 시나리오·같은 기록 값으로 `docs/benchmark/history.md`에 남고, 최종 회차의 gate 통과율·review finding 수·scope 위반 수가 baseline보다 나빠지지 않는다.
 8. 각 task의 `npm run ci`가 통과한다.
@@ -55,5 +55,5 @@ flowchart LR
 * [006 실행 baseline](blueprints/006-execution-baseline/index.md) - 7종 런 산출물에서 실행 지표를 옮겨 변경 전 회차로 남긴다. 산출물이 준비된 뒤 착수하며 002 착수를 막지 않는다
 * [002 named agent 정본화](blueprints/002-agent-rubric-ssot/index.md) - 네 역할의 상세 rubric을 `agents/*.md`로 모으고 `skills/{implementation,review,debugging,context-review}`를 호출 계약만 남기게 줄인다
 * [003 조건부 절차 reference 분리](blueprints/003-conditional-reference-split/index.md) - `skills/bouncer-{finalize,plan,execute,run}`의 조건부 상세를 로딩 조건이 붙은 `references/`로 내리고 게이트 절차는 본문에 남긴다
-* [004 반복 규칙 공통화](blueprints/004-shared-rule-blocks/index.md) - `BOUNCER_ROOT`·ACQ·`bouncer current`·model fallback·trust boundary 다섯 블록을 `rules/` 정본으로 옮기고 진입 스킬에는 적용 지점만 남긴다
+* [004 반복 규칙 공통화](blueprints/004-shared-rule-blocks/index.md) - `BOUNCER_ROOT`·ACQ·`bouncer current`·model fallback은 `rules/` 정본으로 모으고 trust boundary는 `CLAUDE.md` 정본을 참조하게 한다
 * [005 description 축약과 예산 고정](blueprints/005-description-budget-lock/index.md) - 19개 description을 3,000자 이하로 줄이고 정본 개수·description 예산을 테스트로 고정한 뒤 최종 회차를 기록한다
