@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '054'
   blueprint_id: '003'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - plan의 경로별 보조 절차를 필요한 단계에서만 읽도록 분리함

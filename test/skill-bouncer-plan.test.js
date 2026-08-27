@@ -4,9 +4,35 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
-const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-plan', 'SKILL.md'), 'utf8');
+const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-plan', 'SKILL.md'), 'utf8');
+const md = readWorkflowBundle('bouncer-plan');
+
+test('bouncer-plan conditionally routes three planning references and retains core gates', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const routes = [
+    ['distill-preflight.md', 'When preparing the Distill baseline and preflight, read this reference.'],
+    ['graphify-suggestions.md', 'When generating Graphify suggestions, read this reference.'],
+    [
+      'context-review.md',
+      'When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, '
+        + 'read this reference.',
+    ],
+  ];
+  for (const [file, condition] of routes) {
+    assert.match(body, new RegExp(`\\[${file.replace('.', '\\.') }\\]`));
+    const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-plan', 'references', file), 'utf8');
+    assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
+  }
+  assert.match(body, /\*\*Discover\.\*\*/);
+  assert.match(body, /\*\*affected_paths \(user-confirmed\)\.\*\*/);
+  assert.match(body, /\*\*Approval \(explicit\)\.\*\*/);
+  assert.match(body, /current\s+--set/);
+  assert.match(body, /G1 epic approved[\s\S]{0,1600}G12/);
+  assert.doesNotMatch(body, /bouncer graph-sync|resolveSubagentModel/);
+});
 
 test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gate', () => {
   const { data, body } = parseFrontmatter(md);
