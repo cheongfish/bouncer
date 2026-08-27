@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '054'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 판정 네 scope와 심각도 기준이 스킬과 agent 문서에 두 벌로 있어 plan 디스패치 경로에서 함께 읽혔음

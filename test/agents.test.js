@@ -128,6 +128,63 @@ test('bouncer-reviewer treats severity as a label, not a reporting filter', () =
   assert.match(md, /[Nn]ever withhold a finding/);
 });
 
+// 네 판정 scope의 본문 정본은 이 agent 문서다(skills/context-review Step 3에서 옮겨옴).
+// 스킬 쪽 doesNotMatch까지 함께 봐야 '복사가 아니라 이동'이 지켜졌음을 보장한다.
+const contextReviewSkill = () =>
+  fs.readFileSync(path.join(root, 'skills/context-review/SKILL.md'), 'utf8');
+const contextReviewerAgent = () =>
+  fs.readFileSync(path.join(agentsDir, 'bouncer-context-reviewer.md'), 'utf8');
+
+test('context-review covers the four judgment scopes', () => {
+  const md = contextReviewerAgent();
+  const skill = contextReviewSkill();
+  // scope 이름만이 아니라 각 scope의 판정 문장을 겨눈다 — 이름은 스킬에도
+  // 남으므로 이름만 보면 이동 여부를 구별하지 못한다.
+  assert.match(md, /Cross-document contradiction/);
+  assert.match(md, /Walk epic → blueprint → tasks/);
+  assert.match(md, /Scope review/);
+  assert.match(md, /scope_evidence\.suggested_paths/);
+  assert.match(md, /absence or empty[\s\S]{0,60}state, not a failure/i);
+  assert.match(md, /Korean quality/);
+  assert.match(md, /stop-slop/);
+  assert.match(md, /Identifiers, paths, and fenced/);
+  assert.match(md, /Verifiability of success criteria/);
+  assert.match(md, /cannot be judged true or false/i);
+  assert.match(md, /say yes or no from a command/);
+  assert.doesNotMatch(skill, /Walk epic → blueprint → tasks/);
+  assert.doesNotMatch(skill, /scope_evidence\.suggested_paths/);
+  assert.doesNotMatch(skill, /stop-slop/);
+  assert.doesNotMatch(skill, /cannot be judged true or false/i);
+});
+
+test('context-review excludes OKF fields and status that gates already check', () => {
+  const md = contextReviewerAgent();
+  assert.match(md, /OKF/i);
+  assert.match(md, /exclud|out of (scope|judgment)|gates already/i);
+  assert.match(md, /re-litigate G1/);
+  assert.doesNotMatch(contextReviewSkill(), /OKF/i);
+});
+
+test('context-review judges Mermaid zoom conflicts without requiring a chart', () => {
+  const md = contextReviewerAgent();
+  assert.match(md, /mermaid/i);
+  assert.match(md, /zoom/i);
+  assert.match(md, /Chart absence is optional and not a finding/i);
+  // Mermaid는 다섯 번째 scope가 아니라 Cross-document의 하위 항목이다.
+  assert.match(md, /not a fifth judgment scope/i);
+  assert.doesNotMatch(contextReviewSkill(), /mermaid/i);
+});
+
+// bouncer-reviewer와 같은 이유로 context reviewer도 severity를 필터로 쓰면 안 된다.
+// 이 문장은 스킬 Calibration에서 옮겨온 것이라, 스킬 쪽 doesNotMatch까지 함께 본다.
+test('bouncer-context-reviewer treats severity as a label, not a reporting filter', () => {
+  const md = contextReviewerAgent();
+  assert.match(md, /label, not a filter/i);
+  assert.match(md, /report every real issue/i);
+  assert.doesNotMatch(contextReviewSkill(), /label, not a filter/i);
+  assert.doesNotMatch(contextReviewSkill(), /report every real issue/i);
+});
+
 test('agent docs share the body skeleton and end with the output contract', () => {
   for (const name of AGENTS) {
     const md = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
