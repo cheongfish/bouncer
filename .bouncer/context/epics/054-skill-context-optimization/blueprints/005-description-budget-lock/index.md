@@ -38,11 +38,12 @@ flowchart LR
   - 축약은 이 epic에서 유일하게 품질을 떨어뜨릴 수 있는 항목이다. 토큰이 줄어도 잘못된 스킬이 선택되면 실패로 본다. 축약 후 회귀 시나리오로 암묵 매칭을 확인한다.
   - `CLAUDE.md`의 「When to invoke」 표와 각 description의 명시적 호출 계약은 유지한다. 보조 스킬을 비공개로 돌리는 것은 이 epic 밖이다.
   - 예산을 테스트로 고정하면 스킬이 하나 늘 때마다 총합 상한에 걸린다. 상한은 스킬 수에 대한 함수가 아니라 고정값이므로, 걸릴 때 예산을 올리는 판단은 사람이 한다는 점을 테스트 메시지에 적는다.
-  - 최종 회차가 baseline과 다른 문서 세트에서 측정되면 뺄셈이 성립하지 않는다. `docs/benchmark/context-cost.md`의 같은 명령·같은 시나리오 id를 쓴다.
-  - blueprint 006이 닫히지 않았거나 baseline·최종 런 산출물 중 하나라도 없으면 task 003은 기록을 시작하지 않는다. 빈칸을 0으로 바꾸거나 값을 추정하지 않는다.
+  - 최종 회차가 baseline과 다른 문서 세트에서 측정되면 뺄셈이 성립하지 않는다. `docs/benchmark/context-cost.md`의 `## 고정 실행 입력` 표와 같은 base·모델·프롬프트·fixture·완료 조건을 쓴다.
+  - blueprint 006이 닫히지 않았거나, 실행 워크트리 `docs/benchmark/history.md`의 `## 지시문 비용 회차`에 baseline 7행이 없거나, 아래 최종 산출물이 하나라도 없으면 task 003은 기록을 시작하지 않는다. baseline `.recovery.*`와 s5–s7 무접미사 파일을 최종 행 출처로 쓰지 않는다. 빈칸을 0으로 바꾸거나 값을 추정하지 않는다.
+  - 실행 워크트리(`.worktrees/054/005`)가 `develop`의 006 전사 커밋보다 뒤처져 history 절이 없으면, 컨트롤러가 그 워크트리에 `develop`을 merge 또는 rebase한 뒤에 task 003을 시작한다. implementer는 git merge/rebase를 하지 않는다.
 
 ## 착수 순서
-- task 001과 002는 순서대로 실행한다. task 003은 blueprint 006이 closed이고 같은 일곱 시나리오의 최종 런 산출물이 모두 준비된 뒤에만 시작한다.
+- task 001과 002는 순서대로 실행한다. task 003은 다음이 모두 참일 때만 시작한다: blueprint 006 `closed`, 실행 워크트리 history에 baseline 7행, 시나리오마다 `.benchmarks/<id>.final.metrics.json`과 `.benchmarks/<id>.final.manifest.json` (`s5`·`s6`은 `.benchmarks/<id>.final.finalize.json`도).
 
 ## Out of scope
 - 보조 스킬의 비공개 전환. 계약 변경이므로 이 epic의 측정 결과를 보고 따로 결정한다.
