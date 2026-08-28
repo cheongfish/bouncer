@@ -107,7 +107,7 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
   const { PR_TEMPLATE } = require('../scripts/lib/templates');
   const githubTpl = fs.readFileSync(path.join(root, '.github', 'pull_request_template.md'), 'utf8');
   const gitlabTpl = fs.readFileSync(
-    path.join(root, '.gitlab', 'merge_request_templates', '기본.md'),
+    path.join(root, '.gitlab', 'merge_request_templates', 'Default.md'),
     'utf8',
   );
 
