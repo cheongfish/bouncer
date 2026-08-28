@@ -7,6 +7,35 @@
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-08-28
+
+1.2.0 이후 스킬 컨텍스트 절감·Distill 단일 호출·카탈로그 보조 숨김·PR 본문 계약.
+
+### Added
+
+- **`bouncer.supersedes`** — epic·blueprint가 이전 결정을 가리키는 계보 필드.
+  S27이 형식을 검사한다.
+- **컨텍스트 다이제스트 grain** — blueprint·task 층위를 검색 단위에 넣는다.
+- **리뷰 흐름 중심 PR 본문** — finalize draft PR이 리뷰어가 따라갈 절 계약을
+  채운다.
+- **Codex named agent 시드** — 역할 디스패치용 TOML을 플러그인에 둔다.
+
+### Changed
+
+- **Distill 재접지** — plan·execute·run이 확인된 `affected_paths`마다 `--for`를
+  나누지 않고 한 호출의 합집합으로 읽는다.
+- **보조 스킬 비공개** — `explain-diff`·`graphify-runner`·`review`를
+  `references/`로 옮기고 호스트 카탈로그에서 뺀다. 공개 워크플로 여섯 스킬은
+  그대로다.
+- **스킬 컨텍스트** — 조건부 절차를 reference로 분리하고 반복 규칙 블록·역할
+  rubric을 정본 한곳에 둔다. description은 트리거만 남긴다.
+
+### Fixed
+
+- 이미 쓰인 번호로 epic을 새로 만드는 경로를 거절한다.
+- worktree Distill 샤드가 라우팅에 닿지 않던 경로 선언을 고친다.
+- CI에서 런타임 디렉터리 샤드 글롭이 죽은 경로를 잡던 것을 고친다.
+
 ## [1.2.0] — 2026-08-24
 
 1.1.0 이후 execute 리뷰 상한·컨텍스트 주입 절감·플러그인 루트 launcher.
