@@ -191,10 +191,14 @@ Graphify는 **선택** 의존성입니다. 없어도 `/bouncer-plan`은 수동
 
 ### 기본: `bouncer init`이 설치
 
-`/bouncer-init` → `bouncer init`이 `.bouncer/.venv`에 graphify를 두고,
-성공 시 `graphify.enabled: true`와 `graphify.bin`을 기록합니다. 설치가
-실패하면 `enabled: false`로 두고 부트스트랩은 그대로 성공합니다
-(soft-fail). 기존 프로젝트에서 아직 꺼져 있으면 init 결과가
+`/bouncer-init` → `bouncer init`이 graphify venv를 git common directory
+아래(`<git-common-dir>/bouncer/venv`)에 둡니다. 작업 트리 밖이라
+`git add`로 스테이징되지 않습니다. git 저장소가 아니면 예전처럼
+`.bouncer/.venv`를 씁니다. 이미 `.bouncer/.venv`가 있으면 그 경로를
+그대로 재사용합니다. 성공 시 `graphify.enabled: true`와 `graphify.bin`
+(신규 설치는 절대 경로)을 기록합니다. 설치가 실패하면 이번 실행이
+만든 venv만 지우고 `enabled: false`로 두며 부트스트랩은 그대로
+성공합니다 (soft-fail). 기존 프로젝트에서 아직 꺼져 있으면 init 결과가
 `graphifyPromotion: "candidate"`를 돌려 주며, `/bouncer-init`이 ACQ로
 승격을 묻습니다. 동의 후:
 
@@ -204,7 +208,7 @@ bouncer init --promote-graphify --no-graphify  # 켜기만
 ```
 
 실행 파일은 `bouncer graphify-bin`이 해석합니다
-(`config.graphify.bin` → `.bouncer/.venv` → PATH). SessionStart와
+(`config.graphify.bin` → common-dir `bouncer/venv` → `.bouncer/.venv` → PATH). SessionStart와
 `graphify-runner`는 그 경로로 `graph-sync` / query를 돌립니다.
 `source_dirs` / `context_dirs`를 맞춘 뒤 세션을 다시 열면
 `graphify-out/source`와 `graphify-out/context`가 갱신됩니다.

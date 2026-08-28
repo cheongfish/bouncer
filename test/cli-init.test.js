@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { runCli } = require('../scripts/lib/cli');
+const { SUGGESTED_IGNORES } = require('../scripts/lib/init');
 
 function capture() {
   const buf = { out: '', err: '' };
@@ -49,7 +50,8 @@ test('cli init --write-gitignore writes the marker block', () => {
   const body = parseOut(buf);
   assert.strictEqual(body.gitignoreWritten, true);
   const gi = fs.readFileSync(path.join(repo, '.gitignore'), 'utf8');
-  assert.match(gi, /# bouncer\n[\s\S]*\.bouncer\/\.venv\/\n[\s\S]*# \/bouncer/);
+  const block = `# bouncer\n${SUGGESTED_IGNORES.join('\n')}\n# /bouncer`;
+  assert.ok(gi.includes(block));
 });
 
 test('cli init JSON flags baseBranchUnresolved when detection fails', () => {

@@ -11,14 +11,14 @@ bouncer:
   id: REVIEW-002
   epic_id: '059'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings: []
 ---
 # Review
 
+`bouncer-reviewer`가 HEAD 대비 미커밋 diff를 판정. actionable finding 없음.
+
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+(none)

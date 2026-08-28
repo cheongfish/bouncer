@@ -14,7 +14,7 @@
 | `base_branch` | 브랜치 이름 | `/bouncer-execute` worktree 기준, `/bouncer-finalize` PR 기준 | `"main"` · `"develop"` |
 | `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run`이 물어보는 횟수 | `"auto"` (시작 확인 1회) · `"interactive"` (task 경계마다 추가) |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
-| `graphify.bin` | 실행 파일 경로 (저장소 상대) | `bouncer graphify-bin` 해석 1순위 | `".bouncer/.venv/bin/graphify"` |
+| `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
 | `distill.routing_enabled` | `true` \| `false` | `bouncer distill --for` 선택 소비 | `true` — 구조 preflight 통과 후 활성화 |
 | `distill.max_bytes` | 양의 정수 바이트 값 | Distill 구조 validator의 경고 기준 | `6144` — 본문을 자르지 않음 |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
@@ -24,6 +24,10 @@
 
 `<agent>`는 `bouncer-implementer` · `bouncer-reviewer` · `bouncer-debugger` ·
 `bouncer-context-reviewer` 넷입니다.
+
+신규 `graphify.bin`은 git common directory 아래 `bouncer/venv`의 실행 파일
+절대 경로입니다. 저장소 상대 값(`.bouncer/.venv/bin/graphify` 등)도 파일이
+있으면 그대로 씁니다.
 
 신규 config의 `pr`에는 항상 `draft`가 있고, 브랜치 탐지가 성공했을 때만
 `base`가 붙습니다. `labels` 기본값은 두지 않습니다. 예전 설정에 남아 있는

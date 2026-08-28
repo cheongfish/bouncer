@@ -493,6 +493,57 @@ test('init reports gitignore suggestions on an already-initialized repo', () => 
   ]);
 });
 
+test('init install on a git repo does not create worktree .bouncer/.venv', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  const { setupGraphify } = require('../scripts/lib/graphify');
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    graphify: {
+      install: true,
+      setup: ({ repoRoot: root }) => setupGraphify({
+        repoRoot: root,
+        platform: 'linux',
+        exec: () => {},
+      }),
+    },
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.graphifyInstall.status, 'installed');
+  assert.ok(path.isAbsolute(res.graphifyInstall.bin));
+  assert.ok(!res.graphifyInstall.bin.startsWith(path.join(repo, '.bouncer')));
+  assert.ok(!exists(repo, '.bouncer/.venv'));
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.strictEqual(cfg.graphify.enabled, true);
+  assert.strictEqual(cfg.graphify.bin, res.graphifyInstall.bin);
+});
+
+test('ready bootstrap promote+failed install keeps graphify.enabled false', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const existing = {
+    source_dirs: ['custom'],
+    verify: 'make test',
+    base_branch: 'main',
+    graphify: { enabled: false },
+  };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(existing, null, 2)}\n`);
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    promote: true,
+    graphify: {
+      install: true,
+      setup: () => ({ status: 'failed', bin: null, reason: 'venv: no python' }),
+    },
+  });
+  assert.strictEqual(res.graphifyPromotion, 'promoted');
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.strictEqual(cfg.graphify.enabled, false);
+});
+
 test('init with install:true writes graphify bin from injected setup', () => {
   const repo = tmpRepo();
   const bin = '.bouncer/.venv/bin/graphify';

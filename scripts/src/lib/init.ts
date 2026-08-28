@@ -203,8 +203,9 @@ function ensureProjectDistill(repoRoot: string, created: string[], timestamp?: s
   writeFile(repoRoot, PROJECT_DISTILL, projectDistillDoc(timestamp), created);
 }
 
-// advisory(+ 동의 시 마커 블록 쓰기) 목록. `.bouncer/.venv/`는 설치 산출물이라
-// 범위 위반·실수 커밋을 막기 위해 제안과 finalize RUNTIME_ARTIFACTS에 같이 둔다.
+// advisory(+ 동의 시 마커 블록 쓰기) 목록. 신규 graphify venv는 git common
+// directory 아래라 작업 트리 gitignore가 필요 없다. `.bouncer/.venv/`는
+// 레거시 설치와 비-git 폴백만 아직 작업 트리에 남을 수 있어 제안에 둔다.
 const SUGGESTED_IGNORES = [
   'node_modules/',
   'graphify-out/',
@@ -394,14 +395,23 @@ function init({
           graphifyInstall = setup({ repoRoot });
         }
         if (existing) {
+          // 이번 실행에서 설치를 시도했는데 실패하면 enabled를 올리지 않는다.
+          // 승격만(install 없음)이면 기존처럼 enabled:true.
+          const installOk = !wantInstall || !!(
+            graphifyInstall
+            && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
+            && typeof graphifyInstall.bin === 'string'
+            && graphifyInstall.bin
+          );
           const nextGraphify: Record<string, unknown> = {
             ...(existing.graphify && typeof existing.graphify === 'object'
               ? existing.graphify
               : {}),
-            enabled: true,
+            enabled: installOk,
           };
           if (
-            graphifyInstall
+            installOk
+            && graphifyInstall
             && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
             && typeof graphifyInstall.bin === 'string'
             && graphifyInstall.bin

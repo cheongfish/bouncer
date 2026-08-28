@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '059'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 사용자 저장소 안에 만든 venv가 부트스트랩 커밋에 그대로 딸려 들어감
     - 설치가 실패해도 반쯤 만들어진 venv가 작업 트리에 남아 있음
