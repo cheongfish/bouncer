@@ -39,7 +39,7 @@ claude plugin install bouncer@chunjae-tools --scope local     # 본인만
 `config.json`은 blueprint 커밋 범위 밖이라, 안 넣으면 첫 finalize가 막힙니다. 자세한 내용은 [docs/context-versioning.md](docs/context-versioning.md).
 
 ```bash
-git add .bouncer && git commit -m "chore: bootstrap bouncer"
+git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit -m "chore: bootstrap bouncer"
 ```
 
 `.bouncer/config.json`에서 `source_dirs`와 **execute 게이트가 돌릴** `verify`를 확인하세요. 기본 형태는 [`config.example.json`](config.example.json)입니다.

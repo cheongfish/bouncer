@@ -29,7 +29,7 @@ scaffold와 finalize PR 본문은 플러그인 내장값(`scripts/lib/templates.
 이 커밋을 남길 수 있는 유일한 구간입니다.
 
 ```bash
-git add .bouncer && git commit -m "chore: bootstrap bouncer"
+git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit -m "chore: bootstrap bouncer"
 ```
 
 ## 문서는 그 시점의 기록입니다

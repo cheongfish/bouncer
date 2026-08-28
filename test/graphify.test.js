@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { venvBinRel, resolveGraphifyBin, setupGraphify } = require('../scripts/lib/graphify');
 const {
   realNewestMtime,
@@ -80,6 +81,130 @@ test('resolveGraphifyBin returns nulls when no candidate exists', () => {
   assert.deepStrictEqual(r, { bin: null, source: null });
 });
 
+function initGitRepo() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-graphify-git-'));
+  execFileSync('git', ['init', '-b', 'main'], {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' },
+  });
+  return repo;
+}
+
+test('resolveGraphifyBin venv candidate in a git repo is outside .bouncer/', () => {
+  const repoRoot = initGitRepo();
+  const r = resolveGraphifyBin({
+    repoRoot,
+    config: {},
+    platform: 'linux',
+    exists: () => true,
+    hasOnPath: () => false,
+  });
+  assert.strictEqual(r.source, 'venv');
+  const venvAbs = r.bin;
+  assert.ok(typeof venvAbs === 'string' && venvAbs.length > 0);
+  assert.ok(!venvAbs.startsWith(path.join(repoRoot, '.bouncer')));
+});
+
+test('resolveGraphifyBin falls back to .bouncer/.venv in a non-git directory', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-graphify-nogit-'));
+  const venvAbs = path.join(repoRoot, '.bouncer/.venv/bin/graphify');
+  const r = resolveGraphifyBin({
+    repoRoot,
+    config: {},
+    platform: 'linux',
+    exists: (p) => p === venvAbs,
+    hasOnPath: () => false,
+  });
+  assert.deepStrictEqual(r, { bin: venvAbs, source: 'venv' });
+});
+
+test('resolveGraphifyBin Windows venv candidate uses Scripts/ under the common-dir venv', () => {
+  const repoRoot = initGitRepo();
+  const r = resolveGraphifyBin({
+    repoRoot,
+    config: {},
+    platform: 'win32',
+    exists: () => true,
+    hasOnPath: () => false,
+  });
+  assert.strictEqual(r.source, 'venv');
+  assert.match(r.bin, /Scripts[/\\]graphify\.exe$/);
+  assert.ok(!r.bin.startsWith(path.join(repoRoot, '.bouncer')));
+});
+
+test('setupGraphify removes the venv directory it created when a later step fails', () => {
+  const repo = initGitRepo();
+  const created = [];
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    exec: (file, args) => {
+      if (file === 'python3') {
+        const venvDir = path.isAbsolute(args[2]) ? args[2] : path.join(repo, args[2]);
+        created.push(venvDir);
+        fs.mkdirSync(venvDir, { recursive: true });
+        return;
+      }
+      throw new Error('pip boom');
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.match(r.reason, /pip/);
+  assert.strictEqual(created.length, 1);
+  assert.ok(!fs.existsSync(created[0]));
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
+});
+
+test('setupGraphify does not remove a venv directory it did not create', () => {
+  const repo = initGitRepo();
+  const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  const venvDir = path.join(path.resolve(repo, commonDir), 'bouncer', 'venv');
+  fs.mkdirSync(venvDir, { recursive: true });
+  fs.writeFileSync(path.join(venvDir, 'keep'), 'prior');
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    exec: () => {
+      throw new Error('venv: no python');
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.ok(fs.existsSync(venvDir));
+  assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior');
+});
+
+test('resolveGraphifyBin still selects an existing .bouncer/.venv/bin/graphify', () => {
+  const repoRoot = initGitRepo();
+  const legacyAbs = path.join(repoRoot, '.bouncer/.venv/bin/graphify');
+  const r = resolveGraphifyBin({
+    repoRoot,
+    config: {},
+    platform: 'linux',
+    exists: (p) => p === legacyAbs,
+    hasOnPath: () => false,
+  });
+  assert.deepStrictEqual(r, { bin: legacyAbs, source: 'venv' });
+});
+
+test('resolveGraphifyBin still resolves a repo-relative config.graphify.bin', () => {
+  const repoRoot = initGitRepo();
+  const rel = '.bouncer/.venv/bin/graphify';
+  const r = resolveGraphifyBin({
+    repoRoot,
+    config: { graphify: { bin: rel } },
+    platform: 'linux',
+    exists: (p) => p === path.join(repoRoot, rel),
+    hasOnPath: () => false,
+  });
+  assert.deepStrictEqual(r, { bin: path.join(repoRoot, rel), source: 'config' });
+});
+
 test('resolveGraphifyBin never throws on malformed config shapes', () => {
   const cases = [
     { config: null },
@@ -118,9 +243,9 @@ test('setupGraphify reuses an existing venv bin without calling exec', () => {
 
 test('setupGraphify installs via venv → pip → graphify install in order', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-'));
-  const binRel = venvBinRel('linux');
-  const pipAbs = path.join(repo, '.bouncer/.venv/bin/pip');
-  const graphifyAbs = path.join(repo, binRel);
+  const venvDir = path.join(repo, '.bouncer/.venv');
+  const pipAbs = path.join(venvDir, 'bin/pip');
+  const graphifyAbs = path.join(venvDir, 'bin/graphify');
   const calls = [];
   const r = setupGraphify({
     repoRoot: repo,
@@ -129,11 +254,11 @@ test('setupGraphify installs via venv → pip → graphify install in order', ()
       calls.push({ file, args, cwd: opts && opts.cwd });
     },
   });
-  assert.deepStrictEqual(r, { status: 'installed', bin: binRel });
+  assert.deepStrictEqual(r, { status: 'installed', bin: graphifyAbs });
   assert.strictEqual(calls.length, 3);
   assert.deepStrictEqual(calls[0], {
     file: 'python3',
-    args: ['-m', 'venv', '.bouncer/.venv'],
+    args: ['-m', 'venv', venvDir],
     cwd: repo,
   });
   assert.deepStrictEqual(calls[1], {
@@ -167,7 +292,7 @@ test('setupGraphify stops after the first failing step and never throws', () => 
   assert.match(r.reason, /venv/);
   assert.match(r.reason, /no python/);
   assert.strictEqual(calls.length, 1);
-  assert.deepStrictEqual(calls[0].args, ['-m', 'venv', '.bouncer/.venv']);
+  assert.deepStrictEqual(calls[0].args, ['-m', 'venv', path.join(repo, '.bouncer/.venv')]);
 });
 
 test('context freshness watches the Distill index and shard directory lifecycle', () => {

@@ -3,15 +3,56 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { readConfig } = require('./config');
+const { runtimePaths } = require('./runtime-state') as {
+  runtimePaths: (opts: { repoRoot: string }) => {
+    unavailable?: boolean;
+    commonGitDir?: string;
+  };
+};
 
 /**
- * 플랫폼별 venv 안 graphify 실행 파일의 저장소-상대 경로.
+ * 레거시·비-git 폴백용 저장소-상대 경로.
  * Windows만 Scripts/ + .exe; 그 외는 bin/. 구분자는 항상 POSIX(/)로 고정해
  * config·테스트·로그가 OS cwd 구분자에 흔들리지 않게 한다.
+ * 신규 설치 위치는 preferredVenvDirAbs — 이 값은 기존 소비자 config와
+ * `.bouncer/.venv` 재사용 후보에만 쓴다.
  */
 function venvBinRel(platform: string) {
   if (platform === 'win32') return '.bouncer/.venv/Scripts/graphify.exe';
   return '.bouncer/.venv/bin/graphify';
+}
+
+// venv 루트 기준 실행 파일. 신규 위치·레거시 위치가 같은 Scripts/ vs bin/ 규칙을 공유한다.
+function venvExecRel(platform: string, kind: 'graphify' | 'pip') {
+  if (platform === 'win32') {
+    return kind === 'pip' ? 'Scripts/pip.exe' : 'Scripts/graphify.exe';
+  }
+  return kind === 'pip' ? 'bin/pip' : 'bin/graphify';
+}
+
+function preferredVenvDirAbs(repoRoot: string) {
+  // runtime-state와 같은 rev-parse --git-common-dir. 새 경로 개념을 만들지 않는다.
+  // common dir 아래면 worktree git add 대상이 아니므로 B1 재현이 끊긴다.
+  const paths = runtimePaths({ repoRoot });
+  if (!paths.unavailable && typeof paths.commonGitDir === 'string' && paths.commonGitDir) {
+    return path.join(paths.commonGitDir, 'bouncer', 'venv');
+  }
+  // 비-git 디렉터리(init 픽스처 포함)는 common dir이 없다. 기존 위치로 폴백.
+  return path.join(repoRoot, '.bouncer', '.venv');
+}
+
+function venvBinAbsAt(venvDir: string, platform: string) {
+  return path.join(venvDir, venvExecRel(platform, 'graphify'));
+}
+
+function removeCreatedVenvDir(venvDir: string, createdThisRun: boolean) {
+  // 이번 실행이 mkdir/venv 한 디렉터리만 지운다. 이미 있던 잔해·공유 bouncer/ 는 건드리지 않는다.
+  if (!createdThisRun) return;
+  try {
+    fs.rmSync(venvDir, { recursive: true, force: true });
+  } catch (_e) {
+    // 정리 실패는 원래 설치 실패 reason을 덮지 않는다.
+  }
 }
 
 function defaultHasOnPath() {
@@ -32,7 +73,7 @@ function defaultHasOnPath() {
 
 /**
  * graphify 실행 파일 단일 해석기.
- * 후보 순서: config.graphify.bin → venvBinRel → PATH의 `graphify`.
+ * 후보 순서: config.graphify.bin → venv(신규 common-dir, 그다음 레거시) → PATH의 `graphify`.
  * 어떤 입력에도 throw하지 않으며, 후보가 없으면 { bin: null, source: null }.
  *
  * @param {{
@@ -82,10 +123,14 @@ function resolveGraphifyBin({
       }
     }
 
-    const venvRel = venvBinRel(plat);
-    const venvAbs = path.join(root, venvRel);
-    if (fileExists(venvAbs)) {
-      return { bin: venvAbs, source: 'venv' };
+    const preferredBin = venvBinAbsAt(preferredVenvDirAbs(root), plat);
+    if (fileExists(preferredBin)) {
+      return { bin: preferredBin, source: 'venv' };
+    }
+
+    const legacyBin = path.join(root, venvBinRel(plat));
+    if (legacyBin !== preferredBin && fileExists(legacyBin)) {
+      return { bin: legacyBin, source: 'venv' };
     }
 
     if (onPath()) {
@@ -101,19 +146,11 @@ function resolveGraphifyBin({
 }
 
 /**
- * 플랫폼별 venv pip 실행 파일 상대 경로.
- * graphify와 같은 Scripts/ vs bin/ 규칙을 따르되, activate 없이 직접 호출한다.
- */
-function venvPipRel(platform: string) {
-  if (platform === 'win32') return '.bouncer/.venv/Scripts/pip.exe';
-  return '.bouncer/.venv/bin/pip';
-}
-
-/**
- * `.bouncer/.venv`에 graphify를 설치(또는 재사용).
- * 네트워크·python 부재는 soft-fail — throw하지 않고 status/reason만 돌려
- * init 부트스트랩 exit 0을 지키게 한다. 이미 bin이 있으면 upgrade하지 않는다
- * (셸마다 activate가 끊기므로 경로로 직접 호출하는 계약과 맞춤).
+ * graphify venv 설치(또는 재사용).
+ * 기본 위치는 git common directory 아래 `bouncer/venv`. 이미 `.bouncer/.venv`
+ * bin이 있으면 이전하지 않고 그대로 재사용한다. 네트워크·python 부재는
+ * soft-fail — throw하지 않고 status/reason만 돌려 init 부트스트랩 exit 0을
+ * 지킨다. 이미 bin이 있으면 upgrade하지 않는다.
  *
  * @param {{
  *   repoRoot: string,
@@ -147,16 +184,26 @@ function setupGraphify({
     const plat = typeof platform === 'string' ? platform : process.platform;
     const run = typeof exec === 'function' ? exec : execFileSync;
     const binRel = venvBinRel(plat);
-    const binAbs = path.join(root, binRel);
+    const legacyBinAbs = path.join(root, binRel);
+    const venvDir = preferredVenvDirAbs(root);
+    const binAbs = venvBinAbsAt(venvDir, plat);
 
-    if (fs.existsSync(binAbs)) {
+    // 레거시를 먼저 본다. 있으면 이전·삭제 없이 상대 경로를 그대로 돌려
+    // 기존 config 기록 형태를 유지한다.
+    if (fs.existsSync(legacyBinAbs)) {
       return { status: 'reused', bin: binRel };
     }
+    if (fs.existsSync(binAbs)) {
+      return { status: 'reused', bin: binAbs };
+    }
 
-    // 1) venv 생성 — cwd=repoRoot로 상대 경로 `.bouncer/.venv`를 고정.
+    const createdThisRun = !fs.existsSync(venvDir);
+
+    // 1) venv 생성 — 절대 경로라 cwd와 무관하게 common dir / 폴백 위치를 가리킨다.
     try {
-      run('python3', ['-m', 'venv', '.bouncer/.venv'], { cwd: root, stdio: 'pipe' });
+      run('python3', ['-m', 'venv', venvDir], { cwd: root, stdio: 'pipe' });
     } catch (e) {
+      removeCreatedVenvDir(venvDir, createdThisRun);
       return {
         status: 'failed',
         bin: null,
@@ -165,10 +212,11 @@ function setupGraphify({
     }
 
     // 2) pip으로 graphifyy 설치 — PyPI 패키지명이 graphify가 아님에 주의.
-    const pipAbs = path.join(root, venvPipRel(plat));
+    const pipAbs = path.join(venvDir, venvExecRel(plat, 'pip'));
     try {
       run(pipAbs, ['install', 'graphifyy'], { cwd: root, stdio: 'pipe' });
     } catch (e) {
+      removeCreatedVenvDir(venvDir, createdThisRun);
       return {
         status: 'failed',
         bin: null,
@@ -180,6 +228,7 @@ function setupGraphify({
     try {
       run(binAbs, ['install'], { cwd: root, stdio: 'pipe' });
     } catch (e) {
+      removeCreatedVenvDir(venvDir, createdThisRun);
       return {
         status: 'failed',
         bin: null,
@@ -187,7 +236,7 @@ function setupGraphify({
       };
     }
 
-    return { status: 'installed', bin: binRel };
+    return { status: 'installed', bin: binAbs };
   } catch (e) {
     // 계약: setupGraphify 자신은 어떤 실패에도 throw하지 않는다.
     return {

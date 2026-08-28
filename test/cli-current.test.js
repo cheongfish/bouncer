@@ -75,6 +75,13 @@ function tmpGitRepo() {
   return repo;
 }
 
+function headBranch(repo) {
+  return execFileSync('git', ['symbolic-ref', '--short', 'HEAD'], {
+    cwd: repo,
+    encoding: 'utf8',
+  }).trim();
+}
+
 const PLAN_BODY = `# Tasks
 
 ## Goal & intent
@@ -157,16 +164,17 @@ test('current --set writes pointer when plan gate passes', () => {
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
+  const base = headBranch(repo);
   // 묶음이 하나뿐이면 자동 선택으로 그 문서가 task 가 된다.
   // CLI 응답은 path+id; 포인터 파일은 path 문자열.
   assert.deepStrictEqual(parsed.current, {
     blueprint: BP_REL,
-    base: 'develop',
+    base,
     task: { path: `${BP_REL}/tasks/001/tasks.md`, id: 'TASKS-001' },
     scale: null,
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
-    blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks/001/tasks.md`,
+    blueprint: BP_REL, base, task: `${BP_REL}/tasks/001/tasks.md`,
   });
 });
 
@@ -189,7 +197,7 @@ test('current --set presents bouncer.scale from blueprint index', () => {
   assert.strictEqual(parsed.current.scale, 'full');
   // 파생값은 응답에만 싣는다. 포인터 파일 스키마는 { blueprint, task, base }.
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
-    blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks/001/tasks.md`,
+    blueprint: BP_REL, base: headBranch(repo), task: `${BP_REL}/tasks/001/tasks.md`,
   });
 });
 
@@ -209,6 +217,39 @@ test('current --set respects --base and config base_branch', () => {
   const withConfig = capture(['current', '--repo', repo, '--set', BP_REL]);
   assert.strictEqual(withConfig.code, 0);
   assert.strictEqual(JSON.parse(withConfig.out).current.base, 'trunk');
+});
+
+test('current --set falls back to the checkout branch when config omits base_branch', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-current-'));
+  execFileSync('git', ['init', '-b', 'feature', '--quiet'], { cwd: repo });
+  writePlanPassingBlueprint(repo);
+  const r = capture(['current', '--repo', repo, '--set', BP_REL]);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.current.base, 'feature');
+  assert.notStrictEqual(parsed.current.base, 'develop');
+});
+
+test('current --set does not write a pointer when HEAD is detached and config omits base_branch', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-current-'));
+  execFileSync('git', ['init', '-b', 'main', '--quiet'], { cwd: repo });
+  execFileSync('git', ['commit', '--allow-empty', '-m', 'seed'], {
+    cwd: repo,
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'bouncer-test',
+      GIT_AUTHOR_EMAIL: 't@example.com',
+      GIT_COMMITTER_NAME: 'bouncer-test',
+      GIT_COMMITTER_EMAIL: 't@example.com',
+    },
+  });
+  execFileSync('git', ['checkout', '--detach', '--quiet'], { cwd: repo });
+  writePlanPassingBlueprint(repo);
+  const r = capture(['current', '--repo', repo, '--set', BP_REL]);
+  assert.strictEqual(r.code, 1);
+  assert.strictEqual(readCurrent({ repoRoot: repo }), null);
+  assert.match(r.err, /cannot resolve base/);
+  assert.doesNotMatch(r.out + r.err, /"base":\s*""/);
 });
 
 test('current --set does not write pointer when plan gate fails', () => {
@@ -310,15 +351,16 @@ test('current --set --task 002 records that task document', () => {
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
+  const base = headBranch(repo);
   assert.deepStrictEqual(parsed.current, {
     blueprint: BP_REL,
-    base: 'develop',
+    base,
     task: { path: `${BP_REL}/tasks/002/tasks.md`, id: 'TASKS-002' },
     scale: null,
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
     blueprint: BP_REL,
-    base: 'develop',
+    base,
     task: `${BP_REL}/tasks/002/tasks.md`,
   });
 });

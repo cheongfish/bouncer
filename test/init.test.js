@@ -4,12 +4,29 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../scripts/lib/init');
 const { TEMPLATES } = require('../scripts/lib/templates');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-init-'));
+}
+
+function git(repo, args) {
+  return execFileSync('git', args, {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_AUTHOR_NAME: 'bouncer-test',
+      GIT_AUTHOR_EMAIL: 't@example.com',
+      GIT_COMMITTER_NAME: 'bouncer-test',
+      GIT_COMMITTER_EMAIL: 't@example.com',
+    },
+  });
 }
 const read = (repo, rel) => fs.readFileSync(path.join(repo, rel), 'utf8');
 const exists = (repo, rel) => fs.existsSync(path.join(repo, rel));
@@ -20,10 +37,6 @@ test('init scaffolds the safe .bouncer tree', () => {
   assert.strictEqual(res.skipped, false);
   for (const rel of [
     '.bouncer/config.json', '.bouncer/context/index.md',
-    '.codex/agents/bouncer-reviewer.toml',
-    '.codex/agents/bouncer-implementer.toml',
-    '.codex/agents/bouncer-debugger.toml',
-    '.codex/agents/bouncer-context-reviewer.toml',
   ]) {
     assert.ok(exists(repo, rel), `missing ${rel}`);
   }
@@ -42,9 +55,58 @@ test('init does not write a Superpowers preference document', () => {
   assert.ok(!exists(repo, '.bouncer/superpowers.md'));
 });
 
+test('init detects base_branch and pr.base from git init -b main', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.equal(config.base_branch, 'main');
+  assert.equal(config.pr.base, 'main');
+});
+
+test('init prefers origin/HEAD over the current checkout branch', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  git(repo, ['remote', 'add', 'origin', 'https://example.invalid/repo.git']);
+  git(repo, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk']);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.equal(config.base_branch, 'trunk');
+  assert.equal(config.pr.base, 'trunk');
+});
+
+test('init omits base_branch when origin/HEAD and HEAD cannot be resolved', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  git(repo, ['commit', '--allow-empty', '-m', 'seed']);
+  git(repo, ['checkout', '--detach']);
+  const result = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.ok(!Object.prototype.hasOwnProperty.call(config, 'base_branch'));
+  assert.notEqual(config.base_branch, 'develop');
+  assert.ok(!Object.prototype.hasOwnProperty.call(config.pr, 'base'));
+  assert.notEqual(config.pr.base, 'develop');
+  assert.equal(result.baseBranchUnresolved, true);
+});
+
+test('init does not rewrite an existing base_branch', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    verify: 'npm test',
+    base_branch: 'keep-me',
+  }));
+  git(repo, ['init', '-b', 'main']);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const existing = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.equal(existing.base_branch, 'keep-me');
+});
+
 test('init writes the exact config.json shape', () => {
   const repo = tmpRepo();
   // Empty tmp repo → no candidate dirs; source_dirs is detected, not hard-coded.
+  // tmp 디렉터리는 git이 아니라 탐지가 실패한다. 키를 추측해 넣지 않는다.
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')), {
     source_dirs: [],
@@ -52,10 +114,9 @@ test('init writes the exact config.json shape', () => {
     graphify: { enabled: true },
     distill: { routing_enabled: false, max_bytes: 6144 },
     verify: 'npm test',
-    base_branch: 'develop',
     autonomy: 'auto',
-    // 신규 config의 pr는 draft·base만. labels 기본값·자동 부착은 두지 않는다.
-    pr: { draft: true, base: 'develop' },
+    // 신규 config의 pr는 draft만. base는 탐지 성공 시에만 붙는다.
+    pr: { draft: true },
     subagents: {
       claude: {
         'bouncer-reviewer': 'inherit',
@@ -428,6 +489,57 @@ test('init reports gitignore suggestions on an already-initialized repo', () => 
   ]);
 });
 
+test('init install on a git repo does not create worktree .bouncer/.venv', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  const { setupGraphify } = require('../scripts/lib/graphify');
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    graphify: {
+      install: true,
+      setup: ({ repoRoot: root }) => setupGraphify({
+        repoRoot: root,
+        platform: 'linux',
+        exec: () => {},
+      }),
+    },
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.graphifyInstall.status, 'installed');
+  assert.ok(path.isAbsolute(res.graphifyInstall.bin));
+  assert.ok(!res.graphifyInstall.bin.startsWith(path.join(repo, '.bouncer')));
+  assert.ok(!exists(repo, '.bouncer/.venv'));
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.strictEqual(cfg.graphify.enabled, true);
+  assert.strictEqual(cfg.graphify.bin, res.graphifyInstall.bin);
+});
+
+test('ready bootstrap promote+failed install keeps graphify.enabled false', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfgPath = path.join(repo, '.bouncer/config.json');
+  const existing = {
+    source_dirs: ['custom'],
+    verify: 'make test',
+    base_branch: 'main',
+    graphify: { enabled: false },
+  };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(existing, null, 2)}\n`);
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    promote: true,
+    graphify: {
+      install: true,
+      setup: () => ({ status: 'failed', bin: null, reason: 'venv: no python' }),
+    },
+  });
+  assert.strictEqual(res.graphifyPromotion, 'promoted');
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.strictEqual(cfg.graphify.enabled, false);
+});
+
 test('init with install:true writes graphify bin from injected setup', () => {
   const repo = tmpRepo();
   const bin = '.bouncer/.venv/bin/graphify';
@@ -625,9 +737,48 @@ test('writeGitignore without flag leaves .gitignore bytes unchanged and does not
   assert.ok(!exists(empty, '.gitignore'));
 });
 
+test('init does not seed Codex agents without a .codex/ signal', () => {
+  const repo = tmpRepo();
+  const result = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.equal(result.created.filter((p) => p.startsWith('.codex/')).length, 0);
+  assert.ok(!exists(repo, '.codex'));
+  assert.notEqual(result.reason, 'codex-agents-seeded');
+});
+
+test('init seeds four Codex tomls when .codex/ already exists', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  for (const name of [
+    'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
+    'bouncer-context-reviewer',
+  ]) {
+    const rel = `.codex/agents/${name}.toml`;
+    assert.ok(res.created.includes(rel), `missing ${rel} in created`);
+    const toml = read(repo, rel);
+    assert.ok(toml.startsWith(GENERATED_MARKER));
+    assert.match(toml, new RegExp(`name = "${name}"`));
+  }
+});
+
+test('init leaves unmarked Codex toml byte-for-byte unchanged', () => {
+  const repo = tmpRepo();
+  const rel = '.codex/agents/bouncer-implementer.toml';
+  fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
+  const owned = 'name = "custom"\n';
+  fs.writeFileSync(path.join(repo, rel), owned);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(read(repo, rel), owned);
+});
+
 test('init seeds Codex named-agent toml from plugin markdown', () => {
   const repo = tmpRepo();
-  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    seedCodexAgents: true,
+  });
   const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
@@ -643,6 +794,7 @@ test('init seeds Codex named-agent toml from plugin markdown', () => {
 
 test('init refreshes generated Codex toml and leaves user-owned files', () => {
   const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const generated = '.codex/agents/bouncer-reviewer.toml';
   const owned = '.codex/agents/bouncer-implementer.toml';
@@ -657,10 +809,22 @@ test('init refreshes generated Codex toml and leaves user-owned files', () => {
 
 test('ready init seeds missing Codex toml without touching Distill reason', () => {
   const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  fs.rmSync(path.join(repo, '.codex'), { recursive: true, force: true });
+  fs.rmSync(path.join(repo, '.codex/agents'), { recursive: true, force: true });
   const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.strictEqual(again.reason, 'codex-agents-seeded');
   assert.ok(again.created.includes('.codex/agents/bouncer-reviewer.toml'));
   assert.ok(!again.created.includes('.bouncer/Distill.md'));
+});
+
+test('ready init does not recreate .codex/ after it is removed', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  fs.rmSync(path.join(repo, '.codex'), { recursive: true, force: true });
+  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.equal(again.created.filter((p) => p.startsWith('.codex/')).length, 0);
+  assert.ok(!exists(repo, '.codex'));
+  assert.notEqual(again.reason, 'codex-agents-seeded');
 });

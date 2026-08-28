@@ -187,9 +187,11 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    충돌하지 않는다.
 5. Named agent 라우팅은 Claude Code, Cursor, Codex, Antigravity가 모두
    대상이다. 호스트가 플러그인 named agent를 로드하지 못할 때만
-   generic/인라인 폴백을 탄다. Codex는 `agents/*.md`를 읽지 않으므로
-   `bouncer init`이 프로젝트 `.codex/agents/*.toml`을 심는다. 페르소나
-   원본은 `agents/*.md`다.
+   generic/인라인 폴백을 탄다. Codex는 `agents/*.md`를 읽지 못하므로
+   `.codex/agents/*.toml`이 로드 경로다. `bouncer init`은 저장소에
+   `.codex/`가 이미 있거나 `--seed-codex-agents`로 명시한 경우에만 그
+   TOML을 심는다. Claude/Cursor만 쓰는 저장소에는 `.codex/`를 만들지
+   않는다. 페르소나 원본은 `agents/*.md`다.
 
 ### B. 공통 문서 계약과 게이트
 

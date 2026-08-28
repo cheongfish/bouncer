@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { runCli } = require('../scripts/lib/cli');
+const { SUGGESTED_IGNORES } = require('../scripts/lib/init');
 
 function capture() {
   const buf = { out: '', err: '' };
@@ -38,6 +39,17 @@ test('cli init --no-graphify skips install and keeps enabled true without bin', 
   assert.strictEqual(body.graphifyInstall, undefined);
   const cfg = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
   assert.deepStrictEqual(cfg.graphify, { enabled: true });
+  assert.ok(!fs.existsSync(path.join(repo, '.codex')));
+});
+
+test('cli init --seed-codex-agents writes named-agent toml', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
+  const { io, buf } = capture();
+  const code = runCli(['init', '--repo', repo, '--no-graphify', '--seed-codex-agents'], io);
+  assert.strictEqual(code, 0);
+  const body = parseOut(buf);
+  assert.ok(body.created.some((p) => p.startsWith('.codex/')));
+  assert.ok(fs.existsSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml')));
 });
 
 test('cli init --write-gitignore writes the marker block', () => {
@@ -49,7 +61,19 @@ test('cli init --write-gitignore writes the marker block', () => {
   const body = parseOut(buf);
   assert.strictEqual(body.gitignoreWritten, true);
   const gi = fs.readFileSync(path.join(repo, '.gitignore'), 'utf8');
-  assert.match(gi, /# bouncer\n[\s\S]*\.bouncer\/\.venv\/\n[\s\S]*# \/bouncer/);
+  const block = `# bouncer\n${SUGGESTED_IGNORES.join('\n')}\n# /bouncer`;
+  assert.ok(gi.includes(block));
+});
+
+test('cli init JSON flags baseBranchUnresolved when detection fails', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
+  const { io, buf } = capture();
+  const code = runCli(['init', '--repo', repo, '--no-graphify'], io);
+  assert.strictEqual(code, 0);
+  const body = parseOut(buf);
+  assert.strictEqual(body.baseBranchUnresolved, true);
+  const cfg = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
+  assert.ok(!Object.prototype.hasOwnProperty.call(cfg, 'base_branch'));
 });
 
 test('cli init --promote-graphify promotes enabled on a ready repo', () => {
