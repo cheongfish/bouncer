@@ -556,6 +556,31 @@ function isGitIgnored(repo, target) {
   return check(target) || check(`${target}/`);
 }
 
+test('repository Distill shard files stay within locked UTF-8 byte budgets', () => {
+  // 세션 주입량 상한: frontmatter 포함 파일 전체 UTF-8 바이트.
+  // 초과 시 불릿을 합치거나 회차·스킬 절차를 걷어내 다시 압축한다 — 단언을
+  // 약화해 통과시키지 않는다. plugin-skills는 task 003 범위라 여기 두지 않는다.
+  const repo = path.resolve(__dirname, '..');
+  const budgets = {
+    core: 4096,
+    'validate-gates': 6144,
+    'context-layout': 4096,
+    'git-worktree': 3584,
+    graph: 3072,
+    'build-ts': 1280,
+  };
+  for (const [id, max] of Object.entries(budgets)) {
+    const bytes = Buffer.byteLength(
+      fs.readFileSync(path.join(repo, DISTILL_ROOT, `${id}.md`)),
+      'utf8',
+    );
+    assert.ok(
+      bytes <= max,
+      `${id}.md must be <= ${max} UTF-8 bytes (got ${bytes})`,
+    );
+  }
+});
+
 test('every registered Distill shard glob reaches at least one tracked file', () => {
   const repo = path.resolve(__dirname, '..');
   const index = readDoc(path.join(repo, PROJECT_DISTILL));

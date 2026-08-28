@@ -12,7 +12,7 @@ bouncer:
   id: TASKS-002
   epic_id: '058'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 항상 읽는 core와 기술 샤드가 다른 정본의 절차와 과거 측정치를 반복함
     - 다음 작업이 재발견해야 하는 불변식과 함정만 남겨 선택 주입량을 줄임

@@ -1,7 +1,7 @@
 ---
 type: bouncer.review
-title: 기술 Distill 압축 리뷰
-description: 기술 샤드의 불변식과 함정을 잃지 않고 예산을 맞췄는지 판정한다
+title: core와 기술 Distill 압축 리뷰
+description: Distill 샤드 압축이 현재 계약을 약화하지 않았는지 판정한다
 resource: .bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/002/review.md
 tags:
   - bouncer
@@ -11,14 +11,18 @@ bouncer:
   id: REVIEW-002
   epic_id: '058'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: major
+        status: resolved
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+- id: F1
+  severity: major
+  status: resolved
+  summary: light-scale 게이트 적용 범위 불변식 복구됨 (validate-gates.md)
