@@ -18,6 +18,12 @@ test('CLAUDE.md is the master-rules SSOT', () => {
   assert.match(claude, /execute gate/i);
   // Split the literal so public-name-regression does not flag this negative check.
   assert.doesNotMatch(claude, new RegExp(['super', 'powers'].join(''), 'i'));
+  // 세션마다 읽는 마스터 규칙 상한: UTF-8 바이트(줄 수 아님). 초과 시 포인터·밀도 높은
+  // 계약 문장으로 다시 압축한다 — 단언을 약화해 통과시키지 않는다.
+  assert.ok(
+    Buffer.byteLength(claude, 'utf8') <= 6135,
+    `CLAUDE.md must be <= 6135 UTF-8 bytes (got ${Buffer.byteLength(claude, 'utf8')})`,
+  );
 });
 
 test('AGENTS.md imports CLAUDE.md as Codex/Cursor adapter', () => {
