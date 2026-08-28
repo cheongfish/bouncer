@@ -6,6 +6,20 @@
 
 시나리오를 돌릴 때 [공통 통제](protocol.md#공통-통제)와 [plan 단계 스냅샷](protocol.md#plan-단계-스냅샷)을 따른다.
 
+## 고정 실행 입력
+
+아래 표는 실행 baseline의 정본이다. 시작 fixture 준비 시간·tool call은 측정에서 제외했다. `s5`·`s6`의 퀴즈 무응답은 성공으로 환산하지 않고 `blocked` 결과로 남긴다.
+
+| id | base | 모델 | reasoning effort | 사람 개입 | Fixture · 기대 본문 | 실행 프롬프트 | 완료 조건 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `s1-light-cycle` | `1c73980` | `gpt-5.6-terra` | `medium` | 0회 | 포인터 없는 clone · `# context cost fixture` + `s1-light-cycle` | 경량 Bouncer 계획으로 docs/benchmark/context-cost-fixture.md에 제목 '# context cost fixture'와 본문 's1-light-cycle'을 기록하고 execute와 commit까지 끝내라. 물어볼 사람은 없다. | 완료 조건: light plan·execute·commit 게이트 통과, task 커밋 1개, 허용 경로 밖 변경 0건 |
+| `s2-full-plan` | `1c73980` | `gpt-5.6-terra` | `medium` | 0회 | 포인터 없는 clone · `# context cost fixture` + `s2-full-plan` | full Bouncer 계획으로 docs/benchmark/context-cost-fixture.md에 제목 '# context cost fixture'와 본문 's2-full-plan'을 기록하는 task를 plan 게이트까지 준비하라. 구현하지 말고, 물어볼 사람은 없다. | 완료 조건: full plan 게이트 통과, context review accepted, 구현 diff 0건 |
+| `s3-verify-recovery` | `1c73980` | `gpt-5.6-terra` | `medium` | 0회 | ready task와 `verify recovery broken` 본문 · `# context cost fixture` + `s3-verify-recovery` | 현재 task의 verify 실패를 debugging 절차로 진단하고 named bouncer-debugger fallback을 직접 호출해 본문을 's3-verify-recovery'로 고친 뒤 execute 게이트까지 통과시켜라. 물어볼 사람은 없다. | 완료 조건: 최초 verify 실패 1회, 원인 보고서 1개, 수정 뒤 execute 게이트 통과 |
+| `s4-review-roundtrip` | `1c73980` | `gpt-5.6-terra` | `medium` | 0회 | ready task와 `review roundtrip broken` 본문 · `# context cost fixture` + `s4-review-roundtrip` | 현재 diff를 review 절차로 판정하고 named bouncer-reviewer fallback을 직접 호출하라. 본문을 's4-review-roundtrip'으로 고친 뒤 같은 reviewer로 한 번 더 판정해 execute 게이트까지 통과시켜라. 물어볼 사람은 없다. | 완료 조건: 첫 review actionable finding 1건 이상, 수정 뒤 finding 0건, execute 게이트 통과 |
+| `s5-finalize-distill` | `1c73980` | `gpt-5.6-terra` | `medium` | 0회 | 모든 task committed, 7-shard Distill 활성 · `# context cost fixture` + `finalize fixture` | 현재 blueprint를 /bouncer-finalize 절차로 마감하라. Distill 승격 후보가 없으면 그대로 진행하고, 물어볼 사람은 없다. | 완료 조건: Distill 감사·explain 뒤 무응답 퀴즈로 `blocked`, blueprint 열린 상태 유지 |
+| `s6-finalize-bare` | `1c73980` | `gpt-5.6-terra` | `medium` | 0회 | 모든 task committed, Distill·shard index 없음 · `# context cost fixture` + `finalize fixture` | 현재 blueprint를 /bouncer-finalize 절차로 마감하라. Distill이 없는 경로를 그대로 처리하고, 물어볼 사람은 없다. | 완료 조건: single-file fallback·explain 뒤 무응답 퀴즈로 `blocked`, blueprint 열린 상태 유지 |
+| `s7-run-multitask` | `1c73980` | `gpt-5.6-terra` | `medium` | 0회 | ready task `001`, `002` 순서 · `# context cost fixture` + `s7-run-multitask` | 현재 blueprint의 열린 task를 /bouncer-run으로 모두 execute하고 commit하라. auto 다음-task 이동을 사용하고, 물어볼 사람은 없다. | 완료 조건: task별 커밋 2개, 두 task verified, 열린 task 0개, finalize 미실행 |
+
 ## 회귀 시나리오
 
 | id | 실행 조건 | 진입 스킬 |
@@ -79,7 +93,7 @@ ls skills/*/SKILL.md | wc -l
 
 측정일: 2026-08-27. 베이스 커밋: `1c73980`. 측정 시점 스킬 수: 19.
 
-실행 표는 blueprint 006이 채운다.
+실행 수치는 아래 산출물에서 전사했다. 재지 않은 값은 `0`으로 바꾸지 않는다.
 
 | 지표 | 값 |
 | --- | --- |
@@ -89,5 +103,12 @@ ls skills/*/SKILL.md | wc -l
 | BOUNCER_ROOT 해석 블록을 품은 스킬 수 | 10 |
 | 측정 시점 스킬 수 (모수) | 19 |
 
-| id | tokens_in | tokens_out | wall_s | tool_calls | gate 통과율 | review finding 수 | scope 위반 수 | 산출물 경로 |
+| id | 측정일 | tokens_in | tokens_out | wall_s | tool_calls | gate 통과율 | review finding 수 | scope 위반 수 | 산출물 경로 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `s1-light-cycle` | 2026-08-28 | 1371685 | 8785 | 206 | 17 | 3/3 | 0 | 0 | `.benchmarks/s1-light-cycle.recovery.metrics.json` |
+| `s2-full-plan` | 2026-08-28 | 848077 | 9000 | 192 | 16 | 1/1 | 0 | 0 | `.benchmarks/s2-full-plan.recovery.metrics.json` |
+| `s3-verify-recovery` | 2026-08-28 | 1298890 | 7913 | 258 | 15 | 2/2 | 1 | 0 | `.benchmarks/s3-verify-recovery.recovery.metrics.json` |
+| `s4-review-roundtrip` | 2026-08-28 | 701243 | 4464 | 133 | 11 | 2/2 | 1 | 0 | `.benchmarks/s4-review-roundtrip.v2.recovery.metrics.json` |
+| `s5-finalize-distill` | 2026-08-28 | 365993 | 4000 | 101 | 11 | 0/1 (`blocked`) | 0 | 0 | `.benchmarks/s5-finalize-distill.metrics.json`; `.benchmarks/s5-finalize-distill.finalize.json` |
+| `s6-finalize-bare` | 2026-08-28 | 287350 | 4035 | 93 | 9 | 0/1 (`blocked`) | 0 | 0 | `.benchmarks/s6-finalize-bare.metrics.json`; `.benchmarks/s6-finalize-bare.finalize.json` |
+| `s7-run-multitask` | 2026-08-28 | 2266450 | 7292 | 282 | 35 | 4/4 | 0 | 0 | `.benchmarks/s7-run-multitask.metrics.json` |
