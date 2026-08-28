@@ -12,7 +12,7 @@ bouncer:
   id: TASKS-003
   epic_id: '058'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 일반 플러그인 규칙과 벤치마크 런북이 한 샤드에 섞여 선택 읽기 효과가 약함
     - 두 경로를 겹치지 않게 분리하고 저장소 자체에 실효 바이트 예산을 적용함

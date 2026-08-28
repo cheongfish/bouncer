@@ -2,8 +2,6 @@
 distill:
   id: core
   always: true
-  paths:
-    - "**"
   pulls: []
 ---
 # core
@@ -26,7 +24,7 @@ Project-wide rules that apply to every path.
 
 ## Decisions
 
-- This repository enables `distill.routing_enabled` only after the full seven-shard render preserves every original bullet; route selection keeps `always` shards and transitive `pulls`, with full-render fallback on uncertainty.
+- This repository enables `distill.routing_enabled` only after the full eight-shard render preserves every original bullet; route selection keeps `always` shards and transitive `pulls`, with full-render fallback on uncertainty. `core` is always-only (no path globs) so unclassified paths fail open.
 - Workflow order is init → plan → execute → commit → finalize. `/bouncer-run` covers execute→commit only (never finalize). `/bouncer-commit` commits one task — no `explain-diff` / quiz; next-task handoff is confirm-then `bouncer current --set … --task <NNN>`. `/bouncer-finalize` promotes Distill, then authors explain + quiz as **one** blueprint comprehension entry for pointer-`base`..HEAD, then G16 / remainder commit. G16 blocks while any task is not `verified` or the entry / hash is missing; next-blueprint advance is confirm-then `--set` only. One execute worktree is reused for every task on a blueprint.
 - Project Distill SSOT is `${PROJECT_ROOT}/.bouncer/Distill.md` (`PROJECT_ROOT` = `bouncer project-root` / `runtimePaths().projectRoot`). Plugin root and execute worktree cwd are not Distill bases. Distill is English agent runtime under `.bouncer/`, outside `context/`, ungated OKF-shaped meta with no registered `bouncer.*` kind. `bouncer init` soft-seeds a missing Distill and never overwrites curated content. Promotion requires `makeAllowed` to whitelist the path. After `affected_paths` confirm, re-ground with one `bouncer distill --for <path-1> --for <path-2> ... --repo "${PROJECT_ROOT}"` call.
 - Plan inventory for wording cutovers: search first, then Touch, then Goal. Goal does not outrank Touch. The same closed set is the commit unit (`affected_paths`); widening after execute is a plan gap.
