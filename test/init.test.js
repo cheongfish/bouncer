@@ -54,7 +54,8 @@ test('init writes the exact config.json shape', () => {
     verify: 'npm test',
     base_branch: 'develop',
     autonomy: 'auto',
-    pr: { draft: true, base: 'develop', labels: ['bouncer'] },
+    // 신규 config의 pr는 draft·base만. labels 기본값·자동 부착은 두지 않는다.
+    pr: { draft: true, base: 'develop' },
     subagents: {
       claude: {
         'bouncer-reviewer': 'inherit',

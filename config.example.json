@@ -15,10 +15,7 @@
   "autonomy": "auto",
   "pr": {
     "draft": true,
-    "base": "develop",
-    "labels": [
-      "bouncer"
-    ]
+    "base": "develop"
   },
   "subagents": {
     "claude": {

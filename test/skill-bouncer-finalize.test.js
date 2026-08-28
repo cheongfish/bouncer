@@ -85,7 +85,6 @@ test('bouncer-finalize promotes BP explain notes into project Distill', () => {
 
 test('bouncer-finalize fills PR from explain.md and excludes 이해 상태', () => {
   const { body } = parseFrontmatter(md);
-  const { PR_TEMPLATE } = require('../scripts/lib/templates');
   assert.match(body, /explain\.md/);
   // Distill 승격·PR 복사 금지를 각각 긍정 문구로 잠근다(한쪽만 남아도 통과하지 않음).
   // 스킬 줄바꿈 wrapping을 허용한다.
@@ -96,9 +95,77 @@ test('bouncer-finalize fills PR from explain.md and excludes 이해 상태', () 
   for (const s of ['## Background', '## Intuition', '## Code']) {
     assert.ok(body.includes(s), `PR fill rule must name ${s}`);
   }
-  // Bouncer 메타는 Explain 경로(스킬 지시 + 템플릿 플레이스홀더).
-  assert.match(body, /Explain path|Explain 경로/);
-  assert.match(PR_TEMPLATE, /- Explain: <explain path>/);
+});
+
+// 리뷰 흐름 본문 계약: 섹션 순서·Explain 링크·검증 집계·Mermaid·제외 항목·라벨 미부착.
+test('draft PR body follows review-flow sections and omits legacy meta', () => {
+  const { body } = parseFrontmatter(md);
+  const draftPr = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'),
+    'utf8',
+  );
+  const { PR_TEMPLATE } = require('../scripts/lib/templates');
+  const githubTpl = fs.readFileSync(path.join(root, '.github', 'pull_request_template.md'), 'utf8');
+  const gitlabTpl = fs.readFileSync(
+    path.join(root, '.gitlab', 'merge_request_templates', 'Default.md'),
+    'utf8',
+  );
+
+  const sectionOrder = [
+    '관련 이슈',
+    '배경 · 변경 의도',
+    '주요 변경 내용',
+    '로직 흐름',
+    '리뷰 포인트',
+    '확인 방법',
+  ];
+  for (const doc of [PR_TEMPLATE, githubTpl, gitlabTpl, draftPr]) {
+    let prev = -1;
+    for (const title of sectionOrder) {
+      const idx = doc.indexOf(title);
+      assert.ok(idx > -1, `missing section ${title}`);
+      assert.ok(idx > prev, `section order broken at ${title}`);
+      prev = idx;
+    }
+  }
+
+  // Explain은 실제 열리는 Markdown 링크. 평문 경로·Bouncer 메타 절은 없다.
+  assert.match(PR_TEMPLATE, /Explain:.*\[[^\]]+\]\([^)]+\)/);
+  assert.match(draftPr, /Explain[\s\S]{0,120}\[[^\]]+\]\([^)]+\)|Markdown 링크|head branch|commit/);
+  assert.match(draftPr, /pushed head|head branch|commit/i);
+  for (const doc of [PR_TEMPLATE, githubTpl, gitlabTpl]) {
+    assert.doesNotMatch(doc, /## 🚦 Bouncer/);
+    assert.doesNotMatch(doc, /Features\s*&\s*Improvements|신규 기능 및 개선/);
+    assert.doesNotMatch(doc, /버그 수정 \(Fixes\)|### 🐛/);
+    assert.doesNotMatch(doc, /- Epic:|- Blueprint:/);
+  }
+  assert.match(draftPr, /Bouncer meta|Bouncer 메타|Features\/Fixes/i);
+  assert.match(draftPr, /Never emit|넣지 않|출력하지/i);
+
+  // 이해·Quiz·comprehension은 제외 지시로만 언급. 생성 명령에 --label 없음.
+  assert.match(body, /이해 상태는 PR에\s*옮기지 않는다/);
+  assert.match(draftPr, /Quiz|이해 상태|comprehension|quiz_score/i);
+  assert.match(draftPr, /Never copy|옮기지 않|넣지 않|제외/i);
+  const createBlock = (draftPr.match(/```bash\n([\s\S]*?)```/) || [])[1] || '';
+  assert.match(createBlock, /gh pr create/);
+  assert.doesNotMatch(createBlock, /--label/);
+  assert.doesNotMatch(createBlock, /pr\.labels/);
+  assert.match(draftPr, /라벨|label/i);
+  assert.match(draftPr, /붙이지 않|미부착|never attached|Do not pass|No `--label`/i);
+
+  // 검증: 다중 task 번호순 집계 + finalize --yes 최종 결과 우선.
+  assert.match(draftPr, /verification|검증/);
+  assert.match(draftPr, /번호|number|task/i);
+  assert.match(draftPr, /finalize\s+--yes|최종 검증/);
+  assert.match(draftPr, /우선|most recent|최근/i);
+
+  // Mermaid: 조건 충족 시에만, 아니면 제목까지 제거.
+  assert.match(draftPr, /[Mm]ermaid|로직 흐름/);
+  assert.match(draftPr, /생략|제목까지|remove.*title|조건/i);
+  assert.match(githubTpl, /<!--[\s\S]*로직 흐름[\s\S]*-->/);
+  assert.match(gitlabTpl, /<!--[\s\S]*로직 흐름[\s\S]*-->/);
+  assert.match(githubTpl, /<!--[\s\S]*Explain[\s\S]*-->/);
+  assert.match(gitlabTpl, /<!--[\s\S]*Explain[\s\S]*-->/);
 });
 
 test('bouncer-finalize opens draft PR without a second body-confirm ACQ', () => {

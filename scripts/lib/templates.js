@@ -5,33 +5,35 @@
 // verification은 G13, review는 G14.
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-const PR_TEMPLATE = `## 🔗 관련 이슈 (Related Issues)
+// 리뷰 흐름 본문: 관련 이슈 → 배경·의도 → 변경 → (조건부) 로직 흐름 →
+// 리뷰 포인트 → 확인 방법. Features/Fixes 체크박스와 Bouncer 메타 절은 두지
+// 않는다 — finalize는 Explain·diff·검증 증적만 조합한다.
+const PR_TEMPLATE = `## 관련 이슈
 
--
+- Explain: [<explain path>](<explain url>)
 
-## 📝 작업 개요 (Task Overview)
+## 배경 · 변경 의도
 
-- <blueprint summary>
+- <background and intent>
 
-## 🛠️ 주요 변경 사항 (Major Changes)
+## 주요 변경 내용
 
-### ✨ 신규 기능 및 개선 (Features & Improvements)
+- <main changes>
 
-- [ ] <change>
+## 로직 흐름
 
-### 🐛 버그 수정 (Fixes)
+\`\`\`mermaid
+flowchart TD
+  A[<node>]
+\`\`\`
 
-- [ ] <fix>
+## 리뷰 포인트
 
-## 💬 추가 정보 (Additional Information)
+- <review points>
 
-- 특이 사항 및 리뷰 포인트
+## 확인 방법
 
-## 🚦 Bouncer
-
-- Epic: <epic-id>
-- Blueprint: <bp-id>
-- Explain: <explain path>
+- <verification summary>
 `;
 // 작성 가이드는 HTML 주석과 `<TODO: …>` 플레이스홀더에 있습니다.
 // plan gate는 섹션이 비었는지 판단하기 전에 주석을 제거하고 남은 `<TODO:`

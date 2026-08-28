@@ -60,12 +60,23 @@ PR/MR 본문 템플릿은 두 곳에 같은 형식으로 있습니다.
 | 위치 | 쓰이는 곳 |
 | --- | --- |
 | `.github/pull_request_template.md` | GitHub PR 작성 시 자동 적용 |
-| `.gitlab/merge_request_templates/기본.md` | GitLab MR 작성 시 템플릿 드롭다운에서 선택 |
+| `.gitlab/merge_request_templates/Default.md` | GitLab MR 작성 시 템플릿 드롭다운에서 선택 |
 
 `/bouncer-finalize`의 draft PR 본문은 플러그인 내장 템플릿
 (`scripts/lib/templates.js`의 `pr.md`)을 사용합니다. 프로젝트에 별도 사본을
-두지 않습니다. 본문 섹션은 BP `explain.md`의 Background / Intuition / Code에서
-채우고, `## 이해 상태`·Quiz·comprehension은 넣지 않습니다.
+두지 않습니다. 자동·수동 템플릿은 같은 섹션 순서입니다.
+
+1. `관련 이슈` — 근거 있는 이슈와, head branch/commit에서 열리는 Explain
+   Markdown 링크. 이슈가 없으면 이슈 불릿을 만들지 않습니다. 수동 비-Bouncer
+   요청에서는 Explain 줄을 지울 수 있습니다.
+2. `배경 · 변경 의도` — Explain `Background` / `Intuition`을 요약·구체화
+3. `주요 변경 내용` — Explain `Code` + branch diff
+4. `로직 흐름` — 흐름이 바뀐 경우만 Mermaid. 아니면 제목까지 삭제
+5. `리뷰 포인트` — Explain·diff·계획·accepted finding만
+6. `확인 방법` — task 검증 증적(번호순)과 PR 직전 `finalize --yes` 최종 검증
+
+`## 이해 상태`·Quiz·comprehension·Epic/Blueprint id·Features/Fixes 체크박스는
+넣지 않습니다.
 
 PR **제목**은 커밋 subject와 다릅니다. finalize가 만드는 draft 제목 형식:
 
@@ -80,7 +91,7 @@ PR **제목**은 커밋 subject와 다릅니다. finalize가 만드는 draft 제
 - `Type`: 브랜치 커밋 타입의 PascalCase (`feat` → `Feat`); 여러 타입이면 `/`로 연결
 - `요약`: 해당 커밋들을 대표하는 한국어 명사구 (보통 blueprint `title`)
 
-Epic/Blueprint id는 제목에 넣지 않고 PR 본문 `## 🚦 Bouncer`에 둡니다.
+Epic/Blueprint id는 제목과 본문 어디에도 넣지 않습니다.
 
 GitLab에서 기본값으로 강제하려면 프로젝트 설정 → Merge requests →
 *Default description template*에서 지정해야 합니다.
