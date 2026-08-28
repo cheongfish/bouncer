@@ -20,6 +20,7 @@ module.exports = [
       'scripts/lib/**',
       'node_modules/**',
       'graphify-out/**',
+      '.benchmarks/**',
       'docs/**',
     ],
   },
