@@ -37,10 +37,6 @@ test('init scaffolds the safe .bouncer tree', () => {
   assert.strictEqual(res.skipped, false);
   for (const rel of [
     '.bouncer/config.json', '.bouncer/context/index.md',
-    '.codex/agents/bouncer-reviewer.toml',
-    '.codex/agents/bouncer-implementer.toml',
-    '.codex/agents/bouncer-debugger.toml',
-    '.codex/agents/bouncer-context-reviewer.toml',
   ]) {
     assert.ok(exists(repo, rel), `missing ${rel}`);
   }
@@ -741,9 +737,48 @@ test('writeGitignore without flag leaves .gitignore bytes unchanged and does not
   assert.ok(!exists(empty, '.gitignore'));
 });
 
+test('init does not seed Codex agents without a .codex/ signal', () => {
+  const repo = tmpRepo();
+  const result = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.equal(result.created.filter((p) => p.startsWith('.codex/')).length, 0);
+  assert.ok(!exists(repo, '.codex'));
+  assert.notEqual(result.reason, 'codex-agents-seeded');
+});
+
+test('init seeds four Codex tomls when .codex/ already exists', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  for (const name of [
+    'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
+    'bouncer-context-reviewer',
+  ]) {
+    const rel = `.codex/agents/${name}.toml`;
+    assert.ok(res.created.includes(rel), `missing ${rel} in created`);
+    const toml = read(repo, rel);
+    assert.ok(toml.startsWith(GENERATED_MARKER));
+    assert.match(toml, new RegExp(`name = "${name}"`));
+  }
+});
+
+test('init leaves unmarked Codex toml byte-for-byte unchanged', () => {
+  const repo = tmpRepo();
+  const rel = '.codex/agents/bouncer-implementer.toml';
+  fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
+  const owned = 'name = "custom"\n';
+  fs.writeFileSync(path.join(repo, rel), owned);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(read(repo, rel), owned);
+});
+
 test('init seeds Codex named-agent toml from plugin markdown', () => {
   const repo = tmpRepo();
-  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    seedCodexAgents: true,
+  });
   const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
@@ -759,6 +794,7 @@ test('init seeds Codex named-agent toml from plugin markdown', () => {
 
 test('init refreshes generated Codex toml and leaves user-owned files', () => {
   const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const generated = '.codex/agents/bouncer-reviewer.toml';
   const owned = '.codex/agents/bouncer-implementer.toml';
@@ -773,10 +809,22 @@ test('init refreshes generated Codex toml and leaves user-owned files', () => {
 
 test('ready init seeds missing Codex toml without touching Distill reason', () => {
   const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  fs.rmSync(path.join(repo, '.codex'), { recursive: true, force: true });
+  fs.rmSync(path.join(repo, '.codex/agents'), { recursive: true, force: true });
   const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.strictEqual(again.reason, 'codex-agents-seeded');
   assert.ok(again.created.includes('.codex/agents/bouncer-reviewer.toml'));
   assert.ok(!again.created.includes('.bouncer/Distill.md'));
+});
+
+test('ready init does not recreate .codex/ after it is removed', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.codex'));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  fs.rmSync(path.join(repo, '.codex'), { recursive: true, force: true });
+  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.equal(again.created.filter((p) => p.startsWith('.codex/')).length, 0);
+  assert.ok(!exists(repo, '.codex'));
+  assert.notEqual(again.reason, 'codex-agents-seeded');
 });

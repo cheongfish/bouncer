@@ -112,8 +112,11 @@ Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하
   `/bouncer-execute`·`/bouncer-commit`·`/bouncer-finalize`·`/bouncer-run`)은
   `skills/bouncer-*/SKILL.md`에 있고, 보조는 `references/`입니다.
 - **named agent**는 Codex도 지원합니다. 커스텀 에이전트는 프로젝트
-  `.codex/agents/*.toml`입니다. 플러그인 설치는 이 역할을 등록하지 않으므로
-  `bouncer init`이 `agents/*.md`를 TOML로 바꿔 그 경로에 심습니다. 첫 줄이
+  `.codex/agents/*.toml`입니다. 플러그인 설치는 이 역할을 등록하지 않습니다.
+  Codex를 쓰는 저장소는 `.codex/`를 이미 두거나 `bouncer init
+  --seed-codex-agents`로 심기를 켭니다. 그 경우에만 init이 `agents/*.md`를
+  TOML로 바꿔 그 경로에 심습니다. `.codex/`가 없고 플래그도 없으면
+  Claude/Cursor 전용 저장소에 `.codex/`를 만들지 않습니다. 첫 줄이
   `# bouncer-generated`인 파일은 다음 init이 md와 다시 맞추고, 마커 없는
   파일은 덮지 않습니다. spawn 이름은 파일의 `name` 필드입니다
   (`bouncer-reviewer` 등). 호스트가 그 역할을 로드하지 못할 때만 스킬의

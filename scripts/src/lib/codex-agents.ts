@@ -73,8 +73,28 @@ function shouldRefresh(existing: string, next: string): boolean {
 }
 
 /**
+ * init이 `.codex/agents/*.toml`을 심을지. 호스트 이름·환경 변수는 신호가
+ * 아니다 — Claude-only 저장소에 빈 `.codex/`가 생기는 일을 막기 위해
+ * 디렉터리 존재 또는 명시적 opt-in만 본다.
+ *
+ * @param {string} repoRoot - 소비 저장소 루트
+ * @param {boolean} [optIn=false] - CLI `--seed-codex-agents` 등 명시 요청
+ * @returns {boolean}
+ */
+function shouldEnsureCodexAgents(repoRoot: string, optIn = false): boolean {
+  if (optIn === true) return true;
+  try {
+    return fs.statSync(path.join(repoRoot, '.codex')).isDirectory();
+  } catch (_e) {
+    return false;
+  }
+}
+
+/**
  * 소비 저장소 `.codex/agents/<name>.toml`을 심거나, 생성본이면 md와 맞춘다.
- * 플러그인 agents 디렉터리가 없으면 no-op — init 부트스트랩을 막지 않는다.
+ * 호출 측이 조건을 통과한 뒤에만 부른다. 조건 없이 호출하면 네 TOML을
+ * 심거나 생성본을 맞춘다. 플러그인 agents 디렉터리가 없으면 no-op —
+ * init 부트스트랩을 막지 않는다.
  *
  * @param {{ repoRoot: string, created: string[], agentsDir?: string }} opts
  * @returns {void}
@@ -115,4 +135,5 @@ module.exports = {
   CODEX_AGENTS_DIR,
   mdToCodexToml,
   ensureCodexAgents,
+  shouldEnsureCodexAgents,
 };

@@ -39,6 +39,17 @@ test('cli init --no-graphify skips install and keeps enabled true without bin', 
   assert.strictEqual(body.graphifyInstall, undefined);
   const cfg = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
   assert.deepStrictEqual(cfg.graphify, { enabled: true });
+  assert.ok(!fs.existsSync(path.join(repo, '.codex')));
+});
+
+test('cli init --seed-codex-agents writes named-agent toml', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
+  const { io, buf } = capture();
+  const code = runCli(['init', '--repo', repo, '--no-graphify', '--seed-codex-agents'], io);
+  assert.strictEqual(code, 0);
+  const body = parseOut(buf);
+  assert.ok(body.created.some((p) => p.startsWith('.codex/')));
+  assert.ok(fs.existsSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml')));
 });
 
 test('cli init --write-gitignore writes the marker block', () => {

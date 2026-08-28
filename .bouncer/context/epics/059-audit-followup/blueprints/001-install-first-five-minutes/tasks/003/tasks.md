@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '059'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - Claude만 쓰는 팀의 저장소에도 정체불명의 `.codex/` 디렉터리가 생김
     - 호스트 신호나 명시적 opt-in이 있을 때만 심도록 조건을 좁힘

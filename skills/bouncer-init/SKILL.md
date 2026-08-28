@@ -13,10 +13,14 @@ description: "Use only when the user explicitly asks /bouncer-init; it bootstrap
 Bootstrap this project for Bouncer.
 
 1. Run `bouncer init` (idempotent for config; seeds missing project Distill;
-   attempts graphify venv install by default):
+   attempts graphify venv install by default). Codex named-agent TOML is
+   written only when `.codex/` already exists or the user passed
+   `--seed-codex-agents`:
    ```bash
    BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" init
+   # Codex users without an existing .codex/ directory:
+   # node "${BOUNCER_ROOT}/scripts/bouncer" init --seed-codex-agents
    ```
 2. Report the bootstrap and install result:
    - If bootstrap is already ready and `.bouncer/Distill.md` exists,
@@ -24,12 +28,13 @@ Bootstrap this project for Bouncer.
    - If bootstrap is ready but Distill was missing, report that Distill was
      seeded (`project-distill-seeded`) and list `.bouncer/Distill.md`. If init
      migrated a legacy `.bouncer/context/Distill.md`, report the new path.
-   - If bootstrap is ready but `.codex/agents/*.toml` were missing, report
+   - If bootstrap is ready and `created` includes `.codex/` paths, report
      `codex-agents-seeded` and list those paths. Codex loads named agents
-     from that directory, not from the plugin `agents/*.md`.
+     from that directory, not from the plugin `agents/*.md`. Do not mention
+     that reason when no `.codex/` paths were created.
    - Otherwise, list the created files (`.bouncer/config.json`,
-     `.bouncer/context/index.md`, `.bouncer/Distill.md`,
-     `.codex/agents/*.toml`).
+     `.bouncer/context/index.md`, `.bouncer/Distill.md`, and `.codex/agents/*.toml`
+     only if they appear in `created`).
    - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
    - **Graphify install fork** (from `graphifyInstall` when present):
      - Success / reuse (`status` `installed` or `reused`): report the outcome
@@ -74,7 +79,9 @@ Bootstrap this project for Bouncer.
      have no CLI flag.
 4. Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
-   git add .bouncer .codex/agents && git commit -m "chore: bootstrap bouncer"
+   git add .bouncer && git commit -m "chore: bootstrap bouncer"
+   # If init created .codex/agents, include those paths in the same commit:
+   # git add .bouncer .codex/agents && git commit -m "chore: bootstrap bouncer"
    ```
    Two reasons, both worth stating:
    - `.bouncer/config.json` is not in the scope a blueprint may commit, so leaving
@@ -88,7 +95,8 @@ Bootstrap this project for Bouncer.
    `.bouncer/config.json` (`source_dirs`, `verify`, `base_branch`, `pr`) first.
 
 Do not author any epic or blueprint here — `/bouncer-init` only scaffolds
-`.bouncer/` and Codex named-agent TOML under `.codex/agents/`.
+`.bouncer/` and, when a Codex signal or `--seed-codex-agents` is present,
+named-agent TOML under `.codex/agents/`.
 Document skeletons, product rules, and master rules live in the plugin
 (`scripts/lib/templates.js`, `rules/governance.md`, `rules/okf.md`,
 `CLAUDE.md`); init does not install them into the project.

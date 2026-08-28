@@ -261,6 +261,7 @@ function cmdInit(rest, io) {
         graphify: { install },
         promote: f['promote-graphify'] === true,
         writeGitignore: f['write-gitignore'] === true,
+        seedCodexAgents: f['seed-codex-agents'] === true,
     });
     io.out(`${JSON.stringify(Object.assign({ ok: true }, result), null, 2)}\n`);
     // created/skipped와 무관하게 result.ok만 본다. 부분 성공을 0으로 위장하지 않음.

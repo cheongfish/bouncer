@@ -5,7 +5,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { detectLegacyFormat } = require('./schema');
 const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout');
-const { ensureCodexAgents } = require('./codex-agents');
+const { ensureCodexAgents, shouldEnsureCodexAgents } = require('./codex-agents');
 const { PROJECT_DISTILL_BODY } = require('./templates');
 const { nowIsoKst } = require('./time');
 const { setupGraphify } = require('./graphify');
@@ -273,7 +273,7 @@ function inspectBootstrap({ repoRoot }) {
         return 'ready';
     return 'partial';
 }
-function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) {
+function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCodexAgents, } = {}) {
     const bootstrap = inspectBootstrap({ repoRoot });
     // partial/legacy는 설치·승격·gitignore 쓰기를 시도하지 않는다 — 기존 반환 유지.
     if (bootstrap === 'legacy') {
@@ -291,6 +291,7 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) 
         : setupGraphify;
     const wantPromote = promote === true;
     const wantWriteGitignore = writeGitignore === true;
+    const wantSeedCodex = shouldEnsureCodexAgents(repoRoot, seedCodexAgents === true);
     // 동의 시 마커 블록을 먼저 쓰고, 제안 목록은 최종 파일 기준으로 계산한다.
     let gitignoreWritten = false;
     if (wantWriteGitignore) {
@@ -302,7 +303,9 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) 
         // project Distill 이전에 init된 repo용 soft-seed.
         const created = [];
         ensureProjectDistill(repoRoot, created, timestamp);
-        ensureCodexAgents({ repoRoot: repoRoot, created });
+        if (wantSeedCodex) {
+            ensureCodexAgents({ repoRoot: repoRoot, created });
+        }
         // 승격은 객체에만 키를 심는다. readConfig는 배열/원시값도 통과시키므로
         // 여기서 걸러야 비객체에 graphify.enabled를 쓰다가 파일을 잘못된 형태로
         // 덮지 않는다. null은 승격 no-op (existing이 falsy면 write 생략).
@@ -386,7 +389,9 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, } = {}) 
     writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
     writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
     ensureProjectDistill(repoRoot, created, timestamp);
-    ensureCodexAgents({ repoRoot: repoRoot, created });
+    if (wantSeedCodex) {
+        ensureCodexAgents({ repoRoot: repoRoot, created });
+    }
     // gitignoreSuggestions와 같은 advisory layer: detection이 아무것도 못 찾으면
     // operator에게 source_dirs를 채우라고 알려 빈 graph(BP-001 missing warning)에
     // opt-in하지 않게 함. dir을 찾았으면 생략.

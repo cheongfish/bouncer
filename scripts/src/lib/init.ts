@@ -9,12 +9,13 @@ const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout') as {
   PROJECT_DISTILL: string;
   LEGACY_PROJECT_DISTILL: string;
 };
-const { ensureCodexAgents } = require('./codex-agents') as {
+const { ensureCodexAgents, shouldEnsureCodexAgents } = require('./codex-agents') as {
   ensureCodexAgents: (opts: {
     repoRoot: string;
     created: string[];
     agentsDir?: string;
   }) => void;
+  shouldEnsureCodexAgents: (repoRoot: string, optIn?: boolean) => boolean;
 };
 const { PROJECT_DISTILL_BODY } = require('./templates') as {
   PROJECT_DISTILL_BODY: string;
@@ -332,12 +333,14 @@ function init({
   graphify,
   promote,
   writeGitignore,
+  seedCodexAgents,
 } = {} as {
   repoRoot?: string;
   timestamp?: string;
   graphify?: { install?: boolean; setup?: GraphifySetupFn };
   promote?: boolean;
   writeGitignore?: boolean;
+  seedCodexAgents?: boolean;
 }) {
   const bootstrap = inspectBootstrap({ repoRoot });
   // partial/legacy는 설치·승격·gitignore 쓰기를 시도하지 않는다 — 기존 반환 유지.
@@ -357,6 +360,7 @@ function init({
     : setupGraphify;
   const wantPromote = promote === true;
   const wantWriteGitignore = writeGitignore === true;
+  const wantSeedCodex = shouldEnsureCodexAgents(repoRoot as string, seedCodexAgents === true);
 
   // 동의 시 마커 블록을 먼저 쓰고, 제안 목록은 최종 파일 기준으로 계산한다.
   let gitignoreWritten = false;
@@ -370,7 +374,9 @@ function init({
     // project Distill 이전에 init된 repo용 soft-seed.
     const created: string[] = [];
     ensureProjectDistill(repoRoot as string, created, timestamp);
-    ensureCodexAgents({ repoRoot: repoRoot as string, created });
+    if (wantSeedCodex) {
+      ensureCodexAgents({ repoRoot: repoRoot as string, created });
+    }
 
     // 승격은 객체에만 키를 심는다. readConfig는 배열/원시값도 통과시키므로
     // 여기서 걸러야 비객체에 graphify.enabled를 쓰다가 파일을 잘못된 형태로
@@ -466,7 +472,9 @@ function init({
   writeFile(repoRoot as string, '.bouncer/context/index.md', CONTEXT_INDEX, created);
   writeFile(repoRoot as string, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
   ensureProjectDistill(repoRoot as string, created, timestamp);
-  ensureCodexAgents({ repoRoot: repoRoot as string, created });
+  if (wantSeedCodex) {
+    ensureCodexAgents({ repoRoot: repoRoot as string, created });
+  }
   // gitignoreSuggestions와 같은 advisory layer: detection이 아무것도 못 찾으면
   // operator에게 source_dirs를 채우라고 알려 빈 graph(BP-001 missing warning)에
   // opt-in하지 않게 함. dir을 찾았으면 생략.
