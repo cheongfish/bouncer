@@ -38,37 +38,44 @@
 
 ### 1. description 총 문자 수
 
+공개 카탈로그와 보조를 나눠 잰다.
+
 ```bash
 awk '/^description:/ { sub(/^description:[[:space:]]*/, ""); s += length($0) } END { print s+0 }' skills/*/SKILL.md
+awk '/^description:/ { sub(/^description:[[:space:]]*/, ""); s += length($0) } END { print s+0 }' references/*/index.md
 ```
 
-### 2. 진입 SKILL.md별 단어 수
+### 2. 진입 문서별 단어 수
 
 ```bash
 wc -w skills/*/SKILL.md | sort -rn
+wc -w references/*/index.md | sort -rn
 ```
 
 ### 3. 역할별 rubric 문서 쌍의 단어 수
 
-목표: 스킬 쪽이 호출 계약만 남아 축소.
+목표: 보조 브리프 쪽이 호출 계약만 남아 축소.
 
 ```bash
-wc -w skills/implementation/SKILL.md agents/bouncer-implementer.md
-wc -w skills/review/SKILL.md agents/bouncer-reviewer.md
-wc -w skills/debugging/SKILL.md agents/bouncer-debugger.md
-wc -w skills/context-review/SKILL.md agents/bouncer-context-reviewer.md
+wc -w references/implementation/index.md agents/bouncer-implementer.md
+wc -w references/review/index.md agents/bouncer-reviewer.md
+wc -w references/debugging/index.md agents/bouncer-debugger.md
+wc -w references/context-review/index.md agents/bouncer-context-reviewer.md
 ```
 
 ### 4. BOUNCER_ROOT 해석 블록을 품은 스킬 수
+
+공개 카탈로그만 센다 (보조는 `references/`라 워크플로 셸 블록이 없다).
 
 ```bash
 grep -l 'bouncer-root --auto' skills/*/SKILL.md | wc -l
 ```
 
-### 5. 측정 시점 스킬 수 (모수)
+### 5. 측정 시점 문서 수 (모수)
 
 ```bash
 ls skills/*/SKILL.md | wc -l
+ls references/*/index.md | wc -l
 ```
 
 ## 런당 기록 값

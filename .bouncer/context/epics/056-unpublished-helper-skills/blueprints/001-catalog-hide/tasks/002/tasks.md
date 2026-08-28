@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '056'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 사람용 문서가 옛 skills/보조/SKILL.md 경로를 가리키면 설치·측정이 어긋남
