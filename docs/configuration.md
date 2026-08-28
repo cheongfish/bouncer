@@ -19,12 +19,15 @@
 | `distill.max_bytes` | 양의 정수 바이트 값 | Distill 구조 validator의 경고 기준 | `6144` — 본문을 자르지 않음 |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` | `"develop"` |
-| `pr.labels` | 문자열 배열 | `/bouncer-finalize` | `["bouncer"]` |
 | `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
 | `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-execute`·`/bouncer-plan`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
 
 `<agent>`는 `bouncer-implementer` · `bouncer-reviewer` · `bouncer-debugger` ·
 `bouncer-context-reviewer` 넷입니다.
+
+신규 config의 `pr`에는 `draft`와 `base`만 있습니다. 예전 설정에 남아 있는
+`pr.labels`는 읽기 오류를 내지 않지만 `/bouncer-finalize`가 `gh pr create`에
+라벨을 붙이지도 않습니다.
 
 ## Project Distill 선택 라우팅
 
