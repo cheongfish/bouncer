@@ -1,6 +1,6 @@
 ---
 name: debugging
-description: "This skill should be used when a change fails verification or behaves unexpectedly. It investigates root cause before proposing a fix; it follows Root cause → Pattern → Hypothesis → Implementation. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use when verify fails or behavior is unexpected, from /bouncer-execute or when named; investigate root cause before a fix."
 ---
 
 # Debugging

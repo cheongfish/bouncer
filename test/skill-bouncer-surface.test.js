@@ -18,6 +18,81 @@ const SUB_PATHS = [
 ];
 
 const STEPS_EXEMPT = new Set(['minimality', 'stop-slop']);
+const EXPECTED_SKILL_COUNT = 19;
+const MIN_DESCRIPTION_CHARS = 100;
+const MAX_DESCRIPTION_CHARS = 180;
+const MAX_TOTAL_DESCRIPTION_CHARS = 3000;
+const ROLE_SKILLS = ['implementation', 'review', 'debugging', 'context-review'];
+const FORBIDDEN_ROLE_RUBRIC = [
+  'Detailed comments',
+  'Root cause → Pattern → Hypothesis → Implementation',
+  'Spec compliance',
+  'Over-engineering',
+  'Rubric — four scopes',
+  'Calibration',
+  'Procedure',
+  'Guardrails',
+];
+
+/**
+ * `skills/` 아래 SKILL.md가 있는 디렉터리 이름을 정렬해 돌려준다.
+ * 정본 개수는 이 목록 길이라서, 새 스킬을 추가하면 상수를 따라 올리지 않고
+ * 테스트가 실패해야 한다.
+ *
+ * @returns {string[]} 정렬된 스킬 디렉터리 이름
+ */
+function listCanonicalSkillNames() {
+  const skillsRoot = path.join(root, 'skills');
+  return fs.readdirSync(skillsRoot)
+    .filter((name) => {
+      const dir = path.join(skillsRoot, name);
+      return fs.statSync(dir).isDirectory()
+        && fs.existsSync(path.join(dir, 'SKILL.md'));
+    })
+    .sort();
+}
+
+/**
+ * YAML `description:` 줄에서 접두어만 제거한 원문 scalar를 꺼낸다.
+ * 예산은 파서가 벗긴 값이 아니라 인용부호를 포함한 한 줄 길이라서
+ * parseFrontmatter 결과를 쓰면 안 된다.
+ *
+ * @param {string} skillName - 스킬 디렉터리 이름
+ * @param {string} md - SKILL.md 원문
+ * @returns {string} `description:` 접두어를 뺀 나머지
+ */
+function rawDescriptionScalar(skillName, md) {
+  const hits = md.split('\n').filter((line) => /^description:\s*/.test(line));
+  assert.strictEqual(
+    hits.length,
+    1,
+    `${skillName}: expected exactly one description: line, found ${hits.length}`,
+  );
+  return hits[0].replace(/^description:\s*/, '');
+}
+
+/**
+ * 원문 scalar가 비어 있지 않고 한 문장인지 본다.
+ * 두 번째 문장(마침표 뒤 본문)이 생기면 암묵 매칭 근거가 늘어나 예산을 우회한다.
+ *
+ * @param {string} skillName - 스킬 디렉터리 이름
+ * @param {string} scalar - YAML 원문 scalar
+ * @returns {void}
+ */
+function assertOneSentenceDescription(skillName, scalar) {
+  assert.ok(scalar.length > 0, `${skillName}: description scalar is empty`);
+  const inner = scalar.replace(/^"(.*)"$/, '$1');
+  assert.match(
+    inner,
+    /\.$/,
+    `${skillName}: description must be one sentence ending with a period`,
+  );
+  assert.doesNotMatch(
+    inner,
+    /\.\s+\S/,
+    `${skillName}: description must be a single sentence`,
+  );
+}
 
 function readWorkflow(name) {
   return fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
@@ -27,7 +102,9 @@ test('workflow skills use directory-matching names and explicit-invocation descr
   for (const name of WORKFLOW) {
     const { data } = parseFrontmatter(readWorkflow(name));
     assert.strictEqual(data.name, name);
-    assert.match(String(data.description), /This skill should be used only when the user explicitly asks/i);
+    // 명시 호출 전용: /<skill-name> 직접 요청에서만 선택되고 핵심 산출물을 한 문장에 둔다.
+    assert.match(String(data.description), /^Use only when the user explicitly asks \//);
+    assert.match(String(data.description), new RegExp(`/${name}(?:\\b|[^a-z-]|$)`));
   }
 });
 
@@ -153,5 +230,48 @@ test('sub-skill bodies use English headings', () => {
     const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
     const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
     assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
+  }
+});
+
+test('canonical skill descriptions stay within the locked YAML-scalar budget', () => {
+  const skillNames = listCanonicalSkillNames();
+  assert.strictEqual(
+    skillNames.length,
+    EXPECTED_SKILL_COUNT,
+    `canonical skill count is ${skillNames.length}, expected ${EXPECTED_SKILL_COUNT}; `
+      + 'raising this cap requires a human review of the contract',
+  );
+
+  let total = 0;
+  for (const name of skillNames) {
+    const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    const scalar = rawDescriptionScalar(name, md);
+    assertOneSentenceDescription(name, scalar);
+    const length = scalar.length;
+    total += length;
+    assert.ok(
+      length >= MIN_DESCRIPTION_CHARS && length <= MAX_DESCRIPTION_CHARS,
+      `${name}: description YAML scalar length is ${length}, expected ${MIN_DESCRIPTION_CHARS}..${MAX_DESCRIPTION_CHARS}; `
+        + 'raising this cap requires a human review of the contract',
+    );
+  }
+
+  assert.ok(
+    total <= MAX_TOTAL_DESCRIPTION_CHARS,
+    `total description YAML scalar length is ${total}, cap is ${MAX_TOTAL_DESCRIPTION_CHARS}; `
+      + 'raising this cap requires a human review of the contract',
+  );
+});
+
+test('role skill descriptions do not restate agent-owned rubric phrases', () => {
+  for (const name of ROLE_SKILLS) {
+    const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    const scalar = rawDescriptionScalar(name, md);
+    for (const phrase of FORBIDDEN_ROLE_RUBRIC) {
+      assert.ok(
+        !scalar.includes(phrase),
+        `${name}: description YAML scalar must not contain agent-owned rubric phrase ${JSON.stringify(phrase)}`,
+      );
+    }
   }
 });

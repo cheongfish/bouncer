@@ -1,6 +1,6 @@
 ---
 name: bouncer-execute
-description: "This skill should be used only when the user explicitly asks to execute the active Bouncer blueprint (for example /bouncer-execute). It implements from the pointer's task brief (current.task.path, or the resolver's first/single doc when task is null) in an isolated worktree, verifies and reviews via standalone skills, and passes the execute gate."
+description: "Use only when the user explicitly asks /bouncer-execute; it implements one pointer task in the shared worktree through verify and review."
 ---
 # /bouncer-execute
 

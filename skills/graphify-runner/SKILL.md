@@ -1,6 +1,6 @@
 ---
 name: graphify-runner
-description: "This skill should be used during /bouncer-plan to query the prebuilt source-code graph for candidate paths, roll them up to directory granularity, and write bouncer.scope_evidence into the task brief (tasks/<NNN>/tasks.md). It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use during /bouncer-plan, or when named, to propose graph path candidates for affected_paths; advisory only."
 ---
 
 # Graphify Runner

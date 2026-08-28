@@ -1,6 +1,6 @@
 ---
 name: migrate-ids
-description: "This skill should be used when migrating legacy EPIC-/BP- context directories to numeric ids, or when SessionStart warns about legacy naming. It runs dry-run, confirms with the user, then applies. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use when migrating legacy EPIC-/BP- ids or when SessionStart warns, or when named; confirm with the user, then apply."
 ---
 
 # Migrate Ids

@@ -1,6 +1,6 @@
 ---
 name: context-review
-description: "This skill should be used during /bouncer-plan, after affected_paths is confirmed and before approval, to judge whether the plan documents are consistent, in-scope, readable, and verifiable. It records Findings; it never edits those documents or flips status. It is used only while working inside an active Bouncer blueprint, unless the user explicitly asks for this skill by name."
+description: "Use during /bouncer-plan on full plans, or when named, to judge plan documents and record Findings without editing."
 ---
 
 # Context review

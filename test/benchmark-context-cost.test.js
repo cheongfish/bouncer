@@ -153,7 +153,10 @@ test('both instruction-cost baseline tables are complete and traceable', () => {
   const contextCost = fs.readFileSync(DOC, 'utf8');
   const history = fs.readFileSync(HISTORY, 'utf8');
   const contextRows = tableRows(contextCost, '## Baseline', BASELINE_COLUMNS);
-  const historyRows = tableRows(history, '## 지시문 비용 회차', BASELINE_COLUMNS);
+  // history는 같은 표에 최종 7행을 이어 붙인다. 전체 길이를 7로 잠그면
+  // 최종 행을 추가하는 순간 이 단정이 깨지므로, 계약은 "앞 7행이 baseline"이다.
+  const historyRows = tableRows(history, '## 지시문 비용 회차', BASELINE_COLUMNS)
+    .slice(0, IDS.length);
 
   for (const [name, rows] of [['context-cost', contextRows], ['history', historyRows]]) {
     assert.strictEqual(rows.length, IDS.length, `${name}: expected seven baseline rows`);
@@ -164,5 +167,106 @@ test('both instruction-cost baseline tables are complete and traceable', () => {
       assert.ok(cells[1], `${name}: ${id} has no measurement date`);
       assert.ok(cells.at(-1), `${name}: ${id} has no artifact path`);
     }
+  }
+});
+
+/**
+ * 지시문 비용 표 한 행을 열 이름 기준으로 나눈다. 숫자 상수를 테스트에
+ * 복제하지 않고, 같은 표에서 baseline과 최종을 읽어 비교하기 위함이다.
+ *
+ * @param {string} line - `|`로 둘러싼 Markdown 표 행
+ * @returns {Record<string, string>|null} 열 이름→칸. 열 수가 다르면 null
+ */
+function instructionCostCells(line) {
+  const cells = line.split('|').slice(1, -1).map((cell) => cell.trim());
+  if (cells.length !== BASELINE_COLUMNS.length) {
+    return null;
+  }
+  const record = {};
+  for (let i = 0; i < BASELINE_COLUMNS.length; i += 1) {
+    record[BASELINE_COLUMNS[i]] = cells[i];
+  }
+  return record;
+}
+
+/**
+ * `3/3` 또는 `0/1 (\`blocked\`)`처럼 통과율 칸에서 분수만 읽는다.
+ * 분모가 시나리오마다 달라서 개수 비교는 통과율을 뒤집는다.
+ *
+ * @param {string} cell - gate 통과율 칸
+ * @returns {{passed: number, total: number, ratio: number}|null}
+ */
+function parseGateRate(cell) {
+  const match = String(cell).match(/^(\d+)\s*\/\s*(\d+)/);
+  if (!match) {
+    return null;
+  }
+  const passed = Number(match[1]);
+  const total = Number(match[2]);
+  if (total === 0) {
+    return null;
+  }
+  return { passed, total, ratio: passed / total };
+}
+
+test('history instruction-cost final seven rows match columns and quality direction', () => {
+  const history = fs.readFileSync(HISTORY, 'utf8');
+  const rows = tableRows(history, '## 지시문 비용 회차', BASELINE_COLUMNS);
+  assert.strictEqual(
+    rows.length,
+    IDS.length * 2,
+    'history: expected seven baseline rows then seven final rows',
+  );
+
+  const baselineRows = rows.slice(0, IDS.length);
+  const finalRows = rows.slice(IDS.length, IDS.length * 2);
+
+  for (let i = 0; i < IDS.length; i += 1) {
+    const id = IDS[i];
+    const baseline = instructionCostCells(baselineRows[i]);
+    const finalCells = instructionCostCells(finalRows[i]);
+    assert.ok(baseline, `history baseline row ${i} column count mismatch`);
+    assert.ok(finalCells, `history final row ${i} column count mismatch`);
+    assert.ok(
+      baseline.id.includes('`' + id + '`'),
+      `history baseline row ${i} must be ${id} in scenario order`,
+    );
+    assert.ok(
+      finalCells.id.includes('`' + id + '`'),
+      `history final row ${i} must be ${id} in scenario order`,
+    );
+    assert.ok(finalCells['측정일'], `history: ${id} final row has no measurement date`);
+    assert.strictEqual(
+      finalCells['산출물 경로'],
+      '`.benchmarks/' + id + '.final.metrics.json`',
+      `history: ${id} final artifact must be the .final.metrics.json path`,
+    );
+
+    const baselineRate = parseGateRate(baseline['gate 통과율']);
+    const finalRate = parseGateRate(finalCells['gate 통과율']);
+    assert.ok(baselineRate, `history: ${id} baseline gate rate unreadable`);
+    assert.ok(finalRate, `history: ${id} final gate rate unreadable`);
+    assert.ok(
+      finalRate.ratio >= baselineRate.ratio,
+      `history: ${id} gate pass rate ${finalCells['gate 통과율']} is worse than ${baseline['gate 통과율']}`,
+    );
+
+    const baselineFindings = Number(baseline['review finding 수']);
+    const finalFindings = Number(finalCells['review finding 수']);
+    assert.ok(Number.isFinite(baselineFindings), `history: ${id} baseline findings unreadable`);
+    assert.ok(Number.isFinite(finalFindings), `history: ${id} final findings unreadable`);
+    assert.ok(
+      finalFindings <= baselineFindings,
+      `history: ${id} review findings ${finalFindings} exceed baseline ${baselineFindings}`,
+    );
+
+    const baselineScope = Number(baseline['scope 위반 수']);
+    const finalScope = Number(finalCells['scope 위반 수']);
+    assert.ok(Number.isFinite(baselineScope), `history: ${id} baseline scope unreadable`);
+    assert.ok(Number.isFinite(finalScope), `history: ${id} final scope unreadable`);
+    assert.ok(
+      finalScope <= baselineScope,
+      `history: ${id} scope violations ${finalScope} exceed baseline ${baselineScope}`,
+    );
   }
 });

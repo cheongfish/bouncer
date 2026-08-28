@@ -1,6 +1,6 @@
 ---
 name: explain-diff
-description: "This skill should be used from /bouncer-finalize after scaffold explain. It authors BP explain.md sections, runs the quiz for pointer-base..HEAD, writes one bouncer.comprehension blueprint entry with required quiz_score, and sets status published. It is not a workflow entry point."
+description: "Use from /bouncer-finalize after scaffold explain to author explain.md and the quiz; it is not a workflow entry point."
 ---
 
 # Explain Diff

@@ -22,7 +22,7 @@ test('bouncer-run conditionally routes stop recovery', () => {
 test('bouncer-run is an explicit-ask workflow skill that loops execute then commit', () => {
   const { data, body } = parseFrontmatter(md);
   assert.strictEqual(data.name, 'bouncer-run');
-  assert.match(String(data.description), /This skill should be used only when the user explicitly asks/i);
+  assert.match(String(data.description), /^Use only when the user explicitly asks \/bouncer-run/);
   assert.match(body, /\/bouncer-execute/);
   assert.match(body, /\/bouncer-commit/);
   assert.match(body, /current --set/);

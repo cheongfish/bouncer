@@ -1,6 +1,6 @@
 ---
 name: bouncer-finalize
-description: "This skill should be used only when the user explicitly asks to finalize the active Bouncer blueprint (for example /bouncer-finalize). It promotes Distill, authors explain + quiz via explain-diff, validates, ACQ-confirms `finalize --yes` (recommended: remove worktree), then ACQs for draft PR and next-blueprint handoff (PR skipped gracefully with no remote)."
+description: "Use only when the user explicitly asks /bouncer-finalize; it closes the active blueprint including Distill, explain, quiz, and PR handoff."
 ---
 # /bouncer-finalize
 
