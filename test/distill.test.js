@@ -368,7 +368,10 @@ test('repository routing is enabled only after a clean full-mode preflight', () 
 
   const cases = [
     [['scripts/src/lib/validate.ts'], ['core', 'validate-gates', 'build-ts']],
-    [['docs'], ['core', 'plugin-skills']],
+    [['docs/configuration.md'], ['core', 'plugin-skills']],
+    [['docs/benchmark/history.md'], ['core', 'plugin-benchmark']],
+    [['skills/bouncer-plan/SKILL.md'], ['core', 'plugin-skills']],
+    [['skills/agentic-code-benchmark/SKILL.md'], ['core', 'plugin-benchmark']],
     [
       ['scripts/src/lib/validate.ts', 'docs/configuration.md'],
       ['core', 'validate-gates', 'plugin-skills', 'build-ts'],
@@ -381,8 +384,25 @@ test('repository routing is enabled only after a clean full-mode preflight', () 
       routingEnabled: config.distill.routing_enabled,
       repoRoot: repo,
     });
-    assert.strictEqual(selection.full, false);
-    assert.deepStrictEqual(selection.ids, ids);
+    assert.strictEqual(selection.full, false, affectedPaths.join(','));
+    assert.deepStrictEqual(selection.ids, ids, affectedPaths.join(','));
+  }
+
+  // 존재하지 않는 경로는 exact-path 패턴이 보수적으로 매칭하므로, 미분류
+  // fail-open은 실제 파일이면서 어떤 샤드 glob에도 안 닿는 경로로 잠근다.
+  const unclassified = path.join(repo, 'unclassified.xyz');
+  fs.writeFileSync(unclassified, 'unclassified\n');
+  try {
+    const failOpen = routeShards({
+      shards: state.shards,
+      affectedPaths: ['unclassified.xyz'],
+      routingEnabled: config.distill.routing_enabled,
+      repoRoot: repo,
+    });
+    assert.strictEqual(failOpen.full, true);
+    assert.deepStrictEqual(failOpen.ids, state.ids);
+  } finally {
+    fs.unlinkSync(unclassified);
   }
 });
 
@@ -502,6 +522,7 @@ test('repository Distill shards preserve every original bullet and remain fully 
     'git-worktree',
     'graph',
     'plugin-skills',
+    'plugin-benchmark',
     'build-ts',
   ]);
   for (const shard of state.shards) {
@@ -510,6 +531,11 @@ test('repository Distill shards preserve every original bullet and remain fully 
     assert.match(shard.body, /## Decisions/);
     assert.strictEqual(shard.pathsKnown, true);
     assert.strictEqual(shard.pullsKnown, true);
+    // core는 always-only: paths 키를 두면 미분류 fail-open이 경로 매칭으로 위장된다.
+    if (shard.id === 'core') {
+      assert.strictEqual(shard.always, true);
+      assert.strictEqual(shard.paths, undefined);
+    }
   }
 
   const expected = expectedBulletHashesFromShardFiles(repo);
@@ -555,6 +581,50 @@ function isGitIgnored(repo, target) {
     spawnSync('git', ['check-ignore', '--quiet', '--', t], { cwd: repo }).status === 0;
   return check(target) || check(`${target}/`);
 }
+
+test('repository Distill shard files stay within locked UTF-8 byte budgets', () => {
+  // 세션 주입량 상한: frontmatter 포함 파일 전체 UTF-8 바이트.
+  // 초과 시 불릿을 합치거나 회차·스킬 절차를 걷어내 다시 압축한다 — 단언을
+  // 약화해 통과시키지 않는다.
+  const repo = path.resolve(__dirname, '..');
+  const budgets = {
+    core: 4096,
+    'validate-gates': 6144,
+    'context-layout': 4096,
+    'git-worktree': 3584,
+    graph: 3072,
+    'plugin-skills': 6144,
+    'plugin-benchmark': 6144,
+    'build-ts': 1280,
+  };
+  const sizes = {};
+  let total = 0;
+  for (const [id, max] of Object.entries(budgets)) {
+    const bytes = Buffer.byteLength(
+      fs.readFileSync(path.join(repo, DISTILL_ROOT, `${id}.md`)),
+      'utf8',
+    );
+    sizes[id] = bytes;
+    total += bytes;
+    assert.ok(
+      bytes <= max,
+      `${id}.md must be <= ${max} UTF-8 bytes (got ${bytes})`,
+    );
+  }
+  const pluginPair = sizes['plugin-skills'] + sizes['plugin-benchmark'];
+  assert.ok(
+    pluginPair <= 8900,
+    `plugin-skills + plugin-benchmark must be <= 8900 UTF-8 bytes (got ${pluginPair})`,
+  );
+  assert.ok(
+    total <= 31176,
+    `all registered shards must total <= 31176 UTF-8 bytes (got ${total})`,
+  );
+
+  const config = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
+  assert.strictEqual(config.distill.max_bytes, 6144);
+  assert.strictEqual(config.distill.routing_enabled, true);
+});
 
 test('every registered Distill shard glob reaches at least one tracked file', () => {
   const repo = path.resolve(__dirname, '..');

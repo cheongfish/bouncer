@@ -12,8 +12,6 @@ distill:
   shards:
     - id: core
       always: true
-      paths:
-        - "**"
       pulls: []
     - id: validate-gates
       paths:
@@ -40,10 +38,34 @@ distill:
       pulls: []
     - id: plugin-skills
       paths:
-        - skills/**
+        - skills/bouncer-*/**
+        - skills/migrate-ids/**
+        - references/**
         - agents/**
-        - docs/**
+        - rules/**
+        - docs/ARCHITECTURE.md
+        - docs/cli.md
+        - docs/compatibility.md
+        - docs/configuration.md
+        - docs/context-versioning.md
+        - docs/contributing.md
+        - docs/gates.md
+        - docs/install.md
+        - docs/PILOT.md
+        - docs/README.md
+        - docs/security.md
+        - docs/troubleshooting.md
+        - docs/workflow.md
         - plugin.json
+        - .claude-plugin/**
+        - .cursor-plugin/**
+        - .codex-plugin/**
+      pulls: []
+    - id: plugin-benchmark
+      paths:
+        - skills/agentic-code-benchmark/**
+        - docs/benchmark/**
+        - .benchmarks/**
       pulls: []
     - id: build-ts
       paths:
@@ -61,10 +83,11 @@ append a change log.
 
 ## Shards
 
-core: shared workflow, scope, and Distill consumption rules.
+core: shared workflow, scope, and Distill consumption rules (always-only).
 validate-gates: validation, verification, and gate contracts.
 context-layout: context ids, task layout, and migration rules.
 git-worktree: worktree, commit-safety, and finalize boundaries.
 graph: Graphify, digest, freshness, and graph absence behavior.
-plugin-skills: plugin manifests, skills, agents, and trust boundaries.
+plugin-skills: entry skills, helper references, agents, rules, host manifests, top-level docs.
+plugin-benchmark: benchmark skill, docs/benchmark, and .benchmarks runtime output.
 build-ts: TypeScript emit and Node-only consumer constraints.

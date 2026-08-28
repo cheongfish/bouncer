@@ -62,3 +62,4 @@ bouncer_schema: '0.1'
 * [055 distill-injection](epics/055-distill-injection/index.md) - Epic 055
 * [056 unpublished-helper-skills](epics/056-unpublished-helper-skills/index.md) - Epic 056
 * [057 review-ready-pr](epics/057-review-ready-pr/index.md) - Epic 057
+* [058 context-runtime-compaction](epics/058-context-runtime-compaction/index.md) - Epic 058
