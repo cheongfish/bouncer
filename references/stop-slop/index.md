@@ -31,9 +31,9 @@ code fences as-is. Do not pad Korean with English overview sentences.
 ## Core rules
 
 1. **Cut filler.** Drop throat-clearing and emphasis crutches. See
-   [references/phrases.md](references/phrases.md).
+   [phrases.md](phrases.md).
 2. **Break formulaic structures.** No binary contrast runways, negation lists,
-   or fake drama. See [references/structures.md](references/structures.md).
+   or fake drama. See [structures.md](structures.md).
 3. **Name the actor.** Prefer concrete subjects and active verbs. Avoid empty
    passives and abstract subjects doing human work.
 4. **Be specific.** Name the file, gate, field, or command. Drop vague
@@ -65,7 +65,7 @@ revise. Do **not** treat the score as gate evidence.
 
 ## Examples
 
-See [references/examples.md](references/examples.md).
+See [examples.md](examples.md).
 
 ## Guardrails
 

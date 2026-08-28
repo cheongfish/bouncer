@@ -81,6 +81,11 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 스킬을 자체 작성한다. 워크플로·서브스킬·에이전트 본문 절 순서와 보조
 디렉터리 구분은 [skill-shape.md](../rules/skill-shape.md)에 있다.
 
+표의 여덟 이름과 아래 보조(`explain-diff`·`graphify-runner`·`context-review`
+포함)는 `references/<name>/index.md`에 두고, 호스트가 스캔하는
+`skills/*/SKILL.md` 카탈로그에는 올리지 않는다. 공개 카탈로그는
+`skills/bouncer-*` 여섯과 `migrate-ids`·`agentic-code-benchmark`뿐이다.
+
 | 스킬 | 책임 |
 | --- | --- |
 | `discovery` | 요구사항을 목표·범위·비목표·성공 조건으로 정리 |
@@ -92,19 +97,21 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 | `minimality` | 불필요한 코드·의존성·추상화를 줄이는 대안 검토 |
 | `stop-slop` | `.bouncer/context/` 한국어 본문의 AI 문체 패턴 제거 (advisory) |
 
-`explain-diff`는 `/bouncer-finalize`가 호출하는 하위 스킬이며 BP `explain.md`
-저술·퀴즈·blueprint comprehension 엔트리 기록을 담당한다. 위 표의 일반 워크플로
-스킬이 아니다. `bouncer-finalize` / `bouncer-commit` 자체는 워크플로 스킬이며
-이 표에 넣지 않는다.
+`explain-diff`(`references/explain-diff/index.md`)는 `/bouncer-finalize`가
+호출하는 하위 스킬이며 BP `explain.md` 저술·퀴즈·blueprint comprehension
+엔트리 기록을 담당한다. 위 표의 일반 워크플로 스킬이 아니다.
+`bouncer-finalize` / `bouncer-commit` 자체는 워크플로 스킬이며 이 표에
+넣지 않는다.
 
-`graphify-runner`는 `/bouncer-plan`이 참조하는 선택적 경로 추천 어댑터이며,
-부재 시 수동 탐색으로 폴백한다.
+`graphify-runner`(`references/graphify-runner/index.md`)는 `/bouncer-plan`이
+참조하는 선택적 경로 추천 어댑터이며, 부재 시 수동 탐색으로 폴백한다.
 
-`context-review`는 `/bouncer-plan`이 승인 직전에 호출하는 전문 스킬이다.
-판정 대상은 계획 문서(epic·blueprint·`tasks/<NNN>/tasks.md`)이고 산출은
-블루프린트 루트 `context-review.md`다. 위 표의 일반 워크플로 스킬이 아니다.
-named agent는 `bouncer-context-reviewer`이며, named agent를 쓸 수 없는
-호스트에서는 스킬을 인라인으로 수행한다.
+`context-review`(`references/context-review/index.md`)는 `/bouncer-plan`이
+승인 직전에 호출하는 전문 스킬이다. 판정 대상은 계획
+문서(epic·blueprint·`tasks/<NNN>/tasks.md`)이고 산출은 블루프린트 루트
+`context-review.md`다. 위 표의 일반 워크플로 스킬이 아니다. named agent는
+`bouncer-context-reviewer`이며, named agent를 쓸 수 없는 호스트에서는
+스킬을 인라인으로 수행한다.
 
 이 판정자의 경계는 **full plan 하나뿐이다.** blueprint `bouncer.scale`이
 `light`이면 scaffold가 `context-review.md`를 만들지 않으므로 판정 대상 문서도,

@@ -56,10 +56,10 @@ test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR
   assert.match(body, /commit_type/);
   assert.match(body, /G16/);
   // Distill 승격(spec-authoring) 다음에 explain-diff가 온다.
-  assert.match(body, /skills\/explain-diff\/SKILL\.md/);
+  assert.match(body, /references\/explain-diff\/index\.md/);
   {
-    const i = body.indexOf('skills/spec-authoring/SKILL.md');
-    const j = body.indexOf('skills/explain-diff/SKILL.md');
+    const i = body.indexOf('references/spec-authoring/index.md');
+    const j = body.indexOf('references/explain-diff/index.md');
     assert.ok(i > -1 && j > i);
   }
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);

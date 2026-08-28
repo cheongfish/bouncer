@@ -67,7 +67,7 @@ test('bouncer-execute inlines implementer on scale light and keeps host fallback
 });
 
 test('explain-diff fixes one quiz question on scale light', () => {
-  const ed = read('skills/explain-diff/SKILL.md');
+  const ed = read('references/explain-diff/index.md');
   assert.match(ed, /1[–~-]10/);
   assert.match(ed, /scale/);
   assert.match(ed, /light/);
@@ -111,7 +111,7 @@ test('compatibility records the broken G10 and G18 contract', () => {
 });
 
 test('spec-authoring documents the three light task sections', () => {
-  const sa = read('skills/spec-authoring/SKILL.md');
+  const sa = read('references/spec-authoring/index.md');
   assert.match(sa, /light blueprint/);
   assert.match(sa, /Goal & intent, Touch,\s*\n?\s*Checklist/);
   assert.match(sa, /back to `full`/);

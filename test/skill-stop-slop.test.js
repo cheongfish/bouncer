@@ -24,10 +24,10 @@ test('stop-slop targets Korean context prose and stays advisory', () => {
 });
 
 test('stop-slop ships LICENSE and Korean-oriented references', () => {
-  const root = path.join(__dirname, '..', 'skills', 'stop-slop');
+  const root = path.join(__dirname, '..', 'references', 'stop-slop');
   assert.ok(fs.existsSync(path.join(root, 'LICENSE')));
-  const phrases = fs.readFileSync(path.join(root, 'references', 'phrases.md'), 'utf8');
+  const phrases = fs.readFileSync(path.join(root, 'phrases.md'), 'utf8');
   assert.match(phrases, /다음과 같습니다|중요한 점은/);
-  const examples = fs.readFileSync(path.join(root, 'references', 'examples.md'), 'utf8');
+  const examples = fs.readFileSync(path.join(root, 'examples.md'), 'utf8');
   assert.match(examples, /Before:|After:/);
 });

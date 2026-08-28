@@ -15,8 +15,7 @@ evidence. The debugger never applies the fix.
 
 When a change fails verification or behaves unexpectedly. Investigates root
 cause before proposing a fix; follows Root cause → Pattern → Hypothesis →
-Implementation. Used from `/bouncer-execute` on verify failure, or when the
-user asks for this skill by name.
+Implementation. Used from `/bouncer-execute` on verify failure.
 
 ## Steps
 

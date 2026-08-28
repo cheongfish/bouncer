@@ -46,7 +46,7 @@ test('debugger redispatch cap is **1** across execute, debugging, agent, and run
   const CAP = /at most\s+\*\*1\*\*|최대\s+\*\*1\*\*회|\*\*1\*\*회|\*\*1회\*\*/;
   const sources = [
     ['bouncer-execute workflow bundle', readWorkflowBundle('bouncer-execute')],
-    ['skills/debugging/SKILL.md', read('skills/debugging/SKILL.md')],
+    ['references/debugging/index.md', read('references/debugging/index.md')],
     ['agents/bouncer-debugger.md', read('agents/bouncer-debugger.md')],
     ['skills/bouncer-run/SKILL.md', read('skills/bouncer-run/SKILL.md')],
   ];

@@ -25,8 +25,7 @@ brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 
 When reviewing a change against the tasks brief. Records `## Findings` with
 severity and disposition; never accepts while an actionable finding remains
-unresolved. Used from `/bouncer-execute`, or when the user asks for this skill
-by name.
+unresolved. Used from `/bouncer-execute`.
 
 ## Steps
 

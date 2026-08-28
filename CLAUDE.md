@@ -72,7 +72,7 @@ they conflict.
    gate. Distill stays English.
 9. **Code comments** — Leave non-obvious intent in implementation code as
    Korean comments. Detail and examples:
-   [`skills/implementation/SKILL.md`](skills/implementation/SKILL.md). Do
+   [`references/implementation/index.md`](references/implementation/index.md). Do
    **not** put comment examples into these master rules.
 10. **Execute worktree** — One blueprint shares **one** execute worktree at
     `<repo>/.worktrees/<epic-id>/<bp-id>`. `/bouncer-execute` creates it or
@@ -123,12 +123,8 @@ numbered step says otherwise.
 | Intent | Command / skill |
 | --- | --- |
 | Bootstrap `.bouncer/` once | `/bouncer-init` |
-| Clarify goal / scope / success criteria | `discovery` (inside `/bouncer-plan`) |
-| Author epic / blueprint / tasks bodies | `spec-authoring` |
-| Strip AI tells from context prose | `stop-slop` (inside plan / explain / Distill) |
-| Implement from `tasks/<NNN>/tasks.md` | `implementation` (inside `/bouncer-execute`) |
-| Investigate a failed verify | `debugging` + `verification` |
-| Review the diff against the brief | `review` |
+| Clarify goal / scope / success criteria | `/bouncer-plan` |
+| Implement and verify one task | `/bouncer-execute` |
 | Close one task (commit) | `/bouncer-commit` |
 | Run one blueprint to task exhaustion | `/bouncer-run` |
 | Promote Distill, explain + quiz, draft PR, cleanup | `/bouncer-finalize` |

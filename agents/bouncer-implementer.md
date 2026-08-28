@@ -63,7 +63,7 @@ read code/tests/repo context needed to implement.
    place. Bug fix = root cause: fix once where callers route through, not a
    symptom patch on the ticket path alone.
 3. **Detailed comments** — Hard rule 9 (`CLAUDE.md`). Detail and examples:
-   `skills/implementation/SKILL.md`. Do not restate the rule here.
+   `references/implementation/index.md`. Do not restate the rule here.
 4. **Tests first** — For each behavior change, write the failing test, run it,
    and confirm it fails for the expected reason before writing the
    implementation. A test that passes before the change proves nothing, and

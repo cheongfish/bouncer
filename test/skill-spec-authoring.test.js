@@ -6,7 +6,7 @@ const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const { readSkill } = require('./helpers/read-skill');
 
-const refsRoot = path.join(__dirname, '..', 'skills', 'spec-authoring', 'references');
+const refsRoot = path.join(__dirname, '..', 'references', 'spec-authoring');
 function refPath(name) {
   return path.join(refsRoot, name);
 }
@@ -60,7 +60,7 @@ test('spec-authoring requires Korean plan bodies, English Distill, and stop-slop
   assert.match(md, /English/);
   assert.match(md, /\.bouncer\/Distill\.md/);
   assert.match(md, /stop-slop/);
-  assert.match(md, /skills\/stop-slop\/SKILL\.md/);
+  assert.match(md, /references\/stop-slop\/index\.md/);
 });
 
 test('spec-authoring ships completed reference examples and points SKILL.md at them', () => {

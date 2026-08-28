@@ -60,3 +60,4 @@ bouncer_schema: '0.1'
 * [053 skill-doc-defects](epics/053-skill-doc-defects/index.md) - Epic 053
 * [054 skill-context-optimization](epics/054-skill-context-optimization/index.md) - Epic 054
 * [055 distill-injection](epics/055-distill-injection/index.md) - Epic 055
+* [056 unpublished-helper-skills](epics/056-unpublished-helper-skills/index.md) - Epic 056

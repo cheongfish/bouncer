@@ -81,8 +81,9 @@ marketplace 카탈로그는 두지 않습니다. Cursor 세션에서:
 /add-plugin <사내-git-url>
 ```
 
-워크플로 스킬(`skills/bouncer-*/SKILL.md`)과 하위 스킬(`skills/*/SKILL.md`)은
-Cursor의 기본 탐색 경로와 레이아웃이 같아 그대로 잡힙니다. 커밋 가드는
+호스트 관례 스캔은 공개 집합 `skills/*/SKILL.md`(워크플로 여섯·`migrate-ids`·
+`agentic-code-benchmark`)만 잡습니다. 보조 브리프는 `references/<name>/index.md`에
+두고 카탈로그에 올리지 않습니다. 커밋 가드는
 `hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
 밖 파일이 staged면 셸 실행을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
 **판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다. 훅은 상대 경로를
@@ -106,9 +107,10 @@ Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하
 `.agents/plugins/marketplace.json`입니다. Codex Plugins Directory에서 이 저장소를
 소스로 추가한 뒤 `bouncer`를 설치합니다.
 
-- **스킬** (`skills/`)은 Codex·Claude·Cursor가 공통으로 읽는 표면입니다.
-  워크플로 진입점 네 개(`/bouncer-init`·`/bouncer-plan`·`/bouncer-execute`·
-  `/bouncer-finalize`)도 `skills/bouncer-*/SKILL.md`에 있습니다.
+- **스킬** (`skills/*/SKILL.md`)은 Codex·Claude·Cursor가 공통으로 읽는 공개
+  카탈로그입니다. 워크플로 진입점(`/bouncer-init`·`/bouncer-plan`·
+  `/bouncer-execute`·`/bouncer-commit`·`/bouncer-finalize`·`/bouncer-run`)은
+  `skills/bouncer-*/SKILL.md`에 있고, 보조는 `references/`입니다.
 - **named agent**는 Codex도 지원합니다. 커스텀 에이전트는 프로젝트
   `.codex/agents/*.toml`입니다. 플러그인 설치는 이 역할을 등록하지 않으므로
   `bouncer init`이 `agents/*.md`를 TOML로 바꿔 그 경로에 심습니다. 첫 줄이
@@ -134,10 +136,10 @@ Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하
 agy plugin install <사내-git-url>
 ```
 
-스킬(`skills/*/SKILL.md`)과 named agent(`agents/*.md`)는 관례 경로로 그대로
-잡힙니다. Codex도 named/custom agent를 지원하므로, Antigravity에서도
-로드에 실패할 때만 fallback으로 내려갑니다. 훅은 `hooks/hooks.json` 관례
-경로에 있습니다.
+공개 스킬(`skills/*/SKILL.md`)과 named agent(`agents/*.md`)는 관례 경로로
+그대로 잡힙니다. 보조 본문은 `references/`라 호스트 카탈로그 스캔 밖입니다.
+Codex도 named/custom agent를 지원하므로, Antigravity에서도 로드에 실패할
+때만 fallback으로 내려갑니다. 훅은 `hooks/hooks.json` 관례 경로에 있습니다.
 
 **`subagents.provider: "antigravity"` (필수).** Antigravity 스킬 셸에는
 `CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT`가 없어 자동 판별 신호가 없습니다.

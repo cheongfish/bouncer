@@ -3,7 +3,7 @@ When deciding context review for a `scale: full` blueprint after `affected_paths
 **Plugin-root shell contract.** See `rules/plugin-root.md`. Apply the shared
 model and host-fallback order in [`rules/subagent-model.md`](../../../rules/subagent-model.md).
 
-Before approval, judge the plan documents. The `context-review` skill (`skills/context-review/SKILL.md`) is the behavioral brief. Dispatch **`bouncer-context-reviewer`** (plugin `agents/bouncer-context-reviewer.md`) with the resolved model, passing the epic `index.md`, the blueprint `index.md`, and every `tasks/<NNN>/tasks.md` under the blueprint as the documents under judgment. Compose that prompt inline (no `assets/` template — the paths are already known). Ask for a Findings list only.
+Before approval, judge the plan documents. The `context-review` skill (`references/context-review/index.md`) is the behavioral brief. Dispatch **`bouncer-context-reviewer`** (plugin `agents/bouncer-context-reviewer.md`) with the resolved model, passing the epic `index.md`, the blueprint `index.md`, and every `tasks/<NNN>/tasks.md` under the blueprint as the documents under judgment. Compose that prompt inline (no `assets/` template — the paths are already known). Ask for a Findings list only.
 
 If named agents are unavailable, run the `context-review` skill inline (or use a
 fresh generic read-only subagent with the same brief). Do **not** skip this

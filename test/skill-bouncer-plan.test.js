@@ -102,7 +102,7 @@ test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => 
   const { body } = parseFrontmatter(md);
   assert.match(body, /Korean/);
   assert.match(body, /stop-slop/);
-  assert.match(body, /skills\/stop-slop\/SKILL\.md/);
+  assert.match(body, /references\/stop-slop\/index\.md/);
 });
 
 test('bouncer-plan delegates Mermaid zoom authoring to spec-authoring', () => {
@@ -123,7 +123,7 @@ test('bouncer-plan detects project build scripts and asks before writing tasks v
 test('bouncer-plan dispatches context-review before approval with named-agent fallback', () => {
   const { body } = parseFrontmatter(md);
   const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-plan/references/context-review.md'), 'utf8');
-  assert.match(body, /skills\/context-review\/SKILL\.md/);
+  assert.match(body, /references\/context-review\/index\.md/);
   assert.match(dispatch, /bouncer-context-reviewer/);
   assert.match(dispatch, /rules\/subagent-model\.md/);
   // named agent를 로드하지 못하면 단계를 건너뛰지 않고 인라인한다.

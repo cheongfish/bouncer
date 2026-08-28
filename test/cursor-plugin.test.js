@@ -22,6 +22,22 @@ const LAUNCHER_SKILLS = [
   'bouncer-finalize', 'bouncer-run', 'explain-diff', 'graphify-runner',
   'migrate-ids', 'review',
 ];
+// 호스 카탈로그에서 뺀 보조는 references/<name>/index.md에 본문이 있다.
+// 워크플로·migrate-ids만 skills/<name>/SKILL.md를 유지한다.
+const LAUNCHER_UNPUBLISHED = new Set(['explain-diff', 'graphify-runner', 'review']);
+
+/**
+ * LAUNCHER_SKILLS 항목의 런처 셸이 들어 있는 본문 경로.
+ *
+ * @param {string} name - 스킬 디렉터리 이름
+ * @returns {string} 워크트리 절대 경로
+ */
+function launcherSkillPath(name) {
+  if (LAUNCHER_UNPUBLISHED.has(name)) {
+    return path.join(root, 'references', name, 'index.md');
+  }
+  return path.join(root, 'skills', name, 'SKILL.md');
+}
 
 test('the four plugin manifests agree on name and version', () => {
   const expectedVersion = '1.2.0';
@@ -95,7 +111,7 @@ test('the Codex marketplace lists bouncer at the repository root', () => {
 
 test('workflow shells resolve roots through the installed launcher', () => {
   for (const name of LAUNCHER_SKILLS) {
-    const file = path.join(root, 'skills', name, 'SKILL.md');
+    const file = launcherSkillPath(name);
     const src = fs.readFileSync(file, 'utf8');
     const label = path.relative(root, file);
     assert.ok(
@@ -120,7 +136,7 @@ test('workflow shells resolve roots through the installed launcher', () => {
 // ${BOUNCER_ROOT} without setting it first resolves to an empty prefix and
 // runs `node /scripts/bouncer`.
 test('every launcher shell block resolves BOUNCER_ROOT independently', () => {
-  const workflowSkills = LAUNCHER_SKILLS.map((name) => path.join(root, 'skills', name, 'SKILL.md'));
+  const workflowSkills = LAUNCHER_SKILLS.map(launcherSkillPath);
   const offenders = [];
   for (const file of workflowSkills) {
     const src = fs.readFileSync(file, 'utf8');

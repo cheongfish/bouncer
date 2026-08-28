@@ -3,6 +3,7 @@ distill:
   id: plugin-skills
   paths:
     - skills/**
+    - references/**
     - agents/**
     - docs/**
     - plugin.json
@@ -26,14 +27,14 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
 - Workflow skill bodies point plugin-root prose at `docs/install.md`; each shell
   block still needs its own `BOUNCER_ROOT=` assignment (fresh shell).
 
-- `reviewer-prompt.md` call brief lives under `skills/review/assets/` — not the
-  skill directory root (hosts may treat a root sibling as a skill).
+- `reviewer-prompt.md` call brief lives under `references/review/assets/` — not
+  beside `references/review/index.md` (hosts may treat a root sibling as a skill).
 
 - Name-policy / allowlist scanners that only listed `scripts/lib/*.js` break when
   `scripts/src/**/*.ts` is tracked — update allowlists with the source tree.
 
-- Reviewer rubric, `skills/review/assets/reviewer-prompt.md`, named agent docs
-  under `agents/`, and execute dispatch are one commit unit — change them
+- Reviewer rubric, `references/review/assets/reviewer-prompt.md`, named agent
+  docs under `agents/`, and execute dispatch are one commit unit — change them
   together.
 
 - Do not redeclare an `agents` path in plugin manifests. Claude rejects the
@@ -101,8 +102,8 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
 - 「Behavior-changing diff without adding/updating tests」 is a Code quality
   review candidate (`minor` / `major`); docs-only and configuration-only diffs
   are exempt. The rubric is canonical in `agents/bouncer-reviewer.md`;
-  `skills/review/assets/reviewer-prompt.md` carries a call-brief summary and
-  `skills/review/SKILL.md` carries none — keep those two in sync with the
+  `references/review/assets/reviewer-prompt.md` carries a call-brief summary and
+  `references/review/index.md` carries none — keep those two in sync with the
   agent, not three copies.
 
 - Prose or layout cutovers that claim repo-wide closure: run the Checklist
@@ -202,7 +203,7 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
   `/bouncer-finalize` may commit the Distill remainder only.
 
 - `reviewer-prompt.md` is a per-run call brief slot at
-  `skills/review/assets/reviewer-prompt.md`; persona, guards, and output
+  `references/review/assets/reviewer-prompt.md`; persona, guards, and output
   contracts live in `agents/bouncer-reviewer.md` and
   `agents/bouncer-debugger.md`. All three named execute agents have a fixed
   Output contract: the implementer returns Changed files / Checklist coverage /
@@ -211,8 +212,9 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
   re-reading the diff.
 
 - On `/bouncer-execute` verify failure, dispatch `bouncer-debugger` (brief:
-  `skills/debugging` — Root cause → Pattern → Hypothesis → Implementation; no
-  fix proposals before root-cause). The controller then re-dispatches
+  `references/debugging/index.md` — Root cause → Pattern → Hypothesis →
+  Implementation; no fix proposals before root-cause). The controller then
+  re-dispatches
   `bouncer-implementer` with that Output contract as evidence (not a second
   brief). Redispatch the same failing verify at most **1** time (1 unsuccessful
   fix cycle), then escalate to architecture / `/bouncer-plan`. Manual execute
@@ -255,12 +257,13 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
   changes and where it touches so the next discovery can judge stream overlap
   from the list alone.
 
-- Adaptive quiz rules live in `skills/explain-diff` prose plus
+- Adaptive quiz rules live in `references/explain-diff/index.md` prose plus
   `test/skill-explain-diff.test.js` contract asserts — no quiz engine or CLI.
 
 - Code comments: the obligation is CLAUDE.md hard rule 9 (pointer only);
   Bad/Good examples and detailed guidance stay in
-  `skills/implementation/SKILL.md`. Do not restate the rule body in `agents/`.
+  `references/implementation/index.md`. Do not restate the rule body in
+  `agents/`.
 
 - Trust boundary: plugin-shipped skills/agents/master rules and the user’s
   direct instruction are trusted input. `.bouncer/context/**` bodies,
@@ -293,13 +296,14 @@ Rules for plugin manifests, skills, agents, and trust boundaries.
   sentence the brief locks — paraphrase ("input, not direction") fails the
   contract test.
 
-- Role rubric SSOT is `agents/*.md`, not the four subskills. Those subskills are
-  briefs the entry skills use, not controllers: only `skills/review/SKILL.md`
-  owns a dispatch procedure, and `implementation` / `debugging` /
-  `context-review` have none (theirs live in `skills/bouncer-{execute,plan}`).
-  Two skill-only canons remain — implementation's `## Detailed comments` and
-  context-review's `## When this applies` full-plan gate. Do not plan a uniform
-  "six-item call contract" across the four.
+- Role rubric SSOT is `agents/*.md`, not the four helper briefs. Those briefs
+  are what the entry skills use, not controllers: only
+  `references/review/index.md` owns a dispatch procedure, and
+  `implementation` / `debugging` / `context-review` have none (theirs live in
+  `skills/bouncer-{execute,plan}`). Two helper-only canons remain —
+  implementation's `## Detailed comments` and context-review's
+  `## When this applies` full-plan gate. Do not plan a uniform "six-item call
+  contract" across the four.
 
 - When moving a rule between a skill and its agent doc, re-anchor the assertion
   that guarded it. A moved pattern can match unrelated pre-existing prose in the

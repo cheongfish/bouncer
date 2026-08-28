@@ -43,7 +43,7 @@ test('workflow skills instruct reading CLAUDE.md before steps', () => {
     assert.match(md, /CLAUDE\.md/, `${name} must mention CLAUDE.md`);
     assert.match(md, /Master rules/i, `${name} must label master rules`);
   }
-  const spec = read('skills/spec-authoring/SKILL.md');
+  const spec = read('references/spec-authoring/index.md');
   assert.match(spec, /CLAUDE\.md/);
 });
 
@@ -97,7 +97,7 @@ test('subagent model contract is centralized and named dispatch consumers cite i
     'skills/bouncer-plan/references/context-review.md',
     'skills/bouncer-execute/references/agent-dispatch.md',
     'skills/bouncer-execute/references/verification-recovery.md',
-    'skills/review/SKILL.md',
+    'references/review/index.md',
   ]) {
     assert.match(read(rel), /rules\/subagent-model\.md/, `${rel} must cite the shared model contract`);
   }
@@ -126,8 +126,8 @@ test('plugin-root contract is shared while launcher shells resolve independently
     'skills/bouncer-finalize/references/cleanup-handoff.md',
     'skills/bouncer-finalize/references/distill-promotion.md',
     'skills/bouncer-finalize/references/explain-quiz.md',
-    'skills/explain-diff/SKILL.md',
-    'skills/graphify-runner/SKILL.md',
+    'references/explain-diff/index.md',
+    'references/graphify-runner/index.md',
     'skills/migrate-ids/SKILL.md',
   ];
   const launcher = 'BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?';
@@ -207,7 +207,7 @@ test('finalize promotion uses distill JSON payload repoRoot as the write base', 
 
 test('Distill consumers use full preflight, then path-routed CLI output', () => {
   const plan = read('skills/bouncer-plan/SKILL.md');
-  const discovery = read('skills/discovery/SKILL.md');
+  const discovery = read('references/discovery/index.md');
   // plan: --all은 baseline 파일, 컨텍스트 주입은 --preflight.
   assert.match(plan, /distill\s+--all/);
   assert.match(plan, /distill\s+--preflight/);
@@ -217,7 +217,10 @@ test('Distill consumers use full preflight, then path-routed CLI output', () => 
   assert.match(plan, /affected_paths[\s\S]{0,500}distill\s+--for|distill\s+--for[\s\S]{0,500}affected_paths/);
 
   for (const name of ['bouncer-plan', 'discovery', 'bouncer-finalize']) {
-    const md = name === 'bouncer-finalize' ? readWorkflowBundle(name) : read(`skills/${name}/SKILL.md`);
+    let md;
+    if (name === 'bouncer-finalize') md = readWorkflowBundle(name);
+    else if (name === 'discovery') md = read('references/discovery/index.md');
+    else md = read(`skills/${name}/SKILL.md`);
     assert.match(md, /distill\s+--all/, `${name} must still name distill --all`);
     assert.match(md, /single-file fallback|단일 파일.*폴백/i, `${name} must preserve legacy fallback`);
   }
@@ -239,7 +242,7 @@ test('bouncer-run gives implementer the current task Distill re-ground', () => {
 
 test('finalize promotion searches all Distill content and splits payload content into the shard map', () => {
   const finalize = readWorkflowBundle('bouncer-finalize');
-  const spec = read('skills/spec-authoring/SKILL.md');
+  const spec = read('references/spec-authoring/index.md');
   assert.match(finalize, /distill\s+--all\s+--json/, 'promotion must start with a full JSON audit');
   assert.match(finalize, /payload[^\n]{0,40}`?repoRoot`?/i);
   assert.match(finalize, /audit\.shards/);
@@ -286,7 +289,7 @@ test('master rules preserve single-file Distill fallback and CLI trust boundary'
 
 test('discovery and spec-authoring take caller-provided absolute Distill paths', () => {
   for (const name of ['discovery', 'spec-authoring']) {
-    const md = read(`skills/${name}/SKILL.md`);
+    const md = read(`references/${name}/index.md`);
     assert.match(
       md,
       /caller-provided|호출자가 넘긴|absolute Distill|절대 Distill|절대 경로/i,
@@ -295,6 +298,32 @@ test('discovery and spec-authoring take caller-provided absolute Distill paths',
     assert.doesNotMatch(md, /BOUNCER_ROOT/, `${name} must not resolve BOUNCER_ROOT`);
     assert.doesNotMatch(md, /scripts\/bouncer/, `${name} must not invoke scripts/bouncer`);
   }
+});
+
+test('When to invoke lists workflow entry points only; unpublished helpers drop by-name invites', () => {
+  const claude = read('CLAUDE.md');
+  const invoke = claude.split(/^## When to invoke/m)[1].split(/^## /m)[0];
+  const unpublished = [
+    'discovery', 'spec-authoring', 'stop-slop', 'graphify-runner', 'minimality',
+    'context-review', 'implementation', 'verification', 'debugging', 'review',
+    'explain-diff',
+  ];
+  for (const name of unpublished) {
+    // 표 셀에 보조 이름이 행으로 남지 않게 한다 (본문 산문의 stop-slop 언급은 hard rule 8).
+    assert.doesNotMatch(
+      invoke,
+      new RegExp(`\\|\\s*\`${name}\`|\\|\\s*${name}\\b`),
+      `When to invoke must not list helper ${name}`,
+    );
+    const md = read(`references/${name}/index.md`);
+    assert.doesNotMatch(
+      md,
+      /when the user asks for this skill by\s+name/,
+      `${name} index.md must not invite by-name invocation`,
+    );
+  }
+  // migrate-ids는 공개 카탈로그에 남고 by-name 문구 단언에서 제외한다.
+  assert.ok(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')));
 });
 
 test('master rules require Korean context bodies and name stop-slop', () => {
@@ -311,7 +340,7 @@ test('hard rule 9 requires Korean code comments and points at implementation ski
   assert.match(claude, /^9\.\s+\*\*Code comments\*\*/m);
   assert.match(claude, /non-obvious intent|비자명한 의도/i);
   assert.match(claude, /Korean comment/i);
-  assert.match(claude, /skills\/implementation\/SKILL\.md/);
+  assert.match(claude, /references\/implementation\/index\.md/);
   // Distill pattern: obligation + pointer only — examples stay in the skill.
   const hardRules = claude.split(/^## Session conduct/m)[0];
   assert.doesNotMatch(hardRules, /```/);

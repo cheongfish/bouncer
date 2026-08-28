@@ -11,14 +11,21 @@ const WORKFLOW = [
   'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize',
   'bouncer-run',
 ];
+// migrate-ids stays under skills/; the other subskills live at references/<name>/index.md.
 const SUB_PATHS = [
   'discovery', 'spec-authoring', 'implementation', 'verification',
   'review', 'minimality', 'debugging', 'graphify-runner', 'explain-diff',
   'stop-slop', 'context-review', 'migrate-ids',
 ];
+const UNPUBLISHED = [
+  'discovery', 'spec-authoring', 'stop-slop', 'graphify-runner', 'minimality',
+  'context-review', 'implementation', 'verification', 'debugging', 'review',
+  'explain-diff',
+];
+const UNPUBLISHED_SET = new Set(UNPUBLISHED);
 
 const STEPS_EXEMPT = new Set(['minimality', 'stop-slop']);
-const EXPECTED_SKILL_COUNT = 19;
+const EXPECTED_SKILL_COUNT = 8;
 const MIN_DESCRIPTION_CHARS = 100;
 const MAX_DESCRIPTION_CHARS = 180;
 const MAX_TOTAL_DESCRIPTION_CHARS = 3000;
@@ -113,21 +120,21 @@ test('workflow skills cite subordinate skills by path', () => {
   const execute = readWorkflow('bouncer-execute');
   const commit = readWorkflow('bouncer-commit');
   const finalize = readWorkflow('bouncer-finalize');
-  assert.match(plan, /skills\/discovery\/SKILL\.md/);
-  assert.match(plan, /skills\/spec-authoring\/SKILL\.md/);
-  assert.match(plan, /skills\/stop-slop\/SKILL\.md/);
-  assert.match(plan, /skills\/graphify-runner\/SKILL\.md/);
-  assert.match(plan, /skills\/context-review\/SKILL\.md/);
-  assert.match(execute, /skills\/implementation\/SKILL\.md/);
-  assert.match(execute, /skills\/verification\/SKILL\.md/);
-  assert.match(execute, /skills\/review\/SKILL\.md/);
+  assert.match(plan, /references\/discovery\/index\.md/);
+  assert.match(plan, /references\/spec-authoring\/index\.md/);
+  assert.match(plan, /references\/stop-slop\/index\.md/);
+  assert.match(plan, /references\/graphify-runner\/index\.md/);
+  assert.match(plan, /references\/context-review\/index\.md/);
+  assert.match(execute, /references\/implementation\/index\.md/);
+  assert.match(execute, /references\/verification\/index\.md/);
+  assert.match(execute, /references\/review\/index\.md/);
   // explain-diff는 finalize가 호출한다(commit이 아님).
-  assert.doesNotMatch(commit, /skills\/explain-diff\/SKILL\.md/);
-  assert.match(finalize, /skills\/spec-authoring\/SKILL\.md/);
-  assert.match(finalize, /skills\/explain-diff\/SKILL\.md/);
+  assert.doesNotMatch(commit, /references\/explain-diff\/index\.md/);
+  assert.match(finalize, /references\/spec-authoring\/index\.md/);
+  assert.match(finalize, /references\/explain-diff\/index\.md/);
   {
-    const i = finalize.indexOf('skills/spec-authoring/SKILL.md');
-    const j = finalize.indexOf('skills/explain-diff/SKILL.md');
+    const i = finalize.indexOf('references/spec-authoring/index.md');
+    const j = finalize.indexOf('references/explain-diff/index.md');
     assert.ok(i > -1 && j > i);
   }
   for (const name of [
@@ -210,9 +217,23 @@ test('workflow skill bodies use English headings', () => {
   }
 });
 
+/**
+ * 보조는 references/<name>/index.md, migrate-ids만 skills/ 카탈로그에 남긴다.
+ * SUB_PATHS를 통째로 references로 옮기지 않는다.
+ *
+ * @param {string} name - 서브스킬 디렉터리 이름
+ * @returns {string} 본문 절대 경로
+ */
+function subSkillPath(name) {
+  if (UNPUBLISHED_SET.has(name)) {
+    return path.join(root, 'references', name, 'index.md');
+  }
+  return path.join(root, 'skills', name, 'SKILL.md');
+}
+
 test('sub-skills carry the shared body skeleton in order', () => {
   for (const name of SUB_PATHS) {
-    const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    const md = fs.readFileSync(subSkillPath(name), 'utf8');
     const want = ['## When this applies'];
     if (!STEPS_EXEMPT.has(name)) want.push('## Steps');
     want.push('## Guardrails', '## Return');
@@ -227,10 +248,20 @@ test('sub-skills carry the shared body skeleton in order', () => {
 
 test('sub-skill bodies use English headings', () => {
   for (const name of SUB_PATHS) {
-    const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    const md = fs.readFileSync(subSkillPath(name), 'utf8');
     const ko = [...md.matchAll(/^#{2,3} .*[가-힣].*$/gm)].map((m) => m[0]);
     assert.deepStrictEqual(ko, [], `${name}: ${ko.join(' | ')}`);
   }
+});
+
+test('unpublished helpers live under references/ and are absent from the catalog', () => {
+  const skillNames = listCanonicalSkillNames();
+  for (const name of UNPUBLISHED) {
+    assert.equal(skillNames.includes(name), false);
+    assert.equal(fs.existsSync(path.join(root, 'references', name, 'SKILL.md')), false);
+    assert.ok(fs.existsSync(path.join(root, 'references', name, 'index.md')));
+  }
+  assert.ok(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')));
 });
 
 test('canonical skill descriptions stay within the locked YAML-scalar budget', () => {
@@ -265,7 +296,7 @@ test('canonical skill descriptions stay within the locked YAML-scalar budget', (
 
 test('role skill descriptions do not restate agent-owned rubric phrases', () => {
   for (const name of ROLE_SKILLS) {
-    const md = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    const md = fs.readFileSync(path.join(root, 'references', name, 'index.md'), 'utf8');
     const scalar = rawDescriptionScalar(name, md);
     for (const phrase of FORBIDDEN_ROLE_RUBRIC) {
       assert.ok(

@@ -53,8 +53,7 @@ not an error).
 
 During `/bouncer-plan`, to query the prebuilt source-code graph for candidate
 paths, roll them up to directory granularity, and write
-`bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`). Also when
-the user asks for this skill by name.
+`bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
 
 ## Steps
 

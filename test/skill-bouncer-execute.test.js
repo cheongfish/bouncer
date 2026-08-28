@@ -102,7 +102,7 @@ test('bouncer-execute re-dispatches implementer with the debugger report after v
 test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', () => {
   const { body } = parseFrontmatter(md);
   const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
-  assert.match(body, /skills\/review\/assets\/reviewer-prompt\.md/);
+  assert.match(body, /references\/review\/assets\/reviewer-prompt\.md/);
   assert.match(body, /bouncer-reviewer/);
   assert.match(dispatch, /rules\/subagent-model\.md/);
   assert.match(dispatch, /fresh generic|generic.*subagent/i);

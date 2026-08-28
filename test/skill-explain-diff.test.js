@@ -8,7 +8,7 @@ const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const root = path.join(__dirname, '..');
 
 test('explain-diff skill identity, sections, comprehension fields, and non-blocking score', () => {
-  const md = fs.readFileSync(path.join(root, 'skills/explain-diff/SKILL.md'), 'utf8');
+  const md = fs.readFileSync(path.join(root, 'references/explain-diff/index.md'), 'utf8');
   const { data } = parseFrontmatter(md);
   assert.match(md, /name:\s*explain-diff/);
   assert.strictEqual(data.name, 'explain-diff');
@@ -43,7 +43,7 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   assert.match(md, /scaffold explain|대체하지/);
   assert.match(md, /Korean/);
   assert.match(md, /stop-slop/);
-  assert.match(md, /skills\/stop-slop\/SKILL\.md/);
+  assert.match(md, /references\/stop-slop\/index\.md/);
 
   // quiz_score 필수 + 퀴즈 스킵 경로 없음(부재만으로 단언하지 않음).
   assert.match(md, /quiz_score` is \*\*required\*\*|quiz_score`는 \*\*required\*\*|quiz_score.*필수/i);
@@ -73,7 +73,7 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
 });
 
 test('explain-diff fixes the light path at one question', () => {
-  const md = fs.readFileSync(path.join(root, 'skills/explain-diff/SKILL.md'), 'utf8');
+  const md = fs.readFileSync(path.join(root, 'references/explain-diff/index.md'), 'utf8');
   assert.match(md, /scale/);
   assert.match(md, /light/);
   assert.match(md, /1문항|질문 수(를)? 1/);
@@ -82,13 +82,13 @@ test('explain-diff fixes the light path at one question', () => {
 });
 
 test('explain-diff keeps its one-shot quiz response separate from ACQ', () => {
-  const md = fs.readFileSync(path.join(root, 'skills/explain-diff/SKILL.md'), 'utf8');
+  const md = fs.readFileSync(path.join(root, 'references/explain-diff/index.md'), 'utf8');
   assert.match(md, /rules\/acq\.md/);
   assert.match(md, /not an ACQ|ACQ.*not/i);
 });
 
 test('explain-diff gives one behavior when explain.md is missing', () => {
-  const md = fs.readFileSync(path.join(root, 'skills', 'explain-diff', 'SKILL.md'), 'utf8');
+  const md = fs.readFileSync(path.join(root, 'references', 'explain-diff', 'index.md'), 'utf8');
   assert.doesNotMatch(md, /create\s+the\s+file\s+if\s+missing/i);
   assert.match(md, /stop\s+and\s+tell\s+the\s+caller\s+to\s+scaffold\s+first/i);
 });

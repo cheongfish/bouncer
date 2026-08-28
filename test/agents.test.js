@@ -69,7 +69,7 @@ test('bouncer-implementer points comment rule at hard rule 9 without restating i
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
   assert.match(md, /Detailed comments/i);
   assert.match(md, /[Hh]ard rule 9|하드룰 9/);
-  assert.match(md, /skills\/implementation\/SKILL\.md|CLAUDE\.md/);
+  assert.match(md, /references\/implementation\/index\.md|CLAUDE\.md/);
   // Rule body lives in master rules + implementation skill — no second copy.
   assert.doesNotMatch(md, /known ceilings/);
   assert.doesNotMatch(md, /Prefer thoroughness/);
@@ -95,7 +95,7 @@ test('implementation climbs a minimality ladder before writing code', () => {
 test('debugging forbids proposing fixes before root-cause investigation', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-debugger.md'), 'utf8');
   assert.match(md, /do not propose fixes before root-cause investigation/i);
-  const skill = fs.readFileSync(path.join(root, 'skills/debugging/SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(root, 'references/debugging/index.md'), 'utf8');
   assert.doesNotMatch(skill, /do not propose fixes before root-cause investigation/i);
 });
 
@@ -131,7 +131,7 @@ test('bouncer-reviewer treats severity as a label, not a reporting filter', () =
 // 네 판정 scope의 본문 정본은 이 agent 문서다(skills/context-review Step 3에서 옮겨옴).
 // 스킬 쪽 doesNotMatch까지 함께 봐야 '복사가 아니라 이동'이 지켜졌음을 보장한다.
 const contextReviewSkill = () =>
-  fs.readFileSync(path.join(root, 'skills/context-review/SKILL.md'), 'utf8');
+  fs.readFileSync(path.join(root, 'references/context-review/index.md'), 'utf8');
 const contextReviewerAgent = () =>
   fs.readFileSync(path.join(agentsDir, 'bouncer-context-reviewer.md'), 'utf8');
 

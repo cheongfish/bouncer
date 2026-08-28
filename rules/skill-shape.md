@@ -32,7 +32,11 @@ Required body order after YAML frontmatter:
    only gate timing and answer consequences here. If the skill never asks, say
    so in this section.
 
-## Subskills (`skills/<name>/SKILL.md`, non-workflow)
+## Subskills (`references/<name>/index.md`, not host catalog)
+
+Helper briefs live under plugin-root `references/<name>/index.md`. Hosts scan
+only `skills/*/SKILL.md` (workflow six + `agentic-code-benchmark` +
+`migrate-ids`). Do not put helper bodies back under `skills/<name>/SKILL.md`.
 
 Required body order after YAML frontmatter:
 
@@ -44,6 +48,9 @@ Required body order after YAML frontmatter:
 6. Domain-specific H2s as needed (free).
 7. `## Guardrails`
 8. `## Return` — last.
+
+`migrate-ids` is the exception that remains a catalog skill at
+`skills/migrate-ids/SKILL.md` and still follows this body order.
 
 ### `## Steps` exemptions
 
