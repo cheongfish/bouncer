@@ -36,7 +36,7 @@ status published. Not a workflow entry point.
    - `## 이해 상태` — **one block** (no per-task subheadings): correct
      answers, user responses, right/wrong, and disposition (keep in sync with
      the single comprehension entry below)
-   Then apply `stop-slop` (`skills/stop-slop/SKILL.md`) (advisory) before the
+   Then apply `stop-slop` (`references/stop-slop/index.md`) (advisory) before the
    quiz — strip filler and formulaic closers from the five sections.
 
 2. **Resolve `range_from`.** Always the pointer `base` from `bouncer current`

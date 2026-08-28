@@ -14,7 +14,29 @@ const GENERIC_SKILLS = [
   'stop-slop',
 ];
 
+// 호스가 스캔하는 skills/*/SKILL.md 카탈로그에서 뺀 보조 본문.
+// readSkill은 이 집합만 references/<name>/index.md로 읽고, 공개 스킬은 기존 경로다.
+const UNPUBLISHED_HELPERS = new Set([
+  'discovery',
+  'spec-authoring',
+  'stop-slop',
+  'graphify-runner',
+  'minimality',
+  'context-review',
+  'implementation',
+  'verification',
+  'debugging',
+  'review',
+  'explain-diff',
+]);
+
 function readSkill(name) {
+  if (UNPUBLISHED_HELPERS.has(name)) {
+    return fs.readFileSync(
+      path.join(ROOT, 'references', name, 'index.md'),
+      'utf8',
+    );
+  }
   return fs.readFileSync(
     path.join(ROOT, 'skills', name, 'SKILL.md'),
     'utf8',
@@ -41,4 +63,10 @@ function readWorkflowBundle(name) {
   return [skill, ...references].join('\n');
 }
 
-module.exports = { GENERIC_SKILLS, readSkill, readAllGenericSkills, readWorkflowBundle };
+module.exports = {
+  GENERIC_SKILLS,
+  UNPUBLISHED_HELPERS,
+  readSkill,
+  readAllGenericSkills,
+  readWorkflowBundle,
+};

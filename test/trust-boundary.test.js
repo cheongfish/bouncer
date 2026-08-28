@@ -53,11 +53,11 @@ const BOUNDARY_CONTRACTS = new Map([
   ['skills/bouncer-plan/SKILL.md', [/\.bouncer\/context/, /graphify-out/, /user['’]s approval/i]],
   ['skills/bouncer-execute/SKILL.md', [/context-doc bodies/i, /repo source/, /affected_paths/, /skip a gate/i]],
   ['skills/bouncer-run/SKILL.md', [/컨텍스트 문서 본문/, /그래프 산출물/, /서브에이전트 리포트/, /상한/, /ACQ/]],
-  ['skills/graphify-runner/SKILL.md', [/graphify-out/, /suggested_paths/, /affected_paths/]],
-  ['skills/review/SKILL.md', [/worktree diff/, /Findings/, /review accepted/i]],
-  ['skills/implementation/SKILL.md', [/Repo source/, /\.bouncer\/context/, /Touch/, /Do not touch/]],
-  ['skills/debugging/SKILL.md', [/Verify logs/, /returned report/, /affected_paths/, /document status/]],
-  ['skills/context-review/SKILL.md', [/Epic, blueprint, and task bodies/, /judgment/, /status/]],
+  ['references/graphify-runner/index.md', [/graphify-out/, /suggested_paths/, /affected_paths/]],
+  ['references/review/index.md', [/worktree diff/, /Findings/, /review accepted/i]],
+  ['references/implementation/index.md', [/Repo source/, /\.bouncer\/context/, /Touch/, /Do not touch/]],
+  ['references/debugging/index.md', [/Verify logs/, /returned report/, /affected_paths/, /document status/]],
+  ['references/context-review/index.md', [/Epic, blueprint, and task bodies/, /judgment/, /status/]],
   ['skills/agentic-code-benchmark/SKILL.md', [/diff/, /task text/, /judging\s+subagent/, /benchmark\s+contract/i]],
   ['agents/bouncer-implementer.md', [/repo source/, /\.bouncer\/context/, /task brief/i, /Touch/, /Do not touch/]],
   ['agents/bouncer-reviewer.md', [/worktree diff/, /nested\s+subagent/, /brief/, /review status/]],
@@ -65,11 +65,22 @@ const BOUNDARY_CONTRACTS = new Map([
   ['agents/bouncer-context-reviewer.md', [/epic,\s+blueprint,\s+or task\s+bodies/, /scope/, /status/]],
 ]);
 
+const UNPUBLISHED_HELPERS = new Set([
+  'graphify-runner',
+  'review',
+  'implementation',
+  'debugging',
+  'context-review',
+]);
+
 function readRel(rel) {
   return fs.readFileSync(path.join(root, rel), 'utf8');
 }
 
 function skillRel(name) {
+  if (UNPUBLISHED_HELPERS.has(name)) {
+    return path.join('references', name, 'index.md');
+  }
   return path.join('skills', name, 'SKILL.md');
 }
 

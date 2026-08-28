@@ -9,7 +9,7 @@ Author the **body** of planning documents (epic, blueprint, tasks) and promote
 durable notes into project Distill. Epic/blueprint scaffolding already wrote
 the frontmatter and protocol block for plan docs. BP `explain.md` body, quiz,
 and comprehension recording belong to `explain-diff`
-(`skills/explain-diff/SKILL.md`) — do not author those here.
+(`references/explain-diff/index.md`) — do not author those here.
 Your job is the prose under plan docs, and Distill promotion when finalize
 sends you here. Canonical Bouncer documents live only under
 `.bouncer/context/`; never read, author, or migrate a root `context/` tree.
@@ -19,7 +19,7 @@ sends you here. Canonical Bouncer documents live only under
 When authoring the body of planning documents (epic, blueprint, tasks) or
 promoting durable notes into project Distill. Writes body content only; never
 edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
-`/bouncer-finalize`, or when the user asks for this skill by name.
+`/bouncer-finalize`.
 
 ## Steps
 
@@ -28,8 +28,8 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
    plugin (`rules/governance.md`, `rules/okf.md`), not under
    the project's `.bouncer/`.
 2. Fill the skeleton with concrete, specific content. 종류별 완성 예시는
-   필요할 때 `references/epic.md`, `references/blueprint.md`,
-   `references/tasks.md`, `references/review.md`를 읽는다 (`verification`·
+   필요할 때 `epic.md`, `blueprint.md`,
+   `tasks.md`, `review.md`를 읽는다 (`verification`·
    `explain` 예시는 없다 — 하드룰 3·explain-diff 소관).
    - **epic**: intent, out of scope, and numbered Success criteria. Persist the
      success criteria discovery produced — each one must be decidable true or
@@ -185,7 +185,7 @@ only; other approved items continue.
   plan still passes its own absolute path) is agent runtime — promote durable
   notes in English, not Korean.
 - **Stop slop.** After drafting Korean plan/explain bodies, apply the
-  `stop-slop` skill (`skills/stop-slop/SKILL.md`) — advisory, not a gate. Strip
+  `stop-slop` skill (`references/stop-slop/index.md`) — advisory, not a gate. Strip
   filler, formulaic contrast, empty passives, and section-restating closers.
 
 ## Optional Mermaid zoom for flow changes

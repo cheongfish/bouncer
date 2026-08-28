@@ -33,9 +33,9 @@ If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 Apply the shared returned-value contract. This workflow owns the finalize
 outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
-1. **Propose and promote Distill (one consent).** When proposing and promoting Distill, read this reference: [distill-promotion.md](references/distill-promotion.md). It directs the conditional `spec-authoring` handoff (`skills/spec-authoring/SKILL.md`); its result is either one consented promotion outcome or a reported mismatch that continues to step 2.
+1. **Propose and promote Distill (one consent).** When proposing and promoting Distill, read this reference: [distill-promotion.md](references/distill-promotion.md). It directs the conditional `spec-authoring` handoff (`references/spec-authoring/index.md`); its result is either one consented promotion outcome or a reported mismatch that continues to step 2.
 
-2. **Explain + quiz.** When authoring or refreshing explain and running the quiz, read this reference: [explain-quiz.md](references/explain-quiz.md). It directs `explain-diff` (`skills/explain-diff/SKILL.md`). If the user does not answer the quiz, **stop** — do not continue to validate or `finalize --yes`.
+2. **Explain + quiz.** When authoring or refreshing explain and running the quiz, read this reference: [explain-quiz.md](references/explain-quiz.md). It directs `explain-diff` (`references/explain-diff/index.md`). If the user does not answer the quiz, **stop** — do not continue to validate or `finalize --yes`.
 
 3. **Validate + remainder commit (deterministic core) + worktree choice.**
    Run the finalize gate first:

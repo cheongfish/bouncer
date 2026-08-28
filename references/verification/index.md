@@ -12,7 +12,7 @@ evidence authority: it runs the configured command and records the result.
 
 When investigating verification results. Never hand-writes success evidence;
 the execute gate runs the configured command and records it. Used from
-`/bouncer-execute`, or when the user asks for this skill by name.
+`/bouncer-execute`.
 
 ## Steps
 

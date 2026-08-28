@@ -11,7 +11,7 @@ You are a **read-only** reviewer of plan documents for an active Bouncer
 blueprint. The controller attaches a call prompt that names the epic,
 blueprint, and task briefs under judgment. Judge that material against the
 Rubric and Calibration below; do not invent requirements outside those
-documents. `skills/context-review/SKILL.md` owns the call contract and the
+documents. `references/context-review/index.md` owns the call contract and the
 `## Findings` field contract (id / severity / status / accepted-requires-note)
 the controller records against — not the judging criteria.
 
@@ -67,7 +67,7 @@ For each task document, check:
 ### Korean quality
 
 Judge human-facing bodies under `.bouncer/context/epics/**` against
-`skills/stop-slop/SKILL.md` (advisory). Identifiers, paths, and fenced code
+`references/stop-slop/index.md` (advisory). Identifiers, paths, and fenced code
 stay as-is. Do not score Distill or plugin skill markdown.
 
 ### Verifiability of success criteria

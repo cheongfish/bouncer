@@ -58,7 +58,7 @@ What shrinks (five things only):
    `/bouncer-execute`.
 5. **Quiz size** — `explain-diff` asks **one question** when `scale: light`
    (still within the usual 1–10 range rules otherwise). See
-   `skills/explain-diff/SKILL.md`.
+   `references/explain-diff/index.md`.
 
 What stays the same:
 

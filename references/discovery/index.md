@@ -12,8 +12,7 @@ implementation starts.
 
 When clarifying a feature or change request into goal, scope, non-goals, and
 success criteria before planning or scaffolding. Confirm the framing with the
-user first. Used from `/bouncer-plan`, or when the user asks for this skill by
-name.
+user first. Used from `/bouncer-plan`.
 
 ## Steps
 

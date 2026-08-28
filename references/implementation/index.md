@@ -14,8 +14,7 @@ does.
 
 When implementing from an approved tasks brief. Makes focused changes inside
 allowed paths, documents non-obvious intent with detailed Korean comments, keeps
-tests green, and reports any deviations from the plan. Used from `/bouncer-execute`, or when
-the user asks for this skill by name.
+tests green, and reports any deviations from the plan. Used from `/bouncer-execute`.
 
 ## Steps
 
