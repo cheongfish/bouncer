@@ -79,10 +79,11 @@ Bootstrap this project for Bouncer.
      have no CLI flag.
 4. Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
-   git add .bouncer && git commit -m "chore: bootstrap bouncer"
-   # If init created .codex/agents, include those paths in the same commit:
-   # git add .bouncer .codex/agents && git commit -m "chore: bootstrap bouncer"
+   git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit -m "chore: bootstrap bouncer"
    ```
+   If init actually created `.codex/agents`, include that directory in the same
+   commit (`git add .codex/agents` in addition to the paths above). Omit it
+   when the directory does not exist.
    Two reasons, both worth stating:
    - `.bouncer/config.json` is not in the scope a blueprint may commit, so leaving
      it uncommitted makes the first `/bouncer-finalize` abort as out-of-scope.

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '059'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - "`git add .bouncer`가 설치 산출물까지 통째로 스테이징하게 만듦"
     - 커밋해야 하는 경로만 명시해 첫 커밋이 저장소를 어지럽히지 않게 함
