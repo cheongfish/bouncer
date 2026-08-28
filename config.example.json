@@ -11,11 +11,11 @@
     "max_bytes": 6144
   },
   "verify": "npm test",
-  "base_branch": "develop",
+  "base_branch": "main",
   "autonomy": "auto",
   "pr": {
     "draft": true,
-    "base": "develop"
+    "base": "main"
   },
   "subagents": {
     "claude": {

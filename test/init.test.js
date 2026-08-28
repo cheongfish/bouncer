@@ -4,12 +4,29 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../scripts/lib/init');
 const { TEMPLATES } = require('../scripts/lib/templates');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-init-'));
+}
+
+function git(repo, args) {
+  return execFileSync('git', args, {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_AUTHOR_NAME: 'bouncer-test',
+      GIT_AUTHOR_EMAIL: 't@example.com',
+      GIT_COMMITTER_NAME: 'bouncer-test',
+      GIT_COMMITTER_EMAIL: 't@example.com',
+    },
+  });
 }
 const read = (repo, rel) => fs.readFileSync(path.join(repo, rel), 'utf8');
 const exists = (repo, rel) => fs.existsSync(path.join(repo, rel));
@@ -42,9 +59,58 @@ test('init does not write a Superpowers preference document', () => {
   assert.ok(!exists(repo, '.bouncer/superpowers.md'));
 });
 
+test('init detects base_branch and pr.base from git init -b main', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.equal(config.base_branch, 'main');
+  assert.equal(config.pr.base, 'main');
+});
+
+test('init prefers origin/HEAD over the current checkout branch', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  git(repo, ['remote', 'add', 'origin', 'https://example.invalid/repo.git']);
+  git(repo, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk']);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.equal(config.base_branch, 'trunk');
+  assert.equal(config.pr.base, 'trunk');
+});
+
+test('init omits base_branch when origin/HEAD and HEAD cannot be resolved', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  git(repo, ['commit', '--allow-empty', '-m', 'seed']);
+  git(repo, ['checkout', '--detach']);
+  const result = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.ok(!Object.prototype.hasOwnProperty.call(config, 'base_branch'));
+  assert.notEqual(config.base_branch, 'develop');
+  assert.ok(!Object.prototype.hasOwnProperty.call(config.pr, 'base'));
+  assert.notEqual(config.pr.base, 'develop');
+  assert.equal(result.baseBranchUnresolved, true);
+});
+
+test('init does not rewrite an existing base_branch', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    verify: 'npm test',
+    base_branch: 'keep-me',
+  }));
+  git(repo, ['init', '-b', 'main']);
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const existing = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.equal(existing.base_branch, 'keep-me');
+});
+
 test('init writes the exact config.json shape', () => {
   const repo = tmpRepo();
   // Empty tmp repo → no candidate dirs; source_dirs is detected, not hard-coded.
+  // tmp 디렉터리는 git이 아니라 탐지가 실패한다. 키를 추측해 넣지 않는다.
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')), {
     source_dirs: [],
@@ -52,10 +118,9 @@ test('init writes the exact config.json shape', () => {
     graphify: { enabled: true },
     distill: { routing_enabled: false, max_bytes: 6144 },
     verify: 'npm test',
-    base_branch: 'develop',
     autonomy: 'auto',
-    // 신규 config의 pr는 draft·base만. labels 기본값·자동 부착은 두지 않는다.
-    pr: { draft: true, base: 'develop' },
+    // 신규 config의 pr는 draft만. base는 탐지 성공 시에만 붙는다.
+    pr: { draft: true },
     subagents: {
       claude: {
         'bouncer-reviewer': 'inherit',

@@ -3,6 +3,7 @@
 const { parseFlags } = require('./cli-flags') as {
   parseFlags: (rest: string[]) => Record<string, string | boolean>;
 };
+const { execFileSync } = require('node:child_process');
 const { validateBlueprint } = require('./validate') as {
   validateBlueprint: (opts: {
     repoRoot: string;
@@ -117,13 +118,30 @@ function cmdCurrent(rest: string[], io: CliIo) {
     }
     let base = typeof f.base === 'string' ? f.base : undefined;
     if (!base) {
-      // 부재·깨진 JSON을 {}로 삼킨다. --set은 base_branch만 읽고 없으면
-      // develop. session-graph는 null을 구분해 graphify.enabled를 끄지만,
-      // 이쪽은 파일 부재와 빈 설정을 같게 보는 것이 기존 동작이다.
+      // 부재·깨진 JSON을 {}로 삼킨다. --set은 base_branch만 읽고, 없으면
+      // 현재 체크아웃 브랜치. init이 탐지 실패 시 키를 비우므로 이 폴백이
+      // 기본 경로다. develop/main을 추측하지 않는다.
       const config = (readConfig(repoRoot) ?? {}) as Record<string, unknown>;
-      base = (config && typeof config.base_branch === 'string' && config.base_branch)
-        ? config.base_branch
-        : 'develop';
+      if (config && typeof config.base_branch === 'string' && config.base_branch) {
+        base = config.base_branch;
+      } else {
+        try {
+          const out = execFileSync('git', ['symbolic-ref', '--short', 'HEAD'], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+          base = String(out).trim();
+        } catch (_e) {
+          base = '';
+        }
+      }
+    }
+    // init과 같이 실패한 HEAD를 빈 문자열·develop으로 바꾸지 않는다.
+    // 포인터에 빈 base를 쓰면 finalize PR이 없는 브랜치를 향한다.
+    if (!base) {
+      io.err('current: cannot resolve base (no config.base_branch and HEAD is not a branch)\n');
+      return 1;
     }
     writeCurrent({
       repoRoot,

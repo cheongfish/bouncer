@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { detectLegacyFormat } = require('./schema') as {
   detectLegacyFormat: (opts: { repoRoot?: string }) => { legacy: boolean; reason?: string };
 };
@@ -55,7 +56,33 @@ function detectSourceDirs(repoRoot: string) {
   });
 }
 
+// git 실패는 호출부에서 미해결로 수렴한다. 예외를 밖으로 던지지 않는다 —
+// detached HEAD·원격 없는 저장소·git 없는 디렉터리가 같은 경로를 탄다.
+function gitSymbolicRefShort(repoRoot: string, ref: string) {
+  try {
+    const out = execFileSync('git', ['symbolic-ref', '--short', ref], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const name = String(out).trim();
+    return name || null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+// origin/HEAD가 있으면 그 값에서 origin/ 접두사만 뗀다. 실패하면 현재 HEAD.
+// 둘 다 실패하면 null — develop/main으로 추측하지 않는다.
+function detectDefaultBranch(repoRoot: string) {
+  const originHead = gitSymbolicRefShort(repoRoot, 'refs/remotes/origin/HEAD');
+  if (originHead) return originHead.replace(/^origin\//, '');
+  return gitSymbolicRefShort(repoRoot, 'HEAD');
+}
+
 function defaultConfig(repoRoot: string) {
+  // base_branch와 pr.base는 같은 탐지 결과를 쓴다. 갈라지는 경로를 만들지 않는다.
+  const detected = detectDefaultBranch(repoRoot);
   return {
     // scaffold 시점에만 감지 — ready bootstrap에서는 다시 쓰지 않음.
     source_dirs: detectSourceDirs(repoRoot),
@@ -69,11 +96,12 @@ function defaultConfig(repoRoot: string) {
     // 자르는 제한이 아니라 샤드 분배를 검토할 때만 쓰는 경고 기준이다.
     distill: { ...DEFAULT_DISTILL_CONFIG },
     verify: 'npm test',
-    base_branch: 'develop',
+    ...(detected ? { base_branch: detected } : {}),
     autonomy: 'auto',
-    // draft·base만. labels 기본값은 두지 않는다 — 자동 부착 계약을 없애기 위함.
+    // draft는 항상 둔다. base는 탐지 성공 시에만 — 실패를 develop/main으로
+    // 채우지 않고 키를 비워 /bouncer-init이 묻게 한다.
     // 기존 config에 남은 pr.labels는 알 수 없는 키로 읽고, create 인자로 쓰지 않는다.
-    pr: { draft: true, base: 'develop' },
+    pr: detected ? { draft: true, base: detected } : { draft: true },
     // host별 model ID용 placeholder slot. 모든 값은 "inherit"로 시작해 init이
     // 편집 가능한 형태를 보여 주되 model을 고정하지 않음; resolveSubagentModel은
     // "inherit"를 parent-session fallback으로 처리.
@@ -288,10 +316,11 @@ function inspectBootstrap({ repoRoot }: { repoRoot?: string }) {
     && !Array.isArray(config)
     ? config as Record<string, unknown>
     : null;
+  // base_branch는 탐지 실패 시 생략한다. 키 부재를 partial로 보면 첫 init
+  // 직후 재실행이 기존 config를 덮지 못하고 partial-bouncer-state로 멈춘다.
   const valid = rec
     && Array.isArray(rec.source_dirs)
-    && typeof rec.verify === 'string'
-    && typeof rec.base_branch === 'string';
+    && typeof rec.verify === 'string';
   if (valid) return 'ready';
   return 'partial';
 }
@@ -431,12 +460,15 @@ function init({
   // gitignoreSuggestions와 같은 advisory layer: detection이 아무것도 못 찾으면
   // operator에게 source_dirs를 채우라고 알려 빈 graph(BP-001 missing warning)에
   // opt-in하지 않게 함. dir을 찾았으면 생략.
+  // base_branch도 같다 — 미해결이면 키를 쓰지 않고 신호만 실어 /bouncer-init이 묻는다.
   return {
     ok: true, created, skipped: false, reason: 'initialized',
     gitignoreSuggestions: suggestions,
     gitignoreWritten,
     ...(graphifyInstall ? { graphifyInstall } : {}),
     ...(config.source_dirs.length === 0 ? { sourceDirsUnresolved: true } : {}),
+    ...(!Object.prototype.hasOwnProperty.call(config, 'base_branch')
+      ? { baseBranchUnresolved: true } : {}),
   };
 }
 

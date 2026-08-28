@@ -52,6 +52,17 @@ test('cli init --write-gitignore writes the marker block', () => {
   assert.match(gi, /# bouncer\n[\s\S]*\.bouncer\/\.venv\/\n[\s\S]*# \/bouncer/);
 });
 
+test('cli init JSON flags baseBranchUnresolved when detection fails', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
+  const { io, buf } = capture();
+  const code = runCli(['init', '--repo', repo, '--no-graphify'], io);
+  assert.strictEqual(code, 0);
+  const body = parseOut(buf);
+  assert.strictEqual(body.baseBranchUnresolved, true);
+  const cfg = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
+  assert.ok(!Object.prototype.hasOwnProperty.call(cfg, 'base_branch'));
+});
+
 test('cli init --promote-graphify promotes enabled on a ready repo', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
   // 먼저 부트스트랩(설치 없이), 그다음 enabled를 false로 내린 뒤 승격.

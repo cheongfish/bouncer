@@ -11,23 +11,34 @@
 | `verify` | 단일 실행 문자열 (`&&`·`;`·파이프·리디렉션·`cd` 불가 → `S12`) | **execute 게이트(G13)**, `/bouncer-plan`이 blueprint별 `tasks.bouncer.verify` 제안 | `"npm test"` · `"make test"` · `"npm run test:e2e"` |
 | `source_dirs` | 저장소 상대 디렉터리 배열 | `/bouncer-init`(자동 채움), `graphify-runner` 소스 그래프 입력 | `["src", "scripts"]` |
 | `context_dirs` | 저장소 상대 디렉터리 배열 | `graphify-runner` 컨텍스트 그래프 입력 | `[".bouncer/context"]` |
-| `base_branch` | 브랜치 이름 | `/bouncer-execute` worktree 기준, `/bouncer-finalize` PR 기준 | `"develop"` · `"main"` |
+| `base_branch` | 브랜치 이름 | `/bouncer-execute` worktree 기준, `/bouncer-finalize` PR 기준 | `"main"` · `"develop"` |
 | `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run`이 물어보는 횟수 | `"auto"` (시작 확인 1회) · `"interactive"` (task 경계마다 추가) |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (저장소 상대) | `bouncer graphify-bin` 해석 1순위 | `".bouncer/.venv/bin/graphify"` |
 | `distill.routing_enabled` | `true` \| `false` | `bouncer distill --for` 선택 소비 | `true` — 구조 preflight 통과 후 활성화 |
 | `distill.max_bytes` | 양의 정수 바이트 값 | Distill 구조 validator의 경고 기준 | `6144` — 본문을 자르지 않음 |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
-| `pr.base` | 브랜치 이름 | `/bouncer-finalize` | `"develop"` |
+| `pr.base` | 브랜치 이름 | `/bouncer-finalize` | `"main"` |
 | `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
 | `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-execute`·`/bouncer-plan`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
 
 `<agent>`는 `bouncer-implementer` · `bouncer-reviewer` · `bouncer-debugger` ·
 `bouncer-context-reviewer` 넷입니다.
 
-신규 config의 `pr`에는 `draft`와 `base`만 있습니다. 예전 설정에 남아 있는
+신규 config의 `pr`에는 항상 `draft`가 있고, 브랜치 탐지가 성공했을 때만
+`base`가 붙습니다. `labels` 기본값은 두지 않습니다. 예전 설정에 남아 있는
 `pr.labels`는 읽기 오류를 내지 않지만 `/bouncer-finalize`가 `gh pr create`에
 라벨을 붙이지도 않습니다.
+
+`bouncer init`은 `base_branch`와 `pr.base`에 같은 값을 씁니다. 순서는
+`git symbolic-ref --short refs/remotes/origin/HEAD`에서 `origin/` 접두사를
+뗀 값, 그다음 `git symbolic-ref --short HEAD`입니다. 둘 다 실패하면 두 키를
+쓰지 않고 반환 JSON에 `baseBranchUnresolved`를 실어 `/bouncer-init`이
+기본 브랜치를 묻습니다. `develop`이나 `main`으로 채우지 않습니다. 이미
+`base_branch`가 있는 config는 다시 쓰지 않습니다.
+
+`bouncer current --set`은 `--base`가 없으면 `config.base_branch`를 쓰고,
+그 키가 없으면 현재 체크아웃 브랜치를 씁니다.
 
 ## Project Distill 선택 라우팅
 

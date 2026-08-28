@@ -65,6 +65,13 @@ Bootstrap this project for Bouncer.
      On decline, report the suggested entries and leave `.gitignore`
      untouched. Bouncer writes `.gitignore` only after this consent, and only
      inside the marker block.
+   - **Branch ACQ** — when the result carries `baseBranchUnresolved: true`,
+     ask for the repository default branch. Do not offer `develop` or `main`
+     as a guessed default. On an answer, write that same string to both
+     `base_branch` and `pr.base` in `.bouncer/config.json`. On skip, leave
+     the keys absent. This write is the exception to the promotion-only
+     config rule above: graphify still goes through CLI; the branch keys
+     have no CLI flag.
 4. Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
    git add .bouncer .codex/agents && git commit -m "chore: bootstrap bouncer"
@@ -98,6 +105,9 @@ steps hold this workflow's timing and consequences.
 - Step 3 **Gitignore ACQ** — when `gitignoreSuggestions` is non-empty, ask
   whether to write the `# bouncer` … `# /bouncer` marker block before
   `--write-gitignore`.
+- Step 3 **Branch ACQ** — when the init result carries
+  `baseBranchUnresolved: true`, ask for the default branch and write
+  `base_branch` and `pr.base` to that same value, or leave the keys absent.
 
 Steps 1–2 and 4–5 do not ask; they report bootstrap outcome or point at
 `/bouncer-plan`.
