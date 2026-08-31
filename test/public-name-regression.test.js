@@ -19,6 +19,48 @@ test('public installation documentation distinguishes root selection from provid
   assert.doesNotMatch(install, SUPERPOWERS_RE);
 });
 
+function pluginRootInstallSection() {
+  const install = fs.readFileSync(path.join(root, 'docs/install.md'), 'utf8');
+  const match = install.match(/## 플러그인 루트[\s\S]*?(?=\n## )/);
+  assert.ok(match, 'docs/install.md must keep ## 플러그인 루트');
+  return match[0];
+}
+
+test('install.md plugin-root section documents host vs npm PATH registration', () => {
+  const section = pluginRootInstallSection();
+  // 자동 등록은 호스트 설치 경로에서 거짓이다. npm 경로만 그렇게 읽히면 안 된다.
+  assert.doesNotMatch(section, /패키지가 설치하면[\s\S]{0,80}PATH에 등록/);
+  assert.doesNotMatch(section, /"private"\s*:\s*true[\s\S]{0,80}bin/);
+  assert.doesNotMatch(section, /npm install -g bouncer(?:\s|$)/);
+
+  // (1) 호스트 설치는 bin을 링크하지 않는다.
+  assert.match(section, /호스트[\s\S]{0,220}(?:링크하지|연결하지)/);
+  assert.match(section, /npm install/);
+
+  // (2) 실행 파일 등록: 호스트는 scripts/를 PATH에, npm 경로는 선언된 bin.
+  assert.match(section, /scripts\/[\s\S]{0,80}PATH|PATH[\s\S]{0,80}scripts\//);
+  assert.match(section, /npm link/);
+  assert.match(section, /npm install -g <plugin-root>/);
+  assert.match(section, /BOUNCER_HOME/);
+  // 로컬 npm install 은 node_modules/.bin 링크만 만든다. 사용자 PATH 로 읽히면 안 된다.
+  assert.doesNotMatch(section, /로컬[\s\S]{0,160}PATH에\s*연결/);
+  assert.match(section, /npm install <plugin-root>[\s\S]{0,80}node_modules\/\.bin/);
+
+  // (3) 확인 명령과 실패 증상.
+  assert.match(section, /bouncer-root --auto/);
+  assert.match(section, /command not found/);
+
+  // (4) 등록 전 워크플로는 첫 줄에서 실패한다. 문서가 그 실패를 없애지 않는다.
+  assert.match(section, /등록[\s\S]{0,80}(?:전|없)/);
+  assert.match(section, /첫 줄|첫줄/);
+});
+
+test('plugin-root contract points PATH install at docs/install.md', () => {
+  const contract = fs.readFileSync(path.join(root, 'rules/plugin-root.md'), 'utf8');
+  assert.match(contract, /BOUNCER_ROOT="\$\(bouncer-root --auto\)" \|\| exit \$\?/);
+  assert.match(contract, /docs\/install\.md/);
+});
+
 /**
  * Records, not authored surfaces. `.bouncer/context/` holds captured evidence —
  * verification.md quotes whatever the verify command printed, which for this

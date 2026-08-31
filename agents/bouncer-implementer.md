@@ -51,11 +51,13 @@ read code/tests/repo context needed to implement.
    real flow end to end. Only then apply the decision ladder and stop at the
    first rung that holds:
    1. Already in this codebase? Reuse the helper, util, type, or pattern.
-   2. Standard library covers it? Use it.
-   3. Native platform feature covers it? Prefer it over a new dependency.
+   2. Native platform feature covers it? Prefer it over a new dependency.
+   3. Standard library covers it? Use it.
    4. Already-installed dependency solves it? Use it; do not add a new one.
    5. Can it be one line (or a few)? Prefer that over a new abstraction.
    6. Only then: the minimum new code that satisfies the checklist.
+
+   YAGNI is absent on the implement path on purpose: do not shrink approved briefs.
 
    If the ladder suggests dropping an approved checklist item, escalate to
    planning — do not shrink the brief in code.

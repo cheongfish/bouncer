@@ -172,8 +172,37 @@ CI는 Antigravity 호스트를 띄울 수 없어 아래는 자동 검증 밖입�
 
 ## 플러그인 루트 (`bouncer-root`)
 
-패키지가 설치하면 `bouncer-root` bin이 PATH에 등록됩니다. 기본 실행은 모든
-지원 설치 후보에서 최신 strict-semver 버전을 고릅니다.
+워크플로 셸은 PATH의 `bouncer-root`를 호출합니다. 설치 경로마다 그 실행 파일을
+등록하는 방법이 다릅니다.
+
+호스트 플러그인 설치는 저장소를 캐시 디렉터리로 복사하고 `npm install`을
+돌리지 않습니다. `package.json`의 `bin` 선언은 남아 있어도 호스트는
+`node_modules/.bin`에 `bouncer` / `bouncer-root`를 링크하지 않습니다.
+이 경로에서는 플러그인 루트의 `scripts/`를 PATH에 넣으세요.
+
+```bash
+export PATH="<plugin-root>/scripts:$PATH"
+```
+
+`<plugin-root>`는 호스트와 버전마다 다릅니다. 캐시 절대 경로를 문서에 고정하지
+마세요.
+
+`npm install <plugin-root>`는 선언된 `bin`을 그 프로젝트 `node_modules/.bin`에
+링크합니다. `-g` / `npm link`는 prefix `bin`에 링크합니다.
+
+확인: `bouncer-root --auto`가 절대 경로를 출력하면 등록된 것입니다. 등록 전에는
+셸이 `command not found`를 냅니다. 워크플로 셸 첫 줄은
+`BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?`이라서, PATH에 올리기 전에는
+여섯 워크플로가 그 줄에서 실패합니다.
+
+PATH를 바꿀 수 없으면 아래 둘 중 하나를 쓰세요. 둘 다 기본이 아닙니다.
+
+- 그 호출에만 `BOUNCER_HOME=/absolute/plugin/root`를 붙입니다. 상시 환경 변수가
+  아니라 한 번의 launcher 오버라이드입니다.
+- 플러그인 루트에서 `npm link` 또는 `npm install -g <plugin-root>`로 로컬 경로
+  bin을 전역 환경에 연결합니다. 패키지는 레지스트리에 없습니다.
+
+기본 실행은 모든 지원 설치 후보에서 최신 strict-semver 버전을 고릅니다.
 
 ```bash
 bouncer-root --auto

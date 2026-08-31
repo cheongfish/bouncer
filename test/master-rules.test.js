@@ -16,6 +16,11 @@ test('CLAUDE.md is the master-rules SSOT', () => {
   assert.match(claude, /one reviewable\s+commit/i);
   assert.match(claude, /tasks\/<NNN>\/?`?\{?tasks/);
   assert.match(claude, /execute gate/i);
+  assert.match(claude, /^## Instruction layers/m);
+  assert.match(claude, /\|\s*Hard rules\s*\|/);
+  assert.match(claude, /skills\/\*\/SKILL\.md/);
+  assert.match(claude, /rules\/\*\.md/);
+  assert.match(claude, /workflow entry routing index/i);
   // Split the literal so public-name-regression does not flag this negative check.
   assert.doesNotMatch(claude, new RegExp(['super', 'powers'].join(''), 'i'));
   // 세션마다 읽는 마스터 규칙 상한: UTF-8 바이트(줄 수 아님). 초과 시 포인터·밀도 높은
@@ -152,6 +157,7 @@ test('plugin-root contract is shared while launcher shells resolve independently
 
 test('hard rule 5 workflow order includes commit between execute and finalize', () => {
   const claude = read('CLAUDE.md');
+  const plan = read('skills/bouncer-plan/SKILL.md');
   assert.match(
     claude,
     /\/bouncer-init`?\s*→\s*`?\/bouncer-plan`?\s*→\s*`?\/bouncer-execute`?\s*→\s*`?\/bouncer-commit`?\s*→\s*`?\/bouncer-finalize/,
@@ -159,6 +165,9 @@ test('hard rule 5 workflow order includes commit between execute and finalize', 
   assert.match(claude, /\/bouncer-commit/);
   assert.match(claude, /When to invoke/i);
   assert.match(claude, /\|\s*Run one blueprint to task exhaustion\s*\|\s*`\/bouncer-run`\s*\|/);
+  // 하드룰 5 후반(plan은 /bouncer-run을 가리킨다)은 절차 층 정본. 마스터 룰은 포인터만.
+  assert.match(plan, /point the user at[\s\S]{0,80}\/bouncer-run/);
+  assert.doesNotMatch(claude, /Plan points at `\/bouncer-run`/);
 });
 
 
@@ -272,20 +281,86 @@ test('finalize promotion searches all Distill content and splits payload content
   assert.match(spec, /never[^\n]{0,100}(?:attach|associate|individual shard|개별 샤드)/i);
 });
 
+test('finalize Distill promotion excludes restatements of upper instruction layers', () => {
+  const promotion = read('skills/bouncer-finalize/references/distill-promotion.md');
+  const spec = read('references/spec-authoring/index.md');
+  // add/replace 후보가 상위 세 층(하드/절차/계약)과 같은 계약이면 목록에서
+  // 빼되 삭제하지 않고, 같은 ACQ의 제외 목록에 근거 경로를 붙인다. drop은
+  // 낡은 Distill 문장 제거라 재진술 판단 대상이 아니다.
+  for (const [name, md] of [
+    ['distill-promotion', promotion],
+    ['spec-authoring', spec],
+  ]) {
+    assert.match(
+      md,
+      /exclu(?:sion|de)|restatement/i,
+      `${name} must name the restatement-exclusion step`,
+    );
+    assert.match(
+      md,
+      /CLAUDE\.md[\s\S]{0,500}skills\/\*\/SKILL\.md[\s\S]{0,500}rules\/\*\.md/s,
+      `${name} must judge against the upper three instruction layers`,
+    );
+    assert.match(
+      md,
+      /exclu(?:ded|sion)[\s\S]{0,220}(?:file path|justifying file|justifying path)/i,
+      `${name} must display the justifying file path on the exclusion list`,
+    );
+    assert.match(
+      md,
+      /same ACQ|one ACQ[\s\S]{0,280}exclu/i,
+      `${name} must carry proposal and exclusion on one ACQ`,
+    );
+    assert.match(
+      md,
+      /exclu(?:sions?)[\s\S]{0,80}(?:\b0\b|zero)/i,
+      `${name} must report when exclusions are 0`,
+    );
+    assert.doesNotMatch(
+      md,
+      /exclu(?:sion|de)[\s\S]{0,80}\b(?:G\d+|S\d+)\b/i,
+      `${name} must not introduce exclusion as a gate code`,
+    );
+  }
+  // 표시 의무만으로는 부족하다. spec-authoring이 제외 목록을 반환하고
+  // finalize가 그 쌍을 받아야, 필터만 하고 목록을 비운 침묵 삭제가 막힌다.
+  assert.match(
+    spec,
+    /[Rr]eturn[\s\S]{0,160}exclu(?:sion list)/,
+    'spec-authoring must return the exclusion list with the proposal',
+  );
+  assert.match(
+    promotion,
+    /receive[\s\S]{0,220}exclu(?:sion list)/,
+    'finalize must receive the exclusion list with the proposal',
+  );
+});
+
 test('master rules preserve single-file Distill fallback and CLI trust boundary', () => {
   const claude = read('CLAUDE.md');
-  assert.match(claude, /distill\s+--all/);
-  assert.match(claude, /distill\s+--preflight/);
-  assert.match(claude, /distill\s+--for/);
+  const preflight = read('skills/bouncer-plan/references/distill-preflight.md');
+  const promotion = read('skills/bouncer-finalize/references/distill-promotion.md');
+  // CLI 절차(--all/--preflight/baseline/폴백)는 plan 레퍼런스 정본. 마스터 룰에 재진술하지 않는다.
+  assert.match(preflight, /distill\s+--all/);
+  assert.match(preflight, /distill\s+--preflight/);
+  assert.match(preflight, /baseline/);
+  assert.match(preflight, /single-file fallback|단일 파일.*폴백/i);
+  assert.doesNotMatch(claude, /distill\s+--all/);
+  assert.doesNotMatch(claude, /distill\s+--preflight/);
+  assert.doesNotMatch(claude, /distill\s+--for/);
+  assert.doesNotMatch(claude, /baseline/);
+  assert.doesNotMatch(claude, /single-file fallback|단일 파일.*폴백/i);
+  // --route·aggregate 금지는 finalize 번들이 distill --route 부재를 이미 단언하므로
+  // 살 곳이 CLAUDE.md 잔류 계약뿐이다.
   assert.match(claude, /distill\s+--route/);
-  assert.match(claude, /baseline/);
-  assert.match(claude, /single-file fallback|단일 파일.*폴백/i);
   assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
   assert.match(claude, /affected_paths/);
-  assert.match(claude, /audit\.shards/);
-  assert.match(claude, /relative[^\n]{0,20}path|상대 경로/i);
   assert.match(claude, /aggregate|selection|합산|선택 결과/i);
   assert.match(claude, /never[^\n]{0,120}(?:attach|associate|individual shard|개별 샤드)/i);
+  assert.match(promotion, /audit\.shards/);
+  assert.match(promotion, /relative[^\n]{0,20}path|상대 경로/i);
+  assert.doesNotMatch(claude, /audit\.shards/);
+  assert.doesNotMatch(claude, /relative[^\n]{0,20}path|상대 경로/i);
   assert.strictEqual(
     (claude.match(/^11\.\s+\*\*Trust boundary\*\*/gm) || []).length,
     1,
@@ -332,6 +407,35 @@ test('When to invoke lists workflow entry points only; unpublished helpers drop 
   assert.ok(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')));
 });
 
+test('session conduct 4 self-check lives in verification, not master rules', () => {
+  const claude = read('CLAUDE.md');
+  const verification = read('references/verification/index.md');
+  // 세션수칙 2는 보유 파일이 없어 본문 유지. 4만 포인터화한다.
+  assert.match(claude, /One sentence before the first tool call/);
+  assert.match(claude, /^4\.\s+\*\*No self-double-checking\*\*/m);
+  assert.match(verification, /verification subagent/i);
+  assert.match(verification, /second confirmation pass|re-check|re-verify/i);
+  assert.doesNotMatch(claude, /re-check passes/);
+  assert.doesNotMatch(claude, /verification subagents on top/);
+});
+
+test('hand-author verification evidence lives in verification index', () => {
+  const claude = read('CLAUDE.md');
+  const verification = read('references/verification/index.md');
+  assert.match(claude, /execute gate/i);
+  assert.match(verification, /never hand-write success evidence/i);
+  assert.doesNotMatch(claude, /hand-author/);
+  assert.doesNotMatch(claude, /passing `verification\.md`/);
+});
+
+test('root context tree non-canonical lives in init, not master rules', () => {
+  const claude = read('CLAUDE.md');
+  const init = read('skills/bouncer-init/SKILL.md');
+  // 루트 context/ 비정규는 init이 담는다. CLAUDE.md 앵커가 없어 하드룰 1 후반에서 삭제.
+  assert.match(init, /Root `context\/` is legacy\/non-canonical/);
+  assert.doesNotMatch(claude, /Never a root `context\/` tree/);
+});
+
 test('master rules require Korean context bodies and name stop-slop', () => {
   const claude = read('CLAUDE.md');
   assert.match(claude, /Context language/i);
@@ -354,15 +458,22 @@ test('hard rule 9 requires Korean code comments and points at implementation ski
 
 test('hard rule 7 requires finalize promotion consent and caller-provided shard audit', () => {
   const claude = read('CLAUDE.md');
+  const promotion = read('skills/bouncer-finalize/references/distill-promotion.md');
+  // consent는 distill-promotion.md가 "finalize 뒤 260자" 형태를 만족하지 않아 마스터 룰에 잔류.
   assert.match(claude, /finalize[\s\S]{0,260}(?:consent|동의|승인)/i);
-  assert.match(claude, /audit\.shards/);
-  // finalize만: payload content를 알려진 # <id> 경계로 갈라 맵을 만든다.
-  // plan 두 층(--preflight / --for) 문장은 이 테스트가 건드리지 않는다.
-  assert.match(claude, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
-  assert.match(claude, /# <id>|# `<id>`/);
-  assert.match(claude, /id[\s\S]{0,80}(?:set|집합)[\s\S]{0,160}(?:mismatch|differ|다르|불일치)/i);
-  // 맵 전달은 id 집합이 맞을 때만. 불일치는 보고 후 계속이며 spec-authoring 호출이 아니다.
+  // 샤드 맵·분할 계약은 승격 레퍼런스 정본. 마스터 룰에 재진술하지 않는다.
+  assert.match(promotion, /audit\.shards/);
+  assert.match(promotion, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
+  assert.match(promotion, /# <id>|# `<id>`/);
+  assert.match(promotion, /id[\s\S]{0,80}(?:set|집합)[\s\S]{0,160}(?:mismatch|differ|다르|불일치)/i);
   assert.match(
+    promotion,
+    /(?:when the two id sets match|only when the two id sets match)[\s\S]{0,200}spec-authoring/i,
+  );
+  assert.doesNotMatch(claude, /audit\.shards/);
+  assert.doesNotMatch(claude, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
+  assert.doesNotMatch(claude, /# <id>|# `<id>`/);
+  assert.doesNotMatch(
     claude,
     /(?:when the two id sets match|only when the two id sets match)[\s\S]{0,200}spec-authoring/i,
   );
@@ -379,7 +490,6 @@ test('hard rule 7 requires finalize promotion consent and caller-provided shard 
 
 test('Distill re-ground uses one repeated-flag call for every confirmed path', () => {
   for (const rel of [
-    'CLAUDE.md',
     'skills/bouncer-plan/SKILL.md',
     'skills/bouncer-execute/SKILL.md',
     'skills/bouncer-run/SKILL.md',

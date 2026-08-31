@@ -81,8 +81,21 @@ test('implementation climbs a minimality ladder before writing code', () => {
   assert.match(md, /decision ladder|Understand, then climb/i);
   assert.match(md, /[Rr]euse|Already in this codebase/);
   assert.match(md, /[Ss]tandard library|stdlib/i);
-  assert.match(md, /[Nn]ative platform|[Aa]lready-installed dependency/i);
+  assert.match(md, /[Nn]ative platform/);
+  assert.match(md, /[Aa]lready-installed dependency/i);
   assert.match(md, /minimum new code|minimum code/i);
+  // native|installed 이접은 순서가 뒤집혀도 통과했다. climb 본문에서
+  // native가 stdlib보다 앞에 있는지를 위치로 잡는다.
+  const climb = md.match(/Understand, then climb[\s\S]*?(?=\n2\. \*\*Focused change)/);
+  assert.ok(climb, 'implementer Procedure 1 must keep the climb ladder');
+  const nativeAt = climb[0].search(/native platform/i);
+  const stdlibAt = climb[0].search(/standard library/i);
+  assert.ok(nativeAt >= 0 && stdlibAt >= 0, 'climb ladder must name both rungs');
+  assert.ok(
+    nativeAt < stdlibAt,
+    'native platform rung must precede standard library on the implement path',
+  );
+  assert.match(md, /YAGNI is absent on the implement path[^\n]*on purpose/i);
   // 사다리 전용 탈출구: 승인된 체크리스트 항목을 사다리 근거로 버리려 할 때의
   // escalate 문장을 직접 겨눈다. 맨 "planning"은 Output contract의
   // "Needs planning"에도 걸려서 사다리를 지워도 통과했다.
