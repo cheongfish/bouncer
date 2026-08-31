@@ -25,8 +25,8 @@ const SHELL_COMMAND_FLAG = /^-[A-Za-z]*c$/;
 const EXPANSION = /[$`]/;
 const MAX_DEPTH = 4;
 // 공백과 새 명령을 시작하는 연산자 모두에서 분리하되, 따옴표 밖에서만.
-// 따옴표 토큰은 표시됩니다: 따옴표 안 단어는 데이터(인자)이지 명령 이름이
-// 아니므로 `echo "git commit"`을 commit으로 읽으면 안 됩니다.
+// 인자 위치의 따옴표 토큰은 데이터다(`echo "git commit"`). 다만 세그먼트
+// 첫 토큰 값이 git이면 인용·부분인용도 명령으로 본다 — segmentIsGitCommit 참고.
 function tokenize(command) {
     const tokens = [];
     let value = '';
@@ -83,6 +83,11 @@ function segments(tokens) {
 }
 function isWord(token, word) {
     return !token.quoted && token.value === word;
+}
+// 명령어 위치(세그먼트 첫 토큰)의 git만 인용·부분인용을 허용한다.
+// `echo "git" commit`처럼 인자 자리의 "git"까지 열면 오탐이 난다.
+function isCommandPositionGit(token) {
+    return Boolean(token && token.value === 'git');
 }
 function orJudgment(a, b) {
     return { commit: a.commit || b.commit, all: a.all || b.all };
@@ -151,7 +156,11 @@ function segmentIsGitCommit(tokens, resolveAlias, depth) {
             }
         }
     }
-    const gitIdx = tokens.findIndex((t) => isWord(t, 'git'));
+    // 1. 따옴표 없는 git은 기존처럼 세그먼트 어디서든(예: env=… git commit).
+    // 2. 인용·부분인용(`"git"` / `g"it"`)은 첫 토큰일 때만 — 인자 오탐 방지.
+    let gitIdx = tokens.findIndex((t) => isWord(t, 'git'));
+    if (gitIdx === -1 && isCommandPositionGit(tokens[0]))
+        gitIdx = 0;
     if (gitIdx === -1)
         return NO_COMMIT;
     let i = gitIdx + 1;

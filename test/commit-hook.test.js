@@ -189,6 +189,14 @@ test('isGitCommit does not fire on quoted text that merely mentions a commit', (
   assert.strictEqual(isGitCommit('docker commit abc'), false);
 });
 
+// B8: 명령어 위치의 인용된 git은 커밋으로 탐지. 인자 위치의 "git"은 오탐 금지.
+test('isGitCommit detects quoted git only in command position', () => {
+  assert.strictEqual(isGitCommit('"git" commit -m x'), true);
+  assert.strictEqual(isGitCommit('g"it" commit -m x'), true);
+  assert.strictEqual(isGitCommit('echo "git" commit'), false);
+  assert.strictEqual(isGitCommit('git commit -m "-a"'), true);
+});
+
 test('evaluateCommit blocks an out-of-scope commit hidden in a nested shell', () => {
   const r = evaluateCommit({
     command: 'bash -c "git commit -m x"', repoRoot: '/r',

@@ -11,6 +11,7 @@
 | 입력 | 처리 |
 | --- | --- |
 | `git commit -m x`, `git -C <path> commit` | 직접 탐지. 스테이징된 경로만 `affected_paths`와 대조 |
+| `"git" commit -m x`, `g"it" commit -m x` | 세그먼트 **첫 토큰** 값이 `git`이면 인용·부분인용도 git argv로 탐지. 이후 `commit`·alias·`-a` 판정은 동일. `echo "git" commit`처럼 인자 자리의 `"git"`은 명령이 아님 |
 | `git commit -am x`, `git commit -a`, `git commit --all` | 커밋으로 탐지하고, 검사 대상은 스테이징 ∪ `git diff HEAD --name-only` (추적 중 수정). 롱 옵션은 이름이 정확히 `--all`일 때만 all-flag. `--amend` · `--author=` · `--allow-empty`는 해당하지 않음. `-m`/`--message` 값과 따옴표 토큰은 플래그로 읽지 않음 |
 | `bash -c "git commit -m x"` | 중첩 셸 내부를 파싱 (`sh`/`zsh`/`dash`/`ksh`/`ash`, `-lc` 같은 결합 플래그 포함) |
 | `git $FLAG commit`, `` git `...` `` | 확장이 섞이면 판단 불가 → 커밋으로 간주하고 all-flag도 있는 것으로 간주 |
@@ -27,6 +28,8 @@ fail-closed의 대가는 **오탐**입니다. `git $ANYTHING`은 커밋이 아�
 
 여전히 뚫리는 것:
 
+- **완전한 셸 파서가 아님**: 가드는 실수 방지용 휴리스틱이다. 인용 규칙·확장·
+  리다이렉트·평가 순서를 전부 흉내 내지 않으며, 의도적 우회를 막지 않는다.
 - **셸을 거치지 않는 경로**: 스크립트 파일(`./release.sh`), `make commit`,
   Python·Node의 `subprocess`/`child_process`. 가드는 Bash 도구 호출의 명령
   문자열만 봅니다.
