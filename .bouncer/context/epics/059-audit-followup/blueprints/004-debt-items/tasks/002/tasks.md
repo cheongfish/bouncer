@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '059'
   blueprint_id: '004'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 계획 문서 관습을 따르면 frontmatter 전체가 깨지는 B16 재현을 막음

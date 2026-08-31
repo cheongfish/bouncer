@@ -10,3 +10,11 @@ fresh generic read-only subagent with the same brief). Do **not** skip this
 step.
 
 As controller, update existing blueprint-root `context-review.md` body `## Findings` and `bouncer.context_review.findings[]` from the reviewer output — the subagent must not edit documents or flip status. An `accepted` finding requires a note. Only when every finding is `resolved` or `accepted` with a note, set `context-review → accepted`.
+
+When recording finding `note` (and any other author-written frontmatter
+scalar on that document), apply the same YAML leading-character quoting
+rule as `spec-authoring` (`references/spec-authoring/index.md`
+`## Author-written frontmatter scalars`): if the value starts with a YAML
+예약 지시자 such as a leading 백틱, write it as a 작은따옴표 scalar or a
+block scalar (`>-` / `|`) — never as plain text after `- `. A mid-string
+or Markdown-본문 backtick is out of scope for this rule.

@@ -1,7 +1,7 @@
 ---
 type: bouncer.review
-title: YAML 인용 규칙 리뷰
-description: frontmatter 안전 규칙이 두 작성 경로에 일관되게 적용되는지 판정한다
+title: YAML 프론트매터 인용 규칙 리뷰
+description: 선두 예약 지시자 인용 규칙이 본문·중간 백틱까지 넓히지 않는지 판정한다
 resource: .bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/002/review.md
 tags:
   - bouncer
@@ -11,14 +11,12 @@ bouncer:
   id: REVIEW-002
   epic_id: '059'
   blueprint_id: '004'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings: []
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+(none)

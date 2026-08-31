@@ -268,6 +268,32 @@ message. Do not put module or package names in those fields either. Replace
 scaffold defaults like `001 slug` / `001 tasks` before approval; otherwise
 those placeholders ship as the commit subject and body.
 
+## Author-written frontmatter scalars (YAML leading characters)
+
+When writing author-owned frontmatter strings — including task
+`commit_intent` lines and any other authored scalar you set — do **not**
+emit a plain scalar whose first character is a YAML 예약 지시자 (reserved
+indicator) such as a leading 백틱 (`` ` ``). A value that starts with
+`` ` `` after `- ` is parsed as a tag/alias marker, not text.
+
+Quote those values with a 작은따옴표 (single-quoted) scalar or a block
+scalar (`>-` / `|`). Inside a single-quoted scalar, a literal `'` is
+written as `''` (두 번).
+
+Safe forms:
+
+```yaml
+commit_intent:
+  - '`git add`가 범위를 벗어나지 않게 함'
+  - 'it''s scoped to Touch'
+note: >-
+  `context-review.md`가 존재하지만 파싱되지 않음.
+```
+
+This rule applies only to the **leading** character of an author-written
+YAML scalar. It does **not** ban a 백틱 in the 중간 of a string, and it
+does **not** ban backticks in Markdown 본문 — those are 금지하지 않는다.
+
 ## Guardrails
 
 - **Never** hand-edit harness-owned frontmatter fields such as `type`,
