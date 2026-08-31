@@ -155,20 +155,20 @@
 - 막힌 지점: <없으면 "없음">
 ```
 
-## 1.3.0 태그 기준 smoke 및 릴리스 기록
+## 1.3.1 태그 기준 smoke 및 릴리스 기록
 
-파일럿 결과는 브랜치의 현재 상태가 아니라 `bouncer--v1.3.0` 태그가 가리키는
+파일럿 결과는 브랜치의 현재 상태가 아니라 `bouncer--v1.3.1` 태그가 가리키는
 커밋을 설치 대상으로 삼아 기록한다. 따라서 태그를 만든 뒤에는 태그를
 체크아웃하거나 태그를 명시한 원격 설치 경로를 사용하고, 이후 브랜치에 추가된
 커밋을 결과에 섞지 않는다.
 
 릴리스 운영자는 모든 task 커밋이 병합된 최종 HEAD에서 먼저 `npm run ci`를
-성공시킨다. 그 HEAD에 `bouncer--v1.3.0`이 아직 없고 다른 커밋을 가리키는
+성공시킨다. 그 HEAD에 `bouncer--v1.3.1`이 아직 없고 다른 커밋을 가리키는
 태그도 아닌지 확인한 뒤 annotated 태그를 만든다.
 
 ```bash
-git tag -a bouncer--v1.3.0 <merged-head>
-git push origin bouncer--v1.3.0
+git tag -a bouncer--v1.3.1 <merged-head>
+git push origin bouncer--v1.3.1
 ```
 
 태그 push와 원격 marketplace 설치는 인증과 외부 권한이 필요하므로 운영 시점에
@@ -183,7 +183,7 @@ git push origin bouncer--v1.3.0
 있어야 한다.
 
 ```text
-태그: bouncer--v1.3.0
+태그: bouncer--v1.3.1
 태그 commit SHA: <40자리 SHA>
 GitHub Release: <동일 태그의 Release URL>
 
