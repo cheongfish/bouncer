@@ -7,6 +7,36 @@
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-08-31
+
+1.3.1 이후 Graphify 컨텍스트 우선 검색과 감사 부채 정리.
+
+### Added
+
+- **`bouncer graph-suggest`** — context hit에서 심볼을 뽑아 구현·연결 테스트만
+  확장하고 역할별 점수·신뢰도를 낸다.
+- **구현·테스트 그래프 분리** — `graphify.test_dirs`로 `graphify-out/test/`에
+  테스트 그래프를 쓰고 source와 병합한 뒤 `exclude_dirs`를 제거한다.
+- **고정 평가 corpus** — `test/graph-search-quality.test.js`와
+  `docs/benchmark/graphify-search-quality.md`로 precision·recall·test-only
+  비율을 회귀한다.
+- **감사 부채 결정 문서** — `docs/audit-debt-decisions.md`에 B7–B11 처분·근거·
+  재검토 조건을 기록한다.
+
+### Changed
+
+- **plan 그래프 흐름** — graphify-runner가 sync 후 suggest로 후보를 표시하고
+  사용자 범위 승인을 받는다.
+- **`scope_evidence` 계약** — plan gate가 `quality`·`candidates`와 basis `test`를
+  검사하고 저신뢰 시 빈 `suggested_paths`를 요구한다.
+
+### Fixed
+
+- **따옴표 명령어 커밋 탐지** — `"git"`·`g"it"` 명령어 자리 인용을 탐지하고
+  인자 자리 인용은 오탐하지 않는다.
+- **진단 분리** — 파싱 실패와 문서 부재를 다른 G 코드로 남긴다.
+- **YAML 프론트매터 인용** — 마스터 룰에 fenced code와 인용 규칙을 명시한다.
+
 ## [1.3.1] — 2026-08-31
 
 1.3.0 이후 설치 첫 5분 부작용 제거와 지시문 층 경계 정리.
