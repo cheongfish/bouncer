@@ -116,6 +116,8 @@ type GateContext = {
   blueprintDir?: string;
   deps?: unknown;
   taskUnit?: TaskUnit | null;
+  // loader S0 목록. plan G18이 context-review 파싱 실패와 실제 부재를 가른다.
+  parseErrors?: FailureEntry[];
 };
 
 function catchMessage(error: unknown): unknown {
@@ -293,7 +295,11 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
     const taskUnit = (gate === 'execute' || gate === 'commit')
       ? resolveTaskUnit(docs, { repoRoot, blueprintDir })
       : undefined;
-    checkGate(gate, docs, rels, failures, { repoRoot, blueprintDir, deps, taskUnit });
+    // parseErrors는 이미 failures에 합쳐졌지만, plan G18은 원본 목록으로
+    // context-review S0 여부를 본다 — failures만 보면 다른 문서 S0과 섞인다.
+    checkGate(gate, docs, rels, failures, {
+      repoRoot, blueprintDir, deps, taskUnit, parseErrors,
+    });
   }
 
   return { ok: failures.length === 0, failures };

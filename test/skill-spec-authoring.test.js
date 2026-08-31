@@ -137,3 +137,24 @@ test('spec-authoring derives a shard-targeted proposal and writes only after con
   assert.match(md, /never[^\n]{0,120}(?:attach|associate|individual shard|개별 샤드)/i);
   assert.doesNotMatch(md, /scripts\/bouncer|BOUNCER_ROOT/);
 });
+
+// author-written frontmatter: YAML 예약 지시자 선두 값은 평문 scalar 금지.
+// 문구 고정이 아니라 위험 입력·안전 형식·범위 제외의 식별자만 본다.
+test('spec-authoring quotes YAML-leading reserved characters in author-written scalars', () => {
+  const md = readSkill('spec-authoring');
+  // 위험 입력: 선두 백틱 / YAML 예약 지시자
+  assert.match(md, /예약 지시자|reserved (?:indicator|character)/i);
+  assert.match(md, /백틱|backtick/i);
+  assert.match(md, /선두|leading/i);
+  // 안전 형식: 작은따옴표 또는 block scalar
+  assert.match(md, /작은따옴표|single[- ]quot/i);
+  assert.match(md, /block scalar|>-/i);
+  // 적용 대상 식별자 (author-written)
+  assert.match(md, /commit_intent/);
+  // 작은따옴표 안의 작은따옴표는 '' 로 이스케이프
+  assert.match(md, /''/);
+  // 범위 제외를 긍정 문구로 고정 — 본문·중간 백틱까지 넓히지 않는다
+  assert.match(md, /중간/);
+  assert.match(md, /본문/);
+  assert.match(md, /금지하지 않|does not (?:ban|forbid|prohibit)|not required/i);
+});

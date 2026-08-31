@@ -1,8 +1,21 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 const { readSkill } = require('./helpers/read-skill');
+
+const root = path.join(__dirname, '..');
+// controller 기록 경로 — 리뷰어 스킬 본문(references/context-review)이 아니라
+// plan이 findings를 쓸 때 읽는 절이다.
+const planContextReviewPath = path.join(
+  root,
+  'skills',
+  'bouncer-plan',
+  'references',
+  'context-review.md',
+);
 
 test('context-review has valid frontmatter identity', () => {
   const md = readSkill('context-review');
@@ -43,4 +56,15 @@ test('context-review declares itself full-plan only', () => {
   assert.match(md, /scaffold blueprint --scale light|does not create it/);
   // light용 축약 rubric을 따로 만들지 않는다.
   assert.match(md, /no light variant|set `scale` back to `full`/);
+});
+
+// controller 기록 경로가 finding note에 같은 YAML 선두 인용 규칙을 갖는지 본다.
+// 문구 고정이 아니라 위험 입력·안전 형식·정본 연결의 식별자만 본다.
+test('plan context-review controller quotes YAML-leading reserved characters in finding notes', () => {
+  const md = fs.readFileSync(planContextReviewPath, 'utf8');
+  assert.match(md, /\bnote\b/i);
+  assert.match(md, /예약 지시자|reserved (?:indicator|character)|백틱|backtick/i);
+  assert.match(md, /작은따옴표|single[- ]quot|block scalar|>-/i);
+  // 정본은 spec-authoring — 중복 본문이 아니라 연결
+  assert.match(md, /spec-authoring/);
 });

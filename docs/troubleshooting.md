@@ -26,6 +26,8 @@
 | `S27 supersedes must be an array of non-empty document paths` | 값을 문서 경로 문자열 배열로 쓰거나 필드를 빼세요 |
 | `scaffold blueprint: --scale must be one of light\|full` | `--scale` 값이 없거나 `light`/`full`이 아닙니다. 아무 문서도 만들지 않았으니 값을 고쳐 다시 실행하세요 |
 | light blueprint인데 `G18 context-review.md missing` | `bouncer.scale`이 `light`가 아닙니다(오타·`full`로 되돌림). light로 유지하려면 blueprint `index.md`의 값을 고치고, full로 돌아가는 중이라면 `bouncer scaffold context-review --blueprint <dir>`로 문서를 만든 뒤 Interface·Do not touch 절도 채우세요 |
+| `S0` + `G18 context-review.md has invalid frontmatter` | `context-review.md`는 있는데 YAML 프론트매터가 깨졌습니다(예: 백틱으로 시작하는 평문 scalar). 파일을 다시 scaffold하지 말고 S0 메시지대로 frontmatter를 고친 뒤 `bouncer validate --gate plan`으로 확인하세요 |
+| `G18 context-review.md missing … scaffold context-review` | full blueprint에 문서가 실제로 없습니다. `bouncer scaffold context-review --blueprint <dir>`로 만든 뒤 status·Findings를 채우세요 |
 | `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
 | worktree에 task 묶음(`tasks/<NNN>/{tasks,verification,review}.md`)이 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |

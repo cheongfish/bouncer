@@ -361,6 +361,38 @@ test('plan gate G18 fails when context-review.md is missing', () => {
   assert.strictEqual(g18[0].file, rels.contextReview);
 });
 
+// 파싱 실패는 docs.contextReview가 비어 보이지만 파일이 없는 것과 다르다.
+// parseErrors에 해당 경로 S0이 있으면 scaffold가 아니라 frontmatter 수정을 안내한다.
+test('plan gate G18 reports invalid frontmatter when parseErrors has context-review S0', () => {
+  const docs = planDocs(READY_BODY);
+  delete docs.contextReview;
+  const failures = [];
+  checkGate('plan', docs, rels, failures, {
+    parseErrors: [{
+      code: 'S0',
+      message: 'bad indentation of a mapping entry',
+      file: rels.contextReview,
+    }],
+  });
+  const g18 = failures.filter((f) => f.code === 'G18');
+  assert.strictEqual(g18.length, 1);
+  assert.match(g18[0].message, /invalid frontmatter/);
+  assert.match(g18[0].message, /fix the S0 parse error/);
+  assert.ok(!/scaffold context-review/.test(g18[0].message));
+  assert.strictEqual(g18[0].file, rels.contextReview);
+});
+
+test('plan gate G18 keeps missing scaffold guidance when the file is truly absent', () => {
+  const docs = planDocs(READY_BODY);
+  delete docs.contextReview;
+  const failures = [];
+  checkGate('plan', docs, rels, failures, { parseErrors: [] });
+  const g18 = failures.filter((f) => f.code === 'G18');
+  assert.strictEqual(g18.length, 1);
+  assert.match(g18[0].message, /context-review\.md missing/);
+  assert.match(g18[0].message, /scaffold context-review/);
+});
+
 test('plan gate G18 fails when context-review.status is pending', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = contextReviewDoc('pending');

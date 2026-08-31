@@ -17,7 +17,7 @@ bouncer:
 
 ## Intent
 - 문제: 외부 감사가 `bouncer-audit.md`에 14건을 남겼고, 설치 첫 5분의 부작용 네 건과 지시문 층의 중복은 재현까지 끝났는데 고쳐지지 않았다.
-- 목표: B5(효과 입증)와 B12(두 번째 커미터)를 뺀 항목을 blueprint 넷으로 나눠 닫는다 — 001 설치 첫 5분, 002 지시문 층, 003 경량 경로 기본화, 004 부채 항목. 게이트 계약과 신뢰 경계는 그대로 둔다.
+- 목표: B5(효과 입증)·B12(두 번째 커미터)·P04(light 기본화)를 제외하고 001 설치 첫 5분, 002 지시문 층, 004 부채 항목으로 감사 후속을 닫는다. 게이트 계약과 신뢰 경계는 그대로 둔다.
 
 ## Success criteria
 1. `git init -b main` 저장소에서 `bouncer init` 뒤 README Quickstart를 그대로 따라 했을 때 스테이징되는 경로 중 `.bouncer/.venv/` 하위가 0건이다.
@@ -26,8 +26,8 @@ bouncer:
 4. graphify 설치가 실패한 뒤 사용자 저장소 작업 트리에 남는 venv 잔해가 0건이고, `init`이 기록하는 `graphify.enabled` 값이 같은 실행의 설치 시도 여부와 어긋나지 않는다.
 5. `CLAUDE.md`에 네 지시문 층의 역할 경계가 표로 있고, `bouncer-audit.md` B14 표의 중복 항목이 마스터 룰에서 사라지며, 갱신된 앵커로 `test/master-rules.test.js`가 통과한다. 하드룰 11의 번호와 본문은 바뀌지 않는다.
 6. `/bouncer-finalize`의 Distill 승격 제안이 마스터 룰·`rules/`·스킬이 이미 진술하는 후보를 제외한 목록으로 제시되고, 제외한 항목과 그 근거를 함께 보인다.
-7. `/bouncer-plan`의 기본 진입이 `scale: light`이고 `full`은 사용자 선언으로 올라간다. G4·G5·G11·G12는 두 경로에서 같은 실패를 낸다.
-8. B7·B8·B9·B10·B11 각각에 대해 고친 커밋이 있거나, 고치지 않는다는 결정과 근거가 `docs/` 안 한 파일에 남는다.
+7. `/bouncer-plan`의 기본 진입은 `full`, 경량 경로는 사용자 선언으로만 `light`가 되는 기존 계약을 유지하며 그 결정과 근거가 `docs/`에 남는다.
+8. B7·B8·B9·B10·B11 각각에 대해 고친 커밋이 있거나, 고치지 않는다는 결정과 근거가 `docs/` 안 한 파일에 남고, B16의 YAML 작성 규칙과 파싱 진단이 재현 테스트로 고정된다.
 9. 각 task의 `npm run ci`가 통과한다.
 
 ## Out of scope
@@ -36,10 +36,12 @@ bouncer:
 - 게이트 코드(G/S) 추가·삭제와 판정 로직 변경. 결번(B9)은 기록 결정이지 코드 변경이 아니다.
 - 하드룰 11의 삭제·번호 재배열 — epic 054 성공조건 5가 `CLAUDE.md`를 정본으로 고정했고 12곳 이상이 번호로 인용한다.
 - Distill 라우팅 알고리즘과 CLI 계약 — epic 058 Out of scope를 그대로 잇는다.
+- P04 경량 경로 기본화 — 기존 `full` 기본·사용자 선언 `light` 계약을 뒤집지 않는다.
 - 설치 캐시(`~/.claude/plugins/cache/**`)와 이미 닫힌 `.bouncer/context/**` 문서.
 
 ## Blueprints
-<!-- 성공조건 5~8은 blueprint 002(지시문 층)·003(경량 경로)·004(부채 항목)가 가진다.
+<!-- 성공조건 5~8은 blueprint 002(지시문 층)·004(부채 항목)가 가진다.
      각 blueprint는 별도 `/bouncer-plan` 회차에서 열고, 열릴 때 이 목록에 줄을 더한다. -->
 * [001 설치 첫 5분 부작용 제거](blueprints/001-install-first-five-minutes/index.md) - `init`이 사용자 저장소에 남기는 venv·브랜치 기본값·`.codex/`·부트스트랩 커밋 범위를 고친다 (`scripts/src/lib/init.ts`, `scripts/src/lib/graphify.ts`, `scripts/src/lib/codex-agents.ts`, `README.md`)
 * [002 지시문 층 역할 헌장과 재진술 제거](blueprints/002-instruction-layers/index.md) - 네 지시문 층의 역할 경계를 표로 세우고 마스터 룰·`core.md`의 재진술을 지우며 Distill 승격이 재진술을 걸러내게 한다 — 지시문 네 층의 파일(`CLAUDE.md`, `skills/bouncer-finalize/references/distill-promotion.md`, `references/spec-authoring/index.md`, `.bouncer/distill/core.md`, `agents/bouncer-implementer.md`)과 설치 문서(`docs/install.md`, `rules/plugin-root.md`), 그리고 그 계약을 단언하는 테스트 넷(`test/master-rules.test.js`, `test/skill-minimality.test.js`, `test/agents.test.js`, `test/public-name-regression.test.js`)
+* [004 감사 부채 항목 정리](blueprints/004-debt-items/index.md) - B8 커밋 탐지와 B16 YAML 진단을 고치고 B7·B9·B10·B11의 유지 결정을 한 문서에 기록한다

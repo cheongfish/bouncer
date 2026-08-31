@@ -739,6 +739,70 @@ test('S19: context-review.md with bouncer.review type reports expected and actua
   assert.match(s19[0].message, /bouncer\.review/);
 });
 
+// 파일이 있는데 frontmatter 파싱이 깨지면 loader는 docs.contextReview를
+// 비우고 S0만 남긴다. plan 게이트가 이를 부재로 오인하면 scaffold 안내가
+// 나오므로, 통합 fixture로 S0 + invalid-frontmatter G18 페어링을 고정한다.
+test('plan gate: existing context-review with backtick-leading note yields S0 and invalid-frontmatter G18', () => {
+  const repo = mkRepo();
+  const epic = epicDoc();
+  epic.bouncer.status = 'approved';
+  const bp = blueprintDoc();
+  bp.bouncer.status = 'approved';
+  const tasks = goodTasks();
+  tasks.bouncer.status = 'ready';
+  tasks.bouncer.graph = { suggested_paths: ['src/'], basis: 'manual: src/' };
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epic);
+  writeDoc(repo, `${BP_REL}/index.md`, bp);
+  writeDoc(repo, `${BP_REL}/tasks.md`, tasks, `# Tasks
+
+## Goal & intent
+Ship login.
+
+## Interface
+api
+
+## Touch
+- \`src/auth/\`
+
+## Do not touch
+- \`src/payments/\`
+
+## Checklist
+- [ ] a
+`);
+  writeRaw(repo, `${BP_REL}/context-review.md`, `---
+type: bouncer.context_review
+title: Context review
+description: d
+resource: ${BP_REL}/context-review.md
+tags: [bouncer, context_review]
+timestamp: '2026-07-01T00:00:00+09:00'
+bouncer:
+  id: CTXREVIEW-001
+  epic_id: '001'
+  blueprint_id: '001'
+  status: accepted
+  context_review:
+    findings:
+      - id: CR-1
+        severity: minor
+        status: accepted
+        note: \`context-review.md\`가 존재함
+---
+# Context review
+
+## Findings
+(none)
+`);
+  writeBundleIndex(repo);
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+  const s0 = res.failures.filter((f) => f.code === 'S0' && f.file === `${BP_REL}/context-review.md`);
+  const g18 = res.failures.filter((f) => f.code === 'G18');
+  assert.strictEqual(s0.length, 1);
+  assert.ok(g18.some((f) => /invalid frontmatter/.test(f.message) && /fix the S0 parse error/.test(f.message)));
+  assert.ok(!g18.some((f) => /context-review\.md missing/.test(f.message)));
+});
+
 test('S20: scale missing or valid values pass; lite fails', () => {
   assert.deepStrictEqual(codesFor({}), []);
   assert.deepStrictEqual(codesFor({ scale: 'light' }), []);
