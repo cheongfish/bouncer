@@ -30,6 +30,12 @@ the relevant evidence may record a passed or accepted state.
 **Author-written discovery fields.** Use `title`, `description`, and `tags` to
 make the document findable without duplicating its body:
 
+For new or modified documents, keep `title` Korean: `.gitmessage` uses it as
+the nominal commit-title source, so do not translate it. Write `description`
+and `tags` in English ASCII; derived anchors and search queries use the same
+English ASCII contract for graph-suggest. This does not call for tokenizer or
+Korean-search support or a bulk rewrite of the existing corpus.
+
 - `title` states the durable intent or decision in a short noun phrase. It is
   not an id, a file name, or a claim that the work has completed.
 - `description` is one present-tense sentence saying what the document covers
@@ -74,6 +80,24 @@ context-review, and comprehension metadata record their respective workflow
 evidence. Treat all of them as data produced by their designated step. Do not
 manufacture values to satisfy a gate; correct the plan, rerun the designated
 step, or return to planning.
+
+## Derived context-digest anchors
+
+Wave 2 context-digest will generate these derived headings from the approved
+epic → blueprint → task tree. They are search metadata, not an authoring
+obligation: people do not manually write anchors in context documents.
+
+Each anchor is a single token using only the tokenizer-safe
+`[A-Za-z0-9_./-]` character basis and zero-padded three-digit ids:
+
+- `epic-<ddd>` — for example, `epic-054`
+- `bp-<ddd>-<ddd>` — for example, `bp-054-001`
+- `task-<ddd>-<ddd>-<ddd>` — for example, `task-054-001-002`
+
+Colons, spaces, and Korean text are forbidden in an anchor. In particular,
+`epic:054` is two search tokens rather than one anchor. Child headings repeat
+their parent anchors, so a graph query can invoke an epic, blueprint, or task
+level of the hierarchy while retaining its ancestry.
 
 A task unit is the three-document bundle
 `tasks/<NNN>/{tasks,verification,review}.md`; each file has its own OKF

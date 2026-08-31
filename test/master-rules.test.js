@@ -438,11 +438,14 @@ test('root context tree non-canonical lives in init, not master rules', () => {
 
 test('master rules require Korean context bodies and name stop-slop', () => {
   const claude = read('CLAUDE.md');
-  assert.match(claude, /Context language/i);
-  assert.match(claude, /Korean/);
-  assert.match(claude, /stop-slop/);
-  assert.match(claude, /advisory/i);
-  assert.match(claude, /Distill stays English|English agent runtime/i);
+  const rule8 = claude.match(/^8\. \*\*Context language\*\*[\s\S]*?(?=^9\. \*\*Code comments\*\*)/m)[0];
+  assert.match(rule8, /Korean/);
+  assert.match(rule8, /title[\s\S]{0,120}Korean/i);
+  assert.match(rule8, /description[\s\S]{0,120}English ASCII/i);
+  assert.match(rule8, /tags[\s\S]{0,120}English ASCII/i);
+  assert.match(rule8, /stop-slop/);
+  assert.match(rule8, /advisory/i);
+  assert.match(rule8, /Distill stays English|English agent runtime/i);
 });
 
 test('hard rule 9 requires Korean code comments and points at implementation skill', () => {

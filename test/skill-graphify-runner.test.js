@@ -116,3 +116,12 @@ test('graphify-runner leaves empty suggested_paths on low-confidence or unavaila
   assert.match(md, /unavailable/);
   assert.match(md, /suggested_paths[\s\S]{0,160}(\[\]|empty|빈)/i);
 });
+
+test('graphify-runner uses English ASCII noun queries and prioritizes ASCII seeds', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /English ASCII noun-oriented\s+(query|`--query` values)/i);
+  assert.match(md, /--seed/);
+  assert.match(md, /paths, symbols, (and )?anchors/i);
+  assert.doesNotMatch(md, /--query\s+"[^"\n]*[가-힣][^"\n]*"/);
+  assert.match(md, /do not[\s\S]{0,80}tokenizer extension/i);
+});

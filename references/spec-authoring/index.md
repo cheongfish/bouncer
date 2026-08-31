@@ -195,6 +195,11 @@ only; other approved items continue.
 - **Korean bodies.** Write epic / blueprint / tasks / explain body prose in
   Korean. Keep identifiers, file paths, commands, and fenced code as-is. Do not
   open a Korean section with an English overview sentence.
+- **Discovery fields.** For new or modified docs, `title` stays Korean as the
+  `.gitmessage` nominal commit-title source; do not translate it. Write
+  `description` and `tags` in English ASCII. Derived anchors and search queries
+  also use English ASCII for graph-suggest; do not propose tokenizer or
+  Korean-search support or bulk-rewrite the existing corpus.
 - **Distill is English.** Project Distill (caller-provided absolute Distill
   path: finalize builds `.bouncer/Distill.md` from the CLI payload `repoRoot`;
   plan still passes its own absolute path) is agent runtime — promote durable
@@ -202,6 +207,7 @@ only; other approved items continue.
 - **Stop slop.** After drafting Korean plan/explain bodies, apply the
   `stop-slop` skill (`references/stop-slop/index.md`) — advisory, not a gate. Strip
   filler, formulaic contrast, empty passives, and section-restating closers.
+  It applies to reader-facing prose only, not derived anchors or search metadata.
 
 ## Optional Mermaid zoom for flow changes
 

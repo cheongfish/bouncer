@@ -9,6 +9,7 @@ const path = require('node:path');
 const {
   graphSuggest,
   scoreConfidence,
+  tokenize,
   ROLE_PRIORITY,
   SCORE,
 } = require('../scripts/lib/graph-search');
@@ -37,6 +38,19 @@ function writeConfig(repo, extra = {}) {
 function mainBranch() {
   return 'main';
 }
+
+test('derived-anchor token grammar preserves hierarchy anchors and rejects colon form', () => {
+  const anchors = [
+    'epic-054',
+    'bp-054-001',
+    'task-054-001-002',
+  ];
+
+  for (const anchor of anchors) {
+    assert.deepEqual(tokenize(anchor), [anchor]);
+  }
+  assert.deepEqual(tokenize('epic:054'), ['epic', '054']);
+});
 
 /**
  * 최소 연결 그래프: context가 심볼·경로를 가리키고, source가 정의를 소유하며

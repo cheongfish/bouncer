@@ -107,15 +107,19 @@ write `bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
    `bouncer init --promote-graphify` (do not edit `config.json` by hand).
 
 3. **Rank file candidates.** Only reach this step when the source graph is
-   available (step 2 did not skip). Build a query string from the blueprint goal
-   plus the tasks checklist intent, then run:
+   available (step 2 did not skip). Build an **English ASCII noun-oriented
+   query** from the blueprint goal plus the tasks checklist intent. Do not use
+   Korean query examples or suggest a tokenizer extension; `basis[].query`
+   records the exact English query used. Then run:
    ```bash
    BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" graph-suggest \
-     --query "<blueprint goal + key task nouns>"
+     --query "graph suggestion task evidence"
+     --seed "scripts/bouncer" --seed "graph-suggest"
    ```
    Optional `--seed <value>` flags may be repeated when the plan already names
-   symbols or paths. Consume stdout JSON only:
+   symbols or paths. Prefer already-ASCII paths, symbols, and anchors as seeds.
+   Consume stdout JSON only:
    `status`, `confidence`, `candidates.implementation|test|context`,
    `suggested_paths`, and non-empty `reasons`. Drop any candidate whose `path`
    is under `graphify-out/` before writing evidence — those hits mean the build
@@ -167,6 +171,10 @@ write `bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
   `affected_paths` manually.
 - Path candidates are repo-relative POSIX **files**; do not roll up to
   directories.
+- Use English ASCII noun-oriented `--query` values and record the exact value
+  in `basis[].query`; never provide Korean query examples or suggest extending
+  the tokenizer. For `--seed`, prioritize already-ASCII paths, symbols, then
+  anchors.
 
 ## Return
 
