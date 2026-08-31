@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '060'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 검색 전략 변경이 실제 후보 품질을 높였는지 반복 가능한 근거가 없었음

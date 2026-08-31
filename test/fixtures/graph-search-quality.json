@@ -1,0 +1,423 @@
+{
+  "meta": {
+    "corpus_source": "graphify-evaluation.md discovery (read-only); fixed slices for light-plan, verification-ledger, graphify-bootstrap",
+    "graphify_package": "0.8.22",
+    "graphify_skill": "0.9.41",
+    "exclude_dirs": ["scripts/lib"],
+    "test_dirs": ["test"],
+    "thresholds": {
+      "min_related_impl_in_top10": 7,
+      "min_impl_recall": 0.8,
+      "max_unlinked_test_only_rate": 0.1,
+      "max_generated": 0,
+      "top_n": 10
+    },
+    "legacy_node_exploration": {
+      "light-plan": 97,
+      "verification-ledger": 36,
+      "graphify-bootstrap": 71
+    }
+  },
+  "cases": [
+    {
+      "id": "light-plan",
+      "query": "light plan scale context review scaffold validation gate",
+      "seeds": [
+        "scaffoldBlueprint",
+        "blueprintScale",
+        "templateNameFor",
+        "requireScale",
+        "checkG18Light",
+        "SCALE_ENUM",
+        "presentCurrentScale"
+      ],
+      "expect": { "status": "ranked" },
+      "low_confidence_probe": {
+        "query": "plan gate test result",
+        "seeds": []
+      },
+      "legacy_candidates": [
+        "test/scaffold.test.js",
+        "test/lightweight-cycle.test.js",
+        "test/validate-gates.test.js",
+        "test/skill-bouncer-plan.test.js",
+        "test/schema.test.js",
+        "test/templates.test.js",
+        "test/current.test.js",
+        "test/validate-structural.test.js",
+        "test/cli-help.test.js",
+        "test/helpers/read-skill.js",
+        "scripts/lib/scaffold.js"
+      ],
+      "gold": {
+        "implementation": [
+          "scripts/src/lib/scaffold.ts",
+          "scripts/src/lib/templates.ts",
+          "scripts/src/lib/schema.ts",
+          "scripts/src/lib/validate-gates.ts",
+          "scripts/src/lib/validate-structural.ts",
+          "scripts/src/lib/cli-doc-commands.ts",
+          "scripts/src/lib/current.ts"
+        ],
+        "test": [
+          "test/scaffold.test.js",
+          "test/validate-gates.test.js"
+        ]
+      },
+      "graphs": {
+        "context": {
+          "nodes": [
+            {
+              "id": "ctx::light-doc",
+              "label": "tasks.md",
+              "source_file": ".bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/001/tasks.md"
+            },
+            {
+              "id": "ctx::scaffoldBlueprint",
+              "label": "scaffoldBlueprint",
+              "source_file": ".bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/001/tasks.md"
+            },
+            {
+              "id": "ctx::blueprintScale",
+              "label": "blueprintScale",
+              "source_file": ".bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/001/tasks.md"
+            },
+            {
+              "id": "ctx::checkG18Light",
+              "label": "checkG18Light",
+              "source_file": ".bouncer/context/epics/024-lightweight-cycle/blueprints/001-lightweight-cycle-guidance/tasks/001/tasks.md"
+            }
+          ],
+          "links": [
+            {
+              "relation": "contains",
+              "source": "ctx::light-doc",
+              "target": "ctx::scaffoldBlueprint",
+              "source_file": ".bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/001/tasks.md"
+            }
+          ]
+        },
+        "source": {
+          "nodes": [
+            { "id": "src::scaffold-file", "label": "scaffold.ts", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "id": "src::scaffoldBlueprint", "label": "scaffoldBlueprint", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "id": "src::blueprintScale", "label": "blueprintScale", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "id": "src::templateNameFor", "label": "templateNameFor", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "id": "src::requireScale", "label": "requireScale", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "id": "src::templates-file", "label": "templates.ts", "source_file": "scripts/src/lib/templates.ts" },
+            { "id": "src::templateBody", "label": "templateBody", "source_file": "scripts/src/lib/templates.ts" },
+            { "id": "src::schema-file", "label": "schema.ts", "source_file": "scripts/src/lib/schema.ts" },
+            { "id": "src::SCALE_ENUM", "label": "SCALE_ENUM", "source_file": "scripts/src/lib/schema.ts" },
+            { "id": "src::gates-file", "label": "validate-gates.ts", "source_file": "scripts/src/lib/validate-gates.ts" },
+            { "id": "src::checkG18Light", "label": "checkG18Light", "source_file": "scripts/src/lib/validate-gates.ts" },
+            { "id": "src::structural-file", "label": "validate-structural.ts", "source_file": "scripts/src/lib/validate-structural.ts" },
+            { "id": "src::isValidScopeQuality", "label": "isValidScopeQuality", "source_file": "scripts/src/lib/validate-structural.ts" },
+            { "id": "src::cli-doc-file", "label": "cli-doc-commands.ts", "source_file": "scripts/src/lib/cli-doc-commands.ts" },
+            { "id": "src::cmdScaffold", "label": "cmdScaffold", "source_file": "scripts/src/lib/cli-doc-commands.ts" },
+            { "id": "src::current-file", "label": "current.ts", "source_file": "scripts/src/lib/current.ts" },
+            { "id": "src::presentCurrentScale", "label": "presentCurrentScale", "source_file": "scripts/src/lib/current.ts" },
+            { "id": "src::gen-scaffold", "label": "scaffold.js", "source_file": "scripts/lib/scaffold.js" },
+            { "id": "src::gen-scaffoldBlueprint", "label": "scaffoldBlueprint", "source_file": "scripts/lib/scaffold.js" }
+          ],
+          "links": [
+            { "relation": "contains", "source": "src::scaffold-file", "target": "src::scaffoldBlueprint", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "relation": "contains", "source": "src::scaffold-file", "target": "src::blueprintScale", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "relation": "contains", "source": "src::scaffold-file", "target": "src::templateNameFor", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "relation": "contains", "source": "src::scaffold-file", "target": "src::requireScale", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "relation": "contains", "source": "src::templates-file", "target": "src::templateBody", "source_file": "scripts/src/lib/templates.ts" },
+            { "relation": "contains", "source": "src::schema-file", "target": "src::SCALE_ENUM", "source_file": "scripts/src/lib/schema.ts" },
+            { "relation": "contains", "source": "src::gates-file", "target": "src::checkG18Light", "source_file": "scripts/src/lib/validate-gates.ts" },
+            { "relation": "contains", "source": "src::structural-file", "target": "src::isValidScopeQuality", "source_file": "scripts/src/lib/validate-structural.ts" },
+            { "relation": "contains", "source": "src::cli-doc-file", "target": "src::cmdScaffold", "source_file": "scripts/src/lib/cli-doc-commands.ts" },
+            { "relation": "contains", "source": "src::current-file", "target": "src::presentCurrentScale", "source_file": "scripts/src/lib/current.ts" },
+            { "relation": "contains", "source": "src::gen-scaffold", "target": "src::gen-scaffoldBlueprint", "source_file": "scripts/lib/scaffold.js" },
+            { "relation": "imports", "source": "src::scaffoldBlueprint", "target": "src::templateBody", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "relation": "imports", "source": "src::requireScale", "target": "src::SCALE_ENUM", "source_file": "scripts/src/lib/scaffold.ts" },
+            { "relation": "calls", "source": "src::checkG18Light", "target": "src::blueprintScale", "source_file": "scripts/src/lib/validate-gates.ts" },
+            { "relation": "imports", "source": "src::isValidScopeQuality", "target": "src::SCALE_ENUM", "source_file": "scripts/src/lib/validate-structural.ts" },
+            { "relation": "calls", "source": "src::cmdScaffold", "target": "src::scaffoldBlueprint", "source_file": "scripts/src/lib/cli-doc-commands.ts" },
+            { "relation": "calls", "source": "src::presentCurrentScale", "target": "src::blueprintScale", "source_file": "scripts/src/lib/current.ts" },
+            { "relation": "imports_from", "source": "src::templateNameFor", "target": "src::templateBody", "source_file": "scripts/src/lib/scaffold.ts" }
+          ]
+        },
+        "test": {
+          "nodes": [
+            { "id": "test::scaffold-file", "label": "scaffold.test.js", "source_file": "test/scaffold.test.js" },
+            { "id": "test::coversScaffold", "label": "coversScaffold", "source_file": "test/scaffold.test.js" },
+            { "id": "test::gates-file", "label": "validate-gates.test.js", "source_file": "test/validate-gates.test.js" },
+            { "id": "test::coversG18", "label": "coversG18", "source_file": "test/validate-gates.test.js" },
+            { "id": "test::orphan-file", "label": "orphan-plan.test.js", "source_file": "test/orphan-plan.test.js" },
+            { "id": "test::orphan-plan", "label": "plan", "source_file": "test/orphan-plan.test.js" }
+          ],
+          "links": [
+            { "relation": "contains", "source": "test::scaffold-file", "target": "test::coversScaffold", "source_file": "test/scaffold.test.js" },
+            { "relation": "contains", "source": "test::gates-file", "target": "test::coversG18", "source_file": "test/validate-gates.test.js" },
+            { "relation": "contains", "source": "test::orphan-file", "target": "test::orphan-plan", "source_file": "test/orphan-plan.test.js" },
+            { "relation": "calls", "source": "test::coversScaffold", "target": "src::scaffoldBlueprint", "source_file": "test/scaffold.test.js" },
+            { "relation": "calls", "source": "test::coversG18", "target": "src::checkG18Light", "source_file": "test/validate-gates.test.js" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "verification-ledger",
+      "query": "verification ledger git common directory worktree evidence gate",
+      "seeds": [
+        "verifyLedgerPathFor",
+        "recordVerificationResult",
+        "runVerification",
+        "checkG13",
+        "isGitCommit",
+        "writeRuntimeCurrent",
+        "commitTask"
+      ],
+      "expect": { "status": "ranked" },
+      "legacy_candidates": [
+        "test/verification-runner.test.js",
+        "test/validate-gates.test.js",
+        "test/distill.test.js",
+        "test/runtime-state.test.js",
+        "test/commit-hook.test.js",
+        "test/commit-task.test.js",
+        "test/finalize.test.js",
+        "test/cli-verify.test.js",
+        "test/helpers/read-skill.js",
+        "scripts/lib/verification.js"
+      ],
+      "gold": {
+        "implementation": [
+          "scripts/src/lib/verification.ts",
+          "scripts/src/lib/validate-gates.ts",
+          "scripts/src/lib/runtime-state.ts",
+          "scripts/src/lib/commit-hook.ts",
+          "scripts/src/lib/commit.ts",
+          "scripts/src/lib/finalize.ts",
+          "scripts/src/lib/cli-git-commands.ts"
+        ],
+        "test": [
+          "test/verification-runner.test.js",
+          "test/validate-gates.test.js"
+        ]
+      },
+      "graphs": {
+        "context": {
+          "nodes": [
+            {
+              "id": "ctx::ver-doc",
+              "label": "tasks.md",
+              "source_file": ".bouncer/context/epics/044-finalize-evidence/blueprints/001/tasks/001/tasks.md"
+            },
+            {
+              "id": "ctx::verifyLedgerPathFor",
+              "label": "verifyLedgerPathFor",
+              "source_file": ".bouncer/distill/git-worktree.md"
+            },
+            {
+              "id": "ctx::recordVerificationResult",
+              "label": "recordVerificationResult",
+              "source_file": ".bouncer/context/epics/044-finalize-evidence/blueprints/001/tasks/001/tasks.md"
+            }
+          ],
+          "links": [
+            {
+              "relation": "contains",
+              "source": "ctx::ver-doc",
+              "target": "ctx::recordVerificationResult",
+              "source_file": ".bouncer/context/epics/044-finalize-evidence/blueprints/001/tasks/001/tasks.md"
+            }
+          ]
+        },
+        "source": {
+          "nodes": [
+            { "id": "src::verification-file", "label": "verification.ts", "source_file": "scripts/src/lib/verification.ts" },
+            { "id": "src::recordVerificationResult", "label": "recordVerificationResult", "source_file": "scripts/src/lib/verification.ts" },
+            { "id": "src::runVerification", "label": "runVerification", "source_file": "scripts/src/lib/verification.ts" },
+            { "id": "src::runtime-file", "label": "runtime-state.ts", "source_file": "scripts/src/lib/runtime-state.ts" },
+            { "id": "src::verifyLedgerPathFor", "label": "verifyLedgerPathFor", "source_file": "scripts/src/lib/runtime-state.ts" },
+            { "id": "src::writeRuntimeCurrent", "label": "writeRuntimeCurrent", "source_file": "scripts/src/lib/runtime-state.ts" },
+            { "id": "src::gates-file", "label": "validate-gates.ts", "source_file": "scripts/src/lib/validate-gates.ts" },
+            { "id": "src::checkG13", "label": "checkG13", "source_file": "scripts/src/lib/validate-gates.ts" },
+            { "id": "src::commit-hook-file", "label": "commit-hook.ts", "source_file": "scripts/src/lib/commit-hook.ts" },
+            { "id": "src::isGitCommit", "label": "isGitCommit", "source_file": "scripts/src/lib/commit-hook.ts" },
+            { "id": "src::commit-file", "label": "commit.ts", "source_file": "scripts/src/lib/commit.ts" },
+            { "id": "src::commitTask", "label": "commitTask", "source_file": "scripts/src/lib/commit.ts" },
+            { "id": "src::finalize-file", "label": "finalize.ts", "source_file": "scripts/src/lib/finalize.ts" },
+            { "id": "src::finalizeEvidence", "label": "finalizeEvidence", "source_file": "scripts/src/lib/finalize.ts" },
+            { "id": "src::cli-git-file", "label": "cli-git-commands.ts", "source_file": "scripts/src/lib/cli-git-commands.ts" },
+            { "id": "src::cmdVerify", "label": "cmdVerify", "source_file": "scripts/src/lib/cli-git-commands.ts" },
+            { "id": "src::gen-verification", "label": "verification.js", "source_file": "scripts/lib/verification.js" },
+            { "id": "src::gen-record", "label": "recordVerificationResult", "source_file": "scripts/lib/verification.js" }
+          ],
+          "links": [
+            { "relation": "contains", "source": "src::verification-file", "target": "src::recordVerificationResult", "source_file": "scripts/src/lib/verification.ts" },
+            { "relation": "contains", "source": "src::verification-file", "target": "src::runVerification", "source_file": "scripts/src/lib/verification.ts" },
+            { "relation": "contains", "source": "src::runtime-file", "target": "src::verifyLedgerPathFor", "source_file": "scripts/src/lib/runtime-state.ts" },
+            { "relation": "contains", "source": "src::runtime-file", "target": "src::writeRuntimeCurrent", "source_file": "scripts/src/lib/runtime-state.ts" },
+            { "relation": "contains", "source": "src::gates-file", "target": "src::checkG13", "source_file": "scripts/src/lib/validate-gates.ts" },
+            { "relation": "contains", "source": "src::commit-hook-file", "target": "src::isGitCommit", "source_file": "scripts/src/lib/commit-hook.ts" },
+            { "relation": "contains", "source": "src::commit-file", "target": "src::commitTask", "source_file": "scripts/src/lib/commit.ts" },
+            { "relation": "contains", "source": "src::finalize-file", "target": "src::finalizeEvidence", "source_file": "scripts/src/lib/finalize.ts" },
+            { "relation": "contains", "source": "src::cli-git-file", "target": "src::cmdVerify", "source_file": "scripts/src/lib/cli-git-commands.ts" },
+            { "relation": "contains", "source": "src::gen-verification", "target": "src::gen-record", "source_file": "scripts/lib/verification.js" },
+            { "relation": "calls", "source": "src::runVerification", "target": "src::recordVerificationResult", "source_file": "scripts/src/lib/verification.ts" },
+            { "relation": "calls", "source": "src::checkG13", "target": "src::verifyLedgerPathFor", "source_file": "scripts/src/lib/validate-gates.ts" },
+            { "relation": "imports", "source": "src::commitTask", "target": "src::isGitCommit", "source_file": "scripts/src/lib/commit.ts" },
+            { "relation": "calls", "source": "src::finalizeEvidence", "target": "src::recordVerificationResult", "source_file": "scripts/src/lib/finalize.ts" },
+            { "relation": "calls", "source": "src::cmdVerify", "target": "src::runVerification", "source_file": "scripts/src/lib/cli-git-commands.ts" },
+            { "relation": "imports_from", "source": "src::writeRuntimeCurrent", "target": "src::verifyLedgerPathFor", "source_file": "scripts/src/lib/runtime-state.ts" }
+          ]
+        },
+        "test": {
+          "nodes": [
+            { "id": "test::ver-file", "label": "verification-runner.test.js", "source_file": "test/verification-runner.test.js" },
+            { "id": "test::coversLedger", "label": "coversLedger", "source_file": "test/verification-runner.test.js" },
+            { "id": "test::gates-file", "label": "validate-gates.test.js", "source_file": "test/validate-gates.test.js" },
+            { "id": "test::coversG13", "label": "coversG13", "source_file": "test/validate-gates.test.js" },
+            { "id": "test::orphan-file", "label": "orphan-directory.test.js", "source_file": "test/orphan-directory.test.js" },
+            { "id": "test::orphan-directory", "label": "directory", "source_file": "test/orphan-directory.test.js" }
+          ],
+          "links": [
+            { "relation": "contains", "source": "test::ver-file", "target": "test::coversLedger", "source_file": "test/verification-runner.test.js" },
+            { "relation": "contains", "source": "test::gates-file", "target": "test::coversG13", "source_file": "test/validate-gates.test.js" },
+            { "relation": "contains", "source": "test::orphan-file", "target": "test::orphan-directory", "source_file": "test/orphan-directory.test.js" },
+            { "relation": "calls", "source": "test::coversLedger", "target": "src::verifyLedgerPathFor", "source_file": "test/verification-runner.test.js" },
+            { "relation": "calls", "source": "test::coversG13", "target": "src::checkG13", "source_file": "test/validate-gates.test.js" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "graphify-bootstrap",
+      "query": "graphify installation venv graph sync freshness session hook",
+      "seeds": [
+        "syncSessionGraphs",
+        "planSessionGraph",
+        "runGraphifyUpdate",
+        "realExcludeDirs",
+        "setupGraphify",
+        "resolveGraphifyBin",
+        "cmdGraphSync"
+      ],
+      "expect": { "status": "ranked" },
+      "legacy_candidates": [
+        "test/session-graph.test.js",
+        "test/graphify.test.js",
+        "test/init.test.js",
+        "test/cli-help.test.js",
+        "test/cli-project-commands.test.js",
+        "hooks/session-graph.js",
+        "test/helpers/read-skill.js",
+        "scripts/lib/session-graph.js",
+        "scripts/lib/graph-exec.js",
+        "scripts/lib/graphify.js"
+      ],
+      "gold": {
+        "implementation": [
+          "scripts/src/lib/session-graph.ts",
+          "scripts/src/lib/graph-exec.ts",
+          "scripts/src/lib/graph-scope.ts",
+          "scripts/src/lib/graphify.ts",
+          "scripts/src/lib/init.ts",
+          "hooks/session-graph.js",
+          "scripts/src/lib/cli-project-commands.ts"
+        ],
+        "test": [
+          "test/session-graph.test.js",
+          "test/graphify.test.js"
+        ]
+      },
+      "graphs": {
+        "context": {
+          "nodes": [
+            {
+              "id": "ctx::g-doc",
+              "label": "tasks.md",
+              "source_file": ".bouncer/context/epics/025-graphify-bootstrap/blueprints/001/tasks/001/tasks.md"
+            },
+            {
+              "id": "ctx::syncSessionGraphs",
+              "label": "syncSessionGraphs",
+              "source_file": ".bouncer/context/epics/025-graphify-bootstrap/blueprints/001/tasks/001/tasks.md"
+            },
+            {
+              "id": "ctx::setupGraphify",
+              "label": "setupGraphify",
+              "source_file": ".bouncer/context/epics/025-graphify-bootstrap/blueprints/001/tasks/002/tasks.md"
+            },
+            {
+              "id": "ctx::realExcludeDirs",
+              "label": "realExcludeDirs",
+              "source_file": ".bouncer/context/epics/025-graphify-bootstrap/blueprints/001/tasks/003/tasks.md"
+            }
+          ],
+          "links": [
+            {
+              "relation": "contains",
+              "source": "ctx::g-doc",
+              "target": "ctx::syncSessionGraphs",
+              "source_file": ".bouncer/context/epics/025-graphify-bootstrap/blueprints/001/tasks/001/tasks.md"
+            }
+          ]
+        },
+        "source": {
+          "nodes": [
+            { "id": "src::session-file", "label": "session-graph.ts", "source_file": "scripts/src/lib/session-graph.ts" },
+            { "id": "src::syncSessionGraphs", "label": "syncSessionGraphs", "source_file": "scripts/src/lib/session-graph.ts" },
+            { "id": "src::planSessionGraph", "label": "planSessionGraph", "source_file": "scripts/src/lib/session-graph.ts" },
+            { "id": "src::exec-file", "label": "graph-exec.ts", "source_file": "scripts/src/lib/graph-exec.ts" },
+            { "id": "src::runGraphifyUpdate", "label": "runGraphifyUpdate", "source_file": "scripts/src/lib/graph-exec.ts" },
+            { "id": "src::scope-file", "label": "graph-scope.ts", "source_file": "scripts/src/lib/graph-scope.ts" },
+            { "id": "src::realExcludeDirs", "label": "realExcludeDirs", "source_file": "scripts/src/lib/graph-scope.ts" },
+            { "id": "src::graphify-file", "label": "graphify.ts", "source_file": "scripts/src/lib/graphify.ts" },
+            { "id": "src::setupGraphify", "label": "setupGraphify", "source_file": "scripts/src/lib/graphify.ts" },
+            { "id": "src::resolveGraphifyBin", "label": "resolveGraphifyBin", "source_file": "scripts/src/lib/graphify.ts" },
+            { "id": "src::init-file", "label": "init.ts", "source_file": "scripts/src/lib/init.ts" },
+            { "id": "src::inspectBootstrap", "label": "inspectBootstrap", "source_file": "scripts/src/lib/init.ts" },
+            { "id": "src::hook-file", "label": "session-graph.js", "source_file": "hooks/session-graph.js" },
+            { "id": "src::hookSync", "label": "hookSyncSession", "source_file": "hooks/session-graph.js" },
+            { "id": "src::cli-file", "label": "cli-project-commands.ts", "source_file": "scripts/src/lib/cli-project-commands.ts" },
+            { "id": "src::cmdGraphSync", "label": "cmdGraphSync", "source_file": "scripts/src/lib/cli-project-commands.ts" },
+            { "id": "src::gen-session", "label": "session-graph.js", "source_file": "scripts/lib/session-graph.js" },
+            { "id": "src::gen-sync", "label": "syncSessionGraphs", "source_file": "scripts/lib/session-graph.js" }
+          ],
+          "links": [
+            { "relation": "contains", "source": "src::session-file", "target": "src::syncSessionGraphs", "source_file": "scripts/src/lib/session-graph.ts" },
+            { "relation": "contains", "source": "src::session-file", "target": "src::planSessionGraph", "source_file": "scripts/src/lib/session-graph.ts" },
+            { "relation": "contains", "source": "src::exec-file", "target": "src::runGraphifyUpdate", "source_file": "scripts/src/lib/graph-exec.ts" },
+            { "relation": "contains", "source": "src::scope-file", "target": "src::realExcludeDirs", "source_file": "scripts/src/lib/graph-scope.ts" },
+            { "relation": "contains", "source": "src::graphify-file", "target": "src::setupGraphify", "source_file": "scripts/src/lib/graphify.ts" },
+            { "relation": "contains", "source": "src::graphify-file", "target": "src::resolveGraphifyBin", "source_file": "scripts/src/lib/graphify.ts" },
+            { "relation": "contains", "source": "src::init-file", "target": "src::inspectBootstrap", "source_file": "scripts/src/lib/init.ts" },
+            { "relation": "contains", "source": "src::hook-file", "target": "src::hookSync", "source_file": "hooks/session-graph.js" },
+            { "relation": "contains", "source": "src::cli-file", "target": "src::cmdGraphSync", "source_file": "scripts/src/lib/cli-project-commands.ts" },
+            { "relation": "contains", "source": "src::gen-session", "target": "src::gen-sync", "source_file": "scripts/lib/session-graph.js" },
+            { "relation": "calls", "source": "src::syncSessionGraphs", "target": "src::runGraphifyUpdate", "source_file": "scripts/src/lib/session-graph.ts" },
+            { "relation": "calls", "source": "src::planSessionGraph", "target": "src::realExcludeDirs", "source_file": "scripts/src/lib/session-graph.ts" },
+            { "relation": "calls", "source": "src::setupGraphify", "target": "src::resolveGraphifyBin", "source_file": "scripts/src/lib/graphify.ts" },
+            { "relation": "calls", "source": "src::inspectBootstrap", "target": "src::setupGraphify", "source_file": "scripts/src/lib/init.ts" },
+            { "relation": "calls", "source": "src::hookSync", "target": "src::syncSessionGraphs", "source_file": "hooks/session-graph.js" },
+            { "relation": "calls", "source": "src::cmdGraphSync", "target": "src::syncSessionGraphs", "source_file": "scripts/src/lib/cli-project-commands.ts" },
+            { "relation": "imports_from", "source": "src::runGraphifyUpdate", "target": "src::realExcludeDirs", "source_file": "scripts/src/lib/graph-exec.ts" }
+          ]
+        },
+        "test": {
+          "nodes": [
+            { "id": "test::session-file", "label": "session-graph.test.js", "source_file": "test/session-graph.test.js" },
+            { "id": "test::coversSync", "label": "coversSync", "source_file": "test/session-graph.test.js" },
+            { "id": "test::graphify-file", "label": "graphify.test.js", "source_file": "test/graphify.test.js" },
+            { "id": "test::coversSetup", "label": "coversSetup", "source_file": "test/graphify.test.js" },
+            { "id": "test::orphan-file", "label": "orphan-hook.test.js", "source_file": "test/orphan-hook.test.js" },
+            { "id": "test::orphan-hook", "label": "hook", "source_file": "test/orphan-hook.test.js" }
+          ],
+          "links": [
+            { "relation": "contains", "source": "test::session-file", "target": "test::coversSync", "source_file": "test/session-graph.test.js" },
+            { "relation": "contains", "source": "test::graphify-file", "target": "test::coversSetup", "source_file": "test/graphify.test.js" },
+            { "relation": "contains", "source": "test::orphan-file", "target": "test::orphan-hook", "source_file": "test/orphan-hook.test.js" },
+            { "relation": "calls", "source": "test::coversSync", "target": "src::syncSessionGraphs", "source_file": "test/session-graph.test.js" },
+            { "relation": "calls", "source": "test::coversSetup", "target": "src::setupGraphify", "source_file": "test/graphify.test.js" }
+          ]
+        }
+      }
+    }
+  ]
+}
