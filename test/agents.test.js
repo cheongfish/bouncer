@@ -157,7 +157,10 @@ test('context-review covers the four judgment scopes', () => {
   assert.match(md, /Walk epic → blueprint → tasks/);
   assert.match(md, /Scope review/);
   assert.match(md, /scope_evidence\.suggested_paths/);
+  assert.match(md, /scope_evidence\.quality|quality/);
+  assert.match(md, /candidates/);
   assert.match(md, /absence or empty[\s\S]{0,60}state, not a failure/i);
+  assert.match(md, /do not (?:widen|expand|treat[\s\S]{0,40}authority)|advisory/i);
   assert.match(md, /Korean quality/);
   assert.match(md, /stop-slop/);
   assert.match(md, /Identifiers, paths, and fenced/);

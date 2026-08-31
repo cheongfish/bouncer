@@ -417,8 +417,8 @@ test('scaffold comments hint basis fields and severity without filling parsed va
   const tasksFm = tasksRaw.split('---')[1] ?? '';
   assert.match(
     tasksFm,
-    /^[ \t]*# - graph: source \| context[ \t]*$/m,
-    'tasks.md frontmatter missing YAML graph example',
+    /^[ \t]*# - graph: source \| test \| context[ \t]*$/m,
+    'tasks.md frontmatter missing YAML graph example with test',
   );
   assert.match(
     tasksFm,
@@ -444,6 +444,10 @@ test('scaffold comments hint basis fields and severity without filling parsed va
   const tasks = readDoc(tasksPath).data;
   const ctxReview = readDoc(ctxPath).data;
   assert.deepStrictEqual(tasks.bouncer.scope_evidence.basis, []);
+  assert.deepStrictEqual(tasks.bouncer.scope_evidence.suggested_paths, []);
+  // scaffold는 품질 판정을 제조하지 않는다 — runner가 graph-suggest 뒤에 채운다.
+  assert.strictEqual(tasks.bouncer.scope_evidence.quality, undefined);
+  assert.strictEqual(tasks.bouncer.scope_evidence.candidates, undefined);
   assert.deepStrictEqual(ctxReview.bouncer.context_review.findings, []);
   assert.strictEqual(ctxReview.bouncer.status, 'pending');
 });

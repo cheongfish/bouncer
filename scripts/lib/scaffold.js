@@ -183,10 +183,11 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale }) {
         const abs = path.join(repoRoot, tasksRel);
         const hinted = fs.readFileSync(abs, 'utf8').replace(/^([ \t]*)basis: \[\][ \t]*$/m, [
             '$1# 유효 엔트리 필드: graph, status, query, result — 예시는 주석이라 파싱되지 않는다',
-            '$1# - graph: source | context',
+            '$1# - graph: source | test | context',
             '$1#   status: updated | reused | fail-skip | skip-disabled | missing',
             '$1#   query: <graphify 조회>',
             '$1#   result: <한 줄 요약>',
+            '$1# quality/candidates는 graph-suggest 뒤에만 채운다 — scaffold가 제조하지 않는다',
             '$1basis: []',
         ].join('\n'));
         fs.writeFileSync(abs, hinted);

@@ -140,13 +140,17 @@ Codex·Claude·Cursor 등을 지원한다.
 대신 현재의 `graphify-runner`처럼 얇은 어댑터를 유지·개선한다.
 
 ```text
-승인된 blueprint → Graphify query → scope_evidence 후보·근거 → 사용자 확인
-                                                           └→ affected_paths 확정
+승인된 blueprint → graph-sync → graph-suggest → scope_evidence
+  (quality · role candidates · file suggested_paths · source/test/context basis)
+  → 역할·사유 표시 → 사용자 확인 → affected_paths 확정
 ```
 
-- `scope_evidence.suggested_paths`는 조언이며 권위 있는 변경 범위가 아니다.
+- `scope_evidence.suggested_paths`와 role `candidates`는 조언이며 권위 있는
+  변경 범위가 아니다. context 후보는 근거일 뿐 Touch를 넓히지 않는다.
 - 최종 `affected_paths`는 사용자가 확인하고 Bouncer 하네스가 검증한다.
-- Graphify가 없거나 그래프가 오래되었을 때는 수동 탐색/일반 검색으로 폴백한다.
+- Graphify가 없거나 그래프가 오래되었거나 `graph-suggest`가
+  `low-confidence` / `unavailable`이면 빈 파일 추천과 사유를 남기고 수동
+  탐색으로 폴백한다.
 - Graphify 부재만으로 Bouncer 게이트를 실패시키지 않는다.
 
 참고: [Graphify GitHub](https://github.com/Graphify-Labs/graphify),
@@ -241,12 +245,14 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    검사에서 무시한다. execute 체크아웃은
    `<repo>/.worktrees/<epic-id>/<bp-id>`에 두며, init이 `.worktrees/`
    gitignore 누락도 함께 안내한다.
-3. 후보 경로의 근거는 `bouncer.scope_evidence.basis`에 기록한다. 신규 작성은
-   `producer: graphify`와 그래프별 엔트리 배열
-   (`graph`·`status`·`query`·`result`; `status`는
-   `updated`/`reused`/`fail-skip`/`skip-disabled`/`missing`)을 쓴다. 구
-   `bouncer.graph`는 읽기 호환만 한다. scaffold는 `basis`를 빈 리스트(`[]`)로
-   두므로, 실제 근거 엔트리를 기록해야 G4를 통과한다.
+3. 후보 경로의 근거는 `bouncer.scope_evidence`에 기록한다. 신규 작성은
+   `producer: graphify`, 그래프별 엔트리 배열
+   (`graph`·`status`·`query`·`result`; `graph`는 `source`/`test`/`context`,
+   `status`는 `updated`/`reused`/`fail-skip`/`skip-disabled`/`missing`),
+   그리고 `graph-suggest`의 짝 필드 `quality`·`candidates`와 파일 단위
+   `suggested_paths`를 쓴다. 구 `bouncer.graph`와 quality 없는 evidence는
+   읽기 호환만 한다. scaffold는 `basis`를 빈 리스트(`[]`)로 두고 품질 판정을
+   제조하지 않으므로, 실제 근거 엔트리를 기록해야 G4를 통과한다.
 
 ### E. Ponytail 최소화 정책
 

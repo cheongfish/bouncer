@@ -130,8 +130,9 @@ Epic: [<EPIC-id>](../../index.md)
 Blueprint: [<BP-id>](../../index.md)
 
 <!-- scope_evidence.basis 엔트리 필드: graph, status, query, result.
-     graph: source | context
+     graph: source | test | context
      status: updated | reused | fail-skip | skip-disabled | missing
+     quality/candidates는 graph-suggest 결과로만 채운다(scaffold는 비워 둔다).
      프론트매터 값은 []로 둔다. 이 주석을 실제 엔트리로 옮기면 빈 계획이 승인된다. -->
 
 ## Goal & intent

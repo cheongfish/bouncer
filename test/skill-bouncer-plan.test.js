@@ -77,6 +77,16 @@ test('bouncer-plan states that G4 requires a recorded graph basis', () => {
   assert.match(md, /scaffold[^\n]*empty list|empty list[^\n]*basis/i);
 });
 
+test('bouncer-plan shows role candidates and quality before affected_paths confirm', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /candidates|역할/);
+  assert.match(body, /quality|reasons|저신뢰|confidence/i);
+  assert.match(body, /affected_paths/);
+  // 자동 승인을 금지하고 사용자 확인을 요구한다.
+  assert.match(body, /confirm|확인/);
+  assert.doesNotMatch(body, /auto(?:matically)?\s+(?:copy|set|write)\s+affected_paths/i);
+});
+
 test('bouncer-plan reminds authors that titles feed the finalize commit message', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /title/i);

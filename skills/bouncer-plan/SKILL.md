@@ -145,11 +145,17 @@ Skill flow (recommended): `discovery` (`references/discovery/index.md`) → `spe
 5. **Graph suggestions.** When generating Graphify suggestions, read this reference: [graphify-suggestions.md](references/graphify-suggestions.md). Its output is advisory only; step 6 remains the only place that writes user-confirmed `affected_paths`.
 
 6. **affected_paths (user-confirmed).** For each `tasks/<NNN>/tasks.md` under the
-   blueprint, show that task's `scope_evidence.suggested_paths` as advisory
-   candidate paths, then propose `bouncer.affected_paths` for the user to confirm
-   or edit. Each list must be non-empty (gate G5). Do not seed or modify
-   `affected_paths` automatically from Graphify; write only the user's confirmed
-   value into that task document's frontmatter. Before finalizing
+   blueprint, first show that task's structured Graphify evidence — role
+   `candidates` (`implementation` / `test` / `context`) with scores and basis,
+   `quality.status` / `quality.confidence`, and non-empty `quality.reasons`
+   (especially on `low-confidence` or `unavailable`). Then show
+   `scope_evidence.suggested_paths` as the narrower file-path advisory list
+   (empty when quality is low-confidence/unavailable). Only after that display,
+   propose `bouncer.affected_paths` for the user to confirm or edit. Each
+   confirmed list must be non-empty (gate G5). Do not seed or modify
+   `affected_paths` automatically from `suggested_paths` or `candidates`; write
+   only the user's confirmed value into that task document's frontmatter. Before
+   finalizing
    `affected_paths` and the Checklist, you may run the `minimality` skill
    (`references/minimality/index.md`) (advisory, not a gate) to challenge new
    dependencies, abstractions, or files and record the rationale.
@@ -221,7 +227,8 @@ Skill flow (recommended): `discovery` (`references/discovery/index.md`) → `spe
    needs a non-empty note) — **G18 is not applied when blueprint
    `bouncer.scale` is `light`**, G3 tasks ready,
    G4 `scope_evidence.suggested_paths` present and `scope_evidence.basis` a
-   non-empty entry list with valid `producer` (legacy `graph` is read
+   non-empty entry list with valid `producer` (optional paired
+   `quality`/`candidates` validated when present; legacy `graph` is read
    compatibility only), G5
    `affected_paths` non-empty, G10 the gated sections present and
    placeholder-free — five on a full blueprint (Constraints is authored but not
@@ -251,8 +258,9 @@ steps hold this workflow's timing and consequences.
   auto-judge.
 - Step 4 **Author** — when repo-root verify signals are present, ask whether to
   set `tasks.bouncer.verify` for this blueprint.
-- Step 6 **affected_paths** — show `scope_evidence.suggested_paths`, then ask
-  the user to confirm or edit `bouncer.affected_paths` before writing it.
+- Step 6 **affected_paths** — show role `candidates`, `quality` reasons, and
+  `scope_evidence.suggested_paths`, then ask the user to confirm or edit
+  `bouncer.affected_paths` before writing it.
 - Step 8 **Approval** — ask for explicit plan approval before status
   transitions and the pointer write.
 

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '060'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm test
   commit_intent:
     - 디렉터리 롤업 후보만으로는 추천의 역할과 불확실성을 검토할 수 없었음
