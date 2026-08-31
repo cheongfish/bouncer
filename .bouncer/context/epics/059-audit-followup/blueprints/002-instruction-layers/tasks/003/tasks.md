@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '059'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - always 샤드인 core.md가 마스터 룰과 계약 문서를 네 문장 그대로 다시 말해 모든 사이클에 중복이 실림
