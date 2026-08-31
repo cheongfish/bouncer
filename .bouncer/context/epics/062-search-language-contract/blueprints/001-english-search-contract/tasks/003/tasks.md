@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '062'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - runner가 질의 언어를 지시하지 않아 한국어 blueprint 목표가 그대로 query가 될 수 있었음
     - 토크나이저가 한국어를 버리므로 질의 생산자를 영어 어휘로 묶어 소비자와 어휘를 맞춤
