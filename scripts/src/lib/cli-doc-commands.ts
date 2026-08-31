@@ -110,7 +110,9 @@ function cmdScaffold(rest: string[], io: CliIo) {
       }
     }
     if (kind === 'epic') {
-      created = scaffoldEpic({ repoRoot, epicId: f.id, name: f.name, timestamp });
+      created = scaffoldEpic({
+        repoRoot, epicId: f.id, name: f.name, timestamp, description: f.description,
+      });
     } else if (kind === 'blueprint') {
       // id/name 통과 뒤에만 epic-dir을 묻는다. 형식 오류를 부모 경로 누락과
       // 같은 메시지로 섞지 않기 위함.
@@ -198,7 +200,7 @@ module.exports = {
   },
   scaffold: {
     run: cmdScaffold,
-    usage: `  scaffold   epic --id <ddd> --name <slug>
+    usage: `  scaffold   epic --id <ddd> --name <slug> --description <text>
              blueprint --epic-dir <dir> --id <ddd> --name <slug> [--scale light|full]
              task --blueprint <dir> --id <ddd>
              explain --blueprint <dir>

@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 011 graphify-signal
-description: Epic 011
+description: 그래프 미생성을 무음으로 넘기지 않고 신호로 드러내며 스캐폴딩·산출 경로 계약을 실재 디렉터리에 맞춘다
 resource: .bouncer/context/epics/011-graphify-signal/index.md
 tags:
   - bouncer

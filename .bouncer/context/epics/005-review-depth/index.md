@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 005 review-depth
-description: Epic 005
+description: review 스킬에 Spec/Quality 루브릭과 sibling reviewer prompt를 두고 컨트롤러가 Findings를 기록하게 한다
 resource: .bouncer/context/epics/005-review-depth/index.md
 tags:
   - bouncer

@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 프로젝트 검증 래퍼 안내
-description: Epic 017
+description: plan 단계에서 프로젝트의 검증 실행 환경을 확인하고 그 프로젝트에 맞는 단일 verify 명령을 안내한다
 resource: .bouncer/context/epics/017-verify-wrapper-guidance/index.md
 tags:
   - bouncer

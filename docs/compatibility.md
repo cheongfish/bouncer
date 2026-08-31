@@ -11,6 +11,10 @@
 
 ## 공개 표면
 
+S13은 epic 경로 목록뿐 아니라 각 색인 행의 요약이 해당 epic frontmatter
+`description`과 일치하는지도 검사한다. 이 요약은 scaffold가 append/replace하는
+파생값이며, 사람이 색인 행을 직접 저술하는 계약은 지원하지 않는다.
+
 ### CLI 명령
 
 `bouncer --help`의 명령 이름은 `validate`, `verify`, `scaffold`, `commit`,

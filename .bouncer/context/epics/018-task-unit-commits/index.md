@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: task 단위 커밋 전환
-description: Epic 018
+description: blueprint 안에 여러 task 문서를 두고 task 하나를 하나의 커밋 단위로 삼는다
 resource: .bouncer/context/epics/018-task-unit-commits/index.md
 tags:
   - bouncer

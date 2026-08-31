@@ -51,7 +51,10 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
      Goal & intent — not the subject noun phrase. For a flow change, show only
      the implementation branch already present in the parent chart.
      Section-specific rules:
-     - **description**: `description`은 `## Goal & intent` 첫 문장에서 유도하고
+     - **description**: epic은 사람이 저술한 frontmatter `description`만 정본으로
+       삼고, 번들 색인 행에는 저술 권한을 두지 않는다. discovery에서 확정한 한
+       문장을 epic에 쓰고, scaffold 재실행으로 파생 행을 맞춘다. blueprint·task의
+       `description`은 `## Goal & intent` 첫 문장에서 유도하고
        같은 내용을 두 번 작성하지 않는다. 필드를 비우거나 삭제하지 않는다 —
        OKF 필수값이고 scaffold가 소유한다. 규율은 사람이 두 번 쓰지 않는 것이지
        값이 없어도 된다는 뜻이 아니다.

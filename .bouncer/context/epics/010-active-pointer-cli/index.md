@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 010 active-pointer-cli
-description: Epic 010
+description: 활성 포인터에 CLI 표면 하나를 두고 포인터가 비었을 때 실행 가능한 후보를 하네스가 답하게 한다
 resource: .bouncer/context/epics/010-active-pointer-cli/index.md
 tags:
   - bouncer

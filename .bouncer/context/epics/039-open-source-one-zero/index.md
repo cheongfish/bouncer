@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 오픈소스 1.0 공개
-description: Epic 039
+description: 보안·품질·공개 계약·외부 파일럿을 닫고 플러그인 1.0을 배포한다
 resource: .bouncer/context/epics/039-open-source-one-zero/index.md
 tags:
   - bouncer

@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 001 cli-usability
-description: Epic 001
+description: '`bouncer` CLI를 팀원이 처음 만났을 때 막히지 않게 만든다'
 resource: .bouncer/context/epics/001-cli-usability/index.md
 tags:
   - bouncer

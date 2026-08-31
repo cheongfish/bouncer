@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 002 commit-artifacts
-description: Epic 002
+description: 커밋 메시지와 검증 문서 산출물을 팀 규약·리뷰 관행에 맞춘다
 resource: .bouncer/context/epics/002-commit-artifacts/index.md
 tags:
   - bouncer

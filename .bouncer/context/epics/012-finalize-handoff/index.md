@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 012 finalize-handoff
-description: Epic 012
+description: 마감 직후 다음 블루프린트 후보를 계산·통지하고 확인 한 번으로 포인터를 옮긴다
 resource: .bouncer/context/epics/012-finalize-handoff/index.md
 tags:
   - bouncer

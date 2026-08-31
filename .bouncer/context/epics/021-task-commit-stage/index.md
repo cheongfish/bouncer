@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: task 단위 마감과 blueprint 단위 PR
-description: Epic 021
+description: task 하나를 닫는 커밋 단계를 만들고 finalize는 blueprint 마감만 담당하게 한다
 resource: .bouncer/context/epics/021-task-commit-stage/index.md
 tags:
   - bouncer

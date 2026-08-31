@@ -4,11 +4,15 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldTask } = require('../scripts/lib/scaffold');
+const { CONTEXT_ROOT, scaffoldEpic: scaffoldEpicImpl, scaffoldBlueprint, scaffoldTask } = require('../scripts/lib/scaffold');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const { runCli } = require('../scripts/lib/cli');
 
 const TS = '2026-07-01T00:00:00+09:00';
+
+function scaffoldEpic(options) {
+  return scaffoldEpicImpl({ description: 'Auth epic description', ...options });
+}
 
 function captureScaffold(argv) {
   const buf = { out: '', err: '' };
@@ -42,11 +46,53 @@ test('scaffoldEpic writes a valid epic index under numeric dirs', () => {
   assert.doesNotMatch(bundle, /EPIC-001/);
 });
 
+test('scaffoldEpic requires a written description and rejects placeholders', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  for (const description of [undefined, '', '   ', 'Epic 061']) {
+    assert.throws(
+      () => scaffoldEpicImpl({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description }),
+      /description/i,
+    );
+  }
+  assert.strictEqual(fs.existsSync(path.join(repo, CONTEXT_ROOT, 'epics', '061-auth')), false);
+});
+
+test('scaffoldEpic re-entry preserves the epic bytes and synchronizes one index row', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description: 'First description' });
+  const epicPath = path.join(repo, CONTEXT_ROOT, 'epics/061-auth/index.md');
+  const before = fs.readFileSync(epicPath);
+  const edited = fs.readFileSync(epicPath, 'utf8').replace('description: First description', 'description: Current frontmatter description');
+  fs.writeFileSync(epicPath, edited);
+  const indexPath = path.join(repo, CONTEXT_ROOT, 'index.md');
+  fs.appendFileSync(indexPath, '');
+  scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description: 'Ignored on re-entry' });
+  assert.deepStrictEqual(fs.readFileSync(epicPath), Buffer.from(edited));
+  const lines = fs.readFileSync(indexPath, 'utf8').split('\n').filter((line) => line.includes('epics/061-auth/index.md'));
+  assert.strictEqual(lines.length, 1);
+  assert.match(lines[0], / - Current frontmatter description$/);
+  assert.notDeepStrictEqual(before, fs.readFileSync(epicPath));
+});
+
+test('scaffoldEpic replaces a stale row and does not rewrite a matching index', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS, description: 'Current description' });
+  const indexPath = path.join(repo, CONTEXT_ROOT, 'index.md');
+  fs.writeFileSync(indexPath, fs.readFileSync(indexPath, 'utf8').replace('Current description', 'Old description'));
+  const changed = scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS });
+  assert.deepStrictEqual(changed, [`${CONTEXT_ROOT}/index.md`]);
+  const matching = fs.readFileSync(indexPath);
+  assert.match(matching.toString(), / - Current description$/m);
+  const stable = fs.readFileSync(indexPath);
+  assert.deepStrictEqual(scaffoldEpic({ repoRoot: repo, epicId: '061', name: 'auth', timestamp: TS }), []);
+  assert.deepStrictEqual(fs.readFileSync(indexPath), stable);
+});
+
 test('scaffoldEpic is idempotent on the bundle context index line', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   const again = scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
-  assert.deepStrictEqual(again, ['.bouncer/context/epics/001-auth/index.md']);
+  assert.deepStrictEqual(again, []);
   const bundle = fs.readFileSync(path.join(repo, '.bouncer/context/index.md'), 'utf8');
   assert.strictEqual([...bundle.matchAll(/001-auth/g)].length, 1);
 });
@@ -237,7 +283,8 @@ test('scaffoldTask ignores a missing or unparsable blueprint index', () => {
 test('scaffold --id 001 succeeds; EPIC-001 / 1 / 01 fail', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const ok = captureScaffold([
-    'scaffold', 'epic', '--repo', repo, '--id', '001', '--name', 'auth', '--timestamp', TS,
+    'scaffold', 'epic', '--repo', repo, '--id', '001', '--name', 'auth',
+    '--description', 'Auth epic description', '--timestamp', TS,
   ]);
   assert.strictEqual(ok.code, 0, ok.err);
   assert.ok(fs.existsSync(path.join(repo, '.bouncer/context/epics/001-auth/index.md')));
@@ -250,6 +297,49 @@ test('scaffold --id 001 succeeds; EPIC-001 / 1 / 01 fail', () => {
     assert.match(r.err, /--id|three-digit|\\d\{3\}|numeric/i);
     assert.strictEqual(r.out, '');
   }
+});
+
+test('scaffold epic CLI rejects missing, blank, and placeholder descriptions before writing', () => {
+  for (const descriptionArgs of [[], ['--description', ''], ['--description', '   '], ['--description', 'Epic 061']]) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    const r = captureScaffold([
+      'scaffold', 'epic', '--repo', repo, '--id', '061', '--name', 'auth',
+      ...descriptionArgs, '--timestamp', TS,
+    ]);
+    assert.strictEqual(r.code, 2, `expected reject for ${JSON.stringify(descriptionArgs)}`);
+    assert.match(r.err, /description/i);
+    assert.strictEqual(r.out, '');
+    assert.strictEqual(
+      fs.existsSync(path.join(repo, '.bouncer/context/epics/061-auth/index.md')),
+      false,
+    );
+    assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/context/index.md')), false);
+  }
+});
+
+test('scaffold epic CLI rejects malformed existing frontmatter without writing', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const created = captureScaffold([
+    'scaffold', 'epic', '--repo', repo, '--id', '061', '--name', 'auth',
+    '--description', 'Auth epic description', '--timestamp', TS,
+  ]);
+  assert.strictEqual(created.code, 0, created.err);
+
+  const epicPath = path.join(repo, '.bouncer/context/epics/061-auth/index.md');
+  fs.writeFileSync(epicPath, '---\ndescription: [malformed\n---\n');
+  const indexPath = path.join(repo, '.bouncer/context/index.md');
+  const epicBefore = fs.readFileSync(epicPath);
+  const indexBefore = fs.readFileSync(indexPath);
+  const r = captureScaffold([
+    'scaffold', 'epic', '--repo', repo, '--id', '061', '--name', 'auth',
+    '--description', 'Ignored on re-entry', '--timestamp', TS,
+  ]);
+
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /frontmatter parse failed/i);
+  assert.strictEqual(r.out, '');
+  assert.deepStrictEqual(fs.readFileSync(epicPath), epicBefore);
+  assert.deepStrictEqual(fs.readFileSync(indexPath), indexBefore);
 });
 
 test('scaffoldExplain creates explain.md once for finalize with empty comprehension', () => {

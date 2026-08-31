@@ -35,6 +35,10 @@ make the document findable without duplicating its body:
 - `description` is one present-tense sentence saying what the document covers
   and why it matters. State the boundary or observable behavior, not an
   implementation sequence or an unverified result.
+- Epic frontmatter `description` is the human-authored source of truth for its
+  bundle index summary. The summary row is derived by `scaffold epic` and may
+  be appended or replaced, while S13 reports a mismatch; the row is not an
+  authoring surface.
 - `tags` use a small, stable project vocabulary for retrieval. Keep the
   scaffold's `bouncer` and document-kind tag; add only durable domain tags
   (for example `worktree`, `verification`, or `distill`). Do not add temporary

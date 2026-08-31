@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 003 multi-agent-plugin
-description: Epic 003
+description: 한 저장소가 Claude·Cursor·Codex 세 에이전트의 네이티브 설치 경로를 모두 제공한다
 resource: .bouncer/context/epics/003-multi-agent-plugin/index.md
 tags:
   - bouncer

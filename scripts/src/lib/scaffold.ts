@@ -157,13 +157,32 @@ function templateNameFor(base: string, scale: string): string {
   return lightName in TEMPLATES ? lightName : base;
 }
 
-function scaffoldEpic({ repoRoot, epicId, name, timestamp }: {
+/**
+ * 새 epic 문서를 만들거나 기존 canonical epic의 파생 색인만 동기화한다.
+ * 신규 호출은 유효한 description 없이는 첫 파일도 쓰지 않으며, 재진입 시
+ * 전달된 description을 무시하고 기존 frontmatter를 정본으로 사용한다.
+ *
+ * @param {object} options - 저장소·식별자·저술 description
+ * @param {string} options.repoRoot - 저장소 루트 절대 경로
+ * @param {string} options.epicId - zero-padded epic id
+ * @param {string} options.name - epic slug
+ * @param {string} options.timestamp - 생성 시각
+ * @param {unknown} options.description - 신규 epic의 필수 저술 description
+ * @returns {string[]} 생성·갱신한 상대 경로; 완전한 no-op이면 빈 배열
+ */
+function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }: {
   repoRoot: string;
   epicId: string;
   name: string;
   timestamp: string;
+  description?: unknown;
 }): string[] {
   requireNumericId(epicId, 'epicId');
+  const epicAbs = path.join(repoRoot, CONTEXT_ROOT, 'epics', `${epicId}-${name}`, 'index.md');
+  if (!fs.existsSync(epicAbs)
+    && (typeof description !== 'string' || !description.trim() || description.trim() === `Epic ${epicId}`)) {
+    throw new Error(`epic description must be a non-placeholder string for ${epicId}`);
+  }
   const dir = `${CONTEXT_ROOT}/epics/${epicId}-${name}`;
   // 번호는 다른 slug로 다시 쓰면 새 디렉터리에 그대로 써지고, 경로에서 id를
   // 파생하는 S5도 통과한다. 그래서 같은 번호를 쓰는 epic이 둘 생겨도 아무
@@ -177,16 +196,23 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp }: {
     );
   }
   const rel = `${dir}/index.md`;
-  const description = `Epic ${epicId}`;
-  const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, description, rel,
-    ['bouncer', 'epic'], timestamp,
-    // supersedes는 epic·blueprint 전용. 빈 배열은 "자리만" — 값은 사람이 채운다.
-    { id: epicId, epic_id: epicId, status: 'draft', supersedes: [] });
-  const body = templateBody('epic.md', { epicId, name });
-  const created = [writeRel(repoRoot, rel, data, body)];
+  const canonicalEpicAbs = path.join(repoRoot, rel);
+  const authoredDescription = typeof description === 'string' ? description.trim() : '';
+  const created: string[] = [];
+  if (!fs.existsSync(canonicalEpicAbs)) {
+    const data = bouncerDoc('bouncer.epic', `${epicId} ${name}`, authoredDescription, rel,
+      ['bouncer', 'epic'], timestamp,
+      // supersedes는 epic·blueprint 전용. 빈 배열은 "자리만" — 값은 사람이 채운다.
+      { id: epicId, epic_id: epicId, status: 'draft', supersedes: [] });
+    const body = templateBody('epic.md', { epicId, name });
+    created.push(writeRel(repoRoot, rel, data, body));
+  }
   // OKF §6 번들 루트 목록 — scaffold가 소유. 이미 있으면 no-op.
   const indexRel = ensureEpicIndexEntry({
-    repoRoot, epicId, name, description,
+    repoRoot,
+    epicId,
+    name,
+    description: authoredDescription || undefined,
   });
   if (indexRel) created.push(indexRel);
   return created;

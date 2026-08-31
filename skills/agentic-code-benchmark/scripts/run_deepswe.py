@@ -584,7 +584,10 @@ def prepare_bouncer_workspace(work, handle):
     bp_dir = os.path.join(epic_dir, "blueprints", f"001-{BOUNCER_BP_SLUG}")
     steps = (
         ["bouncer", "init", "--no-graphify"],
-        ["bouncer", "scaffold", "epic", "--id", "001", "--name", BOUNCER_EPIC_SLUG],
+        [
+            "bouncer", "scaffold", "epic", "--id", "001", "--name", BOUNCER_EPIC_SLUG,
+            "--description", "DeepSWE benchmark task workspace",
+        ],
         [
             "bouncer", "scaffold", "blueprint",
             "--epic-dir", epic_dir, "--id", "001", "--name", BOUNCER_BP_SLUG,
