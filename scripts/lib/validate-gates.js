@@ -103,6 +103,7 @@ function checkGate(gate, docs, rels, failures, ctx) {
             blueprintDir: opts.blueprintDir,
             deps: opts.deps,
             taskUnit: opts.taskUnit,
+            parseErrors: opts.parseErrors,
         });
         return { failures: collected };
     }
@@ -140,7 +141,13 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
         // full은 여전히 status와 세 필드·## Findings 절을 그대로 요구한다.
         if (!isLight) {
             if (!docs.contextReview) {
-                add('G18', `context-review.md missing (${rels.contextReview}); run bouncer scaffold context-review`, 'contextReview');
+                // 파일이 있는데 frontmatter 파싱이 깨지면 loader는 docs 슬롯을 비우고
+                // S0만 남긴다. 부재 메시지로 가면 scaffold가 이미 있는 파일을 거절한다.
+                const parseFailed = Array.isArray(ctx.parseErrors)
+                    && ctx.parseErrors.some((e) => e.code === 'S0' && e.file === rels.contextReview);
+                add('G18', parseFailed
+                    ? 'context-review.md has invalid frontmatter; fix the S0 parse error'
+                    : `context-review.md missing (${rels.contextReview}); run bouncer scaffold context-review`, 'contextReview');
             }
             else {
                 if (statusOf(docs.contextReview) !== 'accepted') {

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '059'
   blueprint_id: '004'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 존재하는 context-review 문서를 missing으로 오인하는 연쇄 오류를 막음
