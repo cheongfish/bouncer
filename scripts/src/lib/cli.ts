@@ -32,6 +32,7 @@ const COMMANDS: Record<string, CliCommand> = {
   'seed-worktree': gitCommands['seed-worktree'],
   init: projectCommands.init,
   'graph-sync': projectCommands['graph-sync'],
+  'graph-suggest': projectCommands['graph-suggest'],
   'graphify-bin': projectCommands['graphify-bin'],
   'project-root': projectCommands['project-root'],
   distill: projectCommands.distill,

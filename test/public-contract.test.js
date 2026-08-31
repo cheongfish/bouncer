@@ -70,6 +70,8 @@ test('public compatibility name sets match implementation', () => {
   const documentedCli = sectionTokens(COMPATIBILITY, 'CLI 명령')
     .filter((token) => /^[\w-]+$/.test(token));
   assertContract(cliNames, sorted(documentedCli), 'CLI names');
+  assert.ok(cliNames.includes('graph-suggest'), 'graph-suggest missing from help');
+  assert.ok(documentedCli.includes('graph-suggest'), 'graph-suggest missing from compatibility.md');
 
   const documentedSchemaTokens = sectionTokens(COMPATIBILITY, '문서 스키마');
   const schemaTable = sectionContent(COMPATIBILITY, '문서 스키마')

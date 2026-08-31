@@ -10,6 +10,7 @@ const { migrateTaskLayout } = require('./migrate-task-layout');
 const { runtimePaths } = require('./runtime-state');
 const { readShards, routeShards, renderShards, resolveDistillRoot } = require('./distill');
 const { readConfig, getDistillConfig } = require('./config');
+const { graphSuggest } = require('./graph-search');
 const DISTILL_MODES = new Set(['for', 'all', 'preflight', 'route', 'audit']);
 function parseDistillArgs(rest) {
     const targets = [];
@@ -274,6 +275,76 @@ function cmdGraphSync(rest, io) {
     io.out(`${JSON.stringify({ ok: result.failed.length === 0, ...result }, null, 2)}\n`);
     return result.failed.length === 0 ? 0 : 1;
 }
+/**
+ * graph-suggest 전용 인자 파서. --seed는 반복 가능해서 parseFlags(마지막 값만
+ * 남김)로 처리하지 않는다. 값 없는 --query/--seed는 사용법 오류(exit 2).
+ *
+ * @param {string[]} rest - 서브커맨드 뒤 argv
+ * @returns {GraphSuggestArgs} 성공 시 query·seeds, 실패 시 error
+ */
+function parseGraphSuggestArgs(rest) {
+    let query = null;
+    let querySeen = false;
+    const seeds = [];
+    let repo;
+    const fail = (message) => ({
+        error: `graph-suggest: ${message}\n`,
+        query,
+        seeds,
+        repo,
+    });
+    for (let i = 0; i < rest.length; i += 1) {
+        const token = rest[i];
+        if (token === '--query') {
+            const value = rest[++i];
+            // 빈 문자열도 거절 — parseFlags는 ''를 값으로 받아 통과시키므로 여기서 막는다.
+            if (value === undefined || value.startsWith('--') || value.length === 0) {
+                return fail('--query requires a non-empty text value');
+            }
+            query = value;
+            querySeen = true;
+            continue;
+        }
+        if (token === '--seed') {
+            const value = rest[++i];
+            if (value === undefined || value.startsWith('--') || value.length === 0) {
+                return fail('--seed requires a value');
+            }
+            seeds.push(value);
+            continue;
+        }
+        if (token === '--repo') {
+            const value = rest[++i];
+            if (!value || value.startsWith('--'))
+                return fail('--repo requires a directory');
+            repo = value;
+            continue;
+        }
+        if (token.startsWith('--'))
+            return fail(`unknown option: ${token}`);
+        return fail(`unexpected argument: ${token}`);
+    }
+    if (!querySeen || query === null) {
+        return fail('--query <text> is required');
+    }
+    return { query, seeds, repo };
+}
+function cmdGraphSuggest(rest, io) {
+    const parsed = parseGraphSuggestArgs(rest);
+    if (parsed.error) {
+        io.err(parsed.error);
+        return 2;
+    }
+    const repoRoot = (parsed.repo || process.cwd());
+    // 그래프 부재·손상은 예외 대신 JSON status로 수렴 — stdout은 JSON 하나만.
+    const result = graphSuggest({
+        repoRoot,
+        query: parsed.query,
+        seeds: parsed.seeds,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+}
 function cmdGraphifyBin(rest, io) {
     const f = parseFlags(rest);
     const repoRoot = (f.repo || process.cwd());
@@ -327,6 +398,12 @@ module.exports = {
     'graph-sync': {
         run: cmdGraphSync,
         usage: `  graph-sync Rebuild stale graphify source + test + context graphs (SessionStart / plan).
+`,
+    },
+    'graph-suggest': {
+        run: cmdGraphSuggest,
+        usage: `  graph-suggest --query <text> [--seed <value>]...
+             Rank implementation/test/context file candidates from graphify graphs (JSON).
 `,
     },
     'graphify-bin': {

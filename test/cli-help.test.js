@@ -6,6 +6,7 @@ const { runCli } = require('../scripts/lib/cli');
 
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
+  'graph-suggest',
   'graphify-bin',
   'project-root',
   'current',
@@ -82,4 +83,33 @@ test('usage lists scaffold blueprint --scale light|full', () => {
 test('graph-sync help names source + test + context scopes', () => {
   const r = capture([]);
   assert.match(r.out, /graph-sync Rebuild stale graphify source \+ test \+ context graphs/);
+});
+
+test('usage lists graph-suggest --query <text> [--seed <value>]...', () => {
+  const r = capture([]);
+  assert.match(
+    r.out,
+    /graph-suggest\s+--query <text> \[--seed <value>\]\.\.\./,
+  );
+});
+
+test('graph-suggest without --query exits 2 on stderr', () => {
+  const r = capture(['graph-suggest']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /query/i);
+  assert.strictEqual(r.out, '');
+});
+
+test('graph-suggest with empty --query exits 2', () => {
+  const r = capture(['graph-suggest', '--query', '']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /query/i);
+  assert.strictEqual(r.out, '');
+});
+
+test('graph-suggest with valueless --seed exits 2', () => {
+  const r = capture(['graph-suggest', '--query', 'x', '--seed']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /seed/i);
+  assert.strictEqual(r.out, '');
 });

@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '060'
   blueprint_id: '001'
-  status: ready
+  status: verified
   verify: npm test
   commit_intent:
     - 동일 자연어 질의를 두 그래프에 반복해 테스트 편향을 증폭하던 탐색 순서를 바꿈
