@@ -63,6 +63,17 @@ test('spec-authoring requires Korean plan bodies, English Distill, and stop-slop
   assert.match(md, /references\/stop-slop\/index\.md/);
 });
 
+test('spec-authoring separates Korean reader prose from ASCII discovery fields', () => {
+  const md = readSkill('spec-authoring');
+  const language = md.match(/^## Language and prose\n[\s\S]*?(?=^## )/m)[0];
+  assert.match(language, /title[\s\S]{0,120}Korean/i);
+  assert.match(language, /description[\s\S]{0,120}English ASCII/i);
+  assert.match(language, /tags[\s\S]{0,120}English ASCII/i);
+  assert.match(language, /stop-slop[\s\S]{0,180}(reader-facing|독자).*prose/i);
+  assert.match(language, /stop-slop[\s\S]{0,180}(derived anchors|search metadata)/i);
+  assert.match(language, /bulk-rewrite the existing corpus/i);
+});
+
 test('spec-authoring ships completed reference examples and points SKILL.md at them', () => {
   for (const k of ['epic', 'blueprint', 'tasks', 'review']) {
     assert.ok(fs.existsSync(refPath(`${k}.md`)), k);

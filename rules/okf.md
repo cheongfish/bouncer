@@ -30,6 +30,12 @@ the relevant evidence may record a passed or accepted state.
 **Author-written discovery fields.** Use `title`, `description`, and `tags` to
 make the document findable without duplicating its body:
 
+For new or modified documents, keep `title` Korean: `.gitmessage` uses it as
+the nominal commit-title source, so do not translate it. Write `description`
+and `tags` in English ASCII; derived anchors and search queries use the same
+English ASCII contract for graph-suggest. This does not call for tokenizer or
+Korean-search support or a bulk rewrite of the existing corpus.
+
 - `title` states the durable intent or decision in a short noun phrase. It is
   not an id, a file name, or a claim that the work has completed.
 - `description` is one present-tense sentence saying what the document covers

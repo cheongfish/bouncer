@@ -66,3 +66,4 @@ bouncer_schema: '0.1'
 * [059 audit-followup](epics/059-audit-followup/index.md) - 외부 감사가 남긴 설치·지시문·경량 경로·부채 항목을 게이트 계약을 바꾸지 않고 닫는다
 * [060 graphify-search-quality](epics/060-graphify-search-quality/index.md) - 과거 결정과 코드 관계를 연결해 누락이 적고 신뢰도를 설명할 수 있는 변경 경로 후보를 만든다
 * [061 epic-index-consistency](epics/061-epic-index-consistency/index.md) - 에픽 description을 정본으로 삼아 번들 색인 요약을 재생성하고 불일치를 S13으로 차단한다
+* [062 search-language-contract](epics/062-search-language-contract/index.md) - graph-suggest 검색의 생산자와 소비자가 같은 영어 ASCII 어휘와 토큰 규칙을 쓰도록 언어 계약을 고정한다.

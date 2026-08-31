@@ -31,9 +31,13 @@ does not install it. Project `CLAUDE.md` / `AGENTS.md` / user instructions win o
    [`skills/bouncer-execute/SKILL.md`](skills/bouncer-execute/SKILL.md),
    [`skills/bouncer-run/SKILL.md`](skills/bouncer-run/SKILL.md),
    [`skills/bouncer-finalize/references/distill-promotion.md`](skills/bouncer-finalize/references/distill-promotion.md).
-8. **Context language** — Bodies under `.bouncer/context/epics/**` and BP `explain.md` are
-   Korean (ids/paths/fenced code excepted). Apply `stop-slop` when drafting; advisory, not a
-   gate. Distill stays English.
+8. **Context language** — Reader-facing bodies under `.bouncer/context/epics/**` and BP
+   `explain.md` are Korean (ids/paths/fenced code excepted). For new/modified docs, `title`
+   stays Korean as the `.gitmessage` nominal commit-title source; do not translate it.
+   Discovery `description`/`tags`, derived anchors, and search queries use English ASCII for
+   graph-suggest; do not propose tokenizer or Korean-search support. Apply `stop-slop` to
+   reader-facing prose only (not derived anchors/search metadata); advisory, not a gate.
+   Distill stays English. Do not bulk-rewrite the existing corpus.
 9. **Code comments** — Non-obvious intent as Korean comments. Detail:
    [`references/implementation/index.md`](references/implementation/index.md). Do **not** put
    comment examples into these master rules.
