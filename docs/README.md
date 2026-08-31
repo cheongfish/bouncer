@@ -21,6 +21,7 @@
 | [troubleshooting.md](troubleshooting.md) | 게이트 실패·막힘 대처, 피드백 |
 | [context-versioning.md](context-versioning.md) | `.bouncer/` 커밋 정책과 부트스트랩 |
 | [security.md](security.md) | 커밋 가드 위협 모델과 한계 |
+| [audit-debt-decisions.md](audit-debt-decisions.md) | 감사 부채 B7–B11 처분·근거·재검토 조건 |
 | [PILOT.md](PILOT.md) | 파일럿 안내와 알려진 마찰 |
 | [contributing.md](contributing.md) | 개발, 커밋·PR 규약, CI |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 플러그인 제품 설계 결정 (ADR) |

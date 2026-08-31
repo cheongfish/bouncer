@@ -1,7 +1,7 @@
 ---
 type: bouncer.review
-title: 감사 부채 결정 리뷰
-description: 유지 결정의 근거와 완화책 및 재검토 조건이 감사 항목별로 충분한지 판정한다
+title: 감사 부채 결정 기록 리뷰
+description: B7–B11 표가 재검토 조건과 현재 사실을 구분하는지 판정한다
 resource: .bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/004/review.md
 tags:
   - bouncer
@@ -11,14 +11,16 @@ bouncer:
   id: REVIEW-004
   epic_id: '059'
   blueprint_id: '004'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: minor
+        status: resolved
+        summary: B8 회귀 설명에서 git commit -m "-a"를 오탐 방지와 섞어 씀 — 양성 탐지와 인자 자리 오탐 방지를 분리함
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+- F1 (minor, resolved): B8 회귀 설명에서 `git commit -m "-a"`를 오탐 방지와 섞어 씀 — 양성 탐지와 인자 자리 오탐 방지를 분리함

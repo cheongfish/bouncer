@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '059'
   blueprint_id: '004'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 감사 부채의 처리 결과가 코드와 여러 문서에 흩어지는 문제를 막음
