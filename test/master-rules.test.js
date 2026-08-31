@@ -281,6 +281,61 @@ test('finalize promotion searches all Distill content and splits payload content
   assert.match(spec, /never[^\n]{0,100}(?:attach|associate|individual shard|개별 샤드)/i);
 });
 
+test('finalize Distill promotion excludes restatements of upper instruction layers', () => {
+  const promotion = read('skills/bouncer-finalize/references/distill-promotion.md');
+  const spec = read('references/spec-authoring/index.md');
+  // add/replace 후보가 상위 세 층(하드/절차/계약)과 같은 계약이면 목록에서
+  // 빼되 삭제하지 않고, 같은 ACQ의 제외 목록에 근거 경로를 붙인다. drop은
+  // 낡은 Distill 문장 제거라 재진술 판단 대상이 아니다.
+  for (const [name, md] of [
+    ['distill-promotion', promotion],
+    ['spec-authoring', spec],
+  ]) {
+    assert.match(
+      md,
+      /exclu(?:sion|de)|restatement/i,
+      `${name} must name the restatement-exclusion step`,
+    );
+    assert.match(
+      md,
+      /CLAUDE\.md[\s\S]{0,500}skills\/\*\/SKILL\.md[\s\S]{0,500}rules\/\*\.md/s,
+      `${name} must judge against the upper three instruction layers`,
+    );
+    assert.match(
+      md,
+      /exclu(?:ded|sion)[\s\S]{0,220}(?:file path|justifying file|justifying path)/i,
+      `${name} must display the justifying file path on the exclusion list`,
+    );
+    assert.match(
+      md,
+      /same ACQ|one ACQ[\s\S]{0,280}exclu/i,
+      `${name} must carry proposal and exclusion on one ACQ`,
+    );
+    assert.match(
+      md,
+      /exclu(?:sions?)[\s\S]{0,80}(?:\b0\b|zero)/i,
+      `${name} must report when exclusions are 0`,
+    );
+    assert.doesNotMatch(
+      md,
+      /exclu(?:sion|de)[\s\S]{0,80}\b(?:G\d+|S\d+)\b/i,
+      `${name} must not introduce exclusion as a gate code`,
+    );
+  }
+  // 표시 의무만으로는 부족하다. spec-authoring이 제외 목록을 반환하고
+  // finalize가 그 쌍을 받아야, 필터만 하고 목록을 비운 침묵 삭제가 막힌다.
+  assert.match(
+    spec,
+    /[Rr]eturn[\s\S]{0,160}exclu(?:sion list)/,
+    'spec-authoring must return the exclusion list with the proposal',
+  );
+  assert.match(
+    promotion,
+    /receive[\s\S]{0,220}exclu(?:sion list)/,
+    'finalize must receive the exclusion list with the proposal',
+  );
+});
+
 test('master rules preserve single-file Distill fallback and CLI trust boundary', () => {
   const claude = read('CLAUDE.md');
   const preflight = read('skills/bouncer-plan/references/distill-preflight.md');

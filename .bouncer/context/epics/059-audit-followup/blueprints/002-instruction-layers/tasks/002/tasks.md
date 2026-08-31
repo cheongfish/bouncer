@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '059'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 승격이 동의를 한 번 받을 뿐 상위 층이 이미 말하는지 묻지 않아 재진술이 사이클마다 Distill로 흘러듦
