@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-004
   epic_id: '059'
   blueprint_id: '002'
-  status: ready
+  status: verified
   verify: npm run ci
   commit_intent:
     - 호스트 플러그인 설치는 캐시 디렉터리 복사일 뿐 npm install을 돌리지 않아 선언된 bin이 PATH에 링크되지 않음
