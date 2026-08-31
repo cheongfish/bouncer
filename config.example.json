@@ -4,7 +4,13 @@
     ".bouncer/context"
   ],
   "graphify": {
-    "enabled": true
+    "enabled": true,
+    "test_dirs": [
+      "test"
+    ],
+    "exclude_dirs": [
+      "scripts/lib"
+    ]
   },
   "distill": {
     "routing_enabled": false,

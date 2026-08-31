@@ -78,3 +78,8 @@ test('usage lists scaffold blueprint --scale light|full', () => {
   const r = capture([]);
   assert.match(r.out, /blueprint --epic-dir <dir> --id <ddd> --name <slug> \[--scale light\|full\]/);
 });
+
+test('graph-sync help names source + test + context scopes', () => {
+  const r = capture([]);
+  assert.match(r.out, /graph-sync Rebuild stale graphify source \+ test \+ context graphs/);
+});

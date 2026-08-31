@@ -198,8 +198,9 @@ test('init source_dirs detects existing candidate directories in fixed order', (
   fs.mkdirSync(path.join(repo, 'lib'));
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  // test/tests는 source 후보가 아니라 graphify.test_dirs 후보로 분리한다.
   assert.deepStrictEqual(SOURCE_DIR_CANDIDATES, [
-    'src', 'lib', 'app', 'packages', 'scripts', 'test', 'tests',
+    'src', 'lib', 'app', 'packages', 'scripts',
   ]);
   assert.deepStrictEqual(cfg.source_dirs, ['lib', 'app']);
   assert.notStrictEqual(res.sourceDirsUnresolved, true);
@@ -232,10 +233,48 @@ test('init does not overwrite existing config source_dirs', () => {
 test('init ignores same-named files when detecting source_dirs', () => {
   const repo = tmpRepo();
   fs.writeFileSync(path.join(repo, 'src'), 'not a directory');
-  fs.mkdirSync(path.join(repo, 'test'));
+  fs.mkdirSync(path.join(repo, 'lib'));
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
-  assert.deepStrictEqual(cfg.source_dirs, ['test']);
+  assert.deepStrictEqual(cfg.source_dirs, ['lib']);
+});
+
+test('init puts existing test/tests into graphify.test_dirs not source_dirs', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, 'src'));
+  fs.mkdirSync(path.join(repo, 'test'));
+  fs.mkdirSync(path.join(repo, 'tests'));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(cfg.source_dirs, ['src']);
+  assert.deepStrictEqual(cfg.graphify.test_dirs, ['test', 'tests']);
+  assert.ok(!cfg.source_dirs.includes('test'));
+  assert.ok(!cfg.source_dirs.includes('tests'));
+});
+
+test('init omits graphify.test_dirs when no test directories exist', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, 'src'));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(cfg.source_dirs, ['src']);
+  assert.ok(!Object.prototype.hasOwnProperty.call(cfg.graphify, 'test_dirs'));
+});
+
+test('init does not add test_dirs to an existing two-scope config', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src', 'test'],
+    verify: 'npm test',
+    base_branch: 'main',
+    graphify: { enabled: true },
+  }));
+  fs.mkdirSync(path.join(repo, 'tests'));
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const existing = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.deepStrictEqual(existing.source_dirs, ['src', 'test']);
+  assert.ok(!Object.prototype.hasOwnProperty.call(existing.graphify, 'test_dirs'));
 });
 
 test('init config omits methodology and Superpowers profile fields', () => {

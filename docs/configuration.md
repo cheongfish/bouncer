@@ -11,6 +11,8 @@
 | `verify` | 단일 실행 문자열 (`&&`·`;`·파이프·리디렉션·`cd` 불가 → `S12`) | **execute 게이트(G13)**, `/bouncer-plan`이 blueprint별 `tasks.bouncer.verify` 제안 | `"npm test"` · `"make test"` · `"npm run test:e2e"` |
 | `source_dirs` | 저장소 상대 디렉터리 배열 | `/bouncer-init`(자동 채움), `graphify-runner` 소스 그래프 입력 | `["src", "scripts"]` |
 | `context_dirs` | 저장소 상대 디렉터리 배열 | `graphify-runner` 컨텍스트 그래프 입력 | `[".bouncer/context"]` |
+| `graphify.test_dirs` | 저장소 상대 디렉터리 배열 (선택) | 테스트 그래프 입력 → `graphify-out/test` | `["test"]` · `["tests"]` |
+| `graphify.exclude_dirs` | 저장소 상대 prefix 배열 (선택) | source 병합 뒤 제거할 경로 prefix | `["scripts/lib"]` |
 | `base_branch` | 브랜치 이름 | `/bouncer-execute` worktree 기준, `/bouncer-finalize` PR 기준 | `"main"` · `"develop"` |
 | `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run`이 물어보는 횟수 | `"auto"` (시작 확인 1회) · `"interactive"` (task 경계마다 추가) |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
@@ -28,6 +30,16 @@
 신규 `graphify.bin`은 git common directory 아래 `bouncer/venv`의 실행 파일
 절대 경로입니다. 저장소 상대 값(`.bouncer/.venv/bin/graphify` 등)도 파일이
 있으면 그대로 씁니다.
+
+`graphify.test_dirs`와 `graphify.exclude_dirs`는 선택 필드입니다. 둘 다 없는
+기존 config는 예전처럼 source·context 두 그래프만 만듭니다. 키가 있으면
+문자열 배열이어야 하고, 절대 경로나 `..` 탈출이 있으면 그 값을 적용하지
+않으며 `graph-sync` 결과의 `skips`에 사유가 실립니다. `exclude_dirs`가
+비어 있거나 없으면 JavaScript 경로를 생성물로 추측해 지우지 않습니다 —
+`scripts/lib` 같은 생성 경로는 프로젝트가 명시한 경우에만 source 그래프에서
+빠집니다. `/bouncer-init`은 신규 저장소에서 실재하는 `test`·`tests`만
+`graphify.test_dirs`로 넣고 `source_dirs`에서는 빼며, 이미 있는 config에는
+이 키를 추가하지 않습니다.
 
 신규 config의 `pr`에는 항상 `draft`가 있고, 브랜치 탐지가 성공했을 때만
 `base`가 붙습니다. `labels` 기본값은 두지 않습니다. 예전 설정에 남아 있는

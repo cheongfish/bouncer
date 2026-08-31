@@ -326,7 +326,7 @@ module.exports = {
     },
     'graph-sync': {
         run: cmdGraphSync,
-        usage: `  graph-sync Rebuild stale graphify source + context graphs (SessionStart / plan).
+        usage: `  graph-sync Rebuild stale graphify source + test + context graphs (SessionStart / plan).
 `,
     },
     'graphify-bin': {

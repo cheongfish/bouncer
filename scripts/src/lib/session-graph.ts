@@ -12,6 +12,8 @@ const {
   realGraphifyEnabled,
   realSourceDirs,
   realContextDirs,
+  realTestDirs,
+  realExcludeDirs,
   realExistingDirs,
   newestMtimeUnder,
   realNewestMtime,
@@ -19,19 +21,28 @@ const {
   resolveGraphScopes,
   SCAN_EXCLUDED_DIRS,
   DEFAULT_SOURCE_OUT,
+  DEFAULT_TEST_OUT,
   DEFAULT_CONTEXT_OUT,
   DEFAULT_CONTEXT_DIRS,
 } = require('./graph-scope') as {
   realGraphifyEnabled: (repoRoot: string) => boolean;
   realSourceDirs: (repoRoot: string) => string[];
   realContextDirs: (repoRoot: string) => string[];
+  realTestDirs: (repoRoot: string) => OptionalDirList;
+  realExcludeDirs: (repoRoot: string) => { dirs: string[]; skipReason?: string };
   realExistingDirs: (repoRoot: string, dirs: string[]) => string[];
   newestMtimeUnder: (repoRoot: string, dir: string) => number;
   realNewestMtime: (repoRoot: string, dirs: string[], watchFiles?: string[]) => number;
   realGraphMtime: (repoRoot: string, outDir: string) => number | null;
-  resolveGraphScopes: (opts: { sourceDirs: string[]; contextDirs: string[] }) => GraphScope[];
+  resolveGraphScopes: (opts: {
+    sourceDirs: string[];
+    contextDirs: string[];
+    testDirs?: string[] | null;
+    excludeDirs?: string[];
+  }) => GraphScope[];
   SCAN_EXCLUDED_DIRS: Set<string>;
   DEFAULT_SOURCE_OUT: string;
+  DEFAULT_TEST_OUT: string;
   DEFAULT_CONTEXT_OUT: string;
   DEFAULT_CONTEXT_DIRS: string[];
 };
@@ -55,6 +66,7 @@ type GraphScope = {
   outDir: string;
   scanDirs?: string[];
   watchFiles?: string[];
+  excludeDirs?: string[];
 };
 
 type GraphPlan = GraphScope & {
@@ -63,6 +75,11 @@ type GraphPlan = GraphScope & {
   reason: string;
 };
 
+type OptionalDirList =
+  | { present: false }
+  | { present: true; dirs: string[] }
+  | { present: true; dirs: null; skipReason: string };
+
 type SessionGraphDeps = {
   inspectBootstrap?: () => unknown;
   init?: () => { ok?: unknown; skipped?: unknown; reason?: unknown };
@@ -70,6 +87,10 @@ type SessionGraphDeps = {
   hasGraphify?: () => unknown;
   sourceDirs?: () => string[];
   contextDirs?: () => string[];
+  // null = test scope 생략(필드 부재와 동일). 단위 테스트가 config 없이
+  // 세-scope 경로만 검증할 때 주입한다.
+  testDirs?: () => string[] | null;
+  excludeDirs?: () => string[];
   existingDirs?: (dirs: string[]) => string[];
   newestMtime?: (dirs: string[], watchFiles?: string[]) => number;
   graphMtime?: (outDir: string) => number | null;
@@ -81,6 +102,9 @@ type SessionDecision = {
   reason?: unknown;
   dirs?: unknown;
   graphs: GraphPlan[];
+  // 잘못된 test_dirs/exclude_dirs처럼 값을 적용하지 않은 진단 사유.
+  // graphs/built/failed/missing 어휘 밖이지만 sync JSON에 그대로 실린다.
+  skips?: string[];
   built?: string[];
   failed?: Array<{ name: string; message: string }>;
   missing?: string[];
@@ -99,11 +123,15 @@ function planOneGraph(args: {
   outDir: string;
   scanDirs?: string[];
   watchFiles?: string[];
+  excludeDirs?: string[];
   existingDirs: (dirs: string[]) => string[];
   newestMtime: (dirs: string[], watchFiles?: string[]) => number;
   graphMtime: (outDir: string) => number | null;
 }): GraphPlan {
-  const { name, dirs, outDir, scanDirs, watchFiles, existingDirs, newestMtime, graphMtime } = args;
+  const {
+    name, dirs, outDir, scanDirs, watchFiles, excludeDirs,
+    existingDirs, newestMtime, graphMtime,
+  } = args;
   const present = existingDirs(dirs);
   const mtime = graphMtime(outDir);
   // `configured`는 전체 config 목록; `dirs`는 present만 유지해 호출자가
@@ -115,6 +143,9 @@ function planOneGraph(args: {
   };
   if (scanDirs !== undefined) base.scanDirs = scanDirs;
   if (watchFiles !== undefined) base.watchFiles = watchFiles;
+  // source merge 뒤 필터가 읽을 수 있게 계획에 유지. 빈 배열도 명시성
+  // 테스트가 보므로 키가 있으면 그대로 싣는다.
+  if (excludeDirs !== undefined) base.excludeDirs = excludeDirs;
   if (present.length === 0) {
     return { ...base, action: 'skip-no-dirs', reason: `${name} dirs missing` };
   }
@@ -165,9 +196,34 @@ function planSessionGraph({ repoRoot, deps }: {
     return { bootstrap, action: 'skip-no-graphify', reason: 'graphify not on PATH', graphs: [] };
   }
 
+  // deps가 testDirs/excludeDirs를 넘기면 config 파서를 우회한다(단위 테스트).
+  // 그 외에는 real*가 무효 필드를 적용하지 않고 skips에 사유를 모은다.
+  const skips: string[] = [];
+  let testDirs: string[] | null = null;
+  let excludeDirs: string[];
+  if (deps && Object.prototype.hasOwnProperty.call(deps, 'testDirs')) {
+    testDirs = d.testDirs ? d.testDirs() : null;
+  } else {
+    const testList = realTestDirs(repoRoot);
+    if (testList.present && testList.dirs === null) {
+      skips.push(testList.skipReason);
+    } else if (testList.present) {
+      testDirs = testList.dirs;
+    }
+  }
+  if (deps && Object.prototype.hasOwnProperty.call(deps, 'excludeDirs')) {
+    excludeDirs = d.excludeDirs ? d.excludeDirs() : [];
+  } else {
+    const excludeList = realExcludeDirs(repoRoot);
+    if (excludeList.skipReason) skips.push(excludeList.skipReason);
+    excludeDirs = excludeList.dirs;
+  }
+
   const scopes = resolveGraphScopes({
     sourceDirs: d.sourceDirs(),
     contextDirs: d.contextDirs(),
+    testDirs,
+    excludeDirs,
   });
   const graphs = scopes.map((scope: GraphScope) => planOneGraph({
     ...scope,
@@ -176,21 +232,29 @@ function planSessionGraph({ repoRoot, deps }: {
     graphMtime: d.graphMtime,
   }));
 
+  const withSkips = (decision: SessionDecision): SessionDecision => (
+    skips.length ? { ...decision, skips } : decision
+  );
+
   const toBuild = graphs.filter((g: GraphPlan) => g.action === 'build');
   if (toBuild.length) {
-    return {
+    return withSkips({
       bootstrap,
       action: 'build',
       // 하위 호환: 첫 build target의 dirs(hook은 graphs[]를 선호).
       dirs: toBuild[0].dirs,
       graphs,
       reason: toBuild.map((g: GraphPlan) => g.reason).join('; '),
-    };
+    });
   }
   if (graphs.every((g: GraphPlan) => g.action === 'skip-no-dirs')) {
-    return { bootstrap, action: 'skip-no-dirs', graphs, reason: 'no graph source dirs exist' };
+    return withSkips({
+      bootstrap, action: 'skip-no-dirs', graphs, reason: 'no graph source dirs exist',
+    });
   }
-  return { bootstrap, action: 'skip-fresh', graphs, reason: 'graphs are up to date' };
+  return withSkips({
+    bootstrap, action: 'skip-fresh', graphs, reason: 'graphs are up to date',
+  });
 }
 
 // graph 작업을 시도하지 않고 조기 종료 — 해당 scope를 "missing"으로 보고하면
@@ -203,8 +267,8 @@ const NO_GRAPH_WORK = new Set([
 ]);
 
 /**
- * source + context graph freshness를 계획하고 stale한 것을 재빌드한다.
- * SessionStart와 /bouncer-plan(graphify-runner) query 전에 다시 사용.
+ * source + (선택) test + context graph freshness를 계획하고 stale한 것을
+ * 재빌드한다. SessionStart와 /bouncer-plan(graphify-runner) query 전에 다시 사용.
  */
 function syncSessionGraphs({ repoRoot, deps, execGraphify }: {
   repoRoot: string;
@@ -249,7 +313,7 @@ function syncSessionGraphs({ repoRoot, deps, execGraphify }: {
 
 /**
  * sync decision을 SessionStart용 stderr 경고 줄로 변환.
- * 순서: bootstrap(partial/legacy) → no-graphify → missing → failed.
+ * 순서: bootstrap(partial/legacy) → no-graphify → skips → missing → failed.
  * NO_GRAPH_WORK 종료는 missing을 비우므로 bootstrap 줄이 missing/failed와
  * stderr를 공유하지 않는다. 각 줄은 hook용으로 \n으로 끝난다.
  */
@@ -272,6 +336,14 @@ function graphSyncWarnings(decision: SessionDecision) {
       + 'Install: pip install graphifyy && graphify install. See docs/install.md.\n',
     );
   }
+  // 잘못된 test_dirs/exclude_dirs는 graphs에 안 들어가고 skips에만 남는다.
+  // SessionStart가 못 보면 운영자가 왜 필드가 무시됐는지 알 수 없다.
+  for (const reason of decision.skips || []) {
+    lines.push(
+      `Bouncer: skipped graphify config — ${reason}. `
+      + 'Update .bouncer/config.json; path suggestions may be incomplete.\n',
+    );
+  }
   const byName = Object.fromEntries(
     (decision.graphs || []).map((g: GraphPlan) => [g.name, g]),
   );
@@ -286,7 +358,10 @@ function graphSyncWarnings(decision: SessionDecision) {
       dirs?: unknown;
     };
     const configured = Array.isArray(graph.configured) ? graph.configured : [];
-    const dirsKey = name === 'context' ? 'context_dirs' : `${name}_dirs`;
+    // test는 config 상 graphify.test_dirs. source/context는 루트 키.
+    const dirsKey = name === 'context'
+      ? 'context_dirs'
+      : (name === 'test' ? 'graphify.test_dirs' : `${name}_dirs`);
     // "none of … exist"는 skip-no-dirs/빈 present dirs일 때만 참.
     const noDirs = graph.action === 'skip-no-dirs'
       || !Array.isArray(graph.dirs)
@@ -324,6 +399,7 @@ module.exports = {
   partOutDir,
   SCAN_EXCLUDED_DIRS,
   DEFAULT_SOURCE_OUT,
+  DEFAULT_TEST_OUT,
   DEFAULT_CONTEXT_OUT,
   DEFAULT_CONTEXT_DIRS,
 };

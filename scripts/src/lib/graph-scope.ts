@@ -19,6 +19,7 @@ const { DISTILL_SHARD_DIR } = require('./layout') as { DISTILL_SHARD_DIR: string
 // 안전한 함수와 아닌 함수를 구분하지 못한다.
 
 const DEFAULT_SOURCE_OUT = 'graphify-out/source';
+const DEFAULT_TEST_OUT = 'graphify-out/test';
 const DEFAULT_CONTEXT_OUT = 'graphify-out/context';
 const DEFAULT_CONTEXT_DIRS = ['.bouncer/context'];
 // freshness walk 전용 이름 기반 prune — config key 아님.
@@ -30,10 +31,113 @@ const DEFAULT_CONTEXT_DIRS = ['.bouncer/context'];
 //    build 가 graphify-out 아래에 쓰기 → mtime 갱신 → rebuild 무한 루프.
 const SCAN_EXCLUDED_DIRS = new Set(['graphify-out', 'node_modules', '.git', '.worktrees']);
 
+type DirListOk = { ok: true; dirs: string[] };
+type DirListBad = { ok: false; reason: string };
+type DirListParse = DirListOk | DirListBad;
+
+type OptionalDirList =
+  | { present: false }
+  | { present: true; dirs: string[] }
+  | { present: true; dirs: null; skipReason: string };
+
+type GraphScopePlan = {
+  name: string;
+  dirs: string[];
+  outDir: string;
+  scanDirs?: string[];
+  watchFiles?: string[];
+  excludeDirs?: string[];
+};
+
 function configField(cfg: unknown, key: string): unknown {
   // cfg?.key 와 같다. `'key' in cfg`로 바꾸면 프로토타입 필드가 생기고
   // null에서 단락되지 않을 수 있다.
   return cfg && typeof cfg === 'object' ? (cfg as Record<string, unknown>)[key] : undefined;
+}
+
+function toPosix(p: string): string {
+  return p.split('\\').join('/');
+}
+
+/**
+ * 저장소 상대 디렉터리만 허용한다. 절대 경로·`..` 탈출은 거부해
+ * graphify 입력이 작업 트리 밖으로 새지 않게 한다.
+ *
+ * @param {unknown} value - 검사할 경로 후보
+ * @returns {boolean} 상대·비탈출 문자열이면 true
+ */
+function isSafeRepoRelativeDir(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0) return false;
+  const posix = toPosix(value);
+  // path.isAbsolute는 플랫폼 절대만 본다. POSIX 절대·드라이브 문자는
+  // Windows host에서도 명시적으로 막는다.
+  if (path.isAbsolute(value) || path.isAbsolute(posix)) return false;
+  if (posix.startsWith('/') || /^[A-Za-z]:/.test(posix)) return false;
+  if (posix.split('/').includes('..')) return false;
+  return true;
+}
+
+/**
+ * graphify.test_dirs / exclude_dirs 공통 파서. 문자열 배열이 아니거나
+ * 안전하지 않은 항목이 있으면 값을 적용하지 않고 진단 사유만 남긴다.
+ *
+ * @param {unknown} raw - config 필드 원본
+ * @param {string} fieldName - 진단에 쓸 필드 이름
+ * @returns {DirListParse} 성공 시 dirs, 실패 시 reason
+ */
+function parseDirList(raw: unknown, fieldName: string): DirListParse {
+  if (!Array.isArray(raw)) {
+    return { ok: false, reason: `${fieldName} must be a string array of repo-relative paths` };
+  }
+  if (!raw.every(isSafeRepoRelativeDir)) {
+    return {
+      ok: false,
+      reason: `${fieldName} entries must be repo-relative paths without '..' or absolute roots`,
+    };
+  }
+  return { ok: true, dirs: raw as string[] };
+}
+
+function graphifyObject(cfg: unknown): Record<string, unknown> | null {
+  const graphify = configField(cfg, 'graphify');
+  if (!graphify || typeof graphify !== 'object' || Array.isArray(graphify)) return null;
+  return graphify as Record<string, unknown>;
+}
+
+/**
+ * 선택 필드 graphify.test_dirs를 읽는다. 키 부재는 present:false —
+ * test scope 자체를 만들지 않는 하위 호환 경로. 잘못된 값은 적용하지
+ * 않고 skipReason만 돌려 호출자가 graphs에 test를 넣지 않게 한다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @returns {OptionalDirList} 부재·유효 dirs·무효 skip
+ */
+function realTestDirs(repoRoot: string): OptionalDirList {
+  const graphify = graphifyObject(readConfig(repoRoot));
+  if (!graphify || !Object.prototype.hasOwnProperty.call(graphify, 'test_dirs')) {
+    return { present: false };
+  }
+  const parsed = parseDirList(graphify.test_dirs, 'graphify.test_dirs');
+  if (!parsed.ok) return { present: true, dirs: null, skipReason: parsed.reason };
+  return { present: true, dirs: parsed.dirs };
+}
+
+/**
+ * 선택 필드 graphify.exclude_dirs를 읽는다. 키 부재·빈 배열은 제외
+ * 없음을 뜻하며 JavaScript를 생성물로 추측해 지우지 않는다. 무효 값도
+ * 빈 제외로 수렴하고 skipReason만 남긴다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @returns {{ dirs: string[], skipReason?: string }} 적용할 prefix와 선택적 사유
+ */
+function realExcludeDirs(repoRoot: string): { dirs: string[]; skipReason?: string } {
+  const graphify = graphifyObject(readConfig(repoRoot));
+  if (!graphify || !Object.prototype.hasOwnProperty.call(graphify, 'exclude_dirs')) {
+    return { dirs: [] };
+  }
+  const parsed = parseDirList(graphify.exclude_dirs, 'graphify.exclude_dirs');
+  if (!parsed.ok) return { dirs: [], skipReason: parsed.reason };
+  return { dirs: parsed.dirs };
 }
 
 function realGraphifyEnabled(repoRoot: string) {
@@ -132,31 +236,67 @@ function realGraphMtime(repoRoot: string, outDir: string) {
   return fs.existsSync(abs) ? fs.statSync(abs).mtimeMs : null;
 }
 
-function resolveGraphScopes({ sourceDirs, contextDirs }: {
+/**
+ * source·(선택) test·context scope 계획을 만든다. testDirs가 null/undefined면
+ * 예전 두-scope config와 같이 test를 넣지 않는다. excludeDirs는 source에만
+ * 실어 merge 뒤 필터가 소비한다 — 빈 목록이면 필터 no-op.
+ *
+ * @param {{ sourceDirs: string[], contextDirs: string[], testDirs?: string[] | null, excludeDirs?: string[] }} args
+ * @returns {GraphScopePlan[]} 빌드·freshness 계획 목록
+ */
+function resolveGraphScopes({ sourceDirs, contextDirs, testDirs, excludeDirs }: {
   sourceDirs: string[];
   contextDirs: string[];
-}) {
-  return [
-    { name: 'source', dirs: sourceDirs, outDir: DEFAULT_SOURCE_OUT },
-    {
-      name: 'context',
-      dirs: contextDirs,
-      outDir: DEFAULT_CONTEXT_OUT,
-      // 빌드는 파생 트리를 스캔하고, freshness 는 dirs+watchFiles(원본)만 본다.
-      scanDirs: [CONTEXT_DIGEST_OUT],
-      watchFiles: [...DIGEST_WATCH_FILES],
-    },
-  ];
+  testDirs?: string[] | null;
+  excludeDirs?: string[];
+}): GraphScopePlan[] {
+  const source: GraphScopePlan = {
+    name: 'source',
+    dirs: sourceDirs,
+    outDir: DEFAULT_SOURCE_OUT,
+    // exclude_dirs·test_dirs는 config에만 있다. source 입력 mtime만 보면
+    // exclude를 바꾼 뒤에도 skip-fresh로 남아 필터가 한 번도 안 돈다.
+    // config mtime을 freshness에 넣어 다음 sync가 rebuild·재필터하게 한다.
+    watchFiles: ['.bouncer/config.json'],
+  };
+  // 빈 배열도 "명시적 제외 없음"이라 키를 붙여도 no-op이지만, 호출자가
+  // 넘긴 목록만 실어 진단·테스트가 계획 객체를 읽을 수 있게 한다.
+  if (excludeDirs && excludeDirs.length > 0) {
+    source.excludeDirs = excludeDirs;
+  } else if (excludeDirs) {
+    source.excludeDirs = [];
+  }
+
+  const scopes: GraphScopePlan[] = [source];
+  // null/undefined = 필드 부재. 빈 배열은 필드 존재 → test scope를 만들고
+  // 이후 planOneGraph가 skip-no-dirs로 수렴한다.
+  if (testDirs != null) {
+    scopes.push({ name: 'test', dirs: testDirs, outDir: DEFAULT_TEST_OUT });
+  }
+  scopes.push({
+    name: 'context',
+    dirs: contextDirs,
+    outDir: DEFAULT_CONTEXT_OUT,
+    // 빌드는 파생 트리를 스캔하고, freshness 는 dirs+watchFiles(원본)만 본다.
+    scanDirs: [CONTEXT_DIGEST_OUT],
+    watchFiles: [...DIGEST_WATCH_FILES],
+  });
+  return scopes;
 }
 
 module.exports = {
   SCAN_EXCLUDED_DIRS,
   DEFAULT_SOURCE_OUT,
+  DEFAULT_TEST_OUT,
   DEFAULT_CONTEXT_OUT,
   DEFAULT_CONTEXT_DIRS,
   realGraphifyEnabled,
   realSourceDirs,
   realContextDirs,
+  realTestDirs,
+  realExcludeDirs,
+  parseDirList,
+  isSafeRepoRelativeDir,
   realExistingDirs,
   newestMtimeUnder,
   realNewestMtime,
