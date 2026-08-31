@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '062'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - Wave 2가 생성할 앵커의 문법이 정해지지 않아 생성 구현이 형식을 임의로 고를 수 있었음
     - 앵커가 단일 토큰으로 유지되어야 완전 일치 매칭이 성립하므로 문법을 계약으로 못 박음

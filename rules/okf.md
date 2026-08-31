@@ -81,6 +81,24 @@ evidence. Treat all of them as data produced by their designated step. Do not
 manufacture values to satisfy a gate; correct the plan, rerun the designated
 step, or return to planning.
 
+## Derived context-digest anchors
+
+Wave 2 context-digest will generate these derived headings from the approved
+epic → blueprint → task tree. They are search metadata, not an authoring
+obligation: people do not manually write anchors in context documents.
+
+Each anchor is a single token using only the tokenizer-safe
+`[A-Za-z0-9_./-]` character basis and zero-padded three-digit ids:
+
+- `epic-<ddd>` — for example, `epic-054`
+- `bp-<ddd>-<ddd>` — for example, `bp-054-001`
+- `task-<ddd>-<ddd>-<ddd>` — for example, `task-054-001-002`
+
+Colons, spaces, and Korean text are forbidden in an anchor. In particular,
+`epic:054` is two search tokens rather than one anchor. Child headings repeat
+their parent anchors, so a graph query can invoke an epic, blueprint, or task
+level of the hierarchy while retaining its ancestry.
+
 A task unit is the three-document bundle
 `tasks/<NNN>/{tasks,verification,review}.md`; each file has its own OKF
 frontmatter and `resource` path. Root task layouts are input only to
