@@ -24,13 +24,54 @@ bouncer:
     generated_at: '2026-08-12T12:00:00.000+09:00'
     producer: graphify
     suggested_paths:
-      - scripts/src/lib
-      - test
+      - scripts/src/lib/verification.ts
+      - scripts/src/lib/init.ts
+      - test/cli-verify.test.js
+    quality:
+      status: ranked
+      confidence: high
+      reasons:
+        - 'context seeds used: 2'
+        - 'relation filter: calls|imports'
+    candidates:
+      implementation:
+        - path: scripts/src/lib/verification.ts
+          score: 9
+          confidence: high
+          basis:
+            - unique seed definition
+            - implementation path
+        - path: scripts/src/lib/init.ts
+          score: 6
+          confidence: medium
+          basis:
+            - context hit
+            - implementation path
+      test:
+        - path: test/cli-verify.test.js
+          score: 5
+          confidence: medium
+          basis:
+            - connected test
+      context:
+        - path: .bouncer/context/epics/077-verify-timeout/index.md
+          score: 4
+          confidence: medium
+          basis:
+            - context hit
     basis:
       - graph: source
         status: reused
         query: verify timeout_ms config spawn
-        result: verification.ts·init.ts·cli-verify 테스트가 반환됨
+        result: verification.ts·init.ts 반환
+      - graph: test
+        status: reused
+        query: verify timeout_ms config spawn
+        result: cli-verify 테스트 연결
+      - graph: context
+        status: updated
+        query: verify timeout_ms config spawn
+        result: epic 077 결정 문서 hit
 ---
 # Tasks
 

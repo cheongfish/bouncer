@@ -64,3 +64,4 @@ bouncer_schema: '0.1'
 * [057 review-ready-pr](epics/057-review-ready-pr/index.md) - Epic 057
 * [058 context-runtime-compaction](epics/058-context-runtime-compaction/index.md) - Epic 058
 * [059 audit-followup](epics/059-audit-followup/index.md) - Epic 059
+* [060 graphify-search-quality](epics/060-graphify-search-quality/index.md) - Epic 060

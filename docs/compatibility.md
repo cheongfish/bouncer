@@ -14,7 +14,7 @@
 ### CLI 명령
 
 `bouncer --help`의 명령 이름은 `validate`, `verify`, `scaffold`, `commit`,
-`finalize`, `seed-worktree`, `init`, `graph-sync`, `graphify-bin`,
+`finalize`, `seed-worktree`, `init`, `graph-sync`, `graph-suggest`, `graphify-bin`,
 `project-root`, `distill`, `current`, `migrate`, `import`다. 하위 kind와
 플래그는 [cli.md](cli.md)에 있다.
 

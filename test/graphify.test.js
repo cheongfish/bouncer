@@ -11,6 +11,11 @@ const {
   realNewestMtime,
   resolveGraphScopes,
 } = require('../scripts/lib/graph-scope');
+const {
+  applyExcludeDirs,
+  defaultExecGraphify,
+  writeFilteredGraph,
+} = require('../scripts/lib/graph-exec');
 const { makeAllowed, makeFinalizeAllowed } = require('../scripts/lib/scope');
 
 test('venvBinRel returns POSIX-relative platform paths', () => {
@@ -342,7 +347,7 @@ test('registered Distill shards are finalize-only scope allowances', () => {
     '## Decisions\n',
   ].join('\n'));
   fs.writeFileSync(path.join(repo, '.bouncer/distill/core.md'), '## Decisions\n\ncore\n');
-  fs.writeFileSync(path.join(repo, '.bouncer/distill/unregistered.md'), '## Decisions\n\nnope\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/distill/unregistered.md'), '## Decisions\n\nunregistered\n');
 
   const execute = makeAllowed({
     affectedPaths: ['scripts/src/lib/feature.ts'],
@@ -358,4 +363,104 @@ test('registered Distill shards are finalize-only scope allowances', () => {
   assert.strictEqual(execute('.bouncer/distill/unregistered.md'), false);
   assert.strictEqual(finalize('.bouncer/distill/core.md'), true);
   assert.strictEqual(finalize('.bouncer/distill/unregistered.md'), false);
+});
+
+test('applyExcludeDirs drops nodes links and hyperedges under exclude prefixes', () => {
+  const graph = {
+    nodes: [
+      { id: 'keep', source_file: 'scripts/src/lib/a.ts' },
+      { id: 'drop', source_file: 'scripts/lib/a.js' },
+      { id: 'also', source_file: 'scripts/lib/nested/b.js' },
+    ],
+    links: [
+      { source: 'keep', target: 'drop', source_file: 'scripts/src/lib/a.ts' },
+      { source: 'drop', target: 'also', source_file: 'scripts/lib/a.js' },
+      { source: 'keep', target: 'keep', source_file: 'scripts/src/lib/a.ts' },
+    ],
+    hyperedges: [
+      { nodes: ['keep', 'drop'], source_file: 'scripts/src/lib/a.ts' },
+      { nodes: ['keep'], source_file: 'scripts/src/lib/a.ts' },
+    ],
+  };
+  const out = applyExcludeDirs(graph, ['scripts/lib']);
+  assert.deepStrictEqual(out.nodes.map((n) => n.id), ['keep']);
+  assert.strictEqual(out.links.length, 1);
+  assert.deepStrictEqual(out.links[0], {
+    source: 'keep', target: 'keep', source_file: 'scripts/src/lib/a.ts',
+  });
+  assert.strictEqual(out.hyperedges.length, 1);
+  assert.deepStrictEqual(out.hyperedges[0].nodes, ['keep']);
+});
+
+test('empty excludeDirs leaves JavaScript nodes untouched', () => {
+  const graph = {
+    nodes: [
+      { id: 'js', source_file: 'scripts/lib/init.js' },
+      { id: 'ts', source_file: 'scripts/src/lib/init.ts' },
+    ],
+    links: [{ source: 'js', target: 'ts', source_file: 'scripts/lib/init.js' }],
+    hyperedges: [{ nodes: ['js', 'ts'], source_file: 'scripts/lib/init.js' }],
+  };
+  const before = JSON.stringify(graph);
+  const out = applyExcludeDirs(graph, []);
+  assert.strictEqual(JSON.stringify(out), before);
+  assert.strictEqual(out.nodes.length, 2);
+  assert.ok(out.nodes.some((n) => n.source_file.endsWith('.js')));
+});
+
+test('defaultExecGraphify writeFilteredGraph filters source graph.json', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-exec-exclude-'));
+  fs.mkdirSync(path.join(repo, 'src'));
+  defaultExecGraphify(repo, {
+    name: 'source',
+    dirs: ['src'],
+    outDir: 'graphify-out/source',
+    excludeDirs: ['src/gen'],
+  }, {
+    bin: '/fake/graphify',
+    exec: (_file, _args, opts) => {
+      // runGraphifyUpdate cwd = partAbs. normalize가 dir/ 접두를 붙인다.
+      fs.writeFileSync(path.join(opts.cwd, 'graph.json'), JSON.stringify({
+        nodes: [
+          { id: 'keep', source_file: 'a.ts' },
+          { id: 'drop', source_file: 'gen/b.js' },
+        ],
+        links: [
+          { source: 'keep', target: 'drop', source_file: 'a.ts' },
+          { source: 'keep', target: 'keep', source_file: 'a.ts' },
+        ],
+        hyperedges: [
+          { nodes: ['keep', 'drop'], source_file: 'a.ts' },
+          { nodes: ['keep'], source_file: 'a.ts' },
+        ],
+      }));
+    },
+  });
+  const out = JSON.parse(fs.readFileSync(
+    path.join(repo, 'graphify-out/source/graph.json'),
+    'utf8',
+  ));
+  assert.strictEqual(out.nodes.length, 1);
+  assert.strictEqual(out.nodes[0].source_file, 'src/a.ts');
+  assert.strictEqual(out.links.length, 1);
+  assert.deepStrictEqual(
+    { source: out.links[0].source, target: out.links[0].target },
+    { source: out.nodes[0].id, target: out.nodes[0].id },
+  );
+  assert.strictEqual(out.hyperedges.length, 1);
+  assert.deepStrictEqual(out.hyperedges[0].nodes, [out.nodes[0].id]);
+});
+
+test('writeFilteredGraph no-ops when excludeDirs empty', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-write-exclude-'));
+  const target = path.join(repo, 'graphify-out/source/graph.json');
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const body = JSON.stringify({
+    nodes: [{ id: 'js', source_file: 'scripts/lib/init.js' }],
+    links: [],
+    hyperedges: [],
+  });
+  fs.writeFileSync(target, body);
+  writeFilteredGraph(target, []);
+  assert.strictEqual(fs.readFileSync(target, 'utf8'), body);
 });

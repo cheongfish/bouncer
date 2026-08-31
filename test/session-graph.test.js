@@ -9,7 +9,7 @@ const {
   planSessionGraph, syncSessionGraphs, graphSyncWarnings,
   newestMtimeUnder, runGraphifyUpdate, partOutDir, resolveGraphScopes,
   normalizeGraphPaths,
-  SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT,
+  SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT, DEFAULT_TEST_OUT,
 } = require('../scripts/lib/session-graph');
 
 function base(over) {
@@ -416,9 +416,203 @@ test('context scope scans derived tree; freshness watches originals', () => {
   // context scope는 파생 트리를 스캔하고, freshness는 원본을 본다
   const [source, context] = resolveGraphScopes({ sourceDirs: ['scripts'], contextDirs: ['.bouncer/context'] });
   assert.equal(source.scanDirs, undefined);
+  // exclude_dirs 변경이 skip-fresh에 가리지 않도록 source는 config mtime을 본다.
+  assert.deepEqual(source.watchFiles, ['.bouncer/config.json']);
   assert.deepEqual(context.dirs, ['.bouncer/context']);
   assert.deepEqual(context.scanDirs, ['graphify-out/context-src']);
   assert.deepEqual(context.watchFiles, ['.bouncer/Distill.md']);
+});
+
+test('source rebuilds when config exclude_dirs is newer than graph', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-exclude-fresh-'));
+  fs.mkdirSync(path.join(repo, 'src'));
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.mkdirSync(path.join(repo, DEFAULT_SOURCE_OUT), { recursive: true });
+  fs.writeFileSync(path.join(repo, DEFAULT_SOURCE_OUT, 'graph.json'), JSON.stringify({
+    nodes: [{ id: 'a', source_file: 'src/a.ts' }],
+    links: [],
+  }));
+  const old = Date.now() - 120_000;
+  const neu = Date.now() + 60_000;
+  const touch = (rel, ms) => {
+    const abs = path.join(repo, rel);
+    fs.utimesSync(abs, new Date(ms), new Date(ms));
+  };
+  touch('src/a.ts', old);
+  touch(path.join(DEFAULT_SOURCE_OUT, 'graph.json'), old);
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    context_dirs: ['.bouncer/context'],
+    verify: 'npm test',
+    graphify: { enabled: true, exclude_dirs: ['scripts/lib'] },
+  }));
+  touch('.bouncer/config.json', neu);
+
+  const result = planSessionGraph({
+    repoRoot: repo,
+    deps: {
+      inspectBootstrap: () => 'ready',
+      graphifyEnabled: () => true,
+      hasGraphify: () => true,
+      sourceDirs: () => ['src'],
+      contextDirs: () => [],
+      testDirs: () => null,
+      excludeDirs: () => ['scripts/lib'],
+    },
+  });
+  const source = result.graphs.find((g) => g.name === 'source');
+  assert.ok(source);
+  assert.strictEqual(source.action, 'build');
+  assert.match(source.reason, /sources changed/i);
+});
+
+test('graphSyncWarnings emits diagnostic lines for config skips', () => {
+  const lines = graphSyncWarnings({
+    action: 'skip-fresh',
+    graphs: [],
+    missing: [],
+    skips: [
+      'graphify.test_dirs must be a string array of repo-relative paths',
+      "graphify.exclude_dirs entries must be repo-relative paths without '..' or absolute roots",
+    ],
+  });
+  assert.strictEqual(lines.length, 2);
+  assert.match(lines[0], /skipped graphify config/);
+  assert.match(lines[0], /test_dirs/);
+  assert.match(lines[1], /exclude_dirs/);
+  assert.match(lines[0], /\n$/);
+});
+
+test('resolveGraphScopes omits test when testDirs are absent', () => {
+  const scopes = resolveGraphScopes({
+    sourceDirs: ['src'],
+    contextDirs: ['.bouncer/context'],
+  });
+  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'context']);
+});
+
+test('resolveGraphScopes adds test scope and source excludeDirs when provided', () => {
+  const scopes = resolveGraphScopes({
+    sourceDirs: ['src'],
+    testDirs: ['test'],
+    contextDirs: ['.bouncer/context'],
+    excludeDirs: ['scripts/lib'],
+  });
+  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'test', 'context']);
+  const source = scopes.find((s) => s.name === 'source');
+  const testScope = scopes.find((s) => s.name === 'test');
+  assert.strictEqual(testScope.outDir, DEFAULT_TEST_OUT);
+  assert.deepStrictEqual(testScope.dirs, ['test']);
+  assert.deepStrictEqual(source.excludeDirs, ['scripts/lib']);
+});
+
+test('legacy config without test_dirs keeps two-scope plan results', () => {
+  const result = plan({
+    graphifyEnabled: () => true,
+    graphMtime: () => null,
+    testDirs: () => null,
+  });
+  assert.strictEqual(result.graphs.length, 2);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'context']);
+  assert.ok(!Object.prototype.hasOwnProperty.call(result, 'skips')
+    || !result.skips
+    || result.skips.length === 0);
+});
+
+test('test scope builds freshness and missing like other scopes', () => {
+  const result = plan({
+    graphifyEnabled: () => true,
+    testDirs: () => ['test'],
+    sourceDirs: () => ['src'],
+    graphMtime: (outDir) => {
+      if (outDir === DEFAULT_SOURCE_OUT) return 300;
+      if (outDir === DEFAULT_TEST_OUT) return null;
+      return 300;
+    },
+    newestMtime: () => 200,
+  });
+  assert.strictEqual(result.action, 'build');
+  const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g]));
+  assert.strictEqual(byName.source.action, 'skip-fresh');
+  assert.strictEqual(byName.test.action, 'build');
+  assert.strictEqual(byName.context.action, 'skip-fresh');
+  assert.strictEqual(byName.test.outDir, DEFAULT_TEST_OUT);
+
+  let testGraphPresent = false;
+  const sync = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({
+      testDirs: () => ['test'],
+      sourceDirs: () => ['src'],
+      existingDirs: (dirs) => dirs,
+      graphMtime: (outDir) => {
+        if (outDir === DEFAULT_TEST_OUT) return testGraphPresent ? 400 : null;
+        return 300;
+      },
+      newestMtime: () => 200,
+    }),
+    execGraphify: (graph) => {
+      if (graph.name === 'test') testGraphPresent = true;
+    },
+  });
+  assert.ok(sync.built.includes('test'));
+  assert.ok(!sync.missing.includes('test'));
+});
+
+test('invalid graphify.test_dirs is skipped with a diagnostic reason', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-bad-test-dirs-'));
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    context_dirs: ['.bouncer/context'],
+    verify: 'npm test',
+    graphify: { enabled: true, test_dirs: ['/abs/test', '../escape'] },
+  }));
+  fs.mkdirSync(path.join(repo, 'src'));
+  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
+
+  const result = planSessionGraph({
+    repoRoot: repo,
+    deps: {
+      inspectBootstrap: () => 'ready',
+      graphifyEnabled: () => true,
+      hasGraphify: () => true,
+      graphMtime: () => 300,
+      newestMtime: () => 100,
+    },
+  });
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'context']);
+  assert.ok(Array.isArray(result.skips));
+  assert.ok(result.skips.some((s) => /test_dirs/.test(s)));
+});
+
+test('invalid graphify.exclude_dirs is not applied and reports a skip reason', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-bad-exclude-'));
+  fs.mkdirSync(path.join(repo, '.bouncer'));
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    context_dirs: ['.bouncer/context'],
+    verify: 'npm test',
+    graphify: { enabled: true, exclude_dirs: 'scripts/lib' },
+  }));
+  fs.mkdirSync(path.join(repo, 'src'));
+  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
+
+  const result = planSessionGraph({
+    repoRoot: repo,
+    deps: {
+      inspectBootstrap: () => 'ready',
+      graphifyEnabled: () => true,
+      hasGraphify: () => true,
+      graphMtime: () => 300,
+      newestMtime: () => 100,
+    },
+  });
+  const source = result.graphs.find((g) => g.name === 'source');
+  assert.deepStrictEqual(source.excludeDirs || [], []);
+  assert.ok(Array.isArray(result.skips));
+  assert.ok(result.skips.some((s) => /exclude_dirs/.test(s)));
 });
 
 test('normalizeGraphPaths maps source_file via opts.map and drops unknowns', () => {

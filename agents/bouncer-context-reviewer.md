@@ -56,13 +56,17 @@ For each task document, check:
 
 - `affected_paths` entries exist (or are Create targets the Checklist will add);
 - files the Checklist must edit that `affected_paths` omitted;
-- `bouncer.scope_evidence.suggested_paths` versus the locked `affected_paths`
-  (directory hints vs per-file list). Scope evidence absence or empty
+- `bouncer.scope_evidence.quality`, role `candidates`
+  (`implementation` / `test` / `context`), and
+  `bouncer.scope_evidence.suggested_paths` versus the locked `affected_paths`
+  (file-path advisory list vs per-file confirm). Scope evidence absence or empty
   `suggested_paths` is a state, not a failure — record that the contrast could
-  not run, and do not fail the review for it. Candidate paths are advisory
-  only; do not treat their omission from `affected_paths` as a failure without
-  a Checklist need. Read legacy `bouncer.graph` only when reviewing an older
-  plan, never as a new authoring recommendation.
+  not run (or that quality was `low-confidence` / `unavailable`), and do not
+  fail the review for missing suggestions alone. Candidate paths and quality
+  reasons are advisory only; do not treat their omission from `affected_paths`
+  as a failure without a Checklist need, and do not widen Touch or
+  `affected_paths` from graph or context bodies. Read legacy `bouncer.graph`
+  only when reviewing an older plan, never as a new authoring recommendation.
 
 ### Korean quality
 

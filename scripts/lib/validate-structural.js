@@ -12,7 +12,12 @@ const { DEFAULT_DISTILL_CONFIG, getDistillConfig, readConfig, } = require('./con
 // graph.basis는 레거시 문자열과 그래프별 엔트리 배열을 모두 받는다.
 // S9(구조)와 G4(plan)가 같은 헬퍼를 써야 두 경로가 다른 답을 내지 않는다.
 const GRAPH_BASIS_STATUS = ['updated', 'reused', 'fail-skip', 'skip-disabled', 'missing'];
-const GRAPH_BASIS_GRAPH = ['source', 'context'];
+// test는 구현·연결 테스트 그래프용. 질의 실패해도 runner가 엔트리를 남기므로
+// 허용값에 두고, 세 그래프를 강제하지는 않는다(구 source|context 문서 호환).
+const GRAPH_BASIS_GRAPH = ['source', 'test', 'context'];
+const SCOPE_QUALITY_STATUS = ['ranked', 'low-confidence', 'unavailable'];
+const SCOPE_CONFIDENCE = ['high', 'medium', 'low'];
+const SCOPE_CANDIDATE_ROLES = ['implementation', 'test', 'context'];
 function isValidGraphBasis(basis) {
     if (typeof basis === 'string')
         return basis.trim().length > 0;
@@ -29,6 +34,63 @@ function isValidGraphBasis(basis) {
         if (typeof rec.query !== 'string' || !rec.query.trim())
             return false;
         if (typeof rec.result !== 'string' || !rec.result.trim())
+            return false;
+    }
+    return true;
+}
+function isNonEmptyStringArray(value) {
+    return Array.isArray(value)
+        && value.length > 0
+        && value.every((entry) => typeof entry === 'string' && entry.trim().length > 0);
+}
+/**
+ * Task 002 graph-suggest 후보와 같은 모양. path는 저장소-상대 **파일**이어야 하고
+ * score는 정수, basis는 비어 있지 않은 문자열 배열이다.
+ * 디렉터리 롤업(`scripts/src/lib/`, `test`)은 새 quality/candidates write form에서만
+ * 거절한다 — quality 없는 legacy evidence의 suggested_paths는 건드리지 않는다.
+ */
+function isValidScopeCandidate(candidate) {
+    if (candidate == null || typeof candidate !== 'object' || Array.isArray(candidate))
+        return false;
+    const rec = candidate;
+    if (typeof rec.path !== 'string' || !rec.path.trim())
+        return false;
+    const filePath = rec.path.trim();
+    if (filePath.includes('\\') || filePath.startsWith('/') || /^[A-Za-z]:/.test(filePath))
+        return false;
+    if (filePath.split('/').includes('..'))
+        return false;
+    // trailing slash → 디렉터리. basename에 '.' 없음 → 롤업 경로(test, scripts/src/lib).
+    if (filePath.endsWith('/'))
+        return false;
+    const base = filePath.split('/').pop() || '';
+    if (!base || base === '.' || base === '..' || !base.includes('.'))
+        return false;
+    if (!Number.isInteger(rec.score))
+        return false;
+    if (!SCOPE_CONFIDENCE.includes(rec.confidence))
+        return false;
+    return isNonEmptyStringArray(rec.basis);
+}
+function isValidScopeQuality(quality) {
+    if (quality == null || typeof quality !== 'object' || Array.isArray(quality))
+        return false;
+    const rec = quality;
+    if (!SCOPE_QUALITY_STATUS.includes(rec.status))
+        return false;
+    if (!SCOPE_CONFIDENCE.includes(rec.confidence))
+        return false;
+    return isNonEmptyStringArray(rec.reasons);
+}
+function isValidScopeCandidates(candidates) {
+    if (candidates == null || typeof candidates !== 'object' || Array.isArray(candidates))
+        return false;
+    const rec = candidates;
+    for (const role of SCOPE_CANDIDATE_ROLES) {
+        const list = rec[role];
+        if (!Array.isArray(list))
+            return false;
+        if (!list.every((entry) => isValidScopeCandidate(entry)))
             return false;
     }
     return true;
@@ -73,6 +135,35 @@ function normalizeScopeEvidence(bouncer) {
     }
     if (!isValidGraphBasis(evidence.basis)) {
         return { evidence: null, error: 'scope evidence basis missing or empty' };
+    }
+    // quality·candidates는 선택이다. 둘 다 없으면 구 evidence를 그대로 통과시키고,
+    // 하나만 있거나 형식이 틀리면 S9/G4가 같은 메시지로 거절한다.
+    const hasQuality = source.quality !== undefined;
+    const hasCandidates = source.candidates !== undefined;
+    if (hasQuality !== hasCandidates) {
+        return {
+            evidence: null,
+            error: 'scope_evidence.quality and candidates must both be present or both absent',
+        };
+    }
+    if (hasQuality && hasCandidates) {
+        if (!isValidScopeQuality(source.quality)) {
+            return { evidence: null, error: 'scope_evidence.quality missing or invalid' };
+        }
+        if (!isValidScopeCandidates(source.candidates)) {
+            return { evidence: null, error: 'scope_evidence.candidates has invalid candidate shape' };
+        }
+        const quality = source.quality;
+        // 저신뢰·불가 상태에서는 파일 추천을 내지 않는다 — 비어 있지 않으면 승인 경계가 흐려진다.
+        if ((quality.status === 'low-confidence' || quality.status === 'unavailable')
+            && evidence.suggested_paths.length > 0) {
+            return {
+                evidence: null,
+                error: 'scope_evidence.suggested_paths must be empty when quality is low-confidence or unavailable',
+            };
+        }
+        evidence.quality = source.quality;
+        evidence.candidates = source.candidates;
     }
     return { evidence, error: null };
 }

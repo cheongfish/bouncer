@@ -87,11 +87,32 @@ test('graphify-runner skips on source graph missing via graph-sync missing', () 
   assert.match(md, /source `graph\.json`/);
 });
 
-test('graphify-runner drops graphify-out hits before rollup and does not translate', () => {
+test('graphify-runner excludes graphify-out hits and does not translate derived names', () => {
   const md = readSkill('graphify-runner');
-  // 계약: 롤업 전에 graphify-out/ 하위 히트 제외 + 파생 이름 번역 금지 (스킬 본문).
   assert.match(md, /graphify-out\//);
-  assert.match(md, /롤업/);
-  assert.match(md, /롤업\s*전에[\s\S]{0,200}`?graphify-out\/`?[\s\S]{0,120}(제외|버리)/);
-  assert.match(md, /파생\s*이름[\s\S]{0,80}번역하지\s*않는다/);
+  assert.match(md, /(제외|버리|drop|exclude)/i);
+  assert.match(md, /파생\s*이름[\s\S]{0,80}번역하지\s*않는다|does not translate/i);
+});
+
+test('graphify-runner calls graph-suggest after sync and records structured quality evidence', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /graph-sync/);
+  assert.match(md, /graph-suggest/);
+  assert.match(md, /scope_evidence\.quality|quality:/);
+  assert.match(md, /scope_evidence\.candidates|candidates:/);
+  assert.match(md, /implementation/);
+  assert.match(md, /low-confidence/);
+  assert.match(md, /graphify-out\/source/);
+  assert.match(md, /graphify-out\/test/);
+  assert.match(md, /graphify-out\/context/);
+  // 디렉터리 롤업은 파일 후보 계약으로 대체된다.
+  assert.doesNotMatch(md, /Roll up to directories/);
+  assert.match(md, /suggested_paths/);
+});
+
+test('graphify-runner leaves empty suggested_paths on low-confidence or unavailable', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /low-confidence/);
+  assert.match(md, /unavailable/);
+  assert.match(md, /suggested_paths[\s\S]{0,160}(\[\]|empty|빈)/i);
 });

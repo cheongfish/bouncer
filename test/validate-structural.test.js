@@ -455,6 +455,163 @@ test('S9: scope_evidence requires the graphify producer', () => {
   assert.ok(res.failures.some((f) => f.code === 'S9' && /producer/.test(f.message)));
 });
 
+function goodCandidate(filePath = 'scripts/src/lib/foo.ts') {
+  return {
+    path: filePath,
+    score: 8,
+    confidence: 'high',
+    basis: ['unique seed definition'],
+  };
+}
+
+function writeScopeEvidence(scopeEvidence) {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.scope_evidence = scopeEvidence;
+  t.bouncer.affected_paths = ['scripts/src/lib/validate-structural.ts'];
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  return { repo, res: validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL }), tasks: t };
+}
+
+function rankedScopeEvidence(overrides = {}) {
+  return {
+    producer: 'graphify',
+    generated_at: '2026-08-31T12:00:00+09:00',
+    suggested_paths: ['scripts/src/lib/foo.ts', 'test/foo.test.js'],
+    basis: [
+      { graph: 'source', status: 'reused', query: 'q', result: 'ok' },
+      { graph: 'test', status: 'reused', query: 'q', result: 'ok' },
+      { graph: 'context', status: 'updated', query: 'q', result: 'ok' },
+    ],
+    quality: {
+      status: 'ranked',
+      confidence: 'high',
+      reasons: ['context seeds used: 2'],
+    },
+    candidates: {
+      implementation: [goodCandidate()],
+      test: [goodCandidate('test/foo.test.js')],
+      context: [goodCandidate('.bouncer/context/epics/001-auth/index.md')],
+    },
+    ...overrides,
+  };
+}
+
+test('S9: ranked quality and candidates with test basis pass', () => {
+  const { res, tasks } = writeScopeEvidence(rankedScopeEvidence());
+  assert.ok(!res.failures.some((f) => f.code === 'S9'), JSON.stringify(res.failures));
+  // 검증기는 suggested_paths를 affected_paths로 복사하지 않는다.
+  assert.deepStrictEqual(
+    tasks.bouncer.affected_paths,
+    ['scripts/src/lib/validate-structural.ts'],
+  );
+});
+
+test('S9: low-confidence quality with empty suggested_paths passes', () => {
+  const { res } = writeScopeEvidence(rankedScopeEvidence({
+    suggested_paths: [],
+    quality: {
+      status: 'low-confidence',
+      confidence: 'low',
+      reasons: ['implementation candidates are all low confidence'],
+    },
+    candidates: {
+      implementation: [{
+        path: 'scripts/src/lib/foo.ts',
+        score: 2,
+        confidence: 'low',
+        basis: ['generic name only'],
+      }],
+      test: [],
+      context: [],
+    },
+  }));
+  assert.ok(!res.failures.some((f) => f.code === 'S9'), JSON.stringify(res.failures));
+});
+
+test('S9: quality without candidates is rejected', () => {
+  const evidence = rankedScopeEvidence();
+  delete evidence.candidates;
+  const { res } = writeScopeEvidence(evidence);
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /quality|candidates/i.test(f.message)));
+});
+
+test('S9: candidates without quality is rejected', () => {
+  const evidence = rankedScopeEvidence();
+  delete evidence.quality;
+  const { res } = writeScopeEvidence(evidence);
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /quality|candidates/i.test(f.message)));
+});
+
+test('S9: bad candidate shape is rejected', () => {
+  const { res } = writeScopeEvidence(rankedScopeEvidence({
+    candidates: {
+      implementation: [{ path: 'scripts/src/lib/foo.ts', score: 8, confidence: 'high', basis: [] }],
+      test: [],
+      context: [],
+    },
+  }));
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /candidate/i.test(f.message)));
+});
+
+test('S9: directory-like candidate paths are rejected in new-form evidence', () => {
+  for (const dirPath of ['scripts/src/lib/', 'scripts/src/lib', 'test']) {
+    const { res } = writeScopeEvidence(rankedScopeEvidence({
+      candidates: {
+        implementation: [{
+          path: dirPath,
+          score: 8,
+          confidence: 'high',
+          basis: ['implementation path'],
+        }],
+        test: [],
+        context: [],
+      },
+    }));
+    assert.ok(
+      res.failures.some((f) => f.code === 'S9' && /candidate/i.test(f.message)),
+      `expected S9 for directory-like path ${dirPath}: ${JSON.stringify(res.failures)}`,
+    );
+  }
+});
+
+test('S9: low-confidence with non-empty suggested_paths is rejected', () => {
+  const { res } = writeScopeEvidence(rankedScopeEvidence({
+    suggested_paths: ['scripts/src/lib/foo.ts'],
+    quality: {
+      status: 'low-confidence',
+      confidence: 'low',
+      reasons: ['result explosion'],
+    },
+  }));
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /suggested_paths|low-confidence|unavailable/i.test(f.message)));
+});
+
+test('S9: unavailable with non-empty suggested_paths is rejected', () => {
+  const { res } = writeScopeEvidence(rankedScopeEvidence({
+    suggested_paths: ['scripts/src/lib/foo.ts'],
+    quality: {
+      status: 'unavailable',
+      confidence: 'low',
+      reasons: ['source graph missing'],
+    },
+    candidates: { implementation: [], test: [], context: [] },
+  }));
+  assert.ok(res.failures.some((f) => f.code === 'S9' && /suggested_paths|unavailable|low-confidence/i.test(f.message)));
+});
+
+test('S9: evidence without quality and candidates remains valid', () => {
+  const { res } = writeScopeEvidence({
+    producer: 'graphify',
+    generated_at: '2026-08-18T00:00:00+09:00',
+    suggested_paths: ['scripts/src/lib/'],
+    basis: 'graphify: legacy without quality',
+  });
+  assert.ok(!res.failures.some((f) => f.code === 'S9'));
+});
+
 test('legacy root context blueprint is not a canonical validation target', () => {
   const repo = mkRepo();
   const legacyBp = 'context/epics/001-auth/blueprints/001-login';

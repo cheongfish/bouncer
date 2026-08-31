@@ -12,10 +12,22 @@ const { setupGraphify } = require('./graphify');
 const { readConfig, DEFAULT_DISTILL_CONFIG, } = require('./config');
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
-// import하는 test와 동기 유지.
-const SOURCE_DIR_CANDIDATES = ['src', 'lib', 'app', 'packages', 'scripts', 'test', 'tests'];
+// import하는 test와 동기 유지. test/tests는 구현 그래프 seed가 되지 않게
+// TEST_DIR_CANDIDATES로 분리한다.
+const SOURCE_DIR_CANDIDATES = ['src', 'lib', 'app', 'packages', 'scripts'];
+const TEST_DIR_CANDIDATES = ['test', 'tests'];
 function detectSourceDirs(repoRoot) {
     return SOURCE_DIR_CANDIDATES.filter((name) => {
+        try {
+            return fs.statSync(path.join(repoRoot, name)).isDirectory();
+        }
+        catch (_e) {
+            return false;
+        }
+    });
+}
+function detectTestDirs(repoRoot) {
+    return TEST_DIR_CANDIDATES.filter((name) => {
         try {
             return fs.statSync(path.join(repoRoot, name)).isDirectory();
         }
@@ -51,6 +63,7 @@ function detectDefaultBranch(repoRoot) {
 function defaultConfig(repoRoot) {
     // base_branch와 pr.base는 같은 탐지 결과를 쓴다. 갈라지는 경로를 만들지 않는다.
     const detected = detectDefaultBranch(repoRoot);
+    const testDirs = detectTestDirs(repoRoot);
     return {
         // scaffold 시점에만 감지 — ready bootstrap에서는 다시 쓰지 않음.
         source_dirs: detectSourceDirs(repoRoot),
@@ -59,7 +72,12 @@ function defaultConfig(repoRoot) {
         context_dirs: ['.bouncer/context'],
         // 라이브러리 기본(install:false)은 enabled만 true — bin은 설치 성공 시에만 기록.
         // CLI는 install:true가 기본이라 실패 시 enabled:false로 내려 soft-fail한다.
-        graphify: { enabled: true },
+        // 실재하는 test/tests만 test_dirs에 넣어 구현 그래프 seed와 분리한다.
+        // 없으면 키를 생략해 예전 두-scope config와 같은 형태로 유지한다.
+        graphify: {
+            enabled: true,
+            ...(testDirs.length ? { test_dirs: testDirs } : {}),
+        },
         // 샤드 소비는 명시적으로 켜기 전까지 전량 로드한다. max_bytes는 본문을
         // 자르는 제한이 아니라 샤드 분배를 검토할 때만 쓰는 경고 기준이다.
         distill: { ...DEFAULT_DISTILL_CONFIG },
@@ -378,12 +396,16 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCode
             && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
             && typeof graphifyInstall.bin === 'string'
             && graphifyInstall.bin) {
-            // bin은 설치 성공 시에만 붙인다 — defaultConfig 추론 타입에 bin이 없어도 런타임 계약은 이 형태.
-            config.graphify = { enabled: true, bin: graphifyInstall.bin };
+            // bin은 설치 성공 시에만 붙인다 — defaultConfig가 넣은 test_dirs는 유지.
+            config.graphify = {
+                ...config.graphify,
+                enabled: true,
+                bin: graphifyInstall.bin,
+            };
         }
         else {
-            // 설치 실패는 soft-fail: ok는 유지하고 enabled만 끈다.
-            config.graphify = { enabled: false };
+            // 설치 실패는 soft-fail: ok는 유지하고 enabled만 끈다. test_dirs는 유지.
+            config.graphify = { ...config.graphify, enabled: false };
         }
     }
     writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
@@ -407,5 +429,6 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCode
     };
 }
 module.exports = {
-    init, inspectBootstrap, gitignoreSuggestions, SUGGESTED_IGNORES, SOURCE_DIR_CANDIDATES,
+    init, inspectBootstrap, gitignoreSuggestions, SUGGESTED_IGNORES,
+    SOURCE_DIR_CANDIDATES, TEST_DIR_CANDIDATES,
 };

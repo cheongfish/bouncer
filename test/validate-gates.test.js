@@ -231,6 +231,155 @@ test('plan gate G4 accepts scope_evidence, preserves affected_paths, and rejects
   assert.ok(failed.some((f) => f.code === 'G4' && /both/.test(f.message)));
 });
 
+function gateCandidate(filePath = 'scripts/src/lib/foo.ts') {
+  return {
+    path: filePath,
+    score: 8,
+    confidence: 'high',
+    basis: ['unique seed definition'],
+  };
+}
+
+function rankedGateEvidence(overrides = {}) {
+  return {
+    producer: 'graphify',
+    generated_at: '2026-08-31T12:00:00+09:00',
+    suggested_paths: ['scripts/src/lib/foo.ts'],
+    basis: [
+      { graph: 'source', status: 'reused', query: 'q', result: 'ok' },
+      { graph: 'test', status: 'missing', query: 'q', result: 'test graph absent' },
+      { graph: 'context', status: 'updated', query: 'q', result: 'ok' },
+    ],
+    quality: {
+      status: 'ranked',
+      confidence: 'high',
+      reasons: ['context seeds used: 1'],
+    },
+    candidates: {
+      implementation: [gateCandidate()],
+      test: [],
+      context: [gateCandidate('.bouncer/context/epics/001-auth/index.md')],
+    },
+    ...overrides,
+  };
+}
+
+test('plan gate G4 accepts ranked quality/candidates and test basis without rewriting affected_paths', () => {
+  const evidence = rankedGateEvidence();
+  const docs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      scope_evidence: evidence,
+      affected_paths: ['src/auth/login.ts'],
+    }, READY_BODY),
+  };
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(!failures.some((f) => f.code === 'G4'), JSON.stringify(failures));
+  assert.deepStrictEqual(docs.tasks.data.bouncer.affected_paths, ['src/auth/login.ts']);
+});
+
+test('plan gate G4 accepts low-confidence with empty suggested_paths', () => {
+  const docs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      scope_evidence: rankedGateEvidence({
+        suggested_paths: [],
+        quality: {
+          status: 'low-confidence',
+          confidence: 'low',
+          reasons: ['no implementation candidates'],
+        },
+        candidates: { implementation: [], test: [], context: [] },
+      }),
+      affected_paths: ['src/auth/login.ts'],
+    }, READY_BODY),
+  };
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(!failures.some((f) => f.code === 'G4'), JSON.stringify(failures));
+});
+
+test('plan gate G4 rejects unpaired quality/candidates and bad candidate shapes', () => {
+  const qualityOnly = rankedGateEvidence();
+  delete qualityOnly.candidates;
+  const qualityDocs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      scope_evidence: qualityOnly,
+      affected_paths: ['src/auth/login.ts'],
+    }, READY_BODY),
+  };
+  const qualityFailures = [];
+  checkGate('plan', qualityDocs, rels, qualityFailures);
+  assert.ok(qualityFailures.some((f) => f.code === 'G4' && /quality|candidates/i.test(f.message)));
+
+  const badCand = rankedGateEvidence({
+    candidates: {
+      implementation: [{ path: 'x.ts', score: '8', confidence: 'high', basis: ['b'] }],
+      test: [],
+      context: [],
+    },
+  });
+  const badDocs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      scope_evidence: badCand,
+      affected_paths: ['src/auth/login.ts'],
+    }, READY_BODY),
+  };
+  const badFailures = [];
+  checkGate('plan', badDocs, rels, badFailures);
+  assert.ok(badFailures.some((f) => f.code === 'G4' && /candidate/i.test(f.message)));
+});
+
+test('plan gate G4 rejects low-confidence non-empty suggested_paths', () => {
+  const docs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      scope_evidence: rankedGateEvidence({
+        suggested_paths: ['scripts/src/lib/foo.ts'],
+        quality: {
+          status: 'low-confidence',
+          confidence: 'low',
+          reasons: ['generic-only seeds'],
+        },
+      }),
+      affected_paths: ['src/auth/login.ts'],
+    }, READY_BODY),
+  };
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G4' && /suggested_paths|low-confidence|unavailable/i.test(f.message)));
+});
+
+test('plan gate G4 rejects unavailable non-empty suggested_paths', () => {
+  const docs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      scope_evidence: rankedGateEvidence({
+        suggested_paths: ['scripts/src/lib/foo.ts'],
+        quality: {
+          status: 'unavailable',
+          confidence: 'low',
+          reasons: ['source graph missing'],
+        },
+        candidates: { implementation: [], test: [], context: [] },
+      }),
+      affected_paths: ['src/auth/login.ts'],
+    }, READY_BODY),
+  };
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G4' && /suggested_paths|unavailable|low-confidence/i.test(f.message)));
+});
+
 test('plan gate G10 fails when a section is missing', () => {
   const body = '# Tasks\n\n## Goal & intent\nx\n\n## Interface\ny\n\n## Touch\n`src/`\n\n## Checklist\n- [ ] a\n';
   const docs = {

@@ -54,10 +54,16 @@ shape only (absent or an array of non-empty strings), not referential integrity.
 **Scope evidence.** `bouncer.scope_evidence` is the canonical write form for
 the candidate paths and basis used to judge a task's scope. It contains
 `generated_at`, `producer`, `suggested_paths`, and `basis`; Graphify writes
-`producer: graphify`. `suggested_paths` is advisory evidence, never an
-approved change scope: only the user-confirmed `affected_paths` may authorize
-changes. Read legacy `bouncer.graph` only for compatibility; do not author it
-in new plans.
+`producer: graphify`. Optional paired `quality` and `candidates` record
+`graph-suggest` status (`ranked` / `low-confidence` / `unavailable`),
+confidence, reasons, and role arrays (`implementation` / `test` / `context`).
+When either optional field is present, both must be valid; 
+`low-confidence` / `unavailable` require empty `suggested_paths`. Basis
+`graph` values are `source` | `test` | `context`. `suggested_paths` and role
+candidates are advisory evidence, never an approved change scope: only the
+user-confirmed `affected_paths` may authorize changes. Read legacy
+`bouncer.graph` and evidence without `quality`/`candidates` only for
+compatibility; do not author the legacy form in new plans.
 
 **Generated evidence fields.** `bouncer.scope_evidence`, verification, review,
 context-review, and comprehension metadata record their respective workflow

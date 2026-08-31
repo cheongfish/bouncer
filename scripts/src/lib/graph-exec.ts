@@ -51,6 +51,7 @@ type GraphScope = {
   dirs: string[];
   outDir: string;
   scanDirs?: string[];
+  excludeDirs?: string[];
 };
 
 // graphify 프로세스와 결과 경로 정규화. 해석기 PATH 탐색이
@@ -175,11 +176,76 @@ function normalizeGraphPaths(
   return rel;
 }
 
+function toPosixPath(p: string): string {
+  return p.split('\\').join('/');
+}
+
+/**
+ * source_file이 exclude prefix 아래인지 본다. `scripts/lib`가
+ * `scripts/liberator`를 삼키지 않도록 exact 또는 `prefix/`만 인정한다.
+ *
+ * @param {unknown} sourceFile - 노드/링크의 source_file
+ * @param {string[]} prefixes - 저장소 상대 제외 prefix
+ * @returns {boolean} 제외 대상이면 true
+ */
+function matchesExcludePrefix(sourceFile: unknown, prefixes: string[]): boolean {
+  if (typeof sourceFile !== 'string' || !sourceFile) return false;
+  const posix = toPosixPath(sourceFile);
+  return prefixes.some((raw) => {
+    const pref = toPosixPath(raw).replace(/\/+$/, '');
+    if (!pref) return false;
+    return posix === pref || posix.startsWith(`${pref}/`);
+  });
+}
+
+/**
+ * 제외 prefix 아래 node와 그 id를 참조하는 link·hyperedge를 함께 제거한다.
+ * 빈 excludeDirs는 입력을 그대로 돌려 JavaScript를 생성물로 추측해
+ * 지우지 않는다(정본 JS 저장소 호환).
+ *
+ * @param {GraphJson} graph - 정규화·병합된 그래프
+ * @param {string[]} excludeDirs - 저장소 상대 prefix 목록
+ * @returns {GraphJson} 필터된 그래프(동일 객체를 변이)
+ */
+function applyExcludeDirs(graph: GraphJson, excludeDirs: string[]): GraphJson {
+  if (!excludeDirs || excludeDirs.length === 0) return graph;
+
+  const dropped = new Set<unknown>();
+  graph.nodes = (graph.nodes || []).filter((node) => {
+    if (matchesExcludePrefix(node.source_file, excludeDirs)) {
+      dropped.add(node.id);
+      return false;
+    }
+    return true;
+  });
+  graph.links = (graph.links || []).filter((link) => (
+    !dropped.has(link.source) && !dropped.has(link.target)
+  ));
+  graph.hyperedges = (graph.hyperedges || []).filter((hyperedge) => {
+    if (!Array.isArray(hyperedge.nodes)) return true;
+    return hyperedge.nodes.every((id: unknown) => !dropped.has(id));
+  });
+  return graph;
+}
+
+function writeFilteredGraph(targetAbs: string, excludeDirs: string[] | undefined) {
+  // exclude가 비면 파일을 다시 읽지 않는다 — merge/copy 결과를 그대로 둔다.
+  if (!excludeDirs || excludeDirs.length === 0) return;
+  const graph = JSON.parse(fs.readFileSync(targetAbs, 'utf8')) as GraphJson;
+  applyExcludeDirs(graph, excludeDirs);
+  fs.writeFileSync(targetAbs, JSON.stringify(graph));
+}
+
 // 각 dir은 parts/ 아래 graphify state를 유지해 incremental rebuild가 graphify가
 // 쓴 id를 본다; scope graph.json은 우리가 만든 파생 artifact.
-function defaultExecGraphify(repoRoot: string, graph: GraphScope) {
+function defaultExecGraphify(
+  repoRoot: string,
+  graph: GraphScope,
+  opts: GraphifyRunOpts | null = null,
+) {
   // 루프마다 재해석하지 않음 — config/venv/PATH 판정을 한 번만 하고 part·merge에 공유.
-  const { bin } = resolveGraphifyBin({ repoRoot });
+  // 단위 테스트는 bin·exec를 주입해 실제 graphify 없이 source exclude 경로를 검증한다.
+  const bin = (opts && opts.bin) || resolveGraphifyBin({ repoRoot }).bin;
   let map: Record<string, string> | null = null;
   // 소비 측 계약: scanDirs || dirs. source 는 scanDirs 없이 dirs 만 쓴다.
   const scanDirs = graph.scanDirs || graph.dirs;
@@ -203,7 +269,10 @@ function defaultExecGraphify(repoRoot: string, graph: GraphScope) {
 
   const parts = scanDirs.map((dir) => {
     const partOut = partOutDir(graph.outDir, dir);
-    runGraphifyUpdate(repoRoot, dir, partOut, { bin });
+    runGraphifyUpdate(repoRoot, dir, partOut, {
+      bin,
+      ...(opts && opts.exec ? { exec: opts.exec } : {}),
+    });
     // map 이 있으면 파생 basename 을 원본 경로로 되돌린다. 매핑 없는
     // 노드는 드롭 — 파생 이름을 source_file 로 남기면 suggested_paths 가
     // graphify-out 을 가리킨다.
@@ -213,12 +282,18 @@ function defaultExecGraphify(repoRoot: string, graph: GraphScope) {
   if (parts.length === 1) {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(path.join(repoRoot, parts[0]), target);
-    return;
+  } else {
+    const exec = ((opts && opts.exec) || execFileSync) as GraphifyExecFn;
+    exec(bin as string, ['merge-graphs', ...parts, '--out', `${graph.outDir}/graph.json`], {
+      cwd: repoRoot,
+      stdio: 'ignore',
+    });
   }
-  execFileSync(bin as string, ['merge-graphs', ...parts, '--out', `${graph.outDir}/graph.json`], {
-    cwd: repoRoot,
-    stdio: 'ignore',
-  });
+  // source 병합 결과에만 exclude를 적용. test/context는 역할이 달라
+  // 같은 prefix로 지우면 안 된다.
+  if (graph.name === 'source') {
+    writeFilteredGraph(target, graph.excludeDirs);
+  }
 }
 
 module.exports = {
@@ -227,5 +302,7 @@ module.exports = {
   partOutDir,
   runGraphifyUpdate,
   normalizeGraphPaths,
+  applyExcludeDirs,
+  writeFilteredGraph,
   defaultExecGraphify,
 };
