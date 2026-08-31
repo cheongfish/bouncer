@@ -42,3 +42,4 @@ bouncer:
 <!-- 성공조건 5~8은 blueprint 002(지시문 층)·003(경량 경로)·004(부채 항목)가 가진다.
      각 blueprint는 별도 `/bouncer-plan` 회차에서 열고, 열릴 때 이 목록에 줄을 더한다. -->
 * [001 설치 첫 5분 부작용 제거](blueprints/001-install-first-five-minutes/index.md) - `init`이 사용자 저장소에 남기는 venv·브랜치 기본값·`.codex/`·부트스트랩 커밋 범위를 고친다 (`scripts/src/lib/init.ts`, `scripts/src/lib/graphify.ts`, `scripts/src/lib/codex-agents.ts`, `README.md`)
+* [002 지시문 층 역할 헌장과 재진술 제거](blueprints/002-instruction-layers/index.md) - 네 지시문 층의 역할 경계를 표로 세우고 마스터 룰·`core.md`의 재진술을 지우며 Distill 승격이 재진술을 걸러내게 한다 — 지시문 네 층의 파일(`CLAUDE.md`, `skills/bouncer-finalize/references/distill-promotion.md`, `references/spec-authoring/index.md`, `.bouncer/distill/core.md`, `agents/bouncer-implementer.md`)과 설치 문서(`docs/install.md`, `rules/plugin-root.md`), 그리고 그 계약을 단언하는 테스트 넷(`test/master-rules.test.js`, `test/skill-minimality.test.js`, `test/agents.test.js`, `test/public-name-regression.test.js`)
