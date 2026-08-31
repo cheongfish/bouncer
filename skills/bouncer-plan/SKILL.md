@@ -64,7 +64,8 @@ Skill flow (recommended): `discovery` (`references/discovery/index.md`) → `spe
    `bouncer scaffold`:
    ```bash
    BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <ddd> --name <slug>
+   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <ddd> --name <slug> \
+     --description "<discovery에서 확정한 한 문장>"
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
    ```
@@ -78,9 +79,11 @@ Skill flow (recommended): `discovery` (`references/discovery/index.md`) → `spe
    The epic and blueprint outputs must both remain under
    `.bouncer/context/epics/...` (dirs like `014-slug` / `001-slug`, never
    `EPIC-`/`BP-` prefixes on new scaffolds).
-   `scaffold epic` also appends an OKF §6 line to `.bouncer/context/index.md`
-   (idempotent if already listed). Validate reports `S13` when epic directories
-   and that list drift.
+   The discovery description is the epic frontmatter source of truth. After
+   authoring the epic, re-run the same `scaffold epic` command so its OKF §6
+   derived row is appended or replaced without overwriting the epic document;
+   an unchanged row is a no-op. Validate reports `S13` when epic directories,
+   frontmatter descriptions, and that list drift.
    (Skip `scaffold epic` when adding a blueprint to an existing epic.) Scaffold
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
    review `pending`. `scaffold blueprint` creates `tasks/001/{tasks,verification,review}.md`

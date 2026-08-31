@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: task 단위 증적과 리뷰
-description: Epic 020
+description: task 문서 하나가 자기 증적과 자기 리뷰를 갖고 execute 게이트가 활성 task를 검증하게 한다
 resource: .bouncer/context/epics/020-task-unit-artifacts/index.md
 tags:
   - bouncer

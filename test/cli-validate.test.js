@@ -58,7 +58,7 @@ Ship login validation.
 - [ ] implement validateLogin
 `;
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
-    type: 'bouncer.epic', title: 'Auth epic', description: '001',
+    type: 'bouncer.epic', title: 'Auth epic', description: 'auth epic',
     resource: '.bouncer/context/epics/001-auth/index.md',
     tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: { id: '001', epic_id: '001', status: 'approved' },

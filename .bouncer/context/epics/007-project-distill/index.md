@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 007 project-distill
-description: Epic 007
+description: 프로젝트 공용 Distill을 plan/execute/finalize 런타임에 연결한다
 resource: .bouncer/context/epics/007-project-distill/index.md
 tags:
   - bouncer

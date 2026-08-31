@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 004 starter-kit-convergence
-description: Epic 004
+description: '`sdd-agent-starter-kit`이 축적한 스펙 작성 규율을 Bouncer의 섹션 골격 안으로 옮긴다'
 resource: .bouncer/context/epics/004-starter-kit-convergence/index.md
 tags:
   - bouncer

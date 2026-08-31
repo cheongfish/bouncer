@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 040 scope-evidence
-description: Epic 040
+description: 범위 판단 근거를 bouncer.scope_evidence로 분리하고 Graphify를 그 근거의 생성자로 명확히 한다
 resource: .bouncer/context/epics/040-scope-evidence/index.md
 tags:
   - bouncer

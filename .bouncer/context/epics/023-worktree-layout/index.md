@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: worktree 디렉터리를 epic 단위로 중첩
-description: Epic 023
+description: execute worktree 경로를 epic과 blueprint가 드러나는 중첩 구조로 바꾼다
 resource: .bouncer/context/epics/023-worktree-layout/index.md
 tags:
   - bouncer

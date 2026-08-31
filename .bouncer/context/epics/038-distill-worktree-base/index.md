@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: Distill 경로 해석을 현재 checkout 기준으로 정렬
-description: Epic 038
+description: Distill base 판단 규칙을 CLI 해석기 한 곳에 두고 승격을 쓰는 checkout과 대상 파일을 일치시킨다
 resource: .bouncer/context/epics/038-distill-worktree-base/index.md
 tags:
   - bouncer

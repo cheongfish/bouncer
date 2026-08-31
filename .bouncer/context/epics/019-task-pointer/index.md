@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 활성 포인터의 task 단위 전환
-description: Epic 019
+description: 포인터가 task를 지목하고 검증 명령 조회와 커밋 허용 경로가 그 task를 기준으로 동작하게 한다
 resource: .bouncer/context/epics/019-task-pointer/index.md
 tags:
   - bouncer

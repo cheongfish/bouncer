@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 쓰이지 않는 Ponytail 어드바이저 제거
-description: Epic 016
+description: 설정·명령·모듈·테스트·문서에서 Ponytail 어드바이저 경로를 걷어내 읽히지 않는 표면을 없앤다
 resource: .bouncer/context/epics/016-advisor-removal/index.md
 tags:
   - bouncer

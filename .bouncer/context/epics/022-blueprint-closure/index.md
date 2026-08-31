@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 마감된 blueprint 잠금
-description: Epic 022
+description: 마감된 blueprint를 closed로 잠가 task 추가를 막고 후속 작업은 새 blueprint에서 시작하게 한다
 resource: .bouncer/context/epics/022-blueprint-closure/index.md
 tags:
   - bouncer

@@ -102,7 +102,7 @@ function writeBundleIndex(repo, epicDirs = ['001-auth']) {
     const m = d.match(/^(\d{3})-(.+)$/);
     const id = m[1];
     const slug = m[2];
-    return `* [${id} ${slug}](epics/${d}/index.md) - Epic ${id}`;
+    return `* [${id} ${slug}](epics/${d}/index.md) - auth epic`;
   });
   const abs = path.join(repo, '.bouncer/context/index.md');
   fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -143,7 +143,7 @@ function epicDoc(epicRel = '.bouncer/context/epics/001-auth/index.md', id = '001
   return {
     type: 'bouncer.epic',
     title: 'Auth epic',
-    description: id,
+    description: 'auth epic',
     resource: epicRel,
     tags: ['bouncer', 'epic'],
     timestamp: '2026-07-01T00:00:00+09:00',
@@ -273,6 +273,33 @@ test('S13: bundle context index lists a missing epic directory', () => {
   writeBundleIndex(repo, ['001-auth', '099-ghost']);
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.ok(res.failures.some((f) => f.code === 'S13' && /missing epic/.test(f.message)));
+});
+
+test('S13: epic description mismatch is reported as a summary mismatch', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  const abs = path.join(repo, '.bouncer/context/index.md');
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('auth epic', 'stale summary'));
+  const failures = require('../scripts/lib/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
+  assert.ok(failures.some((f) => f.code === 'S13' && /summary mismatch/.test(f.message)));
+});
+
+test('S13: malformed or invalid epic frontmatter reports the source error', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  const epicPath = path.join(repo, '.bouncer/context/epics/001-auth/index.md');
+  writeRaw(repo, '.bouncer/context/epics/001-auth/index.md', '# malformed\n');
+  writeBundleIndex(repo);
+  let failures = require('../scripts/lib/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
+  assert.ok(failures.some((f) => f.code === 'S13' && /frontmatter/i.test(f.message)));
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', { ...epicDoc(), description: '   ' });
+  failures = require('../scripts/lib/epic-index').checkEpicIndexConsistency({ repoRoot: repo });
+  assert.ok(failures.some((f) => f.code === 'S13' && /description/i.test(f.message)));
+  assert.ok(fs.existsSync(epicPath));
 });
 
 test('S13: legacy-prefixed epic directory alone fails', () => {

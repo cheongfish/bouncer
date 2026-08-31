@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 008 worktree-seed
-description: Epic 008
+description: plan 산출물을 execute worktree로 이전해 브리프를 성립시키고 base를 깨끗이 유지한다
 resource: .bouncer/context/epics/008-worktree-seed/index.md
 tags:
   - bouncer

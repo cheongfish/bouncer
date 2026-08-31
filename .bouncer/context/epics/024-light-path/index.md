@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 범위가 좁은 작업의 경량 경로
-description: Epic 024
+description: 문서와 게이트 계약을 유지하면서 경량 계획·인라인 디스패치·최소 퀴즈로 한 사이클의 비용을 줄인다
 resource: .bouncer/context/epics/024-light-path/index.md
 tags:
   - bouncer

@@ -1000,7 +1000,7 @@ function epicDoc() {
   return {
     type: 'bouncer.epic',
     title: 'Auth epic',
-    description: '001',
+    description: 'auth epic',
     resource: '.bouncer/context/epics/001-auth/index.md',
     tags: ['bouncer', 'epic'],
     timestamp: '2026-07-01T00:00:00+09:00',
@@ -1107,7 +1107,7 @@ function writePlanBlueprint(repo, tasksBody) {
   fs.writeFileSync(
     indexAbs,
     '---\nokf_version: "0.1"\n---\n# Epics\n\n'
-    + '* [001 auth](epics/001-auth/index.md) - Epic 001\n',
+    + '* [001 auth](epics/001-auth/index.md) - auth epic\n',
   );
 }
 
@@ -1149,7 +1149,7 @@ test('plan gate applies per task document and reports the failing file', () => {
   fs.writeFileSync(
     indexAbs,
     '---\nokf_version: "0.1"\n---\n# Epics\n\n'
-    + '* [001 auth](epics/001-auth/index.md) - Epic 001\n',
+    + '* [001 auth](epics/001-auth/index.md) - auth epic\n',
   );
 
   const readyBody = planReadyTasksBody();
@@ -1181,7 +1181,7 @@ function writeOkfIndex(repo) {
   fs.writeFileSync(
     indexAbs,
     '---\nokf_version: "0.1"\n---\n# Epics\n\n'
-    + '* [001 auth](epics/001-auth/index.md) - Epic 001\n',
+    + '* [001 auth](epics/001-auth/index.md) - auth epic\n',
   );
 }
 

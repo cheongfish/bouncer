@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: plan 문서 계층 머메이드
-description: Epic 041
+description: plan 작성 규칙이 머메이드를 에픽·블루프린트·태스크의 줌 수준에 맞춰 작성하게 한다
 resource: .bouncer/context/epics/041-plan-mermaid-zoom/index.md
 tags:
   - bouncer

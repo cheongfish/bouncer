@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: verify 명령 타임아웃
-description: Epic 077
+description: verify 명령이 응답하지 않아도 실행 검증이 정해진 시간 안에 실패하도록 한다.
 resource: .bouncer/context/epics/077-verify-timeout/index.md
 tags:
   - bouncer

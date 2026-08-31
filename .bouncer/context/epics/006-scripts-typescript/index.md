@@ -1,7 +1,7 @@
 ---
 type: bouncer.epic
 title: 006 scripts-typescript
-description: Epic 006
+description: '`scripts/` 구현을 TypeScript 소스로 옮기고 `tsc` CommonJS 산출로 기존 소비 경로를 유지한다'
 resource: .bouncer/context/epics/006-scripts-typescript/index.md
 tags:
   - bouncer

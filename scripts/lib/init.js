@@ -126,7 +126,9 @@ function defaultConfig(repoRoot) {
     };
 }
 // Bundle root. OKF §11은 index file 중 여기에만 frontmatter를 허용;
-// §6은 body 형태를 `* [Title](url) - description` 그룹으로 고정.
+// §6은 body 형태를 `* [Title](url) - description` 그룹으로 고정한다. 행의
+// description은 epic frontmatter 정본에서 scaffold가 append/replace하고,
+// S13은 정본과 행의 요약 불일치를 검사한다.
 // bouncer_schema는 번들 루트에만 둔다(문서마다 두지 않음). EMPTY_CONTEXT_INDEX와
 // 같은 frontmatter여야 ensureEpicIndexEntry가 파일을 새로 만들 때도 일치한다.
 const CONTEXT_INDEX = `---
@@ -136,7 +138,7 @@ bouncer_schema: "0.1"
 # Epics
 
 <!-- bouncer scaffold epic이 여기에 한 줄씩 추가합니다 (OKF §6).
-     validate는 S13으로 디렉터리 ↔ 목록 일치를 검사합니다.
+     validate는 S13으로 디렉터리·frontmatter description ↔ 목록 요약 일치를 검사합니다.
      * [00x 제목](epics/00x-slug/index.md) - 한 줄 설명 -->
 `;
 function writeFile(repoRoot, rel, content, created) {
