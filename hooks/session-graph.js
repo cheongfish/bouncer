@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 // SessionStart hook: when config.graphify.enabled is true, incrementally builds
-// source + context graphify graphs if stale. Never fails the session — always exits 0.
+// source / test / context graphify graphs if stale. graphs[] always reports three
+// scopes; skip-unconfigured test (unset/invalid test_dirs) is not a build target
+// and does not emit a missing warning. Never fails the session — always exits 0.
 // Warning copy lives in session-graph.graphSyncWarnings so tests cover the strings.
 const { syncSessionGraphs, graphSyncWarnings } = require('../scripts/lib/session-graph');
 

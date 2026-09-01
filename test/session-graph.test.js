@@ -121,11 +121,15 @@ test('graphify opt-in retains missing graph build behavior for both scopes', () 
     graphMtime: () => null,
   });
   assert.strictEqual(result.action, 'build');
-  assert.strictEqual(result.graphs.length, 2);
-  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'context']);
-  assert.ok(result.graphs.every((g) => g.action === 'build'));
-  assert.strictEqual(result.graphs[0].outDir, DEFAULT_SOURCE_OUT);
-  assert.strictEqual(result.graphs[1].outDir, DEFAULT_CONTEXT_OUT);
+  assert.strictEqual(result.graphs.length, 3);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test', 'context']);
+  const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g]));
+  assert.strictEqual(byName.source.action, 'build');
+  assert.strictEqual(byName.context.action, 'build');
+  assert.strictEqual(byName.test.action, 'skip-unconfigured');
+  assert.strictEqual(byName.source.outDir, DEFAULT_SOURCE_OUT);
+  assert.strictEqual(byName.test.outDir, DEFAULT_TEST_OUT);
+  assert.strictEqual(byName.context.outDir, DEFAULT_CONTEXT_OUT);
 });
 
 test('skips when graphify is not on PATH', () => {
@@ -414,7 +418,11 @@ test('runGraphifyUpdate exec first argument is the resolved bin path', () => {
 
 test('context scope scans derived tree; freshness watches originals', () => {
   // context scope는 파생 트리를 스캔하고, freshness는 원본을 본다
-  const [source, context] = resolveGraphScopes({ sourceDirs: ['scripts'], contextDirs: ['.bouncer/context'] });
+  const scopes = resolveGraphScopes({ sourceDirs: ['scripts'], contextDirs: ['.bouncer/context'] });
+  const source = scopes.find((s) => s.name === 'source');
+  const context = scopes.find((s) => s.name === 'context');
+  assert.ok(source);
+  assert.ok(context);
   assert.equal(source.scanDirs, undefined);
   // exclude_dirs 변경이 skip-fresh에 가리지 않도록 source는 config mtime을 본다.
   assert.deepEqual(source.watchFiles, ['.bouncer/config.json']);
@@ -484,12 +492,15 @@ test('graphSyncWarnings emits diagnostic lines for config skips', () => {
   assert.match(lines[0], /\n$/);
 });
 
-test('resolveGraphScopes omits test when testDirs are absent', () => {
+test('resolveGraphScopes always includes test when testDirs are absent', () => {
   const scopes = resolveGraphScopes({
     sourceDirs: ['src'],
     contextDirs: ['.bouncer/context'],
   });
-  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'context']);
+  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'test', 'context']);
+  const testScope = scopes.find((s) => s.name === 'test');
+  assert.ok(testScope.unconfiguredReason);
+  assert.deepStrictEqual(testScope.dirs, []);
 });
 
 test('resolveGraphScopes adds test scope and source excludeDirs when provided', () => {
@@ -507,17 +518,102 @@ test('resolveGraphScopes adds test scope and source excludeDirs when provided', 
   assert.deepStrictEqual(source.excludeDirs, ['scripts/lib']);
 });
 
-test('legacy config without test_dirs keeps two-scope plan results', () => {
+test('legacy config without test_dirs keeps three-scope plan with skip-unconfigured test', () => {
   const result = plan({
     graphifyEnabled: () => true,
     graphMtime: () => null,
     testDirs: () => null,
   });
-  assert.strictEqual(result.graphs.length, 2);
-  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'context']);
+  assert.strictEqual(result.graphs.length, 3);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test', 'context']);
+  const testGraph = result.graphs.find((g) => g.name === 'test');
+  assert.strictEqual(testGraph.action, 'skip-unconfigured');
   assert.ok(!Object.prototype.hasOwnProperty.call(result, 'skips')
     || !result.skips
     || result.skips.length === 0);
+});
+
+test('unset test_dirs yields skip-unconfigured test and stays out of build missing warnings', () => {
+  const result = plan({
+    graphifyEnabled: () => true,
+    graphMtime: () => null,
+    testDirs: () => null,
+  });
+  assert.strictEqual(result.graphs.length, 3);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test', 'context']);
+  const testGraph = result.graphs.find((g) => g.name === 'test');
+  assert.strictEqual(testGraph.action, 'skip-unconfigured');
+  assert.strictEqual(testGraph.reason, 'graphify.test_dirs is not configured');
+  assert.deepStrictEqual(testGraph.dirs, []);
+  assert.deepStrictEqual(testGraph.configured, []);
+  assert.strictEqual(testGraph.outDir, DEFAULT_TEST_OUT);
+
+  const sync = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({
+      graphMtime: () => null,
+      testDirs: () => null,
+    }),
+    execGraphify: () => {},
+  });
+  assert.ok(!sync.built.includes('test'));
+  assert.ok(!sync.missing.includes('test'));
+  const lines = graphSyncWarnings(sync);
+  assert.ok(!lines.some((line) => /no test graph was built|test_dirs/.test(line)
+    && /none of|no test graph/.test(line)));
+  // skips 진단(무효 값)이 아니면 SessionStart에 test 미설정 경고가 생기지 않는다.
+  assert.ok(!lines.some((line) => /\btest\b/.test(line) && /graph was built/.test(line)));
+});
+
+test('empty test_dirs array stays skip-no-dirs not skip-unconfigured', () => {
+  const result = plan({
+    graphifyEnabled: () => true,
+    graphMtime: () => null,
+    testDirs: () => [],
+  });
+  const testGraph = result.graphs.find((g) => g.name === 'test');
+  assert.strictEqual(testGraph.action, 'skip-no-dirs');
+  assert.notStrictEqual(testGraph.action, 'skip-unconfigured');
+});
+
+test('NO_GRAPH_WORK exits keep graphs empty without inventing a test entry', () => {
+  const disabled = plan({ graphifyEnabled: () => false });
+  assert.strictEqual(disabled.action, 'skip-graph-disabled');
+  assert.deepStrictEqual(disabled.graphs, []);
+
+  const noCli = plan({ hasGraphify: () => false });
+  assert.strictEqual(noCli.action, 'skip-no-graphify');
+  assert.deepStrictEqual(noCli.graphs, []);
+});
+
+test('top-level action stays skip-no-dirs when only unconfigured test is present', () => {
+  const result = plan({
+    graphifyEnabled: () => true,
+    sourceDirs: () => ['missing-src'],
+    contextDirs: () => ['missing-context'],
+    testDirs: () => null,
+    existingDirs: () => [],
+    graphMtime: () => null,
+  });
+  assert.strictEqual(result.action, 'skip-no-dirs');
+  const testGraph = result.graphs.find((g) => g.name === 'test');
+  assert.strictEqual(testGraph.action, 'skip-unconfigured');
+});
+
+test('leftover test graph.json does not become skip-fresh when test_dirs unset', () => {
+  const result = plan({
+    graphifyEnabled: () => true,
+    testDirs: () => null,
+    graphMtime: (outDir) => {
+      if (outDir === DEFAULT_TEST_OUT) return 500;
+      return null;
+    },
+    newestMtime: () => 100,
+  });
+  const testGraph = result.graphs.find((g) => g.name === 'test');
+  assert.strictEqual(testGraph.action, 'skip-unconfigured');
+  assert.notStrictEqual(testGraph.action, 'skip-fresh');
+  assert.notStrictEqual(testGraph.action, 'build');
 });
 
 test('test scope builds freshness and missing like other scopes', () => {
@@ -582,9 +678,12 @@ test('invalid graphify.test_dirs is skipped with a diagnostic reason', () => {
       newestMtime: () => 100,
     },
   });
-  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'context']);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test', 'context']);
   assert.ok(Array.isArray(result.skips));
   assert.ok(result.skips.some((s) => /test_dirs/.test(s)));
+  const testGraph = result.graphs.find((g) => g.name === 'test');
+  assert.strictEqual(testGraph.action, 'skip-unconfigured');
+  assert.match(testGraph.reason, /test_dirs/);
 });
 
 test('invalid graphify.exclude_dirs is not applied and reports a skip reason', () => {

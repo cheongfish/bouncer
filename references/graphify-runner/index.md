@@ -47,12 +47,15 @@ Map `graph-sync` outcomes to `status` as follows:
 | already fresh / no rebuild | `reused` |
 | listed in `failed` | `fail-skip` |
 | `skip-no-graphify` / `skip-graph-disabled` | `skip-disabled` |
+| `skip-unconfigured` | `skip-disabled` |
 | listed in `missing` | `missing` |
 
 Never omit an entry because a query could not run — leave **source, test, and
 context** entries with the matching `status` so G4 still sees a recorded basis
-(graph absence is a state, not an error). When `test_dirs` is unset, still leave
-a `test` entry with `missing` (or `skip-disabled`) and explain why.
+(graph absence is a state, not an error). Copy each reported `graphs[].action`
+into the matching basis `status` via the table above — do not invent a status
+when `test_dirs` is unset; the sync decision already carries
+`skip-unconfigured` for that row.
 
 ## When this applies
 

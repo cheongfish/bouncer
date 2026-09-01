@@ -47,6 +47,9 @@ type GraphScopePlan = {
   scanDirs?: string[];
   watchFiles?: string[];
   excludeDirs?: string[];
+  // 설정 부재·무효로 빌드 불가. planOneGraph가 skip-unconfigured로 수렴하고
+  // missing/경고/빌드 목록에서 빠진다 — graph.json 존재 여부와 무관.
+  unconfiguredReason?: string;
 };
 
 function configField(cfg: unknown, key: string): unknown {
@@ -106,8 +109,9 @@ function graphifyObject(cfg: unknown): Record<string, unknown> | null {
 
 /**
  * 선택 필드 graphify.test_dirs를 읽는다. 키 부재는 present:false —
- * test scope 자체를 만들지 않는 하위 호환 경로. 잘못된 값은 적용하지
- * 않고 skipReason만 돌려 호출자가 graphs에 test를 넣지 않게 한다.
+ * resolveGraphScopes가 test 항목을 skip-unconfigured로 실을 때 쓴다.
+ * 잘못된 값은 적용하지 않고 skipReason만 돌려 호출자가 skips와
+ * skip-unconfigured reason에 같은 사유를 싣게 한다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @returns {OptionalDirList} 부재·유효 dirs·무효 skip
@@ -237,18 +241,26 @@ function realGraphMtime(repoRoot: string, outDir: string) {
 }
 
 /**
- * source·(선택) test·context scope 계획을 만든다. testDirs가 null/undefined면
- * 예전 두-scope config와 같이 test를 넣지 않는다. excludeDirs는 source에만
- * 실어 merge 뒤 필터가 소비한다 — 빈 목록이면 필터 no-op.
+ * source·test·context 세 scope 계획을 항상 만든다. testDirs가 null/undefined면
+ * 빌드 불가 test 항목을 남기고 unconfiguredReason을 싣는다(보고 길이 3 유지).
+ * 빈 배열은 필드 존재 → skip-no-dirs. excludeDirs는 source에만 실어 merge 뒤
+ * 필터가 소비한다 — 빈 목록이면 필터 no-op.
  *
- * @param {{ sourceDirs: string[], contextDirs: string[], testDirs?: string[] | null, excludeDirs?: string[] }} args
- * @returns {GraphScopePlan[]} 빌드·freshness 계획 목록
+ * @param {{
+ *   sourceDirs: string[],
+ *   contextDirs: string[],
+ *   testDirs?: string[] | null,
+ *   excludeDirs?: string[],
+ *   testUnconfiguredReason?: string
+ * }} args
+ * @returns {GraphScopePlan[]} 빌드·freshness 계획 목록(길이 3)
  */
-function resolveGraphScopes({ sourceDirs, contextDirs, testDirs, excludeDirs }: {
+function resolveGraphScopes({ sourceDirs, contextDirs, testDirs, excludeDirs, testUnconfiguredReason }: {
   sourceDirs: string[];
   contextDirs: string[];
   testDirs?: string[] | null;
   excludeDirs?: string[];
+  testUnconfiguredReason?: string;
 }): GraphScopePlan[] {
   const source: GraphScopePlan = {
     name: 'source',
@@ -268,10 +280,19 @@ function resolveGraphScopes({ sourceDirs, contextDirs, testDirs, excludeDirs }: 
   }
 
   const scopes: GraphScopePlan[] = [source];
-  // null/undefined = 필드 부재. 빈 배열은 필드 존재 → test scope를 만들고
-  // 이후 planOneGraph가 skip-no-dirs로 수렴한다.
+  // null/undefined = 미설정·무효 → skip-unconfigured 자리표시. 빈 배열은
+  // 필드 존재 → planOneGraph가 skip-no-dirs로 수렴한다(skip-unconfigured 아님).
   if (testDirs != null) {
     scopes.push({ name: 'test', dirs: testDirs, outDir: DEFAULT_TEST_OUT });
+  } else {
+    scopes.push({
+      name: 'test',
+      dirs: [],
+      outDir: DEFAULT_TEST_OUT,
+      // 존재하지 않는 입력을 꾸며 싣지 않는다 — configured도 비운다.
+      unconfiguredReason: testUnconfiguredReason
+        || 'graphify.test_dirs is not configured',
+    });
   }
   scopes.push({
     name: 'context',
