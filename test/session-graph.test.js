@@ -696,19 +696,18 @@ test('Distill.md mtime alone marks context graph stale', () => {
 
 test('empty context digest skips graphify, keeps prior graph, settles freshness', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-empty-digest-'));
-  // task 브리프는 화이트리스트지만 추출 대상 섹션이 없어 digest count === 0
-  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001'), { recursive: true });
-  fs.writeFileSync(
-    path.join(repo, '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001/tasks.md'),
-    '## Checklist\n\n- [ ] x\n',
-  );
+  // digest count === 0 은 앵커와 절 본문이 모두 비었을 때만이다다.
+  // 계층 경로 화이트리스트(task 브리프 등)는 앵커만으로도 emit 되므로 empty-skip 픽스처로 쓰지 않는다.
+  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Decisions\n\n');
   fs.mkdirSync(path.join(repo, DEFAULT_CONTEXT_OUT), { recursive: true });
   const graphPath = path.join(repo, DEFAULT_CONTEXT_OUT, 'graph.json');
   const prior = JSON.stringify({ nodes: [{ id: 'keep-me', source_file: '.bouncer/Distill.md' }], links: [] });
   fs.writeFileSync(graphPath, prior);
   const old = Date.now() - 120_000;
   fs.utimesSync(graphPath, new Date(old), new Date(old));
-  const srcPath = path.join(repo, '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001/tasks.md');
+  // Distill은 context watchFiles 이라 mtime만으로 freshness를 stale로 만든다.
+  const srcPath = path.join(repo, '.bouncer/Distill.md');
   fs.utimesSync(srcPath, new Date(old + 60_000), new Date(old + 60_000));
 
   const deps = {

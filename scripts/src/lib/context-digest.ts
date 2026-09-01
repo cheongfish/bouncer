@@ -64,9 +64,45 @@ function stripFrontmatter(markdown: unknown): string {
 }
 
 /**
+ * 문서 경로에서 epic→blueprint→task 계층 앵커를 파생한다.
+ * 작성 본문에 앵커를 쓰지 않아도 파생 트리가 검색 좌표를 갖도록 경로 id만 읽는다.
+ * 어떤 층의 선행 `\d{3}`(task는 TASK_DIR_RE)가 깨지면 그 층과 하위만 버리고
+ * 유효한 상위 앵커는 남긴다. Distill·shard처럼 계층 밖 경로는 빈 배열이다.
+ *
+ * @param {string} rel - 저장소 상대 문서 경로
+ * @returns {string[]} 가장 좁은 앵커부터 부모 순 (`task-…`, `bp-…`, `epic-…`)
+ */
+function anchorsFor(rel: string): string[] {
+  const norm = String(rel || '').replace(/\\/g, '/');
+  const m = /^\.bouncer\/context\/epics\/([^/]+)(?:\/(.*))?$/.exec(norm);
+  if (!m) return [];
+
+  // 디렉터리명 앞의 세 자리 문자열을 그대로 쓴다. Number로 바꿔 다시 pad 하지 않는다.
+  const epicId = /^(\d{3})/.exec(m[1])?.[1];
+  if (!epicId) return [];
+
+  const parts = (m[2] || '').split('/').filter(Boolean);
+  let bpId: string | undefined;
+  let taskId: string | undefined;
+  if (parts[0] === 'blueprints' && parts[1]) {
+    bpId = /^(\d{3})/.exec(parts[1])?.[1];
+    // bp 층이 깨지면 task도 만들지 않는다 — 없는 id를 상위 id로 대신 채우지 않는다.
+    if (bpId && parts[2] === 'tasks' && parts[3] && TASK_DIR_RE.test(parts[3])) {
+      taskId = parts[3];
+    }
+  }
+
+  const out: string[] = [];
+  if (taskId && bpId) out.push(`task-${epicId}-${bpId}-${taskId}`);
+  if (bpId) out.push(`bp-${epicId}-${bpId}`);
+  out.push(`epic-${epicId}`);
+  return out;
+}
+
+/**
  * 요청한 ## 헤딩의 본문만 다음 ## 직전까지 남긴다.
- * 헤딩이 없거나 본문이 비면 해당 섹션은 빼고, 전부 비면 '' 를 돌려
- * 호출자가 파생 파일을 만들지 않게 한다.
+ * 헤딩이 없거나 본문이 비면 해당 섹션은 빼고, 전부 비면 '' 를 돌려준다.
+ * 파생 파일 생성 여부는 호출자가 앵커와 함께 판단한다.
  */
 function extractSections(markdown: unknown, headings: unknown): string {
   const body = stripFrontmatter(markdown);
@@ -184,11 +220,18 @@ function buildContextDigest({ repoRoot, contextDirs }: {
       continue;
     }
     const extracted = extractSections(raw, rules);
-    if (!extracted) continue;
+    const anchors = anchorsFor(rel);
+    // 절 본문이 비어도 계층 앵커만 있으면 노드로 남긴다. 둘 다 없으면 예전처럼 생략.
+    if (!extracted && anchors.length === 0) continue;
 
     const flat = uniqueFlatName(flattenSlug(rel), used);
     // graphify·소비자는 파생 이름만 본다. 원본 경로는 본문 헤더와 map.json 이 잇는다.
-    const body = `<!-- source: ${rel} -->\n\n${extracted}`;
+    // 앵커 헤딩을 절 본문보다 앞에 두어 epic/bp/task 토큰 질의가 label hit 하게 한다.
+    let body = `<!-- source: ${rel} -->\n\n`;
+    if (anchors.length) {
+      body += `${anchors.map((a) => `## ${a}`).join('\n')}\n\n`;
+    }
+    body += extracted;
     fs.writeFileSync(path.join(outAbs, flat), body);
     map[flat] = rel;
     files.push(flat);
@@ -203,6 +246,7 @@ module.exports = {
   DIGEST_MAP_REL,
   DIGEST_WATCH_FILES,
   digestRulesFor,
+  anchorsFor,
   extractSections,
   buildContextDigest,
 };

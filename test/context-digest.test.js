@@ -9,8 +9,33 @@ const {
   digestRulesFor,
   extractSections,
   buildContextDigest,
+  anchorsFor,
   CONTEXT_DIGEST_OUT,
 } = require('../scripts/lib/context-digest');
+const { tokenize } = require('../scripts/lib/graph-search');
+
+test('anchorsFor derives hierarchy from path ids narrowest-first', () => {
+  assert.deepEqual(
+    anchorsFor('.bouncer/context/epics/063-x/blueprints/001-y/tasks/002/tasks.md'),
+    ['task-063-001-002', 'bp-063-001', 'epic-063'],
+  );
+  assert.deepEqual(anchorsFor('.bouncer/context/epics/063-x/index.md'), ['epic-063']);
+  assert.deepEqual(anchorsFor('.bouncer/Distill.md'), []);
+  assert.deepEqual(anchorsFor('.bouncer/context/epics/abc-x/index.md'), []);
+  // 상위는 유효하고 task 층만 깨진 혼합 경우
+  assert.deepEqual(
+    anchorsFor('.bouncer/context/epics/063-x/blueprints/001-y/tasks/2/tasks.md'),
+    ['bp-063-001', 'epic-063'],
+  );
+  assert.deepEqual(
+    anchorsFor('.bouncer/context/epics/063-x/blueprints/001-y/explain.md'),
+    ['bp-063-001', 'epic-063'],
+  );
+  // wave 1 문법: 앵커는 tokenizer가 단일 토큰으로 유지해야 한다
+  for (const a of anchorsFor('.bouncer/context/epics/063-x/blueprints/001-y/tasks/002/tasks.md')) {
+    assert.deepEqual(tokenize(a), [a]);
+  }
+});
 
 test('digestRulesFor whitelists Distill, epic index, explain, blueprint index, and task brief', () => {
   assert.deepEqual(digestRulesFor('.bouncer/Distill.md'), ['## Decisions']);
@@ -126,6 +151,27 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
   });
   assert.ok(!fs.existsSync(stale));
   assert.equal(second.count, first.count);
+});
+
+test('buildContextDigest keeps empty-section epic via anchor-only derived file', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-anchor-'));
+  const epic = '.bouncer/context/epics/063-x';
+  fs.mkdirSync(path.join(repo, epic), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  // 화이트리스트 절 헤딩만 있고 본문이 비면 예전에는 파생 파일을 건너뛰었다.
+  fs.writeFileSync(path.join(repo, `${epic}/index.md`), '## Success criteria\n\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Decisions\n\nd1\n');
+
+  const result = buildContextDigest({
+    repoRoot: repo,
+    contextDirs: ['.bouncer/context'],
+  });
+  const epicFlat = Object.keys(result.map).find((flat) => result.map[flat] === `${epic}/index.md`);
+  assert.ok(epicFlat, 'empty-section epic must still emit a derived file');
+  const body = fs.readFileSync(path.join(repo, result.dir, epicFlat), 'utf8');
+  assert.match(body, /^<!-- source: \.bouncer\/context\/epics\/063-x\/index\.md -->\n\n/);
+  assert.match(body, /## epic-063\n/);
+  assert.ok(!body.includes('## Success criteria'));
 });
 
 test('buildContextDigest includes Decisions from registered shards with original map paths only', () => {
