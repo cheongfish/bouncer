@@ -200,6 +200,11 @@ only; other approved items continue.
   `description` and `tags` in English ASCII. Derived anchors and search queries
   also use English ASCII for graph-suggest; do not propose tokenizer or
   Korean-search support or bulk-rewrite the existing corpus.
+- **Domain tags.** Frontmatter `tags` are the domain search vocabulary
+  promoted by context-digest for graph-suggest. Each item is an English ASCII
+  single token matching `[A-Za-z0-9_./-]`. Scaffold `bouncer` and the
+  document's own kind tag are not promoted, so add 2–5 domain tags (for
+  example `worktree`, `context-digest`, `graph-suggest`).
 - **Distill is English.** Project Distill (caller-provided absolute Distill
   path: finalize builds `.bouncer/Distill.md` from the CLI payload `repoRoot`;
   plan still passes its own absolute path) is agent runtime — promote durable

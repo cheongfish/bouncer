@@ -23,10 +23,13 @@ const DIGEST_WATCH_FILES = ['.bouncer/Distill.md'];
  */
 function digestRulesFor(rel) {
     const norm = String(rel || '').replace(/\\/g, '/');
+    // master Distill 본문은 ## Shards만 있다. Decisions를 찾으면 파생 산출이 0건이 된다.
     if (norm === '.bouncer/Distill.md')
-        return ['## Decisions'];
+        return ['## Shards'];
+    // shard는 Invariants·Gotchas·Decisions를 문서 작성 순서대로 색인한다.
+    // 셋 중 일부만 있으면 extractSections가 있는 절만 남긴다.
     if (new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(norm)) {
-        return ['## Decisions'];
+        return ['## Invariants', '## Gotchas', '## Decisions'];
     }
     if (/^\.bouncer\/context\/epics\/[^/]+\/index\.md$/.test(norm)) {
         return ['## Success criteria'];
@@ -55,9 +58,145 @@ function stripFrontmatter(markdown) {
     return after.replace(/^\r?\n/, '');
 }
 /**
+ * 문서 경로에서 epic→blueprint→task 계층 앵커를 파생한다.
+ * 작성 본문에 앵커를 쓰지 않아도 파생 트리가 검색 좌표를 갖도록 경로 id만 읽는다.
+ * 어떤 층의 선행 `\d{3}`(task는 TASK_DIR_RE)가 깨지면 그 층과 하위만 버리고
+ * 유효한 상위 앵커는 남긴다. Distill·shard처럼 계층 밖 경로는 빈 배열이다.
+ *
+ * @param {string} rel - 저장소 상대 문서 경로
+ * @returns {string[]} 가장 좁은 앵커부터 부모 순 (`task-…`, `bp-…`, `epic-…`)
+ */
+function anchorsFor(rel) {
+    const norm = String(rel || '').replace(/\\/g, '/');
+    const m = /^\.bouncer\/context\/epics\/([^/]+)(?:\/(.*))?$/.exec(norm);
+    if (!m)
+        return [];
+    // 디렉터리명 앞의 세 자리 문자열을 그대로 쓴다. Number로 바꿔 다시 pad 하지 않는다.
+    const epicId = /^(\d{3})/.exec(m[1])?.[1];
+    if (!epicId)
+        return [];
+    const parts = (m[2] || '').split('/').filter(Boolean);
+    let bpId;
+    let taskId;
+    if (parts[0] === 'blueprints' && parts[1]) {
+        bpId = /^(\d{3})/.exec(parts[1])?.[1];
+        // bp 층이 깨지면 task도 만들지 않는다 — 없는 id를 상위 id로 대신 채우지 않는다.
+        if (bpId && parts[2] === 'tasks' && parts[3] && TASK_DIR_RE.test(parts[3])) {
+            taskId = parts[3];
+        }
+    }
+    const out = [];
+    if (taskId && bpId)
+        out.push(`task-${epicId}-${bpId}-${taskId}`);
+    if (bpId)
+        out.push(`bp-${epicId}-${bpId}`);
+    out.push(`epic-${epicId}`);
+    return out;
+}
+/**
+ * frontmatter `tags`에서 도메인 검색 어휘만 골라 등장 순·중복 제거로 돌려준다.
+ * scaffold가 모든 문서에 찍는 `bouncer`와 `type: bouncer.<kind>`에서 역산한 kind
+ * 태그는 god label이 되므로 승격하지 않는다. 종류 목록을 상수로 두면 scaffold가
+ * 종류를 늘릴 때 어긋나고, `distill`처럼 kind이면서 도메인 개념인 값을 영영 막는다.
+ * 파서는 `tags:` 다음의 `  - value` 줄만 읽는다 — 일반 YAML을 들이면 이 소비 경로가
+ * 작성기 스키마에 묶인다. 토큰 집합은 Touch 경로와 같다(`A-Za-z0-9_./-`).
+ * 대소문자 변환은 하지 않는다 — graph-search가 비교 시점에 소문자화하므로 여기서
+ * 바꾸면 원본 태그와 어긋난다. `description`/`title`은 읽지 않는다.
+ *
+ * @param {string} markdown - 원본 마크다운 (frontmatter 포함 가능)
+ * @returns {string[]} 승격할 태그 배열. frontmatter·tags 배열이 없으면 []
+ */
+function tagLabels(markdown) {
+    const text = String(markdown || '');
+    if (!text.startsWith('---'))
+        return [];
+    const end = text.indexOf('\n---', 3);
+    if (end === -1)
+        return [];
+    const lines = text.slice(0, end).split(/\r?\n/);
+    // 1. type에서 kind 태그 역산. bouncer. 접두만 떼고 표기는 그대로 둔다.
+    let kindTag;
+    for (const line of lines) {
+        const m = /^type:\s*(\S+)\s*$/.exec(line);
+        if (!m)
+            continue;
+        if (m[1].startsWith('bouncer.'))
+            kindTag = m[1].slice('bouncer.'.length);
+        break;
+    }
+    // 2. tags: 블록의 list item만. 스칼라·빈 블록·다른 키는 배열이 아니므로 [].
+    const raw = [];
+    let inTags = false;
+    for (const line of lines) {
+        if (!inTags) {
+            if (line === 'tags:')
+                inTags = true;
+            continue;
+        }
+        const item = /^ {2}- (.+)$/.exec(line);
+        if (!item)
+            break;
+        raw.push(item[1]);
+    }
+    if (!raw.length)
+        return [];
+    const TOKEN_OK = /^[A-Za-z0-9_./-]+$/;
+    const out = [];
+    const seen = new Set();
+    for (const tag of raw) {
+        if (tag === 'bouncer' || (kindTag !== undefined && tag === kindTag))
+            continue;
+        if (!TOKEN_OK.test(tag) || seen.has(tag))
+            continue;
+        seen.add(tag);
+        out.push(tag);
+    }
+    return out;
+}
+/**
+ * tasks.md의 `## Touch` 절에서 백틱 경로만 등장 순서·중복 제거로 뽑는다.
+ * Touch 줄은 `- Modify \`path\` — 이유`처럼 동사·설명이 섞이므로 백틱 스팬만
+ * 후보로 보고, 토크나이저가 단일 토큰으로 유지하는 문자 집합
+ * (`A-Za-z0-9_./-`)만으로 이뤄진 것을 남긴다. 경로 정규화는 하지 않는다 —
+ * 문서 문자열이 곧 파생 헤딩이자 source_file 질의 토큰이다.
+ * 절 경계는 extractSections와 같은 `^##\s`다. `## Touch`가 없으면 [].
+ *
+ * @param {string} markdown - 원본 마크다운 (frontmatter 포함 가능)
+ * @returns {string[]} Touch 절의 경로 배열 (등장 순, 중복 제거)
+ */
+function touchPathHeadings(markdown) {
+    const body = stripFrontmatter(markdown);
+    const lines = body.split(/\r?\n/);
+    const starts = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/^##\s/.test(line))
+            starts.push({ i, line });
+    }
+    const hit = starts.find((s) => s.line.trim() === '## Touch');
+    if (!hit)
+        return [];
+    const idx = starts.indexOf(hit);
+    const from = hit.i + 1;
+    const to = idx + 1 < starts.length ? starts[idx + 1].i : lines.length;
+    const section = lines.slice(from, to).join('\n');
+    // 백틱 밖·자리표시자·비ASCII는 승격하지 않는다. Do not touch 절은 경계에서 잘린다.
+    const PATH_OK = /^[A-Za-z0-9_./-]+$/;
+    const out = [];
+    const seen = new Set();
+    for (const m of section.matchAll(/`([^`]+)`/g)) {
+        const cand = m[1];
+        if (!PATH_OK.test(cand) || seen.has(cand))
+            continue;
+        seen.add(cand);
+        out.push(cand);
+    }
+    return out;
+}
+/**
  * 요청한 ## 헤딩의 본문만 다음 ## 직전까지 남긴다.
- * 헤딩이 없거나 본문이 비면 해당 섹션은 빼고, 전부 비면 '' 를 돌려
- * 호출자가 파생 파일을 만들지 않게 한다.
+ * 헤딩이 없거나 본문이 비면 해당 섹션은 빼고, 전부 비면 '' 를 돌려준다.
+ * 파생 파일 생성 여부는 호출자가 앵커와 함께 판단한다.
  */
 function extractSections(markdown, headings) {
     const body = stripFrontmatter(markdown);
@@ -172,11 +311,31 @@ function buildContextDigest({ repoRoot, contextDirs }) {
             continue;
         }
         const extracted = extractSections(raw, rules);
-        if (!extracted)
+        const anchors = anchorsFor(rel);
+        // Touch 경로 헤딩은 tasks.md 화이트리스트에만. epic/bp index의 Touch는 승격하지 않는다.
+        const unit = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/([^/]+)\/([^/]+)$/.exec(String(rel || '').replace(/\\/g, '/'));
+        const isTasksBrief = !!(unit && TASK_DIR_RE.test(unit[1]) && unit[2] === TASK_UNIT_BASENAMES[0]);
+        const touchPaths = isTasksBrief ? touchPathHeadings(raw) : [];
+        // 도메인 tags는 모든 화이트리스트 문서에 붙인다. Touch와 달리 tasks.md 전용이 아니다.
+        const tags = tagLabels(raw);
+        // 절 본문이 비어도 계층 앵커만 있으면 노드로 남긴다. 둘 다 없으면 예전처럼 생략.
+        if (!extracted && anchors.length === 0)
             continue;
         const flat = uniqueFlatName(flattenSlug(rel), used);
         // graphify·소비자는 파생 이름만 본다. 원본 경로는 본문 헤더와 map.json 이 잇는다.
-        const body = `<!-- source: ${rel} -->\n\n${extracted}`;
+        // 헤딩 순서: 앵커 → Touch 경로(tasks.md만) → 도메인 태그 → 절 본문.
+        // 앵커·경로·태그를 절보다 앞에 두어 질의 토큰이 label hit 하게 한다.
+        let body = `<!-- source: ${rel} -->\n\n`;
+        if (anchors.length) {
+            body += `${anchors.map((a) => `## ${a}`).join('\n')}\n\n`;
+        }
+        if (touchPaths.length) {
+            body += `${touchPaths.map((p) => `## ${p}`).join('\n')}\n\n`;
+        }
+        if (tags.length) {
+            body += `${tags.map((t) => `## ${t}`).join('\n')}\n\n`;
+        }
+        body += extracted;
         fs.writeFileSync(path.join(outAbs, flat), body);
         map[flat] = rel;
         files.push(flat);
@@ -189,6 +348,9 @@ module.exports = {
     DIGEST_MAP_REL,
     DIGEST_WATCH_FILES,
     digestRulesFor,
+    anchorsFor,
+    touchPathHeadings,
+    tagLabels,
     extractSections,
     buildContextDigest,
 };

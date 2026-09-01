@@ -69,9 +69,18 @@ test('spec-authoring separates Korean reader prose from ASCII discovery fields',
   assert.match(language, /title[\s\S]{0,120}Korean/i);
   assert.match(language, /description[\s\S]{0,120}English ASCII/i);
   assert.match(language, /tags[\s\S]{0,120}English ASCII/i);
+  assert.match(language, /tags[\s\S]{0,300}domain/i);
   assert.match(language, /stop-slop[\s\S]{0,180}(reader-facing|독자).*prose/i);
   assert.match(language, /stop-slop[\s\S]{0,180}(derived anchors|search metadata)/i);
   assert.match(language, /bulk-rewrite the existing corpus/i);
+});
+
+test('okf states tags are the domain search vocabulary', () => {
+  const root = path.join(__dirname, '..');
+  const okf = fs.readFileSync(path.join(root, 'rules/okf.md'), 'utf8');
+  assert.match(okf, /tags[\s\S]{0,300}(search label|search vocabulary|graph-suggest)/i);
+  assert.match(okf, /\[A-Za-z0-9_\.\/-\]/);
+  assert.doesNotMatch(okf, /Wave 2 context-digest will generate/);
 });
 
 test('spec-authoring ships completed reference examples and points SKILL.md at them', () => {
