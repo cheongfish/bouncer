@@ -45,9 +45,11 @@ Korean-search support or a bulk rewrite of the existing corpus.
   bundle index summary. The summary row is derived by `scaffold epic` and may
   be appended or replaced, while S13 reports a mismatch; the row is not an
   authoring surface.
-- `tags` use a small, stable project vocabulary for retrieval. Keep the
-  scaffold's `bouncer` and document-kind tag; add only durable domain tags
-  (for example `worktree`, `verification`, or `distill`). Do not add temporary
+- `tags` are the domain search vocabulary that context-digest promotes for
+  graph-suggest. Each item is an English ASCII single token matching
+  `[A-Za-z0-9_./-]`. Keep the scaffold's `bouncer` and document-kind tag
+  (those are not promoted); add 2–5 durable domain tags (for example
+  `worktree`, `context-digest`, or `graph-suggest`). Do not add temporary
   ticket ids, one-off filenames, or synonyms for the same concept.
 
 **Plan fields.** `bouncer.affected_paths` is the minimum approved set of
@@ -83,7 +85,7 @@ step, or return to planning.
 
 ## Derived context-digest anchors
 
-Wave 2 context-digest will generate these derived headings from the approved
+Wave 2 context-digest generates these derived headings from the approved
 epic → blueprint → task tree. They are search metadata, not an authoring
 obligation: people do not manually write anchors in context documents.
 

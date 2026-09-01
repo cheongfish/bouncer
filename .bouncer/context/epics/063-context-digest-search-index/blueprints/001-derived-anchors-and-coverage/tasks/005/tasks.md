@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-005
   epic_id: '063'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 도메인 태그를 가진 epic이 62건 중 6건뿐이라 태그 라벨 소비 코드가 대부분의 문서에서 빈손이 됨
     - tags가 검색 어휘라는 사실과 토큰 모양 제약을 작성 규칙에 적어 생산자를 만듦
