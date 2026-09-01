@@ -39,6 +39,7 @@ const {
     contextDirs: string[];
     testDirs?: string[] | null;
     excludeDirs?: string[];
+    testUnconfiguredReason?: string;
   }) => GraphScope[];
   SCAN_EXCLUDED_DIRS: Set<string>;
   DEFAULT_SOURCE_OUT: string;
@@ -67,6 +68,7 @@ type GraphScope = {
   scanDirs?: string[];
   watchFiles?: string[];
   excludeDirs?: string[];
+  unconfiguredReason?: string;
 };
 
 type GraphPlan = GraphScope & {
@@ -87,8 +89,8 @@ type SessionGraphDeps = {
   hasGraphify?: () => unknown;
   sourceDirs?: () => string[];
   contextDirs?: () => string[];
-  // null = test scope 생략(필드 부재와 동일). 단위 테스트가 config 없이
-  // 세-scope 경로만 검증할 때 주입한다.
+  // null = test 항목을 skip-unconfigured로 실음(필드 부재·무효와 동일).
+  // 단위 테스트가 config 없이 세-scope 경로만 검증할 때 주입한다.
   testDirs?: () => string[] | null;
   excludeDirs?: () => string[];
   existingDirs?: (dirs: string[]) => string[];
@@ -124,14 +126,28 @@ function planOneGraph(args: {
   scanDirs?: string[];
   watchFiles?: string[];
   excludeDirs?: string[];
+  unconfiguredReason?: string;
   existingDirs: (dirs: string[]) => string[];
   newestMtime: (dirs: string[], watchFiles?: string[]) => number;
   graphMtime: (outDir: string) => number | null;
 }): GraphPlan {
   const {
-    name, dirs, outDir, scanDirs, watchFiles, excludeDirs,
+    name, dirs, outDir, scanDirs, watchFiles, excludeDirs, unconfiguredReason,
     existingDirs, newestMtime, graphMtime,
   } = args;
+  // 미설정·무효 test는 디스크 leftover graph.json이 있어도 build/skip-fresh로
+  // 가지 않는다. missing·SessionStart 경고에도 올리지 않으려면 action이
+  // skip-unconfigured로 먼저 고정돼야 한다.
+  if (unconfiguredReason) {
+    return {
+      name,
+      dirs: [],
+      configured: [],
+      outDir,
+      action: 'skip-unconfigured',
+      reason: unconfiguredReason,
+    };
+  }
   const present = existingDirs(dirs);
   const mtime = graphMtime(outDir);
   // `configured`는 전체 config 목록; `dirs`는 present만 유지해 호출자가
@@ -198,17 +214,26 @@ function planSessionGraph({ repoRoot, deps }: {
 
   // deps가 testDirs/excludeDirs를 넘기면 config 파서를 우회한다(단위 테스트).
   // 그 외에는 real*가 무효 필드를 적용하지 않고 skips에 사유를 모은다.
+  // testDirs null은 더 이상 scope 생략이 아니라 skip-unconfigured 자리표시다.
   const skips: string[] = [];
   let testDirs: string[] | null = null;
+  let testUnconfiguredReason: string | undefined;
   let excludeDirs: string[];
   if (deps && Object.prototype.hasOwnProperty.call(deps, 'testDirs')) {
     testDirs = d.testDirs ? d.testDirs() : null;
+    if (testDirs == null) {
+      testUnconfiguredReason = 'graphify.test_dirs is not configured';
+    }
   } else {
     const testList = realTestDirs(repoRoot);
     if (testList.present && testList.dirs === null) {
+      // 무효 값은 skips(SessionStart 진단)와 graphs[].reason에 같이 남긴다.
       skips.push(testList.skipReason);
+      testUnconfiguredReason = testList.skipReason;
     } else if (testList.present) {
       testDirs = testList.dirs;
+    } else {
+      testUnconfiguredReason = 'graphify.test_dirs is not configured';
     }
   }
   if (deps && Object.prototype.hasOwnProperty.call(deps, 'excludeDirs')) {
@@ -224,6 +249,7 @@ function planSessionGraph({ repoRoot, deps }: {
     contextDirs: d.contextDirs(),
     testDirs,
     excludeDirs,
+    testUnconfiguredReason,
   });
   const graphs = scopes.map((scope: GraphScope) => planOneGraph({
     ...scope,
@@ -247,7 +273,11 @@ function planSessionGraph({ repoRoot, deps }: {
       reason: toBuild.map((g: GraphPlan) => g.reason).join('; '),
     });
   }
-  if (graphs.every((g: GraphPlan) => g.action === 'skip-no-dirs')) {
+  // skip-unconfigured는 빌드 시도가 아니다. 요약 집계에서 빼야 source·context가
+  // 모두 skip-no-dirs인 저장소가 항상 실리는 test 자리 때문에 skip-fresh로
+  // 뒤집히지 않는다. 제외 후 남는 항목이 없으면 skip-no-dirs를 유지한다.
+  const countable = graphs.filter((g: GraphPlan) => g.action !== 'skip-unconfigured');
+  if (countable.length === 0 || countable.every((g: GraphPlan) => g.action === 'skip-no-dirs')) {
     return withSkips({
       bootstrap, action: 'skip-no-dirs', graphs, reason: 'no graph source dirs exist',
     });
@@ -267,8 +297,10 @@ const NO_GRAPH_WORK = new Set([
 ]);
 
 /**
- * source + (선택) test + context graph freshness를 계획하고 stale한 것을
+ * source + test + context graph freshness를 계획하고 stale한 것을
  * 재빌드한다. SessionStart와 /bouncer-plan(graphify-runner) query 전에 다시 사용.
+ * graphs[]는 config와 무관하게 세 항목이지만, skip-unconfigured test는
+ * 빌드·missing·경고 대상이 아니다.
  */
 function syncSessionGraphs({ repoRoot, deps, execGraphify }: {
   repoRoot: string;
@@ -303,9 +335,12 @@ function syncSessionGraphs({ repoRoot, deps, execGraphify }: {
     : (outDir: string) => realGraphMtime(repoRoot, outDir);
   // NO_GRAPH_WORK 는 그래프를 시도하지 않은 상태. missing 을 채우거나
   // ok 를 뒤집으면 disabled/bootstrap 을 실패로 보이게 된다.
+  // skip-unconfigured는 graph.json 존재와 무관하게 missing에서 뺀다 —
+  // 미설정 test leftover 산출물이 SessionStart 경고를 만들지 않게.
   const missing = NO_GRAPH_WORK.has(decision.action)
     ? []
     : decision.graphs
+      .filter((g: GraphPlan) => g.action !== 'skip-unconfigured')
       .filter((g: GraphPlan) => graphMtime(g.outDir) === null)
       .map((g: GraphPlan) => g.name);
   return { ...decision, built, failed, missing };
@@ -336,8 +371,9 @@ function graphSyncWarnings(decision: SessionDecision) {
       + 'Install: pip install graphifyy && graphify install. See docs/install.md.\n',
     );
   }
-  // 잘못된 test_dirs/exclude_dirs는 graphs에 안 들어가고 skips에만 남는다.
-  // SessionStart가 못 보면 운영자가 왜 필드가 무시됐는지 알 수 없다.
+  // 잘못된 exclude_dirs·무효 test_dirs는 skips에 남는다(test는 graphs에도
+  // skip-unconfigured로 실린다). SessionStart가 못 보면 운영자가 왜 필드가
+  // 무시됐는지 알 수 없다.
   for (const reason of decision.skips || []) {
     lines.push(
       `Bouncer: skipped graphify config — ${reason}. `
@@ -349,6 +385,7 @@ function graphSyncWarnings(decision: SessionDecision) {
   );
   // failed scope는 전용 줄이 있음; configured dirs가 missing이라고
   // 중복 주장하지 말 것(dirs는 있었고 build가 실패).
+  // skip-unconfigured는 missing에 안 들어가지만, 방어적으로 action도 건너뛴다.
   const failedNames = new Set((decision.failed || []).map((f: { name: string }) => f.name));
   for (const name of decision.missing || []) {
     if (failedNames.has(name)) continue;
@@ -357,6 +394,7 @@ function graphSyncWarnings(decision: SessionDecision) {
       action?: unknown;
       dirs?: unknown;
     };
+    if (graph.action === 'skip-unconfigured') continue;
     const configured = Array.isArray(graph.configured) ? graph.configured : [];
     // test는 config 상 graphify.test_dirs. source/context는 루트 키.
     const dirsKey = name === 'context'

@@ -68,3 +68,4 @@ bouncer_schema: '0.1'
 * [061 epic-index-consistency](epics/061-epic-index-consistency/index.md) - 에픽 description을 정본으로 삼아 번들 색인 요약을 재생성하고 불일치를 S13으로 차단한다
 * [062 search-language-contract](epics/062-search-language-contract/index.md) - graph-suggest 검색의 생산자와 소비자가 같은 영어 ASCII 어휘와 토큰 규칙을 쓰도록 언어 계약을 고정한다.
 * [063 context-digest-search-index](epics/063-context-digest-search-index/index.md) - Generate derived search anchors, Touch path headings, and minimal fallback digests in context-digest so every context document reaches the graph with a searchable ASCII label.
+* [064 scope-graph-convergence](epics/064-scope-graph-convergence/index.md) - Separate the test scope from source_dirs, report all three graph scopes consistently, and drop the last root graphify-out/graph.json references so graph-suggest role candidates and scope status agree.

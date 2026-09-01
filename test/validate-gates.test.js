@@ -1527,7 +1527,7 @@ test('commit gate passes when only blueprint docs and runtime artifacts are stag
   checkGate('commit', {}, rels, failures, commitCtx([
     `${bp}/tasks/001/tasks.md`,
     `${bp}/explain.md`,
-    'graphify-out/graph.json',
+    'graphify-out/source/graph.json',
   ]));
   assert.deepStrictEqual(failures, []);
 });

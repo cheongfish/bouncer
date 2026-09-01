@@ -31,15 +31,17 @@
 절대 경로입니다. 저장소 상대 값(`.bouncer/.venv/bin/graphify` 등)도 파일이
 있으면 그대로 씁니다.
 
-`graphify.test_dirs`와 `graphify.exclude_dirs`는 선택 필드입니다. 둘 다 없는
-기존 config는 예전처럼 source·context 두 그래프만 만듭니다. 키가 있으면
-문자열 배열이어야 하고, 절대 경로나 `..` 탈출이 있으면 그 값을 적용하지
-않으며 `graph-sync` 결과의 `skips`에 사유가 실립니다. `exclude_dirs`가
-비어 있거나 없으면 JavaScript 경로를 생성물로 추측해 지우지 않습니다 —
-`scripts/lib` 같은 생성 경로는 프로젝트가 명시한 경우에만 source 그래프에서
-빠집니다. `/bouncer-init`은 신규 저장소에서 실재하는 `test`·`tests`만
-`graphify.test_dirs`로 넣고 `source_dirs`에서는 빼며, 이미 있는 config에는
-이 키를 추가하지 않습니다.
+`graphify.test_dirs`와 `graphify.exclude_dirs`는 선택 필드입니다. `test_dirs`가
+없어도 `graph-sync`의 `graphs[]`는 언제나 source·test·context 세 항목을
+보고합니다 — 미설정·무효 test 항목은 `action: skip-unconfigured`로 남고
+빌드·`missing`·SessionStart 경고 대상이 아닙니다. 빌드되는 그래프 수와
+보고되는 스코프 수가 다를 수 있습니다. 키가 있으면 문자열 배열이어야 하고,
+절대 경로나 `..` 탈출이 있으면 그 값을 적용하지 않으며 `graph-sync` 결과의
+`skips`에 사유가 실립니다. `exclude_dirs`가 비어 있거나 없으면 JavaScript
+경로를 생성물로 추측해 지우지 않습니다 — `scripts/lib` 같은 생성 경로는
+프로젝트가 명시한 경우에만 source 그래프에서 빠집니다. `/bouncer-init`은
+신규 저장소에서 실재하는 `test`·`tests`만 `graphify.test_dirs`로 넣고
+`source_dirs`에서는 빼며, 이미 있는 config에는 이 키를 추가하지 않습니다.
 
 신규 config의 `pr`에는 항상 `draft`가 있고, 브랜치 탐지가 성공했을 때만
 `base`가 붙습니다. `labels` 기본값은 두지 않습니다. 예전 설정에 남아 있는

@@ -42,6 +42,12 @@ test('graphify-runner basis status enum lists all five values', () => {
   assert.match(md, /missing/);
 });
 
+test('graphify-runner maps skip-unconfigured outcome to skip-disabled status', () => {
+  const md = readSkill('graphify-runner');
+  // outcome→status 표 행이 사라지면 에이전트가 test 미설정을 추측하게 된다.
+  assert.match(md, /`skip-unconfigured`\s*\|\s*`skip-disabled`/);
+});
+
 test('graphify-runner basis entry fields are named separately', () => {
   const md = readSkill('graphify-runner');
   assert.match(md, /`graph`/);
