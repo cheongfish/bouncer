@@ -11,9 +11,25 @@ const {
   buildContextDigest,
   anchorsFor,
   touchPathHeadings,
+  tagLabels,
   CONTEXT_DIGEST_OUT,
 } = require('../scripts/lib/context-digest');
 const { tokenize } = require('../scripts/lib/graph-search');
+
+test('tagLabels keeps domain tags and drops structural ones', () => {
+  const fm = [
+    '---', 'type: bouncer.epic', 'tags:',
+    '  - bouncer', '  - epic', '  - context-digest', '  - distill',
+    '  - 검색', '  - two words', '---', '', '## Success criteria', '1. x', '',
+  ].join('\n');
+  assert.deepEqual(tagLabels(fm), ['context-digest', 'distill']);
+  // 같은 distill 값도 shard 문서에서는 kind 태그가 아니므로 남고, explain 문서에서는
+  // explain 이 kind 태그라 걸린다
+  const ex = ['---', 'type: bouncer.explain', 'tags:',
+    '  - bouncer', '  - explain', '  - worktree', '---', ''].join('\n');
+  assert.deepEqual(tagLabels(ex), ['worktree']);
+  assert.deepEqual(tagLabels('# no frontmatter\n'), []);
+});
 
 test('touchPathHeadings extracts backtick paths from ## Touch only', () => {
   const md = [
@@ -227,6 +243,86 @@ test('buildContextDigest appends Touch path headings after anchors for tasks.md 
   const bpBody = fs.readFileSync(path.join(repo, result.dir, bpFlat), 'utf8');
   assert.ok(!epicBody.includes('## scripts/'));
   assert.ok(!bpBody.includes('## scripts/src/lib/secret.ts'));
+});
+
+test('buildContextDigest appends tag headings after anchors and Touch paths', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-tags-'));
+  const epic = '.bouncer/context/epics/063-x';
+  const bp = `${epic}/blueprints/001-y`;
+  fs.mkdirSync(path.join(repo, bp, 'tasks/003'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Decisions\n\nd1\n');
+  fs.writeFileSync(
+    path.join(repo, `${epic}/index.md`),
+    [
+      '---',
+      'type: bouncer.epic',
+      'tags:',
+      '  - bouncer',
+      '  - epic',
+      '  - context-digest',
+      '  - distill',
+      '---',
+      '',
+      '## Success criteria',
+      '',
+      'ok',
+      '',
+    ].join('\n'),
+  );
+  fs.writeFileSync(
+    path.join(repo, `${bp}/tasks/003/tasks.md`),
+    [
+      '---',
+      'type: bouncer.tasks',
+      'tags:',
+      '  - bouncer',
+      '  - tasks',
+      '  - search-vocabulary',
+      '---',
+      '',
+      '## Goal & intent',
+      '',
+      'goal',
+      '',
+      '## Interface',
+      '',
+      'iface',
+      '',
+      '## Touch',
+      '- Modify `scripts/src/lib/a.ts` — 이유',
+      '',
+    ].join('\n'),
+  );
+
+  const result = buildContextDigest({
+    repoRoot: repo,
+    contextDirs: ['.bouncer/context'],
+  });
+
+  const epicFlat = Object.keys(result.map).find((flat) => result.map[flat] === `${epic}/index.md`);
+  assert.ok(epicFlat);
+  const epicBody = fs.readFileSync(path.join(repo, result.dir, epicFlat), 'utf8');
+  // 앵커 뒤·절 본문 앞에 태그 헤딩. kind 태그 epic·bouncer 는 승격하지 않는다.
+  assert.match(
+    epicBody,
+    /## epic-063\n\n## context-digest\n## distill\n\n## Success criteria/,
+  );
+  assert.ok(!epicBody.includes('## bouncer\n'));
+  assert.ok(!/\n## epic\n/.test(epicBody));
+
+  const taskFlat = Object.keys(result.map).find(
+    (flat) => result.map[flat] === `${bp}/tasks/003/tasks.md`,
+  );
+  assert.ok(taskFlat);
+  const taskBody = fs.readFileSync(path.join(repo, result.dir, taskFlat), 'utf8');
+  // 헤딩 순서: 앵커 → Touch 경로 → 태그 → 절 본문
+  assert.match(
+    taskBody,
+    /## task-063-001-003\n## bp-063-001\n## epic-063\n\n## scripts\/src\/lib\/a\.ts\n\n## search-vocabulary\n\n## Goal & intent/,
+  );
+  assert.ok(!taskBody.includes('## tasks\n'));
 });
 
 test('buildContextDigest keeps empty-section epic via anchor-only derived file', () => {

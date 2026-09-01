@@ -91,6 +91,66 @@ function anchorsFor(rel) {
     return out;
 }
 /**
+ * frontmatter `tags`에서 도메인 검색 어휘만 골라 등장 순·중복 제거로 돌려준다.
+ * scaffold가 모든 문서에 찍는 `bouncer`와 `type: bouncer.<kind>`에서 역산한 kind
+ * 태그는 god label이 되므로 승격하지 않는다. 종류 목록을 상수로 두면 scaffold가
+ * 종류를 늘릴 때 어긋나고, `distill`처럼 kind이면서 도메인 개념인 값을 영영 막는다.
+ * 파서는 `tags:` 다음의 `  - value` 줄만 읽는다 — 일반 YAML을 들이면 이 소비 경로가
+ * 작성기 스키마에 묶인다. 토큰 집합은 Touch 경로와 같다(`A-Za-z0-9_./-`).
+ * 대소문자 변환은 하지 않는다 — graph-search가 비교 시점에 소문자화하므로 여기서
+ * 바꾸면 원본 태그와 어긋난다. `description`/`title`은 읽지 않는다.
+ *
+ * @param {string} markdown - 원본 마크다운 (frontmatter 포함 가능)
+ * @returns {string[]} 승격할 태그 배열. frontmatter·tags 배열이 없으면 []
+ */
+function tagLabels(markdown) {
+    const text = String(markdown || '');
+    if (!text.startsWith('---'))
+        return [];
+    const end = text.indexOf('\n---', 3);
+    if (end === -1)
+        return [];
+    const lines = text.slice(0, end).split(/\r?\n/);
+    // 1. type에서 kind 태그 역산. bouncer. 접두만 떼고 표기는 그대로 둔다.
+    let kindTag;
+    for (const line of lines) {
+        const m = /^type:\s*(\S+)\s*$/.exec(line);
+        if (!m)
+            continue;
+        if (m[1].startsWith('bouncer.'))
+            kindTag = m[1].slice('bouncer.'.length);
+        break;
+    }
+    // 2. tags: 블록의 list item만. 스칼라·빈 블록·다른 키는 배열이 아니므로 [].
+    const raw = [];
+    let inTags = false;
+    for (const line of lines) {
+        if (!inTags) {
+            if (line === 'tags:')
+                inTags = true;
+            continue;
+        }
+        const item = /^ {2}- (.+)$/.exec(line);
+        if (!item)
+            break;
+        raw.push(item[1]);
+    }
+    if (!raw.length)
+        return [];
+    const TOKEN_OK = /^[A-Za-z0-9_./-]+$/;
+    const out = [];
+    const seen = new Set();
+    for (const tag of raw) {
+        if (tag === 'bouncer' || (kindTag !== undefined && tag === kindTag))
+            continue;
+        if (!TOKEN_OK.test(tag) || seen.has(tag))
+            continue;
+        seen.add(tag);
+        out.push(tag);
+    }
+    return out;
+}
+/**
  * tasks.md의 `## Touch` 절에서 백틱 경로만 등장 순서·중복 제거로 뽑는다.
  * Touch 줄은 `- Modify \`path\` — 이유`처럼 동사·설명이 섞이므로 백틱 스팬만
  * 후보로 보고, 토크나이저가 단일 토큰으로 유지하는 문자 집합
@@ -253,19 +313,24 @@ function buildContextDigest({ repoRoot, contextDirs }) {
         const unit = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/([^/]+)\/([^/]+)$/.exec(String(rel || '').replace(/\\/g, '/'));
         const isTasksBrief = !!(unit && TASK_DIR_RE.test(unit[1]) && unit[2] === TASK_UNIT_BASENAMES[0]);
         const touchPaths = isTasksBrief ? touchPathHeadings(raw) : [];
+        // 도메인 tags는 모든 화이트리스트 문서에 붙인다. Touch와 달리 tasks.md 전용이 아니다.
+        const tags = tagLabels(raw);
         // 절 본문이 비어도 계층 앵커만 있으면 노드로 남긴다. 둘 다 없으면 예전처럼 생략.
         if (!extracted && anchors.length === 0)
             continue;
         const flat = uniqueFlatName(flattenSlug(rel), used);
         // graphify·소비자는 파생 이름만 본다. 원본 경로는 본문 헤더와 map.json 이 잇는다.
-        // 앵커 헤딩을 절 본문보다 앞에 두어 epic/bp/task 토큰 질의가 label hit 하게 한다.
-        // tasks.md Touch 경로는 앵커 직후·절 본문 앞에 두어 path 토큰도 같은 label 축에 올린다.
+        // 헤딩 순서: 앵커 → Touch 경로(tasks.md만) → 도메인 태그 → 절 본문.
+        // 앵커·경로·태그를 절보다 앞에 두어 질의 토큰이 label hit 하게 한다.
         let body = `<!-- source: ${rel} -->\n\n`;
         if (anchors.length) {
             body += `${anchors.map((a) => `## ${a}`).join('\n')}\n\n`;
         }
         if (touchPaths.length) {
             body += `${touchPaths.map((p) => `## ${p}`).join('\n')}\n\n`;
+        }
+        if (tags.length) {
+            body += `${tags.map((t) => `## ${t}`).join('\n')}\n\n`;
         }
         body += extracted;
         fs.writeFileSync(path.join(outAbs, flat), body);
@@ -282,6 +347,7 @@ module.exports = {
     digestRulesFor,
     anchorsFor,
     touchPathHeadings,
+    tagLabels,
     extractSections,
     buildContextDigest,
 };

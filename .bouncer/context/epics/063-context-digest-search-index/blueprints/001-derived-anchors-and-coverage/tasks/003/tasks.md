@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-003
   epic_id: '063'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - 검색 라벨을 완전 일치로 비교하므로 문장형 description은 자연어 질의로 도달할 수 없음
     - 단일 토큰인 tags만이 자연어 질의로 도달 가능한 도메인 어휘 자리임
