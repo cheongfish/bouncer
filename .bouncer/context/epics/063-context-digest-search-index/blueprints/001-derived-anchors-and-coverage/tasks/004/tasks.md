@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-004
   epic_id: '063'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - shard의 Invariants와 Gotchas가 다이제스트에서 드롭되어 프로젝트 불변식이 검색되지 않음
     - master Distill이 실제 헤딩과 어긋난 규칙 때문에 파생 산출이 0건이었음

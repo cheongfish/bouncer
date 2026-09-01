@@ -33,9 +33,12 @@ const DIGEST_WATCH_FILES = ['.bouncer/Distill.md'];
  */
 function digestRulesFor(rel: unknown): string[] | null {
   const norm = String(rel || '').replace(/\\/g, '/');
-  if (norm === '.bouncer/Distill.md') return ['## Decisions'];
+  // master Distill 본문은 ## Shards만 있다. Decisions를 찾으면 파생 산출이 0건이 된다.
+  if (norm === '.bouncer/Distill.md') return ['## Shards'];
+  // shard는 Invariants·Gotchas·Decisions를 문서 작성 순서대로 색인한다.
+  // 셋 중 일부만 있으면 extractSections가 있는 절만 남긴다.
   if (new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(norm)) {
-    return ['## Decisions'];
+    return ['## Invariants', '## Gotchas', '## Decisions'];
   }
   if (/^\.bouncer\/context\/epics\/[^/]+\/index\.md$/.test(norm)) {
     return ['## Success criteria'];

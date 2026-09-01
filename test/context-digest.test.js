@@ -70,7 +70,12 @@ test('anchorsFor derives hierarchy from path ids narrowest-first', () => {
 });
 
 test('digestRulesFor whitelists Distill, epic index, explain, blueprint index, and task brief', () => {
-  assert.deepEqual(digestRulesFor('.bouncer/Distill.md'), ['## Decisions']);
+  // master는 shard 목록 정본이라 ## Shards만 색인한다. Decisions는 shard 본문에 있다.
+  assert.deepEqual(digestRulesFor('.bouncer/Distill.md'), ['## Shards']);
+  assert.deepEqual(
+    digestRulesFor('.bouncer/distill/core.md'),
+    ['## Invariants', '## Gotchas', '## Decisions'],
+  );
   assert.deepEqual(
     digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/explain.md'),
     ['## Background', '## Intuition', '## Code'],
@@ -128,7 +133,8 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
   fs.mkdirSync(path.join(repo, bp, 'tasks/001'), { recursive: true });
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
 
-  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '---\ntitle: d\n---\n## Decisions\n\nd1\n');
+  // master 규칙이 ## Shards만 추출하므로 Decisions 픽스처면 파생 파일이 안 생긴다.
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '---\ntitle: d\n---\n## Shards\n\n- core\n');
   fs.writeFileSync(path.join(repo, `${epic}/index.md`), '## Success criteria\n\nok\n');
   fs.writeFileSync(
     path.join(repo, `${bp}/explain.md`),
@@ -350,6 +356,7 @@ test('buildContextDigest includes Decisions from registered shards with original
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-shards-'));
   fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
   fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
+  // frontmatter shards: 는 readShards 등록용. 본문 ## Shards는 다이제스트 규칙과 맞춘다.
   fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), [
     '---',
     'distill:',
@@ -357,9 +364,9 @@ test('buildContextDigest includes Decisions from registered shards with original
     '  shards:',
     '    - core',
     '---',
-    '## Decisions',
+    '## Shards',
     '',
-    'index decision',
+    '- core',
     '',
   ].join('\n'));
   fs.writeFileSync(path.join(repo, '.bouncer/distill/core.md'), [
@@ -367,6 +374,14 @@ test('buildContextDigest includes Decisions from registered shards with original
     'distill:',
     '  id: core',
     '---',
+    '## Invariants',
+    '',
+    'inv',
+    '',
+    '## Gotchas',
+    '',
+    'got',
+    '',
     '## Decisions',
     '',
     'shard decision',
@@ -382,8 +397,11 @@ test('buildContextDigest includes Decisions from registered shards with original
   assert.ok(!originals.includes('.bouncer/distill/unregistered.md'));
   const shardFlat = Object.keys(result.map).find((flat) => result.map[flat] === '.bouncer/distill/core.md');
   assert.ok(shardFlat);
+  const shardBody = fs.readFileSync(path.join(repo, result.dir, shardFlat), 'utf8');
+  assert.match(shardBody, /<!-- source: \.bouncer\/distill\/core\.md -->/);
+  // shard 파생 본문은 Invariants → Gotchas → Decisions 순서를 유지한다.
   assert.match(
-    fs.readFileSync(path.join(repo, result.dir, shardFlat), 'utf8'),
-    /<!-- source: \.bouncer\/distill\/core\.md -->/,
+    shardBody,
+    /## Invariants\n\ninv\n\n## Gotchas\n\ngot\n\n## Decisions\n\nshard decision\n/,
   );
 });
