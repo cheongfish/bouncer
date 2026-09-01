@@ -11,14 +11,23 @@ bouncer:
   id: REVIEW-002
   epic_id: '014'
   blueprint_id: '004'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: blocker
+        status: accepted
+        note: >-
+          verification.md Command/Evidence는 execute gate가 기록한다.
+          tasks verified는 구현 완료 후 컨트롤러 전환이며 false acceptance가 아니다.
+      - id: F2
+        severity: minor
+        status: resolved
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+
+- F1 (blocker, accepted): verification evidence는 execute gate 소유. 수기 기록하지 않음.
+- F2 (minor, resolved): 014 epic index Blueprints `005`–`009` 요약·링크 텍스트를 한국어로 맞춤.

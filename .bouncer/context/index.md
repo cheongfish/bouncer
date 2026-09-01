@@ -19,10 +19,8 @@ bouncer_schema: '0.1'
 * [018 task-unit-commits](epics/018-task-unit-commits/index.md) - blueprint 안에 여러 task 문서를 두고 task 하나를 하나의 커밋 단위로 삼는다
 * [025 graphify-bootstrap](epics/025-graphify-bootstrap/index.md) - bouncer init이 .bouncer/.venv에 graphify를 설치하고, graph-sync와 graphify-runner가 PATH 대신 그 경로를 쓴다
 * [026 context-graph-slim](epics/026-context-graph-slim/index.md) - context 그래프를 의사결정 섹션만 담은 파생 트리에서 빌드한다
-* [027 history-import](epics/027-history-import/index.md) - git 히스토리를 imported status의 epic/blueprint 문서로 기계적으로 전사한다
 * [028 antigravity-host](epics/028-antigravity-host/index.md) - Bouncer를 Antigravity에서 설치·구동 가능한 네 번째 호스트로 넓힌다
 * [029 release-one-zero](epics/029-release-one-zero/index.md) - 1.0 호환 약속을 지탱할 표면 정리
-* [031 document-schema](epics/031-document-schema/index.md) - 문서 표면을 코드와 일치시키고 1.0 호환 약속의 기준점을 번들 루트에 둔다
 * [032 autonomous-run](epics/032-autonomous-run/index.md) - blueprint 하나를 task 소진까지 주행시키는 커맨드와 자율성 설정
 * [033 quality-security](epics/033-quality-security/index.md) - plan 직후 문서 정합성을 게이트로 세우고 최소화 래더와 인젝션 신뢰 경계를 명문화한다
 * [034 agentic-benchmark](epics/034-agentic-benchmark/index.md) - 워크플로 밖 개발자 도구로 벤치마크 스킬을 반입해 런 사이 비교 가능한 점수를 남긴다
@@ -37,7 +35,6 @@ bouncer_schema: '0.1'
 * [046 review-loop-cap](epics/046-review-loop-cap/index.md) - execute의 리뷰 fix 루프에 왕복 상한을 두고 그 숫자의 소유권을 execute로 모은다
 * [047 컨텍스트 주입량 절감](epics/047-context-injection/index.md) - 포인터·브리프·Distill 프리플라이트에서 한 사이클 주입량을 줄이고 게이트 계약은 그대로 둔다
 * [048 plugin-root-resolution](epics/048-plugin-root-resolution/index.md) - 호스트 캐시 후보에서 Bouncer 플러그인 루트를 안전하게 선택하는 계약을 정의한다
-* [049 context-searchability](epics/049-context-searchability/index.md) - 다이제스트에 blueprint·task 층위를 넣고 결정 계보를 supersedes로 남겨 과거 판단이 검색에 잡히게 한다
 * [050 cycle-friction](epics/050-cycle-friction/index.md) - finalize 포인터 인계, Distill 읽기 범위, 플러그인 간 비교 근거
 * [051 deepswe-original-benchmark](epics/051-deepswe-original-benchmark/index.md) - DeepSWE 원본 태스크 10개를 임시 클론으로 돌려 Pier 판정과 이 저장소 채점을 잇는다
 * [052 deepswe-arm-comparison](epics/052-deepswe-arm-comparison/index.md) - DeepSWE 원본 배관을 실제로 도는 상태로 만들고 세 arm을 같은 조건에서 돌려 비교표 한 장을 낸다
@@ -49,7 +46,6 @@ bouncer_schema: '0.1'
 * [058 context-runtime-compaction](epics/058-context-runtime-compaction/index.md) - 마스터 규칙과 Project Distill의 주입량을 줄이면서 안전 계약과 선택 라우팅을 보존한다
 * [059 audit-followup](epics/059-audit-followup/index.md) - 외부 감사가 남긴 설치·지시문·경량 경로·부채 항목을 게이트 계약을 바꾸지 않고 닫는다
 * [060 graphify-search-quality](epics/060-graphify-search-quality/index.md) - 과거 결정과 코드 관계를 연결해 누락이 적고 신뢰도를 설명할 수 있는 변경 경로 후보를 만든다
-* [061 epic-index-consistency](epics/061-epic-index-consistency/index.md) - 에픽 description을 정본으로 삼아 번들 색인 요약을 재생성하고 불일치를 S13으로 차단한다
 * [062 search-language-contract](epics/062-search-language-contract/index.md) - graph-suggest 검색의 생산자와 소비자가 같은 영어 ASCII 어휘와 토큰 규칙을 쓰도록 언어 계약을 고정한다.
 * [063 context-digest-search-index](epics/063-context-digest-search-index/index.md) - Generate derived search anchors, Touch path headings, and minimal fallback digests in context-digest so every context document reaches the graph with a searchable ASCII label.
 * [064 scope-graph-convergence](epics/064-scope-graph-convergence/index.md) - Separate the test scope from source_dirs, report all three graph scopes consistently, and drop the last root graphify-out/graph.json references so graph-suggest role candidates and scope status agree.

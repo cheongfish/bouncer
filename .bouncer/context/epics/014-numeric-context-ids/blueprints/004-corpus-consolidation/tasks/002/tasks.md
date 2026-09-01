@@ -11,7 +11,10 @@ bouncer:
   id: TASKS-002
   epic_id: '014'
   blueprint_id: '004'
-  status: ready
+  status: verified
+  commit_intent:
+    - 027·031·049·061 schema·history corpus가 014 밖에 흩어져 한 parent에서 찾지 못함.
+    - 해당 BP를 014 아래 005부터 순차 통합해 schema·history·index를 한 계층에서 찾게 함.
   verify: npm test
   affected_paths:
     - .bouncer/context/epics/014-numeric-context-ids/blueprints/001-id-contract/explain.md
