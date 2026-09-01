@@ -74,7 +74,7 @@ test('marketplace.json lists bouncer from the repository root', () => {
 });
 
 test('marketplace and plugin manifests agree on name and version', () => {
-  const expectedVersion = '1.3.2';
+  const expectedVersion = '1.3.3';
   const mkt = readJson('.claude-plugin/marketplace.json');
   const plugin = readJson('.claude-plugin/plugin.json');
   const pkg = readJson('package.json');

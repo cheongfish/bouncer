@@ -7,6 +7,36 @@
 
 ## [Unreleased]
 
+## [1.3.3] — 2026-09-01
+
+1.3.2 이후 context-digest 검색 라벨 생산과 에픽 색인 정합성 복구.
+
+### Added
+
+- **계층 앵커 파생** — `context-digest`가 epic·blueprint·task 경로에서
+  `## epic-<ddd>` / `## bp-<ddd>-<ddd>` / `## task-<ddd>-<ddd>-<ddd>` 앵커를
+  생성하고 자식 문서가 부모 앵커를 함께 담는다.
+- **Touch 경로 헤딩** — `tasks.md`의 `## Touch` 백틱 경로가 파생 문서 헤딩으로
+  승격되어 source 그래프와 연결된다.
+- **도메인 태그 라벨** — frontmatter `tags` 중 구조 태그를 제외한 영어 ASCII
+  단일 토큰이 검색 라벨 헤딩으로 승격된다.
+- **Distill shard 색인** — shard 파생 문서가 `## Invariants`·`## Gotchas`·
+  `## Decisions` 세 절을 모두 담는다.
+- **최소 파생 fallback** — 화이트리스트 절이 없거나 본문이 빈 문서도 앵커·
+  경로만 담은 파생 문서를 얻는다.
+- **영어 검색 계약 문서** — 검색 앵커 문법, 컨텍스트 본문·검색 어휘 언어 분리,
+  graphify-runner 영어 질의 지침을 고정한다.
+
+### Changed
+
+- **태그 작성 규칙** — `rules/okf.md`와 `references/spec-authoring/index.md`가
+  tags를 도메인 검색 어휘로 진술한다.
+
+### Fixed
+
+- **에픽 색인 파생 요약** — `derived_summary` 재생성으로 에픽 색인 정합성을
+  복구한다.
+
 ## [1.3.2] — 2026-08-31
 
 1.3.1 이후 Graphify 컨텍스트 우선 검색과 감사 부채 정리.
