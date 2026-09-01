@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-002
   epic_id: '063'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent:
     - task 문서가 이미 선언한 파일 경로가 다이제스트에서 버려져 컨텍스트와 코드가 이어지지 않음
     - 경로 토큰은 토크나이저가 통째로 보존하므로 context와 source를 잇는 가장 확실한 seed임

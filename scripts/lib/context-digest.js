@@ -91,6 +91,46 @@ function anchorsFor(rel) {
     return out;
 }
 /**
+ * tasks.md의 `## Touch` 절에서 백틱 경로만 등장 순서·중복 제거로 뽑는다.
+ * Touch 줄은 `- Modify \`path\` — 이유`처럼 동사·설명이 섞이므로 백틱 스팬만
+ * 후보로 보고, 토크나이저가 단일 토큰으로 유지하는 문자 집합
+ * (`A-Za-z0-9_./-`)만으로 이뤄진 것을 남긴다. 경로 정규화는 하지 않는다 —
+ * 문서 문자열이 곧 파생 헤딩이자 source_file 질의 토큰이다.
+ * 절 경계는 extractSections와 같은 `^##\s`다. `## Touch`가 없으면 [].
+ *
+ * @param {string} markdown - 원본 마크다운 (frontmatter 포함 가능)
+ * @returns {string[]} Touch 절의 경로 배열 (등장 순, 중복 제거)
+ */
+function touchPathHeadings(markdown) {
+    const body = stripFrontmatter(markdown);
+    const lines = body.split(/\r?\n/);
+    const starts = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/^##\s/.test(line))
+            starts.push({ i, line });
+    }
+    const hit = starts.find((s) => s.line.trim() === '## Touch');
+    if (!hit)
+        return [];
+    const idx = starts.indexOf(hit);
+    const from = hit.i + 1;
+    const to = idx + 1 < starts.length ? starts[idx + 1].i : lines.length;
+    const section = lines.slice(from, to).join('\n');
+    // 백틱 밖·자리표시자·비ASCII는 승격하지 않는다. Do not touch 절은 경계에서 잘린다.
+    const PATH_OK = /^[A-Za-z0-9_./-]+$/;
+    const out = [];
+    const seen = new Set();
+    for (const m of section.matchAll(/`([^`]+)`/g)) {
+        const cand = m[1];
+        if (!PATH_OK.test(cand) || seen.has(cand))
+            continue;
+        seen.add(cand);
+        out.push(cand);
+    }
+    return out;
+}
+/**
  * 요청한 ## 헤딩의 본문만 다음 ## 직전까지 남긴다.
  * 헤딩이 없거나 본문이 비면 해당 섹션은 빼고, 전부 비면 '' 를 돌려준다.
  * 파생 파일 생성 여부는 호출자가 앵커와 함께 판단한다.
@@ -209,15 +249,23 @@ function buildContextDigest({ repoRoot, contextDirs }) {
         }
         const extracted = extractSections(raw, rules);
         const anchors = anchorsFor(rel);
+        // Touch 경로 헤딩은 tasks.md 화이트리스트에만. epic/bp index의 Touch는 승격하지 않는다.
+        const unit = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/([^/]+)\/([^/]+)$/.exec(String(rel || '').replace(/\\/g, '/'));
+        const isTasksBrief = !!(unit && TASK_DIR_RE.test(unit[1]) && unit[2] === TASK_UNIT_BASENAMES[0]);
+        const touchPaths = isTasksBrief ? touchPathHeadings(raw) : [];
         // 절 본문이 비어도 계층 앵커만 있으면 노드로 남긴다. 둘 다 없으면 예전처럼 생략.
         if (!extracted && anchors.length === 0)
             continue;
         const flat = uniqueFlatName(flattenSlug(rel), used);
         // graphify·소비자는 파생 이름만 본다. 원본 경로는 본문 헤더와 map.json 이 잇는다.
         // 앵커 헤딩을 절 본문보다 앞에 두어 epic/bp/task 토큰 질의가 label hit 하게 한다.
+        // tasks.md Touch 경로는 앵커 직후·절 본문 앞에 두어 path 토큰도 같은 label 축에 올린다.
         let body = `<!-- source: ${rel} -->\n\n`;
         if (anchors.length) {
             body += `${anchors.map((a) => `## ${a}`).join('\n')}\n\n`;
+        }
+        if (touchPaths.length) {
+            body += `${touchPaths.map((p) => `## ${p}`).join('\n')}\n\n`;
         }
         body += extracted;
         fs.writeFileSync(path.join(outAbs, flat), body);
@@ -233,6 +281,7 @@ module.exports = {
     DIGEST_WATCH_FILES,
     digestRulesFor,
     anchorsFor,
+    touchPathHeadings,
     extractSections,
     buildContextDigest,
 };
