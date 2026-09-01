@@ -14,7 +14,7 @@ bouncer:
   id: TASKS-003
   epic_id: '064'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent: |
     루트 `graphify-out/graph.json`은 이미 사라졌는데 테스트 픽스처 세 곳이 아직 그 경로를 런타임 산출물 예시로 쓰고 있었음
     픽스처를 실재하는 스코프 산출물로 옮기고 설치 문서의 두 스코프 서술을 셋으로 넓혀 저장소 진술을 산출물 지형과 맞춤

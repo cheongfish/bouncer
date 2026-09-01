@@ -400,7 +400,7 @@ test('runtime artifacts are neither violations nor staged', () => {
     ['src/auth/login.ts'],
     [
       'node_modules/js-yaml/index.js',
-      'graphify-out/graph.json',
+      'graphify-out/source/graph.json',
       '.worktrees/BP-001/x',
       '.bouncer/.venv/bin/graphify',
     ],

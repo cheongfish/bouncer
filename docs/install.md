@@ -243,7 +243,8 @@ bouncer init --promote-graphify --no-graphify  # 켜기만
 (`config.graphify.bin` → common-dir `bouncer/venv` → `.bouncer/.venv` → PATH). SessionStart와
 `graphify-runner`는 그 경로로 `graph-sync` / query를 돌립니다.
 `source_dirs` / `context_dirs`를 맞춘 뒤 세션을 다시 열면
-`graphify-out/source`와 `graphify-out/context`가 갱신됩니다.
+`graphify-out/source`와 `graphify-out/context`가 갱신되고,
+`graphify.test_dirs`가 있으면 `graphify-out/test`도 함께 갱신됩니다.
 
 ### 오프라인·수동 폴백
 

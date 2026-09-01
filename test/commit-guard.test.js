@@ -27,7 +27,7 @@ test('blocks out-of-scope files', () => {
 
 test('known runtime artifacts are not scope violations', () => {
   const res = checkCommitSafety({
-    files: ['src/auth/login.ts', 'node_modules/js-yaml/index.js', 'graphify-out/graph.json'],
+    files: ['src/auth/login.ts', 'node_modules/js-yaml/index.js', 'graphify-out/source/graph.json'],
     affectedPaths: ['src/auth/'],
     blueprintDir: BP,
   });
