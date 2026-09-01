@@ -15,7 +15,7 @@ bouncer:
   id: TASKS-002
   epic_id: '064'
   blueprint_id: '001'
-  status: ready
+  status: verified
   commit_intent: |
     이 저장소가 `test`를 `source_dirs`에 두어 test scope 그래프가 만들어지지 않았고 테스트 파일이 implementation 후보에 섞였음
     `graphify.test_dirs`로 분리해 역할 후보가 실제로 갈리는지 실측 증적으로 확인함

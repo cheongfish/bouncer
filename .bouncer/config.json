@@ -1,14 +1,16 @@
 {
   "source_dirs": [
     "scripts",
-    "hooks",
-    "test"
+    "hooks"
   ],
   "context_dirs": [
     ".bouncer/context"
   ],
   "graphify": {
-    "enabled": true
+    "enabled": true,
+    "test_dirs": [
+      "test"
+    ]
   },
   "distill": {
     "routing_enabled": true,

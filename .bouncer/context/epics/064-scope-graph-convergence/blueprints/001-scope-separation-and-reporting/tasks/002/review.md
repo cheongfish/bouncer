@@ -11,14 +11,16 @@ bouncer:
   id: REVIEW-002
   epic_id: '064'
   blueprint_id: '001'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: F1
+        severity: major
+        status: resolved
+        note: Restored Measured outputs after execute-gate body rewrite; raw graph-sync/suggest evidence present.
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+- F1 [major] resolved — Measured outputs were wiped by execute gate rewrite; restored after Evidence with raw command stdout.
