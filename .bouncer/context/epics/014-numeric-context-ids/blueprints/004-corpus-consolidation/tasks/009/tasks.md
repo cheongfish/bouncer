@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-009
   epic_id: '014'
   blueprint_id: '004'
-  status: ready
+  status: verified
   affected_paths:
     - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md
     - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md
