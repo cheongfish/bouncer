@@ -1,0 +1,69 @@
+{
+  "description": "Fixed context-corpus queries for canonical epic consolidation regression. Queries and required hits use English ASCII only.",
+  "search": {
+    "method": "epic-id-path-prefix",
+    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060)."
+  },
+  "queries": [
+    {
+      "id": "epic-018",
+      "query": "epic-018",
+      "required_context_hits": [
+        ".bouncer/context/epics/018-task-unit-commits/index.md"
+      ],
+      "max_candidates": 144,
+      "baseline_captured_at": "pre-task-003-move",
+      "baseline_notes": "018 already consolidated; baseline is current tree size"
+    },
+    {
+      "id": "epic-007",
+      "query": "epic-007",
+      "required_context_hits": [
+        ".bouncer/context/epics/007-project-distill/index.md"
+      ],
+      "max_candidates": 12,
+      "baseline_captured_at": "pre-task-003-move",
+      "baseline_notes": "007 not yet consolidated; baseline is current tree size"
+    },
+    {
+      "id": "epic-060",
+      "query": "epic-060",
+      "required_context_hits": [
+        ".bouncer/context/epics/060-graphify-search-quality/index.md"
+      ],
+      "max_candidates": 91,
+      "baseline_captured_at": "pre-task-003-move",
+      "baseline_notes": "pre-compression union of 060+011+026+040+062+063+064 markdown files",
+      "pre_compression_epic_dirs": [
+        "011-graphify-signal",
+        "026-context-graph-slim",
+        "040-scope-evidence",
+        "060-graphify-search-quality",
+        "062-search-language-contract",
+        "063-context-digest-search-index",
+        "064-scope-graph-convergence"
+      ]
+    }
+  ],
+  "hierarchy": {
+    "canonical_epic": "060-graphify-search-quality",
+    "retained_blueprint": "001-context-first-ranking",
+    "migrated_blueprints": [
+      "002-silent-skip-signal",
+      "003-graph-path-contract",
+      "004-context-section-digest",
+      "005-scope-evidence-contract",
+      "006-english-search-contract",
+      "007-derived-anchors-and-coverage",
+      "008-scope-separation-and-reporting"
+    ],
+    "removed_source_epics": [
+      "011-graphify-signal",
+      "026-context-graph-slim",
+      "040-scope-evidence",
+      "062-search-language-contract",
+      "063-context-digest-search-index",
+      "064-scope-graph-convergence"
+    ]
+  }
+}

@@ -11,7 +11,10 @@ bouncer:
   id: TASKS-003
   epic_id: '014'
   blueprint_id: '004'
-  status: ready
+  status: verified
+  commit_intent:
+    - 그래프·검색 이력이 여러 epic에 흩어져 060에서 한 계열로 찾기 어려움.
+    - 011·026·040·062·063·064 BP를 060 아래 002부터 모아 검색 회귀 기준을 고정함.
   verify: npm test
   affected_paths:
     - .bouncer/context/epics/011-graphify-signal/blueprints/001-silent-skip-signal/distill.md
@@ -44,75 +47,75 @@ bouncer:
     - .bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/002/tasks.md
     - .bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/002/verification.md
     - .bouncer/context/epics/040-scope-evidence/index.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/distill.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/index.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/tasks/001/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/tasks/001/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/tasks/001/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/distill.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/index.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/tasks/001/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/tasks/001/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/tasks/001/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/explain.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/index.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/001/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/001/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/001/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/002/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/002/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/002/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/context-review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/explain.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/index.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/001/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/001/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/001/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/002/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/002/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/002/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/context-review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/explain.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/index.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/001/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/001/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/001/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/002/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/002/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/002/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/003/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/003/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/003/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/context-review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/explain.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/index.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/001/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/001/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/001/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/002/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/002/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/002/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/003/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/003/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/003/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/004/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/004/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/004/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/005/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/005/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/005/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/context-review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/explain.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/index.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/001/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/001/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/001/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/002/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/002/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/002/verification.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/003/review.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/003/tasks.md
-    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/003/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/distill.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/distill.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/context-review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/context-review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/context-review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/context-review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/verification.md
     - .bouncer/context/epics/060-graphify-search-quality/index.md
     - .bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/context-review.md
     - .bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/explain.md
@@ -164,6 +167,9 @@ bouncer:
     - test/context-corpus-search.test.js
     - test/fixtures/context-corpus-queries.json
     - test/graph-search.test.js
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/review.md
   scope_evidence:
     producer: graphify
     generated_at: '2026-09-01T21:18:40.167+09:00'
@@ -249,75 +255,75 @@ Blueprint: [004](../../index.md)
 - Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/040-scope-evidence/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/001-silent-skip-signal/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-graph-path-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-context-section-digest/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-scope-evidence-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-english-search-contract/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-derived-anchors-and-coverage/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-scope-separation-and-reporting/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/060-graphify-search-quality/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
@@ -370,6 +376,10 @@ Blueprint: [004](../../index.md)
 - Modify `test/fixtures/context-corpus-queries.json` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `test/graph-search.test.js` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/tasks.md` — destination 순번 충돌 해소 및 task 번들 상태·증적 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/verification.md` — destination 순번 충돌 해소 및 task 번들 상태·증적 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/review.md` — destination 순번 충돌 해소 및 task 번들 상태·증적 갱신.
+
 ## Do not touch
 <!-- 여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.
      epic / blueprint의 Out of scope에서 이어받습니다. -->
@@ -383,13 +393,17 @@ Blueprint: [004](../../index.md)
 - query·seed·frontmatter 검색 메타데이터는 영어 ASCII만 쓴다.
 - fixture는 `epic-018`, `epic-007`, `epic-060` query를 고정하고, 각각 최종 canonical epic index를 필수 context hit로 요구한다. 후보 수는 각 query의 압축 전 기준선보다 늘어나면 실패한다.
 
+
+
+- 기존 `060-graphify-search-quality/blueprints/001-context-first-ranking`은 유지하고, 이관 BP는 `002`부터 순번을 부여한다.
+
 ## Checklist
 <!-- 각 항목은 구현자가 순서대로 실행 가능해야 합니다.
      행위를 바꾸는 항목은 실패 테스트 → 실패 확인 → 구현 순서로 적습니다.
      기대하는 assertion·상수·명령은 코드블록으로 그대로 적어 해석 여지를 없앱니다.
      blueprint Contract에서 이연된 테스트 본문·구현 시퀀스가 들어올 자리입니다.
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
-- [ ] `epic-018`, `epic-007`, `epic-060`의 압축 전 context hit·후보 수를 fixture 기준선으로 고정한다.
-- [ ] BP를 이동하고 index·resource를 수렴한다.
-- [ ] fixed query recall·후보 상한과 `npm test`를 확인한다.
+- [x] `epic-018`, `epic-007`, `epic-060`의 압축 전 context hit·후보 수를 fixture 기준선으로 고정한다.
+- [x] BP를 이동하고 index·resource를 수렴한다.
+- [x] fixed query recall·후보 상한과 `npm test`를 확인한다.
 
