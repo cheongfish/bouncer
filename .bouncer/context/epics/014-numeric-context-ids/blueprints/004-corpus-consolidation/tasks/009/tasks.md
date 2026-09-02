@@ -12,6 +12,9 @@ bouncer:
   epic_id: '014'
   blueprint_id: '004'
   status: verified
+  commit_intent:
+    - '벤치마크 기록이 여러 계층에 흩어져 검색과 계보 확인이 어려웠음'
+    - '관련 기록을 주제별 계층으로 모아 일관된 탐색 기준을 마련함'
   affected_paths:
     - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md
     - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md
