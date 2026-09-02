@@ -4,6 +4,7 @@ bouncer_schema: '0.1'
 ---
 # Epics
 
+
 * [001 product-surface-hosts](epics/001-product-surface-hosts/index.md) - `bouncer` CLI 사용성, 다중 에이전트 플러그인, 호스트 지원, 설치 환경 및 감사 후속 조치를 통합 관리
 * [004 planning-quality-governance](epics/004-planning-quality-governance/index.md) - 계획 수립 가드레일, 리뷰 루브릭, 검증 래퍼, 컨텍스트 리뷰 및 스킬 문서 품질 결함을 통합 관리
 * [006 platform-architecture](epics/006-platform-architecture/index.md) - TypeScript 전환, 스킬 구조, 코어 모듈 분해, 스킬 본문 골격, 구현 주석 지침 및 카탈로그 숨김을 통합 관리
@@ -14,5 +15,4 @@ bouncer_schema: '0.1'
 * [034 evaluation-benchmarking](epics/034-evaluation-benchmarking/index.md) - 워크플로 밖 개발자 도구로 벤치마크 스킬을 반입해 런 사이 비교 가능한 점수를 남긴다
 * [039 오픈소스 1.0 공개](epics/039-release-security/index.md) - Security, quality, public contract, and release history for the 1.0.0 open-source plugin
 * [043 bouncer-cost-improvement](epics/043-bouncer-cost-improvement/index.md) - 측정 가능한 비용 절감과 경량 계획 계약으로 Bouncer의 품질 이득을 유지한다
-* [054 skill-context-optimization](epics/054-skill-context-optimization/index.md) - 진입 스킬이 실행 중 연쇄 로드하는 지시문을 역할별 정본화와 조건부 reference 분리로 줄이고 게이트 절차는 본문에 남긴다
 * [060 graphify-search-quality](epics/060-graphify-search-quality/index.md) - 과거 결정과 코드 관계를 연결해 누락이 적고 신뢰도를 설명할 수 있는 변경 경로 후보를 만든다

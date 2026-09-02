@@ -16,73 +16,73 @@ bouncer:
     - 계획 수립 가드레일, 리뷰 루브릭, 검증 래퍼, 컨텍스트 리뷰 및 스킬 문서 품질 결함 결정이 여러 epic에 분산되어 있었음
     - 해당 history를 004 아래로 모아 planning·quality governance 역사를 단일 hierarchy로 통합하고 검색 baseline을 맞춤
   affected_paths:
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/distill.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/index.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/distill.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/index.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/distill.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/index.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/distill.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/index.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/distill.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/index.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/explain.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/index.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/context-review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/explain.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/index.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/context-review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/explain.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/index.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md
-    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md
-    - .bouncer/context/epics/004-planning-quality-governance/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/distill.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/distill.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/distill.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/distill.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/distill.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/explain.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/context-review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/explain.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/context-review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/explain.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md
+    - .bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md
+    - .bouncer/context/epics/004-starter-kit-convergence/index.md
     - .bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/distill.md
     - .bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/index.md
     - .bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/review.md
@@ -194,80 +194,80 @@ bouncer:
 Blueprint: [004](../../index.md)
 
 ## Goal & intent
-004,005,017,033,053의 BP를 `004-planning-quality-governance`로 통합한다.
+004,005,017,033,053의 BP를 `004-starter-kit-convergence`로 통합한다.
 
 ## Interface
 - 제공: planning·quality governance history가 하나의 hierarchy에 있다.
 - 거부: gate 동작은 변경하지 않는다.
 
 ## Touch
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/004-planning-quality-governance/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.

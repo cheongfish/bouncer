@@ -1,7 +1,7 @@
 ---
 type: bouncer.tasks
-title: 009 tasks
-description: Tasks for 009
+title: 벤치마크 계층 통합
+description: Consolidates benchmark history under the canonical evaluation epic and removes legacy hierarchy references.
 resource: .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/tasks.md
 tags:
   - bouncer
@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-009
   epic_id: '014'
   blueprint_id: '004'
-  status: verified
+  status: ready
   affected_paths:
     - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md
     - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md
@@ -190,12 +190,12 @@ Blueprint: [004](../../index.md)
 ## Goal & intent
 <!-- 구현자가 다른 문서 없이 시작할 수 있게.
      수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다. -->
-034,051,052의 BP를 `034-evaluation-benchmarking`으로 통합한다.
+034, 051, 052의 BP를 실제 canonical epic인 `034-evaluation-benchmarking` 아래에 통합하고 legacy source 경로를 제거한다.
 
 ## Interface
 <!-- 계약이 리뷰에서 검증 가능하도록 제공하는 것과 거부하는 것을 함께 적습니다. -->
-- 제공: benchmark history가 하나의 hierarchy에 있다.
-- 거부: benchmark runner는 변경하지 않는다.
+- 제공: benchmark history가 `034-evaluation-benchmarking` 하나의 hierarchy에 있다.
+- 거부: benchmark runner와 benchmark 내용은 변경하지 않는다.
 
 ## Touch
 - Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
@@ -341,7 +341,9 @@ Blueprint: [004](../../index.md)
      예: 하위 호환 별칭을 남기지 않는다 / 기존 게이트 번호와 본문 계약을 유지한다 /
      공개 문자열은 한국어를 유지한다.
      막을 대상이 경로뿐이면 Do not touch에 적습니다. -->
-- bundle 이동과 resource 갱신을 함께 한다.
+- source가 작업 트리에서 삭제된 상태여도 HEAD의 source를 기준으로 동일한 bundle 구조를 destination에 보존한다.
+- destination blueprint 번호는 기존 `001`~`004`를 유지하고 중복 bundle을 만들지 않는다.
+- bundle 이동과 resource·부모 링크 갱신을 함께 한다.
 
 ## Checklist
 <!-- 각 항목은 구현자가 순서대로 실행 가능해야 합니다.
@@ -349,5 +351,6 @@ Blueprint: [004](../../index.md)
      기대하는 assertion·상수·명령은 코드블록으로 그대로 적어 해석 여지를 없앱니다.
      blueprint Contract에서 이연된 테스트 본문·구현 시퀀스가 들어올 자리입니다.
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
-- [ ] inventory를 고정하고 BP를 이동·재번호화한다.
-- [ ] index·링크를 갱신하고 npm test를 실행한다.
+- [ ] source와 destination inventory를 고정하고 034, 051, 052의 bundle을 destination에 대조한다.
+- [ ] destination의 `resource`, 부모 경로, 내부 링크와 context index를 갱신하고 legacy source 참조가 없는지 확인한다.
+- [ ] `npm test`를 실행해 fixed query 회귀와 후보 상한을 확인한다.

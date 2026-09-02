@@ -36,3 +36,9 @@ bouncer:
 ## Blueprints
 * [001 측정 기반 비용 절감](blueprints/001-measured-cost-reduction/index.md) - 변경 전 기준선을 고정하고 scaffold 힌트·측정 도구·공유 상태 문서를 고친 뒤 2회차를 기록한다
 * [002 light 계획 계약](blueprints/002-light-plan-contract/index.md) - light 전용 scaffold와 plan gate 계약으로 계획 문서를 100줄 이하로 줄이고 3회차를 기록한다
+* [004 정적 baseline과 측정 계약](blueprints/004-baseline-measurement/index.md) - 회귀 시나리오와 정적 지표 수집 계약을 고정한다
+* [005 named agent 정본화](blueprints/005-agent-rubric-ssot/index.md) - 네 역할의 상세 rubric을 named agent 정본으로 통합한다
+* [006 조건부 절차 reference 분리](blueprints/006-conditional-reference-split/index.md) - 진입 스킬의 조건부 절차를 reference로 분리한다
+* [007 반복 규칙 공통화](blueprints/007-shared-rule-blocks/index.md) - 반복 규칙의 정본을 rules로 통합한다
+* [008 description 축약과 예산 고정](blueprints/008-description-budget-lock/index.md) - 스킬 description 비용과 정본 개수를 고정한다
+* [009 실행 baseline](blueprints/009-execution-baseline/index.md) - 실행 지표의 변경 전 기준선을 기록한다

@@ -110,95 +110,95 @@ bouncer:
     - .bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/004/tasks.md
     - .bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/004/verification.md
     - .bouncer/context/epics/059-audit-followup/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/distill.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/distill.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/distill.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/explain.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/explain.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/context-review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/explain.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/context-review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/explain.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/context-review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/explain.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/context-review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/explain.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/index.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/review.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/tasks.md
-    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/verification.md
-    - .bouncer/context/epics/001-product-surface-hosts/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/distill.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/distill.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/distill.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/explain.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/explain.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/context-review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/explain.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/context-review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/explain.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/context-review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/explain.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/context-review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/explain.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/index.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/verification.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/review.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/tasks.md
+    - .bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/verification.md
+    - .bouncer/context/epics/001-cli-usability/index.md
     - .bouncer/context/index.md
     - test/fixtures/context-corpus-queries.json
     - test/context-corpus-search.test.js
@@ -239,7 +239,7 @@ bouncer:
 Blueprint: [004](../../index.md)
 
 ## Goal & intent
-001,003,025,028,048,059의 BP를 `001-product-surface-hosts`로 통합한다.
+001,003,025,028,048,059의 BP를 `001-cli-usability`로 통합한다.
 
 ## Interface
 - 제공: product surface와 host history가 하나의 hierarchy에 있다.
@@ -340,95 +340,95 @@ Blueprint: [004](../../index.md)
 - Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/059-audit-followup/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/001-product-surface-hosts/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `test/fixtures/context-corpus-queries.json` — corpus baseline·task 번들 갱신.
 - Modify `test/context-corpus-search.test.js` — corpus baseline·task 번들 갱신.
