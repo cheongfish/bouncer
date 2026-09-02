@@ -1,6 +1,6 @@
 # Context corpus search regression
 
-Fixed queries `epic-018`, `epic-007`, `epic-009`, `epic-001`, and `epic-060` pin recall of each canonical epic index and cap candidate growth after corpus consolidation.
+Fixed queries `epic-018`, `epic-007`, `epic-009`, `epic-001`, `epic-004`, and `epic-060` pin recall of each canonical epic index and cap candidate growth after corpus consolidation.
 
 ## Fixture
 
@@ -12,6 +12,7 @@ Fixed queries `epic-018`, `epic-007`, `epic-009`, `epic-001`, and `epic-060` pin
   - `epic-007`: 96 (post-task-004 consolidation under `007-project-distill`)
   - `epic-009`: 95 (post-task-005 consolidation under `009-agent-orchestration`)
   - `epic-001`: 94 (post-task-006 consolidation under `001-product-surface-hosts`)
+  - `epic-004`: 67 (post-task-007 consolidation under `004-planning-quality-governance`)
   - `epic-060`: 91 (pre-compression union of scattered graph/search parents)
 
 ## Commands
@@ -48,3 +49,10 @@ npm test
 - Retained: `001-cli-help`
 - Migrated: `002-cursor-codex-manifests` … `009-debt-items`
 - Removed parents: `003, 025, 028, 048, 059`
+
+## Hierarchy under test (task 007)
+
+- Canonical epic: `004-planning-quality-governance`
+- Retained: `001-spec-authoring-guardrails` … `004-discovery-depth`
+- Migrated: `005-reviewer-prompt` … `008-plan-explain-execute-fixes`
+- Removed parents: `005, 017, 033, 053`

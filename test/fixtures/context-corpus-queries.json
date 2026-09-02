@@ -2,7 +2,7 @@
   "description": "Fixed context-corpus queries for canonical epic consolidation regression. Queries and required hits use English ASCII only.",
   "search": {
     "method": "epic-id-path-prefix",
-    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007/009/001)."
+    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007/009/001/004)."
   },
   "queries": [
     {
@@ -69,6 +69,23 @@
         "028-antigravity-host",
         "048-plugin-root-resolution",
         "059-audit-followup"
+      ]
+    },
+    {
+      "id": "epic-004",
+      "query": "epic-004",
+      "required_context_hits": [
+        ".bouncer/context/epics/004-planning-quality-governance/index.md"
+      ],
+      "max_candidates": 67,
+      "baseline_captured_at": "post-task-007-consolidation",
+      "baseline_notes": "post-consolidation pre-compression size under 004 (union of 004+005+017+033+053 after move)",
+      "pre_compression_epic_dirs": [
+        "004-planning-quality-governance",
+        "005-review-depth",
+        "017-verify-wrapper-guidance",
+        "033-quality-security",
+        "053-skill-doc-defects"
       ]
     },
     {
@@ -185,6 +202,27 @@
       "028-antigravity-host",
       "048-plugin-root-resolution",
       "059-audit-followup"
+    ]
+  },
+  "hierarchy_004": {
+    "canonical_epic": "004-planning-quality-governance",
+    "retained_blueprints": [
+      "001-spec-authoring-guardrails",
+      "002-init-rules-scaffold",
+      "003-per-task-verify-command",
+      "004-discovery-depth"
+    ],
+    "migrated_blueprints": [
+      "005-reviewer-prompt",
+      "006-plan-verify-detection",
+      "007-context-review-guard",
+      "008-plan-explain-execute-fixes"
+    ],
+    "removed_source_epics": [
+      "005-review-depth",
+      "017-verify-wrapper-guidance",
+      "033-quality-security",
+      "053-skill-doc-defects"
     ]
   }
 }
