@@ -2,7 +2,7 @@
   "description": "Fixed context-corpus queries for canonical epic consolidation regression. Queries and required hits use English ASCII only.",
   "search": {
     "method": "epic-id-path-prefix",
-    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007/009)."
+    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007/009/001)."
   },
   "queries": [
     {
@@ -51,6 +51,24 @@
         "046-review-loop-cap",
         "050-cycle-friction",
         "057-review-ready-pr"
+      ]
+    },
+    {
+      "id": "epic-001",
+      "query": "epic-001",
+      "required_context_hits": [
+        ".bouncer/context/epics/001-product-surface-hosts/index.md"
+      ],
+      "max_candidates": 94,
+      "baseline_captured_at": "post-task-006-consolidation",
+      "baseline_notes": "post-consolidation pre-compression size under 001 (union of 001+003+025+028+048+059 after move)",
+      "pre_compression_epic_dirs": [
+        "001-product-surface-hosts",
+        "003-multi-agent-plugin",
+        "025-graphify-bootstrap",
+        "028-antigravity-host",
+        "048-plugin-root-resolution",
+        "059-audit-followup"
       ]
     },
     {
@@ -144,6 +162,29 @@
       "046-review-loop-cap",
       "050-cycle-friction",
       "057-review-ready-pr"
+    ]
+  },
+  "hierarchy_001": {
+    "canonical_epic": "001-product-surface-hosts",
+    "retained_blueprints": [
+      "001-cli-help"
+    ],
+    "migrated_blueprints": [
+      "002-cursor-codex-manifests",
+      "003-commands-to-skills",
+      "004-venv-install-bin-resolution",
+      "005-antigravity-plugin-surface",
+      "006-host-candidate-launcher",
+      "007-install-first-five-minutes",
+      "008-instruction-layers",
+      "009-debt-items"
+    ],
+    "removed_source_epics": [
+      "003-multi-agent-plugin",
+      "025-graphify-bootstrap",
+      "028-antigravity-host",
+      "048-plugin-root-resolution",
+      "059-audit-followup"
     ]
   }
 }
