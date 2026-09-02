@@ -58,7 +58,7 @@ bouncer:
           confidence: medium
           basis:
             - context graph hit
-        - path: .bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/001/tasks.md
+        - path: .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/tasks.md
           score: 4
           confidence: medium
           basis:

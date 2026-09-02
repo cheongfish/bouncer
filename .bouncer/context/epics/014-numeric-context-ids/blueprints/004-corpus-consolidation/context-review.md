@@ -18,5 +18,11 @@ bouncer:
 # Context review
 
 ## Findings
-재검토에서 열린 finding이 없다. CR-1부터 CR-9까지는 task별 source/destination inventory,
-active blueprint ID 보존, parent epic 범위, 고정 query 계약을 보완하여 해결했다.
+- id: CR-010-1
+  severity: major
+  status: accepted
+  note: TASKS-010의 Goal과 Checklist에 source-to-destination 이동/생성, source 제거, stale 참조 검증을 명시하여 해결했다.
+- id: CR-010-2
+  severity: major
+  status: accepted
+  note: TASKS-010의 Checklist에 fixed-query 필수 hit, 후보 상한 10건, source zero-match, destination match 검증을 명시하여 해결했다.

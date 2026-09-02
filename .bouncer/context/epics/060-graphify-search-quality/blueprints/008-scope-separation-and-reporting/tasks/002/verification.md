@@ -319,7 +319,7 @@ Bare checklist query left `candidates.implementation: []` while still placing `t
         ]
       },
       {
-        "path": ".bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/006/tasks.md",
+        "path": ".bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/tasks.md",
         "score": 4,
         "confidence": "medium",
         "basis": [

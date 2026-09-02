@@ -51,7 +51,7 @@ bouncer:
     - .bouncer/context/epics/010-active-pointer-cli/index.md
     - .bouncer/context/epics/011-graphify-signal/index.md
     - .bouncer/context/epics/012-finalize-handoff/index.md
-    - .bouncer/context/epics/039-open-source-one-zero/index.md
+    - .bouncer/context/epics/039-release-security/index.md
     - .bouncer/context/epics/016-advisor-removal/index.md
     - .bouncer/context/epics/017-verify-wrapper-guidance/index.md
     - .bouncer/context/epics/018-task-unit-commits/index.md
@@ -141,7 +141,7 @@ Blueprint: [009](../../index.md)
 - Modify `.bouncer/context/epics/010-active-pointer-cli/index.md` — 현재 실제 색인 행을 description으로 역방향 backfill한다.
 - Modify `.bouncer/context/epics/011-graphify-signal/index.md` — 현재 실제 색인 행을 description으로 역방향 backfill한다.
 - Modify `.bouncer/context/epics/012-finalize-handoff/index.md` — 현재 실제 색인 행을 description으로 역방향 backfill한다.
-- Modify `.bouncer/context/epics/039-open-source-one-zero/index.md` — 현재 실제 색인 행을 description으로 역방향 backfill한다.
+- Modify `.bouncer/context/epics/039-release-security/index.md` — 현재 실제 색인 행을 description으로 역방향 backfill한다.
 - Modify `.bouncer/context/epics/016-advisor-removal/index.md` — Intent 목표에서 description을 저술한다.
 - Modify `.bouncer/context/epics/017-verify-wrapper-guidance/index.md` — Intent 목표에서 description을 저술한다.
 - Modify `.bouncer/context/epics/018-task-unit-commits/index.md` — Intent 목표에서 description을 저술한다.
