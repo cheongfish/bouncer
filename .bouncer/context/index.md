@@ -23,23 +23,17 @@ bouncer_schema: '0.1'
 * [033 quality-security](epics/033-quality-security/index.md) - plan 직후 문서 정합성을 게이트로 세우고 최소화 래더와 인젝션 신뢰 경계를 명문화한다
 * [034 agentic-benchmark](epics/034-agentic-benchmark/index.md) - 워크플로 밖 개발자 도구로 벤치마크 스킬을 반입해 런 사이 비교 가능한 점수를 남긴다
 * [035 scripts-refactor](epics/035-scripts-refactor/index.md) - scripts/src/lib의 거대 모듈을 책임 단위로 분해하고 중복 설정 리더를 통합한다
-* [036 distill-sharding](epics/036-distill-sharding/index.md) - 경로 라우팅 기반 Project Distill 샤딩
-* [037 distill-promotion-consent](epics/037-distill-promotion-consent/index.md) - finalize의 Distill 승격을 제안-동의 절차로 바꾸고 배치 판단 근거를 CLI로 노출
-* [038 distill-worktree-base](epics/038-distill-worktree-base/index.md) - Distill base 판단 규칙을 CLI 해석기 한 곳에 두고 승격을 쓰는 checkout과 대상 파일을 일치시킨다
 * [039 오픈소스 1.0 공개](epics/039-open-source-one-zero/index.md) - 보안·품질·공개 계약·외부 파일럿을 닫고 플러그인 1.0을 배포한다
 * [043 bouncer-cost-improvement](epics/043-bouncer-cost-improvement/index.md) - 측정 가능한 비용 절감과 경량 계획 계약으로 Bouncer의 품질 이득을 유지한다
 * [045 skill-shape](epics/045-skill-shape/index.md) - 스킬 본문 골격과 구현 주석 지침을 문서로 못박는다
 * [046 review-loop-cap](epics/046-review-loop-cap/index.md) - execute의 리뷰 fix 루프에 왕복 상한을 두고 그 숫자의 소유권을 execute로 모은다
-* [047 컨텍스트 주입량 절감](epics/047-context-injection/index.md) - 포인터·브리프·Distill 프리플라이트에서 한 사이클 주입량을 줄이고 게이트 계약은 그대로 둔다
 * [048 plugin-root-resolution](epics/048-plugin-root-resolution/index.md) - 호스트 캐시 후보에서 Bouncer 플러그인 루트를 안전하게 선택하는 계약을 정의한다
 * [050 cycle-friction](epics/050-cycle-friction/index.md) - finalize 포인터 인계, Distill 읽기 범위, 플러그인 간 비교 근거
 * [051 deepswe-original-benchmark](epics/051-deepswe-original-benchmark/index.md) - DeepSWE 원본 태스크 10개를 임시 클론으로 돌려 Pier 판정과 이 저장소 채점을 잇는다
 * [052 deepswe-arm-comparison](epics/052-deepswe-arm-comparison/index.md) - DeepSWE 원본 배관을 실제로 도는 상태로 만들고 세 arm을 같은 조건에서 돌려 비교표 한 장을 낸다
 * [053 skill-doc-defects](epics/053-skill-doc-defects/index.md) - 스킬 문서가 게이트 동작·CLI 계약과 어긋난 지점을 찾아 문서 쪽을 맞춘다
 * [054 skill-context-optimization](epics/054-skill-context-optimization/index.md) - 진입 스킬이 실행 중 연쇄 로드하는 지시문을 역할별 정본화와 조건부 reference 분리로 줄이고 게이트 절차는 본문에 남긴다
-* [055 distill-injection](epics/055-distill-injection/index.md) - 재접지 지시를 경로별 반복 호출에서 다중 --for 단일 호출로 바꿔 샤드 본문 중복 주입을 없앤다
 * [056 unpublished-helper-skills](epics/056-unpublished-helper-skills/index.md) - 워크플로가 경로로 읽는 보조 스킬을 호스 스킬 목록에서 빼 암묵 매칭을 끊는다
 * [057 review-ready-pr](epics/057-review-ready-pr/index.md) - Explain과 검증 증적을 조합해 변경 의도부터 확인 방법까지 이어지는 PR 본문 계약을 정의한다
-* [058 context-runtime-compaction](epics/058-context-runtime-compaction/index.md) - 마스터 규칙과 Project Distill의 주입량을 줄이면서 안전 계약과 선택 라우팅을 보존한다
 * [059 audit-followup](epics/059-audit-followup/index.md) - 외부 감사가 남긴 설치·지시문·경량 경로·부채 항목을 게이트 계약을 바꾸지 않고 닫는다
 * [060 graphify-search-quality](epics/060-graphify-search-quality/index.md) - 과거 결정과 코드 관계를 연결해 누락이 적고 신뢰도를 설명할 수 있는 변경 경로 후보를 만든다

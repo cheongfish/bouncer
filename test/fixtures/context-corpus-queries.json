@@ -2,7 +2,7 @@
   "description": "Fixed context-corpus queries for canonical epic consolidation regression. Queries and required hits use English ASCII only.",
   "search": {
     "method": "epic-id-path-prefix",
-    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060)."
+    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007)."
   },
   "queries": [
     {
@@ -21,9 +21,18 @@
       "required_context_hits": [
         ".bouncer/context/epics/007-project-distill/index.md"
       ],
-      "max_candidates": 12,
-      "baseline_captured_at": "pre-task-003-move",
-      "baseline_notes": "007 not yet consolidated; baseline is current tree size"
+      "max_candidates": 96,
+      "baseline_captured_at": "post-task-004-consolidation",
+      "baseline_notes": "post-consolidation pre-compression size under 007 (union of 007+036+037+038+047+055+058 after move)",
+      "pre_compression_epic_dirs": [
+        "007-project-distill",
+        "036-distill-sharding",
+        "037-distill-promotion-consent",
+        "038-distill-worktree-base",
+        "047-context-injection",
+        "055-distill-injection",
+        "058-context-runtime-compaction"
+      ]
     },
     {
       "id": "epic-060",
@@ -64,6 +73,30 @@
       "062-search-language-contract",
       "063-context-digest-search-index",
       "064-scope-graph-convergence"
+    ]
+  },
+  "hierarchy_007": {
+    "canonical_epic": "007-project-distill",
+    "retained_blueprints": [
+      "001-global-distill-runtime",
+      "002-project-root-distill"
+    ],
+    "migrated_blueprints": [
+      "003-path-routed-distill",
+      "004-promotion-proposal-acq",
+      "005-checkout-relative-distill",
+      "006-brief-injection-slim",
+      "007-distill-shard-discipline",
+      "008-for-union-single-call",
+      "009-master-distill-compaction"
+    ],
+    "removed_source_epics": [
+      "036-distill-sharding",
+      "037-distill-promotion-consent",
+      "038-distill-worktree-base",
+      "047-context-injection",
+      "055-distill-injection",
+      "058-context-runtime-compaction"
     ]
   }
 }

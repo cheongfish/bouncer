@@ -92,3 +92,28 @@ test('graph/search history lives under 060 hierarchy with retained 001 and migra
     );
   }
 });
+
+test('Distill runtime history lives under 007 hierarchy with retained 001-002 and migrated 003-009', () => {
+  const h = fixture.hierarchy_007;
+  const epicDir = path.join(EPICS, h.canonical_epic);
+  assert.ok(fs.existsSync(path.join(epicDir, 'index.md')));
+  for (const bp of h.retained_blueprints) {
+    assert.ok(
+      fs.existsSync(path.join(epicDir, 'blueprints', bp, 'index.md')),
+      `missing retained blueprint ${bp}`,
+    );
+  }
+  for (const bp of h.migrated_blueprints) {
+    assert.ok(
+      fs.existsSync(path.join(epicDir, 'blueprints', bp, 'index.md')),
+      `missing migrated blueprint ${bp}`,
+    );
+  }
+  for (const src of h.removed_source_epics) {
+    assert.equal(
+      fs.existsSync(path.join(EPICS, src)),
+      false,
+      `source epic ${src} should be removed after consolidation`,
+    );
+  }
+});
