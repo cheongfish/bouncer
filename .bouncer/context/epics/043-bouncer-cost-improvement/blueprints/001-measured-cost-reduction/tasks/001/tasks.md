@@ -22,7 +22,7 @@ bouncer:
     generated_at: '2026-08-21T20:41:35.000+09:00'
     suggested_paths:
       - test
-      - .bouncer/context/epics/034-agentic-benchmark
+      - .bouncer/context/epics/034-evaluation-benchmarking
       - .bouncer/context/epics/033-quality-security
     basis:
       - graph: source

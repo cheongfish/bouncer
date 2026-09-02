@@ -11,8 +11,51 @@ bouncer:
   id: TASKS-009
   epic_id: '014'
   blueprint_id: '004'
-  status: ready
+  status: verified
   affected_paths:
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/context-review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/explain.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/context-review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/explain.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/context-review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/explain.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/index.md
     - .bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/context-review.md
     - .bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/explain.md
     - .bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/index.md
@@ -95,6 +138,11 @@ bouncer:
     - .bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/003/verification.md
     - .bouncer/context/epics/052-deepswe-arm-comparison/index.md
     - .bouncer/context/index.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/001/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/003/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/004/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/005/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/002/tasks.md
   scope_evidence:
     producer: graphify
     generated_at: '2026-09-01T21:18:40.380+09:00'
@@ -231,7 +279,57 @@ Blueprint: [004](../../index.md)
 - Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/052-deepswe-arm-comparison/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/context-review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/explain.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/context-review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/explain.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/context-review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/explain.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+
 - Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/001/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/003/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/004/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/005/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/002/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
 
 ## Do not touch
 <!-- 여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.
@@ -253,5 +351,3 @@ Blueprint: [004](../../index.md)
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
 - [ ] inventory를 고정하고 BP를 이동·재번호화한다.
 - [ ] index·링크를 갱신하고 npm test를 실행한다.
-
-
