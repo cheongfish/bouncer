@@ -46,3 +46,10 @@ bouncer:
 ## Blueprints
 * [001 global-distill-runtime](blueprints/001-global-distill-runtime/index.md) - 전역 Distill 파일·init/finalize 허용·스킬·마스터 룰을 한 커밋으로 연결한다
 * [002 project-root-distill](blueprints/002-project-root-distill/index.md) - `runtime-state`의 main worktree 해석을 `bouncer project-root`로 노출하고 Distill 읽기·쓰기 경로를 그 결과로 통일한다
+* [003 path-routed-distill](blueprints/003-path-routed-distill/index.md) - Distill 라우터·CLI·검증·워크플로와 정본 샤드를 7개 태스크 커밋으로 연결한다
+* [004 promotion-proposal-acq](blueprints/004-promotion-proposal-acq/index.md) - 샤드 인벤토리를 CLI JSON에 싣고 finalize 승격을 제안-단일 동의 절차로 바꾼다 (`cli-project-commands`, `skills/bouncer-finalize`, `skills/spec-authoring`, `CLAUDE.md`)
+* [005 checkout-relative-distill](blueprints/005-checkout-relative-distill/index.md) - Distill base 해석을 현재 checkout 우선으로 바꾸고(`scripts/src/lib/distill.ts`, `cli-project-commands.ts`) 승격 경로 계약을 CLI payload로 옮김(`CLAUDE.md`, finalize/spec-authoring 스킬)
+* [006 브리프 주입 축소](blueprints/006-brief-injection-slim/index.md) - 포인터에 `scale`을 실어 execute에서 blueprint 읽기를 없애고, `scope_evidence` 주입 제외와 `tasks.md` 중복 축소를 적는다 (`scripts/src/lib/current.ts`, `skills/bouncer-execute`, `skills/spec-authoring`)
+* [007 Distill 샤드 규율](blueprints/007-distill-shard-discipline/index.md) - 기존 `S26` 샤드 상한을 승격 ACQ에 노출하고 plan 프리플라이트 총량을 한 줄로 보고한다 (`skills/bouncer-finalize`, `skills/bouncer-plan`, `scripts/src/lib/config.ts`)
+* [008 for-union-single-call](blueprints/008-for-union-single-call/index.md) - 재접지 지시를 다중 `--for` 단일 호출로 바꾸고 그 계약을 테스트로 고정 — 지시문 4곳과 `.bouncer/distill/core.md`, 테스트 2곳
+* [009 마스터 규칙·Distill 압축](blueprints/009-master-distill-compaction/index.md) - `CLAUDE.md`와 Distill 본문을 압축하고 플러그인·벤치마크 라우팅을 분리한다

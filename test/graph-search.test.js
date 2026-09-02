@@ -44,6 +44,10 @@ test('derived-anchor token grammar preserves hierarchy anchors and rejects colon
     'epic-054',
     'bp-054-001',
     'task-054-001-002',
+    // corpus consolidation fixed queries (018/007/060) must stay atomic tokens
+    'epic-018',
+    'epic-007',
+    'epic-060',
   ];
 
   for (const anchor of anchors) {

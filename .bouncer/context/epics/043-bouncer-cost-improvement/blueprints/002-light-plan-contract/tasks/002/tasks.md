@@ -25,7 +25,7 @@ bouncer:
     suggested_paths:
       - test
       - .bouncer/context/epics/043-bouncer-cost-improvement
-      - .bouncer/context/epics/034-agentic-benchmark
+      - .bouncer/context/epics/034-evaluation-benchmarking
     basis:
       - graph: source
         status: reused

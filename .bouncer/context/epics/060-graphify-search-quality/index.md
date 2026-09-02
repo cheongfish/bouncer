@@ -57,4 +57,11 @@ flowchart LR
      만들지 않는다 (rules/governance.md).
      한 줄 목적에는 무엇이 바뀌는지(what)와 어디를 건드리는지(where)를
      함께 적는다. 기존 라인은 소급 수정하지 않는다. -->
-* [컨텍스트 우선 경로 추천](blueprints/001-context-first-ranking/index.md) - 그래프 입력을 역할별로 분리하고 `graph-suggest` 검색·점수화와 `scope_evidence` 품질 근거를 구현한다
+* [컨텍스트 우선 경로 추천](blueprints/001-context-first-ranking/index.md) - 과거 결정에서 얻은 seed로 구현과 연결 테스트를 탐색하고 신뢰도 있는 파일 후보만 계획 근거로 제공한다
+* [그래프 미생성을 무음으로 넘기지 않고 신호로 드러냄](blueprints/002-silent-skip-signal/index.md) - Blueprint 001
+* [그래프 경로 계약을 실재 디렉터리와 격리된 산출 위치로 정정](blueprints/003-graph-path-contract/index.md) - Blueprint 002
+* [context 그래프 섹션 다이제스트 도입](blueprints/004-context-section-digest/index.md) - 화이트리스트 섹션 파생 트리를 만들고 context 그래프 빌드를 그 트리로 옮긴다
+* [범위 판단 근거 계약 전환](blueprints/005-scope-evidence-contract/index.md) - Blueprint 001
+* [영어 검색 계약 고정](blueprints/006-english-search-contract/index.md) - 컨텍스트 본문 언어와 검색 어휘 언어를 분리하고, 앵커 문법과 runner 질의 언어를 계약으로 고정한다.
+* [파생 앵커와 다이제스트 커버리지](blueprints/007-derived-anchors-and-coverage/index.md) - Emit hierarchy anchors, Touch path headings, and domain tag labels from context-digest, and index all Distill shard sections so no target document vanishes.
+* [스코프 분리와 세 스코프 보고](blueprints/008-scope-separation-and-reporting/index.md) - Split the test scope out of source_dirs, always report a test scope entry from graph-sync, and remove the last root graphify-out/graph.json references.

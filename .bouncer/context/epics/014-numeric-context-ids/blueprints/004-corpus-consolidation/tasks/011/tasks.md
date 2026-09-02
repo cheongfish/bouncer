@@ -1,0 +1,2269 @@
+---
+type: bouncer.tasks
+title: 비용 최적화 계층 통합
+description: Consolidates skill context optimization history into the canonical Bouncer cost-improvement epic with collision-free numbering.
+resource: .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/tasks.md
+tags:
+  - bouncer
+  - tasks
+timestamp: '2026-09-01T21:18:40.452+09:00'
+bouncer:
+  id: TASKS-011
+  epic_id: '014'
+  blueprint_id: '004'
+  status: verified
+  verify: npm test
+  affected_paths:
+    - .bouncer/context/epics/054-skill-context-optimization/index.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/index.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/context-review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/explain.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/index.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/context-review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/explain.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/index.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/context-review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/explain.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/index.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/context-review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/explain.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/index.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/context-review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/explain.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/index.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/context-review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/explain.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/index.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/context-review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/explain.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/index.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/context-review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/explain.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/index.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/context-review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/explain.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/index.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/context-review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/explain.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/verification.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/index.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/context-review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/explain.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/review.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/tasks.md
+    - .bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/verification.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/index.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/context-review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/explain.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/review.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/tasks.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/verification.md
+    - .bouncer/context/index.md
+    - .bouncer/context/epics/043-bouncer-cost-improvement/index.md
+    - .bouncer/context/epics/001-cli-usability/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/distill.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/distill.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/distill.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/explain.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/explain.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/context-review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/explain.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/context-review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/explain.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/context-review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/explain.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/context-review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/explain.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/index.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/review.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/tasks.md
+    - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/verification.md
+    - .bouncer/context/epics/001-product-surface-hosts/index.md
+    - .bouncer/context/epics/002-commit-artifacts/index.md
+    - .bouncer/context/epics/003-multi-agent-plugin/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/distill.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/distill.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/distill.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/distill.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/distill.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/explain.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/context-review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/explain.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/context-review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/explain.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/index.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md
+    - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md
+    - .bouncer/context/epics/004-planning-quality-governance/index.md
+    - .bouncer/context/epics/004-starter-kit-convergence/index.md
+    - .bouncer/context/epics/005-review-depth/index.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/distill.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/index.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/explain.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/index.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/context-review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/explain.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/index.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/context-review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/explain.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/index.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/context-review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/explain.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/index.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/context-review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/explain.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/index.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/verification.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/review.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/tasks.md
+    - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/verification.md
+    - .bouncer/context/epics/006-platform-architecture/index.md
+    - .bouncer/context/epics/006-scripts-typescript/index.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/context-review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/explain.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/index.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/context-review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/explain.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/index.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/context-review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/explain.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/index.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/context-review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/explain.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/index.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/context-review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/explain.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/index.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/context-review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/explain.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/index.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/context-review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/explain.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/index.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/verification.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/review.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/tasks.md
+    - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/verification.md
+    - .bouncer/context/epics/007-project-distill/index.md
+    - .bouncer/context/epics/008-worktree-seed/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/distill.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/distill.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/index.md
+    - .bouncer/context/epics/010-active-pointer-cli/index.md
+    - .bouncer/context/epics/011-graphify-signal/index.md
+    - .bouncer/context/epics/012-finalize-handoff/index.md
+    - .bouncer/context/epics/013-comprehension-gate/index.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/context-review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/index.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/explain.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/index.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/explain.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/index.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/context-review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/explain.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/index.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/context-review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/explain.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/index.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/context-review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/explain.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/index.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/review.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/index.md
+    - .bouncer/context/epics/015-workflow-ergonomics/index.md
+    - .bouncer/context/epics/016-advisor-removal/index.md
+    - .bouncer/context/epics/017-verify-wrapper-guidance/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/distill.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/distill.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/distill.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/distill.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/context-review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/context-review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/context-review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/explain.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/index.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/review.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/tasks.md
+    - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/verification.md
+    - .bouncer/context/epics/018-task-unit-commits/index.md
+    - .bouncer/context/epics/019-task-pointer/index.md
+    - .bouncer/context/epics/020-task-unit-artifacts/index.md
+    - .bouncer/context/epics/021-task-commit-stage/index.md
+    - .bouncer/context/epics/022-blueprint-closure/index.md
+    - .bouncer/context/epics/023-worktree-layout/index.md
+    - .bouncer/context/epics/024-light-path/index.md
+    - .bouncer/context/epics/024-lightweight-cycle/index.md
+    - .bouncer/context/epics/025-graphify-bootstrap/index.md
+    - .bouncer/context/epics/026-context-graph-slim/index.md
+    - .bouncer/context/epics/027-history-import/index.md
+    - .bouncer/context/epics/028-antigravity-host/index.md
+    - .bouncer/context/epics/029-release-one-zero/index.md
+    - .bouncer/context/epics/030-gate-restructure/index.md
+    - .bouncer/context/epics/031-document-schema/index.md
+    - .bouncer/context/epics/032-autonomous-run/index.md
+    - .bouncer/context/epics/033-quality-security/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/context-review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/explain.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/context-review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/explain.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/context-review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/explain.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/index.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/review.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/tasks.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/verification.md
+    - .bouncer/context/epics/034-evaluation-benchmarking/index.md
+    - .bouncer/context/epics/035-scripts-refactor/index.md
+    - .bouncer/context/epics/036-distill-sharding/index.md
+    - .bouncer/context/epics/037-distill-promotion-consent/index.md
+    - .bouncer/context/epics/038-distill-worktree-base/index.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/context-review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/explain.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/index.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/context-review.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/explain.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/index.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/context-review.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/explain.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/index.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/verification.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/review.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/tasks.md
+    - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/verification.md
+    - .bouncer/context/epics/039-release-security/index.md
+    - .bouncer/context/epics/040-scope-evidence/index.md
+    - .bouncer/context/epics/041-plan-mermaid-zoom/index.md
+    - .bouncer/context/epics/042-gate-integrity/index.md
+    - .bouncer/context/epics/044-finalize-evidence/index.md
+    - .bouncer/context/epics/045-skill-shape/index.md
+    - .bouncer/context/epics/046-review-loop-cap/index.md
+    - .bouncer/context/epics/047-context-injection/index.md
+    - .bouncer/context/epics/048-plugin-root-resolution/index.md
+    - .bouncer/context/epics/049-context-searchability/index.md
+    - .bouncer/context/epics/050-cycle-friction/index.md
+    - .bouncer/context/epics/051-deepswe-original-benchmark/index.md
+    - .bouncer/context/epics/052-deepswe-arm-comparison/index.md
+    - .bouncer/context/epics/053-skill-doc-defects/index.md
+    - .bouncer/context/epics/055-distill-injection/index.md
+    - .bouncer/context/epics/056-unpublished-helper-skills/index.md
+    - .bouncer/context/epics/057-review-ready-pr/index.md
+    - .bouncer/context/epics/058-context-runtime-compaction/index.md
+    - .bouncer/context/epics/059-audit-followup/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/distill.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/distill.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/context-review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/context-review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/context-review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/context-review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/explain.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/index.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/review.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/tasks.md
+    - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/verification.md
+    - .bouncer/context/epics/060-graphify-search-quality/index.md
+    - .bouncer/context/epics/061-epic-index-consistency/index.md
+    - .bouncer/context/epics/062-search-language-contract/index.md
+    - .bouncer/context/epics/063-context-digest-search-index/index.md
+    - .bouncer/context/epics/064-scope-graph-convergence/index.md
+  scope_evidence:
+    producer: graphify
+    generated_at: '2026-09-01T21:18:40.452+09:00'
+    suggested_paths: []
+    # 유효 엔트리 필드: graph, status, query, result — 예시는 주석이라 파싱되지 않는다
+    # - graph: source | test | context
+    #   status: updated | reused | fail-skip | skip-disabled | missing
+    #   query: <graphify 조회>
+    #   result: <한 줄 요약>
+    # quality/candidates는 graph-suggest 뒤에만 채운다 — scaffold가 제조하지 않는다
+    quality:
+      status: low-confidence
+      confidence: low
+      reasons:
+        - context graph query produced no safe file ranking for corpus migration
+        - migration scope is confirmed from the explicit canonical mapping
+    candidates:
+      implementation: []
+      test: []
+      context: []
+    basis:
+      - graph: source
+        status: reused
+        query: canonical corpus migration task 011
+        result: source graph does not determine document moves
+      - graph: test
+        status: reused
+        query: canonical corpus migration task 011
+        result: test graph does not determine document moves
+      - graph: context
+        status: updated
+        query: canonical corpus migration task 011
+        result: low-confidence; user-confirmed migration map supplies scope
+---
+# Tasks
+
+Blueprint: [004](../../index.md)
+
+<!-- scope_evidence.basis 엔트리 필드: graph, status, query, result.
+     graph: source | test | context
+     status: updated | reused | fail-skip | skip-disabled | missing
+     quality/candidates는 graph-suggest 결과로만 채운다(scaffold는 비워 둔다).
+     프론트매터 값은 []로 둔다. 이 주석을 실제 엔트리로 옮기면 빈 계획이 승인된다. -->
+
+## Goal & intent
+<!-- 구현자가 다른 문서 없이 시작할 수 있게.
+     수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다. -->
+현재 execute worktree에 남은 전체 context migration 변경을 일관된 canonical corpus로 복구하고, 054의 6개 BP 전체 문서 묶음(`index.md`, `context-review.md`, `explain.md`, task bundle)을 기존 canonical epic `043-bouncer-cost-improvement` 아래 `004`~`009`로 재번호화한다. 존재하지 않는 `043-efficiency-optimization` mapping과 누락된 `003-breadcrumb-consistency` breadcrumb 참조를 제거하며, 실제 canonical epic 디렉터리와 `.bouncer/context/index.md`의 row를 1:1로 맞춰 `S13`을 해소한다.
+
+## Interface
+<!-- 계약이 리뷰에서 검증 가능하도록 제공하는 것과 거부하는 것을 함께 적습니다. -->
+- 제공: execute worktree의 canonical context epic 디렉터리만 `.bouncer/context/index.md`에 등록되고, 실제 디렉터리와 index row가 1:1이며, context cost history가 `043-bouncer-cost-improvement` 하나의 hierarchy에 있고 실제 존재하는 각 blueprint의 설명·판정 문서까지 연결된다.
+- 거부: 존재하지 않는 `043-efficiency-optimization` hierarchy나 `003-breadcrumb-consistency` blueprint를 생성하거나 `skills/` runtime 본문을 변경하지 않는다.
+
+## Touch
+- Modify `.bouncer/context/epics/054-skill-context-optimization/index.md` — source epic의 canonical migration metadata를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/index.md` — source blueprint의 resource와 내부 링크를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/context-review.md` — source context review의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/explain.md` — source explain의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/index.md` — destination blueprint의 resource와 내부 링크를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/context-review.md` — destination context review를 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/explain.md` — destination explain을 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/index.md` — source blueprint의 resource와 내부 링크를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/context-review.md` — source context review의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/explain.md` — source explain의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/index.md` — destination blueprint의 resource와 내부 링크를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/context-review.md` — destination context review를 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/explain.md` — destination explain을 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/index.md` — source blueprint의 resource와 내부 링크를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/context-review.md` — source context review의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/explain.md` — source explain의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/index.md` — destination blueprint의 resource와 내부 링크를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/context-review.md` — destination context review를 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/explain.md` — destination explain을 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/index.md` — source blueprint의 resource와 내부 링크를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/context-review.md` — source context review의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/explain.md` — source explain의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/index.md` — destination blueprint의 resource와 내부 링크를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/context-review.md` — destination context review를 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/explain.md` — destination explain을 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/index.md` — source blueprint의 resource와 내부 링크를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/context-review.md` — source context review의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/explain.md` — source explain의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/index.md` — destination blueprint의 resource와 내부 링크를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/context-review.md` — destination context review를 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/explain.md` — destination explain을 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/index.md` — source blueprint의 resource와 내부 링크를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/context-review.md` — source context review의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/explain.md` — source explain의 resource와 blueprint 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/review.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/tasks.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/verification.md` — source bundle의 resource와 부모 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/index.md` — destination blueprint의 resource와 내부 링크를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/context-review.md` — destination context review를 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/explain.md` — destination explain을 생성하고 경로를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/review.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/tasks.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/verification.md` — destination bundle의 resource와 부모 경로를 생성·갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic index를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/index.md` — canonical epic의 blueprint 목록을 갱신한다.
+## Touch
+- Modify `.bouncer/context/epics/054-skill-context-optimization/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/002-commit-artifacts/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/005-review-depth/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/008-worktree-seed/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/010-active-pointer-cli/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/012-finalize-handoff/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/016-advisor-removal/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/017-verify-wrapper-guidance/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/019-task-pointer/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/023-worktree-layout/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/024-light-path/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/024-lightweight-cycle/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/027-history-import/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/031-document-schema/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/033-quality-security/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/045-skill-shape/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/047-context-injection/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/049-context-searchability/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/055-distill-injection/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/059-audit-followup/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+
+## Do not touch
+<!-- 여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.
+     epic / blueprint의 Out of scope에서 이어받습니다. -->
+- `skills/` — skill runtime 본문은 변경하지 않는다.
+
+## Constraints
+<!-- 경로로 표현되지 않는, 작업 전체에 걸리는 규칙. 허용된 파일 안에서도 지켜야 합니다.
+     예: 하위 호환 별칭을 남기지 않는다 / 기존 게이트 번호와 본문 계약을 유지한다 /
+     공개 문자열은 한국어를 유지한다.
+     막을 대상이 경로뿐이면 Do not touch에 적습니다. -->
+- 054의 source blueprint `001`~`006`은 destination `004`~`009`에 일대일로 대응한다.
+- 기존 043 destination `001`~`003`과 번호를 겹치게 하지 않는다.
+- bundle 이동, metadata ASCII 정규화, `resource`·부모 링크 갱신을 함께 한다.
+- canonical epic index에는 실제로 존재하는 blueprint만 링크한다.
+- `.bouncer/context/index.md`에는 canonical epic 11개만 등록하고 제거된 legacy epic row를 남기지 않는다.
+- 실행 worktree의 pre-existing 변경을 보존하고, `git -C .worktrees/014/004 diff --name-only develop -- .bouncer/context/epics/054-skill-context-optimization .bouncer/context/epics/043-bouncer-cost-improvement .bouncer/context/index.md` 결과가 이 task의 `affected_paths` 안에만 있는지 확인한다.
+- 현재 worktree에 남은 선행 migration 변경을 이 task의 명시적 scope로 흡수하되, `skills/` 및 코드 runtime은 제외한다.
+- 기존 043 blueprint `001`~`003`은 보존 대상이므로 worktree set 비교에서 제외하고 파일 내용을 변경하지 않는다.
+- source 설명 문서는 orphan으로 남기지 않으며, destination `context-review.md`와 `explain.md`는 원본의 판정·설명 의미를 보존해 생성한다.
+
+## Checklist
+<!-- 각 항목은 구현자가 순서대로 실행 가능해야 합니다.
+     행위를 바꾸는 항목은 실패 테스트 → 실패 확인 → 구현 순서로 적습니다.
+     기대하는 assertion·상수·명령은 코드블록으로 그대로 적어 해석 여지를 없앱니다.
+     blueprint Contract에서 이연된 테스트 본문·구현 시퀀스가 들어올 자리입니다.
+     수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
+- [ ] 054 source와 043 destination inventory를 고정하고 `001→004`, `002→005`, `003→006`, `004→007`, `005→008`, `006→009` 대응을 확인한다.
+- [ ] `git -C .worktrees/014/004 diff --name-status develop -- .bouncer/context`와 `git -C .worktrees/014/004 ls-files --others --exclude-standard -- .bouncer/context`로 현재 전체 migration 변경 목록을 고정하고, 누락된 경로를 모두 affected_paths에 반영한다.
+- [ ] bundle을 이동·재번호화하고 각 문서의 `resource`, 부모 ID, 내부 링크와 epic/context index를 갱신한다.
+- [ ] 각 source의 `context-review.md`와 `explain.md`를 destination에 포함해 source orphan 및 destination 누락이 없는지 확인한다.
+- [ ] 실행 worktree의 pre-existing 변경을 덮어쓰지 않고 base/worktree의 corpus 파일 목록·상태를 비교해 `S13` divergence가 재현되지 않는지 확인한다.
+- [ ] `git -C .worktrees/014/004 diff --name-only develop -- .bouncer/context/epics/054-skill-context-optimization .bouncer/context/epics/043-bouncer-cost-improvement .bouncer/context/index.md`를 실행하고, 출력의 모든 경로가 `affected_paths`에 있으며 누락·추가 경로가 0건인지 확인한다.
+- [ ] `{ git -C .worktrees/014/004 diff --name-only develop -- .bouncer/context; git -C .worktrees/014/004 ls-files --others --exclude-standard -- .bouncer/context; } | sort -u | sed -e '/004-corpus-consolidation\/tasks\/011\/tasks\.md$/d' -e '/epics\/043-bouncer-cost-improvement\/blueprints\/00[1-3]-/d'` 결과를 affected_paths와 대조하고, 누락·추가 경로가 0건이며 각 context epic 디렉터리와 index row가 1:1인지 확인한다.
+- [ ] `043-efficiency-optimization` 참조와 중복 destination 번호가 남지 않았는지 확인한다(`tasks/011/tasks.md` 자체의 계획 설명은 제외한다).
+- [ ] 누락된 `003-breadcrumb-consistency` 참조가 남지 않았는지 확인한다(`tasks/011/tasks.md` 자체의 계획 설명은 제외한다).
+- [ ] 실제 `.bouncer/context/epics` 디렉터리와 `.bouncer/context/index.md`의 epic row를 대조해 `S13` 불일치가 0건인지 확인한다.
+- [ ] `npm test`를 실행해 fixed query 회귀와 후보 상한을 확인한다.

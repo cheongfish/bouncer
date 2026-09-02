@@ -27,7 +27,7 @@ bouncer:
       - scripts/src/lib
       - test
       - .bouncer/distill
-      - .bouncer/context/epics/034-agentic-benchmark
+      - .bouncer/context/epics/034-evaluation-benchmarking
     basis:
       - graph: source
         status: reused

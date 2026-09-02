@@ -1,0 +1,228 @@
+{
+  "description": "Fixed context-corpus queries for canonical epic consolidation regression. Queries and required hits use English ASCII only.",
+  "search": {
+    "method": "epic-id-path-prefix",
+    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007/009/001/004)."
+  },
+  "queries": [
+    {
+      "id": "epic-018",
+      "query": "epic-018",
+      "required_context_hits": [
+        ".bouncer/context/epics/018-task-unit-commits/index.md"
+      ],
+      "max_candidates": 144,
+      "baseline_captured_at": "pre-task-003-move",
+      "baseline_notes": "018 already consolidated; baseline is current tree size"
+    },
+    {
+      "id": "epic-007",
+      "query": "epic-007",
+      "required_context_hits": [
+        ".bouncer/context/epics/007-project-distill/index.md"
+      ],
+      "max_candidates": 96,
+      "baseline_captured_at": "post-task-004-consolidation",
+      "baseline_notes": "post-consolidation pre-compression size under 007 (union of 007+036+037+038+047+055+058 after move)",
+      "pre_compression_epic_dirs": [
+        "007-project-distill",
+        "036-distill-sharding",
+        "037-distill-promotion-consent",
+        "038-distill-worktree-base",
+        "047-context-injection",
+        "055-distill-injection",
+        "058-context-runtime-compaction"
+      ]
+    },
+    {
+      "id": "epic-009",
+      "query": "epic-009",
+      "required_context_hits": [
+        ".bouncer/context/epics/009-agent-orchestration/index.md"
+      ],
+      "max_candidates": 95,
+      "baseline_captured_at": "post-task-005-consolidation",
+      "baseline_notes": "post-consolidation pre-compression size under 009 (union of 009+015+016+032+046+050+057 after move)",
+      "pre_compression_epic_dirs": [
+        "009-agent-orchestration",
+        "015-workflow-ergonomics",
+        "016-advisor-removal",
+        "032-autonomous-run",
+        "046-review-loop-cap",
+        "050-cycle-friction",
+        "057-review-ready-pr"
+      ]
+    },
+    {
+      "id": "epic-001",
+      "query": "epic-001",
+      "required_context_hits": [
+        ".bouncer/context/epics/001-product-surface-hosts/index.md"
+      ],
+      "max_candidates": 94,
+      "baseline_captured_at": "post-task-006-consolidation",
+      "baseline_notes": "post-consolidation pre-compression size under 001 (union of 001+003+025+028+048+059 after move)",
+      "pre_compression_epic_dirs": [
+        "001-product-surface-hosts",
+        "003-multi-agent-plugin",
+        "025-graphify-bootstrap",
+        "028-antigravity-host",
+        "048-plugin-root-resolution",
+        "059-audit-followup"
+      ]
+    },
+    {
+      "id": "epic-004",
+      "query": "epic-004",
+      "required_context_hits": [
+        ".bouncer/context/epics/004-planning-quality-governance/index.md"
+      ],
+      "max_candidates": 67,
+      "baseline_captured_at": "post-task-007-consolidation",
+      "baseline_notes": "post-consolidation pre-compression size under 004 (union of 004+005+017+033+053 after move)",
+      "pre_compression_epic_dirs": [
+        "004-planning-quality-governance",
+        "005-review-depth",
+        "017-verify-wrapper-guidance",
+        "033-quality-security",
+        "053-skill-doc-defects"
+      ]
+    },
+    {
+      "id": "epic-060",
+      "query": "epic-060",
+      "required_context_hits": [
+        ".bouncer/context/epics/060-graphify-search-quality/index.md"
+      ],
+      "max_candidates": 91,
+      "baseline_captured_at": "pre-task-003-move",
+      "baseline_notes": "pre-compression union of 060+011+026+040+062+063+064 markdown files",
+      "pre_compression_epic_dirs": [
+        "011-graphify-signal",
+        "026-context-graph-slim",
+        "040-scope-evidence",
+        "060-graphify-search-quality",
+        "062-search-language-contract",
+        "063-context-digest-search-index",
+        "064-scope-graph-convergence"
+      ]
+    }
+  ],
+  "hierarchy": {
+    "canonical_epic": "060-graphify-search-quality",
+    "retained_blueprint": "001-context-first-ranking",
+    "migrated_blueprints": [
+      "002-silent-skip-signal",
+      "003-graph-path-contract",
+      "004-context-section-digest",
+      "005-scope-evidence-contract",
+      "006-english-search-contract",
+      "007-derived-anchors-and-coverage",
+      "008-scope-separation-and-reporting"
+    ],
+    "removed_source_epics": [
+      "011-graphify-signal",
+      "026-context-graph-slim",
+      "040-scope-evidence",
+      "062-search-language-contract",
+      "063-context-digest-search-index",
+      "064-scope-graph-convergence"
+    ]
+  },
+  "hierarchy_007": {
+    "canonical_epic": "007-project-distill",
+    "retained_blueprints": [
+      "001-global-distill-runtime",
+      "002-project-root-distill"
+    ],
+    "migrated_blueprints": [
+      "003-path-routed-distill",
+      "004-promotion-proposal-acq",
+      "005-checkout-relative-distill",
+      "006-brief-injection-slim",
+      "007-distill-shard-discipline",
+      "008-for-union-single-call",
+      "009-master-distill-compaction"
+    ],
+    "removed_source_epics": [
+      "036-distill-sharding",
+      "037-distill-promotion-consent",
+      "038-distill-worktree-base",
+      "047-context-injection",
+      "055-distill-injection",
+      "058-context-runtime-compaction"
+    ]
+  },
+  "hierarchy_009": {
+    "canonical_epic": "009-agent-orchestration",
+    "retained_blueprints": [
+      "001-subagent-model-config-contract",
+      "002-named-agent-routing"
+    ],
+    "migrated_blueprints": [
+      "003-adaptive-quiz",
+      "004-graph-basis-record",
+      "005-pr-single-confirm",
+      "006-debugger-agent",
+      "007-ponytail-advisor-removal",
+      "008-run-loop",
+      "009-execute-review-cap",
+      "010-finalize-pointer-scope",
+      "011-distill-read-scope",
+      "012-plugin-arm-benchmark",
+      "013-structured-pr-body"
+    ],
+    "removed_source_epics": [
+      "015-workflow-ergonomics",
+      "016-advisor-removal",
+      "032-autonomous-run",
+      "046-review-loop-cap",
+      "050-cycle-friction",
+      "057-review-ready-pr"
+    ]
+  },
+  "hierarchy_001": {
+    "canonical_epic": "001-product-surface-hosts",
+    "retained_blueprints": [
+      "001-cli-help"
+    ],
+    "migrated_blueprints": [
+      "002-cursor-codex-manifests",
+      "003-commands-to-skills",
+      "004-venv-install-bin-resolution",
+      "005-antigravity-plugin-surface",
+      "006-host-candidate-launcher",
+      "007-install-first-five-minutes",
+      "008-instruction-layers",
+      "009-debt-items"
+    ],
+    "removed_source_epics": [
+      "003-multi-agent-plugin",
+      "025-graphify-bootstrap",
+      "028-antigravity-host",
+      "048-plugin-root-resolution",
+      "059-audit-followup"
+    ]
+  },
+  "hierarchy_004": {
+    "canonical_epic": "004-planning-quality-governance",
+    "retained_blueprints": [
+      "001-spec-authoring-guardrails",
+      "002-init-rules-scaffold",
+      "003-per-task-verify-command",
+      "004-discovery-depth"
+    ],
+    "migrated_blueprints": [
+      "005-reviewer-prompt",
+      "006-plan-verify-detection",
+      "007-context-review-guard",
+      "008-plan-explain-execute-fixes"
+    ],
+    "removed_source_epics": [
+      "005-review-depth",
+      "017-verify-wrapper-guidance",
+      "033-quality-security",
+      "053-skill-doc-defects"
+    ]
+  }
+}
