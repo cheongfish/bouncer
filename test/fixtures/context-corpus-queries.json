@@ -2,7 +2,7 @@
   "description": "Fixed context-corpus queries for canonical epic consolidation regression. Queries and required hits use English ASCII only.",
   "search": {
     "method": "epic-id-path-prefix",
-    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007)."
+    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007/009)."
   },
   "queries": [
     {
@@ -32,6 +32,25 @@
         "047-context-injection",
         "055-distill-injection",
         "058-context-runtime-compaction"
+      ]
+    },
+    {
+      "id": "epic-009",
+      "query": "epic-009",
+      "required_context_hits": [
+        ".bouncer/context/epics/009-agent-orchestration/index.md"
+      ],
+      "max_candidates": 95,
+      "baseline_captured_at": "post-task-005-consolidation",
+      "baseline_notes": "post-consolidation pre-compression size under 009 (union of 009+015+016+032+046+050+057 after move)",
+      "pre_compression_epic_dirs": [
+        "009-agent-orchestration",
+        "015-workflow-ergonomics",
+        "016-advisor-removal",
+        "032-autonomous-run",
+        "046-review-loop-cap",
+        "050-cycle-friction",
+        "057-review-ready-pr"
       ]
     },
     {
@@ -97,6 +116,34 @@
       "047-context-injection",
       "055-distill-injection",
       "058-context-runtime-compaction"
+    ]
+  },
+  "hierarchy_009": {
+    "canonical_epic": "009-agent-orchestration",
+    "retained_blueprints": [
+      "001-subagent-model-config-contract",
+      "002-named-agent-routing"
+    ],
+    "migrated_blueprints": [
+      "003-adaptive-quiz",
+      "004-graph-basis-record",
+      "005-pr-single-confirm",
+      "006-debugger-agent",
+      "007-ponytail-advisor-removal",
+      "008-run-loop",
+      "009-execute-review-cap",
+      "010-finalize-pointer-scope",
+      "011-distill-read-scope",
+      "012-plugin-arm-benchmark",
+      "013-structured-pr-body"
+    ],
+    "removed_source_epics": [
+      "015-workflow-ergonomics",
+      "016-advisor-removal",
+      "032-autonomous-run",
+      "046-review-loop-cap",
+      "050-cycle-friction",
+      "057-review-ready-pr"
     ]
   }
 }

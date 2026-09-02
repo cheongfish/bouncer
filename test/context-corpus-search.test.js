@@ -39,9 +39,9 @@ function candidatesForEpicQuery(query) {
 
 const fixture = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
 
-test('context corpus fixture pins epic-018/007/060 baselines and required hits', () => {
+test('context corpus fixture pins epic-018/007/009/060 baselines and required hits', () => {
   const ids = fixture.queries.map((q) => q.id);
-  assert.deepEqual(ids, ['epic-018', 'epic-007', 'epic-060']);
+  assert.deepEqual(ids, ['epic-018', 'epic-007', 'epic-009', 'epic-060']);
   for (const q of fixture.queries) {
     assert.match(q.query, /^epic-\d{3}$/);
     assert.equal(q.query, q.id);
@@ -95,6 +95,31 @@ test('graph/search history lives under 060 hierarchy with retained 001 and migra
 
 test('Distill runtime history lives under 007 hierarchy with retained 001-002 and migrated 003-009', () => {
   const h = fixture.hierarchy_007;
+  const epicDir = path.join(EPICS, h.canonical_epic);
+  assert.ok(fs.existsSync(path.join(epicDir, 'index.md')));
+  for (const bp of h.retained_blueprints) {
+    assert.ok(
+      fs.existsSync(path.join(epicDir, 'blueprints', bp, 'index.md')),
+      `missing retained blueprint ${bp}`,
+    );
+  }
+  for (const bp of h.migrated_blueprints) {
+    assert.ok(
+      fs.existsSync(path.join(epicDir, 'blueprints', bp, 'index.md')),
+      `missing migrated blueprint ${bp}`,
+    );
+  }
+  for (const src of h.removed_source_epics) {
+    assert.equal(
+      fs.existsSync(path.join(EPICS, src)),
+      false,
+      `source epic ${src} should be removed after consolidation`,
+    );
+  }
+});
+
+test('agent orchestration history lives under 009 hierarchy with retained 001-002 and migrated 003-013', () => {
+  const h = fixture.hierarchy_009;
   const epicDir = path.join(EPICS, h.canonical_epic);
   assert.ok(fs.existsSync(path.join(epicDir, 'index.md')));
   for (const bp of h.retained_blueprints) {

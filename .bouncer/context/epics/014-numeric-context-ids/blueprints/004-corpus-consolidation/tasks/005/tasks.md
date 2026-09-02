@@ -11,8 +11,12 @@ bouncer:
   id: TASKS-005
   epic_id: '014'
   blueprint_id: '004'
-  status: ready
+  status: verified
+  commit_intent:
+    - agent·자동화·리뷰 흐름 결정이 여러 epic에 흩어져 한 hierarchy로 탐색되지 않음
+    - 해당 history를 하나의 canonical epic 아래로 모아 검색 baseline을 맞춤
   affected_paths:
+    - .bouncer/context/epics/009-subagent-model-config/index.md
     - .bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/distill.md
     - .bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/index.md
     - .bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/tasks/001/review.md
@@ -23,91 +27,101 @@ bouncer:
     - .bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/review.md
     - .bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/tasks.md
     - .bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/context-review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/context-review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/context-review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/context-review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/context-review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/explain.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/index.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/review.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/tasks.md
-    - .bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/verification.md
-    - .bouncer/context/epics/009-subagent-model-config/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/distill.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/distill.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/context-review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/explain.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/index.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/review.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/tasks.md
+    - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/verification.md
+    - .bouncer/context/epics/009-agent-orchestration/index.md
     - .bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/explain.md
     - .bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/index.md
     - .bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/tasks/001/review.md
@@ -199,6 +213,12 @@ bouncer:
     - .bouncer/context/epics/057-review-ready-pr/blueprints/001-structured-pr-body/tasks/001/verification.md
     - .bouncer/context/epics/057-review-ready-pr/index.md
     - .bouncer/context/index.md
+    - test/fixtures/context-corpus-queries.json
+    - test/context-corpus-search.test.js
+    - docs/benchmark/context-corpus-search.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/tasks.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/verification.md
+    - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/review.md
   scope_evidence:
     producer: graphify
     generated_at: '2026-09-01T21:18:40.239+09:00'
@@ -254,6 +274,7 @@ Blueprint: [004](../../index.md)
 - 거부: dispatch와 reviewer 동작은 바꾸지 않는다.
 
 ## Touch
+- Modify `.bouncer/context/epics/009-subagent-model-config/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
@@ -264,91 +285,101 @@ Blueprint: [004](../../index.md)
 - Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
-- Modify `.bouncer/context/epics/009-subagent-model-config/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
@@ -441,6 +472,13 @@ Blueprint: [004](../../index.md)
 - Modify `.bouncer/context/epics/057-review-ready-pr/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 - Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
 
+- Modify `test/fixtures/context-corpus-queries.json` — corpus baseline·task 번들 갱신.
+- Modify `test/context-corpus-search.test.js` — corpus baseline·task 번들 갱신.
+- Modify `docs/benchmark/context-corpus-search.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/tasks.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/verification.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/review.md` — corpus baseline·task 번들 갱신.
+
 ## Do not touch
 <!-- 여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.
      epic / blueprint의 Out of scope에서 이어받습니다. -->
@@ -452,6 +490,8 @@ Blueprint: [004](../../index.md)
      공개 문자열은 한국어를 유지한다.
      막을 대상이 경로뿐이면 Do not touch에 적습니다. -->
 - bundle 이동과 metadata ASCII 정규화를 함께 적용한다.
+
+- corpus fixture·benchmark 문서는 이 task의 canonical epic 통합 후 baseline(hit·후보 상한)을 갱신하는 데 쓴다.
 
 ## Checklist
 <!-- 각 항목은 구현자가 순서대로 실행 가능해야 합니다.

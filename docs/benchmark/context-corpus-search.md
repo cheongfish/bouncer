@@ -1,6 +1,6 @@
 # Context corpus search regression
 
-Fixed queries `epic-018`, `epic-007`, and `epic-060` pin recall of each canonical epic index and cap candidate growth after corpus consolidation.
+Fixed queries `epic-018`, `epic-007`, `epic-009`, and `epic-060` pin recall of each canonical epic index and cap candidate growth after corpus consolidation.
 
 ## Fixture
 
@@ -10,6 +10,7 @@ Fixed queries `epic-018`, `epic-007`, and `epic-060` pin recall of each canonica
 - `max_candidates`: pre-compression baseline; growth fails the suite
   - `epic-018`: 144 (already consolidated tree size)
   - `epic-007`: 96 (post-task-004 consolidation under `007-project-distill`)
+  - `epic-009`: 95 (post-task-005 consolidation under `009-agent-orchestration`)
   - `epic-060`: 91 (pre-compression union of scattered graph/search parents)
 
 ## Commands
@@ -32,3 +33,10 @@ npm test
 - Retained: `001-global-distill-runtime`, `002-project-root-distill`
 - Migrated: `003-path-routed-distill` … `009-master-distill-compaction`
 - Removed parents: `036, 037, 038, 047, 055, 058`
+
+## Hierarchy under test (task 005)
+
+- Canonical epic: `009-agent-orchestration`
+- Retained: `001-subagent-model-config-contract`, `002-named-agent-routing`
+- Migrated: `003-adaptive-quiz` … `013-structured-pr-body`
+- Removed parents: `015, 016, 032, 046, 050, 057`
