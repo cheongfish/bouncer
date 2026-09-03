@@ -4,12 +4,20 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { checkDocShape } = require('../scripts/check-doc-shape');
 
 const root = path.join(__dirname, '..');
 const md = fs.readFileSync(path.join(root, 'skills', 'bouncer-commit', 'SKILL.md'), 'utf8');
 
+function assertShape(document, contract) {
+  const result = checkDocShape(document, contract);
+  assert.deepStrictEqual(result.errors, [], result.errors.join('; '));
+  return result.shape;
+}
+
 test('bouncer-commit is an explicit-ask workflow skill', () => {
   const { data, body } = parseFrontmatter(md);
+  assertShape(md, { frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-commit' } } });
   assert.strictEqual(data.name, 'bouncer-commit');
   assert.match(String(data.description), /^Use only when the user explicitly asks \/bouncer-commit/);
   assert.match(body, /validate\s+--gate\s+commit/);
@@ -45,30 +53,11 @@ test('bouncer-commit forbids discarding the post-commit tasks.md commit_sha stam
   assert.match(body, /do not[\s\S]{0,80}(?:git checkout|git restore|discard)/i);
 });
 
-/**
- * @param {string} body
- * @param {number} n
- * @returns {string}
- */
-function commitStepBody(body, n) {
-  const start = body.search(new RegExp(`^${n}\\. \\*\\*`, 'm'));
-  assert.ok(start > -1, `missing commit step ${n}`);
-  const rest = body.slice(start);
-  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. \\*\\*|## ACQ )`, 'm'));
-  return next === -1 ? rest : rest.slice(0, next);
-}
 
 test('bouncer-commit keeps Commit and Next-task ACQ in steps 4 and 5 with an index', () => {
-  const { body } = parseFrontmatter(md);
-  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
-  assert.ok(acqAt > -1);
-  const index = body.slice(acqAt);
-  assert.match(index, /[Ss]tep\s+4/);
-  assert.match(index, /[Ss]tep\s+5/);
-  assert.doesNotMatch(index, /\*\*AskUserQuestion/);
-  assert.doesNotMatch(index, /\*\*Options\*\*:/);
-  assert.match(commitStepBody(body, 4), /\*\*AskUserQuestion — Commit\*\*/);
-  assert.match(commitStepBody(body, 4), /\*\*Options\*\*:/);
-  assert.match(commitStepBody(body, 5), /\*\*AskUserQuestion — Next task\*\*/);
-  assert.match(commitStepBody(body, 5), /\*\*Options\*\*:/);
+  assertShape(md, {
+    headings: { required: ['ACQ (AskUserQuestion) gates'] },
+    steps: { required: [1, 2, 3, 4, 5, 6], order: true, acq: [4, 5], acqOptions: [4, 5] },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [4, 5], only: true },
+  });
 });
