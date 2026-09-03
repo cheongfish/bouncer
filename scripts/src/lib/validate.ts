@@ -30,7 +30,7 @@ const { checkEpicIndexConsistency } = require('./epic-index') as {
   checkEpicIndexConsistency: (opts: { repoRoot: string }) => FailureEntry[];
 };
 const {
-  loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf,
+  loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves,
 } = require('./validate-docs') as {
   loadBlueprintDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
     docs: BlueprintDocs;
@@ -54,6 +54,7 @@ const {
   }) => TaskUnit | null;
   blueprintDocsExist: (opts: { repoRoot: string; blueprintDir: string }) => boolean;
   statusOf: (doc: DocLeaf | undefined | null) => unknown;
+  requiredTaskLeaves: (status: unknown) => Array<'tasks' | 'verification' | 'review'>;
 };
 const { checkStructural, checkDistillStructural } = require('./validate-structural') as {
   checkStructural: (doc: unknown, failures: FailureEntry[]) => void;
@@ -217,8 +218,11 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
       file: `${toPosix(blueprintDir)}/tasks/${name}`,
     });
   }
+  // closed는 finalize가 남긴 축약 레이아웃(task leaf 없음)을 허용하고,
+  // 열린 blueprint는 기존처럼 세 leaf를 모두 요구한다.
+  const requiredLeaves = requiredTaskLeaves(statusOf(docs.blueprintIndex));
   for (const entry of (tasksListing && tasksListing.entries) || []) {
-    for (const leaf of ['tasks', 'verification', 'review'] as const) {
+    for (const leaf of requiredLeaves) {
       const rel = (entry[leaf] as { rel: string }).rel;
       if (!fs.existsSync(path.join(repoRoot, rel))) {
         failures.push({

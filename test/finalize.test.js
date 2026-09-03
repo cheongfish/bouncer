@@ -337,7 +337,14 @@ test('--yes stages and commits', () => {
   // blueprint는 approved 상태로 시작하므로 이 실행이 index.md를 closed로 잠그고
   // 그 경로도 함께 stage된다(브리프 인터페이스: lock 경로는 stage 대상에 합류).
   assert.deepStrictEqual(g.calls.staged,
-    ['src/auth/login.ts', `${BP_REL}/explain.md`, `${BP_REL}/index.md`]);
+    [
+      'src/auth/login.ts',
+      `${BP_REL}/explain.md`,
+      `${BP_REL}/tasks/001/tasks.md`,
+      `${BP_REL}/tasks/001/verification.md`,
+      `${BP_REL}/tasks/001/review.md`,
+      `${BP_REL}/index.md`,
+    ]);
   assert.strictEqual(g.calls.committed, finalizeMessage());
   assert.strictEqual(res.closed, `${BP_REL}/index.md`);
 });
@@ -411,8 +418,20 @@ test('runtime artifacts are neither violations nor staged', () => {
   assert.strictEqual(res.ok, true);
   // approved blueprint → 이 실행이 잠금도 함께 stage한다(runtime artifact와
   // 무관하게 lock path는 항상 blueprintDir 밑이라 out-of-scope에 걸리지 않음).
-  assert.deepStrictEqual(res.staged, ['src/auth/login.ts', `${BP_REL}/index.md`]);
-  assert.deepStrictEqual(g.calls.staged, ['src/auth/login.ts', `${BP_REL}/index.md`]);
+  assert.deepStrictEqual(res.staged, [
+    'src/auth/login.ts',
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
+    `${BP_REL}/tasks/001/review.md`,
+    `${BP_REL}/index.md`,
+  ]);
+  assert.deepStrictEqual(g.calls.staged, [
+    'src/auth/login.ts',
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
+    `${BP_REL}/tasks/001/review.md`,
+    `${BP_REL}/index.md`,
+  ]);
 });
 
 test('a committed finalize clears the active pointer', () => {
@@ -493,7 +512,13 @@ test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
   });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.committed, true);
-  assert.deepStrictEqual(g.calls.staged, ['.bouncer/Distill.md', `${BP_REL}/index.md`]);
+  assert.deepStrictEqual(g.calls.staged, [
+    '.bouncer/Distill.md',
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
+    `${BP_REL}/tasks/001/review.md`,
+    `${BP_REL}/index.md`,
+  ]);
 });
 
 test('finalize return includes next even when no candidates remain', () => {
@@ -630,4 +655,323 @@ test('missing config.json yields VERIFY_CONFIG_MISSING without throwing', () => 
   assert.strictEqual(res.code, 'VERIFY_CONFIG_MISSING');
   assert.strictEqual(res.command, null);
   assert.strictEqual(res.exitCode, null);
+});
+
+function writeContextReview(repo, blueprintDir = BP_REL) {
+  writeDoc(repo, `${blueprintDir}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: 'Context review',
+    description: 'd',
+    resource: `${blueprintDir}/context-review.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001',
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'accepted',
+      context_review: { findings: [] },
+    },
+  });
+}
+
+function writeExtraTaskUnit(repo, number, blueprintDir = BP_REL) {
+  const digits = String(number).padStart(3, '0');
+  writeDoc(repo, `${blueprintDir}/tasks/${digits}/tasks.md`, {
+    type: 'bouncer.tasks',
+    title: `Impl ${digits}`,
+    description: 'd',
+    resource: `${blueprintDir}/tasks/${digits}/tasks.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `TASKS-${digits}`,
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'verified',
+      affected_paths: ['src/auth/'],
+      commit_intent: [
+        '추가 task도 같은 마감으로 묶는다',
+        '일회성 문서만 정리하고 증적은 남긴다',
+      ],
+    },
+  });
+  writeDoc(repo, `${blueprintDir}/tasks/${digits}/verification.md`, {
+    type: 'bouncer.verification',
+    title: `Verified ${digits}`,
+    description: 'd',
+    resource: `${blueprintDir}/tasks/${digits}/verification.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `VERIFY-${digits}`,
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'passed',
+    },
+  });
+  writeDoc(repo, `${blueprintDir}/tasks/${digits}/review.md`, {
+    type: 'bouncer.review',
+    title: `Review ${digits}`,
+    description: 'd',
+    resource: `${blueprintDir}/tasks/${digits}/review.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `REVIEW-${digits}`,
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'accepted',
+      review: { required: false, reason: 'fixture' },
+    },
+  });
+}
+
+function transientRels(blueprintDir = BP_REL, numbers = ['001']) {
+  const rels = [];
+  for (const digits of numbers) {
+    rels.push(`${blueprintDir}/tasks/${digits}/tasks.md`);
+    rels.push(`${blueprintDir}/tasks/${digits}/verification.md`);
+    rels.push(`${blueprintDir}/tasks/${digits}/review.md`);
+  }
+  return rels;
+}
+
+function assertTransientPresent(repo, blueprintDir = BP_REL, numbers = ['001']) {
+  for (const rel of transientRels(blueprintDir, numbers)) {
+    assert.ok(fs.existsSync(path.join(repo, rel)), `expected present: ${rel}`);
+  }
+}
+
+function assertDurablePresent(repo, blueprintDir = BP_REL) {
+  assert.ok(fs.existsSync(path.join(repo, `${blueprintDir}/explain.md`)));
+  assert.ok(fs.existsSync(path.join(repo, `${blueprintDir}/index.md`)));
+}
+
+test('G16 failure leaves transient docs and approved status untouched', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo, { comprehensionOk: false });
+  writeContextReview(repo);
+  const beforeTasks = fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8');
+  const beforeVerification = fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8');
+  const beforeReview = fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8');
+  const beforeCr = fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8');
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'validate');
+  assert.ok(res.failures.some((f) => f.code === 'G16'));
+  assert.strictEqual(g.calls.staged, null);
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+    beforeTasks,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+    beforeVerification,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
+    beforeReview,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
+    beforeCr,
+  );
+  assert.match(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), /status: approved/);
+  assertDurablePresent(repo);
+});
+
+test('verify failure leaves transient docs and approved status untouched', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  assertTransientPresent(repo);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    yes: true,
+    git: g.api,
+    verifyExec: () => ({ ok: false, exitCode: 1, output: 'boom' }),
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'verify');
+  assert.strictEqual(g.calls.staged, null);
+  assertTransientPresent(repo);
+  assert.ok(fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
+  assert.match(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), /status: approved/);
+  assertDurablePresent(repo);
+});
+
+test('dry-run reports transient deletions in staged without deleting or locking', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  const indexBefore = fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8');
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.dryRun, true);
+  for (const rel of [
+    ...transientRels(),
+    `${BP_REL}/context-review.md`,
+    `${BP_REL}/index.md`,
+  ]) {
+    assert.ok(res.staged.includes(rel), `dry-run staged missing ${rel}: ${JSON.stringify(res.staged)}`);
+  }
+  assert.ok(res.staged.includes('src/auth/login.ts'));
+  assert.strictEqual(g.calls.staged, null);
+  assertTransientPresent(repo);
+  assert.ok(fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
+  assert.strictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), indexBefore);
+});
+
+test('--yes deletes transient docs, keeps durable evidence, and stages deletions with closed index', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  writeExtraTaskUnit(repo, 2);
+  const numbers = ['001', '002'];
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.committed, true);
+  for (const rel of transientRels(BP_REL, numbers)) {
+    assert.ok(!fs.existsSync(path.join(repo, rel)), `should delete ${rel}`);
+    assert.ok(g.calls.staged.includes(rel), `staged should include deletion ${rel}`);
+  }
+  assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
+  assert.ok(g.calls.staged.includes(`${BP_REL}/context-review.md`));
+  assert.ok(g.calls.staged.includes(`${BP_REL}/index.md`));
+  assert.ok(g.calls.staged.includes('src/auth/login.ts'));
+  // 삭제 → closed 전이 → stage 순: staged 목록에 일회성 경로가 index보다 앞에 온다.
+  const firstTransient = g.calls.staged.findIndex((f) => f.includes('/tasks/') || f.endsWith('context-review.md'));
+  const indexAt = g.calls.staged.indexOf(`${BP_REL}/index.md`);
+  assert.ok(firstTransient >= 0 && firstTransient < indexAt);
+  assertDurablePresent(repo, BP_REL, numbers);
+  assert.match(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), /status: closed/);
+
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const re = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(re.ok, true, JSON.stringify(re.failures, null, 2));
+});
+
+test('stage failure restores transient docs and approved status', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  const before = {
+    tasks: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+    verification: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+    review: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
+    cr: fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
+    index: fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'),
+  };
+  const api = {
+    changedFiles: () => ['src/auth/login.ts'],
+    untrackedFiles: () => [],
+    stage: () => { throw new Error('stage boom'); },
+    commit: () => { throw new Error('commit should not run'); },
+  };
+  assert.throws(
+    () => finalize({
+      repoRoot: repo, blueprintDir: BP_REL, yes: true, git: api, verifyExec: passVerify,
+    }),
+    /stage boom/,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+    before.tasks,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+    before.verification,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
+    before.review,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
+    before.cr,
+  );
+  assert.strictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), before.index);
+  assert.match(before.index, /status: approved/);
+});
+
+test('commit failure restores transient docs and approved status', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  const before = {
+    tasks: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+    verification: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+    review: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
+    cr: fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
+    index: fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'),
+  };
+  const staged = [];
+  const api = {
+    changedFiles: () => ['src/auth/login.ts'],
+    untrackedFiles: () => [],
+    stage: (files) => { staged.push(...files); },
+    commit: () => { throw new Error('commit boom'); },
+  };
+  assert.throws(
+    () => finalize({
+      repoRoot: repo, blueprintDir: BP_REL, yes: true, git: api, verifyExec: passVerify,
+    }),
+    /commit boom/,
+  );
+  assert.ok(staged.length > 0, 'stage ran before commit failed');
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+    before.tasks,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+    before.verification,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
+    before.review,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
+    before.cr,
+  );
+  assert.strictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), before.index);
+});
+
+test('light blueprint finalize does not invent a missing context-review deletion', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const indexAbs = path.join(repo, `${BP_REL}/index.md`);
+  const raw = fs.readFileSync(indexAbs, 'utf8').replace(
+    'status: approved',
+    'status: approved\n  scale: light',
+  );
+  // scale는 approved와 같은 bouncer 맵에 둬야 한다 — 문자열 치환이 깨지면 fixture를 고친다.
+  if (!/scale: light/.test(raw)) {
+    const yaml = require('js-yaml');
+    const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+    const { data, body } = parseFrontmatter(fs.readFileSync(indexAbs, 'utf8'));
+    data.bouncer.scale = 'light';
+    fs.writeFileSync(indexAbs, `---\n${yaml.dump(data)}---\n${body}`);
+  } else {
+    fs.writeFileSync(indexAbs, raw);
+  }
+  assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.ok(!g.calls.staged.includes(`${BP_REL}/context-review.md`));
+  assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
 });

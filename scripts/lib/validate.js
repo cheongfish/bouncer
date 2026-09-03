@@ -7,7 +7,7 @@ const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
 const { toPosix } = require('./paths');
 const { runVerification, entriesForVerify, } = require('./verification');
 const { checkEpicIndexConsistency } = require('./epic-index');
-const { loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, } = require('./validate-docs');
+const { loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves, } = require('./validate-docs');
 const { checkStructural, checkDistillStructural } = require('./validate-structural');
 const { checkGate } = require('./validate-gates');
 const { parseTasksSections, parseSections, extractPathCandidates, } = require('./validate-sections');
@@ -97,8 +97,11 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
             file: `${toPosix(blueprintDir)}/tasks/${name}`,
         });
     }
+    // closed는 finalize가 남긴 축약 레이아웃(task leaf 없음)을 허용하고,
+    // 열린 blueprint는 기존처럼 세 leaf를 모두 요구한다.
+    const requiredLeaves = requiredTaskLeaves(statusOf(docs.blueprintIndex));
     for (const entry of (tasksListing && tasksListing.entries) || []) {
-        for (const leaf of ['tasks', 'verification', 'review']) {
+        for (const leaf of requiredLeaves) {
             const rel = entry[leaf].rel;
             if (!fs.existsSync(path.join(repoRoot, rel))) {
                 failures.push({

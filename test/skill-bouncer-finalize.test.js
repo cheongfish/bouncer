@@ -300,3 +300,52 @@ test('bouncer-finalize surfaces over-limit shards in the promotion ACQ', () => {
   assert.match(body, /상한[\s\S]{0,80}초과[\s\S]{0,120}ACQ|ACQ[\s\S]{0,160}초과/);
   assert.match(body, /`replace`[\s\S]{0,60}`drop`[\s\S]{0,20}`add`/);
 });
+
+// closed Blueprint 보존·삭제·실패 시 무변경·sibling 후속.
+// 스킬은 CLI 삭제 조건을 다시 구현하지 않고 finalize --yes 계약을 가리킨다.
+test('bouncer-finalize documents retention cleanup and sibling follow-up after G16', () => {
+  const { body } = parseFrontmatter(mainMd);
+
+  // 삭제 대상(일회성)과 보존 대상(증적)을 같은 본문에서 명시한다.
+  assert.match(body, /tasks\/<NNN>\/tasks\.md/);
+  assert.match(body, /tasks\/<NNN>\/review\.md/);
+  assert.match(body, /context-review\.md/);
+  assert.match(body, /verification\.md/);
+  assert.match(body, /explain\.md/);
+  assert.match(body, /index\.md/);
+  assert.match(body, /Distill/);
+
+  // 삭제는 remainder commit의 일부이며, G16·verify 실패면 수행하지 않는다.
+  assert.match(body, /remainder|잔여|마감 커밋/i);
+  assert.match(
+    body,
+    /G16[\s\S]{0,220}(?:삭제|지우|수행하지|무변경)|(?:삭제|지우)[\s\S]{0,220}G16/,
+  );
+  assert.match(
+    body,
+    /(?:verify|검증)[\s\S]{0,160}(?:실패|failure)[\s\S]{0,160}(?:삭제|지우|수행하지|무변경)/i,
+  );
+  assert.match(body, /finalize\s+--yes/);
+
+  // archive·재개·소급 편집 거부는 같은 문장(근접)에서 잠근다 — 단독 단어 매칭 방지.
+  assert.match(
+    body,
+    /archive[\s\S]{0,80}(?:재개|다시 열)[\s\S]{0,80}소급[\s\S]{0,40}제안하지 않/i,
+  );
+
+  // 후속은 sibling 또는 새 Epic; `--set` 자격은 payload·cleanup-handoff에 맡긴다.
+  assert.match(body, /sibling|형제 Blueprint|형제 blueprint/i);
+  assert.match(body, /\/bouncer-plan|새 Epic/);
+  assert.match(body, /closed[\s\S]{0,120}(?:다시 열|재개)|(?:다시 열|재개)[\s\S]{0,120}closed/i);
+  assert.match(
+    body,
+    /`--set`[\s\S]{0,120}(?:finalize payload|cleanup-handoff)|(?:finalize payload|cleanup-handoff)[\s\S]{0,120}`--set`/i,
+  );
+  assert.match(body, /임의로\s*`--set`하지 않는다|열린 형제에 임의로/);
+
+  // 최종 보고에 보존·정리·후속 경계를 남긴다.
+  assert.match(
+    body,
+    /\*\*Report\.\*\*[\s\S]{0,900}(?:삭제|보존|축약|일회성|sibling|형제)/i,
+  );
+});
