@@ -23,13 +23,42 @@ test('bouncer-execute conditionally routes dispatch and verify recovery referenc
     ],
   ];
   for (const [file, condition] of routes) {
-    assert.match(body, new RegExp(`\\[${file.replace('.', '\\.') }\\]`));
+    assert.match(
+      body,
+      new RegExp(`\\]\\(\\.\\/references\\/${file.replace(/\./g, '\\.')}\\)`),
+      `${file} must be linked as ./references/${file}`,
+    );
     const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-execute', 'references', file), 'utf8');
     assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
   }
   assert.match(body, /current\.task\.path/);
   assert.match(body, /G6[\s\S]{0,300}G14/);
   assert.doesNotMatch(body, /agentName:'bouncer-implementer'|Minimum fix proposal/);
+});
+
+test('bouncer-execute uses root/local reference prefixes and states no-question in procedure', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
+  assert.ok(acqAt > -1);
+  const procedure = body.slice(0, acqAt);
+  const index = body.slice(acqAt);
+  assert.match(
+    procedure,
+    /no AskUserQuestion|does not ask[\s\S]{0,40}AskUserQuestion|never asks[\s\S]{0,40}AskUserQuestion/i,
+  );
+  assert.match(index, /no ACQ|does not ask|never asks|no AskUserQuestion/i);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/implementation\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/verification\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/review\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/minimality\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/debugging\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/review\/assets\/reviewer-prompt\.md/);
+  assert.match(body, /\.\/references\/agent-dispatch\.md/);
+  assert.match(body, /\.\/references\/verification-recovery\.md/);
+  assert.doesNotMatch(
+    body,
+    /(?<!\$\{BOUNCER_ROOT\}\/|\.\/)references\/(?:implementation|verification|review|minimality|debugging)\//,
+  );
 });
 
 test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
@@ -102,7 +131,7 @@ test('bouncer-execute re-dispatches implementer with the debugger report after v
 test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', () => {
   const { body } = parseFrontmatter(md);
   const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
-  assert.match(body, /references\/review\/assets\/reviewer-prompt\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/review\/assets\/reviewer-prompt\.md/);
   assert.match(body, /bouncer-reviewer/);
   assert.match(dispatch, /rules\/subagent-model\.md/);
   assert.match(dispatch, /fresh generic|generic.*subagent/i);

@@ -22,7 +22,12 @@ test('bouncer-plan conditionally routes three planning references and retains co
     ],
   ];
   for (const [file, condition] of routes) {
-    assert.match(body, new RegExp(`\\[${file.replace('.', '\\.') }\\]`));
+    // 스킬 로컬은 ./references/… — bare references/ 와 루트 접두를 쓰지 않는다.
+    assert.match(
+      body,
+      new RegExp(`\\]\\(\\.\\/references\\/${file.replace(/\./g, '\\.')}\\)`),
+      `${file} must be linked as ./references/${file}`,
+    );
     const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-plan', 'references', file), 'utf8');
     assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
   }
@@ -32,6 +37,50 @@ test('bouncer-plan conditionally routes three planning references and retains co
   assert.match(body, /current\s+--set/);
   assert.match(body, /G1 epic approved[\s\S]{0,1600}G12/);
   assert.doesNotMatch(body, /bouncer graph-sync|resolveSubagentModel/);
+});
+
+/**
+ * numbered step N 본문(다음 step 또는 ACQ H2 직전)을 잘라 낸다.
+ *
+ * @param {string} body - frontmatter 제거 본문
+ * @param {number} n - step 번호
+ * @returns {string}
+ */
+function planStepBody(body, n) {
+  const start = body.search(new RegExp(`^${n}\\. \\*\\*`, 'm'));
+  assert.ok(start > -1, `missing plan step ${n}`);
+  const rest = body.slice(start);
+  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. \\*\\*|## ACQ )`, 'm'));
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+test('bouncer-plan places discovery/ID/verify/scope/approval ACQ in numbered steps', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
+  assert.ok(acqAt > -1);
+  const index = body.slice(acqAt);
+  // 색인은 step 연결만 — Options 본문은 두지 않는다.
+  assert.doesNotMatch(index, /\*\*Options\*\*:/);
+  assert.match(index, /[Ss]tep\s+1/);
+  assert.match(index, /[Ss]tep\s+2/);
+  assert.match(index, /[Ss]tep\s+4/);
+  assert.match(index, /[Ss]tep\s+6/);
+  assert.match(index, /[Ss]tep\s+8/);
+
+  // 질문 설명은 해당 step에 있다 (H2 위치가 아니라 numbered step 연결).
+  assert.match(planStepBody(body, 1), /[Cc]onfirm/);
+  assert.match(planStepBody(body, 2), /[Aa]sk|override|light/i);
+  assert.match(planStepBody(body, 4), /[Aa]sk[\s\S]{0,120}verify|verify[\s\S]{0,120}[Aa]sk/i);
+  assert.match(planStepBody(body, 6), /confirm|ask/i);
+  assert.match(planStepBody(body, 8), /[Aa]sk[\s\S]{0,80}approv|approv[\s\S]{0,40}[Aa]sk/i);
+
+  // 루트 보조는 ${BOUNCER_ROOT}/references/… 만.
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/discovery\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/minimality\/index\.md/);
+  assert.doesNotMatch(
+    body,
+    /(?<!\$\{BOUNCER_ROOT\}\/|\.\/)references\/discovery\/index\.md/,
+  );
 });
 
 test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gate', () => {
@@ -112,7 +161,7 @@ test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => 
   const { body } = parseFrontmatter(md);
   assert.match(body, /Korean/);
   assert.match(body, /stop-slop/);
-  assert.match(body, /references\/stop-slop\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/stop-slop\/index\.md/);
 });
 
 test('bouncer-plan delegates Mermaid zoom authoring to spec-authoring', () => {
@@ -133,7 +182,9 @@ test('bouncer-plan detects project build scripts and asks before writing tasks v
 test('bouncer-plan dispatches context-review before approval with named-agent fallback', () => {
   const { body } = parseFrontmatter(md);
   const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-plan/references/context-review.md'), 'utf8');
-  assert.match(body, /references\/context-review\/index\.md/);
+  // 루트 보조(index)와 스킬 로컬(md)은 접두가 달라 같은 문자열이 아니다.
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/context-review\/index\.md/);
+  assert.match(body, /\.\/references\/context-review\.md/);
   assert.match(dispatch, /bouncer-context-reviewer/);
   assert.match(dispatch, /rules\/subagent-model\.md/);
   // named agent를 로드하지 못하면 단계를 건너뛰지 않고 인라인한다.

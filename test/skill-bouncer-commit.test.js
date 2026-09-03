@@ -44,3 +44,31 @@ test('bouncer-commit forbids discarding the post-commit tasks.md commit_sha stam
   assert.match(body, /task_commits/);
   assert.match(body, /do not[\s\S]{0,80}(?:git checkout|git restore|discard)/i);
 });
+
+/**
+ * @param {string} body
+ * @param {number} n
+ * @returns {string}
+ */
+function commitStepBody(body, n) {
+  const start = body.search(new RegExp(`^${n}\\. \\*\\*`, 'm'));
+  assert.ok(start > -1, `missing commit step ${n}`);
+  const rest = body.slice(start);
+  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. \\*\\*|## ACQ )`, 'm'));
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+test('bouncer-commit keeps Commit and Next-task ACQ in steps 4 and 5 with an index', () => {
+  const { body } = parseFrontmatter(md);
+  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
+  assert.ok(acqAt > -1);
+  const index = body.slice(acqAt);
+  assert.match(index, /[Ss]tep\s+4/);
+  assert.match(index, /[Ss]tep\s+5/);
+  assert.doesNotMatch(index, /\*\*AskUserQuestion/);
+  assert.doesNotMatch(index, /\*\*Options\*\*:/);
+  assert.match(commitStepBody(body, 4), /\*\*AskUserQuestion — Commit\*\*/);
+  assert.match(commitStepBody(body, 4), /\*\*Options\*\*:/);
+  assert.match(commitStepBody(body, 5), /\*\*AskUserQuestion — Next task\*\*/);
+  assert.match(commitStepBody(body, 5), /\*\*Options\*\*:/);
+});

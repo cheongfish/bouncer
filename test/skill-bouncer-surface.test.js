@@ -120,21 +120,22 @@ test('workflow skills cite subordinate skills by path', () => {
   const execute = readWorkflow('bouncer-execute');
   const commit = readWorkflow('bouncer-commit');
   const finalize = readWorkflow('bouncer-finalize');
-  assert.match(plan, /references\/discovery\/index\.md/);
-  assert.match(plan, /references\/spec-authoring\/index\.md/);
-  assert.match(plan, /references\/stop-slop\/index\.md/);
-  assert.match(plan, /references\/graphify-runner\/index\.md/);
-  assert.match(plan, /references\/context-review\/index\.md/);
-  assert.match(execute, /references\/implementation\/index\.md/);
-  assert.match(execute, /references\/verification\/index\.md/);
-  assert.match(execute, /references\/review\/index\.md/);
+  // 루트 보조는 ${BOUNCER_ROOT}/references/… 접두로만 표기한다.
+  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/discovery\/index\.md/);
+  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/spec-authoring\/index\.md/);
+  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/stop-slop\/index\.md/);
+  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/graphify-runner\/index\.md/);
+  assert.match(plan, /\$\{BOUNCER_ROOT\}\/references\/context-review\/index\.md/);
+  assert.match(execute, /\$\{BOUNCER_ROOT\}\/references\/implementation\/index\.md/);
+  assert.match(execute, /\$\{BOUNCER_ROOT\}\/references\/verification\/index\.md/);
+  assert.match(execute, /\$\{BOUNCER_ROOT\}\/references\/review\/index\.md/);
   // explain-diff는 finalize가 호출한다(commit이 아님).
   assert.doesNotMatch(commit, /references\/explain-diff\/index\.md/);
-  assert.match(finalize, /references\/spec-authoring\/index\.md/);
-  assert.match(finalize, /references\/explain-diff\/index\.md/);
+  assert.match(finalize, /\$\{BOUNCER_ROOT\}\/references\/spec-authoring\/index\.md/);
+  assert.match(finalize, /\$\{BOUNCER_ROOT\}\/references\/explain-diff\/index\.md/);
   {
-    const i = finalize.indexOf('references/spec-authoring/index.md');
-    const j = finalize.indexOf('references/explain-diff/index.md');
+    const i = finalize.indexOf('${BOUNCER_ROOT}/references/spec-authoring/index.md');
+    const j = finalize.indexOf('${BOUNCER_ROOT}/references/explain-diff/index.md');
     assert.ok(i > -1 && j > i);
   }
   for (const name of [
@@ -144,6 +145,77 @@ test('workflow skills cite subordinate skills by path', () => {
   ]) {
     // at least one workflow skill should mention each used path form when present
     assert.ok(SUB_PATHS.includes(name));
+  }
+});
+
+/**
+ * SKILL.md 본문에서 접두 없는 references/… 인용을 모은다.
+ * ${BOUNCER_ROOT}/ 와 ./ 접두만 허용 — 같은 bare 문자열이 루트·로컬을
+ * 동시에 가리키는 모호성을 구조적으로 막는다.
+ *
+ * @param {string} md - SKILL.md 원문
+ * @returns {string[]} bare 경로 목록
+ */
+function bareReferenceCites(md) {
+  return [...md.matchAll(/(?<!\$\{BOUNCER_ROOT\}\/|\.\/)references\/[A-Za-z0-9._/-]+/g)]
+    .map((m) => m[0]);
+}
+
+/** @type {Record<string, string[]>} 스킬 로컬 references/*.md 파일명 */
+const SKILL_LOCAL_REFS = {
+  'bouncer-init': [],
+  'bouncer-plan': [
+    'distill-preflight.md',
+    'graphify-suggestions.md',
+    'context-review.md',
+  ],
+  'bouncer-execute': [
+    'agent-dispatch.md',
+    'verification-recovery.md',
+  ],
+  'bouncer-commit': [],
+  'bouncer-finalize': [
+    'distill-promotion.md',
+    'explain-quiz.md',
+    'draft-pr.md',
+    'cleanup-handoff.md',
+  ],
+  'bouncer-run': ['stop-recovery.md'],
+};
+
+test('workflow skills classify references as root or skill-local without bare collision', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    const bare = bareReferenceCites(md);
+    assert.deepStrictEqual(
+      bare,
+      [],
+      `${name}: bare references/ cites must use \${BOUNCER_ROOT}/ or ./ prefix; found ${bare.join(', ')}`,
+    );
+
+    const local = SKILL_LOCAL_REFS[name];
+    for (const file of local) {
+      assert.match(
+        md,
+        new RegExp(`\\./references/${file.replace(/\./g, '\\.')}`),
+        `${name}: skill-local ${file} must be cited as ./references/${file}`,
+      );
+      // 로컬 파일을 루트 접두로 쓰면 존재하지 않는 경로를 가리킨다.
+      assert.doesNotMatch(
+        md,
+        new RegExp(`\\$\\{BOUNCER_ROOT\\}/references/${file.replace(/\./g, '\\.')}`),
+        `${name}: must not prefix skill-local ${file} with \${BOUNCER_ROOT}/`,
+      );
+    }
+
+    // plan의 context-review 충돌 쌍: 본문에서 뽑은 두 cite 문자열이 달라야 한다.
+    if (name === 'bouncer-plan') {
+      const rootCite = md.match(/\$\{BOUNCER_ROOT\}\/references\/context-review\/index\.md/)?.[0];
+      const localCite = md.match(/\.\/references\/context-review\.md/)?.[0];
+      assert.ok(rootCite, 'bouncer-plan must cite root context-review/index.md');
+      assert.ok(localCite, 'bouncer-plan must cite skill-local context-review.md');
+      assert.notStrictEqual(rootCite, localCite);
+    }
   }
 });
 
@@ -199,6 +271,56 @@ test('workflow skills end with an ACQ gates section', () => {
     const heads = [...md.matchAll(/^## .*$/gm)].map((m) => m[0]);
     // 존재만이 아니라 마지막 절인지까지 본다 — 성공 조건 2가 위치를 요구한다.
     assert.strictEqual(heads[heads.length - 1], '## ACQ (AskUserQuestion) gates', name);
+  }
+});
+
+/**
+ * 마지막 ACQ H2 이전 절차와 이후 색인 본문을 나눈다.
+ *
+ * @param {string} md - SKILL.md 원문
+ * @returns {{ procedure: string, index: string }}
+ */
+function splitAcq(md) {
+  const marker = '\n## ACQ (AskUserQuestion) gates\n';
+  const i = md.indexOf(marker);
+  assert.ok(i > -1, 'missing ACQ H2');
+  return { procedure: md.slice(0, i), index: md.slice(i + marker.length) };
+}
+
+test('workflow ACQ section is a step index; AskUserQuestion detail stays in numbered steps', () => {
+  for (const name of WORKFLOW) {
+    const md = readWorkflow(name);
+    const { procedure, index } = splitAcq(md);
+    assert.match(md, /rules\/acq\.md/, `${name} must cite the display contract`);
+    // 색인에는 Options/AskUserQuestion 본문을 두지 않는다 — 질문 시점은 numbered step.
+    assert.doesNotMatch(
+      index,
+      /\*\*AskUserQuestion/,
+      `${name}: ACQ index must not embed AskUserQuestion blocks`,
+    );
+    assert.doesNotMatch(
+      index,
+      /\*\*Options\*\*:/,
+      `${name}: ACQ index must not embed Options lists`,
+    );
+
+    if (name === 'bouncer-execute') {
+      // 무질문 계약은 절차에서 확인 가능해야 한다.
+      assert.match(
+        procedure,
+        /no AskUserQuestion|does not ask[\s\S]{0,40}AskUserQuestion|never asks[\s\S]{0,40}AskUserQuestion/i,
+        'execute procedure must state the no-question contract',
+      );
+      assert.match(
+        index,
+        /no ACQ|does not ask|never asks|no AskUserQuestion/i,
+        'execute ACQ index must record that this skill never asks',
+      );
+      continue;
+    }
+
+    // 게이트가 있는 스킬: 색인은 step 번호를 가리키고, 해당 step 본문에 동의 시점이 있다.
+    assert.match(index, /[Ss]tep\s+\d+/, `${name}: ACQ index must cite step numbers`);
   }
 });
 

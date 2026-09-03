@@ -120,4 +120,6 @@ workflow only supplies the current task's scope and its post-commit handoff.
 Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 `/bouncer-commit` is not consent for commit or pointer advance.
 
-**Gates in this skill:** Commit (step 4) · Next task (step 5).
+**Index:**
+- Step 4 — Commit
+- Step 5 — Next task

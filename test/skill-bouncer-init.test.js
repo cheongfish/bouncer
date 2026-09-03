@@ -44,3 +44,33 @@ test('bouncer-init tells the user to commit the bootstrap before planning', () =
   // after which the commit guard blocks files outside affected_paths.
   assert.match(body, /before[^\n]*\/bouncer-plan|\/bouncer-plan[^\n]*after/i);
 });
+
+/**
+ * @param {string} body
+ * @param {number} n
+ * @returns {string}
+ */
+function initStepBody(body, n) {
+  const start = body.search(new RegExp(`^${n}\\. `, 'm'));
+  assert.ok(start > -1, `missing init step ${n}`);
+  const rest = body.slice(start);
+  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. |## ACQ )`, 'm'));
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+test('bouncer-init keeps Promotion/Gitignore/Branch ACQ in step 3 with an index', () => {
+  const { body } = parseFrontmatter(md);
+  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
+  assert.ok(acqAt > -1);
+  const index = body.slice(acqAt);
+  assert.match(index, /[Ss]tep\s+3/);
+  assert.doesNotMatch(index, /\*\*Options\*\*:/);
+  // 선택지·결과 설명은 step 3에 남긴다.
+  const step3 = initStepBody(body, 3);
+  assert.match(step3, /Promotion ACQ|graphifyPromotion/);
+  assert.match(step3, /Gitignore ACQ|gitignoreSuggestions/);
+  assert.match(step3, /Branch ACQ|baseBranchUnresolved/);
+  assert.match(step3, /Leave as-is|\*\*C\)\*\*|C\) Leave/i);
+  assert.match(step3, /--promote-graphify/);
+  assert.match(step3, /--write-gitignore/);
+});
