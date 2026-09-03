@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-003
   epic_id: '018'
   blueprint_id: '020'
-  status: ready
+  status: verified
   affected_paths:
     - .bouncer/context/epics/018-task-unit-commits/index.md
     - docs/context-retention-and-epic-lifecycle.md

@@ -46,7 +46,7 @@ flowchart TD
     subgraph FIN["/bouncer-finalize"]
         F1["Distill 승격 (from explain)"] --> F2["explain-diff (BP entry + quiz)"]
         F2 --> F3{{"gate finalize<br/>G16"}}
-        F3 --> F4["finalize --yes + worktree 제거"]
+        F3 --> F4["finalize --yes: 일회성 문서 정리 + closed + worktree 제거"]
         F4 --> F5["draft PR (render → push + create)"]
     end
 
@@ -96,13 +96,19 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   되돌리고, `bouncer scaffold context-review --blueprint <dir>`로 판정 문서를
   만든 뒤 task에 Interface·Do not touch 절을 채웁니다. 그 다음 plan 게이트를
   다시 돌리면 G18과 다섯 절이 함께 요구됩니다.
-- **마감한 blueprint는 잠깁니다.** `finalize --yes`가 `bouncer.status`를
-  `closed`로 바꾸고, 이후 포인터 후보에서 빠집니다. 다시 열려면 `index.md`의
-  status를 손으로 `approved`로 되돌려야 합니다.
+- **마감한 blueprint는 잠깁니다.** `finalize --yes`가 G16 뒤 같은 remainder
+  커밋에서 `tasks/<NNN>/tasks.md`, `tasks/<NNN>/review.md`, 있을 때의
+  `context-review.md`를 지우고 `bouncer.status`를 `closed`로 바꿉니다.
+  `explain.md`와 각 `tasks/<NNN>/verification.md`는 남깁니다. `closed`는
+  종단이라 다시 열거나 task를 붙이지 않습니다. 후속 작업은 같은 Epic의 sibling
+  Blueprint이거나 `/bouncer-plan`으로 새 Epic을 계획합니다. 보존·후속 기준의
+  정본은
+  [context-retention-and-epic-lifecycle.md](context-retention-and-epic-lifecycle.md)입니다.
 
 ## 더 보기
 
 게이트 표와 실패 코드는 [gates.md](gates.md), CLI는 [cli.md](cli.md), 설정은
 [configuration.md](configuration.md), 커밋 가드의 한계는
-[security.md](security.md)에 있습니다. 주행 상한과 중단 규칙의 정본은
-`skills/bouncer-run/SKILL.md`입니다.
+[security.md](security.md), 완료 문서 보존과 Epic·sibling 기준은
+[context-retention-and-epic-lifecycle.md](context-retention-and-epic-lifecycle.md)에
+있습니다. 주행 상한과 중단 규칙의 정본은 `skills/bouncer-run/SKILL.md`입니다.
