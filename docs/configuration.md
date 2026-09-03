@@ -8,7 +8,8 @@
 
 | 필드 | 설정할 수 있는 값 | 쓰는 곳 | 예시 |
 | --- | --- | --- | --- |
-| `verify` | 단일 실행 문자열 (`&&`·`;`·파이프·리디렉션·`cd` 불가 → `S12`) | **execute 게이트(G13)**, `/bouncer-plan`이 blueprint별 `tasks.bouncer.verify` 제안 | `"npm test"` · `"make test"` · `"npm run test:e2e"` |
+| `verify` | 단일 실행 문자열 (`&&`·`;`·파이프·리디렉션·`cd` 불가 → `S12`). 실행 시 argv로 파싱되며 `shell: false` | **execute 게이트(G13)**, `/bouncer-plan`이 blueprint별 `tasks.bouncer.verify` 제안 | `"npm test"` · `"make test"` · `"npm run test:e2e"` |
+| `verify_allowlist` | argv0 실행 파일명 문자열 배열. Windows에서는 `npm.cmd`·`node.exe`처럼 관용 확장자를 벗긴 뒤 비교 | 런타임 검증 실행 직전 허용 목록. 없거나 배열이 아니면 기본값(`npm`·`node`·`make` 등). plan/S12의 `tasks.bouncer.verify` 검사는 이 키가 아니라 기본 목록만 사용 | `["npm", "node", "make"]` |
 | `source_dirs` | 저장소 상대 디렉터리 배열 | `/bouncer-init`(자동 채움), `graphify-runner` 소스 그래프 입력 | `["src", "scripts"]` |
 | `context_dirs` | 저장소 상대 디렉터리 배열 | `graphify-runner` 컨텍스트 그래프 입력 | `[".bouncer/context"]` |
 | `graphify.test_dirs` | 저장소 상대 디렉터리 배열 (선택) | 테스트 그래프 입력 → `graphify-out/test` | `["test"]` · `["tests"]` |
@@ -88,15 +89,21 @@ validator가 활성화를 거부하므로, 먼저 경고를 해소한 뒤 true�
 
 ## verify 래퍼 패턴
 
-`verify`는 **단일 실행 문자열**입니다. `&&`·`;`·파이프·리디렉션·`cd` 접두가 들어가면
-plan 게이트 `S12`와 런타임 `VERIFY_COMMAND_INVALID`에 걸립니다. 컨테이너를 띄운 뒤
-테스트를 돌리는 작업은 한 줄로 이을 수 없으니, 프로젝트 스크립트 하나로 감싸고 그
-스크립트만 검증 명령으로 둡니다.
+`verify`는 **단일 실행 문자열**입니다. 런타임은 인용·공백을 보존한 argv로
+파싱한 뒤 `shell: false`로만 돌립니다. `&&`·`;`·파이프·리디렉션·`cd` 접두나
+미종료 인용이 들어가면 plan 게이트 `S12`와 런타임 `VERIFY_COMMAND_INVALID`에
+걸립니다. argv0 실행 파일명이 허용 목록 밖이면 프로세스를 시작하기 전에 같은
+코드로 거절합니다. **plan/S12**는 `tasks.bouncer.verify`를 기본 허용 목록만으로
+검사하고, **런타임**(`config.verify`·`executeVerify`)은 저장소
+`verify_allowlist`(없으면 기본 목록)를 씁니다. 컨테이너를 띄운 뒤 테스트를
+돌리는 작업은 한 줄로 이을 수 없으니, 프로젝트 스크립트 하나로 감싸고 그
+스크립트만 검증 명령으로 둡니다. 허용 목록에 없는 바이너리도 같은 방식으로
+`npm run …`에 맡기세요. Windows에서는 PATH가 `npm.cmd`를 골라도 목록의 `npm`과
+같습니다.
 
 ```json
-{ "verify": "npm run test:e2e" }
+{ "verify": "npm run test:e2e", "verify_allowlist": ["npm", "node"] }
 ```
-
 ```jsonc
 // package.json — compose up과 테스트를 이 안에서 묶는다
 "scripts": { "test:e2e": "docker compose up -d && vitest run" }

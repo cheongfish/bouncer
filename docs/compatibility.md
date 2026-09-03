@@ -96,7 +96,7 @@ finalize이고 plan 뒤 기본 주행은 run이다.
 | 묶음 | 최상위 키 |
 | --- | --- |
 | 입력 경로 | `source_dirs`, `context_dirs` |
-| 실행·작업 흐름 | `verify`, `base_branch`, `autonomy` |
+| 실행·작업 흐름 | `verify`, `verify_allowlist`, `base_branch`, `autonomy` |
 | 그래프 | `graphify` |
 | 지식 | `distill` |
 | 마감·에이전트 | `pr`, `subagents` |
