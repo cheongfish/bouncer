@@ -6,3 +6,4 @@ graphify-out/
 .cursor/
 .claude/
 .codex/
+.bouncer/config.json
