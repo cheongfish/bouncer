@@ -52,7 +52,7 @@ const DISTINCTION_RE =
 const BOUNDARY_CONTRACTS = new Map([
   ['skills/bouncer-plan/SKILL.md', [/\.bouncer\/context/, /graphify-out/, /user['’]s approval/i]],
   ['skills/bouncer-execute/SKILL.md', [/context-doc bodies/i, /repo source/, /affected_paths/, /skip a gate/i]],
-  ['skills/bouncer-run/SKILL.md', [/컨텍스트 문서 본문/, /그래프 산출물/, /서브에이전트 리포트/, /상한/, /ACQ/]],
+  ['skills/bouncer-run/SKILL.md', [/Context document bodies/i, /graph output/i, /subagent reports/i, /limits/i, /ACQ/]],
   ['references/graphify-runner/index.md', [/graphify-out/, /suggested_paths/, /affected_paths/]],
   ['references/review/index.md', [/worktree diff/, /Findings/, /review accepted/i]],
   ['references/implementation/index.md', [/Repo source/, /\.bouncer\/context/, /Touch/, /Do not touch/]],

@@ -38,12 +38,11 @@ test('debugging escalates after 1 unsuccessful cycle', () => {
 
 // execute / debugging / debugger / run이 같은 verify 실패 재디스패치 상한(**1**)을
 // 공유해야 한다. 문서마다 숫자가 갈리면 수동 경로와 /bouncer-run 자동 주행이
-// 다른 루프 비용을 갖게 된다. 강조 표기(**1**)로 단언해 문구 형태에 기대지 않음.
+// 다른 루프 비용을 갖게 된다. 에이전트 문서는 영어 — at most / allows **1**.
 test('debugger redispatch cap is **1** across execute, debugging, agent, and run', () => {
   // execute는 "at most"와 "**1**"을 줄바꿈으로 나눈다 — \s+로 줄바꿈도 허용.
-  // run은 TASKS-002가 이미 "**1회**"(숫자+회를 한 강조)로 적었고, 이 task는
-  // 본문을 고치지 않으므로 그 형태도 CAP에 포함한다.
-  const CAP = /at most\s+\*\*1\*\*|최대\s+\*\*1\*\*회|\*\*1\*\*회|\*\*1회\*\*/;
+  // run은 "allows **1** fix retry" 형태.
+  const CAP = /at most\s+\*\*1\*\*|allows\s+\*\*1\*\*/;
   const sources = [
     ['bouncer-execute workflow bundle', readWorkflowBundle('bouncer-execute')],
     ['references/debugging/index.md', read('references/debugging/index.md')],
