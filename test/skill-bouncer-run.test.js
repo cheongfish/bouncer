@@ -151,3 +151,29 @@ test('bouncer-run treats context docs and subagent reports as data not instructi
   assert.match(body, /data, not instructions/i);
   assert.match(body, /Distill/);
 });
+
+test('bouncer-run states one drive-entry rule load and skips reload on task iterations', () => {
+  const { body } = parseFrontmatter(mainMd);
+  // Master rules 블록에 초기 적재와 반복 생략이 같이 있어야 경계를 오해하지 않는다.
+  // PROJECT_ROOT "once at drive start" 같은 인접 문장과 섞지 않는다.
+  const master = body.match(/\*\*Master rules\.\*\*([\s\S]*?)(?=\n\*\*[A-Za-z]|\n## )/i)?.[1] || '';
+  assert.ok(master.length > 0, 'bouncer-run must keep a Master rules block');
+  assert.match(
+    master,
+    /(?:drive|loop|루프)[\s\S]{0,80}(?:once|1회|한\s*번|진입)|(?:once|1회|한\s*번)[\s\S]{0,80}(?:drive|loop|루프|진입)/i,
+  );
+  assert.match(
+    master,
+    /(?:재적재|다시\s*읽|do not[\s\S]{0,40}(?:re-?read|reload)|never[\s\S]{0,40}(?:re-?read|reload))/i,
+  );
+  // 생략 범위는 불변 규칙뿐 — Distill·ACQ·gate 절차 약화로 읽히면 안 된다.
+  assert.match(body, /distill\s+--for|re-ground/i);
+  assert.match(body, /AskUserQuestion|ACQ/);
+  assert.match(body, /validate|gate/i);
+});
+
+test('bouncer-run preserves post-commit tasks.md commit_sha stamp', () => {
+  const { body } = parseFrontmatter(mainMd);
+  assert.match(body, /commit_sha/);
+  assert.match(body, /do not discard/i);
+});

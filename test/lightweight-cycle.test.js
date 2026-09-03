@@ -34,9 +34,9 @@ test('bouncer-plan routes light-path work to maintenance epic', () => {
   assert.match(plan, /bouncer\.scale/);
   assert.match(plan, /light/);
   assert.match(plan, /묻|물어|ask/i);
-  // scaffold 기본 full → 경량이면 light로 값만 바꾼다(키 신설/삭제 아님).
+  // scaffold default full → on light, change the value only (do not add/remove the key).
   assert.match(plan, /scale:\s*full/);
-  assert.match(plan, /`light`로 바꾼다/);
+  assert.match(plan, /change the value to `light`/);
   assert.doesNotMatch(plan, /schema\.ts에 등록하지 않/);
   assert.doesNotMatch(plan, /키 자체를 넣지 않는다/);
 });
@@ -52,10 +52,16 @@ test('governance light path flips full to light instead of omitting the key', ()
 
 test('bouncer-execute inlines implementer on scale light and keeps host fallback wording', () => {
   const exec = readWorkflowBundle('bouncer-execute');
-  assert.match(exec, /포인터\(`bouncer current`\)의 `scale`이 `light`면/);
+  assert.match(
+    exec,
+    /When the pointer \(`bouncer current`\) `scale` is `light`/,
+  );
   assert.match(exec, /인라인|inline/i);
-  // 리뷰는 경량에서도 named — step 5 경량 인라인 분기가 없어야 한다.
-  assert.doesNotMatch(exec, /`scale`이 `light`면[\s\S]{0,200}인라인 read-only/);
+  // Review stays named on light — no step-5 light inline read-only branch.
+  assert.doesNotMatch(
+    exec,
+    /`scale` is `light`[\s\S]{0,200}inline read-only/,
+  );
   assert.match(exec, /named agents are unavailable/);
   assert.match(exec, /\bG8\b/);
   assert.match(exec, /bouncer-debugger/);

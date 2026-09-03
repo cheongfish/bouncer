@@ -34,7 +34,10 @@ plugin-root variables to those shells. Cursor hooks use relative paths.
 
 Before a workflow's numbered steps, read `${BOUNCER_ROOT}/CLAUDE.md`; `AGENTS.md`
 imports `@CLAUDE.md` for Codex and Cursor. Then load the product rules needed by
-that workflow, normally `rules/governance.md` and `rules/okf.md`. The workflow
-skill keeps its `Plugin root` and `Master rules` labels so this loading point is
-visible, but does not restate this contract. `bouncer init` does not install
-these plugin-owned rules into the consuming project.
+that workflow, normally `rules/governance.md` and `rules/okf.md`. Workflow
+rules (master and product rules) load once per session. A new workflow session
+loads the needed rules before the numbered steps; do not re-read them when they
+are already loaded in the same session. The workflow skill keeps its
+`Plugin root` and `Master rules` labels so this loading point is visible, but
+does not restate this contract. `bouncer init` does not install these
+plugin-owned rules into the consuming project.

@@ -58,6 +58,50 @@ test('workflow skills instruct reading CLAUDE.md before steps', () => {
   assert.match(spec, /CLAUDE\.md/);
 });
 
+test('plugin-root scopes workflow rule loading to the session', () => {
+  const rule = read('rules/plugin-root.md');
+  // Master and product rules 절에서만 세션 경계를 본다. PROJECT_ROOT·Distill
+  // 문장의 once/session과 섞이면 위양성이 난다.
+  const section = rule.split(/^## Master and product rules\b/m)[1];
+  assert.ok(section, 'plugin-root must keep a Master and product rules section');
+  assert.match(
+    section,
+    /(?:session|세션)/i,
+    'plugin-root must name the session as the workflow-rule load unit',
+  );
+  assert.match(
+    section,
+    /(?:once|한\s*번|최초)/i,
+    'plugin-root must require a first/once load of workflow rules',
+  );
+  assert.match(
+    section,
+    /(?:다시\s*읽지|재적재|already[\s\S]{0,60}(?:re-?read|reload|read)|do not[\s\S]{0,40}(?:re-?read|reload)|never[\s\S]{0,40}(?:re-?read|reload))/i,
+    'plugin-root must forbid reloading rules already loaded in the same session',
+  );
+});
+
+test('bouncer-run loads immutable rules once per drive and keeps independent workflow boot', () => {
+  const run = read('skills/bouncer-run/SKILL.md');
+  // Master rules 헤더 블록에 drive/loop 1회·반복 재적재 금지가 함께 있어야 한다.
+  // 독립 execute·commit의 초기 적재는 위 CLAUDE.md before-steps 단언이 계속 잠근다.
+  const master = run.match(/\*\*Master rules\.\*\*([\s\S]*?)(?=\n\*\*[A-Za-z]|\n## )/i)?.[1] || '';
+  assert.ok(master.length > 0, 'bouncer-run must keep a Master rules block');
+  assert.match(
+    master,
+    /(?:drive|loop|루프)[\s\S]{0,80}(?:once|1회|한\s*번|진입)|(?:once|1회|한\s*번)[\s\S]{0,80}(?:drive|loop|루프|진입)/i,
+    'bouncer-run must load immutable rules once at drive/loop entry',
+  );
+  assert.match(
+    master,
+    /(?:재적재|다시\s*읽|do not[\s\S]{0,40}(?:re-?read|reload)|never[\s\S]{0,40}(?:re-?read|reload))/i,
+    'bouncer-run must forbid reloading immutable rules across task iterations',
+  );
+  // 반복 생략은 불변 규칙에만 한정 — Distill re-ground·brief는 task마다 유지.
+  assert.match(run, /re-ground|distill\s+--for/i);
+  assert.match(run, /brief/i);
+});
+
 test('ACQ display contract is centralized and workflows cite it', () => {
   const acq = read('rules/acq.md');
   assert.match(acq, /recommended proceed option first/i);
@@ -217,7 +261,8 @@ test('finalize promotion uses distill JSON payload repoRoot as the write base', 
   assert.doesNotMatch(finalize, /\$\{PROJECT_ROOT\}\/\.bouncer\/Distill\.md/);
   // cwd 계약이 본문에 남아 있어야 한다.
   assert.match(finalize, /cwd/i);
-  assert.match(finalize, /같은 checkout|동일한 checkout/);
+  // 영어 본문(same checkout)과 한국어 잔존 문구를 모두 받는다.
+  assert.match(finalize, /같은 checkout|동일한 checkout|same checkout/i);
 });
 
 test('Distill consumers use full preflight, then path-routed CLI output', () => {
@@ -250,9 +295,19 @@ test('Distill consumers use full preflight, then path-routed CLI output', () => 
 
 test('bouncer-run gives implementer the current task Distill re-ground', () => {
   const run = read('skills/bouncer-run/SKILL.md');
-  assert.match(run, /현재 포인터 task의 라우팅된\s+`distill --for` 출력\/brief/);
-  assert.match(run, /이전 task의 대화 맥락 전체를 넘기지 않는다/);
-  assert.doesNotMatch(run, /직전 task의\s+`distill --for` 출력/);
+  // 현재 포인터 task의 distill --for brief만 넘기고, 이전 task 대화 전체를 금한다.
+  assert.match(
+    run,
+    /current pointer task's[\s\S]{0,80}`distill --for`\s+output\/brief|현재 포인터 task의 라우팅된\s+`distill --for` 출력\/brief/,
+  );
+  assert.match(
+    run,
+    /Do not\s+pass the full conversation context from earlier tasks|이전 task의 대화 맥락 전체를 넘기지 않는다/,
+  );
+  assert.doesNotMatch(
+    run,
+    /직전 task의\s+`distill --for` 출력|previous task's\s+`distill --for` output/,
+  );
 });
 
 test('finalize promotion searches all Distill content and splits payload content into the shard map', () => {

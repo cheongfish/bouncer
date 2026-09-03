@@ -76,6 +76,14 @@ workflow only supplies the current task's scope and its post-commit handoff.
    The CLI does **not** move the pointer — `nextTask` in the JSON is a candidate
    only.
 
+   **Post-commit `tasks.md` stamp.** After a successful `--yes` that created a
+   commit, the CLI writes `bouncer.commit_sha` into the pointer task's
+   `tasks.md` (working tree only) so `/bouncer-finalize` can copy it into
+   `explain.md` `bouncer.task_commits`. That write may re-render YAML and look
+   like formatting noise — **do not** `git checkout` / `git restore` / discard
+   that dirty `tasks.md`. Leave it for the next task commit or finalize
+   remainder.
+
 5. **Next-task handoff.** After a successful step 4 (including empty staged set
    with `committed: false`), offer to advance the active pointer with an **ACQ**
    — use the commit payload's `nextTask` as required by `rules/current-pointer.md`.
