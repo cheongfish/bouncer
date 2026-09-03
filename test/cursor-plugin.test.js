@@ -40,7 +40,7 @@ function launcherSkillPath(name) {
 }
 
 test('the four plugin manifests agree on name and version', () => {
-  const expectedVersion = '1.3.5';
+  const expectedVersion = readJson('package.json').version;
   const claude = readJson('.claude-plugin/plugin.json');
   const cursor = readJson('.cursor-plugin/plugin.json');
   const codex = readJson('.codex-plugin/plugin.json');

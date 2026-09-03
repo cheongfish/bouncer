@@ -74,10 +74,10 @@ test('marketplace.json lists bouncer from the repository root', () => {
 });
 
 test('marketplace and plugin manifests agree on name and version', () => {
-  const expectedVersion = '1.3.5';
+  const pkg = readJson('package.json');
+  const expectedVersion = pkg.version;
   const mkt = readJson('.claude-plugin/marketplace.json');
   const plugin = readJson('.claude-plugin/plugin.json');
-  const pkg = readJson('package.json');
   const lock = readJson('package-lock.json');
   const entry = mkt.plugins.find((p) => p.name === 'bouncer');
   assert.strictEqual(entry.version, expectedVersion);

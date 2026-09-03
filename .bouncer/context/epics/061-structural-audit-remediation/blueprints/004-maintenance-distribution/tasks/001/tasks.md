@@ -55,6 +55,7 @@ bouncer:
       implementation: []
       test: []
       context: []
+  commit_sha: 6a3f8f5c
 ---
 # 문서 계약 구조 검사로 전환
 

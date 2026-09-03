@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-002
   epic_id: '061'
   blueprint_id: '004'
-  status: ready
+  status: verified
   commit_intent: |-
     릴리스마다 분산된 버전 리터럴을 사람이 맞추는 비용을 제거함
     package.json 버전을 기준으로 배포 매니페스트의 드리프트를 검출함
