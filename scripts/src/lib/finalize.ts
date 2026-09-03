@@ -42,6 +42,17 @@ const { readVerifyCommand, executeVerify } = require('./verification') as {
   ) => { ok: boolean; exitCode: number; output: string };
 };
 
+const { listTasksDocs } = require('./tasks-docs') as {
+  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
+    entries: Array<{
+      number: number | null;
+      tasks: { rel: string };
+      verification: { rel: string };
+      review: { rel: string };
+    }>;
+  };
+};
+
 // migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
 // validate↔finalize 순환을 피하려고 scope 헬퍼는 여기 두지 않는다(재수출도 안 함).
 
@@ -246,6 +257,53 @@ function writeClosedLock(repoRoot: string, target: LockTarget): void {
   fs.writeFileSync(path.join(repoRoot, target.rel), renderDoc(target.data, target.body as string));
 }
 
+
+/**
+ * finalize가 closed 전이와 함께 지울 일회성 문서 경로를 모은다.
+ * tasks.md·review.md와 (있을 때만) context-review.md만 대상이다.
+ * verification.md·explain.md·index.md·Distill은 절대 넣지 않는다.
+ * light blueprint는 context-review.md가 없으므로 목록에 나타나지 않는다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 저장소 루트
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @returns {string[]} 존재하는 일회성 문서의 posix 상대 경로
+ */
+function collectTransientRels({ repoRoot, blueprintDir }: {
+  repoRoot: string;
+  blueprintDir: string;
+}): string[] {
+  const listing = listTasksDocs({ repoRoot, blueprintDir });
+  const rels: string[] = [];
+  for (const entry of listing.entries) {
+    for (const leaf of ['tasks', 'review'] as const) {
+      const rel = entry[leaf].rel;
+      if (fs.existsSync(path.join(repoRoot, rel))) rels.push(rel);
+    }
+  }
+  const contextReviewRel = `${toPosix(blueprintDir)}/context-review.md`;
+  if (fs.existsSync(path.join(repoRoot, contextReviewRel))) {
+    rels.push(contextReviewRel);
+  }
+  return rels;
+}
+
+/**
+ * staged 목록에 경로를 중복 없이 덧붙인다. 삭제 대상이 git 변경에 이미
+ * 있어도 한 번만 남긴다.
+ *
+ * @param {string[]} list - 기존 staged 후보
+ * @param {string[]} extra - 합류할 경로
+ * @returns {string[]} 합쳐진 목록
+ */
+function appendUnique(list: string[], extra: string[]): string[] {
+  const out = [...list];
+  for (const rel of extra) {
+    if (!out.includes(rel)) out.push(rel);
+  }
+  return out;
+}
+
 // out-of-scope 판정 뒤에만 부르는 stage 목록 합류. lockPath는 항상
 // `${blueprintDir}/index.md`이고 scope.makeAllowed가 blueprintDir 하위 전체를
 // 허용하므로 이 경로를 다시 allowed()에 통과시키지 않는다.
@@ -315,7 +373,14 @@ function finalize({
   // writeClosedLock을 여기서 먼저 부르면 안 된다 — 실패해도 blueprint는
   // closed인데 커밋만 없는 상태가 남고, 재실행은 already-closed로 잠금만
   // 건너뛰어 승격분이 다시 미검증으로 들어간다.
-  const staged = mergeLocked(all, lockPath);
+  // 이번에 closed로 전이할 때만 일회성 문서를 지운다.
+  // 이미 closed면 lockPath가 null — 보존 문서를 소급 삭제하지 않는다.
+  const transientRels = lockPath
+    ? collectTransientRels({ repoRoot, blueprintDir })
+    : [];
+  // 삭제 대상은 git 변경에 없어도 staged에 넣어 삭제 커밋에 포함한다.
+  // dry-run도 같은 목록을 보고해 "무엇이 지워질지"를 미리 보여 준다.
+  const staged = mergeLocked(appendUnique(all, transientRels), lockPath);
 
   if (!yes) {
     // dry-run: 쓰지 않고 "쓰게 될" 경로만 closed/staged에 반영해 보고한다.
@@ -374,11 +439,37 @@ function finalize({
     };
   }
 
-  // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
-  if (lockPath) writeClosedLock(repoRoot, lockTarget);
+  // 검증 성공 뒤에만 삭제·closed 전이·stage를 수행한다.
+  // stage/commit이 throw하면 삭제 전 바이트와 approved 상태로 되돌린 뒤
+  // 예외를 그대로 전파한다 — 반만 지워진 closed를 남기지 않기 위함.
+  const snapshots = transientRels.map((rel) => {
+    const abs = path.join(repoRoot, rel);
+    return { rel, abs, content: fs.readFileSync(abs) };
+  });
+  const indexAbs = lockPath ? path.join(repoRoot, lockPath) : null;
+  const indexBefore = indexAbs && fs.existsSync(indexAbs)
+    ? fs.readFileSync(indexAbs)
+    : null;
 
-  gitApi.stage(staged);
-  gitApi.commit(commitMessage);
+  const restoreTransient = () => {
+    for (const snap of snapshots) {
+      fs.mkdirSync(path.dirname(snap.abs), { recursive: true });
+      fs.writeFileSync(snap.abs, snap.content);
+    }
+    if (indexAbs && indexBefore) fs.writeFileSync(indexAbs, indexBefore);
+  };
+
+  try {
+    for (const snap of snapshots) fs.unlinkSync(snap.abs);
+    // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
+    if (lockPath) writeClosedLock(repoRoot, lockTarget);
+    gitApi.stage(staged);
+    gitApi.commit(commitMessage);
+  } catch (error) {
+    restoreTransient();
+    throw error;
+  }
+
   // blueprint는 끝남. pointer를 남기면 commit guard가 이후 모든 commit에
   // 이 blueprint의 affected_paths를 계속 강제함.
   const pointerCleared = clearPointer({ repoRoot });

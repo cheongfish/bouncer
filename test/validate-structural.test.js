@@ -1141,3 +1141,106 @@ test('public validation stays fail-open when config disables enabled index routi
   assert.strictEqual(result.ok, true);
   assert.ok(!result.failures.some((entry) => entry.code === 'S25'));
 });
+
+test('draft and approved blueprints require a complete task unit bundle (S17)', () => {
+  for (const status of ['draft', 'approved']) {
+    const repo = mkRepo();
+    writeDoc(repo, `${BP_REL}/index.md`, {
+      ...blueprintDoc(),
+      bouncer: { ...blueprintDoc().bouncer, status },
+    });
+    writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+    writeBundleIndex(repo);
+    // verification만 두고 tasks/review를 빼면 열린 blueprint는 S17이어야 한다.
+    writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
+      type: 'bouncer.verification',
+      title: 'Verified',
+      description: 'd',
+      resource: `${BP_REL}/tasks/001/verification.md`,
+      tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'pending',
+      },
+    });
+    const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+    assert.strictEqual(res.ok, false, `expected S17 for status=${status}`);
+    assert.ok(
+      res.failures.some((f) => f.code === 'S17' && /tasks\.md/.test(f.message)),
+      `status=${status} failures: ${JSON.stringify(res.failures)}`,
+    );
+    assert.ok(
+      res.failures.some((f) => f.code === 'S17' && /review\.md/.test(f.message)),
+      `status=${status} failures: ${JSON.stringify(res.failures)}`,
+    );
+  }
+});
+
+test('closed blueprint allows compact layout without tasks.md review.md or context-review.md', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    ...blueprintDoc(),
+    bouncer: { ...blueprintDoc().bouncer, status: 'closed', scale: 'full' },
+  });
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
+    ...epicDoc(),
+    bouncer: { ...epicDoc().bouncer, status: 'approved' },
+  });
+  writeBundleIndex(repo);
+  writeDoc(repo, `${BP_REL}/explain.md`, {
+    type: 'bouncer.explain',
+    title: 'Explain',
+    description: 'd',
+    resource: `${BP_REL}/explain.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'EXPLAIN-001', epic_id: '001', blueprint_id: '001', status: 'published',
+      comprehension: [],
+    },
+  }, '# Explain\n');
+  // 두 개 이상의 task 묶음 — verification만 남은 축약 레이아웃.
+  for (const digits of ['001', '002']) {
+    writeDoc(repo, `${BP_REL}/tasks/${digits}/verification.md`, {
+      type: 'bouncer.verification',
+      title: `Verified ${digits}`,
+      description: 'd',
+      resource: `${BP_REL}/tasks/${digits}/verification.md`,
+      tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `VERIFY-${digits}`, epic_id: '001', blueprint_id: '001', status: 'passed',
+      },
+    });
+  }
+  assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`)));
+  assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/tasks/001/review.md`)));
+  assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(res.ok, true, JSON.stringify(res.failures, null, 2));
+  assert.ok(!res.failures.some((f) => f.code === 'S17'));
+});
+
+test('light open blueprint still requires the full task unit bundle', () => {
+  const repo = mkRepo();
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    ...blueprintDoc(),
+    bouncer: { ...blueprintDoc().bouncer, status: 'approved', scale: 'light' },
+  });
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
+    type: 'bouncer.verification',
+    title: 'Verified',
+    description: 'd',
+    resource: `${BP_REL}/tasks/001/verification.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'pending',
+    },
+  });
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(res.ok, false);
+  assert.ok(res.failures.some((f) => f.code === 'S17'));
+});

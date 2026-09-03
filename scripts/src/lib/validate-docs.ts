@@ -251,6 +251,22 @@ function unitLeafRel(unit: TaskUnit | null | undefined, leaf: string, fallbackRe
   return fallbackRel;
 }
 
+
+/**
+ * blueprint 상태에 따라 task 묶음에서 필수인 leaf를 돌려준다.
+ * closed만 축약 레이아웃(verification.md만)을 허용하고,
+ * draft/approved 등 열린 상태는 세 장 모두 요구한다.
+ *
+ * @param {unknown} status - blueprint index의 bouncer.status
+ * @returns {Array<'tasks'|'verification'|'review'>} 필수 leaf 이름
+ */
+function requiredTaskLeaves(status: unknown): Array<'tasks' | 'verification' | 'review'> {
+  // closed는 finalize가 일회성 문서를 지운 뒤의 단말 상태다.
+  // 재개·task 추가가 없으므로 tasks.md/review.md 부재를 구조 실패로 보지 않는다.
+  if (status === 'closed') return ['verification'];
+  return ['tasks', 'verification', 'review'];
+}
+
 // 존재 여부만 확인: 가볍고 파싱하지 않아야 함. execute gate가 verification을
 // 다시 실행(verification.md를 다시 씀)하기 전에 호출되기 때문.
 function blueprintDocsExist({ repoRoot, blueprintDir }: {
@@ -259,8 +275,13 @@ function blueprintDocsExist({ repoRoot, blueprintDir }: {
 }): boolean {
   const bp = toPosix(blueprintDir);
   const tasksListing = listTasksDocs({ repoRoot, blueprintDir });
+  // tasks/<NNN>/가 있으면(축약으로 verification만 남아도) 존재로 본다.
   if (tasksListing.entries.length > 0) return true;
-  return ['index.md', 'verification.md', 'review.md', 'explain.md']
+  // index.md만 있어도 존재로 본다 — imported exhibit처럼 task leaf가 없는
+  // blueprint도 S11이 아니라 이후 상태 검사(S18 등)로 보내야 한다.
+  // closed 축약은 index+explain+verification을 남기므로 여기에도 걸린다.
+  // 루트 review.md는 존재 신호로 쓰지 않는다 — 정본 증적은 unit verification.
+  return ['index.md', 'verification.md', 'explain.md']
     .some((name) => fs.existsSync(path.join(repoRoot, bp, name)));
 }
 
@@ -281,4 +302,5 @@ module.exports = {
   unitLeafRel,
   blueprintDocsExist,
   statusOf,
+  requiredTaskLeaves,
 };

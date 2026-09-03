@@ -11,7 +11,7 @@
       "required_context_hits": [
         ".bouncer/context/epics/018-task-unit-commits/index.md"
       ],
-      "max_candidates": 144,
+      "max_candidates": 155,
       "baseline_captured_at": "pre-task-003-move",
       "baseline_notes": "018 already consolidated; baseline is current tree size"
     },
