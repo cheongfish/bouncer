@@ -260,8 +260,8 @@ function writeClosedLock(repoRoot: string, target: LockTarget): void {
 
 /**
  * finalize가 closed 전이와 함께 지울 일회성 문서 경로를 모은다.
- * tasks.md·review.md와 (있을 때만) context-review.md만 대상이다.
- * verification.md·explain.md·index.md·Distill은 절대 넣지 않는다.
+ * tasks.md·verification.md·review.md와 (있을 때만) context-review.md가 대상이다.
+ * explain.md·index.md·Distill은 절대 넣지 않는다.
  * light blueprint는 context-review.md가 없으므로 목록에 나타나지 않는다.
  *
  * @param {object} opts
@@ -276,7 +276,8 @@ function collectTransientRels({ repoRoot, blueprintDir }: {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   const rels: string[] = [];
   for (const entry of listing.entries) {
-    for (const leaf of ['tasks', 'review'] as const) {
+    // verification.md도 task 실행 증적이라 closed 뒤에는 남기지 않는다.
+    for (const leaf of ['tasks', 'verification', 'review'] as const) {
       const rel = entry[leaf].rel;
       if (fs.existsSync(path.join(repoRoot, rel))) rels.push(rel);
     }

@@ -52,11 +52,11 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    파일을 지우지 않는다. G16을 통과한 뒤 `--yes`가 검증까지 성공하면, 같은
    remainder / 마감 커밋 안에서 일회성 문서만 지우고 Blueprint `index.md`를
    `closed`로 잠근다. 삭제 대상은 `tasks/<NNN>/tasks.md`,
-   `tasks/<NNN>/review.md`, 그리고 있을 때만 `context-review.md`다. 보존 대상은
-   각 task의 `verification.md`, Blueprint `explain.md`, `index.md`, Distill이다.
-   G16 실패·verify 실패·dry-run·out-of-scope에서는 삭제와 `closed` 전이를
-   수행하지 않으며 문서는 무변경이다. archive 보관, closed Blueprint 재개,
-   과거 보존 문서의 소급 편집은 제안하지 않는다.
+   `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`, 그리고 있을 때만
+   `context-review.md`다. 보존 대상은 Blueprint `explain.md`, `index.md`,
+   Distill이다. G16 실패·verify 실패·dry-run·out-of-scope에서는 삭제와
+   `closed` 전이를 수행하지 않으며 문서는 무변경이다. archive 보관, closed
+   Blueprint 재개, 과거 보존 문서의 소급 편집은 제안하지 않는다.
 
    Before dry-run, ensure at least one task document has `bouncer.commit_intent`
    as **exactly two** Korean `~함` / `~임` strings when you want 배경·의도 on
@@ -117,9 +117,8 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    skipped/declined), whether the worktree was removed or left in place,
    whether the active pointer was advanced to the next blueprint or left
    cleared, and that follow-up stays on sibling Blueprint / `/bouncer-plan`
-   (보존 증적은 `explain.md`·`verification.md`; closed 재개·archive·소급 편집
-   없음). Keep it to those facts — no recap of the steps the user just
-   watched run.
+   (보존 증적은 `explain.md`; closed 재개·archive·소급 편집 없음). Keep it to
+   those facts — no recap of the steps the user just watched run.
 
 ## ACQ (AskUserQuestion) gates
 

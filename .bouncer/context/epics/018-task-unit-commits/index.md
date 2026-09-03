@@ -61,4 +61,4 @@ bouncer:
 * [017 mermaid-authoring-convention](blueprints/017-mermaid-authoring-convention/index.md) - Blueprint 001
 * [018 gate-integrity](blueprints/018-gate-integrity/index.md) - -a 커밋 검사 집합 확장과 하네스 소유 verify 증적 대조
 * [019 promotion-verify](blueprints/019-promotion-verify/index.md) - finalize가 스테이징 전에 검증 명령을 실행하고, Distill 불릿 감사가 손으로 고친 목록에 의존하지 않게 한다
-* [020 completed-context-retention](blueprints/020-completed-context-retention/index.md) - finalize가 일회성 task·review·context-review를 정리하고 explain·verification을 장기 증적으로 남긴다
+* [020 completed-context-retention](blueprints/020-completed-context-retention/index.md) - finalize가 일회성 task·verification·review·context-review를 정리하고 explain을 장기 증적으로 남긴다

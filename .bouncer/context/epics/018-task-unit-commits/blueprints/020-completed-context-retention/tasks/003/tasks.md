@@ -17,6 +17,15 @@ bouncer:
     - docs/context-retention-and-epic-lifecycle.md
     - docs/context-versioning.md
     - docs/workflow.md
+    - scripts/src/lib/finalize.ts
+    - scripts/lib/finalize.js
+    - scripts/src/lib/validate-docs.ts
+    - scripts/lib/validate-docs.js
+    - scripts/src/lib/validate.ts
+    - scripts/lib/validate.js
+    - skills/bouncer-finalize/SKILL.md
+    - test/finalize.test.js
+    - test/validate-structural.test.js
   verify: npm test
   scope_evidence:
     producer: graphify
@@ -54,7 +63,7 @@ bouncer:
       context: []
   commit_intent:
     - 완료 문서와 일회성 실행 기록의 보존 기준이 흩어져 종료 뒤 탐색 범위가 불명확함
-    - 보존 표와 Epic 후속 기준을 문서화해 새 작업의 승인 경계를 유지함
+    - verification까지 finalize 삭제 대상에 포함해 보존 표와 구현·스킬을 맞춤
 ---
 # Tasks
 
@@ -69,8 +78,8 @@ Blueprint: [020](../../index.md)
 ## Goal & intent
 <!-- 구현자가 다른 문서 없이 시작할 수 있게.
      수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다. -->
-사용자는 closed Blueprint에서 `explain.md`와 `verification.md`로 장기 판단과
-검증 근거를 찾고, task·review·context-review 문서는 finalize가 정리한다. 문서는
+사용자는 closed Blueprint에서 `explain.md`로 장기 판단과 검증 요지를 찾고,
+task·verification·review·context-review 문서는 finalize가 정리한다. 문서는
 새 요구가 기존 Epic에 속하는지, sibling Blueprint가 필요한지, 새 Epic이 필요한지를
 일관되게 안내한다.
 
@@ -94,6 +103,20 @@ Blueprint: [020](../../index.md)
   일회성 문서 정리와 장기 증적 보존의 예외를 연결한다.
 - Modify `docs/workflow.md` — finalize 흐름과 완료 Blueprint의 잠금 설명에
   컨텍스트 정리·후속 계획 경계를 반영한다.
+- Modify `scripts/src/lib/finalize.ts` — closed 전이 시 `verification.md`도
+  일회성 삭제 목록에 포함한다.
+- Modify `scripts/lib/finalize.js` — TypeScript 구현과 배포 CJS 산출물을 동기화한다.
+- Modify `scripts/src/lib/validate-docs.ts` — closed 축약 레이아웃이 task leaf를
+  요구하지 않도록 한다.
+- Modify `scripts/lib/validate-docs.js` — TypeScript 구현과 배포 CJS 산출물을
+  동기화한다.
+- Modify `scripts/src/lib/validate.ts` — closed 축약 검사 주석·판정을 맞춘다.
+- Modify `scripts/lib/validate.js` — TypeScript 구현과 배포 CJS 산출물을 동기화한다.
+- Modify `skills/bouncer-finalize/SKILL.md` — 삭제·보존 경계에 verification 삭제를
+  반영한다.
+- Modify `test/finalize.test.js` — verification 삭제·복구·stage 기대를 고정한다.
+- Modify `test/validate-structural.test.js` — closed 축약 레이아웃이 verification
+  없이도 통과함을 고정한다.
 
 ## Do not touch
 <!-- 여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.

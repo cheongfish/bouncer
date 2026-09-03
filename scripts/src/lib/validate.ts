@@ -218,7 +218,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
       file: `${toPosix(blueprintDir)}/tasks/${name}`,
     });
   }
-  // closed는 finalize가 남긴 축약 레이아웃(verification만)을 허용하고,
+  // closed는 finalize가 남긴 축약 레이아웃(task leaf 없음)을 허용하고,
   // 열린 blueprint는 기존처럼 세 leaf를 모두 요구한다.
   const requiredLeaves = requiredTaskLeaves(statusOf(docs.blueprintIndex));
   for (const entry of (tasksListing && tasksListing.entries) || []) {

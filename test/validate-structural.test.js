@@ -1176,7 +1176,7 @@ test('draft and approved blueprints require a complete task unit bundle (S17)', 
   }
 });
 
-test('closed blueprint allows compact layout without tasks.md review.md or context-review.md', () => {
+test('closed blueprint allows compact layout without task leaves or context-review.md', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/index.md`, {
     ...blueprintDoc(),
@@ -1199,21 +1199,9 @@ test('closed blueprint allows compact layout without tasks.md review.md or conte
       comprehension: [],
     },
   }, '# Explain\n');
-  // 두 개 이상의 task 묶음 — verification만 남은 축약 레이아웃.
-  for (const digits of ['001', '002']) {
-    writeDoc(repo, `${BP_REL}/tasks/${digits}/verification.md`, {
-      type: 'bouncer.verification',
-      title: `Verified ${digits}`,
-      description: 'd',
-      resource: `${BP_REL}/tasks/${digits}/verification.md`,
-      tags: ['bouncer'],
-      timestamp: '2026-07-01T00:00:00+09:00',
-      bouncer: {
-        id: `VERIFY-${digits}`, epic_id: '001', blueprint_id: '001', status: 'passed',
-      },
-    });
-  }
+  // closed 축약 — task leaf·context-review 없이 index+explain만 남긴다.
   assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`)));
+  assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`)));
   assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/tasks/001/review.md`)));
   assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
   const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });

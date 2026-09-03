@@ -34,13 +34,13 @@ Epic: [018](../../index.md)
      실행 가능한 테스트 본문 → tasks.md로 이연.
      본문 분량 예산 ~250줄. 초과는 구현 상세 누출 신호 — 쪼개거나 이연. -->
 - 인터페이스: `finalize --yes`는 G16 통과 뒤 해당 Blueprint의
-  `tasks/<NNN>/tasks.md`, `tasks/<NNN>/review.md`, `context-review.md`를
-  제거하고 변경한 `index.md`를 `closed`로 함께 stage한다. `verification.md`와
+  `tasks/<NNN>/tasks.md`, `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`,
+  `context-review.md`를 제거하고 변경한 `index.md`를 `closed`로 함께 stage한다.
   `explain.md`는 남긴다.
 - 데이터·상태: draft·approved Blueprint는 기존의 완전한 task bundle과 full-scale
   `context-review.md` 요구를 유지한다. `closed` Blueprint만 축약 레이아웃을
   허용하며 다시 ready 대상으로 선택하거나 task를 추가하지 않는다.
-- 수용 기준: 삭제 목록·stage 목록·stage/commit 실패 복구·다중 task 보존을 테스트로
+- 수용 기준: 삭제 목록·stage 목록·stage/commit 실패 복구·다중 task 정리를 테스트로
   고정하고, finalize와 plan 문서가 보존·후속 Blueprint 규칙을 동일하게 설명한다.
 - 검증 명령: `npm test`
 - 실패 모드·엣지 케이스: G16·사전 검증·stage·commit 중 어느 단계가 실패해도

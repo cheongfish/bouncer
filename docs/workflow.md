@@ -97,9 +97,9 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   만든 뒤 task에 Interface·Do not touch 절을 채웁니다. 그 다음 plan 게이트를
   다시 돌리면 G18과 다섯 절이 함께 요구됩니다.
 - **마감한 blueprint는 잠깁니다.** `finalize --yes`가 G16 뒤 같은 remainder
-  커밋에서 `tasks/<NNN>/tasks.md`, `tasks/<NNN>/review.md`, 있을 때의
-  `context-review.md`를 지우고 `bouncer.status`를 `closed`로 바꿉니다.
-  `explain.md`와 각 `tasks/<NNN>/verification.md`는 남깁니다. `closed`는
+  커밋에서 `tasks/<NNN>/tasks.md`, `tasks/<NNN>/verification.md`,
+  `tasks/<NNN>/review.md`, 있을 때의 `context-review.md`를 지우고
+  `bouncer.status`를 `closed`로 바꿉니다. `explain.md`는 남깁니다. `closed`는
   종단이라 다시 열거나 task를 붙이지 않습니다. 후속 작업은 같은 Epic의 sibling
   Blueprint이거나 `/bouncer-plan`으로 새 Epic을 계획합니다. 보존·후속 기준의
   정본은

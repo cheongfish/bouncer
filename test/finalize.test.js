@@ -341,6 +341,7 @@ test('--yes stages and commits', () => {
       'src/auth/login.ts',
       `${BP_REL}/explain.md`,
       `${BP_REL}/tasks/001/tasks.md`,
+      `${BP_REL}/tasks/001/verification.md`,
       `${BP_REL}/tasks/001/review.md`,
       `${BP_REL}/index.md`,
     ]);
@@ -420,12 +421,14 @@ test('runtime artifacts are neither violations nor staged', () => {
   assert.deepStrictEqual(res.staged, [
     'src/auth/login.ts',
     `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
     `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
   ]);
   assert.deepStrictEqual(g.calls.staged, [
     'src/auth/login.ts',
     `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
     `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
   ]);
@@ -512,6 +515,7 @@ test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
   assert.deepStrictEqual(g.calls.staged, [
     '.bouncer/Distill.md',
     `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
     `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
   ]);
@@ -727,6 +731,7 @@ function transientRels(blueprintDir = BP_REL, numbers = ['001']) {
   const rels = [];
   for (const digits of numbers) {
     rels.push(`${blueprintDir}/tasks/${digits}/tasks.md`);
+    rels.push(`${blueprintDir}/tasks/${digits}/verification.md`);
     rels.push(`${blueprintDir}/tasks/${digits}/review.md`);
   }
   return rels;
@@ -738,12 +743,9 @@ function assertTransientPresent(repo, blueprintDir = BP_REL, numbers = ['001']) 
   }
 }
 
-function assertDurablePresent(repo, blueprintDir = BP_REL, numbers = ['001']) {
+function assertDurablePresent(repo, blueprintDir = BP_REL) {
   assert.ok(fs.existsSync(path.join(repo, `${blueprintDir}/explain.md`)));
   assert.ok(fs.existsSync(path.join(repo, `${blueprintDir}/index.md`)));
-  for (const digits of numbers) {
-    assert.ok(fs.existsSync(path.join(repo, `${blueprintDir}/tasks/${digits}/verification.md`)));
-  }
 }
 
 test('G16 failure leaves transient docs and approved status untouched', () => {
@@ -751,6 +753,7 @@ test('G16 failure leaves transient docs and approved status untouched', () => {
   fullBlueprint(repo, { comprehensionOk: false });
   writeContextReview(repo);
   const beforeTasks = fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8');
+  const beforeVerification = fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8');
   const beforeReview = fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8');
   const beforeCr = fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8');
   const g = fakeGit(['src/auth/login.ts'], []);
@@ -764,6 +767,10 @@ test('G16 failure leaves transient docs and approved status untouched', () => {
   assert.strictEqual(
     fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
     beforeTasks,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+    beforeVerification,
   );
   assert.strictEqual(
     fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
@@ -860,6 +867,7 @@ test('stage failure restores transient docs and approved status', () => {
   writeContextReview(repo);
   const before = {
     tasks: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+    verification: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
     review: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
     cr: fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
     index: fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'),
@@ -881,6 +889,10 @@ test('stage failure restores transient docs and approved status', () => {
     before.tasks,
   );
   assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+    before.verification,
+  );
+  assert.strictEqual(
     fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
     before.review,
   );
@@ -898,6 +910,7 @@ test('commit failure restores transient docs and approved status', () => {
   writeContextReview(repo);
   const before = {
     tasks: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+    verification: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
     review: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
     cr: fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
     index: fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'),
@@ -919,6 +932,10 @@ test('commit failure restores transient docs and approved status', () => {
   assert.strictEqual(
     fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
     before.tasks,
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+    before.verification,
   );
   assert.strictEqual(
     fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),

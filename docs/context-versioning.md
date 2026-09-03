@@ -39,8 +39,8 @@ git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit 
 최신 상태로 유지하려 들지 마세요. 범위가 바뀌면 새 blueprint를 만드세요.
 
 예외는 `/bouncer-finalize`의 일회성 정리뿐입니다. G16을 통과한 remainder 커밋에서
-`tasks/<NNN>/tasks.md`, `tasks/<NNN>/review.md`, 있을 때의 `context-review.md`를
-지우고, `explain.md`와 각 `tasks/<NNN>/verification.md`는 장기 증적으로 남깁니다.
+`tasks/<NNN>/tasks.md`, `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`,
+있을 때의 `context-review.md`를 지우고, `explain.md`는 장기 증적으로 남깁니다.
 닫힌 Blueprint를 다시 열어 고치지 말고, 후속은 sibling Blueprint나 새 Epic으로
 계획하세요. 상세는
 [context-retention-and-epic-lifecycle.md](context-retention-and-epic-lifecycle.md)에
