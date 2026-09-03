@@ -640,3 +640,64 @@ test('every status returns non-empty reasons', () => {
     assert.ok(result.reasons.every((r) => typeof r === 'string' && r.length > 0));
   }
 });
+
+test('trailing-paren source label matches bare seed as implementation', () => {
+  const repo = tmpRepo();
+  writeConfig(repo);
+  writeGraph(repo, 'context', { nodes: [], links: [] });
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'src::file', label: 'graphify.ts', source_file: 'src/lib/graphify.ts' },
+      { id: 'src::sym', label: 'setupGraphify()', source_file: 'src/lib/graphify.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'src::file', target: 'src::sym', source_file: 'src/lib/graphify.ts' },
+    ],
+  });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const result = graphSuggest({ repoRoot: repo, query: 'graphify', seeds: ['setupGraphify'] });
+  assert.ok(result.candidates.implementation.some((c) => c.path === 'src/lib/graphify.ts'));
+});
+
+test('empty lookup key from () label is not indexed for seed match', () => {
+  const repo = tmpRepo();
+  writeConfig(repo);
+  writeGraph(repo, 'context', { nodes: [], links: [] });
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'a::file', label: 'a.ts', source_file: 'src/a.ts' },
+      { id: 'a::sym', label: '()', source_file: 'src/a.ts' },
+      { id: 'b::file', label: 'b.ts', source_file: 'src/b.ts' },
+      { id: 'b::sym', label: '()', source_file: 'src/b.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'a::file', target: 'a::sym', source_file: 'src/a.ts' },
+      { relation: 'contains', source: 'b::file', target: 'b::sym', source_file: 'src/b.ts' },
+    ],
+  });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const result = graphSuggest({ repoRoot: repo, query: 'empty', seeds: ['()'] });
+  const implPaths = result.candidates.implementation.map((c) => c.path);
+  assert.ok(
+    !(implPaths.includes('src/a.ts') && implPaths.includes('src/b.ts')),
+    `() seed must not surface both empty-key files together, got: ${implPaths.join(', ')}`,
+  );
+});
+
+test('trailing paren with spaces trims to same lookup key as bare seed', () => {
+  const repo = tmpRepo();
+  writeConfig(repo);
+  writeGraph(repo, 'context', { nodes: [], links: [] });
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'src::file', label: 'graphify.ts', source_file: 'src/lib/graphify.ts' },
+      { id: 'src::sym', label: 'setupGraphify ()', source_file: 'src/lib/graphify.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'src::file', target: 'src::sym', source_file: 'src/lib/graphify.ts' },
+    ],
+  });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const result = graphSuggest({ repoRoot: repo, query: 'graphify', seeds: ['setupGraphify'] });
+  assert.ok(result.candidates.implementation.some((c) => c.path === 'src/lib/graphify.ts'));
+});

@@ -112,6 +112,15 @@ function toPosix(p: string): string {
   return p.split('\\').join('/');
 }
 
+// Graphify는 함수 노드 label을 `setupGraphify()`처럼 후행 괄호로 쓰고, tokenize는
+// 괄호를 구분자로 잘라 `setupGraphify`만 seed로 남긴다. 원본 label·norm_label·
+// graphSuggest 결과의 path/score/confidence는 그대로 두고, byLabel 색인·조회
+// 키에서만 맞춰 두 표기가 같은 버킷을 보게 한다. 괄호 제거를 trim보다 먼저 해야
+// `foo ()`가 `foo`와 같은 키가 된다. 빈 키는 색인·조회하지 않는다.
+function lookupKey(value: unknown): string {
+  return String(value || '').toLowerCase().replace(/\(\)$/, '').trim();
+}
+
 /**
  * 후보 점수 → 파일 신뢰도. 3/4·7/8 경계는 Task 003이 그대로 소비한다.
  *
@@ -217,7 +226,8 @@ function loadGraphFile(absPath: string): { graph: LoadedGraph | null; reason?: s
     nodes.push(node);
     byId.set(node.id, node);
     if (label) {
-      const key = label.toLowerCase();
+      const key = lookupKey(label);
+      if (!key) continue;
       const list = byLabel.get(key) || [];
       list.push(node);
       byLabel.set(key, list);
@@ -259,7 +269,7 @@ function labelFiles(
   excludeDirs: string[] = [],
 ): Set<string> {
   const files = new Set<string>();
-  for (const n of graph.byLabel.get(label.toLowerCase()) || []) {
+  for (const n of graph.byLabel.get(lookupKey(label)) || []) {
     if (!n.source_file || !isSafeRepoRelative(n.source_file)) continue;
     const posix = toPosix(n.source_file);
     // exclude·graphify-out 아래 중복은 고유성 판정에서 무시한다.
@@ -360,7 +370,7 @@ function expandFromSeeds(
   const startIds = new Set<string>();
 
   for (const seed of seedLabels) {
-    const nodes = graph.byLabel.get(seed.toLowerCase()) || [];
+    const nodes = graph.byLabel.get(lookupKey(seed)) || [];
     for (const node of nodes) {
       // 제외 경로에만 있는 라벨 히트는 seed로 쓰지 않는다.
       if (
@@ -580,10 +590,11 @@ function graphSuggest(opts: {
   const contextSeedLabels = new Set<string>();
   if (context) {
     for (const seed of seedSet) {
+      const seedKey = lookupKey(seed);
       const lower = seed.toLowerCase();
       for (const node of context.nodes) {
-        const labelHit = node.label && node.label.toLowerCase() === lower;
-        const normHit = node.norm_label && node.norm_label.toLowerCase() === lower;
+        const labelHit = !!(node.label && seedKey && lookupKey(node.label) === seedKey);
+        const normHit = !!(node.norm_label && seedKey && lookupKey(node.norm_label) === seedKey);
         const pathHit = node.source_file && (() => {
           const sf = toPosix(node.source_file).toLowerCase();
           // substring 남용 금지 — 정확 경로 또는 path segment 일치만.
@@ -631,7 +642,10 @@ function graphSuggest(opts: {
     }
     const definedFromContext = [...acc.basis].some((b) => {
       const m = /^defines unique seed (.+)$/.exec(b);
-      return m ? contextSeedLabels.has(m[1]) : false;
+      if (!m) return false;
+      const definedKey = lookupKey(m[1]);
+      if (!definedKey) return false;
+      return [...contextSeedLabels].some((label) => lookupKey(label) === definedKey);
     });
     if (definedFromContext) {
       acc.flags.contextHit = true;
@@ -674,13 +688,17 @@ function graphSuggest(opts: {
       const tgtNode = testGraph.byId.get(link.target);
       const targetIsImpl = source.byId.has(link.target)
         || [...implSpecificLabels].some((l) => {
-          const lower = l.toLowerCase();
-          if (link.target.toLowerCase() === lower) return true;
+          const key = lookupKey(l);
+          if (!key) return false;
+          if (lookupKey(link.target) === key) return true;
           const tgt = source.byId.get(link.target);
-          return !!(tgt && tgt.label && tgt.label.toLowerCase() === lower);
+          return !!(tgt && tgt.label && lookupKey(tgt.label) === key);
         });
       const sourceIsImpl = source.byId.has(link.source)
-        || [...implSpecificLabels].some((l) => link.source.toLowerCase() === l.toLowerCase());
+        || [...implSpecificLabels].some((l) => {
+          const key = lookupKey(l);
+          return !!(key && lookupKey(link.source) === key);
+        });
 
       if (targetIsImpl && srcNode) {
         matchedTestNodeIds.add(srcNode.id);
