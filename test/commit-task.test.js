@@ -160,7 +160,9 @@ function fullBlueprint(repo, {
   }, EXPLAIN_BODY);
 }
 
-function trackingGit(changed, untracked) {
+function trackingGit(changed, untracked, {
+  headSha = 'abcdef0123456789abcdef0123456789abcdef01',
+} = {}) {
   const calls = [];
   return {
     api: {
@@ -168,6 +170,7 @@ function trackingGit(changed, untracked) {
       untrackedFiles: () => untracked,
       stage: (files) => { calls.push('stage'); calls._staged = files; },
       commit: (msg) => { calls.push('commit'); calls._msg = msg; },
+      headSha: () => headSha,
     },
     calls,
   };
@@ -195,6 +198,9 @@ test('--yes stages then commits in that order', () => {
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), ['stage', 'commit']);
+  assert.strictEqual(res.commitSha, 'abcdef01');
+  const tasksRaw = fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8');
+  assert.match(tasksRaw, /commit_sha: abcdef01/);
 });
 
 test('out-of-scope file hard-aborts without staging', () => {

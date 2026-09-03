@@ -99,6 +99,7 @@ function fullBlueprint(repo, {
         '마감은 blueprint 단위로 묶는다',
         '남은 변경은 Distill 승격분 정도다',
       ],
+      commit_sha: 'aabbccdd',
     },
   });
   writeDoc(repo, `${blueprintDir}/tasks/001/verification.md`, {
@@ -424,6 +425,7 @@ test('runtime artifacts are neither violations nor staged', () => {
     `${BP_REL}/tasks/001/verification.md`,
     `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
+    `${BP_REL}/explain.md`,
   ]);
   assert.deepStrictEqual(g.calls.staged, [
     'src/auth/login.ts',
@@ -431,6 +433,7 @@ test('runtime artifacts are neither violations nor staged', () => {
     `${BP_REL}/tasks/001/verification.md`,
     `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
+    `${BP_REL}/explain.md`,
   ]);
 });
 
@@ -518,6 +521,7 @@ test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
     `${BP_REL}/tasks/001/verification.md`,
     `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
+    `${BP_REL}/explain.md`,
   ]);
 });
 
@@ -694,6 +698,7 @@ function writeExtraTaskUnit(repo, number, blueprintDir = BP_REL) {
         '추가 task도 같은 마감으로 묶는다',
         '일회성 문서만 정리하고 증적은 남긴다',
       ],
+      commit_sha: '11223344',
     },
   });
   writeDoc(repo, `${blueprintDir}/tasks/${digits}/verification.md`, {
@@ -819,6 +824,7 @@ test('dry-run reports transient deletions in staged without deleting or locking'
     ...transientRels(),
     `${BP_REL}/context-review.md`,
     `${BP_REL}/index.md`,
+    `${BP_REL}/explain.md`,
   ]) {
     assert.ok(res.staged.includes(rel), `dry-run staged missing ${rel}: ${JSON.stringify(res.staged)}`);
   }
@@ -848,6 +854,7 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
   assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
   assert.ok(g.calls.staged.includes(`${BP_REL}/context-review.md`));
   assert.ok(g.calls.staged.includes(`${BP_REL}/index.md`));
+  assert.ok(g.calls.staged.includes(`${BP_REL}/explain.md`));
   assert.ok(g.calls.staged.includes('src/auth/login.ts'));
   // 삭제 → closed 전이 → stage 순: staged 목록에 일회성 경로가 index보다 앞에 온다.
   const firstTransient = g.calls.staged.findIndex((f) => f.includes('/tasks/') || f.endsWith('context-review.md'));
@@ -855,6 +862,17 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
   assert.ok(firstTransient >= 0 && firstTransient < indexAt);
   assertDurablePresent(repo, BP_REL, numbers);
   assert.match(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), /status: closed/);
+  const explainData = yaml.load(
+    fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8').split(/^---$/m)[1],
+  );
+  assert.deepStrictEqual(explainData.bouncer.task_commits, [
+    { id: '001', sha: 'aabbccdd' },
+    { id: '002', sha: '11223344' },
+  ]);
+  assert.deepStrictEqual(res.taskCommits, [
+    { id: '001', sha: 'aabbccdd' },
+    { id: '002', sha: '11223344' },
+  ]);
 
   const { validateBlueprint } = require('../scripts/lib/validate');
   const re = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });

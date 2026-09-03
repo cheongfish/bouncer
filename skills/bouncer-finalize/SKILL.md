@@ -16,12 +16,12 @@ Close out the active blueprint after every task has been committed via
 task commits already landed on `/bouncer-commit`. Comprehension (explain + quiz)
 runs in this skill, after the Distill promotion proposal has been handled.
 
-**cwd 계약.** step 1의 Distill audit·승격 쓰기와 step 3의 `bouncer finalize`는
-같은 checkout에서 이어진다. execute worktree가 있으면 그 안에서 실행한다.
-승격 audit은 `--repo` 없이 돌리며, 그 cwd가 payload `repoRoot`다.
-`--repo`만 빼고 cwd를 main worktree에 두면 base가 main으로 돌아간다.
-step 5의 worktree 제거만 main worktree에서 한다. execute checkout 안에서
-제거하지 않는다.
+**cwd contract.** Step 1 Distill audit and promotion writes and step 3
+`bouncer finalize` continue in the same checkout. When an execute worktree
+exists, run inside it. Run the promotion audit without `--repo`; that cwd is
+payload `repoRoot`. Keeping cwd on the main worktree while omitting only
+`--repo` makes the base fall back to main. Only step 5 worktree removal runs
+from the main worktree — do not remove from inside the execute checkout.
 
 **Preflight.** Load the active blueprint:
 ```bash
@@ -47,19 +47,23 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    blueprint comprehension entry whose `diff_sha` matches `range_from..HEAD`).
    Fix and re-run until it passes.
 
-   **보존·정리 경계 (CLI 계약 안내).** 삭제의 실제 조건·허용 경로는
-   `finalize --yes` CLI·검증 계약이 정한다 — 스킬이 목록을 다시 계산하거나
-   파일을 지우지 않는다. G16을 통과한 뒤 `--yes`가 검증까지 성공하면, 같은
-   remainder / 마감 커밋 안에서 일회성 문서만 지우고 Blueprint `index.md`를
-   `closed`로 잠근다. 삭제 대상은 `tasks/<NNN>/tasks.md`,
-   `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`, 그리고 있을 때만
-   `context-review.md`다. 보존 대상은 Blueprint `explain.md`, `index.md`,
-   Distill이다. G16 실패·verify 실패·dry-run·out-of-scope에서는 삭제와
-   `closed` 전이를 수행하지 않으며 문서는 무변경이다. archive 보관, closed
-   Blueprint 재개, 과거 보존 문서의 소급 편집은 제안하지 않는다.
+   **Retention vs cleanup boundary (CLI contract pointer).** The actual delete
+   conditions and allowed paths are defined by the `finalize --yes` CLI and
+   validation contract — the skill does not recompute the list or delete files.
+   After G16 passes and `--yes` succeeds through verification, the same
+   remainder / closing commit deletes one-off documents only and locks Blueprint
+   `index.md` to `closed`. Delete targets are `tasks/<NNN>/tasks.md`,
+   `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`, and when present only
+   `context-review.md`. Preserve Blueprint `explain.md`, `index.md`, and
+   Distill. In the same remainder, move each task's `commit_sha` (8 digits)
+   into `explain.md` `bouncer.task_commits`. On G16 failure, verify failure,
+   dry-run, or out-of-scope, do not delete or transition to `closed`; documents
+   stay unchanged. Do not propose archive retention, reopening closed
+   Blueprints, or retroactive edits to preserved documents.
 
    Before dry-run, ensure at least one task document has `bouncer.commit_intent`
-   as **exactly two** Korean `~함` / `~임` strings when you want 배경·의도 on
+   as **exactly two** Korean `~함` / `~임` strings when you want background and
+   intent on
    any Distill remainder commit. Finalize scans every task in number order and
    uses the highest-numbered valid intent (no blueprint `commit_intent`). Prefer
    values written at plan time; if none are length 2, author them on the latest
@@ -77,25 +81,25 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    **ACQ** before `--yes`:
 
    **AskUserQuestion — Remainder commit + worktree**
-   1. **Re-ground**: Distill 승격분 등 remainder를 `finalize --yes`로 커밋하고
-      execute worktree를 정리할지.
-   2. **Recommend-why**: task 커밋은 이미 `/bouncer-commit`이 끝냈고, 마감 후
-      execute checkout은 보통 불필요하므로 커밋과 함께 worktree를 지우는 편이
-      메인 트리로 빨리 돌아가게 함.
+   1. **Re-ground**: Commit remainder including Distill promotion via
+      `finalize --yes` and whether to clean up the execute worktree.
+   2. **Recommend-why**: Task commits already finished on `/bouncer-commit`;
+      after closing, the execute checkout is usually unnecessary, so removing
+      the worktree with the commit gets you back to the main tree faster.
    3. **Options**:
-      - A) `finalize --yes` 커밋 + execute worktree 제거 (Recommended)
-      - B) `finalize --yes` 커밋만 — worktree 유지
-      - C) 메시지/스테이징 수정 후 재확인
-      - D) 취소 — `--yes` 하지 않음
+      - A) `finalize --yes` commit + remove execute worktree (Recommended)
+      - B) `finalize --yes` commit only — keep worktree
+      - C) Fix message/staging and re-check
+      - D) Cancel — do not run `--yes`
 
    On **A** or **B**, commit:
    ```bash
    BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
    ```
-   `--yes`는 스테이징 전에 검증 명령을 실행한다. Shared contract에 따라 pointer를
-   clear한다. `reason: 'verify'` 실패는
-   원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다.
+   `--yes` runs verification commands before staging. Per the shared contract,
+   clear the pointer. A `reason: 'verify'` failure has no bypass other than
+   fixing the cause and rerunning.
    Remember the worktree choice for step 5 (`remove` on A, `keep` on B).
    On **C**, fix and re-dry-run. On **D**, stop without `--yes`.
    (Empty staged set is fine — still run the ACQ so worktree choice is explicit;
@@ -106,18 +110,20 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 5. **Worktree cleanup (from step 3 choice).** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](references/cleanup-handoff.md). Apply the remembered choice without re-asking.
 
 6. **Next-blueprint handoff.** The same [cleanup-handoff.md](references/cleanup-handoff.md) reference handles this only after cleanup and only from the finalize payload; advancement remains confirm-then-`current --set`, never automatic.
-   closed Blueprint는 종단이다 — 다시 열거나 task를 붙이지 않는다. 후속 작업은
-   같은 Epic의 sibling Blueprint 또는 `/bouncer-plan`으로 새 Epic을 계획한다.
-   `--set` 자격(next-only·draft 제외)은 finalize payload와 위 cleanup-handoff
-   계약이 정한다 — 열린 형제에 임의로 `--set`하지 않는다.
+   A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
+   work plans a sibling Blueprint in the same Epic or a new Epic via
+   `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
+   by the finalize payload and the cleanup-handoff contract above — do not
+   arbitrarily `--set` an open sibling.
 
 7. **Report.** Lead with the outcome, then the detail: whether explain/quiz
-   landed, whether a remainder commit landed (and whether 일회성 문서 삭제·축약
-   레이아웃·`closed`가 CLI에 의해 적용됐는지), the PR URL (or that push/PR was
-   skipped/declined), whether the worktree was removed or left in place,
-   whether the active pointer was advanced to the next blueprint or left
-   cleared, and that follow-up stays on sibling Blueprint / `/bouncer-plan`
-   (보존 증적은 `explain.md`; closed 재개·archive·소급 편집 없음). Keep it to
+   landed, whether a remainder commit landed (and whether the CLI applied
+   one-off document deletion, condensed layout, and `closed`), the PR URL (or
+   that push/PR was skipped/declined), whether the worktree was removed or left
+   in place, whether the active pointer was advanced to the next blueprint or
+   left cleared, and that follow-up stays on sibling Blueprint / `/bouncer-plan`
+   (preserved evidence is `explain.md`; no closed reopen, archive, or retroactive
+   edits). Keep it to
    those facts — no recap of the steps the user just watched run.
 
 ## ACQ (AskUserQuestion) gates

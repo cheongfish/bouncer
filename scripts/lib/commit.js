@@ -2,11 +2,14 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const path = require('node:path');
+const fs = require('node:fs');
 const { readDoc } = require('./frontmatter');
+const { renderDoc } = require('./render');
 const { listTasksDocs } = require('./tasks-docs');
 const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = require('./validate');
 const { realGit, buildCommitMessage } = require('./finalize');
 const { makeAllowed, isRuntimeArtifact } = require('./scope');
+const { normalizeCommitSha } = require('./commit-sha');
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
 /**
  * 같은 blueprint에서 지금 닫는 묶음을 제외한 열린 task 중 번호가 가장 앞선 것.
@@ -80,8 +83,31 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
     }
     gitApi.stage(all);
     gitApi.commit(commitMessage);
+    // 커밋 직후 HEAD를 tasks.md에 8자리로 남겨 finalize가 explain.task_commits로 옮긴다.
+    // 이 쓰기는 다음 task 커밋 또는 finalize remainder에 포함된다.
+    let commitSha = null;
+    if (typeof gitApi.headSha === 'function' && taskUnit && taskUnit.tasks && taskUnit.tasks.rel) {
+        commitSha = normalizeCommitSha(gitApi.headSha());
+        if (commitSha) {
+            const abs = path.join(repoRoot, taskUnit.tasks.rel);
+            try {
+                const doc = readDoc(abs);
+                if (doc.data && typeof doc.data === 'object') {
+                    const bouncer = doc.data.bouncer;
+                    if (bouncer && typeof bouncer === 'object') {
+                        bouncer.commit_sha = commitSha;
+                        fs.writeFileSync(abs, renderDoc(doc.data, doc.body));
+                    }
+                }
+            }
+            catch (_e) {
+                // tasks.md 기록이 깨져도 커밋 자체는 이미 성공 — sha는 null로 보고.
+                commitSha = null;
+            }
+        }
+    }
     return {
-        ok: true, committed: true, staged: all, commitMessage, nextTask,
+        ok: true, committed: true, staged: all, commitMessage, nextTask, commitSha,
     };
 }
 // Interface는 commitTask만 공개. findNextOpenTask는 모듈 내부 후보 계산용.

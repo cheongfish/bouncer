@@ -78,10 +78,11 @@ user-confirmed `affected_paths` may authorize changes. Read legacy
 compatibility; do not author the legacy form in new plans.
 
 **Generated evidence fields.** `bouncer.scope_evidence`, verification, review,
-context-review, and comprehension metadata record their respective workflow
-evidence. Treat all of them as data produced by their designated step. Do not
-manufacture values to satisfy a gate; correct the plan, rerun the designated
-step, or return to planning.
+context-review, comprehension metadata, `bouncer.commit_sha` (tasks, 8-char
+hex written by commit), and `bouncer.task_commits` (explain, copied at finalize)
+record their respective workflow evidence. Treat all of them as data produced by
+their designated step. Do not manufacture values to satisfy a gate; correct the
+plan, rerun the designated step, or return to planning.
 
 ## Derived context-digest anchors
 
@@ -106,7 +107,10 @@ A task unit is the three-document bundle
 frontmatter and `resource` path. Root task layouts are input only to
 `bouncer migrate task-layout`. Blueprint-root documents sit beside that
 bundle: `explain.md` (written at finalize) and `context-review.md` (plan
-document consistency).
+document consistency). After finalize deletes task leaves, `explain.md`
+`bouncer.task_commits` keeps `{ id, sha }` rows (8-char hex). context-digest
+re-emits `task-<ddd>-<ddd>-<ddd>` and the short sha as derived headings so
+graph search still resolves task commits.
 
 Harness-written timestamps use **KST** (`Asia/Seoul`, offset `+09:00`), e.g.
 `2026-08-03T18:00:00.000+09:00`. Pass `--timestamp` to override when scaffolding.

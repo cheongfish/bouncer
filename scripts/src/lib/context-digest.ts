@@ -13,6 +13,12 @@ const { TASK_DIR_RE, TASK_UNIT_BASENAMES } = require('./tasks-docs') as {
   TASK_DIR_RE: RegExp;
   TASK_UNIT_BASENAMES: string[];
 };
+const { parseFrontmatter } = require('./frontmatter') as {
+  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
+};
+const { normalizeCommitSha } = require('./commit-sha') as {
+  normalizeCommitSha: (value: unknown) => string | null;
+};
 
 /** graphify가 스캔할 파생 트리 (gitignore 대상 graphify-out 아래). */
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
@@ -54,6 +60,50 @@ function digestRulesFor(rel: unknown): string[] | null {
     return ['## Goal & intent', '## Interface'];
   }
   return null;
+}
+
+/**
+ * explain.md `bouncer.task_commits`에서 그래프 검색 헤딩을 파생한다.
+ * tasks.md 삭제 뒤에도 task 앵커와 8자리 sha가 질의에 걸리게 한다.
+ * 형식: `task-<epic>-<bp>-<id>`, 이어서 `sha`(8 hex). 깨진 항목은 건너뛴다.
+ *
+ * @param {string} markdown - explain 원본(frontmatter 포함)
+ * @param {string} rel - 저장소 상대 경로(explain.md만 대상)
+ * @returns {string[]}
+ */
+function taskCommitHeadings(markdown: string, rel: string): string[] {
+  const norm = String(rel || '').replace(/\\/g, '/');
+  if (!/\/blueprints\/[^/]+\/explain\.md$/.test(norm)) return [];
+  let data: unknown;
+  try {
+    data = parseFrontmatter(markdown).data;
+  } catch (_e) {
+    return [];
+  }
+  if (!data || typeof data !== 'object') return [];
+  const bouncer = (data as Record<string, unknown>).bouncer;
+  if (!bouncer || typeof bouncer !== 'object') return [];
+  const epicId = String((bouncer as Record<string, unknown>).epic_id || '');
+  const bpId = String((bouncer as Record<string, unknown>).blueprint_id || '');
+  if (!/^\d{3}$/.test(epicId) || !/^\d{3}$/.test(bpId)) return [];
+  const rows = (bouncer as Record<string, unknown>).task_commits;
+  if (!Array.isArray(rows)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const id = String((row as Record<string, unknown>).id || '');
+    if (!TASK_DIR_RE.test(id)) continue;
+    const sha = normalizeCommitSha((row as Record<string, unknown>).sha);
+    if (!sha) continue;
+    const taskAnchor = `task-${epicId}-${bpId}-${id}`;
+    for (const label of [taskAnchor, sha]) {
+      if (seen.has(label)) continue;
+      seen.add(label);
+      out.push(label);
+    }
+  }
+  return out;
 }
 
 /** YAML frontmatter(`---` … `---`)만 제거. 본문 중간의 --- 는 건드리지 않는다. */
@@ -327,16 +377,19 @@ function buildContextDigest({ repoRoot, contextDirs }: {
     const touchPaths = isTasksBrief ? touchPathHeadings(raw) : [];
     // 도메인 tags는 모든 화이트리스트 문서에 붙인다. Touch와 달리 tasks.md 전용이 아니다.
     const tags = tagLabels(raw);
+    const commitLabels = taskCommitHeadings(raw, String(rel || ''));
     // 절 본문이 비어도 계층 앵커만 있으면 노드로 남긴다. 둘 다 없으면 예전처럼 생략.
     if (!extracted && anchors.length === 0) continue;
 
     const flat = uniqueFlatName(flattenSlug(rel), used);
     // graphify·소비자는 파생 이름만 본다. 원본 경로는 본문 헤더와 map.json 이 잇는다.
-    // 헤딩 순서: 앵커 → Touch 경로(tasks.md만) → 도메인 태그 → 절 본문.
-    // 앵커·경로·태그를 절보다 앞에 두어 질의 토큰이 label hit 하게 한다.
+    // 헤딩 순서: 앵커 → task_commits(explain) → Touch 경로(tasks.md만) → 도메인 태그 → 절 본문.
     let body = `<!-- source: ${rel} -->\n\n`;
     if (anchors.length) {
       body += `${anchors.map((a) => `## ${a}`).join('\n')}\n\n`;
+    }
+    if (commitLabels.length) {
+      body += `${commitLabels.map((c) => `## ${c}`).join('\n')}\n\n`;
     }
     if (touchPaths.length) {
       body += `${touchPaths.map((p) => `## ${p}`).join('\n')}\n\n`;
@@ -362,6 +415,7 @@ module.exports = {
   anchorsFor,
   touchPathHeadings,
   tagLabels,
+  taskCommitHeadings,
   extractSections,
   buildContextDigest,
 };

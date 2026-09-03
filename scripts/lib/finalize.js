@@ -7,8 +7,9 @@ const { execFileSync } = require('node:child_process');
 const { toPosix } = require('./paths');
 const { validateBlueprint, loadBlueprintDocs } = require('./validate');
 const { clearCurrent, nextBlueprint } = require('./current');
-const { parseFrontmatter } = require('./frontmatter');
+const { parseFrontmatter, readDoc } = require('./frontmatter');
 const { renderDoc } = require('./render');
+const { normalizeCommitSha } = require('./commit-sha');
 const { makeFinalizeAllowed, isRuntimeArtifact } = require('./scope');
 const { readVerifyCommand, executeVerify } = require('./verification');
 const { listTasksDocs } = require('./tasks-docs');
@@ -232,7 +233,52 @@ function realGit(repoRoot) {
         stage: (files) => { if (files.length)
             run(['add', '--', ...files]); },
         commit: (msg) => { run(['commit', '-m', msg]); },
+        headSha: () => run(['rev-parse', 'HEAD']).trim(),
     };
+}
+/**
+ * tasks.md에 적힌 commit_sha를 모아 explain 보존용 task_commits 배열을 만든다.
+ * id는 tasks/<NNN> 디렉터리 숫자(3자리). sha 없는·깨진 항목은 건너뛴다.
+ */
+function collectTaskCommits({ repoRoot, blueprintDir }) {
+    const listing = listTasksDocs({ repoRoot, blueprintDir });
+    const out = [];
+    for (const entry of listing.entries) {
+        if (entry.number == null)
+            continue;
+        const abs = path.join(repoRoot, entry.tasks.rel);
+        if (!fs.existsSync(abs))
+            continue;
+        let data;
+        try {
+            data = readDoc(abs).data;
+        }
+        catch (_e) {
+            continue;
+        }
+        const sha = normalizeCommitSha(asRecord(asRecord(data).bouncer).commit_sha);
+        if (!sha)
+            continue;
+        out.push({ id: String(entry.number).padStart(3, '0'), sha });
+    }
+    return out;
+}
+/**
+ * explain.md frontmatter에 task_commits를 쓴다. 파일이 없으면 false.
+ * 기존 배열은 통째로 교체한다 — finalize가 삭제 직전 스냅샷의 정본이다.
+ */
+function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }) {
+    const explainRel = `${toPosix(blueprintDir)}/explain.md`;
+    const abs = path.join(repoRoot, explainRel);
+    if (!fs.existsSync(abs))
+        return false;
+    const { data, body } = readDoc(abs);
+    if (!data || typeof data !== 'object')
+        return false;
+    const bouncer = asRecord(asRecord(data).bouncer);
+    bouncer.task_commits = taskCommits.map((entry) => ({ id: entry.id, sha: entry.sha }));
+    fs.writeFileSync(abs, renderDoc(data, body));
+    return true;
 }
 function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, verifyExec, }) {
     const gitApi = git || realGit(repoRoot);
@@ -279,13 +325,18 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     // 삭제 대상은 git 변경에 없어도 staged에 넣어 삭제 커밋에 포함한다.
     // dry-run도 같은 목록을 보고해 "무엇이 지워질지"를 미리 보여 준다.
     const staged = mergeLocked(appendUnique(all, transientRels), lockPath);
+    // dry-run: 쓰지 않고 "쓰게 될" 경로만 closed/staged에 반영해 보고한다.
+    // explain.md는 task_commits 기록으로 remainder에 포함될 수 있다.
+    const explainRel = `${toPosix(blueprintDir)}/explain.md`;
+    const dryStaged = (lockPath && fs.existsSync(path.join(repoRoot, explainRel)))
+        ? appendUnique(staged, [explainRel])
+        : staged;
     if (!yes) {
-        // dry-run: 쓰지 않고 "쓰게 될" 경로만 closed/staged에 반영해 보고한다.
         // 읽기 전용 보고가 config.verify 전체를 끌고 오면 안 되므로 검증도 생략.
         return {
             ok: true,
             dryRun: true,
-            staged,
+            staged: dryStaged,
             commitMessage,
             next: computeNext(),
             closed: lockPath,
@@ -345,6 +396,15 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     const indexBefore = indexAbs && fs.existsSync(indexAbs)
         ? fs.readFileSync(indexAbs)
         : null;
+    // task_commits는 삭제 전에 tasks.md에서 읽어 explain에 옮긴다.
+    // explain 스냅샷은 쓰기 실패 복구용 — 소급 편집이 아니라 이번 전이의 일부다.
+    const explainAbs = path.join(repoRoot, explainRel);
+    const explainBefore = fs.existsSync(explainAbs)
+        ? fs.readFileSync(explainAbs)
+        : null;
+    const taskCommits = lockPath
+        ? collectTaskCommits({ repoRoot, blueprintDir })
+        : [];
     const restoreTransient = () => {
         for (const snap of snapshots) {
             fs.mkdirSync(path.dirname(snap.abs), { recursive: true });
@@ -352,14 +412,22 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         }
         if (indexAbs && indexBefore)
             fs.writeFileSync(indexAbs, indexBefore);
+        if (explainAbs && explainBefore)
+            fs.writeFileSync(explainAbs, explainBefore);
     };
+    const stageList = (lockPath && explainBefore)
+        ? appendUnique(staged, [explainRel])
+        : staged;
     try {
+        if (lockPath && explainBefore) {
+            writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits });
+        }
         for (const snap of snapshots)
             fs.unlinkSync(snap.abs);
         // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
         if (lockPath)
             writeClosedLock(repoRoot, lockTarget);
-        gitApi.stage(staged);
+        gitApi.stage(stageList);
         gitApi.commit(commitMessage);
     }
     catch (error) {
@@ -372,13 +440,15 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     return {
         ok: true,
         committed: true,
-        staged,
+        staged: stageList,
         commitMessage,
         pointerCleared,
         next: computeNext(),
         closed: lockPath,
+        taskCommits,
     };
 }
 module.exports = {
     buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
+    collectTaskCommits, writeExplainTaskCommits,
 };

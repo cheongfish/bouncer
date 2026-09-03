@@ -1,8 +1,12 @@
 // scripts/lib/commit.js
 'use strict';
 const path = require('node:path');
+const fs = require('node:fs');
 const { readDoc } = require('./frontmatter') as {
   readDoc: (absPath: string) => { data: unknown; body: string; path: string };
+};
+const { renderDoc } = require('./render') as {
+  renderDoc: (data: unknown, body: string) => string;
 };
 const { listTasksDocs } = require('./tasks-docs') as {
   listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
@@ -31,6 +35,9 @@ const { makeAllowed, isRuntimeArtifact } = require('./scope') as {
   makeAllowed: (opts: { affectedPaths?: unknown; blueprintDir: unknown }) => (file: unknown) => boolean;
   isRuntimeArtifact: (file: unknown) => boolean;
 };
+const { normalizeCommitSha } = require('./commit-sha') as {
+  normalizeCommitSha: (value: unknown) => string | null;
+};
 
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
 
@@ -39,6 +46,7 @@ type GitApi = {
   untrackedFiles: () => string[];
   stage: (files: string[]) => void;
   commit: (msg: string) => void;
+  headSha?: () => string;
 };
 
 type DocLeafLike = { data?: unknown; rel?: string };
@@ -134,8 +142,32 @@ function commitTask({
 
   gitApi.stage(all);
   gitApi.commit(commitMessage);
+
+  // 커밋 직후 HEAD를 tasks.md에 8자리로 남겨 finalize가 explain.task_commits로 옮긴다.
+  // 이 쓰기는 다음 task 커밋 또는 finalize remainder에 포함된다.
+  let commitSha: string | null = null;
+  if (typeof gitApi.headSha === 'function' && taskUnit && taskUnit.tasks && taskUnit.tasks.rel) {
+    commitSha = normalizeCommitSha(gitApi.headSha());
+    if (commitSha) {
+      const abs = path.join(repoRoot, taskUnit.tasks.rel);
+      try {
+        const doc = readDoc(abs);
+        if (doc.data && typeof doc.data === 'object') {
+          const bouncer = (doc.data as Record<string, unknown>).bouncer;
+          if (bouncer && typeof bouncer === 'object') {
+            (bouncer as Record<string, unknown>).commit_sha = commitSha;
+            fs.writeFileSync(abs, renderDoc(doc.data, doc.body));
+          }
+        }
+      } catch (_e) {
+        // tasks.md 기록이 깨져도 커밋 자체는 이미 성공 — sha는 null로 보고.
+        commitSha = null;
+      }
+    }
+  }
+
   return {
-    ok: true, committed: true, staged: all, commitMessage, nextTask,
+    ok: true, committed: true, staged: all, commitMessage, nextTask, commitSha,
   };
 }
 

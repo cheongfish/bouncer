@@ -12,9 +12,49 @@ const {
   anchorsFor,
   touchPathHeadings,
   tagLabels,
+  taskCommitHeadings,
   CONTEXT_DIGEST_OUT,
 } = require('../scripts/lib/context-digest');
 const { tokenize } = require('../scripts/lib/graph-search');
+const { normalizeCommitSha } = require('../scripts/lib/commit-sha');
+
+test('normalizeCommitSha keeps lowercase 8-char contract', () => {
+  assert.strictEqual(normalizeCommitSha('ABCDEF0123456789'), 'abcdef01');
+  assert.strictEqual(normalizeCommitSha('abcdef01'), 'abcdef01');
+  assert.strictEqual(normalizeCommitSha(11223344), '11223344');
+  assert.strictEqual(normalizeCommitSha('abc'), null);
+  assert.strictEqual(normalizeCommitSha('not-hex!!'), null);
+});
+
+test('taskCommitHeadings derives task anchors and 8-char shas from explain', () => {
+  const rel = '.bouncer/context/epics/039-x/blueprints/001-y/explain.md';
+  const md = [
+    '---',
+    'type: bouncer.explain',
+    'bouncer:',
+    "  epic_id: '039'",
+    "  blueprint_id: '001'",
+    '  task_commits:',
+    "    - id: '001'",
+    '      sha: AABBCCDD1122',
+    "    - id: '002'",
+    "      sha: '11223344'",
+    '    - id: bad',
+    '      sha: nope',
+    '---',
+    '',
+    '## Background',
+    'x',
+    '',
+  ].join('\n');
+  assert.deepEqual(taskCommitHeadings(md, rel), [
+    'task-039-001-001',
+    'aabbccdd',
+    'task-039-001-002',
+    '11223344',
+  ]);
+  assert.deepEqual(taskCommitHeadings(md, '.bouncer/context/epics/039-x/index.md'), []);
+});
 
 test('tagLabels keeps domain tags and drops structural ones', () => {
   const fm = [

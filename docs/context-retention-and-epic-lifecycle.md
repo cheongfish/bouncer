@@ -25,18 +25,25 @@ Git commit이 파일 diff와 변경 이력의 정본이다. 컨텍스트 문서�
 | 문서 | 완료 후 기본 처리 | 역할 |
 | --- | --- | --- |
 | context / epic / blueprint `index.md` | 보존 | 탐색, 상태, 목표와 종료 조건 |
-| `explain.md` | 보존 | 완료된 구현의 목적, 실제 변경 범위, 핵심 판단·검증 요약 |
+| `explain.md` | 보존 | 완료된 구현의 목적, 실제 변경 범위, 핵심 판단·검증 요약, task 커밋 좌표(`bouncer.task_commits`) |
 | `tasks/<NNN>/tasks.md` | finalize에서 삭제 | task 수행을 위한 절차와 세부 체크리스트 |
 | `tasks/<NNN>/verification.md` | finalize에서 삭제 | 실행 당시의 검증 명령·증적 기록 |
 | `tasks/<NNN>/review.md` | finalize에서 삭제 | 구현 당시의 리뷰 finding과 처리 결과 |
 | `context-review.md` | finalize에서 삭제(있을 때만) | 계획 문서의 일회성 정합성 판정 |
 
 `/bouncer-finalize`는 `explain.md`를 작성하고 G16을 통과한 뒤, 같은 remainder
-commit에서 `tasks/<NNN>/tasks.md`, `tasks/<NNN>/verification.md`,
-`tasks/<NNN>/review.md`, 있을 때의 `context-review.md`를 지우고 Blueprint를
-`closed`로 바꾼다. 후속에 필요한 제약·판단·검증 요지는 `explain.md`에 옮긴다.
+commit에서 각 task의 `bouncer.commit_sha`(8자리)를 `explain.md`의
+`bouncer.task_commits`로 옮기고, `tasks/<NNN>/tasks.md`,
+`tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`, 있을 때의
+`context-review.md`를 지운 뒤 Blueprint를 `closed`로 바꾼다. 후속에 필요한
+제약·판단·검증 요지는 `explain.md`에 옮긴다.
 미해결 위험은 새 sibling Blueprint 범위로 옮기거나 `explain.md`에 후속 제약으로
 적는다.
+
+`task_commits` 항목은 `{ id: '<NNN>', sha: '<8 hex>' }`다. `/bouncer-commit`이
+커밋 직후 `tasks.md`에 `commit_sha`를 남기고, finalize가 삭제 전에 모아
+explain에 기록한다. context-digest는 이 배열에서 `task-<epic>-<bp>-<id>` 앵커와
+8자리 sha 헤딩을 파생해 그래프 질의에 남긴다.
 
 닫힌 Blueprint의 축약 레이아웃은 위 삭제 대상의 부재를 허용한다. 구조 검증은
 `draft` 또는 `approved` Blueprint에서 기존 task bundle과 full 계획의

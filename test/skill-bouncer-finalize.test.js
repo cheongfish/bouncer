@@ -70,9 +70,12 @@ test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR
 
 test('bouncer-finalize --yes runs verify before staging with no bypass on reason verify', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /`--yes`는 스테이징 전에 검증 명령을 실행한다/);
+  assert.match(body, /`--yes`\s+runs verification commands before staging|스테이징 전에 검증 명령을 실행한다/);
   assert.match(body, /reason: 'verify'/);
-  assert.match(body, /원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다/);
+  assert.match(
+    body,
+    /no bypass other than[\s\S]{0,40}fixing the cause and rerunning|원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다/,
+  );
 });
 
 
@@ -86,10 +89,15 @@ test('bouncer-finalize promotes BP explain notes into project Distill', () => {
 test('bouncer-finalize fills PR from explain.md and excludes 이해 상태', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /explain\.md/);
-  // Distill 승격·PR 복사 금지를 각각 긍정 문구로 잠근다(한쪽만 남아도 통과하지 않음).
-  // 스킬 줄바꿈 wrapping을 허용한다.
-  assert.match(body, /이해 상태는 Distill로\s*승격하지 않는다/);
-  assert.match(body, /이해 상태는 PR에\s*옮기지 않는다/);
+  // Distill promotion and PR copy bans — each must appear (either language).
+  assert.match(
+    body,
+    /do not promote `## 이해 상태` to Distill|이해 상태는 Distill로\s*승격하지 않는다/,
+  );
+  assert.match(
+    body,
+    /do not move `## 이해 상태`\s*into the PR|이해 상태는 PR에\s*옮기지 않는다/,
+  );
   // PR 본문 소스는 explain.md 채움 규칙으로 못 박는다(부재 단언이 아님).
   assert.match(body, /PR body[\s\S]{0,200}explain\.md|explain\.md[\s\S]{0,200}PR body/);
   for (const s of ['## Background', '## Intuition', '## Code']) {
@@ -131,7 +139,7 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
 
   // Explain은 실제 열리는 Markdown 링크. 평문 경로·Bouncer 메타 절은 없다.
   assert.match(PR_TEMPLATE, /Explain:.*\[[^\]]+\]\([^)]+\)/);
-  assert.match(draftPr, /Explain[\s\S]{0,120}\[[^\]]+\]\([^)]+\)|Markdown 링크|head branch|commit/);
+  assert.match(draftPr, /Explain[\s\S]{0,120}\[[^\]]+\]\([^)]+\)|Markdown link|head branch|commit/);
   assert.match(draftPr, /pushed head|head branch|commit/i);
   for (const doc of [PR_TEMPLATE, githubTpl, gitlabTpl]) {
     assert.doesNotMatch(doc, /## 🚦 Bouncer/);
@@ -142,8 +150,8 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
   assert.match(draftPr, /Bouncer meta|Bouncer 메타|Features\/Fixes/i);
   assert.match(draftPr, /Never emit|넣지 않|출력하지/i);
 
-  // 이해·Quiz·comprehension은 제외 지시로만 언급. 생성 명령에 --label 없음.
-  assert.match(body, /이해 상태는 PR에\s*옮기지 않는다/);
+  // Comprehension fields excluded by instruction only; create command has no --label.
+  assert.match(body, /do not move `## 이해 상태`\s*into the PR|이해 상태는 PR에\s*옮기지 않는다/);
   assert.match(draftPr, /Quiz|이해 상태|comprehension|quiz_score/i);
   assert.match(draftPr, /Never copy|옮기지 않|넣지 않|제외/i);
   const createBlock = (draftPr.match(/```bash\n([\s\S]*?)```/) || [])[1] || '';
@@ -156,7 +164,7 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
   // 검증: 다중 task 번호순 집계 + finalize --yes 최종 결과 우선.
   assert.match(draftPr, /verification|검증/);
   assert.match(draftPr, /번호|number|task/i);
-  assert.match(draftPr, /finalize\s+--yes|최종 검증/);
+  assert.match(draftPr, /finalize\s+--yes|final verify|최종 검증/);
   assert.match(draftPr, /우선|most recent|최근/i);
 
   // Mermaid: 조건 충족 시에만, 아니면 제목까지 제거.
@@ -173,7 +181,7 @@ test('bouncer-finalize opens draft PR without a second body-confirm ACQ', () => 
   // 게이트 목록에 PR body confirm이 없다(긍정 문구로 셋만 나열됨을 단언)
   assert.match(body, /Gates in this skill[\s\S]{0,200}Next blueprint/);
   // 승인 뒤 재확인 없이 생성한다는 규칙
-  assert.match(body, /without a further confirmation|재확인하지 않는다/);
+  assert.match(body, /without a further confirmation|without.*second.*confirm|재확인하지 않는다/);
 });
 
 test('bouncer-finalize offers next-blueprint handoff via current --set after confirm', () => {
@@ -202,7 +210,10 @@ test('bouncer-finalize next handoff is next blueprint only (task advance lives o
 test('bouncer-finalize splits sameEpicPending into --set vs /bouncer-plan', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /sameEpicPending/);
-  assert.match(body, /draft.*형제[\s\S]{0,80}--set.*제안하지 않는다/);
+  assert.match(
+    body,
+    /Do not propose `--set` on draft siblings|draft.*형제[\s\S]{0,80}--set.*(?:propose|제안)/i,
+  );
   assert.match(body, /\/bouncer-plan/);
   assert.match(body, /ready: false/);
 });
@@ -297,7 +308,10 @@ test('bouncer-finalize handles empty proposals and delegates ACQ fallback to the
 // 상한 초과는 ACQ 정보·replace/drop 우선 검토일 뿐, 게이트·자동 절삭이 아니다.
 test('bouncer-finalize surfaces over-limit shards in the promotion ACQ', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /상한[\s\S]{0,80}초과[\s\S]{0,120}ACQ|ACQ[\s\S]{0,160}초과/);
+  assert.match(
+    body,
+    /over-limit[\s\S]{0,80}ACQ|ACQ[\s\S]{0,160}over-limit|상한[\s\S]{0,80}초과[\s\S]{0,120}ACQ|ACQ[\s\S]{0,160}초과/,
+  );
   assert.match(body, /`replace`[\s\S]{0,60}`drop`[\s\S]{0,20}`add`/);
 });
 
@@ -319,33 +333,39 @@ test('bouncer-finalize documents retention cleanup and sibling follow-up after G
   assert.match(body, /remainder|잔여|마감 커밋/i);
   assert.match(
     body,
-    /G16[\s\S]{0,220}(?:삭제|지우|수행하지|무변경)|(?:삭제|지우)[\s\S]{0,220}G16/,
+    /G16[\s\S]{0,220}(?:do not delete|삭제|지우|수행하지|무변경)|(?:do not delete|삭제|지우)[\s\S]{0,220}G16/,
   );
   assert.match(
     body,
-    /(?:verify|검증)[\s\S]{0,160}(?:실패|failure)[\s\S]{0,160}(?:삭제|지우|수행하지|무변경)/i,
+    /(?:verify|검증)[\s\S]{0,160}(?:failure|실패)[\s\S]{0,160}(?:do not delete|삭제|지우|수행하지|무변경|unchanged)/i,
   );
   assert.match(body, /finalize\s+--yes/);
 
-  // archive·재개·소급 편집 거부는 같은 문장(근접)에서 잠근다 — 단독 단어 매칭 방지.
+  // No archive / reopen / retroactive edits — locked in one nearby sentence.
   assert.match(
     body,
-    /archive[\s\S]{0,80}(?:재개|다시 열)[\s\S]{0,80}소급[\s\S]{0,40}제안하지 않/i,
+    /Do not propose archive[\s\S]{0,160}retroactive|archive[\s\S]{0,80}(?:재개|다시 열)[\s\S]{0,80}소급[\s\S]{0,40}제안하지 않/i,
   );
 
-  // 후속은 sibling 또는 새 Epic; `--set` 자격은 payload·cleanup-handoff에 맡긴다.
+  // Follow-up via sibling or new Epic; `--set` eligibility from payload / cleanup-handoff.
   assert.match(body, /sibling|형제 Blueprint|형제 blueprint/i);
-  assert.match(body, /\/bouncer-plan|새 Epic/);
-  assert.match(body, /closed[\s\S]{0,120}(?:다시 열|재개)|(?:다시 열|재개)[\s\S]{0,120}closed/i);
+  assert.match(body, /\/bouncer-plan|new Epic|새 Epic/);
+  assert.match(
+    body,
+    /closed[\s\S]{0,120}(?:reopen|do not reopen|다시 열|재개)|(?:do not reopen|다시 열|재개)[\s\S]{0,120}closed/i,
+  );
   assert.match(
     body,
     /`--set`[\s\S]{0,120}(?:finalize payload|cleanup-handoff)|(?:finalize payload|cleanup-handoff)[\s\S]{0,120}`--set`/i,
   );
-  assert.match(body, /임의로\s*`--set`하지 않는다|열린 형제에 임의로/);
-
-  // 최종 보고에 보존·정리·후속 경계를 남긴다.
   assert.match(
     body,
-    /\*\*Report\.\*\*[\s\S]{0,900}(?:삭제|보존|축약|일회성|sibling|형제)/i,
+    /do not[\s\S]{0,20}arbitrarily `--set`|임의로\s*`--set`하지 않는다|열린 형제에 임의로/,
+  );
+
+  // Final report covers retention, cleanup, and follow-up boundaries.
+  assert.match(
+    body,
+    /\*\*Report\.\*\*[\s\S]{0,900}(?:deletion|preserved|one-off|condensed|삭제|보존|축약|일회성|sibling|형제)/i,
   );
 });
