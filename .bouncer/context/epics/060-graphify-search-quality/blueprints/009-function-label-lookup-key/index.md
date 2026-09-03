@@ -15,7 +15,7 @@ bouncer:
   id: '009'
   epic_id: '060'
   blueprint_id: '009'
-  status: approved
+  status: closed
   commit_type: fix
   scale: full
   supersedes: []
