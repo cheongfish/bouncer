@@ -65,3 +65,4 @@ flowchart LR
 * [영어 검색 계약 고정](blueprints/006-english-search-contract/index.md) - 컨텍스트 본문 언어와 검색 어휘 언어를 분리하고, 앵커 문법과 runner 질의 언어를 계약으로 고정한다.
 * [파생 앵커와 다이제스트 커버리지](blueprints/007-derived-anchors-and-coverage/index.md) - Emit hierarchy anchors, Touch path headings, and domain tag labels from context-digest, and index all Distill shard sections so no target document vanishes.
 * [스코프 분리와 세 스코프 보고](blueprints/008-scope-separation-and-reporting/index.md) - Split the test scope out of source_dirs, always report a test scope entry from graph-sync, and remove the last root graphify-out/graph.json references.
+* [함수 label 조회 키 정규화](blueprints/009-function-label-lookup-key/index.md) - graph-search의 byLabel 색인과 조회를 하나의 정규화 키로 통일해 `setupGraphify()` 표기와 `setupGraphify` seed가 매칭되게 한다
