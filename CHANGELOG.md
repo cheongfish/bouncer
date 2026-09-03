@@ -7,6 +7,27 @@
 
 ## [Unreleased]
 
+## [1.3.4] — 2026-09-03
+
+1.3.3 이후 graphify 스코프 분리, 컨텍스트 코퍼스 통합, 완료 컨텍스트 보존.
+
+### Added
+
+- **세 스코프 보고** — source·test·context graphify 스코프를 분리하고 세 스코프
+  보고 계약을 고정한다.
+- **완료 컨텍스트 보존** — finalize가 완료 컨텍스트를 보존하고, 후속 blueprint
+  규칙과 일회성 계획 문서 정리·축약 레이아웃 검증을 수행한다.
+- **컨텍스트 보존 정책 문서** — 완료 후 보존·후속 작업 기준을 문서화한다.
+- **task 커밋 좌표** — commit이 `tasks.md`에 8자리 `commit_sha`를 남기고,
+  finalize가 `explain.md` `task_commits`로 옮겨 context-digest가 task 앵커·sha
+  헤딩을 파생한다.
+
+### Changed
+
+- **에픽 코퍼스 통합** — 64개 epic을 11개 주제 계층으로 통합한다.
+- **저장소 graphify config** — 세 스코프로 전환하고 루트 `graph.json` 참조를
+  정리한다.
+
 ## [1.3.3] — 2026-09-01
 
 1.3.2 이후 context-digest 검색 라벨 생산과 에픽 색인 정합성 복구.
