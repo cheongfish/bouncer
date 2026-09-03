@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '018'
   blueprint_id: '020'
-  status: ready
+  status: verified
   affected_paths:
     - skills/bouncer-finalize/SKILL.md
     - test/skill-bouncer-finalize.test.js

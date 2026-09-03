@@ -47,6 +47,17 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    blueprint comprehension entry whose `diff_sha` matches `range_from..HEAD`).
    Fix and re-run until it passes.
 
+   **보존·정리 경계 (CLI 계약 안내).** 삭제의 실제 조건·허용 경로는
+   `finalize --yes` CLI·검증 계약이 정한다 — 스킬이 목록을 다시 계산하거나
+   파일을 지우지 않는다. G16을 통과한 뒤 `--yes`가 검증까지 성공하면, 같은
+   remainder / 마감 커밋 안에서 일회성 문서만 지우고 Blueprint `index.md`를
+   `closed`로 잠근다. 삭제 대상은 `tasks/<NNN>/tasks.md`,
+   `tasks/<NNN>/review.md`, 그리고 있을 때만 `context-review.md`다. 보존 대상은
+   각 task의 `verification.md`, Blueprint `explain.md`, `index.md`, Distill이다.
+   G16 실패·verify 실패·dry-run·out-of-scope에서는 삭제와 `closed` 전이를
+   수행하지 않으며 문서는 무변경이다. archive 보관, closed Blueprint 재개,
+   과거 보존 문서의 소급 편집은 제안하지 않는다.
+
    Before dry-run, ensure at least one task document has `bouncer.commit_intent`
    as **exactly two** Korean `~함` / `~임` strings when you want 배경·의도 on
    any Distill remainder commit. Finalize scans every task in number order and
@@ -95,12 +106,19 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 5. **Worktree cleanup (from step 3 choice).** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](references/cleanup-handoff.md). Apply the remembered choice without re-asking.
 
 6. **Next-blueprint handoff.** The same [cleanup-handoff.md](references/cleanup-handoff.md) reference handles this only after cleanup and only from the finalize payload; advancement remains confirm-then-`current --set`, never automatic.
+   closed Blueprint는 종단이다 — 다시 열거나 task를 붙이지 않는다. 후속 작업은
+   같은 Epic의 sibling Blueprint 또는 `/bouncer-plan`으로 새 Epic을 계획한다.
+   `--set` 자격(next-only·draft 제외)은 finalize payload와 위 cleanup-handoff
+   계약이 정한다 — 열린 형제에 임의로 `--set`하지 않는다.
 
 7. **Report.** Lead with the outcome, then the detail: whether explain/quiz
-   landed, whether a remainder commit landed, the PR URL (or that push/PR was
-   skipped/declined), whether the worktree was removed or left in place, and
+   landed, whether a remainder commit landed (and whether 일회성 문서 삭제·축약
+   레이아웃·`closed`가 CLI에 의해 적용됐는지), the PR URL (or that push/PR was
+   skipped/declined), whether the worktree was removed or left in place,
    whether the active pointer was advanced to the next blueprint or left
-   cleared. Keep it to those facts — no recap of the steps the user just
+   cleared, and that follow-up stays on sibling Blueprint / `/bouncer-plan`
+   (보존 증적은 `explain.md`·`verification.md`; closed 재개·archive·소급 편집
+   없음). Keep it to those facts — no recap of the steps the user just
    watched run.
 
 ## ACQ (AskUserQuestion) gates

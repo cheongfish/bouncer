@@ -11,12 +11,37 @@ bouncer:
   id: VERIFY-002
   epic_id: '018'
   blueprint_id: '020'
-  status: pending
+  status: passed
+  verification:
+    command: npm test
+    ran_at: '2026-09-03T10:13:58.500+09:00'
+    exit_code: 0
+    output_tail: |-
+      ---
+        duration_ms: 11.893084
+        type: 'test'
+        ...
+      # Subtest: runVerification rejects missing unit verification.md without creating it
+      ok 994 - runVerification rejects missing unit verification.md without creating it
+        ---
+        duration_ms: 9.943807
+        type: 'test'
+        ...
+      1..994
+      # tests 994
+      # suites 0
+      # pass 994
+      # fail 0
+      # cancelled 0
+      # skipped 0
+      # todo 0
+      # duration_ms 1987.863237
 ---
 # Verification
 
 ## Command
-<command>
+`npm test`
 
 ## Evidence
-<result>
+Ran at: 2026-09-03T10:13:58.500+09:00
+Exit code: 0
