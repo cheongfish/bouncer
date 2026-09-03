@@ -2,19 +2,14 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseFrontmatter } = require('./frontmatter') as {
-  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
-};
-const { runtimePaths } = require('./runtime-state') as {
-  runtimePaths: (opts: { repoRoot: string }) => RuntimeLike;
-};
-const { DISTILL_INDEX, DISTILL_ROOT } = require('./layout') as {
-  DISTILL_INDEX: string;
-  DISTILL_ROOT: string;
-};
-const { toPosix } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-};
+import frontmatter = require('./frontmatter');
+const { parseFrontmatter } = frontmatter;
+import runtimeState = require('./runtime-state');
+const { runtimePaths } = runtimeState;
+import layout = require('./layout');
+const { DISTILL_INDEX, DISTILL_ROOT } = layout;
+import paths = require('./paths');
+const { toPosix } = paths;
 
 const DISTILL_VERSION = 1;
 
@@ -200,10 +195,13 @@ function legacyResult(repoRoot: string, content: string, reason: string) {
     path: DISTILL_INDEX,
     content,
     body: content,
-    shards: [],
-    ids: [],
+    shards: [] as DistillShard[],
+    ids: [] as string[],
     reason,
     repoRoot,
+    // 샤드 인덱스와 같은 필드 이름을 유지해 소비자가 모드 분기 없이 읽게 한다.
+    routingEnabled: false,
+    routing_enabled: false,
   };
 }
 
@@ -252,15 +250,19 @@ function readShards({
     return legacyResult(root, raw, 'index-shards-invalid');
   }
 
-  const shards = declarations.map((declaration) => readShard(root, declaration as Record<string, unknown>));
-  const ids = shards.map((entry) => entry && entry.id);
+  const loaded = declarations.map((declaration) => readShard(root, declaration as Record<string, unknown>));
+  const ids = loaded.map((entry) => entry && entry.id);
   if (
-    shards.some((entry) => !entry)
+    loaded.some((entry) => !entry)
     || ids.some((id) => !id)
     || new Set(ids).size !== ids.length
   ) {
     return legacyResult(root, raw, 'shard-unreadable');
   }
+  // 위에서 null·중복을 거절한 뒤에만 DistillShard[]로 좁힌다. filter 타입 가드를
+  // 쓰면 동일 런타임인데 호출부마다 (DistillShard|null)[] 잔여가 남는다.
+  const shards = loaded as DistillShard[];
+  const shardIds = ids as string[];
 
   const routingEnabled = indexMeta.routing_enabled === true
     || indexMeta.routingEnabled === true;
@@ -276,7 +278,7 @@ function readShards({
     routingEnabled,
     routing_enabled: routingEnabled,
     shards,
-    ids,
+    ids: shardIds,
   };
 }
 
@@ -462,7 +464,7 @@ function renderShards(input: {
   return chosen.map((shard) => shard.body || shard.content || '').filter(Boolean).join('\n\n');
 }
 
-module.exports = {
+export = {
   DISTILL_VERSION,
   resolveDistillRoot,
   readShards,

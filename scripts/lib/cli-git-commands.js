@@ -1,10 +1,14 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { parseFlags } = require('./cli-flags');
-const { finalize } = require('./finalize');
-const { commitTask } = require('./commit');
-const { seedWorktree } = require('./seed-worktree');
-const { planImport, applyImport } = require('./import-history');
+const cliFlags = require("./cli-flags");
+const { parseFlags } = cliFlags;
+const finalizeMod = require("./finalize");
+const { finalize } = finalizeMod;
+const commit = require("./commit");
+const { commitTask } = commit;
+const seedWorktreeMod = require("./seed-worktree");
+const { seedWorktree } = seedWorktreeMod;
+const importHistory = require("./import-history");
+const { planImport, applyImport } = importHistory;
 function catchMessage(error) {
     // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
     // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.

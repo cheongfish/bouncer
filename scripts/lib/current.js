@@ -1,11 +1,14 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { readDoc } = require('./frontmatter');
-const { epicDirOf, toPosix } = require('./paths');
-const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = require('./runtime-state');
-const { listTasksDocs } = require('./tasks-docs');
+const frontmatter = require("./frontmatter");
+const { readDoc } = frontmatter;
+const paths = require("./paths");
+const { epicDirOf, toPosix } = paths;
+const runtimeState = require("./runtime-state");
+const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = runtimeState;
+const tasksDocs = require("./tasks-docs");
+const { listTasksDocs } = tasksDocs;
 const READY_TASK_STATUS = ['ready', 'in_progress'];
 // epic `## Blueprints` 링크 대상(예: `blueprints/BP-001-slug/index.md`)과 매칭.
 // blueprint directory 이름만 캡처; title 텍스트와 한 줄 purpose는 무시.

@@ -1,8 +1,8 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT, DEFAULT_CONTEXT_OUT, realExcludeDirs, } = require('./graph-scope');
+const graphScope = require("./graph-scope");
+const { DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT, DEFAULT_CONTEXT_OUT, realExcludeDirs, } = graphScope;
 // 점수표는 Task 003·평가 corpus가 같은 숫자를 재사용하므로 상수로 고정한다.
 const SCORE = {
     uniqueSeedDefinition: 5,

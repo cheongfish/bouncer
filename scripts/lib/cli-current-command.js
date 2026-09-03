@@ -1,10 +1,13 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { parseFlags } = require('./cli-flags');
+const cliFlags = require("./cli-flags");
+const { parseFlags } = cliFlags;
 const { execFileSync } = require('node:child_process');
-const { validateBlueprint } = require('./validate');
-const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, resolvePointerTask, presentCurrent, } = require('./current');
-const { readConfig } = require('./config');
+const validate = require("./validate");
+const { validateBlueprint } = validate;
+const current = require("./current");
+const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, resolvePointerTask, presentCurrent, } = current;
+const config = require("./config");
+const { readConfig } = config;
 function cmdCurrent(rest, io) {
     const f = parseFlags(rest);
     // hasOwnProperty: --set/--task 가 boolean true(값 없음)여도 "요청함"으로 본다.

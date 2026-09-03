@@ -1,12 +1,16 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { readShards } = require('./distill');
-const { DISTILL_SHARD_DIR } = require('./layout');
-const { TASK_DIR_RE, TASK_UNIT_BASENAMES } = require('./tasks-docs');
-const { parseFrontmatter } = require('./frontmatter');
-const { normalizeCommitSha } = require('./commit-sha');
+const distill = require("./distill");
+const { readShards } = distill;
+const layout = require("./layout");
+const { DISTILL_SHARD_DIR } = layout;
+const tasksDocs = require("./tasks-docs");
+const { TASK_DIR_RE, TASK_UNIT_BASENAMES } = tasksDocs;
+const frontmatter = require("./frontmatter");
+const { parseFrontmatter } = frontmatter;
+const commitSha = require("./commit-sha");
+const { normalizeCommitSha } = commitSha;
 /** graphify가 스캔할 파생 트리 (gitignore 대상 graphify-out 아래). */
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
 const DIGEST_MAP_REL = 'graphify-out/context-src/map.json';

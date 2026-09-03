@@ -1,5 +1,4 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 // 레거시 단일/번호 문서와 새 tasks/<NNN>/ 묶음을 한 모듈에서만 판정한다.
@@ -86,7 +85,8 @@ function makeEntry({ dir, number, tasks, verification, review, }) {
  * invalidDirs 는 이름만 담아 두고, 거절은 002 게이트가 한다.
  */
 function listTasksDocs({ repoRoot, blueprintDir }) {
-    // paths ↔ tasks-docs 순환을 피하려고 함수 안에서 require.
+    // paths ↔ tasks-docs 순환: 최상단 import = require는 로드 시점을 앞당겨
+    // 초기화 순환을 만든다. 호출 시점 지연 require를 유지한다.
     const { parsePathIds, toPosix } = require('./paths');
     const bp = toPosix(blueprintDir);
     const absDir = path.join(repoRoot, bp);

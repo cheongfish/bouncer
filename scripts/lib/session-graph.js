@@ -1,9 +1,12 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { init, inspectBootstrap } = require('./init');
-const { nowIsoKst } = require('./time');
-const { realGraphifyEnabled, realSourceDirs, realContextDirs, realTestDirs, realExcludeDirs, realExistingDirs, newestMtimeUnder, realNewestMtime, realGraphMtime, resolveGraphScopes, SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT, DEFAULT_CONTEXT_OUT, DEFAULT_CONTEXT_DIRS, } = require('./graph-scope');
-const { realHasGraphify, defaultExecGraphify, normalizeGraphPaths, runGraphifyUpdate, partOutDir, } = require('./graph-exec');
+const initMod = require("./init");
+const { init, inspectBootstrap } = initMod;
+const time = require("./time");
+const { nowIsoKst } = time;
+const graphScope = require("./graph-scope");
+const { realGraphifyEnabled, realSourceDirs, realContextDirs, realTestDirs, realExcludeDirs, realExistingDirs, newestMtimeUnder, realNewestMtime, realGraphMtime, resolveGraphScopes, SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT, DEFAULT_CONTEXT_OUT, DEFAULT_CONTEXT_DIRS, } = graphScope;
+const graphExec = require("./graph-exec");
+const { realHasGraphify, defaultExecGraphify, normalizeGraphPaths, runGraphifyUpdate, partOutDir, } = graphExec;
 function catchMessageOrString(error) {
     const message = error && error.message;
     return message ? String(message) : String(error);

@@ -123,7 +123,8 @@ function listTasksDocs({ repoRoot, blueprintDir }: {
   repoRoot: string;
   blueprintDir: string;
 }): TasksDocsListing {
-  // paths ↔ tasks-docs 순환을 피하려고 함수 안에서 require.
+  // paths ↔ tasks-docs 순환: 최상단 import = require는 로드 시점을 앞당겨
+  // 초기화 순환을 만든다. 호출 시점 지연 require를 유지한다.
   const { parsePathIds, toPosix } = require('./paths');
   const bp = toPosix(blueprintDir);
   const absDir = path.join(repoRoot, bp);
@@ -186,7 +187,7 @@ function listTasksDocs({ repoRoot, blueprintDir }: {
   return { entries, mixed: false, legacy: legacyFiles.length > 0, legacyFiles, invalidDirs };
 }
 
-module.exports = {
+export = {
   LEGACY_TASKS_BASENAME,
   INITIAL_NUMBERED_TASKS_BASENAME,
   NUMBERED_TASKS_RE,

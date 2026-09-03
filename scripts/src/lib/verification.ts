@@ -3,57 +3,30 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
-const { readDoc } = require('./frontmatter') as {
-  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
-};
-const { renderDoc } = require('./render') as {
-  renderDoc: (data: unknown, body: string) => string;
-};
-const { isCanonicalBlueprintDir } = require('./layout') as {
-  isCanonicalBlueprintDir: (value: unknown) => boolean;
-};
-const { nowIsoKst } = require('./time') as {
-  nowIsoKst: (date?: Date) => string;
-};
-const { listTasksDocs } = require('./tasks-docs') as {
-  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
-    mixed: boolean;
-    entries: Array<{
-      rel: string;
-      dir: string | null;
-      number: number | null;
-      tasks: { rel: string; id: string | null };
-      verification: { rel: string; id: string | null };
-      review: { rel: string; id: string | null };
-    }>;
-  };
-};
+import frontmatter = require('./frontmatter');
+const { readDoc } = frontmatter;
+import render = require('./render');
+const { renderDoc } = render;
+import layout = require('./layout');
+const { isCanonicalBlueprintDir } = layout;
+import time = require('./time');
+const { nowIsoKst } = time;
+import tasksDocs = require('./tasks-docs');
+const { listTasksDocs } = tasksDocs;
 // current.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
 // 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
-const { readCurrent } = require('./current') as {
-  readCurrent: (opts: { repoRoot: string }) => unknown;
-};
-const { toPosix } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-};
-const { verifyLedgerPathFor } = require('./runtime-state') as {
-  verifyLedgerPathFor: (opts: {
-    repoRoot: string;
-    verificationRel: unknown;
-    deps?: unknown;
-  }) => { unavailable?: boolean; reason?: string; ledgerFile?: string };
-};
+import current = require('./current');
+const { readCurrent } = current;
+import paths = require('./paths');
+const { toPosix } = paths;
+import runtimeState = require('./runtime-state');
+const { verifyLedgerPathFor } = runtimeState;
+import config = require('./config');
 const {
   readConfigResult,
   getVerifyAllowlist,
   DEFAULT_VERIFY_ALLOWLIST,
-} = require('./config') as {
-  readConfigResult: (repoRoot: string) =>
-    | { ok: true; value: unknown }
-    | { ok: false; reason: 'missing' | 'invalid' };
-  getVerifyAllowlist: (config?: unknown) => readonly string[];
-  DEFAULT_VERIFY_ALLOWLIST: readonly string[];
-};
+} = config;
 
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
@@ -411,7 +384,7 @@ function recordVerificationResult({
   ranAt: string;
   exitCode: number;
   output: string;
-  deps?: unknown;
+  deps?: Parameters<typeof verifyLedgerPathFor>[0]['deps'];
 }): void {
   // verificationRel이 정식 인자. blueprintDir은 구 호출 호환(루트 verification.md).
   const rel = verificationRel
@@ -529,7 +502,7 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
   return { ok: execution.ok, command, exitCode: execution.exitCode };
 }
 
-module.exports = {
+export = {
   OUTPUT_TAIL_LINES,
   PASSING_OUTPUT_TAIL_LINES,
   MAX_VERIFY_OUTPUT_BYTES,

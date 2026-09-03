@@ -1,15 +1,21 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { detectLegacyFormat } = require('./schema');
-const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout');
-const { ensureCodexAgents, shouldEnsureCodexAgents } = require('./codex-agents');
-const { PROJECT_DISTILL_BODY } = require('./templates');
-const { nowIsoKst } = require('./time');
-const { setupGraphify } = require('./graphify');
-const { readConfig, DEFAULT_DISTILL_CONFIG, DEFAULT_VERIFY_ALLOWLIST, } = require('./config');
+const schema = require("./schema");
+const { detectLegacyFormat } = schema;
+const layout = require("./layout");
+const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = layout;
+const codexAgents = require("./codex-agents");
+const { ensureCodexAgents, shouldEnsureCodexAgents } = codexAgents;
+const templates = require("./templates");
+const { PROJECT_DISTILL_BODY } = templates;
+const time = require("./time");
+const { nowIsoKst } = time;
+const graphify = require("./graphify");
+const { setupGraphify } = graphify;
+const config = require("./config");
+const { readConfig, DEFAULT_DISTILL_CONFIG, DEFAULT_VERIFY_ALLOWLIST, } = config;
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
 // import하는 test와 동기 유지. test/tests는 구현 그래프 seed가 되지 않게

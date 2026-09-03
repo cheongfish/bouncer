@@ -3,14 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { toPosix, parsePathIds } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-  parsePathIds: (resourcePath: unknown) => {
-    epicId: string | null;
-    blueprintId: string | null;
-    kind: string | null;
-  };
-};
+import paths = require('./paths');
+const { toPosix, parsePathIds } = paths;
 
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
 
@@ -229,7 +223,7 @@ function verifyLedgerPathFor({ repoRoot, verificationRel, deps }: {
   };
 }
 
-module.exports = {
+export = {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, worktreePathFor,
   verifyLedgerPathFor,
 };

@@ -1,12 +1,10 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseFrontmatter } = require('./frontmatter') as {
-  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
-};
-const { CODEX_AGENTS_DIR } = require('./layout') as {
-  CODEX_AGENTS_DIR: string;
-};
+import frontmatter = require('./frontmatter');
+const { parseFrontmatter } = frontmatter;
+import layout = require('./layout');
+const { CODEX_AGENTS_DIR } = layout;
 
 const NAMED_AGENTS = [
   'bouncer-reviewer',
@@ -129,7 +127,7 @@ function ensureCodexAgents({
   }
 }
 
-module.exports = {
+export = {
   NAMED_AGENTS,
   GENERATED_MARKER,
   CODEX_AGENTS_DIR,

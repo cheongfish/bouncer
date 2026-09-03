@@ -35,4 +35,4 @@ function readDoc(absPath: string): ReadDocResult {
   return { data, body, path: absPath };
 }
 
-module.exports = { parseFrontmatter, readDoc };
+export = { parseFrontmatter, readDoc };

@@ -1,6 +1,6 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { toPosix } = require('./paths');
+const paths = require("./paths");
+const { toPosix } = paths;
 const SECTION_DEFS = [
     { key: 'goal', re: /^##\s+(Goal\s*&\s*intent|목적[·・.]?의도)\s*$/i },
     { key: 'interface', re: /^##\s+(Interface|인터페이스)\s*$/i },

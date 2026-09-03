@@ -11,12 +11,36 @@ bouncer:
   id: VERIFY-002
   epic_id: '061'
   blueprint_id: '003'
-  status: pending
+  status: passed
+  verification:
+    command: npm run verify:strict
+    ran_at: '2026-09-03T16:03:36.605+09:00'
+    exit_code: 0
+    output_tail: |-
+      type: 'test'
+        ...
+      1..1031
+      # tests 1031
+      # suites 0
+      # pass 1031
+      # fail 0
+      # cancelled 0
+      # skipped 0
+      # todo 0
+      # duration_ms 1990.209511
+
+      > bouncer@1.3.5 typecheck
+      > tsc --noEmit
+
+
+      > bouncer@1.3.5 lint
+      > eslint .
 ---
 # Verification
 
 ## Command
-<command>
+`npm run verify:strict`
 
 ## Evidence
-<result>
+Ran at: 2026-09-03T16:03:36.605+09:00
+Exit code: 0

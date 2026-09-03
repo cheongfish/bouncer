@@ -1,18 +1,26 @@
 // scripts/lib/finalize.js
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { toPosix } = require('./paths');
-const { validateBlueprint, loadBlueprintDocs } = require('./validate');
-const { clearCurrent, nextBlueprint } = require('./current');
-const { parseFrontmatter, readDoc } = require('./frontmatter');
-const { renderDoc } = require('./render');
-const { normalizeCommitSha } = require('./commit-sha');
-const { makeFinalizeAllowed, isRuntimeArtifact } = require('./scope');
-const { readVerifyCommand, executeVerify } = require('./verification');
-const { listTasksDocs } = require('./tasks-docs');
+const paths = require("./paths");
+const { toPosix } = paths;
+const validate = require("./validate");
+const { validateBlueprint, loadBlueprintDocs } = validate;
+const current = require("./current");
+const { clearCurrent, nextBlueprint } = current;
+const frontmatter = require("./frontmatter");
+const { parseFrontmatter, readDoc } = frontmatter;
+const render = require("./render");
+const { renderDoc } = render;
+const commitSha = require("./commit-sha");
+const { normalizeCommitSha } = commitSha;
+const scope = require("./scope");
+const { makeFinalizeAllowed, isRuntimeArtifact } = scope;
+const verification = require("./verification");
+const { readVerifyCommand, executeVerify } = verification;
+const tasksDocs = require("./tasks-docs");
+const { listTasksDocs } = tasksDocs;
 function adaptInjectedVerifyExec(verifyExec) {
     return (command, opts) => {
         const result = verifyExec(command, opts);
@@ -52,7 +60,7 @@ function asRecord(value) {
 // commit 경로(`bouncer commit`)가 이 빌더를 쓴다. finalize 마감 메시지는
 // buildFinalizeCommitMessage — task title/verification bullet을 넣지 않는다.
 function buildCommitMessage(docs, taskUnit) {
-    const bp = asRecord(docs.blueprintIndex.data);
+    const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
     const bouncer = asRecord(bp.bouncer || {});
     const type = bouncer.commit_type || 'feat';
     const taskTitle = taskUnit && taskUnit.tasks && taskUnit.tasks.data
@@ -105,7 +113,7 @@ function buildCommitMessage(docs, taskUnit) {
 // task 의도가 가장 가깝다. blueprint commit_intent는 출처가 아니다.
 // task title·verification bullet을 넣으면 이미 남긴 task 커밋과 겹친다.
 function buildFinalizeCommitMessage(docs) {
-    const bp = asRecord(docs.blueprintIndex.data);
+    const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
     const bouncer = asRecord(bp.bouncer || {});
     const type = bouncer.commit_type || 'feat';
     const normalizeIntent = (raw) => {

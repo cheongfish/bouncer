@@ -26,4 +26,4 @@ function parseFlags(rest: string[]): Record<string, string | boolean> {
   return flags;
 }
 
-module.exports = { parseFlags };
+export = { parseFlags };

@@ -1,8 +1,9 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { CONTEXT_ROOT } = require('./layout');
+const layout = require("./layout");
+const { CONTEXT_ROOT } = layout;
+const frontmatter = require("./frontmatter");
 const CONTEXT_INDEX_REL = `${CONTEXT_ROOT}/index.md`;
 // init CONTEXT_INDEX와 동일 frontmatter. 파일이 없을 때만 쓰며 기존 index를
 // 소급 수정하지 않는다 — 이미 있는 저장소는 사람이 bouncer_schema를 넣는다.
@@ -45,10 +46,9 @@ function readEpicDescription(repoRoot, dirName) {
     }
     let data;
     try {
-        // require를 함수 안에 두지 않고 모듈 초기화 때 읽으면 순환 의존성 없이
-        // frontmatter parser의 단일 YAML 정책을 그대로 재사용할 수 있다.
-        const { parseFrontmatter } = require('./frontmatter');
-        data = parseFrontmatter(raw).data;
+        // frontmatter는 최상단 import = require로 읽어 순환 없이 단일 YAML 정책을 재사용한다.
+        // 함수 안 require+시그니처 캐스트는 경계 타입 검사를 우회하므로 쓰지 않는다.
+        data = frontmatter.parseFrontmatter(raw).data;
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);

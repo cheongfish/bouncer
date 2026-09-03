@@ -2,30 +2,16 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { CONTEXT_ROOT } = require('./layout') as { CONTEXT_ROOT: string };
-const { toPosix, normalizeContextId } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-  normalizeContextId: (value: unknown) => unknown;
-};
-const { parseFrontmatter } = require('./frontmatter') as {
-  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
-};
-const { renderDoc } = require('./render') as {
-  renderDoc: (data: unknown, body: string) => string;
-};
-const { readRuntimeCurrent, writeRuntimeCurrent } = require('./runtime-state') as {
-  readRuntimeCurrent: (opts: { repoRoot: string }) => {
-    blueprint: string;
-    base: string;
-    task?: string | null;
-  } | null;
-  writeRuntimeCurrent: (opts: {
-    repoRoot: string;
-    blueprint: unknown;
-    base: string;
-    task?: unknown;
-  }) => string;
-};
+import layout = require('./layout');
+const { CONTEXT_ROOT } = layout;
+import paths = require('./paths');
+const { toPosix, normalizeContextId } = paths;
+import frontmatter = require('./frontmatter');
+const { parseFrontmatter } = frontmatter;
+import render = require('./render');
+const { renderDoc } = render;
+import runtimeState = require('./runtime-state');
+const { readRuntimeCurrent, writeRuntimeCurrent } = runtimeState;
 
 type ExecFileSyncFn = (
   file: string,
@@ -354,7 +340,7 @@ function migrateIds({ repoRoot, dryRun, deps }: {
   return applyMigration({ repoRoot, plan, deps });
 }
 
-module.exports = {
+export = {
   discoverLegacyIds,
   planMigration,
   validateMigration,

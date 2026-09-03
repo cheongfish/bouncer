@@ -106,7 +106,15 @@ function computeDiffSha({ repoRoot, base, exec }: {
  *   | { ok: false, reason: 'not-a-list' | 'missing' | 'incomplete' }}
  */
 function resolveComprehensionEntry(comprehension: unknown):
-  | { ok: true; entry: Record<string, unknown> }
+  | {
+    ok: true;
+    entry: {
+      range_from: string;
+      diff_sha: string;
+      disposition: string;
+      quiz_score: string;
+    };
+  }
   | { ok: false; reason: 'not-a-list' | 'missing' | 'incomplete' } {
   try {
     // 배열이 아니면(구 단일 객체 포함) 조회 자체가 성립하지 않는다.
@@ -132,13 +140,23 @@ function resolveComprehensionEntry(comprehension: unknown):
     if (!rangeFrom.trim() || !diffSha.trim() || !disposition.trim() || !quizScore.trim()) {
       return { ok: false, reason: 'incomplete' };
     }
-    return { ok: true, entry };
+    // 원본 entry 객체를 그대로 돌려 추가 필드(task 등)를 보존한다.
+    // range_from/diff_sha 등은 위에서 문자열임을 확인했으므로 반환 타입만 좁힌다.
+    return {
+      ok: true,
+      entry: entry as {
+        range_from: string;
+        diff_sha: string;
+        disposition: string;
+        quiz_score: string;
+      },
+    };
   } catch (_e) {
     return { ok: false, reason: 'not-a-list' };
   }
 }
 
-module.exports = {
+export = {
   DIFF_EXCLUDED_PREFIXES,
   EXPLAIN_SECTION_DEFS,
   computeDiffSha,

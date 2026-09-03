@@ -2,39 +2,24 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { detectLegacyFormat } = require('./schema') as {
-  detectLegacyFormat: (opts: { repoRoot?: string }) => { legacy: boolean; reason?: string };
-};
-const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = require('./layout') as {
-  PROJECT_DISTILL: string;
-  LEGACY_PROJECT_DISTILL: string;
-};
-const { ensureCodexAgents, shouldEnsureCodexAgents } = require('./codex-agents') as {
-  ensureCodexAgents: (opts: {
-    repoRoot: string;
-    created: string[];
-    agentsDir?: string;
-  }) => void;
-  shouldEnsureCodexAgents: (repoRoot: string, optIn?: boolean) => boolean;
-};
-const { PROJECT_DISTILL_BODY } = require('./templates') as {
-  PROJECT_DISTILL_BODY: string;
-};
-const { nowIsoKst } = require('./time') as {
-  nowIsoKst: () => string;
-};
-const { setupGraphify } = require('./graphify') as {
-  setupGraphify: (opts: { repoRoot?: string }) => GraphifySetupResult;
-};
+import schema = require('./schema');
+const { detectLegacyFormat } = schema;
+import layout = require('./layout');
+const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = layout;
+import codexAgents = require('./codex-agents');
+const { ensureCodexAgents, shouldEnsureCodexAgents } = codexAgents;
+import templates = require('./templates');
+const { PROJECT_DISTILL_BODY } = templates;
+import time = require('./time');
+const { nowIsoKst } = time;
+import graphify = require('./graphify');
+const { setupGraphify } = graphify;
+import config = require('./config');
 const {
   readConfig,
   DEFAULT_DISTILL_CONFIG,
   DEFAULT_VERIFY_ALLOWLIST,
-} = require('./config') as {
-  readConfig: (repoRoot: string) => unknown;
-  DEFAULT_DISTILL_CONFIG: { routing_enabled: boolean; max_bytes: number };
-  DEFAULT_VERIFY_ALLOWLIST: readonly string[];
-};
+} = config;
 
 type GraphifySetupResult = {
   status: string;
@@ -519,7 +504,7 @@ function init({
   };
 }
 
-module.exports = {
+export = {
   init, inspectBootstrap, gitignoreSuggestions, SUGGESTED_IGNORES,
   SOURCE_DIR_CANDIDATES, TEST_DIR_CANDIDATES,
 };

@@ -1,10 +1,11 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { readConfig } = require('./config');
-const { runtimePaths } = require('./runtime-state');
+const config = require("./config");
+const { readConfig } = config;
+const runtimeState = require("./runtime-state");
+const { runtimePaths } = runtimeState;
 /**
  * 레거시·비-git 폴백용 저장소-상대 경로.
  * Windows만 Scripts/ + .exe; 그 외는 bin/. 구분자는 항상 POSIX(/)로 고정해

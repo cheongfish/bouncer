@@ -1,16 +1,23 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { CONTEXT_ROOT } = require('./layout');
-const { isNumericContextId } = require('./paths');
-const { listEpicDirNames, ensureEpicIndexEntry } = require('./epic-index');
-const { readRuntimeCurrent } = require('./runtime-state');
-const { isWorktreeDirty } = require('./migrate-ids');
-const { nowIsoKst } = require('./time');
-const { EPIC_ID_PREFIX_RE, slugFromSubject, parseLogOutput, gitLogArgs, listChangedFiles, } = require('./import-git');
-const { renderEpicBody, renderBlueprintBody, writeImportDoc, } = require('./import-render');
+const layout = require("./layout");
+const { CONTEXT_ROOT } = layout;
+const paths = require("./paths");
+const { isNumericContextId } = paths;
+const epicIndex = require("./epic-index");
+const { listEpicDirNames, ensureEpicIndexEntry } = epicIndex;
+const runtimeState = require("./runtime-state");
+const { readRuntimeCurrent } = runtimeState;
+const migrateIds = require("./migrate-ids");
+const { isWorktreeDirty } = migrateIds;
+const time = require("./time");
+const { nowIsoKst } = time;
+const importGit = require("./import-git");
+const { EPIC_ID_PREFIX_RE, slugFromSubject, parseLogOutput, gitLogArgs, listChangedFiles, } = importGit;
+const importRender = require("./import-render");
+const { renderEpicBody, renderBlueprintBody, writeImportDoc, } = importRender;
 // 계획·거절·적용 + 공개 배럴. git 파싱과 문서 렌더는 형제가 담당한다.
 // CLI 는 이 파일의 planImport / applyImport 만 본다.
 const DEFAULT_LIMIT = 200;

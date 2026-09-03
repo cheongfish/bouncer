@@ -1,6 +1,6 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { unitDocKind } = require('./tasks-docs');
+const tasksDocs = require("./tasks-docs");
+const { unitDocKind } = tasksDocs;
 const FILE_KIND = {
     // verification.md / review.md / tasks.md 는 tasks-docs.unitDocKind 로만 판정.
     // 문자열을 여기 두면 Distill invariant( basenames live only in tasks-docs )를 깨뜨린다.

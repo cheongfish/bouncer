@@ -1,27 +1,14 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { readDoc } = require('./frontmatter') as {
-  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
-};
-const { epicDirOf, toPosix } = require('./paths') as {
-  epicDirOf: (blueprintDir: unknown) => string;
-  toPosix: (p: unknown) => string;
-};
-const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = require('./runtime-state') as {
-  readRuntimeCurrent: (opts: { repoRoot: string; deps?: unknown }) => Pointer | null;
-  writeRuntimeCurrent: (opts: {
-    repoRoot: string;
-    blueprint: unknown;
-    base: string;
-    task?: unknown;
-    deps?: unknown;
-  }) => string;
-  clearRuntimeCurrent: (opts: { repoRoot: string; deps?: unknown }) => boolean;
-};
-const { listTasksDocs } = require('./tasks-docs') as {
-  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => TasksListing;
-};
+import frontmatter = require('./frontmatter');
+const { readDoc } = frontmatter;
+import paths = require('./paths');
+const { epicDirOf, toPosix } = paths;
+import runtimeState = require('./runtime-state');
+const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = runtimeState;
+import tasksDocs = require('./tasks-docs');
+const { listTasksDocs } = tasksDocs;
 
 const READY_TASK_STATUS = ['ready', 'in_progress'];
 
@@ -60,7 +47,10 @@ function bouncerStatus(data: unknown): unknown {
   return bouncer ? (bouncer as Record<string, unknown>).status : undefined;
 }
 
-function readCurrent({ repoRoot, deps }: { repoRoot: string; deps?: unknown }): Pointer | null {
+function readCurrent({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: Parameters<typeof readRuntimeCurrent>[0]['deps'];
+}): Pointer | null {
   return readRuntimeCurrent({ repoRoot, deps });
 }
 
@@ -71,14 +61,17 @@ function writeCurrent({
   blueprint: unknown;
   base: string;
   task?: unknown;
-  deps?: unknown;
+  deps?: Parameters<typeof writeRuntimeCurrent>[0]['deps'];
 }): string {
   return writeRuntimeCurrent({
     repoRoot, blueprint, base, task, deps,
   });
 }
 
-function clearCurrent({ repoRoot, deps }: { repoRoot: string; deps?: unknown }): boolean {
+function clearCurrent({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: Parameters<typeof clearRuntimeCurrent>[0]['deps'];
+}): boolean {
   return clearRuntimeCurrent({ repoRoot, deps });
 }
 
@@ -495,7 +488,7 @@ function nextBlueprint({ repoRoot, blueprintDir }: {
   };
 }
 
-module.exports = {
+export = {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
   resolvePointerTask, presentCurrent,
 };

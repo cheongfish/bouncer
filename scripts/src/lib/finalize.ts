@@ -3,59 +3,25 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { toPosix } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-};
-const { validateBlueprint, loadBlueprintDocs } = require('./validate') as {
-  validateBlueprint: (opts: {
-    repoRoot: string;
-    blueprintDir: string;
-    gate?: string;
-  }) => { ok: boolean; failures: unknown[] };
-  loadBlueprintDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
-    docs: DocsLike;
-  };
-};
-const { clearCurrent, nextBlueprint } = require('./current') as {
-  clearCurrent: (opts: { repoRoot: string }) => boolean;
-  nextBlueprint: (opts: { repoRoot: string; blueprintDir: unknown }) => unknown;
-};
-const { parseFrontmatter, readDoc } = require('./frontmatter') as {
-  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
-  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
-};
-const { renderDoc } = require('./render') as {
-  renderDoc: (data: unknown, body: string) => string;
-};
-const { normalizeCommitSha } = require('./commit-sha') as {
-  normalizeCommitSha: (value: unknown) => string | null;
-};
-const { makeFinalizeAllowed, isRuntimeArtifact } = require('./scope') as {
-  makeFinalizeAllowed: (opts: {
-    repoRoot: unknown;
-    affectedPaths?: unknown;
-    blueprintDir: unknown;
-  }) => (file: unknown) => boolean;
-  isRuntimeArtifact: (file: unknown) => boolean;
-};
-const { readVerifyCommand, executeVerify } = require('./verification') as {
-  readVerifyCommand: (repoRoot: string, blueprintDir?: string) => string;
-  executeVerify: (
-    command: string,
-    opts: { cwd: string; exec?: VerifyExec },
-  ) => { ok: boolean; exitCode: number; output: string };
-};
+import paths = require('./paths');
+const { toPosix } = paths;
+import validate = require('./validate');
+const { validateBlueprint, loadBlueprintDocs } = validate;
+import current = require('./current');
+const { clearCurrent, nextBlueprint } = current;
+import frontmatter = require('./frontmatter');
+const { parseFrontmatter, readDoc } = frontmatter;
+import render = require('./render');
+const { renderDoc } = render;
+import commitSha = require('./commit-sha');
+const { normalizeCommitSha } = commitSha;
+import scope = require('./scope');
+const { makeFinalizeAllowed, isRuntimeArtifact } = scope;
+import verification = require('./verification');
+const { readVerifyCommand, executeVerify } = verification;
 
-const { listTasksDocs } = require('./tasks-docs') as {
-  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
-    entries: Array<{
-      number: number | null;
-      tasks: { rel: string };
-      verification: { rel: string };
-      review: { rel: string };
-    }>;
-  };
-};
+import tasksDocs = require('./tasks-docs');
+const { listTasksDocs } = tasksDocs;
 
 // migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
 // validate↔finalize 순환을 피하려고 scope 헬퍼는 여기 두지 않는다(재수출도 안 함).
@@ -126,7 +92,9 @@ type TaskUnitLike = {
   [key: string]: unknown;
 };
 type DocsLike = {
-  blueprintIndex: { data: unknown };
+  // loadBlueprintDocs는 파싱 실패 시 blueprintIndex를 비울 수 있다. 필수 단언은
+  // 소비자 캐스트가 가리던 불일치였고, 런타임은 asRecord(undefined)로 빈 subject 경로를 탄다.
+  blueprintIndex?: { data: unknown };
   tasks?: DocLeafLike;
   taskUnits?: TaskUnitLike[];
   [key: string]: unknown;
@@ -147,7 +115,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 // commit 경로(`bouncer commit`)가 이 빌더를 쓴다. finalize 마감 메시지는
 // buildFinalizeCommitMessage — task title/verification bullet을 넣지 않는다.
 function buildCommitMessage(docs: DocsLike, taskUnit: TaskUnitLike | null | undefined): string {
-  const bp = asRecord(docs.blueprintIndex.data);
+  const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
   const bouncer = asRecord(bp.bouncer || {});
   const type = bouncer.commit_type || 'feat';
   const taskTitle = taskUnit && taskUnit.tasks && taskUnit.tasks.data
@@ -198,7 +166,7 @@ function buildCommitMessage(docs: DocsLike, taskUnit: TaskUnitLike | null | unde
 // task 의도가 가장 가깝다. blueprint commit_intent는 출처가 아니다.
 // task title·verification bullet을 넣으면 이미 남긴 task 커밋과 겹친다.
 function buildFinalizeCommitMessage(docs: DocsLike): string {
-  const bp = asRecord(docs.blueprintIndex.data);
+  const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
   const bouncer = asRecord(bp.bouncer || {});
   const type = bouncer.commit_type || 'feat';
   const normalizeIntent = (raw: unknown) => {
@@ -565,7 +533,7 @@ function finalize({
   };
 }
 
-module.exports = {
+export = {
   buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
   collectTaskCommits, writeExplainTaskCommits,
 };

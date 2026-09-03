@@ -1,14 +1,20 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, } = require('./schema');
-const { parsePathIds, toPosix, isNumericContextId, } = require('./paths');
-const { isValidVerifyCommand } = require('./verification');
-const { expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = require('./tasks-docs');
-const { parseFrontmatter } = require('./frontmatter');
-const { PROJECT_DISTILL, DISTILL_ROOT } = require('./layout');
-const { DEFAULT_DISTILL_CONFIG, getDistillConfig, readConfig, } = require('./config');
+const schema = require("./schema");
+const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, } = schema;
+const paths = require("./paths");
+const { parsePathIds, toPosix, isNumericContextId, } = paths;
+const verification = require("./verification");
+const { isValidVerifyCommand } = verification;
+const tasksDocs = require("./tasks-docs");
+const { expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = tasksDocs;
+const frontmatter = require("./frontmatter");
+const { parseFrontmatter } = frontmatter;
+const layout = require("./layout");
+const { PROJECT_DISTILL, DISTILL_ROOT } = layout;
+const config = require("./config");
+const { DEFAULT_DISTILL_CONFIG, getDistillConfig, readConfig, } = config;
 // graph.basis는 레거시 문자열과 그래프별 엔트리 배열을 모두 받는다.
 // S9(구조)와 G4(plan)가 같은 헬퍼를 써야 두 경로가 다른 답을 내지 않는다.
 const GRAPH_BASIS_STATUS = ['updated', 'reused', 'fail-skip', 'skip-disabled', 'missing'];
@@ -492,7 +498,9 @@ function checkStructural(doc, failures) {
         add('S3', `resource path mismatch: ${rec.resource} != ${rel}`);
     }
     const bouncer = (rec.bouncer || {});
-    const prefix = ID_PREFIX[docType];
+    const prefix = Object.prototype.hasOwnProperty.call(ID_PREFIX, docType)
+        ? ID_PREFIX[docType]
+        : undefined;
     // migration 이후에는 검증기가 구형 접두를 보정하지 않는다. 정본 형태가 아니면
     // S4/S5에서 그대로 거절해 일부만 migrate된 저장소가 통과하지 못하게 한다.
     const id = bouncer.id;
@@ -501,7 +509,8 @@ function checkStructural(doc, failures) {
             add('S4', `id "${bouncer.id}" must be a zero-padded three-digit id`);
         }
     }
-    else if (typeof id !== 'string'
+    else if (typeof prefix !== 'string'
+        || typeof id !== 'string'
         || !id.startsWith(prefix)
         || !isNumericContextId(id.slice(prefix.length))) {
         add('S4', `id "${bouncer.id}" missing prefix ${prefix} or invalid digits`);
@@ -541,7 +550,9 @@ function checkStructural(doc, failures) {
     if (expectedId && bouncer.id !== expectedId) {
         add('S5', `id ${bouncer.id} != expected ${expectedId} from path`);
     }
-    if (!(STATUS_ENUM[docType] || []).includes(bouncer.status)) {
+    if (!(Object.prototype.hasOwnProperty.call(STATUS_ENUM, docType)
+        ? STATUS_ENUM[docType]
+        : []).includes(bouncer.status)) {
         add('S6', `status "${bouncer.status}" not in enum for ${docType}`);
     }
     // S20: blueprint만. 부재는 0.7 문서 통과용으로 허용; 잘못된 값만 거절.

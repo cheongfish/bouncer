@@ -112,7 +112,7 @@ function detectLegacyFormat({ repoRoot, data }: { repoRoot?: unknown; data?: unk
   return { legacy: false };
 }
 
-module.exports = {
+export = {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, KIND_TO_TYPE,
   LEGACY_GUIDANCE, detectLegacyFormat,
   BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE,

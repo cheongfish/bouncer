@@ -1,65 +1,32 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+import schema = require('./schema');
 const {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat,
   KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes,
-} = require('./schema') as {
-  OKF_REQUIRED: string[];
-  TYPES: string[];
-  ID_PREFIX: Record<string, string>;
-  STATUS_ENUM: Record<string, unknown[]>;
-  detectLegacyFormat: (opts?: { repoRoot?: unknown; data?: unknown }) => {
-    legacy: boolean;
-    reason: string;
-  };
-  KIND_TO_TYPE: Record<string, string>;
-  SCALE_ENUM: string[];
-  isValidSupersedes: (value: unknown) => boolean;
-};
+} = schema;
+import paths = require('./paths');
 const {
   parsePathIds, toPosix, isNumericContextId,
-} = require('./paths') as {
-  parsePathIds: (resourcePath: unknown) => {
-    epicId: string | null;
-    blueprintId: string | null;
-    kind: string | null;
-  };
-  toPosix: (p: unknown) => string;
-  isNumericContextId: (id: unknown) => boolean;
-};
-const { isValidVerifyCommand } = require('./verification') as {
-  isValidVerifyCommand: (command: unknown) => boolean;
-};
+} = paths;
+import verification = require('./verification');
+const { isValidVerifyCommand } = verification;
+import tasksDocs = require('./tasks-docs');
 const {
   expectedTasksId, expectedTaskDocIds,
   TASK_UNIT_BASENAMES, unitDocKind,
-} = require('./tasks-docs') as {
-  expectedTasksId: (basename: unknown, blueprintId: unknown) => string | null;
-  expectedTaskDocIds: (number: unknown) => {
-    tasks: string;
-    verification: string;
-    review: string;
-  };
-  TASK_UNIT_BASENAMES: string[];
-  unitDocKind: (basename: unknown) => 'tasks' | 'verification' | 'review' | null;
-};
-const { parseFrontmatter } = require('./frontmatter') as {
-  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
-};
-const { PROJECT_DISTILL, DISTILL_ROOT } = require('./layout') as {
-  PROJECT_DISTILL: string;
-  DISTILL_ROOT: string;
-};
+} = tasksDocs;
+import frontmatter = require('./frontmatter');
+const { parseFrontmatter } = frontmatter;
+import layout = require('./layout');
+const { PROJECT_DISTILL, DISTILL_ROOT } = layout;
+import config = require('./config');
 const {
   DEFAULT_DISTILL_CONFIG,
   getDistillConfig,
   readConfig,
-} = require('./config') as {
-  DEFAULT_DISTILL_CONFIG: { routing_enabled: boolean; max_bytes: number };
-  getDistillConfig: (config?: unknown) => { routing_enabled: boolean; max_bytes: number };
-  readConfig: (repoRoot: string) => unknown;
-};
+} = config;
 
 // 문서 하나(프론트매터)를 보는 S 코드 층. 게이트(G) 판정과 분리해 두면
 // 스키마/id 규칙을 고치는 사람이 checkGate 분기를 같이 읽지 않아도 된다.
@@ -596,7 +563,9 @@ function checkStructural(doc: unknown, failures: FailureEntry[]): void {
   }
 
   const bouncer = (rec.bouncer || {}) as Record<string, unknown>;
-  const prefix = ID_PREFIX[docType];
+  const prefix = Object.prototype.hasOwnProperty.call(ID_PREFIX, docType)
+    ? ID_PREFIX[docType as keyof typeof ID_PREFIX]
+    : undefined;
   // migration 이후에는 검증기가 구형 접두를 보정하지 않는다. 정본 형태가 아니면
   // S4/S5에서 그대로 거절해 일부만 migrate된 저장소가 통과하지 못하게 한다.
   const id = bouncer.id;
@@ -605,7 +574,8 @@ function checkStructural(doc: unknown, failures: FailureEntry[]): void {
       add('S4', `id "${bouncer.id}" must be a zero-padded three-digit id`);
     }
   } else if (
-    typeof id !== 'string'
+    typeof prefix !== 'string'
+    || typeof id !== 'string'
     || !id.startsWith(prefix)
     || !isNumericContextId(id.slice(prefix.length))
   ) {
@@ -642,7 +612,11 @@ function checkStructural(doc: unknown, failures: FailureEntry[]): void {
     add('S5', `id ${bouncer.id} != expected ${expectedId} from path`);
   }
 
-  if (!(STATUS_ENUM[docType] || []).includes(bouncer.status)) {
+  if (!(
+    Object.prototype.hasOwnProperty.call(STATUS_ENUM, docType)
+      ? STATUS_ENUM[docType as keyof typeof STATUS_ENUM]
+      : []
+  ).includes(bouncer.status as string)) {
     add('S6', `status "${bouncer.status}" not in enum for ${docType}`);
   }
 
@@ -681,7 +655,7 @@ function checkStructural(doc: unknown, failures: FailureEntry[]): void {
   }
 }
 
-module.exports = {
+export = {
   expectedTypeForPath,
   checkStructural,
   checkDistillStructural,

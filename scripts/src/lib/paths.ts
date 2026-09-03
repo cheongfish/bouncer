@@ -1,6 +1,7 @@
 'use strict';
 
-const { unitDocKind } = require('./tasks-docs');
+import tasksDocs = require('./tasks-docs');
+const { unitDocKind } = tasksDocs;
 
 const FILE_KIND: Record<string, string> = {
   // verification.md / review.md / tasks.md 는 tasks-docs.unitDocKind 로만 판정.
@@ -18,7 +19,7 @@ function toPosix(p: unknown): string {
   return String(p).split('\\').join('/');
 }
 
-function isNumericContextId(id: unknown): boolean {
+function isNumericContextId(id: unknown): id is string {
   return typeof id === 'string' && /^\d{3}$/.test(id);
 }
 
@@ -64,6 +65,6 @@ function epicDirOf(blueprintDir: unknown): string {
   return toPosix(blueprintDir).split('/blueprints/')[0];
 }
 
-module.exports = {
+export = {
   parsePathIds, epicDirOf, toPosix, isNumericContextId, normalizeContextId,
 };

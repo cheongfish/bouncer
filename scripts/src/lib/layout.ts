@@ -1,5 +1,6 @@
 'use strict';
-const { toPosix } = require('./paths');
+import paths = require('./paths');
+const { toPosix } = paths;
 
 const CONTEXT_ROOT = '.bouncer/context';
 // 프로젝트 전역 Distill SSOT(blueprint별 distill.md / explain.md 아님).
@@ -35,7 +36,7 @@ function isCanonicalBlueprintDir(value: unknown): boolean {
   return BLUEPRINT_DIR.test(normalizeRepoPath(value));
 }
 
-module.exports = {
+export = {
   CONTEXT_ROOT,
   PROJECT_DISTILL,
   LEGACY_PROJECT_DISTILL,

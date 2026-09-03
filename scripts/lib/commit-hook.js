@@ -1,13 +1,17 @@
 // scripts/lib/commit-hook.js
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { checkCommitSafety } = require('./commit-guard');
-const { readCurrent } = require('./current');
-const { readDoc } = require('./frontmatter');
-const { listTasksDocs } = require('./tasks-docs');
-const { toPosix } = require('./paths');
+const commitGuard = require("./commit-guard");
+const { checkCommitSafety } = commitGuard;
+const current = require("./current");
+const { readCurrent } = current;
+const frontmatter = require("./frontmatter");
+const { readDoc } = frontmatter;
+const tasksDocs = require("./tasks-docs");
+const { listTasksDocs } = tasksDocs;
+const paths = require("./paths");
+const { toPosix } = paths;
 const NO_COMMIT = { commit: false, all: false };
 // 판단 불가(중첩 셸·확장·깊이 초과)는 커밋으로 칠 뿐 아니라 all-flag도
 // 있는 것으로 친다. -a 없이 스테이징만 보면 PreToolUse 시점에 인덱스가

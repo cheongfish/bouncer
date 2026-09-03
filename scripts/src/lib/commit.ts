@@ -2,48 +2,22 @@
 'use strict';
 const path = require('node:path');
 const fs = require('node:fs');
-const { readDoc } = require('./frontmatter') as {
-  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
-};
-const { renderDoc } = require('./render') as {
-  renderDoc: (data: unknown, body: string) => string;
-};
-const { listTasksDocs } = require('./tasks-docs') as {
-  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
-    entries?: Array<{ rel: string; id: string | null; number?: number | null }>;
-  } | null;
-};
-const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = require('./validate') as {
-  validateBlueprint: (opts: {
-    repoRoot: string;
-    blueprintDir: string;
-    gate?: string;
-  }) => { ok: boolean; failures: unknown[] };
-  loadBlueprintDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
-    docs: unknown;
-  };
-  resolveTaskUnit: (docs: unknown, opts?: {
-    repoRoot?: string;
-    blueprintDir?: string;
-  }) => TaskUnitLike | null;
-};
-const { realGit, buildCommitMessage } = require('./finalize') as {
-  realGit: (repoRoot: string) => GitApi;
-  buildCommitMessage: (docs: unknown, taskUnit: TaskUnitLike | null) => string;
-};
-const { isRuntimeArtifact } = require('./scope') as {
-  isRuntimeArtifact: (file: unknown) => boolean;
-};
-const { checkCommitSafety } = require('./commit-guard') as {
-  checkCommitSafety: (opts: {
-    files?: unknown[] | null;
-    affectedPaths?: unknown;
-    blueprintDir?: unknown;
-  }) => { allow: boolean; violations: unknown[] };
-};
-const { normalizeCommitSha } = require('./commit-sha') as {
-  normalizeCommitSha: (value: unknown) => string | null;
-};
+import frontmatter = require('./frontmatter');
+const { readDoc } = frontmatter;
+import render = require('./render');
+const { renderDoc } = render;
+import tasksDocs = require('./tasks-docs');
+const { listTasksDocs } = tasksDocs;
+import validate = require('./validate');
+const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = validate;
+import finalize = require('./finalize');
+const { realGit, buildCommitMessage } = finalize;
+import scope = require('./scope');
+const { isRuntimeArtifact } = scope;
+import commitGuard = require('./commit-guard');
+const { checkCommitSafety } = commitGuard;
+import commitSha = require('./commit-sha');
+const { normalizeCommitSha } = commitSha;
 
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
 
@@ -183,4 +157,4 @@ function commitTask({
 }
 
 // Interface는 commitTask만 공개. findNextOpenTask는 모듈 내부 후보 계산용.
-module.exports = { commitTask };
+export = { commitTask };

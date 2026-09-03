@@ -2,42 +2,16 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { readDoc } = require('./frontmatter') as {
-  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
-};
-const { epicDirOf, toPosix } = require('./paths') as {
-  epicDirOf: (blueprintDir: unknown) => string;
-  toPosix: (p: unknown) => string;
-};
-const { entriesForVerify } = require('./verification') as {
-  entriesForVerify: (repoRoot: string, blueprintDir: string) => Array<{
-    rel: string;
-    dir: string | null;
-    number: number | null;
-    tasks: { rel: string; id: string | null };
-    verification: { rel: string; id: string | null };
-    review: { rel: string; id: string | null };
-  }>;
-};
+import frontmatter = require('./frontmatter');
+const { readDoc } = frontmatter;
+import paths = require('./paths');
+const { epicDirOf, toPosix } = paths;
+import verification = require('./verification');
+const { entriesForVerify } = verification;
+import tasksDocs = require('./tasks-docs');
 const {
   listTasksDocs, TASK_UNIT_BASENAMES,
-} = require('./tasks-docs') as {
-  TASK_UNIT_BASENAMES: string[];
-  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
-    entries: Array<{
-      rel: string;
-      dir: string | null;
-      number: number | null;
-      tasks: { rel: string; id: string | null };
-      verification: { rel: string; id: string | null };
-      review: { rel: string; id: string | null };
-    }>;
-    mixed: boolean;
-    legacy: boolean;
-    legacyFiles?: string[];
-    invalidDirs: string[];
-  };
-};
+} = tasksDocs;
 
 // 디스크에서 blueprint 문서를 모아 오는 층. 파싱 실패는 여기서 S0으로만 쌓고
 // 게이트 판정은 하지 않는다 — 로드와 판정을 한 파일에 두면 G13이 verification을
@@ -294,7 +268,7 @@ function statusOf(doc: DocLeaf | undefined | null): unknown {
   return bouncer ? bouncer.status : undefined;
 }
 
-module.exports = {
+export = {
   defaultStagedFiles,
   readOptionalLeaf,
   loadBlueprintDocs,

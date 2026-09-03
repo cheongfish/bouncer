@@ -1,9 +1,10 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseFrontmatter } = require('./frontmatter');
-const { CODEX_AGENTS_DIR } = require('./layout');
+const frontmatter = require("./frontmatter");
+const { parseFrontmatter } = frontmatter;
+const layout = require("./layout");
+const { CODEX_AGENTS_DIR } = layout;
 const NAMED_AGENTS = [
     'bouncer-reviewer',
     'bouncer-implementer',

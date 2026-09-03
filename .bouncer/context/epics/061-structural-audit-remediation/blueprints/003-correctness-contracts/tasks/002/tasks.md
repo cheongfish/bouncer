@@ -11,7 +11,7 @@ bouncer:
   id: TASKS-002
   epic_id: '061'
   blueprint_id: '003'
-  status: ready
+  status: verified
   commit_intent:
     - '모듈 소비자가 공급자 시그니처를 복제하지 않게 함'
     - '기존 CommonJS require 표면을 유지하며 타입 검사를 복구함'

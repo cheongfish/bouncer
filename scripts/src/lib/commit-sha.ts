@@ -27,4 +27,4 @@ function normalizeCommitSha(value: unknown): string | null {
   return hex.slice(0, COMMIT_SHA_LEN);
 }
 
-module.exports = { COMMIT_SHA_LEN, normalizeCommitSha };
+export = { COMMIT_SHA_LEN, normalizeCommitSha };

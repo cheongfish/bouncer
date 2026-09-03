@@ -1,8 +1,8 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { renderDoc } = require('./render');
+const render = require("./render");
+const { renderDoc } = render;
 // 문서 본문 조립과 디스크 쓰기. 계획·거절 판정은 여기 두지 않는다 —
 // 렌더가 거절을 알면 쓰기 직전에만 막히고, 그 앞의 부분 생성을 막지 못한다.
 // import-history 를 require 하지 않는다(render → plan 순환 금지).

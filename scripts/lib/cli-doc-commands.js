@@ -1,12 +1,18 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { parseFlags } = require('./cli-flags');
-const { validateBlueprint } = require('./validate');
-const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview, } = require('./scaffold');
-const { isNumericContextId } = require('./paths');
-const { SCALE_ENUM, DEFAULT_SCALE } = require('./schema');
-const { runVerification } = require('./verification');
-const { nowIsoKst } = require('./time');
+const cliFlags = require("./cli-flags");
+const { parseFlags } = cliFlags;
+const validate = require("./validate");
+const { validateBlueprint } = validate;
+const scaffold = require("./scaffold");
+const { scaffoldEpic, scaffoldBlueprint, scaffoldExplain, scaffoldTask, scaffoldContextReview, } = scaffold;
+const paths = require("./paths");
+const { isNumericContextId } = paths;
+const schema = require("./schema");
+const { SCALE_ENUM, DEFAULT_SCALE } = schema;
+const verification = require("./verification");
+const { runVerification } = verification;
+const time = require("./time");
+const { nowIsoKst } = time;
 function catchMessage(error) {
     // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
     // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
@@ -75,32 +81,37 @@ function cmdScaffold(rest, io) {
                 io.err(`scaffold ${kind}: --name is required\n`);
                 return 2;
             }
-        }
-        if (kind === 'epic') {
-            created = scaffoldEpic({
-                repoRoot, epicId: f.id, name: f.name, timestamp, description: f.description,
-            });
-        }
-        else if (kind === 'blueprint') {
-            // id/name 통과 뒤에만 epic-dir을 묻는다. 형식 오류를 부모 경로 누락과
-            // 같은 메시지로 섞지 않기 위함.
-            if (typeof f['epic-dir'] !== 'string' || f['epic-dir'] === '') {
-                io.err('scaffold blueprint: --epic-dir is required\n');
-                return 2;
+            // 위 가드 뒤의 좁힌 값을 지역에 고정한다. 이후 `if (kind === 'epic')`로
+            // 갈라지면 TS가 epic|blueprint 가드 좁히기를 유지하지 않는다.
+            const id = f.id;
+            const name = f.name;
+            const description = typeof f.description === 'string' ? f.description : undefined;
+            if (kind === 'epic') {
+                created = scaffoldEpic({
+                    repoRoot, epicId: id, name, timestamp, description,
+                });
             }
-            // scale은 선택 인자다. 생략은 기존 계약(full)이고, 알 수 없는 값은
-            // 라이브러리에 닿기 전에 사용법 오류(2)로 거절해 파일을 하나도 만들지
-            // 않는다. `--scale` 뒤에 값이 없으면 parseFlags가 boolean true를 주므로
-            // 문자열 검사가 그 형태도 같이 거른다.
-            const scale = f.scale === undefined ? DEFAULT_SCALE : f.scale;
-            if (typeof scale !== 'string' || !SCALE_ENUM.includes(scale)) {
-                io.err(`scaffold blueprint: --scale must be one of ${SCALE_ENUM.join('|')}, `
-                    + `got ${JSON.stringify(f.scale)}\n`);
-                return 2;
+            else {
+                // id/name 통과 뒤에만 epic-dir을 묻는다. 형식 오류를 부모 경로 누락과
+                // 같은 메시지로 섞지 않기 위함.
+                if (typeof f['epic-dir'] !== 'string' || f['epic-dir'] === '') {
+                    io.err('scaffold blueprint: --epic-dir is required\n');
+                    return 2;
+                }
+                // scale은 선택 인자다. 생략은 기존 계약(full)이고, 알 수 없는 값은
+                // 라이브러리에 닿기 전에 사용법 오류(2)로 거절해 파일을 하나도 만들지
+                // 않는다. `--scale` 뒤에 값이 없으면 parseFlags가 boolean true를 주므로
+                // 문자열 검사가 그 형태도 같이 거른다.
+                const scale = f.scale === undefined ? DEFAULT_SCALE : f.scale;
+                if (typeof scale !== 'string' || !SCALE_ENUM.includes(scale)) {
+                    io.err(`scaffold blueprint: --scale must be one of ${SCALE_ENUM.join('|')}, `
+                        + `got ${JSON.stringify(f.scale)}\n`);
+                    return 2;
+                }
+                created = scaffoldBlueprint({
+                    repoRoot, epicDir: f['epic-dir'], blueprintId: id, name, timestamp, scale,
+                });
             }
-            created = scaffoldBlueprint({
-                repoRoot, epicDir: f['epic-dir'], blueprintId: f.id, name: f.name, timestamp, scale,
-            });
         }
         else if (kind === 'task') {
             // --blueprint / --id 누락은 형식 오류보다 먼저 안내한다.
@@ -153,8 +164,6 @@ function cmdScaffold(rest, io) {
     io.out(`${JSON.stringify({ ok: true, created }, null, 2)}\n`);
     return 0;
 }
-// usage는 run과 같은 항목에 둔다. help 목록과 디스패치가 한쪽만 고치면
-// 어긋나던 상수 나열을 구조적으로 막기 위함.
 module.exports = {
     validate: {
         run: cmdValidate,

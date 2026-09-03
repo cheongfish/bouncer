@@ -1,7 +1,7 @@
 // scripts/lib/commit-guard.js
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { makeAllowed, isRuntimeArtifact } = require('./scope');
+const scope = require("./scope");
+const { makeAllowed, isRuntimeArtifact } = scope;
 /**
  * 커밋 범위 안전 판정의 단일 구현.
  * `commitTask`(CLI)와 호스트 commit hook(`evaluateCommit`)이 같은

@@ -1,24 +1,16 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { readShards } = require('./distill') as {
-  readShards: (opts: { repoRoot: string }) => {
-    sharded?: boolean;
-    valid?: boolean;
-    shards?: Array<{ path?: unknown }>;
-  };
-};
-const { DISTILL_SHARD_DIR } = require('./layout') as { DISTILL_SHARD_DIR: string };
-const { TASK_DIR_RE, TASK_UNIT_BASENAMES } = require('./tasks-docs') as {
-  TASK_DIR_RE: RegExp;
-  TASK_UNIT_BASENAMES: string[];
-};
-const { parseFrontmatter } = require('./frontmatter') as {
-  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
-};
-const { normalizeCommitSha } = require('./commit-sha') as {
-  normalizeCommitSha: (value: unknown) => string | null;
-};
+import distill = require('./distill');
+const { readShards } = distill;
+import layout = require('./layout');
+const { DISTILL_SHARD_DIR } = layout;
+import tasksDocs = require('./tasks-docs');
+const { TASK_DIR_RE, TASK_UNIT_BASENAMES } = tasksDocs;
+import frontmatter = require('./frontmatter');
+const { parseFrontmatter } = frontmatter;
+import commitSha = require('./commit-sha');
+const { normalizeCommitSha } = commitSha;
 
 /** graphify가 스캔할 파생 트리 (gitignore 대상 graphify-out 아래). */
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
@@ -407,7 +399,7 @@ function buildContextDigest({ repoRoot, contextDirs }: {
   return { dir: outRel, files, map, count: files.length };
 }
 
-module.exports = {
+export = {
   CONTEXT_DIGEST_OUT,
   DIGEST_MAP_REL,
   DIGEST_WATCH_FILES,

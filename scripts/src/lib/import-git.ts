@@ -70,7 +70,7 @@ function listChangedFiles(
     .filter(Boolean);
 }
 
-module.exports = {
+export = {
   LOG_FORMAT,
   EPIC_ID_PREFIX_RE,
   slugFromSubject,

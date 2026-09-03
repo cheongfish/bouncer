@@ -2,17 +2,13 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+import graphScope = require('./graph-scope');
 const {
   DEFAULT_SOURCE_OUT,
   DEFAULT_TEST_OUT,
   DEFAULT_CONTEXT_OUT,
   realExcludeDirs,
-} = require('./graph-scope') as {
-  DEFAULT_SOURCE_OUT: string;
-  DEFAULT_TEST_OUT: string;
-  DEFAULT_CONTEXT_OUT: string;
-  realExcludeDirs: (repoRoot: string) => { dirs: string[]; skipReason?: string };
-};
+} = graphScope;
 
 // 점수표는 Task 003·평가 corpus가 같은 숫자를 재사용하므로 상수로 고정한다.
 const SCORE = {
@@ -872,7 +868,7 @@ function graphSuggest(opts: {
   };
 }
 
-module.exports = {
+export = {
   SCORE,
   ROLE_PRIORITY,
   scoreConfidence,

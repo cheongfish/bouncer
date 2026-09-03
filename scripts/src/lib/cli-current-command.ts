@@ -1,43 +1,17 @@
 'use strict';
 
-const { parseFlags } = require('./cli-flags') as {
-  parseFlags: (rest: string[]) => Record<string, string | boolean>;
-};
+import cliFlags = require('./cli-flags');
+const { parseFlags } = cliFlags;
 const { execFileSync } = require('node:child_process');
-const { validateBlueprint } = require('./validate') as {
-  validateBlueprint: (opts: {
-    repoRoot: string;
-    blueprintDir: string;
-    gate?: string;
-  }) => { ok: boolean; failures: unknown[] };
-};
+import validate = require('./validate');
+const { validateBlueprint } = validate;
+import current = require('./current');
 const {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints,
   resolvePointerTask, presentCurrent,
-} = require('./current') as {
-  readCurrent: (opts: { repoRoot: string }) => {
-    blueprint: string;
-    base: string;
-    task: string | null;
-  } | null;
-  writeCurrent: (opts: {
-    repoRoot: string;
-    blueprint: unknown;
-    base: string;
-    task?: unknown;
-  }) => string;
-  clearCurrent: (opts: { repoRoot: string }) => boolean;
-  listReadyBlueprints: (opts: { repoRoot: string }) => unknown[];
-  resolvePointerTask: (opts: {
-    repoRoot: string;
-    blueprintDir: string;
-    task?: unknown;
-  }) => { ok: boolean; available?: Array<{ id: string }>; task?: unknown };
-  presentCurrent: (current: unknown, opts: { repoRoot: string }) => unknown;
-};
-const { readConfig } = require('./config') as {
-  readConfig: (repoRoot: string) => unknown;
-};
+} = current;
+import config = require('./config');
+const { readConfig } = config;
 
 type CliIo = {
   out: (s: string) => void;
@@ -168,7 +142,7 @@ function cmdCurrent(rest: string[], io: CliIo) {
   return 0;
 }
 
-module.exports = {
+export = {
   current: {
     run: cmdCurrent,
     usage: `  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>]]

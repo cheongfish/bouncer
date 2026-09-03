@@ -1,5 +1,4 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 // 경로는 emit된 scripts/lib/ 기준(tsc는 require 문자열을 재작성하지 않음).
 const yaml = require('../vendor/js-yaml');

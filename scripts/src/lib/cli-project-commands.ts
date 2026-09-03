@@ -1,87 +1,35 @@
 'use strict';
 
-const { parseFlags } = require('./cli-flags') as {
-  parseFlags: (rest: string[]) => Record<string, string | boolean>;
-};
-const { init } = require('./init') as {
-  init: (opts: Record<string, unknown>) => { ok: boolean };
-};
-const { nowIsoKst } = require('./time') as {
-  nowIsoKst: () => string;
-};
-const { syncSessionGraphs } = require('./session-graph') as {
-  syncSessionGraphs: (opts: { repoRoot: string }) => { failed: unknown[] };
-};
-const { resolveGraphifyBin } = require('./graphify') as {
-  resolveGraphifyBin: (opts: { repoRoot: string }) => { bin: string | null };
-};
-const { migrateIds } = require('./migrate-ids') as {
-  migrateIds: (opts: { repoRoot: string; dryRun?: boolean }) => { ok: boolean };
-};
-const { migrateTaskLayout } = require('./migrate-task-layout') as {
-  migrateTaskLayout: (opts: { repoRoot: string; dryRun?: boolean }) => { ok: boolean };
-};
-const { runtimePaths } = require('./runtime-state') as {
-  runtimePaths: (opts: { repoRoot: string }) => {
-    unavailable?: boolean;
-    projectRoot?: string;
-    reason?: string;
-  };
-};
-const { readShards, routeShards, renderShards, resolveDistillRoot } = require('./distill') as {
-  readShards: (opts: { repoRoot: string; runtime?: unknown }) => DistillState;
-  routeShards: (opts: Record<string, unknown>) => DistillSelection;
-  renderShards: (state: DistillState, selection: DistillSelection) => string;
-  resolveDistillRoot: (opts: { repoRoot: string; runtime?: unknown }) => string;
-};
-const { readConfig, getDistillConfig } = require('./config') as {
-  readConfig: (repoRoot: string) => unknown;
-  getDistillConfig: (config?: unknown) => { routing_enabled: boolean; max_bytes: number };
-};
-const { graphSuggest } = require('./graph-search') as {
-  graphSuggest: (opts: {
-    repoRoot: string;
-    query: string;
-    seeds?: string[];
-  }) => {
-    status: string;
-    confidence: string;
-    candidates: unknown;
-    suggested_paths: string[];
-    reasons: string[];
-  };
-};
+import cliFlags = require('./cli-flags');
+const { parseFlags } = cliFlags;
+import initMod = require('./init');
+const { init } = initMod;
+import time = require('./time');
+const { nowIsoKst } = time;
+import sessionGraph = require('./session-graph');
+const { syncSessionGraphs } = sessionGraph;
+import graphify = require('./graphify');
+const { resolveGraphifyBin } = graphify;
+import migrateIdsMod = require('./migrate-ids');
+const { migrateIds } = migrateIdsMod;
+import migrateTaskLayoutMod = require('./migrate-task-layout');
+const { migrateTaskLayout } = migrateTaskLayoutMod;
+import runtimeState = require('./runtime-state');
+const { runtimePaths } = runtimeState;
+import distill = require('./distill');
+const { readShards, routeShards, renderShards, resolveDistillRoot } = distill;
+import config = require('./config');
+const { readConfig, getDistillConfig } = config;
+import graphSearch = require('./graph-search');
+const { graphSuggest } = graphSearch;
 
 type CliIo = {
   out: (s: string) => void;
   err: (s: string) => void;
 };
 
-type DistillShard = {
-  id: string;
-  path?: string;
-  raw?: string;
-  always?: boolean;
-  pathsKnown?: boolean;
-  pullsKnown?: boolean;
-  paths?: unknown;
-  pulls?: unknown;
-};
-type DistillState = {
-  shards?: DistillShard[];
-  ids?: string[];
-  sharded?: boolean;
-  valid?: boolean;
-  path?: string;
-  repoRoot?: string;
-  routingEnabled?: boolean;
-};
-type DistillSelection = {
-  full?: boolean;
-  reason?: string;
-  ids?: string[];
-  shards?: DistillShard[];
-};
+type DistillState = ReturnType<typeof readShards>;
+type DistillSelection = ReturnType<typeof routeShards>;
 type DistillArgs = {
   error?: string;
   targets: string[];
@@ -498,7 +446,7 @@ function cmdMigrate(rest: string[], io: CliIo) {
   return result.ok ? 0 : 1;
 }
 
-module.exports = {
+export = {
   init: {
     run: cmdInit,
     usage: `  init       Bootstrap .bouncer/ for this project. Never overwrites.

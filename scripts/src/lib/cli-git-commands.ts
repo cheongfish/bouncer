@@ -1,25 +1,15 @@
 'use strict';
 
-const { parseFlags } = require('./cli-flags') as {
-  parseFlags: (rest: string[]) => Record<string, string | boolean>;
-};
-const { finalize } = require('./finalize') as {
-  finalize: (opts: { repoRoot: string; blueprintDir: string; yes?: boolean }) => { ok: boolean };
-};
-const { commitTask } = require('./commit') as {
-  commitTask: (opts: { repoRoot: string; blueprintDir: string; yes?: boolean }) => { ok: boolean };
-};
-const { seedWorktree } = require('./seed-worktree') as {
-  seedWorktree: (opts: {
-    repoRoot: string;
-    blueprintDir: string;
-    worktreePath: string;
-  }) => { ok: boolean };
-};
-const { planImport, applyImport } = require('./import-history') as {
-  planImport: (opts: Record<string, unknown>) => { ok: boolean };
-  applyImport: (opts: Record<string, unknown>) => { ok: boolean };
-};
+import cliFlags = require('./cli-flags');
+const { parseFlags } = cliFlags;
+import finalizeMod = require('./finalize');
+const { finalize } = finalizeMod;
+import commit = require('./commit');
+const { commitTask } = commit;
+import seedWorktreeMod = require('./seed-worktree');
+const { seedWorktree } = seedWorktreeMod;
+import importHistory = require('./import-history');
+const { planImport, applyImport } = importHistory;
 
 type CliIo = {
   out: (s: string) => void;
@@ -138,7 +128,7 @@ function cmdImport(rest: string[], io: CliIo) {
   return result.ok ? 0 : 2;
 }
 
-module.exports = {
+export = {
   commit: {
     run: cmdCommit,
     usage: `  commit     --blueprint <dir> [--yes]

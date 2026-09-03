@@ -1,13 +1,17 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { CONTEXT_ROOT } = require('./layout');
-const { toPosix, normalizeContextId } = require('./paths');
-const { parseFrontmatter } = require('./frontmatter');
-const { renderDoc } = require('./render');
-const { readRuntimeCurrent, writeRuntimeCurrent } = require('./runtime-state');
+const layout = require("./layout");
+const { CONTEXT_ROOT } = layout;
+const paths = require("./paths");
+const { toPosix, normalizeContextId } = paths;
+const frontmatter = require("./frontmatter");
+const { parseFrontmatter } = frontmatter;
+const render = require("./render");
+const { renderDoc } = render;
+const runtimeState = require("./runtime-state");
+const { readRuntimeCurrent, writeRuntimeCurrent } = runtimeState;
 // 구형 디렉터리만 본다 — layout/parsePathIds의 전이 허용에 기대면 BP-003이
 // 그걸 제거한 뒤 SessionStart 훅도 함께 죽는다.
 const LEGACY_EPIC_DIR_RE = /^EPIC-(\d{3})-(.+)$/;

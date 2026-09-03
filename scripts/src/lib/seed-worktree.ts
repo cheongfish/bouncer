@@ -3,16 +3,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { epicDirOf, toPosix } = require('./paths') as {
-  epicDirOf: (blueprintDir: unknown) => string;
-  toPosix: (p: unknown) => string;
-};
-const { CONTEXT_ROOT } = require('./layout') as {
-  CONTEXT_ROOT: string;
-};
-const { isUnder } = require('./scope') as {
-  isUnder: (file: unknown, entry: unknown) => boolean;
-};
+import paths = require('./paths');
+const { epicDirOf, toPosix } = paths;
+import layout = require('./layout');
+const { CONTEXT_ROOT } = layout;
+import scope = require('./scope');
+const { isUnder } = scope;
 
 type SeedGit = {
   changedFiles: () => string[];
@@ -215,4 +211,4 @@ function seedWorktree({
   return { ok: true, moved, restored };
 }
 
-module.exports = { makeIsTarget, realGit, seedWorktree };
+export = { makeIsTarget, realGit, seedWorktree };
