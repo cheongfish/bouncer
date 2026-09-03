@@ -8,6 +8,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { commitTask } = require('../scripts/lib/commit');
+const { checkCommitSafety } = require('../scripts/lib/commit-guard');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 const { readCurrent, writeCurrent } = require('../scripts/lib/current');
 const { recordVerificationResult } = require('../scripts/lib/verification');
@@ -214,6 +215,58 @@ test('out-of-scope file hard-aborts without staging', () => {
   assert.strictEqual(res.reason, 'out-of-scope');
   assert.deepStrictEqual(res.violations, ['src/payments/charge.ts']);
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
+});
+
+test('untracked out-of-scope hard-aborts without staging', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = trackingGit(['src/auth/login.ts'], ['src/payments/charge.ts']);
+  const res = commitTask({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.deepStrictEqual(res.violations, ['src/payments/charge.ts']);
+  assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
+});
+
+test('commitTask violations match checkCommitSafety for the same files', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const files = ['src/auth/login.ts', 'src/payments/charge.ts'];
+  const guard = checkCommitSafety({
+    files,
+    affectedPaths: ['src/auth/'],
+    blueprintDir: BP_REL,
+  });
+  assert.strictEqual(guard.allow, false);
+  const g = trackingGit(files, []);
+  const res = commitTask({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.deepStrictEqual(res.violations, guard.violations);
+  assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
+});
+
+test('in-scope changed and untracked pass the same guard as checkCommitSafety', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const files = ['src/auth/login.ts', 'src/auth/session.ts'];
+  const guard = checkCommitSafety({
+    files,
+    affectedPaths: ['src/auth/'],
+    blueprintDir: BP_REL,
+  });
+  assert.strictEqual(guard.allow, true);
+  const g = trackingGit(['src/auth/login.ts'], ['src/auth/session.ts']);
+  const res = commitTask({
+    repoRoot: repo, blueprintDir: BP_REL, git: g.api,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.dryRun, true);
+  assert.deepStrictEqual(res.staged, files);
 });
 
 test('no changes with --yes succeeds without calling commit', () => {

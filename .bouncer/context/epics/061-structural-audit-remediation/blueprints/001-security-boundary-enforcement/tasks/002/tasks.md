@@ -11,10 +11,16 @@ bouncer:
   id: TASKS-002
   epic_id: '061'
   blueprint_id: '001'
-  status: ready
+  status: verified
+  verify: node --test test/commit-task.test.js test/cli-commit.test.js test/commit-hook.test.js
+  commit_intent:
+    - CLI와 호스트 훅이 같은 범위 가드로 staging 전에 거절하게 함
+    - 호스트별 훅·CLI 집행 차이를 호환성 문서에 남김
   affected_paths:
     - scripts/src/lib/commit.ts
     - scripts/src/lib/commit-guard.ts
+    - scripts/lib/commit.js
+    - scripts/lib/commit-guard.js
     - test/commit-task.test.js
     - test/cli-commit.test.js
     - test/commit-hook.test.js
@@ -81,6 +87,8 @@ CLI의 task 커밋과 호스트 훅이 동일한 `checkCommitSafety` 판정을 �
      경로는 백틱으로 감쌉니다. -->
 - Modify `scripts/src/lib/commit.ts` — 중복 범위 판정을 `checkCommitSafety` 호출로 통합함.
 - Modify `scripts/src/lib/commit-guard.ts` — 공통 입력·위반 결과 계약을 고정함.
+- Modify `scripts/lib/commit.js` — TypeScript emit 동반 산출물.
+- Modify `scripts/lib/commit-guard.js` — TypeScript emit 동반 산출물.
 - Modify `test/commit-task.test.js` — task 커밋의 범위 거부를 검증함.
 - Modify `test/cli-commit.test.js` — 훅 없는 직접 CLI 호출을 검증함.
 - Modify `test/commit-hook.test.js` — hook·CLI 판정 일치를 검증함.
@@ -109,4 +117,4 @@ CLI의 task 커밋과 호스트 훅이 동일한 `checkCommitSafety` 판정을 �
 - [ ] task 커밋·CLI·hook의 허용·거부 케이스를 먼저 고정하고 현재 구현의 결과를 확인함.
 - [ ] `commitTask`가 변경·untracked 파일을 공통 가드에 전달하도록 통합함.
 - [ ] staging 전에 범위 밖 변경이 중단되고 hook·CLI 결과가 일치하는지 검증함.
-- [ ] Claude·Cursor·Codex·Antigravity를 행으로, hook 유무·CLI 가드·범위 밖 변경 결과를 열로 갖는 매트릭스를 문서화하고 `npm test`를 실행함.
+- [ ] Claude·Cursor·Codex·Antigravity를 행으로, hook 유무·CLI 가드·범위 밖 변경 결과를 열로 갖는 매트릭스를 문서화하고 `node --test test/commit-task.test.js test/cli-commit.test.js test/commit-hook.test.js`를 실행함.

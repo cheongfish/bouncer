@@ -33,12 +33,6 @@ bouncer:
     producer: graphify
     generated_at: '2026-09-03T12:18:00.000+09:00'
     suggested_paths: []
-    # 유효 엔트리 필드: graph, status, query, result — 예시는 주석이라 파싱되지 않는다
-    # - graph: source | test | context
-    #   status: updated | reused | fail-skip | skip-disabled | missing
-    #   query: <graphify 조회>
-    #   result: <한 줄 요약>
-    # quality/candidates는 graph-suggest 뒤에만 채운다 — scaffold가 제조하지 않는다
     quality:
       status: low-confidence
       confidence: low
@@ -63,6 +57,7 @@ bouncer:
         status: reused
         query: verification command argv shell false allowed executable config
         result: context graph reused; no reliable path suggestions
+  commit_sha: 8b1493ef
 ---
 # Tasks
 
