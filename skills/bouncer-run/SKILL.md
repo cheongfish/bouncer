@@ -6,10 +6,12 @@ description: "Use only when the user explicitly asks /bouncer-run; it repeats /b
 
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
-**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`). Product detail:
+**Master rules.** At loop entry (drive start), Read `${BOUNCER_ROOT}/CLAUDE.md`
+once (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Do not reload these immutable rules on later task iterations in the same drive.
+Continue Distill re-ground, task brief, ACQ, and gate work per task.
 
 **Project root.** Resolve once at drive start (and reuse on every re-ground):
 ```bash
