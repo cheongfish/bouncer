@@ -96,13 +96,31 @@ finalize이고 plan 뒤 기본 주행은 run이다.
 | 묶음 | 최상위 키 |
 | --- | --- |
 | 입력 경로 | `source_dirs`, `context_dirs` |
-| 실행·작업 흐름 | `verify`, `base_branch`, `autonomy` |
+| 실행·작업 흐름 | `verify`, `verify_allowlist`, `base_branch`, `autonomy` |
 | 그래프 | `graphify` |
 | 지식 | `distill` |
 | 마감·에이전트 | `pr`, `subagents` |
 
 중첩 필드와 값은 [configuration.md](configuration.md) 및
 [`config.example.json`](../config.example.json)을 따른다.
+
+## 커밋 범위 집행 매트릭스
+
+범위 판정 구현은 `scripts/lib/commit-guard.js`의 `checkCommitSafety` 하나다.
+호스트 hook(`evaluateCommit`)과 CLI `bouncer commit`(`commitTask`)이 같은
+`allow`·`violations`를 쓴다. 훅이 없거나 로드되지 않은 호스트에서도 CLI가
+staging·commit 전에 범위 밖 변경을 거부한다. `--yes`는 이 거부를 우회하지
+않는다.
+
+| 호스트 | 커밋 훅 | CLI 가드 (`bouncer commit`) | 범위 밖 변경 기대 결과 |
+| --- | --- | --- | --- |
+| Claude Code | 있음 (`hooks/hooks.json` `PreToolUse` → `hooks/commit-safety.js`) | 있음 | staging·commit 전 거부 |
+| Cursor | 있음 (`hooks/cursor-hooks.json` `beforeShellExecution` → `hooks/cursor-commit-safety.js`) | 있음 | staging·commit 전 거부 |
+| Codex | 파일은 있음(`hooks/hooks.json`); 플러그인 훅 trust 전까지 미동작 | 있음 | 훅 유무와 관계없이 CLI가 거부; trust 후에는 훅도 동일 판정 |
+| Antigravity | `hooks/hooks.json` 관례 경로(호스트 로드에 의존) | 있음 | 훅 유무와 관계없이 CLI가 거부; 훅이 로드되면 동일 판정 |
+
+훅 탐지·fail-closed 규칙은 [보안](security.md)을, 설치·trust 절차는
+[설치](install.md)를 본다.
 
 ## 계약이 아닌 것
 

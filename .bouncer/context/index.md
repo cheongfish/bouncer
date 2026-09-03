@@ -16,3 +16,4 @@ bouncer_schema: '0.1'
 * [039 오픈소스 1.0 공개](epics/039-release-security/index.md) - Security, quality, public contract, and release history for the 1.0.0 open-source plugin
 * [043 bouncer-cost-improvement](epics/043-bouncer-cost-improvement/index.md) - 측정 가능한 비용 절감과 경량 계획 계약으로 Bouncer의 품질 이득을 유지한다
 * [060 graphify-search-quality](epics/060-graphify-search-quality/index.md) - 과거 결정과 코드 관계를 연결해 누락이 적고 신뢰도를 설명할 수 있는 변경 경로 후보를 만든다
+* [061 structural-audit-remediation](epics/061-structural-audit-remediation/index.md) - Addresses measured structural audit findings through staged security, efficiency, correctness, and distribution improvements.

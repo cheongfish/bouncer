@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { isGitCommit, evaluateCommit, realMainRepoCurrent } = require('../scripts/lib/commit-hook');
+const { checkCommitSafety } = require('../scripts/lib/commit-guard');
 const { writeCurrent } = require('../scripts/lib/current');
 
 test('isGitCommit detects commit invocations', () => {
@@ -71,6 +72,47 @@ test('out-of-scope commit is blocked with a reason listing violations', () => {
   assert.strictEqual(r.block, true);
   assert.ok(r.reason.includes('src/other/b.js'));
   assert.ok(!r.reason.includes('src/feature/a.js'));
+});
+
+test('evaluateCommit allow/deny matches checkCommitSafety for the same files', () => {
+  const affected = ['src/feature'];
+  const denyFiles = ['src/feature/a.js', 'src/other/b.js'];
+  const denyGuard = checkCommitSafety({
+    files: denyFiles,
+    affectedPaths: affected,
+    blueprintDir: BP,
+  });
+  assert.strictEqual(denyGuard.allow, false);
+  assert.deepStrictEqual(denyGuard.violations, ['src/other/b.js']);
+  const denied = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: '/r',
+    deps: deps({
+      current: { blueprint: BP, base: 'develop' },
+      affected,
+      staged: denyFiles,
+    }),
+  });
+  assert.strictEqual(denied.block, true);
+  assert.ok(denied.reason.includes('src/other/b.js'));
+
+  const allowFiles = ['src/feature/a.js', `${BP}/tasks/001/tasks.md`];
+  const allowGuard = checkCommitSafety({
+    files: allowFiles,
+    affectedPaths: affected,
+    blueprintDir: BP,
+  });
+  assert.strictEqual(allowGuard.allow, true);
+  const allowed = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: '/r',
+    deps: deps({
+      current: { blueprint: BP, base: 'develop' },
+      affected,
+      staged: allowFiles,
+    }),
+  });
+  assert.strictEqual(allowed.block, false);
 });
 
 test('worktree pointer missing but main-repo pointer present → falls back and blocks out-of-scope commit', () => {

@@ -689,6 +689,28 @@ test('S12: invalid tasks.bouncer.verify is reported', () => {
   assert.ok(res.failures.some((f) => f.code === 'S12'));
 });
 
+test('S12: unclosed quotes are reported as invalid verify', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.verify = 'node -e "unclosed';
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S12'));
+});
+
+test('S12: argv0 outside the default verify allowlist is reported', () => {
+  const repo = mkRepo();
+  const t = goodTasks();
+  t.bouncer.verify = 'curl https://example.invalid';
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S12'));
+});
+
 test('S12 does not fire when tasks.bouncer.verify is absent', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/tasks.md`, goodTasks());

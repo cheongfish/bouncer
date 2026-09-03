@@ -17,6 +17,23 @@
     "max_bytes": 6144
   },
   "verify": "npm test",
+  "verify_allowlist": [
+    "npm",
+    "npx",
+    "node",
+    "pnpm",
+    "yarn",
+    "bun",
+    "deno",
+    "make",
+    "python",
+    "python3",
+    "pytest",
+    "go",
+    "cargo",
+    "true",
+    "false"
+  ],
   "base_branch": "main",
   "autonomy": "auto",
   "pr": {

@@ -16,6 +16,32 @@ const DEFAULT_DISTILL_CONFIG = {
     routing_enabled: false,
     max_bytes: 6 * 1024,
 };
+// 검증 실행은 shell:false argv만 허용한다. argv0 실행 파일명이 이 목록(또는
+// config.verify_allowlist)에 있어야 프로세스를 시작한다. 커스텀 바이너리는
+// npm script로 감싸거나 저장소 allowlist에 명시한다.
+//
+// plan/S12는 `tasks.bouncer.verify`를 DEFAULT_VERIFY_ALLOWLIST만으로 검사한다
+// (저장소 config를 읽지 않음). 런타임 `config.verify`·executeVerify는
+// getVerifyAllowlist(config) — 즉 저장소 `verify_allowlist` — 를 쓴다.
+const DEFAULT_VERIFY_ALLOWLIST = Object.freeze([
+    'npm',
+    'npx',
+    'node',
+    'pnpm',
+    'yarn',
+    'bun',
+    'deno',
+    'make',
+    'python',
+    'python3',
+    'pytest',
+    'go',
+    'cargo',
+    // /bin/true·false — 테스트 fixture와 no-op verify에 쓰는 표준 유틸.
+    // 셸 내장이 아니라 PATH 실행 파일이라 shell:false로도 동작한다.
+    'true',
+    'false',
+]);
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -27,6 +53,31 @@ function getDistillConfig(config = {}) {
     // 추가 키를 검증하지 않는다. 예전에는 객체를 그대로 spread했고, 여기서
     // boolean/number만 남기면 호출자가 넣어 둔 확장 필드가 사라진다.
     return { ...DEFAULT_DISTILL_CONFIG, ...value };
+}
+/**
+ * 검증 실행 파일 허용 목록을 읽는다. 키가 없거나 배열이 아니면 기본값을
+ * 쓴다 — 잘못된 형태를 빈 목록으로 접으면 모든 verify가 거절되어 기존
+ * 저장소의 execute가 한꺼번에 멈춘다. 명시적 `[]`는 그대로 두어 운영자가
+ * 전면 차단을 의도한 경우를 구분한다.
+ *
+ * 이 함수는 런타임(`executeVerify`/`runVerification`) 전용이다. plan/S12의
+ * `tasks.bouncer.verify` 검사는 `isValidVerifyCommand` 기본 목록을 쓰고
+ * 여기 config 값을 읽지 않는다.
+ *
+ * @param {unknown} [config] - `.bouncer/config.json` 파싱 결과
+ * @returns {readonly string[]} argv0 실행 파일명 허용 목록
+ */
+function getVerifyAllowlist(config = {}) {
+    if (!isRecord(config) || !Object.prototype.hasOwnProperty.call(config, 'verify_allowlist')) {
+        return DEFAULT_VERIFY_ALLOWLIST;
+    }
+    const raw = config.verify_allowlist;
+    if (!Array.isArray(raw)) {
+        return DEFAULT_VERIFY_ALLOWLIST;
+    }
+    // 문자열만 남긴다. 숫자·객체 항목은 무시해 basename 비교가 항상 문자열끼리만
+    // 이뤄지게 한다.
+    return raw.filter((entry) => typeof entry === 'string' && entry.length > 0);
 }
 function isEnoentError(error) {
     // catch 변수는 strict에서 unknown이다. code를 읽기 전에 객체인지 좁히지
@@ -85,4 +136,6 @@ module.exports = {
     readConfig,
     DEFAULT_DISTILL_CONFIG,
     getDistillConfig,
+    DEFAULT_VERIFY_ALLOWLIST,
+    getVerifyAllowlist,
 };

@@ -31,9 +31,15 @@ const { realGit, buildCommitMessage } = require('./finalize') as {
   realGit: (repoRoot: string) => GitApi;
   buildCommitMessage: (docs: unknown, taskUnit: TaskUnitLike | null) => string;
 };
-const { makeAllowed, isRuntimeArtifact } = require('./scope') as {
-  makeAllowed: (opts: { affectedPaths?: unknown; blueprintDir: unknown }) => (file: unknown) => boolean;
+const { isRuntimeArtifact } = require('./scope') as {
   isRuntimeArtifact: (file: unknown) => boolean;
+};
+const { checkCommitSafety } = require('./commit-guard') as {
+  checkCommitSafety: (opts: {
+    files?: unknown[] | null;
+    affectedPaths?: unknown;
+    blueprintDir?: unknown;
+  }) => { allow: boolean; violations: unknown[] };
 };
 const { normalizeCommitSha } = require('./commit-sha') as {
   normalizeCommitSha: (value: unknown) => string | null;
@@ -116,13 +122,18 @@ function commitTask({
     && (taskUnit.tasks.data as Record<string, unknown>).bouncer
     ? ((taskUnit.tasks.data as Record<string, unknown>).bouncer as Record<string, unknown>).affected_paths
     : [];
-  const allowed = makeAllowed({ affectedPaths, blueprintDir });
 
+  // 범위 판정은 hook과 같은 checkCommitSafety만 쓴다 — makeAllowed를 여기서 복제하지 않는다.
   const changed = gitApi.changedFiles();
   const untracked = gitApi.untrackedFiles();
-  const all = [...new Set([...changed, ...untracked])].filter((f) => !isRuntimeArtifact(f));
-  const violations = all.filter((f) => !allowed(f));
-  if (violations.length) return { ok: false, reason: 'out-of-scope', violations };
+  const candidates = [...new Set([...changed, ...untracked])];
+  const { allow, violations } = checkCommitSafety({
+    files: candidates, affectedPaths, blueprintDir,
+  });
+  if (!allow) return { ok: false, reason: 'out-of-scope', violations };
+
+  // 판정을 통과한 뒤 staging 목록에서만 runtime artifact를 뺀다(가드와 동일 필터).
+  const all = candidates.filter((f) => !isRuntimeArtifact(f));
 
   const commitMessage = buildCommitMessage(docs, taskUnit);
   const nextTask = findNextOpenTask({ repoRoot, blueprintDir, currentUnit: taskUnit });

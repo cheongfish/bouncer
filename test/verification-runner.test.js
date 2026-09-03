@@ -9,7 +9,9 @@ const { createHash } = require('node:crypto');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const {
   executeVerify, readVerifyCommand, runVerification, recordVerificationResult,
+  parseVerifyArgv, isValidVerifyCommand,
 } = require('../scripts/lib/verification');
+const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
 const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
 const { checkGate } = require('../scripts/lib/validate');
 
@@ -75,10 +77,12 @@ test('runVerification records successful command evidence', () => {
     repoRoot: repo,
     blueprintDir: BP_REL,
     now: () => new Date('2026-07-27T00:00:00.000Z'),
-    exec: (command, options) => {
-      assert.strictEqual(command, 'npm test');
+    exec: (file, args, options) => {
+      assert.strictEqual(file, 'npm');
+      assert.deepStrictEqual(args, ['test']);
       assert.strictEqual(options.cwd, repo);
-      return { stdout: 'line one\nline two\n', stderr: '' };
+      assert.strictEqual(options.shell, false);
+      return { status: 0, stdout: 'line one\nline two\n', stderr: '' };
     },
   });
 
@@ -124,7 +128,7 @@ test('runVerification writes a verify ledger record matching the re-read output_
     repoRoot: repo,
     blueprintDir: BP_REL,
     now: () => new Date('2026-07-27T00:00:00.000Z'),
-    exec: () => ({ stdout: 'line one\nline two\n', stderr: '' }),
+    exec: () => ({ status: 0, stdout: 'line one\nline two\n', stderr: '' }),
   });
   const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
   const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
@@ -309,12 +313,14 @@ test('runVerification prefers tasks.bouncer.verify over config.verify', () => {
     repoRoot: repo,
     blueprintDir: BP_REL,
     now: () => new Date('2026-07-27T00:00:00.000Z'),
-    exec: (command) => {
-      executed = command;
-      return { stdout: 'ok\n', stderr: '' };
+    // 3인자(spawnSync) 형태 — length < 3이면 execSync 2인자로 분기한다.
+    exec: (file, args, options) => {
+      void options;
+      executed = [file, ...args].join(' ');
+      return { status: 0, stdout: 'ok\n', stderr: '' };
     },
   });
-  assert.strictEqual(executed, declared);
+  assert.strictEqual(executed, 'node -e process.exit(0)');
   assert.strictEqual(result.command, declared);
   const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.verification.command, declared);
@@ -327,12 +333,13 @@ test('runVerification falls back to config.verify when tasks has no verify', () 
   runVerification({
     repoRoot: repo,
     blueprintDir: BP_REL,
-    exec: (command) => {
-      executed = command;
-      return { stdout: '', stderr: '' };
+    exec: (file, args, options) => {
+      void options;
+      executed = [file, ...args];
+      return { status: 0, stdout: '', stderr: '' };
     },
   });
-  assert.strictEqual(executed, 'npm test');
+  assert.deepStrictEqual(executed, ['npm', 'test']);
 });
 
 test('runVerification falls back to config.verify when the task document is absent', () => {
@@ -341,12 +348,13 @@ test('runVerification falls back to config.verify when the task document is abse
   runVerification({
     repoRoot: repo,
     blueprintDir: BP_REL,
-    exec: (command) => {
-      executed = command;
-      return { stdout: '', stderr: '' };
+    exec: (file, args, options) => {
+      void options;
+      executed = [file, ...args];
+      return { status: 0, stdout: '', stderr: '' };
     },
   });
-  assert.strictEqual(executed, 'npm test');
+  assert.deepStrictEqual(executed, ['npm', 'test']);
 });
 
 test('readVerifyCommand rejects non-single executable commands', () => {
@@ -564,7 +572,7 @@ test('runVerification records evidence into the pointer tasks/002 unit only', ()
     repoRoot: repo,
     blueprintDir: BP_REL,
     now: () => new Date('2026-07-27T00:00:00.000Z'),
-    exec: () => ({ stdout: 'ok\n', stderr: '' }),
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
   });
   assert.deepStrictEqual(result, {
     ok: true, command: 'node -e "process.exit(0)"', exitCode: 0,
@@ -605,4 +613,210 @@ test('runVerification rejects missing unit verification.md without creating it',
     { code: 'VERIFY_DOCUMENT_MISSING' },
   );
   assert.ok(!fs.existsSync(path.join(repo, missingRel)));
+});
+
+test('parseVerifyArgv preserves quoted arguments and spaces', () => {
+  assert.deepStrictEqual(
+    parseVerifyArgv('node -e "console.log(\'a b\')"'),
+    ['node', '-e', "console.log('a b')"],
+  );
+  assert.deepStrictEqual(
+    parseVerifyArgv("npm run test:e2e -- --grep 'one two'"),
+    ['npm', 'run', 'test:e2e', '--', '--grep', 'one two'],
+  );
+});
+
+test('runVerification executes via argv with shell:false and preserves quotes', () => {
+  const declared = 'node -e "process.stdout.write(\'ok\')"';
+  const repo = setupRepo('npm test');
+  writeTasks(repo, declared);
+  let captured;
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec: (file, args, options) => {
+      captured = { file, args, options };
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(captured.file, 'node');
+  assert.deepStrictEqual(captured.args, ['-e', "process.stdout.write('ok')"]);
+  assert.strictEqual(captured.options.shell, false);
+  assert.strictEqual(result.command, declared);
+  assert.strictEqual(result.ok, true);
+});
+
+test('runVerification rejects shell operators before starting a process', () => {
+  const repo = setupRepo('npm test');
+  writeTasks(repo, 'npm test && rm -rf /');
+  let executed = false;
+  assert.throws(
+    () => runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      exec: () => { executed = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_COMMAND_INVALID',
+  );
+  assert.strictEqual(executed, false);
+});
+
+test('runVerification rejects parse failures before starting a process', () => {
+  const repo = setupRepo('npm test');
+  writeTasks(repo, 'node -e "unclosed');
+  let executed = false;
+  assert.throws(
+    () => runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      exec: () => { executed = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_COMMAND_INVALID',
+  );
+  assert.strictEqual(executed, false);
+});
+
+test('runVerification rejects argv0 outside the allowlist before starting a process', () => {
+  const repo = setupRepo('curl https://example.invalid');
+  let executed = false;
+  // config.verify는 readVerifyCommand가 형식 검사를 건너뛰므로 executeVerify가
+  // 거절한다. throw가 아니라 ok:false + 실패 증적이어야 finalize JSON 경로와 맞다.
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec: () => { executed = true; return { status: 0, stdout: '', stderr: '' }; },
+  });
+  assert.strictEqual(executed, false);
+  assert.deepStrictEqual(result, {
+    ok: false,
+    command: 'curl https://example.invalid',
+    exitCode: 1,
+  });
+  const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
+  assert.strictEqual(verification.data.bouncer.status, 'failed');
+  assert.strictEqual(verification.data.bouncer.verification.exit_code, 1);
+  assert.strictEqual(
+    verification.data.bouncer.verification.output_tail,
+    'verify command must be a single executable command',
+  );
+});
+
+test('runVerification honors config.verify_allowlist for argv0 basename', () => {
+  const repo = setupRepo('node -e "process.exit(0)"');
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    JSON.stringify({
+      verify: 'node -e "process.exit(0)"',
+      verify_allowlist: ['node'],
+    }),
+  );
+  let captured;
+  runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    exec: (file, args, options) => {
+      captured = { file, args, shell: options.shell };
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.deepStrictEqual(captured, {
+    file: 'node',
+    args: ['-e', 'process.exit(0)'],
+    shell: false,
+  });
+});
+
+test('isValidVerifyCommand rejects argv0 outside the default allowlist', () => {
+  assert.ok(isValidVerifyCommand('npm test'));
+  assert.ok(DEFAULT_VERIFY_ALLOWLIST.includes('npm'));
+  assert.ok(!isValidVerifyCommand('curl https://example.invalid'));
+});
+
+test('executeVerify adapts 2-arg injected exec (command, opts) without starting a process', () => {
+  // finalize adaptInjectedVerifyExec·구 테스트는 execSync 형태다.
+  let captured;
+  const result = executeVerify('npm test', {
+    cwd: '/tmp/verify-inject',
+    exec: (command, opts) => {
+      captured = { command, cwd: opts.cwd, shell: opts.shell, arity: 2 };
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.deepStrictEqual(captured, {
+    command: 'npm test',
+    cwd: '/tmp/verify-inject',
+    shell: false,
+    arity: 2,
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.exitCode, 0);
+});
+
+test('executeVerify keeps 3-arg injected exec (file, args, opts)', () => {
+  let captured;
+  executeVerify('npm test', {
+    cwd: '/tmp/verify-inject',
+    exec: (file, args, opts) => {
+      captured = { file, args, cwd: opts.cwd, shell: opts.shell };
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.deepStrictEqual(captured, {
+    file: 'npm',
+    args: ['test'],
+    cwd: '/tmp/verify-inject',
+    shell: false,
+  });
+});
+
+test('executeVerify reads verify_allowlist from config at cwd when allowlist is omitted', () => {
+  const repo = setupRepo('npm test');
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    JSON.stringify({
+      verify: 'npm test',
+      verify_allowlist: ['node'],
+    }),
+  );
+  let executed = false;
+  const result = executeVerify('npm test', {
+    cwd: repo,
+    exec: () => { executed = true; return { status: 0, stdout: '', stderr: '' }; },
+  });
+  assert.strictEqual(executed, false);
+  assert.deepStrictEqual(result, {
+    ok: false,
+    exitCode: 1,
+    output: 'verify command must be a single executable command',
+  });
+});
+
+test('executeVerify rejects npm test when allowlist is narrowed to node', () => {
+  let executed = false;
+  const result = executeVerify('npm test', {
+    cwd: process.cwd(),
+    allowlist: ['node'],
+    exec: () => { executed = true; return { status: 0, stdout: '', stderr: '' }; },
+  });
+  assert.strictEqual(executed, false);
+  assert.deepStrictEqual(result, {
+    ok: false,
+    exitCode: 1,
+    output: 'verify command must be a single executable command',
+  });
+});
+
+test('isValidVerifyCommand accepts win32 npm.cmd against the default allowlist', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+  try {
+    assert.ok(isValidVerifyCommand('npm.cmd test'));
+    assert.ok(isValidVerifyCommand('npx.cmd run lint'));
+    assert.ok(isValidVerifyCommand('node.exe -e "process.exit(0)"'));
+    assert.ok(!isValidVerifyCommand('curl.exe https://example.invalid'));
+  } finally {
+    Object.defineProperty(process, 'platform', descriptor);
+  }
 });

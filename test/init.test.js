@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../scripts/lib/init');
+const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
 const { TEMPLATES } = require('../scripts/lib/templates');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
@@ -114,6 +115,7 @@ test('init writes the exact config.json shape', () => {
     graphify: { enabled: true },
     distill: { routing_enabled: false, max_bytes: 6144 },
     verify: 'npm test',
+    verify_allowlist: [...DEFAULT_VERIFY_ALLOWLIST],
     autonomy: 'auto',
     // 신규 config의 pr는 draft만. base는 탐지 성공 시에만 붙는다.
     pr: { draft: true },

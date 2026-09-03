@@ -9,7 +9,7 @@ const { ensureCodexAgents, shouldEnsureCodexAgents } = require('./codex-agents')
 const { PROJECT_DISTILL_BODY } = require('./templates');
 const { nowIsoKst } = require('./time');
 const { setupGraphify } = require('./graphify');
-const { readConfig, DEFAULT_DISTILL_CONFIG, } = require('./config');
+const { readConfig, DEFAULT_DISTILL_CONFIG, DEFAULT_VERIFY_ALLOWLIST, } = require('./config');
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
 // import하는 test와 동기 유지. test/tests는 구현 그래프 seed가 되지 않게
@@ -82,6 +82,9 @@ function defaultConfig(repoRoot) {
         // 자르는 제한이 아니라 샤드 분배를 검토할 때만 쓰는 경고 기준이다.
         distill: { ...DEFAULT_DISTILL_CONFIG },
         verify: 'npm test',
+        // 신규 저장소는 기본 허용 목록을 파일에 박아 둔다. 이후 기본값이
+        // 바뀌어도 이미 init된 저장소의 실행 경계를 조용히 넓히지 않기 위함.
+        verify_allowlist: [...DEFAULT_VERIFY_ALLOWLIST],
         ...(detected ? { base_branch: detected } : {}),
         autonomy: 'auto',
         // draft는 항상 둔다. base는 탐지 성공 시에만 — 실패를 develop/main으로

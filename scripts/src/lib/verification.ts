@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const { execSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
 const { readDoc } = require('./frontmatter') as {
   readDoc: (absPath: string) => { data: unknown; body: string; path: string };
 };
@@ -43,10 +43,16 @@ const { verifyLedgerPathFor } = require('./runtime-state') as {
     deps?: unknown;
   }) => { unavailable?: boolean; reason?: string; ledgerFile?: string };
 };
-const { readConfigResult } = require('./config') as {
+const {
+  readConfigResult,
+  getVerifyAllowlist,
+  DEFAULT_VERIFY_ALLOWLIST,
+} = require('./config') as {
   readConfigResult: (repoRoot: string) =>
     | { ok: true; value: unknown }
     | { ok: false; reason: 'missing' | 'invalid' };
+  getVerifyAllowlist: (config?: unknown) => readonly string[];
+  DEFAULT_VERIFY_ALLOWLIST: readonly string[];
 };
 
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
@@ -77,16 +83,105 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // 실행 가능한 argv 문자열 하나만: 셸 체이닝, 리다이렉션, `cd` 접두사 없음.
-// Plan S12와 runtime VERIFY_COMMAND_INVALID가 이 predicate를 공유하므로
-// 두 표면이 어긋날 수 없습니다.
-const VERIFY_COMMAND_FORBIDDEN = /[&|;`<>\n]|\$\(/;
+// Plan S12와 runtime VERIFY_COMMAND_INVALID가 parseVerifyArgv·allowlist를
+// 공유하므로 두 표면이 어긋날 수 없습니다.
 
-function isValidVerifyCommand(command: unknown): boolean {
-  if (typeof command !== 'string') return false;
+/**
+ * 검증 명령 문자열을 argv 배열로 파싱한다. 공백으로 나누되 작은따옴표·
+ * 큰따옴표 안의 공백은 한 인자로 유지한다. 셸 확장은 하지 않는다 —
+ * `shell: false` 실행과 같은 경계를 파싱 단계에서도 맞춘다.
+ *
+ * 메타문자 검사는 인용 **밖**에서만 한다. `node -e "a; b"`처럼 인자 안의
+ * `;`는 데이터이고, 인용 밖 `a; b`만 체이닝으로 거절해야 예전 config.verify
+ * 문자열과 실행 의미가 어긋나지 않는다.
+ *
+ * @param {unknown} command - `tasks.bouncer.verify` 또는 `config.verify` 문자열
+ * @returns {string[] | null} 성공 시 argv. 빈 값·메타문자·미종료 인용·`cd` 접두면 null
+ */
+function parseVerifyArgv(command: unknown): string[] | null {
+  if (typeof command !== 'string') return null;
   const trimmed = command.trim();
-  if (!trimmed) return false;
-  if (VERIFY_COMMAND_FORBIDDEN.test(trimmed)) return false;
-  return trimmed.split(/\s+/)[0] !== 'cd';
+  if (!trimmed) return null;
+
+  const argv: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  let sawToken = false;
+
+  for (let i = 0; i < trimmed.length; i += 1) {
+    const ch = trimmed[i];
+    if (quote) {
+      if (ch === quote) {
+        quote = null;
+        sawToken = true;
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    // 인용 밖의 셸 메타·개행·$( 만 거절. 인자 값에 든 동일 문자는 허용.
+    if (ch === '$' && trimmed[i + 1] === '(') return null;
+    if (/[&|;`<>\n]/.test(ch)) return null;
+    if (/\s/.test(ch)) {
+      if (sawToken || current.length > 0) {
+        argv.push(current);
+        current = '';
+        sawToken = false;
+      }
+      continue;
+    }
+    current += ch;
+    sawToken = true;
+  }
+  if (quote) return null;
+  if (sawToken || current.length > 0) {
+    argv.push(current);
+  }
+  if (argv.length === 0) return null;
+  // basename이 아니라 원본 argv0가 cd면 거절한다. `cd`는 셸 내장이고
+  // shell:false로도 의미가 없으며, 예전 S12 계약(`cd` 접두 금지)을 유지한다.
+  if (argv[0] === 'cd') return null;
+  return argv;
+}
+
+/**
+ * argv0를 허용 목록 비교용 이름으로 정규화한다. basename만 남기고,
+ * Windows는 PATH가 `npm.cmd`·`node.exe`를 고르므로 관용 확장자를 벗긴다 —
+ * 목록은 `npm`/`node`처럼 확장자 없는 이름만 둔다.
+ *
+ * @param {string} argv0 - 파싱된 첫 인자
+ * @returns {string} 허용 목록과 비교할 이름
+ */
+function verifyExecutableName(argv0: string): string {
+  const base = path.basename(argv0);
+  if (process.platform === 'win32') {
+    return base.replace(/\.(cmd|exe|bat)$/i, '');
+  }
+  return base;
+}
+
+/**
+ * 활성 포인터·config가 고른 검증 명령이 실행 가능한지 판정한다.
+ * 파싱 성공과 허용 목록(argv0 실행 파일명)을 함께 본다. allowlist를 생략하면
+ * 기본 목록을 쓴다 — plan/S12(`tasks.bouncer.verify`)는 config.verify_allowlist
+ * 없이 기본 목록만으로 검사하고, 런타임 `executeVerify`/`runVerification`은
+ * 저장소 config를 따로 읽는다.
+ *
+ * @param {unknown} command - 검증 명령 문자열
+ * @param {readonly string[]} [allowlist] - argv0 실행 파일명 허용 목록
+ * @returns {boolean} 실행해도 되는 명령이면 true
+ */
+function isValidVerifyCommand(
+  command: unknown,
+  allowlist: readonly string[] = DEFAULT_VERIFY_ALLOWLIST,
+): boolean {
+  const argv = parseVerifyArgv(command);
+  if (!argv) return false;
+  return allowlist.includes(verifyExecutableName(argv[0]));
 }
 
 function entriesForVerify(repoRoot: string, blueprintDir: string) {
@@ -161,33 +256,132 @@ function outputTail(stdout: unknown, stderr: unknown, lines = OUTPUT_TAIL_LINES)
   return combined.split('\n').slice(-lines).join('\n').trim();
 }
 
-type VerifyExec = (
-  command: string,
-  opts: {
-    cwd?: string;
-    encoding?: string;
-    stdio?: unknown;
-    maxBuffer?: number;
-  },
-) => unknown;
+type VerifyExecOpts = {
+  cwd?: string;
+  encoding?: string;
+  stdio?: unknown;
+  maxBuffer?: number;
+  shell?: boolean;
+};
 
-function executeVerify(command: string, { cwd, exec = execSync }: {
+// 기본 경로는 spawnSync 3인자. finalize·구 테스트 주입은 execSync 2인자
+// (command, opts)라서, 주입 함수 length로 둘을 가른다.
+type VerifyExec = ((
+  file: string,
+  args: string[],
+  opts: VerifyExecOpts,
+) => unknown) | ((command: string, opts: VerifyExecOpts) => unknown);
+
+/**
+ * cwd의 `.bouncer/config.json`에서 런타임 허용 목록을 읽는다.
+ * allowlist 옵션을 생략한 finalize `executeVerify(command, { cwd })`가
+ * `config.verify_allowlist`를 따르게 한다. 파일이 없거나 깨져도 기본 목록으로
+ * 실행은 이어 가되, 명령 문자열 자체는 호출자가 이미 고른 값이다.
+ */
+function resolveRuntimeAllowlist(cwd: string): readonly string[] {
+  const parsed = readConfigResult(cwd);
+  return parsed.ok === true
+    ? getVerifyAllowlist(parsed.value)
+    : DEFAULT_VERIFY_ALLOWLIST;
+}
+
+/**
+ * 파싱된 argv를 shell:false로 실행한다. 허용 목록 밖 argv0·파싱 실패는
+ * 프로세스를 시작하기 전에 `{ ok: false }`로 돌려 — throw하지 않는다.
+ * finalize가 `readVerifyCommand`만 try/catch하고 `executeVerify`는 bare로
+ * 호출하므로, 여기 throw는 cmdFinalize를 스택으로 무너뜨린다. 증적에
+ * 남는 command 문자열은 호출자가 넘긴 원문을 유지한다.
+ *
+ * allowlist를 생략하면 cwd config의 `verify_allowlist`(없으면 기본 목록)를
+ * 쓴다. 테스트만 명시적 allowlist로 덮어쓴다.
+ *
+ * @param {string} command - 원문 검증 명령 문자열
+ * @param {{ cwd: string, exec?: VerifyExec, allowlist?: readonly string[] }} opts - 실행 옵션
+ * @returns {{ ok: boolean, exitCode: number, output: string }} 종료 코드와 출력 tail
+ */
+function executeVerify(command: string, { cwd, exec, allowlist }: {
   cwd: string;
   exec?: VerifyExec;
+  allowlist?: readonly string[];
 }): { ok: boolean; exitCode: number; output: string } {
-  try {
-    const result = exec(command, {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      maxBuffer: MAX_VERIFY_OUTPUT_BYTES,
-    });
-    const stdout = result && typeof result === 'object' && 'stdout' in result ? result.stdout : result;
-    const stderr = result && typeof result === 'object' && 'stderr' in result ? result.stderr : '';
+  // 생략과 명시적 전달을 구분한다. 기본 매개변수로 DEFAULT를 붙이면
+  // finalize처럼 allowlist 없이 호출해도 저장소 config를 읽지 못한다.
+  const resolvedAllowlist = allowlist !== undefined
+    ? allowlist
+    : resolveRuntimeAllowlist(cwd);
+  const argv = parseVerifyArgv(command);
+  // throw 대신 ok:false — finalize의 `if (!execution.ok)` JSON 경로로 보낸다.
+  if (!argv || !isValidVerifyCommand(command, resolvedAllowlist)) {
     return {
-      ok: true,
-      exitCode: 0,
-      output: outputTail(stdout, stderr, PASSING_OUTPUT_TAIL_LINES),
+      ok: false,
+      exitCode: 1,
+      output: 'verify command must be a single executable command',
+    };
+  }
+  const file = argv[0];
+  const args = argv.slice(1);
+  const runOpts: VerifyExecOpts = {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    maxBuffer: MAX_VERIFY_OUTPUT_BYTES,
+    shell: false,
+  };
+
+  try {
+    let result: unknown;
+    if (!exec) {
+      result = spawnSync(file, args, { ...runOpts, shell: false });
+    } else if (exec.length < 3) {
+      // execSync 계약: 원문 command 문자열 + opts. argv를 이어 붙이면
+      // 인용 인자가 깨지므로 호출자가 넘긴 원문을 그대로 준다.
+      result = (exec as (command: string, opts: VerifyExecOpts) => unknown)(
+        command,
+        runOpts,
+      );
+    } else {
+      result = (exec as (
+        file: string,
+        args: string[],
+        opts: VerifyExecOpts,
+      ) => unknown)(file, args, runOpts);
+    }
+    // spawnSync는 비0에서도 throw하지 않는다. 주입 exec가 Error를 던지는
+    // 예전 테스트 계약도 아래 catch에서 흡수한다.
+    if (result && typeof result === 'object' && 'error' in result && result.error) {
+      const err = result.error;
+      const stdout = 'stdout' in result ? result.stdout : '';
+      const stderr = 'stderr' in result ? result.stderr : (
+        err && typeof err === 'object' && 'message' in err ? String(err.message) : ''
+      );
+      return {
+        ok: false,
+        exitCode: 1,
+        output: outputTail(stdout, stderr),
+      };
+    }
+    const status = result && typeof result === 'object' && 'status' in result
+      ? result.status
+      : 0;
+    const stdout = result && typeof result === 'object' && 'stdout' in result
+      ? result.stdout
+      : result;
+    const stderr = result && typeof result === 'object' && 'stderr' in result
+      ? result.stderr
+      : '';
+    // spawnSync는 시그널 종료 시 status=null이다. 그걸 0으로 접으면
+    // 실패 실행이 passed 증적으로 남는다.
+    if (status === 0) {
+      return {
+        ok: true,
+        exitCode: 0,
+        output: outputTail(stdout, stderr, PASSING_OUTPUT_TAIL_LINES),
+      };
+    }
+    return {
+      ok: false,
+      exitCode: Number.isInteger(status) ? Number(status) : 1,
+      output: outputTail(stdout, stderr),
     };
   } catch (error) {
     const status = typeof error === 'object' && error !== null && 'status' in error
@@ -314,7 +508,15 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
   if (!fs.existsSync(verificationPath)) {
     throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
   }
-  const execution = executeVerify(command, { cwd: repoRoot, exec });
+  // config.verify 경로는 readVerifyCommand가 형식 검사를 건너뛸 수 있으므로
+  // 실행 직전에 저장소 allowlist로 한 번 더 막는다. task 선언은 이미
+  // 기본 목록으로 S12/read 시점에 걸러졌고, 여기선 운영자 목록이 더 좁으면
+  // 그 목록이 이긴다.
+  const parsed = readConfigResult(repoRoot);
+  const allowlist = parsed.ok === true
+    ? getVerifyAllowlist(parsed.value)
+    : DEFAULT_VERIFY_ALLOWLIST;
+  const execution = executeVerify(command, { cwd: repoRoot, exec, allowlist });
   const ranAt = nowIsoKst(now());
   recordVerificationResult({
     repoRoot,
@@ -331,6 +533,7 @@ module.exports = {
   OUTPUT_TAIL_LINES,
   PASSING_OUTPUT_TAIL_LINES,
   MAX_VERIFY_OUTPUT_BYTES,
+  parseVerifyArgv,
   isValidVerifyCommand,
   entriesForVerify,
   readVerifyCommand,

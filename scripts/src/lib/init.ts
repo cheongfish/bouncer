@@ -29,9 +29,11 @@ const { setupGraphify } = require('./graphify') as {
 const {
   readConfig,
   DEFAULT_DISTILL_CONFIG,
+  DEFAULT_VERIFY_ALLOWLIST,
 } = require('./config') as {
   readConfig: (repoRoot: string) => unknown;
   DEFAULT_DISTILL_CONFIG: { routing_enabled: boolean; max_bytes: number };
+  DEFAULT_VERIFY_ALLOWLIST: readonly string[];
 };
 
 type GraphifySetupResult = {
@@ -115,6 +117,9 @@ function defaultConfig(repoRoot: string) {
     // 자르는 제한이 아니라 샤드 분배를 검토할 때만 쓰는 경고 기준이다.
     distill: { ...DEFAULT_DISTILL_CONFIG },
     verify: 'npm test',
+    // 신규 저장소는 기본 허용 목록을 파일에 박아 둔다. 이후 기본값이
+    // 바뀌어도 이미 init된 저장소의 실행 경계를 조용히 넓히지 않기 위함.
+    verify_allowlist: [...DEFAULT_VERIFY_ALLOWLIST],
     ...(detected ? { base_branch: detected } : {}),
     autonomy: 'auto',
     // draft는 항상 둔다. base는 탐지 성공 시에만 — 실패를 develop/main으로

@@ -184,8 +184,44 @@ test('commit --yes stages in-scope change and returns committed:true', () => {
   assert.strictEqual(parsed.committed, true);
   assert.ok(parsed.staged.includes('src/auth/login.ts'));
   assert.ok(typeof parsed.commitMessage === 'string' && parsed.commitMessage.length > 0);
+  // 커밋 직후 commit_sha만 tasks.md에 남긴다 — 소스 변경은 HEAD에 있어야 한다.
   const dirty = execFileSync('git', ['status', '--porcelain'], {
     cwd: repo, encoding: 'utf8',
   }).trim();
-  assert.strictEqual(dirty, '');
+  assert.match(dirty, /tasks\/001\/tasks\.md/);
+  assert.ok(!dirty.split('\n').some((line) => /src\/auth\/login\.ts/.test(line)));
+  const tasksRaw = fs.readFileSync(
+    path.join(repo, `${BP_REL}/tasks/001/tasks.md`),
+    'utf8',
+  );
+  assert.match(tasksRaw, /commit_sha:/);
+  assert.ok(typeof parsed.commitSha === 'string' && parsed.commitSha.length > 0);
+});
+
+test('commit --yes rejects out-of-scope change before staging without a host hook', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  // 훅 어댑터 없이 CLI만 호출해도 범위 밖 변경은 staging 전에 거절한다.
+  fs.mkdirSync(path.join(repo, 'src/payments'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/payments/charge.ts'), 'export {}\n');
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.notStrictEqual(code, 0);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, false);
+  assert.strictEqual(parsed.reason, 'out-of-scope');
+  assert.ok(parsed.violations.includes('src/payments/charge.ts'));
+  const staged = execFileSync('git', ['diff', '--cached', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim();
+  assert.strictEqual(staged, '');
+  const dirty = execFileSync('git', ['status', '--porcelain'], {
+    cwd: repo, encoding: 'utf8',
+  });
+  assert.match(dirty, /src\/payments/);
+  assert.match(dirty, /src\/auth\/login\.ts/);
 });

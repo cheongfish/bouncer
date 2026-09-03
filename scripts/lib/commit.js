@@ -8,7 +8,8 @@ const { renderDoc } = require('./render');
 const { listTasksDocs } = require('./tasks-docs');
 const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = require('./validate');
 const { realGit, buildCommitMessage } = require('./finalize');
-const { makeAllowed, isRuntimeArtifact } = require('./scope');
+const { isRuntimeArtifact } = require('./scope');
+const { checkCommitSafety } = require('./commit-guard');
 const { normalizeCommitSha } = require('./commit-sha');
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
 /**
@@ -61,13 +62,17 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
         && taskUnit.tasks.data.bouncer
         ? taskUnit.tasks.data.bouncer.affected_paths
         : [];
-    const allowed = makeAllowed({ affectedPaths, blueprintDir });
+    // 범위 판정은 hook과 같은 checkCommitSafety만 쓴다 — makeAllowed를 여기서 복제하지 않는다.
     const changed = gitApi.changedFiles();
     const untracked = gitApi.untrackedFiles();
-    const all = [...new Set([...changed, ...untracked])].filter((f) => !isRuntimeArtifact(f));
-    const violations = all.filter((f) => !allowed(f));
-    if (violations.length)
+    const candidates = [...new Set([...changed, ...untracked])];
+    const { allow, violations } = checkCommitSafety({
+        files: candidates, affectedPaths, blueprintDir,
+    });
+    if (!allow)
         return { ok: false, reason: 'out-of-scope', violations };
+    // 판정을 통과한 뒤 staging 목록에서만 runtime artifact를 뺀다(가드와 동일 필터).
+    const all = candidates.filter((f) => !isRuntimeArtifact(f));
     const commitMessage = buildCommitMessage(docs, taskUnit);
     const nextTask = findNextOpenTask({ repoRoot, blueprintDir, currentUnit: taskUnit });
     if (!yes) {
