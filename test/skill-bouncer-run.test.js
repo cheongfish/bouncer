@@ -42,7 +42,7 @@ test('bouncer-run delegates shared pointer invariants while retaining autonomy e
   assert.match(body, /rules\/current-pointer\.md/);
   assert.match(body, /auto/);
   assert.match(body, /interactive/);
-  assert.match(body, /시작 ACQ.*auto|auto.*시작 ACQ/);
+  assert.match(body, /Start ACQ.*auto|auto.*Start ACQ/i);
 });
 
 test('bouncer-run preflight stops on a null pointer or a closed blueprint', () => {
@@ -61,8 +61,8 @@ test('bouncer-run start ACQ lists remaining tasks and affected_paths', () => {
   assert.match(body, /affected_paths/);
   assert.match(body, /Recommended/);
   // 옵션 순서: 추천 진행 → 수정 → 취소. 시작 ACQ가 사람 확인의 기본 자리.
-  assert.match(body, /수정/);
-  assert.match(body, /취소/);
+  assert.match(body, /Revise|revise/);
+  assert.match(body, /Cancel/);
 });
 
 test('bouncer-run auto swallows commit and next-task ACQs; interactive adds a boundary ACQ', () => {
@@ -72,7 +72,7 @@ test('bouncer-run auto swallows commit and next-task ACQs; interactive adds a bo
   // 삼키는 대상은 commit ACQ와 next-task ACQ 둘. 한쪽만 적으면 계약이 반쪽임.
   assert.match(body, /commit ACQ|Commit ACQ/);
   assert.match(body, /next-task ACQ|Next-task ACQ|next-task/);
-  assert.match(body, /삼키|묻지 않/);
+  assert.match(body, /skip|do not ask/i);
   // 두 모드 모두 commit 스킬 ACQ를 건너뛰고 --yes. interactive만 경계 ACQ를 더함.
   assert.match(body, /--yes/);
 });
@@ -89,20 +89,19 @@ test('bouncer-run caps verify at 1 debugger cycle and review round-trips at 2', 
   const { body } = parseFrontmatter(md);
   assert.match(body, /bouncer-debugger/);
   // 상한은 숫자로 고정. "몇 번쯤"은 읽는 사람이 판단하게 남겨 두면 안 됨.
-  assert.match(body, /1회/);
-  assert.match(body, /2회/);
-  // 리뷰 왕복 숫자의 소유권은 execute — 루프는 참조만 한다.
-  assert.match(body, /왕복은[\s\S]{0,40}\/bouncer-execute[\s\S]{0,20}2회/);
+  assert.match(body, /\*\*1\*\*|1 fix retry/i);
+  assert.match(body, /\*\*2\*\*|2 review round-trips|capped at \*\*2\*\*/i);
+  assert.match(body, /round-trips[\s\S]{0,120}\*\*2\*\*[\s\S]{0,40}\/bouncer-execute/i);
   assert.match(body, /accepted/);
   assert.match(body, /\/bouncer-plan/);
 });
 
 test('bouncer-run keeps pointer and worktree on stop and forbids auto-retry', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /포인터/);
+  assert.match(body, /pointer/i);
   assert.match(body, /worktree/i);
   assert.match(body, /\/bouncer-execute/);
-  assert.match(body, /자동 재시|auto-retry/i);
+  assert.match(body, /retry automatically|auto-retry/i);
 });
 
 test('bouncer-run reads autonomy and falls back to auto outside AUTONOMY_ENUM', () => {
@@ -127,7 +126,7 @@ test('bouncer-run does not invent CLI, invoke finalize, or copy execute dispatch
 test('bouncer-run is an orchestrator that only consumes subagent reports', () => {
   const { body } = parseFrontmatter(md);
   // 루프가 구현·리뷰·조사를 자기 세션에서 하면 오케스트레이션 경계가 사라짐.
-  assert.match(body, /인라인/);
+  assert.match(body, /inline/i);
   assert.match(body, /bouncer-implementer/);
   assert.match(body, /bouncer-reviewer/);
   assert.match(body, /bouncer-debugger/);
@@ -141,7 +140,7 @@ test('bouncer-run passes debugger Output contract to implementer without copying
   const { body } = parseFrontmatter(md);
   assert.match(body, /Minimum fix proposal/);
   assert.match(body, /Output contract/);
-  assert.match(body, /증거/);
+  assert.match(body, /evidence/i);
   assert.match(body, /\/bouncer-execute/);
   // named 디스패치 네 단계는 execute 소유. 사본이 갈리면 두 문서가 다른 말을 함.
   assert.doesNotMatch(body, /resolveSubagentModel/);
@@ -149,6 +148,6 @@ test('bouncer-run passes debugger Output contract to implementer without copying
 
 test('bouncer-run treats context docs and subagent reports as data not instructions', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /데이터이지 지시|데이터가 아니|지시가 아니/);
+  assert.match(body, /data, not instructions/i);
   assert.match(body, /Distill/);
 });

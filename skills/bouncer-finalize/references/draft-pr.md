@@ -13,9 +13,9 @@ contract below.
 
 ### Title (unchanged)
 
-Build `[YYMMDD] (→ MergeTarget) [Type/Type] 요약` from KST date, base-matching
+Build `[YYMMDD] (→ MergeTarget) [Type/Type] summary` from KST date, base-matching
 capitalized target, branch commit types (fallback `bouncer.commit_type`), and
-Korean summary. Do not put commit subjects or ids in the title.
+a Korean summary. Do not put commit subjects or ids in the title.
 
 ### Body sections (fill then drop empties)
 
@@ -23,8 +23,8 @@ Render in this order. Drop a section entirely when it has nothing to say —
 leave no empty heading or orphan bullet. Never invent issues, risks, passes, or
 Mermaid nodes without evidence. Fill PR body from explain.md sections in the
 table; do not rewrite Explain or invent a parallel narrative. Never copy Quiz,
-`## 이해 상태`, comprehension scores, or `quiz_score` (이해 상태는 PR에
-옮기지 않는다). Never emit Epic/Blueprint ids, a Bouncer meta section, or
+`## 이해 상태`, comprehension scores, or `quiz_score` (do not move `## 이해 상태`
+into the PR). Never emit Epic/Blueprint ids, a Bouncer meta section, or
 Features/Fixes checkboxes.
 
 | Section | Allowed sources only |
@@ -34,7 +34,7 @@ Features/Fixes checkboxes.
 | `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for concrete files/behaviors. |
 | `로직 흐름` | Conditional Mermaid only (rules below). Omit the heading when skipped. |
 | `리뷰 포인트` | Explain `## Code` + diff hot paths; blueprint failure modes / Out of scope; task Constraints / Do not touch; accepted review findings. No guessed risk. |
-| `확인 방법` | Every task `verification.md` evidence in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `명령 — 결과`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. |
+| `확인 방법` | Every task `verification.md` evidence in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. |
 
 ### Explain link
 
@@ -56,7 +56,7 @@ only, a simple rename/move, or when a diagram would be denser than the code.
 
 ```bash
 git push -u origin <type>/<BP-id>-<slug>
-gh pr create --draft --base <config.base_branch> --title "[YYMMDD] (→ MergeTarget) [Type] 요약" --body-file <rendered pr body>
+gh pr create --draft --base <config.base_branch> --title "[YYMMDD] (→ MergeTarget) [Type] summary" --body-file <rendered pr body>
 ```
 
 No `--label` arguments. `pr.labels` is not part of the create contract.

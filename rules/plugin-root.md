@@ -3,7 +3,7 @@
 This is the single contract for plugin-root selection and rule loading.
 Workflow skills run the `bouncer` CLI from the plugin directory. Install the
 `bouncer-root` package bin on `PATH` (how: [`docs/install.md`](../docs/install.md)
-플러그인 루트); every independent shell block resolves:
+plugin root); every independent shell block resolves:
 
 ```bash
 BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?

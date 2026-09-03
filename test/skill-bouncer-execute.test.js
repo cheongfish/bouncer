@@ -141,32 +141,32 @@ test('bouncer-execute uses the pointer task document as the brief', () => {
 test('bouncer-execute step 1 excludes scope_evidence from brief injection', () => {
   const { body } = parseFrontmatter(md);
   // 계획 근거 감사 전용 필드라 step 1 읽기에서만 뺀다. 문서 삭제는 G4가 막는다.
-  assert.match(body, /scope_evidence[\s\S]{0,200}(주입|읽기)[\s\S]{0,40}제외/);
+  assert.match(body, /exclude[\s\S]{0,60}scope_evidence[\s\S]{0,80}(read|inject)/i);
 });
 
 test('bouncer-execute hands off to /bouncer-commit and reuses an existing worktree', () => {
   const { body } = parseFrontmatter(md);
   // 커밋 지시는 /bouncer-commit으로 옮김 — execute에 남은 긍정 안내로 고정.
   assert.match(body, /\/bouncer-commit/);
-  assert.match(body, /re-?use|이미 있으면|already exists|공유/i);
+  assert.match(body, /re-?use|already exists|share/i);
 });
 
 test('bouncer-execute inlines implementer only on the light path', () => {
   const { body } = parseFrontmatter(md);
   // 경량 판정은 포인터 응답의 scale — blueprint index.md 를 다시 열지 않는다.
-  assert.match(body, /포인터\(`bouncer current`\)의 `scale`이 `light`면/);
-  assert.match(body, /인라인/);
+  assert.match(body, /pointer \(`bouncer current`\) `scale` is `light`/);
+  assert.match(body, /inline/i);
   // 리뷰는 경량에서도 named — step 5 경량 인라인 분기가 없어야 한다.
-  assert.doesNotMatch(body, /`scale`이 `light`면[\s\S]{0,200}인라인 read-only/);
+  assert.doesNotMatch(body, /`scale` is `light`[\s\S]{0,200}inline read-only/);
   // fallback 문구는 남아야 한다 — 경량 분기가 그것을 대체하면 G8이 막힌다.
-  assert.match(body, /named agents are unavailable|미지원/i);
+  assert.match(body, /named agents are unavailable|unavailable/i);
   // debugger는 축소 대상이 아니다.
   assert.match(body, /bouncer-debugger/);
 });
 
 test('bouncer-execute step 3 light branch cites pointer scale', () => {
   const { body } = parseFrontmatter(md);
-  const matches = body.match(/포인터\(`bouncer current`\)의 `scale`이 `light`면/g);
+  const matches = body.match(/pointer \(`bouncer current`\) `scale` is `light`/g);
   assert.strictEqual(matches && matches.length, 1);
   assert.doesNotMatch(body, /blueprint `index\.md`의 `bouncer\.scale`/);
 });

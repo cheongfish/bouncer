@@ -27,7 +27,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
 
 1. **Scope dry-run.** Ensure the target task frontmatter has
    `bouncer.commit_intent` as **exactly two** Korean `~함` / `~임` strings for
-   배경·의도 (task document only — no blueprint fallback). Prefer values
+   background/intent (task document only — no blueprint fallback). Prefer values
    written at plan time; if missing or not length 2, author them now from
    Goal & intent (no Epic/Blueprint ids, no file paths), then proceed.
    Dry-run first:
@@ -60,14 +60,12 @@ workflow only supplies the current task's scope and its post-commit handoff.
    commit message, then run this **ACQ** before `--yes`:
 
    **AskUserQuestion — Commit**
-   1. **Re-ground**: 이 task 변경을 `bouncer commit --yes`로 커밋할지.
-   2. **Recommend-why**: execute가 이미 검증·리뷰를 끝냈고 commit 게이트도
-      통과했으므로, 범위를 다시 열어 두지 않고 지금 닫는 편이 다음 task로
-      빨리 넘어가게 함.
+   1. **Re-ground**: Whether to commit this task's changes with `bouncer commit --yes`.
+   2. **Recommend-why**: Execute already finished verify and review and the commit gate passed, so closing now keeps scope closed and moves to the next task faster.
    3. **Options**:
-      - A) `commit --yes` 실행 (Recommended)
-      - B) 메시지/스테이징 수정 후 재확인
-      - C) 취소 — `--yes` 하지 않음
+      - A) Run `commit --yes` (Recommended)
+      - B) Revise message/staging and reconfirm
+      - C) Cancel — do not run `--yes`
 
    On **A**, commit:
    ```bash
@@ -87,13 +85,12 @@ workflow only supplies the current task's scope and its post-commit handoff.
    (`tasks/<NNN>/tasks.md`).
 
    **AskUserQuestion — Next task**
-   1. **Re-ground**: 같은 blueprint의 다음 열린 task로 포인터를 옮길지.
-   2. **Recommend-why**: 한 PR(blueprint) 안에 다음 커밋 단위가 남아 있으면
-      `/bouncer-execute`로 이어서 닫는 편이 흐름이 짧음.
+   1. **Re-ground**: Whether to move the pointer to the next open task on the same blueprint.
+   2. **Recommend-why**: When another commit unit remains in the same PR (blueprint), continuing with `/bouncer-execute` keeps the flow short.
    3. **Options**:
       - A) `bouncer current --set <blueprint> --task <NNN>` (Recommended)
-      - B) 포인터만 보고 — `--set` 하지 않음
-      - C) 남은 task 없이 `/bouncer-finalize`로 (when `nextTask` is null, make
+      - B) Report pointer only — do not `--set`
+      - C) Proceed to `/bouncer-finalize` with no remaining tasks (when `nextTask` is null, make
         this the recommended proceed)
 
    - If A, run:

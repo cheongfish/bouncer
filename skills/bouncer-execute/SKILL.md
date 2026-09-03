@@ -60,9 +60,10 @@ evidence. The debugger never applies the fix.
    first/single resolver result. This workflow's local null outcome is the
    ready-candidate / `/bouncer-plan` stop above; later steps retain the selected
    `tasks/<NNN>/tasks.md` brief and do not re-pick it.
-   브리프를 읽을 때 `bouncer.scope_evidence`는 읽기·주입 대상에서 제외한다.
-   계획 근거 감사 전용(작성은 graphify-runner, 판정은 G4, 대조는 context-review)이라
-   execute 경로에는 소비자가 없고, G4 입력이므로 문서에서는 지우지 않는다.
+   When reading the brief, exclude `bouncer.scope_evidence` from read and
+   injection targets. It is for plan-evidence audit only (authored by
+   graphify-runner, gated by G4, checked by context-review); execute has no
+   consumer, and because it is G4 input it must not be deleted from documents.
 
 2. **Worktree.** All tasks on the same blueprint **share one** execute worktree
    at `<repo>/.worktrees/<epic-id>/<bp-id>`. If that path already exists, **reuse it** —
@@ -115,15 +116,17 @@ evidence. The debugger never applies the fix.
 3. **Implement (task brief is the sole authority).** The `implementation`
    skill remains the behavioral brief either way.
 
-   **경량 분기.** 포인터(`bouncer current`)의 `scale`이 `light`면 shared model
-   dispatch contract를 건너뛰고 `implementation` 스킬을 인라인으로 실행한다.
-   선언에 의한 선택이며, 아래 4번의 호스트 fallback과는
-   별개 문장이다. `scale`의 SSOT는 blueprint `index.md`이지만, 이 판정은
-   step 1에서 이미 받은 포인터 응답만 쓴다 — `index.md`를 다시 열지 않는다.
+   **Light branch.** When the pointer (`bouncer current`) `scale` is `light`,
+   skip the shared model dispatch contract and run the `implementation` skill
+   inline. This is a declaration-driven choice and is a separate sentence from
+   the host fallback in step 4 below. The SSOT for `scale` is blueprint
+   `index.md`, but this judgment uses only the pointer response from step 1 —
+   do not reopen `index.md`.
 
-   **주행 예외.** `/bouncer-run` 주행 중에는 경량 선언이어도 이 인라인 분기를
-   쓰지 않고 named 디스패치를 쓴다. 루프 세션이 곧 implementer가 되면 리포트만
-   받는 오케스트레이션 경계가 깨지고, 리뷰도 자기 diff 자기 판정이 된다.
+   **Drive exception.** During a `/bouncer-run` drive, even when light was
+   declared, do not use this inline branch — use named dispatch. If the loop
+   session became the implementer, the orchestration boundary breaks and review
+   would judge its own diff.
 
    When dispatching a named agent or applying its fallback, apply
    [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this
@@ -136,7 +139,7 @@ evidence. The debugger never applies the fix.
    no speculative scope expansion.
 
    **One implementer (initial).** Step 3 dispatches implementer once for the
-   task brief — 인라인 경로에서도 이 단계의 구현은 한 인스턴스다. Do not
+   task brief — on the inline path this step is still one instance. Do not
    split the brief across parallel implementers (they share `affected_paths`
    and would collide), and do not add a second agent to check the first one's
    work; step 4 and step 5 already cover that with the gate and the reviewer.
@@ -145,7 +148,7 @@ evidence. The debugger never applies the fix.
    and not a self-check of the first.
 
    **Controller owns document status transitions; `/bouncer-commit` owns the
-   commit.** 인라인에서도 같다 — The implementer must not `git commit` or flip
+   commit.** The same on the inline path — The implementer must not `git commit` or flip
    `tasks` / `verification` / `review` status. After this skill returns, do
    **not** run `git commit` / `bouncer commit` yourself — hand off to
    `/bouncer-commit`. Any accidental `git commit` is still guarded by
@@ -170,7 +173,8 @@ evidence. The debugger never applies the fix.
    Otherwise use the `review` skill (`references/review/index.md`). When dispatching a named agent or applying its fallback, apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this reference: [agent-dispatch.md](references/agent-dispatch.md). Fill `references/review/assets/reviewer-prompt.md` with the brief, base/HEAD, and constraints; scale never changes reviewer dispatch.
    As controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
-   flip status (인라인 경로에서도 Findings 기록과 status는 컨트롤러 몫);
+   flip status (on the inline path too, Findings recording and status are the
+   controller's job);
    If any actionable finding remains unresolved, fix within scope and
    re-review — at most **2** review round-trips on the same task. On reaching
    that ceiling, escalate to `/bouncer-plan` instead of fixing again, and

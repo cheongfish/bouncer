@@ -79,11 +79,11 @@ test('bouncer-plan states that G4 requires a recorded graph basis', () => {
 
 test('bouncer-plan shows role candidates and quality before affected_paths confirm', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /candidates|역할/);
-  assert.match(body, /quality|reasons|저신뢰|confidence/i);
+  assert.match(body, /candidates|role/i);
+  assert.match(body, /quality|reasons|low-confidence|confidence/i);
   assert.match(body, /affected_paths/);
   // 자동 승인을 금지하고 사용자 확인을 요구한다.
-  assert.match(body, /confirm|확인/);
+  assert.match(body, /confirm|ask/i);
   assert.doesNotMatch(body, /auto(?:matically)?\s+(?:copy|set|write)\s+affected_paths/i);
 });
 
@@ -117,7 +117,7 @@ test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => 
 
 test('bouncer-plan delegates Mermaid zoom authoring to spec-authoring', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /mermaid|줌/i);
+  assert.match(body, /mermaid|zoom/i);
   assert.match(body, /spec-authoring/);
 });
 
@@ -127,7 +127,7 @@ test('bouncer-plan detects project build scripts and asks before writing tasks v
   assert.match(body, /Makefile/);
   assert.match(body, /package\.json/);
   assert.match(body, /bouncer\.verify|tasks\.bouncer\.verify/);
-  assert.match(body, /확인|묻|물어|ask/i);
+  assert.match(body, /ask/i);
 });
 
 test('bouncer-plan dispatches context-review before approval with named-agent fallback', () => {
@@ -150,8 +150,8 @@ test('bouncer-plan asks for the light path and reuses the shared maintenance epi
   assert.match(body, /light/);
   assert.match(body, /maintenance/);
   // 사용자에게 묻는다 — 자동 판정 금지를 긍정 문구로 단언한다.
-  assert.match(body, /묻|물어|ask/i);
-  assert.match(body, /자동 판정하지 않|선언/);
+  assert.match(body, /ask/i);
+  assert.match(body, /do not auto-judge|declar/i);
 });
 
 // light 분기: scaffold 플래그와 context-review 생략을 산문에 고정한다.
@@ -160,7 +160,7 @@ test('bouncer-plan scaffolds a light blueprint with --scale light', () => {
   assert.match(body, /--scale light/);
   assert.match(body, /--scale full|light\|full|`light`\/`full`/);
   // 선언 없이 추측으로 붙이지 않는다.
-  assert.match(body, /추측|선언이 없는데|자동 판정하지 않/);
+  assert.match(body, /guess|no declaration|do not auto-judge/i);
 });
 
 test('bouncer-plan skips the context-review step on scale light', () => {
@@ -182,7 +182,7 @@ test('bouncer-plan states the light G10 section list and the unchanged scope gat
 // 프리플라이트 --all 직후 총량은 한 줄만 — 샤드별 표는 세션 주입이 된다.
 test('bouncer-plan reports Distill total size in one line after preflight', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /프리플라이트[\s\S]{0,80}총량[\s\S]{0,40}한 줄/);
+  assert.match(body, /preflight[\s\S]{0,80}total size[\s\S]{0,40}one line/i);
 });
 
 // 컨텍스트에는 --preflight만. --all 전량은 스크래치 baseline 파일이고 주입이 아니다.
@@ -193,7 +193,7 @@ test('bouncer-plan injects Distill --preflight and stores --all as a scratch bas
   assert.match(body, /scratch|mktemp|TMPDIR/i);
   assert.doesNotMatch(body, /consume its stdout/);
   assert.doesNotMatch(body, /and use\s+the complete output/i);
-  assert.match(body, /must not replace|does not replace|대체하지/);
+  assert.match(body, /must not replace|does not replace|must not substitute/i);
 });
 
 // plan 게이트는 발견된 각 task 묶음에 G4·G5·G10–G12를 적용하므로,

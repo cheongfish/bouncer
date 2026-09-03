@@ -52,30 +52,31 @@ Skill flow (recommended): `discovery` (`references/discovery/index.md`) → `spe
    zero-padded three-digit id (`002` after `001`; next free `00x` within an
    epic's `blueprints/`). Show the suggested id and let the user override it.
    Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
-   **경량 경로.** 범위가 좁은 작업인지 사용자에게 묻는다 — 자동 판정하지
-   않는다. 경량으로 선언받으면 epic을 새로 만들지 않고, slug가
-   `maintenance`인 epic 아래 blueprint id만 할당한다. 그 epic이 아직 없으면
-   그때 비어 있는 `\d{3}` id로 한 번만 만든다(`024-maintenance` 같은 특정
-   번호를 가정하지 않는다). 공용 `maintenance` epic은 `closed`로 만들지
-   않는다 — epic이 잠기면(epic 022 잠금 이후) blueprint를 더 붙일 수 없다.
-   선언이 없으면 일반 경로로 epic/blueprint id를 잡는다.
+   **Light path.** Ask the user whether the work is narrow-scope — do not
+   auto-judge. When they declare light, do not create a new epic; allocate only
+   a blueprint id under the epic whose slug is `maintenance`. If that epic does
+   not exist yet, create it once with the next free `\d{3}` id (do not assume a
+   specific number such as `024-maintenance`). Do not close the shared
+   `maintenance` epic — once an epic is locked (after epic 022 lock), no more
+   blueprints can be attached. Without a declaration, use the normal path for
+   epic/blueprint ids.
 
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
    BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <ddd> --name <slug> \
-     --description "<discovery에서 확정한 한 문장>"
+     --description "<one sentence confirmed in discovery>"
    node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
    ```
-   **경량 scaffold.** step 2에서 경량으로 선언받았으면 blueprint 줄에
-   `--scale light`를 붙인다. 그러면 blueprint `index.md`와
-   `tasks/001/{tasks,verification,review}.md` 네 문서만 생기고
-   `context-review.md`는 만들지 않는다(전체 100줄 이하). 생략하거나
-   `--scale full`이면 아래 설명대로 다섯 문서가 그대로 생긴다. `light`/`full`
-   밖의 값은 문서를 하나도 만들지 않고 종료 코드 2다. 선언이 없는데 추측으로
-   `--scale light`를 붙이지 않는다.
+   **Light scaffold.** When step 2 received a light declaration, add
+   `--scale light` to the blueprint command. That creates only four documents:
+   blueprint `index.md` and `tasks/001/{tasks,verification,review}.md` — no
+   `context-review.md` (100 lines or fewer total). Omit the flag or use
+   `--scale full` and all five documents are created as described below. Values
+   outside `light`/`full` create no documents and exit with code 2. Do not attach
+   `--scale light` by guess when there was no declaration.
    The epic and blueprint outputs must both remain under
    `.bouncer/context/epics/...` (dirs like `014-slug` / `001-slug`, never
    `EPIC-`/`BP-` prefixes on new scaffolds).
@@ -107,34 +108,37 @@ Skill flow (recommended): `discovery` (`references/discovery/index.md`) → `spe
    `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent`,
    when needed): `/bouncer-commit` turns each task `title` into that task's
    commit subject (falls back to blueprint `title`), uses that task's
-   `commit_intent` (exactly two `~함` lines; no blueprint fallback) for
-   배경·의도, and verification `title` for a 수정 내용 bullet, following
+   `commit_intent` (exactly two `~함` lines; no blueprint fallback) for the
+   background/intent section, and verification `title` for a change-summary
+   bullet, following
    `.gitmessage`. `/bouncer-finalize` remainder scans every task document in
    number order for a valid `commit_intent` and uses the highest-numbered
    match (blueprint `title` as subject; no blueprint `commit_intent`).
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
-   **경량 선언.** 사용자가 경량 경로를 선언했으면 blueprint `index.md`
-   frontmatter의 `bouncer.scale`이 `light`여야 한다. step 3에서
-   `--scale light`로 scaffold했으면 이미 그 값이다. `--scale` 없이 scaffold하면
-   `scale: full`이 쓰이므로, 그 뒤에 경량으로 정했다면 값을 `light`로 바꾼다
-   (키를 새로 넣는 것이 아니다).
-   부재·`full`은 일반 경로이고, 소비자는 `scale === 'light'`만 본다.
-   **light 작성 범위.** light task 본문은 Goal & intent·Touch·Checklist 셋만
-   채운다 — 템플릿에 Interface·Do not touch 제목이 없고 G10도 셋만 요구한다.
-   보호할 경로나 거부 계약을 적어야 한다면 그것이 full로 돌아갈 신호다.
-   작업이 커지면 값을 `full`로 되돌리고,
-   `bouncer scaffold context-review --blueprint <dir>`로 판정 문서를 만든 뒤
-   Interface·Do not touch 절을 채워 일반 경로로 복귀한다.
+   **Light declaration.** When the user declared the light path, blueprint
+   `index.md` frontmatter `bouncer.scale` must be `light`. Step 3 with
+   `--scale light` already sets that. Scaffolding without `--scale` writes
+   `scale: full`; if you later decide on light, change the value to `light` (do
+   not add a new key). Absence or `full` is the normal path; consumers only
+   check `scale === 'light'`.
+   **Light authoring scope.** Fill only Goal & intent, Touch, and Checklist in
+   light task bodies — the template has no Interface or Do not touch headings,
+   and G10 requires only those three. Needing protected paths or rejection
+   contracts is a signal to return to full. When the work grows, revert to
+   `full`, run `bouncer scaffold context-review --blueprint <dir>` to create
+   the judgment document, fill Interface and Do not touch, and return to the
+   normal path.
    **Verify command (optional).** After the draft bodies make this blueprint's
    character clear, check the **repository root only** for any of these signals:
    `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`,
    `Makefile`, or `Taskfile.yml` (file existence only — do not parse their
    contents), or a `package.json` that has a `scripts` key (key presence only;
    do not read script bodies). If at least one signal applies, ask the user
-   whether to set `tasks.bouncer.verify` for this blueprint (「이 blueprint의
-   검증 명령을 `tasks.bouncer.verify`에 지정할까요?」). On accept, write a
-   **single** executable argv string into each task document's frontmatter
-   `bouncer.verify` under `tasks/<NNN>/tasks.md` (예: `npm run test:e2e`,
+   whether to set `tasks.bouncer.verify` for this blueprint (for example:
+   "Should this blueprint's verify command be written to
+   `tasks.bouncer.verify`?"). On accept, write a **single** executable argv
+   string into each task document's frontmatter `bouncer.verify` under
+   `tasks/<NNN>/tasks.md` (e.g. `npm run test:e2e`,
    `make test`). If none of the signals above apply, or the user refuses, leave
    `bouncer.verify` unset so execute keeps the global `config.verify`. Never
    write `bouncer.verify` from detection alone, and never edit `config.verify` /
@@ -237,8 +241,8 @@ Skill flow (recommended): `discovery` (`references/discovery/index.md`) → `spe
    placeholder-free — five on a full blueprint (Constraints is authored but not
    gated), three on `scale: light` (Goal & intent, Touch, Checklist) —, G11 Touch justifies every
    `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.
-   G4·G5·G11·G12는 light에서도 full과 같은 실패를 낸다: 축약되는 것은 서술
-   분량과 판정 문서이지 승인 범위 증적이 아니다.
+   G4·G5·G11·G12 fail the same on light as on full: what shrinks is prose
+   volume and the judgment document, not approved-scope evidence.
    Fix any reported failure and re-run until it passes. Then point the user at
    `/bouncer-run` — it drives execute→commit until the blueprint's tasks run
    out, and `config.autonomy` (`auto` | `interactive`) already decides how often
@@ -257,7 +261,7 @@ steps hold this workflow's timing and consequences.
 - Step 1 **Discover** — confirm Goal / Scope / Non-goals / Success criteria /
   Edge cases & failure modes / Overlap with the user before scaffolding.
 - Step 2 **ID allocation** — show the suggested epic/blueprint id and let the
-  user override it; ask whether the work is light-scope (`경량 경로`) — do not
+  user override it; ask whether the work is light-scope (light path) — do not
   auto-judge.
 - Step 4 **Author** — when repo-root verify signals are present, ask whether to
   set `tasks.bouncer.verify` for this blueprint.
