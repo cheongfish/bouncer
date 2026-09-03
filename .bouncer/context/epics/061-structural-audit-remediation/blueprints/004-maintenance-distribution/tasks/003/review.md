@@ -11,14 +11,12 @@ bouncer:
   id: REVIEW-003
   epic_id: '061'
   blueprint_id: '004'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings: []
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+리뷰어가 발견한 조치 대상 항목 없음.

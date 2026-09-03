@@ -6,11 +6,21 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
+
+function packageFiles() {
+  const output = execFileSync('npm', ['pack', '--dry-run', '--json'], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024,
+  });
+  return JSON.parse(output)[0].files.map(({ path: file }) => file);
+}
 
 function jsFilesUnder(rel) {
   const dir = path.join(root, rel);
@@ -52,6 +62,44 @@ test('package.json declares no runtime dependencies', () => {
   const pkg = readJson('package.json');
   const deps = Object.keys(pkg.dependencies || {});
   assert.deepStrictEqual(deps, [], `runtime deps are not installed by Claude Code: ${deps.join(', ')}`);
+});
+
+test('the package contains only the plugin runtime surface and host manifests', () => {
+  const files = packageFiles();
+  const required = [
+    'agents/bouncer-reviewer.md',
+    'hooks/hooks.json',
+    'references/implementation/index.md',
+    'rules/governance.md',
+    'scripts/bouncer',
+    'scripts/bouncer-root',
+    'scripts/lib/cli.js',
+    'scripts/vendor/js-yaml.js',
+    'skills/bouncer-run/SKILL.md',
+    '.agents/plugins/marketplace.json',
+    '.claude-plugin/marketplace.json',
+    '.claude-plugin/plugin.json',
+    '.codex-plugin/plugin.json',
+    '.cursor-plugin/plugin.json',
+    'plugin.json',
+  ];
+  for (const file of required) assert.ok(files.includes(file), `missing package file: ${file}`);
+
+  const developmentOnly = [
+    '.bouncer/context/',
+    'test/',
+    'docs/',
+    'scripts/src/',
+    'CHANGELOG.md',
+    'CLAUDE.md',
+    'AGENTS.md',
+    'eslint.config.js',
+    'tsconfig.json',
+  ];
+  const leaked = files.filter((file) => developmentOnly.some(
+    (prefix) => prefix.endsWith('/') ? file.startsWith(prefix) : file === prefix,
+  ));
+  assert.deepStrictEqual(leaked, [], `development files leaked into package:\n${leaked.join('\n')}`);
 });
 
 test('the vendored yaml module provides load and dump', () => {

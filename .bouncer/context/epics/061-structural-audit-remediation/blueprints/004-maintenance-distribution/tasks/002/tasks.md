@@ -54,6 +54,7 @@ bouncer:
             - path seed test/distribution.test.js
             - test-only without implementation link
       context: []
+  commit_sha: 03c4bca5
 ---
 # 패키지 버전을 정본으로 대조
 

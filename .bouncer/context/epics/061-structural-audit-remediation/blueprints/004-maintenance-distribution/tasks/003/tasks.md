@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-003
   epic_id: '061'
   blueprint_id: '004'
-  status: ready
+  status: verified
   commit_intent: |-
     개발 코퍼스가 설치 배포물에 섞이는 표면을 제거함
     플러그인 런타임에 필요한 파일만 패키지 포함 목록으로 고정함
