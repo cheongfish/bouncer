@@ -171,3 +171,9 @@ test('bouncer-run states one drive-entry rule load and skips reload on task iter
   assert.match(body, /AskUserQuestion|ACQ/);
   assert.match(body, /validate|gate/i);
 });
+
+test('bouncer-run preserves post-commit tasks.md commit_sha stamp', () => {
+  const { body } = parseFrontmatter(mainMd);
+  assert.match(body, /commit_sha/);
+  assert.match(body, /do not discard/i);
+});

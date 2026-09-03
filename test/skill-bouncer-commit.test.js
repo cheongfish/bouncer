@@ -37,3 +37,10 @@ test('bouncer-commit delegates pointer selection and confirm-then-set invariants
   assert.match(body, /nextTask/);
   assert.match(body, /ACQ/);
 });
+
+test('bouncer-commit forbids discarding the post-commit tasks.md commit_sha stamp', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /commit_sha/);
+  assert.match(body, /task_commits/);
+  assert.match(body, /do not[\s\S]{0,80}(?:git checkout|git restore|discard)/i);
+});

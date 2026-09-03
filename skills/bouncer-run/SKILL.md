@@ -99,6 +99,10 @@ than fixing directly.
 3. **Loop unit.** Run `/bouncer-execute` per that skill's procedure, then
    `/bouncer-commit`. Both `auto` and `interactive` skip those skills' commit
    ACQ and next-task ACQ and proceed through `--yes`.
+   After each successful task commit, honor `/bouncer-commit`'s post-commit
+   `tasks.md` stamp: do not discard the dirty `tasks.md` that carries
+   `bouncer.commit_sha` (YAML re-render is expected). Leave it for the next
+   task commit or finalize remainder.
    Read `nextTask` from `bouncer commit` JSON. Per the shared pointer contract
    exception, start ACQ pre-approves the next task move under `auto`. When
    non-null, move immediately with

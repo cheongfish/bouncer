@@ -22,7 +22,9 @@ bouncer:
       quiz_score: 3/3
       disposition: 세션·drive 경계와 Distill/gate 유지 범위를 구분함
       recorded_at: '2026-09-03T14:21:35+09:00'
-  task_commits: []
+  task_commits:
+    - id: TASKS-001
+      sha: 9a9696cc
 ---
 # Explain
 
