@@ -17,8 +17,7 @@ draft PR, remove the execute worktree, or run `explain-diff` here — those are
 
 **Preflight.** Load the active blueprint:
 ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-node "${BOUNCER_ROOT}/scripts/bouncer" current
+bouncer current
 ```
 If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 
@@ -32,8 +31,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
    Goal & intent (no Epic/Blueprint ids, no file paths), then proceed.
    Dry-run first:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" commit --blueprint <pointer.blueprint>
+   bouncer commit --blueprint <pointer.blueprint>
    ```
    This checks every uncommitted change (tracked or untracked) against the
    task's `affected_paths` allowed-set. Anything out of scope is a **hard abort
@@ -45,8 +43,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
 
 2. **Validate.** Run the commit gate — `validate --gate commit`:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate commit
+   bouncer validate --blueprint <pointer.blueprint> --gate commit
    ```
    Gate `commit` re-checks G6/G7/G8 for the pointer task and G17 (staged paths
    inside `affected_paths`). Fix and re-run until it passes.
@@ -69,8 +66,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
 
    On **A**, commit:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" commit --blueprint <pointer.blueprint> --yes
+   bouncer commit --blueprint <pointer.blueprint> --yes
    ```
    On **B**, fix and re-dry-run from step 1. On **C**, stop without `--yes`.
    The CLI does **not** move the pointer — `nextTask` in the JSON is a candidate
@@ -103,8 +99,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
 
    - If A, run:
      ```bash
-     BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-     node "${BOUNCER_ROOT}/scripts/bouncer" current --set <pointer.blueprint> --task <NNN>
+     bouncer current --set <pointer.blueprint> --task <NNN>
      ```
      Then point the user at `/bouncer-execute` for the next task (same worktree).
    - If `nextTask` is `null`, skip A and recommend `/bouncer-finalize` instead.

@@ -27,7 +27,7 @@ function assertPromotionDecisionContract(document) {
   // 선택지와 실행 효과는 코드 블록의 A/B 표식으로 결속한다. C에는 promotion
   // 명령을 대응시키지 않아, 명령 없는 선택이 no-write 경로임을 유지한다.
   const effects = [...step3.matchAll(
-    /^\s*#\s*([A-Z])\)[^\n]*\n\s*node\s+"\$\{BOUNCER_ROOT\}\/scripts\/bouncer"\s+init((?:\s+--[\w-]+)*)\s*$/gm,
+    /^\s*#\s*([A-Z])\)[^\n]*\n\s*bouncer\s+init((?:\s+--[\w-]+)*)\s*$/gm,
   )].map((match) => ({ option: match[1], flags: match[2].trim() }));
   assert.deepStrictEqual(effects, [
     { option: 'A', flags: '--promote-graphify' },
@@ -35,11 +35,11 @@ function assertPromotionDecisionContract(document) {
   ]);
 }
 
-test('bouncer-init skill has a description and calls scripts/bouncer init', () => {
+test('bouncer-init skill has a description and calls the bouncer launcher', () => {
   const { data, body } = parseFrontmatter(md);
   assertShape(md, { frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-init' } } });
   assert.ok(typeof data.description === 'string' && data.description.length > 0);
-  assert.match(body, /scripts\/bouncer"\s+init\b/);
+  assert.match(body, /\bbouncer\s+init\b/);
   assert.match(body, /idempotent|already exists|no changes/i);
   assert.match(body, /\.bouncer\//);
   assert.match(body, /\/bouncer-plan/);
@@ -67,10 +67,10 @@ test('bouncer-init promotion ACQ permits rewording but rejects swapped CLI effec
   assert.doesNotThrow(() => assertPromotionDecisionContract(reworded));
 
   const swappedEffects = md
-    .replace('# A) enable + install\n     node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify',
-      '# A) enable only\n     node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify --no-graphify')
-    .replace('# B) enable only\n     node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify --no-graphify',
-      '# B) enable + install\n     node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify');
+    .replace('# A) enable + install\n     bouncer init --promote-graphify',
+      '# A) enable only\n     bouncer init --promote-graphify --no-graphify')
+    .replace('# B) enable only\n     bouncer init --promote-graphify --no-graphify',
+      '# B) enable + install\n     bouncer init --promote-graphify');
   assert.throws(() => assertPromotionDecisionContract(swappedEffects), assert.AssertionError);
 });
 

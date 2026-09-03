@@ -11,14 +11,25 @@ bouncer:
   id: REVIEW-004
   epic_id: '061'
   blueprint_id: '004'
-  status: pending
+  status: accepted
   review:
     required: true
+    findings:
+      - id: REVIEW-004-001
+        severity: major
+        status: resolved
+      - id: REVIEW-004-002
+        severity: major
+        status: resolved
 ---
 # Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
-     severity: blocker | major | minor | nit
-     status: resolved | accepted -->
-- <finding>
+- id: REVIEW-004-001
+  - severity: major
+  - status: resolved
+  - cleanup-handoff의 `BOUNCER_ROOT` bootstrap을 제거하고 `runtime-state` 모듈 경로를 위한 단일 command substitution으로 제한함.
+- id: REVIEW-004-002
+  - severity: major
+  - status: resolved
+  - explain-diff의 legacy bootstrap을 직접 `bouncer` 호출로 전환함.

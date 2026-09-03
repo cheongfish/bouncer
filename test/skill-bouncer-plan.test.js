@@ -89,10 +89,10 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   const result = checkDocShape(emptyDescription, contract);
   assert.strictEqual(result.ok, false);
   assert.match(result.errors.join('; '), /empty frontmatter field: description/);
-  assert.match(body, /scripts\/bouncer"\s+scaffold\s+epic\b/);
-  assert.match(body, /scripts\/bouncer"\s+scaffold\s+blueprint\b/);
+  assert.match(body, /\bbouncer\s+scaffold\s+epic\b/);
+  assert.match(body, /\bbouncer\s+scaffold\s+blueprint\b/);
   assert.match(body, /scaffold task --blueprint/);
-  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+plan\b/);
+  assert.match(body, /\bbouncer\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+plan\b/);
   assert.match(body, /\.bouncer\/context\/epics/);
   assert.match(body, /discovery/);
   assert.match(body, /spec-authoring/);
@@ -100,7 +100,7 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   assert.match(body, /graphify-runner/);
   assert.match(body, /minimality/);
   assert.match(body, /affected_paths/);
-  assert.match(body, /scripts\/bouncer"\s+current\s+--set\b/);
+  assert.match(body, /\bbouncer\s+current\s+--set\b/);
   assert.match(body, /approv/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|--from-superpowers|import-superpowers|okf-authoring/i);
 });

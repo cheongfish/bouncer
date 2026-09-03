@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-004
   epic_id: '061'
   blueprint_id: '004'
-  status: ready
+  status: verified
   commit_intent: |-
     workflow마다 반복되는 plugin-root 부트스트랩을 런처 하나로 통합함
     최고 우선순위 설치본 선택과 기존 CLI 인자·종료 코드를 유지함

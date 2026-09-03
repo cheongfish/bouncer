@@ -54,6 +54,7 @@ bouncer:
             - path seed test/distribution.test.js
             - test-only without implementation link
       context: []
+  commit_sha: 9f7b4294
 ---
 # 배포 포함 목록을 런타임 표면으로 제한
 

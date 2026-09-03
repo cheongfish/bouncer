@@ -17,10 +17,9 @@ Bootstrap this project for Bouncer.
    written only when `.codex/` already exists or the user passed
    `--seed-codex-agents`:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" init
+   bouncer init
    # Codex users without an existing .codex/ directory:
-   # node "${BOUNCER_ROOT}/scripts/bouncer" init --seed-codex-agents
+   # bouncer init --seed-codex-agents
    ```
 2. Report the bootstrap and install result:
    - If bootstrap is already ready and `.bouncer/Distill.md` exists,
@@ -52,11 +51,10 @@ Bootstrap this project for Bouncer.
      - **C)** Leave as-is
      On **A** or **B** only, run (A installs; B enables without install):
      ```bash
-     BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
      # A) enable + install
-     node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify
+     bouncer init --promote-graphify
      # B) enable only
-     node "${BOUNCER_ROOT}/scripts/bouncer" init --promote-graphify --no-graphify
+     bouncer init --promote-graphify --no-graphify
      ```
      **C** writes nothing. In non-interactive environments, print the three
      options and stop — do not promote.
@@ -64,8 +62,7 @@ Bootstrap this project for Bouncer.
      entries and ask whether to write the `# bouncer` … `# /bouncer` marker
      block. On consent only:
      ```bash
-     BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-     node "${BOUNCER_ROOT}/scripts/bouncer" init --write-gitignore
+     bouncer init --write-gitignore
      ```
      On decline, report the suggested entries and leave `.gitignore`
      untouched. Bouncer writes `.gitignore` only after this consent, and only

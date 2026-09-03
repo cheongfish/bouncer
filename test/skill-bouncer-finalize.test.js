@@ -99,9 +99,9 @@ test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR
   assert.ok(data.description.length > 0);
   assert.match(body, /spec-authoring/);
   assert.match(body, /Distill|\.bouncer\/Distill\.md/);
-  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize\b/);
-  assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>(?:\s+--yes)?\b/);
-  assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes\b/);
+  assert.match(body, /\bbouncer\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize\b/);
+  assert.match(body, /\bbouncer\s+finalize\s+--blueprint\s+<pointer\.blueprint>(?:\s+--yes)?\b/);
+  assert.match(body, /\bbouncer\s+finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes\b/);
   assert.match(body, /--yes|dry-run|dry run/);
   assert.match(body, /gh pr create/);
   assert.match(body, /--title "\[YYMMDD\] \(→ MergeTarget\) \[Type\]/);

@@ -16,7 +16,6 @@ const { writeCurrent } = require('../scripts/lib/current');
 const root = path.join(__dirname, '..');
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
 
-const BOUNCER_ROOT_LINE = 'BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?';
 const LAUNCHER_SKILLS = [
   'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit',
   'bouncer-finalize', 'bouncer-run', 'explain-diff', 'graphify-runner',
@@ -109,7 +108,7 @@ test('the Codex marketplace lists bouncer at the repository root', () => {
   assert.deepStrictEqual(entry.source, { source: 'local', path: './' });
 });
 
-test('workflow shells resolve roots through the installed launcher', () => {
+test('workflow shells invoke the installed bouncer launcher directly', () => {
   for (const name of LAUNCHER_SKILLS) {
     const file = launcherSkillPath(name);
     const src = fs.readFileSync(file, 'utf8');
@@ -118,11 +117,8 @@ test('workflow shells resolve roots through the installed launcher', () => {
       !src.includes('CLAUDE_PLUGIN_ROOT') && !src.includes('PLUGIN_ROOT'),
       `${label} must not interpolate host root variables`,
     );
-    assert.ok(
-      src.includes(BOUNCER_ROOT_LINE),
-      `${label} is missing the BOUNCER_ROOT resolution line`,
-    );
-    assert.ok(src.includes('${BOUNCER_ROOT}'), `${label} does not use BOUNCER_ROOT`);
+    assert.doesNotMatch(src, /node\s+"\$\{BOUNCER_ROOT\}\/scripts\/bouncer"/);
+    if (name !== 'review') assert.match(src, /\bbouncer(?:\s|$)/, `${label} must call bouncer directly`);
   }
   const cursorHooks = fs.readFileSync(path.join(root, 'hooks/cursor-hooks.json'), 'utf8');
   assert.ok(
@@ -131,11 +127,9 @@ test('workflow shells resolve roots through the installed launcher', () => {
   );
 });
 
-// Each fenced block is executed as its own shell, so an assignment made in an
-// earlier block is gone by the time a later one runs. A block that reads
-// ${BOUNCER_ROOT} without setting it first resolves to an empty prefix and
-// runs `node /scripts/bouncer`.
-test('every launcher shell block resolves BOUNCER_ROOT independently', () => {
+// 각 fenced block은 독립 셸이므로 CLI 블록은 환경변수 bootstrap 없이 런처를
+// 직접 부른다. 모듈 경로를 읽는 블록만 독립적인 루트 해석을 유지한다.
+test('launcher shell blocks call bouncer directly and scope root resolution to module paths', () => {
   const workflowSkills = LAUNCHER_SKILLS.map(launcherSkillPath);
   const offenders = [];
   for (const file of workflowSkills) {
@@ -143,9 +137,11 @@ test('every launcher shell block resolves BOUNCER_ROOT independently', () => {
     const label = path.relative(root, file);
     for (const m of src.matchAll(/( *)```bash\n(.*?)\1```/gs)) {
       const body = m[2];
-      if (!body.includes('${BOUNCER_ROOT}')) continue;
-      if (!body.includes(BOUNCER_ROOT_LINE)) {
-        offenders.push(`${label}: ${body.split('\n')[0].trim()}`);
+      if (body.includes('node "${BOUNCER_ROOT}/scripts/bouncer"')) {
+        offenders.push(`${label}: legacy scripts/bouncer invocation`);
+      }
+      if (body.includes('${BOUNCER_ROOT}') && !body.includes('BOUNCER_ROOT="$(bouncer-root --auto)"')) {
+        offenders.push(`${label}: unresolved module root`);
       }
     }
   }

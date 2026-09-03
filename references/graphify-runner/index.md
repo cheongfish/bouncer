@@ -67,8 +67,7 @@ write `bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
 1. **Freshness re-check (plan-time).** Always sync before suggesting — do not
    rely on SessionStart alone:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" graph-sync
+   bouncer graph-sync
    ```
    Rebuilds any stale **source** / **test** / **context** graph (mtime of
    configured dirs vs that graph's `graph.json`). Keep the JSON `built` /
@@ -78,8 +77,7 @@ write `bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
 2. **Resolve executable and availability.** Resolve the graphify binary through
    the single CLI interpreter — never invoke `graphify` by bare name:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   GRAPHIFY_BIN="$(node "${BOUNCER_ROOT}/scripts/bouncer" graphify-bin)" || GRAPHIFY_BIN=""
+   GRAPHIFY_BIN="$(bouncer graphify-bin)" || GRAPHIFY_BIN=""
    ```
    An empty `GRAPHIFY_BIN` is a state (resolution miss), not a skill error —
    treat it like the other skip paths below.
@@ -115,8 +113,7 @@ write `bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
    Korean query examples or suggest a tokenizer extension; `basis[].query`
    records the exact English query used. Then run:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" graph-suggest \
+   bouncer graph-suggest \
      --query "graph suggestion task evidence"
      --seed "scripts/bouncer" --seed "graph-suggest"
    ```

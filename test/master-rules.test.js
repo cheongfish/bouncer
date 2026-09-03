@@ -612,7 +612,7 @@ test('master rules use the installed bouncer-root launcher', () => {
   assert.match(rule, /provider/i);
 });
 
-test('plugin-root contract is shared while launcher shells resolve independently', () => {
+test('plugin-root contract is shared while CLI shells call bouncer directly', () => {
   const consumers = [
     'skills/bouncer-init/SKILL.md',
     'skills/bouncer-plan/SKILL.md',
@@ -627,16 +627,19 @@ test('plugin-root contract is shared while launcher shells resolve independently
     'references/graphify-runner/index.md',
     'skills/migrate-ids/SKILL.md',
   ];
-  const launcher = 'BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?';
-
   for (const rel of consumers) {
     const source = read(rel);
     assert.match(source, /rules\/plugin-root\.md/, `${rel} must cite the shared contract`);
-    assert.ok(source.includes(launcher), `${rel} must retain independent launcher resolution`);
+    assert.doesNotMatch(source, /node "\$\{BOUNCER_ROOT\}\/scripts\/bouncer"/, `${rel} must call bouncer directly`);
 
     const launcherBlocks = source.match(/```bash\n[\s\S]*?```/g) || [];
-    for (const block of launcherBlocks.filter((value) => value.includes('${BOUNCER_ROOT}'))) {
-      assert.ok(block.includes(launcher), `${rel} must resolve BOUNCER_ROOT in each launcher shell`);
+    for (const block of launcherBlocks) {
+      if (block.includes('bouncer ') && block.includes('BOUNCER_ROOT=')) {
+        assert.fail(`${rel} must not bootstrap BOUNCER_ROOT in a CLI block`);
+      }
+      if (block.includes('${BOUNCER_ROOT}')) {
+        assert.match(block, /BOUNCER_ROOT="\$\(bouncer-root --auto\)"/);
+      }
     }
   }
 });
@@ -1001,7 +1004,7 @@ test('Distill re-ground uses one repeated-flag call for every confirmed path', (
   }
   assert.match(
     read('skills/bouncer-plan/SKILL.md'),
-    /node "\$\{BOUNCER_ROOT\}\/scripts\/bouncer" distill\s+\\\n\s+--for <path-1>\s+\\\n\s+--for <path-2>/,
+    /\bbouncer distill\s+\\\n\s+--for <path-1>\s+\\\n\s+--for <path-2>/,
     'plan must show the multiline repeated-flag shell form',
   );
 });

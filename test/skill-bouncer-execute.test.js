@@ -106,7 +106,7 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   const { data, body } = parseFrontmatter(md);
   assertShape(md, { frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-execute' } } });
   assert.ok(data.description.length > 0);
-  assert.match(body, /scripts\/bouncer"\s+current\b/);
+  assert.match(body, /\bbouncer\s+current\b/);
   assert.match(body, /worktree/i);
   assert.match(body, /<type>\/<BP-id>-<slug>/);
   assert.match(body, /commit_type/);
@@ -124,7 +124,7 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.match(body, /debugging/);
   assert.match(body, /Goal & intent|Interface|Touch|Do not touch|Checklist/i);
   assert.match(body, /commit-safety|affected_paths/);
-  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+execute\b/);
+  assert.match(body, /\bbouncer\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+execute\b/);
   assert.match(body, /harness.*record|validate.*configured verify command/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });

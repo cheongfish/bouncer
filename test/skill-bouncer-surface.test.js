@@ -224,14 +224,14 @@ test('execute, commit, and finalize stop when current is null; plan stops withou
   const commit = readWorkflow('bouncer-commit');
   const finalize = readWorkflow('bouncer-finalize');
   const plan = readWorkflow('bouncer-plan');
-  assert.match(execute, /scripts\/bouncer"\s+current\b/);
+  assert.match(execute, /\bbouncer\s+current\b/);
   assert.match(execute, /null/);
   assert.match(execute, /ready/);
   assert.match(execute, /current --set/);
   assert.match(execute, /\/bouncer-plan/);
-  assert.match(commit, /scripts\/bouncer"\s+current\b/);
+  assert.match(commit, /\bbouncer\s+current\b/);
   assert.match(commit, /null/);
-  assert.match(finalize, /scripts\/bouncer"\s+current\b/);
+  assert.match(finalize, /\bbouncer\s+current\b/);
   assert.match(finalize, /null/);
   assert.match(finalize, /\/bouncer-plan/);
   assert.match(plan, /\.bouncer\//);
@@ -246,7 +246,7 @@ test('pointer consumers retain only their local application while using the CLI 
   const run = readWorkflow('bouncer-run');
   for (const md of [execute, commit, finalize, run]) {
     assert.match(md, /rules\/current-pointer\.md/);
-    assert.match(md, /scripts\/bouncer"\s+current\b/);
+    assert.match(md, /\bbouncer\s+current\b/);
     assert.doesNotMatch(md, /scripts\/lib\/current/);
   }
   assert.match(execute, /scale.*light|light.*scale/i, 'execute keeps its local status/scale stop condition');

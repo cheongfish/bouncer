@@ -82,7 +82,7 @@ test('bouncer-run delegates shared pointer invariants while retaining autonomy e
 
 test('bouncer-run preflight stops on a null pointer or a closed blueprint', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /scripts\/bouncer"\s+current\b/);
+  assert.match(body, /\bbouncer\s+current\b/);
   assert.match(body, /null/);
   assert.match(body, /closed/);
   // 포인터 없음은 plan, 열린 task 없음은 finalize 안내 — 두 출구를 한 문장에 섞지 않음.
@@ -150,7 +150,7 @@ test('bouncer-run reads autonomy and falls back to auto outside AUTONOMY_ENUM', 
 test('bouncer-run does not invent CLI, invoke finalize, or copy execute dispatch', () => {
   const { body } = parseFrontmatter(md);
   // 진행 수단은 current --set 과 commit 출력뿐. 새 서브커맨드를 본문에 심지 않음.
-  assert.doesNotMatch(body, /scripts\/bouncer"\s+run\b/);
+  assert.doesNotMatch(body, /\bbouncer\s+run\b/);
   assert.doesNotMatch(body, /finalize --yes/);
   // named 디스패치 네 단계와 scale:light 는 execute 소유. 사본이 갈리면 두 문서가 다른 말을 함.
   assert.doesNotMatch(body, /resolveSubagentModel/);

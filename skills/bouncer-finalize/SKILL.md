@@ -25,8 +25,7 @@ from the main worktree — do not remove from inside the execute checkout.
 
 **Preflight.** Load the active blueprint:
 ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-node "${BOUNCER_ROOT}/scripts/bouncer" current
+bouncer current
 ```
 If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 
@@ -40,8 +39,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 3. **Validate + remainder commit (deterministic core) + worktree choice.**
    Run the finalize gate first:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate finalize
+   bouncer validate --blueprint <pointer.blueprint> --gate finalize
    ```
    Gate `finalize` checks G16 (every task `verified`, explain published with one
    blueprint comprehension entry whose `diff_sha` matches `range_from..HEAD`).
@@ -70,8 +68,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    task from Goal & intent / explain (no Epic/Blueprint ids, no file paths),
    then proceed. Dry-run:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint>
+   bouncer finalize --blueprint <pointer.blueprint>
    ```
    This checks every remaining uncommitted change (tracked or untracked) against
    the allowed-set (Distill promotion is always allowed). Anything out of scope
@@ -94,8 +91,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
    On **A** or **B**, commit:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" finalize --blueprint <pointer.blueprint> --yes
+   bouncer finalize --blueprint <pointer.blueprint> --yes
    ```
    `--yes` runs verification commands before staging. Per the shared contract,
    clear the pointer. A `reason: 'verify'` failure has no bypass other than

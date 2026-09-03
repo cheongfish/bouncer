@@ -35,7 +35,7 @@ test('bouncer-commit reuses finalize ACQ skeleton and does not invent CLI', () =
   assert.match(body, /Re-ground/);
   assert.match(body, /Recommend-why/);
   assert.match(body, /Recommended/);
-  assert.match(body, /scripts\/bouncer"\s+current\b/);
+  assert.match(body, /\bbouncer\s+current\b/);
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
 });
 
