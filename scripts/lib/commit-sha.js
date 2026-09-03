@@ -1,5 +1,4 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 /**
  * task 커밋·explain.task_commits에 쓰는 짧은 SHA 길이.
  * 그래프 토큰·프론트매터 표기를 8자리로 통일한다. 이 저장소 규모에서

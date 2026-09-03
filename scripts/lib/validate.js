@@ -1,16 +1,24 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { detectLegacyFormat } = require('./schema');
-const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout');
-const { toPosix } = require('./paths');
-const { runVerification, entriesForVerify, } = require('./verification');
-const { checkEpicIndexConsistency } = require('./epic-index');
-const { loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves, } = require('./validate-docs');
-const { checkStructural, checkDistillStructural } = require('./validate-structural');
-const { checkGate } = require('./validate-gates');
-const { parseTasksSections, parseSections, extractPathCandidates, } = require('./validate-sections');
+const schema = require("./schema");
+const { detectLegacyFormat } = schema;
+const layout = require("./layout");
+const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
+const paths = require("./paths");
+const { toPosix } = paths;
+const verification = require("./verification");
+const { runVerification, entriesForVerify, } = verification;
+const epicIndex = require("./epic-index");
+const { checkEpicIndexConsistency } = epicIndex;
+const validateDocs = require("./validate-docs");
+const { loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves, } = validateDocs;
+const validateStructural = require("./validate-structural");
+const { checkStructural, checkDistillStructural } = validateStructural;
+const validateGates = require("./validate-gates");
+const { checkGate } = validateGates;
+const validateSections = require("./validate-sections");
+const { parseTasksSections, parseSections, extractPathCandidates, } = validateSections;
 function catchMessage(error) {
     return error.message;
 }

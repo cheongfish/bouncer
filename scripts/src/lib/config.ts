@@ -148,7 +148,7 @@ function readConfig(repoRoot: string): unknown {
   return result.ok ? result.value : null;
 }
 
-module.exports = {
+export = {
   readConfigResult,
   readConfig,
   DEFAULT_DISTILL_CONFIG,

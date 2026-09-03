@@ -1,12 +1,13 @@
 // scripts/lib/scope.js
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { epicDirOf, toPosix } = require('./paths');
-const { CONTEXT_ROOT, PROJECT_DISTILL, DISTILL_SHARD_DIR } = require('./layout');
-// distill.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
-// 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
-// 런타임 경로는 동일하고, 반환 형태만 이 소비 지점이 쓰는 필드에 맞춘다.
-const { readShards } = require('./distill');
+const paths = require("./paths");
+const { epicDirOf, toPosix } = paths;
+const layout = require("./layout");
+const { CONTEXT_ROOT, PROJECT_DISTILL, DISTILL_SHARD_DIR } = layout;
+// distill의 export= 선언을 import = require로 소비한다. 예전 구조 캐스트는
+// 공급자 시그니처와 어긋나도 숨겼으므로 쓰지 않는다.
+const distill = require("./distill");
+const { readShards } = distill;
 function isUnder(file, entry) {
     const f = toPosix(file);
     const e = toPosix(entry);

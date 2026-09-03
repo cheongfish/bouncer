@@ -1,7 +1,9 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { CONTEXT_ROOT } = require('./layout') as { CONTEXT_ROOT: string };
+import layout = require('./layout');
+const { CONTEXT_ROOT } = layout;
+import frontmatter = require('./frontmatter');
 
 type StructuralFailure = { code: string; message: string; file: string };
 
@@ -49,12 +51,9 @@ function readEpicDescription(repoRoot: string, dirName: string): string {
   }
   let data: unknown;
   try {
-    // require를 함수 안에 두지 않고 모듈 초기화 때 읽으면 순환 의존성 없이
-    // frontmatter parser의 단일 YAML 정책을 그대로 재사용할 수 있다.
-    const { parseFrontmatter } = require('./frontmatter') as {
-      parseFrontmatter: (markdown: string) => { data: unknown };
-    };
-    data = parseFrontmatter(raw).data;
+    // frontmatter는 최상단 import = require로 읽어 순환 없이 단일 YAML 정책을 재사용한다.
+    // 함수 안 require+시그니처 캐스트는 경계 타입 검사를 우회하므로 쓰지 않는다.
+    data = frontmatter.parseFrontmatter(raw).data;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`epic frontmatter parse failed: ${abs} (${message})`, { cause: error });
@@ -312,7 +311,7 @@ function checkEpicIndexConsistency({ repoRoot }: { repoRoot: string }): Structur
   return failures;
 }
 
-module.exports = {
+export = {
   CONTEXT_INDEX_REL,
   listEpicDirNames,
   listLegacyEpicDirNames,

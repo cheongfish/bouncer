@@ -152,7 +152,7 @@ than fixing directly.
 
    Stop unless A. For B and C, the pointer stays on the task just closed.
 
-6. **Stop.** On verify re-failure, review ceiling, scope violation, or user decline, read this reference: [stop-recovery.md](references/stop-recovery.md). Do not alter limits, retry automatically, or enter finalize.
+6. **Stop.** On verify re-failure, review ceiling, scope violation, or user decline, read this reference: [stop-recovery.md](./references/stop-recovery.md). Do not alter limits, retry automatically, or enter finalize.
 
 7. **Exit.** When `nextTask` is `null` or open tasks are exhausted, stop and
    point the user at `/bouncer-finalize`. This skill does not enter finalize.
@@ -162,12 +162,6 @@ than fixing directly.
 Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 `/bouncer-run` is not consent to start the loop.
 
-**Gates in this skill:** Start (step 2). `interactive` only: Next-task boundary
-(step 5). Both modes skip `/bouncer-commit` commit ACQ and next-task ACQ;
-`interactive` adds the step 5 boundary.
-
-Under `auto`, do not ask `/bouncer-commit` commit ACQ or next-task ACQ — proceed
-directly. Start ACQ stands in for consent to both.
-
-Under `interactive`, ask one more ACQ after each task closes about advancing to
-the next task. All other procedure, documents, and gates match `auto`.
+**Index:**
+- Step 2 — Start drive
+- Step 5 — Next task (`interactive` only; `auto` skips)

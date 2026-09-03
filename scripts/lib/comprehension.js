@@ -1,5 +1,4 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 // finalize comprehension gate(G16)용 diff fingerprint 및 explain 섹션 키.
 // gate 판정은 validate.ts에 두고, 이 모듈은 base..HEAD의 비-governance 슬라이스를
 // 무엇을 측정하고 어떻게 해시할지만 정의한다.
@@ -110,7 +109,12 @@ function resolveComprehensionEntry(comprehension) {
         if (!rangeFrom.trim() || !diffSha.trim() || !disposition.trim() || !quizScore.trim()) {
             return { ok: false, reason: 'incomplete' };
         }
-        return { ok: true, entry };
+        // 원본 entry 객체를 그대로 돌려 추가 필드(task 등)를 보존한다.
+        // range_from/diff_sha 등은 위에서 문자열임을 확인했으므로 반환 타입만 좁힌다.
+        return {
+            ok: true,
+            entry: entry,
+        };
     }
     catch (_e) {
         return { ok: false, reason: 'not-a-list' };

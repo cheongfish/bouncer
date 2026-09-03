@@ -1,16 +1,23 @@
 // scripts/lib/commit.js
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const path = require('node:path');
 const fs = require('node:fs');
-const { readDoc } = require('./frontmatter');
-const { renderDoc } = require('./render');
-const { listTasksDocs } = require('./tasks-docs');
-const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = require('./validate');
-const { realGit, buildCommitMessage } = require('./finalize');
-const { isRuntimeArtifact } = require('./scope');
-const { checkCommitSafety } = require('./commit-guard');
-const { normalizeCommitSha } = require('./commit-sha');
+const frontmatter = require("./frontmatter");
+const { readDoc } = frontmatter;
+const render = require("./render");
+const { renderDoc } = render;
+const tasksDocs = require("./tasks-docs");
+const { listTasksDocs } = tasksDocs;
+const validate = require("./validate");
+const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = validate;
+const finalize = require("./finalize");
+const { realGit, buildCommitMessage } = finalize;
+const scope = require("./scope");
+const { isRuntimeArtifact } = scope;
+const commitGuard = require("./commit-guard");
+const { checkCommitSafety } = commitGuard;
+const commitSha = require("./commit-sha");
+const { normalizeCommitSha } = commitSha;
 const OPEN_TASK_STATUS = ['ready', 'in_progress'];
 /**
  * 같은 blueprint에서 지금 닫는 묶음을 제외한 열린 task 중 번호가 가장 앞선 것.
@@ -115,5 +122,4 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
         ok: true, committed: true, staged: all, commitMessage, nextTask, commitSha,
     };
 }
-// Interface는 commitTask만 공개. findNextOpenTask는 모듈 내부 후보 계산용.
 module.exports = { commitTask };

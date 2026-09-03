@@ -1,10 +1,12 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { readConfig } = require('./config');
-const { CONTEXT_DIGEST_OUT, DIGEST_WATCH_FILES, } = require('./context-digest');
-const { DISTILL_SHARD_DIR } = require('./layout');
+const config = require("./config");
+const { readConfig } = config;
+const contextDigest = require("./context-digest");
+const { CONTEXT_DIGEST_OUT, DIGEST_WATCH_FILES, } = contextDigest;
+const layout = require("./layout");
+const { DISTILL_SHARD_DIR } = layout;
 // 설정·디렉터리 존재·mtime 판정만. 프로세스를 띄우지 않고 graphify.ts 도
 // require 하지 않는다 — 그 모듈의 PATH 탐색이 execFileSync 를 돌리기 때문.
 // 신선도 계산이 graphify 설치 여부를 묻기 시작하면 테스트가 deps 없이

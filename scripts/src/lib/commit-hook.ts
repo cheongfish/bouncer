@@ -2,31 +2,16 @@
 'use strict';
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { checkCommitSafety } = require('./commit-guard') as {
-  checkCommitSafety: (opts: {
-    files?: unknown;
-    affectedPaths?: unknown;
-    blueprintDir?: unknown;
-  }) => { allow: boolean; violations: unknown[] };
-};
-const { readCurrent } = require('./current') as {
-  readCurrent: (opts: { repoRoot: string; deps?: unknown }) => {
-    blueprint: string;
-    task?: unknown;
-  } | null;
-};
-const { readDoc } = require('./frontmatter') as {
-  readDoc: (absPath: string) => { data: unknown; body: string; path: string };
-};
-const { listTasksDocs } = require('./tasks-docs') as {
-  listTasksDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
-    mixed: boolean;
-    entries: Array<{ rel: string }>;
-  };
-};
-const { toPosix } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-};
+import commitGuard = require('./commit-guard');
+const { checkCommitSafety } = commitGuard;
+import current = require('./current');
+const { readCurrent } = current;
+import frontmatter = require('./frontmatter');
+const { readDoc } = frontmatter;
+import tasksDocs = require('./tasks-docs');
+const { listTasksDocs } = tasksDocs;
+import paths = require('./paths');
+const { toPosix } = paths;
 
 type WordToken = { value: string; quoted: boolean; separator?: undefined };
 type SepToken = { separator: true };
@@ -41,7 +26,10 @@ type CommitHookDeps = {
   readAffectedPaths?: (opts: { repoRoot: string; blueprintDir: string }) => string[];
   stagedFiles?: (opts: { repoRoot: string }) => string[];
   trackedModified?: (opts: { repoRoot: string }) => string[];
-  mainRepoCurrent?: (opts: { repoRoot: string; deps?: unknown }) => {
+  mainRepoCurrent?: (opts: {
+    repoRoot: string;
+    deps?: Parameters<typeof readCurrent>[0]['deps'];
+  }) => {
     blueprint: string;
     task?: unknown;
   } | null;
@@ -324,7 +312,10 @@ function realTrackedModified({ repoRoot }: { repoRoot: string }): string[] {
 
 // active pointer는 Git common directory에 있으므로 primary와 linked worktree
 // 모두 main working tree를 찾지 않고 같은 state를 resolve합니다.
-function realMainRepoCurrent({ repoRoot, deps }: { repoRoot: string; deps?: unknown }) {
+function realMainRepoCurrent({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: Parameters<typeof readCurrent>[0]['deps'];
+}) {
   return readCurrent({ repoRoot, deps });
 }
 
@@ -359,7 +350,7 @@ function evaluateCommit({ command, repoRoot, deps }: {
   };
 }
 
-module.exports = {
+export = {
   isGitCommit, readAffectedPaths, evaluateCommit, realStagedFiles, realTrackedModified,
   realMainRepoCurrent,
 };

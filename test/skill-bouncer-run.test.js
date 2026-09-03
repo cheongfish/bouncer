@@ -13,10 +13,39 @@ const md = readWorkflowBundle('bouncer-run');
 test('bouncer-run conditionally routes stop recovery', () => {
   const { body } = parseFrontmatter(mainMd);
   const condition = 'On verify re-failure, review ceiling, scope violation, or user decline, read this reference.';
-  assert.match(body, /\[stop-recovery\.md\]/);
+  assert.match(body, /\]\(\.\/references\/stop-recovery\.md\)/);
   const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-run', 'references', 'stop-recovery.md'), 'utf8');
   assert.ok(reference.startsWith(condition));
   assert.doesNotMatch(body, /자동 재시도하지|Leave the pointer on the failed task/);
+});
+
+/**
+ * @param {string} body
+ * @param {number} n
+ * @returns {string}
+ */
+function runStepBody(body, n) {
+  const start = body.search(new RegExp(`^${n}\\. \\*\\*`, 'm'));
+  assert.ok(start > -1, `missing run step ${n}`);
+  const rest = body.slice(start);
+  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. \\*\\*|## ACQ )`, 'm'));
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+test('bouncer-run keeps Start and interactive Next-task ACQ in steps 2 and 5', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
+  assert.ok(acqAt > -1);
+  const index = body.slice(acqAt);
+  assert.match(index, /[Ss]tep\s+2/);
+  assert.match(index, /[Ss]tep\s+5/);
+  assert.doesNotMatch(index, /\*\*AskUserQuestion/);
+  assert.doesNotMatch(index, /\*\*Options\*\*:/);
+  assert.match(runStepBody(body, 2), /\*\*AskUserQuestion — Start drive\*\*/);
+  assert.match(runStepBody(body, 2), /\*\*Options\*\*:/);
+  assert.match(runStepBody(body, 5), /\*\*AskUserQuestion — Next task\*\*/);
+  assert.match(runStepBody(body, 5), /\*\*Options\*\*:/);
+  assert.match(body, /\.\/references\/stop-recovery\.md/);
 });
 
 test('bouncer-run is an explicit-ask workflow skill that loops execute then commit', () => {

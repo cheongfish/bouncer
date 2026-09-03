@@ -1,9 +1,7 @@
 // scripts/lib/commit-guard.js
 'use strict';
-const { makeAllowed, isRuntimeArtifact } = require('./scope') as {
-  makeAllowed: (opts: { affectedPaths?: unknown; blueprintDir: unknown }) => (file: unknown) => boolean;
-  isRuntimeArtifact: (file: unknown) => boolean;
-};
+import scope = require('./scope');
+const { makeAllowed, isRuntimeArtifact } = scope;
 
 /**
  * 커밋 범위 안전 판정의 단일 구현.
@@ -34,4 +32,4 @@ function checkCommitSafety({ files, affectedPaths, blueprintDir }: {
   return { allow: violations.length === 0, violations };
 }
 
-module.exports = { checkCommitSafety };
+export = { checkCommitSafety };

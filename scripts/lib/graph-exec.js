@@ -1,10 +1,11 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { resolveGraphifyBin } = require('./graphify');
-const { buildContextDigest } = require('./context-digest');
+const graphify = require("./graphify");
+const { resolveGraphifyBin } = graphify;
+const contextDigest = require("./context-digest");
+const { buildContextDigest } = contextDigest;
 // graphify 프로세스와 결과 경로 정규화. 해석기 PATH 탐색이
 // execFileSync('graphify', ['--version']) 를 돌리므로 realHasGraphify 도
 // 여기 둔다 — 이름은 판정처럼 보이지만 프로세스를 띄운다.

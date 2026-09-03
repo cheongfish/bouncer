@@ -1,6 +1,6 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { readConfig } = require('./config');
+const config = require("./config");
+const { readConfig } = config;
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

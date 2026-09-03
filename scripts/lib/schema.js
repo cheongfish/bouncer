@@ -1,5 +1,4 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const OKF_REQUIRED = ['type', 'title', 'description', 'resource', 'tags', 'timestamp'];
 const TYPES = [
     'bouncer.epic',

@@ -1,6 +1,6 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const { toPosix } = require('./paths');
+const paths = require("./paths");
+const { toPosix } = paths;
 const CONTEXT_ROOT = '.bouncer/context';
 // 프로젝트 전역 Distill SSOT(blueprint별 distill.md / explain.md 아님).
 // 에이전트 런타임 주의사항 — OKF context 트리 밖, config.json과 같은 `.bouncer/`

@@ -1,5 +1,4 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 // 샤드 설정은 opt-in 경로의 안전장치다. 기존 저장소에는 distill 키가 없을

@@ -2,45 +2,20 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { CONTEXT_ROOT } = require('./layout') as { CONTEXT_ROOT: string };
-const { toPosix, parsePathIds } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-  parsePathIds: (resourcePath: unknown) => {
-    epicId: string | null;
-    blueprintId: string | null;
-    kind: string | null;
-  };
-};
-const { parseFrontmatter } = require('./frontmatter') as {
-  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
-};
-const { renderDoc } = require('./render') as {
-  renderDoc: (data: unknown, body: string) => string;
-};
-const { readRuntimeCurrent, writeRuntimeCurrent } = require('./runtime-state') as {
-  readRuntimeCurrent: (opts: { repoRoot: string }) => {
-    blueprint: string;
-    base: string;
-    task?: string | null;
-  } | null;
-  writeRuntimeCurrent: (opts: {
-    repoRoot: string;
-    blueprint: unknown;
-    base: string;
-    task?: unknown;
-  }) => string;
-};
-const { isWorktreeDirty, walkMarkdownFiles } = require('./migrate-ids') as {
-  isWorktreeDirty: (repoRoot: string, execFileSync?: ExecFileSyncFn) => boolean;
-  walkMarkdownFiles: (absDir: string, out?: string[]) => string[];
-};
-const { expectedTaskDocIds } = require('./tasks-docs') as {
-  expectedTaskDocIds: (number: unknown) => {
-    tasks: string;
-    verification: string;
-    review: string;
-  };
-};
+import layout = require('./layout');
+const { CONTEXT_ROOT } = layout;
+import paths = require('./paths');
+const { toPosix, parsePathIds } = paths;
+import frontmatter = require('./frontmatter');
+const { parseFrontmatter } = frontmatter;
+import render = require('./render');
+const { renderDoc } = render;
+import runtimeState = require('./runtime-state');
+const { readRuntimeCurrent, writeRuntimeCurrent } = runtimeState;
+import migrateIds = require('./migrate-ids');
+const { isWorktreeDirty, walkMarkdownFiles } = migrateIds;
+import tasksDocs = require('./tasks-docs');
+const { expectedTaskDocIds } = tasksDocs;
 const NUMBERED = /^tasks-(\d{3})\.md$/;
 
 type ExecFileSyncFn = (
@@ -227,4 +202,4 @@ function migrateTaskLayout({ repoRoot, dryRun = false, deps }: {
   }
   return { ok: true, plan: plan.plan, moved: plan.plan, rewritten, pointer, warnings: [] };
 }
-module.exports = { migrateTaskLayout, planTaskLayout, validateTaskLayout };
+export = { migrateTaskLayout, planTaskLayout, validateTaskLayout };

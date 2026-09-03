@@ -1,72 +1,27 @@
 'use strict';
 const fs = require('node:fs');
 const { createHash } = require('node:crypto');
-const { toPosix } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-};
-const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension') as {
-  EXPLAIN_SECTION_DEFS: string[];
-  computeDiffSha: (opts: {
-    repoRoot?: unknown;
-    base?: unknown;
-    exec?: unknown;
-  }) => { ok?: unknown; sha?: unknown; reason?: unknown } | null | undefined;
-  resolveComprehensionEntry: (comp: unknown) =>
-    | { ok: true; entry: { range_from?: unknown; diff_sha?: unknown } }
-    | { ok: false; reason: string };
-};
+import paths = require('./paths');
+const { toPosix } = paths;
+import comprehension = require('./comprehension');
+const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = comprehension;
 // finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
-const { makeAllowed, isRuntimeArtifact } = require('./scope') as {
-  makeAllowed: (opts: { affectedPaths?: unknown; blueprintDir: unknown }) => (file: unknown) => boolean;
-  isRuntimeArtifact: (file: unknown) => boolean;
-};
+import scope = require('./scope');
+const { makeAllowed, isRuntimeArtifact } = scope;
+import validateDocs = require('./validate-docs');
 const {
   defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf,
-} = require('./validate-docs') as {
-  defaultStagedFiles: (opts: { repoRoot?: string }) =>
-    | { ok: true; files: string[] }
-    | { ok: false; reason?: string }
-    | { ok?: unknown; files?: unknown; reason?: unknown };
-  resolveTaskUnit: (docs: BlueprintDocs, opts?: {
-    repoRoot?: string;
-    blueprintDir?: string;
-  }) => TaskUnit | null;
-  unitLeafRel: (unit: TaskUnit | null | undefined, leaf: string, fallbackRel: string) => string;
-  statusOf: (doc: DocLeaf | undefined | null) => unknown;
-};
-const { normalizeScopeEvidence } = require('./validate-structural') as {
-  normalizeScopeEvidence: (bouncer: unknown) => {
-    evidence: Record<string, unknown> | null;
-    error: string | null;
-  };
-};
-const { verifyLedgerPathFor } = require('./runtime-state') as {
-  verifyLedgerPathFor: (opts: {
-    repoRoot: string;
-    verificationRel: unknown;
-    deps?: unknown;
-  }) => { unavailable?: boolean; reason?: string; ledgerFile?: string };
-};
+} = validateDocs;
+import validateStructural = require('./validate-structural');
+const { normalizeScopeEvidence } = validateStructural;
+import runtimeState = require('./runtime-state');
+const { verifyLedgerPathFor } = runtimeState;
+import validateSections = require('./validate-sections');
 const {
   VERIFY_SECTION_DEFS, EXPLAIN_SECTION_HEADINGS, TODO_RE,
   parseSections, parseTasksSections, extractPathCandidates,
   pathsOverlap, pathJustifiedByTouch, collectFindingFailures,
-} = require('./validate-sections') as {
-  VERIFY_SECTION_DEFS: Array<{ key: string; re: RegExp }>;
-  EXPLAIN_SECTION_HEADINGS: Array<{ key: string; re: RegExp }>;
-  TODO_RE: RegExp;
-  parseSections: (body: unknown, defs: Array<{ key: string; re: RegExp }>) => Record<string, string | null>;
-  parseTasksSections: (body: unknown) => Record<string, string | null>;
-  extractPathCandidates: (text: unknown) => string[];
-  pathsOverlap: (a: string, b: string) => boolean;
-  pathJustifiedByTouch: (ap: string, touchText: string) => boolean;
-  collectFindingFailures: (opts: {
-    body: unknown;
-    findings: unknown;
-    sectionLabel: string;
-    findingLabel: string;
-  }) => string[];
-};
+} = validateSections;
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
 // 않는다. scope evidence는 structural.normalizeScopeEvidence를 그대로 쓴다 — 여기
@@ -115,14 +70,21 @@ type VerifyLedgerRecord = {
 
 type GateDeps = {
   computeDiffSha?: typeof computeDiffSha;
-  exec?: unknown;
+  // comprehension.computeDiffSha의 GitExec와 맞춰 소비자 캐스트 없이 주입한다.
+  exec?: (args: string[]) => { status: number; stdout: string; stderr: string };
   stagedFiles?: typeof defaultStagedFiles;
   readVerifyLedger?: (opts: {
     repoRoot?: string;
     verificationRel?: string;
     deps?: GateDeps;
   }) => VerifyLedgerRecord | null;
-  execFileSync?: unknown;
+  // runtime-state.verifyLedgerPathFor의 ExecFileSyncFn과 맞춘다. Node 전체
+  // 오버로드(typeof execFileSync)를 쓰면 RuntimeDeps 대입이 깨진다.
+  execFileSync?: (
+    file: string,
+    args?: readonly string[],
+    options?: { cwd?: unknown; encoding?: unknown; stdio?: unknown },
+  ) => string | Buffer;
   fs?: {
     existsSync: (p: string) => boolean;
     readFileSync: (p: string, encoding: string) => string;
@@ -167,7 +129,11 @@ function defaultReadVerifyLedger({
   const paths = verifyLedgerPathFor({
     repoRoot: repoRoot as string,
     verificationRel,
-    deps,
+    // 경로 해석만 위임한다. ledger 파일 읽기는 아래 fsApi가 담당하므로
+    // GateDeps.fs(부분 InjectedFs)를 RuntimeDeps로 억지 대입하지 않는다.
+    deps: deps
+      ? { execFileSync: deps.execFileSync, platform: deps.platform }
+      : undefined,
   });
   if (paths.unavailable) {
     return { unavailable: true, reason: paths.reason };
@@ -527,6 +493,10 @@ function runCheckGate(
 
     // 계산 실패와 해시 불일치는 서로 다른 문자열 — 원인 분류가 메시지에 드러나야 한다.
     const shaFn = (deps && deps.computeDiffSha) || computeDiffSha;
+    if (typeof repoRoot !== 'string') {
+      add('G16', 'explain diff_sha could not be computed (missing-repo)', 'explain');
+      return;
+    }
     const computed = shaFn({
       repoRoot,
       base: found.entry.range_from,
@@ -581,6 +551,14 @@ function runCheckGate(
     // G17은 이미 스테이징된 경로만 본다. working-tree 변경의 out-of-scope는
     // bouncer commit이 따로 막으며, 빈 스테이징은 통과(빈 커밋 방지는 명령 몫).
     const stagedFn = (deps && deps.stagedFiles) || defaultStagedFiles;
+    if (typeof repoRoot !== 'string') {
+      failures.push({
+        code: 'G17',
+        message: 'could not read staged files (missing-repo)',
+        file: unitLeafRel(taskUnit, 'tasks', rels.tasks),
+      });
+      return;
+    }
     const staged = stagedFn({ repoRoot });
     if (!staged || staged.ok !== true) {
       // `'reason' in`은 객체가 아니면 TypeError. 예전 `staged && staged.reason`은
@@ -615,4 +593,4 @@ function runCheckGate(
   throw new Error(`unknown gate: ${gate}`);
 }
 
-module.exports = { checkGate };
+export = { checkGate };

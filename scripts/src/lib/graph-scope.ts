@@ -1,17 +1,15 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { readConfig } = require('./config') as {
-  readConfig: (repoRoot: string) => unknown;
-};
+import config = require('./config');
+const { readConfig } = config;
+import contextDigest = require('./context-digest');
 const {
   CONTEXT_DIGEST_OUT,
   DIGEST_WATCH_FILES,
-} = require('./context-digest') as {
-  CONTEXT_DIGEST_OUT: string;
-  DIGEST_WATCH_FILES: string[];
-};
-const { DISTILL_SHARD_DIR } = require('./layout') as { DISTILL_SHARD_DIR: string };
+} = contextDigest;
+import layout = require('./layout');
+const { DISTILL_SHARD_DIR } = layout;
 
 // 설정·디렉터리 존재·mtime 판정만. 프로세스를 띄우지 않고 graphify.ts 도
 // require 하지 않는다 — 그 모듈의 PATH 탐색이 execFileSync 를 돌리기 때문.
@@ -305,7 +303,7 @@ function resolveGraphScopes({ sourceDirs, contextDirs, testDirs, excludeDirs, te
   return scopes;
 }
 
-module.exports = {
+export = {
   SCAN_EXCLUDED_DIRS,
   DEFAULT_SOURCE_OUT,
   DEFAULT_TEST_OUT,

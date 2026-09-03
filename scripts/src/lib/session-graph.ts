@@ -1,13 +1,9 @@
 'use strict';
-const { init, inspectBootstrap } = require('./init') as {
-  init: (opts: { repoRoot: string; timestamp?: string }) => {
-    ok?: unknown;
-    skipped?: unknown;
-    reason?: unknown;
-  };
-  inspectBootstrap: (opts: { repoRoot: string }) => unknown;
-};
-const { nowIsoKst } = require('./time') as { nowIsoKst: () => string };
+import initMod = require('./init');
+const { init, inspectBootstrap } = initMod;
+import time = require('./time');
+const { nowIsoKst } = time;
+import graphScope = require('./graph-scope');
 const {
   realGraphifyEnabled,
   realSourceDirs,
@@ -24,42 +20,15 @@ const {
   DEFAULT_TEST_OUT,
   DEFAULT_CONTEXT_OUT,
   DEFAULT_CONTEXT_DIRS,
-} = require('./graph-scope') as {
-  realGraphifyEnabled: (repoRoot: string) => boolean;
-  realSourceDirs: (repoRoot: string) => string[];
-  realContextDirs: (repoRoot: string) => string[];
-  realTestDirs: (repoRoot: string) => OptionalDirList;
-  realExcludeDirs: (repoRoot: string) => { dirs: string[]; skipReason?: string };
-  realExistingDirs: (repoRoot: string, dirs: string[]) => string[];
-  newestMtimeUnder: (repoRoot: string, dir: string) => number;
-  realNewestMtime: (repoRoot: string, dirs: string[], watchFiles?: string[]) => number;
-  realGraphMtime: (repoRoot: string, outDir: string) => number | null;
-  resolveGraphScopes: (opts: {
-    sourceDirs: string[];
-    contextDirs: string[];
-    testDirs?: string[] | null;
-    excludeDirs?: string[];
-    testUnconfiguredReason?: string;
-  }) => GraphScope[];
-  SCAN_EXCLUDED_DIRS: Set<string>;
-  DEFAULT_SOURCE_OUT: string;
-  DEFAULT_TEST_OUT: string;
-  DEFAULT_CONTEXT_OUT: string;
-  DEFAULT_CONTEXT_DIRS: string[];
-};
+} = graphScope;
+import graphExec = require('./graph-exec');
 const {
   realHasGraphify,
   defaultExecGraphify,
   normalizeGraphPaths,
   runGraphifyUpdate,
   partOutDir,
-} = require('./graph-exec') as {
-  realHasGraphify: (repoRoot: string) => boolean;
-  defaultExecGraphify: (repoRoot: string, graph: GraphPlan) => unknown;
-  normalizeGraphPaths: (...args: unknown[]) => string;
-  runGraphifyUpdate: (...args: unknown[]) => unknown;
-  partOutDir: (outDir: string, dir: string) => string;
-};
+} = graphExec;
 
 type GraphScope = {
   name: string;
@@ -76,11 +45,6 @@ type GraphPlan = GraphScope & {
   action: string;
   reason: string;
 };
-
-type OptionalDirList =
-  | { present: false }
-  | { present: true; dirs: string[] }
-  | { present: true; dirs: null; skipReason: string };
 
 type SessionGraphDeps = {
   inspectBootstrap?: () => unknown;
@@ -426,7 +390,7 @@ function graphSyncWarnings(decision: SessionDecision) {
   return lines;
 }
 
-module.exports = {
+export = {
   planSessionGraph,
   syncSessionGraphs,
   graphSyncWarnings,

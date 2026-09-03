@@ -1,12 +1,14 @@
 // scripts/lib/seed-worktree.js
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { epicDirOf, toPosix } = require('./paths');
-const { CONTEXT_ROOT } = require('./layout');
-const { isUnder } = require('./scope');
+const paths = require("./paths");
+const { epicDirOf, toPosix } = paths;
+const layout = require("./layout");
+const { CONTEXT_ROOT } = layout;
+const scope = require("./scope");
+const { isUnder } = scope;
 // Execute worktree는 git이 추적한 파일만 받으므로 무시되는 node_modules는 항상
 // 비어 있다. npm이 만든 숨은 lock marker는 lockfile과 함께 모든 의존성이 준비된
 // checkout에만 남는다. 이 marker가 없을 때만 lockfile 기반 설치를 해 재사용 task가

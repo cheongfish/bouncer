@@ -1,15 +1,15 @@
 'use strict';
 
-const { parseFlags } = require('./cli-flags') as {
-  parseFlags: (rest: string[]) => Record<string, string | boolean>;
-};
-const docCommands = require('./cli-doc-commands') as Record<string, CliCommand>;
-const gitCommands = require('./cli-git-commands') as Record<string, CliCommand>;
-const projectCommands = require('./cli-project-commands') as Record<string, CliCommand>;
-const currentCommand = require('./cli-current-command') as Record<string, CliCommand>;
+import cliFlags = require('./cli-flags');
+const { parseFlags } = cliFlags;
+import docCommands = require('./cli-doc-commands');
+import gitCommands = require('./cli-git-commands');
+import projectCommands = require('./cli-project-commands');
+import currentCommand = require('./cli-current-command');
 
-// 핸들러 IO는 각 명령 파일에 type-only로 복제한다. import/export를 쓰면
-// tsc가 CJS emit에 __esModule을 넣어 공개 require 표면이 바뀐다.
+// 핸들러 IO 타입은 각 명령 파일에 복제한다. ESM default import/export는
+// __esModule·__importDefault를 방출해 공개 require 표면이 바뀌므로 쓰지 않고,
+// 값 경계는 export = / import = require()만 사용한다.
 type CliIo = {
   out: (s: string) => void;
   err: (s: string) => void;
@@ -76,4 +76,4 @@ function runCli(argv: string[], io?: Partial<CliIo> | null) {
   return entry.run(rest, sink);
 }
 
-module.exports = { runCli, parseFlags };
+export = { runCli, parseFlags };

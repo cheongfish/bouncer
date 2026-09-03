@@ -1,5 +1,6 @@
 'use strict';
-const { readConfig } = require('./config');
+import config = require('./config');
+const { readConfig } = config;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -83,4 +84,4 @@ function resolveSubagentModel({
   return { model: value, provider };
 }
 
-module.exports = { resolveSubagentModel };
+export = { resolveSubagentModel };

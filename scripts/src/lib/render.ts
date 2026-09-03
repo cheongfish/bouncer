@@ -10,4 +10,4 @@ function renderDoc(data: unknown, body: string): string {
   return `---\n${front}---\n${body}`;
 }
 
-module.exports = { renderDoc };
+export = { renderDoc };

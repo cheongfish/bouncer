@@ -1,10 +1,10 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { toPosix, parsePathIds } = require('./paths');
+const paths = require("./paths");
+const { toPosix, parsePathIds } = paths;
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
 function catchMessage(error) {
     // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이

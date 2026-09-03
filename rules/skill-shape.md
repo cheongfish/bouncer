@@ -16,6 +16,21 @@ Body H2 headings in skills and agents are English.
 Do not treat `references/` as something to copy into a deliverable, and do not
 park read-only notes under `assets/`.
 
+### Explicit reference bases (workflow skills)
+
+Inside `skills/bouncer-*/SKILL.md`, never write a bare `references/...` path.
+Classify every helper cite:
+
+| Base | Notation | Resolves to |
+| --- | --- | --- |
+| Plugin root | `${BOUNCER_ROOT}/references/...` | Plugin-root helper under `references/<name>/` |
+| Skill-local | `./references/...` | File under that skill's `references/` directory |
+
+The same bare string must not name two different files (for example root
+`context-review/index.md` vs skill-local `context-review.md`). Prefer backticks
+for root cites and Markdown links for skill-local cites, but the prefix — not
+the markup — is the contract.
+
 ## Workflow skills (`skills/bouncer-*/SKILL.md`)
 
 Six entry skills: `bouncer-init`, `bouncer-plan`, `bouncer-execute`,
@@ -27,10 +42,15 @@ Required body order after YAML frontmatter:
 2. `# /<name>` — slash-command title matching the skill name.
 3. **Plugin root** and **Master rules** blocks (labels and `CLAUDE.md` cite stay).
 4. Top-level numbered procedure (`1.` `2.` `3.` …) — the only procedural spine.
-5. `## ACQ (AskUserQuestion) gates` — **last** H2. Catalog which steps ask what.
-   Cite `rules/acq.md` for shared display and chat-fallback behavior; retain
-   only gate timing and answer consequences here. If the skill never asks, say
-   so in this section.
+   Put each AskUserQuestion description (timing, options, answer consequences)
+   inline in the numbered step where the question runs. If the skill never asks,
+   state that no-AskUserQuestion contract in the procedure so a reader does not
+   need the final index to learn it.
+5. `## ACQ (AskUserQuestion) gates` — **last** H2. Keep it a **step index** only
+   (step number → one-line gate name). Cite `rules/acq.md` for shared display
+   and chat-fallback behavior. Do not restate Options lists or answer branches
+   here — those live in the numbered steps (or in a skill-local reference the
+   step points at). If the skill never asks, the index says so in one line.
 
 ## Subskills (`references/<name>/index.md`, not host catalog)
 

@@ -2,15 +2,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { resolveGraphifyBin } = require('./graphify') as {
-  resolveGraphifyBin: (opts: { repoRoot: string }) => { bin: string | null };
-};
-const { buildContextDigest } = require('./context-digest') as {
-  buildContextDigest: (opts: { repoRoot: string; contextDirs?: unknown }) => {
-    count: number;
-    map: Record<string, string>;
-  };
-};
+import graphify = require('./graphify');
+const { resolveGraphifyBin } = graphify;
+import contextDigest = require('./context-digest');
+const { buildContextDigest } = contextDigest;
 
 type GraphifyExecFn = (
   file: string | null,
@@ -296,7 +291,7 @@ function defaultExecGraphify(
   }
 }
 
-module.exports = {
+export = {
   realHasGraphify,
   graphifyOutEnv,
   partOutDir,

@@ -118,6 +118,24 @@ test('ACQ display contract is centralized and workflows cite it', () => {
   }
 });
 
+test('skill-shape locks explicit reference bases and ACQ step-index convention', () => {
+  const shape = read('rules/skill-shape.md');
+  // 루트 보조 vs 스킬 로컬 보조 — bare references/ 를 새로 쓰지 못하게 규약을 고정한다.
+  assert.match(shape, /\$\{BOUNCER_ROOT\}\/references\//);
+  assert.match(shape, /\.\/references\//);
+  assert.match(shape, /## ACQ \(AskUserQuestion\) gates/);
+  // 마지막 ACQ H2는 단계 색인; 질문 본문은 numbered step에 둔다.
+  assert.match(
+    shape,
+    /(?:step index|index of steps|단계 색인)|numbered step[\s\S]{0,80}(?:ask|ACQ|question)|(?:ask|ACQ|question)[\s\S]{0,80}numbered step/i,
+  );
+  // 무질문 스킬도 절차에서 확인 가능해야 한다.
+  assert.match(
+    shape,
+    /never asks|does not ask|no ACQ|If the skill never asks/i,
+  );
+});
+
 test('current-pointer contract is centralized and pointer consumers cite it', () => {
   const pointer = read('rules/current-pointer.md');
   assert.match(pointer, /bouncer current/);

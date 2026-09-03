@@ -23,7 +23,11 @@ test('bouncer-finalize conditionally routes four reference contracts while keepi
     ],
   ];
   for (const [file, condition] of routes) {
-    assert.match(body, new RegExp(`\\[${file.replace('.', '\\.') }\\]`));
+    assert.match(
+      body,
+      new RegExp(`\\]\\(\\.\\/references\\/${file.replace(/\./g, '\\.')}\\)`),
+      `${file} must be linked as ./references/${file}`,
+    );
     const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'references', file), 'utf8');
     assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
   }
@@ -31,6 +35,42 @@ test('bouncer-finalize conditionally routes four reference contracts while keepi
   assert.match(body, /finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes/);
   assert.match(body, /reason: 'verify'/);
   assert.doesNotMatch(body, /full JSON audit once|gh pr create|git worktree remove/);
+});
+
+/**
+ * @param {string} body
+ * @param {number} n
+ * @returns {string}
+ */
+function finalizeStepBody(body, n) {
+  const start = body.search(new RegExp(`^${n}\\. \\*\\*`, 'm'));
+  assert.ok(start > -1, `missing finalize step ${n}`);
+  const rest = body.slice(start);
+  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. \\*\\*|## ACQ )`, 'm'));
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+test('bouncer-finalize places consent timing in steps 1, 3, 4, and 6', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
+  assert.ok(acqAt > -1);
+  const index = body.slice(acqAt);
+  assert.match(index, /[Ss]tep\s+1/);
+  assert.match(index, /[Ss]tep\s+3/);
+  assert.match(index, /[Ss]tep\s+4/);
+  assert.match(index, /[Ss]tep\s+6/);
+  assert.doesNotMatch(index, /\*\*AskUserQuestion/);
+  assert.doesNotMatch(index, /\*\*Options\*\*:/);
+
+  assert.match(finalizeStepBody(body, 1), /\*\*ACQ — Distill promotion:\*\*/);
+  assert.match(finalizeStepBody(body, 3), /\*\*AskUserQuestion — Remainder commit/);
+  assert.match(finalizeStepBody(body, 3), /\*\*Options\*\*:/);
+  assert.match(finalizeStepBody(body, 4), /\*\*ACQ — PR:\*\*/);
+  assert.match(finalizeStepBody(body, 6), /\*\*ACQ — Next blueprint:\*\*/);
+
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/spec-authoring\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/explain-diff\/index\.md/);
+  assert.match(body, /\.\/references\/distill-promotion\.md/);
 });
 
 test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR, and graceful skip', () => {
@@ -56,10 +96,10 @@ test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR
   assert.match(body, /commit_type/);
   assert.match(body, /G16/);
   // Distill 승격(spec-authoring) 다음에 explain-diff가 온다.
-  assert.match(body, /references\/explain-diff\/index\.md/);
+  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/explain-diff\/index\.md/);
   {
-    const i = body.indexOf('references/spec-authoring/index.md');
-    const j = body.indexOf('references/explain-diff/index.md');
+    const i = body.indexOf('${BOUNCER_ROOT}/references/spec-authoring/index.md');
+    const j = body.indexOf('${BOUNCER_ROOT}/references/explain-diff/index.md');
     assert.ok(i > -1 && j > i);
   }
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
@@ -178,8 +218,9 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
 
 test('bouncer-finalize opens draft PR without a second body-confirm ACQ', () => {
   const { body } = parseFrontmatter(md);
-  // 게이트 목록에 PR body confirm이 없다(긍정 문구로 셋만 나열됨을 단언)
-  assert.match(body, /Gates in this skill[\s\S]{0,200}Next blueprint/);
+  // 단계 색인에 PR·Next blueprint가 있고, PR body 재확인 게이트는 없다.
+  assert.match(body, /\*\*Index:\*\*[\s\S]{0,200}Next blueprint/);
+  assert.match(body, /Step\s+4\s+[—-]\s+PR/);
   // 승인 뒤 재확인 없이 생성한다는 규칙
   assert.match(body, /without a further confirmation|without.*second.*confirm|재확인하지 않는다/);
 });

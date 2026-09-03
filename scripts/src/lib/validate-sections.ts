@@ -1,7 +1,6 @@
 'use strict';
-const { toPosix } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-};
+import paths = require('./paths');
+const { toPosix } = paths;
 
 // 본문 파싱 층. 게이트(G)와 구조(S)가 같은 heading/경로 규칙을 보게 여기만 둔다.
 // 상위 모듈이 각자 정규식을 가지면 G10과 G16의 "비어 있음"이 어긋난다.
@@ -150,7 +149,7 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel }: 
   return messages;
 }
 
-module.exports = {
+export = {
   SECTION_DEFS,
   VERIFY_SECTION_DEFS,
   REVIEW_SECTION_DEFS,

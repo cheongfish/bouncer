@@ -29,6 +29,7 @@ bouncer:
 3. 보안 blueprint는 두 task를 독립 커밋으로 검토할 수 있고, 각 task의 범위·검증 증거가 plan gate를 통과한다.
 4. 이 epic에 포함될 후속 개선은 보안 blueprint와 겹치지 않는 파일 범위를 가진 별도 blueprint로만 추가된다.
 5. `/bouncer-run`은 drive 시작에서 불변 규칙을 한 번 적재하고 후속 task 반복에서는 재적재하지 않으며, 이 경계가 공통 규칙과 run 계약 테스트로 확인된다.
+6. 후속 정확성 blueprint는 참조 기준과 ACQ 게이트 시점을 명시하고, CommonJS 모듈 경계의 시그니처 불일치를 컴파일 단계에서 거절한다.
 
 ## Out of scope
 - 감사 수치의 재측정만을 위한 변경
@@ -38,3 +39,4 @@ bouncer:
 ## Blueprints
 * [001 검증 실행과 커밋 범위 경계 강화](blueprints/001-security-boundary-enforcement/index.md) - 검증 러너와 commit 범위 검사를 셸·호스트 훅 의존 없이 일관되게 집행한다.
 * [002 실행 주기 규칙 적재 계약](blueprints/002-run-rule-reload-elimination/index.md) - run drive의 불변 규칙을 최초 한 번만 적재하도록 공통 계약과 loop 절차를 맞춘다.
+* [003 스킬 경로와 모듈 타입 계약 정비](blueprints/003-correctness-contracts/index.md) - 스킬 참조·ACQ 시점을 명시하고 CommonJS 모듈 간 타입 검사를 복구한다.

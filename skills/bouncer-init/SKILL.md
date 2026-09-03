@@ -104,19 +104,7 @@ Document skeletons, product rules, and master rules live in the plugin
 
 ## ACQ (AskUserQuestion) gates
 
-Use `rules/acq.md` for the shared ACQ display and chat fallback. The numbered
-steps hold this workflow's timing and consequences.
+Use `rules/acq.md` for the shared ACQ display and chat fallback.
 
-**Gates in this skill:**
-- Step 3 **Promotion ACQ** — when the init result carries
-  `graphifyPromotion: 'candidate'`, ask enable+install / enable-only / leave
-  as-is before any config write.
-- Step 3 **Gitignore ACQ** — when `gitignoreSuggestions` is non-empty, ask
-  whether to write the `# bouncer` … `# /bouncer` marker block before
-  `--write-gitignore`.
-- Step 3 **Branch ACQ** — when the init result carries
-  `baseBranchUnresolved: true`, ask for the default branch and write
-  `base_branch` and `pr.base` to that same value, or leave the keys absent.
-
-Steps 1–2 and 4–5 do not ask; they report bootstrap outcome or point at
-`/bouncer-plan`.
+**Index:**
+- Step 3 — Promotion ACQ · Gitignore ACQ · Branch ACQ

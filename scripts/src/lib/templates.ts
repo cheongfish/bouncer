@@ -278,6 +278,6 @@ function templateBody(templateName: string, vars: TemplateVars): string {
   return renderTemplate(readTemplate(templateName), vars);
 }
 
-module.exports = {
+export = {
   TEMPLATES, PR_TEMPLATE, PROJECT_DISTILL_BODY, readTemplate, renderTemplate, templateBody,
 };

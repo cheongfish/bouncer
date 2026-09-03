@@ -20,4 +20,4 @@ function nowIsoKst(date: Date = new Date()): string {
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}.${ms}+09:00`;
 }
 
-module.exports = { nowIsoKst };
+export = { nowIsoKst };

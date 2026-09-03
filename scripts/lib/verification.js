@@ -1,20 +1,28 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
-const { readDoc } = require('./frontmatter');
-const { renderDoc } = require('./render');
-const { isCanonicalBlueprintDir } = require('./layout');
-const { nowIsoKst } = require('./time');
-const { listTasksDocs } = require('./tasks-docs');
+const frontmatter = require("./frontmatter");
+const { readDoc } = frontmatter;
+const render = require("./render");
+const { renderDoc } = render;
+const layout = require("./layout");
+const { isCanonicalBlueprintDir } = layout;
+const time = require("./time");
+const { nowIsoKst } = time;
+const tasksDocs = require("./tasks-docs");
+const { listTasksDocs } = tasksDocs;
 // current.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
 // 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
-const { readCurrent } = require('./current');
-const { toPosix } = require('./paths');
-const { verifyLedgerPathFor } = require('./runtime-state');
-const { readConfigResult, getVerifyAllowlist, DEFAULT_VERIFY_ALLOWLIST, } = require('./config');
+const current = require("./current");
+const { readCurrent } = current;
+const paths = require("./paths");
+const { toPosix } = paths;
+const runtimeState = require("./runtime-state");
+const { verifyLedgerPathFor } = runtimeState;
+const config = require("./config");
+const { readConfigResult, getVerifyAllowlist, DEFAULT_VERIFY_ALLOWLIST, } = config;
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
 // 증거이므로 훨씬 더 많이 — 그리고 리뷰어가 읽는 문서 본문에, frontmatter에만

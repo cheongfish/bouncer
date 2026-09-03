@@ -1,15 +1,21 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const { createHash } = require('node:crypto');
-const { toPosix } = require('./paths');
-const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = require('./comprehension');
+const paths = require("./paths");
+const { toPosix } = paths;
+const comprehension = require("./comprehension");
+const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = comprehension;
 // finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
-const { makeAllowed, isRuntimeArtifact } = require('./scope');
-const { defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf, } = require('./validate-docs');
-const { normalizeScopeEvidence } = require('./validate-structural');
-const { verifyLedgerPathFor } = require('./runtime-state');
-const { VERIFY_SECTION_DEFS, EXPLAIN_SECTION_HEADINGS, TODO_RE, parseSections, parseTasksSections, extractPathCandidates, pathsOverlap, pathJustifiedByTouch, collectFindingFailures, } = require('./validate-sections');
+const scope = require("./scope");
+const { makeAllowed, isRuntimeArtifact } = scope;
+const validateDocs = require("./validate-docs");
+const { defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf, } = validateDocs;
+const validateStructural = require("./validate-structural");
+const { normalizeScopeEvidence } = validateStructural;
+const runtimeState = require("./runtime-state");
+const { verifyLedgerPathFor } = runtimeState;
+const validateSections = require("./validate-sections");
+const { VERIFY_SECTION_DEFS, EXPLAIN_SECTION_HEADINGS, TODO_RE, parseSections, parseTasksSections, extractPathCandidates, pathsOverlap, pathJustifiedByTouch, collectFindingFailures, } = validateSections;
 function asData(doc) {
     if (!doc)
         return undefined;
@@ -21,7 +27,11 @@ function defaultReadVerifyLedger({ repoRoot, verificationRel, deps, }) {
     const paths = verifyLedgerPathFor({
         repoRoot: repoRoot,
         verificationRel,
-        deps,
+        // 경로 해석만 위임한다. ledger 파일 읽기는 아래 fsApi가 담당하므로
+        // GateDeps.fs(부분 InjectedFs)를 RuntimeDeps로 억지 대입하지 않는다.
+        deps: deps
+            ? { execFileSync: deps.execFileSync, platform: deps.platform }
+            : undefined,
     });
     if (paths.unavailable) {
         return { unavailable: true, reason: paths.reason };
@@ -342,6 +352,10 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
         }
         // 계산 실패와 해시 불일치는 서로 다른 문자열 — 원인 분류가 메시지에 드러나야 한다.
         const shaFn = (deps && deps.computeDiffSha) || computeDiffSha;
+        if (typeof repoRoot !== 'string') {
+            add('G16', 'explain diff_sha could not be computed (missing-repo)', 'explain');
+            return;
+        }
         const computed = shaFn({
             repoRoot,
             base: found.entry.range_from,
@@ -394,6 +408,14 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
         // G17은 이미 스테이징된 경로만 본다. working-tree 변경의 out-of-scope는
         // bouncer commit이 따로 막으며, 빈 스테이징은 통과(빈 커밋 방지는 명령 몫).
         const stagedFn = (deps && deps.stagedFiles) || defaultStagedFiles;
+        if (typeof repoRoot !== 'string') {
+            failures.push({
+                code: 'G17',
+                message: 'could not read staged files (missing-repo)',
+                file: unitLeafRel(taskUnit, 'tasks', rels.tasks),
+            });
+            return;
+        }
         const staged = stagedFn({ repoRoot });
         if (!staged || staged.ok !== true) {
             // `'reason' in`은 객체가 아니면 TypeError. 예전 `staged && staged.reason`은

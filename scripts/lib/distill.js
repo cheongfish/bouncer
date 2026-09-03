@@ -1,11 +1,14 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseFrontmatter } = require('./frontmatter');
-const { runtimePaths } = require('./runtime-state');
-const { DISTILL_INDEX, DISTILL_ROOT } = require('./layout');
-const { toPosix } = require('./paths');
+const frontmatter = require("./frontmatter");
+const { parseFrontmatter } = frontmatter;
+const runtimeState = require("./runtime-state");
+const { runtimePaths } = runtimeState;
+const layout = require("./layout");
+const { DISTILL_INDEX, DISTILL_ROOT } = layout;
+const paths = require("./paths");
+const { toPosix } = paths;
 const DISTILL_VERSION = 1;
 function isRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -147,6 +150,9 @@ function legacyResult(repoRoot, content, reason) {
         ids: [],
         reason,
         repoRoot,
+        // 샤드 인덱스와 같은 필드 이름을 유지해 소비자가 모드 분기 없이 읽게 한다.
+        routingEnabled: false,
+        routing_enabled: false,
     };
 }
 /**
@@ -184,13 +190,17 @@ function readShards({ repoRoot, paths: suppliedPaths, runtime, runtimePaths: sup
     if (!declarations || declarations.length === 0 || declarations.some((entry) => !entry)) {
         return legacyResult(root, raw, 'index-shards-invalid');
     }
-    const shards = declarations.map((declaration) => readShard(root, declaration));
-    const ids = shards.map((entry) => entry && entry.id);
-    if (shards.some((entry) => !entry)
+    const loaded = declarations.map((declaration) => readShard(root, declaration));
+    const ids = loaded.map((entry) => entry && entry.id);
+    if (loaded.some((entry) => !entry)
         || ids.some((id) => !id)
         || new Set(ids).size !== ids.length) {
         return legacyResult(root, raw, 'shard-unreadable');
     }
+    // 위에서 null·중복을 거절한 뒤에만 DistillShard[]로 좁힌다. filter 타입 가드를
+    // 쓰면 동일 런타임인데 호출부마다 (DistillShard|null)[] 잔여가 남는다.
+    const shards = loaded;
+    const shardIds = ids;
     const routingEnabled = indexMeta.routing_enabled === true
         || indexMeta.routingEnabled === true;
     return {
@@ -205,7 +215,7 @@ function readShards({ repoRoot, paths: suppliedPaths, runtime, runtimePaths: sup
         routingEnabled,
         routing_enabled: routingEnabled,
         shards,
-        ids,
+        ids: shardIds,
     };
 }
 function escapeRegExp(value) {

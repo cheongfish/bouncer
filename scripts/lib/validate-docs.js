@@ -1,12 +1,15 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { readDoc } = require('./frontmatter');
-const { epicDirOf, toPosix } = require('./paths');
-const { entriesForVerify } = require('./verification');
-const { listTasksDocs, TASK_UNIT_BASENAMES, } = require('./tasks-docs');
+const frontmatter = require("./frontmatter");
+const { readDoc } = frontmatter;
+const paths = require("./paths");
+const { epicDirOf, toPosix } = paths;
+const verification = require("./verification");
+const { entriesForVerify } = verification;
+const tasksDocs = require("./tasks-docs");
+const { listTasksDocs, TASK_UNIT_BASENAMES, } = tasksDocs;
 function errorMessage(error) {
     // catch 값은 unknown이다. 예전 e.message 접근을 유지해 primitive throw의
     // 메시지는 undefined, null throw는 TypeError가 나게 둔다.

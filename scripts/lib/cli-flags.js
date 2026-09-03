@@ -1,5 +1,4 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 /**
  * CLI 공통 플래그 파서. 명령 모듈이 cli.ts를 require하지 못하게 여기 둔다
  * (순환: cli.ts → 명령 모듈 → cli.ts).

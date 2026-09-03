@@ -1,60 +1,26 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+import layout = require('./layout');
 const {
   CONTEXT_ROOT, normalizeRepoPath, isCanonicalEpicDir, isCanonicalBlueprintDir,
-} = require('./layout') as {
-  CONTEXT_ROOT: string;
-  normalizeRepoPath: (value: unknown) => string;
-  isCanonicalEpicDir: (value: unknown) => boolean;
-  isCanonicalBlueprintDir: (value: unknown) => boolean;
-};
-const { parsePathIds, isNumericContextId } = require('./paths') as {
-  parsePathIds: (resourcePath: unknown) => {
-    epicId: string | null;
-    blueprintId: string | null;
-    kind: string | null;
-  };
-  isNumericContextId: (id: unknown) => boolean;
-};
-const { renderDoc } = require('./render') as {
-  renderDoc: (data: unknown, body: string) => string;
-};
-const { parseFrontmatter } = require('./frontmatter') as {
-  parseFrontmatter: (markdown: string) => { data: unknown; body: string };
-};
-const { templateBody, TEMPLATES } = require('./templates') as {
-  templateBody: (templateName: string, vars: {
-    epicId?: string | null;
-    blueprintId?: string | null;
-    name?: string | null;
-  }) => string;
-  TEMPLATES: Record<string, string>;
-};
-const { ensureEpicIndexEntry, listEpicDirNames } = require('./epic-index') as {
-  ensureEpicIndexEntry: (opts: {
-    repoRoot: string;
-    epicId: string;
-    name: string;
-    description?: unknown;
-  }) => string | null;
-  listEpicDirNames: (repoRoot: string) => string[];
-};
+} = layout;
+import paths = require('./paths');
+const { parsePathIds, isNumericContextId } = paths;
+import render = require('./render');
+const { renderDoc } = render;
+import frontmatter = require('./frontmatter');
+const { parseFrontmatter } = frontmatter;
+import templates = require('./templates');
+const { templateBody, TEMPLATES } = templates;
+import epicIndex = require('./epic-index');
+const { ensureEpicIndexEntry, listEpicDirNames } = epicIndex;
+import tasksDocs = require('./tasks-docs');
 const {
   TASK_UNIT_BASENAMES, expectedTaskDocIds,
-} = require('./tasks-docs') as {
-  TASK_UNIT_BASENAMES: string[];
-  expectedTaskDocIds: (number: unknown) => {
-    tasks: string;
-    verification: string;
-    review: string;
-  };
-};
-const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_ENUM } = require('./schema') as {
-  DEFAULT_COMMIT_TYPE: string;
-  DEFAULT_SCALE: string;
-  SCALE_ENUM: string[];
-};
+} = tasksDocs;
+import schema = require('./schema');
+const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_ENUM } = schema;
 
 function writeRel(repoRoot: string, rel: string, data: unknown, body: string): string {
   const abs = path.join(repoRoot, rel);
@@ -474,7 +440,7 @@ function scaffoldExplain({ repoRoot, blueprintDir, timestamp }: {
     templateBody('explain.md', { epicId, blueprintId, name: slug }))];
 }
 
-module.exports = {
+export = {
   CONTEXT_ROOT, scaffoldEpic, scaffoldBlueprint, scaffoldTask, scaffoldExplain,
   scaffoldContextReview,
 };

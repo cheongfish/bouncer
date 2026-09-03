@@ -1,81 +1,30 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { detectLegacyFormat } = require('./schema') as {
-  detectLegacyFormat: (opts?: { repoRoot?: unknown; data?: unknown }) => {
-    legacy: boolean;
-    reason: string;
-  };
-};
-const { CONTEXT_ROOT, isCanonicalBlueprintDir } = require('./layout') as {
-  CONTEXT_ROOT: string;
-  isCanonicalBlueprintDir: (value: unknown) => boolean;
-};
-const { toPosix } = require('./paths') as {
-  toPosix: (p: unknown) => string;
-};
+import schema = require('./schema');
+const { detectLegacyFormat } = schema;
+import layout = require('./layout');
+const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
+import paths = require('./paths');
+const { toPosix } = paths;
+import verification = require('./verification');
 const {
   runVerification, entriesForVerify,
-} = require('./verification') as {
-  runVerification: (opts: { repoRoot: string; blueprintDir: string }) => {
-    ok: boolean;
-    exitCode: number;
-    command?: string;
-  };
-  entriesForVerify: (repoRoot: string, blueprintDir: string) => Array<{
-    verification?: { rel?: string };
-  }>;
-};
-const { checkEpicIndexConsistency } = require('./epic-index') as {
-  checkEpicIndexConsistency: (opts: { repoRoot: string }) => FailureEntry[];
-};
+} = verification;
+import epicIndex = require('./epic-index');
+const { checkEpicIndexConsistency } = epicIndex;
+import validateDocs = require('./validate-docs');
 const {
   loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves,
-} = require('./validate-docs') as {
-  loadBlueprintDocs: (opts: { repoRoot: string; blueprintDir: string }) => {
-    docs: BlueprintDocs;
-    rels: BlueprintRels;
-    parseErrors: FailureEntry[];
-    tasksListing?: {
-      legacyFiles?: string[];
-      invalidDirs?: string[];
-      entries?: Array<{
-        number: number | null;
-        tasks: { rel: string };
-        verification: { rel: string };
-        review: { rel: string };
-        [leaf: string]: unknown;
-      }>;
-    };
-  };
-  resolveTaskUnit: (docs: BlueprintDocs, opts?: {
-    repoRoot?: string;
-    blueprintDir?: string;
-  }) => TaskUnit | null;
-  blueprintDocsExist: (opts: { repoRoot: string; blueprintDir: string }) => boolean;
-  statusOf: (doc: DocLeaf | undefined | null) => unknown;
-  requiredTaskLeaves: (status: unknown) => Array<'tasks' | 'verification' | 'review'>;
-};
-const { checkStructural, checkDistillStructural } = require('./validate-structural') as {
-  checkStructural: (doc: unknown, failures: FailureEntry[]) => void;
-  checkDistillStructural: (opts: { repoRoot: string }) => { failures: FailureEntry[] };
-};
-const { checkGate } = require('./validate-gates') as {
-  checkGate: (
-    gate: string,
-    docs: BlueprintDocs,
-    rels: BlueprintRels,
-    failures: FailureEntry[],
-    ctx: GateContext,
-  ) => void;
-};
+} = validateDocs;
+import validateStructural = require('./validate-structural');
+const { checkStructural, checkDistillStructural } = validateStructural;
+import validateGates = require('./validate-gates');
+const { checkGate } = validateGates;
+import validateSections = require('./validate-sections');
 const {
   parseTasksSections, parseSections, extractPathCandidates,
-} = require('./validate-sections') as {
-  parseTasksSections: (body: unknown) => Record<string, string | null>;
-  parseSections: (body: unknown, defs: unknown) => Record<string, string | null>;
-  extractPathCandidates: (text: unknown) => string[];
-};
+} = validateSections;
 
 // 오케스트레이션 + 공개 배럴. validateBlueprint는 이 파일에 남긴다 —
 // 함수 안의 레거시 `.sdd` 문자열이 public-name-regression allowlist에
@@ -92,15 +41,6 @@ type TaskUnit = {
   verification?: DocLeaf;
   review?: DocLeaf;
 };
-type BlueprintRels = {
-  epicIndex: string;
-  blueprintIndex: string;
-  tasks: string;
-  verification: string;
-  review: string;
-  explain: string;
-  contextReview: string;
-};
 type BlueprintDocs = {
   epicIndex?: DocLeaf;
   blueprintIndex?: DocLeaf;
@@ -112,14 +52,6 @@ type BlueprintDocs = {
   tasksDocs?: DocLeaf[];
   taskUnits?: TaskUnit[];
 };
-type GateContext = {
-  repoRoot?: string;
-  blueprintDir?: string;
-  deps?: unknown;
-  taskUnit?: TaskUnit | null;
-  // loader S0 목록. plan G18이 context-review 파싱 실패와 실제 부재를 가른다.
-  parseErrors?: FailureEntry[];
-};
 
 function catchMessage(error: unknown): unknown {
   return (error as { message: unknown }).message;
@@ -129,7 +61,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
   repoRoot: string;
   blueprintDir: string;
   gate?: string;
-  deps?: unknown;
+  deps?: NonNullable<Parameters<typeof checkGate>[4]>['deps'];
 }): { ok: boolean; failures: FailureEntry[] } {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     return {
@@ -309,7 +241,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
   return { ok: failures.length === 0, failures };
 }
 
-module.exports = {
+export = {
   loadBlueprintDocs, resolveTaskUnit, checkStructural, checkGate, validateBlueprint,
   parseTasksSections, parseSections, extractPathCandidates,
 };

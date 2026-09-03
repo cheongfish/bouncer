@@ -33,9 +33,9 @@ If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 Apply the shared returned-value contract. This workflow owns the finalize
 outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
-1. **Propose and promote Distill (one consent).** When proposing and promoting Distill, read this reference: [distill-promotion.md](references/distill-promotion.md). It directs the conditional `spec-authoring` handoff (`references/spec-authoring/index.md`); its result is either one consented promotion outcome or a reported mismatch that continues to step 2.
+1. **Propose and promote Distill (one consent).** When proposing and promoting Distill, read this reference: [distill-promotion.md](./references/distill-promotion.md). It directs the conditional `spec-authoring` handoff (`${BOUNCER_ROOT}/references/spec-authoring/index.md`). **ACQ — Distill promotion:** run that reference's one consent before any Distill write; rejection/skip writes nothing and continues to step 2. A reported id-set mismatch also continues to step 2 without promotion.
 
-2. **Explain + quiz.** When authoring or refreshing explain and running the quiz, read this reference: [explain-quiz.md](references/explain-quiz.md). It directs `explain-diff` (`references/explain-diff/index.md`). If the user does not answer the quiz, **stop** — do not continue to validate or `finalize --yes`.
+2. **Explain + quiz.** When authoring or refreshing explain and running the quiz, read this reference: [explain-quiz.md](./references/explain-quiz.md). It directs `explain-diff` (`${BOUNCER_ROOT}/references/explain-diff/index.md`). If the user does not answer the quiz, **stop** — do not continue to validate or `finalize --yes`.
 
 3. **Validate + remainder commit (deterministic core) + worktree choice.**
    Run the finalize gate first:
@@ -105,11 +105,11 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    (Empty staged set is fine — still run the ACQ so worktree choice is explicit;
    `--yes` clears the pointer without creating an empty commit.)
 
-4. **Push + draft PR (markdown layer).** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](references/draft-pr.md). A missing remote or `gh` skips this branch gracefully; any accepted PR attempt returns to step 5.
+4. **Push + draft PR (markdown layer).** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). **ACQ — PR:** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 5.
 
-5. **Worktree cleanup (from step 3 choice).** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](references/cleanup-handoff.md). Apply the remembered choice without re-asking.
+5. **Worktree cleanup (from step 3 choice).** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking.
 
-6. **Next-blueprint handoff.** The same [cleanup-handoff.md](references/cleanup-handoff.md) reference handles this only after cleanup and only from the finalize payload; advancement remains confirm-then-`current --set`, never automatic.
+6. **Next-blueprint handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) reference handles this only after cleanup and only from the finalize payload. **ACQ — Next blueprint:** run that reference's AskUserQuestion before `current --set`; advancement remains confirm-then-`current --set`, never automatic.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
    work plans a sibling Blueprint in the same Epic or a new Epic via
    `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
@@ -132,7 +132,8 @@ Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 `/bouncer-finalize` is not consent for remainder commit, PR, or pointer
 advance.
 
-**Gates in this skill:** Distill promotion proposal (step 1) · Remainder commit
-+ worktree (step 3) · PR (step 4) · Next blueprint (step 6). Worktree removal
-is **not** a separate gate — it is chosen in step 3. The supporting references
-retain each gate's choices and stop conditions; they are not output templates.
+**Index:**
+- Step 1 — Distill promotion
+- Step 3 — Remainder commit + worktree
+- Step 4 — PR
+- Step 6 — Next blueprint

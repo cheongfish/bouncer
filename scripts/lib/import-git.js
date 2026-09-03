@@ -1,5 +1,4 @@
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const LOG_FORMAT = '%H%x1f%s%x1f%aI%x1f%an';
 const EPIC_ID_PREFIX_RE = /^(\d{3})-/;
 /** 제목에서 ASCII 슬러그를 뽑고, 한글·기호만 남으면 축약 sha로 떨어뜨린다. */

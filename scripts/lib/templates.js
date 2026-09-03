@@ -4,7 +4,6 @@
 // 모든 기본값은 게이트가 요구하는 본문 섹션을 충족합니다: tasks는 G10,
 // verification은 G13, review는 G14.
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 // 리뷰 흐름 본문: 관련 이슈 → 배경·의도 → 변경 → (조건부) 로직 흐름 →
 // 리뷰 포인트 → 확인 방법. Features/Fixes 체크박스와 Bouncer 메타 절은 두지
 // 않는다 — finalize는 Explain·diff·검증 증적만 조합한다.
