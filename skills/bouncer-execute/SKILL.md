@@ -18,8 +18,7 @@ the user at `/bouncer-commit`.
 **Project root.** Resolve the consuming project's main worktree (same value from
 a linked execute worktree cwd):
 ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
+PROJECT_ROOT="$(bouncer project-root)"
 ```
 If that fails, stop and report stderr — do not treat the execute worktree or
 plugin root as Distill base.
@@ -52,8 +51,7 @@ evidence. The debugger never applies the fix.
 
 1. **Read the pointer.** Load the active blueprint dir, base branch, and task brief:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" current
+   bouncer current
    ```
    If `current` is `null`:
    - When `ready` is non-empty, show those candidates and tell the user to run
@@ -100,8 +98,7 @@ evidence. The debugger never applies the fix.
    Always run seed next (also on reuse — no-op when nothing remains to move),
    **from the base `cwd`**, so the worktree has the task brief for step 3:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" seed-worktree \
+   bouncer seed-worktree \
      --blueprint <pointer.blueprint> --to "${WORKTREE_PATH}"
    ```
    It first prepares lockfile-pinned development dependencies when this
@@ -191,8 +188,7 @@ evidence. The debugger never applies the fix.
 
 6. **Gate.** Run `validate --gate execute`:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate execute
+   bouncer validate --blueprint <pointer.blueprint> --gate execute
    ```
    Before evaluating G6–G14, `validate --gate execute` runs the configured
    verify command in the worktree and records its evidence. Gate `execute`

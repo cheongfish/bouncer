@@ -4,52 +4,58 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { checkDocShape } = require('../scripts/check-doc-shape');
 const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-run', 'SKILL.md'), 'utf8');
 const md = readWorkflowBundle('bouncer-run');
 
+function assertShape(document, contract) {
+  const result = checkDocShape(document, contract);
+  assert.deepStrictEqual(result.errors, [], result.errors.join('; '));
+  return result.shape;
+}
+
 test('bouncer-run conditionally routes stop recovery', () => {
   const { body } = parseFrontmatter(mainMd);
-  const condition = 'On verify re-failure, review ceiling, scope violation, or user decline, read this reference.';
+  assertShape(mainMd, {
+    filePath: path.join(root, 'skills', 'bouncer-run', 'SKILL.md'),
+    links: [{ href: './references/stop-recovery.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['fail'] } }],
+  });
   assert.match(body, /\]\(\.\/references\/stop-recovery\.md\)/);
-  const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-run', 'references', 'stop-recovery.md'), 'utf8');
-  assert.ok(reference.startsWith(condition));
   assert.doesNotMatch(body, /자동 재시도하지|Leave the pointer on the failed task/);
 });
 
-/**
- * @param {string} body
- * @param {number} n
- * @returns {string}
- */
-function runStepBody(body, n) {
-  const start = body.search(new RegExp(`^${n}\\. \\*\\*`, 'm'));
-  assert.ok(start > -1, `missing run step ${n}`);
-  const rest = body.slice(start);
-  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. \\*\\*|## ACQ )`, 'm'));
-  return next === -1 ? rest : rest.slice(0, next);
-}
+test('bouncer-run rejects unrelated stop-recovery routes', () => {
+  const result = checkDocShape('When publishing a release, read [Reference](./references/stop-recovery.md).', {
+    filePath: path.join(root, 'skills', 'bouncer-run', 'SKILL.md'),
+    links: [{ href: './references/stop-recovery.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['fail'] } }],
+  });
+  assert.strictEqual(result.ok, false);
+  assert.match(result.errors.join('; '), /semantic trigger/);
+});
+
 
 test('bouncer-run keeps Start and interactive Next-task ACQ in steps 2 and 5', () => {
   const { body } = parseFrontmatter(mainMd);
-  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
-  assert.ok(acqAt > -1);
-  const index = body.slice(acqAt);
-  assert.match(index, /[Ss]tep\s+2/);
-  assert.match(index, /[Ss]tep\s+5/);
-  assert.doesNotMatch(index, /\*\*AskUserQuestion/);
-  assert.doesNotMatch(index, /\*\*Options\*\*:/);
-  assert.match(runStepBody(body, 2), /\*\*AskUserQuestion — Start drive\*\*/);
-  assert.match(runStepBody(body, 2), /\*\*Options\*\*:/);
-  assert.match(runStepBody(body, 5), /\*\*AskUserQuestion — Next task\*\*/);
-  assert.match(runStepBody(body, 5), /\*\*Options\*\*:/);
+  assertShape(mainMd, {
+    headings: { required: ['ACQ (AskUserQuestion) gates'] },
+    steps: {
+      required: [1, 2, 3, 4, 5, 6, 7],
+      order: true,
+      acq: [2, 5],
+      acqOptions: [2, 5],
+      links: { 6: ['./references/stop-recovery.md'] },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [2, 5], only: true },
+  });
   assert.match(body, /\.\/references\/stop-recovery\.md/);
 });
 
 test('bouncer-run is an explicit-ask workflow skill that loops execute then commit', () => {
   const { data, body } = parseFrontmatter(md);
+  assertShape(md, { frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-run' } } });
   assert.strictEqual(data.name, 'bouncer-run');
   assert.match(String(data.description), /^Use only when the user explicitly asks \/bouncer-run/);
   assert.match(body, /\/bouncer-execute/);
@@ -76,7 +82,7 @@ test('bouncer-run delegates shared pointer invariants while retaining autonomy e
 
 test('bouncer-run preflight stops on a null pointer or a closed blueprint', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /scripts\/bouncer"\s+current\b/);
+  assert.match(body, /\bbouncer\s+current\b/);
   assert.match(body, /null/);
   assert.match(body, /closed/);
   // 포인터 없음은 plan, 열린 task 없음은 finalize 안내 — 두 출구를 한 문장에 섞지 않음.
@@ -144,7 +150,7 @@ test('bouncer-run reads autonomy and falls back to auto outside AUTONOMY_ENUM', 
 test('bouncer-run does not invent CLI, invoke finalize, or copy execute dispatch', () => {
   const { body } = parseFrontmatter(md);
   // 진행 수단은 current --set 과 commit 출력뿐. 새 서브커맨드를 본문에 심지 않음.
-  assert.doesNotMatch(body, /scripts\/bouncer"\s+run\b/);
+  assert.doesNotMatch(body, /\bbouncer\s+run\b/);
   assert.doesNotMatch(body, /finalize --yes/);
   // named 디스패치 네 단계와 scale:light 는 execute 소유. 사본이 갈리면 두 문서가 다른 말을 함.
   assert.doesNotMatch(body, /resolveSubagentModel/);

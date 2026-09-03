@@ -4,75 +4,67 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { checkDocShape } = require('../scripts/check-doc-shape');
 const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-plan', 'SKILL.md'), 'utf8');
 const md = readWorkflowBundle('bouncer-plan');
 
+function assertShape(document, contract) {
+  const result = checkDocShape(document, contract);
+  assert.deepStrictEqual(result.errors, [], result.errors.join('; '));
+  return result.shape;
+}
+
 test('bouncer-plan conditionally routes three planning references and retains core gates', () => {
   const { body } = parseFrontmatter(mainMd);
   const routes = [
-    ['distill-preflight.md', 'When preparing the Distill baseline and preflight, read this reference.'],
-    ['graphify-suggestions.md', 'When generating Graphify suggestions, read this reference.'],
-    [
-      'context-review.md',
-      'When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, '
-        + 'read this reference.',
-    ],
+    { file: 'distill-preflight.md', triggers: ['distill', 'preflight'], source: 'When preparing the Distill baseline and preflight, read this reference:' },
+    { file: 'graphify-suggestions.md', triggers: ['graphify', 'suggestion'], source: 'When generating Graphify suggestions, read this reference:' },
+    { file: 'context-review.md', triggers: ['context', 'review'], source: 'When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference:' },
   ];
-  for (const [file, condition] of routes) {
-    // 스킬 로컬은 ./references/… — bare references/ 와 루트 접두를 쓰지 않는다.
-    assert.match(
-      body,
-      new RegExp(`\\]\\(\\.\\/references\\/${file.replace(/\./g, '\\.')}\\)`),
-      `${file} must be linked as ./references/${file}`,
-    );
-    const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-plan', 'references', file), 'utf8');
-    assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
-  }
-  assert.match(body, /\*\*Discover\.\*\*/);
-  assert.match(body, /\*\*affected_paths \(user-confirmed\)\.\*\*/);
-  assert.match(body, /\*\*Approval \(explicit\)\.\*\*/);
+  assertShape(mainMd, {
+    filePath: path.join(root, 'skills', 'bouncer-plan', 'SKILL.md'),
+    links: routes.map(({ file, triggers }) => ({ href: `./references/${file}`, resolve: true, referencePreamble: true, conditionalLoad: { triggers } })),
+  });
   assert.match(body, /current\s+--set/);
   assert.match(body, /G1 epic approved[\s\S]{0,1600}G12/);
   assert.doesNotMatch(body, /bouncer graph-sync|resolveSubagentModel/);
 });
 
-/**
- * numbered step N 본문(다음 step 또는 ACQ H2 직전)을 잘라 낸다.
- *
- * @param {string} body - frontmatter 제거 본문
- * @param {number} n - step 번호
- * @returns {string}
- */
-function planStepBody(body, n) {
-  const start = body.search(new RegExp(`^${n}\\. \\*\\*`, 'm'));
-  assert.ok(start > -1, `missing plan step ${n}`);
-  const rest = body.slice(start);
-  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. \\*\\*|## ACQ )`, 'm'));
-  return next === -1 ? rest : rest.slice(0, next);
-}
+test('bouncer-plan rejects unrelated conditional routes', () => {
+  const routes = [
+    { href: './references/distill-preflight.md', triggers: ['distill', 'preflight'], source: 'When preparing the Distill baseline and preflight, read this reference:' },
+    { href: './references/graphify-suggestions.md', triggers: ['graphify', 'suggestion'], source: 'When generating Graphify suggestions, read this reference:' },
+    { href: './references/context-review.md', triggers: ['context', 'review'], source: 'When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference:' },
+  ];
+  for (const route of routes) {
+    const result = checkDocShape(`When publishing a release, read [Reference](${route.href}).`, {
+      filePath: path.join(root, 'skills', 'bouncer-plan', 'SKILL.md'),
+      links: [{ href: route.href, resolve: true, referencePreamble: true, conditionalLoad: { triggers: route.triggers } }],
+    });
+    assert.strictEqual(result.ok, false, route.href);
+    assert.match(result.errors.join('; '), /semantic trigger/);
+  }
+});
+
 
 test('bouncer-plan places discovery/ID/verify/scope/approval ACQ in numbered steps', () => {
   const { body } = parseFrontmatter(mainMd);
-  const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
-  assert.ok(acqAt > -1);
-  const index = body.slice(acqAt);
-  // 색인은 step 연결만 — Options 본문은 두지 않는다.
-  assert.doesNotMatch(index, /\*\*Options\*\*:/);
-  assert.match(index, /[Ss]tep\s+1/);
-  assert.match(index, /[Ss]tep\s+2/);
-  assert.match(index, /[Ss]tep\s+4/);
-  assert.match(index, /[Ss]tep\s+6/);
-  assert.match(index, /[Ss]tep\s+8/);
-
-  // 질문 설명은 해당 step에 있다 (H2 위치가 아니라 numbered step 연결).
-  assert.match(planStepBody(body, 1), /[Cc]onfirm/);
-  assert.match(planStepBody(body, 2), /[Aa]sk|override|light/i);
-  assert.match(planStepBody(body, 4), /[Aa]sk[\s\S]{0,120}verify|verify[\s\S]{0,120}[Aa]sk/i);
-  assert.match(planStepBody(body, 6), /confirm|ask/i);
-  assert.match(planStepBody(body, 8), /[Aa]sk[\s\S]{0,80}approv|approv[\s\S]{0,40}[Aa]sk/i);
+  assertShape(mainMd, {
+    headings: { required: ['ACQ (AskUserQuestion) gates'] },
+    steps: {
+      required: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      order: true,
+      acq: [1, 2, 4, 6, 8],
+      links: {
+        5: ['./references/graphify-suggestions.md'],
+        7: ['./references/context-review.md'],
+      },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [1, 2, 4, 6, 8], only: true },
+  });
 
   // 루트 보조는 ${BOUNCER_ROOT}/references/… 만.
   assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/discovery\/index\.md/);
@@ -84,12 +76,23 @@ test('bouncer-plan places discovery/ID/verify/scope/approval ACQ in numbered ste
 });
 
 test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gate', () => {
-  const { data, body } = parseFrontmatter(md);
-  assert.ok(data.description.length > 0);
-  assert.match(body, /scripts\/bouncer"\s+scaffold\s+epic\b/);
-  assert.match(body, /scripts\/bouncer"\s+scaffold\s+blueprint\b/);
+  const { body } = parseFrontmatter(md);
+  const contract = {
+    frontmatter: {
+      required: ['name', 'description'],
+      nonEmpty: ['description'],
+      values: { name: 'bouncer-plan' },
+    },
+  };
+  assertShape(md, contract);
+  const emptyDescription = md.replace(/^description:.*$/m, 'description:');
+  const result = checkDocShape(emptyDescription, contract);
+  assert.strictEqual(result.ok, false);
+  assert.match(result.errors.join('; '), /empty frontmatter field: description/);
+  assert.match(body, /\bbouncer\s+scaffold\s+epic\b/);
+  assert.match(body, /\bbouncer\s+scaffold\s+blueprint\b/);
   assert.match(body, /scaffold task --blueprint/);
-  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+plan\b/);
+  assert.match(body, /\bbouncer\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+plan\b/);
   assert.match(body, /\.bouncer\/context\/epics/);
   assert.match(body, /discovery/);
   assert.match(body, /spec-authoring/);
@@ -97,7 +100,7 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   assert.match(body, /graphify-runner/);
   assert.match(body, /minimality/);
   assert.match(body, /affected_paths/);
-  assert.match(body, /scripts\/bouncer"\s+current\s+--set\b/);
+  assert.match(body, /\bbouncer\s+current\s+--set\b/);
   assert.match(body, /approv/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|--from-superpowers|import-superpowers|okf-authoring/i);
 });

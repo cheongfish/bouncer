@@ -1,4 +1,68 @@
 #!/usr/bin/env node
 'use strict';
-const { runCli } = require('./lib/cli');
-process.exit(runCli(process.argv.slice(2)));
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+
+function realpath(file) {
+  try {
+    return fs.realpathSync(file);
+  } catch {
+    return path.resolve(file);
+  }
+}
+
+function bouncerRootCommand() {
+  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const entry of pathEntries) {
+    const candidate = path.join(entry, 'bouncer-root');
+    if (fs.existsSync(candidate)) return { file: 'bouncer-root', args: ['--auto'] };
+  }
+  // PATH가 정리된 격리 셸에서도 패키지와 함께 배포된 보조 런처를 한 번만 해석한다.
+  return { file: process.execPath, args: [path.join(__dirname, 'bouncer-root'), '--auto'] };
+}
+
+function resolveInstalledRoot() {
+  // bouncer-root에 우선순위 규칙을 위임해 두 런처가 독립 셸에서 같은 설치본을 고른다.
+  const command = bouncerRootCommand();
+  const result = spawnSync(command.file, command.args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+  if (result.error) {
+    process.stderr.write(`bouncer: could not resolve plugin root: ${result.error.message}\n`);
+    return null;
+  }
+  if (result.status !== 0) return null;
+  const output = (result.stdout || '').trim();
+  if (!output) {
+    process.stderr.write('bouncer: bouncer-root returned an empty plugin root\n');
+    return null;
+  }
+  return output;
+}
+
+function runLauncher(argv) {
+  const root = resolveInstalledRoot();
+  if (!root) return 1;
+
+  const target = path.join(root, 'scripts', 'bouncer');
+  // 최고 우선순위 설치본이 자신이면 재실행하지 않고 현재 CLI를 바로 실행한다.
+  if (realpath(target) === realpath(__filename)) {
+    const { runCli } = require('./lib/cli');
+    return runCli(argv);
+  }
+
+  const result = spawnSync(process.execPath, [target, ...argv], { stdio: 'inherit' });
+  if (result.error) {
+    process.stderr.write(`bouncer: could not run ${target}: ${result.error.message}\n`);
+    return 1;
+  }
+  if (result.status !== null) return result.status;
+  const signalNumber = result.signal ? os.constants.signals[result.signal] : undefined;
+  return signalNumber ? 128 + signalNumber : 1;
+}
+
+if (require.main === module) process.exit(runLauncher(process.argv.slice(2)));
+module.exports = { runLauncher };

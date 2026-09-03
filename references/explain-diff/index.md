@@ -79,10 +79,9 @@ status published. Not a workflow entry point.
    worktree):
 
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
    node -e 'const { computeDiffSha } = require(process.argv[1] + "/scripts/lib/comprehension");
    console.log(JSON.stringify(computeDiffSha({ repoRoot: process.cwd(), base: process.argv[2] })));' \
-     "${BOUNCER_ROOT}" <range_from>
+     "$(bouncer project-root)" <range_from>
    ```
 
    If the JSON has `ok: false`, report the `reason` and **stop** — do not invent

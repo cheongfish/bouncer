@@ -7,8 +7,7 @@ remains required even under `auto` or `light`.
 
 Run one full JSON audit, without `--repo`, in the execute checkout:
 ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-node "${BOUNCER_ROOT}/scripts/bouncer" distill --all --json
+bouncer distill --all --json
 ```
 Use payload `repoRoot` as the promotion base, never `project-root`. `audit.shards` is the only inventory. Split that same `content` into `id → { path: <registered relative path>, currentBody: <split body> }`; do not open shard files again because the audit already carries every body. Boundaries are only `# <id>` for a known `audit.shards[].id`, so headings inside a body do not split it. Resolve paths from payload `repoRoot` plus the registered relative path and preserve the id/path pairing.
 

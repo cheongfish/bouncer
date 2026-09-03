@@ -4,32 +4,37 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { checkDocShape } = require('../scripts/check-doc-shape');
 const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
 const md = readWorkflowBundle('bouncer-finalize');
 
+function assertShape(document, contract) {
+  const result = checkDocShape(document, contract);
+  assert.deepStrictEqual(result.errors, [], result.errors.join('; '));
+  return result.shape;
+}
+
 test('bouncer-finalize conditionally routes four reference contracts while keeping core in SKILL.md', () => {
   const { body } = parseFrontmatter(mainMd);
-  const routes = [
-    ['distill-promotion.md', 'When proposing and promoting Distill, read this reference.'],
-    ['explain-quiz.md', 'When authoring or refreshing explain and running the quiz, read this reference.'],
-    ['draft-pr.md', 'When the user chooses to consider a draft PR, read this reference.'],
-    [
-      'cleanup-handoff.md',
-      'After the remainder choice, when cleaning up the worktree or handing off the next blueprint, '
-        + 'read this reference.',
+  assertShape(mainMd, {
+    filePath: path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'),
+    links: [
+      { href: './references/distill-promotion.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['distill', 'promot'] } },
+      { href: './references/explain-quiz.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['explain', 'quiz'] } },
+      { href: './references/draft-pr.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['draft', 'pr'] } },
+      { href: './references/cleanup-handoff.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['clean'] } },
     ],
-  ];
-  for (const [file, condition] of routes) {
+  });
+  const routes = ['distill-promotion.md', 'explain-quiz.md', 'draft-pr.md', 'cleanup-handoff.md'];
+  for (const file of routes) {
     assert.match(
       body,
       new RegExp(`\\]\\(\\.\\/references\\/${file.replace(/\./g, '\\.')}\\)`),
       `${file} must be linked as ./references/${file}`,
     );
-    const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'references', file), 'utf8');
-    assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
   }
   assert.match(body, /validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize/);
   assert.match(body, /finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes/);
@@ -37,21 +42,41 @@ test('bouncer-finalize conditionally routes four reference contracts while keepi
   assert.doesNotMatch(body, /full JSON audit once|gh pr create|git worktree remove/);
 });
 
-/**
- * @param {string} body
- * @param {number} n
- * @returns {string}
- */
-function finalizeStepBody(body, n) {
-  const start = body.search(new RegExp(`^${n}\\. \\*\\*`, 'm'));
-  assert.ok(start > -1, `missing finalize step ${n}`);
-  const rest = body.slice(start);
-  const next = rest.search(new RegExp(`\\n(?:${n + 1}\\. \\*\\*|## ACQ )`, 'm'));
-  return next === -1 ? rest : rest.slice(0, next);
-}
+test('bouncer-finalize rejects unrelated conditional routes', () => {
+  const routes = [
+    { href: './references/distill-promotion.md', triggers: ['distill', 'promot'], source: 'When proposing and promoting Distill, read this reference:' },
+    { href: './references/explain-quiz.md', triggers: ['explain', 'quiz'], source: 'When authoring or refreshing explain and running the quiz, read this reference:' },
+    { href: './references/draft-pr.md', triggers: ['draft', 'pr'], source: 'When the user chooses to consider a draft PR, read this reference:' },
+    { href: './references/cleanup-handoff.md', triggers: ['clean'], source: 'After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference:' },
+  ];
+  for (const route of routes) {
+    const result = checkDocShape(`When publishing a release, read [Reference](${route.href}).`, {
+      filePath: path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'),
+      links: [{ href: route.href, resolve: true, referencePreamble: true, conditionalLoad: { triggers: route.triggers } }],
+    });
+    assert.strictEqual(result.ok, false, route.href);
+    assert.match(result.errors.join('; '), /semantic trigger/);
+  }
+});
+
 
 test('bouncer-finalize places consent timing in steps 1, 3, 4, and 6', () => {
   const { body } = parseFrontmatter(mainMd);
+  assertShape(mainMd, {
+    headings: { required: ['ACQ (AskUserQuestion) gates'] },
+    steps: {
+      required: [1, 2, 3, 4, 5, 6, 7],
+      order: true,
+      acq: [1, 3, 4, 6],
+      acqOptions: [3],
+      links: {
+        1: ['./references/distill-promotion.md'],
+        4: ['./references/draft-pr.md'],
+        6: ['./references/cleanup-handoff.md'],
+      },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [1, 3, 4, 6], only: true },
+  });
   const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
   assert.ok(acqAt > -1);
   const index = body.slice(acqAt);
@@ -62,11 +87,6 @@ test('bouncer-finalize places consent timing in steps 1, 3, 4, and 6', () => {
   assert.doesNotMatch(index, /\*\*AskUserQuestion/);
   assert.doesNotMatch(index, /\*\*Options\*\*:/);
 
-  assert.match(finalizeStepBody(body, 1), /\*\*ACQ — Distill promotion:\*\*/);
-  assert.match(finalizeStepBody(body, 3), /\*\*AskUserQuestion — Remainder commit/);
-  assert.match(finalizeStepBody(body, 3), /\*\*Options\*\*:/);
-  assert.match(finalizeStepBody(body, 4), /\*\*ACQ — PR:\*\*/);
-  assert.match(finalizeStepBody(body, 6), /\*\*ACQ — Next blueprint:\*\*/);
 
   assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/spec-authoring\/index\.md/);
   assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/explain-diff\/index\.md/);
@@ -75,12 +95,13 @@ test('bouncer-finalize places consent timing in steps 1, 3, 4, and 6', () => {
 
 test('bouncer-finalize wires Distill, finalize gate, remainder finalize, push+PR, and graceful skip', () => {
   const { data, body } = parseFrontmatter(md);
+  assertShape(md, { frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-finalize' } } });
   assert.ok(data.description.length > 0);
   assert.match(body, /spec-authoring/);
   assert.match(body, /Distill|\.bouncer\/Distill\.md/);
-  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize\b/);
-  assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>(?:\s+--yes)?\b/);
-  assert.match(body, /scripts\/bouncer"\s+finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes\b/);
+  assert.match(body, /\bbouncer\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+finalize\b/);
+  assert.match(body, /\bbouncer\s+finalize\s+--blueprint\s+<pointer\.blueprint>(?:\s+--yes)?\b/);
+  assert.match(body, /\bbouncer\s+finalize\s+--blueprint\s+<pointer\.blueprint>\s+--yes\b/);
   assert.match(body, /--yes|dry-run|dry run/);
   assert.match(body, /gh pr create/);
   assert.match(body, /--title "\[YYMMDD\] \(→ MergeTarget\) \[Type\]/);

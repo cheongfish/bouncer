@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { runBouncerRoot } = require('../scripts/lib/bouncer-root');
+const launcher = path.join(__dirname, '..', 'scripts', 'bouncer');
 
 function fixture(home, host, version, marketplace = 'chunjae-tools', metadata = 'plugin.json') {
   const root = host === 'claude' || host === 'codex'
@@ -109,4 +110,65 @@ test('CLI defaults cover stdout, stderr, stdin selection, and selection errors',
     process.stderr.write = originalErr;
     fs.readFileSync = originalRead;
   }
+});
+
+function launcherFixture(home, output, exitCode = 0) {
+  const root = path.join(home, 'installed-bouncer');
+  const bin = path.join(home, 'bin');
+  fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(path.join(root, 'scripts', 'bouncer'), [
+    '#!/usr/bin/env node',
+    "const fs = require('node:fs');",
+    "const input = fs.readFileSync(0, 'utf8');",
+    'process.stdout.write(JSON.stringify({ args: process.argv.slice(2), input }));',
+    `process.stderr.write(${JSON.stringify(output)});`,
+    `process.exit(${exitCode});`,
+    '',
+  ].join('\n'));
+  fs.chmodSync(path.join(root, 'scripts', 'bouncer'), 0o755);
+  fs.writeFileSync(path.join(bin, 'bouncer-root'), [
+    '#!/usr/bin/env node',
+    `process.stdout.write(${JSON.stringify(`${root}\n`)});`,
+    '',
+  ].join('\n'));
+  fs.chmodSync(path.join(bin, 'bouncer-root'), 0o755);
+  return { root, bin };
+}
+
+function runLauncherFixture(args, fixture, input = '') {
+  return require('node:child_process').spawnSync(process.execPath, [launcher, ...args], {
+    cwd: path.join(__dirname, '..'),
+    env: { ...process.env, PATH: `${fixture.bin}${path.delimiter}${process.env.PATH || ''}` },
+    input,
+    encoding: 'utf8',
+  });
+}
+
+test('bouncer delegates to the selected installed plugin with args and streams intact', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-launcher-'));
+  const fixture = launcherFixture(home, 'delegated stderr', 23);
+  const result = runLauncherFixture(['project-root', '--repo', '/tmp/example'], fixture, 'delegated stdin');
+  assert.strictEqual(result.status, 23);
+  assert.deepStrictEqual(JSON.parse(result.stdout), {
+    args: ['project-root', '--repo', '/tmp/example'],
+    input: 'delegated stdin',
+  });
+  assert.strictEqual(result.stderr, 'delegated stderr');
+});
+
+test('bouncer does not re-exec when bouncer-root selects the current installation', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-launcher-current-'));
+  const bin = path.join(home, 'bin');
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(path.join(bin, 'bouncer-root'), [
+    '#!/usr/bin/env node',
+    `process.stdout.write(${JSON.stringify(`${path.join(__dirname, '..')}\n`)});`,
+    '',
+  ].join('\n'));
+  fs.chmodSync(path.join(bin, 'bouncer-root'), 0o755);
+  const result = runLauncherFixture(['--help'], { bin });
+  assert.strictEqual(result.status, 0);
+  assert.match(result.stdout, /^usage: bouncer <command> \[options\]/);
+  assert.strictEqual(result.stderr, '');
 });

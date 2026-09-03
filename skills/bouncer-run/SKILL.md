@@ -15,8 +15,7 @@ Continue Distill re-ground, task brief, ACQ, and gate work per task.
 
 **Project root.** Resolve once at drive start (and reuse on every re-ground):
 ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
+PROJECT_ROOT="$(bouncer project-root)"
 ```
 If that fails, stop and report stderr — do not fall back to cwd or plugin root.
 
@@ -67,8 +66,7 @@ than fixing directly.
    missing or outside `AUTONOMY_ENUM`, tell the user and proceed with `auto`.
    Read the active pointer:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" current
+   bouncer current
    ```
    When `current` is `null`, do not drive — send the user to `/bouncer-plan`.
    When a pointer exists, read blueprint `index.md` status and each open
@@ -109,8 +107,7 @@ than fixing directly.
    `bouncer current --set <bp> --task <NNN>`.
    Under `interactive`, defer `--set` until after the step 5 ACQ:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" current --set <pointer.blueprint> --task <NNN>
+   bouncer current --set <pointer.blueprint> --task <NNN>
    ```
    `committed: false` (empty staged) is not a failure — continue to the next
    task. Scope violations stop the drive where execute or commit stops. Do not

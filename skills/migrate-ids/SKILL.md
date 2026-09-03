@@ -24,8 +24,7 @@ then applies. Used when the user asks for this skill by name.
 
 1. **Dry-run (required).**
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" migrate ids --dry-run
+   bouncer migrate ids --dry-run
    ```
    Show the JSON `renames` list to the user. If `hasLegacy` is false / renames
    empty, stop — nothing to migrate.
@@ -35,8 +34,7 @@ then applies. Used when the user asks for this skill by name.
 
 3. **Apply (only after confirmation).**
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" migrate ids
+   bouncer migrate ids
    ```
    On `ok: false`, report `reasons` (mixed / collision / dirty) and do not
    retry with partial manual renames.

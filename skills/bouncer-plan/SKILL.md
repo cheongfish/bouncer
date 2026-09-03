@@ -22,8 +22,7 @@ otherwise run **ACQ — Request** before scaffolding (ask for the request).
 
 **Project root.** Resolve the consuming project's main worktree before Distill:
 ```bash
-BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-PROJECT_ROOT="$(node "${BOUNCER_ROOT}/scripts/bouncer" project-root)"
+PROJECT_ROOT="$(bouncer project-root)"
 ```
 If that fails, stop and report stderr — do not fall back to cwd or plugin root.
 The CLI resolves `${PROJECT_ROOT}/.bouncer/Distill.md`; pass that absolute path,
@@ -67,10 +66,9 @@ Skill flow (recommended): `discovery` (`${BOUNCER_ROOT}/references/discovery/ind
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold epic --id <ddd> --name <slug> \
+   bouncer scaffold epic --id <ddd> --name <slug> \
      --description "<one sentence confirmed in discovery>"
-   node "${BOUNCER_ROOT}/scripts/bouncer" scaffold blueprint \
+   bouncer scaffold blueprint \
      --epic-dir <.bouncer/context/epics/ddd-slug> --id <ddd> --name <slug>
    ```
    **Light scaffold.** When step 2 received a light declaration, add
@@ -197,8 +195,7 @@ Skill flow (recommended): `discovery` (`${BOUNCER_ROOT}/references/discovery/ind
    route result must not replace that baseline. If the file is gone, re-run
    `--all` — do not substitute routed output.
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" distill \
+   bouncer distill \
      --for <path-1> \
      --for <path-2> \
      ... \
@@ -221,8 +218,7 @@ Skill flow (recommended): `discovery` (`${BOUNCER_ROOT}/references/discovery/ind
 
 9. **Pointer.** Record the active blueprint:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" current --set <blueprint dir>
+   bouncer current --set <blueprint dir>
    ```
    This is the approved initial-pointer application of the shared
    `rules/current-pointer.md` contract; its `--set` plan-gate refusal stops
@@ -230,8 +226,7 @@ Skill flow (recommended): `discovery` (`${BOUNCER_ROOT}/references/discovery/ind
 
 10. **Gate.** Run `bouncer validate --gate plan` and report:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   node "${BOUNCER_ROOT}/scripts/bouncer" validate --blueprint <pointer.blueprint> --gate plan
+   bouncer validate --blueprint <pointer.blueprint> --gate plan
    ```
    Gate `plan` checks G1 epic approved, G2 blueprint approved, G18
    `context-review.md` accepted with the same findings-field contract as G14

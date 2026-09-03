@@ -4,40 +4,81 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+const { checkDocShape } = require('../scripts/check-doc-shape');
 const { readWorkflowBundle } = require('./helpers/read-skill');
 
 const root = path.join(__dirname, '..');
 const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-execute', 'SKILL.md'), 'utf8');
 const md = readWorkflowBundle('bouncer-execute');
 
+function assertShape(document, contract) {
+  const result = checkDocShape(document, contract);
+  assert.deepStrictEqual(result.errors, [], result.errors.join('; '));
+  return result.shape;
+}
+
 test('bouncer-execute conditionally routes dispatch and verify recovery references', () => {
   const { body } = parseFrontmatter(mainMd);
-  const routes = [
-    [
-      'agent-dispatch.md',
-      'When dispatching a named agent or applying its fallback, read this reference.',
+  assertShape(mainMd, {
+    filePath: path.join(root, 'skills', 'bouncer-execute', 'SKILL.md'),
+    links: [
+      { href: './references/agent-dispatch.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['dispatch', 'fallback'] } },
+      { href: './references/verification-recovery.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['verify', 'recover'] } },
     ],
-    [
-      'verification-recovery.md',
-      'On verify failure, when recovering through debugger then implementer, read this reference.',
-    ],
-  ];
-  for (const [file, condition] of routes) {
+  });
+  const routes = ['agent-dispatch.md', 'verification-recovery.md'];
+  for (const file of routes) {
     assert.match(
       body,
       new RegExp(`\\]\\(\\.\\/references\\/${file.replace(/\./g, '\\.')}\\)`),
       `${file} must be linked as ./references/${file}`,
     );
-    const reference = fs.readFileSync(path.join(root, 'skills', 'bouncer-execute', 'references', file), 'utf8');
-    assert.ok(reference.startsWith(condition), `${file} must declare its exact loading condition first`);
   }
   assert.match(body, /current\.task\.path/);
   assert.match(body, /G6[\s\S]{0,300}G14/);
   assert.doesNotMatch(body, /agentName:'bouncer-implementer'|Minimum fix proposal/);
 });
 
+test('bouncer-execute rejects generic conditional loads for each routed reference', () => {
+  const routes = [
+    {
+      href: './references/agent-dispatch.md',
+      triggers: ['dispatch', 'fallback'],
+      source: 'When dispatching a named agent or applying its fallback, apply',
+    },
+    {
+      href: './references/verification-recovery.md',
+      triggers: ['verify', 'recover'],
+      source: '**On verify failure**, when recovering through debugger then implementer,',
+    },
+  ];
+  for (const route of routes) {
+    const releaseRoute = mainMd.replaceAll(route.source, 'When publishing a release,');
+    const result = checkDocShape(releaseRoute, {
+      filePath: path.join(root, 'skills', 'bouncer-execute', 'SKILL.md'),
+      links: [{ href: route.href, resolve: true, referencePreamble: true, conditionalLoad: { triggers: route.triggers } }],
+    });
+    assert.strictEqual(result.ok, false, route.href);
+    assert.match(result.errors.join('; '), /semantic trigger/);
+  }
+});
+
 test('bouncer-execute uses root/local reference prefixes and states no-question in procedure', () => {
   const { body } = parseFrontmatter(mainMd);
+  assertShape(mainMd, {
+    headings: { required: ['ACQ (AskUserQuestion) gates'] },
+    steps: {
+      required: [1, 2, 3, 4, 5, 6],
+      order: true,
+      noAcq: true,
+      links: {
+        3: ['./references/agent-dispatch.md'],
+        4: ['./references/verification-recovery.md'],
+        5: ['./references/agent-dispatch.md'],
+      },
+    },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [], only: true },
+  });
   const acqAt = body.indexOf('\n## ACQ (AskUserQuestion) gates\n');
   assert.ok(acqAt > -1);
   const procedure = body.slice(0, acqAt);
@@ -63,8 +104,9 @@ test('bouncer-execute uses root/local reference prefixes and states no-question 
 
 test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   const { data, body } = parseFrontmatter(md);
+  assertShape(md, { frontmatter: { required: ['name', 'description'], values: { name: 'bouncer-execute' } } });
   assert.ok(data.description.length > 0);
-  assert.match(body, /scripts\/bouncer"\s+current\b/);
+  assert.match(body, /\bbouncer\s+current\b/);
   assert.match(body, /worktree/i);
   assert.match(body, /<type>\/<BP-id>-<slug>/);
   assert.match(body, /commit_type/);
@@ -82,7 +124,7 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.match(body, /debugging/);
   assert.match(body, /Goal & intent|Interface|Touch|Do not touch|Checklist/i);
   assert.match(body, /commit-safety|affected_paths/);
-  assert.match(body, /scripts\/bouncer"\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+execute\b/);
+  assert.match(body, /\bbouncer\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+execute\b/);
   assert.match(body, /harness.*record|validate.*configured verify command/i);
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
