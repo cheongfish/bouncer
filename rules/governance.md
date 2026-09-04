@@ -9,6 +9,12 @@ input only to `bouncer migrate task-layout`. If a task feels too large for one c
 into more task bundles (or more blueprints). Do **not** invent a further
 subtask layer beneath a task bundle.
 
+The plan gate emits a non-blocking `warnings` entry when a task's
+`affected_paths` count exceeds 20. That signal only advises splitting when
+one-commit review would be hard; it is not a blocking rule, does not invent a
+G/S failure code, and does not change gate success or process exit codes.
+Legitimate wide tasks (bulk renames, migrations) still pass.
+
 `/bouncer-commit` closes one task (scope check → `bouncer commit`).
 `/bouncer-run` repeats that commit unit; it does not change it.
 `/bouncer-execute` does not commit. `/bouncer-finalize` closes the blueprint

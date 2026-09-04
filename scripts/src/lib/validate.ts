@@ -62,7 +62,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
   blueprintDir: string;
   gate?: string;
   deps?: NonNullable<Parameters<typeof checkGate>[4]>['deps'];
-}): { ok: boolean; failures: FailureEntry[] } {
+}): { ok: boolean; failures: FailureEntry[]; warnings?: FailureEntry[] } {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     return {
       ok: false,
@@ -226,6 +226,8 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
     return { ok: false, failures };
   }
 
+  // plan task 분해 경고는 failures와 분리한다. ok는 실패만 본다.
+  const warnings: FailureEntry[] = [];
   if (gate) {
     // execute·commit 모두 포인터 task 단위만 본다(G6–G8).
     const taskUnit = (gate === 'execute' || gate === 'commit')
@@ -234,10 +236,14 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
     // parseErrors는 이미 failures에 합쳐졌지만, plan G18은 원본 목록으로
     // context-review S0 여부를 본다 — failures만 보면 다른 문서 S0과 섞인다.
     checkGate(gate, docs, rels, failures, {
-      repoRoot, blueprintDir, deps, taskUnit, parseErrors,
+      repoRoot, blueprintDir, deps, taskUnit, parseErrors, warnings,
     });
   }
 
+  // 기존 소비자는 warnings 부재를 허용한다 — 비어 있으면 키를 넣지 않는다.
+  if (warnings.length > 0) {
+    return { ok: failures.length === 0, failures, warnings };
+  }
   return { ok: failures.length === 0, failures };
 }
 
