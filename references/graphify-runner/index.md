@@ -111,15 +111,29 @@ write `bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
    available (step 2 did not skip). Build an **English ASCII noun-oriented
    query** from the blueprint goal plus the tasks checklist intent. Do not use
    Korean query examples or suggest a tokenizer extension; `basis[].query`
-   records the exact English query used. Then run:
+   records the exact English query used. Shrink the search space before
+   calling `graph-suggest`:
+
+   1. **Exclude hubs and generic words** — do not seed CLI hubs such as
+      `scripts/bouncer`, and drop vague query nouns (`suggestion`, `task`,
+      `evidence`, `graph` alone) that match half the corpus.
+   2. **Seed 1–2 entry symbols** — only the real entry files or symbols the
+      change starts from (paths, function names, anchors already in ASCII).
+   3. **Seed deletion targets directly** — when the plan removes files, pass
+      those paths as `--seed` so neighbors surface even if query terms miss.
+   4. **User confirmation first** — candidates stay advisory; write
+      `affected_paths` only after the user confirms (never from suggest alone).
+
+   Then run (entry-symbol example — not a hub):
    ```bash
    bouncer graph-suggest \
-     --query "graph suggestion task evidence"
-     --seed "scripts/bouncer" --seed "graph-suggest"
+     --query "scope quality candidates confidence" \
+     --seed "scripts/src/lib/graph-search.ts" --seed "graphSuggest"
    ```
    Optional `--seed <value>` flags may be repeated when the plan already names
-   symbols or paths. Prefer already-ASCII paths, symbols, and anchors as seeds.
-   Consume stdout JSON only:
+   symbols or paths — keep the set to **1–2** entry points unless a deletion
+   target must be added. Prefer already-ASCII paths, symbols, and anchors as
+   seeds. Consume stdout JSON only:
    `status`, `confidence`, `candidates.implementation|test|context`,
    `suggested_paths`, and non-empty `reasons`. Drop any candidate whose `path`
    is under `graphify-out/` before writing evidence — those hits mean the build
@@ -174,7 +188,9 @@ write `bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
 - Use English ASCII noun-oriented `--query` values and record the exact value
   in `basis[].query`; never provide Korean query examples or suggest extending
   the tokenizer. For `--seed`, prioritize already-ASCII paths, symbols, then
-  anchors.
+  anchors — never hub paths like `scripts/bouncer`, never generic-only query
+  words, prefer 1–2 entry symbols, seed deletion targets directly, and leave
+  `affected_paths` until the user confirms.
 
 ## Return
 

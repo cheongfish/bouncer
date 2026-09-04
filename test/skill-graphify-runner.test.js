@@ -131,3 +131,44 @@ test('graphify-runner uses English ASCII noun queries and prioritizes ASCII seed
   assert.doesNotMatch(md, /--query\s+"[^"\n]*[가-힣][^"\n]*"/);
   assert.match(md, /do not[\s\S]{0,80}tokenizer extension/i);
 });
+
+test('graphify-runner excludes hub seeds and generic query words from examples', () => {
+  const md = readSkill('graphify-runner');
+  // 허브 시드·일반어 예시는 검색 공간을 팽창시키므로 실제 진입 심볼만 허용한다.
+  assert.doesNotMatch(md, /--seed\s+"scripts\/bouncer"/);
+  assert.doesNotMatch(md, /--query\s+"graph suggestion task evidence"/);
+  // F1: 예시는 이 저장소의 실제 진입 경로/심볼이어야 한다(가짜 lib/… 금지).
+  assert.match(md, /--seed\s+"scripts\/(?:src\/)?lib\/graph-search\.(?:ts|js)"/);
+  assert.match(md, /--seed\s+"graphSuggest"/);
+  assert.doesNotMatch(md, /--seed\s+"lib\/graph-suggest"/);
+  assert.doesNotMatch(md, /--seed\s+"writeScopeEvidence"/);
+  // F2: 원칙 1이 배제한 일반어가 예시 --query에 남아 있으면 안 된다.
+  assert.doesNotMatch(md, /--query\s+"[^"]*\bevidence\b[^"]*"/);
+  assert.doesNotMatch(md, /--query\s+"[^"]*\bsuggestion\b[^"]*"/);
+  assert.doesNotMatch(md, /--query\s+"[^"]*\btask\b[^"]*"/);
+  assert.match(md, /--query\s+"[^"]+"/);
+});
+
+test('graphify-runner documents search-space reduction principles', () => {
+  const md = readSkill('graphify-runner');
+  // 4대 원칙: 허브/일반어 배제, 1~2개 진입 심볼 시드, 삭제 대상 직접 시드, 사용자 승인 전제.
+  assert.match(md, /hub|허브/i);
+  assert.match(md, /generic|일반어/i);
+  assert.match(md, /1\s*[–-]?\s*2|one\s*(?:or|to)\s*two|진입\s*심볼/i);
+  assert.match(md, /delet(?:e|ion)|삭제/i);
+  assert.match(md, /user\s+confirm|사용자\s*승인|confirm[\s\S]{0,40}`affected_paths`/i);
+});
+
+test('bouncer-plan graphify-suggestions reinforces search-space reduction', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const suggestions = fs.readFileSync(
+    path.join(__dirname, '..', 'skills', 'bouncer-plan', 'references', 'graphify-suggestions.md'),
+    'utf8',
+  );
+  assert.doesNotMatch(suggestions, /--seed\s+"scripts\/bouncer"/);
+  assert.match(suggestions, /hub|허브|generic|일반어/i);
+  assert.match(suggestions, /1\s*[–-]?\s*2|one\s*(?:or|to)\s*two|진입\s*심볼|entry\s*symbol/i);
+  assert.match(suggestions, /delet(?:e|ion)|삭제/i);
+  assert.match(suggestions, /confirm|승인|affected_paths/i);
+});
