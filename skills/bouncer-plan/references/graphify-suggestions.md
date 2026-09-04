@@ -15,6 +15,18 @@ graphify-runner prints; do not edit `config.json` by hand), and says so so the
 user can seed paths manually. On `low-confidence`, keep role candidates for
 review but leave `suggested_paths` empty.
 
+When composing the plan-time `--query` and `--seed` values, shrink the search
+space the same way graphify-runner does:
+
+1. **No hubs / generic words** — skip CLI hubs (`scripts/bouncer`) and vague
+   nouns that flood the graph; prefer concrete domain nouns from the blueprint.
+2. **1–2 entry symbols** — seed only the real entry files or symbols of the
+   change (ASCII paths, function names, anchors).
+3. **Deletion targets as seeds** — if the plan deletes files, seed those paths
+   directly so dependent neighbors still rank.
+4. **User confirmation** — Graphify candidates are advisory; write
+   `affected_paths` only after the user confirms.
+
 Scaffold leaves `basis` as an empty list on purpose, so this step must run: G4
 fails until a real non-empty basis entry array is recorded. Existing
 `bouncer.graph` and evidence without `quality`/`candidates` are read only for
