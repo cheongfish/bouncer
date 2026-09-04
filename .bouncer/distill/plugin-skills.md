@@ -3,7 +3,6 @@ distill:
   id: plugin-skills
   paths:
     - skills/bouncer-*/**
-    - skills/migrate-ids/**
     - references/**
     - agents/**
     - rules/**
@@ -47,7 +46,6 @@ Rules for entry skills, helper references, agents, rules, host manifests, and to
 - Do not assume `.bouncer/templates/` — bodies come from `scripts/lib/templates.js`. Keep `templates.ts` and `test/init.test.js` in Touch when renaming scaffold layout.
 - Author verify: compose / Makefile / Taskfile = existence; `package.json` only when a `scripts` key exists.
 - “Do not promote `## 이해 상태`” contracts need positive exclusion phrases, not `doesNotMatch(/이해 상태/)`.
-- `migrate-ids` is specialized — not an `APPROVED_GENERIC_SKILLS` entry.
 - `plugin_advisors` / `bouncer advise` are gone (leftover keys ignored). `cmdCurrent --set` still needs swallow-`{}` `readConfig` in `cli.ts`.
 - `BOUNCER_HOME` is a plugin-root override, not a provider signal — set `subagents.provider` for Cursor and Antigravity explicitly.
 - Antigravity `${CLAUDE_PLUGIN_ROOT}` hook substitution is unverified — keep hooks as shipped.

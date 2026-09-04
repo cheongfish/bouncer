@@ -53,10 +53,9 @@ PR diff의 문서 노이즈가 부담이면 GitHub 기준으로 접힘 처리할
 .bouncer/context/** linguist-generated=true
 ```
 
-## 구형 `EPIC-`/`BP-` 명명에서 올리기
+## 정본 epic/blueprint id
 
-정본 경로는 `epics/014-slug/blueprints/001-slug`처럼 숫자 id다. 구형 접두가 붙은
-트리가 남아 있으면 SessionStart(Claude/Codex)가 안내한다. 먼저
-`bouncer migrate ids --dry-run`으로 계획을 확인하고 `bouncer migrate ids`를
-적용한다(`migrate-ids` 스킬과 동일). migrate 전에는 validate가 구형 명명을
-거절한다. Cursor는 SessionStart가 없으므로 CLI·스킬만 쓴다.
+정본 경로는 `epics/014-slug/blueprints/001-slug`처럼 접두 없는 숫자 id다.
+구형 `EPIC-`/`BP-` 접두가 붙은 경로·frontmatter는 validate가 거절한다.
+자동 이관 CLI는 제공하지 않는다. 구형 루트 task 문서는
+`bouncer migrate task-layout`으로 `tasks/<NNN>/` 묶음으로 옮긴다.

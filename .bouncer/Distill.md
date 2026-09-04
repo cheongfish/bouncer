@@ -39,7 +39,6 @@ distill:
     - id: plugin-skills
       paths:
         - skills/bouncer-*/**
-        - skills/migrate-ids/**
         - references/**
         - agents/**
         - rules/**

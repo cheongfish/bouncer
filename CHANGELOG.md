@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **`bouncer migrate ids` / `migrate-ids` / SessionStart legacy-id 경고** —
+  구형 `EPIC-`/`BP-` 자동 이관 CLI·스킬·훅을 제거한다. dirty-worktree 판정은
+  `runtime-state.isWorktreeDirty`가 `migrate task-layout`·`import`와 공유한다.
+
 ## [1.3.6] — 2026-09-04
 
 1.3.5 이후 배포·부트스트랩 정비, 모듈·스킬 계약, graphify 함수 label 조회 복구.

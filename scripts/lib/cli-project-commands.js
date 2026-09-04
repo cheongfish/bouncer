@@ -9,8 +9,6 @@ const sessionGraph = require("./session-graph");
 const { syncSessionGraphs } = sessionGraph;
 const graphify = require("./graphify");
 const { resolveGraphifyBin } = graphify;
-const migrateIdsMod = require("./migrate-ids");
-const { migrateIds } = migrateIdsMod;
 const migrateTaskLayoutMod = require("./migrate-task-layout");
 const { migrateTaskLayout } = migrateTaskLayoutMod;
 const runtimeState = require("./runtime-state");
@@ -385,16 +383,14 @@ function cmdProjectRoot(rest, io) {
 function cmdMigrate(rest, io) {
     const [kind, ...flagArgs] = rest;
     // kind를 플래그보다 먼저 본다. 알 수 없는 kind에 --dry-run만 있어도
-    // ids/task-layout 중 하나로 떨어지면 안 된다.
-    if (kind !== 'ids' && kind !== 'task-layout') {
+    // task-layout으로 떨어지면 안 된다.
+    if (kind !== 'task-layout') {
         io.err(`unknown migrate kind: ${kind || '(missing)'}\n`);
         return 2;
     }
     const f = parseFlags(flagArgs);
     const repoRoot = (f.repo || process.cwd());
-    const result = kind === 'ids'
-        ? migrateIds({ repoRoot, dryRun: f['dry-run'] === true })
-        : migrateTaskLayout({ repoRoot, dryRun: f['dry-run'] === true });
+    const result = migrateTaskLayout({ repoRoot, dryRun: f['dry-run'] === true });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     // kind는 위에서 이미 걸렀다. 라이브러리 거절(dirty/collision)은 실행 실패(1).
     return result.ok ? 0 : 1;
@@ -437,9 +433,7 @@ module.exports = {
     },
     migrate: {
         run: cmdMigrate,
-        usage: `  migrate    ids [--dry-run]
-             Plan or apply rename of legacy EPIC-/BP- context dirs to numeric ids.
-             task-layout [--dry-run]
+        usage: `  migrate    task-layout [--dry-run]
              Move legacy task files into tasks/<NNN>/ units.
 `,
     },

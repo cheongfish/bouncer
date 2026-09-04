@@ -81,7 +81,7 @@ marketplace 카탈로그는 두지 않습니다. Cursor 세션에서:
 /add-plugin <사내-git-url>
 ```
 
-호스트 관례 스캔은 공개 집합 `skills/*/SKILL.md`(워크플로 여섯·`migrate-ids`·
+호스트 관례 스캔은 공개 집합 `skills/*/SKILL.md`(워크플로 여섯·
 `agentic-code-benchmark`)만 잡습니다. 보조 브리프는 `references/<name>/index.md`에
 두고 카탈로그에 올리지 않습니다. 커밋 가드는
 `hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
@@ -163,7 +163,7 @@ CI는 Antigravity 호스트를 띄울 수 없어 아래는 자동 검증 밖입�
 - [ ] named agent(`bouncer-reviewer` 등)가 호출되는가
 - [ ] SessionStart 훅이 실제로 실행되는가 — 훅 command의
   `${CLAUDE_PLUGIN_ROOT}` 치환 여부는 확인되지 않았다. 실행되지 않으면
-  graph sync와 legacy-id 경고를 CLI로 대신한다
+  graph sync를 CLI로 대신한다
 - [ ] 루트 `plugin.json`이 생긴 뒤에도 Claude Code와 Codex 설치가 그대로인가 —
   두 카탈로그(`.claude-plugin/marketplace.json`,
   `.agents/plugins/marketplace.json`)가 저장소 루트를 가리키므로 로더가 새

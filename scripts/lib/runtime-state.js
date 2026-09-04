@@ -106,7 +106,7 @@ function worktreePathFor({ repoRoot, blueprint, deps }) {
     if (paths.unavailable)
         throw new Error(GIT_REQUIRED);
     const { epicId, blueprintId } = parsePathIds(blueprint);
-    // 구형 EPIC-/BP- 접두는 parsePathIds가 흡수하지 않는다 — migrate ids 선행.
+    // 구형 EPIC-/BP- 접두는 parsePathIds가 흡수하지 않는다 — 숫자 id 경로만 유효.
     if (!epicId || !blueprintId) {
         throw new Error(`Cannot derive epic/blueprint ids from blueprint path: ${blueprint}`);
     }
@@ -153,7 +153,24 @@ function verifyLedgerPathFor({ repoRoot, verificationRel, deps }) {
         ledgerFile: pathApi.join(paths.commonGitDir, 'bouncer', 'verify', `${digest}.json`),
     };
 }
+/**
+ * porcelain 출력이 비어 있지 않으면 dirty. git 실패도 dirty로 본다 —
+ * migrate task-layout·import-history가 부분 쓰기를 남기지 않게 apply를 막기 위함.
+ */
+function isWorktreeDirty(repoRoot, execFileSync = realExecFileSync) {
+    try {
+        const out = execFileSync('git', ['status', '--porcelain'], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        return String(out).trim().length > 0;
+    }
+    catch (_e) {
+        return true;
+    }
+}
 module.exports = {
     runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, worktreePathFor,
-    verifyLedgerPathFor,
+    verifyLedgerPathFor, isWorktreeDirty,
 };
