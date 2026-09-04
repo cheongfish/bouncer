@@ -14,9 +14,7 @@ distill:
     - docs/contributing.md
     - docs/gates.md
     - docs/install.md
-    - docs/PILOT.md
     - docs/README.md
-    - docs/security.md
     - docs/troubleshooting.md
     - docs/workflow.md
     - plugin.json

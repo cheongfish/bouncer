@@ -44,7 +44,7 @@ const NO_COMMIT: CommitJudgment = { commit: false, all: false };
 const FAIL_CLOSED: CommitJudgment = { commit: true, all: true };
 
 // guard는 실수를 막습니다. 의도적 우회에 대한 방어는 아닙니다
-// (docs/security.md의 threat model 참고). 명령을 판단할 수 없는 경우 —
+// fail-closed: 명령을 판단할 수 없는 경우 —
 // 중첩 셸, 셸 확장, alias — commit으로 보고하고 통과시키지 않아
 // scope 검사가 여전히 실행됩니다.
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash']);

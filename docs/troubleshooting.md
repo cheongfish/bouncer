@@ -40,7 +40,7 @@
 | finalize가 `reason: 'verify'`로 중단 | 승격 커밋 직전 검증 명령이 실패했거나 명령을 해석하지 못했다. `closed` 잠금과 스테이징은 하지 않았다. 결과의 `code`/`command`/`exitCode`로 원인을 고친 뒤 `--yes`를 다시 실행한다. 우회는 없다 |
 
 게이트 코드 전체는 [gates.md](gates.md)를 보세요.
-파일럿·알려진 마찰은 [PILOT.md](PILOT.md)를 보세요.
+막힌 지점은 아래 피드백 경로로 남겨 주세요.
 
 ## 피드백
 

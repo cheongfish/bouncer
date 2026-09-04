@@ -77,8 +77,9 @@ git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit 
 - **[`rules/`](rules/)** — 에이전트 런타임 정본. 스킬과 `CLAUDE.md`가 인용하므로,
   고치면 에이전트 행동이 바뀝니다.
 
-설계 배경은 [ARCHITECTURE.md](docs/ARCHITECTURE.md), 커밋 가드가 막지 못하는 것은
-[security.md](docs/security.md)에 정리되어 있습니다.
+설계 배경은 [ARCHITECTURE.md](docs/ARCHITECTURE.md)에 있습니다. PreToolUse
+커밋 가드는 실수 방지용이며 악의적 우회를 막지 않습니다. 신뢰 경계는
+[`CLAUDE.md`](CLAUDE.md) hard rule 1이 정본입니다.
 
 ## Contributing · License
 

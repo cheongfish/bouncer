@@ -108,7 +108,7 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
 ## 더 보기
 
 게이트 표와 실패 코드는 [gates.md](gates.md), CLI는 [cli.md](cli.md), 설정은
-[configuration.md](configuration.md), 커밋 가드의 한계는
-[security.md](security.md), 완료 문서 보존과 Epic·sibling 기준은
+[configuration.md](configuration.md), 완료 문서 보존과 Epic·sibling 기준은
 [context-retention-and-epic-lifecycle.md](context-retention-and-epic-lifecycle.md)에
-있습니다. 주행 상한과 중단 규칙의 정본은 `skills/bouncer-run/SKILL.md`입니다.
+있습니다. PreToolUse 커밋 가드는 실수 방지용이며 악의적 우회를 막지 않습니다.
+주행 상한과 중단 규칙의 정본은 `skills/bouncer-run/SKILL.md`입니다.
