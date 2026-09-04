@@ -5,11 +5,13 @@
 ```bash
 npm install    # devDependencies만 (테스트·린트·타입검사용)
 npm run setup  # 커밋 메시지 템플릿 + pre-commit 훅 연결 (클론마다 1회)
-npm run ci     # emit → coverage → lint → typecheck → audit
+npm run ci     # emit → coverage → lint → lint:docs → typecheck → audit
 ```
 
 로컬 확인은 `npm run ci` 하나다. 순서는 배포 CJS emit 검사(`check:emit`),
-제품 코드 coverage, lint, typecheck, `npm audit --audit-level=high`다.
+제품 코드 coverage, lint, 문서 구조 린트(`lint:docs` →
+`node scripts/check-doc-shape.js`), typecheck, `npm audit --audit-level=high`다.
+문서만 빠르게 보려면 `npm run lint:docs`를 단독으로 돌린다.
 coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
 하한은 line 94%, branch 82%, function 96%다. 기본 병렬 러너는 같은
 스위트에서도 branch 수치가 출렁여 하한을 깨므로 `test:coverage`는

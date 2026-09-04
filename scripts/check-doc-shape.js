@@ -666,4 +666,223 @@ function stripFencedCode(text) {
   return visible.join('\n');
 }
 
-module.exports = { checkDocShape, extractDocShape };
+// skill-shape.md 경로 분류용 기본 계약. Hard guards / Steps 예외는
+// contractForKind가 문서 H2를 보고 치환한다. 단위 테스트의 단계 번호 계약은
+// 여기서 강제하지 않는다 — CLI는 구조(frontmatter·필수 H2·말미 H2)만 본다.
+const ACQ_GATES = 'ACQ (AskUserQuestion) gates';
+const workflowSkillContract = {
+  frontmatter: { required: ['name', 'description'], nonEmpty: ['description'] },
+  headings: { required: [ACQ_GATES] },
+};
+const agentContract = {
+  headings: {
+    required: ['Authority', 'Hard guards', 'Output contract'],
+    order: ['Authority', 'Hard guards', 'Output contract'],
+  },
+};
+const subskillContract = {
+  headings: {
+    required: ['When this applies', 'Steps', 'Guardrails', 'Return'],
+    order: ['When this applies', 'Steps', 'Guardrails', 'Return'],
+  },
+};
+
+/**
+ * 저장소 상대 경로를 skill-shape 문서 종류로 분류한다.
+ * 계약이 없는 companion·NOTICE·skill-local reference는 null을 돌려 기본 스캔에서
+ * 제외한다. 인자를 준 경우에는 호출부가 null을 오류로 처리한다.
+ *
+ * @param {string} relPath - cwd 기준 상대 경로
+ * @returns {'workflow'|'agent'|'subskill'|null} 문서 종류
+ */
+function classifyDocPath(relPath) {
+  const norm = relPath.replace(/\\/g, '/').replace(/^\.\//, '');
+  if (/^skills\/bouncer-[^/]+\/SKILL\.md$/.test(norm)) return 'workflow';
+  if (/^agents\/[^/]+\.md$/.test(norm)) return 'agent';
+  if (/^references\/[^/]+\/index\.md$/.test(norm)) return 'subskill';
+  // migrate-ids만 catalog skill이면서 subskill 본문 순서를 따른다.
+  if (norm === 'skills/migrate-ids/SKILL.md') return 'subskill';
+  return null;
+}
+
+/**
+ * Hard guards (read-only) / Decision ladder 예외를 반영한 실제 검사 계약을 만든다.
+ * 정적 상수만 쓰면 read-only agent와 minimality가 거짓 실패한다.
+ *
+ * @param {'workflow'|'agent'|'subskill'} kind - 경로 분류
+ * @param {string} markdown - 문서 원문
+ * @returns {object} checkDocShape에 넘길 계약
+ */
+function contractForKind(kind, markdown) {
+  if (kind === 'workflow') {
+    return {
+      ...workflowSkillContract,
+      headings: { ...workflowSkillContract.headings },
+    };
+  }
+
+  const h2Titles = extractDocShape(markdown).headings
+    .filter((heading) => heading.level === 2)
+    .map((heading) => heading.text);
+
+  if (kind === 'agent') {
+    const hardGuards = h2Titles.includes('Hard guards (read-only)')
+      ? 'Hard guards (read-only)'
+      : 'Hard guards';
+    return {
+      headings: {
+        required: ['Authority', hardGuards, 'Output contract'],
+        order: ['Authority', hardGuards, 'Output contract'],
+      },
+    };
+  }
+
+  // Decision ladder (in order)처럼 면제 H2에 부가 문구가 붙어도 절차 절로 인정한다.
+  const procedural = h2Titles.find((title) => (
+    title === 'Steps'
+    || title === 'Core rules'
+    || title === 'Decision ladder'
+    || title.startsWith('Decision ladder ')
+  )) || 'Steps';
+  return {
+    headings: {
+      required: ['When this applies', procedural, 'Guardrails', 'Return'],
+      order: ['When this applies', procedural, 'Guardrails', 'Return'],
+    },
+  };
+}
+
+/**
+ * 필수 H2가 문서의 마지막 H2인지 확인한다.
+ * checkOrder는 나열된 항목의 상대 순서만 보므로, ACQ/Output/Return 말미 계약을
+ * 여기서 따로 강제한다.
+ *
+ * @param {object} shape - extractDocShape 결과
+ * @param {string} expected - 마지막이어야 하는 H2 제목
+ * @param {string[]} errors - 오류 누적 배열
+ * @returns {void}
+ */
+function requireLastH2(shape, expected, errors) {
+  const h2 = shape.headings.filter((heading) => heading.level === 2);
+  if (h2.length === 0 || h2[h2.length - 1].text !== expected) {
+    errors.push(`H2 must end with: ${expected}`);
+  }
+}
+
+/**
+ * cwd 아래에서 기본 스캔 대상 Markdown을 모은다.
+ * skills·agents·references 트리를 걷되, classifyDocPath가 계약을 아는
+ * 파일만 남긴다 — companion md에 subskill 계약을 씌우면 전부 거짓 실패한다.
+ *
+ * @param {string} cwd - 검사 루트
+ * @returns {string[]} cwd 상대 경로 목록
+ */
+function defaultScanFiles(cwd) {
+  const found = [];
+  for (const tree of ['skills', 'agents', 'references']) {
+    const absTree = path.join(cwd, tree);
+    if (!fs.existsSync(absTree)) continue;
+    collectMarkdown(absTree, cwd, found);
+  }
+  return found.filter((rel) => classifyDocPath(rel) !== null).sort();
+}
+
+/**
+ * 디렉터리를 재귀적으로 걸어 .md 파일의 cwd 상대 경로를 모은다.
+ *
+ * @param {string} absDir - 절대 디렉터리
+ * @param {string} cwd - 상대 경로 기준
+ * @param {string[]} out - 누적 배열
+ * @returns {void}
+ */
+function collectMarkdown(absDir, cwd, out) {
+  for (const entry of fs.readdirSync(absDir, { withFileTypes: true })) {
+    const abs = path.join(absDir, entry.name);
+    if (entry.isDirectory()) {
+      collectMarkdown(abs, cwd, out);
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      out.push(path.relative(cwd, abs));
+    }
+  }
+}
+
+/**
+ * 문서 구조 CLI 진입점. argv는 process.argv.slice(2)처럼 파일 인자만 받는다.
+ * opts.cwd·stdout·stderr로 테스트에서 스트림을 주입할 수 있다.
+ *
+ * @param {string[]} argv - 검사할 상대/절대 파일 경로 (없으면 기본 스캔)
+ * @param {{cwd?: string, stdout?: {write: Function}, stderr?: {write: Function}}} [opts]
+ * @returns {number} 성공 0, 누락·계약 위반 1
+ */
+function runCli(argv = [], opts = {}) {
+  const cwd = opts.cwd || process.cwd();
+  const stdout = opts.stdout || process.stdout;
+  const stderr = opts.stderr || process.stderr;
+  const args = Array.isArray(argv) ? argv : [];
+
+  const targets = args.length > 0
+    ? args.map((arg) => {
+      const abs = path.isAbsolute(arg) ? arg : path.resolve(cwd, arg);
+      return path.relative(cwd, abs);
+    })
+    : defaultScanFiles(cwd);
+
+  let failed = false;
+  for (const rel of targets) {
+    const abs = path.resolve(cwd, rel);
+    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+      stderr.write(`check-doc-shape: missing file: ${rel}\n`);
+      failed = true;
+      continue;
+    }
+
+    const kind = classifyDocPath(rel.replace(/\\/g, '/'));
+    if (!kind) {
+      // 인자를 준 경로는 계약이 있어야 한다. 기본 스캔은 이미 필터했다.
+      stderr.write(`check-doc-shape: no skill-shape contract for: ${rel}\n`);
+      failed = true;
+      continue;
+    }
+
+    let markdown;
+    try {
+      markdown = fs.readFileSync(abs, 'utf8');
+    } catch (error) {
+      stderr.write(`check-doc-shape: cannot read ${rel}: ${error.message}\n`);
+      failed = true;
+      continue;
+    }
+
+    const contract = contractForKind(kind, markdown);
+    const result = checkDocShape(markdown, { ...contract, filePath: abs });
+    const lastExpected = kind === 'workflow'
+      ? ACQ_GATES
+      : kind === 'agent'
+        ? 'Output contract'
+        : 'Return';
+    requireLastH2(result.shape, lastExpected, result.errors);
+    if (result.errors.length > 0) {
+      failed = true;
+      stderr.write(`check-doc-shape: ${rel}\n`);
+      for (const error of result.errors) stderr.write(`  ${error}\n`);
+    }
+  }
+
+  if (!failed) stdout.write(`check-doc-shape: ok (${targets.length} files)\n`);
+  return failed ? 1 : 0;
+}
+
+if (require.main === module) {
+  process.exitCode = runCli(process.argv.slice(2));
+}
+
+module.exports = {
+  checkDocShape,
+  extractDocShape,
+  runCli,
+  workflowSkillContract,
+  agentContract,
+  subskillContract,
+};
