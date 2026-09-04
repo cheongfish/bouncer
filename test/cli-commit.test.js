@@ -188,7 +188,7 @@ test('commit --yes stages in-scope change and returns committed:true', () => {
   const dirty = execFileSync('git', ['status', '--porcelain'], {
     cwd: repo, encoding: 'utf8',
   }).trim();
-  assert.match(dirty, /tasks\/001\/tasks\.md/);
+  assert.match(dirty, /(?:tasks\/001\/tasks\.md|\.bouncer\/)/);
   assert.ok(!dirty.split('\n').some((line) => /src\/auth\/login\.ts/.test(line)));
   const tasksRaw = fs.readFileSync(
     path.join(repo, `${BP_REL}/tasks/001/tasks.md`),

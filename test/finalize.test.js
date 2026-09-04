@@ -359,9 +359,6 @@ test('--yes stages and commits', () => {
     [
       'src/auth/login.ts',
       `${BP_REL}/explain.md`,
-      `${BP_REL}/tasks/001/tasks.md`,
-      `${BP_REL}/tasks/001/verification.md`,
-      `${BP_REL}/tasks/001/review.md`,
       `${BP_REL}/index.md`,
     ]);
   assert.strictEqual(g.calls.committed, finalizeMessage());
@@ -439,17 +436,11 @@ test('runtime artifacts are neither violations nor staged', () => {
   // 무관하게 lock path는 항상 blueprintDir 밑이라 out-of-scope에 걸리지 않음).
   assert.deepStrictEqual(res.staged, [
     'src/auth/login.ts',
-    `${BP_REL}/tasks/001/tasks.md`,
-    `${BP_REL}/tasks/001/verification.md`,
-    `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
     `${BP_REL}/explain.md`,
   ]);
   assert.deepStrictEqual(g.calls.staged, [
     'src/auth/login.ts',
-    `${BP_REL}/tasks/001/tasks.md`,
-    `${BP_REL}/tasks/001/verification.md`,
-    `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
     `${BP_REL}/explain.md`,
   ]);
@@ -535,9 +526,6 @@ test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.staged, [
     '.bouncer/Distill.md',
-    `${BP_REL}/tasks/001/tasks.md`,
-    `${BP_REL}/tasks/001/verification.md`,
-    `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
     `${BP_REL}/explain.md`,
   ]);
@@ -838,12 +826,7 @@ test('dry-run reports transient deletions in staged without deleting or locking'
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
-  for (const rel of [
-    ...transientRels(),
-    `${BP_REL}/context-review.md`,
-    `${BP_REL}/index.md`,
-    `${BP_REL}/explain.md`,
-  ]) {
+  for (const rel of [`${BP_REL}/index.md`, `${BP_REL}/explain.md`]) {
     assert.ok(res.staged.includes(rel), `dry-run staged missing ${rel}: ${JSON.stringify(res.staged)}`);
   }
   assert.ok(res.staged.includes('src/auth/login.ts'));
@@ -859,7 +842,11 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
   writeContextReview(repo);
   writeExtraTaskUnit(repo, 2);
   const numbers = ['001', '002'];
-  const g = fakeGit(['src/auth/login.ts'], []);
+  const g = fakeGit([
+    'src/auth/login.ts',
+    ...transientRels(BP_REL, numbers),
+    `${BP_REL}/context-review.md`,
+  ], []);
   const res = finalize({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
   });
@@ -899,6 +886,51 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
   const { validateBlueprint } = require('../scripts/lib/validate');
   const re = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(re.ok, true, JSON.stringify(re.failures, null, 2));
+});
+
+test('finalize stages tracked transient deletions but removes untracked ones without staging them', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  const tracked = [
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
+  ];
+  const untracked = [
+    `${BP_REL}/tasks/001/review.md`,
+    `${BP_REL}/context-review.md`,
+    `${BP_REL}/tasks/001/not-created.md`,
+  ];
+  const g = fakeGit(['src/auth/login.ts', ...tracked], untracked);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.ok(g.calls.staged.includes(tracked[0]));
+  assert.ok(g.calls.staged.includes(tracked[1]));
+  assert.ok(!g.calls.staged.includes(untracked[0]));
+  assert.ok(!g.calls.staged.includes(untracked[1]));
+  assert.ok(!g.calls.staged.includes(untracked[2]));
+  for (const rel of [...tracked, ...untracked.slice(0, 2)]) {
+    assert.ok(!fs.existsSync(path.join(repo, rel)), `should delete ${rel}`);
+  }
+});
+
+test('finalize stages deletion of a tracked-and-clean transient document', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const cleanTracked = `${BP_REL}/tasks/001/tasks.md`;
+  const g = fakeGit(['src/auth/login.ts'], []);
+  // A clean tracked path is absent from `git diff --name-only HEAD` but still
+  // needs `git add` after finalize unlinks it.
+  g.api.trackedFiles = () => [cleanTracked];
+
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.ok(g.calls.staged.includes(cleanTracked));
+  assert.ok(!fs.existsSync(path.join(repo, cleanTracked)));
 });
 
 test('stage failure restores transient docs and approved status', () => {

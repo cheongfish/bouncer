@@ -112,6 +112,11 @@ document consistency). After finalize deletes task leaves, `explain.md`
 re-emits `task-<ddd>-<ddd>-<ddd>` and the short sha as derived headings so
 graph search still resolves task commits.
 
+Task commit staging excludes the task bundle, context documents, and Distill
+even when shared scope authorization allows those workflow paths. Finalize
+owns their lifecycle: it preserves `explain.md`, Blueprint `index.md`, and
+Distill while deleting one-off task evidence and optional context review.
+
 Harness-written timestamps use **KST** (`Asia/Seoul`, offset `+09:00`), e.g.
 `2026-08-03T18:00:00.000+09:00`. Pass `--timestamp` to override when scaffolding.
 

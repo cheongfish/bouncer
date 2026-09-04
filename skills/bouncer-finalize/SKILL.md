@@ -53,7 +53,9 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    `index.md` to `closed`. Delete targets are `tasks/<NNN>/tasks.md`,
    `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`, and when present only
    `context-review.md`. Preserve Blueprint `explain.md`, `index.md`, and
-   Distill. In the same remainder, move each task's `commit_sha` (8 digits)
+   Distill. Stage deletions for tracked transient documents; remove untracked
+   transient documents without staging an absent path. In the same remainder,
+   move each task's `commit_sha` (8 digits)
    into `explain.md` `bouncer.task_commits`. On G16 failure, verify failure,
    dry-run, or out-of-scope, do not delete or transition to `closed`; documents
    stay unchanged. Do not propose archive retention, reopening closed

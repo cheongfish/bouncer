@@ -189,6 +189,32 @@ test('dry-run returns commitMessage without staging', () => {
   assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
 });
 
+test('task commit filters allowed workflow documents but keeps task outputs', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const workflowDocs = [
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
+    `${BP_REL}/tasks/001/review.md`,
+    `${BP_REL}/index.md`,
+    '.bouncer/context/index.md',
+    '.bouncer/Distill.md',
+  ];
+  const g = trackingGit(['src/auth/login.ts', ...workflowDocs], []);
+  const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
+});
+
+test('task commit does not stage an absent untracked path', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = trackingGit(['src/auth/login.ts'], ['src/auth/never-created.ts']);
+  const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
+});
+
 test('--yes stages then commits in that order', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
@@ -220,6 +246,8 @@ test('out-of-scope file hard-aborts without staging', () => {
 test('untracked out-of-scope hard-aborts without staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
+  fs.mkdirSync(path.join(repo, 'src/payments'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/payments/charge.ts'), 'export {}\n');
   const g = trackingGit(['src/auth/login.ts'], ['src/payments/charge.ts']);
   const res = commitTask({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
@@ -253,6 +281,7 @@ test('commitTask violations match checkCommitSafety for the same files', () => {
 test('in-scope changed and untracked pass the same guard as checkCommitSafety', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
+  fs.writeFileSync(path.join(repo, 'src/auth/session.ts'), 'export {}\n');
   const files = ['src/auth/login.ts', 'src/auth/session.ts'];
   const guard = checkCommitSafety({
     files,

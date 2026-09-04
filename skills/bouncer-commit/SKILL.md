@@ -41,6 +41,10 @@ workflow only supplies the current task's scope and its post-commit handoff.
    step-4 ACQ. (Empty staged set is fine — still continue; `--yes` will not
    create an empty commit.)
 
+   Allowed task-bundle, context, and Distill workflow documents are scope
+   candidates but are not task-commit staging candidates. Only task outputs
+   are staged; an untracked path must exist before it can be staged.
+
 2. **Validate.** Run the commit gate — `validate --gate commit`:
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate commit

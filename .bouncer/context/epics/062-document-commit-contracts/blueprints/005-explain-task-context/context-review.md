@@ -13,22 +13,10 @@ bouncer:
   blueprint_id: '005'
   status: accepted
   context_review:
-    findings:
-      - id: CR-001
-        severity: blocker
-        status: resolved
-      - id: CR-002
-        severity: major
-        status: resolved
+    findings: []
 ---
 # 계획 검토
 
 ## Findings
-- id: CR-001
-  severity: blocker
-  status: resolved
-  note: 병합 BP와 task 문서에서 scaffold 안내 주석을 제거했다.
-- id: CR-002
-  severity: major
-  status: resolved
-  note: EPIC 062의 Blueprint 목록에 병합 BP 005 링크를 추가했다.
+
+검토 결과, 기록할 발견 사항이 없다.

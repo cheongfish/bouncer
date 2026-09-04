@@ -30,21 +30,35 @@ bouncer:
     producer: graphify
     generated_at: '2026-09-04T13:33:00.000+09:00'
     suggested_paths: []
-    # 유효 엔트리 필드: graph, status, query, result — 예시는 주석이라 파싱되지 않는다
-    # - graph: source | test | context
-    #   status: updated | reused | fail-skip | skip-disabled | missing
-    #   query: <graphify 조회>
-    #   result: <한 줄 요약>
-    # quality/candidates는 graph-suggest 뒤에만 채운다 — scaffold가 제조하지 않는다
     basis:
-      - { graph: source, status: reused, query: document commit lifecycle task context staging message, result: source graph fresh; ranking produced 621 candidates }
-      - { graph: test, status: reused, query: document commit lifecycle task context staging message, result: test graph fresh; ranking produced 621 candidates }
-      - { graph: context, status: updated, query: document commit lifecycle task context staging message, result: context graph rebuilt; ranking produced 621 candidates }
-    quality: { status: low-confidence, confidence: low, reasons: [source omissions, context seed volume, relation filter, result explosion] }
-    candidates: { implementation: [], test: [], context: [] }
+      - graph: source
+        status: reused
+        query: document commit lifecycle task context staging message
+        result: source graph fresh; ranking produced 621 candidates
+      - graph: test
+        status: reused
+        query: document commit lifecycle task context staging message
+        result: test graph fresh; ranking produced 621 candidates
+      - graph: context
+        status: updated
+        query: document commit lifecycle task context staging message
+        result: context graph rebuilt; ranking produced 621 candidates
+    quality:
+      status: low-confidence
+      confidence: low
+      reasons:
+        - source omissions
+        - context seed volume
+        - relation filter
+        - result explosion
+    candidates:
+      implementation: []
+      test: []
+      context: []
   commit_intent:
     - 종료 뒤에도 task 설계 판단을 읽을 수 있게 보존함
     - 기존 explain 문서의 필수 계약은 바꾸지 않음
+  commit_sha: 2388b3ed
 ---
 # explain task 맥락 이관
 

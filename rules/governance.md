@@ -21,6 +21,13 @@ Legitimate wide tasks (bulk renames, migrations) still pass.
 (Distill promotion, explain + quiz, remainder commit, draft PR, worktree
 cleanup) after every task is committed.
 
+Task commits authorize the complete existing candidate set through the shared
+scope helper, then stage task outputs only. Task bundles, context documents,
+and Distill remain for finalize; finalize stages tracked transient deletions
+and removes untracked documents without adding paths that no longer exist. The
+task's `commit_sha` stays in its working-tree document until finalize copies it
+to `explain.md`.
+
 ## Lightweight cycle
 
 A **lightweight cycle** is in

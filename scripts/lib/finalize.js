@@ -240,6 +240,7 @@ function realGit(repoRoot) {
     return {
         changedFiles: () => lines(run(['diff', '--name-only', 'HEAD'])),
         untrackedFiles: () => lines(run(['ls-files', '--others', '--exclude-standard'])),
+        trackedFiles: () => lines(run(['ls-files', '--cached'])),
         stage: (files) => { if (files.length)
             run(['add', '--', ...files]); },
         commit: (msg) => { run(['commit', '-m', msg]); },
@@ -357,8 +358,11 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     const allowed = makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir });
     const changed = gitApi.changedFiles();
     const untracked = gitApi.untrackedFiles();
-    const all = [...new Set([...changed, ...untracked])].filter((f) => !isRuntimeArtifact(f));
-    const violations = all.filter((f) => !allowed(f));
+    // 범위 권한은 Git이 보고한 전체 후보로 판정한다. 존재 확인과 staging
+    // 후보 축소는 아래에서 별도로 처리해 makeAllowed 권한을 완화하지 않는다.
+    const allCandidates = [...new Set([...changed, ...untracked])]
+        .filter((f) => !isRuntimeArtifact(f));
+    const violations = allCandidates.filter((f) => !allowed(f));
     if (violations.length)
         return { ok: false, reason: 'out-of-scope', violations };
     // subject는 blueprint title; body intent는 task 스캔(최고 번호).
@@ -388,9 +392,20 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     const transientRels = lockPath
         ? collectTransientRels({ repoRoot, blueprintDir })
         : [];
-    // 삭제 대상은 git 변경에 없어도 staged에 넣어 삭제 커밋에 포함한다.
+    // `diff --name-only HEAD` omits an unchanged tracked transient document.
+    // Keep the diff list for scope/staging candidates, but use the index inventory
+    // to decide whether an unlinked transient path must be staged as a deletion.
+    const tracked = new Set(gitApi.trackedFiles ? gitApi.trackedFiles() : changed);
+    // 추적 파일의 삭제는 stage해야 하지만, untracked 파일은 삭제만 하면 된다.
+    // 이미 존재하지 않는 untracked 경로는 git add가 실패하므로 후보에서 제외한다.
+    const transientSet = new Set(transientRels);
+    const existingUntracked = untracked.filter((f) => (typeof f === 'string' && fs.existsSync(path.resolve(repoRoot, f))));
+    const stageCandidates = [...new Set([...changed, ...existingUntracked])]
+        .filter((f) => !isRuntimeArtifact(f));
+    const all = stageCandidates.filter((f) => (!transientSet.has(f) || tracked.has(f)));
+    const trackedTransient = transientRels.filter((rel) => tracked.has(rel));
     // dry-run도 같은 목록을 보고해 "무엇이 지워질지"를 미리 보여 준다.
-    const staged = mergeLocked(appendUnique(all, transientRels), lockPath);
+    const staged = mergeLocked(appendUnique(all, trackedTransient), lockPath);
     // dry-run: 쓰지 않고 "쓰게 될" 경로만 closed/staged에 반영해 보고한다.
     // explain.md는 task_commits 기록으로 remainder에 포함될 수 있다.
     const explainRel = `${toPosix(blueprintDir)}/explain.md`;

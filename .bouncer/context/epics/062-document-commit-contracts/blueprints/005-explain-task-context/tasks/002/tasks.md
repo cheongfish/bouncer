@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-002
   epic_id: '062'
   blueprint_id: '005'
-  status: ready
+  status: verified
   verify: npm test
   affected_paths:
     - scripts/src/lib/commit.ts
@@ -33,6 +33,7 @@ bouncer:
     - skills/bouncer-finalize/SKILL.md
     - test/commit-task.test.js
     - test/commit-guard.test.js
+    - test/cli-commit.test.js
     - test/finalize.test.js
   scope_evidence:
     producer: graphify
@@ -77,6 +78,7 @@ task 커밋은 작업 산출물만 스테이징하고 task bundle·context 문�
 - Modify `skills/bouncer-finalize/SKILL.md` — 의도된 임시 문서 삭제를 설명한다.
 - Modify `test/commit-task.test.js` — 임시 문서 미스테이징과 산출물 커밋을 단언한다.
 - Modify `test/commit-guard.test.js` — 실제 스테이징 경로의 G17 판정을 단언한다.
+- Modify `test/cli-commit.test.js` — 미추적 task bundle에서도 `commit_sha` 보존과 소스 변경 정리를 단언한다.
 - Modify `test/finalize.test.js` — 추적·미추적 cleanup과 복구를 단언한다.
 
 ## Do not touch
@@ -88,5 +90,6 @@ task 커밋은 작업 산출물만 스테이징하고 task bundle·context 문�
 ## Checklist
 - [ ] 임시 문서가 있어도 task 산출물만 스테이징되는 실패 사례를 먼저 테스트한다.
 - [ ] scope 허용과 task 스테이징 필터를 분리하고 `commit_sha` 기록을 유지한다.
+- [ ] 미추적 task bundle이 porcelain에서 상위 경로로 축약돼도 `commit_sha` 보존을 검증한다.
 - [ ] 추적·미추적 cleanup과 실패 복구를 구현하고 수명주기 문서를 갱신한다.
 - [ ] `npm test`를 실행한다.

@@ -13,7 +13,7 @@ const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = validate;
 import finalize = require('./finalize');
 const { realGit, buildCommitMessage } = finalize;
 import scope = require('./scope');
-const { isRuntimeArtifact } = scope;
+const { filterTaskCommitCandidates } = scope;
 import commitGuard = require('./commit-guard');
 const { checkCommitSafety } = commitGuard;
 import commitSha = require('./commit-sha');
@@ -100,14 +100,18 @@ function commitTask({
   // 범위 판정은 hook과 같은 checkCommitSafety만 쓴다 — makeAllowed를 여기서 복제하지 않는다.
   const changed = gitApi.changedFiles();
   const untracked = gitApi.untrackedFiles();
+  // 권한 판정에는 Git이 보고한 후보를 모두 넣어 문서 변경도 허용하되,
+  // 커밋 직전에는 task 산출물만 남긴다. 존재 확인은 staging 필터의 책임이다.
   const candidates = [...new Set([...changed, ...untracked])];
   const { allow, violations } = checkCommitSafety({
     files: candidates, affectedPaths, blueprintDir,
   });
   if (!allow) return { ok: false, reason: 'out-of-scope', violations };
 
-  // 판정을 통과한 뒤 staging 목록에서만 runtime artifact를 뺀다(가드와 동일 필터).
-  const all = candidates.filter((f) => !isRuntimeArtifact(f));
+  // 범위 허용과 분리된 task 커밋 전용 필터로 workflow 문서를 남긴다.
+  const all = filterTaskCommitCandidates({
+    repoRoot, changedFiles: changed, untrackedFiles: untracked,
+  });
 
   const commitMessage = buildCommitMessage(docs, taskUnit);
   const nextTask = findNextOpenTask({ repoRoot, blueprintDir, currentUnit: taskUnit });

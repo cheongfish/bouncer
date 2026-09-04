@@ -10,7 +10,8 @@ const { makeAllowed, isRuntimeArtifact } = scope;
  * 복제하지 말고 여기만 호출한다.
  *
  * @param {object} opts
- * @param {unknown[]|null|undefined} [opts.files] - 검사할 경로(변경·untracked·staged).
+ * @param {unknown[]|null|undefined} [opts.files] - 호출자가 선택한 실제 경로.
+ *   G17 호출자는 staged 파일만 전달하며, 이 함수는 working tree를 다시 읽지 않는다.
  *   null/undefined는 빈 목록으로 취급한다.
  * @param {unknown} [opts.affectedPaths] - 활성 task의 `affected_paths`
  * @param {unknown} [opts.blueprintDir] - blueprint 상대 경로(번들 문서 예외용)

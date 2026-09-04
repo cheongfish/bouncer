@@ -13,6 +13,9 @@ does not install it. Project `CLAUDE.md` / `AGENTS.md` / user instructions win o
    runtime at `.bouncer/Distill.md` (rule 7), not under `context/`.
 2. **One commit per task** — Each task document is one reviewable commit; blueprint is the
    PR unit. No subtask layer beneath a task. Detail: [`rules/governance.md`](rules/governance.md).
+   Task commits authorize existing changed paths but stage task outputs only.
+   Workflow documents and Distill remain for finalize; `commit_sha` stays until
+   finalize copies the task link to explain.
 3. **Evidence, not claims** — The execute gate writes success evidence. Detail:
    [`references/verification/index.md`](references/verification/index.md).
 4. **Gates decide done** — `bouncer validate --gate plan|execute|commit|finalize` is
