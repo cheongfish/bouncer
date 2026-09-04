@@ -24,6 +24,8 @@ import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import validateSections = require('./validate-sections');
 const { parseTasksSections } = validateSections;
+import templates = require('./templates');
+const { normalizeAuthoredLines, parseIntentBody } = templates;
 
 // migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
 // validate↔finalize 순환을 피하려고 scope 헬퍼는 여기 두지 않는다(재수출도 안 함).
@@ -98,7 +100,7 @@ type TaskUnitLike = {
 type DocsLike = {
   // loadBlueprintDocs는 파싱 실패 시 blueprintIndex를 비울 수 있다. 필수 단언은
   // 소비자 캐스트가 가리던 불일치였고, 런타임은 asRecord(undefined)로 빈 subject 경로를 탄다.
-  blueprintIndex?: { data: unknown };
+  blueprintIndex?: { data: unknown; body?: string };
   tasks?: DocLeafLike;
   taskUnits?: TaskUnitLike[];
   [key: string]: unknown;
@@ -112,12 +114,11 @@ function asRecord(value: unknown): Record<string, unknown> {
 // subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
 // 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
 // 문서와 PR body에 있음.
-// Subject: 대상 task title (없으면 blueprint title). Body: 대상 task의
-// 배경·의도 2줄(`commit_intent`) 다음 수정 내용(verification title만 —
-// tasks title은 이미 subject에 있음). intent는 task 문서만 — blueprint
-// 폴백 없음. taskUnit이 없으면 docs.verification 호환 필드.
+// Subject: 대상 task title (없으면 blueprint title). Body: task 문서가 저작한
+// 배경·의도와 변경 요약. verification title은 실행 증적이지 메시지 저작물이
+// 아니므로 사용하지 않는다. 새 필드가 없는 기존 task는 제목만으로 읽는다.
 // commit 경로(`bouncer commit`)가 이 빌더를 쓴다. finalize 마감 메시지는
-// buildFinalizeCommitMessage — task title/verification bullet을 넣지 않는다.
+// buildFinalizeCommitMessage — task 문서 필드를 넣지 않는다.
 function buildCommitMessage(docs: DocsLike, taskUnit: TaskUnitLike | null | undefined): string {
   const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
   const bouncer = asRecord(bp.bouncer || {});
@@ -129,73 +130,29 @@ function buildCommitMessage(docs: DocsLike, taskUnit: TaskUnitLike | null | unde
   const subjectTitle = (typeof taskTitle === 'string' && taskTitle.trim())
     ? taskTitle.trim()
     : bp.title;
-  const titleOf = (key: string) => {
-    const fromUnit = taskUnit && taskUnit[key] && (taskUnit[key] as DocLeafLike).data
-      ? asRecord((taskUnit[key] as DocLeafLike).data).title
-      : undefined;
-    if (typeof fromUnit === 'string' && fromUnit) return fromUnit;
-    const leaf = docs[key] as DocLeafLike | undefined;
-    // `docs[key] && docs[key].data.title` — data가 null이면 예전처럼 throw.
-    // `leaf && leaf.data`로 접으면 TypeError가 빈 문자열로 바뀐다.
-    return leaf && asRecord(leaf.data).title ? asRecord(leaf.data).title : '';
-  };
-  // 정확히 2줄일 때만 유효. slice(0,2)로 앞만 남기면 3줄+ 작성 실수를 숨김.
-  const normalizeIntent = (raw: unknown) => {
-    if (!Array.isArray(raw)) return null;
-    const lines = raw
-      .filter((s) => typeof s === 'string' && s.trim())
-      .map((s) => String(s).trim());
-    return lines.length === 2 ? lines : null;
-  };
-  const taskBouncer = taskUnit && taskUnit.tasks && taskUnit.tasks.data
-    ? asRecord(taskUnit.tasks.data).bouncer
-    : undefined;
-  // task 문서만. blueprint commit_intent는 쓰지 않는다 — 커밋 단위가 task인데
-  // 상위 문서로 폴백하면 작성 위치가 다시 갈라진다. 무효·부재면 intent 없음.
-  const intent = normalizeIntent(taskBouncer && asRecord(taskBouncer).commit_intent) || [];
-  const what = [titleOf('verification')].filter(Boolean);
-  const bodyLines = intent.length === 2
-    ? [...intent, ...what]
-    : what;
+  const taskData = taskUnit && taskUnit.tasks && taskUnit.tasks.data
+    ? asRecord(taskUnit.tasks.data)
+    : (docs.tasks && docs.tasks.data ? asRecord(docs.tasks.data) : {});
+  const taskBouncer = taskData && taskData.bouncer && typeof taskData.bouncer === 'object'
+    ? asRecord(taskData.bouncer)
+    : {};
+  const intent = normalizeAuthoredLines(taskBouncer.commit_intent, 'commit_intent');
+  const summary = normalizeAuthoredLines(taskBouncer.commit_summary, 'commit_summary');
+  const bodyLines = [...intent, ...summary];
   const body = bodyLines.map((t) => `- ${t}`);
   const lines = [`${type}: ${subjectTitle}`];
   if (body.length) lines.push('', ...body);
   return lines.join('\n');
 }
 
-// finalize 마감 커밋: subject는 항상 blueprint title. body의 배경·의도는
-// taskUnits를 번호 순으로 스캔해 유효한 commit_intent(정확히 2줄) 중
-// **번호가 가장 큰** 항목만 쓴다. `.gitmessage`가 배경·의도 2줄로 고정이라
-// N개를 이어 붙일 수 없고, remainder는 blueprint의 마지막 상태이므로 마지막
-// task 의도가 가장 가깝다. blueprint commit_intent는 출처가 아니다.
+// finalize 마감 커밋: subject와 body 모두 blueprint에서 읽는다. Intent를
+// 파싱할 수 없으면 task 일부를 주워 메시지를 만드는 대신 즉시 실패시킨다.
 // task title·verification bullet을 넣으면 이미 남긴 task 커밋과 겹친다.
 function buildFinalizeCommitMessage(docs: DocsLike): string {
   const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
   const bouncer = asRecord(bp.bouncer || {});
   const type = bouncer.commit_type || 'feat';
-  const normalizeIntent = (raw: unknown) => {
-    if (!Array.isArray(raw)) return null;
-    const lines = raw
-      .filter((s) => typeof s === 'string' && s.trim())
-      .map((s) => String(s).trim());
-    return lines.length === 2 ? lines : null;
-  };
-  // 번호 비교로 최댓값을 고른다 — taskUnits 배열 순서가 흐트러져도 같다.
-  let intent: string[] = [];
-  let bestNumber = -Infinity;
-  const units = Array.isArray(docs.taskUnits) ? docs.taskUnits : [];
-  for (const unit of units) {
-    const taskBouncer = unit && unit.tasks && unit.tasks.data
-      ? asRecord(unit.tasks.data).bouncer
-      : undefined;
-    const normalized = normalizeIntent(taskBouncer && asRecord(taskBouncer).commit_intent);
-    if (!normalized) continue;
-    const n = typeof unit.number === 'number' ? unit.number : -Infinity;
-    if (n >= bestNumber) {
-      bestNumber = n;
-      intent = normalized;
-    }
-  }
+  const intent = parseIntentBody(docs.blueprintIndex && docs.blueprintIndex.body);
   const body = intent.map((t) => `- ${t}`);
   const lines = [`${type}: ${bp.title}`];
   if (body.length) lines.push('', ...body);
@@ -442,8 +399,9 @@ function finalize({
   const violations = allCandidates.filter((f) => !allowed(f));
   if (violations.length) return { ok: false, reason: 'out-of-scope', violations };
 
-  // subject는 blueprint title; body intent는 task 스캔(최고 번호).
-  // resolveTaskUnit/task title은 쓰지 않는다.
+  // subject는 blueprint title이고 body는 blueprint 본문의 `## Intent` 정본이다.
+  // task 스캔이나 verification title을 섞으면 finalize가 task authored 필드를
+  // 재사용하게 되므로, 실행 경로도 buildFinalizeCommitMessage와 같은 출처를 쓴다.
   const commitMessage = buildFinalizeCommitMessage(docs);
   // next 후보 계산이 finalize를 깨면 안 됨: next()가 throw하면 빈 handoff
   // 형태로 뭉개 ok/exit는 commit 작업에만 묶임.

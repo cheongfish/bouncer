@@ -13,7 +13,7 @@ bouncer:
   id: TASKS-003
   epic_id: '062'
   blueprint_id: '005'
-  status: ready
+  status: verified
   verify: npm test
   affected_paths:
     - scripts/src/lib/templates.ts
@@ -53,11 +53,11 @@ bouncer:
 Blueprint: [005](../../index.md)
 
 ## Goal & intent
-task 커밋은 `commit_intent`와 새 `commit_summary`에서, finalize 커밋은 blueprint Intent에서 본문을 만든다. 각 필드가 존재하면 1~2개의 한국어 종결 문장을 요구하고 전체 본문은 네 줄을 넘지 않는다.
+task 커밋은 `commit_intent`와 새 `commit_summary`에서, finalize 커밋은 blueprint Intent에서 본문을 만든다. 각 필드가 존재하면 1~2개의 한국어 종결 문장을 요구하고 전체 본문은 네 줄을 넘지 않는다. authored 문장의 어느 위치에도 소문자 패키지·모듈 이름을 허용하지 않는다.
 
 ## Interface
 - 제공: task `bouncer.commit_summary`와 1~2줄 `commit_intent`, Intent 기반 finalize 메시지 생성을 제공한다.
-- 거부: 잘못된 authored 필드·파싱 불가 Intent는 부분 생략하지 않고 메시지 생성 오류가 된다. 필드가 없는 기존 task는 읽을 수 있다.
+- 거부: 잘못된 authored 필드·파싱 불가 Intent는 부분 생략하지 않고 메시지 생성 오류가 된다. 소문자 패키지·모듈 이름은 조사·행동어와 결합하지 않아도 거부하며, 필드가 없는 기존 task는 읽을 수 있다.
 
 ## Touch
 - Modify `scripts/src/lib/templates.ts` — task summary 자리와 Intent 종결 규칙을 제공한다.
@@ -83,10 +83,11 @@ task 커밋은 `commit_intent`와 새 `commit_summary`에서, finalize 커밋은
 - `scripts/src/lib/scope.ts` — task 스테이징 정책은 task 002 계약을 유지한다.
 
 ## Constraints
-- 파일·모듈·패키지 이름을 authored intent·summary에 넣지 않는다. 새 의존성이나 trailer를 추가하지 않는다.
+- 파일·모듈·패키지 이름을 authored intent·summary의 어느 위치에도 넣지 않는다. 대문자 기술 약어를 일괄 거부하지 않으며, 새 의존성이나 trailer를 추가하지 않는다. finalize 실행 경로의 주석은 Blueprint `Intent`만 본문 정본으로 설명한다.
 
 ## Checklist
 - [ ] 1~2줄 종결 규칙, 네 줄 예산, 기존 필드 부재의 호환성을 먼저 테스트한다.
+- [ ] 조사·행동어와 무관한 소문자 패키지·모듈 이름도 거부하고 대문자 기술 약어는 유지하는 회귀 테스트를 추가한다.
 - [ ] task message 조립을 verification title에서 분리하고 intent·summary 순서로 구현한다.
-- [ ] finalize가 blueprint Intent만 파싱하도록 바꾸고 템플릿·규칙을 갱신한다.
+- [ ] finalize가 blueprint Intent만 파싱하도록 바꾸고 실행 주석·템플릿·규칙을 같은 계약으로 갱신한다.
 - [ ] `npm test`를 실행한다.

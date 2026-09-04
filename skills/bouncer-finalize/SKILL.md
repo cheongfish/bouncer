@@ -61,14 +61,13 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    stay unchanged. Do not propose archive retention, reopening closed
    Blueprints, or retroactive edits to preserved documents.
 
-   Before dry-run, ensure at least one task document has `bouncer.commit_intent`
-   as **exactly two** Korean `~함` / `~임` strings when you want background and
-   intent on
-   any Distill remainder commit. Finalize scans every task in number order and
-   uses the highest-numbered valid intent (no blueprint `commit_intent`). Prefer
-   values written at plan time; if none are length 2, author them on the latest
-   task from Goal & intent / explain (no Epic/Blueprint ids, no file paths),
-   then proceed. Dry-run:
+   Before dry-run, ensure the blueprint `## Intent` contains 1–2 Korean
+   terminal sentences. Finalize uses that section only for the remainder body;
+   it does not scan task fields or fall back to task `commit_intent`. A missing
+   or malformed Intent rejects message generation rather than partially
+   omitting it. Task `commit_intent` / `commit_summary` are consumed only by
+   their task commits, and when present each must contain 1–2 Korean terminal
+   sentences (no Epic/Blueprint ids, file, module, or package names). Dry-run:
    ```bash
    bouncer finalize --blueprint <pointer.blueprint>
    ```

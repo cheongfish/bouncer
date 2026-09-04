@@ -105,16 +105,16 @@ function fullBlueprint(repo, {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
       commit_type: 'feat',
     },
-  });
+  }, '# Blueprint\n\n## Intent\n- 마감은 청사진 단위로 묶는다\n- 남은 변경은 Distill 승격분 정도다\n');
   writeDoc(repo, `${blueprintDir}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
       affected_paths: ['src/auth/'],
-      // remainder는 task commit_intent만 본다 — blueprint에 두면 무시된다.
+      // task commit_intent는 task 커밋 전용이며 finalize는 blueprint Intent를 본다.
       commit_intent: [
-        '마감은 blueprint 단위로 묶는다',
+        '마감은 청사진 단위로 묶는다',
         '남은 변경은 Distill 승격분 정도다',
       ],
       commit_sha: 'aabbccdd',
@@ -191,7 +191,7 @@ function finalizeMessage() {
   return [
     'feat: Login',
     '',
-    '- 마감은 blueprint 단위로 묶는다',
+    '- 마감은 청사진 단위로 묶는다',
     '- 남은 변경은 Distill 승격분 정도다',
   ].join('\n');
 }
@@ -337,7 +337,7 @@ test('dry-run reports staged files and blueprint message without committing', ()
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
-  // subject는 blueprint title; body는 최고 번호 task commit_intent 2줄뿐.
+  // subject와 body는 blueprint title/Intent에서만 만든다.
   assert.strictEqual(res.commitMessage, finalizeMessage());
   assert.ok(!res.commitMessage.includes('Impl login'), res.commitMessage);
   assert.ok(!res.commitMessage.includes('Verified'), res.commitMessage);

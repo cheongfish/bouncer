@@ -13,8 +13,11 @@ bouncer:
   blueprint_id: '001'
   status: ready
   commit_intent:
-    - verify가 멈추면 execute가 무한 대기하는 문제를 막음
-    - timeout_ms로 상한을 두고 초과 시 실패 증적을 남김
+    - 검증이 멈추면 실행이 무한 대기하는 문제를 막음
+    - 제한 시간으로 상한을 두고 초과 시 실패 증적을 남김
+  commit_summary:
+    - 양의 제한 값에 실행 상한을 적용함
+    - 시간 초과를 실패 증적으로 기록함
   affected_paths:
     - config.example.json
     - scripts/src/lib/init.ts

@@ -30,6 +30,7 @@ test('spec-authoring ties document titles to commit messages via .gitmessage', (
   assert.match(md, /\.gitmessage/);
   assert.match(md, /title/i);
   assert.match(md, /commit_intent/);
+  assert.match(md, /commit_summary/);
   assert.match(md, /commit_type|\/bouncer-commit|\/bouncer-finalize|finalize/i);
   // task 커밋 subject는 task title; task commit_intent(2줄)도 표에 있다.
   assert.match(md, /tasks`?\s*`?bouncer\.commit_intent|task.*commit_intent/i);
@@ -121,6 +122,7 @@ test('spec-authoring tasks section binds description, commit_intent, and Checkli
   const body = readSkill('spec-authoring');
   assert.match(body, /description[\s\S]{0,120}Goal & intent[\s\S]{0,80}(유도|첫 문장)/);
   assert.match(body, /commit_intent[\s\S]{0,160}(커밋 메시지 생성 전용|SSOT)/);
+  assert.match(body, /commit_summary[\s\S]{0,120}(1|2|요약)/);
   assert.match(body, /Checklist[\s\S]{0,160}Touch[\s\S]{0,80}(다시 열거하지|재열거하지)/);
 });
 
@@ -160,6 +162,24 @@ test('spec-authoring derives a shard-targeted proposal and writes only after con
 
 // author-written frontmatter: YAML 예약 지시자 선두 값은 평문 scalar 금지.
 // 문구 고정이 아니라 위험 입력·안전 형식·범위 제외의 식별자만 본다.
+test('spec-authoring keeps identifiers out of titles, commit_intent, and commit_summary', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /out of titles[\s\S]{0,80}commit_intent[\s\S]{0,40}commit_summary/i);
+});
+
+test('spec-authoring task example describes commit_summary without config tokens', () => {
+  const { normalizeAuthoredLines } = require('../scripts/lib/templates');
+  const { data } = parseFrontmatter(fs.readFileSync(refPath('tasks.md'), 'utf8'));
+  const intent = data && data.bouncer && data.bouncer.commit_intent;
+  const summary = data && data.bouncer && data.bouncer.commit_summary;
+  assert.ok(Array.isArray(summary) && summary.length >= 1);
+  for (const line of summary) {
+    assert.doesNotMatch(line, /timeout_ms/);
+  }
+  assert.deepStrictEqual(normalizeAuthoredLines(intent, 'commit_intent'), intent);
+  assert.deepStrictEqual(normalizeAuthoredLines(summary, 'commit_summary'), summary);
+});
+
 test('spec-authoring quotes YAML-leading reserved characters in author-written scalars', () => {
   const md = readSkill('spec-authoring');
   // 위험 입력: 선두 백틱 / YAML 예약 지시자

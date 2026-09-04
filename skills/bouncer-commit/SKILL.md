@@ -24,11 +24,13 @@ If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 Apply the shared returned-value and task-brief selection contract. This
 workflow only supplies the current task's scope and its post-commit handoff.
 
-1. **Scope dry-run.** Ensure the target task frontmatter has
-   `bouncer.commit_intent` as **exactly two** Korean `~함` / `~임` strings for
-   background/intent (task document only — no blueprint fallback). Prefer values
-   written at plan time; if missing or not length 2, author them now from
-   Goal & intent (no Epic/Blueprint ids, no file paths), then proceed.
+1. **Scope dry-run.** When present, target task frontmatter fields
+   `bouncer.commit_intent` and `bouncer.commit_summary` must each contain 1–2
+   Korean terminal sentences (task document only — no blueprint fallback).
+   Missing fields remain compatible with older tasks and contribute no bullets;
+   malformed fields fail message generation rather than being partly omitted.
+   Author valid values at plan time from Goal & intent (no Epic/Blueprint ids,
+   file, module, or package names), then proceed.
    Dry-run first:
    ```bash
    bouncer commit --blueprint <pointer.blueprint>

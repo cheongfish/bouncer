@@ -189,6 +189,43 @@ test('dry-run returns commitMessage without staging', () => {
   assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
 });
 
+test('task dry-run builds authored intent and summary in order', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const taskRel = `${BP_REL}/tasks/001/tasks.md`;
+  const task = yaml.load(fs.readFileSync(path.join(repo, taskRel), 'utf8').replace(/^---\n|\n---\n[\s\S]*$/g, ''));
+  task.bouncer.commit_intent = ['재시도가 서버에 부담을 줌', '안정적인 정책이 필요함'];
+  task.bouncer.commit_summary = ['간격을 지수적으로 늘림'];
+  writeDoc(repo, taskRel, task, '# Tasks\n');
+  const res = commitTask({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.commitMessage, [
+    'feat: Impl login',
+    '',
+    '- 재시도가 서버에 부담을 줌',
+    '- 안정적인 정책이 필요함',
+    '- 간격을 지수적으로 늘림',
+  ].join('\n'));
+});
+
+test('malformed authored task field aborts message generation', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const taskRel = `${BP_REL}/tasks/001/tasks.md`;
+  const task = yaml.load(fs.readFileSync(path.join(repo, taskRel), 'utf8').replace(/^---\n|\n---\n[\s\S]*$/g, ''));
+  task.bouncer.commit_summary = ['첫 줄임', '둘째 줄임', '셋째 줄임'];
+  writeDoc(repo, taskRel, task, '# Tasks\n');
+  assert.throws(() => commitTask({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    git: trackingGit(['src/auth/login.ts'], []).api,
+  }), /commit_summary.*1-2/);
+});
+
 test('task commit filters allowed workflow documents but keeps task outputs', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);

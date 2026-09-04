@@ -139,6 +139,9 @@ Blueprint: [<BP-id>](../../index.md)
      수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다. -->
 <TODO: 완료 후 시스템이 어떻게 달라지는가>
 
+<!-- bouncer.commit_intent와 bouncer.commit_summary는 각각 1~2개의 한국어
+     종결 문장으로 작성한다. 두 필드의 합계는 커밋 본문 네 줄을 넘지 않는다. -->
+
 ## Interface
 <!-- 계약이 리뷰에서 검증 가능하도록 제공하는 것과 거부하는 것을 함께 적습니다. -->
 - 제공: <TODO: 새로 생기거나 바뀌는 공개 시그니처·산출물>
@@ -288,6 +291,57 @@ function renderTemplate(body, { epicId, blueprintId, name }) {
 function templateBody(templateName, vars) {
     return renderTemplate(readTemplate(templateName), vars);
 }
+// 커밋 본문은 저자가 쓴 문장만 받아야 한다. 빈 값을 걸러내거나 앞부분만
+// 잘라내면 잘못된 계획이 조용히 다른 메시지로 바뀌므로, 필드 단위로 원자적으로
+// 검증한다. 기존 문서의 필드 부재(undefined)는 호환을 위해 빈 배열로 둔다.
+function normalizeAuthoredLines(raw, field) {
+    if (raw === undefined)
+        return [];
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > 2) {
+        throw new Error(`${field} must contain 1-2 Korean terminal sentences`);
+    }
+    const lines = raw.map((value) => {
+        if (typeof value !== 'string') {
+            throw new Error(`${field} must contain 1-2 Korean terminal sentences`);
+        }
+        const line = value.trim();
+        // 소문자 라틴 식별자와 경로·패키지는 조사·동작어와 붙지 않아도 문장
+        // 어디서나 거부한다. 백틱은 인용일 뿐이라 감싼 이름도 그대로 막고,
+        // 명령 인용처럼 식별자가 아닌 백틱은 통과시킨다. API 같은 대문자
+        // 기술 약어는 일괄 거부하지 않는다. HTTP/2처럼 대문자만으로 이뤄진
+        // 토큰 뒤의 `/숫자`는 프로토콜 버전이므로 모듈 경로로 보지 않는다.
+        const lowercaseLatinIdentifier = /(?:^|[^A-Za-z0-9])(?:@[a-z][a-z0-9-]*\/)?[a-z][a-z0-9]*(?:[-_.][A-Za-z0-9]+)*(?=[^A-Za-z0-9]|$)/u;
+        const namesImplementation = /(?:^|[\s(`])(?:\.{0,2}\/|(?![A-Z]+\/\d)[A-Za-z0-9_.-]+\/)|(?:^|[\s(`])[A-Za-z0-9_.-]+\.[A-Za-z][A-Za-z0-9]{0,9}(?=[가-힣]|$|[\s`),])/u.test(line)
+            || lowercaseLatinIdentifier.test(line);
+        if (!line || line.includes('\n') || !/[가-힣]/u.test(line)
+            || namesImplementation
+            || !/(?:함|임|음|됨|줌|둠|남|김|씀|듦|림|움|춤|짐|감|앰|냄|꿈|뜀|다|요|죠|까|네|지)[.!?]?$/u.test(line)) {
+            throw new Error(`${field} must contain 1-2 Korean terminal sentences (한국어 종결 문장)`);
+        }
+        return line;
+    });
+    return lines;
+}
+// blueprint Intent는 문서 본문이 정본이다. heading 밖의 내용을 섞지 않고,
+// bullet 표식만 벗겨 같은 본문 렌더러가 task/finalize 양쪽을 조립하게 한다.
+function parseIntentBody(body) {
+    if (typeof body !== 'string') {
+        throw new Error('blueprint Intent is missing or malformed');
+    }
+    const withoutComments = body.replace(/<!--[\s\S]*?-->/g, '');
+    const heading = /^##\s+Intent\s*$/im.exec(withoutComments);
+    if (!heading || heading.index == null)
+        throw new Error('blueprint Intent is missing or malformed');
+    const afterHeading = withoutComments.slice(heading.index + heading[0].length);
+    const nextHeading = /^##\s+/m.exec(afterHeading);
+    const section = nextHeading ? afterHeading.slice(0, nextHeading.index) : afterHeading;
+    const lines = section
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => line.replace(/^[-*]\s+/, '').trim());
+    return normalizeAuthoredLines(lines, 'blueprint Intent');
+}
 module.exports = {
     TEMPLATES,
     PR_TEMPLATE,
@@ -297,4 +351,6 @@ module.exports = {
     readTemplate,
     renderTemplate,
     templateBody,
+    normalizeAuthoredLines,
+    parseIntentBody,
 };

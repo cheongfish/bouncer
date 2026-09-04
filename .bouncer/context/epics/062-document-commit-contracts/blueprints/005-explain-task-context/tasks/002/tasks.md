@@ -40,14 +40,34 @@ bouncer:
     generated_at: '2026-09-04T13:33:00.000+09:00'
     suggested_paths: []
     basis:
-      - { graph: source, status: reused, query: document commit lifecycle task context staging message, result: source graph fresh; ranking produced 621 candidates }
-      - { graph: test, status: reused, query: document commit lifecycle task context staging message, result: test graph fresh; ranking produced 621 candidates }
-      - { graph: context, status: updated, query: document commit lifecycle task context staging message, result: context graph rebuilt; ranking produced 621 candidates }
-    quality: { status: low-confidence, confidence: low, reasons: [source omissions, context seed volume, relation filter, result explosion] }
-    candidates: { implementation: [], test: [], context: [] }
+      - graph: source
+        status: reused
+        query: document commit lifecycle task context staging message
+        result: source graph fresh; ranking produced 621 candidates
+      - graph: test
+        status: reused
+        query: document commit lifecycle task context staging message
+        result: test graph fresh; ranking produced 621 candidates
+      - graph: context
+        status: updated
+        query: document commit lifecycle task context staging message
+        result: context graph rebuilt; ranking produced 621 candidates
+    quality:
+      status: low-confidence
+      confidence: low
+      reasons:
+        - source omissions
+        - context seed volume
+        - relation filter
+        - result explosion
+    candidates:
+      implementation: []
+      test: []
+      context: []
   commit_intent:
     - task 산출물 커밋에서 임시 실행 증거를 분리함
     - finalize가 증거 수명주기를 안전하게 끝내게 함
+  commit_sha: 54f23d06
 ---
 # task 커밋 임시 문서 제외
 
