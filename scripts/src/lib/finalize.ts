@@ -22,6 +22,8 @@ const { readVerifyCommand, executeVerify } = verification;
 
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
+import validateSections = require('./validate-sections');
+const { parseTasksSections } = validateSections;
 
 // migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
 // validate↔finalize 순환을 피하려고 scope 헬퍼는 여기 두지 않는다(재수출도 안 함).
@@ -348,6 +350,64 @@ function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }: {
   return true;
 }
 
+/**
+ * task 문서에서 장기 보존할 설계 절만 렌더링한다.
+ * parseTasksSections가 반환한 본문을 그대로 사용해 작성자가 나눈 줄바꿈을
+ * 보존하고, verification·review·checklist 같은 실행 문서는 이 경로에 넣지 않는다.
+ */
+function buildTaskContext(taskUnits: TaskUnitLike[] | undefined): string {
+  const units = (Array.isArray(taskUnits) ? taskUnits : [])
+    .filter((unit) => unit && unit.tasks && typeof unit.tasks.body === 'string')
+    .slice()
+    .sort((a, b) => (typeof a.number === 'number' ? a.number : Infinity)
+      - (typeof b.number === 'number' ? b.number : Infinity));
+  const rendered: string[] = [];
+  for (const unit of units) {
+    const sections = parseTasksSections(unit.tasks && unit.tasks.body);
+    const selected = [
+      ['Goal & intent', sections.goal],
+      ['Interface', sections.interface],
+      ['Do not touch', sections.doNotTouch],
+    ].filter(([, body]) => typeof body === 'string' && body.trim()) as Array<[string, string]>;
+    if (!selected.length) continue;
+    const number = typeof unit.number === 'number'
+      ? String(unit.number).padStart(3, '0')
+      : 'unknown';
+    rendered.push(
+      [`### Task ${number}`, ...selected.flatMap(([heading, body]) => [
+        `#### ${heading}`,
+        body,
+      ])].join('\n\n'),
+    );
+  }
+  return rendered.length ? `## Tasks\n\n${rendered.join('\n\n')}\n` : '';
+}
+
+function replaceTaskContext(body: string, taskContext: string): string {
+  if (!taskContext) return body;
+  const lines = body.split('\n');
+  const start = lines.findIndex((line) => /^##\s+Tasks\s*$/i.test(line.trim()));
+  if (start < 0) return `${body.replace(/\s*$/, '')}\n\n${taskContext}`;
+  let end = start + 1;
+  while (end < lines.length && !/^##\s+\S/.test(lines[end].trim())) end += 1;
+  return [...lines.slice(0, start), taskContext.trimEnd(), ...lines.slice(end)].join('\n');
+}
+
+function writeExplainTaskContext({ repoRoot, blueprintDir, taskContext }: {
+  repoRoot: string;
+  blueprintDir: string;
+  taskContext: string;
+}): boolean {
+  if (!taskContext) return false;
+  const explainRel = `${toPosix(blueprintDir)}/explain.md`;
+  const abs = path.join(repoRoot, explainRel);
+  if (!fs.existsSync(abs)) return false;
+  const { data, body } = readDoc(abs);
+  if (!data || typeof data !== 'object' || typeof body !== 'string') return false;
+  fs.writeFileSync(abs, renderDoc(data, replaceTaskContext(body, taskContext)));
+  return true;
+}
+
 function finalize({
   repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent,
   next = nextBlueprint, verifyExec,
@@ -490,6 +550,7 @@ function finalize({
   const taskCommits = lockPath
     ? collectTaskCommits({ repoRoot, blueprintDir })
     : [];
+  const taskContext = lockPath ? buildTaskContext(docs.taskUnits) : '';
 
   const restoreTransient = () => {
     for (const snap of snapshots) {
@@ -507,6 +568,7 @@ function finalize({
   try {
     if (lockPath && explainBefore) {
       writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits });
+      writeExplainTaskContext({ repoRoot, blueprintDir, taskContext });
     }
     for (const snap of snapshots) fs.unlinkSync(snap.abs);
     // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
@@ -535,5 +597,5 @@ function finalize({
 
 export = {
   buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
-  collectTaskCommits, writeExplainTaskCommits,
+  buildTaskContext, collectTaskCommits, writeExplainTaskCommits, writeExplainTaskContext,
 };

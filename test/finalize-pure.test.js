@@ -2,7 +2,11 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { buildCommitMessage, buildFinalizeCommitMessage } = require('../scripts/lib/finalize');
+const {
+  buildCommitMessage,
+  buildFinalizeCommitMessage,
+  buildTaskContext,
+} = require('../scripts/lib/finalize');
 const { makeAllowed, isUnder } = require('../scripts/lib/scope');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
@@ -492,4 +496,48 @@ test('finalize remainder uses highest-numbered task commit_intent, ignores bluep
     '- 커밋 단위는 task인데 커밋 의도는 상위 문서에 적도록 서술돼 있어 위치가 어긋나 있음',
     '- 의도를 task 문서에만 쓰도록 좁히고 마감 커밋도 그 문서들에서 의도를 찾게 함',
   ].join('\n'));
+});
+
+test('task context preserves authored semantic line breaks and excludes verification', () => {
+  const taskUnits = [{
+    number: 2,
+    tasks: {
+      body: `# Tasks
+
+## Goal & intent
+첫 번째 줄이다.
+두 번째 줄은 저자가 나눈 의미 단위다.
+
+## Interface
+- 입력을 그대로 받는다.
+- 결과는 한 줄로 반환한다.
+
+## Do not touch
+- \`src/legacy/\` 경로
+
+## Checklist
+- [ ] 구현
+`,
+    },
+    verification: { body: 'verification evidence must not be copied' },
+  }];
+
+  assert.strictEqual(buildTaskContext(taskUnits), `## Tasks
+
+### Task 002
+
+#### Goal & intent
+
+첫 번째 줄이다.
+두 번째 줄은 저자가 나눈 의미 단위다.
+
+#### Interface
+
+- 입력을 그대로 받는다.
+- 결과는 한 줄로 반환한다.
+
+#### Do not touch
+
+- \`src/legacy/\` 경로
+`);
 });

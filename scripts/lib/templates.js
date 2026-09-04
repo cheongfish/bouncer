@@ -211,6 +211,10 @@ Blueprint: [<BP-id>](../../index.md)
 ## 이해 상태
 <!-- 퀴즈 결과와 disposition을 task별 소제목 없이 단일 블록으로.
      comprehension 프론트매터(BP 엔트리 하나)와 맞춰 적는다. -->
+
+## Tasks
+<!-- finalize가 삭제하기 전에 task의 Goal & intent, Interface, Do not touch를
+     task별 소제목으로 보존한다. 이 절은 선택 사항이며 G16 필수 절이 아니다. -->
 `,
     // --- scale: light 전용 본문 ---
     // light는 plan 단계 네 문서(blueprint index + tasks/001 세 문서) 전체 줄 수를

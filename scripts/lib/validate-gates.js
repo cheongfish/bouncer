@@ -15,7 +15,7 @@ const { normalizeScopeEvidence } = validateStructural;
 const runtimeState = require("./runtime-state");
 const { verifyLedgerPathFor } = runtimeState;
 const validateSections = require("./validate-sections");
-const { VERIFY_SECTION_DEFS, EXPLAIN_SECTION_HEADINGS, TODO_RE, parseSections, parseTasksSections, extractPathCandidates, pathsOverlap, pathJustifiedByTouch, collectFindingFailures, } = validateSections;
+const { VERIFY_SECTION_DEFS, TODO_RE, parseSections, parseTasksSections, parseExplainSections, extractPathCandidates, pathsOverlap, pathJustifiedByTouch, collectFindingFailures, } = validateSections;
 function asData(doc) {
     if (!doc)
         return undefined;
@@ -345,7 +345,7 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             add('G16', 'explain.status != published', 'explain');
         }
         const explainBody = typeof docs.explain.body === 'string' ? docs.explain.body : '';
-        const sections = parseSections(explainBody, EXPLAIN_SECTION_HEADINGS);
+        const sections = parseExplainSections(explainBody);
         const missing = EXPLAIN_SECTION_DEFS.filter((k) => !sections[k]);
         if (missing.length) {
             add('G16', `explain missing written sections: ${missing.join(', ')}`, 'explain');

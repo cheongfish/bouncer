@@ -21,6 +21,8 @@ const verification = require("./verification");
 const { readVerifyCommand, executeVerify } = verification;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs } = tasksDocs;
+const validateSections = require("./validate-sections");
+const { parseTasksSections } = validateSections;
 function adaptInjectedVerifyExec(verifyExec) {
     return (command, opts) => {
         const result = verifyExec(command, opts);
@@ -288,6 +290,62 @@ function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }) {
     fs.writeFileSync(abs, renderDoc(data, body));
     return true;
 }
+/**
+ * task 문서에서 장기 보존할 설계 절만 렌더링한다.
+ * parseTasksSections가 반환한 본문을 그대로 사용해 작성자가 나눈 줄바꿈을
+ * 보존하고, verification·review·checklist 같은 실행 문서는 이 경로에 넣지 않는다.
+ */
+function buildTaskContext(taskUnits) {
+    const units = (Array.isArray(taskUnits) ? taskUnits : [])
+        .filter((unit) => unit && unit.tasks && typeof unit.tasks.body === 'string')
+        .slice()
+        .sort((a, b) => (typeof a.number === 'number' ? a.number : Infinity)
+        - (typeof b.number === 'number' ? b.number : Infinity));
+    const rendered = [];
+    for (const unit of units) {
+        const sections = parseTasksSections(unit.tasks && unit.tasks.body);
+        const selected = [
+            ['Goal & intent', sections.goal],
+            ['Interface', sections.interface],
+            ['Do not touch', sections.doNotTouch],
+        ].filter(([, body]) => typeof body === 'string' && body.trim());
+        if (!selected.length)
+            continue;
+        const number = typeof unit.number === 'number'
+            ? String(unit.number).padStart(3, '0')
+            : 'unknown';
+        rendered.push([`### Task ${number}`, ...selected.flatMap(([heading, body]) => [
+                `#### ${heading}`,
+                body,
+            ])].join('\n\n'));
+    }
+    return rendered.length ? `## Tasks\n\n${rendered.join('\n\n')}\n` : '';
+}
+function replaceTaskContext(body, taskContext) {
+    if (!taskContext)
+        return body;
+    const lines = body.split('\n');
+    const start = lines.findIndex((line) => /^##\s+Tasks\s*$/i.test(line.trim()));
+    if (start < 0)
+        return `${body.replace(/\s*$/, '')}\n\n${taskContext}`;
+    let end = start + 1;
+    while (end < lines.length && !/^##\s+\S/.test(lines[end].trim()))
+        end += 1;
+    return [...lines.slice(0, start), taskContext.trimEnd(), ...lines.slice(end)].join('\n');
+}
+function writeExplainTaskContext({ repoRoot, blueprintDir, taskContext }) {
+    if (!taskContext)
+        return false;
+    const explainRel = `${toPosix(blueprintDir)}/explain.md`;
+    const abs = path.join(repoRoot, explainRel);
+    if (!fs.existsSync(abs))
+        return false;
+    const { data, body } = readDoc(abs);
+    if (!data || typeof data !== 'object' || typeof body !== 'string')
+        return false;
+    fs.writeFileSync(abs, renderDoc(data, replaceTaskContext(body, taskContext)));
+    return true;
+}
 function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, verifyExec, }) {
     const gitApi = git || realGit(repoRoot);
     const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
@@ -413,6 +471,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     const taskCommits = lockPath
         ? collectTaskCommits({ repoRoot, blueprintDir })
         : [];
+    const taskContext = lockPath ? buildTaskContext(docs.taskUnits) : '';
     const restoreTransient = () => {
         for (const snap of snapshots) {
             fs.mkdirSync(path.dirname(snap.abs), { recursive: true });
@@ -429,6 +488,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     try {
         if (lockPath && explainBefore) {
             writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits });
+            writeExplainTaskContext({ repoRoot, blueprintDir, taskContext });
         }
         for (const snap of snapshots)
             fs.unlinkSync(snap.abs);
@@ -458,5 +518,5 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
 }
 module.exports = {
     buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
-    collectTaskCommits, writeExplainTaskCommits,
+    buildTaskContext, collectTaskCommits, writeExplainTaskCommits, writeExplainTaskContext,
 };

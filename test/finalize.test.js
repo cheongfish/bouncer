@@ -31,6 +31,24 @@ Where does validation live?
 Recorded after review.
 `;
 
+const TASK_DESIGN_BODY = `# Tasks
+
+## Goal & intent
+마감은 blueprint 단위로 묶는다.
+
+## Interface
+task 설계 맥락을 explain에 남긴다.
+
+## Touch
+- \`src/auth/\`
+
+## Do not touch
+- \`src/payments/\`
+
+## Checklist
+- [ ] preserve context
+`;
+
 function writeDoc(repo, rel, data, body = '# x\n') {
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -101,7 +119,7 @@ function fullBlueprint(repo, {
       ],
       commit_sha: 'aabbccdd',
     },
-  });
+  }, TASK_DESIGN_BODY);
   writeDoc(repo, `${blueprintDir}/tasks/001/verification.md`, {
     type: 'bouncer.verification',
     title: 'Verified',
@@ -869,6 +887,10 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
     { id: '001', sha: 'aabbccdd' },
     { id: '002', sha: '11223344' },
   ]);
+  const explainBody = fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8');
+  assert.match(explainBody, /## Tasks\n\n### Task 001/);
+  assert.match(explainBody, /## Goal & intent\n[\s\S]*마감은 blueprint 단위로 묶는다/);
+  assert.doesNotMatch(explainBody, /verification evidence|## Checklist/);
   assert.deepStrictEqual(res.taskCommits, [
     { id: '001', sha: 'aabbccdd' },
     { id: '002', sha: '11223344' },

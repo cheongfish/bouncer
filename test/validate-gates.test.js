@@ -5,7 +5,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const { checkGate, parseTasksSections, extractPathCandidates, validateBlueprint } = require('../scripts/lib/validate');
+const {
+  checkGate,
+  parseTasksSections,
+  extractPathCandidates,
+  validateBlueprint,
+} = require('../scripts/lib/validate');
+const { parseExplainSections } = require('../scripts/lib/validate-sections');
 const { TEMPLATES } = require('../scripts/lib/templates');
 
 const rels = {
@@ -60,6 +66,13 @@ test('parseTasksSections reads English headings', () => {
   assert.ok(s.touch.includes('src/auth/'));
   assert.ok(s.doNotTouch.includes('src/payments/'));
   assert.ok(s.checklist.includes('implement validateLogin'));
+});
+
+test('explain parser recognizes optional Tasks without changing required sections', () => {
+  const sections = parseExplainSections(
+    `${EXPLAIN_BODY_OK || '# Explain'}\n\n## Tasks\n\n### Task 001\n\n#### Interface\nkept`,
+  );
+  assert.ok(sections.tasks.includes('### Task 001'));
 });
 
 test('parseTasksSections accepts Korean aliases', () => {

@@ -39,6 +39,8 @@ const EXPLAIN_SECTION_HEADINGS: SectionDef[] = [
   { key: 'code', re: /^##\s+Code\s*$/i },
   { key: 'quiz', re: /^##\s+Quiz\s*$/i },
   { key: 'understanding', re: /^##\s+이해\s*상태\s*$/i },
+  // task 맥락은 finalize가 선택적으로 채우며 G16 필수 목록과 분리한다.
+  { key: 'tasks', re: /^##\s+Tasks\s*$/i },
 ];
 
 // 작성 가이드는 HTML comment로 제공되므로, 가이드만 있는 section은 미작성으로
@@ -74,6 +76,10 @@ function parseSections(body: unknown, defs: SectionDef[]): Record<string, string
 
 function parseTasksSections(body: unknown): Record<string, string | null> {
   return parseSections(body, SECTION_DEFS);
+}
+
+function parseExplainSections(body: unknown): Record<string, string | null> {
+  return parseSections(body, EXPLAIN_SECTION_HEADINGS);
 }
 
 // Touch/Do-not-touch는 백틱 경로와 민줄 경로를 섞어 쓴다. 한쪽만 모으면
@@ -160,6 +166,7 @@ export = {
   stripComments,
   parseSections,
   parseTasksSections,
+  parseExplainSections,
   extractPathCandidates,
   pathsOverlap,
   pathJustifiedByTouch,
