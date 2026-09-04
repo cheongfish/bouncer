@@ -36,7 +36,7 @@ test('implementation keeps the call contract and defers the role rubric to the a
 test('implementation requires detailed why-comments on non-trivial changes', () => {
   const md = readSkill('implementation');
   assert.match(md, /Detailed comments/i);
-  assert.match(md, /[Hh]ard rule 9|하드룰 9/);
+  assert.match(md, /[Hh]ard rule 3|하드룰 3/);
   assert.match(md, /\bwhy\b/i);
   assert.match(md, /invariant|trade-?off|ceiling/i);
   assert.match(md, /thorough|상세|Prefer thoroughness/i);

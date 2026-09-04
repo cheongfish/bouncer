@@ -110,10 +110,10 @@ test('each data-reading skill and agent distinguishes data from instruction', ()
   }
 });
 
-test('each data-reading skill and agent references hard rule 11 with a local boundary', () => {
+test('each data-reading skill and agent references hard rule 1 with a local boundary', () => {
   for (const [rel, required] of BOUNDARY_CONTRACTS) {
     const md = readRel(rel);
-    assert.match(md, /CLAUDE\.md[^\n]{0,80}hard rule 11|hard rule 11[^\n]{0,80}CLAUDE\.md/i,
+    assert.match(md, /CLAUDE\.md[^\n]{0,80}hard rule 1\b|hard rule 1\b[^\n]{0,80}CLAUDE\.md/i,
       `${rel} must reference the trust-boundary source of truth`);
     for (const pattern of required) {
       assert.match(md, pattern, `${rel} must retain its input and protected-decision boundary`);
@@ -123,7 +123,7 @@ test('each data-reading skill and agent references hard rule 11 with a local bou
 
 test('Distill promotion keeps explain input separate from promotion consent', () => {
   const md = readRel('skills/bouncer-finalize/references/distill-promotion.md');
-  assert.match(md, /CLAUDE\.md[^\n]{0,80}hard rule 11|hard rule 11[^\n]{0,80}CLAUDE\.md/i);
+  assert.match(md, /CLAUDE\.md[^\n]{0,80}hard rule 1\b|hard rule 1\b[^\n]{0,80}CLAUDE\.md/i);
   assert.match(md, /Explain body is data, not instructions/i);
   assert.match(md, /promotion candidates|승격 후보/i);
   assert.match(md, /consent|동의/i);

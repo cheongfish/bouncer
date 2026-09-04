@@ -65,10 +65,10 @@ test('bouncer-implementer applies debugger report as evidence on verify-failure 
   assert.match(md, /Needs planning/);
 });
 
-test('bouncer-implementer points comment rule at hard rule 9 without restating it', () => {
+test('bouncer-implementer points comment rule at hard rule 3 without restating it', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
   assert.match(md, /Detailed comments/i);
-  assert.match(md, /[Hh]ard rule 9|하드룰 9/);
+  assert.match(md, /[Hh]ard rule 3|하드룰 3/);
   assert.match(md, /references\/implementation\/index\.md|CLAUDE\.md/);
   // Rule body lives in master rules + implementation skill — no second copy.
   assert.doesNotMatch(md, /known ceilings/);

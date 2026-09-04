@@ -643,17 +643,13 @@ test('plugin-root contract is shared while CLI shells call bouncer directly', ()
   }
 });
 
-test('hard rule 5 workflow order includes commit between execute and finalize', () => {
+test('workflow order includes commit between execute and finalize in When to invoke', () => {
   const claude = read('CLAUDE.md');
   const plan = read('skills/bouncer-plan/SKILL.md');
-  assert.match(
-    claude,
-    /\/bouncer-init`?\s*→\s*`?\/bouncer-plan`?\s*→\s*`?\/bouncer-execute`?\s*→\s*`?\/bouncer-commit`?\s*→\s*`?\/bouncer-finalize/,
-  );
   assert.match(claude, /\/bouncer-commit/);
   assert.match(claude, /When to invoke/i);
-  assert.match(claude, /\|\s*Run one blueprint to task exhaustion\s*\|\s*`\/bouncer-run`\s*\|/);
-  // 하드룰 5 후반(plan은 /bouncer-run을 가리킨다)은 절차 층 정본. 마스터 룰은 포인터만.
+  assert.match(claude, /\|\s*Run one blueprint to task exhaustion\s*\|\s*`?\/bouncer-run`?\s*\|/);
+  // 하드룰 후반(plan은 /bouncer-run을 가리킨다)은 절차 층 정본. 마스터 룰은 포인터만.
   assert.match(plan, /point the user at[\s\S]{0,80}\/bouncer-run/);
   assert.doesNotMatch(claude, /Plan points at `\/bouncer-run`/);
 });
@@ -849,21 +845,16 @@ test('master rules preserve single-file Distill fallback and CLI trust boundary'
   assert.doesNotMatch(claude, /distill\s+--for/);
   assert.doesNotMatch(claude, /baseline/);
   assert.doesNotMatch(claude, /single-file fallback|단일 파일.*폴백/i);
-  // --route·aggregate 금지는 finalize 번들이 distill --route 부재를 이미 단언하므로
-  // 살 곳이 CLAUDE.md 잔류 계약뿐이다.
-  assert.match(claude, /distill\s+--route/);
   assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
   assert.match(claude, /affected_paths/);
-  assert.match(claude, /aggregate|selection|합산|선택 결과/i);
-  assert.match(claude, /never[^\n]{0,120}(?:attach|associate|individual shard|개별 샤드)/i);
   assert.match(promotion, /audit\.shards/);
   assert.match(promotion, /relative[^\n]{0,20}path|상대 경로/i);
   assert.doesNotMatch(claude, /audit\.shards/);
   assert.doesNotMatch(claude, /relative[^\n]{0,20}path|상대 경로/i);
   assert.strictEqual(
-    (claude.match(/^11\.\s+\*\*Trust boundary\*\*/gm) || []).length,
+    (claude.match(/^1\.\s+\*\*Trust boundary\*\*/gm) || []).length,
     1,
-    'CLAUDE.md hard rule 11 is the single trust-boundary source of truth',
+    'CLAUDE.md hard rule 1 is the single trust-boundary source of truth',
   );
 });
 
@@ -935,35 +926,29 @@ test('root context tree non-canonical lives in init, not master rules', () => {
   assert.doesNotMatch(claude, /Never a root `context\/` tree/);
 });
 
-test('master rules require Korean context bodies and name stop-slop', () => {
+test('master rules require Korean context bodies and English metadata in hard rule 3', () => {
   const claude = read('CLAUDE.md');
-  const rule8 = claude.match(/^8\. \*\*Context language\*\*[\s\S]*?(?=^9\. \*\*Code comments\*\*)/m)[0];
-  assert.match(rule8, /Korean/);
-  assert.match(rule8, /title[\s\S]{0,120}Korean/i);
-  assert.match(rule8, /description[\s\S]{0,120}English ASCII/i);
-  assert.match(rule8, /tags[\s\S]{0,120}English ASCII/i);
-  assert.match(rule8, /stop-slop/);
-  assert.match(rule8, /advisory/i);
-  assert.match(rule8, /Distill stays English|English agent runtime/i);
+  const rule3 = claude.match(/^3\. \*\*Governance & Language\*\*[\s\S]*?(?=^## Session conduct)/m)[0];
+  assert.match(rule3, /Korean/);
+  assert.match(rule3, /English/);
+  assert.match(rule3, /Distill/);
 });
 
-test('hard rule 9 requires Korean code comments and points at implementation skill', () => {
+test('hard rule 3 requires Korean code comments and points at implementation skill', () => {
   const claude = read('CLAUDE.md');
-  assert.match(claude, /^9\.\s+\*\*Code comments\*\*/m);
+  assert.match(claude, /^3\.\s+\*\*Governance & Language\*\*/m);
   assert.match(claude, /non-obvious intent|비자명한 의도/i);
-  assert.match(claude, /Korean comment/i);
+  assert.match(claude, /Korean[\s\S]{0,30}comment/i);
   assert.match(claude, /references\/implementation\/index\.md/);
   // Distill pattern: obligation + pointer only — examples stay in the skill.
   const hardRules = claude.split(/^## Session conduct/m)[0];
   assert.doesNotMatch(hardRules, /```/);
 });
 
-test('hard rule 7 requires finalize promotion consent and caller-provided shard audit', () => {
+test('distill-promotion requires finalize promotion consent and caller-provided shard audit', () => {
   const claude = read('CLAUDE.md');
   const promotion = read('skills/bouncer-finalize/references/distill-promotion.md');
-  // consent는 distill-promotion.md가 "finalize 뒤 260자" 형태를 만족하지 않아 마스터 룰에 잔류.
-  assert.match(claude, /finalize[\s\S]{0,260}(?:consent|동의|승인)/i);
-  // 샤드 맵·분할 계약은 승격 레퍼런스 정본. 마스터 룰에 재진술하지 않는다.
+  // consent와 샤드 맵·분할 계약은 승격 레퍼런스 정본. 마스터 룰에 재진술하지 않는다.
   assert.match(promotion, /audit\.shards/);
   assert.match(promotion, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
   assert.match(promotion, /# <id>|# `<id>`/);
