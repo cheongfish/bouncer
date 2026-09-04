@@ -469,7 +469,8 @@ test('repository Distill shards preserve every original bullet and remain fully 
   }
 
   const expected = expectedBulletHashesFromShardFiles(repo);
-  assert.ok(expected.length > 100);
+  // 하한은 렌더 감사가 비어 있지 않음을 보장한다. 본문 다이어트 후 현실적 하한.
+  assert.ok(expected.length > 20);
 
   const rendered = renderShards(state);
   assert.deepStrictEqual(bulletHashes(rendered), expected);
@@ -513,18 +514,17 @@ function isGitIgnored(repo, target) {
 }
 
 test('repository Distill shard files stay within locked UTF-8 byte budgets', () => {
-  // 세션 주입량 상한: frontmatter 포함 파일 전체 UTF-8 바이트.
-  // 초과 시 불릿을 합치거나 회차·스킬 절차를 걷어내 다시 압축한다 — 단언을
-  // 약화해 통과시키지 않는다.
+  // 2026-09 Distill 대폭 다이어트 이후 상한. frontmatter 포함 파일 전체 UTF-8 바이트.
+  // 초과 시 불릿을 합치거나 drop 한 뒤 다시 압축한다 — 단언을 약화해 통과시키지 않는다.
   const repo = path.resolve(__dirname, '..');
   const budgets = {
-    core: 4096,
-    'validate-gates': 6144,
-    'context-layout': 4096,
-    'git-worktree': 3584,
-    graph: 3072,
-    'plugin-skills': 6144,
-    'build-ts': 1280,
+    core: 1536,
+    'validate-gates': 1536,
+    'context-layout': 1024,
+    'git-worktree': 1536,
+    graph: 1280,
+    'plugin-skills': 2048,
+    'build-ts': 768,
   };
   let total = 0;
   for (const [id, max] of Object.entries(budgets)) {
@@ -538,10 +538,9 @@ test('repository Distill shard files stay within locked UTF-8 byte budgets', () 
       `${id}.md must be <= ${max} UTF-8 bytes (got ${bytes})`,
     );
   }
-  // plugin-benchmark 샤드를 뺀 개별 상한 합. 쌍 예산(8900)은 그 샤드와 함께 폐기한다.
   assert.ok(
-    total <= 28416,
-    `all registered shards must total <= 28416 UTF-8 bytes (got ${total})`,
+    total <= 9728,
+    `all registered shards must total <= 9728 UTF-8 bytes (got ${total})`,
   );
 });
 

@@ -78,7 +78,7 @@ append a change log.
 
 core: shared workflow, scope, and Distill consumption rules (always-only).
 validate-gates: validation, verification, and gate contracts.
-context-layout: context ids, task layout, and migration rules.
+context-layout: context ids, task layout, and schema constants.
 git-worktree: worktree, commit-safety, and finalize boundaries.
 graph: Graphify, digest, freshness, and graph absence behavior.
 plugin-skills: entry skills, helper references, agents, rules, host manifests, top-level docs.
