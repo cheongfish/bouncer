@@ -111,24 +111,9 @@ const SUPERPOWERS_NEGATIVE_TESTS = new Set([
 ]);
 
 /**
- * 벤치마크 비교 arm을 이름으로 적는 문서만. 제품 워크플로 통합이 돌아온 것이
- * 아니다. 공개 이름 회귀는 Bouncer *제품* 표면이 해당 플러그인을 사이클/설치
- * 통합으로 주장하는 것을 막는다. protocol + harness skill에 측정 비교 arm으로
- * 적는 것은 그 주장이 아니다. 집합을 비우거나 ARCHITECTURE.md / install.md 를
- * 넣으면 그 경계가 무너진다. protocol.md 는 커밋 전 untracked 라 `git ls-files`
- * 스캔에서 빠져도, 커밋 직후 같은 테스트가 깨지지 않게 집합에는 둔다.
+ * 비교 arm 파일을 허용하던 집합은 그 문서·스킬과 함께 사라졌다.
+ * 제품 표면이 해당 플러그인을 사이클/설치 통합으로 주장하면 아래 스캔이 막는다.
  */
-const COMPARISON_ARM_ALLOWLIST = new Set([
-  'docs/benchmark/protocol.md',
-  'docs/benchmark/deepswe/protocol.md',
-  // 052 비교표와 회차 표가 arm 열 이름을 그대로 적는다. 제품 통합이 아니다.
-  'docs/benchmark/deepswe/comparison.md',
-  'docs/benchmark/history.md',
-  'skills/agentic-code-benchmark/SKILL.md',
-  'skills/agentic-code-benchmark/references/task-suite.md',
-  // 러너는 문서가 아니지만 `--arm` choices 가 사용자가 실제로 치는 값이라 리터럴을 뺄 수 없다.
-  'skills/agentic-code-benchmark/scripts/run_deepswe.py',
-]);
 
 // Build patterns without contiguous forbidden literals in this file's source
 // so a self-scan of the suite cannot false-positive on the checker itself.
@@ -168,30 +153,9 @@ test('active surfaces contain no Superpowers integration reference', () => {
     const text = read(file);
     if (!SUPERPOWERS_RE.test(text)) continue;
     if (SUPERPOWERS_NEGATIVE_TESTS.has(file)) continue;
-    if (COMPARISON_ARM_ALLOWLIST.has(file)) continue;
     offenders.push(file);
   }
   assert.deepStrictEqual(offenders, [], `Superpowers references in:\n${offenders.join('\n')}`);
-});
-
-test('comparison-arm allowlist still names the third-party benchmark arm', () => {
-  let scanned = 0;
-  for (const file of COMPARISON_ARM_ALLOWLIST) {
-    const abs = path.join(root, file);
-    // untracked protocol.md 도 디스크에 있으면 검사한다. git ls-files 밖에
-    // 있어도 커밋 후 스캔 대상이 되므로, 집합이 빈 허가가 되지 않게 한다.
-    if (!fs.existsSync(abs)) continue;
-    scanned += 1;
-    assert.match(
-      read(file),
-      SUPERPOWERS_RE,
-      `${file} is allowlisted as a comparison arm but no longer names that arm`,
-    );
-  }
-  assert.ok(
-    scanned > 0,
-    'comparison-arm allowlist must match at least one existing file',
-  );
 });
 
 test('active surfaces omit sdd names except legacy-rejection allowlist', () => {

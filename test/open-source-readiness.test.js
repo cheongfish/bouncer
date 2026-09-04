@@ -17,8 +17,6 @@ const THIRD_PARTY = {
     'a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550',
   'references/stop-slop/LICENSE':
     '2e2b2beaf41cc0ce28485455a62aed81777cdcdf68702e142427aef1cd720f2c',
-  'skills/agentic-code-benchmark/NOTICE.md':
-    '2f2e8bbd5b019364f43d0973f175af15b9dfd2ed964d6708ddd0f5cc4e135847',
 };
 
 const AUTHOR_EMAIL = 'rlq10324@chunjae.com';

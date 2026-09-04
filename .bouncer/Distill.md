@@ -60,12 +60,6 @@ distill:
         - .cursor-plugin/**
         - .codex-plugin/**
       pulls: []
-    - id: plugin-benchmark
-      paths:
-        - skills/agentic-code-benchmark/**
-        - docs/benchmark/**
-        - .benchmarks/**
-      pulls: []
     - id: build-ts
       paths:
         - scripts/src/**
@@ -88,5 +82,4 @@ context-layout: context ids, task layout, and migration rules.
 git-worktree: worktree, commit-safety, and finalize boundaries.
 graph: Graphify, digest, freshness, and graph absence behavior.
 plugin-skills: entry skills, helper references, agents, rules, host manifests, top-level docs.
-plugin-benchmark: benchmark skill, docs/benchmark, and .benchmarks runtime output.
 build-ts: TypeScript emit and Node-only consumer constraints.
