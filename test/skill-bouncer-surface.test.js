@@ -25,8 +25,8 @@ const UNPUBLISHED = [
 const UNPUBLISHED_SET = new Set(UNPUBLISHED);
 
 const STEPS_EXEMPT = new Set(['minimality', 'stop-slop']);
-// 워크플로 여섯 + agentic-code-benchmark (migrate-ids 제거 후).
-const EXPECTED_SKILL_COUNT = 7;
+// 호스트 카탈로그는 워크플로 여섯뿐이다. 폐기한 agentic-code-benchmark를 다시 넣지 않는다.
+const EXPECTED_SKILL_COUNT = 6;
 const MIN_DESCRIPTION_CHARS = 100;
 const MAX_DESCRIPTION_CHARS = 180;
 const MAX_TOTAL_DESCRIPTION_CHARS = 3000;
@@ -384,6 +384,9 @@ test('unpublished helpers live under references/ and are absent from the catalog
     assert.ok(fs.existsSync(path.join(root, 'references', name, 'index.md')));
   }
   assert.equal(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')), false);
+  // 카탈로그에서 뺀 스킬은 migrate-ids와 같이 부재를 고정한다. 개수 단언만 두면
+  // 다른 이름을 넣어도 6이면 통과한다.
+  assert.equal(fs.existsSync(path.join(root, 'skills', 'agentic-code-benchmark', 'SKILL.md')), false);
 });
 
 test('canonical skill descriptions stay within the locked YAML-scalar budget', () => {

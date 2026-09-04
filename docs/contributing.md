@@ -119,9 +119,8 @@ CI는 `main`/`develop` 푸시와 PR마다 같은 명령을 돌립니다. GitHub 
 
 이 저장소는 [Apache-2.0](../LICENSE)입니다. PR·패치·문서 등 기여물은 별도의
 약정이 없으면 같은 Apache-2.0 조건으로 제공되는 것으로 봅니다. 제3자 고지
-(`scripts/vendor/js-yaml.LICENSE`, `references/stop-slop/LICENSE`,
-`skills/agentic-code-benchmark/NOTICE.md`)는 반입 코드의 원 라이선스이므로
-삭제하지 않습니다.
+(`scripts/vendor/js-yaml.LICENSE`, `references/stop-slop/LICENSE`)는 반입
+코드의 원 라이선스이므로 삭제하지 않습니다.
 
 참여는 [Contributor Covenant 2.1](../CODE_OF_CONDUCT.md)을 따릅니다.
 

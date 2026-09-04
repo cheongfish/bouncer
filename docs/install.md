@@ -81,9 +81,9 @@ marketplace 카탈로그는 두지 않습니다. Cursor 세션에서:
 /add-plugin <사내-git-url>
 ```
 
-호스트 관례 스캔은 공개 집합 `skills/*/SKILL.md`(워크플로 여섯·
-`agentic-code-benchmark`)만 잡습니다. 보조 브리프는 `references/<name>/index.md`에
-두고 카탈로그에 올리지 않습니다. 커밋 가드는
+호스트 관례 스캔은 공개 집합 `skills/*/SKILL.md`(워크플로 여섯)만
+잡습니다. 보조 브리프는 `references/<name>/index.md`에 두고 카탈로그에
+올리지 않습니다. 커밋 가드는
 `hooks/cursor-hooks.json`이 `beforeShellExecution`에 걸어 주며, `affected_paths`
 밖 파일이 staged면 셸 실행을 `deny`합니다. Claude Code의 `PreToolUse` 가드와
 **판정 로직이 같은 모듈**(`scripts/lib/commit-hook.js`)입니다. 훅은 상대 경로를

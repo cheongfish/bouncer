@@ -55,7 +55,7 @@ Required body order after YAML frontmatter:
 ## Subskills (`references/<name>/index.md`, not host catalog)
 
 Helper briefs live under plugin-root `references/<name>/index.md`. Hosts scan
-only `skills/*/SKILL.md` (workflow six + `agentic-code-benchmark`). Do not put
+only `skills/*/SKILL.md` (workflow six). Do not put
 helper bodies back under `skills/<name>/SKILL.md`.
 
 Required body order after YAML frontmatter:

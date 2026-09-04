@@ -18,7 +18,6 @@ const SKILLS = [
   'implementation',
   'debugging',
   'context-review',
-  'agentic-code-benchmark',
 ];
 
 const AGENTS = [
@@ -57,7 +56,6 @@ const BOUNDARY_CONTRACTS = new Map([
   ['references/implementation/index.md', [/Repo source/, /\.bouncer\/context/, /Touch/, /Do not touch/]],
   ['references/debugging/index.md', [/Verify logs/, /returned report/, /affected_paths/, /document status/]],
   ['references/context-review/index.md', [/Epic, blueprint, and task bodies/, /judgment/, /status/]],
-  ['skills/agentic-code-benchmark/SKILL.md', [/diff/, /task text/, /judging\s+subagent/, /benchmark\s+contract/i]],
   ['agents/bouncer-implementer.md', [/repo source/, /\.bouncer\/context/, /task brief/i, /Touch/, /Do not touch/]],
   ['agents/bouncer-reviewer.md', [/worktree diff/, /nested\s+subagent/, /brief/, /review status/]],
   ['agents/bouncer-debugger.md', [/verify output/, /logs/, /stack traces/, /affected_paths/, /document status/]],
@@ -88,7 +86,7 @@ function agentRel(name) {
 }
 
 test('trust-boundary list excludes skills that do not read untrusted data', () => {
-  assert.strictEqual(SKILLS.length, 9);
+  assert.strictEqual(SKILLS.length, 8);
   assert.strictEqual(AGENTS.length, 4);
   for (const name of OUTSIDE_SKILLS) {
     assert.ok(

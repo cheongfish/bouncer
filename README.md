@@ -63,16 +63,11 @@ git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit 
 | 오타·문구 수정처럼 검증할 것이 없는 변경 | 일반 커밋 |
 
 
-## Measured results
-
-회차별 수치는 [docs/benchmark/history.md](docs/benchmark/history.md)에 있다. 새 스위트는 준비 중이다.
-
 ## Requirements
 
 - Node.js 24에서 검증 (런타임은 표준 라이브러리 + 벤더링된 `js-yaml`)
 - Claude Code, Cursor, Codex, 또는 Antigravity
 - (선택) `gh`: finalize 시 draft PR 생성
-- (선택) `python3`: `agentic-code-benchmark` 스킬 실행
 
 ## Documentation
 
@@ -84,7 +79,6 @@ git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit 
 
 설계 배경은 [ARCHITECTURE.md](docs/ARCHITECTURE.md), 커밋 가드가 막지 못하는 것은
 [security.md](docs/security.md)에 정리되어 있습니다.
-효과 측정 회차 기록은 [docs/benchmark/history.md](docs/benchmark/history.md)이다.
 
 ## Contributing · License
 

@@ -63,10 +63,10 @@
 
 이 저장소는 전량 모드(`bouncer distill --all`)로 인덱스와 모든 shard를 먼저
 관찰한 뒤 `distill.routing_enabled: true`를 명시한다. 현재 dogfood 인덱스는
-8개 shard(`core`, `validate-gates`, `context-layout`, `git-worktree`, `graph`,
-`plugin-skills`, `plugin-benchmark`, `build-ts`)다. `core`는 `always`만
-쓰고 경로 glob이 없으며, `plugin-skills`와 `plugin-benchmark`는 겹치지 않는
-양의 경로로 나뉜다. 활성화 전에는 구조 validator가 고아 shard, 경로가 없는
+7개 shard(`core`, `validate-gates`, `context-layout`, `git-worktree`, `graph`,
+`plugin-skills`, `build-ts`)다. `core`는 `always`만
+쓰고 경로 glob이 없으며, `plugin-skills`는 워크플로·문서 경로만 맡는다.
+활성화 전에는 구조 validator가 고아 shard, 경로가 없는
 비항상 shard, 잘못된 `pulls`, 순환, `source_dirs`의 routing 구멍을 모두 경고
 없이 통과하는지 확인해야 한다.
 
@@ -81,7 +81,7 @@ validator의 경고는 활성화 가능 여부를 판정하는 구조화된 결�
 UTF-8 byte 수가 기준을 넘었다는 경고(S26)를 내는 관찰 기준일 뿐이며, 결과를
 잘라내거나 shard를 버리지 않는다. 기본값과 이 저장소 dogfood 설정은 모두
 6KB(6144)다 — 대략 7.1 바이트/단어 환산으로 ≈865 단어이며, 샤드별 상한과
-전체 합계(31,176)를 테스트가 고정한다. `bouncer distill --all`은 같은
+전체 합계(28,416)를 테스트가 고정한다. `bouncer distill --all`은 같은
 기준으로 샤드별·총합 바이트를 stderr에만 남긴다. 그 초과 요약은
 `/bouncer-finalize` 승격 ACQ와 `/bouncer-plan` 프리플라이트 한 줄 보고에만
 보이며 게이트가 아니다. 활성화된 저장소에서 구조 경고가 남아 있으면

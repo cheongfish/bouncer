@@ -453,7 +453,6 @@ test('repository Distill shards preserve every original bullet and remain fully 
     'git-worktree',
     'graph',
     'plugin-skills',
-    'plugin-benchmark',
     'build-ts',
   ]);
   for (const shard of state.shards) {
@@ -525,31 +524,24 @@ test('repository Distill shard files stay within locked UTF-8 byte budgets', () 
     'git-worktree': 3584,
     graph: 3072,
     'plugin-skills': 6144,
-    'plugin-benchmark': 6144,
     'build-ts': 1280,
   };
-  const sizes = {};
   let total = 0;
   for (const [id, max] of Object.entries(budgets)) {
     const bytes = Buffer.byteLength(
       fs.readFileSync(path.join(repo, DISTILL_ROOT, `${id}.md`)),
       'utf8',
     );
-    sizes[id] = bytes;
     total += bytes;
     assert.ok(
       bytes <= max,
       `${id}.md must be <= ${max} UTF-8 bytes (got ${bytes})`,
     );
   }
-  const pluginPair = sizes['plugin-skills'] + sizes['plugin-benchmark'];
+  // plugin-benchmark 샤드를 뺀 개별 상한 합. 쌍 예산(8900)은 그 샤드와 함께 폐기한다.
   assert.ok(
-    pluginPair <= 8900,
-    `plugin-skills + plugin-benchmark must be <= 8900 UTF-8 bytes (got ${pluginPair})`,
-  );
-  assert.ok(
-    total <= 31176,
-    `all registered shards must total <= 31176 UTF-8 bytes (got ${total})`,
+    total <= 28416,
+    `all registered shards must total <= 28416 UTF-8 bytes (got ${total})`,
   );
 });
 

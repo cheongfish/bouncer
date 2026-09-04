@@ -9,6 +9,8 @@
 
 ### Removed
 
+- **`agentic-code-benchmark` 스킬과 벤치마크 문서** — 워크플로에 연결되지 않은
+  측정 스킬·결과·프로토콜을 공개 카탈로그에서 제거한다. 대체 계측은 두지 않는다.
 - **`bouncer migrate ids` / `migrate-ids` / SessionStart legacy-id 경고** —
   구형 `EPIC-`/`BP-` 자동 이관 CLI·스킬·훅을 제거한다. dirty-worktree 판정은
   `runtime-state.isWorktreeDirty`가 `migrate task-layout`·`import`와 공유한다.
