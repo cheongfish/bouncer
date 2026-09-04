@@ -7,6 +7,27 @@
 
 ## [Unreleased]
 
+## [1.3.7] — 2026-09-04
+
+1.3.6 이후 문서·커밋 계약 정비, 레거시 이관·벤치마크 표면 제거.
+
+### Added
+
+- **컨텍스트 템플릿 주석 검사** — 신규·수정 `.bouncer/context` 문서에 남은
+  스캐폴드 안내 주석·TODO를 CI lint로 잡는다.
+- **task 분해 임계치 경고** — plan gate가 `affected_paths` 20개 초과를
+  `warnings`로 알린다. 게이트 실패는 아니다.
+- **explain Tasks 맥락** — finalize가 task의 Goal·Interface·Do not touch를
+  `explain.md` `## Tasks`로 보존한다.
+- **저작 커밋 메시지 필드** — `bouncer.commit_summary`와 완화된
+  `commit_intent`로 task·finalize 커밋 본문을 만든다.
+
+### Changed
+
+- **task 커밋 스테이징** — 임시 task bundle·context-review·blueprint/epic
+  색인·Distill은 task 커밋에서 제외하고 finalize remainder가 소유한다.
+- **문서 검사 파이프라인** — 컨텍스트 주석 검사와 docs 구조 검사를 분리한다.
+
 ### Removed
 
 - **`agentic-code-benchmark` 스킬과 벤치마크 문서** — 워크플로에 연결되지 않은

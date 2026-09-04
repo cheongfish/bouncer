@@ -16,7 +16,7 @@
 | [workflow.md](workflow.md) | `/bouncer-*` 다섯 단계와 게이트 흐름 개요 |
 | [configuration.md](configuration.md) | `.bouncer/config.json` 필드·값·예시 |
 | [gates.md](gates.md) | 게이트별 G 코드와 항상 도는 S 코드 |
-| [compatibility.md](compatibility.md) | 1.3.6 호환성 계약, 공개 이름과 변경·이관 절차 |
+| [compatibility.md](compatibility.md) | 1.3.7 호환성 계약, 공개 이름과 변경·이관 절차 |
 | [cli.md](cli.md) | `bouncer` CLI 명령과 플래그 |
 | [troubleshooting.md](troubleshooting.md) | 게이트 실패·막힘 대처, 피드백 |
 | [context-versioning.md](context-versioning.md) | `.bouncer/` 커밋 정책과 부트스트랩 |
@@ -25,7 +25,7 @@
 | [PILOT.md](PILOT.md) | 파일럿 안내와 알려진 마찰 |
 | [contributing.md](contributing.md) | 개발, 커밋·PR 규약, CI |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 플러그인 제품 설계 결정 (ADR) |
-| [Changelog](../CHANGELOG.md) | 변경 이력 · [1.3.6](../CHANGELOG.md#136--2026-09-04) |
+| [Changelog](../CHANGELOG.md) | 변경 이력 · [1.3.7](../CHANGELOG.md#137--2026-09-04) |
 
 ## rules — 에이전트 런타임
 
