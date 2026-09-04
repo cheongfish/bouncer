@@ -84,7 +84,7 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 표의 여덟 이름과 아래 보조(`explain-diff`·`graphify-runner`·`context-review`
 포함)는 `references/<name>/index.md`에 두고, 호스트가 스캔하는
 `skills/*/SKILL.md` 카탈로그에는 올리지 않는다. 공개 카탈로그는
-`skills/bouncer-*` 여섯과 `migrate-ids`·`agentic-code-benchmark`뿐이다.
+`skills/bouncer-*` 여섯과 `agentic-code-benchmark`뿐이다.
 
 | 스킬 | 책임 |
 | --- | --- |

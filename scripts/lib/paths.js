@@ -17,18 +17,6 @@ function toPosix(p) {
 function isNumericContextId(id) {
     return typeof id === 'string' && /^\d{3}$/.test(id);
 }
-/**
- * migrate-ids 전용: 구형 frontmatter 접두를 떼어 정본 형태로 맞춘다.
- * EPIC-014→014, BP-001→001, TASKS-BP-001→TASKS-001.
- * S4/S5는 이 함수를 거치지 않고 정본만 받는다 — 구형 값은 그대로 실패한다.
- */
-function normalizeContextId(value) {
-    if (typeof value !== 'string')
-        return value;
-    return value
-        .replace(/^(TASKS|VERIFY|REVIEW|EXPLAIN)-BP-(\d{3})$/, '$1-$2')
-        .replace(/^(?:EPIC|BP)-(\d{3})$/, '$1');
-}
 function parsePathIds(resourcePath) {
     const norm = toPosix(resourcePath);
     const epicM = EPIC_SEG_RE.exec(norm);
@@ -53,5 +41,5 @@ function epicDirOf(blueprintDir) {
     return toPosix(blueprintDir).split('/blueprints/')[0];
 }
 module.exports = {
-    parsePathIds, epicDirOf, toPosix, isNumericContextId, normalizeContextId,
+    parsePathIds, epicDirOf, toPosix, isNumericContextId,
 };

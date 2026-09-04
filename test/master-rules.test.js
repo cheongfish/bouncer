@@ -625,7 +625,6 @@ test('plugin-root contract is shared while CLI shells call bouncer directly', ()
     'skills/bouncer-finalize/references/explain-quiz.md',
     'references/explain-diff/index.md',
     'references/graphify-runner/index.md',
-    'skills/migrate-ids/SKILL.md',
   ];
   for (const rel of consumers) {
     const source = read(rel);
@@ -903,8 +902,8 @@ test('When to invoke lists workflow entry points only; unpublished helpers drop 
       `${name} index.md must not invite by-name invocation`,
     );
   }
-  // migrate-ids는 공개 카탈로그에 남고 by-name 문구 단언에서 제외한다.
-  assert.ok(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')));
+  // migrate-ids 스킬·CLI는 제거됐다 — 카탈로그에 남지 않아야 한다.
+  assert.equal(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')), false);
 });
 
 test('session conduct 4 self-check lives in verification, not master rules', () => {

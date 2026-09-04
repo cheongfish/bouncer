@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
-  parsePathIds, epicDirOf, isNumericContextId, normalizeContextId,
+  parsePathIds, epicDirOf, isNumericContextId,
 } = require('../scripts/lib/paths');
 
 const BP_NEW = '.bouncer/context/epics/014-numeric/blueprints/001-id-contract';
@@ -58,15 +58,4 @@ test('isNumericContextId accepts only zero-padded three digits', () => {
   assert.strictEqual(isNumericContextId('01'), false);
   assert.strictEqual(isNumericContextId('EPIC-001'), false);
   assert.strictEqual(isNumericContextId('BP-001'), false);
-});
-
-test('normalizeContextId strips transitional EPIC-/BP- prefixes', () => {
-  assert.strictEqual(normalizeContextId('014'), '014');
-  assert.strictEqual(normalizeContextId('EPIC-014'), '014');
-  assert.strictEqual(normalizeContextId('BP-001'), '001');
-  assert.strictEqual(normalizeContextId('TASKS-001'), 'TASKS-001');
-  assert.strictEqual(normalizeContextId('TASKS-BP-001'), 'TASKS-001');
-  assert.strictEqual(normalizeContextId('VERIFY-BP-001'), 'VERIFY-001');
-  assert.strictEqual(normalizeContextId('REVIEW-BP-001'), 'REVIEW-001');
-  assert.strictEqual(normalizeContextId('EXPLAIN-BP-001'), 'EXPLAIN-001');
 });

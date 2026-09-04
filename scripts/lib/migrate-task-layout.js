@@ -11,12 +11,37 @@ const { parseFrontmatter } = frontmatter;
 const render = require("./render");
 const { renderDoc } = render;
 const runtimeState = require("./runtime-state");
-const { readRuntimeCurrent, writeRuntimeCurrent } = runtimeState;
-const migrateIds = require("./migrate-ids");
-const { isWorktreeDirty, walkMarkdownFiles } = migrateIds;
+const { readRuntimeCurrent, writeRuntimeCurrent, isWorktreeDirty } = runtimeState;
 const tasksDocs = require("./tasks-docs");
 const { expectedTaskDocIds } = tasksDocs;
 const NUMBERED = /^tasks-(\d{3})\.md$/;
+/** context 트리의 .md 절대 경로를 모은다. migrate-ids 제거 후 이 파일만 쓴다. */
+function walkMarkdownFiles(absDir, out = []) {
+    if (!fs.existsSync(absDir))
+        return out;
+    let entries;
+    try {
+        entries = fs.readdirSync(absDir);
+    }
+    catch (_e) {
+        return out;
+    }
+    for (const name of entries) {
+        const abs = path.join(absDir, name);
+        let st;
+        try {
+            st = fs.statSync(abs);
+        }
+        catch (_e) {
+            continue;
+        }
+        if (st.isDirectory())
+            walkMarkdownFiles(abs, out);
+        else if (name.endsWith('.md'))
+            out.push(abs);
+    }
+    return out;
+}
 function legacyUnits(repoRoot) {
     const units = [];
     for (const abs of walkMarkdownFiles(path.join(repoRoot, CONTEXT_ROOT))) {

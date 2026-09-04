@@ -19,10 +19,10 @@ const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8
 const LAUNCHER_SKILLS = [
   'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit',
   'bouncer-finalize', 'bouncer-run', 'explain-diff', 'graphify-runner',
-  'migrate-ids', 'review',
+  'review',
 ];
 // 호스 카탈로그에서 뺀 보조는 references/<name>/index.md에 본문이 있다.
-// 워크플로·migrate-ids만 skills/<name>/SKILL.md를 유지한다.
+// 워크플로만 skills/<name>/SKILL.md를 유지한다(런처 보조는 references/).
 const LAUNCHER_UNPUBLISHED = new Set(['explain-diff', 'graphify-runner', 'review']);
 
 /**

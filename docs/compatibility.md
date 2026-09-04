@@ -173,10 +173,28 @@ breaking change가 아니다.
 절을 채우고 plan 게이트를 다시 돌린다. 이미 마감한 light blueprint에 소급해
 `context-review.md`를 만들지는 않는다.
 
+## 파기한 계약: migrate-ids 자동 이관
+
+**바꾼 것.** `bouncer migrate ids`, `migrate-ids` 스킬, SessionStart
+`session-legacy-ids` 경고 훅을 제거했다. dirty-worktree 판정은
+`runtime-state.isWorktreeDirty`로 옮겨 `migrate task-layout`과 `import`가
+그대로 쓴다.
+
+**왜.** 숫자 id가 정본이 된 뒤 자동 이관 표면은 유지비와 공개 카탈로그 노이즈만
+남겼다. 미이관 트리는 validate가 거절하므로 별도 CLI 없이도 실패가 드러난다.
+
+**영향.** `bouncer migrate ids`와 `migrate-ids` by-name 호출은 더 이상 없다.
+구형 `EPIC-`/`BP-` 경로가 남은 저장소는 수동으로 숫자 id로 맞춘 뒤 validate를
+통과해야 한다. `bouncer migrate task-layout`은 유지한다.
+
+**대체 경로.** 없다. 구형 접두 디렉터리·frontmatter를 숫자 id 정본으로 직접
+정리한다. 루트 task 문서만 남은 경우는 `bouncer migrate task-layout --dry-run`
+후 apply.
+
 ## Migration path
 
-구형 `EPIC-`/`BP-` 디렉터리는 `bouncer migrate ids`, 구형 루트 task 문서는
-`bouncer migrate task-layout`의 dry-run을 확인한 뒤 이관한다. 문서 type/status를
+구형 루트 task 문서는 `bouncer migrate task-layout`의 dry-run을 확인한 뒤
+이관한다. 문서 type/status를
 `scripts/lib/schema.js`의 현재 어휘로 맞추고, 번들 루트 index에
 `bouncer_schema: "0.1"`을 둔다. G9/G15/S14를 적어 우회하지 말고 현재 검사와
 [gates.md](gates.md)를 따른다.

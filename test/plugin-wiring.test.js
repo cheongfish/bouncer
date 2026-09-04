@@ -36,12 +36,16 @@ test('hooks.json registers commit-safety on PreToolUse Bash', () => {
   assert.ok(entry.hooks[0].command.includes('commit-safety.js'));
 });
 
-test('hooks.json registers session-graph and session-legacy-ids on SessionStart', () => {
+test('hooks.json registers session-graph only on SessionStart', () => {
   const hooks = readJson('hooks/hooks.json');
   const start = hooks.hooks.SessionStart;
   assert.ok(Array.isArray(start));
-  assert.strictEqual(start.length, 2, 'SessionStart must keep graph and legacy hooks as separate entries');
+  assert.strictEqual(start.length, 1, 'SessionStart must register only session-graph');
   const commands = start.map((entry) => entry.hooks[0].command);
   assert.ok(commands.some((c) => c.includes('session-graph.js')), 'session-graph.js missing');
-  assert.ok(commands.some((c) => c.includes('session-legacy-ids.js')), 'session-legacy-ids.js missing');
+  assert.ok(
+    !commands.some((c) => c.includes('session-legacy-ids.js')),
+    'session-legacy-ids.js must not remain wired',
+  );
+  assert.equal(fs.existsSync(path.join(root, 'hooks', 'session-legacy-ids.js')), false);
 });

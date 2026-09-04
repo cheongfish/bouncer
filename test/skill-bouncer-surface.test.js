@@ -11,11 +11,11 @@ const WORKFLOW = [
   'bouncer-init', 'bouncer-plan', 'bouncer-execute', 'bouncer-commit', 'bouncer-finalize',
   'bouncer-run',
 ];
-// migrate-ids stays under skills/; the other subskills live at references/<name>/index.md.
+// Subskills live at references/<name>/index.md (not the host skills/ catalog).
 const SUB_PATHS = [
   'discovery', 'spec-authoring', 'implementation', 'verification',
   'review', 'minimality', 'debugging', 'graphify-runner', 'explain-diff',
-  'stop-slop', 'context-review', 'migrate-ids',
+  'stop-slop', 'context-review',
 ];
 const UNPUBLISHED = [
   'discovery', 'spec-authoring', 'stop-slop', 'graphify-runner', 'minimality',
@@ -25,7 +25,8 @@ const UNPUBLISHED = [
 const UNPUBLISHED_SET = new Set(UNPUBLISHED);
 
 const STEPS_EXEMPT = new Set(['minimality', 'stop-slop']);
-const EXPECTED_SKILL_COUNT = 8;
+// 워크플로 여섯 + agentic-code-benchmark (migrate-ids 제거 후).
+const EXPECTED_SKILL_COUNT = 7;
 const MIN_DESCRIPTION_CHARS = 100;
 const MAX_DESCRIPTION_CHARS = 180;
 const MAX_TOTAL_DESCRIPTION_CHARS = 3000;
@@ -340,8 +341,7 @@ test('workflow skill bodies use English headings', () => {
 });
 
 /**
- * 보조는 references/<name>/index.md, migrate-ids만 skills/ 카탈로그에 남긴다.
- * SUB_PATHS를 통째로 references로 옮기지 않는다.
+ * 보조는 references/<name>/index.md에만 둔다. SUB_PATHS를 skills/로 되돌리지 않는다.
  *
  * @param {string} name - 서브스킬 디렉터리 이름
  * @returns {string} 본문 절대 경로
@@ -383,7 +383,7 @@ test('unpublished helpers live under references/ and are absent from the catalog
     assert.equal(fs.existsSync(path.join(root, 'references', name, 'SKILL.md')), false);
     assert.ok(fs.existsSync(path.join(root, 'references', name, 'index.md')));
   }
-  assert.ok(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')));
+  assert.equal(fs.existsSync(path.join(root, 'skills', 'migrate-ids', 'SKILL.md')), false);
 });
 
 test('canonical skill descriptions stay within the locked YAML-scalar budget', () => {

@@ -700,8 +700,6 @@ function classifyDocPath(relPath) {
   if (/^skills\/bouncer-[^/]+\/SKILL\.md$/.test(norm)) return 'workflow';
   if (/^agents\/[^/]+\.md$/.test(norm)) return 'agent';
   if (/^references\/[^/]+\/index\.md$/.test(norm)) return 'subskill';
-  // migrate-ids만 catalog skill이면서 subskill 본문 순서를 따른다.
-  if (norm === 'skills/migrate-ids/SKILL.md') return 'subskill';
   return null;
 }
 

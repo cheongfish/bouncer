@@ -35,7 +35,6 @@ const OUTSIDE_SKILLS = [
   'minimality',
   'verification',
   'explain-diff',
-  'migrate-ids',
   'bouncer-init',
   'bouncer-commit',
   'bouncer-finalize',
