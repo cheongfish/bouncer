@@ -108,14 +108,19 @@ function checkGate(gate, docs, rels, failures, ctx) {
     if (typeof gate === 'object' && gate !== null) {
         const opts = gate;
         const collected = [];
+        const warnings = [];
         checkGate(opts.gate, opts.docs || {}, opts.rels, collected, {
             repoRoot: opts.repoRoot,
             blueprintDir: opts.blueprintDir,
             deps: opts.deps,
             taskUnit: opts.taskUnit,
             parseErrors: opts.parseErrors,
+            warnings,
         });
-        return { failures: collected };
+        // 기존 소비자는 warnings 부재를 허용한다 — 빈 배열이면 키를 생략한다.
+        return warnings.length > 0
+            ? { failures: collected, warnings }
+            : { failures: collected };
     }
     return runCheckGate(gate, docs, rels, failures, ctx || {});
 }
@@ -216,6 +221,17 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
             if (!Array.isArray(ap) || ap.length === 0)
                 addTask('G5', 'tasks.affected_paths missing or empty');
+            // 20 초과는 한-커밋 리뷰 판단을 돕는 보조 신호일 뿐 — G/S 실패로 올리지 않는다.
+            // 정당한 넓은 task(대량 리네임·이관)도 통과해야 하므로 failures에 넣지 않는다.
+            if (Array.isArray(ap) && ap.length > 20 && Array.isArray(ctx.warnings)) {
+                ctx.warnings.push({
+                    // G/S 코드가 아니다. FailureEntry 형태만 맞춰 구조화 경고로 싣는다.
+                    code: 'task-split',
+                    message: `affected_paths has ${ap.length} entries; `
+                        + 'if it cannot be reviewed as one commit, split the task',
+                    file,
+                });
+            }
             const tasksBody = tasksDoc && typeof tasksDoc.body === 'string' ? tasksDoc.body : '';
             const sections = parseTasksSections(tasksBody);
             const missing = sectionKeys.filter((k) => !sections[k]);

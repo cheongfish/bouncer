@@ -1118,6 +1118,92 @@ test('validateBlueprint plan gate loads tasks body from disk for G10–G12 pass'
   assert.deepStrictEqual(res, { ok: true, failures: [] });
 });
 
+function nPaths(n) {
+  return Array.from({ length: n }, (_, i) => `src/auth/f${String(i + 1).padStart(2, '0')}.js`);
+}
+
+function writePlanBlueprintWithPaths(repo, pathCount) {
+  const tasks = planReadyTasks();
+  tasks.bouncer.affected_paths = nPaths(pathCount);
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, tasks, planReadyTasksBody());
+  writeDoc(
+    repo,
+    `${BP_REL}/tasks/001/verification.md`,
+    unitVerificationData('001', 'pending', `${BP_REL}/tasks/001/verification.md`),
+    '# Verification\n',
+  );
+  writeDoc(
+    repo,
+    `${BP_REL}/tasks/001/review.md`,
+    unitReviewData('001', 'pending', `${BP_REL}/tasks/001/review.md`, { required: true }),
+    '# Review\n',
+  );
+  writeDoc(
+    repo,
+    `${BP_REL}/context-review.md`,
+    contextReviewFileData(),
+    CONTEXT_REVIEW_BODY_OK,
+  );
+  const indexAbs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
+  fs.writeFileSync(
+    indexAbs,
+    '---\nokf_version: "0.1"\n---\n# Epics\n\n'
+    + '* [001 auth](epics/001-auth/index.md) - auth epic\n',
+  );
+}
+
+test('plan gate warns only when affected_paths exceeds 20 (non-blocking)', () => {
+  const atThreshold = mkRepo();
+  writePlanBlueprintWithPaths(atThreshold, 20);
+  const under = validateBlueprint({
+    repoRoot: atThreshold, blueprintDir: BP_REL, gate: 'plan',
+  });
+  assert.strictEqual(under.ok, true);
+  assert.deepStrictEqual(under.failures, []);
+  assert.ok(
+    under.warnings === undefined || under.warnings.length === 0,
+    `20 paths must not warn: ${JSON.stringify(under.warnings)}`,
+  );
+
+  const overRepo = mkRepo();
+  writePlanBlueprintWithPaths(overRepo, 21);
+  const over = validateBlueprint({
+    repoRoot: overRepo, blueprintDir: BP_REL, gate: 'plan',
+  });
+  assert.strictEqual(over.ok, true, `warnings must not flip ok: ${JSON.stringify(over)}`);
+  assert.deepStrictEqual(over.failures, [], 'warnings must not enter failures');
+  assert.ok(Array.isArray(over.warnings), 'plan result must expose warnings');
+  assert.strictEqual(over.warnings.length, 1);
+  const warning = over.warnings[0];
+  assert.strictEqual(warning.file, `${BP_REL}/tasks/001/tasks.md`);
+  assert.match(warning.message, /21/);
+  assert.match(warning.message, /split the task|task를 분리/i);
+  assert.match(warning.message, /one commit|한 커밋/i);
+  assert.ok(
+    !/^[GS]\d+$/.test(warning.code),
+    `warning must not invent a G/S code: ${warning.code}`,
+  );
+
+  const execute = validateBlueprint({
+    repoRoot: overRepo, blueprintDir: BP_REL, gate: 'execute',
+  });
+  assert.ok(
+    execute.warnings === undefined || execute.warnings.length === 0,
+    `non-plan gate must not expose task-split warnings: ${JSON.stringify(execute.warnings)}`,
+  );
+
+  const structural = validateBlueprint({
+    repoRoot: overRepo, blueprintDir: BP_REL,
+  });
+  assert.ok(
+    structural.warnings === undefined || structural.warnings.length === 0,
+    `gate-less validation must not expose task-split warnings: ${JSON.stringify(structural.warnings)}`,
+  );
+});
+
 test('validateBlueprint plan gate G10 fails via file-loaded body when section missing', () => {
   const repo = mkRepo();
   const body = `# Tasks
