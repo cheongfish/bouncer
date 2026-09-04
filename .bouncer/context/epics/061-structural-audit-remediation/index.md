@@ -31,6 +31,7 @@ bouncer:
 5. `/bouncer-run`은 drive 시작에서 불변 규칙을 한 번 적재하고 후속 task 반복에서는 재적재하지 않으며, 이 경계가 공통 규칙과 run 계약 테스트로 확인된다.
 6. 후속 정확성 blueprint는 참조 기준과 ACQ 게이트 시점을 명시하고, CommonJS 모듈 경계의 시그니처 불일치를 컴파일 단계에서 거절한다.
 7. 유지보수·배포 blueprint는 문장 표현 대신 문서 구조를 검증하고, 버전 정본과 배포 포함 목록을 한 곳에서 판정하며, `runtime-state` 모듈 경로를 얻는 일회성 `bouncer-root --auto` 호출을 제외한 CLI 예시는 같은 자가 해석 런처를 사용한다.
+8. 문서 구조 검사기(check-doc-shape)는 독립 CLI 런처와 npm run lint:docs 스크립트로 분리되어 단일 명령 및 CI 단계에서 문서 계약을 직접 검증한다.
 
 ## Out of scope
 - 감사 수치의 재측정만을 위한 변경
@@ -42,3 +43,4 @@ bouncer:
 * [002 실행 주기 규칙 적재 계약](blueprints/002-run-rule-reload-elimination/index.md) - run drive의 불변 규칙을 최초 한 번만 적재하도록 공통 계약과 loop 절차를 맞춘다.
 * [003 스킬 경로와 모듈 타입 계약 정비](blueprints/003-correctness-contracts/index.md) - 스킬 참조·ACQ 시점을 명시하고 CommonJS 모듈 간 타입 검사를 복구한다.
 * [004 유지보수와 배포 표면 정비](blueprints/004-maintenance-distribution/index.md) - 산문 테스트, 버전 동기화, 배포 목록, CLI 런처 반복을 구조 계약으로 정리한다.
+* [005 문서 검사 스크립트 분리와 린트 파이프라인 정비](blueprints/005-doc-lint-cli/index.md) - 문서 구조 검사기를 독립 CLI로 실행하고 lint:docs 파이프라인으로 통합한다.
