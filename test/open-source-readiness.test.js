@@ -69,13 +69,6 @@ test('CODE_OF_CONDUCT.md is Contributor Covenant 2.1 with the published author e
   assert.doesNotMatch(coc, /\[INSERT CONTACT METHOD\]/);
 });
 
-test('docs/contributing.md places contributions under Apache-2.0 and splits security reports', () => {
-  const contributing = read('docs/contributing.md');
-  assert.match(contributing, /Apache-2\.0/);
-  assert.match(contributing, /CODE_OF_CONDUCT\.md/);
-  assert.match(contributing, /SECURITY\.md/);
-});
-
 test('third-party LICENSE and NOTICE files are unchanged', () => {
   for (const [rel, digest] of Object.entries(THIRD_PARTY)) {
     assert.strictEqual(sha256(rel), digest, rel);

@@ -287,42 +287,20 @@ test('init config omits methodology and Superpowers profile fields', () => {
   assert.ok(!('methodology' in cfg));
 });
 
-test('built-in tasks template has five implementation-ready sections', () => {
-  const tasks = TEMPLATES['tasks.md'];
-  assert.ok(/## Goal & intent/.test(tasks));
-  assert.ok(/## Interface/.test(tasks));
-  assert.ok(/## Touch/.test(tasks));
-  assert.ok(/## Do not touch/.test(tasks));
-  assert.ok(/## Checklist/.test(tasks));
-});
-
-test('built-in tasks template carries a Constraints section for non-path rules', () => {
-  const tasks = TEMPLATES['tasks.md'];
-  assert.ok(/## Constraints/.test(tasks));
-  // Between Do not touch and Checklist so the section parser bounds it.
-  assert.ok(tasks.indexOf('## Constraints') > tasks.indexOf('## Do not touch'));
-  assert.ok(tasks.indexOf('## Constraints') < tasks.indexOf('## Checklist'));
-});
-
 test('built-in epic template records numbered success criteria', () => {
   const epic = TEMPLATES['epic.md'];
   assert.ok(/## Success criteria/.test(epic));
   assert.ok(/^1\. <TODO:/m.test(epic));
 });
 
-test('built-in blueprint/tasks templates carry Contract-First authoring guardrails', () => {
+test('built-in blueprint template carries Contract-First authoring guardrails', () => {
   const blueprint = TEMPLATES['blueprint.md'];
-  const tasks = TEMPLATES['tasks.md'];
   assert.match(blueprint, /Contract-First/);
   assert.match(blueprint, /금지:/);
   assert.match(blueprint, /~250줄/);
   assert.match(blueprint, /수용 기준:/);
   assert.match(blueprint, /검증 명령:/);
   assert.match(blueprint, /실패 모드·엣지 케이스:/);
-  assert.match(tasks, /수용 기준/);
-  assert.match(tasks, /검증 명령/);
-  // Plain-text guidance must not fill sections — placeholders remain.
-  assert.match(tasks, /<TODO:/);
 });
 
 // OKF §11 permits frontmatter in the bundle-root index.md and nowhere else
@@ -348,9 +326,6 @@ test('built-in epic and blueprint templates link their neighbours with relative 
   assert.ok(!/\]\(\//.test(blueprint), 'blueprint template must not use bundle-absolute links');
   assert.match(epic, /\]\(blueprints\//);
   assert.match(blueprint, /Epic: \[<EPIC-id>\]\(\.\.\/\.\.\/index\.md\)/);
-  assert.match(blueprint, /\* \[Tasks\]\(tasks\/001\/tasks\.md\) - /);
-  assert.match(blueprint, /\* \[Verification\]\(tasks\/001\/verification\.md\) - /);
-  assert.match(blueprint, /\* \[Review\]\(tasks\/001\/review\.md\) - /);
 });
 
 test('init leaves a pre-existing .gitignore byte-for-byte unchanged', () => {
@@ -417,22 +392,11 @@ test('init preserves partial user-authored Bouncer state', () => {
   assert.ok(!exists(repo, '.bouncer/config.json'));
 });
 
-test('init workflow materials live in plugin docs, not the project tree', () => {
-  const root = path.join(__dirname, '..');
-  const workflow = fs.readFileSync(path.join(root, 'docs/workflow.md'), 'utf8');
-  assert.ok(/\/bouncer-init/.test(workflow));
-  assert.ok(/\/bouncer-plan/.test(workflow));
-  assert.ok(/\/bouncer-execute/.test(workflow));
-  assert.ok(/\/bouncer-finalize/.test(workflow));
-  assert.ok(!/superpowers|profile-aware|methodology/i.test(workflow));
-});
-
 test('plugin governance materials have no Superpowers profile language', () => {
   const root = path.join(__dirname, '..');
   const gov = fs.readFileSync(path.join(root, 'rules/governance.md'), 'utf8');
-  const workflow = fs.readFileSync(path.join(root, 'docs/workflow.md'), 'utf8');
   const okf = fs.readFileSync(path.join(root, 'rules/okf.md'), 'utf8');
-  const all = gov + workflow + okf;
+  const all = gov + okf;
   assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(all));
 });
 

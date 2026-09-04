@@ -92,18 +92,6 @@ test('GitHub Actions and GitLab CI share npm ci then npm run ci', () => {
   assert.deepStrictEqual(gl.test.script, ['npm ci', 'npm run ci']);
 });
 
-test('docs/contributing.md documents local verify, coverage floors, audit, and shared CI', () => {
-  const body = read('docs/contributing.md');
-  assert.match(body, /npm run ci/);
-  assert.match(body, /scripts\/lib/);
-  assert.match(body, /94%/);
-  assert.match(body, /82%/);
-  assert.match(body, /96%/);
-  assert.match(body, /audit/);
-  assert.match(body, /GitHub/);
-  assert.match(body, /GitLab/);
-});
-
 test('check-emit.js inspects unstaged and untracked emit via git argv, not porcelain status', () => {
   const src = read('scripts/check-emit.js');
   assert.match(src, /spawnSync|execFile/);

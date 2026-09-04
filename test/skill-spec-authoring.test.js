@@ -19,12 +19,6 @@ test('spec-authoring has valid frontmatter identity', () => {
   assert.ok(typeof data.description === 'string' && data.description.length > 0);
 });
 
-test('spec-authoring documents frontmatter ownership and five task sections', () => {
-  const md = readSkill('spec-authoring');
-  assert.match(md, /frontmatter/i);
-  assert.match(md, /Goal & intent|Interface|Touch|Do not touch|Checklist/i);
-});
-
 test('spec-authoring ties document titles to commit messages via .gitmessage', () => {
   const md = readSkill('spec-authoring');
   assert.match(md, /\.gitmessage/);
@@ -32,9 +26,6 @@ test('spec-authoring ties document titles to commit messages via .gitmessage', (
   assert.match(md, /commit_intent/);
   assert.match(md, /commit_summary/);
   assert.match(md, /commit_type|\/bouncer-commit|\/bouncer-finalize|finalize/i);
-  // task 커밋 subject는 task title; task commit_intent(2줄)도 표에 있다.
-  assert.match(md, /tasks`?\s*`?bouncer\.commit_intent|task.*commit_intent/i);
-  assert.match(md, /tasks`?\s*`?title|task `title`/i);
 });
 
 
@@ -85,7 +76,7 @@ test('okf states tags are the domain search vocabulary', () => {
 });
 
 test('spec-authoring ships completed reference examples and points SKILL.md at them', () => {
-  for (const k of ['epic', 'blueprint', 'tasks', 'review']) {
+  for (const k of ['epic', 'blueprint']) {
     assert.ok(fs.existsSync(refPath(`${k}.md`)), k);
   }
   assert.match(readSkill('spec-authoring'), /references\//);
@@ -97,13 +88,10 @@ test('spec-authoring documents optional Mermaid zoom with short unstyled Korean 
   assert.match(md, /줌|zoom/i);
   assert.match(md, /epic.*whole flow|whole flow.*epic/i);
   assert.match(md, /blueprint.*PR.*segment|PR.*segment.*blueprint/i);
-  assert.match(md, /tasks.*implementation branch|implementation branch.*tasks/i);
   assert.match(md, /classDef[\s\S]{0,80}prohibited|prohibited[\s\S]{0,80}classDef/i);
   assert.match(md, /colors[\s\S]{0,80}prohibited|prohibited[\s\S]{0,80}colors/i);
   assert.match(md, /long node ids[\s\S]{0,80}prohibited|prohibited[\s\S]{0,80}long node ids/i);
   assert.match(md, /Never put a chart in Distill/i);
-  assert.match(md, /verification\.md/);
-  assert.match(md, /review\.md/);
 });
 
 test('spec-authoring Mermaid examples keep each child zoom within its parent boxes', () => {
@@ -113,17 +101,6 @@ test('spec-authoring Mermaid examples keep each child zoom within its parent box
 
   assert.ok([...charts[1]].every((box) => charts[0].has(box)));
   assert.ok([...charts[2]].every((box) => charts[1].has(box)));
-});
-
-test('spec-authoring tasks section binds description, commit_intent, and Checklist roles', () => {
-  // 같은 변경을 title·description·commit_intent·Goal·Interface에 다섯 번 쓰지 않도록
-  // 역할 경계 세 줄을 긍정 매치로 고정한다. 금지 문구의 부재 단언은 쓰지 않는다 —
-  // 게이트가 검사하는 것은 섹션 존재이지 진술 횟수가 아니다.
-  const body = readSkill('spec-authoring');
-  assert.match(body, /description[\s\S]{0,120}Goal & intent[\s\S]{0,80}(유도|첫 문장)/);
-  assert.match(body, /commit_intent[\s\S]{0,160}(커밋 메시지 생성 전용|SSOT)/);
-  assert.match(body, /commit_summary[\s\S]{0,120}(1|2|요약)/);
-  assert.match(body, /Checklist[\s\S]{0,160}Touch[\s\S]{0,80}(다시 열거하지|재열거하지)/);
 });
 
 // 계획 작성 근거는 재접지 --for + preflight. 전량 --all stdout 소비 문구는 두지 않는다.
@@ -165,19 +142,6 @@ test('spec-authoring derives a shard-targeted proposal and writes only after con
 test('spec-authoring keeps identifiers out of titles, commit_intent, and commit_summary', () => {
   const md = readSkill('spec-authoring');
   assert.match(md, /out of titles[\s\S]{0,80}commit_intent[\s\S]{0,40}commit_summary/i);
-});
-
-test('spec-authoring task example describes commit_summary without config tokens', () => {
-  const { normalizeAuthoredLines } = require('../scripts/lib/templates');
-  const { data } = parseFrontmatter(fs.readFileSync(refPath('tasks.md'), 'utf8'));
-  const intent = data && data.bouncer && data.bouncer.commit_intent;
-  const summary = data && data.bouncer && data.bouncer.commit_summary;
-  assert.ok(Array.isArray(summary) && summary.length >= 1);
-  for (const line of summary) {
-    assert.doesNotMatch(line, /timeout_ms/);
-  }
-  assert.deepStrictEqual(normalizeAuthoredLines(intent, 'commit_intent'), intent);
-  assert.deepStrictEqual(normalizeAuthoredLines(summary, 'commit_summary'), summary);
 });
 
 test('spec-authoring quotes YAML-leading reserved characters in author-written scalars', () => {

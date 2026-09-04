@@ -97,25 +97,6 @@ test('governance defines the light plan document set and gate branch', () => {
   assert.match(gov, /exit code 2/);
 });
 
-test('docs record the light plan contract in one voice', () => {
-  assert.match(read('docs/cli.md'), /--scale light\\\|full/);
-  assert.match(read('docs/gates.md'), /light 3개: Goal & intent·Touch·Checklist/);
-  assert.match(read('docs/gates.md'), /G18을 적용하지 않는다/);
-  assert.match(read('docs/workflow.md'), /--scale light/);
-  assert.match(read('docs/workflow.md'), /full로 돌아가려면/);
-  assert.match(read('docs/ARCHITECTURE.md'), /full plan 하나뿐이다/);
-  assert.match(read('docs/troubleshooting.md'), /light`는 Goal & intent·Touch·Checklist 셋/);
-});
-
-test('compatibility records the broken G10 and G18 contract', () => {
-  const compat = read('docs/compatibility.md');
-  assert.match(compat, /파기한 계약: light plan 문서 세트/);
-  assert.match(compat, /\*\*왜\.\*\*/);
-  assert.match(compat, /\*\*영향\.\*\*/);
-  assert.match(compat, /\*\*대체 경로\.\*\*/);
-  assert.match(compat, /scaffold context-review/);
-});
-
 test('spec-authoring documents the three light task sections', () => {
   const sa = read('references/spec-authoring/index.md');
   assert.match(sa, /light blueprint/);

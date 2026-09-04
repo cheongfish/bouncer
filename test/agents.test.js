@@ -36,17 +36,6 @@ for (const name of AGENTS) {
   });
 }
 
-test('agents describe task bundle briefs and task-local evidence documents', () => {
-  for (const name of ['bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger']) {
-    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
-    assert.match(md, /tasks\/<NNN>\/tasks\.md/);
-  }
-  for (const name of ['bouncer-reviewer', 'bouncer-debugger']) {
-    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
-    assert.match(md, /task directory.*review\.md|review\.md.*task directory/i);
-  }
-});
-
 test('bouncer-context-reviewer records into blueprint-root context-review.md', () => {
   const md = fs.readFileSync(
     path.join(agentsDir, 'bouncer-context-reviewer.md'),

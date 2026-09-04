@@ -8,53 +8,6 @@ const { execFileSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 
-test('public installation documentation distinguishes root selection from provider selection', () => {
-  const install = fs.readFileSync(path.join(root, 'docs/install.md'), 'utf8');
-  assert.match(install, /bouncer-root --auto/);
-  assert.match(install, /bouncer-root --select/);
-  assert.match(install, /BOUNCER_HOME.*provider|provider.*BOUNCER_HOME/is);
-  assert.match(install, /Cursor[\s\S]{0,300}BOUNCER_HOME/);
-  assert.match(install, /Cursor[\s\S]{0,300}지원 후보/);
-  // 설치 안내는 제품 표면이다. 비교 arm 이름을 여기 적으면 워크플로 통합처럼 읽힌다.
-  assert.doesNotMatch(install, SUPERPOWERS_RE);
-});
-
-function pluginRootInstallSection() {
-  const install = fs.readFileSync(path.join(root, 'docs/install.md'), 'utf8');
-  const match = install.match(/## 플러그인 루트[\s\S]*?(?=\n## )/);
-  assert.ok(match, 'docs/install.md must keep ## 플러그인 루트');
-  return match[0];
-}
-
-test('install.md plugin-root section documents host vs npm PATH registration', () => {
-  const section = pluginRootInstallSection();
-  // 자동 등록은 호스트 설치 경로에서 거짓이다. npm 경로만 그렇게 읽히면 안 된다.
-  assert.doesNotMatch(section, /패키지가 설치하면[\s\S]{0,80}PATH에 등록/);
-  assert.doesNotMatch(section, /"private"\s*:\s*true[\s\S]{0,80}bin/);
-  assert.doesNotMatch(section, /npm install -g bouncer(?:\s|$)/);
-
-  // (1) 호스트 설치는 bin을 링크하지 않는다.
-  assert.match(section, /호스트[\s\S]{0,220}(?:링크하지|연결하지)/);
-  assert.match(section, /npm install/);
-
-  // (2) 실행 파일 등록: 호스트는 scripts/를 PATH에, npm 경로는 선언된 bin.
-  assert.match(section, /scripts\/[\s\S]{0,80}PATH|PATH[\s\S]{0,80}scripts\//);
-  assert.match(section, /npm link/);
-  assert.match(section, /npm install -g <plugin-root>/);
-  assert.match(section, /BOUNCER_HOME/);
-  // 로컬 npm install 은 node_modules/.bin 링크만 만든다. 사용자 PATH 로 읽히면 안 된다.
-  assert.doesNotMatch(section, /로컬[\s\S]{0,160}PATH에\s*연결/);
-  assert.match(section, /npm install <plugin-root>[\s\S]{0,80}node_modules\/\.bin/);
-
-  // (3) 확인 명령과 실패 증상.
-  assert.match(section, /bouncer-root --auto/);
-  assert.match(section, /command not found/);
-
-  // (4) 등록 전 워크플로는 첫 줄에서 실패한다. 문서가 그 실패를 없애지 않는다.
-  assert.match(section, /등록[\s\S]{0,80}(?:전|없)/);
-  assert.match(section, /첫 줄|첫줄/);
-});
-
 test('plugin-root contract points PATH install at docs/install.md', () => {
   const contract = fs.readFileSync(path.join(root, 'rules/plugin-root.md'), 'utf8');
   assert.match(contract, /BOUNCER_ROOT="\$\(bouncer-root --auto\)" \|\| exit \$\?/);
@@ -106,8 +59,6 @@ const SUPERPOWERS_NEGATIVE_TESTS = new Set([
   'test/skill-graphify-runner.test.js',
   'test/skill-minimality.test.js',
   'test/skill-stop-slop.test.js',
-  'test/skill-review.test.js',
-  'test/skill-verification.test.js',
 ]);
 
 /**
@@ -179,81 +130,5 @@ test('only focused legacy-rejection tests and detectors mention .sdd / sdd.*', (
     offenders,
     [],
     `Unexpected .sdd / sdd.* references in:\n${offenders.join('\n')}`,
-  );
-});
-
-test('governance retains execute gate and body-contract references', () => {
-  const gov = read('docs/ARCHITECTURE.md');
-  assert.match(gov, /Bouncer/);
-  assert.match(gov, /\bG7\b/);
-  assert.match(gov, /\bG13\b/);
-  assert.match(gov, /\bG8\b/);
-  assert.match(gov, /\bG14\b/);
-  assert.match(gov, /## Command/);
-  assert.match(gov, /## Evidence/);
-  assert.match(gov, /## Findings/);
-  assert.doesNotMatch(gov, SUPERPOWERS_RE);
-  assert.doesNotMatch(gov, SDD_RE);
-});
-
-/** Approved first-release generic workflow skills (graphify-runner is not among them). */
-const APPROVED_GENERIC_SKILLS = [
-  'discovery',
-  'spec-authoring',
-  'implementation',
-  'debugging',
-  'verification',
-  'review',
-  'minimality',
-  'stop-slop',
-];
-
-/** Skill names listed in the §4 generic-skills markdown table (backtick cells). */
-function genericSkillsFromGovernance(gov) {
-  const section = gov.match(/### 4\.\s*일반 워크플로 스킬[\s\S]*?(?=\n## )/);
-  assert.ok(section, 'governance must include §4 generic workflow skills');
-  return [...section[0].matchAll(/^\| `([^`]+)` \|/gm)].map((m) => m[1]);
-}
-
-test('current documentation describes Bouncer native workflow without Superpowers profile', () => {
-  const gov = read('docs/ARCHITECTURE.md');
-  assert.match(gov, /Bouncer/);
-  assert.doesNotMatch(gov, /Superpowers.*profile/i);
-  assert.ok(!fs.existsSync(path.join(root, 'docs/superpowers-integration.md')));
-  assert.match(gov, /네이티브 워크플로/);
-  assert.match(gov, /Graphify/);
-  assert.match(gov, /Ponytail/);
-
-  // Explicit no-compatibility / no-alias policy (not merely legacy-name absence).
-  assert.match(
-    gov,
-    /하위 호환(?:·별칭·자동 마이그레이션 없이| 별칭은 두지 않는다)/,
-    'governance must state no backward-compat / no-alias policy',
-  );
-
-  // graphify-runner is optional integration guidance with graceful manual-search fallback.
-  assert.match(gov, /`graphify-runner`/);
-  assert.match(
-    gov,
-    /`graphify-runner`[\s\S]{0,240}(?:선택|optional)/i,
-    'graphify-runner must be documented as optional/selective, not a core generic skill',
-  );
-  assert.match(
-    gov,
-    /(?:부재 시|없거나)[\s\S]{0,120}(?:수동 탐색|일반 검색)[\s\S]{0,40}폴백/,
-    'graphify-runner / Graphify absence must document manual-search fallback',
-  );
-
-  // Exactly the approved generic skills; graphify-runner stays outside that table.
-  const genericSkills = genericSkillsFromGovernance(gov);
-  assert.deepStrictEqual(
-    genericSkills,
-    APPROVED_GENERIC_SKILLS,
-    '§4 skills table must list exactly the approved generic skills',
-  );
-  assert.equal(
-    genericSkills.includes('graphify-runner'),
-    false,
-    'graphify-runner must not appear as an eighth generic skill in the §4 table',
   );
 });

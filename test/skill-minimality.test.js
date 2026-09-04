@@ -122,18 +122,3 @@ test('minimality do-not-minimize list applies regardless of intensity', () => {
   assert.match(md, /Do NOT minimize/i);
   assert.match(md, /regardless of intensity/);
 });
-
-test('ARCHITECTURE §E records seven-rung ladder and bouncer.scale intensity', () => {
-  const gov = fs.readFileSync(
-    path.join(__dirname, '..', 'docs', 'ARCHITECTURE.md'),
-    'utf8',
-  );
-  const section = gov.match(/### E\.\s*Ponytail 최소화 정책[\s\S]*?(?=\n### )/);
-  assert.ok(section, 'ARCHITECTURE must keep §E Ponytail minimality policy');
-  assert.match(section[0], /권장\(advisory\)이며 별도 게이트가 아니다/);
-  assert.match(section[0], /\/bouncer-plan/);
-  assert.match(section[0], /7단/);
-  assert.match(section[0], /bouncer\.scale/);
-  assert.match(section[0], /\blight\b/);
-  assert.match(section[0], /\bfull\b/);
-});

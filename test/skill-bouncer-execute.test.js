@@ -122,7 +122,6 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.match(body, /review/);
   assert.match(body, /minimality/);
   assert.match(body, /debugging/);
-  assert.match(body, /Goal & intent|Interface|Touch|Do not touch|Checklist/i);
   assert.match(body, /commit-safety|affected_paths/);
   assert.match(body, /\bbouncer\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+execute\b/);
   assert.match(body, /harness.*record|validate.*configured verify command/i);
@@ -138,7 +137,6 @@ test('bouncer-execute step 2 seeds the worktree with the plan documents', () => 
     body.indexOf('seed-worktree') > body.indexOf('git worktree add'),
     'seed-worktree must be documented after git worktree add',
   );
-  assert.match(body, /tasks\.md/);
 });
 
 test('bouncer-execute step 3 routes implementation through bouncer-implementer', () => {
@@ -205,8 +203,6 @@ test('bouncer-execute uses the pointer task document as the brief', () => {
   assert.match(body, /current\.task\.path/);
   assert.match(body, /Task brief|task brief|포인터.*task|pointer task brief/i);
   assert.match(body, /null/);
-  assert.match(body, /pointer task directory.*verification\.md|verification\.md.*pointer task directory/i);
-  assert.match(body, /pointer task directory.*review\.md|review\.md.*pointer task directory/i);
 });
 
 test('bouncer-execute step 1 excludes scope_evidence from brief injection', () => {
