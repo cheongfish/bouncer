@@ -31,6 +31,24 @@ Where does validation live?
 Recorded after review.
 `;
 
+const TASK_DESIGN_BODY = `# Tasks
+
+## Goal & intent
+마감은 blueprint 단위로 묶는다.
+
+## Interface
+task 설계 맥락을 explain에 남긴다.
+
+## Touch
+- \`src/auth/\`
+
+## Do not touch
+- \`src/payments/\`
+
+## Checklist
+- [ ] preserve context
+`;
+
 function writeDoc(repo, rel, data, body = '# x\n') {
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -87,21 +105,21 @@ function fullBlueprint(repo, {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
       commit_type: 'feat',
     },
-  });
+  }, '# Blueprint\n\n## Intent\n- 마감은 청사진 단위로 묶는다\n- 남은 변경은 Distill 승격분 정도다\n');
   writeDoc(repo, `${blueprintDir}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
     bouncer: {
       id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
       affected_paths: ['src/auth/'],
-      // remainder는 task commit_intent만 본다 — blueprint에 두면 무시된다.
+      // task commit_intent는 task 커밋 전용이며 finalize는 blueprint Intent를 본다.
       commit_intent: [
-        '마감은 blueprint 단위로 묶는다',
+        '마감은 청사진 단위로 묶는다',
         '남은 변경은 Distill 승격분 정도다',
       ],
       commit_sha: 'aabbccdd',
     },
-  });
+  }, TASK_DESIGN_BODY);
   writeDoc(repo, `${blueprintDir}/tasks/001/verification.md`, {
     type: 'bouncer.verification',
     title: 'Verified',
@@ -173,7 +191,7 @@ function finalizeMessage() {
   return [
     'feat: Login',
     '',
-    '- 마감은 blueprint 단위로 묶는다',
+    '- 마감은 청사진 단위로 묶는다',
     '- 남은 변경은 Distill 승격분 정도다',
   ].join('\n');
 }
@@ -319,7 +337,7 @@ test('dry-run reports staged files and blueprint message without committing', ()
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
-  // subject는 blueprint title; body는 최고 번호 task commit_intent 2줄뿐.
+  // subject와 body는 blueprint title/Intent에서만 만든다.
   assert.strictEqual(res.commitMessage, finalizeMessage());
   assert.ok(!res.commitMessage.includes('Impl login'), res.commitMessage);
   assert.ok(!res.commitMessage.includes('Verified'), res.commitMessage);
@@ -341,9 +359,6 @@ test('--yes stages and commits', () => {
     [
       'src/auth/login.ts',
       `${BP_REL}/explain.md`,
-      `${BP_REL}/tasks/001/tasks.md`,
-      `${BP_REL}/tasks/001/verification.md`,
-      `${BP_REL}/tasks/001/review.md`,
       `${BP_REL}/index.md`,
     ]);
   assert.strictEqual(g.calls.committed, finalizeMessage());
@@ -421,17 +436,11 @@ test('runtime artifacts are neither violations nor staged', () => {
   // 무관하게 lock path는 항상 blueprintDir 밑이라 out-of-scope에 걸리지 않음).
   assert.deepStrictEqual(res.staged, [
     'src/auth/login.ts',
-    `${BP_REL}/tasks/001/tasks.md`,
-    `${BP_REL}/tasks/001/verification.md`,
-    `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
     `${BP_REL}/explain.md`,
   ]);
   assert.deepStrictEqual(g.calls.staged, [
     'src/auth/login.ts',
-    `${BP_REL}/tasks/001/tasks.md`,
-    `${BP_REL}/tasks/001/verification.md`,
-    `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
     `${BP_REL}/explain.md`,
   ]);
@@ -517,9 +526,6 @@ test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
   assert.strictEqual(res.committed, true);
   assert.deepStrictEqual(g.calls.staged, [
     '.bouncer/Distill.md',
-    `${BP_REL}/tasks/001/tasks.md`,
-    `${BP_REL}/tasks/001/verification.md`,
-    `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
     `${BP_REL}/explain.md`,
   ]);
@@ -820,12 +826,7 @@ test('dry-run reports transient deletions in staged without deleting or locking'
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.dryRun, true);
-  for (const rel of [
-    ...transientRels(),
-    `${BP_REL}/context-review.md`,
-    `${BP_REL}/index.md`,
-    `${BP_REL}/explain.md`,
-  ]) {
+  for (const rel of [`${BP_REL}/index.md`, `${BP_REL}/explain.md`]) {
     assert.ok(res.staged.includes(rel), `dry-run staged missing ${rel}: ${JSON.stringify(res.staged)}`);
   }
   assert.ok(res.staged.includes('src/auth/login.ts'));
@@ -841,7 +842,11 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
   writeContextReview(repo);
   writeExtraTaskUnit(repo, 2);
   const numbers = ['001', '002'];
-  const g = fakeGit(['src/auth/login.ts'], []);
+  const g = fakeGit([
+    'src/auth/login.ts',
+    ...transientRels(BP_REL, numbers),
+    `${BP_REL}/context-review.md`,
+  ], []);
   const res = finalize({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
   });
@@ -869,6 +874,10 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
     { id: '001', sha: 'aabbccdd' },
     { id: '002', sha: '11223344' },
   ]);
+  const explainBody = fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8');
+  assert.match(explainBody, /## Tasks\n\n### Task 001/);
+  assert.match(explainBody, /## Goal & intent\n[\s\S]*마감은 blueprint 단위로 묶는다/);
+  assert.doesNotMatch(explainBody, /verification evidence|## Checklist/);
   assert.deepStrictEqual(res.taskCommits, [
     { id: '001', sha: 'aabbccdd' },
     { id: '002', sha: '11223344' },
@@ -877,6 +886,51 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
   const { validateBlueprint } = require('../scripts/lib/validate');
   const re = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(re.ok, true, JSON.stringify(re.failures, null, 2));
+});
+
+test('finalize stages tracked transient deletions but removes untracked ones without staging them', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  const tracked = [
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
+  ];
+  const untracked = [
+    `${BP_REL}/tasks/001/review.md`,
+    `${BP_REL}/context-review.md`,
+    `${BP_REL}/tasks/001/not-created.md`,
+  ];
+  const g = fakeGit(['src/auth/login.ts', ...tracked], untracked);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.ok(g.calls.staged.includes(tracked[0]));
+  assert.ok(g.calls.staged.includes(tracked[1]));
+  assert.ok(!g.calls.staged.includes(untracked[0]));
+  assert.ok(!g.calls.staged.includes(untracked[1]));
+  assert.ok(!g.calls.staged.includes(untracked[2]));
+  for (const rel of [...tracked, ...untracked.slice(0, 2)]) {
+    assert.ok(!fs.existsSync(path.join(repo, rel)), `should delete ${rel}`);
+  }
+});
+
+test('finalize stages deletion of a tracked-and-clean transient document', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const cleanTracked = `${BP_REL}/tasks/001/tasks.md`;
+  const g = fakeGit(['src/auth/login.ts'], []);
+  // A clean tracked path is absent from `git diff --name-only HEAD` but still
+  // needs `git add` after finalize unlinks it.
+  g.api.trackedFiles = () => [cleanTracked];
+
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.ok(g.calls.staged.includes(cleanTracked));
+  assert.ok(!fs.existsSync(path.join(repo, cleanTracked)));
 });
 
 test('stage failure restores transient docs and approved status', () => {

@@ -1,5 +1,7 @@
 // scripts/lib/scope.js
 'use strict';
+import fs = require('node:fs');
+import path = require('node:path');
 import paths = require('./paths');
 const { epicDirOf, toPosix } = paths;
 import layout = require('./layout');
@@ -30,6 +32,37 @@ const RUNTIME_ARTIFACTS = ['node_modules/', 'graphify-out/', '.worktrees/', '.bo
 function isRuntimeArtifact(file: unknown): boolean {
   const f = toPosix(file);
   return RUNTIME_ARTIFACTS.some((entry) => isUnder(f, entry));
+}
+
+// task 커밋은 범위 권한을 먼저 확인한 뒤 이 경계에서 workflow 문서를 뺀다.
+// makeAllowed를 좁히면 문서 변경이 out-of-scope로 오인되고, 넓히면 task가
+// 다른 문서까지 커밋할 수 있으므로 권한과 후보 필터를 별도 함수로 둔다.
+function isTaskWorkflowArtifact(file: unknown): boolean {
+  const f = toPosix(file);
+  return isUnder(f, CONTEXT_ROOT)
+    || f === PROJECT_DISTILL
+    || isUnder(f, DISTILL_SHARD_DIR);
+}
+
+type TaskCommitCandidatesInput = {
+  repoRoot: unknown;
+  changedFiles?: unknown;
+  untrackedFiles?: unknown;
+};
+
+function filterTaskCommitCandidates({
+  repoRoot, changedFiles, untrackedFiles,
+}: TaskCommitCandidatesInput): string[] {
+  const changed = Array.isArray(changedFiles) ? changedFiles : [];
+  const untracked = (Array.isArray(untrackedFiles) ? untrackedFiles : [])
+    .filter((file) => (
+      typeof file === 'string'
+      && typeof repoRoot === 'string'
+      && fs.existsSync(path.resolve(repoRoot, file))
+    ));
+  return [...new Set([...changed, ...untracked])]
+    .filter((file) => !isRuntimeArtifact(file))
+    .filter((file) => !isTaskWorkflowArtifact(file)) as string[];
 }
 
 function registeredDistillShardPaths(repoRoot: unknown): Set<string> {
@@ -89,6 +122,8 @@ function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }: {
 export = {
   isUnder,
   isRuntimeArtifact,
+  isTaskWorkflowArtifact,
+  filterTaskCommitCandidates,
   RUNTIME_ARTIFACTS,
   makeAllowed,
   makeFinalizeAllowed,

@@ -63,6 +63,14 @@ merely to make an implementation easier to fit. Epic and blueprint
 `bouncer.supersedes` lists document paths this one replaces; validation checks
 shape only (absent or an array of non-empty strings), not referential integrity.
 
+Task `bouncer.commit_intent` and `bouncer.commit_summary` are optional authored
+lists of 1–2 Korean terminal sentences. `/bouncer-commit` renders present
+fields in that order and rejects malformed values without partial omission;
+missing fields keep older task documents readable. `/bouncer-finalize` renders
+1–2 Korean terminal sentences parsed from the blueprint `## Intent` section and
+rejects an absent or malformed section. Authored intent and summary do not name
+files, modules, or packages and do not add dependencies or trailers.
+
 **Scope evidence.** `bouncer.scope_evidence` is the canonical write form for
 the candidate paths and basis used to judge a task's scope. It contains
 `generated_at`, `producer`, `suggested_paths`, and `basis`; Graphify writes
@@ -111,6 +119,11 @@ document consistency). After finalize deletes task leaves, `explain.md`
 `bouncer.task_commits` keeps `{ id, sha }` rows (8-char hex). context-digest
 re-emits `task-<ddd>-<ddd>-<ddd>` and the short sha as derived headings so
 graph search still resolves task commits.
+
+Task commit staging excludes the task bundle, context documents, and Distill
+even when shared scope authorization allows those workflow paths. Finalize
+owns their lifecycle: it preserves `explain.md`, Blueprint `index.md`, and
+Distill while deleting one-off task evidence and optional context review.
 
 Harness-written timestamps use **KST** (`Asia/Seoul`, offset `+09:00`), e.g.
 `2026-08-03T18:00:00.000+09:00`. Pass `--timestamp` to override when scaffolding.

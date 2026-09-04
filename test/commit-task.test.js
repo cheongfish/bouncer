@@ -189,6 +189,69 @@ test('dry-run returns commitMessage without staging', () => {
   assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
 });
 
+test('task dry-run builds authored intent and summary in order', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const taskRel = `${BP_REL}/tasks/001/tasks.md`;
+  const task = yaml.load(fs.readFileSync(path.join(repo, taskRel), 'utf8').replace(/^---\n|\n---\n[\s\S]*$/g, ''));
+  task.bouncer.commit_intent = ['재시도가 서버에 부담을 줌', '안정적인 정책이 필요함'];
+  task.bouncer.commit_summary = ['간격을 지수적으로 늘림'];
+  writeDoc(repo, taskRel, task, '# Tasks\n');
+  const res = commitTask({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.commitMessage, [
+    'feat: Impl login',
+    '',
+    '- 재시도가 서버에 부담을 줌',
+    '- 안정적인 정책이 필요함',
+    '- 간격을 지수적으로 늘림',
+  ].join('\n'));
+});
+
+test('malformed authored task field aborts message generation', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const taskRel = `${BP_REL}/tasks/001/tasks.md`;
+  const task = yaml.load(fs.readFileSync(path.join(repo, taskRel), 'utf8').replace(/^---\n|\n---\n[\s\S]*$/g, ''));
+  task.bouncer.commit_summary = ['첫 줄임', '둘째 줄임', '셋째 줄임'];
+  writeDoc(repo, taskRel, task, '# Tasks\n');
+  assert.throws(() => commitTask({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    git: trackingGit(['src/auth/login.ts'], []).api,
+  }), /commit_summary.*1-2/);
+});
+
+test('task commit filters allowed workflow documents but keeps task outputs', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const workflowDocs = [
+    `${BP_REL}/tasks/001/tasks.md`,
+    `${BP_REL}/tasks/001/verification.md`,
+    `${BP_REL}/tasks/001/review.md`,
+    `${BP_REL}/index.md`,
+    '.bouncer/context/index.md',
+    '.bouncer/Distill.md',
+  ];
+  const g = trackingGit(['src/auth/login.ts', ...workflowDocs], []);
+  const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
+});
+
+test('task commit does not stage an absent untracked path', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = trackingGit(['src/auth/login.ts'], ['src/auth/never-created.ts']);
+  const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
+});
+
 test('--yes stages then commits in that order', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
@@ -220,6 +283,8 @@ test('out-of-scope file hard-aborts without staging', () => {
 test('untracked out-of-scope hard-aborts without staging', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
+  fs.mkdirSync(path.join(repo, 'src/payments'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/payments/charge.ts'), 'export {}\n');
   const g = trackingGit(['src/auth/login.ts'], ['src/payments/charge.ts']);
   const res = commitTask({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
@@ -253,6 +318,7 @@ test('commitTask violations match checkCommitSafety for the same files', () => {
 test('in-scope changed and untracked pass the same guard as checkCommitSafety', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
+  fs.writeFileSync(path.join(repo, 'src/auth/session.ts'), 'export {}\n');
   const files = ['src/auth/login.ts', 'src/auth/session.ts'];
   const guard = checkCommitSafety({
     files,

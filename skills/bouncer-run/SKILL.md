@@ -101,6 +101,9 @@ than fixing directly.
    `tasks.md` stamp: do not discard the dirty `tasks.md` that carries
    `bouncer.commit_sha` (YAML re-render is expected). Leave it for the next
    task commit or finalize remainder.
+   Each task commit stages task outputs only; allowed task bundle, context, and
+   Distill paths remain for finalize, and nonexistent untracked paths are not
+   staged.
    Read `nextTask` from `bouncer commit` JSON. Per the shared pointer contract
    exception, start ACQ pre-approves the next task move under `auto`. When
    non-null, move immediately with

@@ -106,15 +106,14 @@ Skill flow (recommended): `discovery` (`${BOUNCER_ROOT}/references/discovery/ind
    whole flow → blueprint PR segment → tasks implementation branch; charts stay
    optional and their source is each document body.
    Also replace scaffold default frontmatter `title` values (and set
-   `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent`,
-   when needed): `/bouncer-commit` turns each task `title` into that task's
-   commit subject (falls back to blueprint `title`), uses that task's
-   `commit_intent` (exactly two `~함` lines; no blueprint fallback) for the
-   background/intent section, and verification `title` for a change-summary
-   bullet, following
-   `.gitmessage`. `/bouncer-finalize` remainder scans every task document in
-   number order for a valid `commit_intent` and uses the highest-numbered
-   match (blueprint `title` as subject; no blueprint `commit_intent`).
+   `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent` /
+   `bouncer.commit_summary`, when needed): `/bouncer-commit` turns each task
+   `title` into that task's commit subject (falls back to blueprint `title`),
+   uses that task's `commit_intent` then `commit_summary` (each 1–2 Korean
+   terminal sentences; no verification-title fallback), following
+   `.gitmessage`. `/bouncer-finalize` remainder uses the blueprint `## Intent`
+   (1–2 Korean terminal sentences) as its body and the blueprint `title` as
+   subject.
    `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
    **Light declaration.** When the user declared the light path, blueprint
    `index.md` frontmatter `bouncer.scale` must be `light`. Step 3 with

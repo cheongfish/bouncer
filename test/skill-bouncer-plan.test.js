@@ -143,7 +143,11 @@ test('bouncer-plan reminds authors that titles feed the finalize commit message'
   const { body } = parseFrontmatter(md);
   assert.match(body, /title/i);
   assert.match(body, /commit_intent/);
+  assert.match(body, /commit_summary/);
+  assert.match(body, /blueprint[\s\S]{0,120}Intent/);
   assert.match(body, /\.gitmessage|commit_type|\/bouncer-finalize/);
+  assert.doesNotMatch(body, /remainder scans every task|scans every task document/i);
+  assert.match(body, /remainder[\s\S]{0,120}## Intent|## Intent[\s\S]{0,80}remainder/i);
 });
 
 

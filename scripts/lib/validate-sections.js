@@ -29,6 +29,8 @@ const EXPLAIN_SECTION_HEADINGS = [
     { key: 'code', re: /^##\s+Code\s*$/i },
     { key: 'quiz', re: /^##\s+Quiz\s*$/i },
     { key: 'understanding', re: /^##\s+이해\s*상태\s*$/i },
+    // task 맥락은 finalize가 선택적으로 채우며 G16 필수 목록과 분리한다.
+    { key: 'tasks', re: /^##\s+Tasks\s*$/i },
 ];
 // 작성 가이드는 HTML comment로 제공되므로, 가이드만 있는 section은 미작성으로
 // 본다. 비어 있음 검사 전에 comment를 제거하면 "section은 있으나 비어 있음"이
@@ -62,6 +64,9 @@ function parseSections(body, defs) {
 }
 function parseTasksSections(body) {
     return parseSections(body, SECTION_DEFS);
+}
+function parseExplainSections(body) {
+    return parseSections(body, EXPLAIN_SECTION_HEADINGS);
 }
 // Touch/Do-not-touch는 백틱 경로와 민줄 경로를 섞어 쓴다. 한쪽만 모으면
 // G11(Touch 근거) / G12(금지 교차)가 표기 차이로 빗나간다.
@@ -140,6 +145,7 @@ module.exports = {
     stripComments,
     parseSections,
     parseTasksSections,
+    parseExplainSections,
     extractPathCandidates,
     pathsOverlap,
     pathJustifiedByTouch,

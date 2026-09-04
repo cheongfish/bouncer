@@ -41,6 +41,15 @@ the execute gate runs the configured command and records it. Used from
   external verification needs a future explicit skip policy; it must not be
   silently skipped.
 
+## Finalize cleanup boundary
+
+Verification and review documents are execution evidence until the blueprint
+is closed. Finalize deletes the task bundle and optional `context-review.md`
+only after validation and verification succeed. Tracked deletions are staged;
+untracked documents are removed without staging an absent path. `explain.md`
+and its `bouncer.task_commits` links preserve durable context, while failures
+restore transient documents and leave the blueprint open.
+
 ## Return
 
 Report the investigation outcome and whether the execute gate still needs to

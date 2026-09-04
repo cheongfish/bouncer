@@ -38,17 +38,19 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
      rule below: whole flow here, with the chart fence in this body.
    - **blueprint**: what this unit delivers as one review / PR. Set `title`
      (and `bouncer.commit_type` if not `feat`) for the finalize remainder
-     subject and the execute branch prefix (`<type>/<id>-<slug>`). Do **not**
-     set `bouncer.commit_intent` on the blueprint — that field lives only on
-     task documents. For a flow change, show only this PR segment of the epic
+     subject and the execute branch prefix (`<type>/<id>-<slug>`). Write the
+     blueprint `## Intent` as 1–2 Korean terminal sentences; finalize uses it
+     as the remainder body. Do **not** set task-only authored fields on the
+     blueprint. For a flow change, show only this PR segment of the epic
      Mermaid chart.
    - **tasks**: fill every implementation-ready section in each
      `tasks/<NNN>/tasks.md` bundle before approval —
      Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
      Those sections are the sole brief for execution. Set `title` as the
      **task commit subject** (`/bouncer-commit` copies it). Set
-     `bouncer.commit_intent` to **two** `~함` lines (배경·의도) drawn from
-     Goal & intent — not the subject noun phrase. For a flow change, show only
+     `bouncer.commit_intent` to 1–2 Korean terminal sentences (배경·의도) drawn
+     from Goal & intent, and optionally `bouncer.commit_summary` to 1–2 Korean
+     terminal sentences (변경 요약) — not the subject noun phrase. For a flow change, show only
      the implementation branch already present in the parent chart.
      Section-specific rules:
      - **description**: epic은 사람이 저술한 frontmatter `description`만 정본으로
@@ -58,9 +60,10 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
        같은 내용을 두 번 작성하지 않는다. 필드를 비우거나 삭제하지 않는다 —
        OKF 필수값이고 scaffold가 소유한다. 규율은 사람이 두 번 쓰지 않는 것이지
        값이 없어도 된다는 뜻이 아니다.
-     - **commit_intent**: `commit_intent`는 커밋 메시지 생성 전용이다. 브리프
-       서술과 겹치면 `## Goal & intent`가 SSOT다. 형식(정확히 두 개의 한국어
-       `~함`/`~임` 줄, task 문서 전용)은 바꾸지 않는다.
+     - **commit_intent / commit_summary**: 두 필드는 커밋 메시지 생성
+       전용이다. 브리프 서술과 겹치면 `## Goal & intent`가 SSOT다. 각 필드는
+       1–2개의 한국어 종결 문장이고 task 문서에만 둔다. 필드가 없으면 기존
+       task 호환을 위해 생략하고, 형식이 틀리면 메시지 생성을 거부한다.
      - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
        다시 열거하지 않고 절차만 담는다.
      - **Interface**: state what the change provides *and* what it rejects.
@@ -256,8 +259,8 @@ flowchart LR
 
 `/bouncer-commit` builds each **task** commit message from document
 frontmatter, not from free-form prose. `/bouncer-finalize` builds any
-**remainder** commit (usually Distill promotion) from blueprint `title` /
-`commit_type` plus the highest-numbered task `commit_intent`. Follow the
+**remainder** commit (usually Distill promotion) from the blueprint `title` /
+`commit_type` and its `## Intent` section. Follow the
 project commit convention in `.gitmessage` (한국어 Conventional Commits) when
 setting these fields:
 
@@ -265,19 +268,20 @@ setting these fields:
 | --- | --- |
 | `blueprint` `bouncer.commit_type` (default `feat`) | commit `<type>:` and execute branch prefix `<type>/…` (`.gitmessage`: feat, fix, docs, style, refactor, test, chore) |
 | `tasks` `title` | **task commit subject** (명사형 어미). Falls back to blueprint `title` only when the task title is empty |
-| `tasks` `bouncer.commit_intent` (exactly **2** strings) | task-commit 배경·의도 bullets (`- …함`); also finalize remainder (highest-numbered valid task). Missing/invalid → omit intent bullets |
+| `tasks` `bouncer.commit_intent` (1–2 strings) | task-commit 배경·의도 bullets (`- …함`) |
+| `tasks` `bouncer.commit_summary` (1–2 strings) | task-commit 변경 요약 bullets after intent |
 | `blueprint` `title` | finalize remainder subject; also the fallback when a task title is empty |
-| `verification` `title` | task-commit 수정 내용 bullet (`- …함`) after intent lines |
+| blueprint `## Intent` (1–2 Korean sentences) | finalize remainder body bullets; malformed or absent Intent rejects message generation |
 
-`commit_intent` must be a YAML list of two Korean lines ending in `~함` /
-`~임` (why this change), written on the **task** document only — never on
-blueprint `index.md`. Without exactly two entries on the task, intent bullets
-are omitted (no blueprint fallback). Set task `commit_intent` at plan time, or
-before `/bouncer-commit`. Finalize remainder picks the highest-numbered task
-that still has a valid two-line intent.
+`commit_intent` and `commit_summary` must each be a YAML list of 1–2 Korean
+terminal sentences, written on the **task** document only. A missing field is
+compatible with existing tasks and contributes no bullets; a present malformed
+field rejects message generation rather than being partly omitted. Finalize
+reads only the blueprint `## Intent` section, which must contain 1–2 Korean
+terminal sentences.
 
-Leave Epic / Blueprint / Distill identifiers and file paths out of titles and
-`commit_intent` — they belong in the blueprint docs and PR body, not the commit
+Leave Epic / Blueprint / Distill identifiers and file paths out of titles,
+`commit_intent`, and `commit_summary` — they belong in the blueprint docs and PR body, not the commit
 message. Do not put module or package names in those fields either. Replace
 scaffold defaults like `001 slug` / `001 tasks` before approval; otherwise
 those placeholders ship as the commit subject and body.
@@ -298,7 +302,7 @@ Safe forms:
 
 ```yaml
 commit_intent:
-  - '`git add`가 범위를 벗어나지 않게 함'
+  - '`HEAD`가 범위를 벗어나지 않게 함'
   - 'it''s scoped to Touch'
 note: >-
   `context-review.md`가 존재하지만 파싱되지 않음.
@@ -316,10 +320,11 @@ does **not** ban backticks in Markdown 본문 — those are 금지하지 않는�
 - **Status** transitions are owned by the calling workflow, not by this skill.
   Do not flip status while authoring a body.
 - **Do** rewrite scaffold default `title` values (and optional
-  `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent`).
-  They are authored content, not harness ids — `/bouncer-commit` (task) and
-  `/bouncer-finalize` (remainder, from task intents) copy them into commit
-  messages.
+  `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent` /
+  `bouncer.commit_summary`).
+  They are authored content, not harness ids — `/bouncer-commit` copies task
+  fields into the task message, while `/bouncer-finalize` copies the blueprint
+  `## Intent` section into the remainder message.
 - The other exception is content the calling command explicitly tells you to
   write into the protocol block (for example graph suggestions or confirmed
   `affected_paths`). Otherwise, bodies only.

@@ -21,6 +21,10 @@ const verification = require("./verification");
 const { readVerifyCommand, executeVerify } = verification;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs } = tasksDocs;
+const validateSections = require("./validate-sections");
+const { parseTasksSections } = validateSections;
+const templates = require("./templates");
+const { normalizeAuthoredLines, parseIntentBody } = templates;
 function adaptInjectedVerifyExec(verifyExec) {
     return (command, opts) => {
         const result = verifyExec(command, opts);
@@ -53,12 +57,11 @@ function asRecord(value) {
 // subject와 body는 프로젝트가 document field에 쓰는 commit convention을 따름;
 // 구조만 Bouncer 소유. identifier와 path는 message에 넣지 않음 — blueprint
 // 문서와 PR body에 있음.
-// Subject: 대상 task title (없으면 blueprint title). Body: 대상 task의
-// 배경·의도 2줄(`commit_intent`) 다음 수정 내용(verification title만 —
-// tasks title은 이미 subject에 있음). intent는 task 문서만 — blueprint
-// 폴백 없음. taskUnit이 없으면 docs.verification 호환 필드.
+// Subject: 대상 task title (없으면 blueprint title). Body: task 문서가 저작한
+// 배경·의도와 변경 요약. verification title은 실행 증적이지 메시지 저작물이
+// 아니므로 사용하지 않는다. 새 필드가 없는 기존 task는 제목만으로 읽는다.
 // commit 경로(`bouncer commit`)가 이 빌더를 쓴다. finalize 마감 메시지는
-// buildFinalizeCommitMessage — task title/verification bullet을 넣지 않는다.
+// buildFinalizeCommitMessage — task 문서 필드를 넣지 않는다.
 function buildCommitMessage(docs, taskUnit) {
     const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
     const bouncer = asRecord(bp.bouncer || {});
@@ -70,77 +73,29 @@ function buildCommitMessage(docs, taskUnit) {
     const subjectTitle = (typeof taskTitle === 'string' && taskTitle.trim())
         ? taskTitle.trim()
         : bp.title;
-    const titleOf = (key) => {
-        const fromUnit = taskUnit && taskUnit[key] && taskUnit[key].data
-            ? asRecord(taskUnit[key].data).title
-            : undefined;
-        if (typeof fromUnit === 'string' && fromUnit)
-            return fromUnit;
-        const leaf = docs[key];
-        // `docs[key] && docs[key].data.title` — data가 null이면 예전처럼 throw.
-        // `leaf && leaf.data`로 접으면 TypeError가 빈 문자열로 바뀐다.
-        return leaf && asRecord(leaf.data).title ? asRecord(leaf.data).title : '';
-    };
-    // 정확히 2줄일 때만 유효. slice(0,2)로 앞만 남기면 3줄+ 작성 실수를 숨김.
-    const normalizeIntent = (raw) => {
-        if (!Array.isArray(raw))
-            return null;
-        const lines = raw
-            .filter((s) => typeof s === 'string' && s.trim())
-            .map((s) => String(s).trim());
-        return lines.length === 2 ? lines : null;
-    };
-    const taskBouncer = taskUnit && taskUnit.tasks && taskUnit.tasks.data
-        ? asRecord(taskUnit.tasks.data).bouncer
-        : undefined;
-    // task 문서만. blueprint commit_intent는 쓰지 않는다 — 커밋 단위가 task인데
-    // 상위 문서로 폴백하면 작성 위치가 다시 갈라진다. 무효·부재면 intent 없음.
-    const intent = normalizeIntent(taskBouncer && asRecord(taskBouncer).commit_intent) || [];
-    const what = [titleOf('verification')].filter(Boolean);
-    const bodyLines = intent.length === 2
-        ? [...intent, ...what]
-        : what;
+    const taskData = taskUnit && taskUnit.tasks && taskUnit.tasks.data
+        ? asRecord(taskUnit.tasks.data)
+        : (docs.tasks && docs.tasks.data ? asRecord(docs.tasks.data) : {});
+    const taskBouncer = taskData && taskData.bouncer && typeof taskData.bouncer === 'object'
+        ? asRecord(taskData.bouncer)
+        : {};
+    const intent = normalizeAuthoredLines(taskBouncer.commit_intent, 'commit_intent');
+    const summary = normalizeAuthoredLines(taskBouncer.commit_summary, 'commit_summary');
+    const bodyLines = [...intent, ...summary];
     const body = bodyLines.map((t) => `- ${t}`);
     const lines = [`${type}: ${subjectTitle}`];
     if (body.length)
         lines.push('', ...body);
     return lines.join('\n');
 }
-// finalize 마감 커밋: subject는 항상 blueprint title. body의 배경·의도는
-// taskUnits를 번호 순으로 스캔해 유효한 commit_intent(정확히 2줄) 중
-// **번호가 가장 큰** 항목만 쓴다. `.gitmessage`가 배경·의도 2줄로 고정이라
-// N개를 이어 붙일 수 없고, remainder는 blueprint의 마지막 상태이므로 마지막
-// task 의도가 가장 가깝다. blueprint commit_intent는 출처가 아니다.
+// finalize 마감 커밋: subject와 body 모두 blueprint에서 읽는다. Intent를
+// 파싱할 수 없으면 task 일부를 주워 메시지를 만드는 대신 즉시 실패시킨다.
 // task title·verification bullet을 넣으면 이미 남긴 task 커밋과 겹친다.
 function buildFinalizeCommitMessage(docs) {
     const bp = asRecord(docs.blueprintIndex && docs.blueprintIndex.data);
     const bouncer = asRecord(bp.bouncer || {});
     const type = bouncer.commit_type || 'feat';
-    const normalizeIntent = (raw) => {
-        if (!Array.isArray(raw))
-            return null;
-        const lines = raw
-            .filter((s) => typeof s === 'string' && s.trim())
-            .map((s) => String(s).trim());
-        return lines.length === 2 ? lines : null;
-    };
-    // 번호 비교로 최댓값을 고른다 — taskUnits 배열 순서가 흐트러져도 같다.
-    let intent = [];
-    let bestNumber = -Infinity;
-    const units = Array.isArray(docs.taskUnits) ? docs.taskUnits : [];
-    for (const unit of units) {
-        const taskBouncer = unit && unit.tasks && unit.tasks.data
-            ? asRecord(unit.tasks.data).bouncer
-            : undefined;
-        const normalized = normalizeIntent(taskBouncer && asRecord(taskBouncer).commit_intent);
-        if (!normalized)
-            continue;
-        const n = typeof unit.number === 'number' ? unit.number : -Infinity;
-        if (n >= bestNumber) {
-            bestNumber = n;
-            intent = normalized;
-        }
-    }
+    const intent = parseIntentBody(docs.blueprintIndex && docs.blueprintIndex.body);
     const body = intent.map((t) => `- ${t}`);
     const lines = [`${type}: ${bp.title}`];
     if (body.length)
@@ -238,6 +193,7 @@ function realGit(repoRoot) {
     return {
         changedFiles: () => lines(run(['diff', '--name-only', 'HEAD'])),
         untrackedFiles: () => lines(run(['ls-files', '--others', '--exclude-standard'])),
+        trackedFiles: () => lines(run(['ls-files', '--cached'])),
         stage: (files) => { if (files.length)
             run(['add', '--', ...files]); },
         commit: (msg) => { run(['commit', '-m', msg]); },
@@ -288,6 +244,62 @@ function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }) {
     fs.writeFileSync(abs, renderDoc(data, body));
     return true;
 }
+/**
+ * task 문서에서 장기 보존할 설계 절만 렌더링한다.
+ * parseTasksSections가 반환한 본문을 그대로 사용해 작성자가 나눈 줄바꿈을
+ * 보존하고, verification·review·checklist 같은 실행 문서는 이 경로에 넣지 않는다.
+ */
+function buildTaskContext(taskUnits) {
+    const units = (Array.isArray(taskUnits) ? taskUnits : [])
+        .filter((unit) => unit && unit.tasks && typeof unit.tasks.body === 'string')
+        .slice()
+        .sort((a, b) => (typeof a.number === 'number' ? a.number : Infinity)
+        - (typeof b.number === 'number' ? b.number : Infinity));
+    const rendered = [];
+    for (const unit of units) {
+        const sections = parseTasksSections(unit.tasks && unit.tasks.body);
+        const selected = [
+            ['Goal & intent', sections.goal],
+            ['Interface', sections.interface],
+            ['Do not touch', sections.doNotTouch],
+        ].filter(([, body]) => typeof body === 'string' && body.trim());
+        if (!selected.length)
+            continue;
+        const number = typeof unit.number === 'number'
+            ? String(unit.number).padStart(3, '0')
+            : 'unknown';
+        rendered.push([`### Task ${number}`, ...selected.flatMap(([heading, body]) => [
+                `#### ${heading}`,
+                body,
+            ])].join('\n\n'));
+    }
+    return rendered.length ? `## Tasks\n\n${rendered.join('\n\n')}\n` : '';
+}
+function replaceTaskContext(body, taskContext) {
+    if (!taskContext)
+        return body;
+    const lines = body.split('\n');
+    const start = lines.findIndex((line) => /^##\s+Tasks\s*$/i.test(line.trim()));
+    if (start < 0)
+        return `${body.replace(/\s*$/, '')}\n\n${taskContext}`;
+    let end = start + 1;
+    while (end < lines.length && !/^##\s+\S/.test(lines[end].trim()))
+        end += 1;
+    return [...lines.slice(0, start), taskContext.trimEnd(), ...lines.slice(end)].join('\n');
+}
+function writeExplainTaskContext({ repoRoot, blueprintDir, taskContext }) {
+    if (!taskContext)
+        return false;
+    const explainRel = `${toPosix(blueprintDir)}/explain.md`;
+    const abs = path.join(repoRoot, explainRel);
+    if (!fs.existsSync(abs))
+        return false;
+    const { data, body } = readDoc(abs);
+    if (!data || typeof data !== 'object' || typeof body !== 'string')
+        return false;
+    fs.writeFileSync(abs, renderDoc(data, replaceTaskContext(body, taskContext)));
+    return true;
+}
 function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, verifyExec, }) {
     const gitApi = git || realGit(repoRoot);
     const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
@@ -299,12 +311,16 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     const allowed = makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir });
     const changed = gitApi.changedFiles();
     const untracked = gitApi.untrackedFiles();
-    const all = [...new Set([...changed, ...untracked])].filter((f) => !isRuntimeArtifact(f));
-    const violations = all.filter((f) => !allowed(f));
+    // 범위 권한은 Git이 보고한 전체 후보로 판정한다. 존재 확인과 staging
+    // 후보 축소는 아래에서 별도로 처리해 makeAllowed 권한을 완화하지 않는다.
+    const allCandidates = [...new Set([...changed, ...untracked])]
+        .filter((f) => !isRuntimeArtifact(f));
+    const violations = allCandidates.filter((f) => !allowed(f));
     if (violations.length)
         return { ok: false, reason: 'out-of-scope', violations };
-    // subject는 blueprint title; body intent는 task 스캔(최고 번호).
-    // resolveTaskUnit/task title은 쓰지 않는다.
+    // subject는 blueprint title이고 body는 blueprint 본문의 `## Intent` 정본이다.
+    // task 스캔이나 verification title을 섞으면 finalize가 task authored 필드를
+    // 재사용하게 되므로, 실행 경로도 buildFinalizeCommitMessage와 같은 출처를 쓴다.
     const commitMessage = buildFinalizeCommitMessage(docs);
     // next 후보 계산이 finalize를 깨면 안 됨: next()가 throw하면 빈 handoff
     // 형태로 뭉개 ok/exit는 commit 작업에만 묶임.
@@ -330,9 +346,20 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     const transientRels = lockPath
         ? collectTransientRels({ repoRoot, blueprintDir })
         : [];
-    // 삭제 대상은 git 변경에 없어도 staged에 넣어 삭제 커밋에 포함한다.
+    // `diff --name-only HEAD` omits an unchanged tracked transient document.
+    // Keep the diff list for scope/staging candidates, but use the index inventory
+    // to decide whether an unlinked transient path must be staged as a deletion.
+    const tracked = new Set(gitApi.trackedFiles ? gitApi.trackedFiles() : changed);
+    // 추적 파일의 삭제는 stage해야 하지만, untracked 파일은 삭제만 하면 된다.
+    // 이미 존재하지 않는 untracked 경로는 git add가 실패하므로 후보에서 제외한다.
+    const transientSet = new Set(transientRels);
+    const existingUntracked = untracked.filter((f) => (typeof f === 'string' && fs.existsSync(path.resolve(repoRoot, f))));
+    const stageCandidates = [...new Set([...changed, ...existingUntracked])]
+        .filter((f) => !isRuntimeArtifact(f));
+    const all = stageCandidates.filter((f) => (!transientSet.has(f) || tracked.has(f)));
+    const trackedTransient = transientRels.filter((rel) => tracked.has(rel));
     // dry-run도 같은 목록을 보고해 "무엇이 지워질지"를 미리 보여 준다.
-    const staged = mergeLocked(appendUnique(all, transientRels), lockPath);
+    const staged = mergeLocked(appendUnique(all, trackedTransient), lockPath);
     // dry-run: 쓰지 않고 "쓰게 될" 경로만 closed/staged에 반영해 보고한다.
     // explain.md는 task_commits 기록으로 remainder에 포함될 수 있다.
     const explainRel = `${toPosix(blueprintDir)}/explain.md`;
@@ -413,6 +440,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     const taskCommits = lockPath
         ? collectTaskCommits({ repoRoot, blueprintDir })
         : [];
+    const taskContext = lockPath ? buildTaskContext(docs.taskUnits) : '';
     const restoreTransient = () => {
         for (const snap of snapshots) {
             fs.mkdirSync(path.dirname(snap.abs), { recursive: true });
@@ -429,6 +457,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     try {
         if (lockPath && explainBefore) {
             writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits });
+            writeExplainTaskContext({ repoRoot, blueprintDir, taskContext });
         }
         for (const snap of snapshots)
             fs.unlinkSync(snap.abs);
@@ -458,5 +487,5 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
 }
 module.exports = {
     buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
-    collectTaskCommits, writeExplainTaskCommits,
+    buildTaskContext, collectTaskCommits, writeExplainTaskCommits, writeExplainTaskContext,
 };

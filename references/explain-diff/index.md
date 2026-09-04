@@ -107,6 +107,16 @@ status published. Not a workflow entry point.
    already. Distill promotion stays with `spec-authoring` at
    `/bouncer-finalize` (before this skill) — do not promote here.
 
+## Preserved task context
+
+`/bouncer-finalize` may add an optional `## Tasks` section immediately before
+deleting task documents. It writes one `### Task NNN` subsection per task and
+copies only the authored `Goal & intent`, `Interface`, and `Do not touch`
+sections. The copied bodies retain the author's semantic line breaks; do not
+split or reflow sentences by punctuation. Verification, review, and checklist
+content are transient evidence and are not copied. The section is optional and
+its absence does not make G16 fail.
+
 ## Guardrails
 
 - No new CLI, quiz engine, or HTML UI — Node stdlib + `computeDiffSha` only.
