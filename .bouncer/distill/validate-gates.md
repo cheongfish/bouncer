@@ -19,7 +19,7 @@ distill:
 - Execute G6-G8 / G13 / G14 and finalize commit-bullet titles judge only the pointer task unit (`loadBlueprintDocs` -> `docs.taskUnits`, `resolveTaskUnit` via 019 `entriesForVerify`) - no siblings.
 - `runVerification`/`recordVerificationResult` write the target unit `verification.md` only (`verificationRel`); missing -> `VERIFY_DOCUMENT_MISSING`, no create. Never author declarations there - optional verify is `tasks.md` `bouncer.verify`.
 - `closed` is blueprint lifecycle terminal: `finalize --yes` stamps/stages blueprint `index.md`; `scaffold task` refuses `closed`; `listReadyBlueprints` excludes it. Finished work opens a new blueprint.
-- `bouncer scaffold blueprint --scale light|full` validates `SCALE_ENUM` before first write (exit 2 otherwise). `light` writes four plan docs (blueprint `index.md` + `tasks/001/{tasks,verification,review}.md`), no `context-review.md`; light only narrows G10 (+ skips G18) to `Goal & intent`, `Touch`, `Checklist`; G3-G5 / G11 / G12 plus execute/commit stay full/unchanged.
+- Context-comment lint checks explicit or changed/untracked `.bouncer/context/**/*.md` files, rejects scaffold comments and TODOs, and allows other HTML comments and unchanged files.
 
 ## Gotchas
 
@@ -31,6 +31,7 @@ distill:
 - `scaffold context-review` rejects an existing file (throw), unlike `scaffoldExplain` no-op.
 - `bouncer import` without `--yes` is dry-run (plan JSON on stdout); apply needs `--yes --message`. Empty `entries` on `applyImport` -> `ok: true`, `committed: false` - distinct from limit/refusal.
 - `templateNameFor` uses `<base>-light.md` only when that key exists, else shared - verification has no light variant. No byte-identical `-light` copy.
+- Tests must not read the repository's Git-ignored `.bouncer/config.json`; fixture configuration or the config-absent fallback keeps execute worktrees portable.
 
 ## Decisions
 

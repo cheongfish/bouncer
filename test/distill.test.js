@@ -337,75 +337,6 @@ test('renderShards preserves selected shard order and ignores the index summary'
   assert.doesNotMatch(rendered, /docs body/);
 });
 
-test('repository routing is enabled only after a clean full-mode preflight', () => {
-  const repo = path.resolve(__dirname, '..');
-  const config = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
-  const state = readShards({
-    repoRoot: repo,
-    runtimePaths: { projectRoot: repo },
-  });
-
-  assert.strictEqual(config.distill.routing_enabled, true);
-
-  // 전량 소비를 먼저 관찰한 결과가 같은 인덱스의 모든 shard를 포함해야
-  // 선택 라우팅 활성화를 “파일이 존재한다”는 사실만으로 통과시키지 않는다.
-  // linked checkout에서는 CLI가 main worktree의 runtime 경로를 사용하므로,
-  // 이 저장소의 dogfood 증적은 이미 고정한 local runtime으로 직접 확인한다.
-  const fullObservation = routeShards({
-    shards: state.shards,
-    affectedPaths: ['scripts/src/lib/validate.ts'],
-    routingEnabled: false,
-    repoRoot: repo,
-  });
-  assert.strictEqual(fullObservation.full, true);
-  assert.deepStrictEqual(fullObservation.ids, state.ids);
-  assert.strictEqual(renderShards({ ...state, selection: fullObservation }), renderShards(state));
-
-  const structural = checkDistillStructural({ repoRoot: repo, config });
-  assert.strictEqual(structural.ok, true);
-  assert.deepStrictEqual(structural.warnings, []);
-  assert.deepStrictEqual(structural.failures, []);
-
-  const cases = [
-    [['scripts/src/lib/validate.ts'], ['core', 'validate-gates', 'build-ts']],
-    [['docs/configuration.md'], ['core', 'plugin-skills']],
-    [['docs/benchmark/history.md'], ['core', 'plugin-benchmark']],
-    [['skills/bouncer-plan/SKILL.md'], ['core', 'plugin-skills']],
-    [['skills/agentic-code-benchmark/SKILL.md'], ['core', 'plugin-benchmark']],
-    [
-      ['scripts/src/lib/validate.ts', 'docs/configuration.md'],
-      ['core', 'validate-gates', 'plugin-skills', 'build-ts'],
-    ],
-  ];
-  for (const [affectedPaths, ids] of cases) {
-    const selection = routeShards({
-      shards: state.shards,
-      affectedPaths,
-      routingEnabled: config.distill.routing_enabled,
-      repoRoot: repo,
-    });
-    assert.strictEqual(selection.full, false, affectedPaths.join(','));
-    assert.deepStrictEqual(selection.ids, ids, affectedPaths.join(','));
-  }
-
-  // 존재하지 않는 경로는 exact-path 패턴이 보수적으로 매칭하므로, 미분류
-  // fail-open은 실제 파일이면서 어떤 샤드 glob에도 안 닿는 경로로 잠근다.
-  const unclassified = path.join(repo, 'unclassified.xyz');
-  fs.writeFileSync(unclassified, 'unclassified\n');
-  try {
-    const failOpen = routeShards({
-      shards: state.shards,
-      affectedPaths: ['unclassified.xyz'],
-      routingEnabled: config.distill.routing_enabled,
-      repoRoot: repo,
-    });
-    assert.strictEqual(failOpen.full, true);
-    assert.deepStrictEqual(failOpen.ids, state.ids);
-  } finally {
-    fs.unlinkSync(unclassified);
-  }
-});
-
 test('repository route fail-open keeps full content and reports only stderr', () => {
   const repo = repoFixture();
   execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
@@ -620,10 +551,6 @@ test('repository Distill shard files stay within locked UTF-8 byte budgets', () 
     total <= 31176,
     `all registered shards must total <= 31176 UTF-8 bytes (got ${total})`,
   );
-
-  const config = JSON.parse(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'));
-  assert.strictEqual(config.distill.max_bytes, 6144);
-  assert.strictEqual(config.distill.routing_enabled, true);
 });
 
 test('every registered Distill shard glob reaches at least one tracked file', () => {

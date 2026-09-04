@@ -246,6 +246,25 @@ Epic: [<EPIC-id>](../../index.md) · Tasks: [001](tasks/001/tasks.md)
     'review-light.md': '# Review\n\n## Findings\n- <finding>\n',
     'pr.md': PR_TEMPLATE,
 };
+/**
+ * 템플릿 주석 비교용 공백 정규화.
+ * 복사 과정에서 줄 끝과 들여쓰기만 달라진 안내 주석은 같은 표식으로
+ * 취급하되, 저자가 쓴 주석의 문장 자체는 임의로 바꾸지 않는다.
+ */
+function normalizeCommentBody(body) {
+    return body
+        .replace(/\r\n?/g, '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .join('\n')
+        .trim();
+}
+function extractCommentBodies(body) {
+    return Array.from(body.matchAll(/<!--[\s\S]*?-->/g), (match) => normalizeCommentBody(match[0].slice(4, -3)));
+}
+// 검사기는 템플릿 전체를 읽지 않고 이 정규화된 표식만 비교한다. Set으로
+// 중복 주석(예: review/context-review)을 제거해 비교 집합을 작게 유지한다.
+const SCAFFOLD_COMMENT_BODIES = [...new Set(Object.values(TEMPLATES).flatMap((body) => extractCommentBodies(body)))];
 function readTemplate(name) {
     // 키 목록을 유니온으로 닫으면 알 수 없는 이름에서 컴파일 오류가 나고,
     // 런타임의 `unknown template` throw 계약을 테스트가 더 이상 칠 수 없다.
@@ -266,5 +285,12 @@ function templateBody(templateName, vars) {
     return renderTemplate(readTemplate(templateName), vars);
 }
 module.exports = {
-    TEMPLATES, PR_TEMPLATE, PROJECT_DISTILL_BODY, readTemplate, renderTemplate, templateBody,
+    TEMPLATES,
+    PR_TEMPLATE,
+    PROJECT_DISTILL_BODY,
+    SCAFFOLD_COMMENT_BODIES,
+    normalizeCommentBody,
+    readTemplate,
+    renderTemplate,
+    templateBody,
 };

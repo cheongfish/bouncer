@@ -55,10 +55,11 @@ const path = require('node:path');
 fs.writeFileSync(path.join('scripts', 'lib', 'app.js'), 'module.exports = 1;\\n');
 `;
 
-test('package.json exposes check:emit, test:coverage, lint:docs, and ordered ci', () => {
+test('package.json exposes context comment lint and ordered ci', () => {
   const pkg = readJson('package.json');
   assert.match(pkg.scripts['check:emit'], /scripts\/check-emit\.js/);
   assert.match(pkg.scripts['lint:docs'], /scripts\/check-doc-shape\.js/);
+  assert.match(pkg.scripts['lint:context-comments'], /scripts\/check-context-comments\.js/);
   const coverage = pkg.scripts['test:coverage'];
   assert.match(coverage, /node --test/);
   assert.match(coverage, /--test-concurrency=1/);
@@ -72,11 +73,13 @@ test('package.json exposes check:emit, test:coverage, lint:docs, and ordered ci'
   const covAt = ci.indexOf('test:coverage');
   const lintAt = ci.indexOf('npm run lint');
   const lintDocsAt = ci.indexOf('npm run lint:docs');
+  const lintCommentsAt = ci.indexOf('npm run lint:context-comments');
   assert.ok(emitAt >= 0, 'ci must run check:emit');
   assert.ok(covAt > emitAt, 'emit check must finish before coverage');
   assert.ok(lintAt >= 0, 'ci must run lint');
   assert.ok(lintDocsAt > lintAt, 'lint:docs must run immediately after lint');
-  assert.match(ci, /npm run lint && npm run lint:docs && npm run typecheck/);
+  assert.ok(lintCommentsAt > lintDocsAt, 'context comment lint must run after lint:docs');
+  assert.match(ci, /npm run lint && npm run lint:docs && npm run lint:context-comments && npm run typecheck/);
   assert.match(ci, /npm run typecheck/);
   assert.match(ci, /npm audit --audit-level=high/);
 });
