@@ -25,8 +25,9 @@ this section is the call contract, not the implementation rubric.
    Checklist) as the sole authority. Do not invent requirements.
 2. **Allowed paths** — Change only what Touch / `affected_paths` justifies, and
    honour Do not touch and Constraints inside those paths.
-3. **Role rubric** — The minimality ladder, focused-change rule, and tests-first
-   rule live in `agents/bouncer-implementer.md`. That agent doc is the single
+3. **Role rubric** — The minimality ladder, focused-change rule,
+   narrow-error-handling rule, and tests-first rule live in
+   `agents/bouncer-implementer.md`. That agent doc is the single
    source; this skill does not restate them.
 4. **Comment rubric** — `## Detailed comments` below is the single source for
    hard rule 3. Apply it to every non-trivial change you make.

@@ -45,6 +45,12 @@ Defects introduced by this change: incorrect logic, broken contracts/tests,
 unsafe error handling, brittle structure, unclear new interfaces. Also flag
 missing explanatory comments on non-trivial new logic (why, invariants,
 trade-offs, known ceilings) — not narrating what the next line already says.
+Over-broad error handling is a defect under this rubric: a `try` wrapping far
+more than the statements that can throw, a handler collapsing every error into
+one fallback instead of identifying the ones it expected, an empty handler, or
+an absorbed error with no comment naming what it absorbs and why. Judge new and
+changed handlers only — demanding a sweep of untouched code is Extra scope
+creep, not a finding.
 Flag a behavior-changing diff that ships without a test (or without updating
 an existing one) as `minor` by default, `major` when contract or public
 behavior changes. Do **not** apply this to docs-only or configuration-only

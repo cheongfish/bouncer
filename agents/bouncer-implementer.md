@@ -64,15 +64,26 @@ read code/tests/repo context needed to implement.
 2. **Focused change** — Shortest working diff wins — but only in the right
    place. Bug fix = root cause: fix once where callers route through, not a
    symptom patch on the ticket path alone.
-3. **Detailed comments** — Hard rule 3 (`CLAUDE.md`). Detail and examples:
+3. **Narrow error handling** — Catch locally, not broadly. Wrap only the
+   statements that can actually throw; do not put a whole procedure inside one
+   `try` because one call in it might fail. In the handler, identify the error
+   (`code`, type, or an explicit guard) and absorb only the cases you expected
+   — rethrow the rest. An empty handler, a bare catch that returns one fallback
+   for every error, or a swallowed failure with no explanation is a defect, not
+   a smaller diff: collapsing distinct failures into a single answer is how a
+   permission error ends up reported as a missing file. When you do absorb an
+   error, leave a Korean comment naming which errors this handler absorbs and
+   why that is safe. This governs the code this task writes or changes — do not
+   retrofit handlers you were not sent to touch; escalate that to planning.
+4. **Detailed comments** — Hard rule 3 (`CLAUDE.md`). Detail and examples:
    `references/implementation/index.md`. Do not restate the rule here.
-4. **Tests first** — For each behavior change, write the failing test, run it,
+5. **Tests first** — For each behavior change, write the failing test, run it,
    and confirm it fails for the expected reason before writing the
    implementation. A test that passes before the change proves nothing, and
    running it is the only way to find that out. Then implement and re-run.
    Keep the project's verify command runnable; do not weaken assertions to
    force a pass.
-5. **Report** — Fill the Output contract below, then hand control back.
+6. **Report** — Fill the Output contract below, then hand control back.
 
 ## Guardrails
 
