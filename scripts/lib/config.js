@@ -16,12 +16,11 @@ const DEFAULT_DISTILL_CONFIG = {
     max_bytes: 6 * 1024,
 };
 // 검증 실행은 shell:false argv만 허용한다. argv0 실행 파일명이 이 목록(또는
-// config.verify_allowlist)에 있어야 프로세스를 시작한다. 커스텀 바이너리는
+// 저장소 `verify_allowlist`)에 있어야 프로세스를 시작한다. 커스텀 바이너리는
 // npm script로 감싸거나 저장소 allowlist에 명시한다.
 //
-// plan/S12는 `tasks.bouncer.verify`를 DEFAULT_VERIFY_ALLOWLIST만으로 검사한다
-// (저장소 config를 읽지 않음). 런타임 `config.verify`·executeVerify는
-// getVerifyAllowlist(config) — 즉 저장소 `verify_allowlist` — 를 쓴다.
+// 기본 목록은 config 파일이 없을 때만 쓴다. 파손된 파일에 이 목록을 주면
+// 운영자가 막은 명령을 plan/S12와 runtime이 서로 다른 답으로 통과시킨다.
 const DEFAULT_VERIFY_ALLOWLIST = Object.freeze([
     'npm',
     'npx',
@@ -54,14 +53,11 @@ function getDistillConfig(config = {}) {
     return { ...DEFAULT_DISTILL_CONFIG, ...value };
 }
 /**
- * 검증 실행 파일 허용 목록을 읽는다. 키가 없거나 배열이 아니면 기본값을
- * 쓴다 — 잘못된 형태를 빈 목록으로 접으면 모든 verify가 거절되어 기존
- * 저장소의 execute가 한꺼번에 멈춘다. 명시적 `[]`는 그대로 두어 운영자가
- * 전면 차단을 의도한 경우를 구분한다.
- *
- * 이 함수는 런타임(`executeVerify`/`runVerification`) 전용이다. plan/S12의
- * `tasks.bouncer.verify` 검사는 `isValidVerifyCommand` 기본 목록을 쓰고
- * 여기 config 값을 읽지 않는다.
+ * 이미 파싱된 config 객체에서 허용 목록만 고른다. 키가 없거나 배열이 아니면
+ * 기본값을 쓴다 — 잘못된 형태를 빈 목록으로 접으면 모든 verify가 거절되어
+ * 기존 저장소의 execute가 한꺼번에 멈춘다. 명시적 `[]`는 그대로 두어
+ * 운영자가 전면 차단을 의도한 경우를 구분한다. 기본 목록과 합집합을
+ * 만들지 않는다. 파일 부재·파손 판정은 `readVerifyPolicy`가 맡는다.
  *
  * @param {unknown} [config] - `.bouncer/config.json` 파싱 결과
  * @returns {readonly string[]} argv0 실행 파일명 허용 목록
@@ -130,9 +126,29 @@ function readConfig(repoRoot) {
     // 같게 볼지 정한다 (cli·subagents는 ?? {}, session-graph·graphify는 null).
     return result.ok ? result.value : null;
 }
+/**
+ * `repoRoot`의 검증 정책을 한 번 읽는다. S12·`readVerifyCommand`·
+ * `executeVerify`가 이 결과만 써야 같은 명령에 다른 판정을 내지 않는다.
+ * 파일이 없을 때만 기본 목록이다. 깨진 JSON·EACCES 같은 읽기 오류는
+ * invalid이며, 기본 목록으로 넓히면 파손된 설정이 통과된다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @returns {VerifyPolicy} missing/present는 allowlist, invalid는 목록 없음
+ */
+function readVerifyPolicy(repoRoot) {
+    const parsed = readConfigResult(repoRoot);
+    if (parsed.ok === false) {
+        if (parsed.reason === 'missing') {
+            return { ok: true, reason: 'missing', allowlist: DEFAULT_VERIFY_ALLOWLIST };
+        }
+        return { ok: false, reason: 'invalid' };
+    }
+    return { ok: true, reason: 'present', allowlist: getVerifyAllowlist(parsed.value) };
+}
 module.exports = {
     readConfigResult,
     readConfig,
+    readVerifyPolicy,
     DEFAULT_DISTILL_CONFIG,
     getDistillConfig,
     DEFAULT_VERIFY_ALLOWLIST,

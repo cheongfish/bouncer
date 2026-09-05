@@ -1231,6 +1231,91 @@ test('closed blueprint allows compact layout without task leaves or context-revi
   assert.ok(!res.failures.some((f) => f.code === 'S17'));
 });
 
+function writeTasksVerifyFixture(verify, config) {
+  const repo = mkRepo();
+  const t = goodTasks();
+  if (verify !== undefined) t.bouncer.verify = verify;
+  writeDoc(repo, `${BP_REL}/tasks.md`, t);
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeBundleIndex(repo);
+  if (config !== undefined) {
+    writeRaw(repo, '.bouncer/config.json', `${JSON.stringify(config)}\n`);
+  }
+  return repo;
+}
+
+test('S12: project allowlist bun accepts bun test and rejects npm test', () => {
+  const config = { verify: 'npm test', verify_allowlist: ['bun'] };
+  const bunRepo = writeTasksVerifyFixture('bun test', config);
+  const bunRes = validateBlueprint({ repoRoot: bunRepo, blueprintDir: BP_REL });
+  assert.ok(
+    !bunRes.failures.some((f) => f.code === 'S12'),
+    `bun test should pass S12: ${JSON.stringify(bunRes.failures)}`,
+  );
+
+  const npmRepo = writeTasksVerifyFixture('npm test', config);
+  const npmRes = validateBlueprint({ repoRoot: npmRepo, blueprintDir: BP_REL });
+  assert.ok(
+    npmRes.failures.some((f) => f.code === 'S12'),
+    'npm test must fail S12 when verify_allowlist is only bun',
+  );
+});
+
+test('S12: empty verify_allowlist, shell operators, and unclosed quotes are rejected', () => {
+  const emptyRepo = writeTasksVerifyFixture('npm test', {
+    verify: 'npm test',
+    verify_allowlist: [],
+  });
+  const emptyRes = validateBlueprint({ repoRoot: emptyRepo, blueprintDir: BP_REL });
+  assert.ok(emptyRes.failures.some((f) => f.code === 'S12'));
+
+  const shellRepo = writeTasksVerifyFixture('npm test && rm -rf /', {
+    verify: 'npm test',
+    verify_allowlist: ['npm'],
+  });
+  const shellRes = validateBlueprint({ repoRoot: shellRepo, blueprintDir: BP_REL });
+  assert.ok(shellRes.failures.some((f) => f.code === 'S12'));
+
+  const quoteRepo = writeTasksVerifyFixture('node -e "unclosed', {
+    verify: 'npm test',
+    verify_allowlist: ['node'],
+  });
+  const quoteRes = validateBlueprint({ repoRoot: quoteRepo, blueprintDir: BP_REL });
+  assert.ok(quoteRes.failures.some((f) => f.code === 'S12'));
+});
+
+test('S12: missing config uses the default allowlist', () => {
+  const repo = writeTasksVerifyFixture('npm test');
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(!res.failures.some((f) => f.code === 'S12'));
+  assert.deepStrictEqual(res, { ok: true, failures: [] });
+});
+
+test('S12: broken JSON and unreadable config fail plan without default fallback', () => {
+  const broken = writeTasksVerifyFixture('npm test');
+  writeRaw(broken, '.bouncer/config.json', '{not json');
+  const brokenRes = validateBlueprint({ repoRoot: broken, blueprintDir: BP_REL });
+  assert.strictEqual(brokenRes.ok, false);
+  assert.ok(
+    brokenRes.failures.some((f) => f.code === 'S12'),
+    `broken JSON must fail plan via S12: ${JSON.stringify(brokenRes.failures)}`,
+  );
+
+  const unreadable = writeTasksVerifyFixture('npm test', { verify: 'npm test' });
+  const unreadablePath = path.join(unreadable, '.bouncer', 'config.json');
+  fs.rmSync(unreadablePath);
+  // 파일을 디렉터리로 바꿔 EACCES와 같이 readFileSync가 ENOENT가 아닌
+  // 읽기 오류를 내게 한다. chmod 000은 root에서 여전히 읽을 수 있다.
+  fs.mkdirSync(unreadablePath);
+  const unreadableRes = validateBlueprint({ repoRoot: unreadable, blueprintDir: BP_REL });
+  assert.strictEqual(unreadableRes.ok, false);
+  assert.ok(
+    unreadableRes.failures.some((f) => f.code === 'S12'),
+    `read error must fail plan via S12: ${JSON.stringify(unreadableRes.failures)}`,
+  );
+});
+
 test('light open blueprint still requires the full task unit bundle', () => {
   const repo = mkRepo();
   writeDoc(repo, `${BP_REL}/index.md`, {

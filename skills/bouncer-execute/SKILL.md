@@ -102,7 +102,13 @@ evidence. The debugger never applies the fix.
      --blueprint <pointer.blueprint> --to "${WORKTREE_PATH}"
    ```
    It first prepares lockfile-pinned development dependencies when this
-   worktree has no npm lock marker, then moves only the plan context documents
+   worktree has no npm lock marker, then copies `.bouncer/config.json` in a
+   step separate from plan-document moves and reports `copied`, `preserved`,
+   or `missing`. Destination config is kept as-is; tracked config uses HEAD
+   bytes, not a dirty base copy. The config path never appears in `moved` or
+   `restored`, and the base file is never restored, unstaged, or deleted.
+   When `config` is `missing`, print one warning line that execute continues
+   with the default allowlist. It then moves only the plan context documents
    (including each task bundle's `tasks.md`)
    (blueprint tree, epic index, context index) and returns the base to its
    committed state; unrelated dirty files stay in the base. A `conflict` result means the worktree already holds

@@ -23,6 +23,11 @@ type PendingWrite = { rel: string; write: true; dst: string; content: Buffer; ab
 type PendingSkip = { rel: string; write: false; absent?: boolean };
 type Pending = PendingWrite | PendingSkip;
 type SeedDeps = { execFileSync?: typeof execFileSync };
+type ConfigSeedStatus = 'copied' | 'preserved' | 'missing';
+
+// plan target이 아니라 별도 복사 단계의 경로. makeIsTarget에 넣으면
+// phase 2가 base config를 restore하거나 지운다.
+const CONFIG_REL = '.bouncer/config.json';
 
 // Execute worktree는 git이 추적한 파일만 받으므로 무시되는 node_modules는 항상
 // 비어 있다. npm이 만든 숨은 lock marker는 lockfile과 함께 모든 의존성이 준비된
@@ -56,7 +61,8 @@ function prepareDependencies(
 // 이동 집합은 scope.makeAllowed가 context 문서에 기본으로 허용하는 경계와
 // 의도적으로 같습니다 — blueprint 트리, epic index, context index — project Distill은
 // 제외합니다. worktree가 가져가면 안 되는 base 전역 파일입니다. affected_paths 아래
-// 코드와 관련 없는 로컬 변경(config, graph output)은 그대로 둡니다.
+// 코드와 관련 없는 로컬 변경(graph output)은 그대로 둡니다. config는 이
+// 이동 집합 밖이며, dest 보존 복사로만 전달합니다.
 function makeIsTarget({ blueprintDir }: { blueprintDir: unknown }) {
   const bp = toPosix(blueprintDir);
   const epicIndex = `${epicDirOf(bp)}/index.md`;
@@ -113,6 +119,41 @@ function realGit(repoRoot: string): SeedGit {
 // 파일을 제거하면 scaffold가 만든 디렉터리 트리가 비울 수 있습니다. Git은
 // 디렉터리를 추적하지 않으므로 빈 잔여물은 `git status`에는 보이지 않지만
 // 다음 planning 세션에는 보입니다. 무언가 남을 때까지 위로 prune합니다.
+/**
+ * execute worktree에 `.bouncer/config.json`만 보존 복사한다.
+ * dest가 있으면 바이트를 비교하지 않는다 — 재사용 worktree의 로컬 정책이
+ * 덮이면 이미 통과한 verify와 다른 명령이 돈다. 추적 파일은 HEAD가
+ * 정본이다. dirty base를 쓰면 아직 합의되지 않은 수정이 execute 정책이 된다.
+ *
+ * @param {string} repoRoot - plan 문서가 있는 base checkout
+ * @param {string} worktreePath - execute worktree 절대 경로
+ * @param {SeedGit} gitApi - HEAD 존재·바이트 조회
+ * @returns {'copied' | 'preserved' | 'missing'} dest 유지, HEAD/base 복사, 또는 양쪽 부재
+ */
+function seedConfig(repoRoot: string, worktreePath: string, gitApi: SeedGit): ConfigSeedStatus {
+  const dest = path.join(worktreePath, CONFIG_REL);
+  if (fs.existsSync(dest)) return 'preserved';
+
+  const src = path.join(repoRoot, CONFIG_REL);
+  if (gitApi.existsInHead(CONFIG_REL)) {
+    const head = gitApi.readHead(CONFIG_REL);
+    // existsInHead가 참이면 dirty working tree는 정책이 아니다.
+    // null을 untracked 분기로 넘기면 로컬 수정본이 execute 검증 명령이 된다.
+    if (!head) {
+      throw new Error(`failed to read HEAD:${CONFIG_REL}`);
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, head);
+    return 'copied';
+  }
+  // ignored·untracked는 HEAD에 없다. dest가 비어 있을 때만 base 바이트를
+  // 복사하고, base 파일은 그대로 둔다 — 이 경로는 phase 2 대상이 아니다.
+  if (!fs.existsSync(src)) return 'missing';
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, fs.readFileSync(src));
+  return 'copied';
+}
+
 function pruneEmptyDirs(repoRoot: string, rel: string): void {
   let dir = path.dirname(path.join(repoRoot, rel));
   const stop = path.resolve(repoRoot);
@@ -144,7 +185,16 @@ function seedWorktree({
   }
   const prepared = prepareDependencies(worktreePath, deps || {});
   if (!prepared.ok) return prepared;
-  if (!targets.length) return { ok: true, moved: [], restored: [] };
+
+  // dependency 준비 다음, plan 이동 전. 충돌로 phase 1이 중단돼도
+  // 대상 worktree는 검증 정책을 이미 갖고, 다음 재시도는 preserved가 된다.
+  let config: ConfigSeedStatus;
+  try {
+    config = seedConfig(repoRoot, worktreePath, gitApi);
+  } catch (error) {
+    return { ok: false, reason: 'copy-failed', message: (error as { message: unknown }).message };
+  }
+  if (!targets.length) return { ok: true, moved: [], restored: [], config };
 
   // Phase 1 — 복사 후 확인. `git checkout --`와 `git rm --cached`는 되돌릴 수
   // 없으므로, 모든 target이 worktree에 동일한 바이트로 존재하는 것이 확인될 때까지
@@ -176,7 +226,7 @@ function seedWorktree({
       else conflicts.push(rel);
     }
   }
-  if (conflicts.length) return { ok: false, reason: 'conflict', conflicts };
+  if (conflicts.length) return { ok: false, reason: 'conflict', conflicts, config };
 
   try {
     for (const item of pending) {
@@ -208,7 +258,7 @@ function seedWorktree({
     // base에서 삭제된 경로는 복사되지 않았으므로 moved가 아니라 restored입니다.
     if (!absent) moved.push(rel);
   }
-  return { ok: true, moved, restored };
+  return { ok: true, moved, restored, config };
 }
 
 export = { makeIsTarget, realGit, seedWorktree };

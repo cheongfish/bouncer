@@ -139,6 +139,13 @@ test('bouncer-execute step 2 seeds the worktree with the plan documents', () => 
   );
 });
 
+test('bouncer-execute consumes seed config status and warns when missing', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /`copied`[\s\S]{0,80}`preserved`[\s\S]{0,80}`missing`/);
+  assert.match(body, /config[\s\S]{0,120}missing[\s\S]{0,160}(default allowlist|기본 allowlist)/i);
+  assert.match(body, /warn(?:ing)?|경고/i);
+});
+
 test('bouncer-execute step 3 routes implementation through bouncer-implementer', () => {
   const { body } = parseFrontmatter(md);
   const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
