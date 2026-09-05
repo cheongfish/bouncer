@@ -9,6 +9,9 @@ description: "Use only when the user explicitly asks /bouncer-init; it bootstrap
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
+Output contract: `rules/output.md`. Preserve the step 3 ACQ display; report the
+bootstrap outcome, created or migrated targets, Graphify result/recovery, and
+the next `/bouncer-plan` action through that shared contract.
 
 Bootstrap this project for Bouncer.
 
@@ -21,7 +24,7 @@ Bootstrap this project for Bouncer.
    # Codex users without an existing .codex/ directory:
    # bouncer init --seed-codex-agents
    ```
-2. Report the bootstrap and install result:
+2. Render the bootstrap and install result through `rules/output.md`:
    - If bootstrap is already ready and `.bouncer/Distill.md` exists,
      report `already-initialized` and that no scaffold files were created.
    - If bootstrap is ready but Distill was missing, report that Distill was

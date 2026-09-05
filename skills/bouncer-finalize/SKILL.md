@@ -10,6 +10,9 @@ description: "Use only when the user explicitly asks /bouncer-finalize; it close
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Output contract: `rules/output.md`. Preserve every ACQ display; render the
+finalize outcome, changed targets, verification, and next blueprint or
+`/bouncer-plan` action through that shared contract.
 
 Close out the active blueprint after every task has been committed via
 `/bouncer-commit`. Follow this sequence. Do **not** run `bouncer commit` here —
@@ -113,15 +116,9 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    by the finalize payload and the cleanup-handoff contract above — do not
    arbitrarily `--set` an open sibling.
 
-7. **Report.** Lead with the outcome, then the detail: whether explain/quiz
-   landed, whether a remainder commit landed (and whether the CLI applied
-   one-off document deletion, condensed layout, and `closed`), the PR URL (or
-   that push/PR was skipped/declined), whether the worktree was removed or left
-   in place, whether the active pointer was advanced to the next blueprint or
-   left cleared, and that follow-up stays on sibling Blueprint / `/bouncer-plan`
-   (preserved evidence is `explain.md`; no closed reopen, archive, or retroactive
-   edits). Keep it to
-   those facts — no recap of the steps the user just watched run.
+7. **Report.** Render through `rules/output.md`: explain/quiz outcome, remainder
+   commit and resulting `closed` state, PR URL or skip/decline, worktree result,
+   pointer result, and the next sibling Blueprint or `/bouncer-plan` action.
 
 ## ACQ (AskUserQuestion) gates
 

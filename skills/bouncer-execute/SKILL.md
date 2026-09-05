@@ -10,6 +10,9 @@ description: "Use only when the user explicitly asks /bouncer-execute; it implem
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Output contract: `rules/output.md`. Render changed targets, verification and
+review results, execute-gate outcome, and the next `/bouncer-commit` action
+through that shared contract; never hide a gate failure or scope violation.
 
 Implement the active blueprint's current task. Follow this sequence. Do **not**
 run `git commit` or `bouncer commit` here — after the execute gate passes, point
@@ -200,8 +203,8 @@ evidence. The debugger never applies the fix.
    verify command in the worktree and records its evidence. Gate `execute`
    then checks G6 tasks verified, G7 verification passed, G8 review accepted
    (or `required: false`), G13 the harness verification record, and G14 the
-   review Findings contract. Fix and re-run until it passes, then point the user
-   at `/bouncer-commit`.
+   review Findings contract. Fix and re-run until it passes, then render the
+   execute-gate result and next `/bouncer-commit` action through `rules/output.md`.
 
 ## ACQ (AskUserQuestion) gates
 

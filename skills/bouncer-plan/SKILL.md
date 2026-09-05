@@ -10,6 +10,9 @@ description: "Use only when the user explicitly asks /bouncer-plan; it authors e
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Output contract: `rules/output.md`. Preserve every ACQ display and render the
+approved plan, active pointer, plan-gate result, and next `/bouncer-run` action
+through that shared contract.
 
 Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
@@ -223,7 +226,8 @@ Skill flow (recommended): `discovery` (`${BOUNCER_ROOT}/references/discovery/ind
    `rules/current-pointer.md` contract; its `--set` plan-gate refusal stops
    this workflow.
 
-10. **Gate.** Run `bouncer validate --gate plan` and report:
+10. **Gate.** Run `bouncer validate --gate plan` and render its result through
+   `rules/output.md`:
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate plan
    ```

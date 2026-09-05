@@ -10,6 +10,9 @@ description: "Use only when the user explicitly asks /bouncer-commit; it commits
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Output contract: `rules/output.md`. Preserve commit and pointer ACQs; render
+the commit outcome, subject, pointer target, and next task or finalize action
+through that shared contract.
 
 Close one task on the active blueprint. Follow this sequence. Do **not** open a
 draft PR, remove the execute worktree, or run `explain-diff` here — those are
@@ -111,10 +114,9 @@ workflow only supplies the current task's scope and its post-commit handoff.
    - If `nextTask` is `null`, skip A and recommend `/bouncer-finalize` instead.
    - If B/C leave the pointer as-is (or only report), say so plainly.
 
-6. **Report.** Lead with the outcome, then the detail: whether a commit was
-   created (or empty staged set), the commit subject, whether the pointer moved
-   to the next task or the user should run `/bouncer-finalize`. Keep it to those
-   facts — no recap of the steps the user just watched run.
+6. **Report.** Render through `rules/output.md`: commit outcome (including an
+   empty staged set), commit subject, pointer target, and next task or
+   `/bouncer-finalize` action.
 
 ## ACQ (AskUserQuestion) gates
 

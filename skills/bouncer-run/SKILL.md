@@ -10,6 +10,9 @@ description: "Use only when the user explicitly asks /bouncer-run; it repeats /b
 once (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Output contract: `rules/output.md`. Preserve start and next-task ACQs; render
+drive progress as one sentence per loop step and report task outcome, changed
+targets, verification, and the next action without per-task raw logs.
 Do not reload these immutable rules on later task iterations in the same drive.
 Continue Distill re-ground, task brief, ACQ, and gate work per task.
 
@@ -154,8 +157,9 @@ than fixing directly.
 
 6. **Stop.** On verify re-failure, review ceiling, scope violation, or user decline, read this reference: [stop-recovery.md](./references/stop-recovery.md). Do not alter limits, retry automatically, or enter finalize.
 
-7. **Exit.** When `nextTask` is `null` or open tasks are exhausted, stop and
-   point the user at `/bouncer-finalize`. This skill does not enter finalize.
+7. **Exit.** When `nextTask` is `null` or open tasks are exhausted, render the
+   drive result and next `/bouncer-finalize` action through `rules/output.md`.
+   This skill does not enter finalize.
 
 ## ACQ (AskUserQuestion) gates
 
