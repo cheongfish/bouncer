@@ -24,6 +24,7 @@ const { PROJECT_DISTILL, DISTILL_ROOT } = layout;
 import config = require('./config');
 const {
   DEFAULT_DISTILL_CONFIG,
+  DEFAULT_VERIFY_ALLOWLIST,
   getDistillConfig,
   readConfig,
 } = config;
@@ -533,7 +534,22 @@ function expectedTypeForPath(rel: unknown): string | null {
   return null;
 }
 
-function checkStructural(doc: unknown, failures: FailureEntry[]): void {
+/**
+ * 문서 하나(프론트매터)의 구조 코드를 기록한다. S12는 호출자가 넘긴
+ * 프로젝트 allowlist로 `tasks.bouncer.verify`를 검사한다. 목록을 생략하면
+ * 기본 목록을 쓰는데, 직접 호출 테스트와 정책 부재 폴백을 맞추기 위함이다.
+ * 파손된 config의 기본 목록 폴백은 `validateBlueprint`가 막는다.
+ *
+ * @param {unknown} doc - `{ data, rel }` 문서
+ * @param {FailureEntry[]} failures - 실패를 누적할 배열
+ * @param {readonly string[]} [verifyAllowlist] - S12 argv0 허용 목록
+ * @returns {void}
+ */
+function checkStructural(
+  doc: unknown,
+  failures: FailureEntry[],
+  verifyAllowlist: readonly string[] = DEFAULT_VERIFY_ALLOWLIST,
+): void {
   const { data, rel } = doc as { data: unknown; rel: string };
   const add = (code: string, message: string) => failures.push({ code, message, file: rel });
   const rec = data as Record<string, unknown>;
@@ -648,8 +664,8 @@ function checkStructural(doc: unknown, failures: FailureEntry[]): void {
       add('S9', scopeEvidence.error);
     }
     // 선택 필드: 없으면 기존 tasks.md가 모두 유효하게 유지됨. S12와
-    // VERIFY_COMMAND_INVALID가 일치하도록 verification.isValidVerifyCommand를 재사용.
-    if (bouncer.verify !== undefined && !isValidVerifyCommand(bouncer.verify)) {
+    // VERIFY_COMMAND_INVALID가 같은 allowlist를 써야 두 경로가 어긋나지 않는다.
+    if (bouncer.verify !== undefined && !isValidVerifyCommand(bouncer.verify, verifyAllowlist)) {
       add('S12', 'tasks.verify must be a single executable command');
     }
   }

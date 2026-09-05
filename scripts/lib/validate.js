@@ -15,6 +15,8 @@ const validateDocs = require("./validate-docs");
 const { loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves, } = validateDocs;
 const validateStructural = require("./validate-structural");
 const { checkStructural, checkDistillStructural } = validateStructural;
+const config = require("./config");
+const { readVerifyPolicy } = config;
 const validateGates = require("./validate-gates");
 const { checkGate } = validateGates;
 const validateSections = require("./validate-sections");
@@ -129,6 +131,20 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     if (docs.blueprintIndex && !docs.epicIndex) {
         failures.push({ code: 'S8', message: 'epic index.md absent', file: rels.epicIndex });
     }
+    // 구조 검사를 돌기 전에 정책을 한 번만 읽는다. 문서마다 config를 다시
+    // 열면 같은 blueprint에서 S12 답이 갈라질 수 있고, 파손된 파일을
+    // 기본 목록으로 접으면 runtime VERIFY_CONFIG_INVALID와 어긋난다.
+    const verifyPolicy = readVerifyPolicy(repoRoot);
+    if (verifyPolicy.ok === false) {
+        failures.push({
+            code: 'S12',
+            message: `verification config is invalid: ${path.join(repoRoot, '.bouncer', 'config.json')}`,
+            file: '.bouncer/config.json',
+        });
+    }
+    const verifyAllowlist = verifyPolicy.ok === true
+        ? verifyPolicy.allowlist
+        : [];
     const hasTaskUnits = Array.isArray(docs.taskUnits) && docs.taskUnits.length > 0;
     // 번호 tasks가 루트 verification/review를 공유하면 같은 rel을 두 번
     // 검사하지 않는다. unit leaf에서 못 본 루트 파일은 그대로 검사한다
@@ -142,7 +158,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
                     if (!leafDoc || unitSeenRels.has(leafDoc.rel))
                         continue;
                     unitSeenRels.add(leafDoc.rel);
-                    checkStructural(leafDoc, failures);
+                    checkStructural(leafDoc, failures, verifyAllowlist);
                 }
             }
             continue;
@@ -152,7 +168,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
             if (hasTaskUnits)
                 continue;
             for (const td of docs.tasksDocs || [])
-                checkStructural(td, failures);
+                checkStructural(td, failures, verifyAllowlist);
             continue;
         }
         // tasksDocs/taskUnits가 있으면 docs.tasks는 그 첫 항목이라 중복 검사하지 않는다.
@@ -163,7 +179,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
             && unitSeenRels.has(docs[key].rel)) {
             continue;
         }
-        checkStructural(docs[key], failures);
+        checkStructural(docs[key], failures, verifyAllowlist);
     }
     failures.push(...checkEpicIndexConsistency({ repoRoot }));
     // imported blueprint는 게이트·작업 대상이 아니다. 구조·에픽목록 검사는 유지하되

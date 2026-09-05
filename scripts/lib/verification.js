@@ -22,7 +22,7 @@ const { toPosix } = paths;
 const runtimeState = require("./runtime-state");
 const { verifyLedgerPathFor } = runtimeState;
 const config = require("./config");
-const { readConfigResult, getVerifyAllowlist, DEFAULT_VERIFY_ALLOWLIST, } = config;
+const { readConfigResult, readVerifyPolicy, DEFAULT_VERIFY_ALLOWLIST, } = config;
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
 // 증거이므로 훨씬 더 많이 — 그리고 리뷰어가 읽는 문서 본문에, frontmatter에만
@@ -132,9 +132,8 @@ function verifyExecutableName(argv0) {
 /**
  * 활성 포인터·config가 고른 검증 명령이 실행 가능한지 판정한다.
  * 파싱 성공과 허용 목록(argv0 실행 파일명)을 함께 본다. allowlist를 생략하면
- * 기본 목록을 쓴다 — plan/S12(`tasks.bouncer.verify`)는 config.verify_allowlist
- * 없이 기본 목록만으로 검사하고, 런타임 `executeVerify`/`runVerification`은
- * 저장소 config를 따로 읽는다.
+ * 기본 목록을 쓴다. 저장소 정책을 이미 읽은 호출자는 그 목록을 넘겨
+ * S12와 runtime이 다른 답을 내지 않게 한다.
  *
  * @param {unknown} command - 검증 명령 문자열
  * @param {readonly string[]} [allowlist] - argv0 실행 파일명 허용 목록
@@ -162,7 +161,18 @@ function entriesForVerify(repoRoot, blueprintDir) {
     }
     return listing.entries;
 }
+/**
+ * 활성 task 선언 또는 `config.verify`에서 검증 명령을 고른다. task 필드는
+ * 저장소 정책 allowlist로 검사한다. 파손된 config는 기본 목록으로 넘어가지
+ * 않고 `VERIFY_CONFIG_INVALID`다. 셸 연산자·미종료 인용은 그보다 먼저
+ * `VERIFY_COMMAND_INVALID`로 거절한다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} [blueprintDir] - 있으면 그 blueprint의 task 선언을 먼저 본다
+ * @returns {string} 실행할 단일 argv 문자열
+ */
 function readVerifyCommand(repoRoot, blueprintDir) {
+    const configPath = path.join(repoRoot, '.bouncer', 'config.json');
     // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
     // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
     // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
@@ -176,7 +186,16 @@ function readVerifyCommand(repoRoot, blueprintDir) {
                 const bouncer = data ? data.bouncer : data;
                 const declared = bouncer ? bouncer.verify : bouncer;
                 if (declared !== undefined) {
-                    if (!isValidVerifyCommand(declared)) {
+                    // 셸 연산자·미종료 인용은 config가 깨져 있어도 명령 오류다.
+                    // 정책을 먼저 보면 VERIFY_CONFIG_INVALID가 그 거절을 가린다.
+                    if (!parseVerifyArgv(declared)) {
+                        throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
+                    }
+                    const policy = readVerifyPolicy(repoRoot);
+                    if (policy.ok === false) {
+                        throw verificationError('VERIFY_CONFIG_INVALID', `verification config is invalid: ${configPath}`);
+                    }
+                    if (!isValidVerifyCommand(declared, policy.allowlist)) {
                         throw verificationError('VERIFY_COMMAND_INVALID', 'verify command must be a single executable command');
                     }
                     // isValidVerifyCommand가 통과한 값만 문자열이다. 여기서 다시 접지 않는다.
@@ -186,12 +205,13 @@ function readVerifyCommand(repoRoot, blueprintDir) {
             catch (error) {
                 if (errorCode(error) === 'VERIFY_COMMAND_INVALID')
                     throw error;
+                if (errorCode(error) === 'VERIFY_CONFIG_INVALID')
+                    throw error;
                 if (errorCode(error) !== 'ENOENT')
                     throw error;
             }
         }
     }
-    const configPath = path.join(repoRoot, '.bouncer', 'config.json');
     // 파일 없음과 깨진 JSON을 한 오류로 합치면 VERIFY_CONFIG_MISSING이
     // 권한·구문 문제를 가린다. 메시지 문자열은 호출자가 경로를 그대로 보게 유지.
     const parsed = readConfigResult(repoRoot);
@@ -219,14 +239,22 @@ function outputTail(stdout, stderr, lines = OUTPUT_TAIL_LINES) {
 /**
  * cwd의 `.bouncer/config.json`에서 런타임 허용 목록을 읽는다.
  * allowlist 옵션을 생략한 finalize `executeVerify(command, { cwd })`가
- * `config.verify_allowlist`를 따르게 한다. 파일이 없거나 깨져도 기본 목록으로
- * 실행은 이어 가되, 명령 문자열 자체는 호출자가 이미 고른 값이다.
+ * 저장소 정책을 따르게 한다. 파일이 없을 때만 기본 목록이다. 파손된
+ * 설정에 기본 목록을 주면 직접 호출이 plan/read와 다른 답을 낸다.
+ *
+ * @param {string} cwd - 실행 작업 디렉터리
+ * @returns {{ ok: true, allowlist: readonly string[] } | { ok: false, output: string }}
+ *   invalid면 프로세스를 시작하지 말라는 오류 출력
  */
 function resolveRuntimeAllowlist(cwd) {
-    const parsed = readConfigResult(cwd);
-    return parsed.ok === true
-        ? getVerifyAllowlist(parsed.value)
-        : DEFAULT_VERIFY_ALLOWLIST;
+    const policy = readVerifyPolicy(cwd);
+    if (policy.ok === false) {
+        return {
+            ok: false,
+            output: `verification config is invalid: ${path.join(cwd, '.bouncer', 'config.json')}`,
+        };
+    }
+    return { ok: true, allowlist: policy.allowlist };
 }
 /**
  * 파싱된 argv를 shell:false로 실행한다. 허용 목록 밖 argv0·파싱 실패는
@@ -235,8 +263,9 @@ function resolveRuntimeAllowlist(cwd) {
  * 호출하므로, 여기 throw는 cmdFinalize를 스택으로 무너뜨린다. 증적에
  * 남는 command 문자열은 호출자가 넘긴 원문을 유지한다.
  *
- * allowlist를 생략하면 cwd config의 `verify_allowlist`(없으면 기본 목록)를
- * 쓴다. 테스트만 명시적 allowlist로 덮어쓴다.
+ * allowlist를 생략하면 cwd의 저장소 정책을 쓴다. 파손된 config는
+ * throw하지 않고 `{ ok: false }`로 돌려 finalize JSON 경로를 유지한다.
+ * 테스트만 명시적 allowlist로 덮어쓴다.
  *
  * @param {string} command - 원문 검증 명령 문자열
  * @param {{ cwd: string, exec?: VerifyExec, allowlist?: readonly string[] }} opts - 실행 옵션
@@ -245,9 +274,17 @@ function resolveRuntimeAllowlist(cwd) {
 function executeVerify(command, { cwd, exec, allowlist }) {
     // 생략과 명시적 전달을 구분한다. 기본 매개변수로 DEFAULT를 붙이면
     // finalize처럼 allowlist 없이 호출해도 저장소 config를 읽지 못한다.
-    const resolvedAllowlist = allowlist !== undefined
-        ? allowlist
-        : resolveRuntimeAllowlist(cwd);
+    let resolvedAllowlist;
+    if (allowlist !== undefined) {
+        resolvedAllowlist = allowlist;
+    }
+    else {
+        const resolved = resolveRuntimeAllowlist(cwd);
+        if (resolved.ok === false) {
+            return { ok: false, exitCode: 1, output: resolved.output };
+        }
+        resolvedAllowlist = resolved.allowlist;
+    }
     const argv = parseVerifyArgv(command);
     // throw 대신 ok:false — finalize의 `if (!execution.ok)` JSON 경로로 보낸다.
     if (!argv || !isValidVerifyCommand(command, resolvedAllowlist)) {
@@ -419,15 +456,17 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
     if (!fs.existsSync(verificationPath)) {
         throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);
     }
-    // config.verify 경로는 readVerifyCommand가 형식 검사를 건너뛸 수 있으므로
-    // 실행 직전에 저장소 allowlist로 한 번 더 막는다. task 선언은 이미
-    // 기본 목록으로 S12/read 시점에 걸러졌고, 여기선 운영자 목록이 더 좁으면
-    // 그 목록이 이긴다.
-    const parsed = readConfigResult(repoRoot);
-    const allowlist = parsed.ok === true
-        ? getVerifyAllowlist(parsed.value)
-        : DEFAULT_VERIFY_ALLOWLIST;
-    const execution = executeVerify(command, { cwd: repoRoot, exec, allowlist });
+    // 같은 정책 목록을 executeVerify에 명시한다. 생략하면 cwd를 다시 읽어
+    // 두 표면이 어긋날 수 있고, invalid면 기본 목록으로 실행이 이어진다.
+    const policy = readVerifyPolicy(repoRoot);
+    if (policy.ok === false) {
+        throw verificationError('VERIFY_CONFIG_INVALID', `verification config is invalid: ${path.join(repoRoot, '.bouncer', 'config.json')}`);
+    }
+    const execution = executeVerify(command, {
+        cwd: repoRoot,
+        exec,
+        allowlist: policy.allowlist,
+    });
     const ranAt = nowIsoKst(now());
     recordVerificationResult({
         repoRoot,

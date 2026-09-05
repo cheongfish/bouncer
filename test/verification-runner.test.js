@@ -808,6 +808,183 @@ test('executeVerify rejects npm test when allowlist is narrowed to node', () => 
   });
 });
 
+function writeAllowlist(repo, allowlist, extra = {}) {
+  const configPath = path.join(repo, '.bouncer/config.json');
+  const current = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  fs.writeFileSync(configPath, JSON.stringify({ ...current, ...extra, verify_allowlist: allowlist }));
+}
+
+test('project allowlist bun accepts bun test and rejects npm test at runtime', () => {
+  const repo = setupRepo('npm test');
+  writeAllowlist(repo, ['bun']);
+
+  writeTasks(repo, 'bun test');
+  let bunExecuted = false;
+  const bunResult = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    exec: (file, args, options) => {
+      void options;
+      bunExecuted = true;
+      assert.strictEqual(file, 'bun');
+      assert.deepStrictEqual(args, ['test']);
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.strictEqual(bunExecuted, true);
+  assert.deepStrictEqual(bunResult, { ok: true, command: 'bun test', exitCode: 0 });
+  assert.strictEqual(readVerifyCommand(repo, BP_REL), 'bun test');
+
+  writeTasks(repo, 'npm test');
+  let npmExecuted = false;
+  assert.throws(
+    () => readVerifyCommand(repo, BP_REL),
+    (e) => e.code === 'VERIFY_COMMAND_INVALID',
+  );
+  assert.throws(
+    () => runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      exec: () => { npmExecuted = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_COMMAND_INVALID',
+  );
+  assert.strictEqual(npmExecuted, false);
+});
+
+test('empty allowlist, shell operators, and unclosed quotes reject before starting a process', () => {
+  const emptyRepo = setupRepo('npm test');
+  writeAllowlist(emptyRepo, []);
+  writeTasks(emptyRepo, 'npm test');
+  let emptyExecuted = false;
+  assert.throws(
+    () => runVerification({
+      repoRoot: emptyRepo,
+      blueprintDir: BP_REL,
+      exec: () => { emptyExecuted = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_COMMAND_INVALID',
+  );
+  assert.strictEqual(emptyExecuted, false);
+
+  const shellRepo = setupRepo('npm test');
+  writeAllowlist(shellRepo, ['npm']);
+  writeTasks(shellRepo, 'npm test && rm -rf /');
+  let shellExecuted = false;
+  assert.throws(
+    () => runVerification({
+      repoRoot: shellRepo,
+      blueprintDir: BP_REL,
+      exec: () => { shellExecuted = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_COMMAND_INVALID',
+  );
+  assert.strictEqual(shellExecuted, false);
+
+  const quoteRepo = setupRepo('npm test');
+  writeAllowlist(quoteRepo, ['node']);
+  writeTasks(quoteRepo, 'node -e "unclosed');
+  let quoteExecuted = false;
+  assert.throws(
+    () => runVerification({
+      repoRoot: quoteRepo,
+      blueprintDir: BP_REL,
+      exec: () => { quoteExecuted = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_COMMAND_INVALID',
+  );
+  assert.strictEqual(quoteExecuted, false);
+});
+
+test('missing config uses the default allowlist; broken JSON and read errors abort as VERIFY_CONFIG_INVALID', () => {
+  const missingRepo = setupRepo('npm test');
+  fs.rmSync(path.join(missingRepo, '.bouncer/config.json'));
+  writeTasks(missingRepo, 'npm test');
+  let missingExecuted = false;
+  const missingResult = runVerification({
+    repoRoot: missingRepo,
+    blueprintDir: BP_REL,
+    exec: (file, args, options) => {
+      void options;
+      missingExecuted = true;
+      assert.deepStrictEqual([file, ...args], ['npm', 'test']);
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.strictEqual(missingExecuted, true);
+  assert.deepStrictEqual(missingResult, { ok: true, command: 'npm test', exitCode: 0 });
+  assert.strictEqual(readVerifyCommand(missingRepo, BP_REL), 'npm test');
+
+  const brokenRepo = setupRepo('npm test');
+  writeTasks(brokenRepo, 'npm test');
+  fs.writeFileSync(path.join(brokenRepo, '.bouncer/config.json'), '{not json');
+  let brokenExecuted = false;
+  assert.throws(
+    () => readVerifyCommand(brokenRepo, BP_REL),
+    (e) => e.code === 'VERIFY_CONFIG_INVALID',
+  );
+  assert.throws(
+    () => runVerification({
+      repoRoot: brokenRepo,
+      blueprintDir: BP_REL,
+      exec: () => { brokenExecuted = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_CONFIG_INVALID',
+  );
+  assert.strictEqual(brokenExecuted, false);
+
+  const unreadableRepo = setupRepo('npm test');
+  writeTasks(unreadableRepo, 'npm test');
+  const unreadablePath = path.join(unreadableRepo, '.bouncer/config.json');
+  fs.rmSync(unreadablePath);
+  fs.mkdirSync(unreadablePath);
+  let unreadableExecuted = false;
+  assert.throws(
+    () => readVerifyCommand(unreadableRepo, BP_REL),
+    (e) => e.code === 'VERIFY_CONFIG_INVALID',
+  );
+  assert.throws(
+    () => runVerification({
+      repoRoot: unreadableRepo,
+      blueprintDir: BP_REL,
+      exec: () => { unreadableExecuted = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_CONFIG_INVALID',
+  );
+  assert.strictEqual(unreadableExecuted, false);
+});
+
+test('executeVerify returns ok:false and does not start a process when config is invalid', () => {
+  const repo = setupRepo('npm test');
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{not json');
+  let executed = false;
+  const result = executeVerify('npm test', {
+    cwd: repo,
+    exec: () => { executed = true; return { status: 0, stdout: '', stderr: '' }; },
+  });
+  assert.strictEqual(executed, false);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.exitCode, 1);
+  assert.ok(typeof result.output === 'string' && result.output.length > 0);
+  assert.match(result.output, /invalid/i);
+
+  const unreadable = setupRepo('npm test');
+  const unreadablePath = path.join(unreadable, '.bouncer/config.json');
+  fs.rmSync(unreadablePath);
+  fs.mkdirSync(unreadablePath);
+  let unreadableExecuted = false;
+  const unreadableResult = executeVerify('npm test', {
+    cwd: unreadable,
+    exec: () => { unreadableExecuted = true; return { status: 0, stdout: '', stderr: '' }; },
+  });
+  assert.strictEqual(unreadableExecuted, false);
+  assert.deepStrictEqual(
+    { ok: unreadableResult.ok, exitCode: unreadableResult.exitCode },
+    { ok: false, exitCode: 1 },
+  );
+  assert.match(unreadableResult.output, /invalid/i);
+});
+
 test('isValidVerifyCommand accepts win32 npm.cmd against the default allowlist', () => {
   const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
   Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
