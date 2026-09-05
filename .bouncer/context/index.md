@@ -19,3 +19,4 @@ bouncer_schema: '0.1'
 * [061 structural-audit-remediation](epics/061-structural-audit-remediation/index.md) - Addresses measured structural audit findings through staged security, efficiency, correctness, and distribution improvements.
 * [062 document-commit-contracts](epics/062-document-commit-contracts/index.md) - Organizes durable document and commit contracts so future workflow improvements remain consistent.
 * [063 maintenance](epics/063-maintenance/index.md) - Maintains cross-cutting quality, docs, and minor repairs across Bouncer.
+* [064 runtime-policy-pointer-safety](epics/064-runtime-policy-pointer-safety/index.md) - Unifies verification policy and isolates active blueprint state across linked worktrees.
