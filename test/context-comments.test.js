@@ -90,6 +90,29 @@ test('base diff and untracked files are checked while unchanged and deleted file
   assert.doesNotMatch(result.stderr, /author\.md/);
 });
 
+test('active task scaffold comments fail without checking pending sibling tasks', () => {
+  const repo = fixtureRepo();
+  const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
+  const active = `${blueprint}/tasks/001/tasks.md`;
+  const pending = `${blueprint}/tasks/002/tasks.md`;
+  const scaffold = '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
+  fs.mkdirSync(path.join(repo, path.dirname(active)), { recursive: true });
+  fs.mkdirSync(path.join(repo, path.dirname(pending)), { recursive: true });
+  fs.writeFileSync(path.join(repo, active), scaffold);
+  fs.writeFileSync(path.join(repo, pending), scaffold);
+  fs.mkdirSync(path.join(repo, '.git', 'bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.git', 'bouncer', 'current'), `${JSON.stringify({
+    blueprint,
+    base: 'main',
+    task: active,
+  })}\n`);
+
+  const result = runChecker(repo);
+  assert.strictEqual(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /tasks\/001\/tasks\.md/);
+  assert.doesNotMatch(result.stderr, /tasks\/002\/tasks\.md/);
+});
+
 test('unrelated HTML comments and no changed context documents pass', () => {
   const repo = fixtureRepo();
   const legacy = '.bouncer/context/epics/001-x/legacy.md';

@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { SCAFFOLD_COMMENT_BODIES, normalizeCommentBody } = require('./lib/templates');
+const { readCurrent } = require('./lib/current');
+const { listTasksDocs } = require('./lib/tasks-docs');
 
 const CONTEXT_ROOT = '.bouncer/context';
 const COMMENT_RE = /<!--[\s\S]*?-->/g;
@@ -68,6 +70,21 @@ function splitGitNames(output) {
   return output.split('\0').filter(Boolean);
 }
 
+function activeTaskUnit(repoRoot) {
+  const current = readCurrent({ repoRoot });
+  if (!current || !current.task) return null;
+  const listing = listTasksDocs({ repoRoot, blueprintDir: current.blueprint });
+  const unit = listing.entries.find((entry) => entry.rel === current.task);
+  return unit ? { unit, units: listing.entries } : null;
+}
+
+function isPendingTaskSibling(relative, activeUnit, units) {
+  return units.some((unit) => (
+    unit.dir !== activeUnit.dir
+    && relative.startsWith(`${unit.dir}/`)
+  ));
+}
+
 function changedContextFiles(repoRoot, base) {
   // 삭제(D)는 diff 결과에 남지만 읽을 파일이 없으므로 diff-filter로 제외한다.
   const changed = splitGitNames(runGit(repoRoot, [
@@ -77,9 +94,14 @@ function changedContextFiles(repoRoot, base) {
   const untracked = splitGitNames(runGit(repoRoot, [
     'ls-files', '--others', '--exclude-standard', '-z', '--', CONTEXT_ROOT,
   ]));
-  return [...new Set([...changed, ...untracked])]
+  const candidates = [...new Set([...changed, ...untracked])]
     .filter((relative) => isContextMarkdown(relative))
     .filter((relative) => fs.existsSync(path.join(repoRoot, relative)));
+  const active = activeTaskUnit(repoRoot);
+  if (!active) return candidates;
+  // 실행 포인터가 있는 blueprint에서는 현재 묶음만 lint한다. plan 단계에서
+  // 함께 만들어진 다음 task 묶음은 아직 스캐폴드 상태여도 현재 실행을 막지 않는다.
+  return candidates.filter((relative) => !isPendingTaskSibling(relative, active.unit, active.units));
 }
 
 function validateBase(repoRoot, base) {
