@@ -6,12 +6,16 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { seedWorktree } = require('../scripts/lib/seed-worktree');
+const { seedWorktree, realGit } = require('../scripts/lib/seed-worktree');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
 const INDEX_REL = '.bouncer/context/index.md';
+const CONFIG_REL = '.bouncer/config.json';
 const COMMITTED_INDEX = '# Epics\ncommitted\n';
+const CONFIG_HEAD = '{"verify":"npm test"}\n';
+const CONFIG_DIRTY = '{"verify":"npm run ci"}\n';
+const CONFIG_OTHER = '{"verify":"npx vitest"}\n';
 
 function git(repo, args) {
   return execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
@@ -60,6 +64,15 @@ function seed(repo, to, deps) {
   return seedWorktree({ repoRoot: repo, blueprintDir: BP_REL, worktreePath: to, deps });
 }
 
+function assertConfigNotMoved(res) {
+  if (Array.isArray(res.moved)) {
+    assert.ok(!res.moved.includes(CONFIG_REL), 'config must not appear in moved');
+  }
+  if (Array.isArray(res.restored)) {
+    assert.ok(!res.restored.includes(CONFIG_REL), 'config must not appear in restored');
+  }
+}
+
 test('a fresh worktree forces locked development dependencies before seeding documents', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
@@ -75,6 +88,8 @@ test('a fresh worktree forces locked development dependencies before seeding doc
     });
 
     assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.config, 'missing');
+    assertConfigNotMoved(res);
     assert.deepStrictEqual(calls, [{
       command: 'npm',
       // Production host defaults must not omit the CI test runner and other dev tools.
@@ -101,6 +116,8 @@ test('a reused worktree with npm’s lock marker does not reinstall dependencies
   });
 
   assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.config, 'missing');
+  assertConfigNotMoved(res);
   assert.deepStrictEqual(calls, []);
 });
 
@@ -185,7 +202,7 @@ test('nothing to move is a successful no-op', () => {
 
   const res = seed(repo, wt);
 
-  assert.deepStrictEqual(res, { ok: true, moved: [], restored: [] });
+  assert.deepStrictEqual(res, { ok: true, moved: [], restored: [], config: 'missing' });
   assert.strictEqual(status(repo), '');
   assert.strictEqual(read(wt, `${BP_REL}/tasks.md`), before);
   assert.strictEqual(read(wt, INDEX_REL), beforeIndex);
@@ -217,6 +234,8 @@ test('a third version in the worktree is a conflict and the base is untouched', 
 
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'conflict');
+  assert.strictEqual(res.config, 'missing');
+  assertConfigNotMoved(res);
   assert.deepStrictEqual(res.conflicts, [`${BP_REL}/tasks.md`]);
   assert.strictEqual(read(wt, `${BP_REL}/tasks.md`), 'a different brief\n');
   // Nothing copied, nothing removed: the whole run aborts before any git verb.
@@ -276,7 +295,7 @@ test('dirty files outside the plan context set are left alone', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);
   write(repo, `${BP_REL}/tasks.md`, 'brief\n');
-  write(repo, '.bouncer/config.json', '{"verify":"npm test"}\n');
+  write(repo, CONFIG_REL, CONFIG_HEAD);
   write(repo, 'scripts/keep.js', 'locally edited\n');
   write(repo, '.bouncer/Distill.md', '# Distill\n');
   write(repo, '.bouncer/context/epics/002-other/index.md', 'other epic\n');
@@ -284,12 +303,14 @@ test('dirty files outside the plan context set are left alone', () => {
   const res = seed(repo, wt);
 
   assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.config, 'copied');
   assert.deepStrictEqual(res.moved, [`${BP_REL}/tasks.md`]);
-  assert.strictEqual(read(repo, '.bouncer/config.json'), '{"verify":"npm test"}\n');
+  assertConfigNotMoved(res);
+  assert.strictEqual(read(repo, CONFIG_REL), CONFIG_HEAD);
+  assert.strictEqual(read(wt, CONFIG_REL), CONFIG_HEAD);
   assert.strictEqual(read(repo, 'scripts/keep.js'), 'locally edited\n');
   assert.strictEqual(read(repo, '.bouncer/Distill.md'), '# Distill\n');
   assert.strictEqual(read(repo, '.bouncer/context/epics/002-other/index.md'), 'other epic\n');
-  assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/config.json')), false);
   assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/Distill.md')), false);
 });
 
@@ -302,4 +323,114 @@ test('emptied plan directories do not linger in the base', () => {
   assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/context/epics')), false);
   // Pruning stops at directories that still hold something.
   assert.strictEqual(fs.existsSync(path.join(repo, INDEX_REL)), true);
+});
+
+test('an ignored base config copies into an empty destination and stays in the base', () => {
+  const repo = makeRepo();
+  write(repo, '.gitignore', `${CONFIG_REL}\n`);
+  write(repo, CONFIG_REL, CONFIG_HEAD);
+  const wt = makeWorktree(repo);
+
+  const res = seed(repo, wt);
+
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.config, 'copied');
+  assertConfigNotMoved(res);
+  assert.strictEqual(read(wt, CONFIG_REL), CONFIG_HEAD);
+  assert.strictEqual(read(repo, CONFIG_REL), CONFIG_HEAD);
+});
+
+test('an existing destination config is preserved even when the bytes differ', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, CONFIG_REL, CONFIG_HEAD);
+  write(wt, CONFIG_REL, CONFIG_OTHER);
+
+  const res = seed(repo, wt);
+
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.config, 'preserved');
+  assertConfigNotMoved(res);
+  assert.strictEqual(read(wt, CONFIG_REL), CONFIG_OTHER);
+  assert.strictEqual(read(repo, CONFIG_REL), CONFIG_HEAD);
+});
+
+test('a tracked dirty base config copies HEAD bytes when the destination is absent', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  // worktree는 config 커밋 전에 만들어 dest가 비어 있다. 재사용 checkout이
+  // 나중에 추적된 정책을 받는 경우와 같다.
+  write(repo, CONFIG_REL, CONFIG_HEAD);
+  git(repo, ['add', '--', CONFIG_REL]);
+  git(repo, ['commit', '-qm', 'track config']);
+  write(repo, CONFIG_REL, CONFIG_DIRTY);
+
+  const res = seed(repo, wt);
+
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.config, 'copied');
+  assertConfigNotMoved(res);
+  assert.strictEqual(read(wt, CONFIG_REL), CONFIG_HEAD);
+  assert.strictEqual(read(repo, CONFIG_REL), CONFIG_DIRTY);
+});
+
+test('a tracked config does not copy dirty base bytes when HEAD cannot be read', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, CONFIG_REL, CONFIG_HEAD);
+  git(repo, ['add', '--', CONFIG_REL]);
+  git(repo, ['commit', '-qm', 'track config']);
+  write(repo, CONFIG_REL, CONFIG_DIRTY);
+  const inner = realGit(repo);
+
+  const res = seedWorktree({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    worktreePath: wt,
+    git: {
+      ...inner,
+      existsInHead(file) {
+        return file === CONFIG_REL ? true : inner.existsInHead(file);
+      },
+      readHead(file) {
+        return file === CONFIG_REL ? null : inner.readHead(file);
+      },
+    },
+  });
+
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'copy-failed');
+  assert.strictEqual(fs.existsSync(path.join(wt, CONFIG_REL)), false);
+  assert.strictEqual(read(repo, CONFIG_REL), CONFIG_DIRTY);
+});
+
+test('missing config in both trees succeeds without creating a file', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+
+  const res = seed(repo, wt);
+
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.config, 'missing');
+  assertConfigNotMoved(res);
+  assert.strictEqual(fs.existsSync(path.join(repo, CONFIG_REL)), false);
+  assert.strictEqual(fs.existsSync(path.join(wt, CONFIG_REL)), false);
+});
+
+test('a plan conflict still reports config status and does not move the base file', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${BP_REL}/tasks.md`, 'brief\n');
+  write(repo, CONFIG_REL, CONFIG_HEAD);
+  write(wt, `${BP_REL}/tasks.md`, 'a different brief\n');
+
+  const res = seed(repo, wt);
+
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'conflict');
+  assert.strictEqual(res.config, 'copied');
+  assertConfigNotMoved(res);
+  assert.strictEqual(read(wt, CONFIG_REL), CONFIG_HEAD);
+  assert.strictEqual(read(repo, CONFIG_REL), CONFIG_HEAD);
+  assert.strictEqual(read(repo, `${BP_REL}/tasks.md`), 'brief\n');
 });
