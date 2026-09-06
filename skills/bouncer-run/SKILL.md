@@ -51,21 +51,10 @@ to named subagents; the loop receives only their reports. Even when the
 blueprint was declared light, do not use execute's inline branch during a drive
 — `/bouncer-execute` owns that exception and its wording.
 
-The loop performs only four things by hand: `bouncer` CLI calls (`current`,
-`validate`, `commit`), document status and `## Findings` recording, gate
-result judgment, and ACQ. Because gates run verify directly and `commit-safety`
-inspects the command's actual cwd, these four cannot be delegated.
-
-There are three report types; route actions only from those reports.
-
-| Report | Source | Action |
-| --- | --- | --- |
-| Changed files · Checklist mapping · drift · Needs planning | `bouncer-implementer` | When `Needs planning` is non-empty, stop the drive and send the user to `/bouncer-plan` |
-| Findings list (severity · basis) | `bouncer-reviewer` | Return remaining actionable findings to the implementer (step 4 ceiling) |
-| Root-cause report | `bouncer-debugger` | Pass the Output contract to the implementer re-dispatch as evidence and re-verify (step 4 ceiling). Dispatch procedure is owned by `/bouncer-execute` |
-
-When issues are not resolved within the ceilings, the loop stops at step 6 rather
-than fixing directly.
+The loop alone runs `current`, `validate`, and `commit`, records document status
+and findings, judges gates, and performs ACQ. Route implementer drift to
+`/bouncer-plan`, reviewer findings and debugger evidence back through execute;
+never repair code inline or exceed execute's ceilings.
 
 1. **Preflight.** Read `autonomy` from `.bouncer/config.json`. When the key is
    missing or outside `AUTONOMY_ENUM`, tell the user and proceed with `auto`.
@@ -102,13 +91,6 @@ than fixing directly.
 3. **Loop unit.** Run `/bouncer-execute` per that skill's procedure, then
    `/bouncer-commit`. Both `auto` and `interactive` skip those skills' commit
    ACQ and next-task ACQ and proceed through `--yes`.
-   After each successful task commit, honor `/bouncer-commit`'s post-commit
-   `tasks.md` stamp: do not discard the dirty `tasks.md` that carries
-   `bouncer.commit_sha` (YAML re-render is expected). Leave it for the next
-   task commit or finalize remainder.
-   Each task commit stages task outputs only; allowed task bundle, context, and
-   Distill paths remain for finalize, and nonexistent untracked paths are not
-   staged.
    Read `nextTask` from `bouncer commit` JSON. Per the shared pointer contract
    exception, start ACQ pre-approves the next task move under `auto`. When
    non-null, move immediately with
@@ -117,8 +99,7 @@ than fixing directly.
    ```bash
    bouncer current --set <pointer.blueprint> --task <NNN>
    ```
-   `committed: false` (empty staged) is not a failure — continue to the next
-   task. Scope violations stop the drive where execute or commit stops. Do not
+   `committed: false` is not a failure. Scope violations stop the drive; do not
    widen `affected_paths`.
 
    Give `/bouncer-execute` the current task brief; it owns implementer payload
@@ -128,15 +109,10 @@ than fixing directly.
    remaining Findings. Do not pass the full conversation context from earlier tasks.
    This evidence must not widen scope or skip gates.
 
-4. **Verify · review ceilings.** On verify failure, `/bouncer-execute` allows
-   **1** fix retry via `bouncer-debugger` → implementer re-dispatch (the
-   debugger report is the implementer's evidence). When the same verify fails
-   again, stop the drive. The loop does not add a separate ceiling on top of
-   that number. The four named-dispatch steps are owned by execute and are not
-   copied here. Review round-trips that return findings to the implementer are
-   capped at **2** by `/bouncer-execute`. The loop does not add a separate
-   ceiling on top of that number. At the ceiling, escalate to `/bouncer-plan`.
-   The loop must not flip findings to `accepted`.
+4. **Verify · review ceilings.** `/bouncer-execute` owns its retry and review
+   ceilings: at most **1** debugger recovery and at most **2** review
+   round-trips. Preserve them, never flip findings to `accepted`, and escalate
+   its ceiling result to `/bouncer-plan`.
 
 5. **`interactive` boundary.** Follow the same loop unit as `auto`. After each
    task closes, when `nextTask` exists, ask one more ACQ whether to advance to
@@ -155,7 +131,11 @@ than fixing directly.
 
    Stop unless A. For B and C, the pointer stays on the task just closed.
 
-6. **Stop.** On verify re-failure, review ceiling, scope violation, or user decline, read this reference: [stop-recovery.md](./references/stop-recovery.md). Do not alter limits, retry automatically, or enter finalize.
+6. **Stop.** On verify re-failure, review ceiling, scope violation, or user
+   decline, preserve the failing pointer and worktree. Report the validator
+   code, cause, path, and recovery action, then stop so the user can resume the
+   same task through `/bouncer-execute`. Do not alter limits, retry
+   automatically, or enter finalize.
 
 7. **Exit.** When `nextTask` is `null` or open tasks are exhausted, render the
    drive result and next `/bouncer-finalize` action through `rules/output.md`.

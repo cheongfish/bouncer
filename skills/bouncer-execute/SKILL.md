@@ -202,12 +202,10 @@ evidence. The debugger never applies the fix.
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate execute
    ```
-   Before evaluating G6–G14, `validate --gate execute` runs the configured
-   verify command in the worktree and records its evidence. Gate `execute`
-   then checks G6 tasks verified, G7 verification passed, G8 review accepted
-   (or `required: false`), G13 the harness verification record, and G14 the
-   review Findings contract. Fix and re-run until it passes, then render the
-   execute-gate result and next `/bouncer-commit` action through `rules/output.md`.
+   The CLI owns verification evidence and execute-gate checks. Fix every
+   reported failure and re-run until it passes; surface validator code, cause,
+   path, and recovery action, then render the next `/bouncer-commit` action
+   through `rules/output.md`.
 
 ## ACQ (AskUserQuestion) gates
 

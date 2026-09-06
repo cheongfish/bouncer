@@ -35,7 +35,8 @@ test('bouncer-execute conditionally routes dispatch and verify recovery referenc
     );
   }
   assert.match(body, /current\.task\.path/);
-  assert.match(body, /G6[\s\S]{0,300}G14/);
+  assert.match(body, /CLI owns verification evidence and execute-gate checks/);
+  assert.match(body, /validator code, cause,\n?\s*path, and recovery action/);
   assert.doesNotMatch(body, /agentName:'bouncer-implementer'|Minimum fix proposal/);
 });
 

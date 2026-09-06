@@ -236,22 +236,9 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate plan
    ```
-   Gate `plan` checks G1 epic approved, G2 blueprint approved, G18
-   `context-review.md` accepted with the same findings-field contract as G14
-   (`## Findings` present; each finding `id` / `severity` / `status`; `accepted`
-   needs a non-empty note) — **G18 is not applied when blueprint
-   `bouncer.scale` is `light`**, G3 tasks ready,
-   G4 `scope_evidence.suggested_paths` present and `scope_evidence.basis` a
-   non-empty entry list with valid `producer` (optional paired
-   `quality`/`candidates` validated when present; legacy `graph` is read
-   compatibility only), G5
-   `affected_paths` non-empty, G10 the gated sections present and
-   placeholder-free — five on a full blueprint (Constraints is authored but not
-   gated), three on `scale: light` (Goal & intent, Touch, Checklist) —, G11 Touch justifies every
-   `affected_paths` entry, G12 Do not touch must not overlap `affected_paths`.
-   G4·G5·G11·G12 fail the same on light as on full: what shrinks is prose
-   volume and the judgment document, not approved-scope evidence.
-   Fix any reported failure and re-run until it passes. Then point the user at
+   The CLI owns plan-gate checks and codes, including the full/light exception.
+   Fix every reported failure and re-run until it passes; surface its code,
+   cause, path, and recovery action. Then point the user at
    `/bouncer-run` — it drives execute→commit until the blueprint's tasks run
    out, and `config.autonomy` (`auto` | `interactive`) already decides how often
    they are asked, so do not offer `/bouncer-execute` as the normal next step.

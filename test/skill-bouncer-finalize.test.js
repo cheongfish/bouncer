@@ -381,53 +381,10 @@ test('bouncer-finalize surfaces over-limit shards in the promotion ACQ', () => {
 // 스킬은 CLI 삭제 조건을 다시 구현하지 않고 finalize --yes 계약을 가리킨다.
 test('bouncer-finalize documents retention cleanup and sibling follow-up after G16', () => {
   const { body } = parseFrontmatter(mainMd);
-
-  // 삭제 대상(일회성)과 보존 대상(증적)을 같은 본문에서 명시한다.
-  assert.match(body, /tasks\/<NNN>\/tasks\.md/);
-  assert.match(body, /tasks\/<NNN>\/review\.md/);
-  assert.match(body, /context-review\.md/);
-  assert.match(body, /verification\.md/);
-  assert.match(body, /explain\.md/);
-  assert.match(body, /index\.md/);
-  assert.match(body, /Distill/);
-
-  // 삭제는 remainder commit의 일부이며, G16·verify 실패면 수행하지 않는다.
-  assert.match(body, /remainder|잔여|마감 커밋/i);
-  assert.match(
-    body,
-    /G16[\s\S]{0,220}(?:do not delete|삭제|지우|수행하지|무변경)|(?:do not delete|삭제|지우)[\s\S]{0,220}G16/,
-  );
-  assert.match(
-    body,
-    /(?:verify|검증)[\s\S]{0,160}(?:failure|실패)[\s\S]{0,160}(?:do not delete|삭제|지우|수행하지|무변경|unchanged)/i,
-  );
+  assert.match(body, /CLI owns the finalize gate, allowed paths, deletions, status transition/);
+  assert.match(body, /preserve documents and worktree/);
+  assert.match(body, /validator code, cause, path, and\n?\s*recovery action/);
   assert.match(body, /finalize\s+--yes/);
-
-  // No archive / reopen / retroactive edits — locked in one nearby sentence.
-  assert.match(
-    body,
-    /Do not propose archive[\s\S]{0,160}retroactive|archive[\s\S]{0,80}(?:재개|다시 열)[\s\S]{0,80}소급[\s\S]{0,40}제안하지 않/i,
-  );
-
-  // Follow-up via sibling or new Epic; `--set` eligibility from payload / cleanup-handoff.
   assert.match(body, /sibling|형제 Blueprint|형제 blueprint/i);
   assert.match(body, /\/bouncer-plan|new Epic|새 Epic/);
-  assert.match(
-    body,
-    /closed[\s\S]{0,120}(?:reopen|do not reopen|다시 열|재개)|(?:do not reopen|다시 열|재개)[\s\S]{0,120}closed/i,
-  );
-  assert.match(
-    body,
-    /`--set`[\s\S]{0,120}(?:finalize payload|cleanup-handoff)|(?:finalize payload|cleanup-handoff)[\s\S]{0,120}`--set`/i,
-  );
-  assert.match(
-    body,
-    /do not[\s\S]{0,20}arbitrarily `--set`|임의로\s*`--set`하지 않는다|열린 형제에 임의로/,
-  );
-
-  // Final report covers retention, cleanup, and follow-up boundaries.
-  assert.match(
-    body,
-    /\*\*Report\.\*\*[\s\S]{0,900}(?:deletion|preserved|one-off|condensed|삭제|보존|축약|일회성|sibling|형제)/i,
-  );
 });
