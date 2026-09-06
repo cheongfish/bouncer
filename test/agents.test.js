@@ -131,6 +131,21 @@ test('bouncer-reviewer treats severity as a label, not a reporting filter', () =
   assert.match(md, /[Nn]ever withhold a finding/);
 });
 
+test('bouncer-reviewer reports previous-finding relations and all actionable findings', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  assert.match(md, /\bnew\b[\s\S]{0,40}\bresolved\b[\s\S]{0,40}\bregressed\b/);
+  assert.match(md, /stable[\s\S]{0,40}id|id[\s\S]{0,40}reuse/i);
+  assert.match(md, /actionable finding/i);
+  const prompt = fs.readFileSync(
+    path.join(root, 'references/review/assets/reviewer-prompt.md'),
+    'utf8',
+  );
+  assert.match(prompt, /Previous findings/);
+  assert.match(prompt, /Resolution/);
+  assert.match(prompt, /Revision diff/);
+  assert.match(prompt, /Latest verification/);
+});
+
 // 네 판정 scope의 본문 정본은 이 agent 문서다(skills/context-review Step 3에서 옮겨옴).
 // 스킬 쪽 doesNotMatch까지 함께 봐야 '복사가 아니라 이동'이 지켜졌음을 보장한다.
 const contextReviewSkill = () =>

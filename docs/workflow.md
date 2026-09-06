@@ -79,9 +79,11 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
 - **주행이 멈추는 경우는 셋입니다** — verify 재실패, 리뷰 왕복 상한, 범위 위반.
   포인터와 worktree를 그대로 두므로 `/bouncer-execute`로 그 task만 닫은 뒤
   `/bouncer-run`을 다시 걸면 됩니다.
-- **리뷰 재검 왕복 상한 2회**는 `/bouncer-run` 주행뿐 아니라 `/bouncer-execute`를
-  단독으로 부를 때도 같은 숫자로 걸립니다. 상한에 닿으면 `/bouncer-plan`으로
-  갑니다.
+- **리뷰는 기본 두 번, 조건부 세 번째 round 한 번입니다.** 세 번째는 기존
+  blocker·major가 해결되고 verify가 통과했으며 신규 actionable finding이
+  Goal, Interface, Constraints, `affected_paths` 안에 있을 때만 허용합니다.
+  세 번째 뒤 잔존·재발·새 설계가 필요하면 네 번째 round 없이 `/bouncer-plan`으로
+  갑니다. `/bouncer-run`은 이 계약을 복제하지 않고 `/bouncer-execute`를 따릅니다.
 - **좁은 범위 작업**은 `/bouncer-plan`이 경량 여부를 묻고 blueprint
   `bouncer.scale`을 `light`로 바꿉니다. 무엇이 줄고 무엇이 그대로인지는
   [`rules/governance.md`](../rules/governance.md) `## Lightweight cycle`에

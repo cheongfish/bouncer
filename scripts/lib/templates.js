@@ -182,9 +182,13 @@ Blueprint: [<BP-id>](../../index.md)
     'review.md': `# Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted이면 note 필수.
+<!-- finding: id, severity, status. accepted와 deferred는 비어 있지 않은 note 필수.
      severity: blocker | major | minor | nit
-     status: resolved | accepted -->
+     status: resolved | accepted | deferred
+     accepted note: 권한 있는 위험 수용 근거
+     deferred note: 현재 task와 독립인 후속 planning 항목 근거
+     optional bouncer.review.rounds[]: round (양의 정수), previous_finding_ids (문자열 배열),
+     new · resolved · regressed (0 이상 정수). 구문서는 이 키 없이 통과한다. -->
 - <finding>
 `,
     'context-review.md': `# Context review

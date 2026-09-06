@@ -653,3 +653,13 @@ test('bouncer scaffold blueprint --scale light exits 0 with four created paths',
   assert.strictEqual(r.code, 0);
   assert.strictEqual(JSON.parse(r.out).created.length, 4);
 });
+
+test('execute review template documents deferred and rounds; context review does not', () => {
+  const { TEMPLATES } = require('../scripts/lib/templates');
+  assert.match(TEMPLATES['review.md'], /status: resolved \| accepted \| deferred/);
+  assert.match(TEMPLATES['review.md'], /rounds\[\]/);
+  assert.match(TEMPLATES['review.md'], /previous_finding_ids/);
+  assert.match(TEMPLATES['context-review.md'], /status: resolved \| accepted/);
+  assert.doesNotMatch(TEMPLATES['context-review.md'], /deferred/);
+  assert.doesNotMatch(TEMPLATES['context-review.md'], /rounds\[\]/);
+});

@@ -110,9 +110,12 @@ never repair code inline or exceed execute's ceilings.
    This evidence must not widen scope or skip gates.
 
 4. **Verify · review ceilings.** `/bouncer-execute` owns its retry and review
-   ceilings: at most **1** debugger recovery and at most **2** review
-   round-trips. Preserve them, never flip findings to `accepted`, and escalate
-   its ceiling result to `/bouncer-plan`.
+   ceilings: at most **1** debugger recovery, and the conditional review-round
+   ceiling in `/bouncer-execute` (two rounds by default, one extra only when
+   that skill's round-3 entry condition holds, never a fourth). Do not copy
+   that entry condition here. Preserve those ceilings and the same stop
+   outcome, never flip findings to `accepted`, and escalate its ceiling result
+   to `/bouncer-plan`.
 
 5. **`interactive` boundary.** Follow the same loop unit as `auto`. After each
    task closes, when `nextTask` exists, ask one more ACQ whether to advance to

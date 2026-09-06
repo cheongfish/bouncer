@@ -184,17 +184,40 @@ evidence. The debugger never applies the fix.
    `/bouncer-plan` rather than looping.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
-   Otherwise use the `review` skill (`${BOUNCER_ROOT}/references/review/index.md`). When dispatching a named agent or applying its fallback, apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this reference: [agent-dispatch.md](./references/agent-dispatch.md). Fill `${BOUNCER_ROOT}/references/review/assets/reviewer-prompt.md` with the brief, base/HEAD, and constraints; scale never changes reviewer dispatch.
+   Otherwise use the `review` skill (`${BOUNCER_ROOT}/references/review/index.md`). When dispatching a named agent or applying its fallback, apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this reference: [agent-dispatch.md](./references/agent-dispatch.md). Fill `${BOUNCER_ROOT}/references/review/assets/reviewer-prompt.md` with the brief, base/HEAD, constraints, previous finding IDs, resolution, revision diff, and latest verification; scale never changes reviewer dispatch.
    As controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status (on the inline path too, Findings recording and status are the
-   controller's job);
-   If any actionable finding remains unresolved, fix within scope and
-   re-review — at most **2** review round-trips on the same task. On reaching
-   that ceiling, escalate to `/bouncer-plan` instead of fixing again, and
-   never flip a remaining finding to `accepted` to clear it;
-   Only when every finding is `resolved` or `accepted` with a note, set
-   `review → accepted`.
+   controller's job). After each executed round, append `bouncer.review.rounds[]`
+   with that round's previous finding IDs, `new` / `resolved` / `regressed`
+   counts, how findings were resolved, the revision, and the latest verify
+   result.
+   Review rounds follow this entry condition. Do not start a round unless it
+   holds:
+   ```text
+   round <= 2
+   or (
+     round == 3
+     and previous blocker/major findings are resolved
+     and latest verify passed
+     and new actionable findings fit Goal, Interface, Constraints, affected_paths
+   )
+   ```
+   The default ceiling is two rounds. A third round runs only when that
+   condition holds. Never start a fourth round. After round 2, if previous
+   blocker/major findings remain, latest verify failed, or new actionable
+   findings need a new design, dependency, public interface, or scope change,
+   stop immediately and send the user to `/bouncer-plan` — do not enter round 3.
+   After round 3, if any actionable finding remains, a finding regresses, or a
+   new design/scope is required, stop and send the user to `/bouncer-plan`.
+   Do not fix again, do not re-review, and never flip a remaining finding to
+   `accepted` to clear it.
+   Treat every actionable finding that affects current-task accuracy — do not
+   filter by severity. Do not classify those findings as `deferred`. `accepted`
+   is an authorized risk acceptance; `deferred` is an independent follow-up
+   planning item. Their notes must record those different reasons.
+   Only when every finding is `resolved`, `accepted` with a note, or `deferred`
+   with a note, set `review → accepted`.
    While reviewing, you may run the `minimality` skill (`${BOUNCER_ROOT}/references/minimality/index.md`) (advisory) to flag
    unnecessary new dependencies or abstractions in the diff.
 

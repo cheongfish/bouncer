@@ -28,7 +28,12 @@ const REVIEW_SECTION_DEFS: SectionDef[] = [
   { key: 'findings', re: /^##\s+(Findings|발견사항|리뷰\s*결과)\s*$/i },
 ];
 const REVIEW_SEVERITY = ['blocker', 'major', 'minor', 'nit'];
-const REVIEW_STATUS = ['resolved', 'accepted'];
+// context review는 기존 두 값만 유지한다. execute만 deferred를 추가한다 —
+// 한 배열을 공유하면 G18이 후속 이연을 계획 문서에 허용하게 된다.
+const CONTEXT_REVIEW_STATUS = ['resolved', 'accepted'];
+const EXECUTE_REVIEW_STATUS = ['resolved', 'accepted', 'deferred'];
+const REVIEW_STATUS = CONTEXT_REVIEW_STATUS;
+const NOTE_REQUIRED_STATUS = ['accepted', 'deferred'];
 
 // G10과 동일한 비어 있음 계약: 제목은 있고, comment-strip 후 본문이 있어야 함.
 // comprehension module이 어떤 section이 있는지 SSOT가 되도록 key는
@@ -118,16 +123,42 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-// findings 필드 계약은 G14(execute review.md)와 G18(plan context-review.md)이
-// 같다. 헬퍼를 공유하지 않으면 한쪽만 고친 순간 두 리뷰 문서가 다른 계약을
-// 갖게 된다. 본문 판정 문장은 읽지 않는다 — heading 존재와 id/severity/status/note.
-// findings가 있는데 배열이 아니면 []로 떨어뜨리지 않는다. 빈 배열과 같게 취급하면
-// 형식 위반이 통과한다. 부재(undefined/null)만 빈 목록으로 본다.
-function collectFindingFailures({ body, findings, sectionLabel, findingLabel }: {
+function isPositiveInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function isNonNegativeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * 리뷰 finding 형식 실패를 모은다. 본문 판정 문장은 읽지 않는다 —
+ * heading 존재와 id/severity/status/note, execute면 선택적 rounds[]만 본다.
+ *
+ * G14와 G18이 헬퍼를 공유하되 allowedStatuses로 계약을 가른다. 한 배열을
+ * 쓰면 deferred가 계획 문서에 새거나, execute가 기존 resolved/accepted를
+ * 잃는다. findings가 있는데 배열이 아니면 []로 떨어뜨리지 않는다. 빈 배열과
+ * 같게 취급하면 형식 위반이 통과한다. 부재(undefined/null)만 빈 목록으로 본다.
+ * rounds는 키가 없을 때만 건너뛴다 — 구문서는 원장 없이 읽고, 새 컨트롤러는
+ * 실행한 round마다 적는다.
+ *
+ * @param {unknown} body - 리뷰 문서 본문
+ * @param {unknown} findings - `bouncer.*.findings`
+ * @param {string} sectionLabel - ## Findings 부재 메시지에 쓰는 문서 이름
+ * @param {string} findingLabel - finding/round 메시지 접두
+ * @param {readonly string[]} allowedStatuses - execute 또는 context 허용 status
+ * @param {unknown} [rounds] - execute `bouncer.review.rounds`. 부재면 검사 생략
+ * @returns {string[]} 게이트 메시지. 없으면 빈 배열
+ */
+function collectFindingFailures({
+  body, findings, sectionLabel, findingLabel, allowedStatuses, rounds,
+}: {
   body: unknown;
   findings: unknown;
   sectionLabel: string;
   findingLabel: string;
+  allowedStatuses: readonly string[];
+  rounds?: unknown;
 }): string[] {
   const messages: string[] = [];
   const rs = parseSections(typeof body === 'string' ? body : '', REVIEW_SECTION_DEFS);
@@ -145,11 +176,62 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel }: 
     if (!(REVIEW_SEVERITY as readonly unknown[]).includes(rec && rec.severity)) {
       messages.push(`${findingLabel} finding ${id} severity invalid: ${rec && rec.severity}`);
     }
-    if (!(REVIEW_STATUS as readonly unknown[]).includes(rec && rec.status)) {
+    if (!(allowedStatuses as readonly unknown[]).includes(rec && rec.status)) {
       messages.push(`${findingLabel} finding ${id} status invalid: ${rec && rec.status}`);
+    } else if (
+      (NOTE_REQUIRED_STATUS as readonly unknown[]).includes(rec && rec.status)
+      && (!rec.note || String(rec.note).trim() === '')
+    ) {
+      messages.push(`${findingLabel} finding ${id} ${String(rec.status)} without note`);
     }
-    if (rec && rec.status === 'accepted' && (!rec.note || String(rec.note).trim() === '')) {
-      messages.push(`${findingLabel} finding ${id} accepted without note`);
+  }
+  messages.push(...collectRoundFailures(rounds, findingLabel));
+  return messages;
+}
+
+/**
+ * 선택적 round ledger 형식 실패를 모은다. 집계는 문자열·소수가 아니라
+ * 정수여야 하고, round 번호는 중복·역순이면 이전 finding 관계를 믿을 수 없다.
+ *
+ * @param {unknown} rounds - `bouncer.review.rounds`. undefined면 구문서 호환으로 통과
+ * @param {string} findingLabel - 메시지 접두
+ * @returns {string[]} 형식 실패 메시지
+ */
+function collectRoundFailures(rounds: unknown, findingLabel: string): string[] {
+  if (rounds === undefined) return [];
+  if (!Array.isArray(rounds)) {
+    return [`${findingLabel} rounds must be an array`];
+  }
+  const messages: string[] = [];
+  const seen = new Set<number>();
+  let lastRound = 0;
+  for (const entry of rounds) {
+    if (!isRecord(entry)) {
+      messages.push(`${findingLabel} rounds entry invalid`);
+      continue;
+    }
+    if (!isPositiveInteger(entry.round)) {
+      messages.push(`${findingLabel} rounds round invalid: ${entry.round}`);
+      continue;
+    }
+    const round = entry.round as number;
+    if (seen.has(round)) {
+      messages.push(`${findingLabel} rounds duplicate round: ${round}`);
+    } else if (lastRound !== 0 && round < lastRound) {
+      messages.push(`${findingLabel} rounds out of order`);
+    }
+    seen.add(round);
+    lastRound = round;
+    if (
+      !Array.isArray(entry.previous_finding_ids)
+      || entry.previous_finding_ids.some((id) => typeof id !== 'string')
+    ) {
+      messages.push(`${findingLabel} round ${round} previous_finding_ids invalid`);
+    }
+    for (const key of ['new', 'resolved', 'regressed'] as const) {
+      if (!isNonNegativeInteger(entry[key])) {
+        messages.push(`${findingLabel} round ${round} ${key} invalid: ${entry[key]}`);
+      }
     }
   }
   return messages;
@@ -161,6 +243,8 @@ export = {
   REVIEW_SECTION_DEFS,
   REVIEW_SEVERITY,
   REVIEW_STATUS,
+  CONTEXT_REVIEW_STATUS,
+  EXECUTE_REVIEW_STATUS,
   EXPLAIN_SECTION_HEADINGS,
   TODO_RE,
   stripComments,

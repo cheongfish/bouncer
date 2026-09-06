@@ -20,6 +20,11 @@ status / frontmatter — Findings only.
 - `{{CONSTRAINTS}}` — the task brief `## Constraints` list verbatim, plus Do not
   touch paths, `affected_paths`, and repo norms. Paste the rules; do not
   summarize them, or the reviewer cannot tell a breach from a judgement call.
+- `{{PREVIOUS_FINDINGS}}` — stable finding IDs from earlier rounds (empty on
+  round 1)
+- `{{RESOLUTION}}` — how each previous finding was resolved
+- `{{REVISION_DIFF}}` — the change since the previous round
+- `{{LATEST_VERIFICATION}}` — latest verify command result
 
 ## Prompt body
 
@@ -32,6 +37,18 @@ Review `git diff {{BASE}}...{{HEAD}}` plus untracked files relevant to Touch /
 
 ### Constraints
 {{CONSTRAINTS}}
+
+### Previous findings
+{{PREVIOUS_FINDINGS}}
+
+### Resolution
+{{RESOLUTION}}
+
+### Revision diff
+{{REVISION_DIFF}}
+
+### Latest verification
+{{LATEST_VERIFICATION}}
 
 ### Rubric — Spec compliance
 Judge the diff against the brief Checklist, Interface, and Constraints:
@@ -77,15 +94,17 @@ and only `major` when they are already Extra scope creep or a real quality
 defect. Simpler-is-possible is never a blocker.
 
 ### Output
-Report **everything** you find, including `minor` and `nit` items. Severity is a
-label for the controller's disposition pass, not permission to omit a finding —
-do not self-censor to keep the list short or to sound conservative.
-
 Return **only** a Findings list. For each finding include:
+- stable `id` — reuse a previous ID when the same finding returns
+- relation to previous findings: `new | resolved | regressed`
 - `severity`: `blocker | major | minor | nit`
 - summary
 - evidence (`file:line` or concrete diff reference)
 - suggested disposition hint (`resolve` vs accept-with-note) — advisory only
+
+Report **every** actionable finding. Severity is a
+label for the controller's disposition pass, not permission to omit a finding —
+do not self-censor to keep the list short or to sound conservative.
 
 Do **not** set review status to accepted. Do **not** edit the pointer task
 directory's `review.md`.
