@@ -47,6 +47,38 @@ function runChecker(cwd, args = []) {
   });
 }
 
+const SCAFFOLD_COMMENT = '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
+
+function taskMarkdown(status, body = SCAFFOLD_COMMENT) {
+  return `---
+type: bouncer.tasks
+bouncer:
+  status: ${status}
+---
+${body}`;
+}
+
+function writeTaskDoc(repo, relative, contents) {
+  fs.mkdirSync(path.join(repo, path.dirname(relative)), { recursive: true });
+  fs.writeFileSync(path.join(repo, relative), contents);
+}
+
+function writeActivePointer(repo, blueprint, task) {
+  fs.mkdirSync(path.join(repo, '.git', 'bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.git', 'bouncer', 'current'), `${JSON.stringify({
+    blueprint,
+    base: 'main',
+    task,
+  })}\n`);
+}
+
+function seededTaskRepo() {
+  const repo = fixtureRepo();
+  const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
+  const active = `${blueprint}/tasks/001/tasks.md`;
+  return { repo, blueprint, active };
+}
+
 test('templates expose normalized scaffold comment bodies', () => {
   assert.ok(Array.isArray(SCAFFOLD_COMMENT_BODIES));
   assert.ok(SCAFFOLD_COMMENT_BODIES.length > 0);
@@ -91,26 +123,91 @@ test('base diff and untracked files are checked while unchanged and deleted file
 });
 
 test('active task scaffold comments fail without checking pending sibling tasks', () => {
-  const repo = fixtureRepo();
-  const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
-  const active = `${blueprint}/tasks/001/tasks.md`;
+  const { repo, blueprint, active } = seededTaskRepo();
   const pending = `${blueprint}/tasks/002/tasks.md`;
-  const scaffold = '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
-  fs.mkdirSync(path.join(repo, path.dirname(active)), { recursive: true });
-  fs.mkdirSync(path.join(repo, path.dirname(pending)), { recursive: true });
-  fs.writeFileSync(path.join(repo, active), scaffold);
-  fs.writeFileSync(path.join(repo, pending), scaffold);
-  fs.mkdirSync(path.join(repo, '.git', 'bouncer'), { recursive: true });
-  fs.writeFileSync(path.join(repo, '.git', 'bouncer', 'current'), `${JSON.stringify({
-    blueprint,
-    base: 'main',
-    task: active,
-  })}\n`);
+  writeTaskDoc(repo, active, taskMarkdown('pending'));
+  writeTaskDoc(repo, pending, taskMarkdown('pending'));
+  writeActivePointer(repo, blueprint, active);
 
   const result = runChecker(repo);
   assert.strictEqual(result.status, 1, result.stderr || result.stdout);
   assert.match(result.stderr, /tasks\/001\/tasks\.md/);
   assert.doesNotMatch(result.stderr, /tasks\/002\/tasks\.md/);
+});
+
+for (const status of ['ready', 'verified', 'closed']) {
+  test(`non-pending sibling scaffold (${status}) stays in automatic check`, () => {
+    const { repo, blueprint, active } = seededTaskRepo();
+    const sibling = `${blueprint}/tasks/002/tasks.md`;
+    writeTaskDoc(repo, active, taskMarkdown('pending'));
+    writeTaskDoc(repo, sibling, taskMarkdown(status));
+    writeActivePointer(repo, blueprint, active);
+
+    const result = runChecker(repo);
+    assert.strictEqual(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stderr, /tasks\/001\/tasks\.md/);
+    assert.match(result.stderr, /tasks\/002\/tasks\.md/);
+  });
+}
+
+test('mixed statuses in one sibling bundle are judged per document', () => {
+  const { repo, blueprint, active } = seededTaskRepo();
+  const siblingDir = `${blueprint}/tasks/002`;
+  writeTaskDoc(repo, active, taskMarkdown('pending'));
+  writeTaskDoc(repo, `${siblingDir}/tasks.md`, taskMarkdown('pending'));
+  writeTaskDoc(repo, `${siblingDir}/verification.md`, taskMarkdown('ready'));
+  writeTaskDoc(repo, `${siblingDir}/review.md`, taskMarkdown('closed'));
+  writeActivePointer(repo, blueprint, active);
+
+  const result = runChecker(repo);
+  assert.strictEqual(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /tasks\/001\/tasks\.md/);
+  assert.doesNotMatch(result.stderr, /tasks\/002\/tasks\.md/);
+  assert.match(result.stderr, /tasks\/002\/verification\.md/);
+  assert.match(result.stderr, /tasks\/002\/review\.md/);
+});
+
+test('pending leaves in the active bundle stay in automatic check', () => {
+  const { repo, blueprint, active } = seededTaskRepo();
+  const activeDir = `${blueprint}/tasks/001`;
+  writeTaskDoc(repo, active, taskMarkdown('ready'));
+  writeTaskDoc(repo, `${activeDir}/verification.md`, taskMarkdown('pending'));
+  writeTaskDoc(repo, `${activeDir}/review.md`, taskMarkdown('pending'));
+  writeActivePointer(repo, blueprint, active);
+
+  const result = runChecker(repo);
+  assert.strictEqual(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /tasks\/001\/tasks\.md/);
+  assert.match(result.stderr, /tasks\/001\/verification\.md/);
+  assert.match(result.stderr, /tasks\/001\/review\.md/);
+});
+
+test('malformed or missing frontmatter siblings stay in automatic check', () => {
+  const { repo, blueprint, active } = seededTaskRepo();
+  const siblingDir = `${blueprint}/tasks/002`;
+  writeTaskDoc(repo, active, taskMarkdown('pending'));
+  writeTaskDoc(repo, `${siblingDir}/tasks.md`, SCAFFOLD_COMMENT);
+  writeTaskDoc(repo, `${siblingDir}/verification.md`, `---\nfoo: [unclosed\n---\n${SCAFFOLD_COMMENT}`);
+  writeTaskDoc(repo, `${siblingDir}/review.md`, `---\ntype: bouncer.review\n---\n${SCAFFOLD_COMMENT}`);
+  writeActivePointer(repo, blueprint, active);
+
+  const result = runChecker(repo);
+  assert.strictEqual(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /tasks\/002\/tasks\.md/);
+  assert.match(result.stderr, /tasks\/002\/verification\.md/);
+  assert.match(result.stderr, /tasks\/002\/review\.md/);
+});
+
+test('explicit-file pending sibling is still checked', () => {
+  const { repo, blueprint, active } = seededTaskRepo();
+  const pending = `${blueprint}/tasks/002/tasks.md`;
+  writeTaskDoc(repo, active, taskMarkdown('pending'));
+  writeTaskDoc(repo, pending, taskMarkdown('pending'));
+  writeActivePointer(repo, blueprint, active);
+
+  const result = runChecker(repo, [pending]);
+  assert.strictEqual(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /tasks\/002\/tasks\.md/);
 });
 
 test('unrelated HTML comments and no changed context documents pass', () => {

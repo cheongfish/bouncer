@@ -5,6 +5,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { SCAFFOLD_COMMENT_BODIES, normalizeCommentBody } = require('./lib/templates');
 const { readCurrent } = require('./lib/current');
+const { parseFrontmatter } = require('./lib/frontmatter');
 const { listTasksDocs } = require('./lib/tasks-docs');
 
 const CONTEXT_ROOT = '.bouncer/context';
@@ -78,11 +79,45 @@ function activeTaskUnit(repoRoot) {
   return unit ? { unit, units: listing.entries } : null;
 }
 
-function isPendingTaskSibling(relative, activeUnit, units) {
-  return units.some((unit) => (
-    unit.dir !== activeUnit.dir
-    && relative.startsWith(`${unit.dir}/`)
-  ));
+/**
+ * 후보 문서 하나의 `bouncer.status`만 읽는다. 묶음 대표값으로 합성하지 않는다.
+ * 파싱 실패·필드 부재는 pending으로 추정하지 않는다 — 숨기면 깨진 sibling이
+ * 자동 검사를 통과한다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} relative - 후보 문서의 저장소 상대 경로
+ * @returns {unknown} 읽은 status, 없거나 파싱에 실패하면 undefined
+ */
+function documentBouncerStatus(repoRoot, relative) {
+  try {
+    const raw = fs.readFileSync(path.join(repoRoot, relative), 'utf8');
+    const { data } = parseFrontmatter(raw);
+    const bouncer = data ? data.bouncer : data;
+    return bouncer ? bouncer.status : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 다른 listed unit의 문서이며 그 문서의 frontmatter status가 pending인지 본다.
+ * 같은 묶음 leaf까지 sibling으로 보면 실행 중인 verification/review가 빠지고,
+ * 경로만으로 다른 묶음 전체를 빼면 ready sibling이 숨는다.
+ * 활성 포인터와 task 목록 해석은 그대로 둔다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} relative - 후보 문서의 저장소 상대 경로
+ * @param {{ dir: string, rel: string }} activeUnit - 포인터가 가리키는 현재 task 묶음
+ * @param {Array<{ dir: string }>} units - 같은 blueprint의 task 묶음 목록
+ * @returns {boolean} pending sibling이면 true (자동 검사에서 제외)
+ */
+function isPendingTaskSibling(repoRoot, relative, activeUnit, units) {
+  // sibling은 다른 unit이다. 활성 묶음 안 문서는 status와 무관하게 검사한다.
+  const inSiblingUnit = units.some(
+    (unit) => unit.dir !== activeUnit.dir && relative.startsWith(`${unit.dir}/`),
+  );
+  if (!inSiblingUnit) return false;
+  return documentBouncerStatus(repoRoot, relative) === 'pending';
 }
 
 function changedContextFiles(repoRoot, base) {
@@ -99,9 +134,11 @@ function changedContextFiles(repoRoot, base) {
     .filter((relative) => fs.existsSync(path.join(repoRoot, relative)));
   const active = activeTaskUnit(repoRoot);
   if (!active) return candidates;
-  // 실행 포인터가 있는 blueprint에서는 현재 묶음만 lint한다. plan 단계에서
-  // 함께 만들어진 다음 task 묶음은 아직 스캐폴드 상태여도 현재 실행을 막지 않는다.
-  return candidates.filter((relative) => !isPendingTaskSibling(relative, active.unit, active.units));
+  // 실행 포인터가 있으면 sibling 중 pending 문서만 건너뛴다. 인자로 넘긴
+  // 파일 목록은 이 함수를 타지 않으므로 explicit-file 경로는 그대로 검사한다.
+  return candidates.filter((relative) => (
+    !isPendingTaskSibling(repoRoot, relative, active.unit, active.units)
+  ));
 }
 
 function validateBase(repoRoot, base) {
