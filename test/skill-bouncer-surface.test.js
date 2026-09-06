@@ -106,6 +106,27 @@ function readWorkflow(name) {
   return fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
 }
 
+// TASKS-005 baseline (HEAD before this task): the six entry documents total
+// 7,890 words. Keep the receipt here so later prose growth is visible without
+// coupling the check to any particular sentence or numbered-step count.
+test('entry-skill word count decreases from the TASKS-005 baseline', () => {
+  const baseline = {
+    'bouncer-init': 754,
+    'bouncer-plan': 2297,
+    'bouncer-execute': 1692,
+    'bouncer-commit': 772,
+    'bouncer-run': 1279,
+    'bouncer-finalize': 1096,
+  };
+  const counts = Object.fromEntries(Object.keys(baseline).map((name) => [
+    name,
+    readWorkflow(name).trim().split(/\s+/).length,
+  ]));
+  const before = Object.values(baseline).reduce((sum, count) => sum + count, 0);
+  const after = Object.values(counts).reduce((sum, count) => sum + count, 0);
+  assert.ok(after < before, `expected < ${before} words, received ${after}`);
+});
+
 test('workflow skills use directory-matching names and explicit-invocation descriptions', () => {
   for (const name of WORKFLOW) {
     const { data } = parseFrontmatter(readWorkflow(name));
@@ -164,7 +185,7 @@ function bareReferenceCites(md) {
 
 /** @type {Record<string, string[]>} 스킬 로컬 references/*.md 파일명 */
 const SKILL_LOCAL_REFS = {
-  'bouncer-init': [],
+  'bouncer-init': ['init-result.md'],
   'bouncer-plan': [
     'distill-preflight.md',
     'graphify-suggestions.md',
@@ -181,7 +202,7 @@ const SKILL_LOCAL_REFS = {
     'draft-pr.md',
     'cleanup-handoff.md',
   ],
-  'bouncer-run': ['stop-recovery.md'],
+  'bouncer-run': [],
 };
 
 test('workflow skills classify references as root or skill-local without bare collision', () => {

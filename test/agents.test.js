@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
@@ -228,5 +229,44 @@ test('mdToCodexToml preserves name description body and readonly sandbox', () =>
       assert.doesNotMatch(toml, /sandbox_mode/);
     }
     assert.doesNotMatch(toml, /^model\s*=/m);
+  }
+});
+
+test('mdToCodexToml keeps the implementer role contract intact', () => {
+  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+  const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  const toml = mdToCodexToml(markdown);
+
+  // 축약 dispatch는 생성 TOML의 역할 지시를 전제하므로, 경계 절이 하나라도
+  // 빠지면 named agent가 fallback과 동등한 가드를 받는다는 전제가 무너진다.
+  for (const heading of ['## Authority', '## Hard guards', '## Procedure', '## Output contract']) {
+    assert.ok(toml.includes(heading), `generated TOML must retain ${heading}`);
+  }
+});
+
+test('an unmarked implementer TOML remains user-owned and requires the full fallback', () => {
+  const { ensureCodexAgents } = require('../scripts/lib/codex-agents');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-'));
+  const rel = '.codex/agents/bouncer-implementer.toml';
+  const owned = 'name = "my-implementer"\n';
+
+  try {
+    fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), owned);
+    ensureCodexAgents({ repoRoot: repo, created: [], agentsDir });
+
+    // 마커 없는 TOML은 사용자가 관리한다. 따라서 named dispatch가 역할 문서를
+    // 전제로 input을 줄이면 안 되고, fallback의 전체 가드를 유지해야 한다.
+    assert.strictEqual(fs.readFileSync(path.join(repo, rel), 'utf8'), owned);
+    const dispatch = fs.readFileSync(
+      path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8',
+    );
+    const named = dispatch.match(/## Named implementer[\s\S]*?(?=\n## )/)?.[0] || '';
+    const fallback = dispatch.match(/## Implementer fallback[\s\S]*?(?=\n## |$)/)?.[0] || '';
+    assert.match(named, /exact match/i);
+    assert.match(fallback, /user-owned[\s\S]*do not compact/i);
+    assert.match(fallback, /Authority[\s\S]*Hard guards[\s\S]*tests-first[\s\S]*comments[\s\S]*Output contract/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
   }
 });

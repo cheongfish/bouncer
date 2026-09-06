@@ -10,6 +10,9 @@ description: "Use only when the user explicitly asks /bouncer-execute; it implem
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Output contract: `rules/output.md`. Render changed targets, verification and
+review results, execute-gate outcome, and the next `/bouncer-commit` action
+through that shared contract; never hide a gate failure or scope violation.
 
 Implement the active blueprint's current task. Follow this sequence. Do **not**
 run `git commit` or `bouncer commit` here — after the execute gate passes, point
@@ -138,7 +141,10 @@ evidence. The debugger never applies the fix.
 
    When dispatching a named agent or applying its fallback, apply
    [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this
-   reference: [agent-dispatch.md](./references/agent-dispatch.md). Pass only the pointer task brief's Goal & intent, Interface, Touch, Do not touch, Constraints, and Checklist as decision authority.
+   reference: [agent-dispatch.md](./references/agent-dispatch.md). That reference
+   owns the compact named payload and the full fallback payload. In every path,
+   pass only the pointer task brief's Goal & intent, Interface, Touch, Do not
+   touch, Constraints, and Checklist as decision authority.
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —
@@ -196,12 +202,10 @@ evidence. The debugger never applies the fix.
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate execute
    ```
-   Before evaluating G6–G14, `validate --gate execute` runs the configured
-   verify command in the worktree and records its evidence. Gate `execute`
-   then checks G6 tasks verified, G7 verification passed, G8 review accepted
-   (or `required: false`), G13 the harness verification record, and G14 the
-   review Findings contract. Fix and re-run until it passes, then point the user
-   at `/bouncer-commit`.
+   The CLI owns verification evidence and execute-gate checks. Fix every
+   reported failure and re-run until it passes; surface validator code, cause,
+   path, and recovery action, then render the next `/bouncer-commit` action
+   through `rules/output.md`.
 
 ## ACQ (AskUserQuestion) gates
 

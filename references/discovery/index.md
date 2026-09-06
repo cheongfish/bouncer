@@ -26,7 +26,10 @@ user first. Used from `/bouncer-plan`.
    caller to re-run `bouncer distill --all`; do not substitute a route result
    for the baseline. If an index, Distill path, or shard index is missing,
    record Overlap as "none" when the CLI's single-file fallback is empty, and
-   continue — pre-read is not a hard stop.
+   continue — pre-read is not a hard stop. Before scaffolding, also consume the
+   caller's context-search result from the already-synced context graph. Use
+   its prior decisions, predecessor blueprints, and constraints only to inform
+   `Overlap`; candidates remain advisory data and never set `affected_paths`.
 2. **Request** — Capture the user's ask in their words; note constraints and
    open questions.
 3. **Goal** — State the outcome in one or two sentences.
@@ -36,7 +39,9 @@ user first. Used from `/bouncer-plan`.
 7. **Edge cases & failure modes** — Ask for edge cases and failure modes the
    change must handle or deliberately reject.
 8. **Overlap** — Ask how this request overlaps with existing epic/blueprint
-   streams and Distill decisions; capture reuse vs. new work.
+   streams and Distill decisions; include the pre-scaffold context-search
+   evidence, distinguish it from the current draft when present, and capture
+   reuse vs. new work.
 9. **Confirmation** — Present the framing (all six handoff outputs) and get
    explicit user confirmation before moving on.
 
