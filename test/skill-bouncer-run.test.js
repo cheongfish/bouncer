@@ -30,3 +30,13 @@ test('run stop preserves failure and gives actionable recovery', () => {
   assert.doesNotMatch(md, /stop-recovery\.md/);
   assert.ok(!fs.existsSync(path.join(__dirname, '..', 'skills/bouncer-run/references/stop-recovery.md')));
 });
+
+test('run keeps start ACQ, autonomy, and execute-owned recovery without preamble helpers', () => {
+  const preamble = md.slice(0, md.search(/^1\. /m));
+  assert.doesNotMatch(preamble, /references\/debugging\/index\.md/);
+  assert.doesNotMatch(preamble, /\.\/references\//);
+  assert.match(md, /2\. \*\*Start ACQ\.\*\*/);
+  assert.match(md, /autonomy/);
+  assert.match(md, /`auto` \| `interactive`|auto[\s\S]{0,40}interactive/);
+  assert.match(md, /Both `auto` and `interactive` skip those skills' commit/);
+});

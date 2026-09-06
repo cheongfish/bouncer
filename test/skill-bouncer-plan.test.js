@@ -290,3 +290,19 @@ test('bouncer-plan points graphify enablement at the CLI only', () => {
   assert.doesNotMatch(body, /pip install graphifyy/);
   assert.match(body, /init --promote-graphify/);
 });
+
+test('bouncer-plan loads context-review only after the light skip in step 7', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step7 = body.indexOf('7. **Context review.**');
+  const rootCite = body.indexOf('${BOUNCER_ROOT}/references/context-review/index.md');
+  const localCite = body.indexOf('./references/context-review.md');
+  assert.ok(step7 >= 0, 'step 7 owns context-review');
+  assert.ok(rootCite >= step7, 'root context-review cite belongs after the light skip');
+  assert.ok(localCite >= step7, 'skill-local context-review.md belongs after the light skip');
+  const preamble = body.slice(0, body.search(/^1\. /m));
+  assert.doesNotMatch(preamble, /minimality\/index\.md/);
+  assert.doesNotMatch(preamble, /context-review\/index\.md/);
+  assert.match(body, /\*\*ACQ — Discover/);
+  assert.match(body, /\*\*ACQ — Approval/);
+  assert.match(body, /\*\*ACQ — affected_paths/);
+});

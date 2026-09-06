@@ -287,3 +287,16 @@ test('bouncer-execute step 3 light branch cites pointer scale', () => {
   assert.strictEqual(matches && matches.length, 1);
   assert.doesNotMatch(body, /blueprint `index\.md`의 `bouncer\.scale`/);
 });
+
+test('bouncer-execute loads debugging only on the verify-failure recovery path', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step4 = body.indexOf('4. **Verify.**');
+  const debugCite = body.indexOf('${BOUNCER_ROOT}/references/debugging/index.md');
+  assert.ok(step4 >= 0, 'step 4 owns verify-failure recovery');
+  assert.ok(debugCite >= step4, 'debugging/index.md belongs on the verify-failure path');
+  assert.match(body.slice(step4), /On verify failure/);
+  const preamble = body.slice(0, body.search(/^1\. /m));
+  assert.doesNotMatch(preamble, /debugging\/index\.md/);
+  assert.doesNotMatch(preamble, /minimality\/index\.md/);
+  assert.doesNotMatch(preamble, /Root cause → Pattern → Hypothesis → Implementation/);
+});

@@ -54,3 +54,10 @@ test('debugger redispatch cap is **1** across execute, debugging, agent, and run
     assert.doesNotMatch(md, /at most \*\*3\*\*/, rel);
   }
 });
+
+test('run delegates debugger dispatch to execute without loading debugging/index.md', () => {
+  const run = read('skills/bouncer-run/SKILL.md');
+  assert.doesNotMatch(run, /references\/debugging\/index\.md/);
+  assert.match(run, /\/bouncer-execute/ );
+  assert.match(run, /at most\s+\*\*1\*\* debugger recovery/);
+});

@@ -75,3 +75,14 @@ test('bouncer-commit keeps Commit and Next-task ACQ in steps 2 and 3 with an ind
     acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [2, 3], only: true },
   });
 });
+
+test('bouncer-commit keeps a single dry-run gate and pointer confirm-then-set', () => {
+  const { body } = parseFrontmatter(md);
+  const preamble = body.slice(0, body.search(/^1\. /m));
+  assert.doesNotMatch(preamble, /\.\/references\//);
+  assert.strictEqual((body.match(/^\s*bouncer commit --blueprint <pointer\.blueprint>$/gm) || []).length, 1);
+  assert.match(body, /rules\/current-pointer\.md/);
+  assert.match(body, /nextTask/);
+  assert.match(body, /\*\*AskUserQuestion — Commit\*\*/);
+  assert.match(body, /\*\*AskUserQuestion — Next task\*\*/);
+});
