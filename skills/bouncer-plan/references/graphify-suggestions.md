@@ -1,8 +1,13 @@
 When generating Graphify suggestions, read this reference.
 
-Use the `graphify-runner` skill (`references/graphify-runner/index.md`) to run
-`bouncer graph-sync` (plan-time freshness for **source** + **test** + **context**
-graphs), then `bouncer graph-suggest`, and write structured
+Before scaffold, use the `graphify-runner` skill
+(`references/graphify-runner/index.md`) to sync and directly query the existing
+**context** graph for discovery Overlap. That direct Graphify query names
+`graphify-out/context/graph.json`; do not use `bouncer graph-suggest`, which
+loads source and cannot discover context when source is unavailable. After
+authoring, use `graph-suggest` for file-path ranking only when source is
+available and reuse the pre-scaffold context evidence; do not sync or directly
+query context after authoring. Then write structured
 `bouncer.scope_evidence` into each `tasks/<NNN>/tasks.md` under the blueprint:
 `suggested_paths` (file paths only), paired `quality` + role `candidates`, and a
 non-empty `basis` entry list for source·test·context. If graphify is unavailable,
@@ -24,7 +29,8 @@ space the same way graphify-runner does:
    change (ASCII paths, function names, anchors).
 3. **Deletion targets as seeds** — if the plan deletes files, seed those paths
    directly so dependent neighbors still rank.
-4. **User confirmation** — Graphify candidates are advisory; write
+4. **User confirmation** — Graphify candidates, including context candidates,
+   are advisory; write
    `affected_paths` only after the user confirms.
 
 Scaffold leaves `basis` as an empty list on purpose, so this step must run: G4

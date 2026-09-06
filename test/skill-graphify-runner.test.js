@@ -84,6 +84,34 @@ test('graphify-runner queries source and context graphs after plan-time sync', (
   assert.match(md, /graph-sync/);
 });
 
+test('graphify-runner reuses pre-scaffold context evidence and keeps it advisory', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /pre-scaffold context discovery/i);
+  assert.match(md, /reuse.*context|context.*reuse/i);
+  assert.match(md, /do not.*sync.*context.*after authoring|after authoring.*do not.*sync.*context/i);
+  assert.match(md, /context candidates.*advisory|advisory.*context candidates/i);
+  // graph-suggest는 source 부재 시 unavailable이므로, 사전 discovery는 context 파일만
+  // 읽는 Graphify query를 써야 한다. 그렇지 않으면 source 상태가 Overlap 발견을 막는다.
+  assert.match(md, /"\$GRAPHIFY_BIN"\s+query[\s\S]{0,240}--graph\s+"graphify-out\/context\/graph\.json"/);
+  assert.match(md, /not[\s\S]{0,24}use\s+`bouncer graph-suggest`|instead of[\s\S]{0,80}graph-suggest/i);
+});
+
+test('graphify-runner guards an unavailable context query and records its basis', () => {
+  const md = readSkill('graphify-runner');
+  // 사전 discovery도 선택 기능이다. 실행 파일 또는 그래프가 없을 때 빈 명령을
+  // 실행하면 이후 수동 scope 확인까지 중단되므로, query 전에 두 입력을 함께 막는다.
+  assert.match(md, /CONTEXT_QUERY=/);
+  assert.match(md, /if\s+\[\[\s+-n\s+"\$GRAPHIFY_BIN"\s+&&\s+-f\s+"graphify-out\/context\/graph\.json"\s+\]\]/);
+  assert.match(md, /else[\s\S]{0,500}basis[\s\S]{0,500}(reason|이유|why)/i);
+});
+
+test('graphify-runner records unavailable basis evidence when context query exits nonzero', () => {
+  const md = readSkill('graphify-runner');
+  assert.match(md, /if\s*!\s*CONTEXT_RESULT=.*"\$GRAPHIFY_BIN"\s+query[\s\S]{0,180}2>&1/);
+  assert.match(md, /query exits\s+nonzero[\s\S]{0,220}non-empty\s+`result`\s+reason/i);
+  assert.match(md, /result:\s*"unavailable:\s*\$CONTEXT_RESULT"/);
+});
+
 test('graphify-runner skips on source graph missing via graph-sync missing', () => {
   const md = readSkill('graphify-runner');
   assert.match(md, /missing/);

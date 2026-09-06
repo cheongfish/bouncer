@@ -39,6 +39,40 @@ function mainBranch() {
   return 'main';
 }
 
+const qualityFixture = JSON.parse(fs.readFileSync(
+  path.join(__dirname, 'fixtures', 'graph-search-quality.json'),
+  'utf8',
+));
+
+function materializeQualityCase(caseEntry, includeContext) {
+  const repo = tmpRepo();
+  writeConfig(repo, {
+    source_dirs: ['scripts/src', 'hooks'],
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: ['scripts/lib'] },
+  });
+  for (const role of ['source', 'test', 'context']) {
+    writeGraph(
+      repo,
+      role,
+      role === 'context' && !includeContext
+        ? { nodes: [], links: [] }
+        : (caseEntry.graphs[role] || { nodes: [], links: [] }),
+    );
+  }
+  return repo;
+}
+
+function topKRecall(result, goldPaths, topK) {
+  const top = result.suggested_paths.slice(0, topK);
+  return top.filter((candidate) => goldPaths.includes(candidate)).length / goldPaths.length;
+}
+
+function falsePositiveCount(result, goldPaths, topK) {
+  return result.suggested_paths
+    .slice(0, topK)
+    .filter((candidate) => !goldPaths.includes(candidate)).length;
+}
+
 test('derived-anchor token grammar preserves hierarchy anchors and rejects colon form', () => {
   const anchors = [
     'epic-054',
@@ -700,4 +734,92 @@ test('trailing paren with spaces trims to same lookup key as bare seed', () => {
   writeGraph(repo, 'test', { nodes: [], links: [] });
   const result = graphSuggest({ repoRoot: repo, query: 'graphify', seeds: ['setupGraphify'] });
   assert.ok(result.candidates.implementation.some((c) => c.path === 'src/lib/graphify.ts'));
+});
+
+test('fixed corpus measures context contribution without changing recommendation policy', () => {
+  const topK = qualityFixture.meta.context_contribution.top_k;
+
+  for (const caseEntry of qualityFixture.cases) {
+    const withoutContext = graphSuggest({
+      repoRoot: materializeQualityCase(caseEntry, false),
+      query: caseEntry.query,
+      seeds: caseEntry.seeds,
+    });
+    const withContext = graphSuggest({
+      repoRoot: materializeQualityCase(caseEntry, true),
+      query: caseEntry.query,
+      seeds: caseEntry.seeds,
+    });
+    const expected = caseEntry.context_contribution;
+    const expectedBaselines = expected.baselines;
+    const goldPaths = [...caseEntry.gold.implementation, ...caseEntry.gold.test];
+    const extraPaths = withContext.suggested_paths
+      .filter((candidate) => !withoutContext.suggested_paths.includes(candidate));
+    const baselineFalsePositives = falsePositiveCount(withoutContext, goldPaths, topK);
+    const contextFalsePositives = falsePositiveCount(withContext, goldPaths, topK);
+
+    for (const [name, result] of Object.entries({ without_context: withoutContext, with_context: withContext })) {
+      const baseline = expectedBaselines[name];
+      // These fixed source/test sets catch ranking or confidence changes that aggregate
+      // contribution metrics can hide (for example, a same-size path replacement).
+      assert.deepEqual(result.suggested_paths, baseline.suggested_paths, `${caseEntry.id}: ${name} paths`);
+      assert.deepEqual(
+        {
+          implementation: result.candidates.implementation.map((candidate) => candidate.path),
+          test: result.candidates.test.map((candidate) => candidate.path),
+        },
+        baseline.candidates,
+        `${caseEntry.id}: ${name} source/test candidates`,
+      );
+      assert.equal(result.status, baseline.status, `${caseEntry.id}: ${name} status`);
+      assert.equal(result.confidence, baseline.confidence, `${caseEntry.id}: ${name} confidence`);
+    }
+
+    assert.equal(extraPaths.length, expected.extra_paths, `${caseEntry.id}: extra paths`);
+    assert.equal(
+      topKRecall(withoutContext, goldPaths, topK),
+      expected.top_k_recall.without_context,
+      `${caseEntry.id}: baseline top-${topK} recall`,
+    );
+    assert.equal(
+      topKRecall(withContext, goldPaths, topK),
+      expected.top_k_recall.with_context,
+      `${caseEntry.id}: context top-${topK} recall`,
+    );
+    assert.equal(
+      baselineFalsePositives,
+      expected.false_positives.without_context,
+      `${caseEntry.id}: baseline false positives`,
+    );
+    assert.equal(
+      contextFalsePositives,
+      expected.false_positives.with_context,
+      `${caseEntry.id}: context false positives`,
+    );
+    assert.ok(
+      contextFalsePositives <= baselineFalsePositives,
+      `${caseEntry.id}: context false positives must not exceed the baseline`,
+    );
+  }
+});
+
+test('fixed corpus exposes a current-draft context self-hit separately from path suggestions', () => {
+  const draft = qualityFixture.draft_self_hit;
+  const policy = qualityFixture.meta.context_contribution.policy;
+  const result = graphSuggest({
+    repoRoot: materializeQualityCase(draft, true),
+    query: draft.query,
+    seeds: draft.seeds,
+  });
+  const contextPaths = result.candidates.context.map((candidate) => candidate.path);
+  const selfHitRatio = contextPaths.filter((candidate) => candidate === draft.draft_path).length
+    / contextPaths.length;
+
+  assert.equal(selfHitRatio, draft.expected_ratio);
+  assert.equal(policy.false_positive_comparison, 'context must not exceed the source/test baseline');
+  assert.equal(policy.max_self_hit_ratio, 0);
+  // 사후 context 검색은 현재 draft를 되찾아 0 임계치를 넘는다. 이 fixture는
+  // pre-scaffold 순서를 깨뜨렸을 때 policy 통과로 오인하지 않게 하는 실패 모델이다.
+  assert.ok(selfHitRatio > policy.max_self_hit_ratio);
+  assert.ok(!result.suggested_paths.includes(draft.draft_path));
 });

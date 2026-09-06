@@ -129,6 +129,14 @@ test('bouncer-plan states that G4 requires a recorded graph basis', () => {
   assert.match(md, /scaffold[^\n]*empty list|empty list[^\n]*basis/i);
 });
 
+test('bouncer-plan records G4 basis evidence before affected_paths confirmation', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const basisAt = body.indexOf("Record G4's non-empty `scope_evidence.basis`");
+  const approvalAt = body.indexOf('6. **affected_paths');
+  assert.ok(basisAt >= 0, 'G4 basis recording is explicit');
+  assert.ok(approvalAt > basisAt, 'basis evidence precedes affected_paths confirmation');
+});
+
 test('bouncer-plan shows role candidates and quality before affected_paths confirm', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /candidates|role/i);
@@ -162,6 +170,18 @@ test('bouncer-plan step 1 cites the named discovery handoff outputs', () => {
   assert.match(body, /Edge cases & failure modes/);
   assert.match(body, /Overlap/);
   assert.match(body, /실패 모드|failure mode/i);
+});
+
+test('bouncer-plan searches prior context before scaffold and keeps it outside approval scope', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const discoverAt = body.indexOf('1. **Discover.**');
+  const scaffoldAt = body.indexOf('3. **Scaffold.**');
+  const contextDiscoveryAt = body.indexOf('pre-scaffold context discovery');
+  const approvalAt = body.indexOf('6. **affected_paths');
+  assert.ok(contextDiscoveryAt > discoverAt && contextDiscoveryAt < scaffoldAt);
+  assert.match(body, /context candidates.*advisory|advisory.*context candidates/i);
+  assert.match(body, /do not.*(?:confirm|set|write).*affected_paths.*context|context.*do not.*affected_paths/i);
+  assert.ok(approvalAt > scaffoldAt, 'affected_paths confirmation remains after authoring');
 });
 
 test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => {
