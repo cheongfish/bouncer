@@ -123,6 +123,13 @@ test('graphify-runner leaves empty suggested_paths on low-confidence or unavaila
   assert.match(md, /suggested_paths[\s\S]{0,160}(\[\]|empty|빈)/i);
 });
 
+test('graphify-runner records an unavailable context query when its binary is absent', () => {
+  const md = readSkill('graphify-runner');
+  // binary를 해석하지 못하면 context 그래프가 남아 있어도 질의하지 않았음을 남긴다.
+  assert.match(md, /`GRAPHIFY_BIN` is empty[\s\S]{0,600}context query[\s\S]{0,240}(not run|not queried|unavailable)/i);
+  assert.match(md, /context[\s\S]{0,240}(not run|not queried)[\s\S]{0,240}binary/i);
+});
+
 test('graphify-runner uses English ASCII noun queries and prioritizes ASCII seeds', () => {
   const md = readSkill('graphify-runner');
   assert.match(md, /English ASCII noun-oriented\s+(query|`--query` values)/i);

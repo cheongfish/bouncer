@@ -82,6 +82,12 @@ write `bouncer.scope_evidence` into the task brief (`tasks/<NNN>/tasks.md`).
    An empty `GRAPHIFY_BIN` is a state (resolution miss), not a skill error —
    treat it like the other skip paths below.
 
+   When `GRAPHIFY_BIN` is empty, do not run a context query, even when an
+   earlier sync left `graphify-out/context/graph.json` behind. Keep that
+   context basis entry's sync-mapped `status`, but record `query: graphify
+   binary unavailable` and `result: not queried: graphify binary unavailable`
+   so unavailable evidence is distinguishable from an empty context result.
+
    If graphify auto-build is disabled, `GRAPHIFY_BIN` is empty, sync reports
    `skip-no-graphify` / `skip-graph-disabled`, or the source `graph.json` is
    still missing after sync (`missing` from `graph-sync` includes `"source"`),
