@@ -21,6 +21,7 @@ const {
   VERIFY_SECTION_DEFS, TODO_RE,
   parseSections, parseTasksSections, parseExplainSections, extractPathCandidates,
   pathsOverlap, pathJustifiedByTouch, collectFindingFailures,
+  CONTEXT_REVIEW_STATUS, EXECUTE_REVIEW_STATUS,
 } = validateSections;
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
@@ -315,6 +316,7 @@ function runCheckGate(
           findings: crMeta && crMeta.findings,
           sectionLabel: 'context-review',
           findingLabel: 'context-review',
+          allowedStatuses: CONTEXT_REVIEW_STATUS,
         })) {
           add('G18', message, 'contextReview');
         }
@@ -434,12 +436,17 @@ function runCheckGate(
       ? reviewMetaBouncer.review as Record<string, unknown> | undefined
       : undefined;
     const reviewSkipped = reviewMeta && reviewMeta.required === false;
+    // G14는 execute status(deferred 포함)와 선택적 rounds[]를 검사한다.
+    // G18은 CONTEXT_REVIEW_STATUS만 넘긴다 — 같은 헬퍼라도 계획 문서에
+    // deferred·원장을 열면 안 된다. G8의 accepted/required 판정은 그대로 둔다.
     if (reviewDoc && !reviewSkipped) {
       for (const message of collectFindingFailures({
         body: reviewDoc.body,
         findings: reviewMeta && reviewMeta.findings,
+        rounds: reviewMeta && reviewMeta.rounds,
         sectionLabel: 'review.md',
         findingLabel: 'review',
+        allowedStatuses: EXECUTE_REVIEW_STATUS,
       })) {
         addUnit('G14', message, 'review');
       }

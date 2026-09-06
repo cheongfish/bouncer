@@ -96,9 +96,12 @@ defect. Simpler-is-possible is not a blocker.
 
 Return **only** a Findings list. For each finding include:
 
+- stable `id` — reuse a previous ID when the same finding returns
+- relation to previous findings: `new | resolved | regressed`
 - `severity`: `blocker | major | minor | nit`
 - summary
 - evidence (`file:line` or concrete diff reference)
 - suggested disposition hint (`resolve` vs accept-with-note) — advisory only
 
+Report every actionable finding the pass finds, including `minor` and `nit`.
 Do **not** set review status. Do **not** edit the pointer task directory's `review.md`.

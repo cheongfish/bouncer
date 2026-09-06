@@ -58,7 +58,7 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 | 계획 | blueprint, 코드 맥락 | 인터페이스, Touch, Do not touch, 체크리스트 | implementation-ready `tasks/<NNN>/tasks.md` |
 | 구현 | 승인된 task 문서 | 허용 경로 내 코드·테스트 변경 | 체크리스트 충족 |
 | 검증 | 변경사항, 프로젝트 명령 | 실행 명령, 결과, 실패/위험 요약 | 실제 통과 증거 (G7 + G13) |
-| 리뷰 | diff, tasks, verification | findings, 해결 또는 수용 근거 | 미해결 actionable finding 없음 (G8 + G14) |
+| 리뷰 | diff, tasks, verification | findings, 해결·수용·이연 근거 | 미해결 actionable finding 없음 (G8 + G14) |
 
 스킬은 이 문서를 작성하거나 보완할 수 있지만 임의로 성공 상태를 선언하지 않는다.
 `bouncer validate`가 스키마와 게이트 통과를 최종 판정한다.
@@ -72,7 +72,10 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 - **G8**: `review.status == accepted`, 또는 `bouncer.review.required === false`로 정책상 통과
 - **G14**: 활성 포인터 task 디렉터리의 `review.md` 본문에 `## Findings` 필수; `bouncer.review.findings[]`는
   `{id, severity, status, note}`이며 `severity ∈ {blocker,major,minor,nit}`,
-  `status ∈ {resolved,accepted}`, `accepted`면 `note` 필수.
+  `status ∈ {resolved,accepted,deferred}`, `accepted`와 `deferred`면 `note` 필수.
+  `deferred`는 execute review에만 허용한다. 선택적 `bouncer.review.rounds[]`는
+  `{round, previous_finding_ids, new, resolved, regressed}`이며 구문서는 이 키
+  없이 통과한다.
   `review.required === false`이면 G14도 건너뛴다.
 
 ### 4. 일반 워크플로 스킬을 자체 소유한다
@@ -200,7 +203,8 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 2. 검증 명령은 블루프린트 `tasks.bouncer.verify` 선언이 있으면 그것을, 없으면
    프로젝트 설정의 `verify`를 폴백으로 쓴다.
 3. 리뷰 finding 스키마는 `bouncer.review.findings[]` + 본문 `## Findings` (G14).
-   상태 통과는 G8 (`accepted` 또는 `required === false`).
+   execute status는 `resolved | accepted | deferred`이고, 선택적 `rounds[]`가
+   round 관계를 기록한다. 상태 통과는 G8 (`accepted` 또는 `required === false`).
 4. 사람이 승인해야 하는 전이는 blueprint/tasks 승인 등 명령 워크플로에 명시하고,
    에이전트는 게이트가 허용하는 상태 전이만 수행한다.
 5. 컨텍스트 본문·그래프 산출물·서브에이전트 리포트의 신뢰 경계는

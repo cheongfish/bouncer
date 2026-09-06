@@ -595,6 +595,18 @@ test('plan gate G18 fails when an accepted finding has no note', () => {
   )));
 });
 
+test('plan gate G18 fails when a finding status is deferred', () => {
+  const docs = planDocs(READY_BODY);
+  docs.contextReview = contextReviewDoc('accepted', [
+    { id: 'CR-3', severity: 'minor', status: 'deferred', note: 'next epic' },
+  ]);
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => (
+    f.code === 'G18' && /finding CR-3 status invalid: deferred/.test(f.message)
+  )));
+});
+
 test('plan gate G18 fails when context_review.findings is not an array', () => {
   const docs = planDocs(READY_BODY);
   docs.contextReview = doc(
@@ -807,6 +819,104 @@ test('execute gate skips G14 when review.required is false', () => {
   const failures = [];
   checkGate('execute', docs, rels, failures);
   assert.ok(!failures.some((f) => f.code === 'G14'));
+});
+
+function executeReviewFailures(review) {
+  const docs = {
+    tasks: doc('verified'),
+    verification: passingVerificationDoc(),
+    review: doc('accepted', { review }, REVIEW_BODY_OK),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures, { deps: ledgerDeps(docs.verification) });
+  return failures.filter((f) => f.code === 'G14');
+}
+
+function roundEntry(overrides = {}) {
+  return {
+    round: 1,
+    previous_finding_ids: [],
+    new: 0,
+    resolved: 0,
+    regressed: 0,
+    ...overrides,
+  };
+}
+
+test('execute gate G14 accepts deferred finding with note and a valid rounds ledger', () => {
+  const g14 = executeReviewFailures({
+    findings: [{ id: 'F3', severity: 'nit', status: 'deferred', note: 'independent follow-up' }],
+    rounds: [
+      roundEntry({ new: 1 }),
+      roundEntry({
+        round: 2,
+        previous_finding_ids: ['F3'],
+        new: 0,
+        resolved: 0,
+        regressed: 0,
+      }),
+    ],
+  });
+  assert.deepStrictEqual(g14, []);
+});
+
+test('execute gate G14 fails when deferred finding has no note', () => {
+  const g14 = executeReviewFailures({
+    findings: [{ id: 'F4', severity: 'minor', status: 'deferred' }],
+  });
+  assert.ok(g14.some((f) => /finding F4 deferred without note/.test(f.message)));
+});
+
+test('execute gate G14 fails when rounds is not an array', () => {
+  const g14 = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
+    rounds: { round: 1 },
+  });
+  assert.ok(g14.some((f) => /rounds must be an array/.test(f.message)));
+});
+
+test('execute gate G14 fails when rounds counts are negative or not integers', () => {
+  const negative = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
+    rounds: [roundEntry({ new: -1 })],
+  });
+  assert.ok(negative.some((f) => /round 1 new invalid: -1/.test(f.message)));
+  const nonInteger = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
+    rounds: [roundEntry({ resolved: 1.5 })],
+  });
+  assert.ok(nonInteger.some((f) => /round 1 resolved invalid: 1\.5/.test(f.message)));
+});
+
+test('execute gate G14 fails when rounds are duplicated or out of order', () => {
+  const duplicate = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
+    rounds: [roundEntry({ round: 1 }), roundEntry({ round: 1, previous_finding_ids: ['F1'] })],
+  });
+  assert.ok(duplicate.some((f) => /rounds duplicate round: 1/.test(f.message)));
+  const reversed = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
+    rounds: [roundEntry({ round: 2 }), roundEntry({ round: 1 })],
+  });
+  assert.ok(reversed.some((f) => /rounds out of order/.test(f.message)));
+});
+
+test('execute gate G14 fails when round types are invalid', () => {
+  const badRound = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
+    rounds: [roundEntry({ round: 0 })],
+  });
+  assert.ok(badRound.some((f) => /rounds round invalid: 0/.test(f.message)));
+  const badIds = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
+    rounds: [roundEntry({ previous_finding_ids: [1] })],
+  });
+  assert.ok(badIds.some((f) => /round 1 previous_finding_ids invalid/.test(f.message)));
+  const badEntry = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'resolved' }],
+    rounds: ['round-1'],
+  });
+  assert.ok(badEntry.some((f) => /rounds entry invalid/.test(f.message)));
 });
 
 const EXPLAIN_BODY_OK = `# Explain

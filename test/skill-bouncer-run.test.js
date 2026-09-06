@@ -15,7 +15,9 @@ test('run preserves pointer, execute recovery ceilings, and scope boundaries', (
   assert.match(md, /current --set/);
   const ceilings = md.match(/4\. \*\*Verify · review ceilings\.\*\*([\s\S]*?)(?=\n5\. \*\*`interactive` boundary)/)?.[1] || '';
   assert.match(ceilings, /at most \*\*1\*\* debugger recovery/);
-  assert.match(ceilings, /at most \*\*2\*\* review\s+round-trips/);
+  assert.match(ceilings, /\/bouncer-execute/);
+  assert.match(ceilings, /conditional/);
+  assert.doesNotMatch(ceilings, /round <= 2/);
   assert.match(ceilings, /\/bouncer-plan/);
   assert.match(md, /Scope violations stop/);
   assert.match(md, /never flip findings/);

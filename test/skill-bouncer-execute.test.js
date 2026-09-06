@@ -216,12 +216,30 @@ test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', (
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
 
-test('bouncer-execute caps review round-trips at 2 and escalates', () => {
+test('bouncer-execute allows a conditional third review round then stops', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /at most \*\*2\*\* review round-trips/);
-  assert.match(body, /round-trips[\s\S]{0,200}\/bouncer-plan/);
-  // 상한을 accepted 전환으로 빠져나가면 G8이 헛통과함.
+  assert.match(body, /round <= 2/);
+  assert.match(body, /round == 3/);
+  assert.match(body, /previous blocker\/major findings are resolved/);
+  assert.match(body, /latest verify passed/);
+  assert.match(body, /new actionable findings fit Goal, Interface, Constraints, affected_paths/);
+  assert.match(body, /Never start a fourth|네 번째/);
   assert.match(body, /never flip[\s\S]{0,80}accepted/);
+});
+
+test('bouncer-execute replans instead of deferring accuracy findings', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /Do not classify[\s\S]{0,80}deferred|deferred[\s\S]{0,80}accuracy/i);
+  assert.match(body, /\/bouncer-plan/);
+  assert.match(body, /regresses|재발/);
+});
+
+test('bouncer-execute records each review round ledger in review.md', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /bouncer\.review\.rounds/);
+  assert.match(body, /previous finding IDs|previous_finding_ids/);
+  assert.match(body, /new[\s\S]{0,40}resolved[\s\S]{0,40}regressed/);
+  assert.match(body, /review\.md/);
 });
 
 test('bouncer-execute preflight reads project Distill', () => {
