@@ -10,6 +10,9 @@ description: "Use only when the user explicitly asks /bouncer-commit; it commits
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Output contract: `rules/output.md`. Preserve commit and pointer ACQs; render
+the commit outcome, subject, pointer target, and next task or finalize action
+through that shared contract.
 
 Close one task on the active blueprint. Follow this sequence. Do **not** open a
 draft PR, remove the execute worktree, or run `explain-diff` here — those are
@@ -40,26 +43,15 @@ workflow only supplies the current task's scope and its post-commit handoff.
    — nothing staged**; show the violations and have the user fix
    `affected_paths` or remove the stray files. On a clean dry-run (or empty
    staged set), keep the staged file list + generated commit message for the
-   step-4 ACQ. (Empty staged set is fine — still continue; `--yes` will not
-   create an empty commit.)
+   step-2 ACQ. This dry-run runs the commit gate once (G6/G7/G8 and G17); on a
+   gate failure, stop without an ACQ or `--yes`. (Empty staged set is fine —
+   still continue; `--yes` will not create an empty commit.)
 
    Allowed task-bundle, context, and Distill workflow documents are scope
    candidates but are not task-commit staging candidates. Only task outputs
    are staged; an untracked path must exist before it can be staged.
 
-2. **Validate.** Run the commit gate — `validate --gate commit`:
-   ```bash
-   bouncer validate --blueprint <pointer.blueprint> --gate commit
-   ```
-   Gate `commit` re-checks G6/G7/G8 for the pointer task and G17 (staged paths
-   inside `affected_paths`). Fix and re-run until it passes.
-
-3. **Status before commit.** Set the pointer task documents to the statuses the
-   execute gate already required (`tasks → verified`, `verification → passed`,
-   `review → accepted` or `required: false`) if any are still open from the
-   execute handoff. Do not invent new status names.
-
-4. **Commit (deterministic core).** Show the dry-run staged list + generated
+2. **Commit (deterministic core).** Show the dry-run staged list + generated
    commit message, then run this **ACQ** before `--yes`:
 
    **AskUserQuestion — Commit**
@@ -86,7 +78,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
    that dirty `tasks.md`. Leave it for the next task commit or finalize
    remainder.
 
-5. **Next-task handoff.** After a successful step 4 (including empty staged set
+3. **Next-task handoff.** After a successful step 2 (including empty staged set
    with `committed: false`), offer to advance the active pointer with an **ACQ**
    — use the commit payload's `nextTask` as required by `rules/current-pointer.md`.
    This direct invocation keeps the shared confirm-then-set rule.
@@ -111,10 +103,9 @@ workflow only supplies the current task's scope and its post-commit handoff.
    - If `nextTask` is `null`, skip A and recommend `/bouncer-finalize` instead.
    - If B/C leave the pointer as-is (or only report), say so plainly.
 
-6. **Report.** Lead with the outcome, then the detail: whether a commit was
-   created (or empty staged set), the commit subject, whether the pointer moved
-   to the next task or the user should run `/bouncer-finalize`. Keep it to those
-   facts — no recap of the steps the user just watched run.
+4. **Report.** Render through `rules/output.md`: commit outcome (including an
+   empty staged set), commit subject, pointer target, and next task or
+   `/bouncer-finalize` action.
 
 ## ACQ (AskUserQuestion) gates
 
@@ -122,5 +113,5 @@ Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 `/bouncer-commit` is not consent for commit or pointer advance.
 
 **Index:**
-- Step 4 — Commit
-- Step 5 — Next task
+- Step 2 — Commit
+- Step 3 — Next task

@@ -9,6 +9,9 @@ description: "Use only when the user explicitly asks /bouncer-init; it bootstrap
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
+Output contract: `rules/output.md`. Preserve the step 3 ACQ display; report the
+bootstrap outcome, created or migrated targets, Graphify result/recovery, and
+the next `/bouncer-plan` action through that shared contract.
 
 Bootstrap this project for Bouncer.
 
@@ -21,59 +24,13 @@ Bootstrap this project for Bouncer.
    # Codex users without an existing .codex/ directory:
    # bouncer init --seed-codex-agents
    ```
-2. Report the bootstrap and install result:
-   - If bootstrap is already ready and `.bouncer/Distill.md` exists,
-     report `already-initialized` and that no scaffold files were created.
-   - If bootstrap is ready but Distill was missing, report that Distill was
-     seeded (`project-distill-seeded`) and list `.bouncer/Distill.md`. If init
-     migrated a legacy `.bouncer/context/Distill.md`, report the new path.
-   - If bootstrap is ready and `created` includes `.codex/` paths, report
-     `codex-agents-seeded` and list those paths. Codex loads named agents
-     from that directory, not from the plugin `agents/*.md`. Do not mention
-     that reason when no `.codex/` paths were created.
-   - Otherwise, list the created files (`.bouncer/config.json`,
-     `.bouncer/context/index.md`, `.bouncer/Distill.md`, and `.codex/agents/*.toml`
-     only if they appear in `created`).
-   - Root `context/` is legacy/non-canonical: do not read, migrate, or consume it.
-   - **Graphify install fork** (from `graphifyInstall` when present):
-     - Success / reuse (`status` `installed` or `reused`): report the outcome
-       and the recorded `config.graphify.bin` (or the returned `bin`).
-     - Failure: report the reason, note that `graphify.enabled` stayed / was
-       set `false`, and point at a later return via
-       `bouncer init --promote-graphify` after a manual install.
-   - Do **not** edit `.bouncer/config.json` yourself — promotion is CLI-only.
-3. Consent gates (ACQ). Never write config or `.gitignore` without agreement.
-   - **Promotion ACQ** — when the result carries
-     `graphifyPromotion: 'candidate'` (existing project with graphify not yet
-     enabled), ask:
-     - **A)** Enable and install (recommended)
-     - **B)** Enable only (no install attempt)
-     - **C)** Leave as-is
-     On **A** or **B** only, run (A installs; B enables without install):
-     ```bash
-     # A) enable + install
-     bouncer init --promote-graphify
-     # B) enable only
-     bouncer init --promote-graphify --no-graphify
-     ```
-     **C** writes nothing. In non-interactive environments, print the three
-     options and stop — do not promote.
-   - **Gitignore ACQ** — when `gitignoreSuggestions` is non-empty, list the
-     entries and ask whether to write the `# bouncer` … `# /bouncer` marker
-     block. On consent only:
-     ```bash
-     bouncer init --write-gitignore
-     ```
-     On decline, report the suggested entries and leave `.gitignore`
-     untouched. Bouncer writes `.gitignore` only after this consent, and only
-     inside the marker block.
-   - **Branch ACQ** — when the result carries `baseBranchUnresolved: true`,
-     ask for the repository default branch. Do not offer `develop` or `main`
-     as a guessed default. On an answer, write that same string to both
-     `base_branch` and `pr.base` in `.bouncer/config.json`. On skip, leave
-     the keys absent. This write is the exception to the promotion-only
-     config rule above: graphify still goes through CLI; the branch keys
-     have no CLI flag.
+2. After bootstrap completes, read [init-result.md](./references/init-result.md)
+   when rendering a result or handling its Promotion, Gitignore, or Branch
+   consent branch. That reference owns the result fields and branch effects;
+   it never precedes bootstrap and config promotion remains CLI-only.
+   Root `context/` is legacy/non-canonical and is never input.
+3. Consent gates (ACQ). Apply the conditional choices in `init-result.md`;
+   never write config or `.gitignore` without agreement.
 4. Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
    git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit -m "chore: bootstrap bouncer"

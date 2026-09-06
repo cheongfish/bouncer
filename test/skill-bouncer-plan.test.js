@@ -29,7 +29,8 @@ test('bouncer-plan conditionally routes three planning references and retains co
     links: routes.map(({ file, triggers }) => ({ href: `./references/${file}`, resolve: true, referencePreamble: true, conditionalLoad: { triggers } })),
   });
   assert.match(body, /current\s+--set/);
-  assert.match(body, /G1 epic approved[\s\S]{0,1600}G12/);
+  assert.match(body, /Fix every reported failure and re-run/);
+  assert.match(body, /code,\n?\s*cause, path, and recovery action/);
   assert.doesNotMatch(body, /bouncer graph-sync|resolveSubagentModel/);
 });
 
@@ -129,6 +130,14 @@ test('bouncer-plan states that G4 requires a recorded graph basis', () => {
   assert.match(md, /scaffold[^\n]*empty list|empty list[^\n]*basis/i);
 });
 
+test('bouncer-plan records G4 basis evidence before affected_paths confirmation', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const basisAt = body.indexOf("Record G4's non-empty `scope_evidence.basis`");
+  const approvalAt = body.indexOf('6. **affected_paths');
+  assert.ok(basisAt >= 0, 'G4 basis recording is explicit');
+  assert.ok(approvalAt > basisAt, 'basis evidence precedes affected_paths confirmation');
+});
+
 test('bouncer-plan shows role candidates and quality before affected_paths confirm', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /candidates|role/i);
@@ -162,6 +171,18 @@ test('bouncer-plan step 1 cites the named discovery handoff outputs', () => {
   assert.match(body, /Edge cases & failure modes/);
   assert.match(body, /Overlap/);
   assert.match(body, /실패 모드|failure mode/i);
+});
+
+test('bouncer-plan searches prior context before scaffold and keeps it outside approval scope', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const discoverAt = body.indexOf('1. **Discover.**');
+  const scaffoldAt = body.indexOf('3. **Scaffold.**');
+  const contextDiscoveryAt = body.indexOf('pre-scaffold context discovery');
+  const approvalAt = body.indexOf('6. **affected_paths');
+  assert.ok(contextDiscoveryAt > discoverAt && contextDiscoveryAt < scaffoldAt);
+  assert.match(body, /context candidates.*advisory|advisory.*context candidates/i);
+  assert.match(body, /do not.*(?:confirm|set|write).*affected_paths.*context|context.*do not.*affected_paths/i);
+  assert.ok(approvalAt > scaffoldAt, 'affected_paths confirmation remains after authoring');
 });
 
 test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => {
@@ -231,10 +252,10 @@ test('bouncer-plan skips the context-review step on scale light', () => {
   assert.match(step, /do not substitute|not substitute/i);
 });
 
-test('bouncer-plan states the light G10 section list and the unchanged scope gates', () => {
+test('bouncer-plan keeps light scope explicit while delegating gate details', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /Goal & intent, Touch, Checklist/);
-  assert.match(body, /G4·G5·G11·G12|G4[^\n]*G12/);
+  assert.match(body, /scale.*light|light.*scale/i);
+  assert.match(body, /CLI owns plan-gate checks/);
 });
 
 // 프리플라이트 --all 직후 총량은 한 줄만 — 샤드별 표는 세션 주입이 된다.

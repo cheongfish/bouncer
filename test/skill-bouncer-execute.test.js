@@ -35,7 +35,8 @@ test('bouncer-execute conditionally routes dispatch and verify recovery referenc
     );
   }
   assert.match(body, /current\.task\.path/);
-  assert.match(body, /G6[\s\S]{0,300}G14/);
+  assert.match(body, /CLI owns verification evidence and execute-gate checks/);
+  assert.match(body, /validator code, cause,\n?\s*path, and recovery action/);
   assert.doesNotMatch(body, /agentName:'bouncer-implementer'|Minimum fix proposal/);
 });
 
@@ -153,6 +154,30 @@ test('bouncer-execute step 3 routes implementation through bouncer-implementer',
   assert.match(dispatch, /rules\/subagent-model\.md/);
   assert.match(body, /controller/i);
   assert.match(body, /commit-safety|git commit/i);
+});
+
+test('bouncer-execute compacts only a synchronized fresh named implementer payload', () => {
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  const named = dispatch.match(/## Named implementer[\s\S]*?(?=\n## )/)?.[0] || '';
+
+  assert.match(named, /mdToCodexToml\(\)/);
+  assert.match(named, /# bouncer-generated/);
+  assert.match(named, /byte-for-byte|exact match/i);
+  assert.match(named, /new named dispatch|fresh named dispatch/i);
+  assert.match(named, /cwd|worktree/i);
+  assert.match(named, /Goal & intent[\s\S]*Interface[\s\S]*Touch[\s\S]*Do\s+not touch[\s\S]*Constraints[\s\S]*Checklist/);
+  assert.doesNotMatch(named, /Prior commit subjects/i);
+  assert.doesNotMatch(named, /Hard guards|tests-first|Output contract/i);
+});
+
+test('bouncer-execute keeps full implementer guards for every compact-payload fallback', () => {
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  const fallback = dispatch.match(/## Implementer fallback[\s\S]*?(?=\n## |$)/)?.[0] || '';
+
+  assert.match(fallback, /mismatch|user-owned|unavailable/i);
+  assert.match(fallback, /Authority[\s\S]*Hard guards[\s\S]*tests-first[\s\S]*comments[\s\S]*Output contract/i);
+  assert.match(fallback, /Goal & intent[\s\S]*Interface[\s\S]*Touch[\s\S]*Do\s+not touch[\s\S]*Constraints[\s\S]*Checklist/);
+  assert.match(fallback, /status[\s\S]{0,80}commit|commit[\s\S]{0,80}status/i);
 });
 
 test('bouncer-execute step 4 dispatches bouncer-debugger on verify failure', () => {

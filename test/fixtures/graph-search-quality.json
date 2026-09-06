@@ -12,6 +12,14 @@
       "max_generated": 0,
       "top_n": 10
     },
+    "context_contribution": {
+      "top_k": 3,
+      "draft_path": ".bouncer/context/epics/043-bouncer-cost-improvement/blueprints/010-workflow-output-and-implementer-payload/tasks/004/tasks.md",
+      "policy": {
+        "false_positive_comparison": "context must not exceed the source/test baseline",
+        "max_self_hit_ratio": 0
+      }
+    },
     "legacy_node_exploration": {
       "light-plan": 97,
       "verification-ledger": 36,
@@ -158,6 +166,24 @@
           ]
         }
       }
+      ,
+      "context_contribution": {
+        "extra_paths": 0,
+        "top_k_recall": { "without_context": 0.3333333333333333, "with_context": 0.3333333333333333 },
+        "false_positives": { "without_context": 0, "with_context": 0 },
+        "baselines": {
+          "without_context": {
+            "suggested_paths": ["scripts/src/lib/cli-doc-commands.ts", "scripts/src/lib/current.ts", "scripts/src/lib/scaffold.ts", "scripts/src/lib/schema.ts", "scripts/src/lib/templates.ts", "scripts/src/lib/validate-gates.ts", "scripts/src/lib/validate-structural.ts", "test/scaffold.test.js", "test/validate-gates.test.js"],
+            "candidates": { "implementation": ["scripts/src/lib/cli-doc-commands.ts", "scripts/src/lib/current.ts", "scripts/src/lib/scaffold.ts", "scripts/src/lib/schema.ts", "scripts/src/lib/templates.ts", "scripts/src/lib/validate-gates.ts", "scripts/src/lib/validate-structural.ts"], "test": ["test/scaffold.test.js", "test/validate-gates.test.js", "test/orphan-plan.test.js"] },
+            "status": "ranked", "confidence": "medium"
+          },
+          "with_context": {
+            "suggested_paths": ["scripts/src/lib/scaffold.ts", "scripts/src/lib/validate-gates.ts", "scripts/src/lib/cli-doc-commands.ts", "scripts/src/lib/current.ts", "scripts/src/lib/schema.ts", "scripts/src/lib/templates.ts", "scripts/src/lib/validate-structural.ts", "test/scaffold.test.js", "test/validate-gates.test.js"],
+            "candidates": { "implementation": ["scripts/src/lib/scaffold.ts", "scripts/src/lib/validate-gates.ts", "scripts/src/lib/cli-doc-commands.ts", "scripts/src/lib/current.ts", "scripts/src/lib/schema.ts", "scripts/src/lib/templates.ts", "scripts/src/lib/validate-structural.ts"], "test": ["test/scaffold.test.js", "test/validate-gates.test.js", "test/orphan-plan.test.js"] },
+            "status": "ranked", "confidence": "high"
+          }
+        }
+      }
     },
     {
       "id": "verification-ledger",
@@ -283,6 +309,24 @@
             { "relation": "calls", "source": "test::coversLedger", "target": "src::verifyLedgerPathFor", "source_file": "test/verification-runner.test.js" },
             { "relation": "calls", "source": "test::coversG13", "target": "src::checkG13", "source_file": "test/validate-gates.test.js" }
           ]
+        }
+      }
+      ,
+      "context_contribution": {
+        "extra_paths": 0,
+        "top_k_recall": { "without_context": 0.3333333333333333, "with_context": 0.3333333333333333 },
+        "false_positives": { "without_context": 0, "with_context": 0 },
+        "baselines": {
+          "without_context": {
+            "suggested_paths": ["scripts/src/lib/cli-git-commands.ts", "scripts/src/lib/commit-hook.ts", "scripts/src/lib/commit.ts", "scripts/src/lib/finalize.ts", "scripts/src/lib/runtime-state.ts", "scripts/src/lib/validate-gates.ts", "scripts/src/lib/verification.ts", "test/validate-gates.test.js", "test/verification-runner.test.js"],
+            "candidates": { "implementation": ["scripts/src/lib/cli-git-commands.ts", "scripts/src/lib/commit-hook.ts", "scripts/src/lib/commit.ts", "scripts/src/lib/finalize.ts", "scripts/src/lib/runtime-state.ts", "scripts/src/lib/validate-gates.ts", "scripts/src/lib/verification.ts"], "test": ["test/validate-gates.test.js", "test/verification-runner.test.js", "test/orphan-directory.test.js"] },
+            "status": "ranked", "confidence": "medium"
+          },
+          "with_context": {
+            "suggested_paths": ["scripts/src/lib/runtime-state.ts", "scripts/src/lib/verification.ts", "scripts/src/lib/cli-git-commands.ts", "scripts/src/lib/commit-hook.ts", "scripts/src/lib/commit.ts", "scripts/src/lib/finalize.ts", "scripts/src/lib/validate-gates.ts", "test/validate-gates.test.js", "test/verification-runner.test.js"],
+            "candidates": { "implementation": ["scripts/src/lib/runtime-state.ts", "scripts/src/lib/verification.ts", "scripts/src/lib/cli-git-commands.ts", "scripts/src/lib/commit-hook.ts", "scripts/src/lib/commit.ts", "scripts/src/lib/finalize.ts", "scripts/src/lib/validate-gates.ts"], "test": ["test/validate-gates.test.js", "test/verification-runner.test.js", "test/orphan-directory.test.js"] },
+            "status": "ranked", "confidence": "high"
+          }
         }
       }
     },
@@ -418,6 +462,49 @@
           ]
         }
       }
+      ,
+      "context_contribution": {
+        "extra_paths": 0,
+        "top_k_recall": { "without_context": 0.3333333333333333, "with_context": 0.3333333333333333 },
+        "false_positives": { "without_context": 0, "with_context": 0 },
+        "baselines": {
+          "without_context": {
+            "suggested_paths": ["hooks/session-graph.js", "scripts/src/lib/cli-project-commands.ts", "scripts/src/lib/graph-exec.ts", "scripts/src/lib/graph-scope.ts", "scripts/src/lib/graphify.ts", "scripts/src/lib/init.ts", "scripts/src/lib/session-graph.ts", "test/graphify.test.js", "test/session-graph.test.js"],
+            "candidates": { "implementation": ["hooks/session-graph.js", "scripts/src/lib/cli-project-commands.ts", "scripts/src/lib/graph-exec.ts", "scripts/src/lib/graph-scope.ts", "scripts/src/lib/graphify.ts", "scripts/src/lib/init.ts", "scripts/src/lib/session-graph.ts"], "test": ["test/graphify.test.js", "test/session-graph.test.js", "test/orphan-hook.test.js"] },
+            "status": "ranked", "confidence": "medium"
+          },
+          "with_context": {
+            "suggested_paths": ["scripts/src/lib/graph-scope.ts", "scripts/src/lib/graphify.ts", "scripts/src/lib/session-graph.ts", "hooks/session-graph.js", "scripts/src/lib/cli-project-commands.ts", "scripts/src/lib/graph-exec.ts", "scripts/src/lib/init.ts", "test/graphify.test.js", "test/session-graph.test.js"],
+            "candidates": { "implementation": ["scripts/src/lib/graph-scope.ts", "scripts/src/lib/graphify.ts", "scripts/src/lib/session-graph.ts", "hooks/session-graph.js", "scripts/src/lib/cli-project-commands.ts", "scripts/src/lib/graph-exec.ts", "scripts/src/lib/init.ts"], "test": ["test/graphify.test.js", "test/session-graph.test.js", "test/orphan-hook.test.js"] },
+            "status": "ranked", "confidence": "high"
+          }
+        }
+      }
     }
-  ]
+  ],
+  "draft_self_hit": {
+    "query": "scope evidence",
+    "seeds": ["scopeEvidence"],
+    "draft_path": ".bouncer/context/epics/043-bouncer-cost-improvement/blueprints/010-workflow-output-and-implementer-payload/tasks/004/tasks.md",
+    "expected_ratio": 0.5,
+    "graphs": {
+      "context": {
+        "nodes": [
+          { "id": "ctx::draft", "label": "scopeEvidence", "source_file": ".bouncer/context/epics/043-bouncer-cost-improvement/blueprints/010-workflow-output-and-implementer-payload/tasks/004/tasks.md" },
+          { "id": "ctx::prior", "label": "scopeEvidence", "source_file": ".bouncer/context/epics/042-prior/blueprints/001/tasks/001/tasks.md" }
+        ],
+        "links": []
+      },
+      "source": {
+        "nodes": [
+          { "id": "src::file", "label": "scope.ts", "source_file": "scripts/src/lib/scope.ts" },
+          { "id": "src::scope", "label": "scopeEvidence", "source_file": "scripts/src/lib/scope.ts" }
+        ],
+        "links": [
+          { "relation": "contains", "source": "src::file", "target": "src::scope", "source_file": "scripts/src/lib/scope.ts" }
+        ]
+      },
+      "test": { "nodes": [], "links": [] }
+    }
+  }
 }

@@ -10,6 +10,9 @@ description: "Use only when the user explicitly asks /bouncer-finalize; it close
 (`AGENTS.md` imports `@CLAUDE.md`). Product detail:
 `rules/governance.md`, `rules/okf.md`.
 Pointer contract: `rules/current-pointer.md`.
+Output contract: `rules/output.md`. Preserve every ACQ display; render the
+finalize outcome, changed targets, verification, and next blueprint or
+`/bouncer-plan` action through that shared contract.
 
 Close out the active blueprint after every task has been committed via
 `/bouncer-commit`. Follow this sequence. Do **not** run `bouncer commit` here —
@@ -41,33 +44,10 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate finalize
    ```
-   Gate `finalize` checks G16 (every task `verified`, explain published with one
-   blueprint comprehension entry whose `diff_sha` matches `range_from..HEAD`).
-   Fix and re-run until it passes.
-
-   **Retention vs cleanup boundary (CLI contract pointer).** The actual delete
-   conditions and allowed paths are defined by the `finalize --yes` CLI and
-   validation contract — the skill does not recompute the list or delete files.
-   After G16 passes and `--yes` succeeds through verification, the same
-   remainder / closing commit deletes one-off documents only and locks Blueprint
-   `index.md` to `closed`. Delete targets are `tasks/<NNN>/tasks.md`,
-   `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`, and when present only
-   `context-review.md`. Preserve Blueprint `explain.md`, `index.md`, and
-   Distill. Stage deletions for tracked transient documents; remove untracked
-   transient documents without staging an absent path. In the same remainder,
-   move each task's `commit_sha` (8 digits)
-   into `explain.md` `bouncer.task_commits`. On G16 failure, verify failure,
-   dry-run, or out-of-scope, do not delete or transition to `closed`; documents
-   stay unchanged. Do not propose archive retention, reopening closed
-   Blueprints, or retroactive edits to preserved documents.
-
-   Before dry-run, ensure the blueprint `## Intent` contains 1–2 Korean
-   terminal sentences. Finalize uses that section only for the remainder body;
-   it does not scan task fields or fall back to task `commit_intent`. A missing
-   or malformed Intent rejects message generation rather than partially
-   omitting it. Task `commit_intent` / `commit_summary` are consumed only by
-   their task commits, and when present each must contain 1–2 Korean terminal
-   sentences (no Epic/Blueprint ids, file, module, or package names). Dry-run:
+   The CLI owns the finalize gate, allowed paths, deletions, status transition,
+   and commit-message format. On any gate, verify, dry-run, or scope failure,
+   preserve documents and worktree; report validator code, cause, path, and
+   recovery action, then fix every failure before rerunning. Dry-run:
    ```bash
    bouncer finalize --blueprint <pointer.blueprint>
    ```
@@ -113,15 +93,9 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    by the finalize payload and the cleanup-handoff contract above — do not
    arbitrarily `--set` an open sibling.
 
-7. **Report.** Lead with the outcome, then the detail: whether explain/quiz
-   landed, whether a remainder commit landed (and whether the CLI applied
-   one-off document deletion, condensed layout, and `closed`), the PR URL (or
-   that push/PR was skipped/declined), whether the worktree was removed or left
-   in place, whether the active pointer was advanced to the next blueprint or
-   left cleared, and that follow-up stays on sibling Blueprint / `/bouncer-plan`
-   (preserved evidence is `explain.md`; no closed reopen, archive, or retroactive
-   edits). Keep it to
-   those facts — no recap of the steps the user just watched run.
+7. **Report.** Render through `rules/output.md`: explain/quiz outcome, remainder
+   commit and resulting `closed` state, PR URL or skip/decline, worktree result,
+   pointer result, and the next sibling Blueprint or `/bouncer-plan` action.
 
 ## ACQ (AskUserQuestion) gates
 
