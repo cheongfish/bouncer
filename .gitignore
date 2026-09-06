@@ -5,5 +5,12 @@ graphify-out/
 .bouncer/.venv/
 .cursor/
 .claude/
-.codex/
+# `.codex/`로 디렉터리 자체를 ignore하면 git이 내부를 순회하지 않아
+# 하위 예외가 적용되지 않는다. 내용만 ignore해야 agents/를 재포함한 뒤
+# implementer 사본만 `git add --`로 -f 없이 스테이징할 수 있다.
+.codex/*
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/bouncer-implementer.toml
+
 .bouncer/config.json
