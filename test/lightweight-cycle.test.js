@@ -103,3 +103,13 @@ test('spec-authoring documents the three light task sections', () => {
   assert.match(sa, /Goal & intent, Touch,\s*\n?\s*Checklist/);
   assert.match(sa, /back to `full`/);
 });
+
+test('plan execute and run keep declaration-driven light routing', () => {
+  const plan = read('skills/bouncer-plan/SKILL.md');
+  const exec = readWorkflowBundle('bouncer-execute');
+  const run = read('skills/bouncer-run/SKILL.md');
+  assert.match(plan, /do not auto-judge/);
+  assert.match(plan, /Skip this entire step when the blueprint's\n\s*`bouncer\.scale` is `light`/);
+  assert.match(exec, /When the pointer \(`bouncer current`\) `scale` is `light`/);
+  assert.match(run, /do not use execute's inline branch during a drive/);
+});

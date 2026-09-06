@@ -992,3 +992,30 @@ test('Distill re-ground uses one repeated-flag call for every confirmed path', (
     'plan must show the multiline repeated-flag shell form',
   );
 });
+
+test('conditional workflow references keep their skill-local ownership', () => {
+  assert.match(
+    read('skills/bouncer-init/references/init-result.md'),
+    /Read this reference only after `bouncer init`/,
+  );
+  assert.match(
+    read('skills/bouncer-plan/references/context-review.md'),
+    /When deciding context review for a `scale: full` blueprint/,
+  );
+  assert.match(
+    read('skills/bouncer-execute/references/agent-dispatch.md'),
+    /When dispatching a named agent or applying its fallback/,
+  );
+  assert.match(
+    read('skills/bouncer-execute/references/verification-recovery.md'),
+    /On verify failure, when recovering through debugger then implementer/,
+  );
+  for (const name of [
+    'bouncer-init', 'bouncer-plan', 'bouncer-execute',
+    'bouncer-commit', 'bouncer-run', 'bouncer-finalize',
+  ]) {
+    const md = read(`skills/${name}/SKILL.md`);
+    assert.match(md, /rules\/plugin-root\.md/, `${name} must cite plugin-root`);
+    assert.match(md, /CLAUDE\.md/, `${name} must load master rules`);
+  }
+});

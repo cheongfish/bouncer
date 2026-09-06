@@ -21,3 +21,4 @@ bouncer_schema: '0.1'
 * [063 maintenance](epics/063-maintenance/index.md) - Maintains cross-cutting quality, docs, and minor repairs across Bouncer.
 * [064 runtime-policy-pointer-safety](epics/064-runtime-policy-pointer-safety/index.md) - Unifies verification policy and isolates active blueprint state across linked worktrees.
 * [065 workflow-reliability](epics/065-workflow-reliability/index.md) - Hardens workflow contracts so validation and review remain reliable across task lifecycles.
+* [066 workflow-contract-followup](epics/066-workflow-contract-followup/index.md) - Coordinates implementer role synchronization, workflow skill measurements, and Graphify context ranking evaluation.

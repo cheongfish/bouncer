@@ -259,6 +259,24 @@ test('mdToCodexToml keeps the implementer role contract intact', () => {
   }
 });
 
+// 축약 named payload는 로컬 TOML이 정본 변환과 바이트 단위로 같을 때만
+// 허용된다. 마커가 없거나 내용이 어긋나면 compact를 성공으로 치면 안 된다.
+// 2026-09-06 측정: mdToCodexToml(agents/bouncer-implementer.md)와
+// .codex/agents/bouncer-implementer.toml 은 이미 6331 bytes로 일치하므로
+// 사본 재생성은 no-op이다. 불일치가 나면 init으로 다른 TOML까지 건드리지
+// 말고 이 단언이 실패하게 둔다.
+test('checked-in implementer TOML matches mdToCodexToml byte-for-byte', () => {
+  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  const generated = mdToCodexToml(markdown);
+  const checkedInPath = path.join(root, '.codex/agents/bouncer-implementer.toml');
+  const checkedIn = fs.readFileSync(checkedInPath, 'utf8');
+  const firstLine = checkedIn.split(/\r?\n/, 1)[0];
+
+  assert.strictEqual(firstLine, GENERATED_MARKER);
+  assert.strictEqual(checkedIn, generated);
+});
+
 test('an unmarked implementer TOML remains user-owned and requires the full fallback', () => {
   const { ensureCodexAgents } = require('../scripts/lib/codex-agents');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-'));

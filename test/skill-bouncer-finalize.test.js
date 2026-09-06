@@ -388,3 +388,16 @@ test('bouncer-finalize documents retention cleanup and sibling follow-up after G
   assert.match(body, /sibling|형제 Blueprint|형제 blueprint/i);
   assert.match(body, /\/bouncer-plan|new Epic|새 Epic/);
 });
+
+test('bouncer-finalize loads Distill, quiz, PR, and handoff references in numbered steps', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const preamble = body.slice(0, body.search(/^1\. /m));
+  for (const file of ['distill-promotion.md', 'explain-quiz.md', 'draft-pr.md', 'cleanup-handoff.md']) {
+    assert.doesNotMatch(preamble, new RegExp(file.replace(/\./g, '\\.')));
+    assert.match(body, new RegExp(`\\./references/${file.replace(/\./g, '\\.')}`));
+  }
+  assert.match(body, /\*\*ACQ — Distill promotion/);
+  assert.match(body, /\*\*ACQ — PR/);
+  assert.match(body, /\*\*ACQ — Next blueprint/);
+  assert.match(body, /\*\*AskUserQuestion — Remainder commit \+ worktree\*\*/);
+});

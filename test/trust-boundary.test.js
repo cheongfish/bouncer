@@ -128,3 +128,15 @@ test('Distill promotion keeps explain input separate from promotion consent', ()
   assert.match(md, /promotion candidates|승격 후보/i);
   assert.match(md, /consent|동의/i);
 });
+
+test('plan execute and run keep local trust-boundary phrases', () => {
+  const plan = readRel('skills/bouncer-plan/SKILL.md');
+  const execute = readRel('skills/bouncer-execute/SKILL.md');
+  const run = readRel('skills/bouncer-run/SKILL.md');
+  assert.match(plan, /\.bouncer\/context/);
+  assert.match(plan, /user['’]s approval/i);
+  assert.match(execute, /affected_paths/);
+  assert.match(execute, /skip a gate/i);
+  assert.match(run, /Context document bodies/i);
+  assert.match(run, /subagent reports/i);
+});

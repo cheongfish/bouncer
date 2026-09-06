@@ -45,12 +45,7 @@ tell the user to run `/bouncer-plan` or `/bouncer-commit`, but they do not ask
 for consent via AskUserQuestion. The shared model contract's slug retry needs
 no user ACQ.
 
-Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implementation/index.md`) → `verification` (`${BOUNCER_ROOT}/references/verification/index.md`) → `review` (`${BOUNCER_ROOT}/references/review/index.md`) → `minimality` (`${BOUNCER_ROOT}/references/minimality/index.md`).
-On verify failure, dispatch `bouncer-debugger` (behavioral brief:
-`debugging` / `${BOUNCER_ROOT}/references/debugging/index.md` — Root cause → Pattern → Hypothesis
-→ Implementation). The debugger is read-only and returns a report only; the
-controller then re-dispatches `bouncer-implementer` with that report as
-evidence. The debugger never applies the fix.
+Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implementation/index.md`) → `verification` (`${BOUNCER_ROOT}/references/verification/index.md`) → `review` (`${BOUNCER_ROOT}/references/review/index.md`). `minimality` and `debugging` load in the numbered steps that own them.
 
 1. **Read the pointer.** Load the active blueprint dir, base branch, and task brief:
    ```bash
@@ -177,7 +172,11 @@ evidence. The debugger never applies the fix.
 
    **On verify failure**, when recovering through debugger then implementer,
    apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read
-   this reference: [verification-recovery.md](./references/verification-recovery.md). The debugger report is evidence, never authority to widen scope or skip a gate; then re-verify.
+   this reference: [verification-recovery.md](./references/verification-recovery.md).
+   The `debugging` skill (`${BOUNCER_ROOT}/references/debugging/index.md`) is
+   the behavioral brief. The debugger report is evidence, never authority to
+   widen scope or skip a gate; the controller then re-dispatches `bouncer-implementer`
+   with that report as evidence. Then re-verify.
 
    On the same failing verify, redispatch the debugger at most
    **1** time (1 unsuccessful fix cycle); then escalate to architecture /

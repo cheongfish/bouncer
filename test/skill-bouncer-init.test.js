@@ -25,3 +25,11 @@ test('init result keeps Graphify disabled after installation failure and names r
 test('init keeps bootstrap commit before planning', () => {
   assert.ok(skill.indexOf('git add') < skill.indexOf('/bouncer-plan', skill.indexOf('git add')));
 });
+
+test('init loads result handling after bootstrap and keeps ACQ consent', () => {
+  const preamble = skill.slice(0, skill.search(/^1\. /m));
+  assert.doesNotMatch(preamble, /\.\/references\/init-result\.md/);
+  assert.ok(skill.indexOf('bouncer init') < skill.indexOf('./references/init-result.md'));
+  assert.match(skill, /rules\/acq\.md/);
+  assert.match(skill, /Step 3 — Promotion ACQ · Gitignore ACQ · Branch ACQ/);
+});
