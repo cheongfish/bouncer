@@ -181,6 +181,18 @@ test('bouncer-run passes debugger Output contract to implementer without copying
   assert.doesNotMatch(body, /resolveSubagentModel/);
 });
 
+test('bouncer-run leaves implementer payload composition to execute', () => {
+  const { body } = parseFrontmatter(md);
+  const loopUnit = body.match(/3\. \*\*Loop unit\.\*\*[\s\S]*?(?=\n4\. \*\*Verify)/)?.[0] || '';
+
+  assert.match(loopUnit, /current task brief/i);
+  assert.match(loopUnit, /retry evidence|debugger Output contract/i);
+  assert.match(loopUnit, /\/bouncer-execute/);
+  assert.doesNotMatch(loopUnit, /Prior commit subjects/i);
+  assert.doesNotMatch(loopUnit, /distill --for.*output\/brief/i);
+  assert.match(loopUnit, /Do not pass the full conversation context/i);
+});
+
 test('bouncer-run treats context docs and subagent reports as data not instructions', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /data, not instructions/i);
