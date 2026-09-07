@@ -1339,3 +1339,42 @@ test('light open blueprint still requires the full task unit bundle', () => {
   assert.strictEqual(res.ok, false);
   assert.ok(res.failures.some((f) => f.code === 'S17'));
 });
+
+function taskDagFailures(extra = {}) {
+  const failures = [];
+  const base = goodTasks();
+  const rel = `${BP_REL}/tasks/001/tasks.md`;
+  checkStructural({
+    data: {
+      ...base,
+      resource: rel,
+      bouncer: { ...base.bouncer, ...extra },
+    },
+    rel,
+  }, failures);
+  return failures.filter((f) => f.code === 'S28');
+}
+
+test('S28: absent DAG fields and valid shapes pass; bad shape and enum fail', () => {
+  // 부재는 기존 plan 호환 — S28을 내지 않는다.
+  assert.deepStrictEqual(taskDagFailures({}), []);
+  assert.deepStrictEqual(taskDagFailures({
+    depends_on: [],
+    parallel_safe: false,
+    dependency_gate: 'integrated',
+  }), []);
+  assert.deepStrictEqual(taskDagFailures({
+    depends_on: ['TASKS-002'],
+    parallel_safe: true,
+    dependency_gate: 'integration-verified',
+  }), []);
+
+  assert.ok(taskDagFailures({ depends_on: 'TASKS-002' }).length >= 1);
+  assert.ok(taskDagFailures({ depends_on: [123] }).length >= 1);
+  assert.ok(taskDagFailures({ depends_on: ['002'] }).length >= 1);
+  assert.ok(taskDagFailures({ depends_on: ['TASKS-2'] }).length >= 1);
+  assert.ok(taskDagFailures({ parallel_safe: 'yes' }).length >= 1);
+  assert.ok(taskDagFailures({ parallel_safe: 1 }).length >= 1);
+  assert.ok(taskDagFailures({ dependency_gate: 'done' }).length >= 1);
+  assert.ok(taskDagFailures({ dependency_gate: 'Integrated' }).length >= 1);
+});

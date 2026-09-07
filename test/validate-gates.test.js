@@ -1877,3 +1877,95 @@ test('an unknown scale value is not treated as light', () => {
   checkGate('plan', docs, rels, failures);
   assert.ok(failures.some((f) => f.code === 'G18'));
 });
+
+function planTaskDoc(nnn, extra = {}, body = READY_BODY) {
+  return {
+    data: {
+      bouncer: {
+        id: `TASKS-${nnn}`,
+        status: 'ready',
+        graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+        affected_paths: ['src/auth/login.js', 'test/auth/login.test.js'],
+        ...extra,
+      },
+    },
+    body,
+    rel: `.bouncer/context/epics/001-auth/blueprints/001-login/tasks/${nnn}/tasks.md`,
+  };
+}
+
+function planDocsWithTasks(taskDocs) {
+  return {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasksDocs: taskDocs,
+    contextReview: contextReviewDoc('accepted'),
+  };
+}
+
+test('plan gate G19 accepts a valid DAG and tasks without DAG fields', () => {
+  const withDag = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001', {
+      depends_on: [],
+      parallel_safe: false,
+      dependency_gate: 'integrated',
+    }),
+    planTaskDoc('002', {
+      depends_on: ['TASKS-001'],
+      parallel_safe: true,
+      dependency_gate: 'integrated',
+    }),
+  ]), rels, withDag);
+  assert.deepStrictEqual(withDag.filter((f) => f.code === 'G19'), []);
+
+  const legacy = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001'),
+  ]), rels, legacy);
+  assert.deepStrictEqual(legacy.filter((f) => f.code === 'G19'), []);
+  assert.deepStrictEqual(legacy, []);
+});
+
+test('plan gate G19 rejects missing, self, duplicate, and cyclic dependencies', () => {
+  const missing = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001', { depends_on: ['TASKS-999'] }),
+  ]), rels, missing);
+  const missingHit = missing.find((f) => f.code === 'G19');
+  assert.ok(missingHit, `expected G19 missing: ${JSON.stringify(missing)}`);
+  assert.match(missingHit.message, /TASKS-999|missing|unknown/i);
+  assert.match(missingHit.file, /tasks\/001\/tasks\.md$/);
+
+  const self = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001', { depends_on: ['TASKS-001'] }),
+  ]), rels, self);
+  const selfHit = self.find((f) => f.code === 'G19');
+  assert.ok(selfHit, `expected G19 self: ${JSON.stringify(self)}`);
+  assert.match(selfHit.message, /self|자기/i);
+  assert.match(selfHit.file, /tasks\/001\/tasks\.md$/);
+
+  const dup = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001'),
+    planTaskDoc('002', { depends_on: ['TASKS-001', 'TASKS-001'] }),
+  ]), rels, dup);
+  const dupHit = dup.find((f) => f.code === 'G19');
+  assert.ok(dupHit, `expected G19 duplicate: ${JSON.stringify(dup)}`);
+  assert.match(dupHit.message, /duplicate|중복/i);
+  assert.match(dupHit.file, /tasks\/002\/tasks\.md$/);
+
+  const cycle = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001', { depends_on: ['TASKS-002'] }),
+    planTaskDoc('002', { depends_on: ['TASKS-001'] }),
+  ]), rels, cycle);
+  const cycleHit = cycle.find((f) => f.code === 'G19');
+  assert.ok(cycleHit, `expected G19 cycle: ${JSON.stringify(cycle)}`);
+  assert.match(cycleHit.message, /cycle|순환/i);
+  assert.ok(
+    /tasks\/00[12]\/tasks\.md$/.test(cycleHit.file),
+    `cycle failure must carry a task path: ${cycleHit.file}`,
+  );
+});

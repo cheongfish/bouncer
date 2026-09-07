@@ -162,3 +162,13 @@ test('spec-authoring quotes YAML-leading reserved characters in author-written s
   assert.match(md, /본문/);
   assert.match(md, /금지하지 않|does not (?:ban|forbid|prohibit)|not required/i);
 });
+
+test('spec-authoring writes explicit task dependency and parallel-ready frontmatter', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /depends_on/);
+  assert.match(md, /parallel_safe/);
+  assert.match(md, /dependency_gate/);
+  assert.match(md, /TASKS-\d{3}|TASKS-NNN/);
+  assert.match(md, /integrated[\s\S]{0,40}integration-verified|integration-verified/);
+  assert.match(md, /boolean|불리언|true|false/);
+});

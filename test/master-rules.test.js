@@ -1019,3 +1019,23 @@ test('conditional workflow references keep their skill-local ownership', () => {
     assert.match(md, /CLAUDE\.md/, `${name} must load master rules`);
   }
 });
+
+test('plan and governance lock the approved task DAG contract', () => {
+  const okf = read('rules/okf.md');
+  const governance = read('rules/governance.md');
+  const plan = read('skills/bouncer-plan/SKILL.md');
+
+  assert.match(okf, /depends_on/);
+  assert.match(okf, /parallel_safe/);
+  assert.match(okf, /dependency_gate/);
+  assert.match(okf, /integrated[\s\S]{0,80}integration-verified|integration-verified/);
+
+  assert.match(governance, /depends_on|DAG/);
+  assert.match(governance, /integrated|integration-verified/);
+  assert.match(governance, /affected_paths|초기.*scope|initial scope/i);
+
+  assert.match(plan, /depends_on/);
+  assert.match(plan, /parallel_safe/);
+  assert.match(plan, /dependency_gate/);
+  assert.match(plan, /G19|DAG/);
+});

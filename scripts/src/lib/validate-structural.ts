@@ -4,7 +4,8 @@ const path = require('node:path');
 import schema = require('./schema');
 const {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat,
-  KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes,
+  KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, DEPENDENCY_GATE_ENUM,
+  isValidDependsOn,
 } = schema;
 import paths = require('./paths');
 const {
@@ -667,6 +668,20 @@ function checkStructural(
     // VERIFY_COMMAND_INVALID가 같은 allowlist를 써야 두 경로가 어긋나지 않는다.
     if (bouncer.verify !== undefined && !isValidVerifyCommand(bouncer.verify, verifyAllowlist)) {
       add('S12', 'tasks.verify must be a single executable command');
+    }
+    // S28: DAG 필드 shape·enum만. 부재는 빈 depends_on / false / integrated로
+    // 읽히므로 통과. 참조 무결성·cycle은 G19.
+    if (!isValidDependsOn(bouncer.depends_on)) {
+      add('S28', 'depends_on must be an array of TASKS-NNN ids');
+    }
+    if (bouncer.parallel_safe !== undefined && typeof bouncer.parallel_safe !== 'boolean') {
+      add('S28', 'parallel_safe must be a boolean');
+    }
+    if (
+      bouncer.dependency_gate !== undefined
+      && !(DEPENDENCY_GATE_ENUM as unknown[]).includes(bouncer.dependency_gate)
+    ) {
+      add('S28', `dependency_gate "${bouncer.dependency_gate}" not in enum`);
     }
   }
 }

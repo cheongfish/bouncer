@@ -142,6 +142,12 @@ Blueprint: [<BP-id>](../../index.md)
 <!-- bouncer.commit_intent와 bouncer.commit_summary는 각각 1~2개의 한국어
      종결 문장으로 작성한다. 두 필드의 합계는 커밋 본문 네 줄을 넘지 않는다. -->
 
+<!-- DAG frontmatter (author-written):
+     depends_on: TASKS-NNN id 배열. 부재·[] = 의존 없음.
+     parallel_safe: boolean. false/부재 = 순차 wave 입력.
+     dependency_gate: integrated | integration-verified.
+     실행 순서는 task 번호가 아니라 이 세 필드가 결정한다. -->
+
 ## Interface
 <!-- 계약이 리뷰에서 검증 가능하도록 제공하는 것과 거부하는 것을 함께 적습니다. -->
 - 제공: <TODO: 새로 생기거나 바뀌는 공개 시그니처·산출물>
@@ -230,23 +236,19 @@ Blueprint: [<BP-id>](../../index.md)
     // 본문에는 게이트가 요구하는 제목과 <TODO:> 자리만 남긴다.
     // full 본문은 바이트 단위로 그대로 두고 여기서만 갈라진다.
     'blueprint-light.md': `# <BP-id> <name>
-
 Epic: [<EPIC-id>](../../index.md) · Tasks: [001](tasks/001/tasks.md)
-
 ## Intent
 - <TODO: 무엇을 바꾸고 무엇이 되면 끝인가>
 `,
     // light G10 필수 절은 Goal & intent / Touch / Checklist 셋뿐이다.
     // Interface·Do not touch 제목을 템플릿에 남기면 빈 절이 그대로 남아
     // 사람이 읽을 때 full과 같은 계약으로 오해된다.
+    // DAG frontmatter 기본값 3줄을 상쇄하려고 본문 빈 줄을 줄인다(100줄 예산).
     'tasks-light.md': `# Tasks
-
 ## Goal & intent
 <TODO: 완료 후 시스템이 어떻게 달라지는가>
-
 ## Touch
 - Modify \`<TODO: 수정할-파일>\` — <TODO: 왜 만지는가>
-
 ## Checklist
 - [ ] <TODO: 작업 항목>
 `,

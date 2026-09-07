@@ -48,7 +48,10 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    do not confirm, set, or write `affected_paths`. Then clarify the request.
    Expect these named handoff outputs: `Goal`, `Scope`,
    `Non-goals`, `Success criteria`, `Edge cases & failure modes`, and
-   `Overlap`. **ACQ — Discover:** confirm Goal / Scope / Non-goals / Success
+   `Overlap`. When discovery surfaces ordering or fan-in among units of work,
+   capture them as candidate task dependencies (`depends_on`) and parallel
+   readiness (`parallel_safe`) — task numbers alone do not decide execution
+   order. **ACQ — Discover:** confirm Goal / Scope / Non-goals / Success
    criteria / Edge cases & failure modes / Overlap with the user before
    scaffolding.
    Map handoff into authored docs in step 4: `Edge cases & failure modes` →
@@ -110,6 +113,12 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    Constraints, Checklist. Those sections are the sole brief for
    `/bouncer-execute`. Write Touch per file with a verb rather than
    per directory, and put non-path rules in Constraints.
+   For every task, author the DAG frontmatter that execution will read:
+   `bouncer.depends_on` (array of `TASKS-NNN` ids; `[]` when none),
+   `bouncer.parallel_safe` (boolean), and `bouncer.dependency_gate`
+   (`integrated` or `integration-verified`). Do not rely on task numbers for
+   ordering. Scaffold defaults (`[]` / `false` / `integrated`) are compatible
+   placeholders — replace them when the plan has real edges.
    For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
    whole flow → blueprint PR segment → tasks implementation branch; charts stay
    optional and their source is each document body.
@@ -218,7 +227,12 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
 
    When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference: [context-review.md](./references/context-review.md). The `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`) is the behavioral brief. Do not approve while an actionable finding remains unresolved; return to authoring (step 4).
 
-8. **Approval (explicit).** **ACQ — Approval:** ask the user to approve the
+8. **Approval (explicit).** Before asking for approval, show the authored
+   task DAG: each task's `depends_on`, `parallel_safe`, and
+   `dependency_gate`, plus any shared-contract conflicts (for example
+   overlapping `affected_paths` among `parallel_safe: true` peers, or edges
+   that would create a cycle). Fix conflicts in authoring; do not ask for
+   approval on an invalid graph. **ACQ — Approval:** ask the user to approve the
    plan. On approval, transition
    `bouncer.status`: epic `draft → approved`, blueprint `draft → approved`, tasks
    `draft → ready`. Never approve silently.
@@ -236,7 +250,8 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate plan
    ```
-   The CLI owns plan-gate checks and codes, including the full/light exception.
+   The CLI owns plan-gate checks and codes, including the full/light exception
+   and G19 task-DAG integrity (missing / self / duplicate / cycle).
    Fix every reported failure and re-run until it passes; surface its code,
    cause, path, and recovery action. Then point the user at
    `/bouncer-run` — it drives execute→commit until the blueprint's tasks run

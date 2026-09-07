@@ -663,3 +663,31 @@ test('execute review template documents deferred and rounds; context review does
   assert.doesNotMatch(TEMPLATES['context-review.md'], /deferred/);
   assert.doesNotMatch(TEMPLATES['context-review.md'], /rounds\[\]/);
 });
+
+test('scaffoldTask writes compatible DAG defaults and templates expose the fields', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const tasks = readDoc(path.join(repo, `${base}/tasks/001/tasks.md`)).data;
+  assert.deepStrictEqual(tasks.bouncer.depends_on, []);
+  assert.strictEqual(tasks.bouncer.parallel_safe, false);
+  assert.strictEqual(tasks.bouncer.dependency_gate, 'integrated');
+
+  scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+  });
+  const tasks002 = readDoc(path.join(repo, `${base}/tasks/002/tasks.md`)).data;
+  assert.deepStrictEqual(tasks002.bouncer.depends_on, []);
+  assert.strictEqual(tasks002.bouncer.parallel_safe, false);
+  assert.strictEqual(tasks002.bouncer.dependency_gate, 'integrated');
+
+  const { TEMPLATES } = require('../scripts/lib/templates');
+  assert.match(TEMPLATES['tasks.md'], /depends_on/);
+  assert.match(TEMPLATES['tasks.md'], /parallel_safe/);
+  assert.match(TEMPLATES['tasks.md'], /dependency_gate/);
+  assert.match(TEMPLATES['tasks.md'], /integrated \| integration-verified/);
+});

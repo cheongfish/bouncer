@@ -97,3 +97,27 @@ thin, set `scale` back to `full` and return to the named-agent path for
 implement too. Returning to `full` on an already-scaffolded light blueprint
 means authoring the missing sections and running
 `bouncer scaffold context-review --blueprint <dir>` before the plan gate.
+
+## Task DAG and approved scope
+
+Each task bundle may declare an author-written DAG on its frontmatter:
+`depends_on` (`TASKS-NNN` ids), `parallel_safe` (boolean), and
+`dependency_gate` (`integrated` | `integration-verified`). Task numbers remain
+labels and the default sort key only. Execution readiness follows the DAG:
+a task enters a ready wave when every listed predecessor has reached the
+dependency-gate state, and only `parallel_safe: true` peers may share a wave.
+Absent DAG fields read as no dependencies, not parallel-safe, and
+`integrated` — legacy single-task and number-ordered plans stay valid as
+one-node sequential waves.
+
+The plan gate (G19) rejects unknown task ids, self-references, duplicate
+edges, and cycles before approval. Structural validation (S28) rejects bad
+shapes and enum values. The approved DAG at plan time is the initial
+baseline for later coordinator revision; it does not freeze runtime ledger
+state.
+
+Under coordinator-owned execution, `affected_paths` is the **initial expected
+scope** recorded at approval — not an immutable authority for the whole drive.
+Commit safety then audits the current task scope and actual changed paths the
+coordinator records. Until that coordinator mode is active, plan and commit
+gates still treat the approved `affected_paths` as the change boundary.

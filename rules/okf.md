@@ -63,6 +63,21 @@ merely to make an implementation easier to fit. Epic and blueprint
 `bouncer.supersedes` lists document paths this one replaces; validation checks
 shape only (absent or an array of non-empty strings), not referential integrity.
 
+Task DAG fields are author-written on `bouncer.tasks` only. Task numbers are
+display and default sort order — not execution authority.
+
+- `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
+  Absent or `[]` means no dependencies (legacy plans stay valid). Structural
+  validation (S28) checks shape; the plan gate (G19) checks missing ids,
+  self-references, duplicates, and cycles across the blueprint's task set.
+- `bouncer.parallel_safe` is a boolean. `false` or absent means the task is
+  sequential wave input; `true` means it may share a ready wave with other
+  parallel-safe peers once dependencies clear.
+- `bouncer.dependency_gate` is `integrated` | `integration-verified`. Absent
+  reads as `integrated`: the successor opens when each predecessor reaches
+  that integration state. `integration-verified` waits through integration
+  verification.
+
 Task `bouncer.commit_intent` and `bouncer.commit_summary` are optional authored
 lists of 1–2 Korean terminal sentences. `/bouncer-commit` renders present
 fields in that order and rejects malformed values without partial omission;
