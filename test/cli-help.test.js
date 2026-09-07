@@ -113,3 +113,8 @@ test('graph-suggest with valueless --seed exits 2', () => {
   assert.match(r.err, /seed/i);
   assert.strictEqual(r.out, '');
 });
+
+test('usage lists current --replace', () => {
+  const r = capture([]);
+  assert.match(r.out, /current\s+\[--set <blueprint dir>.*\[--replace\]/s);
+});

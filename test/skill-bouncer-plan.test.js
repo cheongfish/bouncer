@@ -306,3 +306,37 @@ test('bouncer-plan loads context-review only after the light skip in step 7', ()
   assert.match(body, /\*\*ACQ — Approval/);
   assert.match(body, /\*\*ACQ — affected_paths/);
 });
+
+// 시작 경고는 preflight 한 줄이며 새 ACQ가 아니다. 선택은 CLI 응답만 쓰고
+// namespace 파일·내부 helper 경로를 직접 열지 않는다. compact 한 줄은
+// selected만 말하고, null은 선택이 없다고 한다. CURRENT_INVALID도 이
+// 슬라이스에서 중단한다.
+test('bouncer-plan preflight warns the selected pointer and shared namespace without a new ACQ', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const preflightAt = body.indexOf('**Preflight.**');
+  const projectRootAt = body.indexOf('**Project root.**');
+  assert.ok(preflightAt >= 0 && projectRootAt > preflightAt, 'preflight precedes project root');
+  const preflight = body.slice(preflightAt, projectRootAt);
+  assert.match(preflight, /\bbouncer\s+current\b/);
+  assert.match(preflight, /blueprint/);
+  assert.match(preflight, /\btask\b/);
+  assert.match(preflight, /\bbase\b/);
+  assert.match(preflight, /Git common directory/);
+  assert.match(preflight, /CURRENT_AMBIGUOUS/);
+  assert.match(preflight, /CURRENT_INVALID/);
+  assert.match(preflight, /stop|중단/i);
+  assert.doesNotMatch(preflight, /\*\*ACQ —/);
+  assert.doesNotMatch(body, /scripts\/lib\/current|bouncer\/pointers/);
+  assert.match(preflight, /debug/i);
+  assert.match(preflight, /`selected`[\s\S]{0,200}\{ blueprint, task, base \}/);
+  assert.match(preflight, /null[\s\S]{0,160}no selection|no selection[\s\S]{0,80}null/i);
+});
+
+test('bouncer-plan sets the approved blueprint through CLI-only namespace selection', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const pointerAt = body.indexOf('9. **Pointer.**');
+  const pointer = body.slice(pointerAt, body.indexOf('10. **Gate.**'));
+  assert.ok(pointerAt >= 0, 'step 9 owns the approved --set');
+  assert.match(pointer, /\bbouncer\s+current\s+--set\b/);
+  assert.doesNotMatch(pointer, /scripts\/lib\/current|bouncer\/pointers|read.*pointer file/i);
+});

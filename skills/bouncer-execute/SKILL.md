@@ -47,11 +47,20 @@ no user ACQ.
 
 Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implementation/index.md`) → `verification` (`${BOUNCER_ROOT}/references/verification/index.md`) → `review` (`${BOUNCER_ROOT}/references/review/index.md`). `minimality` and `debugging` load in the numbered steps that own them.
 
-1. **Read the pointer.** Load the active blueprint dir, base branch, and task brief:
+1. **Read the pointer.** Load the worktree-local selection — the active
+   blueprint dir, base branch, and task brief — from the CLI only:
    ```bash
    bouncer current
    ```
-   If `current` is `null`:
+   Compact output follows that result. Emit the raw JSON only when the user
+   asks for `debug`. This warning is not an ACQ.
+   When the result is `selected`, state the selected `{ blueprint, task, base }`
+   and that the Git common directory may hold other namespace pointers, in one
+   sentence.
+   A `CURRENT_AMBIGUOUS` or legacy-conflict (`CURRENT_INVALID`) result is not
+   `null`: stop without picking a candidate, showing the ready list, or
+   recovering.
+   If `current` is `null`, say there is no selection, then:
    - When `ready` is non-empty, show those candidates and tell the user to run
      `bouncer current --set <dir>` (or `/bouncer-plan` if they meant a different
      blueprint), then stop.
@@ -113,8 +122,9 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    a different version — resolve it by hand rather than re-running. When there
    is nothing left to move, seed returns success with an empty `moved` list.
 
-   The shared pointer contract makes this worktree observe the main worktree's
-   active pointer without copying it. **Set every subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`**. Do **not**
+   After the cwd switch, `bouncer current` returns the corresponding namespace
+   pointer for this worktree; do not copy a pointer file. Other namespace keys
+   may still exist in the Git common directory. **Set every subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`**. Do **not**
    run `git -C "${WORKTREE_PATH}" ...` from the project root — the
    `commit-safety` PreToolUse hook uses the command's actual working directory
    and would otherwise inspect the wrong index.

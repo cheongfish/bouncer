@@ -997,3 +997,74 @@ test('isValidVerifyCommand accepts win32 npm.cmd against the default allowlist',
     Object.defineProperty(process, 'platform', descriptor);
   }
 });
+
+test('two linked worktrees select distinct pointer task verification documents', () => {
+  const { writeCurrent, readCurrent } = require('../scripts/lib/current');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verify-ns-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: 'npm test' }));
+
+  const bpA = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const bpB = '.bouncer/context/epics/002-billing/blueprints/001-invoices';
+  const writeTask = (bp, epicId, bpId, taskNum, verifyCmd) => {
+    const rel = `${bp}/tasks/${taskNum}/tasks.md`;
+    const abs = path.join(repo, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, `---
+type: bouncer.tasks
+title: t
+description: d
+resource: ${rel}
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-${taskNum}
+  epic_id: '${epicId}'
+  blueprint_id: '${bpId}'
+  status: ready
+  affected_paths:
+    - src/
+  verify: ${JSON.stringify(verifyCmd)}
+---
+# Tasks
+`);
+  };
+  // 001은 전체 walk 폴백이 고를 미끼. 포인터가 002를 가리킬 때만 기대 명령이 나온다.
+  writeTask(bpA, '001', '001', '001', 'node -e "process.exit(1)"');
+  writeTask(bpA, '001', '001', '002', 'node -e "process.exit(0)"');
+  writeTask(bpB, '002', '001', '001', 'node -e "process.exit(1)"');
+  writeTask(bpB, '002', '001', '002', 'node -e "process.exit(11)"');
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', '.'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'fixture',
+  ], { cwd: repo });
+
+  const wtA = path.join(repo, '.worktrees', '001', '001');
+  const wtB = path.join(repo, '.worktrees', '002', '001');
+  fs.mkdirSync(path.dirname(wtA), { recursive: true });
+  fs.mkdirSync(path.dirname(wtB), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '--quiet', '--detach', wtA], { cwd: repo });
+  execFileSync('git', ['worktree', 'add', '--quiet', '--detach', wtB], { cwd: repo });
+
+  writeCurrent({
+    repoRoot: wtA, blueprint: bpA, base: 'develop', task: `${bpA}/tasks/002/tasks.md`,
+  });
+  writeCurrent({
+    repoRoot: wtB, blueprint: bpB, base: 'main', task: `${bpB}/tasks/002/tasks.md`,
+  });
+
+  const currentA = readCurrent({ repoRoot: wtA });
+  const currentB = readCurrent({ repoRoot: wtB });
+  assert.deepStrictEqual(currentA, {
+    blueprint: bpA, base: 'develop', task: `${bpA}/tasks/002/tasks.md`,
+  });
+  assert.deepStrictEqual(currentB, {
+    blueprint: bpB, base: 'main', task: `${bpB}/tasks/002/tasks.md`,
+  });
+  assert.strictEqual(readVerifyCommand(wtA, currentA.blueprint), 'node -e "process.exit(0)"');
+  assert.strictEqual(readVerifyCommand(wtB, currentB.blueprint), 'node -e "process.exit(11)"');
+});

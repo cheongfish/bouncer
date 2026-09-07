@@ -11,6 +11,7 @@ const { readCurrent, writeCurrent } = require('../scripts/lib/current');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
+const BP_OTHER = '.bouncer/context/epics/002-billing/blueprints/001-invoices';
 
 function capture(argv) {
   const buf = { out: '', err: '' };
@@ -130,6 +131,77 @@ function writePlanPassingBlueprint(repo) {
     repoRoot: repo, epicId: '001', name: 'auth', description: 'Epic 001',
   });
   writeAcceptedContextReview(repo);
+}
+
+function writeAcceptedContextReviewAt(repo, bpRel, epicId, bpId) {
+  writeDoc(repo, `${bpRel}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: `${bpId} context review`,
+    description: `Context review for ${bpId}`,
+    resource: `${bpRel}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `CTXREVIEW-${bpId}`,
+      epic_id: epicId,
+      blueprint_id: bpId,
+      status: 'accepted',
+      context_review: { findings: [] },
+    },
+  }, '# Context review\n\n## Findings\n(none)\n');
+}
+
+function writeOtherPlanPassingBlueprint(repo) {
+  writeDoc(repo, '.bouncer/context/epics/002-billing/index.md', {
+    type: 'bouncer.epic', title: 'Billing epic', description: '002',
+    resource: '.bouncer/context/epics/002-billing/index.md',
+    tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '002', epic_id: '002', status: 'approved' },
+  });
+  writeDoc(repo, `${BP_OTHER}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Invoices blueprint', description: '002',
+    resource: `${BP_OTHER}/index.md`,
+    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '002', blueprint_id: '001', status: 'approved',
+    },
+  });
+  const otherBody = `# Tasks
+
+## Goal & intent
+Ship invoice totals.
+
+## Interface
+\`sumInvoices(input) -> Result\`
+
+## Touch
+- \`src/billing/\`
+- \`test/billing/\`
+
+## Do not touch
+- \`src/auth/\`
+
+## Checklist
+- [ ] implement sumInvoices
+`;
+  writeDoc(repo, `${BP_OTHER}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Invoice tasks', description: 'Tasks for 002',
+    resource: `${BP_OTHER}/tasks/001/tasks.md`,
+    tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '002', blueprint_id: '001', status: 'ready',
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+      affected_paths: ['./src/billing/invoices.js', './test/billing/invoices.test.js'],
+    },
+  }, otherBody);
+  ensureEpicIndexEntry({
+    repoRoot: repo, epicId: '002', name: 'billing', description: 'Epic 002',
+  });
+  writeAcceptedContextReviewAt(repo, BP_OTHER, '002', '001');
+}
+
+function pointerFile(repo) {
+  return path.join(repo, '.git', 'bouncer', 'current');
 }
 
 test('current with no pointer returns null and ready candidates', () => {
@@ -405,4 +477,288 @@ test('bare current JSON includes a task key on the pointer', () => {
     path: `${BP_REL}/tasks/001/tasks.md`,
     id: 'TASKS-001',
   });
+});
+
+test('current --set of a different blueprint without --replace adds a parallel key', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+  const before = readCurrent({ repoRoot: repo });
+  const r = capture(['current', '--repo', repo, '--set', BP_OTHER]);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.current.blueprint, BP_OTHER);
+  assert.ok(fs.existsSync(nsFile(repo, '001', '001')));
+  assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
+  assert.deepStrictEqual(
+    JSON.parse(fs.readFileSync(nsFile(repo, '001', '001'), 'utf8')),
+    { blueprint: before.blueprint, base: before.base },
+  );
+});
+
+test('current --set --replace switches a different blueprint and reports previous', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  const r = capture(['current', '--repo', repo, '--set', BP_OTHER, '--replace']);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, true);
+  const previous = {
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  };
+  assert.deepStrictEqual(parsed.previous, previous);
+  assert.strictEqual(parsed.current.blueprint, BP_OTHER);
+  assert.match(r.err, /previous/);
+  assert.match(r.err, new RegExp(BP_REL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  const stored = readCurrent({ repoRoot: repo });
+  assert.strictEqual(stored.blueprint, BP_OTHER);
+  assert.strictEqual(stored.task, `${BP_OTHER}/tasks/001/tasks.md`);
+});
+
+test('current --set of the same blueprint updates task and base without --replace', () => {
+  const repo = tmpGitRepo();
+  writeNumberedPlanBlueprint(repo);
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  const r = capture([
+    'current', '--repo', repo, '--set', BP_REL, '--task', '002', '--base', 'main',
+  ]);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.previous, undefined);
+  assert.deepStrictEqual(parsed.current.task, {
+    path: `${BP_REL}/tasks/002/tasks.md`,
+    id: 'TASKS-002',
+  });
+  assert.strictEqual(parsed.current.base, 'main');
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
+    blueprint: BP_REL,
+    base: 'main',
+    task: `${BP_REL}/tasks/002/tasks.md`,
+  });
+});
+
+test('current usage describes parallel --set and CURRENT_AMBIGUOUS --replace', () => {
+  const { current } = require('../scripts/lib/cli-current-command');
+  assert.match(current.usage, /parallel key/);
+  assert.match(current.usage, /CURRENT_AMBIGUOUS/);
+  assert.doesNotMatch(current.usage, /omitted, a conflict exits 2/);
+});
+
+test('current --replace without --set exits 2', () => {
+  const r = capture(['current', '--replace']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /--replace requires --set/);
+});
+
+test('current --clear --replace exits 2', () => {
+  const r = capture(['current', '--clear', '--replace']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /--clear and --replace/);
+});
+
+function gitCommit(repo, message) {
+  execFileSync('git', ['add', '.'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '-m', message,
+  ], { cwd: repo });
+}
+
+function addWorktree(repo, rel) {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '--quiet', '--detach', abs], { cwd: repo });
+  return abs;
+}
+
+function nsFile(repo, epicId, bpId) {
+  return path.join(repo, '.git', 'bouncer', 'pointers', epicId, `${bpId}.json`);
+}
+
+function storedPointer(blueprint, base, task) {
+  return { blueprint, base, task: task == null ? null : task };
+}
+
+test('current --set adds a parallel namespace key and preserves the other', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+  const r = capture(['current', '--repo', repo, '--set', BP_OTHER]);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.current.blueprint, BP_OTHER);
+  assert.ok(fs.existsSync(nsFile(repo, '001', '001')));
+  assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
+});
+
+test('current --replace at a nested worktree replaces only the selected key', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  gitCommit(repo, 'docs');
+  const nested = addWorktree(repo, '.worktrees/001/001');
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  writeCurrent({ repoRoot: repo, blueprint: BP_OTHER, base: 'main' });
+  const r = capture(['current', '--repo', nested, '--set', BP_OTHER, '--replace', '--base', 'main']);
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.deepStrictEqual(parsed.previous, storedPointer(
+    BP_REL, 'develop', `${BP_REL}/tasks/001/tasks.md`,
+  ));
+  assert.match(r.err, /previous/);
+  assert.strictEqual(fs.existsSync(nsFile(repo, '001', '001')), false);
+  assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
+});
+
+test('current --replace at base with multiple candidates does not guess', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop' });
+  writeCurrent({ repoRoot: repo, blueprint: BP_OTHER, base: 'main' });
+  const beforeA = fs.readFileSync(nsFile(repo, '001', '001'));
+  const beforeB = fs.readFileSync(nsFile(repo, '002', '001'));
+  const r = capture(['current', '--repo', repo, '--set', BP_REL, '--replace']);
+  assert.strictEqual(r.code, 1);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, false);
+  assert.strictEqual(parsed.reason, 'CURRENT_AMBIGUOUS');
+  assert.deepStrictEqual(parsed.candidates, [
+    storedPointer(BP_REL, 'develop', null),
+    storedPointer(BP_OTHER, 'main', null),
+  ]);
+  assert.deepStrictEqual(fs.readFileSync(nsFile(repo, '001', '001')), beforeA);
+  assert.deepStrictEqual(fs.readFileSync(nsFile(repo, '002', '001')), beforeB);
+});
+
+test('current at base with two pointers exits 1 with sorted storage-shaped candidates', () => {
+  const repo = tmpGitRepo();
+  writeCurrent({ repoRoot: repo, blueprint: BP_OTHER, base: 'main' });
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  const r = capture(['current', '--repo', repo]);
+  assert.strictEqual(r.code, 1);
+  const parsed = JSON.parse(r.out);
+  assert.strictEqual(parsed.ok, false);
+  assert.strictEqual(parsed.reason, 'CURRENT_AMBIGUOUS');
+  assert.deepStrictEqual(parsed.candidates, [
+    storedPointer(BP_REL, 'develop', `${BP_REL}/tasks/001/tasks.md`),
+    storedPointer(BP_OTHER, 'main', null),
+  ]);
+  parsed.candidates.forEach((c) => {
+    assert.strictEqual(typeof c.task === 'string' || c.task === null, true);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(c, 'scale'), false);
+  });
+});
+
+test('current --clear and --task at a nested worktree touch only that namespace', () => {
+  const repo = tmpGitRepo();
+  writeNumberedPlanBlueprint(repo);
+  writeOtherPlanPassingBlueprint(repo);
+  gitCommit(repo, 'docs');
+  const nested = addWorktree(repo, '.worktrees/001/001');
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  writeCurrent({ repoRoot: repo, blueprint: BP_OTHER, base: 'main' });
+
+  const shown = capture(['current', '--repo', nested]);
+  assert.strictEqual(shown.code, 0);
+  assert.strictEqual(JSON.parse(shown.out).current.blueprint, BP_REL);
+
+  const tasked = capture([
+    'current', '--repo', nested, '--set', BP_REL, '--task', '002', '--base', 'develop',
+  ]);
+  assert.strictEqual(tasked.code, 0);
+  assert.deepStrictEqual(JSON.parse(tasked.out).current.task, {
+    path: `${BP_REL}/tasks/002/tasks.md`, id: 'TASKS-002',
+  });
+  assert.deepStrictEqual(readCurrent({ repoRoot: nested }), {
+    blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks/002/tasks.md`,
+  });
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(nsFile(repo, '002', '001'), 'utf8')).blueprint, BP_OTHER);
+
+  const cleared = capture(['current', '--repo', nested, '--clear']);
+  assert.strictEqual(cleared.code, 0);
+  assert.strictEqual(JSON.parse(cleared.out).current, null);
+  assert.strictEqual(readCurrent({ repoRoot: nested }), null);
+  assert.ok(fs.existsSync(nsFile(repo, '002', '001')));
+});
+
+test('current --set reports CURRENT_MIGRATION_INCOMPLETE and retries the leftover legacy delete', () => {
+  const repo = tmpGitRepo();
+  writePlanPassingBlueprint(repo);
+  const legacy = pointerFile(repo);
+  fs.mkdirSync(path.dirname(legacy), { recursive: true });
+  fs.writeFileSync(legacy, `${JSON.stringify({
+    blueprint: BP_REL, base: 'develop', task: `${BP_REL}/tasks/001/tasks.md`,
+  }, null, 2)}\n`);
+
+  const origRm = fs.rmSync;
+  let denyLegacy = true;
+  fs.rmSync = function patched(p, ...rest) {
+    if (denyLegacy && p === legacy) {
+      const err = new Error('injected legacy unlink failure');
+      err.code = 'EACCES';
+      throw err;
+    }
+    return origRm.call(fs, p, ...rest);
+  };
+  try {
+    const first = capture([
+      'current', '--repo', repo, '--set', BP_REL, '--task', '001', '--base', 'develop',
+    ]);
+    assert.strictEqual(first.code, 1);
+    const parsed = JSON.parse(first.out);
+    assert.strictEqual(parsed.ok, false);
+    assert.strictEqual(parsed.reason, 'CURRENT_MIGRATION_INCOMPLETE');
+    assert.ok(fs.existsSync(legacy));
+    assert.ok(fs.existsSync(nsFile(repo, '001', '001')));
+    assert.deepStrictEqual(
+      JSON.parse(fs.readFileSync(nsFile(repo, '001', '001'), 'utf8')),
+      JSON.parse(fs.readFileSync(legacy, 'utf8')),
+    );
+
+    denyLegacy = false;
+    const second = capture([
+      'current', '--repo', repo, '--set', BP_REL, '--task', '001', '--base', 'develop',
+    ]);
+    assert.strictEqual(second.code, 0);
+    assert.strictEqual(JSON.parse(second.out).ok, true);
+    assert.strictEqual(fs.existsSync(legacy), false);
+  } finally {
+    fs.rmSync = origRm;
+  }
 });

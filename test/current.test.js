@@ -8,6 +8,7 @@ const yaml = require('js-yaml');
 const { execFileSync } = require('node:child_process');
 const {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
+  resolveCurrent, CurrentSelectionError,
 } = require('../scripts/lib/current');
 const { init } = require('../scripts/lib/init');
 
@@ -79,9 +80,10 @@ test('writeCurrent then readCurrent round-trips', () => {
     deps,
   });
   const commonGitDir = path.join(repo, '.git');
-  assert.strictEqual(rel, path.join(commonGitDir, 'bouncer', 'current'));
+  assert.strictEqual(rel, path.join(commonGitDir, 'bouncer', 'pointers', '001', '001.json'));
   assert.ok(fs.existsSync(rel));
   assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer', 'current')), false);
+  assert.strictEqual(fs.existsSync(path.join(commonGitDir, 'bouncer', 'current')), false);
   assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), {
     blueprint: '.bouncer/context/epics/001-x/blueprints/001-y',
     base: 'develop',
@@ -93,11 +95,11 @@ test('writeCurrent normalizes backslashes to POSIX', () => {
   const repo = tmpGitRepo();
   const deps = runtimeDeps(repo);
   writeCurrent({
-    repoRoot: repo, blueprint: '.bouncer\\context\\epics\\001-x', base: 'main', deps,
+    repoRoot: repo, blueprint: '.bouncer\\context\\epics\\001-x\\blueprints\\001-y', base: 'main', deps,
   });
   assert.strictEqual(
     readCurrent({ repoRoot: repo, deps }).blueprint,
-    '.bouncer/context/epics/001-x',
+    '.bouncer/context/epics/001-x/blueprints/001-y',
   );
 });
 
@@ -138,7 +140,12 @@ test('clearCurrent removes the active pointer and is safe to repeat', () => {
     env: { ...process.env, XDG_STATE_HOME: path.join(root, 'state') },
     platform: 'linux',
   };
-  writeCurrent({ repoRoot: root, blueprint: 'b', base: 'develop', deps });
+  writeCurrent({
+    repoRoot: root,
+    blueprint: '.bouncer/context/epics/001-x/blueprints/001-y',
+    base: 'develop',
+    deps,
+  });
   assert.ok(readCurrent({ repoRoot: root, deps }));
 
   assert.strictEqual(clearCurrent({ repoRoot: root, deps }), true);
@@ -644,4 +651,355 @@ test('nextBlueprint sharedPaths unions affected_paths across numbered tasks', ()
 
   const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
   assert.deepStrictEqual(res.next.sharedPaths, ['shared/b.js']);
+});
+
+const BP_A = '.bouncer/context/epics/001-x/blueprints/001-y';
+const BP_B = '.bouncer/context/epics/002-z/blueprints/003-w';
+const BP_C = '.bouncer/context/epics/003-q/blueprints/001-dup';
+
+function gitCommit(repo, message) {
+  execFileSync('git', ['add', '.'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '-m', message,
+  ], { cwd: repo });
+}
+
+function addWorktree(repo, rel) {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '--quiet', '--detach', abs], { cwd: repo });
+  return abs;
+}
+
+function seedCommit(repo) {
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  gitCommit(repo, 'fixture');
+}
+
+function pointerBody(blueprint, base, task = null) {
+  return { blueprint, base, task };
+}
+
+function nsFile(repo, epicId, bpId) {
+  return path.join(repo, '.git', 'bouncer', 'pointers', epicId, `${bpId}.json`);
+}
+
+function legacyFile(repo) {
+  return path.join(repo, '.git', 'bouncer', 'current');
+}
+
+function writeNsFile(repo, blueprint, base, task) {
+  const { parsePathIds } = require('../scripts/lib/paths');
+  const { epicId, blueprintId } = parsePathIds(blueprint);
+  const abs = nsFile(repo, epicId, blueprintId);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  const data = { blueprint, base };
+  if (typeof task === 'string') data.task = task;
+  fs.writeFileSync(abs, `${JSON.stringify(data, null, 2)}\n`);
+  return abs;
+}
+
+test('resolveCurrent selects the nested worktree key and ignores sibling pointers', () => {
+  const repo = tmpGitRepo();
+  seedCommit(repo);
+  const nestedA = addWorktree(repo, '.worktrees/001/001');
+  addWorktree(repo, '.worktrees/002/003');
+  const deps = runtimeDeps(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', deps });
+  writeCurrent({ repoRoot: repo, blueprint: BP_B, base: 'main', task: `${BP_B}/tasks/001/tasks.md`, deps });
+
+  const selected = resolveCurrent({ repoRoot: nestedA, deps });
+  assert.strictEqual(selected.status, 'selected');
+  assert.strictEqual(selected.source, 'namespace');
+  assert.strictEqual(selected.key, '001/001');
+  assert.deepStrictEqual(selected.current, pointerBody(BP_A, 'develop', null));
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(selected.current, 'scale'), false);
+  assert.strictEqual(typeof selected.current.task === 'string' || selected.current.task === null, true);
+
+  assert.deepStrictEqual(readCurrent({ repoRoot: nestedA, deps }), pointerBody(BP_A, 'develop', null));
+});
+
+test('resolveCurrent selects a unique flat worktree candidate and rejects duplicates', () => {
+  const repo = tmpGitRepo();
+  seedCommit(repo);
+  const flat = addWorktree(repo, '.worktrees/001');
+  const deps = runtimeDeps(repo);
+  writeNsFile(repo, BP_A, 'develop');
+  const unique = resolveCurrent({ repoRoot: flat, deps });
+  assert.strictEqual(unique.status, 'selected');
+  assert.strictEqual(unique.source, 'namespace');
+  assert.deepStrictEqual(unique.current, pointerBody(BP_A, 'develop', null));
+
+  writeNsFile(repo, BP_C, 'main');
+  const dup = resolveCurrent({ repoRoot: flat, deps });
+  assert.strictEqual(dup.status, 'ambiguous');
+  assert.deepStrictEqual(dup.candidates, [
+    pointerBody(BP_A, 'develop', null),
+    pointerBody(BP_C, 'main', null),
+  ]);
+  assert.throws(
+    () => readCurrent({ repoRoot: flat, deps }),
+    (err) => err instanceof CurrentSelectionError
+      && err.code === 'CURRENT_AMBIGUOUS'
+      && Array.isArray(err.candidates)
+      && err.candidates.length === 2,
+  );
+});
+
+test('resolveCurrent at the base checkout selects a single pointer and rejects many', () => {
+  const repo = tmpGitRepo();
+  const deps = runtimeDeps(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', deps });
+  const one = resolveCurrent({ repoRoot: repo, deps });
+  assert.strictEqual(one.status, 'selected');
+  assert.strictEqual(one.source, 'namespace');
+  assert.strictEqual(one.key, '001/001');
+  assert.deepStrictEqual(one.current, pointerBody(BP_A, 'develop', null));
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), pointerBody(BP_A, 'develop', null));
+
+  writeCurrent({ repoRoot: repo, blueprint: BP_B, base: 'main', deps });
+  const many = resolveCurrent({ repoRoot: repo, deps });
+  assert.strictEqual(many.status, 'ambiguous');
+  assert.deepStrictEqual(many.candidates, [
+    pointerBody(BP_A, 'develop', null),
+    pointerBody(BP_B, 'main', null),
+  ]);
+  assert.throws(
+    () => readCurrent({ repoRoot: repo, deps }),
+    (err) => err instanceof CurrentSelectionError && err.code === 'CURRENT_AMBIGUOUS',
+  );
+});
+
+test('resolveCurrent four variants and readCurrent wrapper contracts', () => {
+  const repo = tmpGitRepo();
+  const deps = runtimeDeps(repo);
+
+  const empty = resolveCurrent({ repoRoot: repo, deps });
+  assert.deepStrictEqual(empty, { status: 'empty' });
+  assert.strictEqual(readCurrent({ repoRoot: repo, deps }), null);
+
+  writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', task: `${BP_A}/tasks/001/tasks.md`, deps });
+  const selected = resolveCurrent({ repoRoot: repo, deps });
+  assert.strictEqual(selected.status, 'selected');
+  assert.deepStrictEqual(selected.current, pointerBody(BP_A, 'develop', `${BP_A}/tasks/001/tasks.md`));
+  assert.ok(selected.source === 'namespace' || selected.source === 'legacy');
+  assert.ok(selected.key === '001/001' || selected.key === null);
+
+  writeCurrent({ repoRoot: repo, blueprint: BP_B, base: 'main', deps });
+  const ambiguous = resolveCurrent({ repoRoot: repo, deps });
+  assert.strictEqual(ambiguous.status, 'ambiguous');
+  assert.deepStrictEqual(ambiguous.candidates, [
+    pointerBody(BP_A, 'develop', `${BP_A}/tasks/001/tasks.md`),
+    pointerBody(BP_B, 'main', null),
+  ]);
+  try {
+    readCurrent({ repoRoot: repo, deps });
+    assert.fail('readCurrent should throw CURRENT_AMBIGUOUS');
+  } catch (err) {
+    assert.ok(err instanceof CurrentSelectionError);
+    assert.strictEqual(err.code, 'CURRENT_AMBIGUOUS');
+    assert.deepStrictEqual(err.candidates, ambiguous.candidates);
+  }
+
+  const broken = nsFile(repo, '009', '009');
+  fs.mkdirSync(path.dirname(broken), { recursive: true });
+  fs.writeFileSync(broken, '{ invalid');
+  const invalid = resolveCurrent({ repoRoot: repo, deps });
+  assert.strictEqual(invalid.status, 'invalid');
+  assert.ok(invalid.issues.some((i) => i.path === broken && typeof i.reason === 'string'));
+  assert.ok(Array.isArray(invalid.candidates));
+  invalid.candidates.forEach((c) => {
+    assert.strictEqual(typeof c.blueprint, 'string');
+    assert.strictEqual(typeof c.base, 'string');
+    assert.ok(c.task === null || typeof c.task === 'string');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(c, 'scale'), false);
+  });
+  try {
+    readCurrent({ repoRoot: repo, deps });
+    assert.fail('readCurrent should throw CURRENT_INVALID');
+  } catch (err) {
+    assert.ok(err instanceof CurrentSelectionError);
+    assert.strictEqual(err.code, 'CURRENT_INVALID');
+    assert.deepStrictEqual(err.issues, invalid.issues);
+    assert.deepStrictEqual(err.candidates, invalid.candidates);
+  }
+});
+
+test('legacy-only read, first write migrates, same-key is idempotent, different key conflicts', () => {
+  const repo = tmpGitRepo();
+  const deps = runtimeDeps(repo);
+  const legacy = legacyFile(repo);
+  fs.mkdirSync(path.dirname(legacy), { recursive: true });
+  fs.writeFileSync(legacy, `${JSON.stringify({
+    blueprint: BP_A, base: 'develop', task: `${BP_A}/tasks/001/tasks.md`,
+  }, null, 2)}\n`);
+
+  const fromLegacy = resolveCurrent({ repoRoot: repo, deps });
+  assert.strictEqual(fromLegacy.status, 'selected');
+  assert.strictEqual(fromLegacy.source, 'legacy');
+  assert.strictEqual(fromLegacy.key, null);
+  assert.deepStrictEqual(fromLegacy.current, pointerBody(BP_A, 'develop', `${BP_A}/tasks/001/tasks.md`));
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), fromLegacy.current);
+
+  const written = writeCurrent({
+    repoRoot: repo, blueprint: BP_A, base: 'develop', task: `${BP_A}/tasks/002/tasks.md`, deps,
+  });
+  assert.strictEqual(written, nsFile(repo, '001', '001'));
+  assert.strictEqual(fs.existsSync(legacy), false);
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), pointerBody(
+    BP_A, 'develop', `${BP_A}/tasks/002/tasks.md`,
+  ));
+
+  fs.writeFileSync(legacy, `${JSON.stringify({
+    blueprint: BP_A, base: 'develop', task: `${BP_A}/tasks/002/tasks.md`,
+  }, null, 2)}\n`);
+  const again = writeCurrent({
+    repoRoot: repo, blueprint: BP_A, base: 'main', deps,
+  });
+  assert.strictEqual(again, nsFile(repo, '001', '001'));
+  assert.strictEqual(fs.existsSync(legacy), false);
+  assert.deepStrictEqual(readCurrent({ repoRoot: repo, deps }), pointerBody(BP_A, 'main', null));
+
+  fs.writeFileSync(legacy, `${JSON.stringify({ blueprint: BP_B, base: 'trunk' }, null, 2)}\n`);
+  assert.throws(
+    () => writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'main', deps }),
+    (err) => err instanceof CurrentSelectionError && err.code === 'CURRENT_INVALID',
+  );
+  assert.ok(fs.existsSync(legacy));
+  assert.ok(fs.existsSync(nsFile(repo, '001', '001')));
+  const conflict = resolveCurrent({ repoRoot: repo, deps });
+  assert.strictEqual(conflict.status, 'invalid');
+});
+
+test('writeCurrent preserves legacy when the namespace write fails', () => {
+  const repo = tmpGitRepo();
+  const deps = runtimeDeps(repo);
+  const legacy = legacyFile(repo);
+  fs.mkdirSync(path.dirname(legacy), { recursive: true });
+  const body = { blueprint: BP_A, base: 'develop' };
+  fs.writeFileSync(legacy, `${JSON.stringify(body, null, 2)}\n`);
+  const before = fs.readFileSync(legacy);
+  const boom = new Error('injected namespace write failure');
+  assert.throws(() => writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_A,
+    base: 'main',
+    deps: {
+      ...deps,
+      fs: {
+        ...fs,
+        writeFileSync() { throw boom; },
+      },
+    },
+  }), boom);
+  assert.deepStrictEqual(fs.readFileSync(legacy), before);
+  assert.strictEqual(fs.existsSync(nsFile(repo, '001', '001')), false);
+});
+
+test('writeCurrent --replace deletes the selected key before writing the target', () => {
+  const repo = tmpGitRepo();
+  const deps = runtimeDeps(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', deps });
+  const oldKey = nsFile(repo, '001', '001');
+  const newKey = nsFile(repo, '002', '003');
+  const origRm = fs.rmSync;
+  const gatedFs = {
+    ...fs,
+    rmSync(p, ...rest) {
+      if (p === oldKey) {
+        const err = new Error('injected replace unlink failure');
+        err.code = 'EACCES';
+        throw err;
+      }
+      return origRm.call(fs, p, ...rest);
+    },
+  };
+  assert.throws(
+    () => writeCurrent({
+      repoRoot: repo,
+      blueprint: BP_B,
+      base: 'main',
+      replace: true,
+      replaceKey: '001/001',
+      deps: { ...deps, fs: gatedFs },
+    }),
+    (err) => err instanceof CurrentSelectionError
+      && err.code === 'CURRENT_INVALID'
+      && Array.isArray(err.issues)
+      && err.issues.some((i) => i.path === oldKey && typeof i.reason === 'string'),
+  );
+  assert.ok(fs.existsSync(oldKey));
+  assert.strictEqual(fs.existsSync(newKey), false);
+});
+
+test('legacy delete failure is CURRENT_MIGRATION_INCOMPLETE and the next same write finishes', () => {
+  const repo = tmpGitRepo();
+  const deps = runtimeDeps(repo);
+  const legacy = legacyFile(repo);
+  fs.mkdirSync(path.dirname(legacy), { recursive: true });
+  fs.writeFileSync(legacy, `${JSON.stringify({ blueprint: BP_A, base: 'develop' }, null, 2)}\n`);
+
+  const origRm = fs.rmSync;
+  let denyLegacy = true;
+  const gatedFs = {
+    ...fs,
+    rmSync(p, ...rest) {
+      if (denyLegacy && p === legacy) {
+        const err = new Error('injected legacy unlink failure');
+        err.code = 'EACCES';
+        throw err;
+      }
+      return origRm.call(fs, p, ...rest);
+    },
+  };
+
+  assert.throws(
+    () => writeCurrent({
+      repoRoot: repo, blueprint: BP_A, base: 'develop', deps: { ...deps, fs: gatedFs },
+    }),
+    (err) => err instanceof CurrentSelectionError && err.code === 'CURRENT_MIGRATION_INCOMPLETE',
+  );
+  assert.ok(fs.existsSync(legacy));
+  assert.ok(fs.existsSync(nsFile(repo, '001', '001')));
+  assert.deepStrictEqual(
+    JSON.parse(fs.readFileSync(legacy, 'utf8')),
+    JSON.parse(fs.readFileSync(nsFile(repo, '001', '001'), 'utf8')),
+  );
+
+  denyLegacy = false;
+  writeCurrent({
+    repoRoot: repo, blueprint: BP_A, base: 'main', task: `${BP_A}/tasks/001/tasks.md`,
+    deps: { ...deps, fs: gatedFs },
+  });
+  assert.strictEqual(fs.existsSync(legacy), false);
+  assert.deepStrictEqual(
+    readCurrent({ repoRoot: repo, deps }),
+    pointerBody(BP_A, 'main', `${BP_A}/tasks/001/tasks.md`),
+  );
+});
+
+test('clearCurrent on a nested worktree removes only that namespace key', () => {
+  const repo = tmpGitRepo();
+  seedCommit(repo);
+  const nestedA = addWorktree(repo, '.worktrees/001/001');
+  const deps = runtimeDeps(repo);
+  writeCurrent({ repoRoot: repo, blueprint: BP_A, base: 'develop', deps });
+  writeCurrent({ repoRoot: repo, blueprint: BP_B, base: 'main', deps });
+  assert.strictEqual(clearCurrent({ repoRoot: nestedA, deps }), true);
+  assert.strictEqual(fs.existsSync(nsFile(repo, '001', '001')), false);
+  assert.ok(fs.existsSync(nsFile(repo, '002', '003')));
+  assert.deepStrictEqual(
+    readCurrent({ repoRoot: repo, deps }),
+    pointerBody(BP_B, 'main', null),
+  );
+});
+
+test('writeCurrent rejects a blueprint path without three-digit ids', () => {
+  const repo = tmpGitRepo();
+  const deps = runtimeDeps(repo);
+  assert.throws(
+    () => writeCurrent({ repoRoot: repo, blueprint: 'b', base: 'develop', deps }),
+    /Cannot derive epic\/blueprint ids/,
+  );
 });
