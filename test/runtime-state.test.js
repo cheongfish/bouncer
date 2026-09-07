@@ -7,7 +7,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, worktreePathFor,
-  verifyLedgerPathFor,
+  verifyLedgerPathFor, listNamespacePointers, pointerKeyFromBlueprint,
+  removeNamespacePointer,
 } = require('../scripts/lib/runtime-state');
 
 function git(cwd, args) {
@@ -97,7 +98,13 @@ test('runtime current round-trips across primary and linked worktrees', () => {
   const currentFile = writeRuntimeCurrent({ repoRoot: primary, ...value, deps });
 
   assert.ok(fs.existsSync(currentFile));
-  // task 미지정 쓰기는 파일에 키를 넣지 않지만, 읽기는 항상 task: null 로 정규화한다.
+  const listed = listNamespacePointers({ repoRoot: linked, deps });
+  assert.deepStrictEqual(listed.map((e) => e.pointer), [{
+    ...value,
+    task: null,
+  }]);
+  // migrate-task-layout·import-history는 이 primitive만 본다. namespace
+  // 쓰기 뒤 레거시 파일이 없어도 유일한 키가 보여야 한다.
   assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: linked, deps }), {
     ...value,
     task: null,
@@ -115,7 +122,7 @@ test('writeRuntimeCurrent includes task key only when a string path is given', (
   });
   const written = JSON.parse(fs.readFileSync(withTask, 'utf8'));
   assert.strictEqual(written.task, task);
-  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: primary, deps }), {
+  assert.deepStrictEqual(listNamespacePointers({ repoRoot: primary, deps })[0].pointer, {
     blueprint, base: 'develop', task,
   });
 
@@ -124,7 +131,7 @@ test('writeRuntimeCurrent includes task key only when a string path is given', (
   });
   const omitted = JSON.parse(fs.readFileSync(withoutTask, 'utf8'));
   assert.strictEqual(Object.prototype.hasOwnProperty.call(omitted, 'task'), false);
-  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: primary, deps }), {
+  assert.deepStrictEqual(listNamespacePointers({ repoRoot: primary, deps })[0].pointer, {
     blueprint, base: 'develop', task: null,
   });
 });
@@ -248,4 +255,151 @@ test('verifyLedgerPathFor reports non-Git directories unavailable', () => {
   assert.strictEqual(result.unavailable, true);
   assert.ok(result.reason);
   assert.strictEqual(result.ledgerFile, undefined);
+});
+
+const BP_A = '.bouncer/context/epics/001-x/blueprints/001-y';
+const BP_B = '.bouncer/context/epics/002-z/blueprints/003-w';
+
+test('runtimePaths returns the legacy current file and the namespace root together', () => {
+  const { primary } = linkedRepo();
+  const paths = runtimePaths({ repoRoot: primary, execFileSync, platform: 'linux' });
+  assert.strictEqual(
+    paths.currentFile,
+    path.join(paths.commonGitDir, 'bouncer', 'current'),
+  );
+  assert.strictEqual(
+    paths.pointersRoot,
+    path.join(paths.commonGitDir, 'bouncer', 'pointers'),
+  );
+});
+
+test('pointerKeyFromBlueprint uses three-digit epic and blueprint ids only', () => {
+  assert.deepStrictEqual(pointerKeyFromBlueprint(BP_A), {
+    epicId: '001', blueprintId: '001', key: '001/001',
+  });
+  assert.deepStrictEqual(pointerKeyFromBlueprint(BP_B), {
+    epicId: '002', blueprintId: '003', key: '002/003',
+  });
+  assert.throws(
+    () => pointerKeyFromBlueprint('.bouncer/context/epics/001-x'),
+    /Cannot derive epic\/blueprint ids/,
+  );
+});
+
+test('two namespace pointers coexist and removing one preserves the other', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const paths = runtimePaths({ repoRoot: primary, ...deps });
+  const first = writeRuntimeCurrent({
+    repoRoot: primary, blueprint: BP_A, base: 'develop', deps,
+  });
+  const second = writeRuntimeCurrent({
+    repoRoot: primary, blueprint: BP_B, base: 'main', task: `${BP_B}/tasks/001/tasks.md`, deps,
+  });
+
+  assert.strictEqual(first, path.join(paths.pointersRoot, '001', '001.json'));
+  assert.strictEqual(second, path.join(paths.pointersRoot, '002', '003.json'));
+  assert.strictEqual(fs.existsSync(paths.currentFile), false);
+
+  const listed = listNamespacePointers({ repoRoot: primary, deps });
+  assert.deepStrictEqual(listed.map((e) => e.key), ['001/001', '002/003']);
+  assert.deepStrictEqual(listed.map((e) => e.pointer.blueprint), [BP_A, BP_B]);
+
+  assert.strictEqual(removeNamespacePointer({ repoRoot: primary, key: '001/001', deps }), true);
+  assert.strictEqual(fs.existsSync(first), false);
+  assert.ok(fs.existsSync(second));
+  const remaining = listNamespacePointers({ repoRoot: primary, deps });
+  assert.deepStrictEqual(remaining.map((e) => e.pointer), [{
+    blueprint: BP_B, base: 'main', task: `${BP_B}/tasks/001/tasks.md`,
+  }]);
+  assert.strictEqual(removeNamespacePointer({ repoRoot: primary, key: '001/001', deps }), false);
+});
+
+test('writeRuntimeCurrent rejects a blueprint path without three-digit ids', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  assert.throws(
+    () => writeRuntimeCurrent({ repoRoot: primary, blueprint: 'bp', base: 'main', deps }),
+    /Cannot derive epic\/blueprint ids/,
+  );
+});
+
+test('writeRuntimeCurrent is atomic: a write failure leaves no namespace file', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const paths = runtimePaths({ repoRoot: primary, ...deps });
+  const boom = new Error('injected write failure');
+  assert.throws(() => writeRuntimeCurrent({
+    repoRoot: primary,
+    blueprint: BP_A,
+    base: 'develop',
+    deps: {
+      ...deps,
+      fs: {
+        ...fs,
+        writeFileSync() { throw boom; },
+      },
+    },
+  }), boom);
+  assert.strictEqual(fs.existsSync(path.join(paths.pointersRoot, '001', '001.json')), false);
+});
+
+test('readRuntimeCurrent falls back to the legacy file when namespace is empty', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const paths = runtimePaths({ repoRoot: primary, ...deps });
+  fs.mkdirSync(path.dirname(paths.currentFile), { recursive: true });
+  const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
+  fs.writeFileSync(paths.currentFile, `${JSON.stringify({
+    blueprint, base: 'develop',
+  }, null, 2)}\n`);
+  assert.deepStrictEqual(readRuntimeCurrent({ repoRoot: primary, deps }), {
+    blueprint, base: 'develop', task: null,
+  });
+});
+
+test('readRuntimeCurrent does not hide a broken namespace file as null', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  writeRuntimeCurrent({ repoRoot: primary, blueprint: BP_A, base: 'develop', deps });
+  const broken = path.join(
+    runtimePaths({ repoRoot: primary, ...deps }).pointersRoot, '002', '003.json',
+  );
+  fs.mkdirSync(path.dirname(broken), { recursive: true });
+  fs.writeFileSync(broken, '{ invalid');
+  assert.throws(
+    () => readRuntimeCurrent({ repoRoot: primary, deps }),
+    (err) => err instanceof Error
+      && String(err.message).includes(broken)
+      && String(err.message).length > broken.length,
+  );
+});
+
+test('readRuntimeCurrent rejects multiple namespace pointers instead of picking one', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  writeRuntimeCurrent({ repoRoot: primary, blueprint: BP_A, base: 'develop', deps });
+  writeRuntimeCurrent({ repoRoot: primary, blueprint: BP_B, base: 'main', deps });
+  assert.throws(
+    () => readRuntimeCurrent({ repoRoot: primary, deps }),
+    (err) => err instanceof Error && /ambiguous/i.test(err.message),
+  );
+});
+
+test('listNamespacePointers reports a broken file instead of hiding it', () => {
+  const { primary } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  writeRuntimeCurrent({ repoRoot: primary, blueprint: BP_A, base: 'develop', deps });
+  const broken = path.join(
+    runtimePaths({ repoRoot: primary, ...deps }).pointersRoot, '002', '003.json',
+  );
+  fs.mkdirSync(path.dirname(broken), { recursive: true });
+  fs.writeFileSync(broken, '{ invalid');
+  const listed = listNamespacePointers({ repoRoot: primary, deps });
+  const issue = listed.find((e) => e.path === broken);
+  assert.ok(issue);
+  assert.strictEqual(issue.pointer, null);
+  assert.ok(issue.issue);
+  assert.strictEqual(issue.issue.path, broken);
+  assert.ok(typeof issue.issue.reason === 'string' && issue.issue.reason.length > 0);
 });

@@ -23,6 +23,8 @@ type InjectedFs = {
   mkdirSync: (p: string, opts?: { recursive?: boolean }) => unknown;
   rmSync: (p: string) => void;
   statSync: (p: string) => { isDirectory: () => boolean };
+  readdirSync: (p: string) => string[];
+  renameSync: (src: string, dest: string) => void;
 };
 
 type RuntimeDeps = {
@@ -39,9 +41,23 @@ type RuntimePaths = {
   reason?: string;
   commonGitDir?: string;
   currentFile?: string;
+  pointersRoot?: string;
   worktreeRoot?: string;
   projectRoot?: string;
   ledgerFile?: string;
+};
+
+type PointerKey = {
+  epicId: string;
+  blueprintId: string;
+  key: string;
+};
+
+type NamespaceEntry = {
+  key: string;
+  path: string;
+  pointer: RuntimePointer | null;
+  issue?: { path: string; reason: string };
 };
 
 type RuntimePointer = {
@@ -90,9 +106,14 @@ function runtimePaths({
   // projectRoot는 그 값을 Distill/스킬 소비용으로 노출한다 — Git 계산을
   // 스킬이나 별도 helper에서 복제하지 않기 위한 단일 정본.
   const mainRoot = pathApi.dirname(commonGitDir);
+  const bouncerDir = pathApi.join(commonGitDir, 'bouncer');
   return {
     commonGitDir,
-    currentFile: pathApi.join(commonGitDir, 'bouncer', 'current'),
+    currentFile: pathApi.join(bouncerDir, 'current'),
+    // 레거시 단일 파일과 namespace 루트를 같이 노출한다. 이관은 current.ts가
+    // 조합하고, 여기서는 경로만 계산한다 — 두 저장소를 한 경로로 합치면
+    // 이관 실패 시 어느 쪽이 남았는지 호출부가 구분하지 못한다.
+    pointersRoot: pathApi.join(bouncerDir, 'pointers'),
     worktreeRoot: pathApi.join(mainRoot, '.worktrees'),
     projectRoot: mainRoot,
   };
@@ -111,7 +132,16 @@ function resolvedPaths({ repoRoot, deps }: {
   });
 }
 
-function readRuntimeCurrent({ repoRoot, deps }: {
+/**
+ * 레거시 `<git-common-dir>/bouncer/current`만 읽는다. namespace 전환 뒤에는
+ * 이 파일이 없을 수 있다. current.ts의 충돌·이관 판정은 실제 레거시 파일이
+ * 필요한데, `readRuntimeCurrent`는 유일한 namespace 키를 돌려주므로 둘을
+ * 섞으면 병렬 `--set`을 레거시 충돌로 오인한다.
+ *
+ * @param {{ repoRoot: string, deps?: RuntimeDeps | null }} opts - 저장소 루트와 주입 의존성
+ * @returns {RuntimePointer | null} 파싱된 레거시 포인터. 없거나 깨지면 null
+ */
+function readLegacyRuntimeCurrent({ repoRoot, deps }: {
   repoRoot: string;
   deps?: RuntimeDeps | null;
 }): RuntimePointer | null {
@@ -129,6 +159,40 @@ function readRuntimeCurrent({ repoRoot, deps }: {
   }
 }
 
+/**
+ * 활성 포인터 primitive. migrate-task-layout·import-history는 namespace
+ * 열거를 모르므로, 유일한 namespace 키가 있으면 그것을 돌려 첫 `--set`
+ * 이후에도 포인터가 보이게 한다. 키가 없으면 레거시 파일로 폴백한다.
+ * 깨진 namespace 파일은 null로 숨기지 않는다 — 다른 키를 고르거나 레거시로
+ * 넘어가면 손상된 주기를 삼킨다. 경로와 실패 원인을 담아 throw한다.
+ *
+ * @param {{ repoRoot: string, deps?: RuntimeDeps | null }} opts - 저장소 루트와 주입 의존성
+ * @returns {RuntimePointer | null} 유일한 namespace 포인터, 없으면 레거시, 둘 다 없으면 null
+ * @throws {Error} 깨진 namespace 파일 또는 키가 둘 이상일 때. 메시지에 경로를 포함한다
+ */
+function readRuntimeCurrent({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: RuntimeDeps | null;
+}): RuntimePointer | null {
+  const listed = listNamespacePointers({ repoRoot, deps });
+  const issues = listed.filter((e) => e.issue);
+  if (issues.length > 0) {
+    const detail = issues
+      .map((e) => `${(e.issue as { path: string; reason: string }).path}: ${
+        (e.issue as { path: string; reason: string }).reason}`)
+      .join('; ');
+    throw new Error(detail);
+  }
+  const valid = listed.filter((e): e is typeof e & { pointer: RuntimePointer } => e.pointer != null);
+  if (valid.length > 1) {
+    throw new Error(
+      `ambiguous namespace pointers: ${valid.map((e) => e.path).join(', ')}`,
+    );
+  }
+  if (valid.length === 1) return valid[0].pointer;
+  return readLegacyRuntimeCurrent({ repoRoot, deps });
+}
+
 // pointer가 제거되면 true, 없었으면 false. 호출자는 "이미 없음"을
 // 성공으로 보므로, 파일이 없어도 throw하면 안 된다.
 function clearRuntimeCurrent({ repoRoot, deps }: {
@@ -142,6 +206,133 @@ function clearRuntimeCurrent({ repoRoot, deps }: {
   return true;
 }
 
+/**
+ * blueprint 경로에서 세 자리 epic·blueprint id로 namespace 키를 만든다.
+ * 경로 문자열이나 worktree 위치를 키로 쓰지 않는다 — 같은 문서가 다른
+ * checkout에서 다른 파일로 갈라지면 병렬 주기가 서로 덮어쓴다.
+ *
+ * @param {unknown} blueprint - blueprint 디렉터리 상대 경로
+ * @returns {{ epicId: string, blueprintId: string, key: string }} `key`는 `epicId/blueprintId`
+ */
+function pointerKeyFromBlueprint(blueprint: unknown): PointerKey {
+  const { epicId, blueprintId } = parsePathIds(blueprint);
+  if (!epicId || !blueprintId) {
+    throw new Error(`Cannot derive epic/blueprint ids from blueprint path: ${blueprint}`);
+  }
+  return { epicId, blueprintId, key: `${epicId}/${blueprintId}` };
+}
+
+function pathApiFor(platform: string | undefined) {
+  return platform === 'win32' ? path.win32 : path;
+}
+
+function namespacePointerPath(
+  pointersRoot: string,
+  epicId: string,
+  blueprintId: string,
+  pathApi: { join: (...parts: string[]) => string; dirname: (p: string) => string },
+): string {
+  return pathApi.join(pointersRoot, epicId, `${blueprintId}.json`);
+}
+
+function parsePointerKey(key: unknown): PointerKey | null {
+  if (typeof key !== 'string') return null;
+  const match = /^(\d{3})\/(\d{3})$/.exec(key);
+  if (!match) return null;
+  return { epicId: match[1], blueprintId: match[2], key };
+}
+
+function parsePointerBody(raw: string): { pointer: RuntimePointer } | { reason: string } {
+  try {
+    const data = JSON.parse(raw.trim());
+    if (!data || typeof data.blueprint !== 'string' || typeof data.base !== 'string') {
+      return { reason: 'missing blueprint or base' };
+    }
+    const task = typeof data.task === 'string' ? toPosix(data.task) : null;
+    return { pointer: { blueprint: toPosix(data.blueprint), base: data.base, task } };
+  } catch (error) {
+    return { reason: catchMessage(error) as string || 'invalid JSON' };
+  }
+}
+
+function isDir(d: { fs: InjectedFs }, abs: string): boolean {
+  try {
+    return d.fs.statSync(abs).isDirectory();
+  } catch (_e) {
+    return false;
+  }
+}
+
+/**
+ * namespace 포인터 파일을 열거한다. 깨진 파일은 건너뛰지 않고 issue로 남긴다 —
+ * null로 숨기면 다른 키가 선택된 것처럼 보여 병렬 주기를 덮어쓴다.
+ *
+ * @param {{ repoRoot: string, deps?: RuntimeDeps | null }} opts - 저장소 루트와 주입 의존성
+ * @returns {NamespaceEntry[]} 키(`epic/blueprint`) 사전순
+ */
+function listNamespacePointers({ repoRoot, deps }: {
+  repoRoot: string;
+  deps?: RuntimeDeps | null;
+}): NamespaceEntry[] {
+  const d = { fs, ...(deps || {}) };
+  const paths = resolvedPaths({ repoRoot, deps: d });
+  if (paths.unavailable || !paths.pointersRoot) return [];
+  const pathApi = pathApiFor(d.platform);
+  const root = paths.pointersRoot;
+  if (!d.fs.existsSync(root) || !isDir(d, root)) return [];
+
+  const entries: NamespaceEntry[] = [];
+  let epicNames: string[];
+  try {
+    epicNames = d.fs.readdirSync(root);
+  } catch (_e) {
+    return [];
+  }
+  for (const epicName of epicNames) {
+    if (!/^\d{3}$/.test(epicName)) continue;
+    const epicDir = pathApi.join(root, epicName);
+    if (!isDir(d, epicDir)) continue;
+    let files: string[];
+    try {
+      files = d.fs.readdirSync(epicDir);
+    } catch (_e) {
+      continue;
+    }
+    for (const file of files) {
+      const idMatch = /^(\d{3})\.json$/.exec(file);
+      if (!idMatch) continue;
+      const blueprintId = idMatch[1];
+      const filePath = pathApi.join(epicDir, file);
+      const key = `${epicName}/${blueprintId}`;
+      try {
+        const parsed = parsePointerBody(d.fs.readFileSync(filePath, 'utf8'));
+        if ('pointer' in parsed) {
+          entries.push({ key, path: filePath, pointer: parsed.pointer });
+        } else {
+          entries.push({
+            key, path: filePath, pointer: null,
+            issue: { path: filePath, reason: parsed.reason },
+          });
+        }
+      } catch (error) {
+        entries.push({
+          key, path: filePath, pointer: null,
+          issue: { path: filePath, reason: catchMessage(error) as string || 'unreadable pointer file' },
+        });
+      }
+    }
+  }
+  entries.sort((a, b) => a.key.localeCompare(b.key));
+  return entries;
+}
+
+/**
+ * namespace 파일에 포인터를 원자적으로 쓴다. 레거시 파일은 건드리지 않는다 —
+ * 이관 삭제는 쓰기가 성공한 뒤에야 current.ts가 수행한다.
+ *
+ * @param {{ repoRoot: string, blueprint: unknown, base: string, task?: unknown, deps?: RuntimeDeps | null }} opts
+ * @returns {string} 쓴 namespace 파일 절대 경로
+ */
 function writeRuntimeCurrent({
   repoRoot, blueprint, base, task, deps,
 }: {
@@ -154,15 +345,58 @@ function writeRuntimeCurrent({
   const d = { fs, ...(deps || {}) };
   const paths = resolvedPaths({ repoRoot, deps: d });
   if (paths.unavailable) throw new Error(GIT_REQUIRED);
-  d.fs.mkdirSync(path.dirname(paths.currentFile as string), { recursive: true });
+  const { epicId, blueprintId } = pointerKeyFromBlueprint(blueprint);
+  const pathApi = pathApiFor(d.platform);
+  const target = namespacePointerPath(paths.pointersRoot as string, epicId, blueprintId, pathApi);
+  d.fs.mkdirSync(pathApi.dirname(target), { recursive: true });
   // task는 문자열일 때만 파일에 쓴다 — 없으면 키 자체를 생략해 레거시 형태를 유지.
   const data: { blueprint: string; base: string; task?: string } = {
     blueprint: toPosix(blueprint),
     base,
   };
   if (typeof task === 'string') data.task = toPosix(task);
-  d.fs.writeFileSync(paths.currentFile as string, `${JSON.stringify(data, null, 2)}\n`);
-  return paths.currentFile as string;
+  const payload = `${JSON.stringify(data, null, 2)}\n`;
+  // 같은 디렉터리에 tmp를 만들고 rename으로 교체한다. 다른 볼륨의 tmp는
+  // rename이 copy+unlink가 되어 이관 전에 레거시를 지운 것과 같은 구멍이 난다.
+  const tmp = pathApi.join(
+    pathApi.dirname(target),
+    `.${blueprintId}.${process.pid}.${Date.now()}.tmp`,
+  );
+  d.fs.writeFileSync(tmp, payload);
+  try {
+    d.fs.renameSync(tmp, target);
+  } catch (error) {
+    try {
+      d.fs.rmSync(tmp);
+    } catch (_cleanup) {
+      // tmp 정리는 best-effort. rename 실패 원인을 가리면 호출부가 재시도 지점을 잃는다.
+    }
+    throw error;
+  }
+  return target;
+}
+
+/**
+ * namespace 키 파일을 지운다. 파일이 없으면 false — 호출자는 이미 없음을 성공으로 본다.
+ *
+ * @param {{ repoRoot: string, key: string, deps?: RuntimeDeps | null }} opts - `key`는 `epicId/blueprintId`
+ * @returns {boolean} 지웠으면 true, 없었으면 false
+ */
+function removeNamespacePointer({ repoRoot, key, deps }: {
+  repoRoot: string;
+  key: string;
+  deps?: RuntimeDeps | null;
+}): boolean {
+  const d = { fs, ...(deps || {}) };
+  const paths = resolvedPaths({ repoRoot, deps: d });
+  if (paths.unavailable || !paths.pointersRoot) return false;
+  const parsed = parsePointerKey(key);
+  if (!parsed) return false;
+  const pathApi = pathApiFor(d.platform);
+  const target = namespacePointerPath(paths.pointersRoot, parsed.epicId, parsed.blueprintId, pathApi);
+  if (!d.fs.existsSync(target)) return false;
+  d.fs.rmSync(target);
+  return true;
 }
 
 // blueprint 경로만으로 execute worktree 절대 경로를 고른다.
@@ -244,6 +478,7 @@ function isWorktreeDirty(
 }
 
 export = {
-  runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, worktreePathFor,
-  verifyLedgerPathFor, isWorktreeDirty,
+  runtimePaths, readRuntimeCurrent, readLegacyRuntimeCurrent, writeRuntimeCurrent,
+  clearRuntimeCurrent, worktreePathFor, verifyLedgerPathFor, isWorktreeDirty,
+  pointerKeyFromBlueprint, listNamespacePointers, removeNamespacePointer,
 };

@@ -5,7 +5,7 @@ const { execFileSync } = require('node:child_process');
 const validate = require("./validate");
 const { validateBlueprint } = validate;
 const current = require("./current");
-const { readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, resolvePointerTask, presentCurrent, } = current;
+const { writeCurrent, clearCurrent, listReadyBlueprints, resolvePointerTask, presentCurrent, resolveCurrent, CurrentSelectionError, } = current;
 const config = require("./config");
 const { readConfig } = config;
 /**
@@ -34,15 +34,54 @@ function previousPayload(stored) {
 function emitPrevious(io, previous) {
     io.err(`previous: ${JSON.stringify(previous)}\n`);
 }
+function storedCandidate(pointer) {
+    return previousPayload(pointer);
+}
+function isSelectionError(error) {
+    return error instanceof CurrentSelectionError
+        || (typeof error === 'object'
+            && error !== null
+            && 'code' in error
+            && typeof error.code === 'string'
+            && String(error.code).startsWith('CURRENT_'));
+}
+/**
+ * 모호성·충돌·이관 미완료를 종료 코드 1로 내고 상태는 그대로 둔다.
+ * candidates는 저장 구조(task 문자열|null)이며 presentCurrent의 path+id·scale을 넣지 않는다.
+ *
+ * @param {CliIo} io - stdout 싱크
+ * @param {InstanceType<typeof CurrentSelectionError>} error - 선택/이관 오류
+ * @returns {number} 항상 1
+ */
+function emitSelectionFailure(io, error) {
+    const payload = { ok: false, reason: error.code };
+    if (error.candidates) {
+        payload.candidates = error.candidates.map(storedCandidate);
+    }
+    if (error.issues)
+        payload.issues = error.issues;
+    io.out(`${JSON.stringify(payload, null, 2)}\n`);
+    return 1;
+}
+function emitResolutionFailure(io, resolution) {
+    const err = resolution.status === 'ambiguous'
+        ? new CurrentSelectionError({ code: 'CURRENT_AMBIGUOUS', candidates: resolution.candidates })
+        : new CurrentSelectionError({
+            code: 'CURRENT_INVALID',
+            issues: resolution.issues,
+            candidates: resolution.candidates,
+        });
+    return emitSelectionFailure(io, err);
+}
 /**
  * 활성 포인터를 읽거나 `--set`/`--clear`로 바꾼다.
- * 다른 blueprint가 이미 활성인데 `--replace`가 없으면 plan gate·task 해석·쓰기
- * 전에 종료 코드 2로 거절하고 파일을 그대로 둔다. 같은 blueprint의 task/base
- * 갱신은 `--replace` 없이 통과한다.
+ * namespace 전환 뒤 기본 `--set`은 대상 키만 추가·갱신하고 다른 키를 보존한다.
+ * `--replace`는 현재 위치에서 유일하게 선택된 키를 지운 뒤 대상을 쓰며,
+ * 다중 후보에서는 대상을 추측하지 않고 종료 코드 1이다.
  *
  * @param {string[]} rest - `current` 다음 CLI 인자
  * @param {CliIo} io - stdout/stderr 싱크
- * @returns {number} 성공 0, plan/base 실패 1, 사용법·충돌 거절 2
+ * @returns {number} 성공 0, plan/base/모호성 실패 1, 사용법 거절 2
  */
 function cmdCurrent(rest, io) {
     const f = parseFlags(rest);
@@ -80,25 +119,34 @@ function cmdCurrent(rest, io) {
     }
     const repoRoot = (f.repo || process.cwd());
     if (wantsClear) {
-        // set보다 먼저 return. 모순은 위에서 이미 거절했으므로 여기선 포인터만 지운다.
-        clearCurrent({ repoRoot });
+        // set보다 먼저 return. 모순은 위에서 이미 거절했으므로 여기선 선택된 키만 지운다.
+        try {
+            clearCurrent({ repoRoot });
+        }
+        catch (error) {
+            if (isSelectionError(error))
+                return emitSelectionFailure(io, error);
+            throw error;
+        }
         io.out(`${JSON.stringify({ ok: true, current: null }, null, 2)}\n`);
         return 0;
     }
     if (wantsSet) {
         const blueprintDir = f.set;
-        const stored = readCurrent({ repoRoot });
-        // 같은 경로는 task/base 갱신으로 본다. 다른 경로만 덮어쓰기 사고다.
-        // 비교는 저장 문자열 그대로 — 정규화하면 다른 문서가 같은 슬롯으로 보일 수 있다.
         let previous = null;
-        if (stored != null && stored.blueprint !== blueprintDir) {
-            previous = previousPayload(stored);
-            if (!wantsReplace) {
-                // plan gate보다 먼저 거절. 대상 brief를 읽거나 포인터를 쓰면 안 된다.
-                io.err('current: another blueprint is already active; pass --replace to switch\n');
-                emitPrevious(io, previous);
-                io.out(`${JSON.stringify({ ok: false, previous }, null, 2)}\n`);
-                return 2;
+        let replaceKey;
+        const selection = resolveCurrent({ repoRoot });
+        if (selection.status === 'invalid') {
+            return emitResolutionFailure(io, selection);
+        }
+        if (wantsReplace) {
+            // 기준 checkout의 다중 후보는 어느 키를 지울지 추측하지 않는다.
+            if (selection.status === 'ambiguous') {
+                return emitResolutionFailure(io, selection);
+            }
+            if (selection.status === 'selected' && selection.current.blueprint !== blueprintDir) {
+                previous = previousPayload(selection.current);
+                replaceKey = selection.key;
             }
         }
         const result = validateBlueprint({
@@ -162,14 +210,29 @@ function cmdCurrent(rest, io) {
             io.err('current: cannot resolve base (no config.base_branch and HEAD is not a branch)\n');
             return 1;
         }
-        writeCurrent({
-            repoRoot,
+        try {
+            writeCurrent({
+                repoRoot,
+                blueprint: blueprintDir,
+                base,
+                task: resolved.task || undefined,
+                replace: wantsReplace,
+                replaceKey,
+            });
+        }
+        catch (error) {
+            if (isSelectionError(error))
+                return emitSelectionFailure(io, error);
+            throw error;
+        }
+        // 방금 쓴 키를 보여 준다. 위치 기반 재해석은 병렬 추가 뒤 base에서
+        // CURRENT_AMBIGUOUS가 되어 성공한 --set을 실패로 뒤집는다.
+        const stored = {
             blueprint: blueprintDir,
             base,
-            task: resolved.task || undefined,
-        });
-        // 포인터 파일은 path 문자열; 응답 JSON 은 path+id (presentCurrent).
-        const current = presentCurrent(readCurrent({ repoRoot }), { repoRoot });
+            task: typeof resolved.task === 'string' ? resolved.task : null,
+        };
+        const current = presentCurrent(stored, { repoRoot });
         if (previous) {
             emitPrevious(io, previous);
             io.out(`${JSON.stringify({ ok: true, current, previous }, null, 2)}\n`);
@@ -179,18 +242,21 @@ function cmdCurrent(rest, io) {
         }
         return 0;
     }
-    // 없음도 오류가 아닌 상태: 항상 exit 0. unset이면 ready list를 붙여 execute가
+    // 없음도 오류가 아닌 상태: unset이면 ready list를 붙여 execute가
     // "planned but unset"과 "nothing planned"를 구분하게 함.
-    const stored = readCurrent({ repoRoot });
-    if (stored) {
-        const current = presentCurrent(stored, { repoRoot });
+    // 다중 후보·충돌은 상태를 바꾸지 않고 종료 코드 1.
+    const shown = resolveCurrent({ repoRoot });
+    if (shown.status === 'selected') {
+        const current = presentCurrent(shown.current, { repoRoot });
         io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
+        return 0;
     }
-    else {
+    if (shown.status === 'empty') {
         const ready = listReadyBlueprints({ repoRoot });
         io.out(`${JSON.stringify({ ok: true, current: null, ready }, null, 2)}\n`);
+        return 0;
     }
-    return 0;
+    return emitResolutionFailure(io, shown);
 }
 module.exports = {
     current: {
@@ -199,7 +265,8 @@ module.exports = {
              [--clear]
              Show the active blueprint pointer, or set / clear it.
              --task picks a task doc; without it, first ready/in_progress wins.
-             --replace overwrites a different active blueprint; omitted, a conflict exits 2.
+             --replace deletes the uniquely selected key then writes the target; omitted,
+             --set adds a parallel key. --replace at a multi-pointer base exits 1 with CURRENT_AMBIGUOUS.
 `,
     },
 };
