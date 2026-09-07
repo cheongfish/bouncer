@@ -125,24 +125,28 @@ test('init writes the exact config.json shape', () => {
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
+        'bouncer-coordinator': 'inherit',
       },
       cursor: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
+        'bouncer-coordinator': 'inherit',
       },
       codex: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
+        'bouncer-coordinator': 'inherit',
       },
       antigravity: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
+        'bouncer-coordinator': 'inherit',
       },
     },
   });
@@ -750,14 +754,14 @@ test('init does not seed Codex agents without a .codex/ signal', () => {
   assert.notEqual(result.reason, 'codex-agents-seeded');
 });
 
-test('init seeds four Codex tomls when .codex/ already exists', () => {
+test('init seeds five Codex tomls when .codex/ already exists', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
-    'bouncer-context-reviewer',
+    'bouncer-context-reviewer', 'bouncer-coordinator',
   ]) {
     const rel = `.codex/agents/${name}.toml`;
     assert.ok(res.created.includes(rel), `missing ${rel} in created`);
@@ -787,7 +791,7 @@ test('init seeds Codex named-agent toml from plugin markdown', () => {
   const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
-    'bouncer-context-reviewer',
+    'bouncer-context-reviewer', 'bouncer-coordinator',
   ]) {
     const rel = `.codex/agents/${name}.toml`;
     assert.ok(res.created.includes(rel), `missing ${rel} in created`);

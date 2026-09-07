@@ -106,30 +106,36 @@ function defaultConfig(repoRoot) {
         // 보여 준다. 키가 없으면 resolve는 null로 수렴해 동작은 같지만, 사용자가
         // 모델을 고를 자리가 사라진다. 이미 init을 돌린 소비자 config는 건드리지
         // 않는다(부모 세션 상속 = 같은 동작).
+        // run이 위임하는 coordinator도 같은 이유로 슬롯을 갖는다 — drive 전체를
+        // 끌고 가는 역할이라 worker와 다른 모델을 고르고 싶을 수 있다.
         subagents: {
             claude: {
                 'bouncer-reviewer': 'inherit',
                 'bouncer-implementer': 'inherit',
                 'bouncer-debugger': 'inherit',
                 'bouncer-context-reviewer': 'inherit',
+                'bouncer-coordinator': 'inherit',
             },
             cursor: {
                 'bouncer-reviewer': 'inherit',
                 'bouncer-implementer': 'inherit',
                 'bouncer-debugger': 'inherit',
                 'bouncer-context-reviewer': 'inherit',
+                'bouncer-coordinator': 'inherit',
             },
             codex: {
                 'bouncer-reviewer': 'inherit',
                 'bouncer-implementer': 'inherit',
                 'bouncer-debugger': 'inherit',
                 'bouncer-context-reviewer': 'inherit',
+                'bouncer-coordinator': 'inherit',
             },
             antigravity: {
                 'bouncer-reviewer': 'inherit',
                 'bouncer-implementer': 'inherit',
                 'bouncer-debugger': 'inherit',
                 'bouncer-context-reviewer': 'inherit',
+                'bouncer-coordinator': 'inherit',
             },
         },
     };

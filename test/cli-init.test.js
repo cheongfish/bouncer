@@ -50,6 +50,8 @@ test('cli init --seed-codex-agents writes named-agent toml', () => {
   const body = parseOut(buf);
   assert.ok(body.created.some((p) => p.startsWith('.codex/')));
   assert.ok(fs.existsSync(path.join(repo, '.codex/agents/bouncer-reviewer.toml')));
+  // coordinator는 named dispatch가 없는 host에서도 같은 역할 사본을 읽어야 한다.
+  assert.ok(fs.existsSync(path.join(repo, '.codex/agents/bouncer-coordinator.toml')));
 });
 
 test('cli init --write-gitignore writes the marker block', () => {

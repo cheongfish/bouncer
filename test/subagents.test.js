@@ -23,18 +23,21 @@ const SAMPLE = {
       'bouncer-implementer': 'inherit',
       'bouncer-debugger': 'claude-sonnet-4-6',
       'bouncer-context-reviewer': 'claude-opus-4-6',
+      'bouncer-coordinator': 'claude-opus-4-6',
     },
     cursor: {
       'bouncer-reviewer': 'composer-2.5-fast',
       'bouncer-implementer': 'inherit',
       'bouncer-debugger': 'inherit',
       'bouncer-context-reviewer': 'inherit',
+      'bouncer-coordinator': 'inherit',
     },
     codex: {
       'bouncer-reviewer': 'gpt-5.3-codex',
       'bouncer-implementer': 42,
       'bouncer-debugger': 'gpt-5.3-codex',
       'bouncer-context-reviewer': 'gpt-5.3-codex',
+      'bouncer-coordinator': 42,
     },
   },
 };
@@ -332,4 +335,69 @@ test('missing config / broken JSON / missing subagents do not throw', () => {
     }),
     { model: null, provider: 'cursor' },
   );
+});
+
+// coordinator도 다른 named dispatch와 같은 rules/subagent-model.md 계약을 쓴다.
+// 슬롯이 없거나 inherit/비문자열이면 model 인자를 생략해 부모 세션을 상속한다.
+test('resolveSubagentModel returns provider values for bouncer-coordinator', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, SAMPLE);
+  assert.deepStrictEqual(
+    resolveSubagentModel({
+      repoRoot: repo,
+      agentName: 'bouncer-coordinator',
+      provider: 'claude',
+    }),
+    { model: 'claude-opus-4-6', provider: 'claude' },
+  );
+  assert.deepStrictEqual(
+    resolveSubagentModel({
+      repoRoot: repo,
+      agentName: 'bouncer-coordinator',
+      provider: 'cursor',
+    }),
+    { model: null, provider: 'cursor' },
+  );
+  // 비문자열 값은 대체 모델 요청이 아니라 상속이다.
+  assert.deepStrictEqual(
+    resolveSubagentModel({
+      repoRoot: repo,
+      agentName: 'bouncer-coordinator',
+      provider: 'codex',
+    }),
+    { model: null, provider: 'codex' },
+  );
+});
+
+test('resolveSubagentModel miss for bouncer-coordinator yields null model', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, {
+    subagents: {
+      claude: { 'bouncer-reviewer': 'claude-opus-4-6' },
+    },
+  });
+  assert.deepStrictEqual(
+    resolveSubagentModel({
+      repoRoot: repo,
+      agentName: 'bouncer-coordinator',
+      provider: 'claude',
+    }),
+    { model: null, provider: 'claude' },
+  );
+});
+
+// 슬러그 거절 재시도와 named-agent 부재 fallback 모두 같은 coordinator 역할을
+// 넘겨야 한다. 계약이 model 규칙에만 있고 fallback brief를 줄이면, 위임받은
+// 쪽이 worktree guard 없이 drive를 시작한다.
+test('coordinator dispatch shares the model contract and keeps its full fallback brief', () => {
+  const contract = fs.readFileSync(
+    path.join(__dirname, '..', 'rules/subagent-model.md'), 'utf8',
+  );
+  assert.match(contract, /bouncer-coordinator/);
+  assert.match(contract, /rejected model slug[\s\S]{0,120}`inherit`/i);
+  assert.match(contract, /named agents are unavailable/i);
+  const coordinatorClause = contract.match(/`\/bouncer-run` resolves[\s\S]*?(?=\n\n)/)?.[0] || '';
+  assert.match(coordinatorClause, /whole coordinator role/i);
+  assert.match(coordinatorClause, /worktree write boundary/i);
+  assert.match(coordinatorClause, /never a shortened\s+brief/i);
 });

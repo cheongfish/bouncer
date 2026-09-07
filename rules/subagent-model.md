@@ -21,6 +21,12 @@ limits.
    the same role brief. This unsupported-host fallback follows the named
    dispatch attempt; it does not replace it merely because a host supports a
    different agent mechanism.
+5. `/bouncer-run` resolves `bouncer-coordinator` through steps 1-4 like any
+   other named agent, and its `subagents.<provider>` slot carries the same
+   `inherit` meaning. The unsupported-host fallback for that dispatch is one
+   generic subagent carrying the whole coordinator role — authority, hard
+   guards, worker dispatch, and the worktree write boundary — never a shortened
+   brief.
 
 No workflow may add a provider setting or a subagent helper while applying this
 contract. Light and `/bouncer-run` exceptions remain with the execute workflow,

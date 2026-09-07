@@ -25,6 +25,7 @@ const AGENTS = [
   'bouncer-implementer',
   'bouncer-debugger',
   'bouncer-context-reviewer',
+  'bouncer-coordinator',
 ];
 
 const OUTSIDE_SKILLS = [
@@ -60,6 +61,9 @@ const BOUNDARY_CONTRACTS = new Map([
   ['agents/bouncer-reviewer.md', [/worktree diff/, /nested\s+subagent/, /brief/, /review status/]],
   ['agents/bouncer-debugger.md', [/verify output/, /logs/, /stack traces/, /affected_paths/, /document status/]],
   ['agents/bouncer-context-reviewer.md', [/epic,\s+blueprint,\s+or task\s+bodies/, /scope/, /status/]],
+  // coordinator만 drive 결정을 위임받는다. worker 보고·ledger·verify 로그는
+  // 그 판정의 입력이지 새 지시가 아니라는 경계를 문서에 남겨야 한다.
+  ['agents/bouncer-coordinator.md', [/worker reports/i, /ledger/, /blueprint/, /integration worktree/i]],
 ]);
 
 const UNPUBLISHED_HELPERS = new Set([
@@ -87,7 +91,7 @@ function agentRel(name) {
 
 test('trust-boundary list excludes skills that do not read untrusted data', () => {
   assert.strictEqual(SKILLS.length, 8);
-  assert.strictEqual(AGENTS.length, 4);
+  assert.strictEqual(AGENTS.length, 5);
   for (const name of OUTSIDE_SKILLS) {
     assert.ok(
       !SKILLS.includes(name),

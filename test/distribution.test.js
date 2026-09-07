@@ -68,6 +68,7 @@ test('the package contains only the plugin runtime surface and host manifests', 
   const files = packageFiles();
   const required = [
     'agents/bouncer-reviewer.md',
+    'agents/bouncer-coordinator.md',
     'hooks/hooks.json',
     'references/implementation/index.md',
     'rules/governance.md',
