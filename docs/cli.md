@@ -18,7 +18,7 @@
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer project-root [--repo <dir>]` | 소비 저장소 main worktree 절대 경로 한 줄(stdout만). primary·linked worktree에서 같은 값. 비-Git이면 stderr + 종료 코드 1(빈 stdout·cwd 대체 없음) |
 | `bouncer distill --for <path> [--json]` | 대상 경로에 맞는 Distill 본문을 출력. `--all`은 routing 설정과 무관하게 전량 본문을 출력하고, `--preflight`는 `always` 샤드 본문과 등록 인벤토리만, `--route <path>`는 선택 JSON, `--audit`는 전량 감사 JSON을 출력 |
-| `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>] [--replace]] [--clear]` | 활성 포인터 읽기 / 기록 / 지우기. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); `scale`은 호출 시점에 blueprint `index.md`의 `bouncer.scale`에서 파생한 문자열(없거나 읽을 수 없으면 `null`). 포인터 파일은 `{ blueprint, task?, base }`만 저장. 없으면 `ready` 후보. 다른 활성 blueprint가 있으면 `--replace` 없이 `--set`하지 못하고 종료 코드 2로 거절한다. 기존 포인터는 한 바이트도 바꾸지 않으며, stdout JSON과 stderr의 `previous`에 `{ blueprint, base, task }`를 남긴다. `--replace`로 교체한 성공 payload에도 같은 `previous`를 싣는다. 같은 blueprint의 task/base 갱신은 `--replace` 없이 허용한다. `--replace`만 쓰거나 `--clear`와 함께 쓰면 사용법 오류다. |
+| `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>] [--replace]] [--clear]` | 위치별 활성 포인터 읽기 / 기록 / 지우기. 저장 경로는 Git common directory의 `pointers/<epic-id>/<blueprint-id>.json`이고 본문은 `{ blueprint, task?, base }`. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); `scale`은 호출 시점에 blueprint `index.md`의 `bouncer.scale`에서 파생한 문자열(없거나 읽을 수 없으면 `null`). 없으면 `ready` 후보. 기본 `--set`은 대상 namespace key를 추가·갱신하고 다른 key를 보존한다. `--replace`는 현재 위치에서 유일하게 선택된 key를 지운 뒤 대상을 쓰며, 성공 payload의 stdout JSON과 stderr `previous`에 `{ blueprint, base, task }`를 싣는다. 기준 checkout에 포인터가 둘 이상이면 읽기·`--replace` 모두 `CURRENT_AMBIGUOUS`와 정렬된 `candidates`로 종료 코드 1이며 어느 쪽도 추측하지 않는다. `--clear`는 현재 선택된 key만 지운다. `--replace`만 쓰거나 `--clear`와 함께 쓰면 사용법 오류다. |
 | `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
 | `bouncer import [--source merges\|commits] [--since <ref>] [--limit <n>] [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]` | git 히스토리를 `imported` epic/blueprint 문서로 전사. 기본은 dry-run(계획 JSON만 출력). `--yes --message`일 때만 파일을 쓰고 커밋 하나로 남김 |
 
@@ -34,6 +34,19 @@ description으로 색인 행만 동기화한다.
 거절한다. 값이 `index.md`의 `bouncer.scale`에 그대로 남으므로, 뒤에 붙이는
 `scaffold task`도 같은 세트를 따른다. 두 경로의 게이트 차이는
 [gates.md](gates.md)에 있다.
+
+`current`는 cwd로 고른다. 중첩 execute worktree(`.worktrees/<epic-id>/<blueprint-id>`)와
+유일하게 대응하는 레거시 평면 worktree(`.worktrees/<blueprint-id>`)에서는 그
+blueprint의 namespace 포인터만 반환한다. 기준 checkout에서는 포인터가 하나일 때만
+선택한다. 성공 표시는 `{ blueprint, base, task, scale }`이고, 모호성·충돌 payload의
+`candidates`는 저장 본문과 같은 `{ blueprint, base, task }`(문자열 또는 `null`)이며
+`scale`을 넣지 않는다.
+
+레거시 파일 `<git-common-dir>/bouncer/current`는 계속 읽는다. 첫 `--set`은 충돌이
+없을 때 대상 namespace로 옮기고 레거시를 지운다. 레거시와 namespace가 다른
+blueprint를 가리키면 `CURRENT_INVALID`로 둘 다 보고하고 어느 쪽도 수정하지 않는다.
+레거시 삭제만 실패한 `--set`은 namespace 사본을 남긴 채
+`CURRENT_MIGRATION_INCOMPLETE`다.
 
 모든 명령이 `--repo <dir>`로 다른 저장소를 대상으로 실행할 수 있습니다.
 

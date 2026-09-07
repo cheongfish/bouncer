@@ -1,8 +1,8 @@
 # 감사 부채 처리 결정 (B7–B11)
 
-감사에서 나온 B7–B11의 처분이다. B8은 이 blueprint의 task 001에서 고쳤고,
-B7·B9·B10·B11은 기존 계약을 유지하는 의식적 결정이다. 새 게이트·설정·병렬
-런타임 상태를 약속하지 않는다.
+감사에서 나온 B7–B11의 처분이다. B8은 선행 blueprint에서 고쳤고, B11은
+epic 064 blueprint 002에서 namespace 포인터로 해소했다. B7·B9·B10은 기존
+계약을 유지하는 의식적 결정이다. 새 게이트나 설정 키는 약속하지 않는다.
 
 | ID | 상태 | 결정 | 근거 | 완화책 | 재검토 조건 |
 | --- | --- | --- | --- | --- | --- |
@@ -10,7 +10,7 @@ B7·B9·B10·B11은 기존 계약을 유지하는 의식적 결정이다. 새 �
 | B8 | 수정 | 명령어 위치의 `"git"`·`g"it"`을 git 실행으로 탐지한다. 인자 자리 인용은 명령으로 오인하지 않는다 | task 001이 재현 입력을 회귀 테스트로 고정했다 | 커밋 가드는 실수 방지용이다. 완전한 셸 파서·악의적 우회는 범위 밖이다 | 새 인용·확장 우회가 실수 경로로 재현되고 기존 오탐 계약을 깨지 않을 때 |
 | B9 | 유지 | G9·G15·S14는 호환성 기록용 결번으로 둔다. 재사용하지 않는다 | [`compatibility.md`](compatibility.md)와 [`gates.md`](gates.md)가 결번을 공개 표면에 고정했다. 번호를 다시 쓰면 구 문서·진단이 새 의미와 충돌한다 | 결번을 문서에 명시하고 현재 검사 집합과 대조한다 | 호환성 **major** 버전에서만 재검토한다 |
 | B10 | 유지 | 식별자·계약 단언은 유지한다. 문구 결합 테스트는 해당 문서를 고치는 커밋에서 ADR G 규칙으로 옮긴다 | [`ARCHITECTURE.md`](ARCHITECTURE.md) ADR G: 일괄 재작성은 실제 계약을 지울 위험이 이득보다 크다 | 손대는 파일만 식별자 존재 단언으로 옮긴다. 비율·완료율을 새 수치로 단언하지 않는다 | ADR G를 바꾸거나, 특정 문서 묶음의 문구 결합 테스트가 회귀 비용으로 명시될 때 |
-| B11 | 유지 | 저장소(git common directory)당 활성 blueprint는 하나다. 병렬 사이클은 독립 clone에서 돌린다 | 포인터와 verify 원장이 common directory를 공유한다. linked worktree끼리 `current --set`과 원장이 덮인다 | 운영 완화: 독립 clone. linked worktree는 공유 상태를 유지한다 | 포인터·원장을 namespaced하는 **별도 설계가 승인**될 때만 재검토한다 |
+| B11 | 해소 | 활성 포인터는 `pointers/<epic-id>/<blueprint-id>.json`으로 분리하고 cwd로 선택한다. 기준 checkout의 다중 후보는 중단한다 | linked worktree는 Git common directory를 공유하지만, namespace key와 위치별 선택이 서로 다른 실행 주기를 덮지 않는다. verify 원장은 원래 task digest로 갈려 있어 이번 해소 범위가 아니다 | 없음. 독립 clone은 더 이상 병렬 실행의 전제가 아니다 | 포인터 키 설계를 바꾸거나, 원장 경로를 재설계할 별도 승인이 있을 때 |
 
 ## B7 — finalize 이해 확인
 
@@ -59,14 +59,14 @@ ADR G(2026-07-27)를 유지한다.
 감사 시점의 비율(약 22% 등)은 당시 측정일 뿐이다. 이 문서는 새 비율을
 완료 수치로 내놓지 않는다. 이행은 여전히 점진적이다.
 
-## B11 — 저장소당 활성 blueprint 하나
+## B11 — 활성 포인터 namespace (해소)
 
-활성 포인터(`…/bouncer/current`)와 verify 원장(`…/bouncer/verify/<digest>.json`)은
-git common directory에 있다. linked worktree는 그 디렉터리를 공유하므로 한
-저장소에서 두 blueprint 사이클을 동시에 돌리면 포인터·원장이 덮인다.
+epic 064 blueprint 002가 승인·구현한 계약이다. 활성 포인터는
+`<git-common-dir>/bouncer/pointers/<epic-id>/<blueprint-id>.json`에 두고,
+execute worktree cwd는 대응하는 key만 고른다. 기준 checkout에 키가 둘 이상이면
+`CURRENT_AMBIGUOUS`로 후보만 보고 중단한다. 레거시 `…/bouncer/current`는 충돌
+없는 첫 `--set`에서 namespace로 이관한다.
 
-완화는 독립 clone이다. clone끼리는 common directory를 공유하지 않는다. 이
-문서는 namespaced 포인터·원장이나 저장소 내부 병렬 상태를 추가하겠다고
-약속하지 않는다.
-
-재검토는 포인터와 원장을 namespaced하는 설계가 **별도로 승인**된 뒤에만 한다.
+verify 원장(`…/bouncer/verify/<digest>.json`)은 원래 verification 문서 경로
+digest로 task별 파일이라, 이번 해소는 포인터만 바꾼다. 독립 clone을 병렬
+전제로 두지 않는다.

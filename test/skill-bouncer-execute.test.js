@@ -300,3 +300,34 @@ test('bouncer-execute loads debugging only on the verify-failure recovery path',
   assert.doesNotMatch(preamble, /minimality\/index\.md/);
   assert.doesNotMatch(preamble, /Root cause → Pattern → Hypothesis → Implementation/);
 });
+
+// 실행 시작 경고와 모호성·레거시 충돌 중단은 step 1 계약이다. 다중 후보는
+// null이 아니다. compact 한 줄은 selected만, debug JSON도 이 슬라이스만 본다.
+// 본문 전체 /debug/i는 뒤쪽 debugger 토큰에 이미 통과한다.
+test('bouncer-execute step 1 warns the selected pointer and stops on CURRENT_AMBIGUOUS', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step1At = body.indexOf('1. **Read the pointer.**');
+  const step1 = body.slice(step1At, body.indexOf('2. **Worktree.**'));
+  assert.ok(step1At >= 0, 'step 1 owns pointer read');
+  assert.match(step1, /\bbouncer\s+current\b/);
+  assert.match(step1, /blueprint/);
+  assert.match(step1, /\btask\b/);
+  assert.match(step1, /\bbase\b/);
+  assert.match(step1, /Git common directory/);
+  assert.match(step1, /CURRENT_AMBIGUOUS/);
+  assert.match(step1, /CURRENT_INVALID/);
+  assert.match(step1, /stop|중단/i);
+  assert.doesNotMatch(step1, /CURRENT_AMBIGUOUS[\s\S]{0,120}current(?:`|\s+is)?\s*`?null/i);
+  assert.doesNotMatch(step1, /scripts\/lib\/current|bouncer\/pointers/);
+  assert.match(step1, /debug/i);
+  assert.match(step1, /`selected`[\s\S]{0,200}\{ blueprint, task, base \}/);
+  assert.match(step1, /null[\s\S]{0,160}no selection|no selection[\s\S]{0,80}null/i);
+});
+
+test('bouncer-execute uses the worktree-local CLI pointer and does not share one pointer across linked worktrees', () => {
+  const { body } = parseFrontmatter(mainMd);
+  assert.match(body, /worktree-local|corresponding namespace|cwd[\s\S]{0,80}bouncer current/i);
+  assert.doesNotMatch(body, /observe the main worktree's\s+active pointer/);
+  assert.doesNotMatch(body, /linked worktree[\s\S]{0,80}same CLI result|same CLI result[\s\S]{0,80}worktree/i);
+  assert.doesNotMatch(body, /scripts\/lib\/current/);
+});

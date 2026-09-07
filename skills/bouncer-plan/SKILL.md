@@ -23,6 +23,16 @@ otherwise run **ACQ — Request** before scaffolding (ask for the request).
 **Preflight.** If `.bouncer/` is missing, stop and tell the user to run
 `/bouncer-init` first.
 
+Run `bouncer current`. Compact output follows that result:
+- `selected`: state the selected `{ blueprint, task, base }` and that the
+  Git common directory may hold other namespace pointers, in one sentence.
+- `null`: say there is no selection. Do not announce a `{ blueprint, task, base }`
+  as selected.
+A `CURRENT_AMBIGUOUS` or legacy-conflict (`CURRENT_INVALID`) result stops
+the workflow; do not pick a candidate or treat the result as `null`. This
+warning is not an ACQ and does not replace Approval or later
+confirm-then-set. Emit the raw JSON only when the user asks for `debug`.
+
 **Project root.** Resolve the consuming project's main worktree before Distill:
 ```bash
 PROJECT_ROOT="$(bouncer project-root)"
@@ -223,13 +233,14 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    `bouncer.status`: epic `draft → approved`, blueprint `draft → approved`, tasks
    `draft → ready`. Never approve silently.
 
-9. **Pointer.** Record the active blueprint:
+9. **Pointer.** Record the approved blueprint's namespace key:
    ```bash
    bouncer current --set <blueprint dir>
    ```
-   This is the approved initial-pointer application of the shared
-   `rules/current-pointer.md` contract; its `--set` plan-gate refusal stops
-   this workflow.
+   Default `--set` adds or updates that key and leaves other namespace
+   pointers in place. This is the approved initial-pointer application of the
+   shared `rules/current-pointer.md` contract; its `--set` plan-gate refusal
+   stops this workflow.
 
 10. **Gate.** Run `bouncer validate --gate plan` and render its result through
    `rules/output.md`:
