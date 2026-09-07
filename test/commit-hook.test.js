@@ -447,3 +447,134 @@ test('realTrackedModified lists names from git diff HEAD --name-only', () => {
   assert.deepStrictEqual(realTrackedModified({ repoRoot: repo }), ['tracked.txt']);
 });
 
+
+// --- coordinator mode -------------------------------------------------------
+
+const { coordinate } = require('../scripts/lib/coordinator');
+
+const COORD_BP = '.bouncer/context/epics/041-x/blueprints/042-y';
+
+function coordinatorFixture(blueprint = COORD_BP) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-coord-'));
+  const run = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  run(['init', '-b', 'work', '--quiet']);
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'tasks', '001', 'tasks.md'),
+    '---\nbouncer:\n  id: TASKS-001\n  status: verified\n  affected_paths:\n    - src/\n---\n# Tasks\n',
+  );
+  fs.writeFileSync(path.join(repo, 'README'), 'base\n');
+  run(['add', '-A']);
+  run(['commit', '-m', 'base']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  writeCurrent({
+    repoRoot: repo,
+    blueprint,
+    base: 'work',
+    task: `${blueprint}/tasks/001/tasks.md`,
+  });
+  return { repo, integrationPath: boot.integrationPath, worker: prepared.tasks[0].workerPath };
+}
+
+test('a live coordinator ledger refuses a main-worktree commit and allows the assigned worker', () => {
+  const { repo, worker } = coordinatorFixture();
+  const staged = { stagedFiles: () => ['src/a.ts'], trackedModified: () => [] };
+
+  const fromMain = evaluateCommit({ command: 'git commit -m x', repoRoot: repo, deps: staged });
+  assert.strictEqual(fromMain.block, true);
+  assert.match(fromMain.reason, /main-worktree-source-write/);
+
+  const fromWorker = evaluateCommit({ command: 'git commit -m x', repoRoot: worker, deps: staged });
+  assert.deepStrictEqual(fromWorker, { block: false });
+});
+
+test('an unreadable ledger names the file that is blocking every checkout', () => {
+  const { repo, worker } = coordinatorFixture('.bouncer/context/epics/045-x/blueprints/046-y');
+  const ledgerFile = path.join(
+    repo, '.worktrees', '045', '046', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  fs.writeFileSync(ledgerFile, '{ truncated');
+  const r = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: worker,
+    deps: { stagedFiles: () => ['src/a.ts'], trackedModified: () => [] },
+  });
+  assert.strictEqual(r.block, true);
+  assert.match(r.reason, /unreadable-ledger/);
+  assert.ok(r.reason.includes(ledgerFile), r.reason);
+});
+
+test('a coordinator worktree without a ledger is not silently treated as in scope', () => {
+  const { repo, worker } = coordinatorFixture('.bouncer/context/epics/043-x/blueprints/044-y');
+  fs.rmSync(
+    path.join(repo, '.worktrees', '043', '044', 'integration', '.bouncer', 'runtime', 'coordinator.json'),
+  );
+  const r = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: worker,
+    deps: { stagedFiles: () => ['src/a.ts'], trackedModified: () => [] },
+  });
+  assert.strictEqual(r.block, true);
+  assert.match(r.reason, /missing-coordinator-ledger/);
+});
+
+function coordinatorDeps({ current, affected, staged, coordinator }) {
+  return {
+    readCurrent: () => current,
+    readAffectedPaths: () => affected,
+    stagedFiles: () => staged,
+    trackedModified: () => [],
+    mainRepoCurrent: () => null,
+    coordinatorContext: () => coordinator,
+  };
+}
+
+test('the hook judges staged paths against the coordinator ledger scope', () => {
+  const current = { blueprint: BP, base: 'develop', task: `${BP}/tasks/001/tasks.md` };
+  const widened = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: '/r',
+    deps: coordinatorDeps({
+      current,
+      affected: ['src/feature'],
+      staged: ['src/discovered/a.js'],
+      coordinator: { active: true, reason: null, scope: ['src/discovered'], revision: 'r1' },
+    }),
+  });
+  assert.strictEqual(widened.block, false);
+
+  const stale = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: '/r',
+    deps: coordinatorDeps({
+      current,
+      affected: ['src/feature'],
+      staged: ['src/feature/a.js'],
+      coordinator: { active: true, reason: 'stale-revision', scope: ['src/feature'], revision: 'r2' },
+    }),
+  });
+  assert.strictEqual(stale.block, true);
+  assert.match(stale.reason, /stale-revision/);
+  assert.match(stale.reason, /src\/feature\/a\.js/);
+});
+
+test('a boundary block with an empty staged list reports the checkout, not a bare colon', () => {
+  const r = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: '/r',
+    deps: coordinatorDeps({
+      current: { blueprint: BP, base: 'develop', task: `${BP}/tasks/001/tasks.md` },
+      affected: ['src/feature'],
+      staged: [],
+      coordinator: { active: true, reason: 'main-worktree-source-write', scope: null },
+    }),
+  });
+  assert.strictEqual(r.block, true);
+  assert.match(r.reason, /main-worktree-source-write: no staged path in \/r/);
+  assert.doesNotMatch(r.reason, /: $/);
+});

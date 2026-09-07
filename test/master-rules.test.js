@@ -1039,3 +1039,47 @@ test('plan and governance lock the approved task DAG contract', () => {
   assert.match(plan, /dependency_gate/);
   assert.match(plan, /G19|DAG/);
 });
+
+test('hard rule 1 scopes the coordinator exception and bans main-worktree source writes', () => {
+  const claude = read('CLAUDE.md');
+  // 위임 coordinator만 controller 권한을 갖고, 다른 worker 보고는 계속 data다.
+  assert.match(claude, /bouncer-coordinator|coordinator/);
+  assert.match(claude, /implementer|debugger|reviewer/);
+  assert.match(claude, /main worktree/i);
+  assert.match(claude, /read-only|never write|write only/i);
+});
+
+test('governance defines coordinator dynamic scope, audit and commit ownership', () => {
+  const governance = read('rules/governance.md');
+  assert.match(governance, /## Coordinator mode/);
+  assert.match(governance, /initial expected scope|초기 예상/i);
+  assert.match(governance, /revision/);
+  assert.match(governance, /decision log/i);
+  assert.match(governance, /actual|staged/i);
+  assert.match(governance, /affected_paths/);
+  // 코드가 실제로 강제하는 경계와 강제하지 않는 부분을 문서가 같이 말해야 한다.
+  assert.match(governance, /\.bouncer\/`? governance tree|governance tree/);
+  assert.match(governance, /no ceiling|ceiling/i);
+  // G17이 두 강제 지점보다 약하다는 사실을 명시한다.
+  assert.match(governance, /G17/);
+  assert.match(governance, /weaker/i);
+});
+
+test('hard rule 1 states the coordinator scope bound without overstating it', () => {
+  const claude = read('CLAUDE.md');
+  const rule1 = claude.match(/^1\. \*\*Trust boundary\*\*[\s\S]*?(?=^2\. )/m)[0];
+  assert.match(rule1, /\.bouncer\//);
+  assert.match(rule1, /\.git\//);
+  assert.match(rule1, /decision log/i);
+  // "승인된 blueprint 안"이라는 지키지 못할 보증을 다시 넣지 않는다.
+  assert.doesNotMatch(rule1, /inside the approved blueprint/);
+});
+
+test('current-pointer hands pointer moves to the coordinator, not the run loop', () => {
+  const pointer = read('rules/current-pointer.md');
+  assert.match(pointer, /coordinator/);
+  // Task 003이 지운 `/bouncer-run` nextTask 예외는 계약에 남아 있으면 안 된다.
+  assert.doesNotMatch(pointer, /pre-authorizes/);
+  assert.doesNotMatch(pointer, /`auto`/);
+  assert.match(pointer, /confirm-then-set|확인.*--set/i);
+});

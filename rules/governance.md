@@ -116,8 +116,47 @@ shapes and enum values. The approved DAG at plan time is the initial
 baseline for later coordinator revision; it does not freeze runtime ledger
 state.
 
-Under coordinator-owned execution, `affected_paths` is the **initial expected
-scope** recorded at approval — not an immutable authority for the whole drive.
-Commit safety then audits the current task scope and actual changed paths the
-coordinator records. Until that coordinator mode is active, plan and commit
-gates still treat the approved `affected_paths` as the change boundary.
+Under coordinator-owned execution the approved `affected_paths` is an initial
+estimate the coordinator may revise — see **Coordinator mode** below.
+
+## Coordinator mode
+
+A drive delegated to `bouncer-coordinator` runs from an integration worktree
+with one assigned worktree per open task. In that mode `affected_paths` is the
+**initial expected scope** recorded at approval, and the coordinator ledger
+(`.bouncer/runtime/coordinator.json` inside the integration worktree) carries
+the current task scope, its `revision`, and an append-only decision log.
+
+- **Dynamic plan** — a scope revision moves the task document and the ledger to
+  one shared `revision` and is refused without a reason. Each revision appends a
+  decision naming the task, the reason, and the previous and next paths, and the
+  read-modify-write is serialized so concurrent workers cannot mint one revision
+  twice or drop a log entry. A task document whose `scope_revision` disagrees
+  with the ledger is stale, and commit safety refuses the commit rather than
+  guessing which side is current; so does a ledger it cannot read, and a pointer
+  task the ledger does not carry.
+- **What a revision may name** — repository source paths only. Absolute paths,
+  paths escaping the repository, whole-tree spellings, `.git/`, and the
+  `.bouncer/` governance tree are refused. Inside that boundary there is no
+  ceiling: a newly discovered source path is accepted on the coordinator's word,
+  and the append-only decision log — not a path limit — is what makes the
+  widening reviewable. Judge revisions at review time accordingly.
+- **Scope audit** — commit safety judges the actual staged paths against the
+  ledger's current scope instead of the approval snapshot, and refuses a commit
+  made in the main worktree, outside the task's assigned worktree, on a stale
+  revision, or with the ledger missing. A completed commit records the paths it
+  actually carried back into the ledger beside the initial estimate.
+- **Commit ownership** — a task commit is still one task bundle, and it belongs
+  to the worktree the coordinator assigned; the main checkout stays read-only
+  provenance for the whole drive. Workers report; only the coordinator revises
+  scope, moves the pointer, and records the judgment behind either.
+
+The commit gate is the weaker of the three layers. **G17** judges staged paths
+against the task document alone and reads no ledger, so it accepts a stale
+revision, a main-worktree commit, and an unassigned worktree that `bouncer
+commit` and the `commit-safety` hook both refuse. The CLI and the hook are the
+enforcement points; treat a passing commit gate as a document-level check, not
+as coordinator authorization.
+
+Without a coordinator ledger nothing above applies: plan and commit gates treat
+the approved `affected_paths` as the change boundary exactly as before.

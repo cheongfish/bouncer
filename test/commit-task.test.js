@@ -401,3 +401,280 @@ test('gate failure returns validate reason without staging', () => {
   assert.ok(res.failures.some((f) => f.code === 'G6'));
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
 });
+
+// --- coordinator mode -------------------------------------------------------
+
+const { coordinate } = require('../scripts/lib/coordinator');
+const { coordinatorContext, reviseTaskScope } = require('../scripts/lib/scope');
+
+/**
+ * bootstrap + prepare 로 실제 worktree를 연 뒤, 할당된 worker 안에서 commit
+ * 게이트가 열리도록 문서 묶음을 다시 쓴다. seed는 계획 문서만 옮기므로
+ * 검증 원장은 worker 경로로 다시 기록한다.
+ */
+function coordinatorFixture({ blueprint = BP_REL, extraOpenTask = false } = {}) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-commit-coord-'));
+  fullBlueprint(repo, { blueprintDir: blueprint, extraOpenTask });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  const worker = prepared.tasks[0].workerPath;
+  fullBlueprint(worker, { blueprintDir: blueprint, withGit: false, extraOpenTask });
+  return { repo, worker, integrationPath: boot.integrationPath, blueprint };
+}
+
+test('reviseTaskScope moves ledger and task document to one revision with a recorded reason', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+
+  const noReason = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/', 'src/session/'], reason: '',
+  });
+  assert.deepStrictEqual(noReason, { ok: false, reason: 'decision-reason-required' });
+
+  const revised = reviseTaskScope({
+    repoRoot: worker,
+    blueprint,
+    task: '001',
+    paths: ['src/auth/', 'src/session/'],
+    reason: 'session token write discovered while implementing login',
+  });
+  assert.strictEqual(revised.ok, true);
+  assert.strictEqual(revised.revision, 'r1');
+
+  const doc = yaml.load(
+    fs.readFileSync(path.join(worker, blueprint, 'tasks/001/tasks.md'), 'utf8')
+      .replace(/^---\n|\n---\n[\s\S]*$/g, ''),
+  );
+  assert.deepStrictEqual(doc.bouncer.affected_paths, ['src/auth/', 'src/session/']);
+  assert.strictEqual(doc.bouncer.scope_revision, 'r1');
+
+  const ctx = coordinatorContext({ repoRoot: worker, blueprint, task: '001' });
+  assert.strictEqual(ctx.active, true);
+  assert.strictEqual(ctx.reason, null);
+  assert.strictEqual(ctx.revision, 'r1');
+  assert.deepStrictEqual(ctx.scope, ['src/auth/', 'src/session/']);
+
+  const ledgerFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  const entry = ledger.decisions.find((d) => d.kind === 'scope');
+  assert.strictEqual(entry.task, '001');
+  assert.strictEqual(entry.revision, 'r1');
+  assert.deepStrictEqual(entry.previous, ['src/auth/']);
+  assert.deepStrictEqual(entry.next, ['src/auth/', 'src/session/']);
+  assert.match(entry.reason, /session token/);
+
+  // append-only: 두 번째 판단이 첫 판단을 덮지 않는다.
+  const again = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'session write reverted',
+  });
+  assert.strictEqual(again.revision, 'r2');
+  const after = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  assert.strictEqual(after.decisions.filter((d) => d.kind === 'scope').length, 2);
+});
+
+test('reviseTaskScope refuses the main worktree and an unknown task', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  assert.deepStrictEqual(
+    reviseTaskScope({ repoRoot: repo, blueprint, task: '001', paths: ['src/'], reason: 'r' }),
+    { ok: false, reason: 'main-worktree-source-write' },
+  );
+  // 009는 이 worker에 할당된 task가 아니다 — 원장을 열기 전에 위치부터 거절한다.
+  assert.deepStrictEqual(
+    reviseTaskScope({ repoRoot: worker, blueprint, task: '009', paths: ['src/'], reason: 'r' }),
+    { ok: false, reason: 'unassigned-worktree' },
+  );
+  // 권한 없는 호출이 runtime 트리나 잠금 파일을 먼저 만들지 않는다.
+  const strayLock = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
+  );
+  assert.strictEqual(fs.existsSync(strayLock), false);
+});
+
+test('reviseTaskScope refuses a task the ledger does not carry', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const ledgerFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks = [];
+  fs.writeFileSync(ledgerFile, JSON.stringify(ledger));
+  assert.deepStrictEqual(
+    reviseTaskScope({ repoRoot: worker, blueprint, task: '001', paths: ['src/'], reason: 'r' }),
+    { ok: false, reason: 'task-outside-blueprint' },
+  );
+});
+
+test('a coordinator commit returns actual paths, provenance SHAs and the next ready wave', () => {
+  // 002는 sequential 이라 prepare가 열지 않는다 — 커밋 뒤 ready wave의 다음 항목.
+  const { worker, blueprint } = coordinatorFixture({ extraOpenTask: true });
+  writeCurrent({
+    repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
+  });
+  const g = trackingGit(['src/auth/login.ts'], []);
+  const res = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true, git: g.api,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res.failures));
+  assert.strictEqual(res.committed, true);
+  assert.deepStrictEqual(res.actualPaths, ['src/auth/login.ts']);
+  assert.strictEqual(res.taskSha, 'abcdef0123456789abcdef0123456789abcdef01');
+  assert.strictEqual(typeof res.integrationHeadBefore, 'string');
+  assert.strictEqual(res.ledgerWorkerSha, null);
+  assert.deepStrictEqual(res.ledgerRecord, { ok: true });
+  assert.deepStrictEqual(res.readyWave, ['002']);
+  assert.strictEqual(res.nextTask.id, 'TASKS-002');
+  assert.strictEqual(res.scopeRevision, null);
+});
+
+test('a coordinator commit refuses a staged path outside the current ledger scope', () => {
+  const { worker, blueprint } = coordinatorFixture();
+  reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/session/'], reason: 'scope moved to session',
+  });
+  const g = trackingGit(['src/auth/login.ts'], []);
+  const res = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true, git: g.api,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.deepStrictEqual(res.violations, ['src/auth/login.ts']);
+  assert.deepStrictEqual(g.calls, []);
+});
+
+test('a task document out of step with the ledger revision refuses the commit', () => {
+  const { worker, blueprint } = coordinatorFixture();
+  reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'scope confirmed',
+  });
+  const docAbs = path.join(worker, blueprint, 'tasks/001/tasks.md');
+  // worker가 문서만 되돌린 상태 — 어느 쪽이 정본인지 추측하지 않고 막는다.
+  fs.writeFileSync(docAbs, fs.readFileSync(docAbs, 'utf8').replace('scope_revision: r1', 'scope_revision: r0'));
+
+  assert.strictEqual(
+    coordinatorContext({ repoRoot: worker, blueprint, task: '001' }).reason,
+    'stale-revision',
+  );
+  const res = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true, git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'stale-revision');
+});
+
+test('a checkout that is neither the integration nor the assigned worktree is unassigned', () => {
+  const { repo, blueprint } = coordinatorFixture();
+  const stranger = path.join(repo, '.worktrees', '001', '001', 'workers', '002');
+  fs.mkdirSync(stranger, { recursive: true });
+  const ctx = coordinatorContext({ repoRoot: stranger, blueprint, task: '001' });
+  assert.strictEqual(ctx.active, true);
+  assert.strictEqual(ctx.reason, 'unassigned-worktree');
+});
+
+test('reviseTaskScope refuses a scope outside this repository or over the governance tree', () => {
+  const { worker, blueprint } = coordinatorFixture();
+  for (const bad of ['/etc', '../elsewhere/src', '.bouncer/context/epics', '.git/hooks', '.']) {
+    const res = reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: ['src/auth/', bad], reason: 'widen',
+    });
+    assert.deepStrictEqual(
+      { ok: res.ok, reason: res.reason, paths: res.paths },
+      { ok: false, reason: 'scope-path-out-of-bounds', paths: [bad] },
+      bad,
+    );
+  }
+  // glob은 리터럴 접두 비교와 맞지 않는다 — 조용히 받아 두고 다음 커밋에서
+  // out-of-scope로 되돌아오는 대신, 표기 자체를 이름 붙여 거절한다.
+  for (const glob of ['src/**', '*', '**/*.ts']) {
+    const res = reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: ['src/auth/', glob], reason: 'widen',
+    });
+    assert.deepStrictEqual(
+      { ok: res.ok, reason: res.reason, paths: res.paths },
+      { ok: false, reason: 'scope-path-glob', paths: [glob] },
+      glob,
+    );
+  }
+  // 새로 발견한 저장소 안 소스 경로는 그대로 통과한다 — 경계는 확장 능력을 막지 않는다.
+  assert.strictEqual(
+    reviseTaskScope({
+      repoRoot: worker,
+      blueprint,
+      task: '001',
+      paths: ['src/auth/', 'src/session/token.ts'],
+      reason: 'session write discovered mid-drive',
+    }).ok,
+    true,
+  );
+});
+
+test('an unreadable ledger refuses everywhere, including the main worktree', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const ledgerFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  fs.writeFileSync(ledgerFile, '{ truncated');
+
+  for (const checkout of [repo, worker]) {
+    const ctx = coordinatorContext({ repoRoot: checkout, blueprint, task: '001' });
+    assert.strictEqual(ctx.active, true, checkout);
+    assert.strictEqual(ctx.reason, 'unreadable-ledger', checkout);
+  }
+  assert.deepStrictEqual(
+    reviseTaskScope({ repoRoot: worker, blueprint, task: '001', paths: ['src/'], reason: 'r' }),
+    { ok: false, reason: 'unreadable-ledger' },
+  );
+});
+
+test('a pointer task the ledger does not carry is refused like reviseTaskScope refuses it', () => {
+  const { repo, blueprint } = coordinatorFixture();
+  const integration = path.join(repo, '.worktrees', '001', '001', 'integration');
+  const ctx = coordinatorContext({ repoRoot: integration, blueprint, task: '009' });
+  assert.strictEqual(ctx.active, true);
+  assert.strictEqual(ctx.reason, 'task-outside-blueprint');
+});
+
+test('a live lock is not reclaimed because its file mtime looks old', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const lockFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
+  );
+  // 살아 있는 주인의 잠금. 파일은 생성 뒤 손대지 않으므로 mtime만 보면 늙어 보인다.
+  const held = { pid: 424242, token: 'held-token', at: Date.now() };
+  fs.writeFileSync(lockFile, JSON.stringify(held));
+  const old = new Date(Date.now() - 600000);
+  fs.utimesSync(lockFile, old, old);
+
+  const blocked = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'concurrent',
+  });
+
+  assert.deepStrictEqual(blocked, { ok: false, reason: 'ledger-locked' });
+  // 남의 잠금은 지우지도 덮어쓰지도 않는다.
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(lockFile, 'utf8')), held);
+});
+
+test('ledger writes serialize on a lock and reclaim an abandoned one', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const ledgerFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  const lockFile = `${ledgerFile}.lock`;
+
+  // 다른 writer가 쥔 잠금은 기다리다 거절한다 — 읽고-고치고-쓰기가 겹치지 않는다.
+  fs.writeFileSync(lockFile, '');
+  const blocked = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'concurrent',
+  });
+  assert.deepStrictEqual(blocked, { ok: false, reason: 'ledger-locked' });
+
+  // 죽은 프로세스가 남긴 오래된 잠금은 회수한다.
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 424242, token: 'dead', at: Date.now() - 600000 }));
+  const revised = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'after stale lock',
+  });
+  assert.strictEqual(revised.ok, true);
+  assert.strictEqual(fs.existsSync(lockFile), false);
+});

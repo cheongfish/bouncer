@@ -2,6 +2,7 @@
 'use strict';
 const fs = require("node:fs");
 const path = require("node:path");
+const { randomUUID } = require('node:crypto');
 const paths = require("./paths");
 const { epicDirOf, toPosix } = paths;
 const layout = require("./layout");
@@ -10,6 +11,12 @@ const { CONTEXT_ROOT, PROJECT_DISTILL, DISTILL_SHARD_DIR } = layout;
 // 공급자 시그니처와 어긋나도 숨겼으므로 쓰지 않는다.
 const distill = require("./distill");
 const { readShards } = distill;
+const runtimeState = require("./runtime-state");
+const { coordinatorPathsFor, runtimePaths } = runtimeState;
+const frontmatter = require("./frontmatter");
+const { readDoc } = frontmatter;
+const render = require("./render");
+const { renderDoc } = render;
 function isUnder(file, entry) {
     const f = toPosix(file);
     const e = toPosix(entry);
@@ -93,6 +100,523 @@ function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }) {
         return allowed(rel) || registered.has(rel);
     };
 }
+const TASK_DOC_RE = /(?:^|\/)tasks\/(\d{3})\/tasks\.md$/;
+// 부재와 판독 불가는 다른 상태다. 깨진 원장을 "없음"으로 접으면 main worktree
+// 거절이 조용히 풀리므로, 읽기 실패는 별도 상태로 올려 어디서든 막게 한다.
+function readLedger(file) {
+    if (!fs.existsSync(file))
+        return { status: 'absent' };
+    try {
+        const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (!parsed || typeof parsed !== 'object')
+            return { status: 'unreadable' };
+        return { status: 'ok', ledger: parsed };
+    }
+    catch (_e) {
+        // JSON 파싱·읽기 실패만 흡수한다. 내용을 신뢰할 수 없다는 사실 자체가
+        // 결과이고, 호출자는 이를 거절 사유로 쓴다.
+        return { status: 'unreadable' };
+    }
+}
+const LOCK_STALE_MS = 30000;
+const LOCK_WAIT_MS = 2000;
+const LOCK_RETRY_MS = 25;
+function sleepSync(ms) {
+    // 동기 경로에서 재시도 간격을 만드는 표준 방법. busy loop로 돌면 잠금을 쥔
+    // 다른 프로세스의 진행까지 늦춘다.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+// 토큰을 쓰기 전에 죽은 잠금만 이 값으로 판단한다 — 그 파일은 생성 이후 한 번도
+// 손대지 않으므로 mtime이 곧 생성 시각이다.
+function lockAgeMs(lockFile) {
+    try {
+        return Date.now() - fs.statSync(lockFile).mtimeMs;
+    }
+    catch (_e) {
+        // 사이에 잠금이 풀렸다 — 즉시 재시도하면 된다.
+        return null;
+    }
+}
+// 잠금의 주인은 파일 존재가 아니라 파일 안의 토큰이다. mtime만 보면 빈 채로
+// 생성돼 한 번도 touch되지 않는 잠금이 실제보다 늙어 보이고, 소유 확인 없는
+// 삭제는 두 대기자가 서로의 새 잠금을 지우며 동시에 임계 구역에 들어간다.
+function readLockRecord(lockFile) {
+    try {
+        const parsed = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
+        if (!parsed || typeof parsed.token !== 'string' || typeof parsed.at !== 'number')
+            return null;
+        return parsed;
+    }
+    catch (_e) {
+        // 없거나, 아직 내용을 쓰는 중이거나, 깨졌다 — 어느 쪽이든 주인을 알 수 없다.
+        return null;
+    }
+}
+/**
+ * 방치된 잠금을 회수한다. 관측한 토큰과 같은 파일일 때만 지운다.
+ *
+ * 경로에 대고 지우면 그사이 새로 생긴 잠금을 뺏는다. 그래서 먼저 고유 이름으로
+ * rename하고(성공한 하나만 그 파일을 갖는다), 옮긴 내용이 관측한 토큰과 다르면
+ * 새 주인의 잠금이므로 되돌려 놓는다.
+ *
+ * @returns {boolean} 회수했으면 true. 경합에 졌으면 false — 호출자는 다시 기다린다.
+ */
+function reclaimStaleLock(lockFile, observedToken) {
+    const parked = `${lockFile}.stale.${process.pid}.${randomUUID()}`;
+    try {
+        fs.renameSync(lockFile, parked);
+    }
+    catch (_e) {
+        // 다른 대기자가 먼저 가져갔거나 주인이 풀었다.
+        return false;
+    }
+    const taken = readLockRecord(parked);
+    // 토큰이 관측값과 다르면(토큰 없던 자리에 새 주인이 생긴 경우 포함) 남의 잠금이다.
+    if ((taken ? taken.token : null) !== observedToken) {
+        try {
+            fs.renameSync(parked, lockFile);
+        }
+        catch (_e) {
+            // 되돌릴 자리가 이미 채워졌다 — 이 회차는 포기하고 다시 기다린다.
+        }
+        return false;
+    }
+    fs.rmSync(parked, { force: true });
+    return true;
+}
+// 내 토큰일 때만 잠금을 푼다. 뺏긴 뒤에도 지우면 새 주인의 임계 구역을 연다.
+function releaseLock(lockFile, token) {
+    const held = readLockRecord(lockFile);
+    if (!held || held.token !== token)
+        return false;
+    fs.rmSync(lockFile, { force: true });
+    return true;
+}
+/**
+ * ledger의 read-modify-write를 직렬화한다.
+ *
+ * 여러 worker worktree가 같은 파일 하나를 고치므로, 원자적 쓰기만으로는
+ * 한 task의 actualPaths가 사라지거나 두 revision이 같은 번호를 발급한다.
+ * `wx` 생성으로 잠금을 잡고, 잠금 레코드가 `LOCK_STALE_MS`보다 오래됐을 때만
+ * 소유권을 확인하며 회수한다.
+ *
+ * @param {string} ledgerFile - 대상 원장 절대 경로
+ * @param {Function} run - 잠금 안에서 읽고 쓰는 작업
+ * @returns run의 결과. 잠금을 못 잡으면 `{ ok: false, reason: 'ledger-locked' }`,
+ *   임계 구역 도중 잠금을 뺏겼으면 `{ ok: false, reason: 'ledger-lock-lost' }` —
+ *   그 경우 쓰기가 다른 writer와 겹쳤을 수 있으므로 성공으로 보고하지 않는다.
+ */
+function withLedgerLock(ledgerFile, run) {
+    const lockFile = `${ledgerFile}.lock`;
+    fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });
+    const deadline = Date.now() + LOCK_WAIT_MS;
+    const record = { pid: process.pid, token: randomUUID(), at: Date.now() };
+    for (;;) {
+        let handle;
+        try {
+            handle = fs.openSync(lockFile, 'wx');
+        }
+        catch (error) {
+            // 이미 잠긴 경우만 재시도한다. 권한·경로 오류는 삼키지 않고 올린다.
+            if (error.code !== 'EEXIST')
+                throw error;
+            const held = readLockRecord(lockFile);
+            // 토큰이 있으면 그 레코드의 시각으로 판단한다. 토큰이 없는 잠금은 `wx`
+            // 생성과 토큰 쓰기 사이에 죽은 흔적이므로, 그때만 파일 mtime(=생성 시각)을
+            // 쓴다 — 살아 있는 주인의 잠금을 mtime으로 뺏는 경로는 남기지 않는다.
+            const age = held ? Date.now() - held.at : lockAgeMs(lockFile);
+            if (age !== null && age > LOCK_STALE_MS) {
+                reclaimStaleLock(lockFile, held ? held.token : null);
+            }
+            else if (Date.now() >= deadline) {
+                return { ok: false, reason: 'ledger-locked' };
+            }
+            else {
+                sleepSync(LOCK_RETRY_MS);
+            }
+            continue;
+        }
+        // 토큰은 잠금을 쥔 직후에 쓴다. 그 전에 죽으면 레코드 없는 파일이 남고,
+        // 주인을 알 수 없는 잠금은 회수되지 않으므로 대기자가 시한까지 기다린다.
+        try {
+            fs.writeFileSync(handle, JSON.stringify(record));
+        }
+        finally {
+            fs.closeSync(handle);
+        }
+        break;
+    }
+    let result;
+    try {
+        result = run();
+    }
+    catch (error) {
+        // 임계 구역이 던져도 잠금은 반드시 푼다 — 그 뒤 예외는 그대로 올린다.
+        releaseLock(lockFile, record.token);
+        throw error;
+    }
+    // 풀 때 내 토큰이 아니면 도중에 잠금을 뺏긴 것이다. 다른 writer와 겹쳤을 수
+    // 있으므로 성공으로 보고하지 않는다.
+    if (!releaseLock(lockFile, record.token))
+        return { ok: false, reason: 'ledger-lock-lost' };
+    return result;
+}
+function writeLedger(file, data) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const temporary = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`);
+    fs.renameSync(temporary, file);
+}
+function realOf(target) {
+    const resolved = path.resolve(String(target));
+    try {
+        return fs.realpathSync(resolved);
+    }
+    catch (_e) {
+        // 아직 없는 경로는 비교 대상이 아니므로 resolve 값만 돌려준다.
+        return resolved;
+    }
+}
+function coordinatorTaskId(task) {
+    if (typeof task !== 'string' || !task)
+        return null;
+    if (/^\d{3}$/.test(task))
+        return task;
+    const match = TASK_DOC_RE.exec(toPosix(task));
+    return match ? match[1] : null;
+}
+function taskDocPath(repoRoot, blueprint, taskId) {
+    return path.join(String(repoRoot), toPosix(blueprint), 'tasks', taskId, 'tasks.md');
+}
+function bouncerOf(data) {
+    if (!data || typeof data !== 'object')
+        return null;
+    const bouncer = data.bouncer;
+    return bouncer && typeof bouncer === 'object' ? bouncer : null;
+}
+// revision의 정본은 그 task를 맡은 worker의 문서다. 커밋 중인 checkout만 보면,
+// 아직 cherry-pick 전인 integration 사본에 `scope_revision`이 없어 정상 상태가
+// stale로 막힌다. worker 경로가 사라졌으면 현재 checkout으로 되돌아간다.
+function docScopeRevision(repoRoot, blueprint, taskId, workerPath) {
+    const base = workerPath && fs.existsSync(workerPath) ? workerPath : repoRoot;
+    try {
+        const bouncer = bouncerOf(readDoc(taskDocPath(base, blueprint, taskId)).data);
+        const revision = bouncer ? bouncer.scope_revision : undefined;
+        return typeof revision === 'string' ? revision : null;
+    }
+    catch (_e) {
+        // 문서를 못 읽으면 revision을 확인할 수 없다. null을 돌려주면 원장에 기록된
+        // revision과 어긋나 stale로 막힌다 — 열어 주는 쪽으로 흡수하지 않는다.
+        return null;
+    }
+}
+// coordinator가 넓힐 수 있는 것은 이 저장소 안의 소스 경로뿐이다. 규칙과
+// 원장 자신이 사는 `.bouncer/`, Git 내부 `.git/`, 저장소 밖(절대 경로·`..`),
+// 그리고 트리 전체를 뜻하는 표기는 scope로 받지 않는다. 새로 발견한 소스
+// 경로는 그대로 통과하므로 실행 중 확장 능력 자체는 줄지 않는다.
+const SCOPE_WHOLE_TREE = new Set(['.', './', '/']);
+// scope는 glob 어휘가 아니다. `makeAllowed`는 `isUnder`로 리터럴 접두만 비교하므로
+// `src/**` 같은 표기는 어떤 파일과도 맞지 않는다. 그대로 통과시키면 원장과 문서에
+// 정본으로 적힌 뒤 다음 커밋이 "허용하려던 그 경로"를 out-of-scope로 거절한다.
+function globScopePaths(entries) {
+    return entries.filter((entry) => toPosix(entry).includes('*'));
+}
+function outOfBoundsScopePaths(entries) {
+    return entries.filter((entry) => {
+        const p = toPosix(entry).trim();
+        if (!p || SCOPE_WHOLE_TREE.has(p))
+            return true;
+        if (path.isAbsolute(p) || p.startsWith('~'))
+            return true;
+        if (/(^|\/)\.\.(\/|$)/.test(p))
+            return true;
+        return isUnder(p, '.bouncer') || isUnder(p, '.git');
+    });
+}
+function nextRevision(current) {
+    const match = /^r(\d+)$/.exec(typeof current === 'string' ? current : '');
+    return `r${match ? Number(match[1]) + 1 : 1}`;
+}
+function coordinatorPaths(repoRoot, blueprint, taskId) {
+    const runtime = runtimePaths({ repoRoot: String(repoRoot) });
+    if (runtime.unavailable)
+        return null;
+    const paths = coordinatorPathsFor({
+        repoRoot: String(repoRoot), blueprint, task: taskId || undefined,
+    });
+    return { runtime, paths };
+}
+function readCoordinatorLedger({ repoRoot, blueprint }) {
+    let resolved;
+    try {
+        resolved = coordinatorPaths(repoRoot, blueprint, null);
+    }
+    catch (_e) {
+        // epic/blueprint id를 못 뽑는 레거시 경로는 coordinator 대상이 아니다.
+        return { ok: false, reason: 'no-coordinator-paths' };
+    }
+    if (!resolved)
+        return { ok: false, reason: 'no-git' };
+    const read = readLedger(resolved.paths.ledgerFile);
+    // 실패에도 경로를 실어 보낸다. 어느 원장이 문제인지 모르면 손상 상태를
+    // 보고받은 쪽이 고칠 파일을 찾을 수 없다.
+    if (read.status !== 'ok') {
+        return {
+            ok: false,
+            reason: read.status === 'absent' ? 'no-ledger' : 'unreadable-ledger',
+            ledgerFile: resolved.paths.ledgerFile,
+            integrationPath: resolved.paths.integrationPath,
+        };
+    }
+    return {
+        ok: true,
+        ledger: read.ledger,
+        ledgerFile: resolved.paths.ledgerFile,
+        integrationPath: resolved.paths.integrationPath,
+    };
+}
+function inactiveContext(reason) {
+    return {
+        active: false,
+        reason,
+        taskId: null,
+        revision: null,
+        scope: null,
+        actualPaths: [],
+        workerSha: null,
+        workerPath: null,
+        integrationPath: null,
+        integrationHead: null,
+        ledgerFile: null,
+        tasks: [],
+    };
+}
+/**
+ * 지금 커밋을 판정할 coordinator 권한을 읽는다.
+ *
+ * `active: false`면 coordinator 실행이 아니다 — 호출자는 승인된
+ * `affected_paths`로 예전처럼 판정한다. `active: true`인데 `reason`이 있으면
+ * 그 자체가 거절 사유이고, `scope`는 신뢰할 수 없다.
+ *
+ * @param {object} opts
+ * @param {unknown} opts.repoRoot - 커밋이 일어나는 checkout(= cwd)
+ * @param {unknown} opts.blueprint - 활성 blueprint 상대 경로
+ * @param {unknown} [opts.task] - 포인터 task 경로 또는 `NNN`
+ * @returns {CoordinatorContext}
+ */
+function coordinatorContext({ repoRoot, blueprint, task }) {
+    const taskId = coordinatorTaskId(task);
+    let resolved;
+    try {
+        resolved = coordinatorPaths(repoRoot, blueprint, taskId);
+    }
+    catch (_e) {
+        return inactiveContext('no-coordinator-paths');
+    }
+    if (!resolved)
+        return inactiveContext('no-git');
+    const { runtime, paths } = resolved;
+    const here = realOf(repoRoot);
+    const workerPath = paths.workerPath || null;
+    const inIntegration = here === realOf(paths.integrationPath);
+    const inWorker = Boolean(workerPath) && here === realOf(workerPath);
+    const read = readLedger(paths.ledgerFile);
+    // 원장도 없고 coordinator worktree도 아니면 이 저장소는 위임 실행 중이 아니다.
+    if (read.status === 'absent' && !inIntegration && !inWorker)
+        return inactiveContext('no-ledger');
+    const base = {
+        ...inactiveContext('no-ledger'),
+        active: true,
+        reason: null,
+        taskId,
+        workerPath,
+        integrationPath: paths.integrationPath,
+        ledgerFile: paths.ledgerFile,
+    };
+    // 읽을 수 없는 원장은 어느 checkout에서도 판정 불가다 — main worktree 거절이
+    // 파일 손상만으로 풀리지 않게, 위치를 보기 전에 먼저 막는다.
+    if (read.status === 'unreadable')
+        return { ...base, reason: 'unreadable-ledger' };
+    // 할당된 worktree에서 원장이 사라진 상태를 "범위 없음"으로 통과시키지 않는다.
+    if (read.status === 'absent')
+        return { ...base, reason: 'missing-coordinator-ledger' };
+    const { ledger } = read;
+    if (here === realOf(runtime.projectRoot))
+        return { ...base, reason: 'main-worktree-source-write' };
+    if (!inIntegration && !inWorker)
+        return { ...base, reason: 'unassigned-worktree' };
+    const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+    const entry = taskId ? tasks.find((item) => item && item.id === taskId) : undefined;
+    const ledgerRevision = entry && entry.scope ? entry.scope.revision : null;
+    const withLedger = {
+        ...base,
+        tasks,
+        integrationHead: typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null,
+        revision: ledgerRevision,
+        scope: entry && entry.scope ? entry.scope.paths : null,
+        actualPaths: entry && Array.isArray(entry.actualPaths) ? entry.actualPaths : [],
+        workerSha: entry && typeof entry.sha === 'string' ? entry.sha : null,
+    };
+    // 포인터가 가리키는 task가 원장에 없으면 이 실행이 맡은 task가 아니다.
+    // reviseTaskScope가 같은 상황을 거절하므로 여기서도 같은 코드로 막는다.
+    if (taskId && !entry)
+        return { ...withLedger, reason: 'task-outside-blueprint' };
+    // task 문서와 원장이 같은 revision일 때만 scope가 정본이다.
+    if (taskId && docScopeRevision(repoRoot, blueprint, taskId, entry && entry.workerPath) !== ledgerRevision) {
+        return { ...withLedger, reason: 'stale-revision' };
+    }
+    return withLedger;
+}
+/**
+ * 원장을 읽지 않고도 판단할 수 있는 쓰기 경계만 먼저 본다.
+ *
+ * 권한 없는 호출이 잠금 파일과 runtime 디렉터리를 먼저 만들고, 그동안 정당한
+ * worker를 막는 일이 없도록 순서만 앞당긴 검사다. 잠금 안의 전체 검사
+ * (`assignedLedgerTask`)는 그대로 남는다 — 두 번 보는 것이 안전의 근거다.
+ */
+function taskWriteBoundary({ repoRoot, blueprint, taskId }) {
+    let resolved;
+    try {
+        resolved = coordinatorPaths(repoRoot, blueprint, taskId);
+    }
+    catch (_e) {
+        return { ok: false, reason: 'no-coordinator-paths' };
+    }
+    if (!resolved)
+        return { ok: false, reason: 'no-git' };
+    const { runtime, paths } = resolved;
+    const here = realOf(repoRoot);
+    if (here === realOf(runtime.projectRoot)) {
+        return { ok: false, reason: 'main-worktree-source-write' };
+    }
+    if (!paths.workerPath || here !== realOf(paths.workerPath)) {
+        return { ok: false, reason: 'unassigned-worktree' };
+    }
+    return { ok: true, ledgerFile: paths.ledgerFile };
+}
+function assignedLedgerTask({ repoRoot, blueprint, taskId }) {
+    let resolved;
+    try {
+        resolved = coordinatorPaths(repoRoot, blueprint, taskId);
+    }
+    catch (_e) {
+        return { ok: false, reason: 'no-coordinator-paths' };
+    }
+    if (!resolved)
+        return { ok: false, reason: 'no-git' };
+    const { runtime, paths } = resolved;
+    const here = realOf(repoRoot);
+    // 문서와 원장 쓰기는 할당된 worktree에서만. main checkout은 읽기 전용 출처다.
+    if (here === realOf(runtime.projectRoot))
+        return { ok: false, reason: 'main-worktree-source-write' };
+    const read = readLedger(paths.ledgerFile);
+    if (read.status !== 'ok') {
+        return { ok: false, reason: read.status === 'absent' ? 'missing-ledger' : 'unreadable-ledger' };
+    }
+    const { ledger } = read;
+    const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+    const entry = tasks.find((item) => item && item.id === taskId);
+    if (!entry)
+        return { ok: false, reason: 'task-outside-blueprint' };
+    const worker = paths.workerPath;
+    if (!worker || !entry.workerPath || realOf(entry.workerPath) !== realOf(worker) || here !== realOf(worker)) {
+        return { ok: false, reason: 'unassigned-worktree' };
+    }
+    return { ok: true, ledger, entry, ledgerFile: paths.ledgerFile };
+}
+/**
+ * 잠금 안에서 원장을 읽고 → 고치고 → 쓴다.
+ *
+ * 읽기를 잠금 밖에 두면 두 worker가 같은 revision 번호를 발급하거나 서로의
+ * actualPaths를 덮어쓴다. 그래서 경계 검사(assignedLedgerTask)까지 잠금
+ * 안에서 다시 수행한다.
+ */
+function lockedTaskWrite(repoRoot, blueprint, taskId, mutate) {
+    const boundary = taskWriteBoundary({ repoRoot, blueprint, taskId });
+    if (!boundary.ok)
+        return { ok: false, reason: boundary.reason };
+    return withLedgerLock(boundary.ledgerFile, () => {
+        const assigned = assignedLedgerTask({ repoRoot, blueprint, taskId });
+        if (!assigned.ok)
+            return { ok: false, reason: assigned.reason };
+        return mutate(assigned);
+    });
+}
+/**
+ * coordinator가 실행 중 발견한 필수 경로로 task scope를 갱신한다.
+ * task 문서와 ledger를 같은 revision으로 옮기고, 이유 없는 변경은 거절한다.
+ * 저장소 밖·`.bouncer/`·`.git/`·트리 전체 표기는 scope로 받지 않는다.
+ *
+ * @returns {{ok: true, revision: string, previous: string[], paths: string[]} | {ok: false, reason: string}}
+ */
+function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }) {
+    const taskId = coordinatorTaskId(task);
+    if (!taskId)
+        return { ok: false, reason: 'task-required' };
+    const why = typeof reason === 'string' ? reason.trim() : '';
+    // 이유 없는 scope 변경은 감사할 수 없다 — 기록이 곧 권한이다.
+    if (!why)
+        return { ok: false, reason: 'decision-reason-required' };
+    const next = (Array.isArray(nextPaths) ? nextPaths : [])
+        .filter((entry) => typeof entry === 'string' && entry !== '');
+    if (next.length === 0)
+        return { ok: false, reason: 'scope-paths-required' };
+    const globs = globScopePaths(next);
+    if (globs.length > 0) {
+        return { ok: false, reason: 'scope-path-glob', paths: globs };
+    }
+    const outOfBounds = outOfBoundsScopePaths(next);
+    if (outOfBounds.length > 0) {
+        return { ok: false, reason: 'scope-path-out-of-bounds', paths: outOfBounds };
+    }
+    return lockedTaskWrite(repoRoot, blueprint, taskId, ({ ledger, entry, ledgerFile }) => {
+        const docAbs = taskDocPath(repoRoot, blueprint, taskId);
+        let doc;
+        try {
+            doc = readDoc(docAbs);
+        }
+        catch (_e) {
+            return { ok: false, reason: 'task-document-missing' };
+        }
+        const bouncer = bouncerOf(doc.data);
+        if (!bouncer)
+            return { ok: false, reason: 'task-document-missing' };
+        const declared = Array.isArray(bouncer.affected_paths)
+            ? bouncer.affected_paths.filter((p) => typeof p === 'string')
+            : [];
+        const previous = entry.scope ? entry.scope.paths : declared;
+        const revision = nextRevision(ledger.revision);
+        bouncer.affected_paths = next;
+        bouncer.scope_revision = revision;
+        fs.writeFileSync(docAbs, renderDoc(doc.data, doc.body));
+        const decision = {
+            task: taskId, kind: 'scope', reason: why, previous, next, revision,
+        };
+        entry.scope = { revision, paths: next };
+        entry.decisions = [...(entry.decisions || []), decision];
+        ledger.revision = revision;
+        // append-only: 이전 판단을 지우지 않고 뒤에 붙인다.
+        ledger.decisions = [...(Array.isArray(ledger.decisions) ? ledger.decisions : []), decision];
+        writeLedger(ledgerFile, ledger);
+        return { ok: true, revision, previous, paths: next };
+    });
+}
+/**
+ * 커밋이 실제로 담은 경로를 ledger에 남긴다. 초기 예상치와 실제 변경을 함께
+ * 두어야 coordinator가 다음 wave에서 감사를 할 수 있다.
+ */
+function recordActualPaths({ repoRoot, blueprint, task, paths: actual }) {
+    const taskId = coordinatorTaskId(task);
+    if (!taskId)
+        return { ok: false, reason: 'task-required' };
+    const list = [...new Set((Array.isArray(actual) ? actual : [])
+            .filter((entryPath) => typeof entryPath === 'string' && entryPath !== ''))];
+    return lockedTaskWrite(repoRoot, blueprint, taskId, ({ ledger, entry, ledgerFile }) => {
+        entry.actualPaths = list;
+        writeLedger(ledgerFile, ledger);
+        return { ok: true, paths: list };
+    });
+}
 module.exports = {
     isUnder,
     isRuntimeArtifact,
@@ -102,4 +626,9 @@ module.exports = {
     makeAllowed,
     makeFinalizeAllowed,
     registeredDistillShardPaths,
+    coordinatorTaskId,
+    readCoordinatorLedger,
+    coordinatorContext,
+    reviseTaskScope,
+    recordActualPaths,
 };

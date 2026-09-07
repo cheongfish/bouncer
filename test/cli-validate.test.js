@@ -323,3 +323,96 @@ Ship login validation.
   assert.match(g19.file, /tasks\/001\/tasks\.md$/);
   assert.match(g19.message, /TASKS-999|missing|unknown/i);
 });
+
+// --- coordinator mode -------------------------------------------------------
+
+const { execFileSync } = require('node:child_process');
+const { coordinate } = require('../scripts/lib/coordinator');
+const { reviseTaskScope } = require('../scripts/lib/scope');
+
+test('validate --gate commit judges staged paths against the revised coordinator scope', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const git = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  git(['init', '-b', 'work', '--quiet']);
+  git(['config', 'user.email', 't@example.com']);
+  git(['config', 'user.name', 't']);
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth epic', description: 'auth epic',
+    resource: '.bouncer/context/epics/001-auth/index.md',
+    tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login blueprint', description: '001',
+    resource: `${BP_REL}/index.md`,
+    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for 001',
+    resource: `${BP_REL}/tasks/001/tasks.md`,
+    tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'verified',
+      affected_paths: ['src/auth/'],
+    },
+  });
+  writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
+    type: 'bouncer.verification', title: 'Verify 001', description: 'v',
+    resource: `${BP_REL}/tasks/001/verification.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'passed' },
+  });
+  writeDoc(repo, `${BP_REL}/tasks/001/review.md`, {
+    type: 'bouncer.review', title: 'Review 001', description: 'r',
+    resource: `${BP_REL}/tasks/001/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: { required: false, reason: 'fixture' },
+    },
+  });
+  fs.mkdirSync(path.join(repo, 'src/auth'), { recursive: true });
+  fs.mkdirSync(path.join(repo, 'src/session'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export {}\n');
+  fs.writeFileSync(path.join(repo, 'src/session/token.ts'), 'export {}\n');
+  git(['add', '-A']);
+  git(['commit', '--quiet', '-m', 'plan']);
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: BP_REL, cwd: boot.integrationPath,
+  });
+  const worker = prepared.tasks[0].workerPath;
+  const revised = reviseTaskScope({
+    repoRoot: worker,
+    blueprint: BP_REL,
+    task: '001',
+    paths: ['src/session/'],
+    reason: 'login work moved into the session module',
+  });
+  assert.strictEqual(revised.ok, true);
+
+  // 승인 시점 scope(src/auth/)에 있던 경로도 revision 뒤에는 범위 밖이다.
+  fs.writeFileSync(path.join(worker, 'src/auth/login.ts'), 'export const x = 1;\n');
+  git(['add', 'src/auth/login.ts'], worker);
+  const outside = capture();
+  const outsideCode = runCli(
+    ['validate', '--repo', worker, '--blueprint', BP_REL, '--gate', 'commit'], outside.io,
+  );
+  assert.strictEqual(outsideCode, 1);
+  const g17 = JSON.parse(outside.buf.out).failures.find((f) => f.code === 'G17');
+  assert.ok(g17, outside.buf.out);
+  assert.match(g17.file, /tasks\/001\/tasks\.md$/);
+  assert.match(g17.message, /src\/auth\/login\.ts/);
+
+  git(['reset', '--quiet', 'HEAD', 'src/auth/login.ts'], worker);
+  git(['checkout', '--', 'src/auth/login.ts'], worker);
+  fs.writeFileSync(path.join(worker, 'src/session/token.ts'), 'export const t = 1;\n');
+  git(['add', 'src/session/token.ts'], worker);
+  const inside = capture();
+  runCli(['validate', '--repo', worker, '--blueprint', BP_REL, '--gate', 'commit'], inside.io);
+  // 다른 게이트 실패는 이 픽스처의 관심사가 아니다 — G17만 사라져야 한다.
+  const failures = JSON.parse(inside.buf.out).failures || [];
+  assert.ok(!failures.some((f) => f.code === 'G17'), inside.buf.out);
+});

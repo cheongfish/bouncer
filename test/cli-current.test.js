@@ -406,3 +406,57 @@ test('bare current JSON includes a task key on the pointer', () => {
     id: 'TASKS-001',
   });
 });
+
+// --- coordinator mode -------------------------------------------------------
+
+const { coordinate } = require('../scripts/lib/coordinator');
+
+test('current projects the coordinator ready wave into the public payload', () => {
+  const repo = tmpGitRepo();
+  const blueprint = '.bouncer/context/epics/071-x/blueprints/072-y';
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'tasks', '001', 'tasks.md'),
+    '---\nbouncer:\n  id: TASKS-001\n  parallel_safe: true\n  affected_paths:\n    - src/\n---\n# Tasks\n',
+  );
+  const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  run(['add', '-A']);
+  run(['commit', '--quiet', '-m', 'plan']);
+  coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  writeCurrent({ repoRoot: repo, blueprint, base: 'develop' });
+
+  const parsed = JSON.parse(capture(['current', '--repo', repo]).out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.current.coordinator.status, 'ok');
+  assert.deepStrictEqual(parsed.current.coordinator.ready, ['001']);
+  assert.strictEqual(parsed.current.coordinator.revision, null);
+  assert.strictEqual(parsed.current.coordinator.tasks[0].id, '001');
+});
+
+test('current reports an unreadable coordinator ledger instead of dropping the key', () => {
+  const repo = tmpGitRepo();
+  const blueprint = '.bouncer/context/epics/073-x/blueprints/074-y';
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'tasks', '001', 'tasks.md'),
+    '---\nbouncer:\n  id: TASKS-001\n  affected_paths:\n    - src/\n---\n# Tasks\n',
+  );
+  const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  run(['add', '-A']);
+  run(['commit', '--quiet', '-m', 'plan']);
+  coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(
+    repo, '.worktrees', '073', '074', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  fs.writeFileSync(ledgerFile, '{ truncated');
+  writeCurrent({ repoRoot: repo, blueprint, base: 'develop' });
+
+  const parsed = JSON.parse(capture(['current', '--repo', repo]).out);
+  assert.strictEqual(parsed.current.coordinator.status, 'unreadable');
+  assert.strictEqual(parsed.current.coordinator.ledgerFile, ledgerFile);
+  assert.deepStrictEqual(parsed.current.coordinator.ready, []);
+});

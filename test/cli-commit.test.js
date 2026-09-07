@@ -225,3 +225,63 @@ test('commit --yes rejects out-of-scope change before staging without a host hoo
   assert.match(dirty, /src\/payments/);
   assert.match(dirty, /src\/auth\/login\.ts/);
 });
+
+// --- coordinator mode -------------------------------------------------------
+
+const { coordinate } = require('../scripts/lib/coordinator');
+
+test('commit JSON reports actual paths and coordinator provenance', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: BP_REL, cwd: boot.integrationPath,
+  });
+  const worker = prepared.tasks[0].workerPath;
+  // seed는 blueprint 문서만 옮긴다. epic 색인은 worker에서 다시 만든다.
+  writeDoc(worker, '.bouncer/context/epics/001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth', description: 'd',
+    resource: '.bouncer/context/epics/001-auth/index.md',
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  ensureEpicIndexEntry({
+    repoRoot: worker, epicId: '001', name: 'auth', description: 'd',
+  });
+  fs.writeFileSync(path.join(worker, 'src/auth/login.ts'), 'export const x = 1;\n');
+
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', worker, '--blueprint', BP_REL, '--yes'], io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.committed, true);
+  assert.deepStrictEqual(parsed.actualPaths, ['src/auth/login.ts']);
+  // prepare가 이미 001을 열었으므로 이 시점의 ready set은 비어 있다.
+  assert.deepStrictEqual(parsed.readyWave, []);
+  assert.strictEqual(typeof parsed.taskSha, 'string');
+  assert.strictEqual(typeof parsed.integrationHeadBefore, 'string');
+  // record 전이므로 ledger가 아직 worker SHA를 갖지 않는다.
+  assert.strictEqual(parsed.ledgerWorkerSha, null);
+  assert.deepStrictEqual(parsed.ledgerRecord, { ok: true });
+});
+
+test('commit from the main worktree is refused while a coordinator ledger is live', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'], io,
+  );
+  assert.notStrictEqual(code, 0);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, false);
+  assert.strictEqual(parsed.reason, 'main-worktree-source-write');
+  const staged = execFileSync('git', ['diff', '--cached', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim();
+  assert.strictEqual(staged, '');
+});
