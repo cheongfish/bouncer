@@ -10,6 +10,8 @@ import seedWorktreeMod = require('./seed-worktree');
 const { seedWorktree } = seedWorktreeMod;
 import importHistory = require('./import-history');
 const { planImport, applyImport } = importHistory;
+import coordinatorMod = require('./coordinator');
+const { coordinate } = coordinatorMod;
 
 type CliIo = {
   out: (s: string) => void;
@@ -128,6 +130,33 @@ function cmdImport(rest: string[], io: CliIo) {
   return result.ok ? 0 : 2;
 }
 
+function cmdCoordinate(rest: string[], io: CliIo) {
+  const command = rest[0];
+  const f = parseFlags(rest.slice(1));
+  if (!['bootstrap', 'prepare', 'ready', 'record', 'integrate', 'status'].includes(command)) {
+    io.err('coordinate: command must be bootstrap, prepare, ready, record, integrate, or status\n');
+    return 2;
+  }
+  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+    io.err('coordinate: --blueprint is required\n');
+    return 2;
+  }
+  try {
+    // --repo는 main checkout을 가리키고 cwd는 실제 write boundary 검증에 쓴다.
+    const result = coordinate({
+      command: command === 'ready' ? 'status' : command,
+      repoRoot: (f.repo || process.cwd()) as string,
+      blueprint: f.blueprint,
+      cwd: process.cwd(),
+      task: typeof f.task === 'string' ? f.task : undefined,
+      sha: typeof f.sha === 'string' ? f.sha : undefined,
+      decision: typeof f.decision === 'string' ? f.decision : undefined,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  } catch (error) { io.err(`coordinate: ${catchMessage(error)}\n`); return 1; }
+}
+
 export = {
   commit: {
     run: cmdCommit,
@@ -146,6 +175,12 @@ export = {
     usage: `  seed-worktree --blueprint <dir> --to <worktree>
              Move the plan context documents into a freshly created worktree.
 `,
+  },
+  coordinate: {
+    run: cmdCoordinate,
+    usage: '  coordinate <bootstrap|prepare|ready|record|integrate|status> --blueprint <dir>\n'
+      + '             [--task <ddd>] [--sha <sha>]\n'
+      + '             Operate the coordinator ledger and isolated integration worktrees.\n',
   },
   import: {
     run: cmdImport,

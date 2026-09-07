@@ -261,4 +261,27 @@ function seedWorktree({
   return { ok: true, moved, restored, config };
 }
 
-export = { makeIsTarget, realGit, seedWorktree };
+// coordinator worker는 base 계획 문서를 소비하면 안 된다. execute용 seedWorktree와
+// 달리 이 함수는 복원·삭제 단계 없이 계획과 config를 worker에 복사만 한다.
+function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath }: {
+  repoRoot: string; blueprintDir: unknown; worktreePath: string;
+}) {
+  if (!fs.existsSync(worktreePath) || !fs.statSync(worktreePath).isDirectory()) {
+    return { ok: false, reason: 'missing-worktree', worktreePath };
+  }
+  const source = path.join(repoRoot, toPosix(blueprintDir));
+  if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) {
+    return { ok: false, reason: 'missing-blueprint', blueprintDir };
+  }
+  try {
+    const config = seedConfig(repoRoot, worktreePath, realGit(repoRoot));
+    // cpSync는 target tree만 쓰며, base plan은 읽기만 한다. 여러 worker가 같은
+    // blueprint seed를 받아도 서로의 brief를 빼앗지 않는 이유다.
+    fs.cpSync(source, path.join(worktreePath, toPosix(blueprintDir)), { recursive: true, force: true });
+    return { ok: true, config, seeded: [toPosix(blueprintDir)] };
+  } catch (error) {
+    return { ok: false, reason: 'copy-failed', message: (error as { message: unknown }).message };
+  }
+}
+
+export = { makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker };

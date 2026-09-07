@@ -7,7 +7,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, worktreePathFor,
-  verifyLedgerPathFor,
+  verifyLedgerPathFor, coordinatorPathsFor,
 } = require('../scripts/lib/runtime-state');
 
 function git(cwd, args) {
@@ -41,6 +41,20 @@ test('primary checkout and linked worktree share Git-local runtime paths', () =>
   assert.strictEqual(primaryPaths.projectRoot, primary);
   assert.strictEqual(linkedPaths.projectRoot, primary);
   assert.deepStrictEqual(linkedPaths, primaryPaths);
+});
+
+test('coordinator paths derive integration, worker, and integration-local ledger', () => {
+  const { primary } = linkedRepo();
+  const result = coordinatorPathsFor({
+    repoRoot: primary,
+    blueprint: '.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path',
+    task: '002', deps: { execFileSync, platform: 'linux' },
+  });
+  assert.deepStrictEqual(result, {
+    integrationPath: path.join(primary, '.worktrees', '023', '001', 'integration'),
+    workerPath: path.join(primary, '.worktrees', '023', '001', 'workers', '002'),
+    ledgerFile: path.join(primary, '.worktrees', '023', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json'),
+  });
 });
 
 test('worktree root is under the main repository checkout', () => {

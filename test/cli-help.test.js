@@ -12,6 +12,7 @@ const SUBCOMMANDS = [
   'current',
   'migrate',
   'commit',
+  'coordinate',
   'import',
 ];
 

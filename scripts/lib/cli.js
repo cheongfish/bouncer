@@ -15,6 +15,7 @@ const COMMANDS = {
     commit: gitCommands.commit,
     finalize: gitCommands.finalize,
     'seed-worktree': gitCommands['seed-worktree'],
+    coordinate: gitCommands.coordinate,
     init: projectCommands.init,
     'graph-sync': projectCommands['graph-sync'],
     'graph-suggest': projectCommands['graph-suggest'],

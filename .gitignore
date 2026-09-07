@@ -14,3 +14,4 @@ graphify-out/
 !.codex/agents/bouncer-implementer.toml
 
 .bouncer/config.json
+.bouncer/runtime/
