@@ -23,6 +23,14 @@ otherwise run **ACQ — Request** before scaffolding (ask for the request).
 **Preflight.** If `.bouncer/` is missing, stop and tell the user to run
 `/bouncer-init` first.
 
+Run `bouncer current`; compact output follows that result. On `selected`, state
+the selected `{ blueprint, task, base }` and that the Git common directory may
+hold other namespace pointers, in one sentence; on `null`, say there is
+no selection and announce none as selected. `CURRENT_AMBIGUOUS` and legacy-conflict
+(`CURRENT_INVALID`) stop the workflow — do not pick a candidate or treat the
+result as `null`. This warning is not an ACQ and does not replace Approval or
+later confirm-then-set. Emit raw JSON only on `debug`.
+
 **Project root.** Resolve the consuming project's main worktree before Distill:
 ```bash
 PROJECT_ROOT="$(bouncer project-root)"
@@ -66,13 +74,12 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    epic/blueprint id and let the user override it.
    Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
    **Light path.** **ACQ — Light scope:** ask whether the work is narrow-scope —
-   do not auto-judge. When they declare light, do not create a new epic; allocate only
-   a blueprint id under the epic whose slug is `maintenance`. If that epic does
-   not exist yet, create it once with the next free `\d{3}` id (do not assume a
-   specific number such as `024-maintenance`). Do not close the shared
-   `maintenance` epic — once an epic is locked (after epic 022 lock), no more
-   blueprints can be attached. Without a declaration, use the normal path for
-   epic/blueprint ids.
+   do not auto-judge. On a light declaration, create no new epic; allocate only a
+   blueprint id under the epic whose slug is `maintenance`, creating that epic
+   once with the next free `\d{3}` id if absent (never assume a number such as
+   `024-maintenance`). Do not close the shared `maintenance` epic — a locked epic
+   (after epic 022) takes no more blueprints. Without a declaration, use the
+   normal path for epic/blueprint ids.
 
 3. **Scaffold.** Create the empty document set with correct frontmatter using
    `bouncer scaffold`:
@@ -94,17 +101,17 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    `EPIC-`/`BP-` prefixes on new scaffolds).
    The discovery description is the epic frontmatter source of truth. After
    authoring the epic, re-run the same `scaffold epic` command so its OKF §6
-   derived row is appended or replaced without overwriting the epic document;
-   an unchanged row is a no-op. Validate reports `S13` when epic directories,
-   frontmatter descriptions, and that list drift.
+   derived row is appended or replaced without overwriting the document; an
+   unchanged row is a no-op. Validate reports `S13` on drift between epic
+   directories, frontmatter descriptions, and that list.
    (Skip `scaffold epic` when adding a blueprint to an existing epic.) Scaffold
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
    review `pending`. `scaffold blueprint` creates `tasks/001/{tasks,verification,review}.md`
-   (ids `TASKS-001`, `VERIFY-001`, `REVIEW-001`). Add a later task with
+   (ids `TASKS-001`, `VERIFY-001`, `REVIEW-001`); add later tasks with
    `bouncer scaffold task --blueprint <dir> --id <NNN>`. Root `tasks.md` /
-   `tasks-<NNN>.md` are input only to `bouncer migrate task-layout`.
-   Do **not** create BP `explain.md` here — `/bouncer-commit`
-   scaffolds it with `bouncer scaffold explain`.
+   `tasks-<NNN>.md` are input only to `bouncer migrate task-layout`. Do **not**
+   create BP `explain.md` here — `/bouncer-commit` scaffolds it with
+   `bouncer scaffold explain`.
 
 4. **Author.** Use the `spec-authoring` skill (`${BOUNCER_ROOT}/references/spec-authoring/index.md`) to write the epic, blueprint, and
    tasks bodies in **Korean** (paths, ids, and code fences stay as-is). For every
@@ -113,13 +120,12 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    Constraints, Checklist. Those sections are the sole brief for
    `/bouncer-execute`. Write Touch per file with a verb rather than
    per directory, and put non-path rules in Constraints.
-   For every task, author the DAG frontmatter that execution will read:
+   For every task, author the DAG frontmatter execution reads:
    `bouncer.depends_on` (array of `TASKS-NNN` ids; `[]` when none),
    `bouncer.parallel_safe` (boolean), and `bouncer.dependency_gate`
-   (`integrated`, the only accepted value). Do not rely on task numbers for
-   ordering. The scaffold defaults for `depends_on` (`[]`) and `parallel_safe`
-   (`false`) are compatible placeholders — replace them when the plan has real
-   edges.
+   (`integrated`, the only accepted value). Task numbers never decide ordering.
+   The scaffold defaults for `depends_on` (`[]`) and `parallel_safe` (`false`)
+   are placeholders — replace them when the plan has real edges.
    For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
    whole flow → blueprint PR segment → tasks implementation branch; charts stay
    optional and their source is each document body.
@@ -140,30 +146,25 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    not add a new key). Absence or `full` is the normal path; consumers only
    check `scale === 'light'`.
    **Light authoring scope.** Fill only Goal & intent, Touch, and Checklist in
-   light task bodies — the template has no Interface or Do not touch headings,
+   light task bodies — the template has no Interface or Do not touch headings
    and G10 requires only those three. Needing protected paths or rejection
-   contracts is a signal to return to full. When the work grows, revert to
-   `full`, run `bouncer scaffold context-review --blueprint <dir>` to create
-   the judgment document, fill Interface and Do not touch, and return to the
-   normal path.
-   **Verify command (optional).** After the draft bodies make this blueprint's
-   character clear, check the **repository root only** for any of these signals:
-   `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`,
-   `Makefile`, or `Taskfile.yml` (file existence only — do not parse their
-   contents), or a `package.json` that has a `scripts` key (key presence only;
-   do not read script bodies). If at least one signal applies, run **ACQ — Verify command:** ask whether
-   to set `tasks.bouncer.verify` for this blueprint (for example:
-   "Should this blueprint's verify command be written to
-   `tasks.bouncer.verify`?"). On accept, write a **single** executable argv
-   string into each task document's frontmatter `bouncer.verify` under
-   `tasks/<NNN>/tasks.md` (e.g. `npm run test:e2e`,
-   `make test`). If none of the signals above apply, or the user refuses, leave
-   `bouncer.verify` unset so execute keeps the global `config.verify`. Never
-   write `bouncer.verify` from detection alone, and never edit `config.verify` /
-   `.bouncer/config.json` here. Do not propose values that mix `&&`, `;`, pipes,
-   redirection, or a `cd` prefix — verify is a single argv so the evidence
-   command stays reproducible from the repo root; tell the user to wrap
-   container-up + test in one project script.
+   contracts signals a return to full: set `scale` back, run `bouncer scaffold
+   context-review --blueprint <dir>`, fill Interface and Do not touch, and
+   rejoin the normal path.
+   **Verify command (optional).** Once the draft bodies make this blueprint's
+   character clear, check the **repository root only** for `docker-compose.yml`,
+   `docker-compose.yaml`, `compose.yml`, `compose.yaml`, `Makefile`, or
+   `Taskfile.yml` (existence only — never parse contents), or a `package.json`
+   carrying a `scripts` key (key presence only). On at least one signal, run
+   **ACQ — Verify command:** ask whether to set `tasks.bouncer.verify` for this
+   blueprint. On accept, write a **single** executable argv string into each
+   `tasks/<NNN>/tasks.md` frontmatter `bouncer.verify` (e.g. `npm run test:e2e`,
+   `make test`); with no signal or on refusal leave it unset so execute keeps
+   the global `config.verify`. Never write `bouncer.verify` from detection
+   alone, and never edit `config.verify` / `.bouncer/config.json` here. Do not
+   propose values mixing `&&`, `;`, pipes, redirection, or a `cd` prefix —
+   verify is a single argv so the evidence command stays reproducible from the
+   repo root; tell the user to wrap container-up + test in one project script.
    After the draft, run `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) on
    the authored bodies before approval.
 
@@ -189,14 +190,14 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    changes a serialized shape, gate input, or exported contract (field names,
    object→list, helper return shape), search the repo for constructors and
    assertions of the *old* shape before locking `affected_paths` — not only
-   importers of the touched module. Include test fixtures and helpers that
+   importers of the touched module, and including test fixtures and helpers that
    build the shape as a literal (e.g. `fullBlueprint`-style explain frontmatter)
-   even when they do not `require` the changed file. Every file that must be
-   edited for Checklist / `bouncer.verify` / `config.verify` to go green belongs
-   in Touch and `affected_paths`. `Do not touch` on a production file does not
-   exempt that file's tests if those tests embed the old contract — list the
-   tests under Touch, or keep the contract change out of this task. Stale or
-   empty graph results do not replace this search.
+   without requiring the changed file. Every file that must be edited for
+   Checklist / `bouncer.verify` / `config.verify` to go green belongs in Touch
+   and `affected_paths`. `Do not touch` on a production file does not exempt its
+   tests when they embed the old contract — list them under Touch, or keep the
+   contract change out of this task. Stale or empty graph results do not replace
+   this search.
    **Prose / inventory cutovers.** When Goal or Interface closes wording across
    docs, skills, or agents (not only code callers), run the Checklist leftover
    search *before* locking Touch and `affected_paths`. Draft Touch from that
@@ -205,12 +206,11 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
    blocks it.
    **Distill re-ground.** After the user confirms each task's `affected_paths`,
-   use every confirmed `affected_paths` in the following `bouncer distill --for`
-   repeated-flag call and give the routed output to the final authoring/gate
-   context. This is the first selective read; if a task's list
-   changes, repeat it for that task. Keep the earlier `--all` baseline file; a
-   route result must not replace that baseline. If the file is gone, re-run
-   `--all` — do not substitute routed output.
+   pass every confirmed path to the `bouncer distill --for` call below and give
+   the routed output to the final authoring/gate context. This is the first
+   selective read; repeat it for any task whose list changes. Keep the earlier
+   `--all` baseline file — a route result never replaces it; if the file is
+   gone, re-run `--all` rather than substituting routed output.
    ```bash
    bouncer distill \
      --for <path-1> \
@@ -238,13 +238,14 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    `bouncer.status`: epic `draft → approved`, blueprint `draft → approved`, tasks
    `draft → ready`. Never approve silently.
 
-9. **Pointer.** Record the active blueprint:
+9. **Pointer.** Record the approved blueprint's namespace key:
    ```bash
    bouncer current --set <blueprint dir>
    ```
-   This is the approved initial-pointer application of the shared
-   `rules/current-pointer.md` contract; its `--set` plan-gate refusal stops
-   this workflow.
+   Default `--set` adds or updates that key and leaves other namespace
+   pointers in place. This is the approved initial-pointer application of the
+   shared `rules/current-pointer.md` contract; its `--set` plan-gate refusal
+   stops this workflow.
 
 10. **Gate.** Run `bouncer validate --gate plan` and render its result through
    `rules/output.md`:
@@ -254,12 +255,11 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    The CLI owns plan-gate checks and codes, including the full/light exception
    and G19 task-DAG integrity (missing / self / duplicate / cycle).
    Fix every reported failure and re-run until it passes; surface its code,
-   cause, path, and recovery action. Then point the user at
-   `/bouncer-run` — it drives execute→commit until the blueprint's tasks run
-   out, and `config.autonomy` (`auto` | `interactive`) already decides how often
-   they are asked, so do not offer `/bouncer-execute` as the normal next step.
-   Mention `/bouncer-execute` only if they ask for a single task or need to
-   recover a stopped drive.
+   cause, path, and recovery action. Then point the user at `/bouncer-run` — it
+   drives execute→commit until the blueprint's tasks run out, and
+   `config.autonomy` (`auto` | `interactive`) already decides how often they are
+   asked. Do not offer `/bouncer-execute` as the normal next step; mention it
+   only for a single task or to recover a stopped drive.
 
 ## ACQ (AskUserQuestion) gates
 

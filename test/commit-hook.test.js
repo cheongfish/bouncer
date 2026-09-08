@@ -578,3 +578,77 @@ test('a boundary block with an empty staged list reports the checkout, not a bar
   assert.match(r.reason, /main-worktree-source-write: no staged path in \/r/);
   assert.doesNotMatch(r.reason, /: $/);
 });
+
+test('parallel worktrees isolate commit scope to each pointer task affected_paths', () => {
+  const { readAffectedPaths, evaluateCommit } = require('../scripts/lib/commit-hook');
+  const yaml = require('js-yaml');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-ns-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const bpA = '.bouncer/context/epics/001-x/blueprints/001-y';
+  const bpB = '.bouncer/context/epics/002-z/blueprints/001-w';
+  const writeTask = (bp, epicId, bpId, paths) => {
+    const rel = `${bp}/tasks/001/tasks.md`;
+    const abs = path.join(repo, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, `---\n${yaml.dump({
+      type: 'bouncer.tasks',
+      title: 't',
+      description: 'd',
+      resource: rel,
+      tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: 'TASKS-001', epic_id: epicId, blueprint_id: bpId, status: 'ready',
+        affected_paths: paths,
+      },
+    })}---\n# Tasks\n`);
+  };
+  writeTask(bpA, '001', '001', ['src/auth/']);
+  writeTask(bpB, '002', '001', ['src/billing/']);
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', '.'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'fixture',
+  ], { cwd: repo });
+
+  const wtA = path.join(repo, '.worktrees', '001', '001');
+  const wtB = path.join(repo, '.worktrees', '002', '001');
+  fs.mkdirSync(path.dirname(wtA), { recursive: true });
+  fs.mkdirSync(path.dirname(wtB), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '--quiet', '--detach', wtA], { cwd: repo });
+  execFileSync('git', ['worktree', 'add', '--quiet', '--detach', wtB], { cwd: repo });
+
+  writeCurrent({
+    repoRoot: wtA, blueprint: bpA, base: 'develop', task: `${bpA}/tasks/001/tasks.md`,
+  });
+  writeCurrent({
+    repoRoot: wtB, blueprint: bpB, base: 'main', task: `${bpB}/tasks/001/tasks.md`,
+  });
+
+  assert.deepStrictEqual(readAffectedPaths({ repoRoot: wtA, blueprintDir: bpA }), ['src/auth/']);
+  assert.deepStrictEqual(readAffectedPaths({ repoRoot: wtB, blueprintDir: bpB }), ['src/billing/']);
+
+  const fromA = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: wtA,
+    deps: { stagedFiles: () => ['src/billing/invoices.js'] },
+  });
+  assert.strictEqual(fromA.block, true);
+  assert.ok(fromA.reason.includes('src/billing/invoices.js'));
+
+  const fromB = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: wtB,
+    deps: { stagedFiles: () => ['src/auth/login.js'] },
+  });
+  assert.strictEqual(fromB.block, true);
+  assert.ok(fromB.reason.includes('src/auth/login.js'));
+
+  const allowA = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: wtA,
+    deps: { stagedFiles: () => ['src/auth/login.js'] },
+  });
+  assert.strictEqual(allowA.block, false);
+});

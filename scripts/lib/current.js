@@ -6,7 +6,7 @@ const { readDoc } = frontmatter;
 const paths = require("./paths");
 const { epicDirOf, toPosix } = paths;
 const runtimeState = require("./runtime-state");
-const { readRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent } = runtimeState;
+const { readLegacyRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, listNamespacePointers, removeNamespacePointer, pointerKeyFromBlueprint, worktreePathFor, runtimePaths, } = runtimeState;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs } = tasksDocs;
 const scope = require("./scope");
@@ -20,6 +20,337 @@ const BLUEPRINT_LINK_RE = /\]\(blueprints\/([^/)]+)\/index\.md\)/g;
 // --task 는 세 자리 숫자 또는 TASKS-NNN 만 받는다. 그 외 형식은 해석 실패.
 const TASK_DIGITS_RE = /^(\d{3})$/;
 const TASK_ID_RE = /^TASKS-(\d{3})$/;
+class CurrentSelectionError extends Error {
+    code;
+    candidates;
+    issues;
+    constructor({ code, message, candidates, issues, }) {
+        super(message || code);
+        this.name = 'CurrentSelectionError';
+        this.code = code;
+        if (candidates)
+            this.candidates = candidates;
+        if (issues)
+            this.issues = issues;
+    }
+}
+function storedPointer(pointer) {
+    return {
+        blueprint: pointer.blueprint,
+        base: pointer.base,
+        task: pointer.task == null ? null : pointer.task,
+    };
+}
+function sortPointers(pointers) {
+    return [...pointers].sort((a, b) => a.blueprint.localeCompare(b.blueprint));
+}
+function tryPointerKey(blueprint) {
+    try {
+        return pointerKeyFromBlueprint(blueprint).key;
+    }
+    catch (_e) {
+        return null;
+    }
+}
+/**
+ * cwd가 `.worktrees/<epic>/<bp>` 중첩인지, `.worktrees/<bp>` 평면인지,
+ * 기준 checkout인지를 가른다. 키는 세 자리 id만 본다 — worktree 절대 경로를
+ * 키로 쓰면 relocated checkout이 다른 슬롯으로 떨어진다.
+ *
+ * @param {string} repoRoot - 선택 기준이 되는 checkout 절대 경로
+ * @param {ReturnType<typeof runtimePaths>} paths - 같은 호출의 runtimePaths
+ * @param {string | undefined} platform - win32일 때만 win32 path API
+ * @returns {SelectionLocation} nested / flat / base
+ */
+function selectionLocation(repoRoot, paths, platform) {
+    const pathApi = platform === 'win32' ? path.win32 : path;
+    if (paths.unavailable || !paths.worktreeRoot)
+        return { kind: 'base' };
+    const absRepo = pathApi.resolve(repoRoot);
+    const rel = pathApi.relative(paths.worktreeRoot, absRepo);
+    if (!rel || rel === '.' || rel.startsWith('..') || pathApi.isAbsolute(rel)) {
+        return { kind: 'base' };
+    }
+    const parts = rel.split(/[\\/]/).filter(Boolean);
+    if (parts.length >= 2 && /^\d{3}$/.test(parts[0]) && /^\d{3}$/.test(parts[1])) {
+        return { kind: 'nested', key: `${parts[0]}/${parts[1]}` };
+    }
+    if (parts.length >= 1 && /^\d{3}$/.test(parts[0])) {
+        return { kind: 'flat', worktreeAbs: pathApi.join(paths.worktreeRoot, parts[0]) };
+    }
+    return { kind: 'base' };
+}
+function namespaceConflict(legacy, ns, legacyPath) {
+    if (!legacy || ns.length === 0)
+        return null;
+    const legacyKey = tryPointerKey(legacy.blueprint);
+    const foreign = ns.filter((e) => e.key !== legacyKey);
+    if (legacyKey && foreign.length === 0 && ns.length === 1 && ns[0].key === legacyKey) {
+        // 같은 키의 레거시·namespace 사본은 이관 미완료일 뿐 충돌이 아니다.
+        return null;
+    }
+    return {
+        status: 'invalid',
+        issues: [{
+                path: legacyPath || 'bouncer/current',
+                reason: 'legacy and namespace pointers disagree',
+            }],
+        candidates: sortPointers([legacy, ...ns.map((e) => e.pointer)]),
+    };
+}
+/**
+ * cwd와 저장 상태에서 활성 포인터를 고른다. 다중 후보·깨진 파일·레거시 충돌은
+ * throw하지 않고 union으로 돌려 호출부가 JSON을 그릴 수 있게 한다.
+ *
+ * @param {{ repoRoot: string, deps?: RuntimeDeps }} opts - repoRoot는 선택 위치
+ * @returns {CurrentResolution} selected / empty / ambiguous / invalid
+ */
+function resolveCurrent({ repoRoot, deps }) {
+    const listed = listNamespacePointers({ repoRoot, deps });
+    const issues = listed
+        .filter((e) => e.issue)
+        .map((e) => e.issue);
+    const ns = listed
+        .filter((e) => e.pointer != null)
+        .map((e) => ({ key: e.key, pointer: storedPointer(e.pointer) }));
+    const candidates = sortPointers(ns.map((e) => e.pointer));
+    if (issues.length > 0) {
+        return { status: 'invalid', issues, candidates };
+    }
+    const legacy = readLegacyRuntimeCurrent({ repoRoot, deps });
+    const paths = runtimePaths({
+        repoRoot,
+        execFileSync: deps?.execFileSync,
+        env: deps?.env,
+        platform: deps?.platform,
+    });
+    const conflict = namespaceConflict(legacy, ns, paths.currentFile);
+    if (conflict)
+        return conflict;
+    if (paths.currentFile) {
+        const d = deps || {};
+        const fsApi = d.fs || fs;
+        // 레거시 파일이 있는데 파싱이 실패하고 namespace가 있으면 합의를 확인할
+        // 수 없다. namespace만 보고 고르면 다른 주기의 레거시를 삼킨다.
+        if (ns.length > 0 && !legacy && fsApi.existsSync(paths.currentFile)) {
+            return {
+                status: 'invalid',
+                issues: [{ path: paths.currentFile, reason: 'unreadable legacy pointer' }],
+                candidates,
+            };
+        }
+    }
+    if (ns.length === 0) {
+        if (!legacy)
+            return { status: 'empty' };
+        return { status: 'selected', current: storedPointer(legacy), source: 'legacy', key: null };
+    }
+    const loc = selectionLocation(repoRoot, paths, deps?.platform);
+    if (loc.kind === 'nested') {
+        const match = ns.find((e) => e.key === loc.key);
+        if (!match)
+            return { status: 'empty' };
+        return { status: 'selected', current: match.pointer, source: 'namespace', key: loc.key };
+    }
+    if (loc.kind === 'flat') {
+        const matches = ns.filter((e) => {
+            try {
+                return worktreePathFor({ repoRoot, blueprint: e.pointer.blueprint, deps }) === loc.worktreeAbs;
+            }
+            catch (_e) {
+                return false;
+            }
+        });
+        if (matches.length === 1) {
+            return {
+                status: 'selected',
+                current: matches[0].pointer,
+                source: 'namespace',
+                key: matches[0].key,
+            };
+        }
+        if (matches.length === 0)
+            return { status: 'empty' };
+        return { status: 'ambiguous', candidates: sortPointers(matches.map((e) => e.pointer)) };
+    }
+    if (ns.length === 1) {
+        return { status: 'selected', current: ns[0].pointer, source: 'namespace', key: ns[0].key };
+    }
+    return { status: 'ambiguous', candidates };
+}
+/**
+ * resolveCurrent의 호환 wrapper. 호출부가 단일 포인터 또는 없음을 기대할 때 쓴다.
+ *
+ * @param {{ repoRoot: string, deps?: RuntimeDeps }} opts - resolveCurrent와 같다
+ * @returns {Pointer | null} selected면 Pointer, empty면 null
+ * @throws {CurrentSelectionError} ambiguous → CURRENT_AMBIGUOUS, invalid → CURRENT_INVALID
+ */
+function readCurrent({ repoRoot, deps }) {
+    const resolved = resolveCurrent({ repoRoot, deps });
+    if (resolved.status === 'selected')
+        return resolved.current;
+    if (resolved.status === 'empty')
+        return null;
+    if (resolved.status === 'ambiguous') {
+        throw new CurrentSelectionError({
+            code: 'CURRENT_AMBIGUOUS',
+            candidates: resolved.candidates,
+        });
+    }
+    throw new CurrentSelectionError({
+        code: 'CURRENT_INVALID',
+        issues: resolved.issues,
+        candidates: resolved.candidates,
+    });
+}
+/**
+ * 대상 namespace 키를 추가·갱신하고, 같은 키의 레거시 파일이 있으면 이관한다.
+ * `--replace`는 선택된 다른 키를 지운 뒤 대상을 쓴다. 서로 다른
+ * legacy·namespace 공존은 쓰지 않고 CURRENT_INVALID다. 레거시 삭제 실패는
+ * 이미 쓴 namespace를 남긴 채 CURRENT_MIGRATION_INCOMPLETE다.
+ *
+ * @param {object} opts - repoRoot, blueprint, base, 선택적 task·replace·replaceKey
+ * @returns {string} 쓴 namespace 파일 절대 경로
+ */
+function writeCurrent({ repoRoot, blueprint, base, task, deps, replace, replaceKey, }) {
+    const paths = runtimePaths({
+        repoRoot,
+        execFileSync: deps?.execFileSync,
+        env: deps?.env,
+        platform: deps?.platform,
+    });
+    // Git 부재는 id 검사보다 앞선다. 비저장소에서 경로 형식 오류로 바꾸면
+    // 기존 writeCurrent 거절 메시지와 호출부 분기가 갈라진다.
+    if (paths.unavailable) {
+        throw new Error('Bouncer requires a Git repository for an active blueprint');
+    }
+    const ids = pointerKeyFromBlueprint(blueprint);
+    const listed = listNamespacePointers({ repoRoot, deps });
+    const issues = listed.filter((e) => e.issue).map((e) => e.issue);
+    const ns = listed.filter((e) => e.pointer != null);
+    if (issues.length > 0) {
+        throw new CurrentSelectionError({
+            code: 'CURRENT_INVALID',
+            issues,
+            candidates: sortPointers(ns.map((e) => storedPointer(e.pointer))),
+        });
+    }
+    const legacy = readLegacyRuntimeCurrent({ repoRoot, deps });
+    if (legacy) {
+        const legacyKey = tryPointerKey(legacy.blueprint);
+        const nsKeys = new Set(ns.map((e) => e.key));
+        const sameKeyOnly = legacyKey != null
+            && nsKeys.size <= 1
+            && (nsKeys.size === 0 || nsKeys.has(legacyKey));
+        const targetMatchesLegacy = legacyKey === ids.key;
+        if (!targetMatchesLegacy && !replace) {
+            throw new CurrentSelectionError({
+                code: 'CURRENT_INVALID',
+                issues: [{
+                        path: paths.currentFile || 'bouncer/current',
+                        reason: 'legacy and namespace pointers disagree',
+                    }],
+                candidates: sortPointers([storedPointer(legacy), ...ns.map((e) => storedPointer(e.pointer))]),
+            });
+        }
+        if (nsKeys.size > 0 && !sameKeyOnly && !replace) {
+            throw new CurrentSelectionError({
+                code: 'CURRENT_INVALID',
+                issues: [{
+                        path: paths.currentFile || 'bouncer/current',
+                        reason: 'legacy and namespace pointers disagree',
+                    }],
+                candidates: sortPointers([storedPointer(legacy), ...ns.map((e) => storedPointer(e.pointer))]),
+            });
+        }
+    }
+    // --replace는 선택된 키를 먼저 지운 뒤 대상을 쓴다. 새 파일을 먼저 쓰면
+    // 삭제 실패 시 두 키가 공존하고 어느 쪽이 활성인지 진단이 안 된다.
+    if (replace && replaceKey && replaceKey !== ids.key) {
+        const pathApi = deps?.platform === 'win32' ? path.win32 : path;
+        const keyParts = /^(\d{3})\/(\d{3})$/.exec(replaceKey);
+        const replacePath = keyParts && paths.pointersRoot
+            ? pathApi.join(paths.pointersRoot, keyParts[1], `${keyParts[2]}.json`)
+            : replaceKey;
+        try {
+            removeNamespacePointer({ repoRoot, key: replaceKey, deps });
+        }
+        catch (error) {
+            // rmSync 실패(EACCES 등)만 접는다. 두 키를 남긴 채 raw throw하면 CLI가
+            // 모호성 JSON 없이 무너지고, 호출부는 어느 파일이 남았는지 모른다.
+            throw new CurrentSelectionError({
+                code: 'CURRENT_INVALID',
+                issues: [{
+                        path: replacePath,
+                        reason: catchSelectionMessage(error),
+                    }],
+                candidates: sortPointers(ns.map((e) => storedPointer(e.pointer))),
+            });
+        }
+    }
+    const written = writeRuntimeCurrent({
+        repoRoot, blueprint, base, task, deps,
+    });
+    if (legacy && paths.currentFile) {
+        const d = { fs, ...(deps || {}) };
+        try {
+            if (d.fs.existsSync(paths.currentFile))
+                d.fs.rmSync(paths.currentFile);
+        }
+        catch (error) {
+            // 레거시 unlink 실패만 이관 미완료로 접는다. namespace 사본은 이미 같은
+            // 본문이라 다음 동일 write가 삭제만 재시도하면 된다. 다른 오류를
+            // 성공으로 삼키면 부분 이관이 조용히 남는다.
+            throw new CurrentSelectionError({
+                code: 'CURRENT_MIGRATION_INCOMPLETE',
+                message: catchSelectionMessage(error),
+                candidates: sortPointers([
+                    storedPointer(legacy),
+                    storedPointer({
+                        blueprint: toPosix(blueprint),
+                        base,
+                        task: typeof task === 'string' ? toPosix(task) : null,
+                    }),
+                ]),
+            });
+        }
+    }
+    return written;
+}
+function catchSelectionMessage(error) {
+    return error.message || 'CURRENT_MIGRATION_INCOMPLETE';
+}
+/**
+ * 현재 위치에서 유일하게 선택된 포인터만 지운다. 다중 후보·깨진 파일은
+ * 아무 키도 지우지 않고 throw한다 — 한쪽 clear가 다른 주기를 삼키지 않게.
+ *
+ * @param {{ repoRoot: string, deps?: RuntimeDeps }} opts - 선택 위치와 주입 의존성
+ * @returns {boolean} 지웠으면 true, 선택된 포인터가 없었으면 false
+ */
+function clearCurrent({ repoRoot, deps }) {
+    const resolved = resolveCurrent({ repoRoot, deps });
+    if (resolved.status === 'empty')
+        return false;
+    if (resolved.status === 'ambiguous') {
+        throw new CurrentSelectionError({
+            code: 'CURRENT_AMBIGUOUS',
+            candidates: resolved.candidates,
+        });
+    }
+    if (resolved.status === 'invalid') {
+        throw new CurrentSelectionError({
+            code: 'CURRENT_INVALID',
+            issues: resolved.issues,
+            candidates: resolved.candidates,
+        });
+    }
+    if (resolved.source === 'legacy') {
+        return clearRuntimeCurrent({ repoRoot, deps });
+    }
+    if (!resolved.key)
+        return false;
+    return removeNamespacePointer({ repoRoot, key: resolved.key, deps });
+}
 function bouncerOf(data) {
     // `data && data.bouncer`와 같다. `'bouncer' in data`로 바꾸면 프로토타입
     // 필드가 생기고, data가 null일 때 예전처럼 단락되지 않을 수 있다.
@@ -28,17 +359,6 @@ function bouncerOf(data) {
 function bouncerStatus(data) {
     const bouncer = bouncerOf(data);
     return bouncer ? bouncer.status : undefined;
-}
-function readCurrent({ repoRoot, deps }) {
-    return readRuntimeCurrent({ repoRoot, deps });
-}
-function writeCurrent({ repoRoot, blueprint, base, task, deps, }) {
-    return writeRuntimeCurrent({
-        repoRoot, blueprint, base, task, deps,
-    });
-}
-function clearCurrent({ repoRoot, deps }) {
-    return clearRuntimeCurrent({ repoRoot, deps });
 }
 function availableTaskEntries(listing) {
     return listing.entries
@@ -486,5 +806,5 @@ function nextBlueprint({ repoRoot, blueprintDir }) {
 }
 module.exports = {
     readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
-    resolvePointerTask, presentCurrent,
+    resolvePointerTask, presentCurrent, resolveCurrent, CurrentSelectionError,
 };

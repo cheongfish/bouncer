@@ -12,11 +12,15 @@
 | `.bouncer/Distill.md` | 커밋 (에이전트 런타임 주의) | finalize가 BP explain에서 승격·교체·폐기 |
 | `.bouncer/config.json` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
 | `graphify-out/` | 제외 | `-` (`.gitignore`, init이 안내) |
-| 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/current` — JSON `{blueprint, task?, base}` (Git 공통 디렉터리; `task`는 task 문서 상대 경로, 없으면 미지정) |
+| 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/pointers/<epic-id>/<blueprint-id>.json` — JSON `{blueprint, task?, base}` (`task`는 task 문서 상대 경로, 없으면 미지정). cwd가 중첩·유일 평면 worktree면 그 key만 선택하고, 기준 checkout은 포인터가 하나일 때만 선택한다. 레거시 `$GIT_COMMON_DIR/bouncer/current`는 충돌 없는 첫 `--set`에서 namespace로 이관한다 |
 | execute worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>` (gitignore / finalize 무시; 이미 열린 평면 `.worktrees/<blueprint id>`만 재사용) |
 | integration worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>/integration` — branch `bouncer/<epic id>-<blueprint id>-integration`. coordinator 주행의 fan-in 대상 |
 | worker worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>/workers/<NNN>` — branch `bouncer/<epic id>-<blueprint id>-<NNN>`. ready wave가 연 task마다 하나 |
 | coordinator 원장 | 제외 | `<integration worktree>/.bouncer/runtime/coordinator.json` — 실행 상태이지 컨텍스트 문서가 아니다 (gitignore / 커밋 범위 검사 무시; init이 `.gitignore` 항목을 안내) |
+
+verify 원장(`$GIT_COMMON_DIR/bouncer/verify/<digest>.json`)은 verification 문서
+상대경로 digest로 이미 task별로 갈려 있다. 포인터 namespace는 그 원장 경로를
+바꾸지 않는다.
 
 문서 골격(템플릿)과 제품 규칙(`rules/governance.md` · `rules/okf.md`),
 세션 마스터 룰(`CLAUDE.md` / `AGENTS.md`)은 프로젝트에 설치되지 않습니다.
