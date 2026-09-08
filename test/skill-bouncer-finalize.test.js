@@ -401,3 +401,58 @@ test('bouncer-finalize loads Distill, quiz, PR, and handoff references in number
   assert.match(body, /\*\*ACQ — Next blueprint/);
   assert.match(body, /\*\*AskUserQuestion — Remainder commit \+ worktree\*\*/);
 });
+
+// finalize는 검증된 integration HEAD만 닫는다. main worktree source를
+// staging하면 위임 실행의 경계가 마감 단계에서 무너진다.
+test('bouncer-finalize closes only a verified integration head', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const cwd = body.match(/\*\*cwd contract\.\*\*([\s\S]*?)(?=\n\*\*Preflight)/)?.[1] || '';
+  assert.match(cwd, /integration worktree/);
+  assert.match(cwd, /verified HEAD/);
+  assert.match(cwd, /Never stage\s*\n?\s*main-worktree source/);
+  assert.match(cwd, /read-only provenance/);
+  const step3 = body.slice(body.indexOf('3. **Validate'), body.indexOf('4. **Push'));
+  assert.match(step3, /every task in the\s*\n?\s*coordinator ledger is `integrated`/);
+  assert.match(step3, /unresolved reviewer finding/);
+  assert.match(step3, /instead\s*\n?\s*of recording it as done/);
+  // 읽히지 않는 원장은 "drive가 아님"이 아니라 같은 중단이다 — 그 구분이
+  // 없으면 손상된 원장이 비-drive finalize로 위장해 통과한다.
+  assert.match(step3, /An unreadable ledger is the same stop/);
+  assert.match(step3, /coordinator\.status: 'unreadable'/);
+  assert.match(step3, /reason: 'coordinator-ledger'/);
+});
+
+// 정리 대상은 payload 목록이고, 중단 상태는 보존한다.
+test('bouncer-finalize cleans every drive worktree but preserves a blocked drive', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const handoff = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'cleanup-handoff.md'), 'utf8',
+  );
+  assert.match(body, /`worktrees` inventory names them all/);
+  assert.match(handoff, /one integration worktree and one worker worktree per prepared task/);
+  assert.match(handoff, /remove the worker worktrees first, then the integration one/);
+  assert.match(handoff, /Preserve the whole inventory/);
+  assert.match(handoff, /stopped as blocked/);
+  assert.match(handoff, /Cleanup is for a closed blueprint only/);
+});
+
+// explain과 PR은 계획이 아니라 실행을 기술한다.
+test('bouncer-finalize audits DAG change, actual paths and agent provenance', () => {
+  const explain = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
+  );
+  const draftPr = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'), 'utf8',
+  );
+  for (const doc of [explain, draftPr]) {
+    assert.match(doc, /DAG/);
+    assert.match(doc, /actual[_ ]paths/i);
+    assert.match(doc, /scope_revision/);
+    assert.match(doc, /integration head/);
+  }
+  assert.match(explain, /which named agent produced it/);
+  assert.match(explain, /worker branch and SHA/);
+  assert.match(explain, /ledger's decision log/);
+  assert.match(draftPr, /integration verify on the head this PR pushes/);
+  assert.match(draftPr, /When the\s*\n?\s*plan and the run match, say nothing/);
+});

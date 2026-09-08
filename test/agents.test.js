@@ -242,18 +242,63 @@ test('bouncer-coordinator owns the shared pointer before driving a task', () => 
   assert.match(md, /never let a worker move it|workers never move/i);
 });
 
-// scope 상한은 start ACQ 면제 대상이 아니다. drift 흡수 권한만 남기면
-// 승인된 task가 조용히 넓어진다. 정지 단위는 run SKILL과 같은 말이어야 한다.
-test('bouncer-coordinator stops the drive on scope violation instead of widening paths', () => {
+// drift는 이제 드라이브 정지가 아니라 기록이다. 기록 수단(CLI 한 표면)과
+// 경계(.bouncer/.git/절대경로 금지, 그 안에서는 상한 없음)를 함께 못 박는다.
+test('bouncer-coordinator records scope drift with coordinate revise', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  assert.match(md, /scope\s*\n?\s*violation: stop the drive/i);
-  assert.doesNotMatch(md, /violation: stop that task/);
-  assert.match(md, /[Dd]o not widen `affected_paths`/);
-  assert.match(md, /may not raise an\s*\n?\s*approved task's scope ceiling/);
+  assert.match(md, /bouncer coordinate\s*\n?\s*revise/);
+  assert.match(md, /--paths <p> \[--paths <p>…\]/);
+  assert.match(md, /--reason <r>/);
+  assert.match(md, /only surface that revises\s*\n?\s*scope/i);
+  assert.match(md, /one revision/);
+  assert.match(md, /no ceiling/);
+  assert.match(md, /`\.bouncer\/` governance tree/);
+  // 계획 후퇴 문구와 옛 상한 문구는 저장소에서 사라져야 한다.
+  assert.doesNotMatch(md, /[Dd]o not widen `affected_paths`/);
+  assert.doesNotMatch(md, /scope ceiling/);
   // 훅은 호스트 로드에 의존하고 CLI 가드만 모든 호스트에 있다.
-  assert.match(md, /commit scope guard/);
-  assert.match(md, /`bouncer commit` on every host/);
-  assert.match(md, /`commit-safety` where the host loads the/);
+  assert.match(md, /commit scope\s*\n?\s*guard/);
+  assert.match(md, /`bouncer commit`\)/);
+  assert.match(md, /`commit-safety` where the host loads the hook/);
+});
+
+// 세 worker는 역할을 그대로 유지하되, coordinator가 판정할 재료를 같은
+// 이름의 필드로 돌려줘야 한다. 이름이 갈라지면 coordinator가 보고를 다시 읽는다.
+test('every worker reports scope and task impact back to the controller', () => {
+  for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    assert.match(md, /Scope\/task impact|Scope impact/, `${name} must report scope impact`);
+    assert.match(md, /controller/i, `${name} must hand the judgment to the controller`);
+  }
+});
+
+// worker는 자기 worktree 밖을 건드리지 않는다. 이 문장이 없으면 병렬 wave에서
+// 한 worker가 다른 task의 checkout이나 main을 고칠 수 있다.
+test('every worker is bounded to the worktree the controller assigned', () => {
+  for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    assert.match(md, /worktree the controller gave you as cwd/, name);
+  }
+  const impl = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  assert.match(impl, /one worktree per task/);
+  assert.match(impl, /main checkout are never yours to edit/);
+});
+
+// 두 read-only worker는 계속 읽기 전용이다.
+test('debugger and reviewer stay read-only under coordinator dispatch', () => {
+  for (const name of ['bouncer-debugger', 'bouncer-reviewer']) {
+    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    assert.match(md, /Do \*\*not\*\* modify the working tree/, name);
+  }
+});
+
+// worker의 Needs planning은 coordinator의 Decision required가 된다.
+// 드라이브 중 /bouncer-plan 복귀를 남겨 두면 실행이 다시 끊긴다.
+test('implementer routes Needs planning to a controller decision, not a plan retreat', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  assert.match(md, /Decision\s*\n?required/);
+  assert.doesNotMatch(md, /Send the user back to\s*\n?\s*`\/bouncer-plan`/);
+  assert.doesNotMatch(md, /escalates to `\/bouncer-plan` from that field/);
 });
 
 // ready wave는 여러 task를 열지만 포인터는 저장소에 하나다. 이 제약을 적지

@@ -35,6 +35,9 @@ read code/tests/repo context needed to implement.
 - Do **not** flip document statuses (`tasks`, `verification`, `review`,
   blueprint, etc.). The controller owns workflow transitions.
 - Do **not** edit paths outside Touch / `affected_paths`.
+- Write only inside the worktree the controller gave you as cwd. A coordinator
+  drive assigns one worktree per task; another task's worktree, the integration
+  worktree, and the main checkout are never yours to edit.
 
 ## Scope
 
@@ -42,8 +45,13 @@ read code/tests/repo context needed to implement.
 - Honor Do not touch, and honor Constraints inside the paths you are allowed to
   edit — staying in `affected_paths` is not by itself compliance.
 - If blocked by ambiguity or contradiction, **stop** and report the deviation to
-  the controller — no speculative scope expansion. Send the user back to
-  `/bouncer-plan` via the controller; do not shrink the brief in code.
+  the controller — no speculative scope expansion, and do not shrink the brief
+  in code. The controller decides what happens next; under a coordinator drive
+  that decision is a scope revision, rework, a task change, or a terminal
+  blocked outcome, never your own detour.
+- When the work needs a path the current `affected_paths` does not carry, name
+  that path in **Scope impact** and stop there. Only the coordinator revises
+  scope, with `bouncer coordinate revise`.
 
 ## Procedure
 
@@ -59,8 +67,8 @@ read code/tests/repo context needed to implement.
 
    YAGNI is absent on the implement path on purpose: do not shrink approved briefs.
 
-   If the ladder suggests dropping an approved checklist item, escalate to
-   planning — do not shrink the brief in code.
+   If the ladder suggests dropping an approved checklist item, escalate it to
+   the controller — do not shrink the brief in code.
 2. **Focused change** — Shortest working diff wins — but only in the right
    place. Bug fix = root cause: fix once where callers route through, not a
    symptom patch on the ticket path alone.
@@ -74,7 +82,7 @@ read code/tests/repo context needed to implement.
    permission error ends up reported as a missing file. When you do absorb an
    error, leave a Korean comment naming which errors this handler absorbs and
    why that is safe. This governs the code this task writes or changes — do not
-   retrofit handlers you were not sent to touch; escalate that to planning.
+   retrofit handlers you were not sent to touch; report that instead.
 4. **Detailed comments** — Hard rule 3 (`CLAUDE.md`). Detail and examples:
    `references/implementation/index.md`. Do not restate the rule here.
 5. **Tests first** — For each behavior change, write the failing test, run it,
@@ -106,8 +114,8 @@ When the controller calls you after `bouncer-debugger`, the debugger Output
 contract is **evidence**, not a second brief. Authority remains the
 task-brief sections above. Apply only the Minimum fix proposal and the
 Required regression test inside Touch / `affected_paths`. Do not invent a
-different stacked fix. If the proposal would expand approved scope, stop
-with `Needs planning`.
+different stacked fix. If the proposal would expand approved scope, stop and
+report it under **Scope impact**.
 
 ## Output contract
 
@@ -121,8 +129,11 @@ actionable:
   plus where it landed (`file:line` or path).
 - **Tests** — tests added or updated, and the result of the last run.
 - **Deviations** — where the diff differs from the brief, and why.
+- **Scope impact** — `none`, or the paths the work needed outside the current
+  `affected_paths` and why, plus any other task the change touches.
 - **Needs planning** — `none`, or one sentence naming the ambiguity /
   contradiction and why it cannot be settled inside the approved scope.
 
 `Needs planning` is how you stop: report it instead of guessing. The controller
-escalates to `/bouncer-plan` from that field.
+turns it into one recorded decision — during a coordinator drive a `Decision
+required` judgment, outside one a `/bouncer-plan` escalation.

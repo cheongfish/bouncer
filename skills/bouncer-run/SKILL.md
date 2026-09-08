@@ -50,9 +50,10 @@ preserves those skills' ceilings: at most **1** debugger recovery per task and
 execute's conditional review-round ceiling. It also owns the pointer during the
 drive — one `bouncer current --set` per task, since every worktree shares it.
 Route nothing back to `/bouncer-plan` mid-drive; the coordinator owns drift as a
-recorded decision. A scope violation stops the drive and comes back as a
-blocked outcome; do not widen `affected_paths`, and do not accept a coordinator
-decision that does.
+recorded decision. Scope drift is one of those decisions: the coordinator
+records it with `bouncer coordinate revise`, which moves the task document and
+the ledger to one revision, so render that revision instead of re-judging it.
+Only a blocker the coordinator cannot record comes back as a blocked outcome.
 
 1. **Preflight.** Read `autonomy` from `.bouncer/config.json`. When the key is
    missing or outside `AUTONOMY_ENUM`, tell the user and proceed with `auto`.

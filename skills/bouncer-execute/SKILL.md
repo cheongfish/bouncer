@@ -18,6 +18,15 @@ Implement the active blueprint's current task. Follow this sequence. Do **not**
 run `git commit` or `bouncer commit` here — after the execute gate passes, point
 the user at `/bouncer-commit`.
 
+**Controller.** Outside a drive this session is the controller. Under a
+`bouncer-coordinator` drive the coordinator is, and this skill is the round it
+runs per task in the worktree it assigned: named `bouncer-implementer` → verify
+→ named `bouncer-debugger` → named `bouncer-implementer` again → named
+`bouncer-reviewer`, with every result returned to the coordinator. The
+coordinator never plays those roles itself, and it dispositions what they
+return — findings, scope drift, and stalled retries — as one recorded decision.
+Return results to it; it does not re-read the diff.
+
 **Project root.** Resolve the consuming project's main worktree (same value from
 a linked execute worktree cwd):
 ```bash
@@ -66,7 +75,10 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    graphify-runner, gated by G4, checked by context-review); execute has no
    consumer, and because it is G4 input it must not be deleted from documents.
 
-2. **Worktree.** All tasks on the same blueprint **share one** execute worktree
+2. **Worktree.** Under a coordinator drive, skip this step: `bouncer coordinate
+   prepare` already assigned this task's worktree, and creating another one here
+   would put the round outside the boundary commit safety enforces. Otherwise
+   all tasks on the same blueprint **share one** execute worktree
    at `<repo>/.worktrees/<epic-id>/<bp-id>`. If that path already exists, **reuse it** —
    do not create a second worktree or a new branch. Only when the worktree is
    missing, create it + branch:
@@ -143,9 +155,13 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —
-   staying in `affected_paths` is not by itself compliance. If blocked by
-   ambiguity or contradiction, stop and send the user back to `/bouncer-plan` —
-   no speculative scope expansion.
+   staying in `affected_paths` is not by itself compliance. When the work needs
+   a path the brief does not carry, do not expand it in place: outside a drive
+   stop and send the user back to `/bouncer-plan`; under a coordinator drive
+   hand the implementer's **Scope impact** to the coordinator, which records the
+   new scope with `bouncer coordinate revise --blueprint <dir> --task <NNN>
+   --paths <p> [--paths <p>…] --reason <r>` — the one surface that revises scope
+   — and re-briefs the round from the revised document.
 
    **One implementer (initial).** Step 3 dispatches implementer once for the
    task brief — on the inline path this step is still one instance. Do not
@@ -179,8 +195,9 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    with that report as evidence. Then re-verify.
 
    On the same failing verify, redispatch the debugger at most
-   **1** time (1 unsuccessful fix cycle); then escalate to architecture /
-   `/bouncer-plan` rather than looping.
+   **1** time (1 unsuccessful fix cycle); then stop looping and hand the failure
+   to the controller — under a drive that is a coordinator decision (rework, a
+   task change, or terminal blocked), not a return to `/bouncer-plan`.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
    Otherwise use the `review` skill (`${BOUNCER_ROOT}/references/review/index.md`). When dispatching a named agent or applying its fallback, apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this reference: [agent-dispatch.md](./references/agent-dispatch.md). Fill `${BOUNCER_ROOT}/references/review/assets/reviewer-prompt.md` with the brief, base/HEAD, constraints, previous finding IDs, resolution, revision diff, and latest verification; scale never changes reviewer dispatch.
@@ -206,11 +223,13 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    condition holds. Never start a fourth round. After round 2, if previous
    blocker/major findings remain, latest verify failed, or new actionable
    findings need a new design, dependency, public interface, or scope change,
-   stop immediately and send the user to `/bouncer-plan` — do not enter round 3.
-   After round 3, if any actionable finding remains, a finding regresses, or a
-   new design/scope is required, stop and send the user to `/bouncer-plan`.
-   Do not fix again, do not re-review, and never flip a remaining finding to
-   `accepted` to clear it.
+   stop immediately — do not enter round 3. After round 3, stop the same way if
+   any actionable finding remains, a finding regresses, or a new design/scope is
+   required. Either stop returns to the controller: outside a drive, send the
+   user to `/bouncer-plan`; under one, hand the coordinator the open findings to
+   disposition. Do not fix again, do not re-review, and never flip a remaining
+   finding to `accepted` to clear it — an unresolved finding is never recorded
+   as done.
    Treat every actionable finding that affects current-task accuracy — do not
    filter by severity. Do not classify those findings as `deferred`. `accepted`
    is an authorized risk acceptance; `deferred` is an independent follow-up

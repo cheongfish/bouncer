@@ -50,10 +50,12 @@ test('run stays non-editing and does not re-judge worker reports', () => {
   assert.match(role, /(?:does not|never)[\s\S]{0,80}reconstruct[\s\S]{0,60}worker/i);
   assert.match(role, /at most \*\*1\*\* debugger recovery/);
   assert.match(role, /\/bouncer-execute/);
-  // scope 상한과 포인터 소유는 위임 뒤에도 남는다.
-  assert.match(role, /A scope violation stops the drive/);
+  // scope drift는 정지가 아니라 기록이다. run은 그 기록을 렌더링만 한다.
+  assert.match(role, /bouncer coordinate\s*\n?\s*revise/);
+  assert.match(role, /one revision/);
+  assert.match(role, /instead of re-judging it/);
   assert.doesNotMatch(role, /stop that task/);
-  assert.match(role, /do not widen\s*\n?\s*`affected_paths`/);
+  assert.doesNotMatch(md, /do not widen\s*\n?\s*`affected_paths`/);
   assert.match(role, /bouncer current --set/);
 });
 

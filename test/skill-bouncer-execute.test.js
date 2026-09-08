@@ -300,3 +300,60 @@ test('bouncer-execute loads debugging only on the verify-failure recovery path',
   assert.doesNotMatch(preamble, /minimality\/index\.md/);
   assert.doesNotMatch(preamble, /Root cause → Pattern → Hypothesis → Implementation/);
 });
+
+// coordinator drive에서는 이 스킬이 한 task의 라운드다. 순서와 소유자가
+// 문서에 없으면 위임받은 쪽이 스스로 구현자를 겸하고 리뷰가 자기 diff를 본다.
+test('bouncer-execute runs the implement/debug/review round under the coordinator', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const role = body.match(/\*\*Controller\.\*\*([\s\S]*?)(?=\n\*\*Project root)/)?.[1] || '';
+  assert.ok(role.length > 0, 'execute must name who controls the round');
+  assert.match(role, /bouncer-coordinator/);
+  assert.match(
+    role,
+    /bouncer-implementer[\s\S]{0,60}verify[\s\S]{0,60}bouncer-debugger[\s\S]{0,80}bouncer-implementer[\s\S]{0,60}bouncer-reviewer/,
+  );
+  assert.match(role, /never plays those roles itself/);
+  assert.match(role, /returned to the coordinator/);
+  assert.match(role, /does not re-read the diff/);
+});
+
+// worktree는 coordinator가 배정한다. execute가 또 하나 만들면 커밋 안전
+// 경계 밖에서 라운드가 돈다.
+test('bouncer-execute does not create a worktree during a coordinator drive', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step2 = body.slice(body.indexOf('2. **Worktree.**'), body.indexOf('3. **Implement'));
+  assert.match(step2, /Under a coordinator drive, skip this step/);
+  assert.match(step2, /coordinate\s*\n?\s*prepare/);
+});
+
+// drift는 서술이 아니라 CLI 호출로 기록된다. 그리고 그 표면은 하나뿐이다.
+test('bouncer-execute records scope drift with coordinate revise, not prose', () => {
+  const exec = readWorkflowBundle('bouncer-execute');
+  assert.match(exec, /bouncer coordinate revise --blueprint <dir> --task <NNN>/);
+  assert.match(exec, /--paths <p> \[--paths <p>…\]/);
+  assert.match(exec, /--reason <r>/);
+  assert.match(exec, /one surface that revises scope/);
+  assert.match(exec, /Scope impact/);
+  // 라운드 상한을 넘긴 실패는 계획 후퇴가 아니라 coordinator 판정으로 간다.
+  assert.match(exec, /not a return to `\/bouncer-plan`/);
+  assert.match(exec, /hand the coordinator the open findings to\s*\n?\s*disposition/);
+  assert.match(exec, /unresolved\s*\n?\s*finding is never recorded\s*\n?\s*as done/);
+  assert.doesNotMatch(exec, /escalate to architecture/);
+});
+
+// worker payload는 배정된 worktree와 개정된 brief만 받는다.
+test('bouncer-execute pins the worker payload to the assigned worktree and revised brief', () => {
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  assert.match(dispatch, /task worktree `bouncer coordinate\s*\n?\s*prepare` assigned/);
+  assert.match(dispatch, /never the integration worktree and never the main checkout/);
+  assert.match(dispatch, /not the approval snapshot/);
+  assert.match(dispatch, /ledger, and other workers' reports stay out of the payload/);
+});
+
+test('bouncer-execute verify recovery hands a repeat failure to the coordinator', () => {
+  const recovery = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/verification-recovery.md'), 'utf8');
+  assert.match(recovery, /do not retreat to `\/bouncer-plan` mid-drive/);
+  assert.match(recovery, /exactly one recorded decision/);
+  assert.match(recovery, /terminal blocked/);
+  assert.match(recovery, /bouncer coordinate revise/);
+});

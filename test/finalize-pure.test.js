@@ -647,3 +647,98 @@ test('finalize rejects an absent or malformed blueprint Intent', () => {
     blueprintIndex: { data: { title: '계약' }, body: '# Blueprint\n\n## Intent\n- English only\n' },
   }), /Intent.*한국어/);
 });
+
+// --- coordinator provenance -------------------------------------------------
+
+const { buildCoordinatorProvenance } = require('../scripts/lib/finalize');
+
+const LEDGER = {
+  version: 1,
+  blueprint: BP,
+  base: 'basesha',
+  integrationHead: 'headsha',
+  revision: 'r2',
+  tasks: [
+    {
+      id: '001',
+      status: 'integrated',
+      sha: 'worker1',
+      workerPath: '/w/.worktrees/001/001/workers/001',
+      scope: { revision: 'r2', paths: ['src/auth/', 'src/session/token.ts'] },
+      actualPaths: ['src/auth/login.ts'],
+      decisions: [{ task: '001', kind: 'scope', reason: 'shared guard' }],
+    },
+    { id: '002', status: 'pending' },
+  ],
+  decisions: [{ task: '001', kind: 'scope', reason: 'shared guard' }],
+};
+
+test('coordinator provenance folds the ledger into explain and cleanup fields', () => {
+  const provenance = buildCoordinatorProvenance(LEDGER, {
+    integrationPath: '/w/.worktrees/001/001/integration',
+    ledgerFile: '/w/.worktrees/001/001/integration/.bouncer/runtime/coordinator.json',
+  });
+  // 정상 경로도 원장 파일을 밝힌다. 여기서 null이면 소비자가 "원장이 없다"와
+  // "원장은 있는데 어디인지 모른다"를 구분하지 못한다.
+  assert.strictEqual(
+    provenance.ledgerFile,
+    '/w/.worktrees/001/001/integration/.bouncer/runtime/coordinator.json',
+  );
+  assert.strictEqual(provenance.integrationHead, 'headsha');
+  assert.strictEqual(provenance.base, 'basesha');
+  assert.strictEqual(provenance.revision, 'r2');
+  assert.deepStrictEqual(provenance.tasks, [
+    {
+      id: '001',
+      status: 'integrated',
+      sha: 'worker1',
+      worktree: '/w/.worktrees/001/001/workers/001',
+      scopeRevision: 'r2',
+      paths: ['src/auth/', 'src/session/token.ts'],
+      actualPaths: ['src/auth/login.ts'],
+      decisions: [{ task: '001', kind: 'scope', reason: 'shared guard' }],
+    },
+    {
+      id: '002',
+      status: 'pending',
+      sha: null,
+      worktree: null,
+      scopeRevision: null,
+      paths: [],
+      actualPaths: [],
+      decisions: [],
+    },
+  ]);
+  assert.deepStrictEqual(provenance.decisions, LEDGER.decisions);
+  // cleanup inventory: integration이 먼저, 그다음 할당된 worker worktree만.
+  assert.deepStrictEqual(provenance.worktrees, [
+    '/w/.worktrees/001/001/integration',
+    '/w/.worktrees/001/001/workers/001',
+  ]);
+});
+
+test('coordinator provenance is null without a ledger and tolerates missing arrays', () => {
+  assert.strictEqual(buildCoordinatorProvenance(null), null);
+  assert.strictEqual(buildCoordinatorProvenance(undefined), null);
+  const bare = buildCoordinatorProvenance({ version: 1 }, { integrationPath: '/w/i' });
+  assert.deepStrictEqual(bare.tasks, []);
+  assert.deepStrictEqual(bare.decisions, []);
+  assert.deepStrictEqual(bare.worktrees, ['/w/i']);
+  assert.strictEqual(bare.integrationHead, null);
+});
+
+// 원장 항목의 id가 없거나 문자열이 아니면 그대로 null로 남긴다. String()으로
+// 감싸면 "undefined"가 explain frontmatter에 실재하는 id처럼 기록되고, 원장이
+// 사라진 뒤에는 그것이 오류였는지 확인할 출처가 남지 않는다.
+test('coordinator provenance keeps a malformed ledger task id visibly null', () => {
+  const provenance = buildCoordinatorProvenance({
+    tasks: [
+      { status: 'pending', workerPath: '/w/workers/001' },
+      { id: { n: 1 }, status: 'pending' },
+      { id: '', status: 'pending' },
+    ],
+  }, { integrationPath: '/w/i' });
+  assert.deepStrictEqual(provenance.tasks.map((task) => task.id), [null, null, null]);
+  // 항목을 버리지는 않는다 — worker worktree는 여전히 정리 대상이다.
+  assert.deepStrictEqual(provenance.worktrees, ['/w/i', '/w/workers/001']);
+});

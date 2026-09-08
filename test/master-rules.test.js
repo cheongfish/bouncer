@@ -1083,3 +1083,26 @@ test('current-pointer hands pointer moves to the coordinator, not the run loop',
   assert.doesNotMatch(pointer, /`auto`/);
   assert.match(pointer, /confirm-then-set|확인.*--set/i);
 });
+
+// worker/coordinator 권한 문구의 정본은 하나여야 한다. 두 곳이 각자
+// 규칙을 말하면 어느 쪽이 이기는지 문서로 판정할 수 없다.
+test('worker and coordinator authority have one canonical statement', () => {
+  const claude = read('CLAUDE.md');
+  const governance = read('rules/governance.md');
+  const coordinator = read('agents/bouncer-coordinator.md');
+
+  // 상한 없음(no ceiling)은 governance가 소유하고, 나머지는 그것을 가리킨다.
+  assert.strictEqual((governance.match(/there is no\s*\n?\s*ceiling/g) || []).length, 1);
+  assert.match(coordinator, /rules\/governance\.md/);
+  // hard rule 1은 예외의 범위만 말하고 절차를 다시 쓰지 않는다.
+  assert.doesNotMatch(claude, /coordinate revise/);
+  // scope 개정 절차의 정본은 coordinator 역할 문서 하나다.
+  assert.doesNotMatch(governance, /coordinate revise --blueprint/);
+  for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    assert.doesNotMatch(
+      read(`agents/${name}.md`),
+      /coordinate revise --blueprint/,
+      `${name} must not restate the revision command`,
+    );
+  }
+});

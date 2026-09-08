@@ -30,21 +30,25 @@ test('bouncer-commit is an explicit-ask workflow skill', () => {
   assert.match(body, /current --set/);
 });
 
-test('bouncer-commit reuses finalize ACQ skeleton and does not invent CLI', () => {
+test('bouncer-commit does not invent CLI or a second consent step', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /AskUserQuestion|ACQ/);
-  assert.match(body, /Re-ground/);
-  assert.match(body, /Recommend-why/);
-  assert.match(body, /Recommended/);
   assert.match(body, /\bbouncer\s+current\b/);
   assert.doesNotMatch(md, /superpowers|okf-authoring/i);
+  // commit ACQ는 없어졌다 — 남아 있으면 coordinator가 물을 수 없는 질문이 된다.
+  assert.doesNotMatch(body, /\*\*AskUserQuestion — Commit\*\*/);
+  assert.match(body, /asks\s*\n?\s*no AskUserQuestion/);
+  assert.match(body, /start ACQ already covers every task it\s*\n?\s*drives/);
+  // 포인터 전진은 drive 밖에서 여전히 confirm-then-set이다 —
+  // rules/current-pointer.md가 그렇게 말하고 이 스킬이 그 규칙을 인용한다.
+  assert.match(body, /\*\*AskUserQuestion — Next task\*\*/);
+  assert.match(body, /\*\*Options\*\*:/);
+  assert.match(body, /not consent for a pointer advance/);
 });
 
 test('bouncer-commit delegates pointer selection and confirm-then-set invariants', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /rules\/current-pointer\.md/);
   assert.match(body, /nextTask/);
-  assert.match(body, /ACQ/);
 });
 
 test('bouncer-commit forbids discarding the post-commit tasks.md commit_sha stamp', () => {
@@ -54,35 +58,49 @@ test('bouncer-commit forbids discarding the post-commit tasks.md commit_sha stam
   assert.match(body, /do not[\s\S]{0,80}(?:git checkout|git restore|discard)/i);
 });
 
-
-test('bouncer-commit runs its gate once before Commit ACQ and leaves statuses to execute', () => {
+test('bouncer-commit runs its gate once before --yes and leaves statuses to execute', () => {
   const { body } = parseFrontmatter(md);
   const dryRun = body.indexOf('bouncer commit --blueprint <pointer.blueprint>');
-  const commitAcq = body.indexOf('**AskUserQuestion — Commit**');
   const yes = body.indexOf('bouncer commit --blueprint <pointer.blueprint> --yes');
 
   assert.strictEqual((body.match(/^\s*bouncer commit --blueprint <pointer\.blueprint>$/gm) || []).length, 1);
   assert.ok(dryRun >= 0, 'scope dry-run is the single authoritative preflight');
-  assert.ok(dryRun < commitAcq, 'Commit ACQ follows the successful preflight');
-  assert.ok(commitAcq < yes, 'Commit ACQ precedes --yes');
+  assert.ok(dryRun < yes, 'the dry-run precedes --yes');
   assert.doesNotMatch(body, /Status before commit|Set the pointer task documents|tasks → verified|verification → passed|review → accepted/);
 });
 
-test('bouncer-commit keeps Commit and Next-task ACQ in steps 2 and 3 with an index', () => {
-  assertShape(md, {
-    headings: { required: ['ACQ (AskUserQuestion) gates'] },
-    steps: { required: [1, 2, 3, 4], order: true, acq: [2, 3], acqOptions: [2, 3] },
-    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [2, 3], only: true },
-  });
+// worker는 자기 branch에 커밋만 하고 멈춘다. fan-in은 coordinator의 것이다.
+test('bouncer-commit stops at the worker branch and leaves fan-in to the coordinator', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /worker worktree `coordinate prepare` assigned/);
+  assert.match(body, /never\s*\n?\s*`git -C`, never the main checkout/);
+  assert.match(body, /read-only provenance/);
+  assert.match(body, /coordinate\s*\n?record` then `integrate`/);
+  assert.match(body, /never this skill's, and never a worker's/);
+  assert.match(body, /task SHA on the worker branch/);
+  assert.match(body, /verifies the integration\s*\n?\s*head/);
+  assert.match(body, /An unverified fan-in is not a completed task/);
+  assert.match(body, /no worker moves it and no worker touches the\s*\n?\s*integration branch/);
 });
 
-test('bouncer-commit keeps a single dry-run gate and pointer confirm-then-set', () => {
+// drift는 여기서 affected_paths를 고쳐 통과시키는 것이 아니라 coordinator 판정이다.
+test('bouncer-commit routes an out-of-scope abort to coordinate revise', () => {
   const { body } = parseFrontmatter(md);
-  const preamble = body.slice(0, body.search(/^1\. /m));
-  assert.doesNotMatch(preamble, /\.\/references\//);
-  assert.strictEqual((body.match(/^\s*bouncer commit --blueprint <pointer\.blueprint>$/gm) || []).length, 1);
-  assert.match(body, /rules\/current-pointer\.md/);
-  assert.match(body, /nextTask/);
-  assert.match(body, /\*\*AskUserQuestion — Commit\*\*/);
-  assert.match(body, /\*\*AskUserQuestion — Next task\*\*/);
+  assert.match(body, /hard abort — nothing staged/);
+  assert.match(body, /coordinator ledger's\s*\n?\s*scope for this revision/);
+  assert.match(body, /not the approval snapshot/);
+  assert.match(body, /one `bouncer coordinate revise`\s*\n?\s*decision/);
+});
+
+test('bouncer-commit keeps four numbered steps and indexes only the pointer ACQ', () => {
+  assertShape(md, {
+    headings: { required: ['ACQ (AskUserQuestion) gates'] },
+    steps: { required: [1, 2, 3, 4], order: true, acq: [3], acqOptions: [3] },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [3], only: true },
+  });
+  const { body } = parseFrontmatter(md);
+  const index = body.slice(body.indexOf('\n## ACQ (AskUserQuestion) gates\n'));
+  assert.match(index, /Step 3 — Next task/);
+  assert.doesNotMatch(index, /Step 2 — Commit/);
+  assert.match(body, /rules\/acq\.md/);
 });

@@ -27,10 +27,10 @@ These are your decision inputs, in this order:
   boundary, `auto` batches progress into the final report. Neither value opens
   an ACQ
 
-You judge worker reports and decide rework, task order, and fan-in yourself.
-Those judgments stay with you; do not hand them back to the root run and do not
-retreat to `/bouncer-plan`. A worker's `Needs planning` is one input to your
-decision, never a second brief.
+You judge worker reports and decide rework, scope, task order, and fan-in
+yourself. Those judgments stay with you; do not hand them back to the root run
+and do not retreat to `/bouncer-plan`. A worker's `Needs planning` is one input
+to your `Decision required` judgment, never a second brief.
 
 ## Hard guards
 
@@ -53,13 +53,18 @@ decision, never a second brief.
   `bouncer coordinate prepare` may open several `parallel_safe` tasks at once,
   but you drive them one at a time because each `--set` replaces the previous
   pointer. Record the order you drove them in.
-- A worker write outside the current task's `affected_paths` is a scope
-  violation: stop the drive, record the violation as a decision, and return a
-  blocked outcome. Do not widen `affected_paths` to absorb it. A task or graph
-  change decision may reorder, split, or add tasks; it may not raise an
-  approved task's scope ceiling, which the commit scope guard still enforces —
-  `bouncer commit` on every host, plus `commit-safety` where the host loads the
-  hook.
+- A worker write outside the current task's `affected_paths` is drift, not the
+  end of the drive: judge it, then record your judgment with `bouncer coordinate
+  revise --blueprint <dir> --task <NNN> --paths <p> [--paths <p>…] --reason <r>`
+  from that task's worktree. That command is the only surface that revises
+  scope; it moves the task document and the ledger to one revision and appends
+  the decision behind it, which is what makes the widening reviewable. A
+  revision names repository source paths only — never an absolute or escaping
+  path, the whole tree, `.git/`, or the `.bouncer/` governance tree — and inside
+  that boundary there is no ceiling (`rules/governance.md`). Refuse the drift
+  and record rework instead when it belongs to another task. The commit scope
+  guard judges staged paths against the ledger's current scope on every host
+  (`bouncer commit`), plus `commit-safety` where the host loads the hook.
 - Do not open a new ACQ for task scope or plan changes; the start ACQ approved
   this drive. Never answer another workflow's consent step on the user's
   behalf either — reaching one is a stopping point, not a question you get to
@@ -72,7 +77,9 @@ decision, never a second brief.
   `bouncer-reviewer` through `rules/subagent-model.md`. Never play those roles
   yourself and never let one worker judge another's report.
 - Give each worker its assigned task worktree as cwd and only that task's
-  current brief. `bouncer-debugger` and `bouncer-reviewer` stay read-only.
+  current brief — the one your latest revision left behind, not the approval
+  snapshot. `bouncer-debugger` and `bouncer-reviewer` stay read-only. Workers
+  report scope and task impact; you alone disposition it.
 - Preserve the ceilings the dispatched workflow owns, and record in the ledger
   which worker produced each result.
 
@@ -91,9 +98,12 @@ decision, never a second brief.
 4. **Integrate** — `bouncer coordinate integrate` in dependency order, then
    verify the integration head. A rejected fan-in is a decision to record and
    resolve, not a retry to repeat blindly.
-5. **Judge** — Turn each report into exactly one of: accepted, rework with a
-   named cause, task/graph change, or terminal blocked. Every judgment gets a
-   ledger entry. Stop as blocked when repeated attempts stop making progress.
+5. **Judge** — Turn each report, reviewer finding, scope drift and stalled
+   retry into exactly one of: accepted, scope revision (`coordinate revise`),
+   rework with a named cause, task/graph change, or terminal blocked. Every
+   judgment gets a ledger entry, so retries need no fixed ceiling — but declare
+   terminal no-progress and stop as blocked once repeated attempts stop moving
+   the failure, rather than looping.
 6. **Close** — When every task is integrated and verified, run the closing
    action the payload named — `/bouncer-finalize` from the integration
    worktree — and carry it only as far as it goes without user consent. Its
