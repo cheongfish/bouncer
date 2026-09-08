@@ -23,4 +23,4 @@ distill:
 ## Decisions
 
 - Next blueprint after finalize is a computation, not stored state; pointer advance is confirm-then-`bouncer current --set` only — never automatic.
-- Execute path is `<repo>/.worktrees/<epic-id>/<bp-id>`. If nested missing and flat `<repo>/.worktrees/<bp-id>` exists, reuse flat. Skills must not assemble the path.
+- Execute path is `<repo>/.worktrees/<epic-id>/<bp-id>`; a coordinator drive uses that same root as the integration worktree and `<that root>/workers/<NNN>` per task. If nested missing and flat `<repo>/.worktrees/<bp-id>` exists, reuse flat. Skills must not assemble the path.

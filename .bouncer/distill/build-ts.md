@@ -16,6 +16,7 @@ distill:
 ## Gotchas
 
 - Runtime `scripts/vendor/*` must stay byte-identical to the installed package. `npm audit` misses vendor copies.
+- `check:emit` diffs `scripts/lib` unstaged only, so it exits 1 while edits are uncommitted. Prove emit parity by rebuilding and comparing hashes.
 
 ## Decisions
 
