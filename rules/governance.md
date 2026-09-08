@@ -131,10 +131,20 @@ the current task scope, its `revision`, and an append-only decision log.
   one shared `revision` and is refused without a reason. Each revision appends a
   decision naming the task, the reason, and the previous and next paths, and the
   read-modify-write is serialized so concurrent workers cannot mint one revision
-  twice or drop a log entry. A task document whose `scope_revision` disagrees
-  with the ledger is stale, and commit safety refuses the commit rather than
-  guessing which side is current; so does a ledger it cannot read, and a pointer
-  task the ledger does not carry.
+  twice or drop a log entry. A writer that cannot take the ledger lock in time is
+  refused outright, and a writer re-checks ownership twice — once before
+  writing the task document and once before writing the ledger — backing off
+  without writing at whichever check finds the lock lost. A writer that loses
+  the lock between those two checks writes the task document but not the
+  ledger: the second check refuses it, so the document is left carrying a
+  `scope_revision` the ledger never recorded. That state needs no hand repair —
+  `nextRevision` is a function of the ledger revision alone and a revision does
+  not pre-check the document's `scope_revision`, so the next scope revision
+  writes both sides to one number and reconciles them — but nothing heals on its
+  own either: until that revision is issued, a task document whose
+  `scope_revision` disagrees with the ledger is stale, and commit safety keeps
+  refusing the commit rather than guessing which side is current; so does a
+  ledger it cannot read, and a pointer task the ledger does not carry.
 - **What a revision may name** — repository source paths only. Absolute paths,
   paths escaping the repository, whole-tree spellings, `.git/`, and the
   `.bouncer/` governance tree are refused. Inside that boundary there is no

@@ -405,7 +405,7 @@ test('gate failure returns validate reason without staging', () => {
 // --- coordinator mode -------------------------------------------------------
 
 const { coordinate } = require('../scripts/lib/coordinator');
-const { coordinatorContext, reviseTaskScope } = require('../scripts/lib/scope');
+const { coordinatorContext, reviseTaskScope, recordActualPaths } = require('../scripts/lib/scope');
 
 /**
  * bootstrap + prepare 로 실제 worktree를 연 뒤, 할당된 worker 안에서 commit
@@ -677,4 +677,290 @@ test('ledger writes serialize on a lock and reclaim an abandoned one', () => {
   });
   assert.strictEqual(revised.ok, true);
   assert.strictEqual(fs.existsSync(lockFile), false);
+});
+
+// 회수는 take-then-check다. park한 뒤 복원하기 전에 다른 프로세스가 잠금을 다시
+// 잡을 수 있고, 그 창에서 복원이 덮어쓰면 두 writer가 함께 임계 구역에 들어간다.
+// fs를 가로채 그 창을 결정적으로 재현한다 — 경합을 기다리면 회귀가 흔들린다.
+test('reclaiming a stale lock never overwrites a lock a third acquirer took meanwhile', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const lockFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
+  );
+  // 회수 대상이 될 방치 잠금. 관측되는 토큰은 'dead'다.
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 424242, token: 'dead', at: Date.now() - 600000 }));
+
+  const third = { pid: 424243, token: 'third-owner', at: Date.now() };
+  const realRename = fs.renameSync;
+  let parkSeen = false;
+  let parkPath = null;
+  fs.renameSync = (from, to) => {
+    realRename(from, to);
+    if (parkSeen || from !== lockFile || !String(to).includes('.stale.')) return;
+    parkSeen = true;
+    parkPath = String(to);
+    // park된 내용이 관측 토큰과 달라지도록 바꿔 복원 경로로 들어가게 하고,
+    // 그사이 제3의 획득자가 `wx`로 빈자리를 가져간 상태를 만든다.
+    fs.writeFileSync(to, JSON.stringify({ pid: 424244, token: 'other-owner', at: Date.now() }));
+    fs.writeFileSync(lockFile, JSON.stringify(third), { flag: 'wx' });
+  };
+
+  let result;
+  try {
+    result = reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'reclaim race',
+    });
+  } finally {
+    fs.renameSync = realRename;
+  }
+
+  assert.strictEqual(parkSeen, true);
+  // 복원이 제3자의 잠금을 덮어쓰면 안 된다 — 그 자리는 이미 새 주인의 것이다.
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(lockFile, 'utf8')), third);
+  assert.deepStrictEqual(result, { ok: false, reason: 'ledger-locked' });
+  // 복원을 포기한 갈래도 park 사본을 치운다. 아무도 읽지 않는 파일이라 남겨 두면
+  // 회수 경합마다 runtime 디렉터리에 `.stale.*`가 쌓인다.
+  assert.strictEqual(fs.existsSync(parkPath), false);
+});
+
+// 잠금을 잃은 writer는 원장도 task 문서도 쓰기 전에 알아차려야 한다. 문서만 고쳐
+// 두면 ledger에 없는 revision이 문서에 남아 stale이 된다. 손 복구가 필요한 상태는
+// 아니지만(다음 scope revision이 양쪽을 한 번호로 화해시킨다) 저절로 낫지도 않아,
+// 그 revision이 나올 때까지 commit safety는 계속 거절한다.
+test('a writer that loses the lock mid-section refuses before writing the ledger or the document', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const ledgerFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  const lockFile = `${ledgerFile}.lock`;
+  const before = fs.readFileSync(ledgerFile, 'utf8');
+  const docRel = path.join(blueprint, 'tasks', '001', 'tasks.md');
+  const docAbs = path.join(worker, docRel);
+  const docBefore = fs.readFileSync(docAbs, 'utf8');
+
+  const realRead = fs.readFileSync;
+  let swapped = false;
+  fs.readFileSync = (file, options) => {
+    const out = realRead(file, options);
+    if (swapped || typeof file !== 'string' || !file.endsWith(docRel)) return out;
+    swapped = true;
+    // 문서를 읽은 직후, 아직 아무것도 쓰기 전에 잠금을 다른 주인에게 뺏긴 상태로 바꾼다.
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: 424245, token: 'stolen', at: Date.now() }));
+    return out;
+  };
+
+  let result;
+  try {
+    result = reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'lost the lock',
+    });
+  } finally {
+    fs.readFileSync = realRead;
+  }
+
+  assert.strictEqual(swapped, true);
+  assert.deepStrictEqual(result, { ok: false, reason: 'ledger-lock-lost' });
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), before);
+  // 문서도 그대로여야 한다 — ledger에 없는 scope_revision을 문서에 남기면 안 된다.
+  assert.strictEqual(fs.readFileSync(docAbs, 'utf8'), docBefore);
+});
+
+// 형제 테스트는 문서 쓰기 **앞**의 가드에서 멈춘다. 그 가드만 있으면 문서 쓰기와 원장
+// 쓰기 사이에 잠금을 잃는 창은 아무도 막지 못한다 — 그래서 문서 쓰기 직후에 잠금을
+// 뺏어 원장 쓰기 직전 가드만을 태운다. governance가 서술하는 유일한 상태(문서는
+// 새 revision을 담고 원장은 그대로)를 이 테스트가 고정한다.
+test('a writer that loses the lock after writing the document refuses before writing the ledger', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const ledgerFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  const lockFile = `${ledgerFile}.lock`;
+  const before = fs.readFileSync(ledgerFile, 'utf8');
+  const docRel = path.join(blueprint, 'tasks', '001', 'tasks.md');
+  const docAbs = path.join(worker, docRel);
+  const docBefore = fs.readFileSync(docAbs, 'utf8');
+
+  const realWrite = fs.writeFileSync;
+  let swapped = false;
+  fs.writeFileSync = (file, data, options) => {
+    realWrite(file, data, options);
+    if (swapped || typeof file !== 'string' || !file.endsWith(docRel)) return;
+    swapped = true;
+    // 문서는 이미 새 revision을 담고 나갔다. 원장을 쓰기 전 바로 이 창에서 잠금을
+    // 다른 주인에게 넘긴다 — realWrite로 써야 이 훅이 자신을 다시 타지 않는다.
+    realWrite(lockFile, JSON.stringify({ pid: 424247, token: 'stolen', at: Date.now() }));
+  };
+
+  let result;
+  try {
+    result = reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'lost the lock late',
+    });
+  } finally {
+    fs.writeFileSync = realWrite;
+  }
+
+  assert.strictEqual(swapped, true);
+  assert.deepStrictEqual(result, { ok: false, reason: 'ledger-lock-lost' });
+  // 원장은 한 바이트도 달라지면 안 된다.
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), before);
+  // 문서는 되돌아가지 않는다. 이 비대칭이 governance가 서술하는 상태다 — 문서에는
+  // 원장이 모르는 scope_revision이 남고, 다음 scope revision이 양쪽을 화해시킬 때까지
+  // commit safety가 거절한다.
+  assert.notStrictEqual(fs.readFileSync(docAbs, 'utf8'), docBefore);
+  const doc = yaml.load(
+    fs.readFileSync(docAbs, 'utf8').replace(/^---\n|\n---\n[\s\S]*$/g, ''),
+  );
+  assert.strictEqual(doc.bouncer.scope_revision, 'r1');
+  assert.deepStrictEqual(doc.bouncer.affected_paths, ['src/auth/']);
+  // 원장은 그 revision을 모른다.
+  assert.strictEqual(JSON.parse(before).revision, undefined);
+});
+
+// 원장에만 쓰는 경로도 같은 확인을 거쳐야 한다. actualPaths 기록은 문서를 건드리지
+// 않지만, 잠금을 잃은 채 쓰면 다른 writer가 읽어 간 원장 위에 얹힌다.
+test('recordActualPaths that loses the lock mid-section refuses before writing the ledger', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const ledgerFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json',
+  );
+  const lockFile = `${ledgerFile}.lock`;
+  const before = fs.readFileSync(ledgerFile, 'utf8');
+
+  const realRead = fs.readFileSync;
+  let swapped = false;
+  fs.readFileSync = (file, options) => {
+    const out = realRead(file, options);
+    // 임계 구역 안의 원장 읽기에서만 바꾼다 — 잠금 파일이 있어야 우리가 이미 주인이다.
+    if (swapped || file !== ledgerFile || !fs.existsSync(lockFile)) return out;
+    swapped = true;
+    // 원장을 읽은 직후, 아직 쓰기 전에 잠금을 다른 주인에게 뺏긴 상태로 바꾼다.
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: 424246, token: 'stolen', at: Date.now() }));
+    return out;
+  };
+
+  let result;
+  try {
+    result = recordActualPaths({
+      repoRoot: worker, blueprint, task: '001', paths: ['src/auth/login.ts'],
+    });
+  } finally {
+    fs.readFileSync = realRead;
+  }
+
+  assert.strictEqual(swapped, true);
+  assert.deepStrictEqual(result, { ok: false, reason: 'ledger-lock-lost' });
+  // 원장은 한 바이트도 달라지면 안 된다.
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), before);
+});
+
+// 토큰을 쓰기 전에 죽은 writer는 0바이트 잠금을 남긴다. 그 잠금은 방치되면
+// 회수돼야 한다 — 아니면 원장이 영구히 잠긴다.
+test('a stale token-less lock is reclaimed', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const lockFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
+  );
+  // 토큰이 없으므로 나이는 파일 mtime으로만 판단된다. LOCK_STALE_MS 이전으로 민다.
+  fs.writeFileSync(lockFile, '');
+  const old = new Date(Date.now() - 600000);
+  fs.utimesSync(lockFile, old, old);
+
+  const revised = reviseTaskScope({
+    repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'after stale empty lock',
+  });
+
+  assert.strictEqual(revised.ok, true);
+  assert.strictEqual(fs.existsSync(lockFile), false);
+});
+
+// 복원 경로에서 park 사본이 이미 옮겨진 상태를 만드는 도우미. 회수 대상 잠금을
+// park한 직후 그 내용을 관측 토큰과 다르게 바꿔, reclaimStaleLock이 복원 분기로
+// 들어가게 한다. 반환값으로 park 여부를 확인한다.
+function parkWithForeignToken(lockFile, restore) {
+  const realRename = fs.renameSync;
+  const state = { parked: false, parkPath: null };
+  fs.renameSync = (from, to) => {
+    realRename(from, to);
+    if (state.parked || from !== lockFile || !String(to).includes('.stale.')) return;
+    state.parked = true;
+    state.parkPath = String(to);
+    fs.writeFileSync(to, JSON.stringify({ pid: 424244, token: 'other-owner', at: Date.now() }));
+  };
+  restore.push(() => { fs.renameSync = realRename; });
+  return state;
+}
+
+// 하드링크를 걸 수 없는 환경(미지원 파일시스템, protected_hardlinks 등)에서는
+// 복원이 rename으로 물러나야 한다. 물러나지 않으면 park한 원 소유자의 레코드를
+// 잃고 잠금 자리가 빈 채로 남는다.
+test('restoring a parked lock falls back to rename when a hard link cannot be made', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const lockFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
+  );
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 424242, token: 'dead', at: Date.now() - 600000 }));
+
+  const restore = [];
+  const state = parkWithForeignToken(lockFile, restore);
+  const realLink = fs.linkSync;
+  let linkSeen = false;
+  fs.linkSync = () => {
+    linkSeen = true;
+    const error = new Error('EPERM: operation not permitted, link');
+    error.code = 'EPERM';
+    throw error;
+  };
+  restore.push(() => { fs.linkSync = realLink; });
+
+  let result;
+  try {
+    result = reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'link unavailable',
+    });
+  } finally {
+    for (const undo of restore) undo();
+  }
+
+  assert.strictEqual(state.parked, true);
+  assert.strictEqual(linkSeen, true);
+  // rename 폴백이 park한 레코드를 제자리로 돌려놨어야 한다.
+  assert.deepStrictEqual(
+    JSON.parse(fs.readFileSync(lockFile, 'utf8')).token, 'other-owner',
+  );
+  assert.strictEqual(fs.existsSync(state.parkPath), false);
+  assert.deepStrictEqual(result, { ok: false, reason: 'ledger-locked' });
+});
+
+// EEXIST도 하드링크 불가도 아닌 실패는 삼키지 않는다. 그리고 그때 park 사본을
+// 지우면 원 소유자의 레코드가 영구히 사라지므로, 사본은 남아 있어야 한다.
+test('a park copy survives when restoring fails for a reason other than a taken slot', () => {
+  const { repo, worker, blueprint } = coordinatorFixture();
+  const lockFile = path.join(
+    repo, '.worktrees', '001', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json.lock',
+  );
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 424242, token: 'dead', at: Date.now() - 600000 }));
+
+  const restore = [];
+  const state = parkWithForeignToken(lockFile, restore);
+  const realLink = fs.linkSync;
+  fs.linkSync = () => {
+    const error = new Error('EACCES: permission denied, link');
+    error.code = 'EACCES';
+    throw error;
+  };
+  restore.push(() => { fs.linkSync = realLink; });
+
+  try {
+    assert.throws(() => reviseTaskScope({
+      repoRoot: worker, blueprint, task: '001', paths: ['src/auth/'], reason: 'restore failed',
+    }), (error) => error.code === 'EACCES');
+  } finally {
+    for (const undo of restore) undo();
+  }
+
+  assert.strictEqual(state.parked, true);
+  // 사람이 복구할 수 있도록 원 소유자의 레코드를 담은 park 사본이 남아야 한다.
+  assert.strictEqual(fs.existsSync(state.parkPath), true);
+  assert.strictEqual(JSON.parse(fs.readFileSync(state.parkPath, 'utf8')).token, 'other-owner');
 });

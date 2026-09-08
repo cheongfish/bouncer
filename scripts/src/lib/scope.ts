@@ -235,6 +235,9 @@ function readLockRecord(lockFile: string): LockRecord | null {
  * rename하고(성공한 하나만 그 파일을 갖는다), 옮긴 내용이 관측한 토큰과 다르면
  * 새 주인의 잠금이므로 되돌려 놓는다.
  *
+ * 복원이 EEXIST도, 하드링크 불가도 아닌 이유로 실패하면 그 오류는 삼키지 않고
+ * 이 함수 밖으로 — 나아가 획득 루프 밖으로 — 전파된다.
+ *
  * @returns {boolean} 회수했으면 true. 경합에 졌으면 false — 호출자는 다시 기다린다.
  */
 function reclaimStaleLock(lockFile: string, observedToken: string | null): boolean {
@@ -249,10 +252,46 @@ function reclaimStaleLock(lockFile: string, observedToken: string | null): boole
   // 토큰이 관측값과 다르면(토큰 없던 자리에 새 주인이 생긴 경우 포함) 남의 잠금이다.
   if ((taken ? taken.token : null) !== observedToken) {
     try {
-      fs.renameSync(parked, lockFile);
-    } catch (_e) {
-      // 되돌릴 자리가 이미 채워졌다 — 이 회차는 포기하고 다시 기다린다.
+      // 복원은 절대 덮어쓰면 안 된다. park와 복원 사이에 다른 프로세스가 `wx`로
+      // 빈자리를 가져갔을 수 있고, rename은 그 새 주인의 잠금을 말없이 지워
+      // 두 writer를 함께 임계 구역에 넣는다. link(2)는 대상이 있으면 EEXIST로
+      // 실패하므로 그 자리를 뺏지 않는다.
+      fs.linkSync(parked, lockFile);
+    } catch (error) {
+      // 복원 실패는 세 갈래다.
+      //   1. EEXIST — 자리가 점유됐다. 덮어쓰지 않고 회수 실패로 물러난다.
+      //   2. 하드링크를 걸 수 없는 오류 — 이름 바꾸기 복원으로 물러난다.
+      //      이 갈래에서는 비덮어쓰기 보장이 성립하지 않는다.
+      //   3. 그 밖의 실패 — 삼키지 않고 올리되 park 사본을 남긴다.
+      const code = (error as { code?: string }).code;
+      // parked는 lockFile과 같은 디렉터리이므로 device를 넘지 않는다 — EXDEV는 여기서
+      // 나올 수 없고, 났다 해도 아래 renameSync 폴백이 같은 이유로 실패하므로 목록에 없다.
+      if (code === 'EPERM' || code === 'ENOTSUP') {
+        // 갈래 2. 이 자리에 하드링크를 걸 수 없다. 파일시스템이 하드링크를 지원하지 않는
+        // 경우만이 아니라, 리눅스 `fs.protected_hardlinks=1`(대부분의 배포판 기본값)
+        // 아래에서 남의 소유 파일에 링크할 때도 EPERM이 난다 — 원인은 단정하지 않는다.
+        // link 이전 구현이 쓰던 이름 바꾸기 복원으로 물러난다. rename은 자리를 덮어쓰므로
+        // 이 갈래에서는 비덮어쓰기 보장이 성립하지 않는다 — 그사이 빈자리를 가져간
+        // 새 주인의 잠금 레코드는 여기서 지워진다. 그 밀려난 획득자는 임계 구역 안에서
+        // 조용히 진행하지 않는다: 원장에 쓰기 직전의 소유 확인(`owns()`)이 자기 토큰이
+        // 사라진 것을 보고 `ledger-lock-lost`로 걸러 준다. 정상 동작하던 경로를 예외로
+        // 바꾸고 원 소유자의 레코드까지 잃는 것보다 이 트레이드오프가 낫다.
+        fs.renameSync(parked, lockFile);
+        return false;
+      }
+      // 갈래 3. 자리가 이미 채워진 EEXIST(갈래 1)만 흡수한다 — 복원을 포기하고 다시
+      // 기다리면 되는 정상 경합 결과다. 권한·경로 오류까지 삼키면 잠금 상태를 잘못 보고한다.
+      if (code !== 'EEXIST') {
+        // park 사본은 지우지 않는다. 이 시점에 lockFile은 비어 있고 복원도 실패했으므로,
+        // 지우면 살아 있을 수 있는 원 소유자의 잠금 레코드가 영구히 사라진다.
+        // 남겨 두면 사람이 그 파일로 복구할 수 있다.
+        throw error;
+      }
     }
+    // 복원했으면 link로 남은 사본을, 실패했으면 아무도 읽지 않을 park 파일을 지운다.
+    // readLockRecord는 lockFile만 열므로 남겨 두면 runtime 디렉터리에 쌓이기만 하고,
+    // 밀려난 원 소유자는 release 시점에 소유 상실을 감지한다.
+    fs.rmSync(parked, { force: true });
     return false;
   }
   fs.rmSync(parked, { force: true });
@@ -276,20 +315,25 @@ function releaseLock(lockFile: string, token: string): boolean {
  * 소유권을 확인하며 회수한다.
  *
  * @param {string} ledgerFile - 대상 원장 절대 경로
- * @param {Function} run - 잠금 안에서 읽고 쓰는 작업
+ * @param {Function} run - 잠금 안에서 읽고 쓰는 작업. 인자로 받은 `owns()`를
+ *   원장에 쓰기 직전에 호출해 아직 내가 주인인지 확인한다.
  * @returns run의 결과. 잠금을 못 잡으면 `{ ok: false, reason: 'ledger-locked' }`,
  *   임계 구역 도중 잠금을 뺏겼으면 `{ ok: false, reason: 'ledger-lock-lost' }` —
  *   그 경우 쓰기가 다른 writer와 겹쳤을 수 있으므로 성공으로 보고하지 않는다.
  */
-function withLedgerLock<T>(ledgerFile: string, run: () => T): T | { ok: false; reason: string } {
+function withLedgerLock<T>(
+  ledgerFile: string, run: (owns: () => boolean) => T,
+): T | { ok: false; reason: string } {
   const lockFile = `${ledgerFile}.lock`;
   fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });
   const deadline = Date.now() + LOCK_WAIT_MS;
   const record: LockRecord = { pid: process.pid, token: randomUUID(), at: Date.now() };
   for (;;) {
-    let handle: number;
     try {
-      handle = fs.openSync(lockFile, 'wx');
+      // 생성과 토큰 쓰기를 한 호출로 합친다. 따로 열고 쓰면 그사이 다른 대기자가
+      // 토큰 없는 잠금을 보고 주인을 알 수 없다고 판단하는 창이 길어진다.
+      // (O_CREAT|O_EXCL 뒤 write이므로 0바이트 잠금 자체가 사라지지는 않는다.)
+      fs.writeFileSync(lockFile, JSON.stringify(record), { flag: 'wx' });
     } catch (error) {
       // 이미 잠긴 경우만 재시도한다. 권한·경로 오류는 삼키지 않고 올린다.
       if ((error as { code?: string }).code !== 'EEXIST') throw error;
@@ -307,18 +351,17 @@ function withLedgerLock<T>(ledgerFile: string, run: () => T): T | { ok: false; r
       }
       continue;
     }
-    // 토큰은 잠금을 쥔 직후에 쓴다. 그 전에 죽으면 레코드 없는 파일이 남고,
-    // 주인을 알 수 없는 잠금은 회수되지 않으므로 대기자가 시한까지 기다린다.
-    try {
-      fs.writeFileSync(handle, JSON.stringify(record));
-    } finally {
-      fs.closeSync(handle);
-    }
     break;
   }
+  // 지금 이 잠금 파일의 주인이 나인지만 보고한다. 실제로 물러나는 판단은 호출자가
+  // 쓰기 직전에 이 함수를 불러 내린다 — 아래 `run(owns)`에 넘긴다.
+  const owns = (): boolean => {
+    const held = readLockRecord(lockFile);
+    return held !== null && held.token === record.token;
+  };
   let result: T;
   try {
-    result = run();
+    result = run(owns);
   } catch (error) {
     // 임계 구역이 던져도 잠금은 반드시 푼다 — 그 뒤 예외는 그대로 올린다.
     releaseLock(lockFile, record.token);
@@ -595,7 +638,7 @@ function assignedLedgerTask({ repoRoot, blueprint, taskId }: {
 }
 
 type AssignedTask = {
-  ok: true; ledger: Ledger; entry: LedgerTask; ledgerFile: string;
+  ok: true; ledger: Ledger; entry: LedgerTask; ledgerFile: string; owns: () => boolean;
 };
 type LedgerWriteResult = { ok: false; reason: string } | ({ ok: true } & Record<string, unknown>);
 
@@ -614,10 +657,10 @@ function lockedTaskWrite(
 ): LedgerWriteResult {
   const boundary = taskWriteBoundary({ repoRoot, blueprint, taskId });
   if (!boundary.ok) return { ok: false, reason: boundary.reason };
-  return withLedgerLock<LedgerWriteResult>(boundary.ledgerFile, () => {
+  return withLedgerLock<LedgerWriteResult>(boundary.ledgerFile, (owns) => {
     const assigned = assignedLedgerTask({ repoRoot, blueprint, taskId });
     if (!assigned.ok) return { ok: false, reason: assigned.reason };
-    return mutate(assigned as AssignedTask);
+    return mutate({ ...(assigned as Omit<AssignedTask, 'owns'>), owns });
   });
 }
 
@@ -648,7 +691,9 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }
     return { ok: false, reason: 'scope-path-out-of-bounds', paths: outOfBounds };
   }
 
-  return lockedTaskWrite(repoRoot, blueprint, taskId, ({ ledger, entry, ledgerFile }) => {
+  return lockedTaskWrite(repoRoot, blueprint, taskId, ({
+    ledger, entry, ledgerFile, owns,
+  }) => {
     const docAbs = taskDocPath(repoRoot, blueprint, taskId);
     let doc;
     try {
@@ -664,6 +709,14 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }
     const previous = entry.scope ? entry.scope.paths : declared;
     const revision = nextRevision(ledger.revision);
 
+    // 문서를 먼저 쓰면 안 된다. 여기서 잠금을 잃은 writer는 ledger에 결코 기록되지
+    // 않을 revision을 문서에만 남기고, 그 task는 ledger와 어긋난 stale 상태가 된다.
+    // 손으로 고칠 일은 아니다 — nextRevision은 원장 revision만의 함수이고 여기서
+    // 문서의 scope_revision을 사전 검사하지 않으므로, 다음 scope revision이 양쪽을
+    // 한 번호로 다시 써서 화해시킨다. 다만 저절로 낫지도 않는다: 그 revision이
+    // 나올 때까지 commit safety는 계속 거절한다. 그래서 문서 쓰기 앞에서 한 번 물러난다.
+    if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+
     bouncer.affected_paths = next;
     bouncer.scope_revision = revision;
     fs.writeFileSync(docAbs, renderDoc(doc.data, doc.body));
@@ -676,6 +729,10 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }
     ledger.revision = revision;
     // append-only: 이전 판단을 지우지 않고 뒤에 붙인다.
     ledger.decisions = [...(Array.isArray(ledger.decisions) ? ledger.decisions : []), decision];
+    // 원장 쓰기 직전에도 다시 본다. 잃었다면 이 판단은 다른 writer가 읽은 원장 위에
+    // 얹히므로, 쓰지 않고 거절한다. (두 확인 사이의 창은 남는다 — 회수는 여전히
+    // take-then-check다.)
+    if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
     writeLedger(ledgerFile, ledger);
     return { ok: true, revision, previous, paths: next };
   });
@@ -692,8 +749,11 @@ function recordActualPaths({ repoRoot, blueprint, task, paths: actual }: {
   if (!taskId) return { ok: false, reason: 'task-required' };
   const list = [...new Set((Array.isArray(actual) ? actual : [])
     .filter((entryPath): entryPath is string => typeof entryPath === 'string' && entryPath !== ''))];
-  return lockedTaskWrite(repoRoot, blueprint, taskId, ({ ledger, entry, ledgerFile }) => {
+  return lockedTaskWrite(repoRoot, blueprint, taskId, ({
+    ledger, entry, ledgerFile, owns,
+  }) => {
     entry.actualPaths = list;
+    if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
     writeLedger(ledgerFile, ledger);
     return { ok: true, paths: list };
   });
