@@ -312,7 +312,9 @@ test('bouncer-plan authors and reviews task DAG before approval', () => {
   assert.match(body, /depends_on/);
   assert.match(body, /parallel_safe/);
   assert.match(body, /dependency_gate/);
-  assert.match(body, /integrated|integration-verified/);
+  assert.match(body, /dependency_gate[\s\S]{0,10}integrated/);
+  // 계획 참조가 거절된 gate 값을 다시 제공하면 실패한다 — frontmatter 포함 파일 전문이 대상이다.
+  assert.doesNotMatch(mainMd, /integration-verified/);
   // 승인 ACQ 전에 DAG·병렬 자격·공용 계약 충돌을 보여 준다.
   const dagReviewAt = body.search(/depends_on|DAG|dependency/i);
   const approvalAt = body.indexOf('8. **Approval');

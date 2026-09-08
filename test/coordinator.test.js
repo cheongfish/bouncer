@@ -16,18 +16,21 @@ test('readyWave returns only pending tasks with completed dependencies', () => {
   assert.deepStrictEqual(readyWave(tasks), ['002']);
 });
 
-test('readyWave keeps a sequential task alone and respects integration-verified gates', () => {
+test('readyWave keeps a sequential task alone and waits for the integrated gate', () => {
   const tasks = [
     { id: '001', status: 'integrated' },
     { id: '002', depends_on: ['001'], parallel_safe: true, status: 'pending' },
     { id: '003', depends_on: ['001'], parallel_safe: false, status: 'pending' },
-    { id: '004', depends_on: ['001'], dependency_gate: 'integration-verified', parallel_safe: true, status: 'pending' },
+    // 005는 아직 종단 상태에 닿지 않았다. gate 값이 integrated 하나뿐이어도
+    // 004는 선행이 그 상태가 되기 전까지 열리지 않는다.
+    { id: '004', depends_on: ['005'], dependency_gate: 'integrated', parallel_safe: true, status: 'pending' },
+    { id: '005', depends_on: [], parallel_safe: true, status: 'recorded' },
   ];
   assert.deepStrictEqual(readyWave(tasks), ['003']);
   tasks[2].status = 'prepared';
   assert.deepStrictEqual(readyWave(tasks), ['002']);
-  tasks[0].status = 'integration-verified';
-  assert.deepStrictEqual(readyWave(tasks), ['004']);
+  tasks[4].status = 'integrated';
+  assert.deepStrictEqual(readyWave(tasks), ['002', '004']);
 });
 
 test('transition rejects an illegal coordinator state change', () => {

@@ -12,8 +12,8 @@ function readyWave(tasks) {
     const ready = tasks.filter((task) => (task.status || 'pending') === 'pending'
         && (task.depends_on || []).every((id) => {
             const predecessor = tasks.find((other) => other.id === id);
-            // successor가 요구한 gate를 그대로 비교한다. integration-verified는
-            // integrated와 동의어가 아니므로 fan-in만 끝난 predecessor를 열지 않는다.
+            // successor가 요구한 gate를 predecessor status와 그대로 비교한다. gate는
+            // integrated 하나뿐이므로 종단에 닿지 않은 predecessor는 successor를 열지 않는다.
             return predecessor?.status === (task.dependency_gate || 'integrated');
         })).sort((a, b) => a.id.localeCompare(b.id));
     const sequential = ready.find((task) => task.parallel_safe === false);

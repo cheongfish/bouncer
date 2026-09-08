@@ -36,7 +36,7 @@ status인 blueprint를 게이트 대상에서 빼는 코드입니다. S19는 문
 있을 때 비어 있지 않은 문서 경로 문자열 배열이 아니면 실패합니다(부재·빈 배열은
 허용; 참조 무결성은 검사하지 않음). S28은 task DAG 필드의 형식·enum만 봅니다 —
 `depends_on`은 `TASKS-NNN` 문자열 배열, `parallel_safe`는 boolean,
-`dependency_gate`는 `integrated`·`integration-verified` 중 하나여야 합니다.
+`dependency_gate`는 `integrated` 하나만 허용합니다.
 세 필드 모두 부재는 허용이며, 참조 무결성과 순환은 S28이 아니라 G19가 봅니다.
 
 S21–S26은 Project Distill 구조 검사입니다. S21은 등록되지 않은 orphan shard, S22는
@@ -94,8 +94,7 @@ G17은 셋 중 가장 약한 층입니다. commit 게이트 통과를 coordinato
 기존 판정과 같습니다.
 
 **`dependency_gate`.** ready wave는 선행 task의 상태를 후속이 선언한
-`dependency_gate`와 비교합니다. 이 필드가 받는 값 자체의 계약은 이 문서가
-정하지 않습니다 — 값과 그 의미는 TASKS-007이 소유합니다.
+`dependency_gate`와 비교합니다. 받는 값의 계약은 위 S28 절을 보세요.
 
 증상별 대처는 [troubleshooting.md](troubleshooting.md)를 보세요.
 설계 배경은 [ARCHITECTURE.md](ARCHITECTURE.md)에 있습니다.

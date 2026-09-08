@@ -169,6 +169,8 @@ test('spec-authoring writes explicit task dependency and parallel-ready frontmat
   assert.match(md, /parallel_safe/);
   assert.match(md, /dependency_gate/);
   assert.match(md, /TASKS-\d{3}|TASKS-NNN/);
-  assert.match(md, /integrated[\s\S]{0,40}integration-verified|integration-verified/);
+  assert.match(md, /dependency_gate[\s\S]{0,10}integrated/);
+  // 작성 참조가 거절된 gate 값을 예시로도 노출하지 않는다.
+  assert.doesNotMatch(md, /integration-verified/);
   assert.match(md, /boolean|불리언|true|false/);
 });

@@ -102,7 +102,7 @@ means authoring the missing sections and running
 
 Each task bundle may declare an author-written DAG on its frontmatter:
 `depends_on` (`TASKS-NNN` ids), `parallel_safe` (boolean), and
-`dependency_gate` (`integrated` | `integration-verified`). Task numbers remain
+`dependency_gate` (`integrated`, the only accepted value). Task numbers remain
 labels and the default sort key only. Execution readiness follows the DAG:
 a task enters a ready wave when every listed predecessor has reached the
 dependency-gate state, and only `parallel_safe: true` peers may share a wave.

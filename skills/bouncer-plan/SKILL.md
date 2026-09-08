@@ -116,9 +116,10 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    For every task, author the DAG frontmatter that execution will read:
    `bouncer.depends_on` (array of `TASKS-NNN` ids; `[]` when none),
    `bouncer.parallel_safe` (boolean), and `bouncer.dependency_gate`
-   (`integrated` or `integration-verified`). Do not rely on task numbers for
-   ordering. Scaffold defaults (`[]` / `false` / `integrated`) are compatible
-   placeholders — replace them when the plan has real edges.
+   (`integrated`, the only accepted value). Do not rely on task numbers for
+   ordering. The scaffold defaults for `depends_on` (`[]`) and `parallel_safe`
+   (`false`) are compatible placeholders — replace them when the plan has real
+   edges.
    For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
    whole flow → blueprint PR segment → tasks implementation branch; charts stay
    optional and their source is each document body.

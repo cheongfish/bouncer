@@ -689,5 +689,8 @@ test('scaffoldTask writes compatible DAG defaults and templates expose the field
   assert.match(TEMPLATES['tasks.md'], /depends_on/);
   assert.match(TEMPLATES['tasks.md'], /parallel_safe/);
   assert.match(TEMPLATES['tasks.md'], /dependency_gate/);
-  assert.match(TEMPLATES['tasks.md'], /integrated \| integration-verified/);
+  // 템플릿 주석도 gate 값이 하나뿐임을 말해야 한다.
+  assert.match(TEMPLATES['tasks.md'], /dependency_gate[\s\S]{0,10}integrated/);
+  // scaffold 템플릿이 거절된 gate 값을 제공하면 실패한다.
+  assert.doesNotMatch(TEMPLATES['tasks.md'], /integration-verified/);
 });

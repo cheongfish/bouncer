@@ -145,7 +145,7 @@ Blueprint: [<BP-id>](../../index.md)
 <!-- DAG frontmatter (author-written):
      depends_on: TASKS-NNN id 배열. 부재·[] = 의존 없음.
      parallel_safe: boolean. false/부재 = 순차 wave 입력.
-     dependency_gate: integrated | integration-verified.
+     dependency_gate: integrated. 부재 = integrated.
      실행 순서는 task 번호가 아니라 이 세 필드가 결정한다. -->
 
 ## Interface

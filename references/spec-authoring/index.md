@@ -67,10 +67,10 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
      - **depends_on / parallel_safe / dependency_gate**: task 실행 순서는
        번호가 아니라 이 세 frontmatter 필드가 결정한다. `depends_on`은
        `TASKS-NNN` id 배열(`[]` = 의존 없음), `parallel_safe`는 boolean,
-       `dependency_gate`는 `integrated` | `integration-verified`다. 신규
-       계획에서는 명시적으로 작성한다(scaffold 기본값 `[]` / `false` /
-       `integrated`는 자리만). 알 수 없는 id·자기 참조·중복·cycle은 plan
-       gate G19가, 잘못된 shape·enum은 S28이 거절한다.
+       `dependency_gate`는 `integrated` 하나뿐이다(부재도 `integrated`). 신규
+       계획에서는 명시적으로 작성한다(scaffold 기본값 중 `depends_on`의
+       `[]`와 `parallel_safe`의 `false`만 자리표시자다). 알 수 없는 id·자기
+       참조·중복·cycle은 plan gate G19가, 잘못된 shape·enum은 S28이 거절한다.
      - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
        다시 열거하지 않고 절차만 담는다.
      - **Interface**: state what the change provides *and* what it rejects.

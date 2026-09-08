@@ -1028,16 +1028,28 @@ test('plan and governance lock the approved task DAG contract', () => {
   assert.match(okf, /depends_on/);
   assert.match(okf, /parallel_safe/);
   assert.match(okf, /dependency_gate/);
-  assert.match(okf, /integrated[\s\S]{0,80}integration-verified|integration-verified/);
+  // 산문 문구가 아니라 "한 문맥에서 dependency_gate와 integrated를 함께 말한다"는 사실만 고정한다.
+  assert.match(okf, /dependency_gate[\s\S]{0,10}integrated/);
+  // 산문이 아니라 값의 부재를 고정한다: 거절된 gate 값이 정본 규칙으로 다시 새어 들어오면 실패한다.
+  assert.doesNotMatch(okf, /integration-verified/);
 
   assert.match(governance, /depends_on|DAG/);
-  assert.match(governance, /integrated|integration-verified/);
+  assert.match(governance, /dependency_gate[\s\S]{0,10}integrated/);
+  assert.doesNotMatch(governance, /integration-verified/);
   assert.match(governance, /affected_paths|초기.*scope|initial scope/i);
 
   assert.match(plan, /depends_on/);
   assert.match(plan, /parallel_safe/);
   assert.match(plan, /dependency_gate/);
   assert.match(plan, /G19|DAG/);
+});
+
+test('gates doc states the accepted dependency gate value', () => {
+  const gates = read('docs/gates.md');
+  // 정본 규칙과 같은 계약을 사용자 문서에서도 고정한다: 한 문맥에서 dependency_gate와 integrated를 함께 말한다.
+  assert.match(gates, /dependency_gate[\s\S]{0,10}integrated/);
+  // 거절된 gate 값이 사용자 문서로 새어 들어오면 실패한다.
+  assert.doesNotMatch(gates, /integration-verified/);
 });
 
 test('hard rule 1 scopes the coordinator exception and bans main-worktree source writes', () => {

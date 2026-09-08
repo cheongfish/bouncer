@@ -1366,8 +1366,15 @@ test('S28: absent DAG fields and valid shapes pass; bad shape and enum fail', ()
   assert.deepStrictEqual(taskDagFailures({
     depends_on: ['TASKS-002'],
     parallel_safe: true,
-    dependency_gate: 'integration-verified',
+    dependency_gate: 'integrated',
   }), []);
+
+  // integration-verified는 어떤 실행 경로도 만들지 못하는 상태였으므로 enum에서
+  // 빠졌다. 계획자가 그 값을 다시 고르면 S28이 여기서 막는다.
+  assert.deepStrictEqual(
+    taskDagFailures({ dependency_gate: 'integration-verified' }).map((f) => f.message),
+    ['dependency_gate "integration-verified" not in enum'],
+  );
 
   assert.ok(taskDagFailures({ depends_on: 'TASKS-002' }).length >= 1);
   assert.ok(taskDagFailures({ depends_on: [123] }).length >= 1);

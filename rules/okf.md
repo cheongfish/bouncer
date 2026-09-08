@@ -73,10 +73,9 @@ display and default sort order — not execution authority.
 - `bouncer.parallel_safe` is a boolean. `false` or absent means the task is
   sequential wave input; `true` means it may share a ready wave with other
   parallel-safe peers once dependencies clear.
-- `bouncer.dependency_gate` is `integrated` | `integration-verified`. Absent
-  reads as `integrated`: the successor opens when each predecessor reaches
-  that integration state. `integration-verified` waits through integration
-  verification.
+- `bouncer.dependency_gate` is `integrated`, the only accepted value. Absent
+  reads as `integrated`: the successor opens when each predecessor reaches that
+  integration state.
 
 Task `bouncer.commit_intent` and `bouncer.commit_summary` are optional authored
 lists of 1–2 Korean terminal sentences. `/bouncer-commit` renders present

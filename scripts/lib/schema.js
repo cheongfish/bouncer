@@ -63,7 +63,7 @@ const AUTONOMY_ENUM = ['auto', 'interactive'];
 const DEFAULT_AUTONOMY = 'auto';
 // task dependency 해제 시점. 선행 task가 이 상태에 도달해야 후속이 열린다.
 // 부재는 scaffold 기본값(integrated)과 같이 읽힌다 — 소급 migration 없음.
-const DEPENDENCY_GATE_ENUM = ['integrated', 'integration-verified'];
+const DEPENDENCY_GATE_ENUM = ['integrated'];
 // scaffold가 새 tasks.md에 쓰는 DAG 기본값. 기존 문서의 필드 부재는
 // 같은 의미(의존 없음·순차·integrated)로 읽히므로 호환이 유지된다.
 const DEFAULT_DEPENDS_ON = [];
