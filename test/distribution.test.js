@@ -68,12 +68,15 @@ test('the package contains only the plugin runtime surface and host manifests', 
   const files = packageFiles();
   const required = [
     'agents/bouncer-reviewer.md',
+    'agents/bouncer-coordinator.md',
     'hooks/hooks.json',
     'references/implementation/index.md',
     'rules/governance.md',
     'scripts/bouncer',
     'scripts/bouncer-root',
     'scripts/lib/cli.js',
+    'scripts/lib/coordinator.js',
+    'scripts/lib/scope.js',
     'scripts/vendor/js-yaml.js',
     'skills/bouncer-run/SKILL.md',
     '.agents/plugins/marketplace.json',
@@ -87,6 +90,7 @@ test('the package contains only the plugin runtime surface and host manifests', 
 
   const developmentOnly = [
     '.bouncer/context/',
+    '.codex/',
     'test/',
     'docs/',
     'scripts/src/',
@@ -100,6 +104,26 @@ test('the package contains only the plugin runtime surface and host manifests', 
     (prefix) => prefix.endsWith('/') ? file.startsWith(prefix) : file === prefix,
   ));
   assert.deepStrictEqual(leaked, [], `development files leaked into package:\n${leaked.join('\n')}`);
+});
+
+// coordinator mode는 배포된 JS와 named agent만으로 돌아야 한다. 런타임이
+// 빠지면 설치본에서 `bouncer coordinate`가 사라지고, TypeScript 소스나 저장소
+// 로컬 `.codex/` 시드가 섞여 들어가면 설치본이 개발 체크아웃에 의존하게 된다.
+test('the package ships the coordinator runtime and agent without its development sources', () => {
+  const files = packageFiles();
+  for (const file of ['scripts/lib/coordinator.js', 'scripts/lib/scope.js', 'agents/bouncer-coordinator.md']) {
+    assert.ok(files.includes(file), `missing coordinator surface: ${file}`);
+  }
+  const leaked = files.filter((file) => file === 'scripts/src/lib/coordinator.ts'
+    || file === 'scripts/src/lib/scope.ts'
+    || file.startsWith('.codex/agents/'));
+  assert.deepStrictEqual(leaked, [], `coordinator development files leaked:\n${leaked.join('\n')}`);
+
+  // 배포되는 coordinator 런타임은 node_modules 없이 로드돼야 한다.
+  const coordinator = require('../scripts/lib/coordinator');
+  for (const name of ['coordinate', 'readyWave', 'transition', 'loadLedger']) {
+    assert.strictEqual(typeof coordinator[name], 'function', `coordinator.${name} is not shipped`);
+  }
 });
 
 test('the vendored yaml module provides load and dump', () => {

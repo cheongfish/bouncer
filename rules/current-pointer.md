@@ -58,7 +58,10 @@ The legacy file `bouncer/current` remains readable. The first successful
 when the two agree. When they name different blueprints, the CLI reports
 `CURRENT_INVALID` and leaves both unchanged.
 
-For next tasks, `/bouncer-commit` requires confirm-then-set. `/bouncer-run`
-uses the commit payload's `nextTask`: its start ACQ pre-authorizes `auto`
-next-task moves, while `interactive` asks again at each task boundary before
-`--set`. These exceptions never authorize a next-blueprint move.
+For next tasks, `/bouncer-commit` requires confirm-then-set. A delegated drive
+moves the pointer through its `bouncer-coordinator` instead: the coordinator
+runs `--set` itself before driving each task and records the order it drove
+them in. Workers read the pointer and the coordinator context the CLI returns,
+and never move it. In that mode the next candidates are the ready set in
+`current.coordinator`, not the next task number. These exceptions never
+authorize a next-blueprint move.

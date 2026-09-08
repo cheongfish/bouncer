@@ -21,10 +21,14 @@ runs in this skill, after the Distill promotion proposal has been handled.
 
 **cwd contract.** Step 1 Distill audit and promotion writes and step 3
 `bouncer finalize` continue in the same checkout. When an execute worktree
-exists, run inside it. Run the promotion audit without `--repo`; that cwd is
-payload `repoRoot`. Keeping cwd on the main worktree while omitting only
-`--repo` makes the base fall back to main. Only step 5 worktree removal runs
-from the main worktree — do not remove from inside the execute checkout.
+exists, run inside it; under a `bouncer-coordinator` drive that checkout is the
+integration worktree, and its verified HEAD — every task integrated and the
+integration verify passed — is the only thing this workflow closes. Never stage
+main-worktree source: the main checkout stays read-only provenance. Run the
+promotion audit without `--repo`; that cwd is payload `repoRoot`. Keeping cwd
+on the main worktree while omitting only `--repo` makes the base fall back to
+main. Only step 5 worktree removal runs from the main worktree — do not remove
+from inside a checkout you are removing.
 
 **Preflight.** Load the active blueprint:
 ```bash
@@ -40,7 +44,14 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 2. **Explain + quiz.** When authoring or refreshing explain and running the quiz, read this reference: [explain-quiz.md](./references/explain-quiz.md). It directs `explain-diff` (`${BOUNCER_ROOT}/references/explain-diff/index.md`). If the user does not answer the quiz, **stop** — do not continue to validate or `finalize --yes`.
 
 3. **Validate + remainder commit (deterministic core) + worktree choice.**
-   Run the finalize gate first:
+   First confirm the integration is closed: under a drive, every task in the
+   coordinator ledger is `integrated` and the integration head verified. A task
+   still open, an unverified head, or an unresolved reviewer finding is not a
+   finished blueprint — stop and hand it back as a coordinator decision instead
+   of recording it as done. An unreadable ledger is the same stop, not a
+   non-drive finalize: the payload reports `coordinator.status: 'unreadable'`
+   and the CLI refuses with `reason: 'coordinator-ledger'` and the
+   `ledgerFile` to repair. Then run the finalize gate:
    ```bash
    bouncer validate --blueprint <pointer.blueprint> --gate finalize
    ```
@@ -84,7 +95,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
 4. **Push + draft PR (markdown layer).** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). **ACQ — PR:** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 5.
 
-5. **Worktree cleanup (from step 3 choice).** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking.
+5. **Worktree cleanup (from step 3 choice).** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
 
 6. **Next-blueprint handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) reference handles this only after cleanup and only from the finalize payload. **ACQ — Next blueprint:** run that reference's AskUserQuestion before `current --set`; advancement remains confirm-then-`current --set`, never automatic.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up

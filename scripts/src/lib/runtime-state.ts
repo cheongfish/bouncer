@@ -66,6 +66,8 @@ type RuntimePointer = {
   task: string | null;
 };
 
+type CoordinatorPaths = { integrationPath: string; workerPath?: string; ledgerFile: string };
+
 function catchMessage(error: unknown): unknown {
   // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
   // TypeError 대신 undefined가 되어 unavailable reason이 바뀐다.
@@ -434,6 +436,27 @@ function worktreePathFor({ repoRoot, blueprint, deps }: {
   return nested;
 }
 
+// coordinator mode는 기존 execute worktree와 구분해 fan-in의 기준 checkout을
+// 하나로 고정한다. 기존 worktreePathFor의 평면 fallback은 건드리지 않는다.
+function coordinatorPathsFor({ repoRoot, blueprint, task, deps }: {
+  repoRoot: string; blueprint: unknown; task?: unknown; deps?: RuntimeDeps | null;
+}): CoordinatorPaths {
+  const d = { fs, ...(deps || {}) };
+  const paths = resolvedPaths({ repoRoot, deps: d });
+  if (paths.unavailable) throw new Error(GIT_REQUIRED);
+  const { epicId, blueprintId } = parsePathIds(blueprint);
+  if (!epicId || !blueprintId) throw new Error(`Cannot derive epic/blueprint ids from blueprint path: ${blueprint}`);
+  const pathApi = (d.platform || process.platform) === 'win32' ? path.win32 : path;
+  const root = pathApi.join(paths.worktreeRoot as string, epicId, blueprintId);
+  const integrationPath = pathApi.join(root, 'integration');
+  const result: CoordinatorPaths = {
+    integrationPath,
+    ledgerFile: pathApi.join(integrationPath, '.bouncer', 'runtime', 'coordinator.json'),
+  };
+  if (typeof task === 'string' && /^\d{3}$/.test(task)) result.workerPath = pathApi.join(root, 'workers', task);
+  return result;
+}
+
 function verifyLedgerPathFor({ repoRoot, verificationRel, deps }: {
   repoRoot: string;
   verificationRel: unknown;
@@ -479,6 +502,7 @@ function isWorktreeDirty(
 
 export = {
   runtimePaths, readRuntimeCurrent, readLegacyRuntimeCurrent, writeRuntimeCurrent,
-  clearRuntimeCurrent, worktreePathFor, verifyLedgerPathFor, isWorktreeDirty,
+  clearRuntimeCurrent, worktreePathFor, coordinatorPathsFor, verifyLedgerPathFor,
+  isWorktreeDirty,
   pointerKeyFromBlueprint, listNamespacePointers, removeNamespacePointer,
 };

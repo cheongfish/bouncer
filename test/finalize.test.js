@@ -1047,3 +1047,93 @@ test('light blueprint finalize does not invent a missing context-review deletion
   assert.ok(!g.calls.staged.includes(`${BP_REL}/context-review.md`));
   assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
 });
+
+// --- coordinator ledger projection ------------------------------------------
+
+const { coordinate } = require('../scripts/lib/coordinator');
+const { parseFrontmatter: readFm } = require('../scripts/lib/frontmatter');
+
+function drivenBlueprint(repo) {
+  fullBlueprint(repo);
+  const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+  run(['add', '-A']);
+  run(['commit', '-m', 'plan']);
+  // 계획 문서를 커밋하면 HEAD가 움직여 fixture의 diff_sha가 G16에서 어긋난다.
+  // worktree를 열기 전에 새 HEAD 기준으로 이해 기록을 다시 맞춘다.
+  const explainAbs = path.join(repo, `${BP_REL}/explain.md`);
+  const { data, body } = readFm(fs.readFileSync(explainAbs, 'utf8'));
+  const hashed = computeDiffSha({ repoRoot: repo, base: 'develop' });
+  data.bouncer.comprehension[0].diff_sha = hashed.sha;
+  data.bouncer.comprehension[0].range_to = run(['rev-parse', 'HEAD']).trim();
+  fs.writeFileSync(explainAbs, `---\n${yaml.dump(data)}---\n${body}`);
+  run(['add', '-A']);
+  run(['commit', '-m', 'explain']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: BP_REL, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  return { integration: boot.integrationPath, worker: prepared.tasks[0].workerPath };
+}
+
+test('finalize dry-run projects the coordinator ledger and its worktree inventory', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const drive = drivenBlueprint(repo);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.ok(res.coordinator, 'finalize payload must carry coordinator provenance');
+  assert.strictEqual(res.coordinator.tasks[0].id, '001');
+  assert.strictEqual(res.coordinator.tasks[0].status, 'prepared');
+  assert.strictEqual(res.coordinator.tasks[0].worktree, drive.worker);
+  assert.strictEqual(typeof res.coordinator.integrationHead, 'string');
+  // 성공 경로도 원장 경로를 실어야 한다. unreadable 분기에만 채우면 이 필드가
+  // 정상 드라이브에서는 항상 null이라 아무것도 알려주지 못한다.
+  assert.strictEqual(
+    res.coordinator.ledgerFile,
+    path.join(drive.integration, '.bouncer/runtime/coordinator.json'),
+  );
+  // cleanup은 이 목록으로 정리 대상을 센다 — integration과 worker가 모두 있어야 한다.
+  assert.deepStrictEqual(res.worktrees, [drive.integration, drive.worker]);
+});
+
+test('finalize without a coordinator ledger reports no provenance and no worktrees', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.strictEqual(res.coordinator, null);
+  assert.deepStrictEqual(res.worktrees, []);
+});
+
+// 읽히지 않는 원장을 null로 접으면 비-drive finalize와 구분되지 않는다.
+// 그 상태로 마감하면 통합되지 않은 fan-in이 완료로 기록되고, 복구에 필요한
+// worktree 목록도 비어 버린다.
+test('finalize refuses an unreadable coordinator ledger instead of closing as a non-drive', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const drive = drivenBlueprint(repo);
+  const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');
+  fs.writeFileSync(ledgerFile, '{ "tasks": [');
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'coordinator-ledger');
+  assert.strictEqual(res.coordinator.status, 'unreadable');
+  // 고칠 파일을 이름으로 돌려줘야 운영자가 어느 원장인지 찾을 수 있다.
+  assert.strictEqual(res.coordinator.ledgerFile, ledgerFile);
+  assert.strictEqual(res.ledgerFile, ledgerFile);
+  assert.strictEqual(res.integrationPath, drive.integration);
+});
+
+test('finalize --yes copies coordinator provenance into explain frontmatter', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  drivenBlueprint(repo);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  const { data } = readFm(fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8'));
+  const recorded = data.bouncer.coordinator;
+  assert.ok(recorded, 'explain must keep the drive provenance after the documents are deleted');
+  assert.strictEqual(recorded.tasks[0].id, '001');
+  assert.strictEqual(recorded.integration_head, res.coordinator.integrationHead);
+  assert.deepStrictEqual(recorded.worktrees, res.worktrees);
+});

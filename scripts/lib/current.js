@@ -9,6 +9,10 @@ const runtimeState = require("./runtime-state");
 const { readLegacyRuntimeCurrent, writeRuntimeCurrent, clearRuntimeCurrent, listNamespacePointers, removeNamespacePointer, pointerKeyFromBlueprint, worktreePathFor, runtimePaths, } = runtimeState;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs } = tasksDocs;
+const scope = require("./scope");
+const { readCoordinatorLedger } = scope;
+const coordinatorCore = require("./coordinator");
+const { readyWave } = coordinatorCore;
 const READY_TASK_STATUS = ['ready', 'in_progress'];
 // epic `## Blueprints` 링크 대상(예: `blueprints/BP-001-slug/index.md`)과 매칭.
 // blueprint directory 이름만 캡처; title 텍스트와 한 줄 purpose는 무시.
@@ -382,6 +386,51 @@ function readBlueprintScale(repoRoot, blueprintDir) {
     }
 }
 /**
+ * coordinator 실행 중이면 다음에 열 수 있는 task는 번호 순 하나가 아니라
+ * ledger의 ready wave다. 원장이 아예 없으면 null을 돌려주고, 호출자는 응답에
+ * `coordinator` 키 자체를 붙이지 않아 기존 sequential payload를 유지한다.
+ *
+ * 읽을 수는 있으나 깨진 원장은 null이 아니다. 그 상태가 바로 모든 checkout의
+ * 커밋을 막는 원인이므로, 운영자가 어느 파일을 고쳐야 하는지 보이도록
+ * `status: 'unreadable'`과 경로를 그대로 싣는다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} blueprint - 포인터의 blueprint 상대 경로
+ * @returns {object | null} 원장 스냅샷 또는 null
+ */
+function coordinatorSnapshot(repoRoot, blueprint) {
+    const found = readCoordinatorLedger({ repoRoot, blueprint });
+    if (!found.ok) {
+        if (found.reason !== 'unreadable-ledger')
+            return null;
+        return {
+            status: 'unreadable',
+            ledgerFile: found.ledgerFile || null,
+            integrationPath: found.integrationPath || null,
+            revision: null,
+            integrationHead: null,
+            ready: [],
+            tasks: [],
+        };
+    }
+    const ledger = found.ledger;
+    const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+    return {
+        status: 'ok',
+        ledgerFile: found.ledgerFile,
+        integrationPath: found.integrationPath,
+        revision: typeof ledger.revision === 'string' ? ledger.revision : null,
+        integrationHead: typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null,
+        ready: readyWave(tasks),
+        tasks: tasks.map((task) => ({
+            id: task.id,
+            status: task.status || 'pending',
+            revision: task.scope ? task.scope.revision : null,
+            scope: task.scope ? task.scope.paths : null,
+        })),
+    };
+}
+/**
  * CLI 출력용. 포인터 파일의 task 는 rel path 문자열만 보관하고,
  * `bouncer current` 응답에는 경로와 TASKS-NNN id, 그리고 호출 시점의 `scale`
  * 파생값을 함께 실어 Interface 계약을 맞춘다.
@@ -397,9 +446,14 @@ function presentCurrent(current, { repoRoot }) {
     if (!current)
         return null;
     const scale = readBlueprintScale(repoRoot, current.blueprint);
+    const coordinator = coordinatorSnapshot(repoRoot, current.blueprint);
+    // 원장이 없으면 키를 붙이지 않는다 — 기존 4-키 payload 계약을 그대로 둔다.
+    const coordinatorField = coordinator ? { coordinator } : {};
     const taskPath = typeof current.task === 'string' && current.task ? current.task : null;
     if (!taskPath) {
-        return { blueprint: current.blueprint, base: current.base, task: null, scale };
+        return {
+            blueprint: current.blueprint, base: current.base, task: null, scale, ...coordinatorField,
+        };
     }
     let id = null;
     try {
@@ -416,6 +470,7 @@ function presentCurrent(current, { repoRoot }) {
         base: current.base,
         task: { path: taskPath, id },
         scale,
+        ...coordinatorField,
     };
 }
 /**

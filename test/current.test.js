@@ -1003,3 +1003,74 @@ test('writeCurrent rejects a blueprint path without three-digit ids', () => {
     /Cannot derive epic\/blueprint ids/,
   );
 });
+
+
+// --- coordinator mode -------------------------------------------------------
+
+const { presentCurrent } = require('../scripts/lib/current');
+const { coordinate } = require('../scripts/lib/coordinator');
+const { reviseTaskScope } = require('../scripts/lib/scope');
+
+function committedGitRepo() {
+  const repo = tmpGitRepo();
+  const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  fs.writeFileSync(path.join(repo, 'README'), 'base\n');
+  run(['add', 'README']);
+  run(['commit', '--quiet', '-m', 'base']);
+  return repo;
+}
+
+test('presentCurrent keeps the sequential pointer shape when no coordinator ledger exists', () => {
+  const repo = committedGitRepo();
+  const bpDir = writeBp(repo, {
+    epicSlug: '061-x', bpSlug: '062-y', epicId: '061', bpId: '062',
+    bpStatus: 'approved', tasksStatus: 'ready', affectedPaths: ['src/'],
+  });
+  writeCurrent({ repoRoot: repo, blueprint: bpDir, base: 'main' });
+  assert.deepStrictEqual(presentCurrent(readCurrent({ repoRoot: repo }), { repoRoot: repo }), {
+    blueprint: bpDir, base: 'main', task: null, scale: null,
+  });
+});
+
+test('presentCurrent exposes the coordinator ready wave and graph revision', () => {
+  const repo = committedGitRepo();
+  const bpDir = writeBp(repo, {
+    epicSlug: '063-x', bpSlug: '064-y', epicId: '063', bpId: '064',
+    bpStatus: 'approved', tasksStatus: 'ready', affectedPaths: ['src/'],
+  });
+  // 002는 sequential 이라 첫 wave에 열리지 않는다 — prepare 뒤의 ready set이 된다.
+  writeDoc(repo, `${bpDir}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks', title: 't2', description: 'd', resource: `${bpDir}/tasks/002/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '063', blueprint_id: '064', status: 'ready',
+      affected_paths: ['src/'],
+    },
+  });
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '--quiet', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: bpDir });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: bpDir, cwd: boot.integrationPath,
+  });
+  writeCurrent({
+    repoRoot: repo, blueprint: bpDir, base: 'main', task: `${bpDir}/tasks/001/tasks.md`,
+  });
+  reviseTaskScope({
+    repoRoot: prepared.tasks[0].workerPath,
+    blueprint: bpDir,
+    task: '001',
+    paths: ['src/', 'lib/'],
+    reason: 'lib helper reuse discovered during implementation',
+  });
+
+  const shown = presentCurrent(readCurrent({ repoRoot: repo }), { repoRoot: repo });
+  assert.strictEqual(shown.task.id, 'TASKS-001');
+  assert.deepStrictEqual(shown.coordinator.ready, ['002']);
+  assert.strictEqual(shown.coordinator.revision, 'r1');
+  assert.strictEqual(typeof shown.coordinator.integrationHead, 'string');
+  assert.deepStrictEqual(shown.coordinator.tasks[0].scope, ['src/', 'lib/']);
+  assert.strictEqual(shown.coordinator.tasks[0].status, 'prepared');
+});

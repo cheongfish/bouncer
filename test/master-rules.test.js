@@ -1019,3 +1019,102 @@ test('conditional workflow references keep their skill-local ownership', () => {
     assert.match(md, /CLAUDE\.md/, `${name} must load master rules`);
   }
 });
+
+test('plan and governance lock the approved task DAG contract', () => {
+  const okf = read('rules/okf.md');
+  const governance = read('rules/governance.md');
+  const plan = read('skills/bouncer-plan/SKILL.md');
+
+  assert.match(okf, /depends_on/);
+  assert.match(okf, /parallel_safe/);
+  assert.match(okf, /dependency_gate/);
+  // 산문 문구가 아니라 "한 문맥에서 dependency_gate와 integrated를 함께 말한다"는 사실만 고정한다.
+  assert.match(okf, /dependency_gate[\s\S]{0,10}integrated/);
+  // 산문이 아니라 값의 부재를 고정한다: 거절된 gate 값이 정본 규칙으로 다시 새어 들어오면 실패한다.
+  assert.doesNotMatch(okf, /integration-verified/);
+
+  assert.match(governance, /depends_on|DAG/);
+  assert.match(governance, /dependency_gate[\s\S]{0,10}integrated/);
+  assert.doesNotMatch(governance, /integration-verified/);
+  assert.match(governance, /affected_paths|초기.*scope|initial scope/i);
+
+  assert.match(plan, /depends_on/);
+  assert.match(plan, /parallel_safe/);
+  assert.match(plan, /dependency_gate/);
+  assert.match(plan, /G19|DAG/);
+});
+
+test('gates doc states the accepted dependency gate value', () => {
+  const gates = read('docs/gates.md');
+  // 정본 규칙과 같은 계약을 사용자 문서에서도 고정한다: 한 문맥에서 dependency_gate와 integrated를 함께 말한다.
+  assert.match(gates, /dependency_gate[\s\S]{0,10}integrated/);
+  // 거절된 gate 값이 사용자 문서로 새어 들어오면 실패한다.
+  assert.doesNotMatch(gates, /integration-verified/);
+});
+
+test('hard rule 1 scopes the coordinator exception and bans main-worktree source writes', () => {
+  const claude = read('CLAUDE.md');
+  // 위임 coordinator만 controller 권한을 갖고, 다른 worker 보고는 계속 data다.
+  assert.match(claude, /bouncer-coordinator|coordinator/);
+  assert.match(claude, /implementer|debugger|reviewer/);
+  assert.match(claude, /main worktree/i);
+  assert.match(claude, /read-only|never write|write only/i);
+});
+
+test('governance defines coordinator dynamic scope, audit and commit ownership', () => {
+  const governance = read('rules/governance.md');
+  assert.match(governance, /## Coordinator mode/);
+  assert.match(governance, /initial expected scope|초기 예상/i);
+  assert.match(governance, /revision/);
+  assert.match(governance, /decision log/i);
+  assert.match(governance, /actual|staged/i);
+  assert.match(governance, /affected_paths/);
+  // 코드가 실제로 강제하는 경계와 강제하지 않는 부분을 문서가 같이 말해야 한다.
+  assert.match(governance, /\.bouncer\/`? governance tree|governance tree/);
+  assert.match(governance, /no ceiling|ceiling/i);
+  // G17이 두 강제 지점보다 약하다는 사실을 명시한다.
+  assert.match(governance, /G17/);
+  assert.match(governance, /weaker/i);
+});
+
+test('hard rule 1 states the coordinator scope bound without overstating it', () => {
+  const claude = read('CLAUDE.md');
+  const rule1 = claude.match(/^1\. \*\*Trust boundary\*\*[\s\S]*?(?=^2\. )/m)[0];
+  assert.match(rule1, /\.bouncer\//);
+  assert.match(rule1, /\.git\//);
+  assert.match(rule1, /decision log/i);
+  // "승인된 blueprint 안"이라는 지키지 못할 보증을 다시 넣지 않는다.
+  assert.doesNotMatch(rule1, /inside the approved blueprint/);
+});
+
+test('current-pointer hands pointer moves to the coordinator, not the run loop', () => {
+  const pointer = read('rules/current-pointer.md');
+  assert.match(pointer, /coordinator/);
+  // Task 003이 지운 `/bouncer-run` nextTask 예외는 계약에 남아 있으면 안 된다.
+  assert.doesNotMatch(pointer, /pre-authorizes/);
+  assert.doesNotMatch(pointer, /`auto`/);
+  assert.match(pointer, /confirm-then-set|확인.*--set/i);
+});
+
+// worker/coordinator 권한 문구의 정본은 하나여야 한다. 두 곳이 각자
+// 규칙을 말하면 어느 쪽이 이기는지 문서로 판정할 수 없다.
+test('worker and coordinator authority have one canonical statement', () => {
+  const claude = read('CLAUDE.md');
+  const governance = read('rules/governance.md');
+  const coordinator = read('agents/bouncer-coordinator.md');
+
+  // 상한 없음(no ceiling)은 governance가 소유하고, 나머지는 그것을 가리킨다.
+  assert.strictEqual((governance.match(/there is no\s*\n?\s*ceiling/g) || []).length, 1);
+  assert.match(coordinator, /rules\/governance\.md/);
+  // hard rule 1은 예외의 범위만 말하고 절차를 다시 쓰지 않는다.
+  assert.doesNotMatch(claude, /coordinate revise/);
+  // scope 개정 절차의 정본은 coordinator 역할 문서 하나다.
+  assert.doesNotMatch(governance, /coordinate revise --blueprint/);
+  for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    assert.doesNotMatch(
+      read(`agents/${name}.md`),
+      /coordinate revise --blueprint/,
+      `${name} must not restate the revision command`,
+    );
+  }
+});

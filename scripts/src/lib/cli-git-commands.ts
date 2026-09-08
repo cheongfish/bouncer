@@ -10,6 +10,10 @@ import seedWorktreeMod = require('./seed-worktree');
 const { seedWorktree } = seedWorktreeMod;
 import importHistory = require('./import-history');
 const { planImport, applyImport } = importHistory;
+import coordinatorMod = require('./coordinator');
+const { coordinate } = coordinatorMod;
+import scopeMod = require('./scope');
+const { reviseTaskScope } = scopeMod;
 
 type CliIo = {
   out: (s: string) => void;
@@ -128,6 +132,75 @@ function cmdImport(rest: string[], io: CliIo) {
   return result.ok ? 0 : 2;
 }
 
+/**
+ * 반복 `--paths`를 순서대로 모은다.
+ *
+ * parseFlags는 같은 플래그의 마지막 값만 남기므로(cli-flags.ts) 여러 번 준
+ * 경로가 하나로 접힌다. cli-project-commands의 `--for`와 같은 방식으로 rest를
+ * 직접 훑는다. 값이 없거나 다음 토큰이 또 다른 플래그면 건너뛴다 — 빈 문자열을
+ * 경로로 넘기면 reviseTaskScope가 그것을 out-of-bounds로 바꿔 거절 코드가
+ * `scope-paths-required`에서 갈라진다.
+ */
+function collectPathValues(rest: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < rest.length; i += 1) {
+    if (rest[i] !== '--paths') continue;
+    const value = rest[i + 1];
+    if (value === undefined || value.startsWith('--')) continue;
+    out.push(value);
+    i += 1;
+  }
+  return out;
+}
+
+function cmdCoordinate(rest: string[], io: CliIo) {
+  const command = rest[0];
+  const f = parseFlags(rest.slice(1));
+  if (!['bootstrap', 'prepare', 'ready', 'record', 'integrate', 'status', 'revise'].includes(command)) {
+    io.err('coordinate: command must be bootstrap, prepare, ready, record, integrate, status, or revise\n');
+    return 2;
+  }
+  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+    io.err('coordinate: --blueprint is required\n');
+    return 2;
+  }
+  if (command === 'revise') {
+    // scope 판정은 coordinator의 것이고 본체는 scope.reviseTaskScope 하나뿐이다.
+    // 여기서는 인자만 모아 넘기고, 거절 코드는 그대로 옮긴다.
+    // reviseTaskScope는 `repoRoot`를 write boundary로 쓴다(main checkout·미할당
+    // worktree 거절). 그래서 `--repo`를 받아 넘기면 호출자가 자기 경계를 스스로
+    // 고르게 되어 두 거절이 무력화된다 — 실제 cwd만 넘긴다.
+    const result = reviseTaskScope({
+      repoRoot: process.cwd(),
+      blueprint: f.blueprint,
+      task: typeof f.task === 'string' ? f.task : undefined,
+      paths: collectPathValues(rest.slice(1)),
+      reason: typeof f.reason === 'string' ? f.reason : undefined,
+    }) as { ok: boolean; reason?: string; paths?: string[] };
+    if (!result.ok) {
+      // 거절은 stdout을 pipe-clean으로 두고 reason 코드만 stderr로 낸다.
+      io.err(`coordinate revise: ${result.reason}\n`);
+      return 1;
+    }
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+  try {
+    // --repo는 main checkout을 가리키고 cwd는 실제 write boundary 검증에 쓴다.
+    const result = coordinate({
+      command: command === 'ready' ? 'status' : command,
+      repoRoot: (f.repo || process.cwd()) as string,
+      blueprint: f.blueprint,
+      cwd: process.cwd(),
+      task: typeof f.task === 'string' ? f.task : undefined,
+      sha: typeof f.sha === 'string' ? f.sha : undefined,
+      decision: typeof f.decision === 'string' ? f.decision : undefined,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  } catch (error) { io.err(`coordinate: ${catchMessage(error)}\n`); return 1; }
+}
+
 export = {
   commit: {
     run: cmdCommit,
@@ -146,6 +219,17 @@ export = {
     usage: `  seed-worktree --blueprint <dir> --to <worktree>
              Move the plan context documents into a freshly created worktree.
 `,
+  },
+  coordinate: {
+    run: cmdCoordinate,
+    usage: '  coordinate <bootstrap|prepare|ready|record|integrate|status> --blueprint <dir>\n'
+      + '             [--task <ddd>] [--sha <sha>]\n'
+      + '             Operate the coordinator ledger and isolated integration worktrees.\n'
+      + '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
+      + '             --reason <text>\n'
+      + '             Record one scope decision in the task document and ledger.\n'
+      + '             Takes no --repo: the write boundary is the current directory, so\n'
+      + '             run it from the assigned task worktree, not the main checkout.\n',
   },
   import: {
     run: cmdImport,

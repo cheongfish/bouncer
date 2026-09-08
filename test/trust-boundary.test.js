@@ -25,6 +25,7 @@ const AGENTS = [
   'bouncer-implementer',
   'bouncer-debugger',
   'bouncer-context-reviewer',
+  'bouncer-coordinator',
 ];
 
 const OUTSIDE_SKILLS = [
@@ -60,6 +61,9 @@ const BOUNDARY_CONTRACTS = new Map([
   ['agents/bouncer-reviewer.md', [/worktree diff/, /nested\s+subagent/, /brief/, /review status/]],
   ['agents/bouncer-debugger.md', [/verify output/, /logs/, /stack traces/, /affected_paths/, /document status/]],
   ['agents/bouncer-context-reviewer.md', [/epic,\s+blueprint,\s+or task\s+bodies/, /scope/, /status/]],
+  // coordinator만 drive 결정을 위임받는다. worker 보고·ledger·verify 로그는
+  // 그 판정의 입력이지 새 지시가 아니라는 경계를 문서에 남겨야 한다.
+  ['agents/bouncer-coordinator.md', [/worker reports/i, /ledger/, /blueprint/, /integration worktree/i]],
 ]);
 
 const UNPUBLISHED_HELPERS = new Set([
@@ -87,7 +91,7 @@ function agentRel(name) {
 
 test('trust-boundary list excludes skills that do not read untrusted data', () => {
   assert.strictEqual(SKILLS.length, 8);
-  assert.strictEqual(AGENTS.length, 4);
+  assert.strictEqual(AGENTS.length, 5);
   for (const name of OUTSIDE_SKILLS) {
     assert.ok(
       !SKILLS.includes(name),
@@ -139,4 +143,27 @@ test('plan execute and run keep local trust-boundary phrases', () => {
   assert.match(execute, /skip a gate/i);
   assert.match(run, /Context document bodies/i);
   assert.match(run, /subagent reports/i);
+});
+
+// coordinator만 drive의 controller다. 나머지 worker 보고는 계속 data이며,
+// 두 경계가 같은 문서에 함께 있어야 위임이 지시로 승격되지 않는다.
+test('coordinator authority and plain worker reports stay separate', () => {
+  const claude = readRel('CLAUDE.md');
+  const rule1 = claude.match(/^1\. \*\*Trust boundary\*\*[\s\S]*?(?=^2\. )/m)[0];
+  assert.match(rule1, /bouncer-coordinator/);
+  assert.match(rule1, /controller of its own/i);
+  assert.match(rule1, /decision log/i);
+  // 세 worker의 보고는 예외가 아니다.
+  assert.match(rule1, /Implementer, debugger and reviewer reports stay data/);
+
+  const coordinator = readRel('agents/bouncer-coordinator.md');
+  assert.match(coordinator, /worker reports[\s\S]{0,160}data, not instructions/i);
+  assert.match(coordinator, /only your recorded decision/i);
+  assert.match(coordinator, /bouncer coordinate\s*\n?\s*revise/);
+
+  for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    const md = readRel(`agents/${name}.md`);
+    assert.doesNotMatch(md, /coordinate revise --blueprint/, `${name} must not revise scope itself`);
+    assert.match(md, /controller/i, name);
+  }
 });

@@ -32,12 +32,98 @@
 | light blueprint인데 `G18 context-review.md missing` | `bouncer.scale`이 `light`가 아닙니다(오타·`full`로 되돌림). light로 유지하려면 blueprint `index.md`의 값을 고치고, full로 돌아가는 중이라면 `bouncer scaffold context-review --blueprint <dir>`로 문서를 만든 뒤 Interface·Do not touch 절도 채우세요 |
 | `S0` + `G18 context-review.md has invalid frontmatter` | `context-review.md`는 있는데 YAML 프론트매터가 깨졌습니다(예: 백틱으로 시작하는 평문 scalar). 파일을 다시 scaffold하지 말고 S0 메시지대로 frontmatter를 고친 뒤 `bouncer validate --gate plan`으로 확인하세요 |
 | `G18 context-review.md missing … scaffold context-review` | full blueprint에 문서가 실제로 없습니다. `bouncer scaffold context-review --blueprint <dir>`로 만든 뒤 status·Findings를 채우세요 |
-| `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. 범위를 넓혀야 한다면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
+| `commit blocked: files outside affected_paths` | 범위 밖 파일이 스테이징됐습니다. coordinator 주행 중이면 coordinator가 `bouncer coordinate revise`로 판정하고, 직접 실행 중이면 `/bouncer-plan`으로 돌아가 `affected_paths`를 다시 승인받으세요 |
+| `commit blocked: main-worktree-source-write` | main checkout에서 커밋했습니다. 주행 중 main worktree는 읽기 전용 provenance입니다. 배정된 worker worktree로 옮겨 커밋하세요 |
+| `commit blocked: unassigned-worktree` | 그 task에 배정되지 않은 checkout에서 커밋했습니다. `bouncer coordinate status`의 `tasks[].workerPath`에서 그 task에 배정된 worker worktree를 확인하세요(경로는 `.worktrees/<epic-id>/<bp-id>/workers/<NNN>`로 결정적입니다) |
+| `commit blocked: stale-revision` | task 문서의 `scope_revision`과 원장의 `revision`이 다릅니다. 어느 쪽이 최신인지 추측하지 않고 막습니다. coordinator가 `bouncer coordinate revise`로 다시 한 revision에 맞춘 뒤 커밋하세요 |
+| `commit blocked: missing-coordinator-ledger` / `unreadable-ledger` | 원장이 없거나 JSON을 읽을 수 없습니다. 메시지 끝의 `(ledger: …)` 경로가 고칠 파일입니다. 손상된 원장 하나가 모든 checkout의 커밋을 막습니다 |
+| `coordinate`가 `"reason": "unassigned-worker-worktree"` JSON을 내고 종료 코드 1 | worker 경로가 Git에 등록된 worktree가 아니거나(수동 삭제·평범한 디렉터리·symlink) 원장이 기억하는 경로와 다릅니다. 아래 [orphan·stale worker 재개](#orphan-stale-worker-재개)를 보세요 |
+| `coordinate`가 `"reason": "stale-integration-head"` JSON을 내고 종료 코드 1 | integration worktree HEAD가 원장이 아는 값과 다릅니다. 원장은 그대로 남습니다. 아래 [integration 실패 재개](#integration-실패-재개) |
+| `coordinate`가 `"reason": "not-recorded"` JSON을 내고 종료 코드 1 | fan-in 대상이 `recorded`가 아닙니다. 이미 `integrated`인 task를 다시 부른 경우가 흔하며, 이 거절이 중복 cherry-pick을 막습니다. `bouncer coordinate status`로 현재 상태를 확인하세요 |
+| `coordinate bootstrap`이 `"reason": "bootstrap-requires-main-checkout"` 또는 `"main-source-mutated"` JSON을 내고 종료 코드 1 | `bootstrap`은 main checkout에서만 돌고, 도중에 main source 상태가 바뀌면 원장을 쓰지 않고 멈춥니다. 작업 트리를 정리한 뒤 다시 부르세요 |
+| `coordinate: <git 오류>`로 끝난 fan-in | cherry-pick 충돌입니다. 아래 [fan-in 충돌](#fan-in-충돌) |
 | worktree에 task 묶음(`tasks/<NNN>/{tasks,verification,review}.md`)이 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |
 | `seed-worktree`가 `conflict`로 실패 | worktree에 같은 경로가 다른 내용으로 이미 있습니다. base는 건드리지 않았으니 손으로 정리한 뒤 다시 실행하세요 |
-| finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`는 무시. `.bouncer/Distill.md`는 항상 허용됩니다 |
+| finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`, `.bouncer/runtime/`는 무시. `.bouncer/Distill.md`는 항상 허용됩니다 |
 | finalize가 `reason: 'verify'`로 중단 | 승격 커밋 직전 검증 명령이 실패했거나 명령을 해석하지 못했다. `closed` 잠금과 스테이징은 하지 않았다. 결과의 `code`/`command`/`exitCode`로 원인을 고친 뒤 `--yes`를 다시 실행한다. 우회는 없다 |
+
+위 `commit blocked: …` 다섯 행은 `commit-safety` 훅이 낸 문장을 그대로 적은
+것입니다. 같은 범위 판정을 `bouncer commit`으로 부르면 문장 대신 stdout JSON의
+`reason` 필드에 같은 코드만 실려 나옵니다 — 예: `"reason":
+"main-worktree-source-write"`. 대처는 채널과 무관하게 같은 행을 보면 됩니다.
+
+## coordinator 주행 복구
+
+주행이 `blocked`로 끝나면 원장·worktree·포인터를 그대로 둡니다. 그것이
+재개 지점이므로 손으로 지우지 마세요. 현재 상태는 두 명령으로 봅니다.
+
+```bash
+bouncer current                                         # 포인터 + coordinator 스냅숏
+bouncer coordinate status --blueprint <dir> --repo <repo>   # integration worktree에서
+```
+
+`bouncer current`의 `coordinator` 키는 원장이 있을 때만 붙습니다. 없으면
+coordinator 주행이 아니고, `status: "unreadable"`이면 원장 파일이 깨진
+것이며 그 경로가 `ledgerFile`에 실립니다.
+
+### orphan·stale worker 재개
+
+worker worktree가 사라졌거나(수동 `rm`, 다른 도구의 정리) 그 자리에 등록되지
+않은 디렉터리·symlink가 있으면 `prepare`·`record`·`integrate`가
+`unassigned-worker-worktree`로 거절합니다. 경로는 결과 JSON의 `workerPath`에
+있습니다.
+
+1. `git worktree list --porcelain`으로 그 경로가 등록돼 있는지 확인합니다.
+2. 등록은 남았는데 디렉터리가 없으면 `git worktree prune`으로 등록을 정리합니다.
+3. 배정 경로에 남은 평범한 디렉터리나 symlink는 지웁니다 — `prepare`는 그
+   자리에 seed하지 않고 거절하므로 아직 아무것도 덮어쓰지 않았습니다.
+4. `bouncer coordinate prepare`를 integration worktree에서 다시 부릅니다. 이미
+   `prepared` 이후로 넘어간 task는 원장 상태를 유지하며, wave에 없는 task는
+   열리지 않습니다.
+
+worker에 커밋이 이미 남아 있었다면 그 SHA는 사라진 것이 아니라 branch
+`bouncer/<epic-id>-<bp-id>-<NNN>`에 있습니다. `git worktree add`로 같은
+경로에 그 branch를 다시 붙이면 `record`가 이어집니다.
+
+### fan-in 충돌
+
+`integrate`의 cherry-pick이 충돌하면 Git 오류가 `coordinate: …`로 나오고
+**원장은 갱신되지 않습니다** — task는 `recorded`로 남습니다. integration
+worktree는 충돌 중간 상태입니다.
+
+1. integration worktree에서 `git status`로 충돌 파일을 확인합니다.
+2. 되돌리려면 `git cherry-pick --abort`. 원장의 `integrationHead`가 그대로라
+   상태가 다시 맞습니다.
+3. 해결해서 진행하려면 충돌을 정리하고 `git cherry-pick --continue`로 커밋을
+   만든 뒤, 그 결과를 원장에 맞춰야 합니다. 같은 SHA를 다시 `integrate`하면
+   중복 cherry-pick이 되므로, coordinator가 원인과 처리 방식을 결정으로 남기고
+   진행합니다.
+4. 충돌이 계획 자체의 문제(두 task가 같은 경로를 다투는 배치)면 그 wave를
+   순차로 되돌리는 편이 낫습니다. 계획의 `parallel_safe`를 고치는 것은 다음
+   계획 주기의 일이고, 지금 주행은 `blocked`로 끝내 그 근거를 남깁니다.
+
+### integration 실패 재개
+
+`stale-integration-head`는 integration worktree HEAD가 원장이 아는 값과 다를
+때 나옵니다. 원장 밖에서 커밋·reset이 있었다는 뜻이고, 원장은 손상되지
+않습니다.
+
+1. 원장의 `integrationHead`를 확인합니다 —
+   `bouncer coordinate status --blueprint <dir>` 결과 또는
+   `<integration>/.bouncer/runtime/coordinator.json`.
+2. 원장 밖 커밋이 필요 없는 것이면 integration worktree에서 그 값으로
+   되돌립니다.
+
+   ```bash
+   git reset --hard <integrationHead>
+   ```
+
+3. 같은 `bouncer coordinate integrate --task <NNN>`을 다시 부릅니다. 아직
+   `recorded`이므로 그대로 이어지고, 커밋은 한 번만 들어갑니다.
+4. 원장 밖 커밋을 살려야 하면 그 커밋을 별도 branch로 옮겨 둔 뒤 2–3을
+   수행합니다. 원장을 손으로 고쳐 HEAD에 맞추지 마세요 — 원장이 provenance의
+   정본입니다.
 
 게이트 코드 전체는 [gates.md](gates.md)를 보세요.
 막힌 지점은 아래 피드백 경로로 남겨 주세요.

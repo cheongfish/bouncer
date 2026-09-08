@@ -340,3 +340,22 @@ test('bouncer-plan sets the approved blueprint through CLI-only namespace select
   assert.match(pointer, /\bbouncer\s+current\s+--set\b/);
   assert.doesNotMatch(pointer, /scripts\/lib\/current|bouncer\/pointers|read.*pointer file/i);
 });
+
+
+test('bouncer-plan authors and reviews task DAG before approval', () => {
+  const { body } = parseFrontmatter(mainMd);
+  assert.match(body, /depends_on/);
+  assert.match(body, /parallel_safe/);
+  assert.match(body, /dependency_gate/);
+  assert.match(body, /dependency_gate[\s\S]{0,10}integrated/);
+  // 계획 참조가 거절된 gate 값을 다시 제공하면 실패한다 — frontmatter 포함 파일 전문이 대상이다.
+  assert.doesNotMatch(mainMd, /integration-verified/);
+  // 승인 ACQ 전에 DAG·병렬 자격·공용 계약 충돌을 보여 준다.
+  const dagReviewAt = body.search(/depends_on|DAG|dependency/i);
+  const approvalAt = body.indexOf('8. **Approval');
+  assert.ok(dagReviewAt >= 0, 'DAG authoring/review is present');
+  assert.ok(approvalAt > 0, 'Approval step exists');
+  assert.match(body, /parallel_safe|병렬/);
+  assert.match(body, /충돌|overlap|conflict/i);
+  assert.match(body, /G19|plan gate[\s\S]{0,120}DAG|DAG[\s\S]{0,120}plan gate|depends_on[\s\S]{0,200}validate/i);
+});

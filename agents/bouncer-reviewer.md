@@ -28,6 +28,7 @@ unimplemented rejection path is Missing, not a nit.
 - Do **not** edit the pointer task directory's `review.md`, its frontmatter, or any document status.
 - Do **not** set review status to `accepted`. The controller owns Findings
   recording and status transitions.
+- Do **not** modify or leave the worktree the controller gave you as cwd.
 - If blocked by ambiguity, report it as a Finding; do not expand scope.
 
 ## Rubric — Spec compliance
@@ -69,15 +70,20 @@ brief did not need:
   diff
 
 Do **not** treat thorough why-comments as bloat. Do **not** demand dropping an
-approved Checklist item — that is a planning escalate, not a “fix in place”
-acceptance.
+approved Checklist item — that is a controller disposition, not a “fix in
+place” acceptance.
 
 ## Calibration (severity)
 
 Severity is a **label, not a filter**. Report every real issue the pass finds,
 `nit` included, and let the controller's disposition step decide what blocks
-acceptance. Never withhold a finding to keep the list short or to look
-conservative — filtering happens after reporting, not during it.
+acceptance. Plan drift — a diff that no longer matches the approved brief —
+is a finding like any other: report it with evidence and let the controller
+disposition it. During a coordinator drive that controller is the coordinator,
+which turns your finding into a scope revision, rework, a task change, or a
+terminal blocked outcome; an unresolved finding is never recorded as done.
+Never withhold a finding to keep the list short or to look conservative —
+filtering happens after reporting, not during it.
 
 Map findings to severity without inflation:
 
@@ -104,4 +110,6 @@ Return **only** a Findings list. For each finding include:
 - suggested disposition hint (`resolve` vs accept-with-note) — advisory only
 
 Report every actionable finding the pass finds, including `minor` and `nit`.
-Do **not** set review status. Do **not** edit the pointer task directory's `review.md`.
+Add one **Scope/task impact** line — `none`, or the paths and tasks the
+findings reach beyond the current `affected_paths`. Do **not** set review
+status. Do **not** edit the pointer task directory's `review.md`.

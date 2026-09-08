@@ -7,7 +7,11 @@ invariants; this reference applies its next-blueprint handoff only.
 
 **Plugin-root shell contract.** See `rules/plugin-root.md`; the main-worktree cleanup shell below remains independent.
 
-After the PR branch, apply the step-3 choice without re-asking. For remove (A), run from the main worktree, not the execute checkout; add `--force` only after dirty-tree warning ACQ. Resolve `worktreePathFor`, run `git worktree remove`, then only `rmdir` an empty nested epic parent when the grandparent basename is `.worktrees`; never remove the `.worktrees` root for reused flat paths. Keep the feature branch unless asked to delete it. For keep (B), report its path.
+After the PR branch, apply the step-3 choice without re-asking. For remove (A), run from the main worktree, not a checkout you are removing; add `--force` only after dirty-tree warning ACQ.
+
+**Drive inventory.** A coordinator drive leaves one integration worktree and one worker worktree per prepared task. Take the list from the finalize payload's `worktrees` field rather than re-deriving it; remove the worker worktrees first, then the integration one, so a failure never orphans a worker under a removed parent. Report every path the removal did not clear. Preserve the whole inventory — and the ledger inside the integration worktree — whenever the drive stopped as blocked, a task is still open, or the integration head is unverified: those checkouts are the recovery state, not leftovers. Cleanup is for a closed blueprint only.
+
+Resolve `worktreePathFor`, run `git worktree remove`, then only `rmdir` an empty nested epic parent when the grandparent basename is `.worktrees`; never remove the `.worktrees` root for reused flat paths. Keep the feature branch unless asked to delete it. For keep (B), report its path.
 ```bash
 WORKTREE_PATH="$(node -e "process.stdout.write(require('$(bouncer-root --auto)/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
 git worktree remove "${WORKTREE_PATH}"

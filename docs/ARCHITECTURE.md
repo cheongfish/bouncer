@@ -43,7 +43,9 @@ Bouncer는 프로필 선택이나 외부 방법론 플러그인 연동을 두지
 - `/bouncer-init` → `/bouncer-plan` → `/bouncer-execute` → `/bouncer-commit` →
   `/bouncer-finalize`
 - `/bouncer-run`은 위 단계를 부르는 드라이버이며, 단계 계약을 새로 만들지
-  않는다.
+  않는다. 시작 ACQ 뒤에는 남은 task 전체를 `bouncer-coordinator` 하나에
+  위임하고, coordinator가 integration worktree에서 ready wave를 열어 worker
+  worktree마다 execute→commit을 돌린다(ADR H).
 - 검증·리뷰는 각 `tasks/<NNN>/` 묶음의 자체 문서 계약
   (`verification.md`, `review.md`)으로 충족한다.
 - 에이전트 기본 역량과 일반 워크플로 스킬이 같은 계약을 수행한다.
@@ -108,6 +110,11 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 
 `graphify-runner`(`references/graphify-runner/index.md`)는 `/bouncer-plan`이
 참조하는 선택적 경로 추천 어댑터이며, 부재 시 수동 탐색으로 폴백한다.
+
+`bouncer-coordinator`(`agents/bouncer-coordinator.md`)는 위임 주행의
+컨트롤러다. 위 표의 일반 워크플로 스킬이 아니라 named agent 역할이며,
+`bouncer-implementer`·`bouncer-debugger`·`bouncer-reviewer`를 부르되 그 역할을
+스스로 수행하지 않는다.
 
 `context-review`(`references/context-review/index.md`)는 `/bouncer-plan`이
 승인 직전에 호출하는 전문 스킬이다. 판정 대상은 계획
@@ -176,7 +183,7 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 참고: [Ponytail GitHub](https://github.com/DietrichGebert/ponytail),
 [Ponytail 원칙](https://ponytail.dev/)
 
-## 확정된 의사결정 (A–G)
+## 확정된 의사결정 (A–H)
 
 > 공통 거버넌스 계획의 미결 항목을 Bouncer 재브랜드 기준으로 확정한 결과다.
 
@@ -240,9 +247,10 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 2. `graphify-out/`은 로컬 캐시다. `bouncer init`이 `.gitignore` 누락 항목을
    **안내**하고, 사용자 동의(`--write-gitignore`)가 있을 때만 `# bouncer` …
    `# /bouncer` 마커 블록을 쓴다(마커 밖 줄은 읽기만 함). finalize/커밋 가드는
-   `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`를 범위
-   검사에서 무시한다. execute 체크아웃은
-   `<repo>/.worktrees/<epic-id>/<bp-id>`에 두며, init이 `.worktrees/`
+   `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`,
+   `.bouncer/runtime/`를 범위 검사에서 무시한다. execute 체크아웃은
+   `<repo>/.worktrees/<epic-id>/<bp-id>`에 두고, coordinator 주행은 같은 뿌리
+   아래 `integration`과 `workers/<NNN>`을 쓴다(ADR H). init이 `.worktrees/`
    gitignore 누락도 함께 안내한다.
 3. 후보 경로의 근거는 `bouncer.scope_evidence`에 기록한다. 신규 작성은
    `producer: graphify`, 그래프별 엔트리 배열
@@ -283,3 +291,48 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    필드명, 스킬 이름)를 단언하고, 어절 인접성이나 문장 배열은 단언하지 않는다.
 3. 13개 파일을 일괄 재작성하지는 않는다. 실제 계약을 지우는 위험이 이득보다
    크므로, 해당 파일을 손댈 때 위 규칙으로 옮긴다.
+
+### H. 위임 실행(coordinator mode) (2026-09-07)
+
+1. **컨트롤러는 하나다.** 시작 ACQ 뒤 `/bouncer-run` 세션은 렌더러가 되고
+   판단은 `bouncer-coordinator`가 소유한다. coordinator는 중첩되지 않으며,
+   worker 리포트를 다른 worker가 판정하지 않는다. worker의
+   `Needs planning`은 coordinator의 판단 입력이지 두 번째 brief가 아니다.
+   주행 중 `/bouncer-plan`으로 후퇴하는 경로는 두지 않는다 — drift는 기록된
+   결정이다.
+2. **worktree 소유 경계.** blueprint 하나당 checkout은 다음 셋으로 나뉜다.
+
+   | 자리 | 경로 | branch | 누가 쓰나 |
+   | --- | --- | --- | --- |
+   | main worktree | 저장소 루트 | 사용자의 브랜치 | 아무도 쓰지 않는다. base SHA와 계획 문서를 읽는 provenance 위치다 |
+   | integration worktree | `.worktrees/<epic-id>/<bp-id>/integration` | `bouncer/<epic-id>-<bp-id>-integration` | coordinator. 원장과 fan-in 대상이 여기 있다 |
+   | worker worktree | `.worktrees/<epic-id>/<bp-id>/workers/<NNN>` | `bouncer/<epic-id>-<bp-id>-<NNN>` | 그 task에 배정된 worker |
+
+   경계 판정은 경로 문자열 비교가 아니라 Git worktree 등록과 realpath 대조다.
+   등록되지 않은 디렉터리, 배정 경로에 놓인 symlink, 상위 경로가 symlink인
+   할당은 모두 거절한다 — 그러지 않으면 fan-in이 남의 checkout HEAD를
+   provenance로 기록할 수 있다.
+3. **원장이 실행 상태의 정본이다.** `.bouncer/runtime/coordinator.json`은
+   integration worktree 안에 있고 커밋되지 않는다. task 상태
+   (`pending → ready → prepared → recorded → integrated`), 배정된 worker 경로,
+   결과 SHA, `integrationHead`, 그리고 append-only 결정 로그를 담는다. 상태
+   전이는 선언된 인접 쌍만 허용하고, 쓰기는 임시 파일 + rename으로 원자적이다.
+   중단은 원장을 갈아엎지 않으므로, 다시 건 주행이 같은 원장에서 이어진다.
+   이 다섯이 상태의 전부이며 `integrated`가 종점이다.
+4. **fan-in은 cherry-pick 하나다.** worker가 자기 worktree에서 커밋하고,
+   coordinator가 그 SHA를 integration branch로 옮긴다. 옮기기 전에 SHA가 그
+   worker HEAD의 조상인지 Git에 묻고, 원장이 아는 `integrationHead`가 실제
+   HEAD와 같은지 확인한다. 이미 `integrated`인 task는 다시 fan-in되지 않아
+   중복 cherry-pick이 생기지 않는다.
+5. **DAG 없는 계획도 계약 안이다.** task frontmatter의
+   `depends_on`·`parallel_safe`·`dependency_gate` 부재는 각각 의존 없음·순차·
+   `integrated`로 읽힌다. 소급 마이그레이션을 두지 않고, 기존 계획은 한 번에
+   한 node짜리 wave로 예전과 같은 순서를 낸다. 병렬은 계획이 명시한
+   `parallel_safe: true` 사이에서만 열린다.
+6. **승인 범위는 초기 예상치다.** 주행 중 `affected_paths`의 정본은 원장의
+   현재 scope와 `revision`이며, `bouncer coordinate revise`가 task 문서와
+   원장을 같은 revision으로 옮긴다. 넓힘의 상한은 경로 개수가 아니라 감사
+   가능성이다 — 이유 없는 개정은 거절하고, 결정 로그는 지우지 않고 덧붙인다.
+   경계는 저장소 source 경로이며 `.git/`·`.bouncer/`·트리 전체 표기는 받지
+   않는다. 계약 정본은 [`rules/governance.md`](../rules/governance.md)
+   `## Coordinator mode`다.

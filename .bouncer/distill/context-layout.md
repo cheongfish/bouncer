@@ -16,6 +16,7 @@ distill:
 
 - Wrong `scale` spelling fails S20; omitting `scale` does not.
 - Switching `subagents.provider` does not backfill missing provider blocks — repos past `bouncer init` add them to `.bouncer/config.json` by hand.
+- `lint:context-comments` fails on a surviving scaffold guidance comment in any `.bouncer/context/**` document, and `npm run ci` includes it — one other task's `review.md` can block the full-CI gate.
 
 ## Decisions
 

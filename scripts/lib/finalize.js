@@ -16,7 +16,7 @@ const { renderDoc } = render;
 const commitSha = require("./commit-sha");
 const { normalizeCommitSha } = commitSha;
 const scope = require("./scope");
-const { makeFinalizeAllowed, isRuntimeArtifact } = scope;
+const { makeFinalizeAllowed, isRuntimeArtifact, readCoordinatorLedger } = scope;
 const verification = require("./verification");
 const { readVerifyCommand, executeVerify } = verification;
 const tasksDocs = require("./tasks-docs");
@@ -300,6 +300,127 @@ function writeExplainTaskContext({ repoRoot, blueprintDir, taskContext }) {
     fs.writeFileSync(abs, renderDoc(data, replaceTaskContext(body, taskContext)));
     return true;
 }
+function stringOrNull(value) {
+    return typeof value === 'string' && value !== '' ? value : null;
+}
+function stringList(value) {
+    return (Array.isArray(value) ? value : [])
+        .filter((entry) => typeof entry === 'string' && entry !== '');
+}
+/**
+ * coordinator 원장을 explain 기록과 cleanup 목록이 함께 쓰는 한 장으로 접는다.
+ *
+ * 원장은 삭제되는 integration worktree 안에 있어 blueprint가 닫히면 사라진다.
+ * 그래서 finalize가 남길 값(어느 worker가 어떤 SHA로 무엇을 실제로 바꿨는지,
+ * scope가 몇 번 개정됐는지)과 정리 대상 worktree 목록을 여기서 한 번에 뽑는다.
+ * 원장이 없으면 위임 실행이 아니므로 null — 빈 객체를 돌려주면 호출부가
+ * "coordinator 실행인데 기록이 비었다"와 구분하지 못한다.
+ */
+function buildCoordinatorProvenance(ledger, { integrationPath = null, ledgerFile = null } = {}) {
+    if (!ledger)
+        return null;
+    const tasks = (Array.isArray(ledger.tasks) ? ledger.tasks : [])
+        .filter((entry) => Boolean(entry) && typeof entry === 'object')
+        .map((entry) => ({
+        // id도 이웃 필드와 같은 정규화를 거친다. String()으로 감싸면 id가 없는
+        // 항목이 문자열 "undefined"가 되어 explain frontmatter에 그대로 박히고,
+        // 원장이 사라진 뒤 draft-pr이 그것을 실재하는 task id로 읽는다.
+        id: stringOrNull(entry.id),
+        status: typeof entry.status === 'string' ? entry.status : 'pending',
+        sha: stringOrNull(entry.sha),
+        worktree: stringOrNull(entry.workerPath),
+        scopeRevision: entry.scope ? stringOrNull(entry.scope.revision) : null,
+        paths: entry.scope ? stringList(entry.scope.paths) : [],
+        actualPaths: stringList(entry.actualPaths),
+        decisions: Array.isArray(entry.decisions) ? entry.decisions : [],
+    }));
+    return {
+        status: 'ok',
+        // 성공 경로도 원장 경로를 싣는다. unreadable 분기에만 채우면 소비자가
+        // `ledgerFile: null`을 "원장이 없다"와 "원장은 있는데 알려주지 않았다"로
+        // 구분하지 못한다.
+        ledgerFile,
+        base: stringOrNull(ledger.base),
+        integrationHead: stringOrNull(ledger.integrationHead),
+        revision: stringOrNull(ledger.revision),
+        integrationPath,
+        tasks,
+        decisions: Array.isArray(ledger.decisions) ? ledger.decisions : [],
+        // cleanup 목록: integration이 먼저고, 할당된 worker worktree가 뒤따른다.
+        // payload의 top-level `worktrees`는 이 목록의 별칭이다 — 정리 계약(SKILL
+        // step 5, cleanup-handoff.md)이 읽는 안정된 자리이고, 여기 중첩된 값은
+        // explain frontmatter에 남는 기록이다. 한쪽을 옮기면 다른 쪽도 옮긴다.
+        worktrees: [
+            ...(integrationPath ? [integrationPath] : []),
+            ...tasks.map((task) => task.worktree).filter((p) => Boolean(p)),
+        ],
+    };
+}
+/**
+ * 저장소에서 원장을 찾아 provenance로 접는다.
+ *
+ * 원장이 아예 없으면 위임 실행이 아니므로 null이다. 읽을 수는 있으나 깨진
+ * 원장은 null이 아니다 — null로 접으면 `coordinator: null`, `worktrees: []`가
+ * 되어 비-drive finalize와 구분되지 않고, 검증되지 않은 fan-in이 완료로
+ * 기록된다. current의 `coordinatorSnapshot`과 같은 모양으로 `status`와 고칠
+ * 파일 경로를 실어 호출부가 멈출 수 있게 한다.
+ */
+function collectCoordinatorProvenance({ repoRoot, blueprintDir }) {
+    const read = readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });
+    if (!read.ok) {
+        if (read.reason !== 'unreadable-ledger')
+            return null;
+        return {
+            status: 'unreadable',
+            ledgerFile: read.ledgerFile || null,
+            integrationPath: read.integrationPath || null,
+            base: null,
+            integrationHead: null,
+            revision: null,
+            tasks: [],
+            decisions: [],
+            worktrees: [],
+        };
+    }
+    return buildCoordinatorProvenance(read.ledger, {
+        integrationPath: read.integrationPath,
+        ledgerFile: read.ledgerFile,
+    });
+}
+/**
+ * explain.md frontmatter에 drive provenance를 남긴다. task_commits와 같은
+ * 이유로 삭제 직전에 쓴다 — 원장이 사라진 뒤 PR과 리뷰가 읽을 유일한 출처다.
+ */
+function writeExplainCoordinator({ repoRoot, blueprintDir, provenance }) {
+    if (!provenance)
+        return false;
+    const abs = path.join(repoRoot, `${toPosix(blueprintDir)}/explain.md`);
+    if (!fs.existsSync(abs))
+        return false;
+    const { data, body } = readDoc(abs);
+    if (!data || typeof data !== 'object')
+        return false;
+    const bouncer = asRecord(asRecord(data).bouncer);
+    // frontmatter는 snake_case 정본이다. payload의 camelCase를 그대로 쓰면
+    // 같은 문서 안에서 두 표기가 섞인다.
+    bouncer.coordinator = {
+        base: provenance.base,
+        integration_head: provenance.integrationHead,
+        revision: provenance.revision,
+        worktrees: provenance.worktrees,
+        tasks: provenance.tasks.map((task) => ({
+            id: task.id,
+            status: task.status,
+            sha: task.sha,
+            scope_revision: task.scopeRevision,
+            paths: task.paths,
+            actual_paths: task.actualPaths,
+        })),
+        decisions: provenance.decisions,
+    };
+    fs.writeFileSync(abs, renderDoc(data, body));
+    return true;
+}
 function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, verifyExec, }) {
     const gitApi = git || realGit(repoRoot);
     const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
@@ -322,6 +443,25 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     // task 스캔이나 verification title을 섞으면 finalize가 task authored 필드를
     // 재사용하게 되므로, 실행 경로도 buildFinalizeCommitMessage와 같은 출처를 쓴다.
     const commitMessage = buildFinalizeCommitMessage(docs);
+    // 위임 실행이면 원장이 이 마감의 provenance 정본이다. dry-run과 --yes가 같은
+    // 값을 보고해야 사용자가 미리 본 정리 대상과 실제 정리 대상이 갈라지지 않는다.
+    const collected = collectCoordinatorProvenance({ repoRoot, blueprintDir });
+    // 깨진 원장으로는 fan-in이 끝났는지 판정할 수 없다. 여기서 멈추지 않으면
+    // 빈 provenance와 빈 정리 목록으로 blueprint가 닫혀, 통합되지 않은 task가
+    // 완료로 기록되고 복구에 필요한 worktree가 목록에서 사라진다.
+    if (collected && collected.status === 'unreadable') {
+        return {
+            ok: false,
+            reason: 'coordinator-ledger',
+            code: 'UNREADABLE_LEDGER',
+            ledgerFile: collected.ledgerFile,
+            integrationPath: collected.integrationPath,
+            coordinator: collected,
+        };
+    }
+    const coordinator = collected;
+    // top-level `worktrees`는 cleanup이 읽는 안정된 자리다(위 buildCoordinatorProvenance 주석).
+    const worktrees = coordinator ? coordinator.worktrees : [];
     // next 후보 계산이 finalize를 깨면 안 됨: next()가 throw하면 빈 handoff
     // 형태로 뭉개 ok/exit는 commit 작업에만 묶임.
     const computeNext = () => {
@@ -375,6 +515,8 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             commitMessage,
             next: computeNext(),
             closed: lockPath,
+            coordinator,
+            worktrees,
         };
     }
     // 빈 커밋 금지: Distill 승격분도 잠금도 없으면 stage/commit을 건너뛰고
@@ -390,6 +532,8 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             pointerCleared,
             next: computeNext(),
             closed: lockPath,
+            coordinator,
+            worktrees,
         };
     }
     // 승격분이 없어도 잠금만으로 커밋이 생기면 그 커밋도 저장소를 바꾼다.
@@ -458,6 +602,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         if (lockPath && explainBefore) {
             writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits });
             writeExplainTaskContext({ repoRoot, blueprintDir, taskContext });
+            writeExplainCoordinator({ repoRoot, blueprintDir, provenance: coordinator });
         }
         for (const snap of snapshots)
             fs.unlinkSync(snap.abs);
@@ -483,9 +628,12 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         next: computeNext(),
         closed: lockPath,
         taskCommits,
+        coordinator,
+        worktrees,
     };
 }
 module.exports = {
     buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
     buildTaskContext, collectTaskCommits, writeExplainTaskCommits, writeExplainTaskContext,
+    buildCoordinatorProvenance, collectCoordinatorProvenance, writeExplainCoordinator,
 };

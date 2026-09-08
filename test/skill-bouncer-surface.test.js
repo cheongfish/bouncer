@@ -434,20 +434,25 @@ test('workflow ACQ section is a step index; AskUserQuestion detail stays in numb
       `${name}: ACQ index must not embed Options lists`,
     );
 
-    if (name === 'bouncer-execute') {
-      // 무질문 계약은 절차에서 확인 가능해야 한다.
+    // execute와 commit은 task 단위 라운드다. coordinator는 ACQ를 열 수 없으므로
+    // 두 스킬 모두 task 라운드가 무질문임을 절차에 적어야 한다.
+    if (name === 'bouncer-execute' || name === 'bouncer-commit') {
       assert.match(
         procedure,
         /no AskUserQuestion|does not ask[\s\S]{0,40}AskUserQuestion|never asks[\s\S]{0,40}AskUserQuestion/i,
-        'execute procedure must state the no-question contract',
+        `${name} procedure must state the no-question contract`,
       );
+    }
+    if (name === 'bouncer-execute') {
       assert.match(
         index,
         /no ACQ|does not ask|never asks|no AskUserQuestion/i,
-        'execute ACQ index must record that this skill never asks',
+        `${name} ACQ index must record that this skill never asks`,
       );
       continue;
     }
+    // commit은 여기서 계속된다: drive 밖 포인터 전진은 rules/current-pointer.md의
+    // confirm-then-set이므로 색인이 그 step을 가리켜야 한다.
 
     // 게이트가 있는 스킬: 색인은 step 번호를 가리키고, 해당 step 본문에 동의 시점이 있다.
     assert.match(index, /[Ss]tep\s+\d+/, `${name}: ACQ index must cite step numbers`);
@@ -558,5 +563,34 @@ test('role skill descriptions do not restate agent-owned rubric phrases', () => 
         `${name}: description YAML scalar must not contain agent-owned rubric phrase ${JSON.stringify(phrase)}`,
       );
     }
+  }
+});
+
+// execute·commit·finalize는 위임 실행에서 coordinator에게 결과를 돌려준다.
+// 세 문서가 같은 handoff를 말하지 않으면 라운드가 controller 없이 끝난다.
+test('execute, commit, and finalize hand their results to the coordinator', () => {
+  for (const name of ['bouncer-execute', 'bouncer-commit', 'bouncer-finalize']) {
+    const md = readWorkflow(name);
+    assert.match(md, /coordinator/i, `${name} must name the delegated controller`);
+  }
+  assert.match(readWorkflow('bouncer-execute'), /returned to the coordinator/);
+  assert.match(readWorkflow('bouncer-commit'), /return those to the coordinator and stop/);
+  assert.match(readWorkflow('bouncer-finalize'), /coordinator ledger is `integrated`/);
+});
+
+// 드라이브 중 계획 후퇴는 사라졌다. 남아 있으면 실행이 다시 끊긴다.
+test('entry skills no longer retreat to planning mid-drive', () => {
+  const execute = readWorkflow('bouncer-execute');
+  const commit = readWorkflow('bouncer-commit');
+  assert.doesNotMatch(execute, /escalate to architecture \/\s*\n?\s*`\/bouncer-plan`/);
+  assert.doesNotMatch(execute, /stop immediately and send the user to `\/bouncer-plan`/);
+  // commit의 계획 참조는 pointer가 null일 때의 진입 안내 하나뿐이다.
+  assert.strictEqual((commit.match(/\/bouncer-plan/g) || []).length, 1);
+  for (const name of WORKFLOW) {
+    assert.doesNotMatch(
+      readWorkflow(name),
+      /do not widen\s*\n?\s*`affected_paths`/,
+      `${name}: scope revision is recorded, not forbidden`,
+    );
   }
 });

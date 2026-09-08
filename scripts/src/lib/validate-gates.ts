@@ -122,6 +122,114 @@ function asData(doc: DocLeaf | undefined | null): Record<string, unknown> | unde
   return doc.data as Record<string, unknown>;
 }
 
+/**
+ * plan 게이트 G19 — task `depends_on` graph의 참조 무결성과 순환을 판정한다.
+ * 부재 depends_on은 빈 배열로 읽어 기존 plan을 통과시킨다.
+ * 불변조건: 같은 blueprint 안의 TASKS-NNN id만 edge로 허용하고, 자기 참조·
+ * 한 문서 안 중복 edge·방향 그래프 순환은 모두 거절한다. 순환 판정은
+ * DFS 재귀 경로(visiting)에 다시 들어온 정점만 cycle로 보고, 이미 끝난
+ * 정점(visited)은 재탐색하지 않아 보고가 결정적이 된다.
+ *
+ * @param {DocLeaf[]} tasksList - blueprint에서 수집한 tasks.md 문서들
+ * @param {FailureEntry[]} failures - G19를 누적할 배열
+ * @returns {void}
+ */
+function checkTaskDependencyGraph(tasksList: DocLeaf[], failures: FailureEntry[]): void {
+  const byId = new Map<string, DocLeaf>();
+  for (const tasksDoc of tasksList) {
+    const data = asData(tasksDoc);
+    const bouncer = data && data.bouncer && typeof data.bouncer === 'object'
+      ? data.bouncer as Record<string, unknown>
+      : undefined;
+    const id = bouncer && typeof bouncer.id === 'string' ? bouncer.id : '';
+    if (id) byId.set(id, tasksDoc);
+  }
+
+  const edges = new Map<string, string[]>();
+  for (const tasksDoc of tasksList) {
+    const file = tasksDoc.rel || '';
+    const data = asData(tasksDoc);
+    const bouncer = data && data.bouncer && typeof data.bouncer === 'object'
+      ? data.bouncer as Record<string, unknown>
+      : undefined;
+    const id = bouncer && typeof bouncer.id === 'string' ? bouncer.id : '';
+    // 부재는 빈 배열 — 기존 DAG 필드 없는 fixture와 단일 task를 통과시킨다.
+    const rawDeps = bouncer ? bouncer.depends_on : undefined;
+    const deps = rawDeps === undefined ? [] : rawDeps;
+    if (!Array.isArray(deps)) {
+      // shape는 S28이 거절한다. 여기선 graph 판정을 건너뛴다.
+      continue;
+    }
+    const seen = new Set<string>();
+    const normalized: string[] = [];
+    for (const entry of deps) {
+      if (typeof entry !== 'string') continue;
+      if (entry === id) {
+        failures.push({
+          code: 'G19',
+          message: `depends_on self-reference: ${entry}`,
+          file,
+        });
+        continue;
+      }
+      if (seen.has(entry)) {
+        failures.push({
+          code: 'G19',
+          message: `depends_on duplicate: ${entry}`,
+          file,
+        });
+        continue;
+      }
+      seen.add(entry);
+      if (!byId.has(entry)) {
+        failures.push({
+          code: 'G19',
+          message: `depends_on missing task: ${entry}`,
+          file,
+        });
+        continue;
+      }
+      normalized.push(entry);
+    }
+    if (id) edges.set(id, normalized);
+  }
+
+  // 순환: visiting에 다시 들어오면 cycle. visited는 이미 DAG로 끝난 부분이라
+  // 재방문해도 새 cycle이 아니므로 한 번만 보고한다.
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const stack: string[] = [];
+  const reported = new Set<string>();
+
+  function visit(nodeId: string): void {
+    if (visiting.has(nodeId)) {
+      const start = stack.indexOf(nodeId);
+      const cycle = stack.slice(start).concat(nodeId);
+      const key = [...cycle].sort().join('>');
+      if (!reported.has(key)) {
+        reported.add(key);
+        const doc = byId.get(nodeId);
+        failures.push({
+          code: 'G19',
+          message: `depends_on cycle: ${cycle.join(' -> ')}`,
+          file: (doc && doc.rel) || '',
+        });
+      }
+      return;
+    }
+    if (visited.has(nodeId)) return;
+    visiting.add(nodeId);
+    stack.push(nodeId);
+    for (const next of edges.get(nodeId) || []) visit(next);
+    stack.pop();
+    visiting.delete(nodeId);
+    visited.add(nodeId);
+  }
+
+  // id 정렬로 시작 순서를 고정해 같은 graph에서 같은 cycle 메시지를 낸다.
+  for (const nodeId of [...edges.keys()].sort()) visit(nodeId);
+}
+
 function defaultReadVerifyLedger({
   repoRoot, verificationRel, deps,
 }: {
@@ -399,6 +507,9 @@ function runCheckGate(
         }
       }
     }
+    // G19: blueprint 안 모든 task를 한 번 모아 depends_on 참조·중복·순환을
+    // 결정적으로 판정한다. shape/enum은 S28; 여기는 graph 무결성만.
+    checkTaskDependencyGraph(tasksList, failures);
     return;
   }
   if (gate === 'execute') {

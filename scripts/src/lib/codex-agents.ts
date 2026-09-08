@@ -11,6 +11,7 @@ const NAMED_AGENTS = [
   'bouncer-implementer',
   'bouncer-debugger',
   'bouncer-context-reviewer',
+  'bouncer-coordinator',
 ] as const;
 
 // 이 마커가 첫 줄이면 init이 플러그인 md와 다시 맞춘다. 마커 없는 파일은
@@ -90,8 +91,8 @@ function shouldEnsureCodexAgents(repoRoot: string, optIn = false): boolean {
 
 /**
  * 소비 저장소 `.codex/agents/<name>.toml`을 심거나, 생성본이면 md와 맞춘다.
- * 호출 측이 조건을 통과한 뒤에만 부른다. 조건 없이 호출하면 네 TOML을
- * 심거나 생성본을 맞춘다. 플러그인 agents 디렉터리가 없으면 no-op —
+ * 호출 측이 조건을 통과한 뒤에만 부른다. 조건 없이 호출하면 named agent
+ * 전부의 TOML을 심거나 생성본을 맞춘다. 플러그인 agents 디렉터리가 없으면 no-op —
  * init 부트스트랩을 막지 않는다.
  *
  * @param {{ repoRoot: string, created: string[], agentsDir?: string }} opts

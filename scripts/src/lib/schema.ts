@@ -75,6 +75,32 @@ const AUTONOMY_ENUM = ['auto', 'interactive'];
 // init이 새 저장소 config.json에 쓰는 기본값. 키가 없어도 소비자는 auto로 읽는다.
 const DEFAULT_AUTONOMY = 'auto';
 
+// task dependency 해제 시점. 선행 task가 이 상태에 도달해야 후속이 열린다.
+// 부재는 scaffold 기본값(integrated)과 같이 읽힌다 — 소급 migration 없음.
+const DEPENDENCY_GATE_ENUM = ['integrated'];
+
+// scaffold가 새 tasks.md에 쓰는 DAG 기본값. 기존 문서의 필드 부재는
+// 같은 의미(의존 없음·순차·integrated)로 읽히므로 호환이 유지된다.
+const DEFAULT_DEPENDS_ON: string[] = [];
+const DEFAULT_PARALLEL_SAFE = false;
+const DEFAULT_DEPENDENCY_GATE = 'integrated';
+
+/**
+ * task `bouncer.depends_on` 형식만 판정한다.
+ * 부재(undefined)는 통과 — 기존 plan을 빈 배열로 읽기 위함.
+ * 참조 무결성·자기참조·중복·순환은 검사하지 않는다. G19가 그 판정을 맡는다.
+ *
+ * @param {unknown} value - 프론트매터의 depends_on 값. 키가 없으면 undefined
+ * @returns {boolean} 허용 형태면 true, 그 외(null·비배열·비 TASKS-NNN)면 false
+ */
+function isValidDependsOn(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (entry) => typeof entry === 'string' && /^TASKS-\d{3}$/.test(entry),
+  );
+}
+
 /**
  * epic·blueprint `bouncer.supersedes` 형식만 판정한다.
  * 부재(undefined)와 빈 배열은 통과 — 기존 문서 소급 없이 신규부터 자리를 쓰기 위함.
@@ -117,4 +143,6 @@ export = {
   LEGACY_GUIDANCE, detectLegacyFormat,
   BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE,
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
+  DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
+  DEFAULT_DEPENDENCY_GATE, isValidDependsOn,
 };

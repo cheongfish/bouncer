@@ -116,10 +116,10 @@ Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하
   TOML로 바꿔 그 경로에 심습니다. `.codex/`가 없고 플래그도 없으면
   Claude/Cursor 전용 저장소에 `.codex/`를 만들지 않습니다. 첫 줄이
   `# bouncer-generated`인 파일은 다음 init이 md와 다시 맞추고, 마커 없는
-  파일은 덮지 않습니다. spawn 이름은 파일의 `name` 필드입니다
-  (`bouncer-reviewer` 등). 호스트가 그 역할을 로드하지 못할 때만 스킬의
-  generic/인라인 폴백을 타며, Codex라는 이유만으로 named 디스패치를
-  건너뛰지 않습니다.
+  파일은 덮지 않습니다. spawn 이름은 파일의 `name` 필드이며, 심기는 대상은
+  아래 [배포되는 named agent](#배포되는-named-agent)의 다섯입니다. 호스트가 그
+  역할을 로드하지 못할 때만 스킬의 generic/인라인 폴백을 타며, Codex라는
+  이유만으로 named 디스패치를 건너뛰지 않습니다.
 - **커밋 가드**는 Codex가 기본 탐색하는 `hooks/hooks.json`의 `PreToolUse`/`Bash`
   경로로 걸립니다. 판정은 Claude Code와 같은 `hooks/commit-safety.js`이며, Codex는
   종료 코드 `2`와 stderr 사유로 차단합니다. 플러그인 훅은 사용자가 정의를
@@ -157,8 +157,10 @@ CI는 Antigravity 호스트를 띄울 수 없어 아래는 자동 검증 밖입�
 
 - [ ] `agy plugin validate <repo>`가 skills / agents / hooks를 processed로
   보고하는가
-- [ ] 설치 후 `/bouncer-init`·`/bouncer-plan`이 스킬로 잡히는가
-- [ ] named agent(`bouncer-reviewer` 등)가 호출되는가
+- [ ] 설치 후 `/bouncer-init`·`/bouncer-plan`·`/bouncer-run`이 스킬로 잡히는가
+- [ ] named agent 다섯(`bouncer-implementer`·`bouncer-reviewer`·
+  `bouncer-debugger`·`bouncer-context-reviewer`·`bouncer-coordinator`)이
+  호출되는가
 - [ ] SessionStart 훅이 실제로 실행되는가 — 훅 command의
   `${CLAUDE_PLUGIN_ROOT}` 치환 여부는 확인되지 않았다. 실행되지 않으면
   graph sync를 CLI로 대신한다
@@ -167,6 +169,47 @@ CI는 Antigravity 호스트를 띄울 수 없어 아래는 자동 검증 밖입�
   `.agents/plugins/marketplace.json`)가 저장소 루트를 가리키므로 로더가 새
   매니페스트를 집어갈 여지가 있다. 두 호스트의 테스트는
   `.claude-plugin/plugin.json`을 경로로 직접 읽어 이 회귀를 잡지 못한다
+
+## 배포되는 named agent
+
+플러그인은 `agents/*.md` 다섯을 배포합니다. 이름은 각 파일의 `name` 필드가
+정본이고, `.bouncer/config.json`의 `subagents.<provider>.<agent>` 키와 같은
+문자열입니다.
+
+| 이름 | 누가 부르나 | 역할 |
+| --- | --- | --- |
+| `bouncer-implementer` | `/bouncer-execute`, coordinator | 승인된 task brief대로 구현 |
+| `bouncer-reviewer` | `/bouncer-execute`, coordinator | diff 판정(읽기 전용) |
+| `bouncer-debugger` | verify 실패 경로, coordinator | 근본 원인 리포트(읽기 전용) |
+| `bouncer-context-reviewer` | `/bouncer-plan` 승인 직전 | 계획 문서 판정 |
+| `bouncer-coordinator` | `/bouncer-run` 시작 ACQ 뒤 한 번 | 주행 컨트롤러. 위 세 worker를 부르고 결과를 판정 |
+
+`bouncer-coordinator`는 다른 넷과 같은 배포 경로를 씁니다. 시작 ACQ 없이
+불리지 않고, 한 주행에 하나이며 중첩되지 않습니다. Codex는 `agents/*.md`를
+읽지 못하므로 `.codex/agents/*.toml`이 로드 경로이고, 심기 조건은 위 Codex
+절과 같습니다.
+
+### 설치 확인
+
+```bash
+ls "$(bouncer-root --auto)"/agents          # 다섯 md 파일
+bouncer --help | grep coordinate            # 이 명령이 있는 플러그인인지 확인
+bouncer coordinate                          # 종료 코드로는 판정하지 마세요
+```
+
+둘째 줄이 판정입니다 — 도움말 출력에 `coordinate` 이름이 보이면 이 명령이 있는
+플러그인입니다(`-q`를 붙이면 출력이 사라져 볼 것이 남지 않습니다). 셋째 줄의
+종료 코드로는 판정하지 마세요. `coordinate`가 없는 구버전 플러그인도 알 수 없는
+최상위 명령으로 종료 코드 2를 내므로, 종료 코드만 보면 잡아야 할 구버전을 그냥
+통과시킵니다.
+
+- [ ] 플러그인 루트 `agents/`에 다섯 파일이 모두 있는가
+- [ ] `bouncer` 도움말에 `coordinate` 명령이 보이는가
+- [ ] `.bouncer/config.json`의 `subagents.<provider>`에 `bouncer-coordinator`
+  슬롯이 있는가 — 이미 `bouncer init`을 돌린 저장소에는 없을 수 있고, 없으면
+  부모 세션 모델을 상속합니다
+- [ ] Codex를 쓰는 저장소면 `.codex/agents/bouncer-coordinator.toml`이
+  `# bouncer-generated`로 시작하는가
 
 ## 플러그인 루트 (`bouncer-root`)
 

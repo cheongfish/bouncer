@@ -16,7 +16,7 @@ const { ensureEpicIndexEntry, listEpicDirNames } = epicIndex;
 const tasksDocs = require("./tasks-docs");
 const { TASK_UNIT_BASENAMES, expectedTaskDocIds, } = tasksDocs;
 const schema = require("./schema");
-const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_ENUM } = schema;
+const { DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE, } = schema;
 function writeRel(repoRoot, rel, data, body) {
     const abs = path.join(repoRoot, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -195,6 +195,11 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale }) {
     const created = [];
     created.push(writeRel(repoRoot, tasksRel, bouncerDoc('bouncer.tasks', `${taskId} tasks`, `Tasks for ${taskId}`, tasksRel, ['bouncer', 'tasks'], timestamp, {
         id: ids.tasks, epic_id: epicId, blueprint_id: blueprintId, status: 'draft',
+        // DAG 기본값: 의존 없음·순차·선행 integrated 해제.
+        // 기존 문서의 필드 부재도 같은 의미로 읽히므로 호환이 유지된다.
+        depends_on: [...DEFAULT_DEPENDS_ON],
+        parallel_safe: DEFAULT_PARALLEL_SAFE,
+        dependency_gate: DEFAULT_DEPENDENCY_GATE,
         affected_paths: [],
         scope_evidence: {
             producer: 'graphify',

@@ -15,7 +15,7 @@
 | `graphify.test_dirs` | 저장소 상대 디렉터리 배열 (선택) | 테스트 그래프 입력 → `graphify-out/test` | `["test"]` · `["tests"]` |
 | `graphify.exclude_dirs` | 저장소 상대 prefix 배열 (선택) | source 병합 뒤 제거할 경로 prefix | `["scripts/lib"]` |
 | `base_branch` | 브랜치 이름 | `/bouncer-execute` worktree 기준, `/bouncer-finalize` PR 기준 | `"main"` · `"develop"` |
-| `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run`이 물어보는 횟수 | `"auto"` (시작 확인 1회) · `"interactive"` (task 경계마다 추가) |
+| `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run` 위임 주행의 **보고 주기** | `"auto"` (마감 보고에 모아서) · `"interactive"` (task 경계마다 진행 한 줄) |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
 | `distill.routing_enabled` | `true` \| `false` | `bouncer distill --for` 선택 소비 | `true` — 구조 preflight 통과 후 활성화 |
@@ -23,10 +23,25 @@
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` | `"main"` |
 | `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
-| `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-execute`·`/bouncer-plan`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
+| `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-execute`·`/bouncer-plan`·`/bouncer-run`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
 
 `<agent>`는 `bouncer-implementer` · `bouncer-reviewer` · `bouncer-debugger` ·
-`bouncer-context-reviewer` 넷입니다.
+`bouncer-context-reviewer` · `bouncer-coordinator` 다섯입니다.
+
+`bouncer-coordinator`는 `/bouncer-run`이 시작 ACQ 뒤 한 번 부르는 주행
+컨트롤러입니다. drive 전체를 끌고 가는 역할이라 worker와 다른 모델을 고르고
+싶을 수 있어 슬롯을 따로 둡니다. 값의 의미는 나머지 넷과 같고
+(`"inherit"`이면 부모 세션 모델), 호스트가 named agent를 로드하지 못하면 같은
+coordinator 역할 전체를 실은 generic 서브에이전트 하나로 폴백합니다 — 축약한
+brief로 대신하지 않습니다. 이미 `bouncer init`을 돌린 config에는 이 키가
+없을 수 있는데, 없어도 부모 모델을 상속하므로 동작은 같습니다.
+
+**`autonomy`의 역할이 달라졌습니다.** 예전에는 `/bouncer-run`이 얼마나 자주
+물어보는지를 정했지만, 위임 주행에서 승인은 시작 ACQ 하나뿐입니다. 두 값 모두
+task별 ACQ를 열지 않고 보고 주기만 가릅니다 — `interactive`는 task 경계마다
+진행 한 줄, `auto`는 마감 보고에 모아서. finalize의 동의 단계(Distill 승격,
+explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 사용자에게
+남고, coordinator는 첫 동의 단계에서 멈춰 그 이름을 보고합니다.
 
 신규 `graphify.bin`은 git common directory 아래 `bouncer/venv`의 실행 파일
 절대 경로입니다. 저장소 상대 값(`.bouncer/.venv/bin/graphify` 등)도 파일이
@@ -117,14 +132,18 @@ validator가 활성화를 거부하므로, 먼저 경고를 해소한 뒤 true�
 ## `subagents`
 
 호스트마다 모델 ID 네임스페이스가 달라서 프로바이더별 블록이 필요합니다.
-`bouncer init`은 네 프로바이더 × 네 에이전트를 모두 `"inherit"`로 채워, 편집할
-자리를 보여 줍니다.
+`bouncer init`은 네 프로바이더 × 다섯 에이전트를 모두 `"inherit"`로 채워,
+편집할 자리를 보여 줍니다.
 
 ```json
 {
   "subagents": {
     "provider": "cursor",
-    "claude": { "bouncer-reviewer": "inherit", "bouncer-implementer": "inherit" }
+    "claude": {
+      "bouncer-reviewer": "inherit",
+      "bouncer-implementer": "inherit",
+      "bouncer-coordinator": "inherit"
+    }
   }
 }
 ```
@@ -133,8 +152,9 @@ validator가 활성화를 거부하므로, 먼저 경고를 해소한 뒤 true�
 - **Cursor와 Antigravity는 자동 판별되지 않습니다.** `subagents.provider`를 직접
   적으세요. `BOUNCER_HOME`은 플러그인 루트 오버라이드일 뿐 프로바이더 신호가
   아닙니다.
-- 이미 `bouncer init`을 돌린 저장소는 `antigravity` 블록을 직접 추가해야 합니다.
-  없어도 부모 모델을 상속하므로 깨지지는 않습니다.
+- 이미 `bouncer init`을 돌린 저장소는 `antigravity` 블록과
+  `bouncer-coordinator` 키를 직접 추가해야 합니다. 없어도 부모 모델을
+  상속하므로 깨지지는 않습니다.
 
 ## 컨텍스트 그래프
 

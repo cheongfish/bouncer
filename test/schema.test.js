@@ -75,3 +75,10 @@ test('detectLegacyFormat flags .sdd dirs, sdd keys, and sdd.* types', () => {
 
   assert.strictEqual(schema.detectLegacyFormat({ data: { type: 'bouncer.tasks', bouncer: {} } }).legacy, false);
 });
+
+test('schema exports dependency_gate enum and DAG scaffold defaults', () => {
+  assert.deepStrictEqual(schema.DEPENDENCY_GATE_ENUM, ['integrated']);
+  assert.deepStrictEqual(schema.DEFAULT_DEPENDS_ON, []);
+  assert.strictEqual(schema.DEFAULT_PARALLEL_SAFE, false);
+  assert.strictEqual(schema.DEFAULT_DEPENDENCY_GATE, 'integrated');
+});

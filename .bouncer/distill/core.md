@@ -16,6 +16,7 @@ Project-wide rules that apply to every path.
 
 - `affected_paths` as a wide directory (e.g. `scripts`) overlaps Do not touch paths under it and fails G12 — prefer per-file paths.
 - Name/content scans via `git ls-files` see tracked files only. Add the allowlist entry in the same commit that creates the file.
+- `commit_intent` / `commit_summary` reject every lowercase Latin identifier, not only file and module names — plain words like `enum` or `lock` fail inside `bouncer commit`, long after plan approval. Author them in Korean.
 
 ## Decisions
 

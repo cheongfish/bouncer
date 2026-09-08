@@ -34,7 +34,20 @@ Features/Fixes checkboxes.
 | `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for concrete files/behaviors. |
 | `로직 흐름` | Conditional Mermaid only (rules below). Omit the heading when skipped. |
 | `리뷰 포인트` | Explain `## Code` + diff hot paths; blueprint failure modes / Out of scope; task Constraints / Do not touch; accepted review findings. No guessed risk. |
-| `확인 방법` | Every task `verification.md` evidence in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. |
+| `확인 방법` | Every task `verification.md` evidence in task-number order, then the integration verify on the head this PR pushes, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. |
+
+### Plan versus execution (drive only)
+
+When explain carries `bouncer.coordinator`, the PR must show where the run
+departed from the approved plan — that difference is what a reviewer cannot
+reconstruct from the diff. Fold it into `주요 변경 내용` and `리뷰 포인트`
+rather than adding a heading: tasks or edges added, split, or reordered against
+the approved DAG; each task's actual paths beside its initial `affected_paths`
+with the reason recorded behind every `scope_revision`; and the agent, worker
+branch SHA, and integration head behind each commit. Take those from explain,
+not from a fresh ledger read — the ledger's worktree is gone by now. When the
+plan and the run match, say nothing; do not invent a difference to fill the
+space.
 
 ### Explain link
 

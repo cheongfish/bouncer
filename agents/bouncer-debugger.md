@@ -28,7 +28,10 @@ invent requirements outside the brief.
 - Do **not** edit the pointer task directory's `verification.md` or `review.md`,
   the task brief (`tasks/<NNN>/tasks.md`), or any
   document status.
-- Do **not** expand `affected_paths` or silently widen approved scope.
+- Do **not** expand `affected_paths` or silently widen approved scope. Only the
+  controller revises scope; during a coordinator drive that is `bouncer
+  coordinate revise`, on the coordinator's judgment, never yours.
+- Do **not** modify or leave the worktree the controller gave you as cwd.
 - If blocked by ambiguity, report it in the Output contract; do not expand
   scope.
 
@@ -54,14 +57,15 @@ Complete each of the 4 stages before the next.
    hypothesis, plus a failing regression test that should exist before the fix
    lands. Do not apply either.
    **Gate:** Propose only what the cause requires. Do not weaken or delete
-   failing tests to force green, and if the fix would expand approved scope,
-   stop and escalate rather than proposing a silent scope change.
+   failing tests to force green, and if the fix would reach outside the current
+   `affected_paths` or into another task, say so under Scope/task impact rather
+   than proposing a silent scope change.
 
 ## Redispatch limit
 
 On the same failing verify, the controller may redispatch you at most **1**
-time (1 unsuccessful fix cycle). After that ceiling, stop and escalate to
-architecture / `/bouncer-plan` rather than looping.
+time (1 unsuccessful fix cycle). After that ceiling, stop and hand the failure
+back as a controller decision rather than looping.
 
 ## Output contract
 
@@ -75,6 +79,9 @@ Return a root-cause report with these fields (and nothing else actionable):
   (advisory; do not edit files)
 - **Required regression test** — what to add or tighten so the bug fails
   before the fix
+- **Scope/task impact** — `none`, or the paths the minimum fix needs outside the
+  current `affected_paths` and any other task it implicates. Report it; the
+  controller decides what to do with it.
 
 Do **not** edit files. Do **not** `git commit`. Do **not** flip document
 status.

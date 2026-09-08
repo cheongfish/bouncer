@@ -47,3 +47,22 @@ test('all entry workflows delegate report rendering to the shared output contrac
     assert.match(body, /rules\/output\.md/, workflow);
   }
 });
+
+// 위임 드라이브의 진행·완료·중단도 같은 계약으로 렌더링한다. 형식이 없으면
+// coordinator 보고가 raw payload로 새어 나온다.
+test('output contract renders coordinator progress and one terminal outcome', () => {
+  const output = read('rules/output.md');
+  assert.match(output, /## coordinator 실행/);
+  assert.match(output, /진행:/);
+  assert.match(output, /완료:/);
+  assert.match(output, /중단:/);
+  assert.match(output, /integration/);
+  assert.match(output, /`completed`.*`blocked`|`blocked`.*`completed`/);
+  assert.match(output, /둘 다 없거나/);
+  for (const required of ['coordinator 결정', 'scope 개정', 'terminal blocked']) {
+    assert.match(output, new RegExp(required), `${required} must be unhideable`);
+  }
+  const example = output.match(/### compact coordinator 예시\n\n`([^`]+)`/);
+  assert.ok(example, 'compact coordinator example is required');
+  assert.doesNotMatch(example[1], /\{|stdout/i);
+});

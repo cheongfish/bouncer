@@ -113,3 +113,17 @@ test('plan execute and run keep declaration-driven light routing', () => {
   assert.match(exec, /When the pointer \(`bouncer current`\) `scale` is `light`/);
   assert.match(run, /do not use execute's inline branch during a drive/);
 });
+
+// light는 execute 안의 인라인 분기일 뿐 드라이브 형태를 바꾸지 않는다.
+// 별도 execution_mode opt-in을 만들면 두 실행 경로가 갈라진다.
+test('a light blueprint still runs through the coordinator inside a drive', () => {
+  const run = read('skills/bouncer-run/SKILL.md');
+  const exec = readWorkflowBundle('bouncer-execute');
+  assert.match(run, /named `bouncer-coordinator`/);
+  assert.match(run, /Even when the blueprint was declared light,\s*\n?\s*do not use execute's inline branch during a drive/);
+  assert.match(exec, /`\/bouncer-run` always retains the named orchestration boundary/);
+  // 위임은 blueprint 선언이 아니라 /bouncer-run 진입으로 정해진다.
+  for (const md of [run, exec, read('rules/governance.md')]) {
+    assert.doesNotMatch(md, /execution_mode/);
+  }
+});

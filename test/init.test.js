@@ -125,24 +125,28 @@ test('init writes the exact config.json shape', () => {
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
+        'bouncer-coordinator': 'inherit',
       },
       cursor: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
+        'bouncer-coordinator': 'inherit',
       },
       codex: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
+        'bouncer-coordinator': 'inherit',
       },
       antigravity: {
         'bouncer-reviewer': 'inherit',
         'bouncer-implementer': 'inherit',
         'bouncer-debugger': 'inherit',
         'bouncer-context-reviewer': 'inherit',
+        'bouncer-coordinator': 'inherit',
       },
     },
   });
@@ -405,6 +409,7 @@ test('init reports the gitignore entries a repo without .gitignore should add', 
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(res.gitignoreSuggestions, [
     'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+    '.bouncer/runtime/',
   ]);
   assert.ok(!exists(repo, '.gitignore'), 'init must not write .gitignore');
 });
@@ -414,7 +419,7 @@ test('init suggests only the entries .gitignore is missing', () => {
   fs.writeFileSync(path.join(repo, '.gitignore'), '# deps\nnode_modules\n');
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(res.gitignoreSuggestions, [
-    'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+    'graphify-out/', '.worktrees/', '.bouncer/.venv/', '.bouncer/runtime/',
   ]);
   assert.strictEqual(read(repo, '.gitignore'), '# deps\nnode_modules\n');
 });
@@ -423,7 +428,7 @@ test('init suggests nothing when the artifacts are already ignored', () => {
   const repo = tmpRepo();
   fs.writeFileSync(
     path.join(repo, '.gitignore'),
-    'node_modules/\ngraphify-out/\n.worktrees/\n.bouncer/.venv/\n',
+    'node_modules/\ngraphify-out/\n.worktrees/\n.bouncer/.venv/\n.bouncer/runtime/\n',
   );
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(res.gitignoreSuggestions, []);
@@ -491,6 +496,7 @@ test('init reports gitignore suggestions on an already-initialized repo', () => 
   assert.strictEqual(again.reason, 'already-initialized');
   assert.deepStrictEqual(again.gitignoreSuggestions, [
     'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+    '.bouncer/runtime/',
   ]);
 });
 
@@ -750,14 +756,14 @@ test('init does not seed Codex agents without a .codex/ signal', () => {
   assert.notEqual(result.reason, 'codex-agents-seeded');
 });
 
-test('init seeds four Codex tomls when .codex/ already exists', () => {
+test('init seeds five Codex tomls when .codex/ already exists', () => {
   const repo = tmpRepo();
   fs.mkdirSync(path.join(repo, '.codex'));
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
-    'bouncer-context-reviewer',
+    'bouncer-context-reviewer', 'bouncer-coordinator',
   ]) {
     const rel = `.codex/agents/${name}.toml`;
     assert.ok(res.created.includes(rel), `missing ${rel} in created`);
@@ -787,7 +793,7 @@ test('init seeds Codex named-agent toml from plugin markdown', () => {
   const { GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   for (const name of [
     'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
-    'bouncer-context-reviewer',
+    'bouncer-context-reviewer', 'bouncer-coordinator',
   ]) {
     const rel = `.codex/agents/${name}.toml`;
     assert.ok(res.created.includes(rel), `missing ${rel} in created`);

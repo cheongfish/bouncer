@@ -12,6 +12,8 @@ const tasksDocs = require("./tasks-docs");
 const { listTasksDocs } = tasksDocs;
 const paths = require("./paths");
 const { toPosix } = paths;
+const scope = require("./scope");
+const { coordinatorContext } = scope;
 const NO_COMMIT = { commit: false, all: false };
 // 판단 불가(중첩 셸·확장·깊이 초과)는 커밋으로 칠 뿐 아니라 all-flag도
 // 있는 것으로 친다. -a 없이 스테이징만 보면 PreToolUse 시점에 인덱스가
@@ -280,6 +282,7 @@ function evaluateCommit({ command, repoRoot, deps }) {
         stagedFiles: realStagedFiles,
         trackedModified: realTrackedModified,
         mainRepoCurrent: realMainRepoCurrent,
+        coordinatorContext,
         ...(deps || {}),
     };
     const judgment = detect(command, realResolveAlias(repoRoot), 0);
@@ -292,14 +295,28 @@ function evaluateCommit({ command, repoRoot, deps }) {
     const files = judgment.all
         ? [...new Set([...d.stagedFiles({ repoRoot }), ...d.trackedModified({ repoRoot })])]
         : d.stagedFiles({ repoRoot });
-    const { allow, violations } = checkCommitSafety({
-        files, affectedPaths, blueprintDir: current.blueprint,
+    // coordinator 실행이면 ledger가 현재 scope와 worktree 경계의 정본이다.
+    // 일반 execute에서는 active:false로 떨어져 예전 판정이 그대로 남는다.
+    const coordinator = d.coordinatorContext({
+        repoRoot, blueprint: current.blueprint, task: current.task,
+    });
+    const { allow, violations, code } = checkCommitSafety({
+        files, affectedPaths, blueprintDir: current.blueprint, coordinator,
     });
     if (allow)
         return { block: false };
+    const detail = violations.join(', ');
+    if (code && code !== 'out-of-scope') {
+        // 경계 거절은 staged 목록이 비어도 성립한다 — 그때는 빈 콜론 대신
+        // 어느 checkout에서 무엇이 거절됐는지 남긴다. 원장 경로도 함께 남긴다:
+        // 손상된 원장 하나가 모든 checkout을 막으므로 어느 파일인지 보여야 한다.
+        const where = detail || `no staged path in ${repoRoot}`;
+        const ledger = coordinator && coordinator.ledgerFile ? ` (ledger: ${coordinator.ledgerFile})` : '';
+        return { block: true, reason: `commit blocked: ${code}: ${where}${ledger}` };
+    }
     return {
         block: true,
-        reason: `commit blocked: files outside affected_paths: ${violations.join(', ')}`,
+        reason: `commit blocked: files outside affected_paths: ${detail}`,
     };
 }
 module.exports = {

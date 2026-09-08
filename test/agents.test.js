@@ -12,7 +12,7 @@ const agentsDir = path.join(root, 'agents');
 // 네 named agent — 골격·frontmatter 단언이 공유하는 이름 목록.
 const AGENTS = [
   'bouncer-reviewer', 'bouncer-implementer', 'bouncer-debugger',
-  'bouncer-context-reviewer',
+  'bouncer-context-reviewer', 'bouncer-coordinator',
 ];
 const READONLY = ['bouncer-reviewer', 'bouncer-debugger', 'bouncer-context-reviewer'];
 
@@ -204,6 +204,173 @@ test('bouncer-context-reviewer treats severity as a label, not a reporting filte
   assert.match(md, /report every real issue/i);
   assert.doesNotMatch(contextReviewSkill(), /label, not a filter/i);
   assert.doesNotMatch(contextReviewSkill(), /report every real issue/i);
+});
+
+// coordinator는 /bouncer-run이 drive 권한을 넘긴 controller다. 이 네 절이
+// 빠지면 위임받은 쪽이 어디까지 결정할 수 있는지가 문서에 남지 않는다.
+test('bouncer-coordinator owns delegated drive authority and worker dispatch', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /\/bouncer-run/);
+  assert.match(md, /start ACQ|start approval/i);
+  assert.match(md, /bouncer coordinate/);
+  assert.match(md, /coordinator\.json/);
+  for (const worker of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    assert.match(md, new RegExp(worker), `coordinator must dispatch ${worker}`);
+  }
+  assert.match(md, /rules\/subagent-model\.md/);
+  // worker 보고는 판정 입력이지 두 번째 브리프가 아니다.
+  assert.match(md, /never a second brief|not a second brief/i);
+});
+
+test('bouncer-coordinator refuses main-worktree writes and nested coordinators', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /integration worktree/i);
+  assert.match(md, /task worktree/i);
+  assert.match(md, /main worktree[\s\S]{0,120}(?:refuse|reject)|(?:refuse|reject)[\s\S]{0,120}main worktree/i);
+  assert.match(md, /read-only provenance/i);
+  assert.match(md, /(?:do not|never)[\s\S]{0,80}another coordinator|one coordinator per drive/i);
+});
+
+// 포인터는 Git common dir에 하나뿐이라 worker마다 생기지 않는다. 누가 언제
+// --set 하는지가 문서에 없으면 위임받은 쪽은 current가 null인 worktree에서
+// execute를 시작한다.
+test('bouncer-coordinator owns the shared pointer before driving a task', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /bouncer\n?\s*current --set/);
+  assert.match(md, /Git common directory/);
+  assert.match(md, /no per-worker pointer|same one/i);
+  assert.match(md, /never let a worker move it|workers never move/i);
+});
+
+// drift는 이제 드라이브 정지가 아니라 기록이다. 기록 수단(CLI 한 표면)과
+// 경계(.bouncer/.git/절대경로 금지, 그 안에서는 상한 없음)를 함께 못 박는다.
+test('bouncer-coordinator records scope drift with coordinate revise', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /bouncer coordinate\s*\n?\s*revise/);
+  assert.match(md, /--paths <p> \[--paths <p>…\]/);
+  assert.match(md, /--reason <r>/);
+  assert.match(md, /only surface that revises\s*\n?\s*scope/i);
+  assert.match(md, /one revision/);
+  assert.match(md, /no ceiling/);
+  assert.match(md, /`\.bouncer\/` governance tree/);
+  // 계획 후퇴 문구와 옛 상한 문구는 저장소에서 사라져야 한다.
+  assert.doesNotMatch(md, /[Dd]o not widen `affected_paths`/);
+  assert.doesNotMatch(md, /scope ceiling/);
+  // 훅은 호스트 로드에 의존하고 CLI 가드만 모든 호스트에 있다.
+  assert.match(md, /commit scope\s*\n?\s*guard/);
+  assert.match(md, /`bouncer commit`\)/);
+  assert.match(md, /`commit-safety` where the host loads the hook/);
+});
+
+// 세 worker는 역할을 그대로 유지하되, coordinator가 판정할 재료를 같은
+// 이름의 필드로 돌려줘야 한다. 이름이 갈라지면 coordinator가 보고를 다시 읽는다.
+test('every worker reports scope and task impact back to the controller', () => {
+  for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    assert.match(md, /Scope\/task impact|Scope impact/, `${name} must report scope impact`);
+    assert.match(md, /controller/i, `${name} must hand the judgment to the controller`);
+  }
+});
+
+// worker는 자기 worktree 밖을 건드리지 않는다. 이 문장이 없으면 병렬 wave에서
+// 한 worker가 다른 task의 checkout이나 main을 고칠 수 있다.
+test('every worker is bounded to the worktree the controller assigned', () => {
+  for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    assert.match(md, /worktree the controller gave you as cwd/, name);
+  }
+  const impl = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  assert.match(impl, /one worktree per task/);
+  assert.match(impl, /main checkout are never yours to edit/);
+});
+
+// 두 read-only worker는 계속 읽기 전용이다.
+test('debugger and reviewer stay read-only under coordinator dispatch', () => {
+  for (const name of ['bouncer-debugger', 'bouncer-reviewer']) {
+    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    assert.match(md, /Do \*\*not\*\* modify the working tree/, name);
+  }
+});
+
+// worker의 Needs planning은 coordinator의 Decision required가 된다.
+// 드라이브 중 /bouncer-plan 복귀를 남겨 두면 실행이 다시 끊긴다.
+test('implementer routes Needs planning to a controller decision, not a plan retreat', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  assert.match(md, /Decision\s*\n?required/);
+  assert.doesNotMatch(md, /Send the user back to\s*\n?\s*`\/bouncer-plan`/);
+  assert.doesNotMatch(md, /escalates to `\/bouncer-plan` from that field/);
+});
+
+// ready wave는 여러 task를 열지만 포인터는 저장소에 하나다. 이 제약을 적지
+// 않으면 위임받은 쪽이 병렬 execute를 시도한다.
+test('bouncer-coordinator records what the shared pointer lets a wave overlap', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /ready wave overlaps only its worktree\s*\n?\s*preparation/i);
+  assert.match(md, /parallel_safe/);
+  assert.match(md, /drive them one at a time/);
+  assert.match(md, /each `--set` replaces the previous/);
+});
+
+// finalize의 동의 단계는 사용자 것이다. coordinator가 ACQ를 못 여는데
+// finalize를 끝까지 돌리라고 하면 두 문서가 서로를 부정한다.
+test('bouncer-coordinator stops the closing action at the first consent step', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const close = md.match(/6\. \*\*Close\*\*[\s\S]*?(?=\n\n)/)?.[0] || '';
+  assert.match(close, /without user consent/);
+  assert.match(close, /stop at the first one you\s*\n?\s*reach/);
+  assert.match(close, /Do not answer, skip, or pre-empt/);
+  assert.match(md, /Never answer another workflow's consent step/);
+  const contract = md.slice(md.indexOf('## Output contract'));
+  assert.match(contract, /consent step it stopped/);
+});
+
+// record는 sha와 decision만 저장한다. ledger가 경로를 따로 받는 것처럼 쓰면
+// 문서가 CLI 계약보다 앞서간다.
+test('bouncer-coordinator keeps provenance inside the recorded decision', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /provenance[\s\S]{0,120}inside[\s\S]{0,20}the decision/i);
+  assert.doesNotMatch(md, /`bouncer coordinate record` its result SHA, actual paths/);
+});
+
+test('bouncer-coordinator names its closing action', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const close = md.match(/6\. \*\*Close\*\*[\s\S]*?(?=\n\n)/)?.[0] || '';
+  assert.match(close, /\/bouncer-finalize/);
+  assert.match(close, /integration\s*\n?\s*worktree/i);
+});
+
+// autonomy를 payload에 넣고 효과가 없다고 쓰면 interactive가 조용히 사라진다.
+test('bouncer-coordinator gives autonomy a stated reporting effect', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /`interactive` returns a progress line/);
+  assert.match(md, /`auto` batches/);
+  assert.match(md, /Neither value opens\s*\n?\s*an ACQ/);
+});
+
+test('bouncer-coordinator reports progress, blocked, and completed outcomes', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const contract = md.slice(md.indexOf('## Output contract'));
+  assert.match(contract, /Progress/);
+  assert.match(contract, /blocked/i);
+  assert.match(contract, /completed/i);
+  assert.match(contract, /Decision/);
+  assert.match(contract, /rules\/output\.md/);
+});
+
+test('checked-in coordinator TOML matches mdToCodexToml byte-for-byte', () => {
+  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const generated = mdToCodexToml(markdown);
+  const checkedIn = fs.readFileSync(
+    path.join(root, '.codex/agents/bouncer-coordinator.toml'), 'utf8',
+  );
+
+  assert.strictEqual(checkedIn.split(/\r?\n/, 1)[0], GENERATED_MARKER);
+  assert.strictEqual(checkedIn, generated);
+  // named agent가 없는 host의 fallback은 이 본문을 그대로 넘겨야 같은 역할이 된다.
+  for (const heading of ['## Authority', '## Hard guards', '## Procedure', '## Output contract']) {
+    assert.ok(generated.includes(heading), `generated TOML must retain ${heading}`);
+  }
 });
 
 test('agent docs share the body skeleton and end with the output contract', () => {
