@@ -18,9 +18,11 @@ S13은 epic 경로 목록뿐 아니라 각 색인 행의 요약이 해당 epic f
 ### CLI 명령
 
 `bouncer --help`의 명령 이름은 `validate`, `verify`, `scaffold`, `commit`,
-`finalize`, `seed-worktree`, `init`, `graph-sync`, `graph-suggest`, `graphify-bin`,
-`project-root`, `distill`, `current`, `migrate`, `import`다. 하위 kind와
-플래그는 [cli.md](cli.md)에 있다.
+`finalize`, `seed-worktree`, `coordinate`, `init`, `graph-sync`, `graph-suggest`,
+`graphify-bin`, `project-root`, `distill`, `current`, `migrate`, `import`다.
+`coordinate`의 서브커맨드는 `bootstrap`, `prepare`, `ready`, `record`,
+`integrate`, `status`, `revise` 일곱이다. 하위 kind와 플래그는
+[cli.md](cli.md)에 있다.
 
 ### 문서 스키마
 
@@ -66,13 +68,16 @@ G 코드는 게이트별 검사, S 코드는 항상 실행되는 구조·스키�
 | `G16` | finalize의 task·explain·comprehension·diff 검사 |
 | `G17` | 스테이징 범위가 허용 범위임 |
 | `G18` | context-review가 `accepted`이고 findings가 유효(`scale: light` blueprint에는 적용하지 않음) |
+| `G19` | task `depends_on` 그래프 무결성 — 미상 참조·자기 참조·중복 edge·순환 거절(부재는 빈 배열) |
 
-S 코드는 `S0`–`S27`이다. `S0` 파싱, `S1` OKF 필드, `S2` 타입·레거시 형식,
+S 코드는 `S0`–`S28`이다. `S0` 파싱, `S1` OKF 필드, `S2` 타입·레거시 형식,
 `S3` resource, `S4` id 형식, `S5` id/상위 id 정합성, `S6` status, `S7` task
 `affected_paths`, `S8` index 누락, `S9` graph basis, `S10` blueprint 경로,
 `S11` blueprint 문서 부재, `S12` 단일 verify 명령, `S13` epic index 목록, `S15` 레거시 task
 파일, `S16` task 디렉터리, `S17` task 세 문서, `S18` imported blueprint,
-`S19` type과 위치, `S20` blueprint scale, `S27` epic·blueprint supersedes를 검사한다.
+`S19` type과 위치, `S20` blueprint scale, `S27` epic·blueprint supersedes,
+`S28` task DAG 필드 형식·enum(`depends_on`·`parallel_safe`·`dependency_gate`;
+부재는 허용)을 검사한다.
 
 `S21`은 등록되지 않은 Distill orphan shard, `S22`는 비-`always` shard의 routing
 경로 누락, `S23`은 잘못된 `pulls`, `S24`는 `pulls` 순환, `S25`는
@@ -87,6 +92,14 @@ G9(초기 Distill 상태), G15(explain comprehension/diff), S14(구·신 task
 `skills/bouncer-execute`, `skills/bouncer-commit`, `skills/bouncer-run`,
 `skills/bouncer-finalize`다. 순서는 init → plan → execute → commit →
 finalize이고 plan 뒤 기본 주행은 run이다.
+
+### Named agent
+
+플러그인이 배포하는 named agent 이름은 `bouncer-implementer`,
+`bouncer-reviewer`, `bouncer-debugger`, `bouncer-context-reviewer`,
+`bouncer-coordinator` 다섯이다. 이름은 `agents/*.md`의 `name` 필드가 정본이며
+`subagents.<provider>.<agent>` 키와 같은 문자열이다. 역할 본문은 공개 계약이
+아니다.
 
 ### 설정 키
 
@@ -121,6 +134,43 @@ staging·commit 전에 범위 밖 변경을 거부한다. `--yes`는 이 거부�
 
 훅은 실수 방지용 fail-closed 휴리스틱이며 악의적 우회를 막지 않는다. 설치·trust
 절차는 [설치](install.md)를 본다.
+
+## 유지한 계약: 기존 sequential Blueprint
+
+**바꾼 것.** task frontmatter에 선택 필드 `depends_on`·`parallel_safe`·
+`dependency_gate`를 추가하고, `/bouncer-run`이 주행을 `bouncer-coordinator`에
+위임하게 했다. 새 CLI 명령은 `bouncer coordinate` 하나다.
+
+**기존 계획에 무엇이 달라지나 — 아무것도 달라지지 않는다.** 세 필드의 부재는
+각각 의존 없음, 순차, `integrated`로 읽힌다. 소급 migration이 없고, 필드를
+채우라고 요구하는 게이트도 없다. 그런 계획에서 coordinator는 한 번에 한
+node짜리 wave를 열므로 실행 순서가 예전 번호 순서와 같다. 원장이 없는
+저장소에서는 commit 가드와 게이트가 승인 `affected_paths`를 그대로 판정
+기준으로 쓴다. `/bouncer-execute`·`/bouncer-commit`을 직접 부르는 경로는
+그대로 남아 있고, 그때의 worktree도 예전처럼 blueprint 하나짜리
+`.worktrees/<epic-id>/<bp-id>`다.
+
+**병렬은 옵트인이다.** 두 task가 같은 wave에 들어가려면 계획이 둘 다
+`parallel_safe: true`로 선언해야 한다. 값이 없거나 `false`면 그 task는 혼자
+wave를 차지한다.
+
+## 호스트별 named coordinator 폴백
+
+`bouncer-coordinator`는 다른 named agent와 같은 해석 순서를 탄다
+([`rules/subagent-model.md`](../rules/subagent-model.md)). 호스트가 플러그인
+named agent를 로드하지 못할 때만 폴백하며, 폴백은 **coordinator 역할 전체**를
+실은 generic 서브에이전트 하나다 — 축약한 brief로 대신하지 않고, 시작 ACQ 없이
+부르지 않는다.
+
+| 호스트 | named coordinator 로드 경로 | 폴백 |
+| --- | --- | --- |
+| Claude Code | `agents/bouncer-coordinator.md` | generic 서브에이전트 1개에 전체 역할 |
+| Cursor | `agents/bouncer-coordinator.md` (관례 경로) | 같음 |
+| Codex | `.codex/agents/bouncer-coordinator.toml` — `bouncer init`이 `.codex/`가 이미 있거나 `--seed-codex-agents`일 때만 심는다 | TOML이 없거나 마커가 다르면 generic 폴백 |
+| Antigravity | `agents/bouncer-coordinator.md` (관례 경로) | 같음 |
+
+어느 경로든 한 주행에 coordinator는 하나이고 중첩되지 않는다. 폴백 여부는
+게이트 입력이 아니다.
 
 ## 계약이 아닌 것
 
