@@ -32,7 +32,11 @@ function isUnder(file, entry) {
 // Execute checkout은 `<repo>/.worktrees/<BP-id>` 아래에 있음. 트리 전체를
 // ignore하여 finalize가 중첩 worktree 파일을 scope 밖으로 보지 않게 함.
 // `.bouncer/.venv/`는 init 설치 산출물 — 범위 위반으로 보고하지 않는다.
-const RUNTIME_ARTIFACTS = ['node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/'];
+// `.bouncer/runtime/`은 coordinator 원장이 사는 자리 — 실행 상태이지 컨텍스트
+// 문서가 아니다. integration worktree 자신의 커밋 범위에서도 위반이 아니어야
+// 하므로 `.worktrees/` 접두만으로는 부족하다. `.bouncer/` 전체가 아니라 이
+// 한 갈래만 넣는다 — context 문서와 Distill은 커밋 대상이다.
+const RUNTIME_ARTIFACTS = ['node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/', '.bouncer/runtime/'];
 function isRuntimeArtifact(file) {
     const f = toPosix(file);
     return RUNTIME_ARTIFACTS.some((entry) => isUnder(f, entry));

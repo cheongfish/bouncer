@@ -228,6 +228,10 @@ const SUGGESTED_IGNORES = [
   'graphify-out/',
   '.worktrees/',
   '.bouncer/.venv/',
+  // coordinator 원장(`.bouncer/runtime/coordinator.json`)은 실행 상태다.
+  // scope.ts의 RUNTIME_ARTIFACTS와 같은 항목을 유지해야 새 저장소가 처음부터
+  // 원장을 추적하지 않는다.
+  '.bouncer/runtime/',
 ];
 
 const GITIGNORE_MARKER_START = '# bouncer';

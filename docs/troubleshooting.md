@@ -45,7 +45,7 @@
 | worktree에 task 묶음(`tasks/<NNN>/{tasks,verification,review}.md`)이 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |
 | `seed-worktree`가 `conflict`로 실패 | worktree에 같은 경로가 다른 내용으로 이미 있습니다. base는 건드리지 않았으니 손으로 정리한 뒤 다시 실행하세요 |
-| finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`는 무시. `.bouncer/Distill.md`는 항상 허용됩니다 |
+| finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`, `.bouncer/runtime/`는 무시. `.bouncer/Distill.md`는 항상 허용됩니다 |
 | finalize가 `reason: 'verify'`로 중단 | 승격 커밋 직전 검증 명령이 실패했거나 명령을 해석하지 못했다. `closed` 잠금과 스테이징은 하지 않았다. 결과의 `code`/`command`/`exitCode`로 원인을 고친 뒤 `--yes`를 다시 실행한다. 우회는 없다 |
 
 위 `commit blocked: …` 다섯 행은 `commit-safety` 훅이 낸 문장을 그대로 적은

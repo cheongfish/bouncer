@@ -247,8 +247,8 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 2. `graphify-out/`은 로컬 캐시다. `bouncer init`이 `.gitignore` 누락 항목을
    **안내**하고, 사용자 동의(`--write-gitignore`)가 있을 때만 `# bouncer` …
    `# /bouncer` 마커 블록을 쓴다(마커 밖 줄은 읽기만 함). finalize/커밋 가드는
-   `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`를 범위
-   검사에서 무시한다. execute 체크아웃은
+   `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`,
+   `.bouncer/runtime/`를 범위 검사에서 무시한다. execute 체크아웃은
    `<repo>/.worktrees/<epic-id>/<bp-id>`에 두고, coordinator 주행은 같은 뿌리
    아래 `integration`과 `workers/<NNN>`을 쓴다(ADR H). init이 `.worktrees/`
    gitignore 누락도 함께 안내한다.

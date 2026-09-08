@@ -409,6 +409,7 @@ test('init reports the gitignore entries a repo without .gitignore should add', 
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(res.gitignoreSuggestions, [
     'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+    '.bouncer/runtime/',
   ]);
   assert.ok(!exists(repo, '.gitignore'), 'init must not write .gitignore');
 });
@@ -418,7 +419,7 @@ test('init suggests only the entries .gitignore is missing', () => {
   fs.writeFileSync(path.join(repo, '.gitignore'), '# deps\nnode_modules\n');
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(res.gitignoreSuggestions, [
-    'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+    'graphify-out/', '.worktrees/', '.bouncer/.venv/', '.bouncer/runtime/',
   ]);
   assert.strictEqual(read(repo, '.gitignore'), '# deps\nnode_modules\n');
 });
@@ -427,7 +428,7 @@ test('init suggests nothing when the artifacts are already ignored', () => {
   const repo = tmpRepo();
   fs.writeFileSync(
     path.join(repo, '.gitignore'),
-    'node_modules/\ngraphify-out/\n.worktrees/\n.bouncer/.venv/\n',
+    'node_modules/\ngraphify-out/\n.worktrees/\n.bouncer/.venv/\n.bouncer/runtime/\n',
   );
   const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   assert.deepStrictEqual(res.gitignoreSuggestions, []);
@@ -495,6 +496,7 @@ test('init reports gitignore suggestions on an already-initialized repo', () => 
   assert.strictEqual(again.reason, 'already-initialized');
   assert.deepStrictEqual(again.gitignoreSuggestions, [
     'node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/',
+    '.bouncer/runtime/',
   ]);
 });
 

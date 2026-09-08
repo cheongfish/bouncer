@@ -1,6 +1,6 @@
 # 컨텍스트 문서 버전관리
 
-**`.bouncer/` 전체를 커밋합니다.** 설계 전제입니다.
+**`.bouncer/`는 `runtime/`을 뺀 전체를 커밋합니다.** 설계 전제입니다.
 `/bouncer-finalize`는 코드 변경과 그 blueprint의 문서를 **한 커밋에 함께** 담습니다.
 문서를 gitignore하면 게이트를 통과했다는 증적(각 `tasks/<NNN>/verification.md`의 종료 코드,
 `affected_paths` 승인 기록)이 로컬에만 남고 리뷰어에게 도달하지 않아, 이 도구의
@@ -16,7 +16,7 @@
 | execute worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>` (gitignore / finalize 무시; 이미 열린 평면 `.worktrees/<blueprint id>`만 재사용) |
 | integration worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>/integration` — branch `bouncer/<epic id>-<blueprint id>-integration`. coordinator 주행의 fan-in 대상 |
 | worker worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>/workers/<NNN>` — branch `bouncer/<epic id>-<blueprint id>-<NNN>`. ready wave가 연 task마다 하나 |
-| coordinator 원장 | 제외 | `<integration worktree>/.bouncer/runtime/coordinator.json` — 실행 상태이지 컨텍스트 문서가 아니다 |
+| coordinator 원장 | 제외 | `<integration worktree>/.bouncer/runtime/coordinator.json` — 실행 상태이지 컨텍스트 문서가 아니다 (gitignore / 커밋 범위 검사 무시; init이 `.gitignore` 항목을 안내) |
 
 문서 골격(템플릿)과 제품 규칙(`rules/governance.md` · `rules/okf.md`),
 세션 마스터 룰(`CLAUDE.md` / `AGENTS.md`)은 프로젝트에 설치되지 않습니다.
@@ -42,11 +42,12 @@ coordinator 원장(`.bouncer/runtime/coordinator.json`)은 **런타임 상태**�
 
 원장은 integration worktree 안에 있으므로, main checkout에서 보면
 `.worktrees/…` 아래 경로입니다 — 커밋 범위 검사는 `.worktrees/`를 runtime
-artifact로 무시하니 그 자리에서는 걸리지 않습니다. 하지만 integration
-worktree 자신의 커밋 범위에서는 `.bouncer/runtime/`이 무시 목록에도
-`bouncer init`이 권하는 `.gitignore` 항목에도 없습니다. 즉 그 checkout에서
-원장은 추적도 무시도 되지 않은 파일이고, 스테이징하면 `out-of-scope`로
-보고됩니다. 원장은 스테이징하지 마세요.
+artifact로 무시하니 그 자리에서는 걸리지 않습니다. integration worktree
+자신의 커밋 범위에서도 마찬가지입니다: `.bouncer/runtime/`이 runtime artifact
+목록에 있어 스테이징돼도 `out-of-scope`로 보고되지 않고, `bouncer init`이
+권하는 `.gitignore` 항목에도 있어 새 저장소는 처음부터 원장을 추적하지
+않습니다. 규칙은 `.bouncer/runtime/` 한 갈래에만 적용되므로
+`.bouncer/context/**`와 `.bouncer/Distill.md`는 그대로 커밋 대상입니다.
 
 | | 원장 | 컨텍스트 문서 |
 | --- | --- | --- |

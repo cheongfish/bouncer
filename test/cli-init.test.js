@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { runCli } = require('../scripts/lib/cli');
 const { SUGGESTED_IGNORES } = require('../scripts/lib/init');
+const { RUNTIME_ARTIFACTS } = require('../scripts/lib/scope');
 
 function capture() {
   const buf = { out: '', err: '' };
@@ -65,6 +66,14 @@ test('cli init --write-gitignore writes the marker block', () => {
   const gi = fs.readFileSync(path.join(repo, '.gitignore'), 'utf8');
   const block = `# bouncer\n${SUGGESTED_IGNORES.join('\n')}\n# /bouncer`;
   assert.ok(gi.includes(block));
+});
+
+// 마커 블록 검사는 기대값을 SUGGESTED_IGNORES에서 그대로 끌어오므로 목록
+// 내용 자체는 검사하지 못한다. 무시 제안과 범위 검사의 런타임 산출물 규칙이
+// 원장에 대해 한쪽만 고쳐진 상태를 잡으려면 두 목록을 직접 대조해야 한다.
+test('the ledger prefix is in both the ignore suggestions and the runtime artifact rule', () => {
+  assert.ok(SUGGESTED_IGNORES.includes('.bouncer/runtime/'));
+  assert.ok(RUNTIME_ARTIFACTS.includes('.bouncer/runtime/'));
 });
 
 test('cli init JSON flags baseBranchUnresolved when detection fails', () => {
