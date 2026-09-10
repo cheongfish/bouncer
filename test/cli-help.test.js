@@ -50,6 +50,11 @@ test('every subcommand is listed in the usage text', () => {
   }
 });
 
+test('usage omits the retired distill command', () => {
+  const retired = ['d', 'istill'].join('');
+  assert.doesNotMatch(capture([]).out, new RegExp(`^\\s*${retired}\\b`, 'm'));
+});
+
 test('--help, -h, and help all print the same usage on stdout', () => {
   const baseline = capture([]).out;
   for (const flag of [['--help'], ['-h'], ['help']]) {

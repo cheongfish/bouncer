@@ -198,6 +198,80 @@ test('commit --yes stages in-scope change and returns committed:true', () => {
   assert.ok(typeof parsed.commitSha === 'string' && parsed.commitSha.length > 0);
 });
 
+test('commit --yes commits an in-scope tracked deletion already staged by the task', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  // 실제 TASKS-005 삭제 경로처럼 작업자가 이미 `git add -A`한 deletion은
+  // index에서 pathspec이 사라진다. commit이 같은 경로를 다시 add하지 않아야 한다.
+  fs.rmSync(path.join(repo, 'src/auth/login.ts'));
+  execFileSync('git', ['add', '-A', '--', 'src/auth/login.ts'], { cwd: repo });
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.committed, true);
+  assert.ok(parsed.staged.includes('src/auth/login.ts'));
+  assert.ok(!fs.existsSync(path.join(repo, 'src/auth/login.ts')));
+  const committed = execFileSync('git', ['show', '--format=', '--name-status', 'HEAD'], {
+    cwd: repo, encoding: 'utf8',
+  });
+  assert.match(committed, /^D\s+src\/auth\/login\.ts$/m);
+});
+
+test('commit --yes stages an in-scope tracked deletion from a clean index', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  fs.rmSync(path.join(repo, 'src/auth/login.ts'));
+  // 실패했던 경로는 이전 시도의 staged deletion을 물려받았다. 여기서는 index가
+  // 비어 있음을 먼저 고정해, commit이 삭제 자체를 stage하는지 검증한다.
+  assert.strictEqual(execFileSync('git', ['diff', '--cached', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim(), '');
+
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.committed, true);
+  assert.ok(parsed.staged.includes('src/auth/login.ts'));
+  const committed = execFileSync('git', ['show', '--format=', '--name-status', 'HEAD'], {
+    cwd: repo, encoding: 'utf8',
+  });
+  assert.match(committed, /^D\s+src\/auth\/login\.ts$/m);
+});
+
+test('commit --yes stages both existing index and later worktree changes to one task file', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const login = path.join(repo, 'src/auth/login.ts');
+  fs.writeFileSync(login, 'export const first = 1;\n');
+  execFileSync('git', ['add', '--', 'src/auth/login.ts'], { cwd: repo });
+  fs.writeFileSync(login, 'export const first = 1;\nexport const second = 2;\n');
+
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.committed, true);
+  assert.strictEqual(execFileSync('git', ['show', 'HEAD:src/auth/login.ts'], {
+    cwd: repo, encoding: 'utf8',
+  }), 'export const first = 1;\nexport const second = 2;\n');
+  assert.strictEqual(execFileSync('git', ['diff', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim(), '');
+});
+
 test('commit --yes rejects out-of-scope change before staging without a host hook', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);

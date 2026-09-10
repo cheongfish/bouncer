@@ -14,26 +14,6 @@ type VerifyPolicy =
   | { ok: true; reason: 'missing' | 'present'; allowlist: readonly string[] }
   | { ok: false; reason: 'invalid' };
 
-type DistillSettings = {
-  routing_enabled: boolean;
-  max_bytes: number;
-};
-
-// 샤드 설정은 opt-in 경로의 안전장치다. 기존 저장소에는 distill 키가 없을
-// 수 있으므로 읽기 함수의 null/shape 계약을 바꾸지 않고, init과 구조 검사만
-// 이 기본값을 사용한다. max_bytes는 하드 상한이 아니라 운영자가 분배를
-// 검토할 때 쓰는 경고 기준이며, 본문 소비를 잘라내는 값이 아니다.
-//
-// 6 * 1024(6144) 근거: 이 저장소 영문 샤드는 대략 7.1 바이트/단어라
-// 6144 ≈ 865 단어다. 현재 분포에서 plugin-skills(13,445)·validate-gates(8,877)
-// 는 S26에 걸리고 core(5,842)는 통과한다. 64KB는 실제 샤드보다 5배 커서
-// 경고가 사실상 놀고 있었다. 이미 max_bytes를 명시한 config.json은
-// 이 기본값 변경의 영향을 받지 않는다.
-const DEFAULT_DISTILL_CONFIG: DistillSettings = {
-  routing_enabled: false,
-  max_bytes: 6 * 1024,
-};
-
 // 검증 실행은 shell:false argv만 허용한다. argv0 실행 파일명이 이 목록(또는
 // 저장소 `verify_allowlist`)에 있어야 프로세스를 시작한다. 커스텀 바이너리는
 // npm script로 감싸거나 저장소 allowlist에 명시한다.
@@ -62,16 +42,6 @@ const DEFAULT_VERIFY_ALLOWLIST: readonly string[] = Object.freeze([
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function getDistillConfig(config: unknown = {}): DistillSettings {
-  const value = isRecord(config)
-    && isRecord(config.distill)
-    ? config.distill
-    : {};
-  // 추가 키를 검증하지 않는다. 예전에는 객체를 그대로 spread했고, 여기서
-  // boolean/number만 남기면 호출자가 넣어 둔 확장 필드가 사라진다.
-  return { ...DEFAULT_DISTILL_CONFIG, ...value };
 }
 
 /**
@@ -174,8 +144,6 @@ export = {
   readConfigResult,
   readConfig,
   readVerifyPolicy,
-  DEFAULT_DISTILL_CONFIG,
-  getDistillConfig,
   DEFAULT_VERIFY_ALLOWLIST,
   getVerifyAllowlist,
 };

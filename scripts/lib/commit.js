@@ -2,6 +2,7 @@
 'use strict';
 const path = require('node:path');
 const fs = require('node:fs');
+const { execFileSync } = require('node:child_process');
 const frontmatter = require("./frontmatter");
 const { readDoc } = frontmatter;
 const render = require("./render");
@@ -161,7 +162,20 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
             ...coordinatorProvenance(coordinator, null, null, null),
         };
     }
-    gitApi.stage(all);
+    if (git) {
+        gitApi.stage(all);
+    }
+    else {
+        // index에 이미 삭제된 경로만 pathspec으로 다시 add할 수 없다. 그 삭제는 그대로
+        // 두고, 나머지 허용 후보는 재-stage해 staged 뒤의 worktree 변경까지 포함한다.
+        const stagedDeletions = new Set(String(execFileSync('git', ['diff', '--cached', '--diff-filter=D', '--name-only'], {
+            cwd: repoRoot, encoding: 'utf8',
+        })).split('\n').filter(Boolean));
+        const toStage = all.filter((file) => !stagedDeletions.has(file));
+        if (toStage.length > 0) {
+            execFileSync('git', ['add', '-A', '--', ...toStage], { cwd: repoRoot, encoding: 'utf8' });
+        }
+    }
     gitApi.commit(commitMessage);
     const taskSha = typeof gitApi.headSha === 'function' ? String(gitApi.headSha()).trim() : null;
     // 커밋 직후 HEAD를 tasks.md에 8자리로 남겨 finalize가 explain.task_commits로 옮긴다.

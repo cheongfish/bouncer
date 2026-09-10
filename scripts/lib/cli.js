@@ -24,7 +24,6 @@ const COMMANDS = {
     'context-search': projectCommands['context-search'],
     'graphify-bin': projectCommands['graphify-bin'],
     'project-root': projectCommands['project-root'],
-    distill: projectCommands.distill,
     current: currentCommand.current,
     migrate: projectCommands.migrate,
     import: gitCommands.import,
