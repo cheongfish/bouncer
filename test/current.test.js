@@ -1073,4 +1073,20 @@ test('presentCurrent exposes the coordinator ready wave and graph revision', () 
   assert.strictEqual(typeof shown.coordinator.integrationHead, 'string');
   assert.deepStrictEqual(shown.coordinator.tasks[0].scope, ['src/', 'lib/']);
   assert.strictEqual(shown.coordinator.tasks[0].status, 'prepared');
+  assert.strictEqual(shown.coordinator.tasks[0].executionKind, 'commit');
+});
+
+test('listTasksDocs attaches normalized executionKind to explicit and legacy-default tasks', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-current-'));
+  const blueprint = '.bouncer/context/epics/070-x/blueprints/071-y';
+  for (const [id, execution] of [['001', ''], ['002', '  execution_kind: verification\n']]) {
+    const rel = `${blueprint}/tasks/${id}/tasks.md`;
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), `---\nbouncer:\n  id: TASKS-${id}\n${execution}---\n`);
+  }
+  const { listTasksDocs } = require('../scripts/lib/tasks-docs');
+  assert.deepStrictEqual(
+    listTasksDocs({ repoRoot: repo, blueprintDir: blueprint }).entries.map((e) => e.executionKind),
+    ['commit', 'verification'],
+  );
 });

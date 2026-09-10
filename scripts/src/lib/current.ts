@@ -492,7 +492,12 @@ function coordinatorSnapshot(repoRoot: string, blueprint: string) {
   }
   const ledger = found.ledger as {
     revision?: unknown; integrationHead?: unknown;
-    tasks?: Array<{ id: string; status?: string; scope?: { revision: string; paths: string[] } }>;
+    tasks?: Array<{
+      id: string;
+      execution_kind?: 'commit' | 'verification';
+      status?: string;
+      scope?: { revision: string; paths: string[] };
+    }>;
   };
   const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
   return {
@@ -504,6 +509,7 @@ function coordinatorSnapshot(repoRoot: string, blueprint: string) {
     ready: readyWave(tasks),
     tasks: tasks.map((task) => ({
       id: task.id,
+      executionKind: task.execution_kind || 'commit',
       status: task.status || 'pending',
       revision: task.scope ? task.scope.revision : null,
       scope: task.scope ? task.scope.paths : null,

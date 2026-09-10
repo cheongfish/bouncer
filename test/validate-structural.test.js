@@ -1221,3 +1221,25 @@ test('S28: absent DAG fields and valid shapes pass; bad shape and enum fail', ()
   assert.ok(taskDagFailures({ dependency_gate: 'done' }).length >= 1);
   assert.ok(taskDagFailures({ dependency_gate: 'Integrated' }).length >= 1);
 });
+
+test('S29: verification execution_kind requires empty scope, fan-in metadata, and executable verify', () => {
+  const failuresFor = (extra) => {
+    const failures = [];
+    const base = goodTasks();
+    const rel = `${BP_REL}/tasks/001/tasks.md`;
+    checkStructural({ data: { ...base, resource: rel, bouncer: { ...base.bouncer, ...extra } }, rel }, failures);
+    return failures.filter((f) => f.code === 'S29');
+  };
+  assert.deepStrictEqual(failuresFor({
+    execution_kind: 'verification', affected_paths: [], depends_on: ['TASKS-002'],
+    parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
+  }), []);
+  for (const extra of [
+    { execution_kind: 'other' },
+    { execution_kind: 'verification', affected_paths: ['src/a'], depends_on: ['TASKS-002'], parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test' },
+    { execution_kind: 'verification', affected_paths: [], depends_on: [], parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test' },
+    { execution_kind: 'verification', affected_paths: [], depends_on: ['TASKS-002'], parallel_safe: true, dependency_gate: 'integrated', verify: 'node --test' },
+    { execution_kind: 'verification', affected_paths: [], depends_on: ['TASKS-002'], parallel_safe: false, dependency_gate: 'integrated', verify: '' },
+  ]) assert.ok(failuresFor(extra).length > 0, JSON.stringify(extra));
+  assert.ok(failuresFor({ execution_kind: 'commit', status: 'integrated' }).length > 0);
+});

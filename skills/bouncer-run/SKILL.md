@@ -55,6 +55,12 @@ records it with `bouncer coordinate revise`, which moves the task document and
 the ledger to one revision, so render that revision instead of re-judging it.
 Only a blocker the coordinator cannot record comes back as a blocked outcome.
 
+`execution_kind: verification` node는 예외다. coordinator는 worker를 만들거나
+execute/review/commit/cherry-pick을 호출하지 않고 integration checkout에서 기존
+verification runner를 실행한다. 성공 증적 뒤에만 `ready → verifying → integrated`로
+끝내며, 실패하면 `verifying`에 두고 종료한다. runner 호출 전에는 integration
+checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비한다.
+
 1. **Preflight.** Read `autonomy` from `.bouncer/config.json`. When the key is
    missing or outside `AUTONOMY_ENUM`, tell the user and proceed with `auto`.
    Read the active pointer:

@@ -9,6 +9,12 @@ input only to `bouncer migrate task-layout`. If a task feels too large for one c
 into more task bundles (or more blueprints). Do **not** invent a further
 subtask layer beneath a task bundle.
 
+예외는 `bouncer.execution_kind: verification`인 종단 fan-in node다. 이
+node는 `tasks.md`와 `verification.md`만 scaffold하고, 선행 구현 task가 모두
+integrated된 뒤 전체 CI를 한 번 실행해 `verification.md` 증적만 남긴다.
+source diff, reviewable commit, `review.md`와 review 단계,
+`affected_paths`를 만들지 않으며 실패한 실행은 integrated로 전이하지 않는다.
+
 The plan gate emits a non-blocking `warnings` entry when a task's
 `affected_paths` count exceeds 20. That signal only advises splitting when
 one-commit review would be hard; it is not a blocking rule, does not invent a
@@ -16,7 +22,8 @@ G/S failure code, and does not change gate success or process exit codes.
 Legitimate wide tasks (bulk renames, migrations) still pass.
 
 `/bouncer-commit` closes one task (scope check → `bouncer commit`).
-`/bouncer-run` repeats that commit unit; it does not change it.
+`/bouncer-run` repeats that commit unit; verification node에서는 commit 대신
+integration checkout의 verification runner만 실행한다.
 `/bouncer-execute` does not commit. `/bouncer-finalize` closes the blueprint
 (Distill promotion, explain + quiz, remainder commit, draft PR, worktree
 cleanup) after every task is committed.
@@ -52,7 +59,7 @@ What shrinks (five things only):
 2. **Gated task sections** — **G10** requires only `Goal & intent`, `Touch`,
    and `Checklist` on a light blueprint. `Interface` and `Do not touch` are
    neither templated nor demanded. Approved scope is untouched: **G3–G5**,
-   and **G11** judge a light plan exactly as they judge a full one, so
+   and **G11** judge an ordinary commit task exactly as they judge a full one, so
    an empty `affected_paths` or an empty `scope_evidence.basis` still fails.
    **G12** stays wired on light and judges a `Do not touch` section the same
    way when one is present — the light template ships none, so a light plan
@@ -77,7 +84,7 @@ What stays the same:
 
 - Task document set: `tasks/<NNN>/{tasks,verification,review}.md` and
   `explain.md` are still authored and gated.
-- Gate judgments **G1–G8** and **G11–G17** are unchanged in the light path
+- Ordinary commit-task gate judgments **G1–G8** and **G11–G17** are unchanged in the light path
   (G16 Distill / comprehension at finalize; G17 staged scope at commit).
   G15 is retired. Only **G18** (not applied) and the **G10** section list
   differ, and both differences follow from the document set above rather than

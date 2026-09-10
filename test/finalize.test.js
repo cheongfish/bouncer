@@ -749,6 +749,44 @@ function writeExtraTaskUnit(repo, number, blueprintDir = BP_REL) {
   });
 }
 
+function writeVerificationTaskUnit(repo, number, blueprintDir = BP_REL) {
+  const digits = String(number).padStart(3, '0');
+  writeDoc(repo, `${blueprintDir}/tasks/${digits}/tasks.md`, {
+    type: 'bouncer.tasks',
+    title: `Terminal verification ${digits}`,
+    description: 'd',
+    resource: `${blueprintDir}/tasks/${digits}/tasks.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `TASKS-${digits}`,
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'integrated',
+      execution_kind: 'verification',
+      depends_on: ['TASKS-001'],
+      parallel_safe: false,
+      dependency_gate: 'integrated',
+      verify: 'true',
+      affected_paths: [],
+    },
+  });
+  writeDoc(repo, `${blueprintDir}/tasks/${digits}/verification.md`, {
+    type: 'bouncer.verification',
+    title: `Terminal verification evidence ${digits}`,
+    description: 'd',
+    resource: `${blueprintDir}/tasks/${digits}/verification.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: `VERIFY-${digits}`,
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'passed',
+    },
+  });
+}
+
 function transientRels(blueprintDir = BP_REL, numbers = ['001']) {
   const rels = [];
   for (const digits of numbers) {
@@ -845,6 +883,28 @@ test('dry-run reports transient deletions in staged without deleting or locking'
   assertTransientPresent(repo);
   assert.ok(fs.existsSync(path.join(repo, `${BP_REL}/context-review.md`)));
   assert.strictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), indexBefore);
+});
+
+test('finalize collects a verification node without inventing a review leaf', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeVerificationTaskUnit(repo, 2);
+  const g = fakeGit([
+    'src/auth/login.ts',
+    `${BP_REL}/tasks/002/tasks.md`,
+    `${BP_REL}/tasks/002/verification.md`,
+  ], []);
+
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.dryRun, true);
+  assert.ok(res.staged.includes(`${BP_REL}/tasks/002/tasks.md`));
+  assert.ok(res.staged.includes(`${BP_REL}/tasks/002/verification.md`));
+  assert.ok(!res.staged.includes(`${BP_REL}/tasks/002/review.md`));
+  assert.ok(fs.existsSync(path.join(repo, `${BP_REL}/tasks/002/tasks.md`)));
+  assert.ok(fs.existsSync(path.join(repo, `${BP_REL}/tasks/002/verification.md`)));
+  assert.ok(!fs.existsSync(path.join(repo, `${BP_REL}/tasks/002/review.md`)));
 });
 
 test('--yes deletes transient docs, keeps durable evidence, and stages deletions with closed index', () => {

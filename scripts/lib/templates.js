@@ -123,6 +123,8 @@ Blueprint: [<BP-id>](../../index.md)
      종결 문장으로 작성한다. 두 필드의 합계는 커밋 본문 네 줄을 넘지 않는다. -->
 
 <!-- DAG frontmatter (author-written):
+     execution_kind: commit | verification. 부재 = commit.
+     verification은 source 변경·review.md·commit 없이 종단 CI 증적만 남긴다.
      depends_on: TASKS-NNN id 배열. 부재·[] = 의존 없음.
      parallel_safe: boolean. false/부재 = 순차 wave 입력.
      dependency_gate: integrated. 부재 = integrated.

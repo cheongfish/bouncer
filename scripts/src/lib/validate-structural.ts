@@ -4,7 +4,7 @@ import schema = require('./schema');
 const {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat,
   KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, DEPENDENCY_GATE_ENUM,
-  isValidDependsOn,
+  isValidDependsOn, executionKindOf,
 } = schema;
 import paths = require('./paths');
 const {
@@ -351,11 +351,12 @@ function checkStructural(
 
   if (docType === 'bouncer.tasks') {
     const ap = bouncer.affected_paths;
-    if (!Array.isArray(ap) || ap.length === 0) {
+    const executionKind = executionKindOf(bouncer);
+    if (executionKind !== 'verification' && (!Array.isArray(ap) || ap.length === 0)) {
       add('S7', 'tasks.affected_paths missing or empty');
     }
     const scopeEvidence = normalizeScopeEvidence(bouncer);
-    if (scopeEvidence.error) {
+    if (executionKind !== 'verification' && scopeEvidence.error) {
       add('S9', scopeEvidence.error);
     }
     // 선택 필드: 없으면 기존 tasks.md가 모두 유효하게 유지됨. S12와
@@ -376,6 +377,30 @@ function checkStructural(
       && !(DEPENDENCY_GATE_ENUM as unknown[]).includes(bouncer.dependency_gate)
     ) {
       add('S28', `dependency_gate "${bouncer.dependency_gate}" not in enum`);
+    }
+    // verification node는 구현 범위를 갖지 않고 선행 fan-in 뒤 단일 argv만
+    // 실행한다. 이 불변조건을 한 코드로 묶어 부분 선언이 commit task처럼
+    // 흘러가는 것을 막는다. graph의 존재·terminal 관계는 plan G20의 몫이다.
+    if (executionKind === null) {
+      add('S29', 'execution_kind must be commit or verification');
+    } else if (executionKind === 'verification') {
+      if (!Array.isArray(ap) || ap.length !== 0) {
+        add('S29', 'verification task affected_paths must be empty');
+      }
+      if (!Array.isArray(bouncer.depends_on) || bouncer.depends_on.length === 0) {
+        add('S29', 'verification task depends_on must be non-empty');
+      }
+      if (bouncer.parallel_safe !== false) {
+        add('S29', 'verification task parallel_safe must be false');
+      }
+      if (bouncer.dependency_gate !== 'integrated') {
+        add('S29', 'verification task dependency_gate must be integrated');
+      }
+      if (!isValidVerifyCommand(bouncer.verify, verifyAllowlist)) {
+        add('S29', 'verification task verify must be a single executable command');
+      }
+    } else if (bouncer.status === 'verifying' || bouncer.status === 'integrated') {
+      add('S29', `commit task cannot use verification status ${bouncer.status}`);
     }
   }
 }

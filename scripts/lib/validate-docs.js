@@ -9,7 +9,7 @@ const { epicDirOf, toPosix } = paths;
 const verification = require("./verification");
 const { entriesForVerify } = verification;
 const tasksDocs = require("./tasks-docs");
-const { listTasksDocs, TASK_UNIT_BASENAMES, } = tasksDocs;
+const { listTasksDocs, TASK_UNIT_BASENAMES, taskExecutionKind, } = tasksDocs;
 function errorMessage(error) {
     // catch 값은 unknown이다. 예전 e.message 접근을 유지해 primitive throw의
     // 메시지는 undefined, null throw는 TypeError가 나게 둔다.
@@ -112,9 +112,33 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
         dir: entry.dir,
         tasks: readOptionalLeaf(repoRoot, entry.tasks.rel, parseErrors),
         verification: readOptionalLeaf(repoRoot, entry.verification.rel, parseErrors),
-        review: readOptionalLeaf(repoRoot, entry.review.rel, parseErrors),
+        // verification node는 review 단계가 없다. listing의 review 경로는 S17이
+        // 열린 일반 bundle 완전성을 검사할 때만 쓰고, resolver payload에는
+        // verification.md를 review로 alias하지 않는다.
+        review: entry.executionKind === 'verification'
+            ? undefined
+            : readOptionalLeaf(repoRoot, entry.review?.rel, parseErrors),
     }));
     docs.taskUnits = taskUnits;
+    // validate.ts의 공통 S17 순회는 모든 종류에 존재하는 tasks/verification만
+    // 맡는다. commit 전용 review 누락은 execution kind를 아는 이 loader에서
+    // 추가해, verification entry에 가짜 review 경로를 싣지 않아도 기존 완전성
+    // 검사가 유지되게 한다.
+    const blueprintStatus = statusOf(docs.blueprintIndex);
+    for (const entry of tasksListing.entries) {
+        for (const leaf of requiredTaskLeaves(blueprintStatus, entry.executionKind)) {
+            if (leaf !== 'review')
+                continue;
+            const rel = entry.review?.rel;
+            if (rel && !fs.existsSync(path.join(repoRoot, rel))) {
+                parseErrors.push({
+                    code: 'S17',
+                    message: `task unit ${entry.number} missing ${path.posix.basename(rel)}`,
+                    file: rel,
+                });
+            }
+        }
+    }
     return { docs, rels, parseErrors, tasksListing };
 }
 /**
@@ -144,12 +168,13 @@ function resolveTaskUnit(docs, { repoRoot, blueprintDir } = {}) {
         }
     }
     if (docs.tasks || docs.verification || docs.review) {
+        const executionKind = docs.tasks ? taskExecutionKind(docs.tasks.data) : null;
         return {
             number: null,
             dir: null,
             tasks: docs.tasks,
             verification: docs.verification,
-            review: docs.review,
+            review: executionKind === 'verification' ? undefined : docs.review,
         };
     }
     return null;
@@ -171,17 +196,22 @@ function unitLeafRel(unit, leaf, fallbackRel) {
 /**
  * blueprint 상태에 따라 task 묶음에서 필수인 leaf를 돌려준다.
  * closed는 finalize가 task leaf 전체를 지운 축약 레이아웃(필수 leaf 없음)을
- * 허용하고, draft/approved 등 열린 상태는 세 장 모두 요구한다.
+ * 허용한다. 실행 종류가 주어지지 않은 호출은 공통 leaf만 받고, commit
+ * 묶음만 review를 추가한다. verification 묶음에는 review leaf가 없다.
  *
  * @param {unknown} status - blueprint index의 bouncer.status
+ * @param {'commit'|'verification'|null} [executionKind] task 실행 종류
  * @returns {Array<'tasks'|'verification'|'review'>} 필수 leaf 이름
  */
-function requiredTaskLeaves(status) {
+function requiredTaskLeaves(status, executionKind) {
     // closed는 finalize가 일회성·검증 문서를 지운 뒤의 단말 상태다.
     // 재개·task 추가가 없으므로 task leaf 부재를 구조 실패로 보지 않는다.
     if (status === 'closed')
         return [];
-    return ['tasks', 'verification', 'review'];
+    const common = ['tasks', 'verification'];
+    return executionKind === undefined || executionKind === 'verification'
+        ? common
+        : [...common, 'review'];
 }
 // 존재 여부만 확인: 가볍고 파싱하지 않아야 함. execute gate가 verification을
 // 다시 실행(verification.md를 다시 씀)하기 전에 호출되기 때문.

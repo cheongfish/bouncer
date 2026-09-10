@@ -424,6 +424,7 @@ function coordinatorSnapshot(repoRoot, blueprint) {
         ready: readyWave(tasks),
         tasks: tasks.map((task) => ({
             id: task.id,
+            executionKind: task.execution_kind || 'commit',
             status: task.status || 'pending',
             revision: task.scope ? task.scope.revision : null,
             scope: task.scope ? task.scope.paths : null,

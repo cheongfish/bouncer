@@ -211,6 +211,14 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    selective read; repeat it for any task whose list changes. Keep the earlier
    `--all` baseline file — a route result never replaces it; if the file is
    gone, re-run `--all` rather than substituting routed output.
+
+   `execution_kind: verification`인 종단 fan-in node는 이 확인의 예외다.
+   Graphify scope 제안과 ACQ를 만들지 않고 `affected_paths: []`를 유지한다.
+   대신 non-empty `depends_on`, `parallel_safe: false`, `dependency_gate:
+   integrated`, 실행 가능한 전체-CI `verify`, source 경로가 없는 Touch를 확인한다.
+   명시적 public 경로는 `bouncer scaffold task --execution-kind verification
+   --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>`이며 `review.md`는
+   만들지 않는다.
    ```bash
    bouncer distill \
      --for <path-1> \
@@ -230,7 +238,7 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
 
 8. **Approval (explicit).** Before asking for approval, show the authored
    task DAG: each task's `depends_on`, `parallel_safe`, and
-   `dependency_gate`, plus any shared-contract conflicts (for example
+   `dependency_gate`, `execution_kind`, plus any shared-contract conflicts (for example
    overlapping `affected_paths` among `parallel_safe: true` peers, or edges
    that would create a cycle). Fix conflicts in authoring; do not ask for
    approval on an invalid graph. **ACQ — Approval:** ask the user to approve the
@@ -253,7 +261,8 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    bouncer validate --blueprint <pointer.blueprint> --gate plan
    ```
    The CLI owns plan-gate checks and codes, including the full/light exception
-   and G19 task-DAG integrity (missing / self / duplicate / cycle).
+   and G19 task-DAG integrity (missing / self / duplicate / cycle), plus G20
+   verification-node terminal/source-scope integrity.
    Fix every reported failure and re-run until it passes; surface its code,
    cause, path, and recovery action. Then point the user at `/bouncer-run` — it
    drives execute→commit until the blueprint's tasks run out, and

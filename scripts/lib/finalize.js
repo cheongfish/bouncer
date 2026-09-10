@@ -152,7 +152,12 @@ function collectTransientRels({ repoRoot, blueprintDir }) {
     for (const entry of listing.entries) {
         // verification.md도 task 실행 증적이라 closed 뒤에는 남기지 않는다.
         for (const leaf of ['tasks', 'verification', 'review']) {
-            const rel = entry[leaf].rel;
+            const ref = entry[leaf];
+            // verification node는 review leaf를 만들지 않는다. 없는 leaf는 삭제
+            // 대상으로 합성하지 않고, 실제 listing이 제공한 문서만 수집한다.
+            if (!ref)
+                continue;
+            const rel = ref.rel;
             if (fs.existsSync(path.join(repoRoot, rel)))
                 rels.push(rel);
         }

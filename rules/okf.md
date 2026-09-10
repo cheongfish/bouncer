@@ -66,6 +66,14 @@ shape only (absent or an array of non-empty strings), not referential integrity.
 Task DAG fields are author-written on `bouncer.tasks` only. Task numbers are
 display and default sort order — not execution authority.
 
+- `bouncer.execution_kind` is `commit` or `verification`; absent reads as
+  `commit`. A verification node requires non-empty `depends_on`, explicit
+  `parallel_safe: false`, `dependency_gate: integrated`, an executable
+  `bouncer.verify`, and empty `affected_paths`. It may feed only another
+  verification node, so implementation scope cannot be placed behind it. Its
+  task status closes as `ready → verifying → integrated`; it has no review
+  document or commit SHA.
+
 - `bouncer.depends_on` is an array of `TASKS-NNN` ids this task waits on.
   Absent or `[]` means no dependencies (legacy plans stay valid). Structural
   validation (S28) checks shape; the plan gate (G19) checks missing ids,

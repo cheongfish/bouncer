@@ -723,6 +723,16 @@ test('execute gate: review optional satisfies G8 (with verification body)', () =
   assert.deepStrictEqual(failures, []);
 });
 
+test('execute gate accepts an integrated verification node without review', () => {
+  const verification = passingVerificationDoc();
+  const failures = [];
+  checkGate('execute', {
+    tasks: doc('integrated', { execution_kind: 'verification' }),
+    verification,
+  }, rels, failures, { deps: ledgerDeps(verification) });
+  assert.deepStrictEqual(failures, []);
+});
+
 test('execute gate G13 ledger missing, ran_at mismatch, and matching record', () => {
   const { missing, mismatch, ok } = g13ThreeWay('execute');
   assert.ok(missing.failures.some((f) => f.code === 'G13' && /missing harness verify ledger record/.test(f.message)));
@@ -1051,6 +1061,18 @@ test('finalize gate G16 passes when all tasks verified and comprehension covers 
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
     explain: explainDoc([compEntry({ quiz_score: '1/5', disposition: 'accepted with gaps' })]),
+  }, rels, failures, G16_CTX);
+  assert.deepStrictEqual(failures, []);
+});
+
+test('finalize treats integrated verification nodes as closed while commit tasks stay verified', () => {
+  const failures = [];
+  checkGate('finalize', {
+    tasksDocs: [
+      doc('verified', { id: 'TASKS-001' }),
+      doc('integrated', { id: 'TASKS-002', execution_kind: 'verification' }),
+    ],
+    explain: explainDoc([compEntry()]),
   }, rels, failures, G16_CTX);
   assert.deepStrictEqual(failures, []);
 });
@@ -1992,4 +2014,34 @@ test('plan gate G19 rejects missing, self, duplicate, and cyclic dependencies', 
     /tasks\/00[12]\/tasks\.md$/.test(cycleHit.file),
     `cycle failure must carry a task path: ${cycleHit.file}`,
   );
+});
+
+test('plan gate accepts terminal verification fan-in and rejects source scope or commit successors', () => {
+  const verificationBody = READY_BODY.replace(
+    /## Touch[\s\S]*?## Do not touch/,
+    '## Touch\n- Source changes: none; record full CI evidence only.\n\n## Do not touch',
+  );
+  const valid = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001'),
+    planTaskDoc('002'),
+    planTaskDoc('003', {
+      execution_kind: 'verification', affected_paths: [], scope_evidence: undefined,
+      graph: undefined, depends_on: ['TASKS-001', 'TASKS-002'], parallel_safe: false,
+      dependency_gate: 'integrated', verify: 'node --test',
+    }, verificationBody),
+  ]), rels, valid);
+  assert.deepStrictEqual(valid.filter((f) => ['G4', 'G5', 'G20'].includes(f.code)), []);
+
+  const invalid = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001'),
+    planTaskDoc('002', {
+      execution_kind: 'verification', affected_paths: [], depends_on: ['TASKS-001'],
+      parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
+    }),
+    planTaskDoc('003', { depends_on: ['TASKS-002'] }),
+  ]), rels, invalid);
+  assert.ok(invalid.some((f) => f.code === 'G20' && /Touch/.test(f.message)));
+  assert.ok(invalid.some((f) => f.code === 'G20' && /commit task/.test(f.message)));
 });

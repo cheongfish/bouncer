@@ -14,6 +14,8 @@ import schema = require('./schema');
 const { SCALE_ENUM, DEFAULT_SCALE } = schema;
 import verification = require('./verification');
 const { runVerification } = verification;
+import config = require('./config');
+const { readVerifyPolicy } = config;
 import time = require('./time');
 const { nowIsoKst } = time;
 
@@ -138,8 +140,31 @@ function cmdScaffold(rest: string[], io: CliIo) {
         io.err(`scaffold: --id must be a zero-padded three-digit id (\\d{3}), got ${JSON.stringify(f.id)}\n`);
         return 2;
       }
+      const executionKind = f['execution-kind'] === undefined ? 'commit' : f['execution-kind'];
+      let dependsOn: string[] | undefined;
+      let verifyAllowlist: readonly string[] | undefined;
+      if (executionKind === 'verification') {
+        if (typeof f['depends-on'] !== 'string' || f['depends-on'].trim() === '') {
+          io.err('scaffold task: --depends-on is required for verification\n');
+          return 2;
+        }
+        // parseFlags는 한 플래그에 한 문자열만 보존한다. fan-in은 쉼표 구분으로
+        // 받아 argv 하나를 유지하고, 빈 원소는 library shape 검사가 거절한다.
+        dependsOn = f['depends-on'].split(',').map((entry) => entry.trim());
+        if (typeof f.verify !== 'string' || f.verify.trim() === '') {
+          io.err('scaffold task: --verify is required for verification\n');
+          return 2;
+        }
+        const policy = readVerifyPolicy(repoRoot);
+        if (policy.ok === false) {
+          io.err('scaffold task: verification config is invalid\n');
+          return 2;
+        }
+        verifyAllowlist = policy.allowlist;
+      }
       created = scaffoldTask({
         repoRoot, blueprintDir: f.blueprint, taskId: f.id, timestamp,
+        executionKind, dependsOn, verify: f.verify, verifyAllowlist,
       });
     } else if (kind === 'explain') {
       // explain은 id/name이 없다. blueprint만 없으면 라이브러리가 경로 throw를 낸다.
@@ -191,7 +216,8 @@ export = {
     run: cmdScaffold,
     usage: `  scaffold   epic --id <ddd> --name <slug> --description <text>
              blueprint --epic-dir <dir> --id <ddd> --name <slug> [--scale light|full]
-             task --blueprint <dir> --id <ddd>
+             task --blueprint <dir> --id <ddd> [--execution-kind commit|verification]
+                  [--depends-on TASKS-NNN[,TASKS-NNN...]] [--verify <command>]
              explain --blueprint <dir>
              context-review --blueprint <dir>
              Create a document set with correct frontmatter.

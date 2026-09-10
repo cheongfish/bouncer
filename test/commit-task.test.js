@@ -189,6 +189,24 @@ test('dry-run returns commitMessage without staging', () => {
   assert.deepStrictEqual(res.staged, ['src/auth/login.ts']);
 });
 
+test('verification tasks are rejected by both commitTask and the shared commit guard', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const taskPath = path.join(repo, BP_REL, 'tasks/001/tasks.md');
+  fs.writeFileSync(taskPath, fs.readFileSync(taskPath, 'utf8').replace(
+    /^ {2}status: verified$/m,
+    '  status: verified\n  execution_kind: verification',
+  ));
+  const g = trackingGit([], []);
+  assert.deepStrictEqual(commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api }), {
+    ok: false, reason: 'verification-task-no-commit',
+  });
+  assert.deepStrictEqual(checkCommitSafety({ files: [], executionKind: 'verification' }), {
+    allow: false, code: 'verification-task-no-commit', violations: [],
+  });
+  assert.deepStrictEqual(g.calls, []);
+});
+
 test('task dry-run builds authored intent and summary in order', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);

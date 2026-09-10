@@ -71,6 +71,13 @@ edits harness-owned frontmatter fields. Used from `/bouncer-plan` or
        계획에서는 명시적으로 작성한다(scaffold 기본값 중 `depends_on`의
        `[]`와 `parallel_safe`의 `false`만 자리표시자다). 알 수 없는 id·자기
        참조·중복·cycle은 plan gate G19가, 잘못된 shape·enum은 S28이 거절한다.
+     - **execution_kind**: 신규 구현 task는 `commit`을 명시한다. 전체 CI fan-in
+       node만 `verification`으로 쓰고, non-empty `depends_on`,
+       `parallel_safe: false`, `dependency_gate: integrated`, 실행 가능한 `verify`,
+       빈 `affected_paths`를 함께 둔다. Touch에는 source 변경 경로를 쓰지 않는다.
+       public scaffold는 `bouncer scaffold task --execution-kind verification
+       --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>`로 호출하며
+       생성되는 두 문서는 `tasks.md`와 `verification.md`뿐이다.
      - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
        다시 열거하지 않고 절차만 담는다.
      - **Interface**: state what the change provides *and* what it rejects.

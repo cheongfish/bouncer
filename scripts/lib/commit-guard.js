@@ -14,6 +14,7 @@ const { makeAllowed, isRuntimeArtifact } = scope;
  *   null/undefined는 빈 목록으로 취급한다.
  * @param {unknown} [opts.affectedPaths] - 활성 task의 `affected_paths`
  * @param {unknown} [opts.blueprintDir] - blueprint 상대 경로(번들 문서 예외용)
+ * @param {unknown} [opts.executionKind] - verification이면 commit 흐름 자체를 거절
  * @param {object} [opts.coordinator] - `scope.coordinatorContext` 결과.
  *   `active`면 ledger의 현재 scope가 승인된 `affected_paths`를 대신하고,
  *   `reason`이 있으면 worktree·revision 경계 위반이므로 범위 판정 전에 거절한다.
@@ -24,8 +25,13 @@ const { makeAllowed, isRuntimeArtifact } = scope;
  *   runtime artifact(`isRuntimeArtifact`)는 위반으로 치지 않는다 —
  *   `makeAllowed` 예외와 함께 이 모듈이 소유한다.
  */
-function checkCommitSafety({ files, affectedPaths, blueprintDir, coordinator }) {
+function checkCommitSafety({ files, affectedPaths, blueprintDir, coordinator, executionKind }) {
     const candidates = (files || []).filter((f) => !isRuntimeArtifact(f));
+    // verification node는 빈 scope를 이용해 "변경 없음" commit으로 들어가는 것도
+    // 금지한다. 파일 수와 무관하게 종류 자체가 commit 권한을 갖지 않는다.
+    if (executionKind === 'verification') {
+        return { allow: false, code: 'verification-task-no-commit', violations: candidates };
+    }
     const active = Boolean(coordinator && coordinator.active);
     // worktree 경계와 revision 불일치는 범위 계산 이전의 거절이다. 여기서
     // scope로 다시 판정하면 main worktree 커밋이 "범위 안"으로 통과한다.

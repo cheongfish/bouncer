@@ -9,6 +9,7 @@ import render = require('./render');
 const { renderDoc } = render;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
+const { taskExecutionKind } = tasksDocs;
 import validate = require('./validate');
 const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = validate;
 import finalize = require('./finalize');
@@ -139,12 +140,19 @@ function commitTask({
   // 게이트·범위 실패는 반환값. git I/O 예외는 finalize와 같이 그대로 올린다.
   const gitApi = git || realGit(repoRoot);
 
-  const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'commit' });
-  if (!v.ok) return { ok: false, reason: 'validate', failures: v.failures };
-
   const { docs } = loadBlueprintDocs({ repoRoot, blueprintDir });
   // 포인터 → 번호 순 첫 묶음. 새 해석기를 두지 않는다 (019/020 폴백).
   const taskUnit = resolveTaskUnit(docs, { repoRoot, blueprintDir });
+  const executionKind = taskUnit && taskUnit.tasks
+    ? taskExecutionKind(taskUnit.tasks.data)
+    : null;
+  // verification node에는 reviewable commit이 없으므로 commit gate까지 보내
+  // G6/G8 오류로 위장하지 않고 실행 종류 경계에서 즉시 거절한다.
+  if (executionKind === 'verification') {
+    return { ok: false, reason: 'verification-task-no-commit' };
+  }
+  const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'commit' });
+  if (!v.ok) return { ok: false, reason: 'validate', failures: v.failures };
   // 커밋 단위는 task 하나 — 첫 docs.tasks 호환 필드가 아니라 대상 묶음의 경로.
   const affectedPaths = taskUnit && taskUnit.tasks && taskUnit.tasks.data
     && (taskUnit.tasks.data as Record<string, unknown>).bouncer
@@ -165,7 +173,7 @@ function commitTask({
   // 커밋 직전에는 task 산출물만 남긴다. 존재 확인은 staging 필터의 책임이다.
   const candidates = [...new Set([...changed, ...untracked])];
   const { allow, violations, code } = checkCommitSafety({
-    files: candidates, affectedPaths, blueprintDir, coordinator,
+    files: candidates, affectedPaths, blueprintDir, coordinator, executionKind,
   });
   if (!allow) return { ok: false, reason: code || 'out-of-scope', violations };
 

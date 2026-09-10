@@ -7,11 +7,18 @@ const { coordinatorPathsFor, runtimePaths } = runtime;
 import seed = require('./seed-worktree');
 const { seedCoordinatorWorker } = seed;
 import frontmatter = require('./frontmatter');
-const { parseFrontmatter } = frontmatter;
+const { parseFrontmatter, readDoc } = frontmatter;
+import render = require('./render');
+const { renderDoc } = render;
+import schema = require('./schema');
+const { executionKindOf } = schema;
+import tasksDocs = require('./tasks-docs');
+const { listTasksDocs } = tasksDocs;
 
 type Task = {
   id: string; depends_on?: string[]; dependency_gate?: string; parallel_safe?: boolean;
-  status?: string; workerPath?: string; sha?: string; decisions?: unknown[];
+  execution_kind?: 'commit' | 'verification'; status?: string; workerPath?: string; sha?: string;
+  decisions?: unknown[];
 };
 type Ledger = {
   version: 1; blueprint: string; base: string; integrationHead?: string; tasks: Task[];
@@ -20,6 +27,9 @@ type Ledger = {
 type Exec = (file: string, args?: readonly string[], options?: {
   cwd?: unknown; encoding?: unknown; stdio?: unknown;
 }) => string | Buffer;
+type VerificationRunner = (opts: { repoRoot: string; blueprintDir: string }) => {
+  ok: boolean; command: string; exitCode: number;
+};
 
 function readyWave(tasks: Task[]): string[] {
   const ready = tasks.filter((task) => (task.status || 'pending') === 'pending'
@@ -33,10 +43,19 @@ function readyWave(tasks: Task[]): string[] {
   return sequential ? [sequential.id] : ready.map((task) => task.id);
 }
 
-function transition(from: string, to: string): string {
-  const allowed: Record<string, string[]> = {
-    pending: ['ready'], ready: ['prepared'], prepared: ['recorded'], recorded: ['integrated'],
-  };
+/**
+ * 실행 종류별 coordinator 상태 전이를 검증한다. verification은 worker·SHA를
+ * 만들지 않으므로 commit 전이와 교차할 수 없다.
+ *
+ * @param {string} from - 현재 ledger 상태
+ * @param {string} to - 요청한 다음 상태
+ * @param {'commit' | 'verification'} [executionKind] - 부재면 기존 commit 전이
+ * @returns {string} 허용된 다음 상태
+ */
+function transition(from: string, to: string, executionKind: 'commit' | 'verification' = 'commit'): string {
+  const allowed: Record<string, string[]> = executionKind === 'verification'
+    ? { pending: ['ready'], ready: ['verifying'], verifying: ['integrated'] }
+    : { pending: ['ready'], ready: ['prepared'], prepared: ['recorded'], recorded: ['integrated'] };
   if (!(allowed[from] || []).includes(to)) throw new Error(`illegal state transition: ${from} -> ${to}`);
   return to;
 }
@@ -76,10 +95,10 @@ function workerOwnsSha(exec: Exec, workerPath: string, sha: string): boolean {
 }
 
 function taskList(repoRoot: string, blueprint: string): Task[] {
-  const dir = path.join(repoRoot, blueprint, 'tasks');
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((id: string) => /^\d{3}$/.test(id)).sort().map((id: string) => {
-    const file = path.join(dir, id, 'tasks.md');
+  const listing = listTasksDocs({ repoRoot, blueprintDir: blueprint });
+  return listing.entries.map((entry) => {
+    const id = String(entry.number).padStart(3, '0');
+    const file = path.join(repoRoot, entry.tasks.rel);
     const source = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
     const data = parseFrontmatter(source).data as {
       bouncer?: { depends_on?: unknown; dependency_gate?: unknown; parallel_safe?: unknown };
@@ -89,10 +108,72 @@ function taskList(repoRoot: string, blueprint: string): Task[] {
     const depends_on = rawDependencies.map((value) => String(value).replace(/^TASKS-/, '')).filter((value) => /^\d{3}$/.test(value));
     // task metadata의 정본은 bouncer 아래다. absence를 병렬 허용으로 바꾸면
     // 오래된 문서가 의도치 않게 같은 wave로 열리므로 명시 true만 허용한다.
-    return { id, depends_on,
+    const execution_kind = entry.executionKind || executionKindOf(bouncer) || 'commit';
+    return { id, depends_on, execution_kind,
       dependency_gate: typeof bouncer.dependency_gate === 'string' ? bouncer.dependency_gate : 'integrated',
       parallel_safe: bouncer.parallel_safe === true, status: 'pending' };
   });
+}
+
+/**
+ * integration checkout에 terminal node의 문서와 검증 정책을 준비한다.
+ * worker 전체 blueprint seed와 달리 아직 실행되지 않은 해당 bundle만 덮어써,
+ * 이미 fan-in된 predecessor 증적을 되돌리지 않는다. config는 destination이
+ * 없을 때만 복사해 integration checkout의 기존 정책을 보존한다.
+ *
+ * @param {string} repoRoot - 승인된 plan 문서가 있는 기준 checkout
+ * @param {string} integrationPath - 검증을 실행할 integration checkout
+ * @param {string} blueprint - blueprint 저장소 상대 경로
+ * @param {string} taskId - 세 자리 terminal task 번호
+ * @returns {{ ok: true } | { ok: false; reason: string; message?: string }} 준비 결과
+ */
+function seedVerificationNode(
+  repoRoot: string,
+  integrationPath: string,
+  blueprint: string,
+  taskId: string,
+): { ok: true } | { ok: false; reason: string; message?: string } {
+  const rel = path.join(blueprint, 'tasks', taskId);
+  const source = path.join(repoRoot, rel);
+  if (!fs.existsSync(source)) return { ok: false, reason: 'missing-verification-bundle' };
+  try {
+    fs.mkdirSync(path.dirname(path.join(integrationPath, rel)), { recursive: true });
+    fs.cpSync(source, path.join(integrationPath, rel), { recursive: true, force: true });
+    const configRel = path.join('.bouncer', 'config.json');
+    const sourceConfig = path.join(repoRoot, configRel);
+    const targetConfig = path.join(integrationPath, configRel);
+    if (!fs.existsSync(targetConfig) && fs.existsSync(sourceConfig)) {
+      fs.mkdirSync(path.dirname(targetConfig), { recursive: true });
+      fs.copyFileSync(sourceConfig, targetConfig);
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: 'copy-failed', message: (error as Error).message };
+  }
+}
+
+/**
+ * verification task 문서 상태를 runner 증적과 같은 checkout에 기록한다.
+ * 실패 실행은 verifying을 유지하고 성공만 integrated로 올린다.
+ *
+ * @param {string} integrationPath - integration checkout 절대 경로
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task 번호
+ * @param {'verifying' | 'integrated'} status - 기록할 lifecycle 상태
+ * @returns {void}
+ */
+function writeVerificationTaskStatus(
+  integrationPath: string,
+  blueprint: string,
+  taskId: string,
+  status: 'verifying' | 'integrated',
+): void {
+  const file = path.join(integrationPath, blueprint, 'tasks', taskId, 'tasks.md');
+  const doc = readDoc(file);
+  const data = doc.data as Record<string, unknown>;
+  const bouncer = data.bouncer as Record<string, unknown>;
+  bouncer.status = status;
+  fs.writeFileSync(file, renderDoc(data, doc.body));
 }
 
 function registeredWorker(exec: Exec, integrationPath: string, workerPath: string): boolean {
@@ -135,7 +216,7 @@ function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, 
 
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision, deps = {} }: {
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
-  deps?: { execFileSync?: Exec };
+  deps?: { execFileSync?: Exec; runVerification?: VerificationRunner };
 }) {
   const exec = deps.execFileSync || realExecFileSync as unknown as Exec;
   const main = runtimePaths({ repoRoot, execFileSync: exec });
@@ -184,6 +265,13 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
     const ready = readyWave(ledger.tasks);
     for (const id of ready) {
+      const item = ledger.tasks.find((x) => x.id === id) as Task;
+      if (item.execution_kind === 'verification') {
+        const seeded = seedVerificationNode(repoRoot, integration.integrationPath, blueprint, id);
+        if (!seeded.ok) return seeded;
+        item.status = transition(item.status || 'pending', 'ready', 'verification');
+        continue;
+      }
       const worker = coordinatorPathsFor({ repoRoot, blueprint, task: id }).workerPath as string;
       if (!fs.existsSync(worker)) {
         fs.mkdirSync(path.dirname(worker), { recursive: true });
@@ -197,7 +285,6 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       }
       const seeded = seedCoordinatorWorker({ repoRoot, blueprintDir: blueprint, worktreePath: worker });
       if (!seeded.ok) return seeded;
-      const item = ledger.tasks.find((x) => x.id === id) as Task;
       item.status = transition(item.status || 'pending', 'ready');
       item.status = transition(item.status, 'prepared');
       item.workerPath = worker;
@@ -233,6 +320,25 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   }
   if (command === 'integrate') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
+    if (item.execution_kind === 'verification') {
+      if (item.status !== 'ready') return { ok: false, reason: 'not-ready' };
+      item.status = transition('ready', 'verifying', 'verification');
+      writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'verifying');
+      atomicWrite(integration.ledgerFile, ledger);
+      // 실패 증적도 verification.md에 남겨야 하므로 runner 결과를 먼저 기록한다.
+      // 성공한 경우에만 integrated로 올려 실패 CI가 fan-in 완료로 보이지 않게 한다.
+      // verification → current → coordinator 순환을 피하려고 실제 실행 직전에만
+      // runner를 로드한다. 테스트 주입도 같은 최소 계약을 따른다.
+      const runner = deps.runVerification
+        || (require('./verification').runVerification as VerificationRunner);
+      const result = runner({ repoRoot: integration.integrationPath, blueprintDir: blueprint });
+      if (!result.ok) return { ok: false, reason: 'verification-failed', task: item, verification: result };
+      item.status = transition('verifying', 'integrated', 'verification');
+      writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'integrated');
+      atomicWrite(integration.ledgerFile, ledger);
+      return { ok: true, command, task: item, verification: result,
+        ready: readyWave(ledger.tasks), decisions: ledger.decisions };
+    }
     if (item.status !== 'recorded' || !item.sha) return { ok: false, reason: 'not-recorded' };
     const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
     // fan-in도 worker SHA를 읽고 ledger를 갱신하는 write 경계다. record 이후의
