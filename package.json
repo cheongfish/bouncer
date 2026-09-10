@@ -12,6 +12,7 @@
     "scripts/bouncer-root",
     "scripts/lib/",
     "scripts/vendor/",
+    "resources/",
     "skills/",
     ".agents/plugins/marketplace.json",
     ".claude-plugin/marketplace.json",

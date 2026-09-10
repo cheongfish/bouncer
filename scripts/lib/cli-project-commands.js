@@ -8,7 +8,7 @@ const { nowIsoKst } = time;
 const sessionGraph = require("./session-graph");
 const { syncSessionGraphs } = sessionGraph;
 const graphify = require("./graphify");
-const { resolveGraphifyBin } = graphify;
+const { resolveGraphifyBin, checkGraphifyCompatibility } = graphify;
 const migrateTaskLayoutMod = require("./migrate-task-layout");
 const { migrateTaskLayout } = migrateTaskLayoutMod;
 const runtimeState = require("./runtime-state");
@@ -264,11 +264,20 @@ function cmdInit(rest, io) {
     // CLI 기본은 설치 on — 라이브러리 init() 기본(install:false)과 의도적으로 다르다.
     // 테스트·프로그래밍 호출이 네트워크 pip을 타지 않게 라이브러리는 opt-in.
     const install = f['no-graphify'] !== true;
+    const repoRoot = (f.repo || process.cwd());
     const result = init({
-        repoRoot: (f.repo || process.cwd()),
+        repoRoot,
         timestamp,
-        graphify: { install },
+        graphify: {
+            install,
+            // --upgrade-graphify만 이 rebuild를 탄다. 기본 sync는 mtime skip-fresh라
+            // 패키지 schema만 바뀐 승격이 옛 graph.json을 stamp하는 것으로 끝난다.
+            // force여도 skip-version-incompatible·skip-graph-disabled 등은 failed[]
+            // 없이 돌아온다. 그 경우를 성공으로 치면 안 되는 검사는 upgradeGraphify가 한다.
+            rebuild: () => syncSessionGraphs({ repoRoot, force: true }),
+        },
         promote: f['promote-graphify'] === true,
+        upgradeGraphify: f['upgrade-graphify'] === true,
         writeGitignore: f['write-gitignore'] === true,
         seedCodexAgents: f['seed-codex-agents'] === true,
     });
@@ -440,6 +449,21 @@ function cmdContextSearch(rest, io) {
         return 2;
     }
     const repoRoot = (parsed.repo || process.cwd());
+    const compat = checkGraphifyCompatibility({ repoRoot });
+    if (compat.status === 'version-incompatible') {
+        // 설치를 고치지 않고 상태만 돌려 준다. 후보를 꾸며 내지 않는다.
+        io.out(`${JSON.stringify({
+            query_id: `${parsed.mode}:incompatible`,
+            terms: [],
+            seed: parsed.query,
+            raw_node_count: 0,
+            eligible_document_count: 0,
+            candidates: [],
+            status: 'version-incompatible',
+            compatibility: { reasons: compat.reasons, warnings: compat.warnings },
+        }, null, 2)}\n`);
+        return 0;
+    }
     const result = contextSearch({
         repoRoot,
         mode: parsed.mode,
@@ -495,7 +519,7 @@ function cmdMigrate(rest, io) {
 module.exports = {
     init: {
         run: cmdInit,
-        usage: `  init       Bootstrap .bouncer/ for this project. Never overwrites.
+        usage: `  init       [--upgrade-graphify] Bootstrap .bouncer/ for this project. Never overwrites.
 `,
     },
     'graph-sync': {

@@ -6,6 +6,11 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { init, inspectBootstrap, SOURCE_DIR_CANDIDATES } = require('../scripts/lib/init');
+const {
+  setupGraphify,
+  readGraphifyLock,
+  GRAPHIFY_LOCK_REL,
+} = require('../scripts/lib/graphify');
 const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
 const { TEMPLATES } = require('../scripts/lib/templates');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
@@ -827,6 +832,104 @@ test('ready init seeds missing Codex toml without touching Distill reason', () =
   assert.strictEqual(again.reason, 'codex-agents-seeded');
   assert.ok(again.created.includes('.codex/agents/bouncer-reviewer.toml'));
   assert.ok(!again.created.includes('.bouncer/Distill.md'));
+});
+
+test('init first install writes a graphify lock from the exact install spec', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    graphify: {
+      install: true,
+      setup: ({ repoRoot: root }) => setupGraphify({
+        repoRoot: root,
+        platform: 'linux',
+        now: () => '2026-07-01T00:00:00.000+09:00',
+        exec: (file, args = []) => {
+          if (args[0] === '--version') return '0.9.56\n';
+          if (args[0] === 'show') return 'Version: 0.9.56\n';
+          return '';
+        },
+      }),
+    },
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.graphifyInstall.status, 'installed');
+  const lock = readGraphifyLock({ repoRoot: repo });
+  assert.strictEqual(lock.ok, true);
+  assert.strictEqual(lock.value.package, 'graphifyy');
+  assert.strictEqual(lock.value.cli_version, '0.9.56');
+  assert.strictEqual(lock.value.package_version, '0.9.56');
+});
+
+test('ready init reuses an existing lock and reports upgrade available', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const lockPath = path.join(repo, GRAPHIFY_LOCK_REL);
+  const stale = {
+    schema_version: 1,
+    package: 'graphifyy',
+    package_version: '0.8.0',
+    cli_version: '0.8.0',
+    bouncer_version: '1.0.0',
+    graph_schema_version: '0',
+    installed_at: '2026-01-01T00:00:00.000+09:00',
+  };
+  fs.writeFileSync(lockPath, `${JSON.stringify(stale, null, 2)}\n`);
+  const before = fs.readFileSync(lockPath);
+  let upgraded = 0;
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    graphify: {
+      upgrade: () => {
+        upgraded += 1;
+        return { status: 'upgraded', bin: null };
+      },
+    },
+  });
+  assert.strictEqual(res.reason, 'already-initialized');
+  assert.strictEqual(res.graphifyUpgradeAvailable, true);
+  assert.strictEqual(upgraded, 0);
+  assert.deepStrictEqual(fs.readFileSync(lockPath), before);
+});
+
+test('ready init --upgrade-graphify calls upgrade and does not keep a stale lock', () => {
+  const repo = tmpRepo();
+  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const lockPath = path.join(repo, GRAPHIFY_LOCK_REL);
+  fs.writeFileSync(lockPath, `${JSON.stringify({
+    schema_version: 1,
+    package: 'graphifyy',
+    package_version: '0.8.0',
+    cli_version: '0.8.0',
+    bouncer_version: '1.0.0',
+    graph_schema_version: '0',
+    installed_at: '2026-01-01T00:00:00.000+09:00',
+  }, null, 2)}\n`);
+  const res = init({
+    repoRoot: repo,
+    timestamp: '2026-07-01T00:00:00.000Z',
+    upgradeGraphify: true,
+    graphify: {
+      upgrade: ({ repoRoot: root }) => {
+        fs.writeFileSync(path.join(root, GRAPHIFY_LOCK_REL), `${JSON.stringify({
+          schema_version: 1,
+          package: 'graphifyy',
+          package_version: '0.9.56',
+          cli_version: '0.9.56',
+          bouncer_version: '1.4.2',
+          graph_schema_version: '1',
+          installed_at: '2026-09-10T00:00:00.000+09:00',
+        }, null, 2)}\n`);
+        return { status: 'upgraded', bin: '/abs/graphify' };
+      },
+    },
+  });
+  assert.strictEqual(res.graphifyUpgrade.status, 'upgraded');
+  const lock = JSON.parse(read(repo, GRAPHIFY_LOCK_REL));
+  assert.strictEqual(lock.cli_version, '0.9.56');
 });
 
 test('ready init does not recreate .codex/ after it is removed', () => {

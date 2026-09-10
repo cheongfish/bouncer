@@ -43,6 +43,16 @@ function seedDistill(repo) {
   fs.writeFileSync(path.join(repo, '.bouncer', 'config.json'), `${JSON.stringify({
     distill: { routing_enabled: true },
   })}\n`);
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin.json'), 'utf8'));
+  fs.writeFileSync(path.join(repo, '.bouncer', 'graphify.lock.json'), `${JSON.stringify({
+    schema_version: 1,
+    package: 'graphifyy',
+    package_version: '0.9.56',
+    cli_version: '0.9.56',
+    bouncer_version: pkg.version,
+    graph_schema_version: '1',
+    installed_at: '2026-01-01T00:00:00.000+09:00',
+  }, null, 2)}\n`);
   const writeShard = (id, metadata, body) => {
     fs.writeFileSync(path.join(repo, '.bouncer', 'distill', `${id}.md`), [
       '---',
@@ -550,3 +560,92 @@ test('distill --preflight warns on stderr when no always shard exists', () => {
   assert.strictEqual(payload.audit.shards.length, 3);
   assert.strictEqual(result.err, 'distill: preflight selected no always shard\n');
 });
+
+test('init --upgrade-graphify exposes the upgrade payload', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-upgrade-'));
+  execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+  const first = capture(['init', '--repo', repo, '--no-graphify']);
+  assert.strictEqual(first.code, 0);
+  const lockPath = path.join(repo, '.bouncer', 'graphify.lock.json');
+  const stale = {
+    schema_version: 1,
+    package: 'graphifyy',
+    package_version: '0.8.0',
+    cli_version: '0.8.0',
+    bouncer_version: '1.0.0',
+    graph_schema_version: '0',
+    installed_at: '2026-01-01T00:00:00.000+09:00',
+  };
+  fs.writeFileSync(lockPath, `${JSON.stringify(stale, null, 2)}\n`);
+  const available = capture(['init', '--repo', repo, '--no-graphify']);
+  assert.strictEqual(available.code, 0);
+  assert.strictEqual(JSON.parse(available.out).graphifyUpgradeAvailable, true);
+
+  const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  const lockDir = path.join(path.resolve(repo, commonDir), 'bouncer');
+  fs.mkdirSync(lockDir, { recursive: true });
+  fs.writeFileSync(path.join(lockDir, 'upgrade.lock'), 'held');
+  const before = fs.readFileSync(lockPath);
+  const upgrade = capture(['init', '--repo', repo, '--upgrade-graphify']);
+  const payload = JSON.parse(upgrade.out);
+  assert.ok(payload.graphifyUpgrade);
+  assert.strictEqual(payload.graphifyUpgrade.status, 'failed');
+  assert.deepStrictEqual(fs.readFileSync(lockPath), before);
+});
+
+test('init help names --upgrade-graphify', () => {
+  const result = capture(['help']);
+  assert.strictEqual(result.code, 0);
+  assert.match(result.out, /upgrade-graphify/);
+});
+
+test('graph-sync records version-incompatible without installing', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-sync-incompat-'));
+  execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+  assert.strictEqual(capture(['init', '--repo', repo, '--no-graphify']).code, 0);
+  const binRel = 'tools/graphify';
+  fs.mkdirSync(path.join(repo, 'tools'));
+  fs.writeFileSync(path.join(repo, binRel), '');
+  const cfgPath = path.join(repo, '.bouncer', 'config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.graphify = { ...(cfg.graphify || {}), enabled: true, bin: binRel };
+  fs.writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
+  fs.writeFileSync(path.join(repo, '.bouncer', 'graphify.lock.json'), `${JSON.stringify({
+    schema_version: 1,
+    package: 'graphifyy',
+    package_version: '0.8.0',
+    cli_version: '0.8.0',
+    bouncer_version: '1.0.0',
+    graph_schema_version: '0',
+    installed_at: '2026-01-01T00:00:00.000+09:00',
+  }, null, 2)}\n`);
+  const result = capture(['graph-sync', '--repo', repo]);
+  const payload = JSON.parse(result.out);
+  assert.strictEqual(payload.status, 'version-incompatible');
+  assert.strictEqual(payload.action, 'skip-version-incompatible');
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
+});
+
+test('context-search records version-incompatible without installing', () => {
+  const repo = fixture();
+  fs.writeFileSync(path.join(repo, '.bouncer', 'graphify.lock.json'), `${JSON.stringify({
+    schema_version: 1,
+    package: 'graphifyy',
+    package_version: '0.8.0',
+    cli_version: '0.8.0',
+    bouncer_version: '1.0.0',
+    graph_schema_version: '0',
+    installed_at: '2026-01-01T00:00:00.000+09:00',
+  }, null, 2)}\n`);
+  const result = capture([
+    'context-search', '--repo', repo, '--mode', 'decision', '--query', 'epic-060',
+  ]);
+  assert.strictEqual(result.code, 0);
+  const payload = JSON.parse(result.out);
+  assert.strictEqual(payload.status, 'version-incompatible');
+  assert.deepStrictEqual(payload.candidates, []);
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
+});
+

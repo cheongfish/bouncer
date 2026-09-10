@@ -13,7 +13,7 @@ const { PROJECT_DISTILL_BODY } = templates;
 const time = require("./time");
 const { nowIsoKst } = time;
 const graphify = require("./graphify");
-const { setupGraphify } = graphify;
+const { setupGraphify, upgradeGraphify, readGraphifyLock, loadCompatManifest, } = graphify;
 const config = require("./config");
 const { readConfig, DEFAULT_DISTILL_CONFIG, DEFAULT_VERIFY_ALLOWLIST, } = config;
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
@@ -312,7 +312,17 @@ function inspectBootstrap({ repoRoot }) {
         return 'ready';
     return 'partial';
 }
-function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCodexAgents, } = {}) {
+function lockNeedsUpgrade(repoRoot) {
+    const lock = readGraphifyLock({ repoRoot });
+    const manifest = loadCompatManifest();
+    if (!lock.ok || !manifest.ok)
+        return false;
+    const expectedPkg = String(manifest.value.install_spec).split('==')[1] || '';
+    return lock.value.cli_version !== manifest.value.cli_version
+        || lock.value.graph_schema_version !== manifest.value.graph_schema_version
+        || (expectedPkg !== '' && lock.value.package_version !== expectedPkg);
+}
+function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCodexAgents, upgradeGraphify: wantUpgradeGraphify, } = {}) {
     const bootstrap = inspectBootstrap({ repoRoot });
     // partial/legacy는 설치·승격·gitignore 쓰기를 시도하지 않는다 — 기존 반환 유지.
     if (bootstrap === 'legacy') {
@@ -328,6 +338,10 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCode
     const setup = (graphify && typeof graphify.setup === 'function')
         ? graphify.setup
         : setupGraphify;
+    const upgrade = (graphify && typeof graphify.upgrade === 'function')
+        ? graphify.upgrade
+        : upgradeGraphify;
+    const wantUpgrade = wantUpgradeGraphify === true;
     const wantPromote = promote === true;
     const wantWriteGitignore = writeGitignore === true;
     const wantSeedCodex = shouldEnsureCodexAgents(repoRoot, seedCodexAgents === true);
@@ -356,7 +370,20 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCode
         const alreadyEnabled = graphifyEnabledIsTrue(existing);
         let graphifyPromotion;
         let graphifyInstall;
+        let graphifyUpgrade;
+        let graphifyUpgradeAvailable;
+        if (wantUpgrade) {
+            // 명시적 flag만 공유 venv와 graph를 바꾼다. 일반 재실행은 lock을 보존한다.
+            graphifyUpgrade = upgrade({
+                repoRoot,
+                rebuild: graphify && graphify.rebuild,
+            });
+        }
+        else if (lockNeedsUpgrade(repoRoot)) {
+            graphifyUpgradeAvailable = true;
+        }
         // enabled가 이미 true면 승격 경로 자체가 없다 — config를 건드리지 않는다.
+        // --upgrade-graphify는 위 분기에서 이미 처리했다.
         if (!alreadyEnabled) {
             if (!wantPromote) {
                 // --promote-graphify 없이 기존 config가 바뀌는 경로는 없다.
@@ -405,13 +432,35 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCode
             ...(distillSeeded ? { distillSeeded: true } : {}),
             ...(graphifyPromotion ? { graphifyPromotion } : {}),
             ...(graphifyInstall ? { graphifyInstall } : {}),
+            ...(graphifyUpgrade ? { graphifyUpgrade } : {}),
+            ...(graphifyUpgradeAvailable ? { graphifyUpgradeAvailable: true } : {}),
         };
     }
     // 신규 부트스트랩
     const created = [];
     const config = defaultConfig(repoRoot);
     let graphifyInstall;
-    if (wantInstall) {
+    let graphifyUpgrade;
+    if (wantUpgrade) {
+        graphifyUpgrade = upgrade({
+            repoRoot,
+            rebuild: graphify && graphify.rebuild,
+        });
+        if (graphifyUpgrade
+            && (graphifyUpgrade.status === 'upgraded' || graphifyUpgrade.status === 'installed')
+            && typeof graphifyUpgrade.bin === 'string'
+            && graphifyUpgrade.bin) {
+            config.graphify = {
+                ...config.graphify,
+                enabled: true,
+                bin: graphifyUpgrade.bin,
+            };
+        }
+        else if (graphifyUpgrade && graphifyUpgrade.status === 'failed') {
+            config.graphify = { ...config.graphify, enabled: false };
+        }
+    }
+    else if (wantInstall) {
         graphifyInstall = setup({ repoRoot });
         if (graphifyInstall
             && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
@@ -444,6 +493,7 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCode
         gitignoreSuggestions: suggestions,
         gitignoreWritten,
         ...(graphifyInstall ? { graphifyInstall } : {}),
+        ...(graphifyUpgrade ? { graphifyUpgrade } : {}),
         ...(config.source_dirs.length === 0 ? { sourceDirsUnresolved: true } : {}),
         ...(!Object.prototype.hasOwnProperty.call(config, 'base_branch')
             ? { baseBranchUnresolved: true } : {}),

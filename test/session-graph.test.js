@@ -12,12 +12,17 @@ const {
   SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT, DEFAULT_TEST_OUT,
 } = require('../scripts/lib/session-graph');
 
+function compatible() {
+  return { status: 'compatible', warnings: [], reasons: [] };
+}
+
 function base(over) {
   return {
     inspectBootstrap: () => 'ready',
     init: () => ({ ok: true, created: [], skipped: true, reason: 'already-initialized' }),
     graphifyEnabled: () => true,
     hasGraphify: () => true,
+    checkCompatibility: compatible,
     sourceDirs: () => ['src', 'test'],
     contextDirs: () => ['.bouncer/context'],
     existingDirs: (dirs) => dirs,
@@ -140,6 +145,34 @@ test('skips when graphify is not on PATH', () => {
 
 test('skips when both graphs are fresher than their source dirs', () => {
   assert.strictEqual(plan({ newestMtime: () => 100, graphMtime: () => 200 }).action, 'skip-fresh');
+});
+
+test('force rebuild plans all present graphs even when mtimes are fresh', () => {
+  const result = planSessionGraph({
+    repoRoot: '/r',
+    deps: base({ newestMtime: () => 100, graphMtime: () => 200, testDirs: () => ['test'] }),
+    force: true,
+  });
+  assert.strictEqual(result.action, 'build');
+  const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g.action]));
+  assert.strictEqual(byName.source, 'build');
+  assert.strictEqual(byName.test, 'build');
+  assert.strictEqual(byName.context, 'build');
+});
+
+test('syncSessionGraphs force rebuilds fresh source test and context graphs', () => {
+  const ran = [];
+  const result = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({ newestMtime: () => 100, graphMtime: () => 200, testDirs: () => ['test'] }),
+    force: true,
+    execGraphify: (graph) => {
+      ran.push(graph.name);
+    },
+  });
+  assert.deepStrictEqual(ran, ['source', 'test', 'context']);
+  assert.deepStrictEqual(result.built, ['source', 'test', 'context']);
+  assert.deepStrictEqual(result.failed, []);
 });
 
 test('builds only the stale graph when the other is fresh', () => {
@@ -463,6 +496,7 @@ test('source rebuilds when config exclude_dirs is newer than graph', () => {
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       sourceDirs: () => ['src'],
       contextDirs: () => [],
       testDirs: () => null,
@@ -674,6 +708,7 @@ test('invalid graphify.test_dirs is skipped with a diagnostic reason', () => {
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       graphMtime: () => 300,
       newestMtime: () => 100,
     },
@@ -704,6 +739,7 @@ test('invalid graphify.exclude_dirs is not applied and reports a skip reason', (
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       graphMtime: () => 300,
       newestMtime: () => 100,
     },
@@ -784,6 +820,7 @@ test('Distill.md mtime alone marks context graph stale', () => {
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       sourceDirs: () => [],
       contextDirs: () => ['.bouncer/context'],
     },
@@ -813,6 +850,7 @@ test('empty context digest skips graphify, keeps prior graph, settles freshness'
     inspectBootstrap: () => 'ready',
     graphifyEnabled: () => true,
     hasGraphify: () => true,
+    checkCompatibility: compatible,
     sourceDirs: () => [],
     contextDirs: () => ['.bouncer/context'],
   };
@@ -838,6 +876,7 @@ test('empty context digest without prior graph is not reported as built', () => 
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       sourceDirs: () => [],
       contextDirs: () => ['.bouncer/context'],
     },
@@ -879,3 +918,39 @@ test('SessionStart reports legacy state with corrective command and exits zero',
   assert.match(result.stderr, /\/bouncer-init/);
   assert.strictEqual(result.stdout, '');
 });
+
+test('incompatible graphify versions skip SessionStart build without installing', () => {
+  const pipCalls = [];
+  const built = [];
+  const result = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({
+      checkCompatibility: () => ({
+        status: 'version-incompatible',
+        reasons: ['cli mismatch'],
+        warnings: [],
+      }),
+    }),
+    execGraphify: (graph) => {
+      built.push(graph.name);
+    },
+  });
+  assert.strictEqual(result.action, 'skip-version-incompatible');
+  assert.strictEqual(result.status, 'version-incompatible');
+  assert.deepStrictEqual(built, []);
+  assert.deepStrictEqual(result.missing, []);
+  assert.deepStrictEqual(pipCalls, []);
+});
+
+test('graphSyncWarnings names version-incompatible as a skip state', () => {
+  const lines = graphSyncWarnings({
+    action: 'skip-version-incompatible',
+    status: 'version-incompatible',
+    missing: [],
+    graphs: [],
+  });
+  assert.ok(lines.length >= 1);
+  assert.match(lines[0], /version-incompatible|incompatible/i);
+  assert.match(lines.join(''), /upgrade-graphify/);
+});
+

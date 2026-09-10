@@ -6,7 +6,17 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { venvBinRel, resolveGraphifyBin, setupGraphify } = require('../scripts/lib/graphify');
+const {
+  venvBinRel,
+  resolveGraphifyBin,
+  setupGraphify,
+  loadCompatManifest,
+  readGraphifyLock,
+  writeGraphifyLock,
+  checkGraphifyCompatibility,
+  upgradeGraphify,
+  GRAPHIFY_LOCK_REL,
+} = require('../scripts/lib/graphify');
 const {
   realNewestMtime,
   resolveGraphScopes,
@@ -260,7 +270,8 @@ test('setupGraphify installs via venv → pip → graphify install in order', ()
     },
   });
   assert.deepStrictEqual(r, { status: 'installed', bin: graphifyAbs });
-  assert.strictEqual(calls.length, 3);
+  // 설치 3단계 뒤에 버전 probe가 붙을 수 있다. pip 스펙은 항상 exact pin.
+  assert.ok(calls.length >= 3);
   assert.deepStrictEqual(calls[0], {
     file: 'python3',
     args: ['-m', 'venv', venvDir],
@@ -268,7 +279,7 @@ test('setupGraphify installs via venv → pip → graphify install in order', ()
   });
   assert.deepStrictEqual(calls[1], {
     file: pipAbs,
-    args: ['install', 'graphifyy'],
+    args: ['install', 'graphifyy==0.9.56'],
     cwd: repo,
   });
   assert.deepStrictEqual(calls[2], {
@@ -276,6 +287,7 @@ test('setupGraphify installs via venv → pip → graphify install in order', ()
     args: ['install'],
     cwd: repo,
   });
+  assert.ok(!calls.some((c) => Array.isArray(c.args) && c.args[0] === 'install' && c.args[1] === 'graphifyy'));
 });
 
 test('setupGraphify stops after the first failing step and never throws', () => {
@@ -464,3 +476,477 @@ test('writeFilteredGraph no-ops when excludeDirs empty', () => {
   writeFilteredGraph(target, []);
   assert.strictEqual(fs.readFileSync(target, 'utf8'), body);
 });
+
+function pluginVersion() {
+  return JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin.json'), 'utf8')).version;
+}
+
+function fakeProbeExec() {
+  return (file, args = []) => {
+    if (args[0] === '--version') {
+      return String(file).includes('python') ? 'Python 3.12.3\n' : '0.9.56\n';
+    }
+    if (args[0] === 'show') return 'Name: graphifyy\nVersion: 0.9.56\n';
+    return '';
+  };
+}
+
+function sampleLock(over) {
+  return {
+    schema_version: 1,
+    package: 'graphifyy',
+    package_version: '0.9.56',
+    cli_version: '0.9.56',
+    bouncer_version: pluginVersion(),
+    graph_schema_version: '1',
+    installed_at: '2026-07-01T00:00:00.000+09:00',
+    executable: '/abs/graphify',
+    ...over,
+  };
+}
+
+function writeLock(repo, over) {
+  const abs = path.join(repo, GRAPHIFY_LOCK_REL);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `${JSON.stringify(sampleLock(over), null, 2)}\n`);
+  return abs;
+}
+
+function writeGraphs(repo, schema) {
+  for (const name of ['source', 'test', 'context']) {
+    const abs = path.join(repo, 'graphify-out', name, 'graph.json');
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, JSON.stringify({
+      nodes: [{ id: name, source_file: `${name}/a.ts` }],
+      links: [],
+      metadata: { graph_schema_version: schema },
+    }));
+  }
+}
+
+test('compatibility manifest pins package CLI schema and python contract', () => {
+  const manifest = loadCompatManifest();
+  assert.strictEqual(manifest.ok, true);
+  assert.strictEqual(manifest.value.schema_version, 1);
+  assert.strictEqual(manifest.value.package, 'graphifyy');
+  assert.strictEqual(manifest.value.install_spec, 'graphifyy==0.9.56');
+  assert.strictEqual(manifest.value.cli_version, '0.9.56');
+  assert.strictEqual(manifest.value.graph_schema_version, '1');
+  assert.strictEqual(manifest.value.python_minimum, '3.10');
+  assert.ok(!Object.prototype.hasOwnProperty.call(manifest.value, 'recommended_version')
+    || manifest.value.recommended_version === undefined);
+});
+
+test('graphify lock write is atomic and rejects a corrupt body on read', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-lock-atomic-'));
+  const lock = sampleLock();
+  const written = writeGraphifyLock({ repoRoot: repo, lock });
+  assert.strictEqual(written.ok, true);
+  assert.ok(!fs.existsSync(`${written.path}.${process.pid}.tmp`));
+  const read = readGraphifyLock({ repoRoot: repo });
+  assert.strictEqual(read.ok, true);
+  assert.deepStrictEqual(read.value.package, 'graphifyy');
+  assert.strictEqual(read.value.cli_version, '0.9.56');
+
+  fs.writeFileSync(path.join(repo, GRAPHIFY_LOCK_REL), '{broken');
+  const broken = readGraphifyLock({ repoRoot: repo });
+  assert.strictEqual(broken.ok, false);
+  assert.strictEqual(broken.reason, 'corrupt');
+});
+
+test('missing lock is version-incompatible without pip or venv writes', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-lock-missing-'));
+  const calls = [];
+  const result = checkGraphifyCompatibility({
+    repoRoot: repo,
+    exec: (file, args) => {
+      calls.push({ file, args });
+      return '0.9.56\n';
+    },
+  });
+  assert.strictEqual(result.status, 'version-incompatible');
+  assert.ok(result.reasons.some((r) => /lock/i.test(r)));
+  assert.ok(!calls.some((c) => Array.isArray(c.args) && c.args.includes('install')));
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
+});
+
+test('version mismatch between lock manifest and probe is version-incompatible', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-lock-mismatch-'));
+  writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0' });
+  const calls = [];
+  const result = checkGraphifyCompatibility({
+    repoRoot: repo,
+    exec: (file, args) => {
+      calls.push({ file, args: [...(args || [])] });
+      if (args && args[0] === '--version') return '0.8.0\n';
+      return '';
+    },
+  });
+  assert.strictEqual(result.status, 'version-incompatible');
+  assert.ok(!calls.some((c) => (c.args || []).includes('install')));
+});
+
+test('skill version mismatch is a warning and does not flip compatibility', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-skill-warn-'));
+  writeLock(repo);
+  const result = checkGraphifyCompatibility({
+    repoRoot: repo,
+    exec: fakeProbeExec(),
+    probeSkillVersion: () => '0.1.0',
+  });
+  assert.strictEqual(result.status, 'compatible');
+  assert.ok(result.warnings.some((w) => /skill/i.test(w)));
+});
+
+test('setupGraphify first install writes a verified lock and uses the exact spec', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-lock-'));
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    now: () => '2026-07-01T00:00:00.000+09:00',
+    exec: fakeProbeExec(),
+  });
+  assert.strictEqual(r.status, 'installed');
+  const lock = readGraphifyLock({ repoRoot: repo });
+  assert.strictEqual(lock.ok, true);
+  assert.strictEqual(lock.value.package, 'graphifyy');
+  assert.strictEqual(lock.value.package_version, '0.9.56');
+  assert.strictEqual(lock.value.cli_version, '0.9.56');
+  assert.strictEqual(lock.value.graph_schema_version, '1');
+  assert.strictEqual(lock.value.installed_at, '2026-07-01T00:00:00.000+09:00');
+});
+
+test('setupGraphify reuse preserves an existing lock and does not pip', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-reuse-lock-'));
+  const binRel = venvBinRel('linux');
+  fs.mkdirSync(path.join(repo, path.dirname(binRel)), { recursive: true });
+  fs.writeFileSync(path.join(repo, binRel), '');
+  writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0' });
+  const before = fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL));
+  const calls = [];
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    exec: (...args) => { calls.push(args); },
+  });
+  assert.deepStrictEqual(r, { status: 'reused', bin: binRel });
+  assert.strictEqual(calls.length, 0);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL)), before);
+});
+
+test('upgradeGraphify restamps three graphs and swaps the shared venv to the manifest spec', () => {
+  const repo = initGitRepo();
+  writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
+  writeGraphs(repo, '0');
+  const calls = [];
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    now: () => '2026-09-10T00:00:00.000+09:00',
+    exec: (file, args = []) => {
+      calls.push({ file, args: [...args] });
+      if (args[0] === '--version') return '0.9.56\n';
+      if (args[0] === 'show') return 'Version: 0.9.56\n';
+      return '';
+    },
+    rebuild: () => {
+      writeGraphs(repo, 'pending');
+      return { ok: true };
+    },
+  });
+  assert.strictEqual(r.status, 'upgraded');
+  const lock = readGraphifyLock({ repoRoot: repo });
+  assert.strictEqual(lock.value.cli_version, '0.9.56');
+  assert.strictEqual(lock.value.graph_schema_version, '1');
+  for (const name of ['source', 'test', 'context']) {
+    const graph = JSON.parse(fs.readFileSync(
+      path.join(repo, 'graphify-out', name, 'graph.json'),
+      'utf8',
+    ));
+    assert.strictEqual(graph.metadata.graph_schema_version, '1');
+  }
+  assert.ok(calls.some((c) => c.args[0] === 'install' && c.args[1] === 'graphifyy==0.9.56'));
+});
+
+test('upgradeGraphify failure restores prior lock venv and graphs', () => {
+  const repo = initGitRepo();
+  writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
+  writeGraphs(repo, '0');
+  const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  const venvDir = path.join(path.resolve(repo, commonDir), 'bouncer', 'venv');
+  fs.mkdirSync(venvDir, { recursive: true });
+  fs.writeFileSync(path.join(venvDir, 'keep'), 'prior-venv');
+  const beforeLock = fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL));
+  const beforeGraph = fs.readFileSync(path.join(repo, 'graphify-out/source/graph.json'));
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    exec: () => {
+      throw new Error('pip boom');
+    },
+    rebuild: () => {
+      writeGraphs(repo, '1');
+      return { ok: true };
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL)), beforeLock);
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, 'graphify-out/source/graph.json')),
+    beforeGraph,
+  );
+  assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior-venv');
+});
+
+function commonVenvDir(repo) {
+  const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  return path.join(path.resolve(repo, commonDir), 'bouncer', 'venv');
+}
+
+function succeedingUpgradeExec() {
+  return (_file, args = []) => {
+    if (args[0] === '--version') return '0.9.56\n';
+    if (args[0] === 'show') return 'Version: 0.9.56\n';
+    return '';
+  };
+}
+
+test('setupGraphify fails when the compatibility manifest cannot be loaded', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-setup-manifest-'));
+  const calls = [];
+  const r = setupGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    manifestPath: path.join(repo, 'missing-graphify-compat.json'),
+    exec: (...args) => {
+      calls.push(args);
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.match(r.reason, /manifest/);
+  assert.strictEqual(calls.length, 0);
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
+});
+
+test('upgradeGraphify rebuild failure after swap restores lock venv and all three graph trees', () => {
+  const repo = initGitRepo();
+  writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
+  writeGraphs(repo, '0');
+  fs.writeFileSync(path.join(repo, 'graphify-out/source/extra.txt'), 'prior-extra');
+  const venvDir = commonVenvDir(repo);
+  fs.mkdirSync(venvDir, { recursive: true });
+  fs.writeFileSync(path.join(venvDir, 'keep'), 'prior-venv');
+  const beforeLock = fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL));
+  const beforeGraphs = {};
+  for (const name of ['source', 'test', 'context']) {
+    beforeGraphs[name] = fs.readFileSync(path.join(repo, 'graphify-out', name, 'graph.json'));
+  }
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    now: () => '2026-09-10T00:00:00.000+09:00',
+    exec: succeedingUpgradeExec(),
+    rebuild: () => {
+      writeGraphs(repo, '1');
+      fs.writeFileSync(path.join(repo, 'graphify-out/source/extra.txt'), 'new-extra');
+      fs.writeFileSync(path.join(repo, 'graphify-out/source/sidecar.json'), 'new-only');
+      return { failed: [{ name: 'source', message: 'boom' }] };
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.match(r.reason, /rebuild/);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL)), beforeLock);
+  assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior-venv');
+  for (const name of ['source', 'test', 'context']) {
+    assert.deepStrictEqual(
+      fs.readFileSync(path.join(repo, 'graphify-out', name, 'graph.json')),
+      beforeGraphs[name],
+    );
+  }
+  assert.strictEqual(
+    fs.readFileSync(path.join(repo, 'graphify-out/source/extra.txt'), 'utf8'),
+    'prior-extra',
+  );
+  assert.ok(!fs.existsSync(path.join(repo, 'graphify-out/source/sidecar.json')));
+});
+
+test('upgradeGraphify rollback deletes a new lock when none existed before swap', () => {
+  const repo = initGitRepo();
+  writeGraphs(repo, '0');
+  const venvDir = commonVenvDir(repo);
+  fs.mkdirSync(venvDir, { recursive: true });
+  fs.writeFileSync(path.join(venvDir, 'keep'), 'prior-venv');
+  const lockAbs = path.join(repo, GRAPHIFY_LOCK_REL);
+  assert.ok(!fs.existsSync(lockAbs));
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    now: () => '2026-09-10T00:00:00.000+09:00',
+    exec: succeedingUpgradeExec(),
+    rebuild: () => {
+      writeGraphs(repo, '1');
+      return { failed: [{ name: 'context', message: 'boom' }] };
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.ok(!fs.existsSync(lockAbs));
+  assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior-venv');
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(repo, 'graphify-out/context/graph.json'), 'utf8'))
+      .metadata.graph_schema_version,
+    '0',
+  );
+});
+
+test('upgradeGraphify lock-write failure after swap restores prior lock and venv', () => {
+  const repo = initGitRepo();
+  writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
+  writeGraphs(repo, '0');
+  const venvDir = commonVenvDir(repo);
+  fs.mkdirSync(venvDir, { recursive: true });
+  fs.writeFileSync(path.join(venvDir, 'keep'), 'prior-venv');
+  const beforeLock = fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL));
+  const tmpBlock = path.join(repo, `.bouncer/graphify.lock.json.${process.pid}.tmp`);
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    now: () => '2026-09-10T00:00:00.000+09:00',
+    exec: (_file, args = []) => {
+      // pip exact spec 직후 lock tmp를 디렉터리로 막아 writeFileSync가 EISDIR로 실패하게 한다.
+      // 같은 프로세스 pid라 승격이 쓰는 tmp 이름과 일치한다.
+      if (args[0] === 'install' && args[1] === 'graphifyy==0.9.56') {
+        fs.mkdirSync(tmpBlock, { recursive: true });
+      }
+      if (args[0] === '--version') return '0.9.56\n';
+      if (args[0] === 'show') return 'Version: 0.9.56\n';
+      return '';
+    },
+    rebuild: () => {
+      writeGraphs(repo, '1');
+      return { ok: true };
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.match(r.reason, /lock/i);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL)), beforeLock);
+  assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior-venv');
+  try {
+    fs.rmSync(tmpBlock, { recursive: true, force: true });
+  } catch (_e) {
+    // 픽스처 정리는 best-effort.
+  }
+});
+
+test('concurrent upgrade fails without mutating the live venv', () => {
+  const repo = initGitRepo();
+  writeLock(repo);
+  const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  const lockDir = path.join(path.resolve(repo, commonDir), 'bouncer');
+  fs.mkdirSync(lockDir, { recursive: true });
+  fs.writeFileSync(path.join(lockDir, 'upgrade.lock'), 'held');
+  const calls = [];
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    exec: (file, args = []) => {
+      calls.push({ file, args: [...args] });
+      return '';
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.match(r.reason, /concurrent/);
+  assert.ok(!calls.some((c) => (c.args || []).includes('install')));
+});
+
+test('upgradeGraphify rolls back when force rebuild skips without failed entries', () => {
+  for (const action of [
+    'skip-version-incompatible',
+    'skip-graph-disabled',
+    'skip-partial-bootstrap',
+  ]) {
+    const repo = initGitRepo();
+    writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
+    writeGraphs(repo, '0');
+    const venvDir = commonVenvDir(repo);
+    fs.mkdirSync(venvDir, { recursive: true });
+    fs.writeFileSync(path.join(venvDir, 'keep'), 'prior-venv');
+    const beforeLock = fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL));
+    const r = upgradeGraphify({
+      repoRoot: repo,
+      platform: 'linux',
+      now: () => '2026-09-10T00:00:00.000+09:00',
+      exec: succeedingUpgradeExec(),
+      rebuild: () => ({ action, failed: [] }),
+    });
+    assert.strictEqual(r.status, 'failed', action);
+    assert.match(r.reason, /rebuild/, action);
+    assert.deepStrictEqual(fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL)), beforeLock, action);
+    assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior-venv', action);
+    for (const name of ['source', 'test', 'context']) {
+      assert.strictEqual(
+        JSON.parse(fs.readFileSync(path.join(repo, 'graphify-out', name, 'graph.json'), 'utf8'))
+          .metadata.graph_schema_version,
+        '0',
+        `${action}:${name}`,
+      );
+    }
+  }
+});
+
+test('upgradeGraphify accepts empty-dir skip-no-dirs rebuild as success', () => {
+  const repo = initGitRepo();
+  writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    now: () => '2026-09-10T00:00:00.000+09:00',
+    exec: succeedingUpgradeExec(),
+    rebuild: () => ({ action: 'skip-no-dirs', failed: [] }),
+  });
+  assert.strictEqual(r.status, 'upgraded');
+  const lock = readGraphifyLock({ repoRoot: repo });
+  assert.strictEqual(lock.value.cli_version, '0.9.56');
+});
+
+test('upgradeGraphify restorePrior still restores graphs when lock rewrite throws', () => {
+  const repo = initGitRepo();
+  writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
+  writeGraphs(repo, '0');
+  const venvDir = commonVenvDir(repo);
+  fs.mkdirSync(venvDir, { recursive: true });
+  fs.writeFileSync(path.join(venvDir, 'keep'), 'prior-venv');
+  const lockAbs = path.join(repo, GRAPHIFY_LOCK_REL);
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    now: () => '2026-09-10T00:00:00.000+09:00',
+    exec: succeedingUpgradeExec(),
+    rebuild: () => {
+      writeGraphs(repo, '1');
+      // restorePrior의 unguarded writeFileSync가 EISDIR로 던지게 lock 경로를 디렉터리로 바꾼다.
+      fs.unlinkSync(lockAbs);
+      fs.mkdirSync(lockAbs);
+      return { failed: [{ name: 'source', message: 'boom' }] };
+    },
+  });
+  assert.strictEqual(r.status, 'failed');
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(repo, 'graphify-out/source/graph.json'), 'utf8'))
+      .metadata.graph_schema_version,
+    '0',
+  );
+  assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior-venv');
+});
+

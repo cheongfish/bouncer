@@ -197,3 +197,15 @@ test('vendored js-yaml matches the installed package at a safe minimum version',
   assert.deepStrictEqual(vendoredBytes, installedDistBytes);
   assert.match(vendorReadme, new RegExp(`\\| ${installedVersion} \\| MIT \\|`));
 });
+
+test('the package ships the Graphify compatibility manifest for every host install', () => {
+  const files = packageFiles();
+  assert.ok(
+    files.includes('resources/graphify-compat.json'),
+    'missing package file: resources/graphify-compat.json',
+  );
+  const manifest = readJson('resources/graphify-compat.json');
+  assert.strictEqual(manifest.schema_version, 1);
+  assert.strictEqual(manifest.package, 'graphifyy');
+  assert.strictEqual(manifest.install_spec, 'graphifyy==0.9.56');
+});

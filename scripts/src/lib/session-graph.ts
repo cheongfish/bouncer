@@ -29,6 +29,8 @@ const {
   runGraphifyUpdate,
   partOutDir,
 } = graphExec;
+import graphify = require('./graphify');
+const { checkGraphifyCompatibility } = graphify;
 
 type GraphScope = {
   name: string;
@@ -51,6 +53,7 @@ type SessionGraphDeps = {
   init?: () => { ok?: unknown; skipped?: unknown; reason?: unknown };
   graphifyEnabled?: () => unknown;
   hasGraphify?: () => unknown;
+  checkCompatibility?: () => { status?: string; reasons?: string[]; warnings?: string[] };
   sourceDirs?: () => string[];
   contextDirs?: () => string[];
   // null = test 항목을 skip-unconfigured로 실음(필드 부재·무효와 동일).
@@ -66,6 +69,7 @@ type SessionDecision = {
   bootstrap?: unknown;
   action: string;
   reason?: unknown;
+  status?: string;
   dirs?: unknown;
   graphs: GraphPlan[];
   // 잘못된 test_dirs/exclude_dirs처럼 값을 적용하지 않은 진단 사유.
@@ -74,6 +78,7 @@ type SessionDecision = {
   built?: string[];
   failed?: Array<{ name: string; message: string }>;
   missing?: string[];
+  compatibility?: unknown;
 };
 
 function catchMessageOrString(error: unknown): string {
@@ -83,6 +88,16 @@ function catchMessageOrString(error: unknown): string {
 
 // 계획·오케스트레이션·경고 문구 + 공개 배럴.
 // 훅과 테스트는 이 파일 이름만 본다. 구현이 형제로 옮겨도 키 집합은 유지한다.
+/**
+ * 한 scope의 freshness를 결정한다. unconfigured·dirs 부재는 force보다 먼저
+ * 고정한다 — 승격이 소스 없는 test leftover를 빌드 대상으로 올리지 않게.
+ *
+ * @param {{ name: string, dirs: string[], outDir: string, scanDirs?: string[],
+ *   watchFiles?: string[], excludeDirs?: string[], unconfiguredReason?: string,
+ *   existingDirs: Function, newestMtime: Function, graphMtime: Function,
+ *   force?: boolean }} args
+ * @returns {GraphPlan}
+ */
 function planOneGraph(args: {
   name: string;
   dirs: string[];
@@ -94,10 +109,11 @@ function planOneGraph(args: {
   existingDirs: (dirs: string[]) => string[];
   newestMtime: (dirs: string[], watchFiles?: string[]) => number;
   graphMtime: (outDir: string) => number | null;
+  force?: boolean;
 }): GraphPlan {
   const {
     name, dirs, outDir, scanDirs, watchFiles, excludeDirs, unconfiguredReason,
-    existingDirs, newestMtime, graphMtime,
+    existingDirs, newestMtime, graphMtime, force,
   } = args;
   // 미설정·무효 test는 디스크 leftover graph.json이 있어도 build/skip-fresh로
   // 가지 않는다. missing·SessionStart 경고에도 올리지 않으려면 action이
@@ -129,6 +145,11 @@ function planOneGraph(args: {
   if (present.length === 0) {
     return { ...base, action: 'skip-no-dirs', reason: `${name} dirs missing` };
   }
+  // 승격은 패키지 schema가 바뀌므로 mtime이 같아도 세 graph를 다시 만들어야 한다.
+  // skip-fresh를 그대로 두면 stampGraphSchema가 옛 graph.json만 다시 찍는다.
+  if (force === true) {
+    return { ...base, action: 'build', reason: `${name} graph force rebuild` };
+  }
   if (mtime === null) {
     return { ...base, action: 'build', reason: `${name} graph missing` };
   }
@@ -139,15 +160,23 @@ function planOneGraph(args: {
   return { ...base, action: 'build', reason: `${name} sources changed since last build` };
 }
 
-function planSessionGraph({ repoRoot, deps }: {
+/**
+ * SessionStart·graph-sync용 freshness 계획. force는 승격 경로만 넘긴다.
+ *
+ * @param {{ repoRoot: string, deps?: SessionGraphDeps, force?: boolean }} opts
+ * @returns {SessionDecision}
+ */
+function planSessionGraph({ repoRoot, deps, force }: {
   repoRoot: string;
   deps?: SessionGraphDeps;
+  force?: boolean;
 }): SessionDecision {
   const d = {
     inspectBootstrap: () => inspectBootstrap({ repoRoot }),
     init: () => init({ repoRoot, timestamp: nowIsoKst() }),
     graphifyEnabled: () => realGraphifyEnabled(repoRoot),
     hasGraphify: () => realHasGraphify(repoRoot),
+    checkCompatibility: () => checkGraphifyCompatibility({ repoRoot }),
     sourceDirs: () => realSourceDirs(repoRoot),
     contextDirs: () => realContextDirs(repoRoot),
     existingDirs: (dirs: string[]) => realExistingDirs(repoRoot, dirs),
@@ -174,6 +203,20 @@ function planSessionGraph({ repoRoot, deps }: {
   }
   if (!d.hasGraphify()) {
     return { bootstrap, action: 'skip-no-graphify', reason: 'graphify not on PATH', graphs: [] };
+  }
+  const compat = d.checkCompatibility
+    ? d.checkCompatibility()
+    : checkGraphifyCompatibility({ repoRoot });
+  if (compat && compat.status === 'version-incompatible') {
+    // 조회 경로는 설치를 고치지 않는다. 세 graph 빌드를 건너뛰고 상태만 남긴다.
+    return {
+      bootstrap,
+      action: 'skip-version-incompatible',
+      reason: 'version-incompatible',
+      status: 'version-incompatible',
+      graphs: [],
+      compatibility: compat,
+    };
   }
 
   // deps가 testDirs/excludeDirs를 넘기면 config 파서를 우회한다(단위 테스트).
@@ -220,6 +263,7 @@ function planSessionGraph({ repoRoot, deps }: {
     existingDirs: d.existingDirs,
     newestMtime: d.newestMtime,
     graphMtime: d.graphMtime,
+    force: force === true,
   }));
 
   const withSkips = (decision: SessionDecision): SessionDecision => (
@@ -258,20 +302,27 @@ const NO_GRAPH_WORK = new Set([
   'skip-partial-bootstrap',
   'skip-legacy-bootstrap',
   'skip-no-graphify',
+  'skip-version-incompatible',
 ]);
 
 /**
  * source + test + context graph freshness를 계획하고 stale한 것을
  * 재빌드한다. SessionStart와 /bouncer-plan(graphify-runner) query 전에 다시 사용.
  * graphs[]는 config와 무관하게 세 항목이지만, skip-unconfigured test는
- * 빌드·missing·경고 대상이 아니다.
+ * 빌드·missing·경고 대상이 아니다. force는 명시적 승격 전용 — 일반
+ * graph-sync가 skip-fresh를 버리게 하지 않는다.
+ *
+ * @param {{ repoRoot: string, deps?: SessionGraphDeps,
+ *   execGraphify?: (graph: GraphPlan) => unknown, force?: boolean }} opts
+ * @returns {SessionDecision & { built: string[], failed: Array<{ name: string, message: string }>, missing: string[] }}
  */
-function syncSessionGraphs({ repoRoot, deps, execGraphify }: {
+function syncSessionGraphs({ repoRoot, deps, execGraphify, force }: {
   repoRoot: string;
   deps?: SessionGraphDeps;
   execGraphify?: (graph: GraphPlan) => unknown;
+  force?: boolean;
 }) {
-  const decision = planSessionGraph({ repoRoot, deps });
+  const decision = planSessionGraph({ repoRoot, deps, force });
   const run = execGraphify || ((graph: GraphPlan) => defaultExecGraphify(repoRoot, graph));
   const built: string[] = [];
   const failed: Array<{ name: string; message: string }> = [];
@@ -333,6 +384,12 @@ function graphSyncWarnings(decision: SessionDecision) {
       'Bouncer: graphify.enabled is true but graphify is not on PATH — path suggestions '
       + 'will fall back to manual affected_paths. '
       + 'Install: pip install graphifyy && graphify install. See docs/install.md.\n',
+    );
+  }
+  if (decision.action === 'skip-version-incompatible') {
+    lines.push(
+      'Bouncer: graphify is version-incompatible with the plugin contract. '
+      + 'Run bouncer init --upgrade-graphify. Search and graph-sync will not install or mutate the venv.\n',
     );
   }
   // 잘못된 exclude_dirs·무효 test_dirs는 skips에 남는다(test는 graphs에도
