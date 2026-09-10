@@ -199,6 +199,15 @@ test('listReadyBlueprints excludes a closed blueprint (finalize --yes lock)', ()
   assert.deepStrictEqual(list, []);
 });
 
+test('listReadyBlueprints excludes partial_closed as an unresolved terminal state', () => {
+  const repo = tmpRepo();
+  writeBp(repo, {
+    epicSlug: '001-a', bpSlug: '001-partial', epicId: '001', bpId: '001',
+    bpStatus: 'partial_closed', tasksStatus: 'ready',
+  });
+  assert.deepStrictEqual(listReadyBlueprints({ repoRoot: repo }), []);
+});
+
 test('listReadyBlueprints excludes an imported blueprint', () => {
   // imported도 approved가 아니므로 별도 분기 없이 빠져야 한다.
   // current.ts에 status 분기를 넣지 않는 계약의 회귀 고정.
@@ -318,6 +327,22 @@ test('nextBlueprint excludes a closed blueprint from candidates', () => {
 
   const res = nextBlueprint({ repoRoot: repo, blueprintDir: finalized });
   assert.deepStrictEqual(res, { next: null, remaining: [], sameEpicPending: [] });
+});
+
+test('nextBlueprint excludes a partial_closed sibling from candidates and history handoff', () => {
+  const repo = tmpRepo();
+  const epicBody = '# Epic\n\n## Blueprints\n\n* [a](blueprints/001-a/index.md) - first\n* [b](blueprints/002-b/index.md) - second\n';
+  const active = writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '001-a', epicId: '001', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready', epicBody,
+  });
+  writeBp(repo, {
+    epicSlug: 'E-1', bpSlug: '002-b', epicId: '001', bpId: '002',
+    bpStatus: 'partial_closed', tasksStatus: 'ready', epicBody,
+  });
+  assert.deepStrictEqual(nextBlueprint({ repoRoot: repo, blueprintDir: active }), {
+    next: null, remaining: [], sameEpicPending: [],
+  });
 });
 
 test('nextBlueprint sameEpicPending includes a draft sibling when no ready candidates remain', () => {

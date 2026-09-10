@@ -156,8 +156,15 @@ function collectPathValues(rest: string[]): string[] {
 function cmdCoordinate(rest: string[], io: CliIo) {
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
-  if (!['bootstrap', 'prepare', 'ready', 'record', 'integrate', 'status', 'revise'].includes(command)) {
-    io.err('coordinate: command must be bootstrap, prepare, ready, record, integrate, status, or revise\n');
+  const commands = [
+    'bootstrap', 'prepare', 'ready', 'record', 'rerecord', 'integrate',
+    'status', 'revise', 'repair', 'partial-close',
+  ];
+  if (!commands.includes(command)) {
+    io.err(
+      'coordinate: command must be bootstrap, prepare, ready, record, rerecord, '
+      + 'integrate, status, revise, repair, or partial-close\n',
+    );
     return 2;
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -194,7 +201,12 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       cwd: process.cwd(),
       task: typeof f.task === 'string' ? f.task : undefined,
       sha: typeof f.sha === 'string' ? f.sha : undefined,
-      decision: typeof f.decision === 'string' ? f.decision : undefined,
+      decision: typeof (command === 'rerecord' ? f.reason : f.decision) === 'string'
+        ? (command === 'rerecord' ? f.reason : f.decision) : undefined,
+      failureCommand: typeof f['failure-command'] === 'string' ? f['failure-command'] : undefined,
+      summary: typeof f.summary === 'string' ? f.summary : undefined,
+      paths: collectPathValues(rest.slice(1)),
+      userConfirmed: f['user-confirmed'] === true,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
@@ -222,9 +234,16 @@ export = {
   },
   coordinate: {
     run: cmdCoordinate,
-    usage: '  coordinate <bootstrap|prepare|ready|record|integrate|status> --blueprint <dir>\n'
+    usage: '  coordinate <bootstrap|prepare|ready|record|rerecord|integrate|status> --blueprint <dir>\n'
       + '             [--task <ddd>] [--sha <sha>]\n'
       + '             Operate the coordinator ledger and isolated integration worktrees.\n'
+      + '  coordinate rerecord --blueprint <dir> --task <ddd> --reason <text> [--sha <sha>]\n'
+      + '             Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.\n'
+      + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>\n'
+      + '             --summary <text> --paths <p> --decision <reason>\n'
+      + '             Add one audited repair task and move the terminal CI dependency.\n'
+      + '  coordinate partial-close --blueprint <dir> --user-confirmed\n'
+      + '             Preserve the failed drive and mark it partial_closed after two repair waves.\n'
       + '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
       + '             --reason <text>\n'
       + '             Record one scope decision in the task document and ledger.\n'

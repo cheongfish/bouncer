@@ -177,3 +177,16 @@ as coordinator authorization.
 
 Without a coordinator ledger nothing above applies: plan and commit gates treat
 the approved `affected_paths` as the change boundary exactly as before.
+
+Terminal CI failure may add at most two dynamic repair tasks. Each append-only
+decision records the failed command and summary, previous/next DAG,
+previous/next source scope, and Blueprint necessity; the repair depends on the
+then-integrated leaves and the terminal verification node moves its dependency
+to that repair. The task document and ledger revision are one write unit.
+
+After a second repair still fails, automatic execution stops. The integration
+root keeps an untracked `NEXT_PLAN.md`, the last command and remaining paths,
+the ledger, and all worktrees. Only explicit user confirmation may set the
+Blueprint and ledger to `partial_closed`; that terminal status is unresolved
+handoff, never ordinary `closed`, and none of those preserved artifacts may be
+copied to main, committed, pushed, or included in a PR.

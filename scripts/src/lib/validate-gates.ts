@@ -104,6 +104,7 @@ type GateContext = {
   parseErrors?: FailureEntry[];
   // plan task 분해 보조 신호. failures와 분리 — 호출부가 배열을 넘길 때만 채운다.
   warnings?: FailureEntry[];
+  partialClose?: { ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean };
 };
 
 type CheckGateOpts = {
@@ -115,7 +116,32 @@ type CheckGateOpts = {
   deps?: GateDeps;
   taskUnit?: TaskUnit | null;
   parseErrors?: FailureEntry[];
+  partialClose?: { ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean };
 };
+
+/**
+ * partial close의 네 증적을 한 경계에서 판정한다. 일반 finalize와 섞지 않아
+ * 실패한 drive가 `closed` 성공 조건을 빌려 통과하지 못하게 한다.
+ *
+ * @param {object} input - 원장, NEXT_PLAN 상태, 사용자 확인
+ * @returns {{ok: true} | {ok: false, reason: string}} gate 결과
+ */
+function checkPartialCloseEvidence(input: {
+  ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean;
+}): { ok: true } | { ok: false; reason: string } {
+  if (!input.ledger || typeof input.ledger !== 'object'
+    || (input.ledger as Record<string, unknown>).status !== 'awaiting_confirmation') {
+    return { ok: false, reason: 'partial-close-awaiting-confirmation-required' };
+  }
+  const checked = runtimeState.validateCoordinatorLedger({
+    ...(input.ledger && typeof input.ledger === 'object' ? input.ledger as object : {}),
+    status: 'partial_closed', userConfirmed: input.userConfirmed,
+  });
+  if (!checked.ok) return checked;
+  if (!input.nextPlanExists) return { ok: false, reason: 'next-plan-required' };
+  if (input.nextPlanTracked) return { ok: false, reason: 'next-plan-must-be-untracked' };
+  return { ok: true };
+}
 
 function asData(doc: DocLeaf | undefined | null): Record<string, unknown> | undefined {
   if (!doc) return undefined;
@@ -394,6 +420,7 @@ function checkGate(
       deps: opts.deps,
       taskUnit: opts.taskUnit,
       parseErrors: opts.parseErrors,
+      partialClose: opts.partialClose,
       warnings,
     });
     // 기존 소비자는 warnings 부재를 허용한다 — 빈 배열이면 키를 생략한다.
@@ -417,6 +444,12 @@ function runCheckGate(
   const blueprintDir = ctx && ctx.blueprintDir;
   const deps = ctx && ctx.deps;
 
+  if (gate === 'partial-close') {
+    const result = checkPartialCloseEvidence(ctx.partialClose || {});
+    if (!result.ok) add('G20', result.reason, 'blueprintIndex');
+    return;
+  }
+
   if (gate === 'plan') {
     if (statusOf(docs.epicIndex) !== 'approved') add('G1', 'epic.status != approved', 'epicIndex');
     // closed는 finalize --yes가 마감한 blueprint의 잠금 signal(hard rule/schema 참고).
@@ -427,6 +460,12 @@ function runCheckGate(
       add(
         'G2',
         'blueprint is closed (finalized) — open a new blueprint instead of resuming this one',
+        'blueprintIndex',
+      );
+    } else if (bpStatus === 'partial_closed') {
+      add(
+        'G2',
+        'blueprint is partial_closed with unresolved CI evidence — approve NEXT_PLAN.md before new work',
         'blueprintIndex',
       );
     } else if (bpStatus !== 'approved') {
@@ -800,4 +839,4 @@ function runCheckGate(
   throw new Error(`unknown gate: ${gate}`);
 }
 
-export = { checkGate };
+export = { checkGate, checkPartialCloseEvidence };

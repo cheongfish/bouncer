@@ -73,6 +73,156 @@ function workerOwnsSha(exec, workerPath, sha) {
         return false;
     }
 }
+/**
+ * 교체 SHA가 integration HEAD의 단 하나짜리 직계 자식인지 판정한다.
+ * merge commit은 부모가 둘이므로 거절하며, 조회할 수 없는 object도 provenance를
+ * 추측하지 않고 null로 접어 rerecord 경계에서 거절한다.
+ *
+ * @param {Exec} exec - 주입 가능한 Git 실행기
+ * @param {string} cwd - 할당된 worker worktree
+ * @param {string} sha - 검사할 worker HEAD
+ * @returns {string | null} 유일한 부모 SHA 또는 null
+ */
+function directParent(exec, cwd, sha) {
+    try {
+        const fields = git(exec, cwd, ['rev-list', '--parents', '-n', '1', sha]).split(/\s+/);
+        return fields.length === 2 ? fields[1] : null;
+    }
+    catch (_error) {
+        // 존재하지 않는 object와 Git 조회 실패만 흡수한다. 둘 다 안전한 답은 거절이다.
+        return null;
+    }
+}
+function sourceRepairPaths(paths) {
+    return Array.isArray(paths) && paths.length > 0 && paths.every((entry) => {
+        if (typeof entry !== 'string')
+            return false;
+        const candidate = entry.replaceAll('\\', '/').trim();
+        if (!candidate || path.posix.isAbsolute(candidate) || /^[A-Za-z]:\//.test(candidate) || candidate.startsWith('~')
+            || /[*?[\]{}]/.test(candidate) || candidate.split('/').includes('..'))
+            return false;
+        const normalized = path.posix.normalize(candidate);
+        return normalized !== '.' && normalized !== './' && normalized !== '..' && !normalized.startsWith('../')
+            && normalized !== '.git' && !normalized.startsWith('.git/')
+            && normalized !== '.bouncer' && !normalized.startsWith('.bouncer/');
+    });
+}
+function dagSnapshot(tasks) {
+    return tasks.map((entry) => ({ id: entry.id, depends_on: [...(entry.depends_on || [])] }));
+}
+function nextLedgerRevision(current) {
+    const match = /^r(\d+)$/.exec(typeof current === 'string' ? current : '');
+    return `r${match ? Number(match[1]) + 1 : 1}`;
+}
+function integratedLeaves(tasks, terminalId) {
+    const integrated = tasks.filter((entry) => entry.id !== terminalId && entry.status === 'integrated');
+    const depended = new Set(integrated.flatMap((entry) => entry.depends_on || []));
+    return integrated.filter((entry) => !depended.has(entry.id)).map((entry) => entry.id).sort();
+}
+/**
+ * repair task 문서와 terminal edge를 한 revision으로 쓴다. 두 rename 중 하나가
+ * 실패하면 원래 terminal 문서를 복구하고 새 task를 지워, ledger만 다음 graph를
+ * 가리키는 반쪽 상태가 생기지 않게 한다.
+ *
+ * @param {object} opts - integration 경로, blueprint, 두 task와 scope
+ * @returns {void}
+ */
+function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }) {
+    const terminalFile = path.join(integrationPath, blueprint, 'tasks', terminal.id, 'tasks.md');
+    const terminalBefore = fs.readFileSync(terminalFile, 'utf8');
+    const terminalDoc = readDoc(terminalFile);
+    const terminalData = terminalDoc.data;
+    const terminalBouncer = terminalData.bouncer;
+    terminalBouncer.depends_on = (terminal.depends_on || []).map((id) => `TASKS-${id}`);
+    terminalBouncer.status = 'ready';
+    const repairFile = path.join(integrationPath, blueprint, 'tasks', repair.id, 'tasks.md');
+    const idMatch = /(?:^|\/)epics\/(\d{3})[^/]*\/blueprints\/(\d{3})[^/]*$/.exec(blueprint.replaceAll('\\', '/'));
+    const epicId = idMatch ? idMatch[1] : '';
+    const bpId = idMatch ? idMatch[2] : '';
+    const repairData = {
+        type: 'bouncer.tasks', title: `CI repair wave ${repair.id}`, description: 'Repairs terminal CI failure.',
+        resource: path.relative(integrationPath, repairFile).replaceAll('\\', '/'), tags: ['bouncer', 'repair-wave'],
+        timestamp: new Date().toISOString(), bouncer: {
+            id: `TASKS-${repair.id}`, epic_id: epicId, blueprint_id: bpId,
+            status: 'ready', depends_on: (repair.depends_on || []).map((id) => `TASKS-${id}`),
+            parallel_safe: false, dependency_gate: 'integrated', affected_paths: repair.scope?.paths || [],
+            scope_revision: repair.scope?.revision,
+        },
+    };
+    const timestamp = repairData.timestamp;
+    const verificationFile = path.join(path.dirname(repairFile), 'verification.md');
+    const reviewFile = path.join(path.dirname(repairFile), 'review.md');
+    const repairRel = path.relative(integrationPath, path.dirname(repairFile)).replaceAll('\\', '/');
+    const verificationData = {
+        type: 'bouncer.verification', title: `TASKS-${repair.id} verification`,
+        description: `Verification for TASKS-${repair.id}`, resource: `${repairRel}/verification.md`,
+        tags: ['bouncer', 'verification'], timestamp,
+        bouncer: { id: `VERIFY-${repair.id}`, epic_id: epicId, blueprint_id: bpId, status: 'pending' },
+    };
+    const reviewData = {
+        type: 'bouncer.review', title: `TASKS-${repair.id} review`, description: `Review for TASKS-${repair.id}`,
+        resource: `${repairRel}/review.md`, tags: ['bouncer', 'review'], timestamp,
+        bouncer: {
+            id: `REVIEW-${repair.id}`, epic_id: epicId, blueprint_id: bpId, status: 'pending',
+            review: { required: true },
+        },
+    };
+    const touch = (repair.scope?.paths || []).map((entry) => `- Modify \`${entry}\` — 기록된 CI 실패를 복구한다.`).join('\n');
+    const repairBody = `# Tasks
+
+## Goal & intent
+
+기록된 terminal CI 실패를 복구한다.
+
+## Interface
+
+- 제공: 실패 command와 관련 경로를 통과시키는 최소 수정
+- 거부: Blueprint 밖 scope와 새 기능
+
+## Touch
+
+${touch}
+
+## Do not touch
+
+- \`.git/\`과 \`.bouncer/\` governance tree
+
+## Constraints
+
+- 원장의 실패 증적과 repair 결정 범위만 따른다.
+
+## Checklist
+
+- [ ] 실패를 재현하고 관련 source와 regression test를 수정한다.
+- [ ] 기록된 terminal CI command를 통과시킨다.
+`;
+    try {
+        fs.mkdirSync(path.dirname(repairFile), { recursive: true });
+        fs.writeFileSync(repairFile, renderDoc(repairData, repairBody));
+        const verificationBody = '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n';
+        fs.writeFileSync(verificationFile, renderDoc(verificationData, verificationBody));
+        fs.writeFileSync(reviewFile, renderDoc(reviewData, '# Review\n\n## Findings\n- <finding>\n'));
+        fs.writeFileSync(terminalFile, renderDoc(terminalData, terminalDoc.body));
+    }
+    catch (error) {
+        fs.writeFileSync(terminalFile, terminalBefore);
+        fs.rmSync(path.dirname(repairFile), { recursive: true, force: true });
+        throw error;
+    }
+    return () => {
+        fs.writeFileSync(terminalFile, terminalBefore);
+        fs.rmSync(path.dirname(repairFile), { recursive: true, force: true });
+    };
+}
+function writePartialCloseBlueprint(integrationPath, blueprint) {
+    const file = path.join(integrationPath, blueprint, 'index.md');
+    const before = fs.readFileSync(file);
+    const doc = readDoc(file);
+    const data = doc.data;
+    data.bouncer.status = 'partial_closed';
+    fs.writeFileSync(file, renderDoc(data, doc.body));
+    return () => fs.writeFileSync(file, before);
+}
 function taskList(repoRoot, blueprint) {
     const listing = listTasksDocs({ repoRoot, blueprintDir: blueprint });
     return listing.entries.map((entry) => {
@@ -188,8 +338,9 @@ function ensureIntegrationCwd(repoRoot, blueprint, cwd, task) {
         throw new Error('coordinate command must run in its assigned worktree');
     return paths;
 }
-function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision, deps = {} }) {
+function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision, failureCommand, summary, paths: repairPaths, userConfirmed = false, deps = {} }) {
     const exec = deps.execFileSync || realExecFileSync;
+    const writeLedger = deps.writeLedger || atomicWrite;
     const main = runtimePaths({ repoRoot, execFileSync: exec });
     if (main.unavailable)
         return { ok: false, reason: 'non-git-root' };
@@ -216,7 +367,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         const ledger = loadLedger(paths.ledgerFile) || {
             version: 1, blueprint, base,
             integrationHead: git(exec, paths.integrationPath, ['rev-parse', 'HEAD']),
-            tasks: taskList(repoRoot, blueprint), decisions: [],
+            tasks: taskList(repoRoot, blueprint), decisions: [], status: 'active', repairWaves: [],
         };
         atomicWrite(paths.ledgerFile, ledger);
         return {
@@ -234,6 +385,36 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     if (command === 'status') {
         ensureIntegrationCwd(repoRoot, blueprint, cwd);
         return { ok: true, command, ready: readyWave(ledger.tasks), tasks: ledger.tasks, decisions: ledger.decisions };
+    }
+    if (command === 'partial-close') {
+        ensureIntegrationCwd(repoRoot, blueprint, cwd);
+        if (ledger.status !== 'awaiting_confirmation') {
+            return { ok: false, reason: 'partial-close-awaiting-confirmation-required' };
+        }
+        const checked = runtime.validateCoordinatorLedger({ ...ledger, status: 'partial_closed', userConfirmed });
+        if (!checked.ok)
+            return { ok: false, reason: checked.reason };
+        const nextPlan = path.join(integration.integrationPath, 'NEXT_PLAN.md');
+        if (!fs.existsSync(nextPlan))
+            return { ok: false, reason: 'next-plan-required' };
+        if (!fs.lstatSync(nextPlan).isFile())
+            return { ok: false, reason: 'next-plan-must-be-regular-file' };
+        if (git(exec, integration.integrationPath, ['ls-files', '--', 'NEXT_PLAN.md']) !== '') {
+            return { ok: false, reason: 'next-plan-must-be-untracked' };
+        }
+        ledger.status = 'partial_closed';
+        ledger.userConfirmed = true;
+        const rollbackBlueprint = writePartialCloseBlueprint(integration.integrationPath, blueprint);
+        try {
+            writeLedger(integration.ledgerFile, ledger);
+        }
+        catch (error) {
+            rollbackBlueprint();
+            throw error;
+        }
+        return { ok: true, command, status: 'partial_closed', nextPlan,
+            message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.',
+            preserved: [integration.integrationPath, ...ledger.tasks.map((entry) => entry.workerPath).filter(Boolean)] };
     }
     if (command === 'prepare') {
         ensureIntegrationCwd(repoRoot, blueprint, cwd);
@@ -257,7 +438,10 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             if (!registeredWorker(exec, integration.integrationPath, worker)) {
                 return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
             }
-            const seeded = seedCoordinatorWorker({ repoRoot, blueprintDir: blueprint, worktreePath: worker });
+            // 동적 repair 문서는 integration checkout에만 존재한다. main checkout은
+            // drive 동안 read-only이므로 repair worker seed도 그 정본에서 가져온다.
+            const seedRoot = item.dynamic ? integration.integrationPath : repoRoot;
+            const seeded = seedCoordinatorWorker({ repoRoot: seedRoot, blueprintDir: blueprint, worktreePath: worker });
             if (!seeded.ok)
                 return seeded;
             item.status = transition(item.status || 'pending', 'ready');
@@ -298,6 +482,93 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         atomicWrite(integration.ledgerFile, ledger);
         return { ok: true, command, task: item, decisions: ledger.decisions };
     }
+    if (command === 'rerecord') {
+        const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath;
+        if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
+            return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+        }
+        ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
+        if (item.status !== 'recorded' || !item.sha)
+            return { ok: false, reason: 'not-recorded' };
+        if (typeof decision !== 'string' || decision.trim() === '') {
+            return { ok: false, reason: 'decision-reason-required' };
+        }
+        const integrationHead = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
+        if (ledger.integrationHead !== integrationHead)
+            return { ok: false, reason: 'stale-integration-head' };
+        const workerHead = git(exec, cwd, ['rev-parse', 'HEAD']);
+        if (sha && sha !== workerHead)
+            return { ok: false, reason: 'sha-not-worker-head' };
+        if (workerHead === item.sha)
+            return { ok: false, reason: 'sha-unchanged' };
+        if (directParent(exec, cwd, workerHead) !== integrationHead) {
+            return { ok: false, reason: 'sha-not-direct-integration-child' };
+        }
+        const rerecordDecision = {
+            task, kind: 'rerecord', reason: decision.trim(), previousSha: item.sha,
+            nextSha: workerHead, integrationHead,
+        };
+        item.sha = workerHead;
+        item.decisions = [...(item.decisions || []), rerecordDecision];
+        ledger.decisions.push(rerecordDecision);
+        atomicWrite(integration.ledgerFile, ledger);
+        return { ok: true, command, task: item, decision: rerecordDecision, decisions: ledger.decisions };
+    }
+    if (command === 'repair') {
+        ensureIntegrationCwd(repoRoot, blueprint, cwd);
+        const waves = ledger.repairWaves || [];
+        if (waves.length >= 2)
+            return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
+        if (item.execution_kind !== 'verification' || item.status !== 'verifying') {
+            return { ok: false, reason: 'terminal-failure-required' };
+        }
+        if (typeof failureCommand !== 'string' || failureCommand === '' || typeof summary !== 'string' || summary === '') {
+            return { ok: false, reason: 'failure-evidence-required' };
+        }
+        if (typeof decision !== 'string' || decision.trim() === '') {
+            return { ok: false, reason: 'decision-reason-required' };
+        }
+        if (!sourceRepairPaths(repairPaths))
+            return { ok: false, reason: 'repair-scope-out-of-bounds' };
+        const previousDag = dagSnapshot(ledger.tasks);
+        const leaves = integratedLeaves(ledger.tasks, task);
+        const repairId = String(Math.max(...ledger.tasks.map((entry) => Number(entry.id)), 0) + 1).padStart(3, '0');
+        const wave = waves.length + 1;
+        const revision = nextLedgerRevision(ledger.revision);
+        const failure = {
+            task, command: failureCommand, summary, paths: [...repairPaths], exitCode: 1, repairWave: waves.length,
+        };
+        const repair = {
+            id: repairId, depends_on: leaves, dependency_gate: 'integrated', parallel_safe: false,
+            execution_kind: 'commit', status: 'pending', dynamic: true,
+            scope: { revision, paths: [...repairPaths] },
+        };
+        item.depends_on = [repairId];
+        item.status = 'pending';
+        ledger.tasks.push(repair);
+        const repairDecision = {
+            task: repairId, kind: 'repair', wave, reason: decision.trim(), failure,
+            previousDag, nextDag: dagSnapshot(ledger.tasks), previousScope: [],
+            nextScope: [...repairPaths], necessity: 'terminal CI failure requires a Blueprint-scoped source repair', revision,
+        };
+        repair.decisions = [repairDecision];
+        ledger.decisions.push(repairDecision);
+        ledger.repairWaves = [...waves, repairDecision];
+        ledger.revision = revision;
+        ledger.terminalFailure = failure;
+        ledger.status = 'active';
+        const rollbackDocuments = writeRepairDocuments({
+            integrationPath: integration.integrationPath, blueprint, repair, terminal: item,
+        });
+        try {
+            writeLedger(integration.ledgerFile, ledger);
+        }
+        catch (error) {
+            rollbackDocuments();
+            throw error;
+        }
+        return { ok: true, command, wave, repairTask: repair, terminalTask: item, decision: repairDecision };
+    }
     if (command === 'integrate') {
         ensureIntegrationCwd(repoRoot, blueprint, cwd);
         if (item.execution_kind === 'verification') {
@@ -313,8 +584,27 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             const runner = deps.runVerification
                 || require('./verification').runVerification;
             const result = runner({ repoRoot: integration.integrationPath, blueprintDir: blueprint });
-            if (!result.ok)
-                return { ok: false, reason: 'verification-failed', task: item, verification: result };
+            if (!result.ok) {
+                const lastRepair = (ledger.repairWaves || []).at(-1);
+                const evidence = {
+                    task, command: result.command, summary: `exit code ${result.exitCode}`,
+                    paths: lastRepair ? [...lastRepair.nextScope] : [...(ledger.terminalFailure?.paths || [])],
+                    exitCode: result.exitCode, repairWave: (ledger.repairWaves || []).length,
+                };
+                ledger.terminalFailure = evidence;
+                const exhausted = (ledger.repairWaves || []).length >= 2;
+                if (exhausted) {
+                    ledger.status = 'awaiting_confirmation';
+                    const nextPlan = path.join(integration.integrationPath, 'NEXT_PLAN.md');
+                    const remaining = evidence.paths.length > 0 ? evidence.paths.join(', ') : 'none recorded';
+                    const nextPlanBody = `# Next plan\n\n- Failed command: \`${result.command}\`\n`
+                        + `- Exit code: ${result.exitCode}\n- Remaining paths: ${remaining}\n`;
+                    fs.writeFileSync(nextPlan, nextPlanBody);
+                }
+                atomicWrite(integration.ledgerFile, ledger);
+                return { ok: false, reason: 'verification-failed', task: item, verification: result,
+                    repairWaves: (ledger.repairWaves || []).length, stopped: exhausted };
+            }
             item.status = transition('verifying', 'integrated', 'verification');
             writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'integrated');
             atomicWrite(integration.ledgerFile, ledger);

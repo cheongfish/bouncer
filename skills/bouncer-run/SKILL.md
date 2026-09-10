@@ -60,6 +60,11 @@ execute/review/commit/cherry-pick을 호출하지 않고 integration checkout에
 verification runner를 실행한다. 성공 증적 뒤에만 `ready → verifying → integrated`로
 끝내며, 실패하면 `verifying`에 두고 종료한다. runner 호출 전에는 integration
 checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비한다.
+실패하면 `coordinate repair`로 실패 command·요약·관련 경로와 이전/다음 DAG·scope를
+결정 로그에 남기고 최대 두 repair wave만 실행한다. 두 번째 repair 뒤에도 실패하면
+세 번째 wave를 만들지 않고 integration 루트의 untracked `NEXT_PLAN.md`와 모든
+worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
+`partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
 1. **Preflight.** Read `autonomy` from `.bouncer/config.json`. When the key is
    missing or outside `AUTONOMY_ENUM`, tell the user and proceed with `auto`.
@@ -136,6 +141,9 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,
    not as your own re-judgment. This skill does not enter finalize.
+   `partial_closed`이면 마지막 실패 command·관련 경로와 두 repair 결정 및 보존
+   경로를 숨기지 말고 `NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`를
+   그대로 출력한다.
 
 ## ACQ (AskUserQuestion) gates
 

@@ -332,6 +332,17 @@ test('bouncer-coordinator keeps provenance inside the recorded decision', () => 
   assert.doesNotMatch(md, /`bouncer coordinate record` its result SHA, actual paths/);
 });
 
+test('bouncer-coordinator bounds terminal CI repair and preserves partial-close evidence', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /two repair waves/i);
+  assert.match(md, /NEXT_PLAN\.md/);
+  assert.match(md, /user confirmation/i);
+  assert.match(md, /partial_closed/);
+  const outcome = md.slice(md.indexOf('- **Outcome**'), md.indexOf('- **Completed**'));
+  assert.match(outcome, /completed.*blocked.*partial_closed/i);
+  assert.match(outcome, /exactly one/i);
+});
+
 test('bouncer-coordinator names its closing action', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   const close = md.match(/6\. \*\*Close\*\*[\s\S]*?(?=\n\n)/)?.[0] || '';

@@ -59,6 +59,10 @@ test('verification integrate runs CI without a worker or commit and advances onl
     fs.mkdirSync(path.join(repo, blueprint, 'tasks', id), { recursive: true });
     fs.writeFileSync(path.join(repo, blueprint, 'tasks', id, 'tasks.md'), `---\nbouncer:\n  ${metadata}---\n`);
   }
+  fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
   const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
@@ -86,6 +90,91 @@ test('verification integrate runs CI without a worker or commit and advances onl
   });
   assert.strictEqual(failed.reason, 'verification-failed');
   assert.strictEqual(JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks[1].status, 'verifying');
+
+  const missing = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    paths: ['src/fix.js'], decision: 'CI failure requires repair',
+  });
+  assert.strictEqual(missing.reason, 'failure-evidence-required');
+  const escaped = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['.bouncer/context/'],
+    decision: 'invalid scope',
+  });
+  assert.strictEqual(escaped.reason, 'repair-scope-out-of-bounds');
+  for (const badPath of ['src/../.git/config', 'src/..', './', '../outside', '~/.cache', 'src/**', 'src/file?.js',
+    'C:\\outside\\file.ts']) {
+    const rejected = coordinate({
+      command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+      failureCommand: 'node --test', summary: 'one failed', paths: [badPath], decision: 'invalid scope',
+    });
+    assert.strictEqual(rejected.reason, 'repair-scope-out-of-bounds', badPath);
+  }
+
+  const terminalFile = path.join(boot.integrationPath, blueprint, 'tasks/002/tasks.md');
+  const terminalBeforeWriteFailure = fs.readFileSync(terminalFile, 'utf8');
+  const ledgerBeforeWriteFailure = fs.readFileSync(ledgerFile, 'utf8');
+  assert.throws(() => coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['src/fix.js'],
+    decision: 'injected failure', deps: { writeLedger: () => { throw new Error('ledger write failed'); } },
+  }), /ledger write failed/);
+  assert.strictEqual(fs.readFileSync(terminalFile, 'utf8'), terminalBeforeWriteFailure);
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBeforeWriteFailure);
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, blueprint, 'tasks/003')), false);
+
+  const firstRepair = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['src/fix.js'],
+    decision: 'repair the failing source path',
+  });
+  assert.strictEqual(firstRepair.ok, true, JSON.stringify(firstRepair));
+  assert.strictEqual(firstRepair.wave, 1);
+  assert.deepStrictEqual(firstRepair.terminalTask.depends_on, ['003']);
+  assert.deepStrictEqual(firstRepair.decision.previousScope, []);
+  assert.deepStrictEqual(firstRepair.decision.nextScope, ['src/fix.js']);
+  assert.strictEqual(firstRepair.decision.revision, 'r1');
+  assert.strictEqual(firstRepair.repairTask.scope.revision, 'r1');
+  assert.match(fs.readFileSync(path.join(
+    boot.integrationPath, blueprint, 'tasks/003/tasks.md',
+  ), 'utf8'), /scope_revision: r1/);
+
+  let repairedLedger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  repairedLedger.tasks.find((entry) => entry.id === '003').status = 'integrated';
+  repairedLedger.tasks.find((entry) => entry.id === '002').status = 'verifying';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(repairedLedger, null, 2)}\n`);
+  const secondRepair = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'still failing', paths: ['test/fix.test.js'],
+    decision: 'add the missing regression coverage',
+  });
+  assert.strictEqual(secondRepair.wave, 2);
+  assert.deepStrictEqual(secondRepair.terminalTask.depends_on, ['004']);
+  const thirdRepair = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'still failing', paths: ['src/third.js'], decision: 'third',
+  });
+  assert.strictEqual(thirdRepair.reason, 'repair-wave-limit');
+
+  repairedLedger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  repairedLedger.tasks.find((entry) => entry.id === '004').status = 'integrated';
+  repairedLedger.tasks.find((entry) => entry.id === '002').status = 'ready';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(repairedLedger, null, 2)}\n`);
+  const thirdFailure = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: { runVerification: () => ({ ok: false, command: 'node --test', exitCode: 1 }) },
+  });
+  assert.strictEqual(thirdFailure.stopped, true);
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, 'NEXT_PLAN.md')), true);
+  assert.strictEqual(coordinate({
+    command: 'partial-close', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  }).reason, 'partial-close-user-confirmation-required');
+  const partial = coordinate({
+    command: 'partial-close', repoRoot: repo, blueprint, cwd: boot.integrationPath, userConfirmed: true,
+  });
+  assert.strictEqual(partial.ok, true, JSON.stringify(partial));
+  assert.strictEqual(partial.status, 'partial_closed');
+  assert.strictEqual(partial.message, 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.');
 });
 
 test('verification integrate seeds the terminal bundle and uses the real runner', () => {

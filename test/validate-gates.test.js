@@ -14,6 +14,42 @@ const {
 const { parseExplainSections } = require('../scripts/lib/validate-sections');
 const { TEMPLATES } = require('../scripts/lib/templates');
 
+function repairDecision(task, wave, terminal, pathName) {
+  return {
+    task, kind: 'repair', wave, reason: `repair wave ${wave}`,
+    failure: {
+      task: terminal, command: 'npm test', summary: `wave ${wave} failed`,
+      paths: [pathName], exitCode: 1, repairWave: wave - 1,
+    },
+    previousDag: [{ id: terminal, depends_on: [] }],
+    nextDag: [{ id: terminal, depends_on: [task] }, { id: task, depends_on: [] }],
+    previousScope: [], nextScope: [pathName], necessity: 'terminal CI repair is required',
+    revision: `r${wave}`,
+  };
+}
+
+test('partial-close gate requires two waves, failure evidence, untracked plan, and confirmation', () => {
+  const { checkPartialCloseEvidence } = require('../scripts/lib/validate-gates');
+  const wave1 = repairDecision('003', 1, '002', 'src/a.js');
+  const wave2 = repairDecision('004', 2, '002', 'src/b.js');
+  const evidence = {
+    status: 'awaiting_confirmation', repairWaves: [wave1, wave2], decisions: [wave1, wave2],
+    tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
+      { id: '003', status: 'integrated', decisions: [wave1] },
+      { id: '004', status: 'integrated', decisions: [wave2] }],
+    terminalFailure: { task: '002', command: 'npm test', summary: 'failed', paths: ['test/a.js'], exitCode: 1, repairWave: 2 },
+  };
+  assert.match(checkPartialCloseEvidence({ ledger: {}, userConfirmed: true }).reason, /awaiting/);
+  assert.match(checkPartialCloseEvidence({ ledger: evidence, userConfirmed: true }).reason, /next-plan/);
+  assert.match(checkPartialCloseEvidence({ ledger: evidence, nextPlanExists: true }).reason, /confirmation/);
+  assert.match(checkPartialCloseEvidence({
+    ledger: evidence, nextPlanExists: true, nextPlanTracked: true, userConfirmed: true,
+  }).reason, /untracked/);
+  assert.strictEqual(checkPartialCloseEvidence({
+    ledger: evidence, nextPlanExists: true, nextPlanTracked: false, userConfirmed: true,
+  }).ok, true);
+});
+
 const rels = {
   epicIndex: '.bouncer/context/epics/001-auth/index.md',
   blueprintIndex: '.bouncer/context/epics/001-auth/blueprints/001-login/index.md',

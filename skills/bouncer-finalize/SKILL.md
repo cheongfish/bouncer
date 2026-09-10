@@ -35,6 +35,10 @@ from inside a checkout you are removing.
 bouncer current
 ```
 If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
+If the blueprint is `partial_closed`, do not run promotion, finalize, commit,
+push, PR, pointer clearing, or worktree cleanup. Preserve the coordinator
+ledger, integration/worker worktrees, last CI evidence, and untracked
+`NEXT_PLAN.md`; hand the user the follow-up-plan approval message instead.
 
 Apply the shared returned-value contract. This workflow owns the finalize
 outcome that clears the pointer and the post-cleanup next-blueprint handoff.

@@ -379,7 +379,8 @@ type LedgerTaskLike = {
 };
 type CoordinatorLedgerLike = {
   base?: unknown; integrationHead?: unknown; revision?: unknown;
-  tasks?: unknown; decisions?: unknown;
+  tasks?: unknown; decisions?: unknown; status?: unknown; repairWaves?: unknown;
+  terminalFailure?: unknown; userConfirmed?: unknown;
 };
 
 function stringOrNull(value: unknown): string | null {
@@ -433,6 +434,10 @@ function buildCoordinatorProvenance(
     integrationPath,
     tasks,
     decisions: Array.isArray(ledger.decisions) ? ledger.decisions : [],
+    lifecycleStatus: typeof ledger.status === 'string' ? ledger.status : 'active',
+    repairWaves: Array.isArray(ledger.repairWaves) ? ledger.repairWaves : [],
+    terminalFailure: ledger.terminalFailure || null,
+    userConfirmed: ledger.userConfirmed === true,
     // cleanup 목록: integration이 먼저고, 할당된 worker worktree가 뒤따른다.
     // payload의 top-level `worktrees`는 이 목록의 별칭이다 — 정리 계약(SKILL
     // step 5, cleanup-handoff.md)이 읽는 안정된 자리이고, 여기 중첩된 값은
@@ -531,6 +536,21 @@ function finalize({
   verifyExec?: VerifyExec;
 }) {
   const gitApi = git || realGit(repoRoot);
+
+  const preflightTarget = resolveLockTarget({ repoRoot, blueprintDir });
+  const preflightBouncer = preflightTarget.data && typeof preflightTarget.data === 'object'
+    ? asRecord(asRecord(preflightTarget.data).bouncer) : {};
+  if (preflightBouncer.status === 'partial_closed') {
+    const coordinator = collectCoordinatorProvenance({ repoRoot, blueprintDir });
+    const nextPlan = path.join(repoRoot, 'NEXT_PLAN.md');
+    return {
+      ok: false, reason: 'partial-closed', status: 'partial_closed', coordinator,
+      worktrees: coordinator ? coordinator.worktrees : [],
+      nextPlan: fs.existsSync(nextPlan) ? nextPlan : null,
+      preserved: true,
+      message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.',
+    };
+  }
 
   const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
   if (!v.ok) return { ok: false, reason: 'validate', failures: v.failures };

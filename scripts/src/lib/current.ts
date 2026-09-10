@@ -491,7 +491,7 @@ function coordinatorSnapshot(repoRoot: string, blueprint: string) {
     };
   }
   const ledger = found.ledger as {
-    revision?: unknown; integrationHead?: unknown;
+    revision?: unknown; integrationHead?: unknown; status?: unknown; terminalFailure?: unknown;
     tasks?: Array<{
       id: string;
       execution_kind?: 'commit' | 'verification';
@@ -506,6 +506,9 @@ function coordinatorSnapshot(repoRoot: string, blueprint: string) {
     integrationPath: found.integrationPath,
     revision: typeof ledger.revision === 'string' ? ledger.revision : null,
     integrationHead: typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null,
+    terminalStatus: ledger.status === 'partial_closed' || ledger.status === 'awaiting_confirmation'
+      ? ledger.status : null,
+    terminalFailure: ledger.terminalFailure || null,
     ready: readyWave(tasks),
     tasks: tasks.map((task) => ({
       id: task.id,
@@ -804,7 +807,7 @@ function listSameEpicPending({
       const bpStatus = bouncerStatus(indexDoc.data);
       // closed는 터미널 — 잔여 인계에 올리면 이미 끝난 계획을 다시 고르게 됨.
       // 문자열이 아니면 상태를 보고할 수 없으므로 이 항목만 건너뛴다.
-      if (typeof bpStatus !== 'string' || bpStatus === 'closed') continue;
+      if (typeof bpStatus !== 'string' || bpStatus === 'closed' || bpStatus === 'partial_closed') continue;
       pending.push({
         blueprint: rel,
         blueprintStatus: bpStatus,

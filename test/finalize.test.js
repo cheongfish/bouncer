@@ -1175,6 +1175,22 @@ test('finalize without a coordinator ledger reports no provenance and no worktre
   assert.deepStrictEqual(res.worktrees, []);
 });
 
+test('finalize preserves a partial-closed drive and refuses ordinary cleanup', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const index = path.join(repo, `${BP_REL}/index.md`);
+  fs.writeFileSync(index, fs.readFileSync(index, 'utf8').replace('status: approved', 'status: partial_closed'));
+  fs.writeFileSync(path.join(repo, 'NEXT_PLAN.md'), '# Next plan\n');
+  const g = fakeGit([], []);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'partial-closed');
+  assert.strictEqual(res.preserved, true);
+  assert.strictEqual(res.nextPlan, path.join(repo, 'NEXT_PLAN.md'));
+  assert.match(res.message, /NEXT_PLAN\.md를 확인하고/);
+  assert.deepStrictEqual(g.calls, { staged: null, committed: null });
+});
+
 // 읽히지 않는 원장을 null로 접으면 비-drive finalize와 구분되지 않는다.
 // 그 상태로 마감하면 통합되지 않은 fan-in이 완료로 기록되고, 복구에 필요한
 // worktree 목록도 비어 버린다.
