@@ -105,7 +105,7 @@ function fullBlueprint(repo, {
       id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
       commit_type: 'feat',
     },
-  }, '# Blueprint\n\n## Intent\n- 마감은 청사진 단위로 묶는다\n- 남은 변경은 Distill 승격분 정도다\n');
+  }, '# Blueprint\n\n## Intent\n- 마감은 청사진 단위로 묶는다\n- 남은 변경은 설명 문서와 병합 기록이다\n');
   writeDoc(repo, `${blueprintDir}/tasks/001/tasks.md`, {
     type: 'bouncer.tasks', title: 'Impl login', description: 'd', resource: `${blueprintDir}/tasks/001/tasks.md`,
     tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
@@ -115,7 +115,7 @@ function fullBlueprint(repo, {
       // task commit_intent는 task 커밋 전용이며 finalize는 blueprint Intent를 본다.
       commit_intent: [
         '마감은 청사진 단위로 묶는다',
-        '남은 변경은 Distill 승격분 정도다',
+        '남은 변경은 설명 문서와 병합 기록이다',
       ],
       commit_sha: 'aabbccdd',
     },
@@ -192,7 +192,7 @@ function finalizeMessage() {
     'feat: Login',
     '',
     '- 마감은 청사진 단위로 묶는다',
-    '- 남은 변경은 Distill 승격분 정도다',
+    '- 남은 변경은 설명 문서와 병합 기록이다',
   ].join('\n');
 }
 
@@ -303,16 +303,43 @@ test('--yes verify failure skips lock, staging, and commit', () => {
   assert.ok(!('staged' in res));
 });
 
-test('finalize allows a registered Distill shard outside affected_paths', () => {
+test('finalize without Distill files completes remainder', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/Distill.md')));
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/distill')));
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.committed, true);
+  assert.ok(!res.staged.some((rel) => /Distill|distill/.test(rel)));
+});
+
+test('finalize rejects Distill paths outside affected_paths', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = fakeGit(['.bouncer/Distill.md'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.deepStrictEqual(res.violations, ['.bouncer/Distill.md']);
+  assert.strictEqual(g.calls.staged, null);
+});
+
+test('finalize rejects a Distill shard outside affected_paths', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   writeRegisteredDistillShard(repo);
   const shard = '.bouncer/distill/core.md';
   const g = fakeGit([shard], []);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
-  assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.dryRun, true);
-  assert.ok(res.staged.includes(shard));
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.deepStrictEqual(res.violations, [shard]);
   assert.strictEqual(g.calls.committed, null);
 });
 
@@ -492,7 +519,7 @@ test('finalize commit message has no trailers', () => {
 });
 
 
-test('finalize --yes from a linked checkout stages that checkout Distill and registered shard', () => {
+test('finalize --yes from a linked checkout rejects Distill remainder outside affected_paths', () => {
   const tmp = fs.realpathSync(os.tmpdir());
   const primary = fs.realpathSync(fs.mkdtempSync(path.join(tmp, 'bouncer-finalize-primary-')));
   fullBlueprint(primary);
@@ -502,8 +529,6 @@ test('finalize --yes from a linked checkout stages that checkout Distill and reg
     stdio: 'ignore',
   });
   const linkedRoot = fs.realpathSync(linked);
-  // worktree add는 tracked 파일만 가져온다. blueprint 문서는 fixture가 커밋하지
-  // 않으므로 linked에 다시 심고, Distill은 이 checkout에만 둔다.
   fullBlueprint(linkedRoot, { withGit: false });
   writeRegisteredDistillShard(linkedRoot);
   const g = fakeGit(['.bouncer/Distill.md', '.bouncer/distill/core.md'], []);
@@ -511,24 +536,10 @@ test('finalize --yes from a linked checkout stages that checkout Distill and reg
     repoRoot: linkedRoot, blueprintDir: BP_REL, yes: true, git: g.api, clearPointer: () => true,
     verifyExec: passVerify,
   });
-  assert.ok(res.staged.includes('.bouncer/Distill.md'));
-  assert.ok(res.staged.includes('.bouncer/distill/core.md'));
-});
-
-test('allows .bouncer/Distill.md without listing it in affected_paths', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
-  fullBlueprint(repo);
-  const g = fakeGit(['.bouncer/Distill.md'], []);
-  const res = finalize({
-    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
-  });
-  assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.committed, true);
-  assert.deepStrictEqual(g.calls.staged, [
-    '.bouncer/Distill.md',
-    `${BP_REL}/index.md`,
-    `${BP_REL}/explain.md`,
-  ]);
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'out-of-scope');
+  assert.ok(res.violations.includes('.bouncer/Distill.md'));
+  assert.ok(res.violations.includes('.bouncer/distill/core.md'));
 });
 
 test('finalize return includes next even when no candidates remain', () => {

@@ -118,7 +118,6 @@ test('init writes the exact config.json shape', () => {
     source_dirs: [],
     context_dirs: ['.bouncer/context'],
     graphify: { enabled: true },
-    distill: { routing_enabled: false, max_bytes: 6144 },
     verify: 'npm test',
     verify_allowlist: [...DEFAULT_VERIFY_ALLOWLIST],
     autonomy: 'auto',
@@ -157,49 +156,41 @@ test('init writes the exact config.json shape', () => {
   });
 });
 
-test('init seeds disabled Distill routing defaults without creating shards', () => {
+test('init does not create Distill files or distill config', () => {
   const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const legacy = '# Project Distill\n\n## Decisions\n\nkeep this single file\n';
-  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), legacy);
-
-  const first = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  const configPath = path.join(repo, '.bouncer/config.json');
-  const firstConfig = JSON.parse(read(repo, '.bouncer/config.json'));
-  assert.strictEqual(first.ok, true);
-  assert.deepStrictEqual(firstConfig.distill, {
-    routing_enabled: false,
-    max_bytes: 6144,
-  });
-  assert.strictEqual(read(repo, '.bouncer/Distill.md'), legacy);
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(res.ok, true);
+  assert.ok(exists(repo, '.bouncer/context/index.md'));
+  assert.ok(exists(repo, '.bouncer/config.json'));
+  assert.ok(!exists(repo, '.bouncer/Distill.md'));
   assert.ok(!exists(repo, '.bouncer/distill'));
-
-  const before = fs.readFileSync(configPath);
-  const second = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.strictEqual(second.reason, 'already-initialized');
-  assert.deepStrictEqual(fs.readFileSync(configPath), before);
-  assert.strictEqual(read(repo, '.bouncer/Distill.md'), legacy);
+  assert.ok(!res.created.includes('.bouncer/Distill.md'));
+  const config = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.ok(!Object.prototype.hasOwnProperty.call(config, 'distill'));
 });
 
-test('ready init seeds missing disabled Distill settings but preserves enabled routing', () => {
+test('ready init does not seed Distill settings or rewrite distill keys', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
   const configPath = path.join(repo, '.bouncer/config.json');
-  const config = JSON.parse(read(repo, '.bouncer/config.json'));
-  delete config.distill;
-  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+  const missing = JSON.parse(read(repo, '.bouncer/config.json'));
+  delete missing.distill;
+  fs.writeFileSync(configPath, `${JSON.stringify(missing, null, 2)}\n`);
 
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')).distill, {
-    routing_enabled: false,
-    max_bytes: 6144,
-  });
+  assert.ok(!Object.prototype.hasOwnProperty.call(
+    JSON.parse(read(repo, '.bouncer/config.json')),
+    'distill',
+  ));
 
   const enabled = JSON.parse(read(repo, '.bouncer/config.json'));
-  enabled.distill.routing_enabled = true;
+  enabled.distill = { routing_enabled: true, max_bytes: 1024 };
   fs.writeFileSync(configPath, `${JSON.stringify(enabled, null, 2)}\n`);
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.strictEqual(JSON.parse(read(repo, '.bouncer/config.json')).distill.routing_enabled, true);
+  assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')).distill, {
+    routing_enabled: true,
+    max_bytes: 1024,
+  });
 });
 
 test('init source_dirs detects existing candidate directories in fixed order', () => {
@@ -440,40 +431,28 @@ test('init suggests nothing when the artifacts are already ignored', () => {
 });
 
 
-test('init creates .bouncer/Distill.md with Invariants Gotchas Decisions', () => {
+test('init leaves an existing Distill file untouched and does not create one', () => {
   const repo = tmpRepo();
-  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.ok(res.created.includes('.bouncer/Distill.md'));
-  const body = read(repo, '.bouncer/Distill.md');
-  assert.match(body, /## Invariants/);
-  assert.match(body, /## Gotchas/);
-  assert.match(body, /## Decisions/);
-  assert.match(body, /resource: \.bouncer\/Distill\.md/);
-});
-
-test('init does not overwrite an existing project Distill', () => {
-  const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  const first = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.ok(!first.created.includes('.bouncer/Distill.md'));
   const custom = '# Distill\n\n## Invariants\n\n- keep me\n';
   fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), custom);
   const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.strictEqual(again.reason, 'already-initialized');
+  assert.ok(!again.created.includes('.bouncer/Distill.md'));
   assert.strictEqual(read(repo, '.bouncer/Distill.md'), custom);
 });
 
-test('init seeds Distill when bootstrap is ready but Distill is missing', () => {
+test('ready init does not seed Distill when it is missing', () => {
   const repo = tmpRepo();
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  fs.unlinkSync(path.join(repo, '.bouncer/Distill.md'));
+  assert.ok(!exists(repo, '.bouncer/Distill.md'));
   const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.ok(again.created.includes('.bouncer/Distill.md'));
-  assert.match(read(repo, '.bouncer/Distill.md'), /## Invariants/);
+  assert.ok(!again.created.includes('.bouncer/Distill.md'));
+  assert.ok(!exists(repo, '.bouncer/Distill.md'));
 });
 
-test('init migrates legacy .bouncer/context/Distill.md to .bouncer/Distill.md', () => {
+test('init does not migrate legacy .bouncer/context/Distill.md', () => {
   const repo = tmpRepo();
-  init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  fs.unlinkSync(path.join(repo, '.bouncer/Distill.md'));
   const legacy = `---
 title: Project Distill
 resource: .bouncer/context/Distill.md
@@ -486,12 +465,10 @@ resource: .bouncer/context/Distill.md
 `;
   fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/context/Distill.md'), legacy);
-  const again = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.ok(again.created.includes('.bouncer/Distill.md'));
-  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/context/Distill.md')));
-  const body = read(repo, '.bouncer/Distill.md');
-  assert.match(body, /resource: \.bouncer\/Distill\.md/);
-  assert.match(body, /migrated note/);
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.ok(!res.created.includes('.bouncer/Distill.md'));
+  assert.ok(fs.existsSync(path.join(repo, '.bouncer/context/Distill.md')));
+  assert.ok(!exists(repo, '.bouncer/Distill.md'));
 });
 
 test('init reports gitignore suggestions on an already-initialized repo', () => {
@@ -618,7 +595,6 @@ test('ready bootstrap without promote reports candidate and leaves config bytes 
     source_dirs: ['src'],
     context_dirs: ['.bouncer/context'],
     graphify: { enabled: false },
-    distill: { routing_enabled: false, max_bytes: 65536 },
     verify: 'npm test',
     base_branch: 'develop',
     pr: { draft: true, base: 'develop', labels: ['bouncer'] },

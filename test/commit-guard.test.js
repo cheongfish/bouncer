@@ -133,6 +133,16 @@ test('the coordinator ledger is not a scope violation', () => {
 // 접두 판정은 `.bouncer/runtime/` 한 갈래에만 적용된다 — 커밋해야 하는
 // 컨텍스트 문서와 Distill까지 런타임 산출물이 되면 게이트 증적이 리뷰어에게
 // 닿지 않는다. makeAllowed 예외와 무관하게 술어 자체를 고정한다.
+test('Distill is not a special commit allow outside affected_paths', () => {
+  const res = checkCommitSafety({
+    files: ['src/auth/login.ts', '.bouncer/Distill.md'],
+    affectedPaths: ['src/auth/'],
+    blueprintDir: BP,
+  });
+  assert.strictEqual(res.allow, false);
+  assert.deepStrictEqual(res.violations, ['.bouncer/Distill.md']);
+});
+
 test('context docs and Distill are still not runtime artifacts', () => {
   assert.strictEqual(isRuntimeArtifact('.bouncer/runtime/coordinator.json'), true);
   assert.strictEqual(isRuntimeArtifact('.bouncer/context/epics/002-other/index.md'), false);

@@ -4,7 +4,7 @@ const path = require('node:path');
 
 // 레거시 단일/번호 문서와 새 tasks/<NNN>/ 묶음을 한 모듈에서만 판정한다.
 // 다른 모듈이 tasks.md / verification.md / review.md / \d{3} 문자열을
-// 직접 매칭하지 않게 하기 위함 (Distill invariant).
+// 직접 매칭하지 않게 하기 위함 (묶음 basename 정본).
 const LEGACY_TASKS_BASENAME = 'tasks.md';
 const INITIAL_NUMBERED_TASKS_BASENAME = 'tasks-001.md';
 // tasks-1.md · tasks-01.md 는 정본이 아니다 — 세 자리 zero-pad만 인정.

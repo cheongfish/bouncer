@@ -1663,6 +1663,30 @@ test('finalize G16 fails when comprehension entry is incomplete (empty quiz_scor
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
+test('finalize G16 does not require Distill files or promotion metadata', () => {
+  const repo = mkRepo();
+  writeFinalizeG16Fixture(repo, {
+    task2Status: 'verified',
+    entries: [
+      compEntry({ task: '001', disposition: 'ok' }),
+      compEntry({ task: '002', disposition: 'ok' }),
+    ],
+  });
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/Distill.md')));
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/distill')));
+
+  const res = validateBlueprint({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
+  });
+  assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
+  assert.ok(!res.failures.some((f) => f.code === 'G16' && /distill|promotion/i.test(f.message)));
+});
+
 test('finalize G16 passes with a single complete entry when all tasks are verified', () => {
   const repo = mkRepo();
   // 0.7 다중 엔트리도 마지막만 보면 통과 — 마이그레이션 없이 읽기 호환.

@@ -5,7 +5,7 @@ const { unitDocKind } = tasksDocs;
 
 const FILE_KIND: Record<string, string> = {
   // verification.md / review.md / tasks.md 는 tasks-docs.unitDocKind 로만 판정.
-  // 문자열을 여기 두면 Distill invariant( basenames live only in tasks-docs )를 깨뜨린다.
+  // 문자열을 여기 두면 묶음 basename 정본이 갈라진다.
   'explain.md': 'explain',
   // BP 루트 문서. task 묶음 basename이 아니므로 tasks-docs에 넣지 않는다.
   'context-review.md': 'context_review',

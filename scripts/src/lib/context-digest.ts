@@ -1,10 +1,6 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-import distill = require('./distill');
-const { readShards } = distill;
-import layout = require('./layout');
-const { DISTILL_SHARD_DIR } = layout;
 import tasksDocs = require('./tasks-docs');
 const { TASK_DIR_RE, TASK_UNIT_BASENAMES } = tasksDocs;
 import frontmatter = require('./frontmatter');
@@ -16,10 +12,10 @@ const { normalizeCommitSha } = commitSha;
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
 const DIGEST_MAP_REL = 'graphify-out/context-src/map.json';
 /**
- * Distill은 context_dirs 밖이라 디렉터리 walk에 안 잡힌다.
- * freshness와 다이제스트 입력 모두에 명시적으로 넣는다.
+ * context freshness가 dirs 외에 보는 단일 파일. Distill master는 더 이상
+ * 검색 corpus가 아니므로 비운다. 원본은 `.bouncer/context/**` walk가 담당한다.
  */
-const DIGEST_WATCH_FILES = ['.bouncer/Distill.md'];
+const DIGEST_WATCH_FILES: string[] = [];
 
 /**
  * 그래프 검색 신호가 되는 화이트리스트 문서의 헤딩 배열만 돌려준다.
@@ -31,13 +27,6 @@ const DIGEST_WATCH_FILES = ['.bouncer/Distill.md'];
  */
 function digestRulesFor(rel: unknown): string[] | null {
   const norm = String(rel || '').replace(/\\/g, '/');
-  // master Distill 본문은 ## Shards만 있다. Decisions를 찾으면 파생 산출이 0건이 된다.
-  if (norm === '.bouncer/Distill.md') return ['## Shards'];
-  // shard는 Invariants·Gotchas·Decisions를 문서 작성 순서대로 색인한다.
-  // 셋 중 일부만 있으면 extractSections가 있는 절만 남긴다.
-  if (new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(norm)) {
-    return ['## Invariants', '## Gotchas', '## Decisions'];
-  }
   if (/^\.bouncer\/context\/epics\/[^/]+\/index\.md$/.test(norm)) {
     return ['## Success criteria'];
   }
@@ -112,7 +101,7 @@ function stripFrontmatter(markdown: unknown): string {
  * 문서 경로에서 epic→blueprint→task 계층 앵커를 파생한다.
  * 작성 본문에 앵커를 쓰지 않아도 파생 트리가 검색 좌표를 갖도록 경로 id만 읽는다.
  * 어떤 층의 선행 `\d{3}`(task는 TASK_DIR_RE)가 깨지면 그 층과 하위만 버리고
- * 유효한 상위 앵커는 남긴다. Distill·shard처럼 계층 밖 경로는 빈 배열이다.
+ * 유효한 상위 앵커는 남긴다. context 계층 밖 경로는 빈 배열이다.
  *
  * @param {string} rel - 저장소 상대 문서 경로
  * @returns {string[]} 가장 좁은 앵커부터 부모 순 (`task-…`, `bp-…`, `epic-…`)
@@ -148,7 +137,7 @@ function anchorsFor(rel: string): string[] {
  * frontmatter `tags`에서 도메인 검색 어휘만 골라 등장 순·중복 제거로 돌려준다.
  * scaffold가 모든 문서에 찍는 `bouncer`와 `type: bouncer.<kind>`에서 역산한 kind
  * 태그는 god label이 되므로 승격하지 않는다. 종류 목록을 상수로 두면 scaffold가
- * 종류를 늘릴 때 어긋나고, `distill`처럼 kind이면서 도메인 개념인 값을 영영 막는다.
+ * 종류를 늘릴 때 어긋나고, 도메인 태그이기도 한 값을 kind 목록으로 영영 막지 않는다.
  * 파서는 `tags:` 다음의 `  - value` 줄만 읽는다 — 일반 YAML을 들이면 이 소비 경로가
  * 작성기 스키마에 묶인다. 토큰 집합은 Touch 경로와 같다(`A-Za-z0-9_./-`).
  * 대소문자 변환은 하지 않는다 — graph-search가 비교 시점에 소문자화하므로 여기서
@@ -270,6 +259,8 @@ function extractSections(markdown: unknown, headings: unknown): string {
   return chunks.length ? chunks.join('\n\n') + '\n' : '';
 }
 
+// distill kind는 예전 파생 파일 HTML 주석을 읽기 위해 남긴다. 새 digest는
+// Distill 경로를 만들지 않으며, graph-search inCorpus가 distill을 버린다.
 type DigestKind = 'epic' | 'blueprint' | 'explain' | 'task' | 'distill';
 
 type DigestMetadata = {
@@ -291,8 +282,6 @@ type DigestMetadata = {
  */
 function documentKindFor(rel: unknown): DigestKind | null {
   const norm = String(rel || '').replace(/\\/g, '/');
-  if (norm === '.bouncer/Distill.md') return 'distill';
-  if (new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(norm)) return 'distill';
   if (/^\.bouncer\/context\/epics\/[^/]+\/index\.md$/.test(norm)) return 'epic';
   if (/^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/index\.md$/.test(norm)) {
     return 'blueprint';
@@ -453,7 +442,7 @@ function walkMarkdownFiles(repoRoot: string, dir: string, acc: string[]): void {
 }
 
 /**
- * context_dirs 아래 화이트리스트 문서(+ Distill)에서 섹션만 뽑아
+ * context_dirs 아래 화이트리스트 문서에서 섹션만 뽑아
  * 평탄 파생 트리와 map.json 을 다시 쓴다. 매 빌드 전체 재생성.
  */
 function buildContextDigest({ repoRoot, contextDirs }: {
@@ -471,24 +460,6 @@ function buildContextDigest({ repoRoot, contextDirs }: {
   const candidates: string[] = [];
   for (const dir of (contextDirs || []) as string[]) {
     walkMarkdownFiles(repoRoot, dir.replace(/\\/g, '/'), candidates);
-  }
-  for (const watch of DIGEST_WATCH_FILES) {
-    if (!candidates.includes(watch)) candidates.push(watch);
-  }
-  const distill = readShards({ repoRoot });
-  if (distill.sharded && distill.valid) {
-    for (const shard of distill.shards!) {
-      // readShards가 인덱스 정본만 반환하더라도 경로 계약은 여기서 한 번 더
-      // 좁힌다. 사용자 지정 경로를 그대로 그래프 원본으로 노출하지 않아야
-      // map.json의 source_file이 실제 Distill 샤드 경계를 벗어나지 않는다.
-      if (
-        typeof shard.path === 'string'
-        && digestRulesFor(shard.path)
-        && !candidates.includes(shard.path)
-      ) {
-        candidates.push(shard.path);
-      }
-    }
   }
 
   const used = new Set<string>();

@@ -291,6 +291,20 @@ test('a CRLF checkout is recognised as the pristine HEAD copy, not a conflict', 
   assert.strictEqual(read(wt, INDEX_REL), dirty);
 });
 
+test('linked worktree seed succeeds when Distill is absent', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${BP_REL}/tasks.md`, 'brief\n');
+  assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/Distill.md')), false);
+
+  const res = seed(repo, wt);
+
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(res.moved, [`${BP_REL}/tasks.md`]);
+  assert.strictEqual(fs.existsSync(path.join(wt, '.bouncer/Distill.md')), false);
+  assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/Distill.md')), false);
+});
+
 test('dirty files outside the plan context set are left alone', () => {
   const repo = makeRepo();
   const wt = makeWorktree(repo);

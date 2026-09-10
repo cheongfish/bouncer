@@ -17,7 +17,7 @@ const {
   taskCommitHeadings,
   CONTEXT_DIGEST_OUT,
 } = require('../scripts/lib/context-digest');
-const { tokenize } = require('../scripts/lib/graph-search');
+const { tokenize, contextSearch } = require('../scripts/lib/graph-search');
 const { normalizeCommitSha } = require('../scripts/lib/commit-sha');
 
 test('normalizeCommitSha keeps lowercase 8-char contract', () => {
@@ -111,13 +111,95 @@ test('anchorsFor derives hierarchy from path ids narrowest-first', () => {
   }
 });
 
-test('digestRulesFor whitelists Distill, epic index, explain, blueprint index, and task brief', () => {
-  // master는 shard 목록 정본이라 ## Shards만 색인한다. Decisions는 shard 본문에 있다.
-  assert.deepEqual(digestRulesFor('.bouncer/Distill.md'), ['## Shards']);
-  assert.deepEqual(
-    digestRulesFor('.bouncer/distill/core.md'),
-    ['## Invariants', '## Gotchas', '## Decisions'],
+test('Distill-absent digest still emits history explain and task originals', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-no-distill-'));
+  const epic = '.bouncer/context/epics/068-x';
+  const bp = `${epic}/blueprints/001-y`;
+  fs.mkdirSync(path.join(repo, bp, 'tasks/001'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Shards\n\n- core\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/distill/core.md'), '## Decisions\n\nkeep out\n');
+  fs.writeFileSync(path.join(repo, `${epic}/index.md`), '## Success criteria\n\nok\n');
+  fs.writeFileSync(
+    path.join(repo, `${bp}/index.md`),
+    [
+      '---',
+      'type: bouncer.blueprint',
+      'bouncer:',
+      "  epic_id: '068'",
+      "  blueprint_id: '001'",
+      '  status: closed',
+      '---',
+      '',
+      '## Intent',
+      '',
+      'i',
+      '',
+      '## Contract',
+      '',
+      'c',
+      '',
+    ].join('\n'),
   );
+  fs.writeFileSync(
+    path.join(repo, `${bp}/explain.md`),
+    [
+      '---',
+      'type: bouncer.explain',
+      'bouncer:',
+      "  epic_id: '068'",
+      "  blueprint_id: '001'",
+      '  status: published',
+      '---',
+      '',
+      '## Background',
+      '',
+      'closed history',
+      '',
+      '## Intuition',
+      '',
+      'int',
+      '',
+      '## Code',
+      '',
+      'code',
+      '',
+    ].join('\n'),
+  );
+  fs.writeFileSync(
+    path.join(repo, `${bp}/tasks/001/tasks.md`),
+    '## Goal & intent\n\ngoal\n\n## Interface\n\niface\n',
+  );
+
+  const result = buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  const originals = Object.values(result.map);
+  assert.ok(!originals.includes('.bouncer/Distill.md'));
+  assert.ok(!originals.includes('.bouncer/distill/core.md'));
+  assert.ok(originals.includes(`${bp}/explain.md`));
+  assert.ok(originals.includes(`${bp}/tasks/001/tasks.md`));
+  assert.equal(digestRulesFor('.bouncer/Distill.md'), null);
+  assert.equal(digestRulesFor('.bouncer/distill/core.md'), null);
+  assert.equal(documentKindFor('.bouncer/Distill.md'), null);
+
+  fs.mkdirSync(path.join(repo, 'graphify-out/context'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'graphify-out/context/graph.json'), JSON.stringify({
+    nodes: originals.map((rel, i) => ({ id: `n${i}`, label: 'closed history', source_file: rel })),
+    links: [],
+  }));
+  const history = contextSearch({
+    repoRoot: repo,
+    mode: 'history',
+    query: 'closed history explain',
+  });
+  assert.ok(!history.candidates.some((c) => /Distill|distill/.test(c.path)));
+  assert.ok(history.candidates.some((c) => c.path === `${bp}/explain.md`));
+  assert.ok(!Object.prototype.hasOwnProperty.call(history, 'distill'));
+  assert.ok(!JSON.stringify(history).includes('distill --for'));
+});
+
+test('digestRulesFor whitelists epic index, explain, blueprint index, and task brief', () => {
+  assert.equal(digestRulesFor('.bouncer/Distill.md'), null);
+  assert.equal(digestRulesFor('.bouncer/distill/core.md'), null);
   assert.deepEqual(
     digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/explain.md'),
     ['## Background', '## Intuition', '## Code'],
@@ -200,12 +282,12 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
     contextDirs: ['.bouncer/context'],
   });
   assert.equal(first.dir, CONTEXT_DIGEST_OUT);
-  assert.ok(first.count >= 6);
+  assert.ok(first.count >= 5);
   assert.ok(fs.existsSync(path.join(repo, CONTEXT_DIGEST_OUT, 'map.json')));
 
   const map = JSON.parse(fs.readFileSync(path.join(repo, first.dir, 'map.json'), 'utf8'));
   const originals = Object.values(map);
-  assert.ok(originals.includes('.bouncer/Distill.md'));
+  assert.ok(!originals.includes('.bouncer/Distill.md'));
   assert.ok(originals.includes(`${epic}/index.md`));
   assert.ok(originals.includes(`${bp}/explain.md`));
   assert.ok(originals.includes(`${bp}/index.md`));
@@ -399,11 +481,10 @@ test('buildContextDigest keeps empty-section epic via anchor-only derived file',
   assert.ok(!body.includes('## Success criteria'));
 });
 
-test('buildContextDigest includes Decisions from registered shards with original map paths only', () => {
+test('buildContextDigest omits Distill shards even when they are registered', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-shards-'));
   fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
-  // frontmatter shards: 는 readShards 등록용. 본문 ## Shards는 다이제스트 규칙과 맞춘다.
+  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/068-x'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), [
     '---',
     'distill:',
@@ -421,47 +502,31 @@ test('buildContextDigest includes Decisions from registered shards with original
     'distill:',
     '  id: core',
     '---',
-    '## Invariants',
-    '',
-    'inv',
-    '',
-    '## Gotchas',
-    '',
-    'got',
-    '',
     '## Decisions',
     '',
     'shard decision',
     '',
   ].join('\n'));
-  fs.writeFileSync(path.join(repo, '.bouncer/distill/unregistered.md'), '## Decisions\n\nshould not graph\n');
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/context/epics/068-x/index.md'),
+    '## Success criteria\n\nhistory context\n',
+  );
 
   const result = buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
   const originals = Object.values(result.map);
 
-  assert.ok(originals.includes('.bouncer/Distill.md'));
-  assert.ok(originals.includes('.bouncer/distill/core.md'));
-  assert.ok(!originals.includes('.bouncer/distill/unregistered.md'));
-  const shardFlat = Object.keys(result.map).find((flat) => result.map[flat] === '.bouncer/distill/core.md');
-  assert.ok(shardFlat);
-  const shardBody = fs.readFileSync(path.join(repo, result.dir, shardFlat), 'utf8');
-  assert.match(shardBody, /<!-- source: \.bouncer\/distill\/core\.md -->/);
-  // shard 파생 본문은 Invariants → Gotchas → Decisions 본문 순서를 유지하되 반복 heading은 뺀다.
-  assert.match(shardBody, /inv/);
-  assert.match(shardBody, /got/);
-  assert.match(shardBody, /shard decision/);
-  assert.ok(!shardBody.includes('## Invariants'));
-  assert.ok(!shardBody.includes('## Gotchas'));
-  assert.ok(!shardBody.includes('## Decisions'));
+  assert.ok(!originals.includes('.bouncer/Distill.md'));
+  assert.ok(!originals.includes('.bouncer/distill/core.md'));
+  assert.ok(originals.includes('.bouncer/context/epics/068-x/index.md'));
 });
 
-test('documentKindFor maps whitelist paths to epic, blueprint, explain, task, distill', () => {
+test('documentKindFor maps whitelist paths to epic, blueprint, explain, task', () => {
   assert.equal(documentKindFor('.bouncer/context/epics/060-x/index.md'), 'epic');
   assert.equal(documentKindFor('.bouncer/context/epics/060-x/blueprints/001-y/index.md'), 'blueprint');
   assert.equal(documentKindFor('.bouncer/context/epics/060-x/blueprints/001-y/explain.md'), 'explain');
   assert.equal(documentKindFor('.bouncer/context/epics/060-x/blueprints/001-y/tasks/002/tasks.md'), 'task');
-  assert.equal(documentKindFor('.bouncer/Distill.md'), 'distill');
-  assert.equal(documentKindFor('.bouncer/distill/core.md'), 'distill');
+  assert.equal(documentKindFor('.bouncer/Distill.md'), null);
+  assert.equal(documentKindFor('.bouncer/distill/core.md'), null);
   assert.equal(documentKindFor('scripts/src/lib/cli.ts'), null);
 });
 

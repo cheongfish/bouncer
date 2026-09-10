@@ -235,7 +235,6 @@ test('task commit filters allowed workflow documents but keeps task outputs', ()
     `${BP_REL}/tasks/001/review.md`,
     `${BP_REL}/index.md`,
     '.bouncer/context/index.md',
-    '.bouncer/Distill.md',
   ];
   const g = trackingGit(['src/auth/login.ts', ...workflowDocs], []);
   const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });

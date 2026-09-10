@@ -565,8 +565,9 @@ function runCheckGate(
     return;
   }
   // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension(BP 단일
-  // 엔트리)의 diff_sha를 range_from..HEAD와 대조. G15는 폐기(결번)됐고, commit은
-  // 아래에서 G6/G7/G8 + G13 + G17로 재판정한다.
+  // 엔트리)의 diff_sha를 range_from..HEAD와 대조. Distill·promotion metadata는
+  // 판정하지 않는다. G15는 폐기(결번)됐고, commit은 아래에서 G6/G7/G8 + G13 + G17로
+  // 재판정한다.
   if (gate === 'finalize') {
     const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
       ? docs.tasksDocs
