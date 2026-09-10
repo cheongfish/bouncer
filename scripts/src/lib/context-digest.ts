@@ -270,6 +270,152 @@ function extractSections(markdown: unknown, headings: unknown): string {
   return chunks.length ? chunks.join('\n\n') + '\n' : '';
 }
 
+type DigestKind = 'epic' | 'blueprint' | 'explain' | 'task' | 'distill';
+
+type DigestMetadata = {
+  kind: DigestKind | '';
+  status: string;
+  epic_id: string;
+  blueprint_id: string;
+  blueprint_status: string;
+  tags: string[];
+  source_path: string;
+};
+
+/**
+ * 화이트리스트 경로를 검색 corpus 종류로 접는다.
+ * 역할 필터는 kind만 보고, decision/history 여부는 status와 함께 graph-search가 정한다.
+ *
+ * @param {unknown} rel - 저장소 상대 문서 경로
+ * @returns {DigestKind | null} 비대상이면 null
+ */
+function documentKindFor(rel: unknown): DigestKind | null {
+  const norm = String(rel || '').replace(/\\/g, '/');
+  if (norm === '.bouncer/Distill.md') return 'distill';
+  if (new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(norm)) return 'distill';
+  if (/^\.bouncer\/context\/epics\/[^/]+\/index\.md$/.test(norm)) return 'epic';
+  if (/^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/index\.md$/.test(norm)) {
+    return 'blueprint';
+  }
+  if (/\/blueprints\/[^/]+\/explain\.md$/.test(norm)) return 'explain';
+  const unit = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/([^/]+)\/([^/]+)$/.exec(norm);
+  if (unit && TASK_DIR_RE.test(unit[1]) && unit[2] === TASK_UNIT_BASENAMES[0]) return 'task';
+  return null;
+}
+
+/**
+ * explain·task의 부모 blueprint index 경로. 자기 자신(index.md)은 null.
+ * blueprint status는 자식 문서 frontmatter에 없으므로 검색 corpus가 여기서 읽는다.
+ *
+ * @param {string} rel - 저장소 상대 경로
+ * @returns {string | null}
+ */
+function blueprintIndexRel(rel: string): string | null {
+  const norm = String(rel || '').replace(/\\/g, '/');
+  const m = /^(\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+)\/(.*)$/.exec(norm);
+  if (!m || m[2] === 'index.md') return null;
+  return `${m[1]}/index.md`;
+}
+
+/**
+ * frontmatter `bouncer.*` 스칼라. 블록 부재·YAML 파손만 빈 문자열로 흡수한다.
+ * 다이제스트는 검색 메타데이터 폴백이라 게이트처럼 throw하면 화이트리스트 문서가 그래프에서 사라진다.
+ *
+ * @param {string} markdown - 원본 마크다운
+ * @param {string} key - bouncer 객체 키
+ * @returns {string}
+ */
+function bouncerScalar(markdown: string, key: string): string {
+  try {
+    const data = parseFrontmatter(markdown).data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return '';
+    const bouncer = (data as Record<string, unknown>).bouncer;
+    if (!bouncer || typeof bouncer !== 'object' || Array.isArray(bouncer)) return '';
+    const value = (bouncer as Record<string, unknown>)[key];
+    return typeof value === 'string' ? value : '';
+  } catch (_e) {
+    return '';
+  }
+}
+
+/**
+ * 경로 앵커에서 epic·blueprint id를 읽는다. frontmatter id가 없을 때의 폴백이다.
+ *
+ * @param {string} rel - 저장소 상대 경로
+ * @returns {{epic_id: string, blueprint_id: string}}
+ */
+function idsFromRel(rel: string): { epic_id: string; blueprint_id: string } {
+  const anchors = anchorsFor(rel);
+  const epic = anchors.find((a) => /^epic-\d{3}$/.test(a));
+  const bp = anchors.find((a) => /^bp-\d{3}-\d{3}$/.test(a));
+  return {
+    epic_id: epic ? epic.slice('epic-'.length) : '',
+    blueprint_id: bp ? bp.slice(-3) : '',
+  };
+}
+
+/**
+ * extractSections가 남긴 반복 절 헤딩을 seed 본문에서 뺀다.
+ * Graphify는 `## Goal & intent` 같은 공통 헤딩을 label로 올려 모든 task가 같은 질의에 걸린다.
+ *
+ * @param {string} extracted - extractSections 결과
+ * @param {string[]} headings - 해당 문서의 화이트리스트 헤딩
+ * @returns {string} 헤딩 줄을 제거한 본문
+ */
+function stripRepeatHeadings(extracted: string, headings: string[]): string {
+  const skip = new Set(headings.map((h) => String(h).trim()));
+  if (!skip.size) return extracted;
+  const kept = String(extracted || '')
+    .split(/\r?\n/)
+    .filter((line) => !skip.has(line.trim()));
+  const text = kept.join('\n').replace(/^\n+|\n+$/g, '');
+  return text ? `${text}\n` : '';
+}
+
+const DIGEST_COMMENT_RE = /<!-- digest: ({[\s\S]*?}) -->/;
+
+/**
+ * 파생 파일의 digest HTML 주석을 읽는다. 주석 부재·JSON 파손만 빈 메타로 흡수한다.
+ *
+ * @param {string} markdown - 파생 파일 본문
+ * @returns {DigestMetadata} 파싱 실패 시 kind·id가 빈 객체
+ */
+function parseDigestMetadata(markdown: string): DigestMetadata {
+  const empty: DigestMetadata = {
+    kind: '',
+    status: '',
+    epic_id: '',
+    blueprint_id: '',
+    blueprint_status: '',
+    tags: [],
+    source_path: '',
+  };
+  const m = DIGEST_COMMENT_RE.exec(String(markdown || ''));
+  if (!m) return empty;
+  try {
+    const parsed = JSON.parse(m[1]) as Record<string, unknown>;
+    const tags = Array.isArray(parsed.tags)
+      ? parsed.tags.filter((t): t is string => typeof t === 'string')
+      : [];
+    const kindRaw = parsed.kind;
+    const kind: DigestKind | '' = kindRaw === 'epic' || kindRaw === 'blueprint'
+      || kindRaw === 'explain' || kindRaw === 'task' || kindRaw === 'distill'
+      ? kindRaw
+      : '';
+    return {
+      kind,
+      status: typeof parsed.status === 'string' ? parsed.status : '',
+      epic_id: typeof parsed.epic_id === 'string' ? parsed.epic_id : '',
+      blueprint_id: typeof parsed.blueprint_id === 'string' ? parsed.blueprint_id : '',
+      blueprint_status: typeof parsed.blueprint_status === 'string' ? parsed.blueprint_status : '',
+      tags,
+      source_path: typeof parsed.source_path === 'string' ? parsed.source_path : '',
+    };
+  } catch (_e) {
+    return empty;
+  }
+}
+
 function flattenSlug(rel: string): string {
   return rel.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'doc';
 }
@@ -348,6 +494,7 @@ function buildContextDigest({ repoRoot, contextDirs }: {
   const used = new Set<string>();
   const map: Record<string, string> = {};
   const files: string[] = [];
+  const blueprintStatusCache = new Map<string, string>();
 
   for (const rel of candidates) {
     const rules = digestRulesFor(rel);
@@ -359,7 +506,7 @@ function buildContextDigest({ repoRoot, contextDirs }: {
     } catch (_e) {
       continue;
     }
-    const extracted = extractSections(raw, rules);
+    const extracted = stripRepeatHeadings(extractSections(raw, rules), rules);
     const anchors = anchorsFor(rel);
     // Touch 경로 헤딩은 tasks.md 화이트리스트에만. epic/bp index의 Touch는 승격하지 않는다.
     const unit = /^\.bouncer\/context\/epics\/[^/]+\/blueprints\/[^/]+\/tasks\/([^/]+)\/([^/]+)$/.exec(
@@ -373,10 +520,40 @@ function buildContextDigest({ repoRoot, contextDirs }: {
     // 절 본문이 비어도 계층 앵커만 있으면 노드로 남긴다. 둘 다 없으면 예전처럼 생략.
     if (!extracted && anchors.length === 0) continue;
 
+    const kind = documentKindFor(rel) || '';
+    const fromPath = idsFromRel(rel);
+    const fmEpic = bouncerScalar(raw, 'epic_id');
+    const fmBp = bouncerScalar(raw, 'blueprint_id');
+    let blueprintStatus = '';
+    const parentBp = blueprintIndexRel(rel);
+    if (parentBp) {
+      if (!blueprintStatusCache.has(parentBp)) {
+        try {
+          const parentRaw = fs.readFileSync(path.join(repoRoot, parentBp), 'utf8');
+          blueprintStatusCache.set(parentBp, bouncerScalar(parentRaw, 'status'));
+        } catch (_e) {
+          // 부모 blueprint 부재·읽기 실패만 빈 status로 둔다. 자식 문서를 버리지는 않는다.
+          blueprintStatusCache.set(parentBp, '');
+        }
+      }
+      blueprintStatus = blueprintStatusCache.get(parentBp) || '';
+    }
+    const meta: DigestMetadata = {
+      kind,
+      status: bouncerScalar(raw, 'status'),
+      epic_id: fmEpic || fromPath.epic_id,
+      blueprint_id: fmBp || fromPath.blueprint_id,
+      blueprint_status: blueprintStatus,
+      tags,
+      source_path: String(rel).replace(/\\/g, '/'),
+    };
+
     const flat = uniqueFlatName(flattenSlug(rel), used);
     // graphify·소비자는 파생 이름만 본다. 원본 경로는 본문 헤더와 map.json 이 잇는다.
     // 헤딩 순서: 앵커 → task_commits(explain) → Touch 경로(tasks.md만) → 도메인 태그 → 절 본문.
-    let body = `<!-- source: ${rel} -->\n\n`;
+    // 반복 절 헤딩은 seed에서 뺐고, 역할·status는 HTML 주석으로만 남긴다.
+    let body = `<!-- source: ${rel} -->\n`;
+    body += `<!-- digest: ${JSON.stringify(meta)} -->\n\n`;
     if (anchors.length) {
       body += `${anchors.map((a) => `## ${a}`).join('\n')}\n\n`;
     }
@@ -404,6 +581,8 @@ export = {
   DIGEST_MAP_REL,
   DIGEST_WATCH_FILES,
   digestRulesFor,
+  documentKindFor,
+  parseDigestMetadata,
   anchorsFor,
   touchPathHeadings,
   tagLabels,

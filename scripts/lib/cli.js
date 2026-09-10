@@ -19,6 +19,7 @@ const COMMANDS = {
     init: projectCommands.init,
     'graph-sync': projectCommands['graph-sync'],
     'graph-suggest': projectCommands['graph-suggest'],
+    'context-search': projectCommands['context-search'],
     'graphify-bin': projectCommands['graphify-bin'],
     'project-root': projectCommands['project-root'],
     distill: projectCommands.distill,

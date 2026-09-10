@@ -8,11 +8,18 @@ const path = require('node:path');
 
 const {
   graphSuggest,
+  contextSearch,
   scoreConfidence,
   tokenize,
+  normalizeQuery,
   ROLE_PRIORITY,
   SCORE,
+  CORPUS_SCORE,
+  SEARCH_MODES,
+  CONTEXT_SEARCH_INPUT_SCHEMA,
+  validateContextSearchInput,
 } = require('../scripts/lib/graph-search');
+const { buildContextDigest } = require('../scripts/lib/context-digest');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-graph-search-'));
@@ -822,4 +829,521 @@ test('fixed corpus exposes a current-draft context self-hit separately from path
   // pre-scaffold 순서를 깨뜨렸을 때 policy 통과로 오인하지 않게 하는 실패 모델이다.
   assert.ok(selfHitRatio > policy.max_self_hit_ratio);
   assert.ok(!result.suggested_paths.includes(draft.draft_path));
+});
+
+test('context-search JSON schema owns mode enum and max-candidates 1..8', () => {
+  assert.deepEqual(CONTEXT_SEARCH_INPUT_SCHEMA.properties.mode.enum, [...SEARCH_MODES]);
+  assert.equal(CONTEXT_SEARCH_INPUT_SCHEMA.properties.maxCandidates.minimum, 1);
+  assert.equal(CONTEXT_SEARCH_INPUT_SCHEMA.properties.maxCandidates.maximum, 8);
+  assert.equal(validateContextSearchInput({ mode: 'decision', query: 'epic-060' }), null);
+  assert.equal(validateContextSearchInput({
+    mode: 'history',
+    query: 'bp-060-001',
+    maxCandidates: 4,
+    seeds: ['epic-060'],
+  }), null);
+  assert.match(
+    String(validateContextSearchInput({ mode: 'other', query: 'epic-060' })),
+    /mode/,
+  );
+  assert.match(
+    String(validateContextSearchInput({ mode: 'decision', query: 'epic-060', maxCandidates: 9 })),
+    /max-candidates/,
+  );
+  assert.match(
+    String(validateContextSearchInput({ mode: 'decision', query: 'epic-060', maxCandidates: 0 })),
+    /max-candidates/,
+  );
+  assert.match(
+    String(validateContextSearchInput({ mode: 'decision', query: '' })),
+    /query/,
+  );
+});
+
+test('normalizeQuery maps confirmed Korean vocabulary and keeps anchors and paths', () => {
+  const korean = normalizeQuery('결정 검색 epic-060');
+  assert.ok(korean.terms.includes('decision'));
+  assert.ok(korean.terms.includes('epic-060'));
+  assert.ok(!korean.genericOnly);
+
+  const generic = normalizeQuery('plan test result');
+  assert.equal(generic.genericOnly, true);
+  assert.ok(generic.terms.length > 0);
+
+  const unknownKorean = normalizeQuery('알 수 없는 문장만');
+  assert.equal(unknownKorean.terms.length === 0, true);
+});
+
+test('file-level corpus scoring applies exact, tag, intent, evidence, and structural weights', () => {
+  const repo = tmpRepo();
+  const epic = '.bouncer/context/epics/060-x';
+  const bp = `${epic}/blueprints/001-y`;
+  fs.mkdirSync(path.join(repo, bp), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  writeConfig(repo, {
+    source_dirs: ['scripts/src'],
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
+  });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Shards\n\n- core\n');
+  fs.writeFileSync(path.join(repo, `${epic}/index.md`), [
+    '---',
+    'type: bouncer.epic',
+    'tags:',
+    '  - bouncer',
+    '  - epic',
+    '  - graphify-search-quality',
+    'bouncer:',
+    "  epic_id: '060'",
+    '  status: approved',
+    '---',
+    '',
+    '## Success criteria',
+    '',
+    'graphify-search-quality ranked retrieval',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
+    '---',
+    'type: bouncer.blueprint',
+    'tags:',
+    '  - bouncer',
+    '  - blueprint',
+    'bouncer:',
+    "  epic_id: '060'",
+    "  blueprint_id: '001'",
+    '  status: closed',
+    '---',
+    '',
+    '## Intent',
+    '',
+    'context-first ranking',
+    '',
+    '## Contract',
+    '',
+    'closed evidence for graphify-search-quality',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, `${bp}/explain.md`), [
+    '---',
+    'type: bouncer.explain',
+    'tags:',
+    '  - bouncer',
+    '  - explain',
+    'bouncer:',
+    "  epic_id: '060'",
+    "  blueprint_id: '001'",
+    '  status: published',
+    '---',
+    '',
+    '## Background',
+    '',
+    'closed explain background',
+    '',
+    '## Intuition',
+    '',
+    'seed then expand',
+    '',
+    '## Code',
+    '',
+    'graphSuggest',
+    '',
+  ].join('\n'));
+  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  writeGraph(repo, 'context', {
+    nodes: [
+      { id: 'e', label: 'epic-060', source_file: `${epic}/index.md` },
+      { id: 't', label: 'graphify-search-quality', source_file: `${epic}/index.md` },
+      { id: 'b', label: 'bp-060-001', source_file: `${bp}/index.md` },
+      { id: 'x', label: 'explain', source_file: `${bp}/explain.md` },
+    ],
+    links: [],
+  });
+  writeGraph(repo, 'source', { nodes: [], links: [] });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+
+  const result = contextSearch({
+    repoRoot: repo,
+    mode: 'decision',
+    query: 'epic-060 graphify-search-quality',
+  });
+  assert.equal(result.status, 'ranked');
+  const epicHit = result.candidates.find((row) => row.path === `${epic}/index.md`);
+  assert.ok(epicHit);
+  assert.ok(epicHit.score >= CORPUS_SCORE.exactAnchorOrPath);
+  assert.ok(epicHit.basis.some((b) => /exact anchor|path/i.test(b)));
+  assert.ok(epicHit.anchors.includes('epic-060'));
+  assert.ok(epicHit.tags.includes('graphify-search-quality'));
+
+  const closed = result.candidates.find((row) => row.path === `${bp}/index.md`);
+  assert.ok(closed);
+  assert.ok(closed.score >= CORPUS_SCORE.closedEvidenceSection || closed.basis.length > 0);
+  assert.ok(closed.basis.some((b) => /closed evidence/i.test(b)));
+});
+
+test('closed evidence +3 comes from digest body not graph labels', () => {
+  const repo = tmpRepo();
+  const bp = '.bouncer/context/epics/083-labelonly/blueprints/001-doc';
+  fs.mkdirSync(path.join(repo, bp), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  writeConfig(repo, {
+    source_dirs: ['scripts/src'],
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
+  });
+  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
+    '---',
+    'type: bouncer.blueprint',
+    'tags:',
+    '  - bouncer',
+    '  - blueprint',
+    '  - uniquelabelxyz',
+    'bouncer:',
+    "  epic_id: '083'",
+    "  blueprint_id: '001'",
+    '  status: closed',
+    '---',
+    '',
+    '## Intent',
+    '',
+    'plain closed body without the label token',
+    '',
+    '## Contract',
+    '',
+    'plain closed body without the label token',
+    '',
+  ].join('\n'));
+  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  writeGraph(repo, 'context', {
+    nodes: [{ id: 'b', label: 'uniquelabelxyz', source_file: `${bp}/index.md` }],
+    links: [],
+  });
+  writeGraph(repo, 'source', { nodes: [], links: [] });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+
+  const result = contextSearch({
+    repoRoot: repo,
+    mode: 'decision',
+    query: 'uniquelabelxyz',
+  });
+  assert.equal(result.status, 'ranked');
+  const closed = result.candidates.find((row) => row.path === `${bp}/index.md`);
+  assert.ok(closed);
+  assert.equal(closed.score, CORPUS_SCORE.domainTag);
+  assert.ok(!closed.basis.some((b) => /closed evidence/i.test(b)));
+});
+
+test('structural heading query applies the locked -5 weight', () => {
+  const repo = tmpRepo();
+  const bp = '.bouncer/context/epics/081-struct/blueprints/001-doc';
+  fs.mkdirSync(path.join(repo, bp), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  writeConfig(repo, {
+    source_dirs: ['scripts/src'],
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
+  });
+  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
+    '---',
+    'type: bouncer.blueprint',
+    'tags:',
+    '  - bouncer',
+    '  - blueprint',
+    'bouncer:',
+    "  epic_id: '081'",
+    "  blueprint_id: '001'",
+    '  status: approved',
+    '---',
+    '',
+    '## Intent',
+    '',
+    'template heading only',
+    '',
+    '## Contract',
+    '',
+    'template heading only',
+    '',
+  ].join('\n'));
+  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  writeGraph(repo, 'context', {
+    nodes: [{ id: 'b', label: 'Intent', source_file: `${bp}/index.md` }],
+    links: [],
+  });
+  writeGraph(repo, 'source', { nodes: [], links: [] });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+
+  const result = contextSearch({
+    repoRoot: repo,
+    mode: 'decision',
+    query: 'intent',
+  });
+  assert.equal(result.status, 'ranked');
+  const hit = result.candidates.find((row) => row.path === `${bp}/index.md`);
+  assert.ok(hit);
+  assert.equal(hit.score, CORPUS_SCORE.taskOnlyOrStructuralHeading);
+  assert.ok(hit.basis.some((b) => /task-only or structural heading/i.test(b)));
+});
+
+test('structural heading -5 applies only to docs that hit those headings', () => {
+  const repo = tmpRepo();
+  const epic = '.bouncer/context/epics/085-structpen';
+  const startRel = `${epic}/blueprints/001-start/index.md`;
+  fs.mkdirSync(path.join(repo, `${epic}/blueprints/001-start`), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  writeConfig(repo, {
+    source_dirs: ['scripts/src'],
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
+  });
+  fs.writeFileSync(path.join(repo, startRel), [
+    '---',
+    'type: bouncer.blueprint',
+    'tags:',
+    '  - bouncer',
+    '  - blueprint',
+    'bouncer:',
+    "  epic_id: '085'",
+    "  blueprint_id: '001'",
+    '  status: approved',
+    '---',
+    '',
+    '## Intent',
+    '',
+    'template heading only',
+    '',
+    '## Contract',
+    '',
+    'template heading only',
+    '',
+  ].join('\n'));
+  const extraRels = [];
+  const nodes = [{ id: 'start', label: 'Intent', source_file: startRel }];
+  for (let i = 2; i <= 10; i += 1) {
+    const id = String(i).padStart(3, '0');
+    const rel = `${epic}/blueprints/${id}-filler/index.md`;
+    extraRels.push(rel);
+    fs.mkdirSync(path.join(repo, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), [
+      '---',
+      'type: bouncer.blueprint',
+      'tags:',
+      '  - bouncer',
+      '  - blueprint',
+      'bouncer:',
+      "  epic_id: '085'",
+      `  blueprint_id: '${id}'`,
+      '  status: approved',
+      '---',
+      '',
+      '## Intent',
+      '',
+      'plain ranked retrieval body',
+      '',
+      '## Contract',
+      '',
+      'plain ranked retrieval body',
+      '',
+    ].join('\n'));
+    nodes.push({ id: `f${id}`, label: `bp-085-${id}`, source_file: rel });
+  }
+  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  writeGraph(repo, 'context', { nodes, links: [] });
+  writeGraph(repo, 'source', { nodes: [], links: [] });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+
+  const result = contextSearch({
+    repoRoot: repo,
+    mode: 'decision',
+    query: 'intent',
+  });
+  assert.notEqual(result.status, 'low-confidence: broad-query');
+  assert.equal(result.status, 'ranked');
+  assert.ok(result.eligible_document_count > 8);
+  const startHit = result.candidates.find((row) => row.path === startRel);
+  assert.ok(startHit);
+  assert.equal(startHit.score, CORPUS_SCORE.taskOnlyOrStructuralHeading);
+  const penalizedExtras = result.candidates.filter((row) => (
+    extraRels.includes(row.path) && row.score === CORPUS_SCORE.taskOnlyOrStructuralHeading
+  ));
+  assert.equal(penalizedExtras.length, 0);
+  assert.ok(!extraRels.every((rel) => result.candidates.some((row) => row.path === rel)));
+});
+
+test('zero-hit retry ranks after camelCase to kebab command expansion', () => {
+  const repo = tmpRepo();
+  const bp = '.bouncer/context/epics/084-synonym/blueprints/001-doc';
+  fs.mkdirSync(path.join(repo, bp), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  writeConfig(repo, {
+    source_dirs: ['scripts/src'],
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
+  });
+  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
+    '---',
+    'type: bouncer.blueprint',
+    'tags:',
+    '  - bouncer',
+    '  - blueprint',
+    'bouncer:',
+    "  epic_id: '084'",
+    "  blueprint_id: '001'",
+    '  status: closed',
+    '---',
+    '',
+    '## Intent',
+    '',
+    'public command context-search retrieval',
+    '',
+    '## Contract',
+    '',
+    'ranked context-search candidates',
+    '',
+  ].join('\n'));
+  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  writeGraph(repo, 'context', {
+    nodes: [{ id: 'b', label: 'bp-084-001', source_file: `${bp}/index.md` }],
+    links: [],
+  });
+  writeGraph(repo, 'source', { nodes: [], links: [] });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+
+  const miss = contextSearch({
+    repoRoot: repo,
+    mode: 'decision',
+    query: 'contextSearch',
+  });
+  assert.equal(miss.status, 'ranked');
+  const hit = miss.candidates.find((row) => row.path === `${bp}/index.md`);
+  assert.ok(hit);
+  assert.ok(hit.score > 0);
+});
+
+test('zero-hit retry does not promote a missed blueprint to the parent epic', () => {
+  const repo = tmpRepo();
+  const epic = '.bouncer/context/epics/060-x';
+  fs.mkdirSync(path.join(repo, epic), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  writeConfig(repo, {
+    source_dirs: ['scripts/src'],
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
+  });
+  fs.writeFileSync(path.join(repo, `${epic}/index.md`), [
+    '---',
+    'type: bouncer.epic',
+    'tags:',
+    '  - bouncer',
+    '  - epic',
+    'bouncer:',
+    "  epic_id: '060'",
+    '  status: approved',
+    '---',
+    '',
+    '## Success criteria',
+    '',
+    'parent epic body',
+    '',
+  ].join('\n'));
+  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  writeGraph(repo, 'context', {
+    nodes: [{ id: 'e', label: 'epic-060', source_file: `${epic}/index.md` }],
+    links: [],
+  });
+  writeGraph(repo, 'source', { nodes: [], links: [] });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+
+  const result = contextSearch({
+    repoRoot: repo,
+    mode: 'decision',
+    query: 'bp-060-999',
+  });
+  assert.equal(result.status, 'zero-hit');
+  assert.deepEqual(result.candidates, []);
+});
+
+test('document start with all-zero scores is low-confidence not zero-hit', () => {
+  const repo = tmpRepo();
+  const epic = '.bouncer/context/epics/082-zeroscore';
+  fs.mkdirSync(path.join(repo, epic), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  writeConfig(repo, {
+    source_dirs: ['scripts/src'],
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
+  });
+  fs.writeFileSync(path.join(repo, `${epic}/index.md`), [
+    '---',
+    'type: bouncer.epic',
+    'tags:',
+    '  - bouncer',
+    '  - epic',
+    'bouncer:',
+    "  epic_id: '082'",
+    '  status: approved',
+    '---',
+    '',
+    '## Success criteria',
+    '',
+    'uniquetermxyz appears in the evidence body',
+    '',
+  ].join('\n'));
+  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  writeGraph(repo, 'context', {
+    nodes: [{ id: 'e', label: 'zeroscore-epic', source_file: `${epic}/index.md` }],
+    links: [],
+  });
+  writeGraph(repo, 'source', { nodes: [], links: [] });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+
+  const result = contextSearch({
+    repoRoot: repo,
+    mode: 'decision',
+    query: 'uniquetermxyz',
+  });
+  assert.equal(result.status, 'low-confidence');
+  assert.deepEqual(result.candidates, []);
+});
+
+test('implementation mode still returns graphSuggest-compatible source files', () => {
+  const repo = tmpRepo();
+  connectedFixture(repo);
+  const suggest = graphSuggest({
+    repoRoot: repo,
+    query: 'verifyLedgerPathFor ledger',
+    seeds: ['verifyLedgerPathFor'],
+  });
+  assert.equal(suggest.status, 'ranked');
+  assert.ok(suggest.candidates.implementation.some((c) => c.path === 'src/lib/verification.ts'));
+
+  const search = contextSearch({
+    repoRoot: repo,
+    mode: 'implementation',
+    query: 'verifyLedgerPathFor',
+    seeds: ['verifyLedgerPathFor'],
+  });
+  assert.equal(search.status, 'ranked');
+  assert.ok(search.candidates.some((row) => row.path === 'src/lib/verification.ts'));
+});
+
+test('implementation mode feeds graphSuggest normalized Korean command terms', () => {
+  const repo = tmpRepo();
+  writeConfig(repo);
+  writeGraph(repo, 'context', { nodes: [], links: [] });
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'src::file', label: 'graph-search.ts', source_file: 'scripts/src/lib/graph-search.ts' },
+      { id: 'src::sym', label: 'graphSuggest', source_file: 'scripts/src/lib/graph-search.ts' },
+    ],
+    links: [
+      {
+        relation: 'contains',
+        source: 'src::file',
+        target: 'src::sym',
+        source_file: 'scripts/src/lib/graph-search.ts',
+      },
+    ],
+  });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+
+  const search = contextSearch({
+    repoRoot: repo,
+    mode: 'implementation',
+    query: '그래프 제안',
+  });
+  assert.equal(search.status, 'ranked');
+  assert.ok(search.candidates.some((row) => row.path === 'scripts/src/lib/graph-search.ts'));
 });

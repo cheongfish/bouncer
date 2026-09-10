@@ -7,6 +7,7 @@ const { runCli } = require('../scripts/lib/cli');
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'graph-suggest',
+  'context-search',
   'graphify-bin',
   'project-root',
   'current',
@@ -112,6 +113,38 @@ test('graph-suggest with valueless --seed exits 2', () => {
   const r = capture(['graph-suggest', '--query', 'x', '--seed']);
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /seed/i);
+  assert.strictEqual(r.out, '');
+});
+
+test('usage lists context-search --mode --query [--seed] [--max-candidates]', () => {
+  const r = capture([]);
+  assert.match(
+    r.out,
+    /context-search\s+--mode <decision\|implementation\|history> --query <text>/,
+  );
+  assert.match(r.out, /\[--max-candidates <1\.\.8>\]/);
+});
+
+test('context-search without --mode exits 2 on stderr', () => {
+  const r = capture(['context-search', '--query', 'epic-060']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /mode/i);
+  assert.strictEqual(r.out, '');
+});
+
+test('context-search with invalid --mode exits 2', () => {
+  const r = capture(['context-search', '--mode', 'other', '--query', 'epic-060']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /mode/i);
+  assert.strictEqual(r.out, '');
+});
+
+test('context-search with max-candidates out of range exits 2', () => {
+  const r = capture([
+    'context-search', '--mode', 'decision', '--query', 'epic-060', '--max-candidates', '9',
+  ]);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /max-candidates/i);
   assert.strictEqual(r.out, '');
 });
 

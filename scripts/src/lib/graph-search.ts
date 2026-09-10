@@ -9,6 +9,14 @@ const {
   DEFAULT_CONTEXT_OUT,
   realExcludeDirs,
 } = graphScope;
+import contextDigest = require('./context-digest');
+const {
+  CONTEXT_DIGEST_OUT,
+  DIGEST_MAP_REL,
+  parseDigestMetadata,
+  documentKindFor,
+  anchorsFor,
+} = contextDigest;
 
 // 점수표는 Task 003·평가 corpus가 같은 숫자를 재사용하므로 상수로 고정한다.
 const SCORE = {
@@ -107,6 +115,90 @@ const GENERIC_WORDS = new Set([
 
 const MAX_DEPTH = 2;
 const EXPLOSION_LIMIT = 50;
+
+const SEARCH_MODES = ['decision', 'implementation', 'history'] as const;
+type SearchMode = typeof SEARCH_MODES[number];
+
+/**
+ * context-search CLI·라이브러리 입력을 한 JSON schema로 고정한다.
+ * 모드 enum과 후보 상한 1..8은 여기만 바꾸고, CLI 거절(exit 2)이 같은 검증기를 탄다.
+ * AJV를 쓰지 않는다 — 허용 필드가 네 개뿐이라 표준 라이브러리 검사가 계약이다.
+ */
+const CONTEXT_SEARCH_INPUT_SCHEMA = {
+  type: 'object',
+  required: ['mode', 'query'],
+  properties: {
+    mode: { type: 'string', enum: SEARCH_MODES },
+    query: { type: 'string', minLength: 1 },
+    seeds: { type: 'array', items: { type: 'string', minLength: 1 } },
+    maxCandidates: { type: 'integer', minimum: 1, maximum: 8 },
+  },
+} as const;
+
+const CORPUS_SCORE = {
+  exactAnchorOrPath: 8,
+  domainTag: 5,
+  intentTermsTwoPlus: 4,
+  closedEvidenceSection: 3,
+  taskOnlyOrStructuralHeading: -5,
+} as const;
+
+const CLOSED_LIFECYCLE = new Set(['closed', 'partial_closed']);
+
+// tokenize가 한국어를 버리므로, 확인된 공개 단어만 ASCII로 치환한다. 임의 의미 확장은 하지 않는다.
+const KO_VOCAB: [string, string][] = [
+  ['컨텍스트 검색', 'context-search'],
+  ['그래프 제안', 'graph-suggest'],
+  ['구현', 'implementation'],
+  ['결정', 'decision'],
+  ['이력', 'history'],
+  ['에픽', 'epic'],
+  ['태스크', 'task'],
+  ['검색', 'search'],
+  ['설명', 'explain'],
+];
+
+const COMMAND_SYNONYMS: Record<string, string[]> = {
+  'graph-suggest': ['graphSuggest'],
+  graphSuggest: ['graph-suggest'],
+  'context-search': ['contextSearch'],
+  contextSearch: ['context-search'],
+};
+
+const STRUCTURAL_HEADING_TERMS = new Set([
+  'goal', 'intent', 'interface', 'touch', 'constraints', 'checklist',
+  'contract', 'success', 'criteria', 'background', 'intuition',
+  'documents', 'scope',
+]);
+
+type DigestMeta = ReturnType<typeof parseDigestMetadata>;
+
+type ContextCandidate = {
+  path: string;
+  role: SearchMode | 'test';
+  tags: string[];
+  anchors: string[];
+  score: number;
+  basis: string[];
+};
+
+type ContextSearchResult = {
+  query_id: string;
+  terms: string[];
+  seed: string | string[];
+  raw_node_count: number;
+  eligible_document_count: number;
+  candidates: ContextCandidate[];
+  // start>0 인데 점수가 모두 0이면 graphSuggest와 같은 `low-confidence`로 둔다.
+  // zero-hit은 재시도 뒤에도 시작점이 없을 때만.
+  status: 'ranked' | 'low-confidence: broad-query' | 'low-confidence' | 'zero-hit';
+};
+
+type NormalizedQuery = {
+  terms: string[];
+  specific: string[];
+  genericOnly: boolean;
+};
 
 function toPosix(p: string): string {
   return p.split('\\').join('/');
@@ -886,10 +978,640 @@ function graphSuggest(opts: {
   };
 }
 
+function isClosedLifecycle(meta: DigestMeta): boolean {
+  return CLOSED_LIFECYCLE.has(meta.status) || CLOSED_LIFECYCLE.has(meta.blueprint_status);
+}
+
+/**
+ * JSON schema로 mode·query·maxCandidates·seeds를 검사한다. 실패 문구는 CLI가
+ * `context-search: ` 접두만 붙여 exit 2로 그대로 쓴다 — 파서가 별도 범위 검사를 두지 않게.
+ *
+ * @param {{ mode?: unknown, query?: unknown, seeds?: unknown, maxCandidates?: unknown }} input
+ * @returns {string | null} 거절 사유. 통과면 null
+ */
+function validateContextSearchInput(input: {
+  mode?: unknown;
+  query?: unknown;
+  seeds?: unknown;
+  maxCandidates?: unknown;
+}): string | null {
+  const mode = input.mode;
+  const allowedModes = CONTEXT_SEARCH_INPUT_SCHEMA.properties.mode.enum as readonly string[];
+  if (typeof mode !== 'string' || !allowedModes.includes(mode)) {
+    return '--mode <decision|implementation|history> is required';
+  }
+  const query = input.query;
+  const minQuery = CONTEXT_SEARCH_INPUT_SCHEMA.properties.query.minLength;
+  if (typeof query !== 'string' || query.length < minQuery) {
+    return '--query <text> is required';
+  }
+  if (input.maxCandidates !== undefined && input.maxCandidates !== null) {
+    const n = input.maxCandidates;
+    const spec = CONTEXT_SEARCH_INPUT_SCHEMA.properties.maxCandidates;
+    if (!Number.isInteger(n) || Number(n) < spec.minimum || Number(n) > spec.maximum) {
+      return '--max-candidates must be an integer 1..8';
+    }
+  }
+  if (input.seeds !== undefined) {
+    if (
+      !Array.isArray(input.seeds)
+      || input.seeds.some((s) => typeof s !== 'string' || s.length === 0)
+    ) {
+      return '--seed requires a value';
+    }
+  }
+  return null;
+}
+
+/**
+ * 검색 모드별 원본 문서 역할. Distill은 세 corpus 어디에도 넣지 않는다.
+ * decision: epic·blueprint index + 닫힌 explain. implementation: task brief.
+ * history: 닫힌 task와 explain. 닫힘은 문서 status 또는 부모 blueprint_status.
+ *
+ * @param {DigestMeta} meta - 다이제스트 메타데이터
+ * @param {SearchMode} mode - decision | implementation | history
+ * @returns {boolean} corpus 포함 여부
+ */
+function inCorpus(meta: DigestMeta, mode: SearchMode): boolean {
+  if (!meta.kind || meta.kind === 'distill') return false;
+  if (mode === 'decision') {
+    if (meta.kind === 'epic' || meta.kind === 'blueprint') return true;
+    return meta.kind === 'explain' && isClosedLifecycle(meta);
+  }
+  if (mode === 'implementation') return meta.kind === 'task';
+  if (mode === 'history') {
+    return (meta.kind === 'explain' || meta.kind === 'task') && isClosedLifecycle(meta);
+  }
+  return false;
+}
+
+function isAnchorToken(term: string): boolean {
+  return /^(epic|bp|task)-\d{3}(?:-\d{3}){0,2}$/i.test(term);
+}
+
+function isPathToken(term: string): boolean {
+  return term.includes('/') || /\.[a-z0-9]+$/i.test(term);
+}
+
+/**
+ * 한국어 고정 어휘를 ASCII로 바꾼 뒤 tokenize한다. 확인된 앵커·경로·공개 명령만 남긴다.
+ *
+ * @param {string} text - --query 값
+ * @param {string[]} [extraSeeds] - --seed 반복 값
+ * @returns {NormalizedQuery} terms는 표시용, specific은 일반어를 뺀 검색 키
+ */
+function normalizeQuery(text: string, extraSeeds: string[] = []): NormalizedQuery {
+  let raw = String(text || '');
+  for (const [ko, en] of KO_VOCAB) {
+    if (raw.includes(ko)) raw = raw.split(ko).join(` ${en} `);
+  }
+  const seedTokens = extraSeeds.flatMap((s) => tokenize(s));
+  const terms = [...new Set([...tokenize(raw), ...seedTokens])];
+  // 구조 heading은 specific에 남겨 scoreDocument의 −5가 실제로 적용되게 한다.
+  // 일반어만 빼면 "intent contract" 같은 질의가 genericOnly로 새지 않는다.
+  const specific = terms.filter((t) => !isGenericWord(t));
+  return { terms, specific, genericOnly: terms.length > 0 && specific.length === 0 };
+}
+
+/**
+ * zero-hit 재시도용 동의어 확장. 한 번만 호출한다.
+ * 공개 명령 camelCase/kebab 쌍만 더한다. 놓친 bp-XXX-YYY를 부모 epic으로
+ * 올리면 없는 블루프린트가 에픽 corpus에 exact-match되므로 금지한다.
+ *
+ * @param {string[]} terms - 정규화된 specific terms
+ * @returns {string[]} 확장된 term 집합(배열)
+ */
+function expandTerms(terms: string[]): string[] {
+  const out = new Set(terms);
+  for (const t of terms) {
+    for (const syn of COMMAND_SYNONYMS[t] || []) out.add(syn);
+  }
+  return [...out];
+}
+
+/**
+ * 후보 없는 context-search 결과를 만든다. query_id는 항상 `mode:` 접두를 붙인다.
+ *
+ * @param {ContextSearchResult['status']} status - broad-query | zero-hit | low-confidence
+ * @param {string[]} terms - 정규화된 표시 terms
+ * @param {string | string[]} seed - 질의 원문 또는 --seed 값
+ * @param {number} rawNodeCount - context graph 노드 수
+ * @param {number} eligible - corpus에 들어간 문서 수
+ * @param {string} mode - decision | implementation | history (잘못된 값도 접두로 남긴다)
+ * @returns {ContextSearchResult} 빈 후보 JSON
+ */
+function emptyContextResult(
+  status: ContextSearchResult['status'],
+  terms: string[],
+  seed: string | string[],
+  rawNodeCount: number,
+  eligible: number,
+  mode: string,
+): ContextSearchResult {
+  return {
+    query_id: queryIdFrom(mode, terms),
+    terms,
+    seed,
+    raw_node_count: rawNodeCount,
+    eligible_document_count: eligible,
+    candidates: [],
+    status,
+  };
+}
+
+/**
+ * 검색 결과 query_id. 일반어 조기 반환도 ranked·zero-hit와 같이 mode 접두를 쓴다.
+ *
+ * @param {string} mode - 검색 모드 접두
+ * @param {string[]} terms - slug에 쓸 terms (최대 4개)
+ * @returns {string} `mode:term+term` 또는 `mode:empty`
+ */
+function queryIdFrom(mode: string, terms: string[]): string {
+  const slug = terms.slice(0, 4).join('+') || 'empty';
+  return `${mode}:${slug}`;
+}
+
+function loadDigestCatalog(repoRoot: string): {
+  byOriginal: Map<string, DigestMeta>;
+  digestToOriginal: Map<string, string>;
+} {
+  const byOriginal = new Map<string, DigestMeta>();
+  const digestToOriginal = new Map<string, string>();
+  const mapPath = path.join(repoRoot, DIGEST_MAP_REL);
+  if (!fs.existsSync(mapPath)) return { byOriginal, digestToOriginal };
+  let map: unknown;
+  try {
+    map = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+  } catch (_e) {
+    // map.json 파손만 빈 카탈로그로 둔다. 검색은 graph source_file 폴백으로 계속한다.
+    return { byOriginal, digestToOriginal };
+  }
+  if (!map || typeof map !== 'object' || Array.isArray(map)) {
+    return { byOriginal, digestToOriginal };
+  }
+  for (const [flat, rel] of Object.entries(map as Record<string, unknown>)) {
+    if (typeof rel !== 'string' || !rel) continue;
+    const original = toPosix(rel);
+    digestToOriginal.set(flat, original);
+    const abs = path.join(repoRoot, CONTEXT_DIGEST_OUT, flat);
+    let raw: string;
+    try {
+      raw = fs.readFileSync(abs, 'utf8');
+    } catch (_e) {
+      // 카탈로그 항목의 파생 파일 부재·권한 오류만 건너뛴다. 검색은 나머지 문서로 계속한다.
+      continue;
+    }
+    const meta = parseDigestMetadata(raw);
+    if (!meta.source_path) meta.source_path = original;
+    if (!meta.kind) {
+      const inferred = documentKindFor(original);
+      meta.kind = inferred || '';
+    }
+    byOriginal.set(original, meta);
+  }
+  return { byOriginal, digestToOriginal };
+}
+
+function resolveOriginalPath(
+  sourceFile: string,
+  digestToOriginal: Map<string, string>,
+): string | null {
+  const posix = toPosix(sourceFile);
+  if (posix.startsWith(`${CONTEXT_DIGEST_OUT}/`)) {
+    const flat = posix.slice(CONTEXT_DIGEST_OUT.length + 1);
+    return digestToOriginal.get(flat) || null;
+  }
+  if (posix.startsWith('graphify-out/')) return null;
+  if (!isSafeRepoRelative(posix)) return null;
+  return posix;
+}
+
+function headingLabels(raw: string): string[] {
+  return String(raw || '')
+    .split(/\r?\n/)
+    .filter((line) => /^##\s/.test(line))
+    .map((line) => line.replace(/^##\s+/, '').trim())
+    .filter(Boolean);
+}
+
+function digestBodyText(raw: string): string {
+  return String(raw || '')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/^##\s+.+$/gm, ' ');
+}
+
+function metaForPath(
+  rel: string,
+  catalog: Map<string, DigestMeta>,
+): DigestMeta {
+  const hit = catalog.get(rel);
+  if (hit) return hit;
+  const kind = documentKindFor(rel) || '';
+  const anchors = anchorsFor(rel);
+  const epic = anchors.find((a) => /^epic-\d{3}$/.test(a));
+  const bp = anchors.find((a) => /^bp-\d{3}-\d{3}$/.test(a));
+  return {
+    kind,
+    status: '',
+    epic_id: epic ? epic.slice('epic-'.length) : '',
+    blueprint_id: bp ? bp.slice(-3) : '',
+    blueprint_status: '',
+    tags: [],
+    source_path: rel,
+  };
+}
+
+function termMatchesValue(term: string, value: string): boolean {
+  const t = lookupKey(term);
+  const v = lookupKey(value);
+  if (!t || !v) return false;
+  return t === v;
+}
+
+function pathLikeMatch(term: string, value: string): boolean {
+  if (termMatchesValue(term, value)) return true;
+  const t = lookupKey(term);
+  const v = lookupKey(value);
+  if (!t || !v) return false;
+  return v.endsWith(`/${t}`);
+}
+
+/**
+ * 원본 파일 하나의 corpus 점수. 기준선은 exact +8, tag +5, intent 2개 +4,
+ * closed 근거 +3, task-only·구조 heading −5. 같은 가산은 문서당 한 번만.
+ * −5는 이 문서 heading·label·본문이 구조 heading에 걸렸을 때만 적용한다.
+ *
+ * @param {{ path: string, meta: DigestMeta, labels: string[], digestRaw: string, specific: string[] }} opts
+ * @returns {{ score: number, basis: string[], tags: string[], anchors: string[] }}
+ */
+function scoreDocument(opts: {
+  path: string;
+  meta: DigestMeta;
+  labels: string[];
+  digestRaw: string;
+  specific: string[];
+}): { score: number; basis: string[]; tags: string[]; anchors: string[] } {
+  const { path: docPath, meta, labels, digestRaw, specific } = opts;
+  const anchors = [...new Set([...anchorsFor(docPath), ...headingLabels(digestRaw)
+    .filter((h) => isAnchorToken(h))])];
+  const tags = [...meta.tags];
+  const heading = headingLabels(digestRaw);
+  const body = digestBodyText(digestRaw);
+  const basis: string[] = [];
+  let score = 0;
+
+  const exact = specific.some((term) => {
+    if (anchors.some((a) => termMatchesValue(term, a))) return true;
+    if (pathLikeMatch(term, docPath)) return true;
+    if (heading.some((h) => pathLikeMatch(term, h) && (isAnchorToken(h) || isPathToken(h) || isPathToken(term)))) {
+      return true;
+    }
+    if (labels.some((l) => pathLikeMatch(term, l) && (isAnchorToken(l) || isPathToken(term) || isAnchorToken(term)))) {
+      return true;
+    }
+    return false;
+  });
+  if (exact) {
+    score += CORPUS_SCORE.exactAnchorOrPath;
+    basis.push('exact anchor or path');
+  }
+
+  const tagHit = specific.some((term) => tags.some((tag) => termMatchesValue(term, tag))
+    || heading.some((h) => tags.some((tag) => termMatchesValue(term, h) && termMatchesValue(h, tag))));
+  if (tagHit) {
+    score += CORPUS_SCORE.domainTag;
+    basis.push('domain tag');
+  }
+
+  const haystack = [docPath, ...labels, ...heading, ...tags, body].join('\n');
+  const intentHits = specific.filter((term) => {
+    if (isAnchorToken(term) || isPathToken(term)) return false;
+    if (tags.some((tag) => termMatchesValue(term, tag))) return false;
+    const key = lookupKey(term);
+    return haystack.toLowerCase().includes(key);
+  });
+  if (intentHits.length >= 2) {
+    score += CORPUS_SCORE.intentTermsTwoPlus;
+    basis.push('intent terms');
+  }
+
+  if (isClosedLifecycle(meta) && (meta.kind === 'explain' || meta.kind === 'blueprint' || meta.kind === 'epic')) {
+    // +3은 닫힌 문서 다이제스트의 근거 본문만. 그래프 label은 임의 심볼이라 근거가 아니다.
+    const evidenceHit = specific.some((term) => {
+      const key = lookupKey(term);
+      return !!(key && body.toLowerCase().includes(key));
+    });
+    if (evidenceHit) {
+      score += CORPUS_SCORE.closedEvidenceSection;
+      basis.push('closed evidence section');
+    }
+  }
+
+  // −5는 질의 term이 구조어인 것만이 아니라, 이 문서 heading·label·본문이
+  // 그 구조·task-only heading에 실제로 걸렸을 때만 준다. 카탈로그 전체에
+  // 뿌리면 −5 동점군이 8을 넘어 broad-query가 되고 진짜 시작점을 버린다.
+  const structuralQuery = specific.length > 0 && specific.every((term) => (
+    STRUCTURAL_HEADING_TERMS.has(lookupKey(term))
+  ));
+  const structuralHit = structuralQuery && specific.some((term) => {
+    if (heading.some((h) => pathLikeMatch(term, h) || termMatchesValue(term, h))) return true;
+    if (labels.some((l) => pathLikeMatch(term, l) || termMatchesValue(term, l))) return true;
+    const key = lookupKey(term);
+    return !!(key && body.toLowerCase().includes(key));
+  });
+  if (structuralHit && !exact && !tagHit) {
+    score += CORPUS_SCORE.taskOnlyOrStructuralHeading;
+    basis.push('task-only or structural heading');
+  }
+
+  if (basis.length === 0 && specific.some((term) => haystack.toLowerCase().includes(lookupKey(term)))) {
+    basis.push('term match');
+  }
+  return { score, basis, tags, anchors };
+}
+
+/**
+ * 이 문서가 질의 specific term의 시작점인지. 앵커·경로·태그·그래프 label·본문 일치만 본다.
+ * 점수 0이어도 start로 세면 zero-hit 재시도와 구분된다.
+ *
+ * @param {string[]} specific - 일반어를 뺀 terms
+ * @param {string} docPath - 원본 경로
+ * @param {DigestMeta} meta
+ * @param {string[]} labels - 그래프 노드 label
+ * @param {string} digestRaw - 파생 파일 본문
+ * @returns {boolean}
+ */
+function documentHitStart(
+  specific: string[],
+  docPath: string,
+  meta: DigestMeta,
+  labels: string[],
+  digestRaw: string,
+): boolean {
+  const anchors = anchorsFor(docPath);
+  const heading = headingLabels(digestRaw);
+  const body = digestBodyText(digestRaw);
+  return specific.some((term) => {
+    if (anchors.some((a) => termMatchesValue(term, a))) return true;
+    if (pathLikeMatch(term, docPath)) return true;
+    if (meta.tags.some((tag) => termMatchesValue(term, tag))) return true;
+    if (labels.some((l) => pathLikeMatch(term, l) || termMatchesValue(term, l))) return true;
+    if (heading.some((h) => pathLikeMatch(term, h) || termMatchesValue(term, h))) return true;
+    const key = lookupKey(term);
+    return !!(key && body.toLowerCase().includes(key));
+  });
+}
+
+/**
+ * 점수 내림차순 후보를 상한 안에서 동점군 단위로 자른다.
+ * 맨 앞 동점군이 8개를 넘거나, 상한 안에 온전히 못 들어가는 첫 묶음이면
+ * 임의로 자르지 않고 broad-query·빈 후보로 끝낸다.
+ *
+ * @param {ContextCandidate[]} ranked - 점수·경로 정렬된 후보
+ * @param {number} maxCandidates - 1..8
+ * @returns {{ status: ContextSearchResult['status'], candidates: ContextCandidate[] }}
+ */
+function applyCandidateCap(
+  ranked: ContextCandidate[],
+  maxCandidates: number,
+): { status: ContextSearchResult['status']; candidates: ContextCandidate[] } {
+  if (ranked.length === 0) return { status: 'zero-hit', candidates: [] };
+  const groups: ContextCandidate[][] = [];
+  for (const row of ranked) {
+    const last = groups[groups.length - 1];
+    if (!last || last[0].score !== row.score) groups.push([row]);
+    else last.push(row);
+  }
+  // 상위 동점군이 8개를 넘으면 8개를 임의로 자르지 않는다. 아래 점수 묶음이
+  // 커도 이미 상위 후보를 채웠으면 그 묶음만 버리고 ranked를 유지한다.
+  if (groups.length > 0 && groups[0].length > 8) {
+    return { status: 'low-confidence: broad-query', candidates: [] };
+  }
+  const taken: ContextCandidate[] = [];
+  for (const group of groups) {
+    if (taken.length + group.length <= maxCandidates) {
+      taken.push(...group);
+      continue;
+    }
+    if (taken.length === 0) {
+      return { status: 'low-confidence: broad-query', candidates: [] };
+    }
+    break;
+  }
+  if (taken.length === 0) return { status: 'zero-hit', candidates: [] };
+  return { status: 'ranked', candidates: taken };
+}
+
+/**
+ * 정규화 terms로 context graph를 읽고 원본 파일별 점수를 매긴다.
+ * 일반어만 남거나 8개를 넘는 동점군은 후보를 만들지 않고 broad-query로 끝낸다.
+ *
+ * @param {{ repoRoot: string, mode: SearchMode, query: string, seeds?: string[], maxCandidates?: number }} opts
+ * @returns {ContextSearchResult}
+ */
+function contextSearch(opts: {
+  repoRoot: string;
+  mode: SearchMode | string;
+  query: string;
+  seeds?: string[];
+  maxCandidates?: number;
+}): ContextSearchResult {
+  const repoRoot = opts.repoRoot;
+  const mode = opts.mode as SearchMode;
+  const seeds = Array.isArray(opts.seeds)
+    ? opts.seeds.filter((s) => typeof s === 'string' && s.length > 0)
+    : [];
+  const maxCandidates = Number.isInteger(opts.maxCandidates) ? Number(opts.maxCandidates) : 8;
+  const seedOut: string | string[] = seeds.length === 0 ? (opts.query || '') : (seeds.length === 1 ? seeds[0] : seeds);
+  const normalized = normalizeQuery(opts.query, seeds);
+
+  const contextPath = path.join(repoRoot, DEFAULT_CONTEXT_OUT, 'graph.json');
+  const loaded = loadGraphFile(contextPath);
+  const rawNodeCount = loaded.graph ? loaded.graph.nodes.length : 0;
+  const { byOriginal, digestToOriginal } = loadDigestCatalog(repoRoot);
+
+  if (!SEARCH_MODES.includes(mode)) {
+    return emptyContextResult('zero-hit', normalized.terms, seedOut, rawNodeCount, 0, mode);
+  }
+  // 일반어 조기 반환 전에 카탈로그 corpus 크기를 센다. 잘못된 mode는 위에서 0으로 둔다.
+  const catalogEligible = [...byOriginal.values()].filter((meta) => inCorpus(meta, mode)).length;
+  if (normalized.genericOnly) {
+    return emptyContextResult(
+      'low-confidence: broad-query',
+      normalized.terms,
+      seedOut,
+      rawNodeCount,
+      catalogEligible,
+      mode,
+    );
+  }
+
+  const graph = loaded.graph;
+  const labelsByPath = new Map<string, string[]>();
+  if (graph) {
+    for (const node of graph.nodes) {
+      if (!node.source_file) continue;
+      const original = resolveOriginalPath(node.source_file, digestToOriginal)
+        || (isSafeRepoRelative(toPosix(node.source_file))
+          && !toPosix(node.source_file).startsWith('graphify-out/')
+          ? toPosix(node.source_file)
+          : null);
+      if (!original) continue;
+      if (!byOriginal.has(original)) {
+        byOriginal.set(original, metaForPath(original, byOriginal));
+      }
+      const list = labelsByPath.get(original) || [];
+      if (node.label) list.push(node.label);
+      if (node.norm_label) list.push(node.norm_label);
+      labelsByPath.set(original, list);
+    }
+  }
+
+  const eligible = [...byOriginal.entries()].filter(([, meta]) => inCorpus(meta, mode));
+  const eligibleCount = eligible.length;
+
+  const digestRawByPath = new Map<string, string>();
+  for (const [flat, original] of digestToOriginal.entries()) {
+    try {
+      digestRawByPath.set(
+        original,
+        fs.readFileSync(path.join(repoRoot, CONTEXT_DIGEST_OUT, flat), 'utf8'),
+      );
+    } catch (_e) {
+      // 파생 파일 부재·읽기 오류만 빈 본문으로 둔다. 메타·그래프 label로 점수는 계속 매긴다.
+      digestRawByPath.set(original, '');
+    }
+  }
+
+  const rankOnce = (specific: string[]): {
+    start: number;
+    ranked: ContextCandidate[];
+  } => {
+    const ranked: ContextCandidate[] = [];
+    let start = 0;
+    for (const [docPath, meta] of eligible) {
+      const labels = labelsByPath.get(docPath) || [];
+      const digestRaw = digestRawByPath.get(docPath) || '';
+      if (documentHitStart(specific, docPath, meta, labels, digestRaw)) start += 1;
+      const scored = scoreDocument({ path: docPath, meta, labels, digestRaw, specific });
+      if (scored.score === 0) continue;
+      ranked.push({
+        path: docPath,
+        role: mode,
+        tags: scored.tags,
+        anchors: scored.anchors,
+        score: scored.score,
+        basis: scored.basis,
+      });
+    }
+    ranked.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+    });
+    return { start, ranked };
+  };
+
+  let specific = normalized.specific.slice();
+  let pass = rankOnce(specific);
+  if (pass.start === 0) {
+    specific = expandTerms(specific.length ? specific : normalized.terms);
+    pass = rankOnce(specific);
+    if (pass.start === 0 && mode !== 'implementation') {
+      return {
+        ...emptyContextResult('zero-hit', normalized.terms, seedOut, rawNodeCount, eligibleCount, mode),
+        query_id: queryIdFrom(mode, normalized.specific.length ? normalized.specific : normalized.terms),
+      };
+    }
+  }
+
+  const merged: ContextCandidate[] = pass.ranked.slice();
+  if (mode === 'implementation') {
+    // graphSuggest는 한국어를 tokenize에서 버리므로, KO_VOCAB을 거친 terms·명령 쌍을 넘긴다.
+    const suggestSeeds = [...new Set([
+      ...seeds,
+      ...specific,
+      ...specific.flatMap((t) => COMMAND_SYNONYMS[t] || []),
+    ])];
+    const suggest = graphSuggest({
+      repoRoot,
+      query: normalized.terms.join(' '),
+      seeds: suggestSeeds,
+    });
+    const extra: ContextCandidate[] = [];
+    for (const row of suggest.candidates.implementation) {
+      extra.push({
+        path: row.path,
+        role: 'implementation',
+        tags: [],
+        anchors: [],
+        score: row.score,
+        basis: row.basis,
+      });
+    }
+    for (const row of suggest.candidates.test) {
+      extra.push({
+        path: row.path,
+        role: 'test',
+        tags: [],
+        anchors: [],
+        score: row.score,
+        basis: row.basis,
+      });
+    }
+    const seen = new Set(merged.map((c) => c.path));
+    for (const row of extra) {
+      if (seen.has(row.path)) continue;
+      seen.add(row.path);
+      merged.push(row);
+    }
+    merged.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+    });
+    if (pass.start === 0 && extra.length === 0) {
+      return {
+        ...emptyContextResult('zero-hit', normalized.terms, seedOut, rawNodeCount, eligibleCount, mode),
+        query_id: queryIdFrom(mode, normalized.specific),
+      };
+    }
+  }
+
+  const scoredRows = merged.filter((c) => c.score !== 0 || c.basis.length > 0);
+  if (scoredRows.length === 0) {
+    // 시작점은 있는데 점수가 전부 0이면 재시도 실패(zero-hit)가 아니다.
+    const status = pass.start > 0 ? 'low-confidence' : 'zero-hit';
+    return {
+      query_id: queryIdFrom(mode, normalized.specific.length ? normalized.specific : normalized.terms),
+      terms: normalized.terms,
+      seed: seedOut,
+      raw_node_count: rawNodeCount,
+      eligible_document_count: eligibleCount,
+      candidates: [],
+      status,
+    };
+  }
+  const capped = applyCandidateCap(scoredRows, maxCandidates);
+  return {
+    query_id: queryIdFrom(mode, normalized.specific.length ? normalized.specific : normalized.terms),
+    terms: normalized.terms,
+    seed: seedOut,
+    raw_node_count: rawNodeCount,
+    eligible_document_count: eligibleCount,
+    candidates: capped.candidates,
+    status: capped.status,
+  };
+}
+
 export = {
   SCORE,
+  CORPUS_SCORE,
+  SEARCH_MODES,
+  CONTEXT_SEARCH_INPUT_SCHEMA,
   ROLE_PRIORITY,
   scoreConfidence,
   graphSuggest,
+  contextSearch,
+  normalizeQuery,
   tokenize,
+  validateContextSearchInput,
 };

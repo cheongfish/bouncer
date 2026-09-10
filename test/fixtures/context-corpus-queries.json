@@ -1,111 +1,72 @@
 {
-  "description": "Fixed context-corpus queries for canonical epic consolidation regression. Queries and required hits use English ASCII only.",
+  "description": "Q1-Q6 context-search evaluation queries. mode, expected docs, and candidate caps are the retrieval contract; hierarchy keys remain epic-consolidation regression pins.",
   "search": {
-    "method": "epic-id-path-prefix",
-    "notes": "A query epic-NNN matches every markdown file under .bouncer/context/epics/NNN-*. max_candidates is the pre-compression baseline (scattered parents counted for epic-060/007/009/001/004)."
+    "method": "context-search",
+    "modes": ["decision", "implementation", "history"],
+    "max_candidates_range": [1, 8],
+    "notes": "Q1-Q3 ranked expected docs must land in the top 8. Q4 is broad-query. Q5 is zero-hit after one expansion retry. Q6 is history retrieval of closed explain and tasks."
   },
   "queries": [
     {
-      "id": "epic-018",
-      "query": "epic-018",
-      "required_context_hits": [
-        ".bouncer/context/epics/018-task-unit-commits/index.md"
+      "id": "Q1",
+      "mode": "decision",
+      "query": "epic-060 graphify-search-quality",
+      "expected_docs": [
+        ".bouncer/context/epics/060-graphify-search-quality/index.md",
+        ".bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/index.md",
+        ".bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/explain.md"
       ],
-      "max_candidates": 156,
-      "baseline_captured_at": "pre-task-003-move",
-      "baseline_notes": "018 already consolidated; baseline is current tree size"
+      "max_candidates": 8,
+      "expect_status": "ranked"
     },
     {
-      "id": "epic-007",
-      "query": "epic-007",
-      "required_context_hits": [
-        ".bouncer/context/epics/007-project-distill/index.md"
+      "id": "Q2",
+      "mode": "implementation",
+      "query": "graphSuggest graph-search.ts",
+      "expected_docs": [
+        ".bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/002/tasks.md",
+        "scripts/src/lib/graph-search.ts"
       ],
-      "max_candidates": 96,
-      "baseline_captured_at": "post-task-004-consolidation",
-      "baseline_notes": "post-consolidation pre-compression size under 007 (union of 007+036+037+038+047+055+058 after move)",
-      "pre_compression_epic_dirs": [
-        "007-project-distill",
-        "036-distill-sharding",
-        "037-distill-promotion-consent",
-        "038-distill-worktree-base",
-        "047-context-injection",
-        "055-distill-injection",
-        "058-context-runtime-compaction"
-      ]
+      "max_candidates": 8,
+      "expect_status": "ranked"
     },
     {
-      "id": "epic-009",
-      "query": "epic-009",
-      "required_context_hits": [
-        ".bouncer/context/epics/009-agent-orchestration/index.md"
+      "id": "Q3",
+      "mode": "decision",
+      "query": "bp-060-001 context-first-ranking",
+      "expected_docs": [
+        ".bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/index.md",
+        ".bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/explain.md"
       ],
-      "max_candidates": 95,
-      "baseline_captured_at": "post-task-005-consolidation",
-      "baseline_notes": "post-consolidation pre-compression size under 009 (union of 009+015+016+032+046+050+057 after move)",
-      "pre_compression_epic_dirs": [
-        "009-agent-orchestration",
-        "015-workflow-ergonomics",
-        "016-advisor-removal",
-        "032-autonomous-run",
-        "046-review-loop-cap",
-        "050-cycle-friction",
-        "057-review-ready-pr"
-      ]
+      "max_candidates": 8,
+      "expect_status": "ranked"
     },
     {
-      "id": "epic-001",
-      "query": "epic-001",
-      "required_context_hits": [
-        ".bouncer/context/epics/001-product-surface-hosts/index.md"
-      ],
-      "max_candidates": 94,
-      "baseline_captured_at": "post-task-006-consolidation",
-      "baseline_notes": "post-consolidation pre-compression size under 001 (union of 001+003+025+028+048+059 after move)",
-      "pre_compression_epic_dirs": [
-        "001-product-surface-hosts",
-        "003-multi-agent-plugin",
-        "025-graphify-bootstrap",
-        "028-antigravity-host",
-        "048-plugin-root-resolution",
-        "059-audit-followup"
-      ]
+      "id": "Q4",
+      "mode": "decision",
+      "query": "plan test result hook",
+      "expected_docs": [],
+      "max_candidates": 8,
+      "expect_status": "low-confidence: broad-query"
     },
     {
-      "id": "epic-004",
-      "query": "epic-004",
-      "required_context_hits": [
-        ".bouncer/context/epics/004-planning-quality-governance/index.md"
-      ],
-      "max_candidates": 67,
-      "baseline_captured_at": "post-task-007-consolidation",
-      "baseline_notes": "post-consolidation pre-compression size under 004 (union of 004+005+017+033+053 after move)",
-      "pre_compression_epic_dirs": [
-        "004-planning-quality-governance",
-        "005-review-depth",
-        "017-verify-wrapper-guidance",
-        "033-quality-security",
-        "053-skill-doc-defects"
-      ]
+      "id": "Q5",
+      "mode": "decision",
+      "query": "zzzx-missing-anchor-999",
+      "expected_docs": [],
+      "max_candidates": 8,
+      "expect_status": "zero-hit"
     },
     {
-      "id": "epic-060",
-      "query": "epic-060",
-      "required_context_hits": [
-        ".bouncer/context/epics/060-graphify-search-quality/index.md"
+      "id": "Q6",
+      "mode": "history",
+      "query": "bp-060-001 explain",
+      "expected_docs": [
+        ".bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/explain.md",
+        ".bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/001/tasks.md"
       ],
-      "max_candidates": 91,
-      "baseline_captured_at": "pre-task-003-move",
-      "baseline_notes": "pre-compression union of 060+011+026+040+062+063+064 markdown files",
-      "pre_compression_epic_dirs": [
-        "011-graphify-signal",
-        "026-context-graph-slim",
-        "040-scope-evidence",
-        "060-graphify-search-quality",
-        "062-search-language-contract",
-        "063-context-digest-search-index",
-        "064-scope-graph-convergence"
-      ]
+      "max_candidates": 8,
+      "expect_status": "ranked"
     }
   ],
   "hierarchy": {
