@@ -259,7 +259,7 @@ function planSessionGraph({ repoRoot, deps, force }: {
     testUnconfiguredReason,
   });
   // context freshness는 `.bouncer/context/**` 원본과 검색 metadata만 본다.
-  // Distill master·샤드 mtime은 계획을 바꾸지 않는다.
+  // 파생 memory master·shard mtime은 계획을 바꾸지 않는다.
   const graphs = scopes.map((scope: GraphScope) => planOneGraph({
     ...scope,
     existingDirs: d.existingDirs,

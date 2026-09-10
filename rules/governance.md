@@ -25,13 +25,13 @@ Legitimate wide tasks (bulk renames, migrations) still pass.
 `/bouncer-run` repeats that commit unit; verification node에서는 commit 대신
 integration checkout의 verification runner만 실행한다.
 `/bouncer-execute` does not commit. `/bouncer-finalize` closes the blueprint
-(Distill promotion, explain + quiz, remainder commit, draft PR, worktree
-cleanup) after every task is committed.
+(explain + quiz, remainder commit, draft PR, worktree cleanup) after every task
+is committed.
 
 Task commits authorize the complete existing candidate set through the shared
-scope helper, then stage task outputs only. Task bundles, context documents,
-and Distill remain for finalize; finalize stages tracked transient deletions
-and removes untracked documents without adding paths that no longer exist. The
+scope helper, then stage task outputs only. Task bundles and context documents
+remain for finalize; finalize stages tracked transient deletions and removes
+untracked documents without adding paths that no longer exist. The
 task's `commit_sha` stays in its working-tree document until finalize copies it
 to `explain.md`.
 
@@ -85,11 +85,11 @@ What stays the same:
 - Task document set: `tasks/<NNN>/{tasks,verification,review}.md` and
   `explain.md` are still authored and gated.
 - Ordinary commit-task gate judgments **G1–G8** and **G11–G17** are unchanged in the light path
-  (G16 Distill / comprehension at finalize; G17 staged scope at commit).
+  (G16 comprehension at finalize; G17 staged scope at commit).
   G15 is retired. Only **G18** (not applied) and the **G10** section list
   differ, and both differences follow from the document set above rather than
   from any agent judgment.
-- Distill promotion at `/bouncer-finalize` is unchanged.
+- Canonical context remains the only repository-knowledge source at finalize.
 
 `scripts/` reads `scale` in four places: `scaffoldBlueprint` picks the document
 set, `scaffoldTask` inherits the blueprint's declared scale for a later task,

@@ -32,14 +32,14 @@ claude plugin install bouncer@chunjae-tools --scope local     # 본인만
 /bouncer-init
 ```
 
-`.bouncer/`를 만듭니다(전역 `Distill.md` 포함). 기존 파일은 건드리지 않습니다.
+`.bouncer/`와 canonical context 골격을 만듭니다. 기존 파일은 건드리지 않습니다.
 `.gitignore` 추가는 **안내만** 하므로 알려주는 항목을 직접 넣으세요.
 
 부트스트랩은 바로 커밋해야 합니다. (`/bouncer-plan` 전에만 가능).
 `config.json`은 blueprint 커밋 범위 밖이라, 안 넣으면 첫 finalize가 막힙니다. 자세한 내용은 [docs/context-versioning.md](docs/context-versioning.md).
 
 ```bash
-git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit -m "chore: bootstrap bouncer"
+git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
 ```
 
 `.bouncer/config.json`에서 `source_dirs`와 **execute 게이트가 돌릴** `verify`를 확인하세요. 기본 형태는 [`config.example.json`](config.example.json)입니다.
@@ -49,7 +49,7 @@ git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit 
 /bouncer-execute   # worktree seed → 구현 · verify · review
 /bouncer-commit    # 스코프 · task 커밋 · 다음 task
 /bouncer-run       # execute→commit 반복 주행 (task 소진까지)
-/bouncer-finalize  # Distill 승격 · explain+퀴즈 · remainder · draft PR
+/bouncer-finalize  # explain+퀴즈 · remainder · draft PR
 ```
 
 ## When to use

@@ -340,12 +340,12 @@ function init({
     gitignoreWritten = true;
   }
   const suggestions = gitignoreSuggestions({ repoRoot: repoRoot as string });
-  // timestamp는 예전 Distill master 문서 시각용이었다. seed를 끊었으므로
+  // timestamp는 예전 파생 memory seed 시각용이었다. seed를 끊었으므로
   // 쓰지 않지만, session-graph 등 호출 계약은 유지한다.
   void timestamp;
 
   if (bootstrap === 'ready') {
-    // Distill master·config seed는 하지 않는다. 이미 있는 파일은 그대로 두고
+    // 파생 memory·config seed는 하지 않는다. 이미 있는 파일은 그대로 두고
     // context bundle과 Graphify 상태만 다룬다.
     const created: string[] = [];
     if (wantSeedCodex) {

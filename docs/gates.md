@@ -15,7 +15,7 @@ bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 | --- | --- |
 | **plan** | G1 epic `approved` · G2 blueprint `approved`(`finalize --yes`가 잠근 `closed` blueprint도 같은 G2 코드로 걸리지만 메시지는 미승인 `draft`와 다르게 마감 사유를 알린다) · G18 blueprint 루트 `context-review.md`가 `accepted`이고 `## Findings`와 findings 필드(`id`·`severity`·`status`, `accepted`에는 비지 않은 `note`)를 쓰되 status는 `resolved | accepted`만 허용하고 `deferred`는 거부한다(blueprint `bouncer.scale`이 `light`면 이 문서가 없으므로 G18을 적용하지 않는다) · G3–G5·G10–G12는 **발견된 각 task 묶음**(`tasks/<NNN>/tasks.md`)에 각각 적용 · G3 tasks `ready` · G4 `scope_evidence.suggested_paths` 존재 + `scope_evidence.basis`가 비어 있지 않은 엔트리 배열(`graph`/`status`/`query`/`result`; `graph`는 `source`\|`test`\|`context`)이며 새 `scope_evidence.producer`는 반드시 `graphify`임; 선택 필드 `quality`와 `candidates`는 둘 다 있거나 둘 다 없고, 있으면 짝·형식·`low-confidence`\|`unavailable`→빈 `suggested_paths` 불변식을 검사함(구 `graph`와 quality 없는 evidence는 읽기 호환만 함) · G5 `affected_paths` 비어있지 않음 · G10 tasks 섹션 작성됨(full 5개: Goal & intent·Interface·Touch·Do not touch·Checklist / light 3개: Goal & intent·Touch·Checklist) · G11 `affected_paths`가 Touch로 정당화됨 · G12 Do not touch와 `affected_paths`가 겹치지 않음 · G19 blueprint 안 모든 task의 `depends_on` 그래프 무결성: 같은 blueprint에 없는 `TASKS-NNN` 참조, 자기 참조, 한 문서 안 중복 edge, 방향 그래프 순환을 거절한다(부재는 빈 배열로 읽어 통과; 형식·enum은 S28) |
 | **execute** | 활성 포인터가 가리키는 task 묶음만 판정: G6 `tasks` `verified` · G7 같은 디렉터리의 `verification` `passed` · G8 같은 디렉터리의 `review` `accepted`(또는 `required: false`) · G13 `verify` 명령 실제 실행 + 종료 코드 0 + `verification.md` 본문이 기록된 메타데이터와 일치 · G14 `review.md`의 `## Findings` 존재 + 각 finding의 severity/status 유효(`resolved | accepted | deferred`, `accepted`·`deferred`는 비지 않은 `note`) + 있으면 `bouncer.review.rounds[]` 형식(`round` 양의 정수, `previous_finding_ids` 문자열 배열, `new`·`resolved`·`regressed` 0 이상 정수, 중복·역순 거부) |
-| **commit** | 포인터 task의 G6 `tasks` `verified` · G7 `verification` `passed` · G8 `review` `accepted`(또는 `required: false`) 재확인 + G13 하네스 원장 대조(execute와 동일) + G17 스테이징 경로가 그 task `affected_paths` 안인지 (G9·G15는 결번; project `.bouncer/Distill.md`는 skill + `makeAllowed`, 본문 게이트 아님) |
+| **commit** | 포인터 task의 G6 `tasks` `verified` · G7 `verification` `passed` · G8 `review` `accepted`(또는 `required: false`) 재확인 + G13 하네스 원장 대조(execute와 동일) + G17 스테이징 경로가 그 task `affected_paths` 안인지 (G9·G15는 결번) |
 | **finalize** | G16 모든 task `verified` · explain `published` · 본문 5섹션 · `comprehension` 배열의 BP 단일 엔트리(`quiz_score` 필수) · 그 엔트리 `diff_sha`가 `range_from..HEAD`(`.bouncer/context/` 제외)와 일치 |
 
 `S`로 시작하는 코드(S0–S28)는 게이트와 무관하게 항상 검사하는 구조/스키마 위반입니다.
@@ -39,11 +39,7 @@ status인 blueprint를 게이트 대상에서 빼는 코드입니다. S19는 문
 `dependency_gate`는 `integrated` 하나만 허용합니다.
 세 필드 모두 부재는 허용이며, 참조 무결성과 순환은 S28이 아니라 G19가 봅니다.
 
-S21–S26은 Project Distill 구조 검사입니다. S21은 등록되지 않은 orphan shard, S22는
-비-`always` shard의 routing 경로 누락, S23은 잘못된 `pulls`, S24는 `pulls`
-순환, S25는 `source_dirs` routing 공백, S26은 `distill.max_bytes` 초과 shard를
-뜻합니다. routing이 활성화되면 이 경고가 구조 실패가 됩니다. 전체 공개 계약은
-[compatibility.md](compatibility.md)를 보세요.
+S21–S26은 폐기된 결번입니다. 새 구조 검사는 이 번호를 재사용하지 않습니다.
 
 섹션은 **헤딩만 있고 본문이 비면 미작성으로 판정**합니다. 갓 scaffold한 문서가
 G10에 걸리는 것은 의도된 동작이며, light 템플릿도 `<TODO: …>`를 남겨 같은 방식으로

@@ -19,7 +19,7 @@ S13은 epic 경로 목록뿐 아니라 각 색인 행의 요약이 해당 epic f
 
 `bouncer --help`의 명령 이름은 `validate`, `verify`, `scaffold`, `commit`,
 `finalize`, `seed-worktree`, `coordinate`, `init`, `graph-sync`, `graph-suggest`,
-`graphify-bin`, `project-root`, `distill`, `current`, `migrate`, `import`다.
+`graphify-bin`, `project-root`, `context-search`, `current`, `migrate`, `import`다.
 `coordinate`의 서브커맨드는 `bootstrap`, `prepare`, `ready`, `record`,
 `integrate`, `status`, `revise` 일곱이다. 하위 kind와 플래그는
 [cli.md](cli.md)에 있다.
@@ -79,11 +79,9 @@ S 코드는 `S0`–`S28`이다. `S0` 파싱, `S1` OKF 필드, `S2` 타입·레�
 `S28` task DAG 필드 형식·enum(`depends_on`·`parallel_safe`·`dependency_gate`;
 부재는 허용)을 검사한다.
 
-`S21`은 등록되지 않은 Distill orphan shard, `S22`는 비-`always` shard의 routing
-경로 누락, `S23`은 잘못된 `pulls`, `S24`는 `pulls` 순환, `S25`는
-`source_dirs` routing 공백, `S26`은 `distill.max_bytes` 초과 shard다.
+`S21`–`S26`은 제거된 구조 검사의 결번이다.
 
-G9(초기 Distill 상태), G15(explain comprehension/diff), S14(구·신 task
+G9(초기 repository-memory 상태), G15(explain comprehension/diff), S14(구·신 task
 레이아웃 혼재)는 폐기된 결번이다. 다시 사용하지 않는다.
 
 ### 워크플로 스킬
@@ -111,7 +109,7 @@ finalize이고 plan 뒤 기본 주행은 run이다.
 | 입력 경로 | `source_dirs`, `context_dirs` |
 | 실행·작업 흐름 | `verify`, `verify_allowlist`, `base_branch`, `autonomy` |
 | 그래프 | `graphify` |
-| 지식 | `distill` |
+| 지식 | `context_dirs`, context-search graph metadata |
 | 마감·에이전트 | `pr`, `subagents` |
 
 중첩 필드와 값은 [configuration.md](configuration.md) 및
@@ -176,7 +174,7 @@ named agent를 로드하지 못할 때만 폴백하며, 폴백은 **coordinator 
 
 다음은 공개 계약이 아니므로 바뀔 수 있다: 내부 모듈 경로와
 `scripts/lib`가 emit하는 레이아웃, 진단·로그·오류 메시지 문구, 문서의 산문과
-표현, `graphify-out/` 산출물, `.bouncer/Distill.md` 본문, 보조(auxiliary)
+표현, `graphify-out/` 산출물, 보조(auxiliary)
 비-`bouncer-*` 스킬, 서브에이전트 프롬프트 본문, 모델 선택과 설치 경로. 공개
 워크플로 계약은 오직 `skills/bouncer-init`, `skills/bouncer-plan`,
 `skills/bouncer-execute`, `skills/bouncer-commit`, `skills/bouncer-run`,

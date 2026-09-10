@@ -11,7 +11,7 @@
 | `/bouncer-plan` | epic → blueprint → task 묶음 작성(선택적 DAG 필드 포함), 경로 추천 주입, `affected_paths` 확정, 계획 문서 리뷰, 승인, 활성 포인터 기록 | plan (G1–G5, G10–G12, G18, G19 — `scale: light`면 G18 없음) |
 | `/bouncer-execute` | worktree 재사용·생성 → 계획 문서 seed → 구현 → verify → review. **커밋하지 않음** | execute (G6–G8, G13–G14) |
 | `/bouncer-commit` | 스코프 dry-run → task 하나 커밋 → 위임 주행이면 결과를 coordinator에 보고, 직접 실행이면 다음 task로 포인터 이동 | commit (G6/G7/G8 + G17) |
-| `/bouncer-finalize` | Distill 승격 → explain + 퀴즈 → 남은 변경 커밋 → worktree 제거 → draft PR | finalize (G16) |
+| `/bouncer-finalize` | explain + 퀴즈 → 남은 변경 커밋 → worktree 제거 → draft PR | finalize (G16) |
 
 계획을 마치면 **`/bouncer-run`으로 이어집니다.** run은 시작 ACQ 하나만 받고
 남은 task 전체를 **coordinator**(`bouncer-coordinator`) 하나에 위임합니다.
@@ -19,7 +19,7 @@ run 세션 자체는 코드를 고치지 않고 coordinator가 돌려주는 보�
 
 | 자리 | 무엇을 하나 |
 | --- | --- |
-| main worktree | 읽기 전용 provenance — base SHA와 계획 문서만 읽습니다. 주행 중 source를 쓰지 않습니다. run은 여기서 `bouncer current`·`bouncer distill --for`도 읽지만, main checkout 아래에 무언가를 만드는 명령은 `bouncer coordinate bootstrap`과 `prepare` 둘뿐입니다. `bootstrap`은 main worktree에서 불러 integration worktree를, `prepare`는 integration worktree에서 불러 wave의 worker worktree를 등록합니다 — 부르는 자리는 다르지만 둘 다 `.worktrees/…` 디렉터리 생성과 worktree 등록까지이고, tracked source는 어느 쪽도 건드리지 않습니다 |
+| main worktree | 읽기 전용 provenance — base SHA·계획 문서·context-search 결과만 읽습니다. 주행 중 source를 쓰지 않습니다. main checkout 아래에 무언가를 만드는 명령은 `bouncer coordinate bootstrap`과 `prepare` 둘뿐입니다. `bootstrap`은 main worktree에서 불러 integration worktree를, `prepare`는 integration worktree에서 불러 wave의 worker worktree를 등록합니다 — 부르는 자리는 다르지만 둘 다 `.worktrees/…` 디렉터리 생성과 worktree 등록까지이고, tracked source는 어느 쪽도 건드리지 않습니다 |
 | **integration worktree** | coordinator의 작업 자리. 원장(ledger)과 fan-in 대상 branch가 있습니다 |
 | **worker worktree** | **ready wave**가 연 task마다 하나. 구현·검증·리뷰·task 커밋이 여기서 일어납니다 |
 
@@ -67,7 +67,7 @@ flowchart TD
     end
 
     subgraph FIN["/bouncer-finalize"]
-        F1["Distill 승격 (from explain)"] --> F2["explain-diff (BP entry + quiz)"]
+        F1["explain-diff (BP entry + quiz)"]
         F2 --> F3{{"gate finalize<br/>G16"}}
         F3 --> F4["finalize --yes: 일회성 문서 정리 + closed + worktree 제거"]
         F4 --> F5["draft PR (render → push + create)"]
@@ -85,7 +85,7 @@ flowchart TD
 | `/bouncer-plan` | `discovery` → `spec-authoring` → `stop-slop` → `graphify-runner` → `minimality` → `context-review` |
 | `/bouncer-execute` | `implementation` → `verification` → `review` → `minimality` (verify 실패 시 `debugging` → implementer 재호출) |
 | `/bouncer-commit` | 게이트와 확인만 — explain 단계 없음 |
-| `/bouncer-finalize` | `spec-authoring`(explain→Distill 승격) → `explain-diff` |
+| `/bouncer-finalize` | `explain-diff` |
 
 execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implementer` /
 `bouncer-reviewer` / `bouncer-debugger`로 분리됩니다. 계획 승인 직전의 문서

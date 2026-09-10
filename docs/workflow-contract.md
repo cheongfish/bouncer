@@ -18,7 +18,7 @@
 
 CLI 내부 동작과 전체 gate code를 skill에 반복하지 않는다. skill에는 사용자가
 확인할 정보, 호출 순서, 실패 후 복구 행동을 남긴다. 조건부로만 필요한 worktree,
-Graphify fallback, Distill promotion, PR 작성 절차는 reference가 소유한다.
+Graphify fallback과 PR 작성 절차는 reference가 소유한다.
 
 ## 측정 정의
 
@@ -41,7 +41,7 @@ Graphify fallback, Distill promotion, PR 작성 절차는 reference가 소유한
 | `bouncer-execute` | `minimality/index.md`, `debugging/index.md`, `./references/agent-dispatch.md`, `./references/verification-recovery.md` | step 5 advisory, step 4 verify-failure, dispatch/fallback |
 | `bouncer-commit` | 없음 | — |
 | `bouncer-run` | 없음 (실행 상한은 execute, 주행 판단은 `agents/bouncer-coordinator.md` 소유를 가리킴) | — |
-| `bouncer-finalize` | `distill-promotion.md`, `explain-quiz.md`, `draft-pr.md`, `cleanup-handoff.md` | steps 1, 2, 4, 5–6 |
+| `bouncer-finalize` | `explain-quiz.md`, `draft-pr.md`, `cleanup-handoff.md` | steps 1, 3, 4–5 |
 
 ## Task 002 측정 — 변경 전
 
@@ -82,7 +82,7 @@ skill별 소유 테스트를 기존 문서에 먼저 돌렸다.
 | `bouncer-execute` | 236 | 1829 | 0 | 0 | 0 | 정비. `debugging` cite와 re-dispatch 문구를 verify-failure 절(step 4)로 옮기고, 네 단계 루브릭 재서술을 제거했다. compact named dispatch와 full fallback은 `agent-dispatch.md`가 계속 소유한다. |
 | `bouncer-commit` | 117 | 772 | 0 | 0 | 0 | 무변경. dry-run이 commit gate를 한 번 실행하고, next-task는 confirm-then-set이다. |
 | `bouncer-run` | 154 | 1076 | 0 | 0 | 0 | 무변경. 시작 ACQ·autonomy·execute 소유 상한 위임만 있고, 기본 경로에 조건부 helper cite가 없다. |
-| `bouncer-finalize` | 110 | 901 | 0 | 0 | 0 | 무변경. Distill·quiz·PR·handoff 승인은 이미 해당 numbered step의 로컬 reference가 소유한다. |
+| `bouncer-finalize` | 110 | 901 | 0 | 0 | 0 | quiz·PR·handoff 승인은 해당 numbered step의 로컬 reference가 소유한다. |
 | 합계 | 939 | 7182 | 0 | 0 | 0 | — |
 
 ## Coordinator 위임 뒤 run skill 재측정

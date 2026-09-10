@@ -87,7 +87,7 @@ function makeAllowed({ affectedPaths, blueprintDir }: AllowedPathsInput): (file:
   };
 }
 
-// finalize remainder도 execute와 같은 권한이다. Distill 승격 예외는 두지 않아
+// finalize remainder도 execute와 같은 권한이다. 파생 memory 승격 예외는 두지 않아
 // 일반 task가 샤드를 몰래 커밋하는 회귀를 막는다. repoRoot는 호출 계약을 유지한다.
 function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }: {
   repoRoot: unknown;

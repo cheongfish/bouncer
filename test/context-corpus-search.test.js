@@ -5,15 +5,34 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const { performance } = require('node:perf_hooks');
 
 const ROOT = path.join(__dirname, '..');
 const FIXTURE = path.join(__dirname, 'fixtures', 'context-corpus-queries.json');
+const QUALITY_FIXTURE = path.join(__dirname, 'fixtures', 'graph-search-quality.json');
 const EPICS = path.join(ROOT, '.bouncer/context/epics');
 
-const { contextSearch, CORPUS_SCORE, SEARCH_MODES } = require('../scripts/lib/graph-search');
+const {
+  contextSearch,
+  graphSuggest,
+  CORPUS_SCORE,
+  SEARCH_MODES,
+} = require('../scripts/lib/graph-search');
 const { buildContextDigest, CONTEXT_DIGEST_OUT } = require('../scripts/lib/context-digest');
 
 const fixture = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
+const qualityFixture = JSON.parse(fs.readFileSync(QUALITY_FIXTURE, 'utf8'));
+const RETIRED_GRAPH_PATHS = [
+  '.bouncer/Distill.md',
+  '.bouncer/distill/build-ts.md',
+  '.bouncer/distill/context-layout.md',
+  '.bouncer/distill/core.md',
+  '.bouncer/distill/git-worktree.md',
+  '.bouncer/distill/graph.md',
+  '.bouncer/distill/plugin-skills.md',
+  '.bouncer/distill/validate-gates.md',
+];
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-corpus-search-'));
@@ -108,7 +127,10 @@ function materializeCorpus() {
     '',
     '## Interface',
     '',
-    'graph-scope test_dirs',
+    'graph-scope test_dirs and graphSuggest compatibility',
+    '',
+    '## Touch',
+    '- Modify `scripts/src/lib/graph-search.ts` — compatibility coverage',
     '',
   ].join('\n'));
   writeFile(repo, `${bp}/tasks/002/tasks.md`, [
@@ -144,12 +166,18 @@ function materializeCorpus() {
     { id: 'ctx::task2', label: 'graphSuggest', source_file: `${bp}/tasks/002/tasks.md` },
     { id: 'ctx::task2-path', label: 'scripts/src/lib/graph-search.ts', source_file: `${bp}/tasks/002/tasks.md` },
     { id: 'ctx::task1', label: 'task-060-001-001', source_file: `${bp}/tasks/001/tasks.md` },
+    { id: 'ctx::task1-symbol', label: 'graphSuggest', source_file: `${bp}/tasks/001/tasks.md` },
+    { id: 'ctx::task1-history', label: 'explain', source_file: `${bp}/tasks/001/tasks.md` },
   );
   writeGraph(repo, 'context', { nodes: contextNodes, links: [] });
   writeGraph(repo, 'source', {
     nodes: [
       { id: 'src::file', label: 'graph-search.ts', source_file: 'scripts/src/lib/graph-search.ts' },
       { id: 'src::sym', label: 'graphSuggest', source_file: 'scripts/src/lib/graph-search.ts' },
+      ...['plan', 'test', 'result', 'hook'].flatMap((label, i) => [
+        { id: `generic::file-${i}`, label: `generic-${i}.ts`, source_file: `scripts/src/lib/generic-${i}.ts` },
+        { id: `generic::symbol-${i}`, label, source_file: `scripts/src/lib/generic-${i}.ts` },
+      ]),
     ],
     links: [
       {
@@ -158,6 +186,12 @@ function materializeCorpus() {
         target: 'src::sym',
         source_file: 'scripts/src/lib/graph-search.ts',
       },
+      ...['plan', 'test', 'result', 'hook'].map((_, i) => ({
+        relation: 'contains',
+        source: `generic::file-${i}`,
+        target: `generic::symbol-${i}`,
+        source_file: `scripts/src/lib/generic-${i}.ts`,
+      })),
     ],
   });
   writeGraph(repo, 'test', { nodes: [], links: [] });
@@ -166,6 +200,96 @@ function materializeCorpus() {
 
 function rankedPaths(result) {
   return result.candidates.map((row) => row.path);
+}
+
+function graphBuildSha(repo) {
+  const hash = crypto.createHash('sha256');
+  for (const role of ['context', 'source', 'test']) {
+    hash.update(fs.readFileSync(path.join(repo, 'graphify-out', role, 'graph.json')));
+  }
+  return hash.digest('hex');
+}
+
+function benchmarkRows(repo, method) {
+  return fixture.queries.map((q) => {
+    const result = method === 'context-search'
+      ? contextSearch({ repoRoot: repo, mode: q.mode, query: q.query, maxCandidates: q.max_candidates })
+      : graphSuggest({ repoRoot: repo, query: q.query, seeds: q.query.split(/\s+/) });
+    const candidates = method === 'context-search'
+      ? rankedPaths(result)
+      : result.suggested_paths.slice(0, q.max_candidates);
+    return {
+      id: q.id,
+      status: method === 'context-search' ? result.status : result.status,
+      expected_docs: q.expected_docs,
+      expected_rank: q.expected_docs
+        .map((doc) => candidates.indexOf(doc) + 1)
+        .filter((rank) => rank > 0),
+      candidates,
+    };
+  });
+}
+
+function measureBatch(repo, method, warmups, repetitions) {
+  for (let i = 0; i < warmups; i += 1) benchmarkRows(repo, method);
+  const samples = [];
+  for (let i = 0; i < repetitions; i += 1) {
+    const start = performance.now();
+    benchmarkRows(repo, method);
+    samples.push(performance.now() - start);
+  }
+  samples.sort((a, b) => a - b);
+  return {
+    median_ms: samples[Math.floor(samples.length / 2)],
+    p95_ms: samples[Math.ceil(samples.length * 0.95) - 1],
+  };
+}
+
+function assertBenchmarkMatches(rows, expected) {
+  assert.deepEqual(aggregateMetrics(rows), {
+    recall_at_8: expected.recall_at_8,
+    mrr: expected.mrr,
+    broad_query_false_positive_rate: expected.broad_query_false_positive_rate,
+    zero_hit_diagnosis_rate: expected.zero_hit_diagnosis_rate,
+    median_candidates: expected.median_candidates,
+  }, JSON.stringify(rows));
+  assert.deepEqual(rows.map((row) => row.expected_rank), expected.expected_ranks);
+}
+
+/**
+ * 고정 질의의 순위를 집계한다. broad/zero-hit은 정답 문서가 없으므로 품질 분모에서
+ * 제외하고, 빈 정답을 임의 후보로 채우는 회귀는 별도 비율로 드러낸다.
+ *
+ * @param {Array<object>} rows - 질의별 기대 문서와 실제 후보 목록
+ * @returns {object} Recall@8, MRR, 후보 중앙값과 진단 비율
+ */
+function aggregateMetrics(rows) {
+  const ranked = rows.filter((row) => row.expected_docs.length > 0);
+  const expectedCount = ranked.reduce((sum, row) => sum + row.expected_docs.length, 0);
+  const hits = ranked.reduce((sum, row) => {
+    const top = row.candidates.slice(0, 8);
+    return sum + row.expected_docs.filter((doc) => top.includes(doc)).length;
+  }, 0);
+  const reciprocalRanks = ranked.map((row) => {
+    const ranks = row.expected_docs
+      .map((doc) => row.candidates.indexOf(doc) + 1)
+      .filter((rank) => rank > 0);
+    return ranks.length === 0 ? 0 : 1 / Math.min(...ranks);
+  });
+  const candidateCounts = ranked.map((row) => row.candidates.length).sort((a, b) => a - b);
+  const middle = Math.floor(candidateCounts.length / 2);
+  const median = candidateCounts.length % 2 === 0
+    ? (candidateCounts[middle - 1] + candidateCounts[middle]) / 2
+    : candidateCounts[middle];
+  const broad = rows.find((row) => row.id === 'Q4');
+  const zero = rows.find((row) => row.id === 'Q5');
+  return {
+    recall_at_8: hits / expectedCount,
+    mrr: reciprocalRanks.reduce((sum, value) => sum + value, 0) / reciprocalRanks.length,
+    broad_query_false_positive_rate: broad.candidates.length === 0 ? 0 : 1,
+    zero_hit_diagnosis_rate: zero.status === 'zero-hit' && zero.candidates.length === 0 ? 1 : 0,
+    median_candidates: median,
+  };
 }
 
 test('context corpus fixture pins Q1-Q6 mode, expected docs, and candidate caps', () => {
@@ -183,6 +307,93 @@ test('context corpus fixture pins Q1-Q6 mode, expected docs, and candidate caps'
       assert.ok(isAscii(doc));
     }
   }
+});
+
+test('benchmark fixture records one-build direct BFS and context-search metrics', () => {
+  const benchmark = fixture.benchmark;
+  const repo = materializeCorpus();
+  const contextRows = benchmarkRows(repo, 'context-search');
+  const baselineRows = benchmarkRows(repo, 'direct-bfs');
+  assert.equal(benchmark.graph.commit, benchmark.baseline.graph.commit);
+  assert.equal(benchmark.graph.build_sha, benchmark.baseline.graph.build_sha);
+  assert.equal(benchmark.graph.graphify_cli_version, benchmark.baseline.graph.graphify_cli_version);
+  assert.equal(benchmark.graph.build_sha, graphBuildSha(repo));
+  assert.equal(benchmark.context_search.recall_at_8 >= 0.9, true);
+  assert.equal(benchmark.context_search.mrr >= 0.7, true);
+  assert.equal(benchmark.context_search.broad_query_false_positive_rate, 0);
+  assert.equal(benchmark.context_search.zero_hit_diagnosis_rate, 1);
+  assert.ok(benchmark.context_search.median_candidates >= 3);
+  assert.ok(benchmark.context_search.median_candidates <= 8);
+  assert.ok(Number.isInteger(benchmark.context_search.planning_retrieval_tokens));
+  assert.ok(benchmark.context_search.planning_retrieval_tokens > 0);
+  assertBenchmarkMatches(contextRows, benchmark.context_search);
+  assertBenchmarkMatches(baselineRows, benchmark.baseline);
+  for (const result of [benchmark.baseline, benchmark.context_search]) {
+    assert.equal(result.wall_clock.method, 'performance.now');
+    assert.ok(result.wall_clock.warmups >= 1);
+    assert.ok(result.wall_clock.repetitions >= 30);
+    assert.ok(result.wall_clock.median_ms > 0);
+    assert.ok(result.wall_clock.p95_ms >= result.wall_clock.median_ms);
+  }
+  const mirror = qualityFixture.meta.context_search_comparison;
+  assert.equal(mirror.build_sha, benchmark.graph.build_sha);
+  assert.deepEqual(mirror.direct_bfs, {
+    recall_at_8: benchmark.baseline.recall_at_8,
+    mrr: benchmark.baseline.mrr,
+    broad_query_false_positive_rate: benchmark.baseline.broad_query_false_positive_rate,
+    zero_hit_diagnosis_rate: benchmark.baseline.zero_hit_diagnosis_rate,
+    median_candidates: benchmark.baseline.median_candidates,
+    planning_retrieval_tokens: benchmark.baseline.planning_retrieval_tokens,
+    wall_clock_median_ms: benchmark.baseline.wall_clock.median_ms,
+    wall_clock_p95_ms: benchmark.baseline.wall_clock.p95_ms,
+  });
+  assert.deepEqual(mirror.context_search, {
+    recall_at_8: benchmark.context_search.recall_at_8,
+    mrr: benchmark.context_search.mrr,
+    broad_query_false_positive_rate: benchmark.context_search.broad_query_false_positive_rate,
+    zero_hit_diagnosis_rate: benchmark.context_search.zero_hit_diagnosis_rate,
+    median_candidates: benchmark.context_search.median_candidates,
+    planning_retrieval_tokens: benchmark.context_search.planning_retrieval_tokens,
+    wall_clock_median_ms: benchmark.context_search.wall_clock.median_ms,
+    wall_clock_p95_ms: benchmark.context_search.wall_clock.p95_ms,
+  });
+});
+
+test('benchmark gate rejects candidate output that diverges from recorded quality', () => {
+  const repo = materializeCorpus();
+  const rows = benchmarkRows(repo, 'context-search');
+  rows[0].candidates = [];
+  rows[0].expected_rank = [];
+  assert.throws(
+    () => assertBenchmarkMatches(rows, fixture.benchmark.context_search),
+    (error) => error && error.code === 'ERR_ASSERTION',
+  );
+});
+
+test('benchmark wall-clock method executes repeated real searches', () => {
+  const repo = materializeCorpus();
+  const timing = measureBatch(repo, 'context-search', 1, 3);
+  assert.ok(timing.median_ms > 0);
+  assert.ok(timing.p95_ms >= timing.median_ms);
+});
+
+test('isolated post-deletion regeneration has no retired map entries or source nodes', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
+  fs.cpSync(EPICS, path.join(repo, '.bouncer/context/epics'), { recursive: true });
+  const digest = buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  const staleMapEntries = Object.values(digest.map)
+    .filter((sourcePath) => RETIRED_GRAPH_PATHS.includes(sourcePath));
+  const evidence = fixture.benchmark.graph.post_deletion_regeneration;
+
+  assert.deepEqual(staleMapEntries, []);
+  assert.deepEqual(evidence.stale_map_entries, []);
+  assert.deepEqual(evidence.stale_source_nodes, []);
+  assert.equal(evidence.graphify_cli_version, fixture.benchmark.graph.graphify_cli_version);
+  assert.match(evidence.map_sha256, /^[a-f0-9]{64}$/);
+  assert.match(evidence.graph_sha256, /^[a-f0-9]{64}$/);
+  assert.ok(evidence.map_entries > 0);
+  assert.ok(evidence.graph_nodes > 0);
 });
 
 test('Q1-Q3 ranked expected docs land in top 8; Q4 broad-query and Q5 zero-hit return no candidates', () => {

@@ -12,7 +12,7 @@ const { normalizeCommitSha } = commitSha;
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
 const DIGEST_MAP_REL = 'graphify-out/context-src/map.json';
 /**
- * context freshness가 dirs 외에 보는 단일 파일. Distill master는 더 이상
+ * context freshness가 dirs 외에 보는 단일 파일. 파생 memory는 더 이상
  * 검색 corpus가 아니므로 비운다. 원본은 `.bouncer/context/**` walk가 담당한다.
  */
 const DIGEST_WATCH_FILES: string[] = [];
@@ -259,9 +259,7 @@ function extractSections(markdown: unknown, headings: unknown): string {
   return chunks.length ? chunks.join('\n\n') + '\n' : '';
 }
 
-// distill kind는 예전 파생 파일 HTML 주석을 읽기 위해 남긴다. 새 digest는
-// Distill 경로를 만들지 않으며, graph-search inCorpus가 distill을 버린다.
-type DigestKind = 'epic' | 'blueprint' | 'explain' | 'task' | 'distill';
+type DigestKind = 'epic' | 'blueprint' | 'explain' | 'task';
 
 type DigestMetadata = {
   kind: DigestKind | '';
@@ -388,7 +386,7 @@ function parseDigestMetadata(markdown: string): DigestMetadata {
       : [];
     const kindRaw = parsed.kind;
     const kind: DigestKind | '' = kindRaw === 'epic' || kindRaw === 'blueprint'
-      || kindRaw === 'explain' || kindRaw === 'task' || kindRaw === 'distill'
+      || kindRaw === 'explain' || kindRaw === 'task'
       ? kindRaw
       : '';
     return {

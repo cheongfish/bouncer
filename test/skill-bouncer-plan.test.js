@@ -17,23 +17,6 @@ function assertShape(document, contract) {
   return result.shape;
 }
 
-test('bouncer-plan conditionally routes three planning references and retains core gates', () => {
-  const { body } = parseFrontmatter(mainMd);
-  const routes = [
-    { file: 'distill-preflight.md', triggers: ['distill', 'preflight'], source: 'When preparing the Distill baseline and preflight, read this reference:' },
-    { file: 'graphify-suggestions.md', triggers: ['graphify', 'suggestion'], source: 'When generating Graphify suggestions, read this reference:' },
-    { file: 'context-review.md', triggers: ['context', 'review'], source: 'When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference:' },
-  ];
-  assertShape(mainMd, {
-    filePath: path.join(root, 'skills', 'bouncer-plan', 'SKILL.md'),
-    links: routes.map(({ file, triggers }) => ({ href: `./references/${file}`, resolve: true, referencePreamble: true, conditionalLoad: { triggers } })),
-  });
-  assert.match(body, /current\s+--set/);
-  assert.match(body, /Fix every reported failure and re-run/);
-  assert.match(body, /code,\n?\s*cause, path, and recovery action/);
-  assert.doesNotMatch(body, /bouncer graph-sync|resolveSubagentModel/);
-});
-
 test('bouncer-plan rejects unrelated conditional routes', () => {
   const routes = [
     { href: './references/distill-preflight.md', triggers: ['distill', 'preflight'], source: 'When preparing the Distill baseline and preflight, read this reference:' },
@@ -160,12 +143,6 @@ test('bouncer-plan reminds authors that titles feed the finalize commit message'
 });
 
 
-test('bouncer-plan preflight reads project Distill', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /\.bouncer\/Distill\.md/);
-  assert.match(body, /Read/i);
-});
-
 test('bouncer-plan step 1 cites the named discovery handoff outputs', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /Edge cases & failure modes/);
@@ -259,24 +236,6 @@ test('bouncer-plan keeps light scope explicit while delegating gate details', ()
 });
 
 // 프리플라이트 --all 직후 총량은 한 줄만 — 샤드별 표는 세션 주입이 된다.
-test('bouncer-plan reports Distill total size in one line after preflight', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /preflight[\s\S]{0,80}total size[\s\S]{0,40}one line/i);
-});
-
-// 컨텍스트에는 --preflight만. --all 전량은 스크래치 baseline 파일이고 주입이 아니다.
-test('bouncer-plan injects Distill --preflight and stores --all as a scratch baseline', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /distill\s+--preflight/);
-  assert.match(body, /baseline/);
-  assert.match(body, /scratch|mktemp|TMPDIR/i);
-  assert.doesNotMatch(body, /consume its stdout/);
-  assert.doesNotMatch(body, /and use\s+the complete output/i);
-  assert.match(body, /must not replace|does not replace|must not substitute/i);
-});
-
-// plan 게이트는 발견된 각 task 묶음에 G4·G5·G10–G12를 적용하므로,
-// Author/Graph/affected_paths도 tasks/001만 지목하면 안 되고 전 묶음을 순회해야 한다.
 test('bouncer-plan authors every task bundle, not only 001', () => {
   const { body } = parseFrontmatter(md);
   assert.doesNotMatch(body, /tasks\/001\/tasks\.md/);
@@ -358,4 +317,13 @@ test('bouncer-plan authors and reviews task DAG before approval', () => {
   assert.match(body, /parallel_safe|병렬/);
   assert.match(body, /충돌|overlap|conflict/i);
   assert.match(body, /G19|plan gate[\s\S]{0,120}DAG|DAG[\s\S]{0,120}plan gate|depends_on[\s\S]{0,200}validate/i);
+});
+
+test('bouncer-plan uses context-search preflight and implementation re-ground', () => {
+  const { body } = parseFrontmatter(mainMd);
+  assert.doesNotMatch(body, /distill/i);
+  assert.match(body, /context-search --mode decision/);
+  assert.match(body, /context-search --mode implementation/);
+  assert.match(body, /query id, status,[\s\S]*graph version/);
+  assert.equal(fs.existsSync(path.join(root, 'skills/bouncer-plan/references/distill-preflight.md')), false);
 });

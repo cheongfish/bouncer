@@ -15,7 +15,7 @@ the next `/bouncer-plan` action through that shared contract.
 
 Bootstrap this project for Bouncer.
 
-1. Run `bouncer init` (idempotent for config; seeds missing project Distill;
+1. Run `bouncer init` (idempotent for config and canonical context;
    attempts graphify venv install by default). Codex named-agent TOML is
    written only when `.codex/` already exists or the user passed
    `--seed-codex-agents`:
@@ -33,7 +33,7 @@ Bootstrap this project for Bouncer.
    never write config or `.gitignore` without agreement.
 4. Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
-   git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit -m "chore: bootstrap bouncer"
+   git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
    ```
    If init actually created `.codex/agents`, include that directory in the same
    commit (`git add .codex/agents` in addition to the paths above). Omit it

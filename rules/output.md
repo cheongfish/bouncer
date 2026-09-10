@@ -40,7 +40,7 @@
 
 `진행: 003 · integrated · bouncer-implementer · scope r2 개정(src/session/ 추가)`
 
-`완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: Distill 승격 동의`
+`완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: explain 퀴즈`
 
 `부분 종결: 001-login · 마지막 검증: npm run ci 실패 · 보존: ledger·integration·worker·NEXT_PLAN.md · 다음: NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`
 

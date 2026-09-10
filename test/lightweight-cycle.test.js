@@ -22,7 +22,7 @@ test('governance defines Lightweight cycle contract', () => {
   assert.match(gov, /inline/i);
   assert.match(gov, /one question|single question/i);
   assert.match(gov, /explain\.md/);
-  assert.match(gov, /Distill/);
+  assert.doesNotMatch(gov, /distill/i);
   assert.match(gov, /\bG16\b/);
   assert.match(gov, /its own diff|self-review/i);
   assert.match(gov, /named agents are unavailable/);

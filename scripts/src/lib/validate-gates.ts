@@ -662,7 +662,7 @@ function runCheckGate(
     return;
   }
   // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension(BP 단일
-  // 엔트리)의 diff_sha를 range_from..HEAD와 대조. Distill·promotion metadata는
+  // 엔트리)의 diff_sha를 range_from..HEAD와 대조. 폐기된 promotion metadata는
   // 판정하지 않는다. G15는 폐기(결번)됐고, commit은 아래에서 G6/G7/G8 + G13 + G17로
   // 재판정한다.
   if (gate === 'finalize') {
@@ -762,7 +762,7 @@ function runCheckGate(
   // commit: explain을 보지 않는다. 포인터 task 상태(G6/G7/G8)와 G13 원장 대조,
   // 스테이징 스코프(G17)를 본다. G9·G15는 폐기 — 번호만 비워 둔다.
   if (gate === 'commit') {
-    // G9 (distill.status == published)는 폐기됨 — 번호만 비워 둠.
+    // G9는 폐기됨 — 번호만 비워 둠.
     // G15 (explain comprehension / diff_sha)는 폐기됨 — 번호만 비워 둠.
     const taskUnit = (ctx && ctx.taskUnit) || resolveTaskUnit(docs, {
       repoRoot, blueprintDir,

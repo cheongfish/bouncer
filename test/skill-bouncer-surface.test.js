@@ -261,13 +261,8 @@ test('workflow skills cite subordinate skills by path', () => {
   assert.match(execute, /\$\{BOUNCER_ROOT\}\/references\/review\/index\.md/);
   // explain-diff는 finalize가 호출한다(commit이 아님).
   assert.doesNotMatch(commit, /references\/explain-diff\/index\.md/);
-  assert.match(finalize, /\$\{BOUNCER_ROOT\}\/references\/spec-authoring\/index\.md/);
   assert.match(finalize, /\$\{BOUNCER_ROOT\}\/references\/explain-diff\/index\.md/);
-  {
-    const i = finalize.indexOf('${BOUNCER_ROOT}/references/spec-authoring/index.md');
-    const j = finalize.indexOf('${BOUNCER_ROOT}/references/explain-diff/index.md');
-    assert.ok(i > -1 && j > i);
-  }
+  assert.doesNotMatch(finalize, /spec-authoring/);
   for (const name of [
     'discovery', 'implementation', 'verification', 'review',
     'minimality', 'debugging', 'graphify-runner', 'spec-authoring',
@@ -295,7 +290,6 @@ function bareReferenceCites(md) {
 const SKILL_LOCAL_REFS = {
   'bouncer-init': ['init-result.md'],
   'bouncer-plan': [
-    'distill-preflight.md',
     'graphify-suggestions.md',
     'context-review.md',
   ],
@@ -305,7 +299,6 @@ const SKILL_LOCAL_REFS = {
   ],
   'bouncer-commit': [],
   'bouncer-finalize': [
-    'distill-promotion.md',
     'explain-quiz.md',
     'draft-pr.md',
     'cleanup-handoff.md',

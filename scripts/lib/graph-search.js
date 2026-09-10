@@ -857,7 +857,7 @@ function validateContextSearchInput(input) {
     return null;
 }
 /**
- * 검색 모드별 원본 문서 역할. Distill은 세 corpus 어디에도 넣지 않는다.
+ * 검색 모드별 원본 문서 역할. 알 수 없는 파생 종류는 세 corpus에서 제외한다.
  * decision: epic·blueprint index + 닫힌 explain. implementation: task brief.
  * history: 닫힌 task와 explain. 닫힘은 문서 status 또는 부모 blueprint_status.
  *
@@ -866,7 +866,7 @@ function validateContextSearchInput(input) {
  * @returns {boolean} corpus 포함 여부
  */
 function inCorpus(meta, mode) {
-    if (!meta.kind || meta.kind === 'distill')
+    if (!meta.kind)
         return false;
     if (mode === 'decision') {
         if (meta.kind === 'epic' || meta.kind === 'blueprint')

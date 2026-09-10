@@ -104,8 +104,8 @@ status published. Not a workflow entry point.
    Mirror the outcome under `## 이해 상태` so the body matches the record.
 
 6. **Publish.** Set `bouncer.status → published` on `explain.md` if it is not
-   already. Distill promotion stays with `spec-authoring` at
-   `/bouncer-finalize` (before this skill) — do not promote here.
+   already. The published explain remains canonical context and requires no
+   separate promotion surface.
 
 ## Preserved task context
 

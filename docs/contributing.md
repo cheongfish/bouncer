@@ -26,7 +26,7 @@ coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
 배경·의도 2줄 + 수정 내용 불릿. 본문에 파일·모듈 이름은 쓰지 않습니다(diff가
 이미 보여줍니다). 전체 규칙은 [`.gitmessage`](../.gitmessage)에 있습니다.
 
-`/bouncer-commit`이 task 커밋 메시지를, `/bouncer-finalize`가 Distill 승격분
+`/bouncer-commit`이 task 커밋 메시지를, `/bouncer-finalize`가 context remainder
 등 remainder 커밋 메시지를 plan 때 쓴 문서 필드로 조립합니다. 메시지를 새로
 짓지 않습니다.
 
@@ -38,7 +38,7 @@ coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
   고른 **가장 큰 번호**의 유효 `commit_intent` 2줄. 유효 항목이 없으면
   제목만.
 
-Epic/Blueprint/Distill 식별자는 커밋에 넣지 않고 PR 본문·blueprint 문서에
+Epic/Blueprint 식별자는 커밋에 넣지 않고 PR 본문·blueprint 문서에
 둡니다.
 execute 브랜치도 같은 `bouncer.commit_type`을 prefix로 씁니다:
 `<type>/<id>-<slug>` (`feat/…`, `refactor/…`, `test/…` 등).
@@ -87,7 +87,7 @@ PR **제목**은 커밋 subject와 다릅니다. finalize가 만드는 draft 제
 [YYMMDD] (→ MergeTarget) [Type/Type] 요약
 ```
 
-예: `[260803] (→ Develop) [Feat] 전역 Distill을 init·finalize 런타임에 연결`
+예: `[260803] (→ Develop) [Feat] context 검색을 plan 런타임에 연결`
 
 - `YYMMDD`: 작성일(KST)
 - `MergeTarget`: `config.base_branch` / `pr.base` (첫 글자 대문자)

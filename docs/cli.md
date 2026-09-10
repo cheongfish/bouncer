@@ -13,12 +13,12 @@
 | `bouncer scaffold explain --blueprint <dir>` | BP `explain.md` 생성(`comprehension: []`). `/bouncer-finalize`가 호출 |
 | `bouncer scaffold context-review --blueprint <dir>` | BP `context-review.md` 생성. 이미 있으면 덮어쓰지 않고 거절. `closed` blueprint도 거절 |
 | `bouncer commit --blueprint <dir> [--yes]` | task 커밋 범위 확인, `--yes`면 그 task만 커밋. 포인터는 옮기지 않음 |
-| `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 변경(보통 Distill 승격) 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear |
+| `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 context 변경 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear |
 | `bouncer coordinate <bootstrap\|prepare\|ready\|record\|integrate\|status\|revise> --blueprint <dir> [--task <NNN>] [--sha <sha>] [--decision <text>] [--paths <p>]... [--reason <text>]` | coordinator 원장과 격리 worktree 운용. 결과 JSON은 stdout에 냄 — `{ok:false}` 거절도 `{"ok": false, "reason": …}` JSON으로 stdout에 나오고(`revise`만 예외로 stderr) 종료 코드 1. assigned-worktree 불일치·Git 실패는 throw 경로라 stderr 한 줄. 자세한 것은 아래 [`bouncer coordinate`](#bouncer-coordinate) |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 worktree로 이전하고 base를 원상복구. 옮길 것이 없으면 성공 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer project-root [--repo <dir>]` | 소비 저장소 main worktree 절대 경로 한 줄(stdout만). primary·linked worktree에서 같은 값. 비-Git이면 stderr + 종료 코드 1(빈 stdout·cwd 대체 없음) |
-| `bouncer distill --for <path> [--json]` | 대상 경로에 맞는 Distill 본문을 출력. `--all`은 routing 설정과 무관하게 전량 본문을 출력하고, `--preflight`는 `always` 샤드 본문과 등록 인벤토리만, `--route <path>`는 선택 JSON, `--audit`는 전량 감사 JSON을 출력 |
+| `bouncer context-search --mode <decision\|implementation\|history> --query <text> [--max-candidates <1..8>]` | canonical context graph를 role별로 검색. query id·status·graph version과 최대 8개 후보를 JSON으로 출력 |
 | `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>] [--replace]] [--clear]` | 위치별 활성 포인터 읽기 / 기록 / 지우기. 저장 경로는 Git common directory의 `pointers/<epic-id>/<blueprint-id>.json`이고 본문은 `{ blueprint, task?, base }`. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); `scale`은 호출 시점에 blueprint `index.md`의 `bouncer.scale`에서 파생한 문자열(없거나 읽을 수 없으면 `null`). 없으면 `ready` 후보. 기본 `--set`은 대상 namespace key를 추가·갱신하고 다른 key를 보존한다. `--replace`는 현재 위치에서 유일하게 선택된 key를 지운 뒤 대상을 쓰며, 성공 payload의 stdout JSON과 stderr `previous`에 `{ blueprint, base, task }`를 싣는다. 기준 checkout에 포인터가 둘 이상이면 읽기·`--replace` 모두 `CURRENT_AMBIGUOUS`와 정렬된 `candidates`로 종료 코드 1이며 어느 쪽도 추측하지 않는다. `--clear`는 현재 선택된 key만 지운다. `--replace`만 쓰거나 `--clear`와 함께 쓰면 사용법 오류다. |
 | `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
 | `bouncer import [--source merges\|commits] [--since <ref>] [--limit <n>] [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]` | git 히스토리를 `imported` epic/blueprint 문서로 전사. 기본은 dry-run(계획 JSON만 출력). `--yes --message`일 때만 파일을 쓰고 커밋 하나로 남김 |
@@ -158,15 +158,7 @@ fan-in 충돌은 `reason` 코드가 아니라 cherry-pick 실패입니다. Git s
 `coordinate: …`로 나오고 원장은 갱신되지 않습니다 — 복구 절차는
 [troubleshooting.md](troubleshooting.md)에 있습니다.
 
-`distill`의 `--for`는 경로를 확정한 뒤 선택 라우팅을 수행하며, `--json`은 본문과
-선택 메타데이터(`ids`, `full`, `reason`, `targetPaths`)를 JSON으로 감쌉니다.
-라우팅이 비활성화되었거나 매칭·메타데이터가 불확실하면 전량을 사용하고 진단은
-stderr로만 보냅니다. `--all`과 `--audit`는 항상 인덱스의 모든 샤드를 대상으로
-합니다. `--preflight`는 경로 확정 전에 `always: true` 샤드 본문만 고르고,
-`audit.shards`에는 등록 전체를 그대로 담습니다. `--route`와 `--audit`은
-선택/감사 정보가 목적이므로 JSON을 출력합니다.
-JSON의 `audit.shards`는 인덱스에 등록된 전체 샤드를 등록 순서대로 담으며, 각 항목은
-`id`, `path`, `always`, `pathsKnown`, `pullsKnown`과 선언된 경우의 `paths`, `pulls`만
-포함합니다. 본문·원문은 포함하지 않고, `--route`/`--for`에서 선택된 샤드로 줄어들지
-않습니다. 단일 파일 fallback에서는 빈 배열입니다.
+`context-search`는 exact anchor/path, domain tag, intent/evidence를 점수화하고
+broad-query와 zero-hit을 빈 후보로 진단합니다. Graphify build/version이
+호환되지 않으면 검색을 진행하지 않습니다.
 종료 코드는 도움말 0, 게이트 실패 1, 사용법 오류 2입니다.

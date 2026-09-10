@@ -170,7 +170,7 @@ function newestMtimeUnder(repoRoot, dir) {
 /**
  * dirs 는 보통 디렉터리 walk, watchFiles 는 config.json 같은 단일 파일 mtime.
  * 디렉터리가 아닌 경로는 walk 하지 않고 statSync 로 직접 잰다.
- * Distill master·샤드 디렉터리는 freshness 입력이 아니다 — context 원본과
+ * 파생 memory 파일·디렉터리는 freshness 입력이 아니다 — context 원본과
  * 검색 metadata만 본다.
  */
 function realNewestMtime(repoRoot, dirs, watchFiles) {

@@ -21,11 +21,10 @@ separate: Cursor and Antigravity projects pin `subagents.provider` in config.
 
 `BOUNCER_ROOT` is the **plugin** install (skills, `scripts/bouncer`, master
 rules). The **consuming project's** main worktree is separate: resolve it with
-`bouncer project-root` into `PROJECT_ROOT`, and read/write Distill only at
-`${PROJECT_ROOT}/.bouncer/Distill.md`. Do not treat plugin root or an execute
-worktree cwd as the Distill base. When this repository dogfoods the plugin,
-plugin root and project root may be the same path — that is a normal input, not
-a special case.
+`bouncer project-root` into `PROJECT_ROOT`. Canonical context reads and graph
+freshness checks are rooted there; never substitute plugin root or an execute
+worktree cwd. When this repository dogfoods the plugin, plugin root and project
+root may be the same path — that is a normal input, not a special case.
 
 Hooks resolve independently from workflow launcher shells; they do not transmit
 plugin-root variables to those shells. Cursor hooks use relative paths.

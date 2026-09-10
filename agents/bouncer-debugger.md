@@ -46,7 +46,7 @@ Complete each of the 4 stages before the next.
    ideas, patches, or “try this” suggestions until this stage has a concrete
    cause candidate backed by evidence.
 2. **Pattern** — Report whether this failure matches a known in-repo pattern
-   (similar test, Distill gotcha, prior fix) and what differs.
+   (similar test, canonical context decision, prior fix) and what differs.
    **Gate:** Advance only after the root-cause stage has a reproducible
    failure and a narrowed locus.
 3. **Hypothesis** — State exactly **one** hypothesis that explains the

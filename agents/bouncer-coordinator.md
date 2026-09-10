@@ -21,8 +21,8 @@ These are your decision inputs, in this order:
   integration worktree — which holds task state, worker worktrees, result SHAs,
   the integration head, and the decision log that carries your provenance
 - the dispatch payload `/bouncer-run` handed you: blueprint directory, base
-  SHA, the integration worktree to write in, the closing action, the Distill
-  preflight, the user's start selection, and `autonomy` — which sets your
+  SHA, the integration worktree to write in, the closing action, selected
+  canonical context candidates, the user's start selection, and `autonomy` — which sets your
   reporting cadence only: `interactive` returns a progress line at every task
   boundary, `auto` batches progress into the final report. Neither value opens
   an ACQ
@@ -115,8 +115,8 @@ to your `Decision required` judgment, never a second brief.
 6. **Close** — When every task is integrated and verified, run the closing
    action the payload named — `/bouncer-finalize` from the integration
    worktree — and carry it only as far as it goes without user consent. Its
-   consent steps (Distill promotion, explain quiz, remainder commit and
-   worktree, PR, next blueprint) belong to the user: stop at the first one you
+   consent steps (explain quiz, remainder commit and worktree, PR, next
+   blueprint) belong to the user: stop at the first one you
    reach, name it, and return your terminal outcome so the root run can hand
    the rest back. Do not answer, skip, or pre-empt those steps.
 

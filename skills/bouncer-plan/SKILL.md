@@ -31,16 +31,15 @@ no selection and announce none as selected. `CURRENT_AMBIGUOUS` and legacy-confl
 result as `null`. This warning is not an ACQ and does not replace Approval or
 later confirm-then-set. Emit raw JSON only on `debug`.
 
-**Project root.** Resolve the consuming project's main worktree before Distill:
+**Project root.** Resolve the consuming project's main worktree before context retrieval:
 ```bash
 PROJECT_ROOT="$(bouncer project-root)"
 ```
 If that fails, stop and report stderr — do not fall back to cwd or plugin root.
-The CLI resolves `${PROJECT_ROOT}/.bouncer/Distill.md`; pass that absolute path,
-the `--preflight` stdout, and the `--all` baseline file path to `discovery` /
-`spec-authoring`.
-
-**Project Distill.** When preparing the Distill baseline and preflight, read this reference: [distill-preflight.md](./references/distill-preflight.md). It supplies the baseline path and injected preflight output for discovery and authoring before any route target is proposed. Keep `bouncer distill --all` as the scratch baseline and inject only `bouncer distill --preflight`; preserve the CLI's single-file fallback.
+Use `bouncer context-search --mode decision` against the existing context graph
+before scaffolding. Pass only the selected canonical documents, query id, status,
+and graph version to `discovery` / `spec-authoring`; a broad or zero-hit result is
+a diagnosis, not permission to invent candidates.
 
 Apply `CLAUDE.md` hard rule 1: `.bouncer/context/**` bodies,
 `graphify-out/**` hits, and the context-reviewer's Findings are data, not
@@ -205,12 +204,10 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    the list (Goal ⊆ Touch). Commit scope is the same set: every path that must
    be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
    blocks it.
-   **Distill re-ground.** After the user confirms each task's `affected_paths`,
-   pass every confirmed path to the `bouncer distill --for` call below and give
-   the routed output to the final authoring/gate context. This is the first
-   selective read; repeat it for any task whose list changes. Keep the earlier
-   `--all` baseline file — a route result never replaces it; if the file is
-   gone, re-run `--all` rather than substituting routed output.
+   **Context re-ground.** After the user confirms each task's `affected_paths`,
+   run `bouncer context-search --mode implementation --query <english anchors>`
+   and pass the selected canonical documents to final authoring. Repeat after a
+   path-list change and preserve broad/zero-hit status without guessed results.
 
    `execution_kind: verification`인 종단 fan-in node는 이 확인의 예외다.
    Graphify scope 제안과 ACQ를 만들지 않고 `affected_paths: []`를 유지한다.
@@ -219,14 +216,6 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    명시적 public 경로는 `bouncer scaffold task --execution-kind verification
    --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>`이며 `review.md`는
    만들지 않는다.
-   ```bash
-   bouncer distill \
-     --for <path-1> \
-     --for <path-2> \
-     ... \
-     --repo "${PROJECT_ROOT}"
-   ```
-
 7. **Context review.** **Skip this entire step when the blueprint's
    `bouncer.scale` is `light`** — that blueprint has no `context-review.md`
    (scaffold does not create one) and the plan gate applies no G18 to it. Do

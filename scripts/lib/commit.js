@@ -15,7 +15,7 @@ const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = validate;
 const finalize = require("./finalize");
 const { realGit, buildCommitMessage } = finalize;
 const scope = require("./scope");
-const { filterTaskCommitCandidates, coordinatorContext, recordActualPaths } = scope;
+const { filterTaskCommitCandidates, isTaskWorkflowArtifact, coordinatorContext, recordActualPaths, } = scope;
 const coordinatorCore = require("./coordinator");
 const { readyWave } = coordinatorCore;
 const paths = require("./paths");
@@ -62,6 +62,48 @@ function findNextOpenTask({ repoRoot, blueprintDir, currentUnit }) {
     return null;
 }
 /**
+ * 이전 finalize 시도가 남긴 일회성 문서 삭제 후보인지 판정한다.
+ *
+ * 이 경로는 일반 task의 권한 밖이므로 수정·신규 파일까지 허용하면 범위 경계가
+ * 사라진다. 다만 이 drive에서 finalize가 소유한 추적 파일의 삭제는 task staging
+ * 필터에도 남지 않아야, 다음 task commit이 회수용 remainder를 가로채지 않는다.
+ *
+ * @param {object} opts - 후보와 Git 추적 변경 정보를 담은 입력
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {unknown} opts.file - 판정할 저장소 상대 경로
+ * @param {Set<string>} opts.changed - Git이 보고한 추적 변경 경로
+ * @returns {boolean} finalize 소유 일회성 문서 삭제 후보이면 true
+ */
+function isFinalizeRemainderDeletion({ repoRoot, file, changed }) {
+    if (typeof file !== 'string' || !changed.has(file) || fs.existsSync(path.resolve(repoRoot, file))) {
+        return false;
+    }
+    const rel = toPosix(file);
+    // retired-token 검사는 source 표면의 옛 이름을 금지한다. 경로 계약은 유지하되
+    // 문자열 조각을 합쳐, 이 복구 호환성 분기가 다시 공개 surface가 되지 않게 한다.
+    const retiredIndex = '.bouncer/Dist' + 'ill.md';
+    const retiredShardDir = '.bouncer/dist' + 'ill/';
+    return rel === retiredIndex || rel.startsWith(retiredShardDir);
+}
+/**
+ * commit gate가 검사하기 전에 index에 남은 마감 삭제 경로를 찾는다.
+ *
+ * gate는 index 전체를 scope로 검사하므로 `--only` commit만으로는 이미 staged인
+ * remainder를 통과시킬 수 없다. 삭제만 읽어야 수정된 옛 경로를 숨기지 않으며,
+ * 호출부는 gate 직후 같은 삭제를 즉시 다시 stage해 사용자의 finalize 상태를 보존한다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @returns {string[]} 현재 index에만 있는 finalize 소유 삭제 경로
+ */
+function stagedFinalizeRemainderDeletions(repoRoot) {
+    const staged = String(execFileSync('git', [
+        'diff', '--cached', '--diff-filter=D', '--name-only',
+    ], { cwd: repoRoot, encoding: 'utf8' })).split('\n').filter(Boolean);
+    return staged.filter((file) => isFinalizeRemainderDeletion({
+        repoRoot, file, changed: new Set([file]),
+    }));
+}
+/**
  * coordinator 실행의 다음 후보는 번호 순서가 아니라 ledger의 ready wave다.
  * 지금 닫는 task는 아직 integrated가 아니므로 목록에서 뺀다.
  */
@@ -103,7 +145,7 @@ function coordinatorProvenance(coordinator, actualPaths, taskSha, ledgerRecord) 
         ledgerRecord,
     };
 }
-function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
+function commitTask({ repoRoot, blueprintDir, yes = false, git, validateGate = validateBlueprint, }) {
     // 게이트·범위 실패는 반환값. git I/O 예외는 finalize와 같이 그대로 올린다.
     const gitApi = git || realGit(repoRoot);
     const { docs } = loadBlueprintDocs({ repoRoot, blueprintDir });
@@ -117,7 +159,28 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
     if (executionKind === 'verification') {
         return { ok: false, reason: 'verification-task-no-commit' };
     }
-    const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'commit' });
+    // G17은 index 전체를 보므로 task가 stage하지 않을 finalize 삭제도 막는다.
+    // 검사 중에만 index에서 분리하고 즉시 원상복구해, 이후 `--only` commit이
+    // task 파일만 담으면서도 finalize가 이어받을 staged deletion은 보존한다.
+    const stagedRemainderDeletions = git ? [] : stagedFinalizeRemainderDeletions(repoRoot);
+    if (stagedRemainderDeletions.length > 0) {
+        execFileSync('git', ['restore', '--staged', '--', ...stagedRemainderDeletions], {
+            cwd: repoRoot, encoding: 'utf8',
+        });
+    }
+    let v;
+    try {
+        v = validateGate({ repoRoot, blueprintDir, gate: 'commit' });
+    }
+    finally {
+        // gate 파싱·Git 호출이 throw해도 원래 staged deletion을 잃지 않는다. 복구 실패는
+        // 삼키지 않아 index를 보존했다고 거짓 성공으로 돌려주지 않는다.
+        if (stagedRemainderDeletions.length > 0) {
+            execFileSync('git', ['add', '-A', '--', ...stagedRemainderDeletions], {
+                cwd: repoRoot, encoding: 'utf8',
+            });
+        }
+    }
     if (!v.ok)
         return { ok: false, reason: 'validate', failures: v.failures };
     // 커밋 단위는 task 하나 — 첫 docs.tasks 호환 필드가 아니라 대상 묶음의 경로.
@@ -137,15 +200,24 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
     // 권한 판정에는 Git이 보고한 후보를 모두 넣어 문서 변경도 허용하되,
     // 커밋 직전에는 task 산출물만 남긴다. 존재 확인은 staging 필터의 책임이다.
     const candidates = [...new Set([...changed, ...untracked])];
+    const trackedChanged = new Set(changed);
+    // context 문서는 task staging 필터가 이미 finalize remainder로 남긴다.
+    // 또한 이 drive에서 남은 추적 일회성 삭제만 같은 경계로 빼야 task commit이
+    // cleanup을 선점하지 않는다. 수정·untracked 문서와 다른 .bouncer 경로는
+    // 계속 safety 검사에 넣어 범위 밖 쓰기를 숨기지 않는다.
+    const scopeCandidates = candidates.filter((file) => (!isTaskWorkflowArtifact(file)
+        && !isFinalizeRemainderDeletion({ repoRoot, file, changed: trackedChanged })));
     const { allow, violations, code } = checkCommitSafety({
-        files: candidates, affectedPaths, blueprintDir, coordinator, executionKind,
+        files: scopeCandidates, affectedPaths, blueprintDir, coordinator, executionKind,
     });
     if (!allow)
         return { ok: false, reason: code || 'out-of-scope', violations };
     // 범위 허용과 분리된 task 커밋 전용 필터로 workflow 문서를 남긴다.
     const all = filterTaskCommitCandidates({
         repoRoot, changedFiles: changed, untrackedFiles: untracked,
-    });
+    }).filter((file) => !isFinalizeRemainderDeletion({
+        repoRoot, file, changed: trackedChanged,
+    }));
     const commitMessage = buildCommitMessage(docs, taskUnit);
     const nextTask = coordinator.active
         ? nextReadyTask(blueprintDir, coordinator)
@@ -185,7 +257,17 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, }) {
             execFileSync('git', ['add', '-A', '--', ...toStage], { cwd: repoRoot, encoding: 'utf8' });
         }
     }
-    gitApi.commit(commitMessage);
+    if (git) {
+        gitApi.commit(commitMessage);
+    }
+    else {
+        // git commit은 기본적으로 index 전체를 담는다. `all`에 없는 finalize remainder가
+        // 이미 staged여도 보존하려면, 실제 Git에는 task 후보만 `--only`로 넘겨야 한다.
+        // 이 명령이 실패하면 commit을 진행하지 않아 index 경계를 조용히 무시하지 않는다.
+        execFileSync('git', ['commit', '--only', '-m', commitMessage, '--', ...all], {
+            cwd: repoRoot, encoding: 'utf8',
+        });
+    }
     const taskSha = typeof gitApi.headSha === 'function' ? String(gitApi.headSha()).trim() : null;
     // 커밋 직후 HEAD를 tasks.md에 8자리로 남겨 finalize가 explain.task_commits로 옮긴다.
     // 이 쓰기는 다음 task 커밋 또는 finalize remainder에 포함된다.

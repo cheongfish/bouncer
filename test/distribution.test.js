@@ -168,7 +168,7 @@ test('plugin.json carries author attribution for release tagging', () => {
   assert.ok(plugin.author && typeof plugin.author.name === 'string' && plugin.author.name);
 });
 
-// semver 전체를 끌어오지 않는다. 비교 대상은 패치 최소값(4.3.1)이고, 마켓플레이스
+// semver 전체를 끌어오지 않는다. 비교 대상은 패치 최소값(4.3.2)이고, 마켓플레이스
 // 런타임은 벤더 파일이라 설치본 버전이 그 하한 아래면 벤더를 따라가면 안 된다.
 function compareVersion(left, right) {
   const a = String(left).split('.').map((n) => Number(n) || 0);
@@ -193,7 +193,7 @@ test('vendored js-yaml matches the installed package at a safe minimum version',
   );
   const vendorReadme = fs.readFileSync(path.join(root, 'scripts/vendor/README.md'), 'utf8');
 
-  assert.ok(compareVersion(installedVersion, '4.3.1') >= 0);
+  assert.ok(compareVersion(installedVersion, '4.3.2') >= 0);
   assert.deepStrictEqual(vendoredBytes, installedDistBytes);
   assert.match(vendorReadme, new RegExp(`\\| ${installedVersion} \\| MIT \\|`));
 });

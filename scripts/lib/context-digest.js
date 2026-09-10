@@ -11,7 +11,7 @@ const { normalizeCommitSha } = commitSha;
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
 const DIGEST_MAP_REL = 'graphify-out/context-src/map.json';
 /**
- * context freshness가 dirs 외에 보는 단일 파일. Distill master는 더 이상
+ * context freshness가 dirs 외에 보는 단일 파일. 파생 memory는 더 이상
  * 검색 corpus가 아니므로 비운다. 원본은 `.bouncer/context/**` walk가 담당한다.
  */
 const DIGEST_WATCH_FILES = [];
@@ -390,7 +390,7 @@ function parseDigestMetadata(markdown) {
             : [];
         const kindRaw = parsed.kind;
         const kind = kindRaw === 'epic' || kindRaw === 'blueprint'
-            || kindRaw === 'explain' || kindRaw === 'task' || kindRaw === 'distill'
+            || kindRaw === 'explain' || kindRaw === 'task'
             ? kindRaw
             : '';
         return {

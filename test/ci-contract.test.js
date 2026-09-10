@@ -92,6 +92,75 @@ test('GitHub Actions and GitLab CI share npm ci then npm run ci', () => {
   assert.deepStrictEqual(gl.test.script, ['npm ci', 'npm run ci']);
 });
 
+test('tracked active surfaces reject runtime memory tokens outside the explicit evidence allowlist', () => {
+  // 역사 문서와 하위 호환 회귀 test만 파일별 기대 출현 수를 고정한다.
+  // 파일만 허용하지 않고 count도 대조해 새 토큰이 숨지 못하게 한다.
+  const allowed = new Map([
+    ['docs/distill-decommission-audit.md', { count: 22, kind: 'historical-removal-audit' }],
+    ['docs/context-search-benchmark.md', { count: 1, kind: 'cutover-evidence' }],
+    ['test/cli-help.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
+    ['test/cli-project-commands.test.js', { count: 2, kind: 'legacy-compatibility-regression' }],
+    ['test/commit-guard.test.js', { count: 6, kind: 'legacy-compatibility-regression' }],
+    ['test/context-corpus-search.test.js', { count: 9, kind: 'historical-corpus-and-cutover-evidence' }],
+    ['test/context-digest.test.js', { count: 38, kind: 'legacy-compatibility-regression' }],
+    ['test/distill-decommission-audit.test.js', { count: 92, kind: 'historical-removal-audit' }],
+    ['test/finalize-pure.test.js', { count: 3, kind: 'legacy-compatibility-regression' }],
+    ['test/finalize.test.js', { count: 28, kind: 'legacy-compatibility-regression' }],
+    ['test/graph-search.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
+    ['test/graphify.test.js', { count: 16, kind: 'legacy-compatibility-regression' }],
+    ['test/init.test.js', { count: 32, kind: 'legacy-compatibility-regression' }],
+    ['test/lightweight-cycle.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
+    ['test/master-rules.test.js', { count: 5, kind: 'legacy-compatibility-regression' }],
+    ['test/seed-worktree.test.js', { count: 9, kind: 'legacy-compatibility-regression' }],
+    ['test/session-graph.test.js', { count: 4, kind: 'legacy-compatibility-regression' }],
+    ['test/skill-bouncer-execute.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
+    ['test/skill-bouncer-finalize.test.js', { count: 2, kind: 'legacy-compatibility-regression' }],
+    ['test/skill-bouncer-plan.test.js', { count: 5, kind: 'legacy-compatibility-regression' }],
+    ['test/skill-bouncer-surface.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
+    ['test/skill-discovery.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
+    ['test/skill-minimality.test.js', { count: 2, kind: 'legacy-compatibility-regression' }],
+    ['test/skill-spec-authoring.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
+    ['test/trust-boundary.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
+    ['test/validate-gates.test.js', { count: 4, kind: 'legacy-compatibility-regression' }],
+    ['test/fixtures/context-corpus-queries.json', { count: 12, kind: 'historical-corpus-and-cutover-evidence' }],
+    ['test/fixtures/graph-search-quality.json', { count: 2, kind: 'historical-corpus-identity' }],
+  ]);
+  const scanned = git(root, [
+    'ls-files', '--', 'README.md', 'CLAUDE.md', '.codex/agents', 'agents', 'docs',
+    'references', 'rules', 'scripts/src', 'scripts/lib', 'skills', 'test',
+  ]).trim().split('\n').filter(Boolean);
+  if (!scanned.includes('docs/context-search-benchmark.md')) {
+    scanned.push('docs/context-search-benchmark.md');
+  }
+  const seenAllowed = new Set();
+  const unexpected = [];
+  for (const rel of scanned) {
+    if (rel === 'test/ci-contract.test.js' || !fs.existsSync(path.join(root, rel))) continue;
+    const hits = [...read(rel).matchAll(/distill/gi)].length;
+    if (hits === 0) continue;
+    const entry = allowed.get(rel);
+    if (!entry || hits !== entry.count || !entry.kind) {
+      unexpected.push(`${rel}: ${hits}`);
+      continue;
+    }
+    seenAllowed.add(rel);
+  }
+  assert.deepStrictEqual(unexpected, []);
+  assert.deepStrictEqual([...seenAllowed].sort(), [...allowed.keys()].sort());
+
+  for (const rel of [
+    '.bouncer/Distill.md',
+    '.bouncer/distill/build-ts.md', '.bouncer/distill/context-layout.md',
+    '.bouncer/distill/core.md', '.bouncer/distill/git-worktree.md',
+    '.bouncer/distill/graph.md', '.bouncer/distill/plugin-skills.md',
+    '.bouncer/distill/validate-gates.md',
+    'skills/bouncer-plan/references/distill-preflight.md',
+    'skills/bouncer-finalize/references/distill-promotion.md',
+  ]) {
+    assert.equal(fs.existsSync(path.join(root, rel)), false, `${rel} must be removed`);
+  }
+});
+
 test('check-emit.js inspects unstaged and untracked emit via git argv, not porcelain status', () => {
   const src = read('scripts/check-emit.js');
   assert.match(src, /spawnSync|execFile/);
