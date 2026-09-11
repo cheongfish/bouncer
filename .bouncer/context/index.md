@@ -24,3 +24,4 @@ bouncer_schema: '0.1'
 * [066 workflow-contract-followup](epics/066-workflow-contract-followup/index.md) - Coordinates implementer role synchronization, workflow skill measurements, and Graphify context ranking evaluation.
 * [067 task-dag-coordinator](epics/067-task-dag-coordinator/index.md) - Delegates DAG execution to a coordinator that autonomously completes blueprint work in isolated worktrees.
 * [068 context-runtime-rearchitecture](epics/068-context-runtime-rearchitecture/index.md) - Removes Project Distill, introduces ranked canonical context retrieval, and adds bounded coordinator CI recovery.
+* [069 workflow-improvement](epics/069-workflow-improvement/index.md) - Incremental Bouncer workflow improvements to runtime context cost, review convergence, and execution traceability, delivered as independent blueprints.
