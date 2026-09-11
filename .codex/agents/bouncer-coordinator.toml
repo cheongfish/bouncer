@@ -74,6 +74,12 @@ to your `Decision required` judgment, never a second brief.
   decision records the failing command and summary, previous and next DAG,
   previous and next scope, and why the repair remains inside the Blueprint.
   Never create a third automatic wave.
+- Delta certification이 `introduced_by_revision` 또는 `missed_critical`의 새
+  `blocker`·`major`를 확인하고 false acceptance 위험을 입증하면, task마다 한 번만
+  `coordinate critical-recovery`로 시작을 기록한 뒤 rework를 dispatch할 수 있다.
+  이 판단은 task 의도를 바꾸거나 새 제품 결정·dependency·public interface를
+  요구해서는 안 된다. 같은 finding이 남거나 새 `blocker`·`major`가 생기면 두 번째
+  dispatch 대신 `blocked`를 기록한다.
 - After the second repair still fails, preserve the integration and worker
   worktrees and the last failure, create untracked integration-root
   `NEXT_PLAN.md`, and stop for user confirmation. Only `coordinate partial-close
@@ -109,9 +115,12 @@ to your `Decision required` judgment, never a second brief.
    resolve, not a retry to repeat blindly.
 5. **Judge** — Turn each report, reviewer finding, scope drift and stalled
    retry into exactly one of: accepted, scope revision (`coordinate revise`),
-   rework with a named cause, task/graph change, or terminal blocked. Every
-   judgment gets a ledger entry. Ordinary rework follows the no-progress rule;
-   terminal CI alone has the hard two repair waves ceiling above.
+   rework with a named cause, task/graph change, or terminal blocked. A
+   qualifying delta-certification finding uses the one recorded critical
+   recovery before that rework; its result is recorded as `resolved` or
+   `blocked`. Every judgment gets a ledger entry. Ordinary rework follows the
+   no-progress rule; terminal CI alone has the hard two repair waves ceiling
+   above.
 6. **Close** — When every task is integrated and verified, run the closing
    action the payload named — `/bouncer-finalize` from the integration
    worktree — and carry it only as far as it goes without user consent. Its

@@ -338,7 +338,7 @@ function ensureIntegrationCwd(repoRoot, blueprint, cwd, task) {
         throw new Error('coordinate command must run in its assigned worktree');
     return paths;
 }
-function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision, failureCommand, summary, paths: repairPaths, userConfirmed = false, deps = {} }) {
+function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision, failureCommand, summary, paths: repairPaths, findings, outcome, reason, userConfirmed = false, deps = {} }) {
     const exec = deps.execFileSync || realExecFileSync;
     const writeLedger = deps.writeLedger || atomicWrite;
     const main = runtimePaths({ repoRoot, execFileSync: exec });
@@ -382,6 +382,12 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     const ledger = loadLedger(integration.ledgerFile);
     if (!ledger)
         return { ok: false, reason: 'missing-ledger' };
+    if (command === 'critical-recovery') {
+        ensureIntegrationCwd(repoRoot, blueprint, cwd);
+        const checked = runtime.validateCoordinatorLedger(ledger);
+        if (!checked.ok)
+            return { ok: false, reason: checked.reason };
+    }
     if (command === 'status') {
         ensureIntegrationCwd(repoRoot, blueprint, cwd);
         return { ok: true, command, ready: readyWave(ledger.tasks), tasks: ledger.tasks, decisions: ledger.decisions };
@@ -456,6 +462,43 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     const item = ledger.tasks.find((x) => x.id === task);
     if (!item)
         return { ok: false, reason: 'task-outside-blueprint' };
+    if (command === 'critical-recovery') {
+        if (typeof reason !== 'string' || reason.trim() === '')
+            return { ok: false, reason: 'reason-required' };
+        if (outcome !== undefined) {
+            if (outcome !== 'resolved' && outcome !== 'blocked') {
+                return { ok: false, reason: 'critical-recovery-outcome-invalid' };
+            }
+            if (!item.criticalRecovery)
+                return { ok: false, reason: 'critical-recovery-not-started' };
+            if (item.criticalRecovery.outcome !== null)
+                return { ok: false, reason: 'critical-recovery-closed' };
+            item.criticalRecovery.outcome = outcome;
+            const result = {
+                task, kind: 'critical-recovery', used: 1, findings: [...item.criticalRecovery.findings],
+                reason: reason.trim(), outcome,
+            };
+            item.decisions = [...(item.decisions || []), result];
+            ledger.decisions.push(result);
+            atomicWrite(integration.ledgerFile, ledger);
+            return { ok: true, command, task: item, decision: result, decisions: ledger.decisions };
+        }
+        if (item.status !== 'prepared')
+            return { ok: false, reason: 'illegal-transition' };
+        if (item.criticalRecovery)
+            return { ok: false, reason: 'critical-recovery-exhausted' };
+        if (!Array.isArray(findings) || findings.length === 0 || findings.some((entry) => entry.trim() === '')) {
+            return { ok: false, reason: 'findings-required' };
+        }
+        item.criticalRecovery = { used: 1, findings: [...findings], reason: reason.trim(), outcome: null };
+        const started = {
+            task, kind: 'critical-recovery', used: 1, findings: [...findings], reason: reason.trim(), outcome: null,
+        };
+        item.decisions = [...(item.decisions || []), started];
+        ledger.decisions.push(started);
+        atomicWrite(integration.ledgerFile, ledger);
+        return { ok: true, command, task: item, decision: started, decisions: ledger.decisions };
+    }
     if (command === 'record') {
         // record는 worker가 만든 SHA와 provenance를 ledger로 올리는 경계다. integration
         // checkout에서 다시 worker 경계를 요구하면 어떤 정상 worker도 기록할 수 없다.

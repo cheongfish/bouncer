@@ -142,6 +142,28 @@ function collectPathValues(rest) {
     }
     return out;
 }
+/**
+ * `--findings`도 반복 플래그라 parseFlags의 마지막 값 보존을 우회한다.
+ *
+ * 값이 없는 occurrence도 빈 문자열로 남긴다. 유효한 다른 finding만 모으면 한 번의
+ * malformed flag가 성공 요청에 섞여 ledger write까지 통과하므로, coordinator의
+ * findings-required 검사가 요청 전체를 원자적으로 거절할 수 있게 한다.
+ */
+function collectFindingValues(rest) {
+    const out = [];
+    for (let i = 0; i < rest.length; i += 1) {
+        if (rest[i] !== '--findings')
+            continue;
+        const value = rest[i + 1];
+        if (value === undefined || value.startsWith('--')) {
+            out.push('');
+            continue;
+        }
+        out.push(value);
+        i += 1;
+    }
+    return out;
+}
 function cmdExecute(rest, io) {
     const command = rest[0];
     const f = parseFlags(rest.slice(1));
@@ -173,11 +195,11 @@ function cmdCoordinate(rest, io) {
     const f = parseFlags(rest.slice(1));
     const commands = [
         'bootstrap', 'prepare', 'ready', 'record', 'rerecord', 'integrate',
-        'status', 'revise', 'repair', 'partial-close',
+        'status', 'revise', 'repair', 'partial-close', 'critical-recovery',
     ];
     if (!commands.includes(command)) {
         io.err('coordinate: command must be bootstrap, prepare, ready, record, rerecord, '
-            + 'integrate, status, revise, repair, or partial-close\n');
+            + 'integrate, status, revise, repair, partial-close, or critical-recovery\n');
         return 2;
     }
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -219,6 +241,9 @@ function cmdCoordinate(rest, io) {
             failureCommand: typeof f['failure-command'] === 'string' ? f['failure-command'] : undefined,
             summary: typeof f.summary === 'string' ? f.summary : undefined,
             paths: collectPathValues(rest.slice(1)),
+            findings: collectFindingValues(rest.slice(1)),
+            outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
+            reason: typeof f.reason === 'string' ? f.reason : undefined,
             userConfirmed: f['user-confirmed'] === true,
         });
         io.out(`${JSON.stringify(result, null, 2)}\n`);
@@ -266,6 +291,11 @@ module.exports = {
             + '             Add one audited repair task and move the terminal CI dependency.\n'
             + '  coordinate partial-close --blueprint <dir> --user-confirmed\n'
             + '             Preserve the failed drive and mark it partial_closed after two repair waves.\n'
+            + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --findings <id>\n'
+            + '             [--findings <id>]... --reason <text>\n'
+            + '             Record the one permitted blocker or major recovery for a prepared task.\n'
+            + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --outcome <resolved|blocked> --reason <text>\n'
+            + '             Record the outcome without permitting another recovery.\n'
             + '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
             + '             --reason <text>\n'
             + '             Record one scope decision in the task document and ledger.\n'

@@ -170,6 +170,40 @@ test('coordinate rerecord refuses an unrecorded task and non-direct-child replac
   assert.match(result.buf.out, /sha-not-direct-integration-child/);
 });
 
+test('coordinate critical-recovery preserves repeated findings and records a blocked outcome', () => {
+  const drive = preparedDrive();
+  const started = coordinateCli(drive.integration, 'critical-recovery', [
+    '--repo', drive.repo, '--task', '001', '--findings', 'R-1', '--findings', 'R-2',
+    '--reason', 'review found false acceptance',
+  ]);
+  assert.strictEqual(started.code, 0, started.buf.err);
+  assert.deepStrictEqual(JSON.parse(started.buf.out).task.criticalRecovery.findings, ['R-1', 'R-2']);
+  const missing = coordinateCli(drive.integration, 'critical-recovery', [
+    '--repo', drive.repo, '--task', '001', '--reason', 'missing finding',
+  ]);
+  assert.strictEqual(missing.code, 1);
+  assert.match(missing.buf.out, /critical-recovery-exhausted/);
+  const outcome = coordinateCli(drive.integration, 'critical-recovery', [
+    '--repo', drive.repo, '--task', '001', '--outcome', 'blocked', '--reason', 'still unsafe',
+  ]);
+  assert.strictEqual(outcome.code, 0, outcome.buf.err);
+  assert.strictEqual(JSON.parse(outcome.buf.out).task.criticalRecovery.outcome, 'blocked');
+
+  const second = preparedDrive();
+  const empty = coordinateCli(second.integration, 'critical-recovery', [
+    '--repo', second.repo, '--task', '001', '--findings', '--reason', 'missing value',
+  ]);
+  assert.strictEqual(empty.code, 1);
+  assert.match(empty.buf.out, /findings-required/);
+
+  const mixed = coordinateCli(second.integration, 'critical-recovery', [
+    '--repo', second.repo, '--task', '001', '--findings', 'R-1', '--findings',
+    '--reason', 'one finding has no value',
+  ]);
+  assert.strictEqual(mixed.code, 1);
+  assert.match(mixed.buf.out, /findings-required/);
+});
+
 test('coordinate partial-close requires confirmation and prints the follow-up instruction', () => {
   const drive = preparedDrive();
   const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');

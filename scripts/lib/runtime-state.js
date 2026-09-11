@@ -19,6 +19,15 @@ function dagDecision(value) {
         && !Array.isArray(entry) && nonEmptyString(entry.id)
         && stringList(entry.depends_on)));
 }
+/** coordinator가 기록한 task별 critical recovery 한 번의 shape를 고정한다. */
+function validCriticalRecovery(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return false;
+    const recovery = value;
+    return recovery.used === 1 && stringList(recovery.findings, true)
+        && nonEmptyString(recovery.reason)
+        && (recovery.outcome === null || recovery.outcome === 'resolved' || recovery.outcome === 'blocked');
+}
 /**
  * partial close가 신뢰하는 canonical repair 항목의 전체 shape를 검사한다.
  * task/wave 식별자만 맞춘 복사본은 scope·DAG·실패 근거를 바꿔치기할 수 있으므로,
@@ -56,6 +65,13 @@ function validateCoordinatorLedger(value, options = {}) {
         return { ok: false, reason: 'invalid-ledger' };
     }
     const ledger = value;
+    // partial_closed 여부와 무관하게 먼저 검사한다. 조기 성공 반환 뒤에 두면 active
+    // ledger가 used 2를 품은 채 다음 coordinator 명령의 기준점이 될 수 있다.
+    const tasksForRecovery = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+    if (tasksForRecovery.some((task) => task.criticalRecovery !== undefined
+        && !validCriticalRecovery(task.criticalRecovery))) {
+        return { ok: false, reason: 'critical-recovery-invalid' };
+    }
     if (options.requirePartialClose && ledger.status !== 'awaiting_confirmation') {
         return { ok: false, reason: 'partial-close-awaiting-confirmation-required' };
     }
