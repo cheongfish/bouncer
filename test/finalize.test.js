@@ -1175,6 +1175,83 @@ test('finalize without a coordinator ledger reports no provenance and no worktre
   assert.deepStrictEqual(res.worktrees, []);
 });
 
+function writeCoordinatorLedger(repo, tasks) {
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+    version: 1,
+    blueprint: BP_REL,
+    base: 'work',
+    tasks,
+    decisions: [],
+  }, null, 2)}\n`);
+  return paths;
+}
+
+const ABSENT_INTEGRATION = {
+  ledger: 'absent',
+  required: false,
+  complete: true,
+  openTasks: [],
+  headVerified: null,
+};
+
+test('finalize reports absent integration when there is no coordinator ledger', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const dry = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.deepStrictEqual(dry.integration, ABSENT_INTEGRATION);
+
+  const committed = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit(['src/auth/login.ts'], []).api,
+    verifyExec: passVerify,
+  });
+  assert.strictEqual(committed.ok, true);
+  assert.deepStrictEqual(committed.integration, ABSENT_INTEGRATION);
+});
+
+test('finalize integration lists non-integrated tasks and is incomplete until they close', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeCoordinatorLedger(repo, [
+    { id: '001', status: 'integrated', execution_kind: 'commit' },
+    { id: '002', status: 'recorded', execution_kind: 'commit' },
+  ]);
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(res.integration, {
+    ledger: 'ok',
+    required: true,
+    complete: false,
+    openTasks: ['002'],
+    headVerified: null,
+  });
+});
+
+test('finalize integration headVerified follows verification-task integration', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const verifying = [
+    { id: '001', status: 'integrated', execution_kind: 'commit' },
+    { id: '002', status: 'integrated', execution_kind: 'commit' },
+    { id: '003', status: 'verifying', execution_kind: 'verification' },
+  ];
+  writeCoordinatorLedger(repo, verifying);
+  const open = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.strictEqual(open.integration.complete, false);
+  assert.deepStrictEqual(open.integration.openTasks, ['003']);
+  assert.strictEqual(open.integration.headVerified, false);
+
+  writeCoordinatorLedger(repo, verifying.map((task) => (
+    task.id === '003' ? { ...task, status: 'integrated' } : task
+  )));
+  const closed = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.strictEqual(closed.integration.complete, true);
+  assert.deepStrictEqual(closed.integration.openTasks, []);
+  assert.strictEqual(closed.integration.headVerified, true);
+});
+
 test('finalize preserves a partial-closed drive and refuses ordinary cleanup', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
@@ -1207,6 +1284,21 @@ test('finalize refuses an unreadable coordinator ledger instead of closing as a 
   assert.strictEqual(res.coordinator.ledgerFile, ledgerFile);
   assert.strictEqual(res.ledgerFile, ledgerFile);
   assert.strictEqual(res.integrationPath, drive.integration);
+  assert.deepStrictEqual(res.integration, {
+    ledger: 'unreadable',
+    required: true,
+    complete: false,
+    openTasks: [],
+    headVerified: null,
+  });
+
+  const yes = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: fakeGit(['src/auth/login.ts'], []).api,
+    verifyExec: passVerify,
+  });
+  assert.strictEqual(yes.ok, false);
+  assert.strictEqual(yes.reason, 'coordinator-ledger');
+  assert.strictEqual(yes.integration.ledger, 'unreadable');
 });
 
 test('finalize --yes copies coordinator provenance into explain frontmatter', () => {

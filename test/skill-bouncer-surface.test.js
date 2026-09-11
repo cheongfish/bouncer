@@ -155,7 +155,7 @@ const CONDITIONAL_HELPERS = {
   'bouncer-run': { root: [], local: [] },
   'bouncer-finalize': {
     root: [],
-    local: ['distill-promotion.md', 'explain-quiz.md', 'draft-pr.md', 'cleanup-handoff.md'],
+    local: ['distill-promotion.md', 'explain-quiz.md', 'draft-pr.md', 'cleanup-handoff.md', 'remainder.md'],
   },
 };
 
@@ -302,6 +302,7 @@ const SKILL_LOCAL_REFS = {
   'bouncer-commit': [],
   'bouncer-finalize': [
     'explain-quiz.md',
+    'remainder.md',
     'draft-pr.md',
     'cleanup-handoff.md',
   ],
@@ -570,7 +571,7 @@ test('execute, commit, and finalize hand their results to the coordinator', () =
   }
   assert.match(readWorkflow('bouncer-execute'), /returned to the coordinator/);
   assert.match(readWorkflow('bouncer-commit'), /return those to the coordinator and stop/);
-  assert.match(readWorkflow('bouncer-finalize'), /coordinator ledger is `integrated`/);
+  assert.match(readWorkflow('bouncer-finalize'), /`integration`/);
 });
 
 // 드라이브 중 계획 후퇴는 사라졌다. 남아 있으면 실행이 다시 끊긴다.
