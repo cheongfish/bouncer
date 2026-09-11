@@ -15,6 +15,8 @@ const config = require("./config");
 const { readVerifyPolicy } = config;
 const time = require("./time");
 const { nowIsoKst } = time;
+const planInspectMod = require("./plan-inspect");
+const { planInspect } = planInspectMod;
 function catchMessage(error) {
     // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
     // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
@@ -189,6 +191,30 @@ function cmdScaffold(rest, io) {
     io.out(`${JSON.stringify({ ok: true, created }, null, 2)}\n`);
     return 0;
 }
+/**
+ * `plan inspect`만 받는다. 추천 JSON을 stdout에 내고, 거절은 같은 채널의
+ * `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드는 사용법(2).
+ *
+ * @param {string[]} rest - 서브커맨드와 플래그
+ * @param {CliIo} io - stdout/stderr 싱크
+ * @returns {number} 성공 0, 거절 1, 사용법 2
+ */
+function cmdPlan(rest, io) {
+    const command = rest[0];
+    const f = parseFlags(rest.slice(1));
+    // inspect만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
+    // 구분해, 없는 동사를 계획 쓰기로 착각하지 않게 한다.
+    if (command !== 'inspect') {
+        io.err('plan: command must be inspect\n');
+        return 2;
+    }
+    const result = planInspect({
+        repoRoot: (f.repo || process.cwd()),
+        epicDir: f['epic-dir'],
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+}
 module.exports = {
     validate: {
         run: cmdValidate,
@@ -212,6 +238,12 @@ module.exports = {
              context-review --blueprint <dir>
              Create a document set with correct frontmatter.
              (explain is for finalize; epic/blueprint scaffold omit it.)
+`,
+    },
+    plan: {
+        run: cmdPlan,
+        usage: `  plan       inspect [--epic-dir <dir>]
+             Print next ids, maintenance epic, verify signals, and pointer state as JSON.
 `,
     },
 };

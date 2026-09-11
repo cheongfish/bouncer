@@ -12,10 +12,13 @@
 | `bouncer scaffold task --blueprint <dir> --id <NNN>` | `tasks/<NNN>/{tasks,verification,review}.md` task 묶음 생성. 대상 blueprint가 `closed`(마감)면 아무 문서도 만들지 않고 새 blueprint를 만들라는 안내와 함께 종료 코드 2로 거절 |
 | `bouncer scaffold explain --blueprint <dir>` | BP `explain.md` 생성(`comprehension: []`). `/bouncer-finalize`가 호출 |
 | `bouncer scaffold context-review --blueprint <dir>` | BP `context-review.md` 생성. 이미 있으면 덮어쓰지 않고 거절. `closed` blueprint도 거절 |
-| `bouncer commit --blueprint <dir> [--yes]` | task 커밋 범위 확인, `--yes`면 그 task만 커밋. 포인터는 옮기지 않음 |
-| `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 context 변경 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear |
+| `bouncer commit --blueprint <dir> [--yes]` | task 커밋 범위 확인, `--yes`면 그 task만 커밋. 포인터는 옮기지 않음. 성공 JSON에 `controller`(ledger 활성이면 `coordinator`, 아니면 `standalone`)·`nextAction`(dry-run은 `confirm-commit`, drive의 커밋·빈 staged는 `return-to-coordinator`, standalone은 `nextTask`가 있으면 `ask-next-task` 없으면 `finalize`)·`stampPath`(`commit_sha`를 쓴 tasks.md, 없으면 `null`)를 싣고, 실패 JSON에 `recovery: { action, detail }`를 싣음 |
+| `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 context 변경 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear. dry-run·`--yes` 성공 JSON과 `coordinator-ledger` 거절 JSON에 `integration`(`ledger`: `absent` \| `ok` \| `unreadable`, `required`, `complete`, `openTasks`, `headVerified`)을 싣음. 보고 전용이며 거절 reason을 바꾸지 않음 |
 | `bouncer coordinate <bootstrap\|prepare\|ready\|record\|integrate\|status\|revise> --blueprint <dir> [--task <NNN>] [--sha <sha>] [--decision <text>] [--paths <p>]... [--reason <text>]` | coordinator 원장과 격리 worktree 운용. 결과 JSON은 stdout에 냄 — `{ok:false}` 거절도 `{"ok": false, "reason": …}` JSON으로 stdout에 나오고(`revise`만 예외로 stderr) 종료 코드 1. assigned-worktree 불일치·Git 실패는 throw 경로라 stderr 한 줄. 자세한 것은 아래 [`bouncer coordinate`](#bouncer-coordinate) |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 worktree로 이전하고 base를 원상복구. 옮길 것이 없으면 성공 |
+| `bouncer execute prepare --blueprint <dir>` | standalone execute worktree를 만들거나 재사용하고 plan 문서를 seed한 뒤 JSON을 출력. coordinator 원장이 있으면 `drive: true`와 배정된 worker 경로만 내고 생성·seed는 하지 않음 |
+| `bouncer plan inspect [--epic-dir <dir>]` | 다음 epic/blueprint id, `maintenance` epic, 저장소 루트 verify 신호, pointer 상태를 JSON으로 출력. 읽기 전용이며 `.bouncer/`가 없으면 `not-initialized`, `--epic-dir`가 정본 경로가 아니거나 없으면 `invalid-epic-dir` |
+| `bouncer run preflight --blueprint <dir>` | pointer, blueprint 상태·scale, 열린 task의 `affected_paths`·DAG, ready wave, `autonomy`와 fallback 여부를 JSON으로 출력. 읽기 전용. pointer가 없으면 `no-current`, 모호하거나 충돌하면 `CURRENT_AMBIGUOUS`/`CURRENT_INVALID`이며 종료 코드 1 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer project-root [--repo <dir>]` | 소비 저장소 main worktree 절대 경로 한 줄(stdout만). primary·linked worktree에서 같은 값. 비-Git이면 stderr + 종료 코드 1(빈 stdout·cwd 대체 없음) |
 | `bouncer context-search --mode <decision\|implementation\|history> --query <text> [--max-candidates <1..8>]` | canonical context graph를 role별로 검색. query id·status·graph version과 최대 8개 후보를 JSON으로 출력 |

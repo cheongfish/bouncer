@@ -10,14 +10,21 @@ const root = path.join(__dirname, '..');
 const mainMd = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'SKILL.md'), 'utf8');
 const md = readWorkflowBundle('bouncer-finalize');
 
-test('bouncer-finalize --yes runs verify before staging with no bypass on reason verify', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /`--yes`\s+runs verification commands before staging|스테이징 전에 검증 명령을 실행한다/);
-  assert.match(body, /reason: 'verify'/);
+test('bouncer-finalize remainder.md is the canon for gate, dry-run, scope, and verify', () => {
+  const remainder = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'remainder.md'),
+    'utf8',
+  );
+  assert.match(remainder, /`--yes`\s+runs verification commands before staging|스테이징 전에 검증 명령을 실행한다/);
+  assert.match(remainder, /reason: 'verify'/);
   assert.match(
-    body,
+    remainder,
     /no bypass other than[\s\S]{0,40}fixing the cause and rerunning|원인을 고쳐 다시 실행하는 것 외의 우회 경로가 없다/,
   );
+  assert.match(remainder, /CLI owns the finalize gate, allowed paths, deletions, status transition/);
+  assert.match(remainder, /preserve documents and worktree/);
+  assert.match(remainder, /validator code, cause, path, and\n?\s*recovery action/);
+  assert.match(remainder, /hard abort — nothing staged/);
 });
 
 
@@ -139,11 +146,15 @@ test('bouncer-finalize gates overlap and leftover-worktree warnings on next.next
   );
 });
 
-test('bouncer-finalize documents retention cleanup and sibling follow-up after G16', () => {
+test('bouncer-finalize documents sibling follow-up after G16 and cites remainder for retention', () => {
   const { body } = parseFrontmatter(mainMd);
-  assert.match(body, /CLI owns the finalize gate, allowed paths, deletions, status transition/);
-  assert.match(body, /preserve documents and worktree/);
-  assert.match(body, /validator code, cause, path, and\n?\s*recovery action/);
+  const remainder = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'remainder.md'),
+    'utf8',
+  );
+  assert.match(remainder, /CLI owns the finalize gate, allowed paths, deletions, status transition/);
+  assert.match(remainder, /preserve documents and worktree/);
+  assert.match(remainder, /validator code, cause, path, and\n?\s*recovery action/);
   assert.match(body, /finalize\s+--yes/);
   assert.match(body, /sibling|형제 Blueprint|형제 blueprint/i);
   assert.match(body, /\/bouncer-plan|new Epic|새 Epic/);
@@ -187,11 +198,17 @@ test('bouncer-finalize uses the shortened context-only sequence', () => {
   const { body } = parseFrontmatter(mainMd);
   assert.doesNotMatch(body, /distill/i);
   assert.match(body, /^1\. \*\*Explain \+ quiz/m);
-  assert.match(body, /^2\. \*\*Validate \+ remainder commit/m);
+  assert.match(body, /^2\. \*\*Remainder/m);
+  assert.match(body, /^3\. \*\*PR/m);
+  assert.match(body, /^4\. \*\*Cleanup/m);
+  assert.match(body, /^5\. \*\*Handoff/m);
+  assert.doesNotMatch(body, /^6\. /m);
   assert.match(body, /\.\/references\/explain-quiz\.md/);
+  assert.match(body, /\.\/references\/remainder\.md/);
   assert.match(body, /\.\/references\/draft-pr\.md/);
   assert.match(body, /\.\/references\/cleanup-handoff\.md/);
-  assert.match(body, /every task in the[\s\S]*coordinator ledger is `integrated`/);
-  assert.match(body, /coordinator\.status: 'unreadable'/);
+  assert.match(body, /`integration`/);
+  assert.match(body, /openTasks/);
+  assert.match(body, /headVerified/);
   assert.equal(fs.existsSync(path.join(root, 'skills/bouncer-finalize/references/distill-promotion.md')), false);
 });

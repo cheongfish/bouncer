@@ -366,16 +366,14 @@ function buildCoordinatorProvenance(ledger, { integrationPath = null, ledgerFile
     };
 }
 /**
- * 저장소에서 원장을 찾아 provenance로 접는다.
+ * 원장 읽기 결과만으로 provenance를 접는다.
+ * finalize는 같은 읽기로 `integration`도 만들어 두 필드가 서로 다른 원장을
+ * 가리키지 않게 한다. 공개 API는 아래 `collectCoordinatorProvenance`다.
  *
- * 원장이 아예 없으면 위임 실행이 아니므로 null이다. 읽을 수는 있으나 깨진
- * 원장은 null이 아니다 — null로 접으면 `coordinator: null`, `worktrees: []`가
- * 되어 비-drive finalize와 구분되지 않고, 검증되지 않은 fan-in이 완료로
- * 기록된다. current의 `coordinatorSnapshot`과 같은 모양으로 `status`와 고칠
- * 파일 경로를 실어 호출부가 멈출 수 있게 한다.
+ * @param {object} read - `readCoordinatorLedger` 결과
+ * @returns {CoordinatorProvenance | UnreadableProvenance} 원장 없음은 null
  */
-function collectCoordinatorProvenance({ repoRoot, blueprintDir }) {
-    const read = readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });
+function provenanceFromLedgerRead(read) {
     if (!read.ok) {
         if (read.reason !== 'unreadable-ledger')
             return null;
@@ -395,6 +393,85 @@ function collectCoordinatorProvenance({ repoRoot, blueprintDir }) {
         integrationPath: read.integrationPath,
         ledgerFile: read.ledgerFile,
     });
+}
+/**
+ * 저장소에서 원장을 찾아 provenance로 접는다.
+ *
+ * 원장이 아예 없으면 위임 실행이 아니므로 null이다. 읽을 수는 있으나 깨진
+ * 원장은 null이 아니다 — null로 접으면 `coordinator: null`, `worktrees: []`가
+ * 되어 비-drive finalize와 구분되지 않고, 검증되지 않은 fan-in이 완료로
+ * 기록된다. current의 `coordinatorSnapshot`과 같은 모양으로 `status`와 고칠
+ * 파일 경로를 실어 호출부가 멈출 수 있게 한다.
+ */
+function collectCoordinatorProvenance({ repoRoot, blueprintDir }) {
+    return provenanceFromLedgerRead(readCoordinatorLedger({ repoRoot, blueprint: blueprintDir }));
+}
+/**
+ * ledger task id를 세 자리 목록용으로 정규화한다.
+ * 원장은 `001`과 `TASKS-001`을 섞어 쓸 수 있어, 보고 목록만 세 자리로 맞춘다.
+ *
+ * @param {unknown} id - 원장 task id
+ * @returns {string | null} 세 자리 id. 숫자로 해석되지 않으면 null
+ */
+function threeDigitTaskId(id) {
+    if (typeof id === 'number' && Number.isInteger(id) && id >= 0 && id <= 999) {
+        return String(id).padStart(3, '0');
+    }
+    if (typeof id !== 'string' || id === '')
+        return null;
+    const match = /^(?:TASKS-)?(\d{1,3})$/.exec(id);
+    return match ? match[1].padStart(3, '0') : null;
+}
+/**
+ * finalize payload의 보고 전용 `integration` 필드를 만든다.
+ * 거절 reason은 바꾸지 않는다. 깨진 원장은 기존 `coordinator-ledger`만 쓰고,
+ * 미통합 task는 `complete`/`openTasks`로만 알린다.
+ *
+ * @param {object} read - `readCoordinatorLedger` 결과
+ * @returns {IntegrationReport} absent는 비-drive, unreadable은 기존 거절과 함께 실림
+ */
+function buildIntegration(read) {
+    // 1. 원장이 없으면 위임 실행이 아니다. required를 켜면 스킬이 비-drive를
+    //    미완료로 오인하고 `--yes`를 멈춘다.
+    if (!read.ok) {
+        if (read.reason !== 'unreadable-ledger') {
+            return {
+                ledger: 'absent',
+                required: false,
+                complete: true,
+                openTasks: [],
+                headVerified: null,
+            };
+        }
+        return {
+            ledger: 'unreadable',
+            required: true,
+            complete: false,
+            openTasks: [],
+            headVerified: null,
+        };
+    }
+    const tasks = (Array.isArray(read.ledger.tasks) ? read.ledger.tasks : [])
+        .filter((entry) => Boolean(entry) && typeof entry === 'object')
+        .map((entry) => asRecord(entry));
+    const open = tasks.filter((entry) => entry.status !== 'integrated');
+    const openTasks = open
+        .map((entry) => threeDigitTaskId(entry.id))
+        .filter((id) => Boolean(id))
+        .sort();
+    const verification = tasks.filter((entry) => entry.execution_kind === 'verification');
+    return {
+        ledger: 'ok',
+        required: true,
+        // open.length: id를 못 읽은 미통합 task도 complete를 false로 남긴다.
+        complete: open.length === 0,
+        openTasks,
+        // verification node가 없으면 head 판정 대상이 없다. null과 false를 구분해
+        // 스킬이 "검증 실패"와 "검증 task 없음"을 같은 중지로 접지 않게 한다.
+        headVerified: verification.length === 0
+            ? null
+            : verification.every((entry) => entry.status === 'integrated'),
+    };
 }
 /**
  * explain.md frontmatter에 drive provenance를 남긴다. task_commits와 같은
@@ -468,7 +545,11 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     const commitMessage = buildFinalizeCommitMessage(docs);
     // 위임 실행이면 원장이 이 마감의 provenance 정본이다. dry-run과 --yes가 같은
     // 값을 보고해야 사용자가 미리 본 정리 대상과 실제 정리 대상이 갈라지지 않는다.
-    const collected = collectCoordinatorProvenance({ repoRoot, blueprintDir });
+    // integration은 같은 읽기에서 접는다 — 보고 전용이라 거절 reason을 바꾸지 않고,
+    // 두 번 읽으면 그 사이 원장이 바뀌었을 때 두 필드가 어긋난다.
+    const ledgerRead = readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });
+    const collected = provenanceFromLedgerRead(ledgerRead);
+    const integration = buildIntegration(ledgerRead);
     // 깨진 원장으로는 fan-in이 끝났는지 판정할 수 없다. 여기서 멈추지 않으면
     // 빈 provenance와 빈 정리 목록으로 blueprint가 닫혀, 통합되지 않은 task가
     // 완료로 기록되고 복구에 필요한 worktree가 목록에서 사라진다.
@@ -480,6 +561,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             ledgerFile: collected.ledgerFile,
             integrationPath: collected.integrationPath,
             coordinator: collected,
+            integration,
         };
     }
     const coordinator = collected;
@@ -540,6 +622,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             closed: lockPath,
             coordinator,
             worktrees,
+            integration,
         };
     }
     // 빈 커밋 금지: remainder도 잠금도 없으면 stage/commit을 건너뛰고
@@ -557,6 +640,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             closed: lockPath,
             coordinator,
             worktrees,
+            integration,
         };
     }
     // remainder가 없어도 잠금만으로 커밋이 생기면 그 커밋도 저장소를 바꾼다.
@@ -570,7 +654,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     catch (error) {
         const code = codedErrorCode(error);
         if (code) {
-            return { ok: false, reason: 'verify', code, command: null, exitCode: null };
+            return { ok: false, reason: 'verify', code, command: null, exitCode: null, integration };
         }
         throw error;
     }
@@ -585,6 +669,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             code: 'VERIFY_FAILED',
             command,
             exitCode: execution.exitCode,
+            integration,
         };
     }
     // 검증 성공 뒤에만 삭제·closed 전이·stage를 수행한다.
@@ -653,6 +738,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         taskCommits,
         coordinator,
         worktrees,
+        integration,
     };
 }
 module.exports = {

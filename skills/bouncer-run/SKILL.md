@@ -38,15 +38,15 @@ does not read and fix code directly, does not run `implementation`, `review`, or
 the coordinator already judged it. Even when the blueprint was declared light,
 do not use execute's inline branch during a drive.
 
-The coordinator drives `/bouncer-execute` then `/bouncer-commit` per task and
-preserves those skills' ceilings: at most **1** debugger recovery per task and
-execute's conditional review-round ceiling. It also owns the pointer during the
+Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
+dispatch, and coordinator output fields belong to
+`agents/bouncer-coordinator.md` and `rules/governance.md` — do not repeat them
+here. The coordinator preserves those skills' ceilings: at most **1** debugger recovery
+per task. It also owns the pointer during the
 drive — one `bouncer current --set` per task, since every worktree shares it.
-Route nothing back to `/bouncer-plan` mid-drive; the coordinator owns drift as a
-recorded decision. Scope drift is one of those decisions: the coordinator
-records it with `bouncer coordinate revise`, which moves the task document and
-the ledger to one revision, so render that revision instead of re-judging it.
-Only a blocker the coordinator cannot record comes back as a blocked outcome.
+Scope drift is recorded with `bouncer coordinate
+revise`, which moves the task document and the ledger to one revision, so render
+that revision instead of re-judging it.
 
 `execution_kind: verification` node는 예외다. coordinator는 worker를 만들거나
 execute/review/commit/cherry-pick을 호출하지 않고 integration checkout에서 기존
@@ -59,25 +59,25 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
-1. **Preflight.** Read `autonomy` from `.bouncer/config.json`. When the key is
-   missing or outside `AUTONOMY_ENUM`, tell the user and proceed with `auto`.
-   Read the active pointer:
+1. **Preflight.** Load runtime state from the CLI only:
    ```bash
-   bouncer current
+   bouncer run preflight --blueprint <dir>
    ```
-   When `current` is `null`, do not drive — send the user to `/bouncer-plan`.
-   When a pointer exists, read blueprint `index.md` status and each open
-   `tasks/<NNN>/tasks.md` brief for its `affected_paths`, `depends_on`,
-   `parallel_safe`, and `dependency_gate`. When the blueprint is `closed` or no
-   task is `ready` / `in_progress`, there is nothing to delegate — tell the
+   Compact output follows that result; emit raw JSON only on `debug`. The payload
+   already holds the pointer, blueprint status and scale, open-task
+   `affected_paths` and DAG fields, `readyWave`, and `autonomy` (including
+   fallback). `CURRENT_AMBIGUOUS` and `CURRENT_INVALID` are not `null`: stop
+   without picking a candidate. When `ok` is false with `no-current`, send the
+   user to `/bouncer-plan`. Apply `rules/current-pointer.md` for return values.
+   When `delegable` is false, there is nothing to delegate — tell the
    user to run `/bouncer-finalize` themselves and stop. Finalize's consent
    steps stay with the user on both paths: this session never runs them, and a
-   delegated drive stops at the first one instead of answering it. Apply
-   `rules/current-pointer.md` for return values.
+   delegated drive stops at the first one instead of answering it.
 
 2. **Start ACQ.** Show the blueprint, the remaining tasks with their
    `affected_paths`, and the DAG those `depends_on` edges form, then ask whether
    to delegate the drive. Option order: recommended proceed → revise → cancel.
+   This is the only gate.
 
    **AskUserQuestion — Start drive**
    1. **Re-ground**: Whether to hand the remaining tasks to one coordinator.

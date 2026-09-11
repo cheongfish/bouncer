@@ -13,6 +13,8 @@ const coordinatorMod = require("./coordinator");
 const { coordinate } = coordinatorMod;
 const scopeMod = require("./scope");
 const { reviseTaskScope } = scopeMod;
+const executePrepareMod = require("./execute-prepare");
+const { executePrepare } = executePrepareMod;
 function catchMessage(error) {
     // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
     // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
@@ -140,6 +142,32 @@ function collectPathValues(rest) {
     }
     return out;
 }
+function cmdExecute(rest, io) {
+    const command = rest[0];
+    const f = parseFlags(rest.slice(1));
+    // prepare만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
+    // 구분해, 없는 동사를 worktree 쓰기로 착각하지 않게 한다.
+    if (command !== 'prepare') {
+        io.err('execute: command must be prepare\n');
+        return 2;
+    }
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+        io.err('execute: --blueprint is required\n');
+        return 2;
+    }
+    try {
+        const result = executePrepare({
+            repoRoot: (f.repo || process.cwd()),
+            blueprintDir: f.blueprint,
+        });
+        io.out(`${JSON.stringify(result, null, 2)}\n`);
+        return result.ok ? 0 : 1;
+    }
+    catch (error) {
+        io.err(`execute prepare: ${catchMessage(error)}\n`);
+        return 1;
+    }
+}
 function cmdCoordinate(rest, io) {
     const command = rest[0];
     const f = parseFlags(rest.slice(1));
@@ -218,6 +246,12 @@ module.exports = {
         run: cmdSeedWorktree,
         usage: `  seed-worktree --blueprint <dir> --to <worktree>
              Move the plan context documents into a freshly created worktree.
+`,
+    },
+    execute: {
+        run: cmdExecute,
+        usage: `  execute    prepare --blueprint <dir>
+             Create or reuse the execute worktree, seed plan documents, and print JSON.
 `,
     },
     coordinate: {

@@ -52,7 +52,7 @@ no user ACQ.
 
 Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implementation/index.md`) → `verification` (`${BOUNCER_ROOT}/references/verification/index.md`) → `review` (`${BOUNCER_ROOT}/references/review/index.md`). `minimality` and `debugging` load in the numbered steps that own them.
 
-1. **Read the pointer.** Load the worktree-local selection — the active
+1. **Preflight.** Load the worktree-local selection — the active
    blueprint dir, base branch, and task brief — from the CLI only:
    ```bash
    bouncer current
@@ -76,56 +76,24 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    by G4, checked by context-review), execute has no consumer, and as G4 input
    it must not be deleted from documents.
 
-2. **Worktree.** Under a coordinator drive, skip this step: `bouncer coordinate
-   prepare` already assigned this task's worktree, and another one here would put
-   the round outside the boundary commit safety enforces. Otherwise all tasks on
-   the same blueprint **share one** execute worktree at
-   `<repo>/.worktrees/<epic-id>/<bp-id>`; if it exists, **reuse it** — never a
-   second worktree or branch. Only when missing, create it + branch:
-   - base = the branch checked out now (already recorded as `base` in the
-     active pointer by `/bouncer-plan`),
-   - branch `<type>/<BP-id>-<slug>`, `<type>` being `bouncer.commit_type` from
-     the blueprint index (default `feat`) — a `.gitmessage` Conventional Commit
-     type (`feat` | `fix` | `docs` | `style` | `refactor` | `test` | `chore`)
-     matching the work's intent, the same field `/bouncer-commit` uses,
-   - location from `runtime-state.worktreePathFor()`, which also returns an
-     existing flat `.worktrees/<bp-id>` so the reuse branch still hits; do not
-     migrate or rename it:
+2. **Prepare.** From the project-root `cwd` (the base checkout that still holds
+   the plan documents), create or reuse the execute worktree with one command:
    ```bash
-   BOUNCER_ROOT="$(bouncer-root --auto)" || exit $?
-   WORKTREE_PATH="$(node -e "process.stdout.write(require('${BOUNCER_ROOT}/scripts/lib/runtime-state').worktreePathFor({repoRoot:process.cwd(),blueprint:'<pointer.blueprint>'}))")"
-   if [ -d "${WORKTREE_PATH}" ]; then
-     : # reuse existing blueprint worktree
-   else
-     git worktree add -b <type>/<BP-id>-<slug> "${WORKTREE_PATH}" <base>
-   fi
+   bouncer execute prepare --blueprint <pointer.blueprint>
    ```
-   `/bouncer-plan` does not commit, so the documents it authored exist only in
-   the base working tree while a fresh worktree starts from the committed HEAD.
-   Always run seed next (also on reuse — no-op when nothing remains to move),
-   **from the base `cwd`**, so the worktree has the task brief for step 3:
-   ```bash
-   bouncer seed-worktree \
-     --blueprint <pointer.blueprint> --to "${WORKTREE_PATH}"
-   ```
-   It first prepares lockfile-pinned development dependencies when this worktree
-   has no npm lock marker, then copies `.bouncer/config.json` separately from
-   plan-document moves, reporting `copied`, `preserved`, or `missing`.
-   Destination config is kept as-is; tracked config uses HEAD bytes, not a dirty
-   base copy. The config path never appears in `moved` or `restored`, and the
-   base file is never restored, unstaged, or deleted. When `config` is
+   Success is exit 0 and stdout JSON. Compact output follows that result; emit
+   raw JSON only on `debug`. On `drive: true`, `worktreePath` is the worker
+   path the coordinator already assigned — do not create another worktree,
+   do not seed, and do not write to the main worktree. Otherwise report
+   `branch` from the payload; do not reconstruct a branch-name rule here.
+   `seed.config` is `copied`, `preserved`, or `missing`. When `config` is
    `missing`, warn in one line that execute continues with the default allowlist.
-   It then moves only the plan context documents — blueprint tree,
-   epic index, context index, each task bundle's `tasks.md` — and returns the
-   base to its committed state, leaving unrelated dirty files there. A
-   `conflict` means the worktree already holds a different version; resolve it
-   by hand rather than re-running. With nothing left to move, seed succeeds with
-   an empty `moved` list.
 
    After the cwd switch, `bouncer current` returns the corresponding namespace
    pointer for this worktree; do not copy a pointer file. Other namespace keys
-   may still exist in the Git common directory. **Set every subsequent Git operation's actual `cwd` to `${WORKTREE_PATH}`**. Do **not**
-   run `git -C "${WORKTREE_PATH}" ...` from the project root — the
+   may still exist in the Git common directory. **Set every subsequent Git
+   operation's actual `cwd` to the payload `worktreePath`**. Do **not**
+   run `git -C worktreePath ...` from the project root — the
    `commit-safety` PreToolUse hook uses the command's actual working directory
    and would otherwise inspect the wrong index.
 
@@ -175,7 +143,7 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    `/bouncer-commit`. Any accidental `git commit` is still guarded by
    `commit-safety`.
 
-4. **Verify.** Use the `verification` skill (`${BOUNCER_ROOT}/references/verification/index.md`) to
+4. **Verify/recover.** Use the `verification` skill (`${BOUNCER_ROOT}/references/verification/index.md`) to
    prepare the existing `<pointer task directory>/verification.md`. Do not hand-write success evidence
    or set `verification → passed`: the execute gate runs the configured verify
    command and the harness records `## Command`, `## Evidence`, exit status,
@@ -200,38 +168,10 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    As controller, update existing `<pointer task directory>/review.md` body `## Findings` and
    `bouncer.review.findings[]` from the reviewer output — the subagent must not
    flip status; Findings recording and status are the controller's job on the
-   inline path too. After each executed round, append `bouncer.review.rounds[]`
-   with that round's previous finding IDs, `new` / `resolved` / `regressed`
-   counts, how findings were resolved, the revision, and the latest verify
-   result.
-   Review rounds follow this entry condition. Do not start a round unless it
-   holds:
-   ```text
-   round <= 2
-   or (
-     round == 3
-     and previous blocker/major findings are resolved
-     and latest verify passed
-     and new actionable findings fit Goal, Interface, Constraints, affected_paths
-   )
-   ```
-   Two rounds is the ceiling and a third runs only when that condition holds.
-   Never start a fourth round. Stop immediately — no round 3 — when after round 2 previous
-   blocker/major findings remain, latest verify failed, or new actionable
-   findings need a new design, dependency, public interface, or scope change.
-   Stop the same way after round 3 if any actionable finding remains, a finding
-   regresses, or a new design/scope is required. Either stop returns to the
-   controller: outside a drive, send the user to `/bouncer-plan`; under one,
-   hand the coordinator the open findings to
-   disposition. Do not fix again, do not re-review, and never flip a remaining
-   finding to `accepted` to clear it — an unresolved finding is never recorded
-   as done.
-   Treat every actionable finding that affects current-task accuracy — never
-   filter by severity. Do not classify those findings as `deferred`. `accepted` is an
-   authorized risk acceptance; `deferred` is an independent follow-up planning
-   item, and their notes must record those different reasons. Set
-   `review → accepted` only when every finding is `resolved`, or `accepted` or
-   `deferred` with a note.
+   inline path too. Review is two rounds with a conditional third as the ceiling.
+
+   When a review round may start or stop, read [review-round.md](./references/review-round.md).
+
    While reviewing, you may run the `minimality` skill (`${BOUNCER_ROOT}/references/minimality/index.md`) (advisory) to flag
    unnecessary new dependencies or abstractions in the diff.
 

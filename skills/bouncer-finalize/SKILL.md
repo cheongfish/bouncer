@@ -46,31 +46,15 @@ read [explain-quiz.md](./references/explain-quiz.md). It directs `explain-diff`
 (`${BOUNCER_ROOT}/references/explain-diff/index.md`). If the user does not answer
 the quiz, **stop** — do not continue to validate or `finalize --yes`.
 
-2. **Validate + remainder commit (deterministic core) + worktree choice.**
-   First confirm the integration is closed: under a drive, every task in the
-   coordinator ledger is `integrated` and the integration head verified. A task
-   still open, an unverified head, or an unresolved reviewer finding is not a
-   finished blueprint — stop and hand it back as a coordinator decision instead
-   of recording it as done. An unreadable ledger is the same stop, not a
-   non-drive finalize: the payload reports `coordinator.status: 'unreadable'`
-   and the CLI refuses with `reason: 'coordinator-ledger'` and the
-   `ledgerFile` to repair. Then run the finalize gate:
-   ```bash
-   bouncer validate --blueprint <pointer.blueprint> --gate finalize
-   ```
-   The CLI owns the finalize gate, allowed paths, deletions, status transition,
-   and commit-message format. On any gate, verify, dry-run, or scope failure,
-   preserve documents and worktree; report validator code, cause, path, and
-   recovery action, then fix every failure before rerunning. Dry-run:
-   ```bash
-   bouncer finalize --blueprint <pointer.blueprint>
-   ```
-   This checks every remaining uncommitted change (tracked or untracked) against
-   the allowed-set. Anything out of scope
-   is a **hard abort — nothing staged**; show the violations and have the user
-   fix paths or remove the stray files. On a clean dry-run (or empty staged
-   set), show the staged file list + generated commit message, then run this
-   **ACQ** before `--yes`:
+2. **Remainder.** Dry-run, then read `integration` from that payload. `ledger:
+   'absent'` is not a drive — continue. `unreadable` is the existing CLI
+   `reason: 'coordinator-ledger'` stop, not a non-drive close; do not invent a
+   new reject reason. `complete: false` (see `openTasks`; `headVerified` is
+   `false` when a verification task is not integrated) is unfinished — stop and
+   hand it to the coordinator instead of recording it as done. When running
+   the finalize gate, showing the dry-run, or handling scope or `reason:
+   'verify'` failures, read [remainder.md](./references/remainder.md). On a
+   clean dry-run (or empty staged set), run this **ACQ** before `--yes`:
 
    **AskUserQuestion — Remainder commit + worktree**
    1. **Re-ground**: Commit the context-document remainder via
@@ -88,28 +72,25 @@ the quiz, **stop** — do not continue to validate or `finalize --yes`.
    ```bash
    bouncer finalize --blueprint <pointer.blueprint> --yes
    ```
-   `--yes` runs verification commands before staging. Per the shared contract,
-   clear the pointer. A `reason: 'verify'` failure has no bypass other than
-   fixing the cause and rerunning.
-   Remember the worktree choice for step 5 (`remove` on A, `keep` on B).
+   Remember the worktree choice for step 4 (`remove` on A, `keep` on B).
    On **C**, fix and re-dry-run. On **D**, stop without `--yes`.
    (Empty staged set is fine — still run the ACQ so worktree choice is explicit;
    `--yes` clears the pointer without creating an empty commit.)
 
-3. **Push + draft PR (markdown layer).** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). **ACQ — PR:** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 4.
+3. **PR.** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). **ACQ — PR:** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 4.
 
-4. **Worktree cleanup (from step 2 choice).** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
+4. **Cleanup.** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
 
-5. **Next-blueprint handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) reference handles this only after cleanup and only from the finalize payload. **ACQ — Next blueprint:** run that reference's AskUserQuestion before `current --set`; advancement remains confirm-then-`current --set`, never automatic.
+5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) reference handles next-blueprint only after cleanup and only from the finalize payload. **ACQ — Next blueprint:** run that reference's AskUserQuestion before `current --set`; advancement remains confirm-then-`current --set`, never automatic.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
    work plans a sibling Blueprint in the same Epic or a new Epic via
    `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
    by the finalize payload and the cleanup-handoff contract above — do not
    arbitrarily `--set` an open sibling.
-
-6. **Report.** Render through `rules/output.md`: explain/quiz outcome, remainder
-   commit and resulting `closed` state, PR URL or skip/decline, worktree result,
-   pointer result, and the next sibling Blueprint or `/bouncer-plan` action.
+   Render through `rules/output.md`: explain/quiz outcome, remainder commit and
+   resulting `closed` state, `integration` (`complete`, `openTasks`,
+   `headVerified`), PR URL or skip/decline, worktree result, pointer result, and
+   the next sibling Blueprint or `/bouncer-plan` action.
 
 ## ACQ (AskUserQuestion) gates
 

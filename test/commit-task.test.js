@@ -198,9 +198,11 @@ test('verification tasks are rejected by both commitTask and the shared commit g
     '  status: verified\n  execution_kind: verification',
   ));
   const g = trackingGit([], []);
-  assert.deepStrictEqual(commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api }), {
-    ok: false, reason: 'verification-task-no-commit',
-  });
+  const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'verification-task-no-commit');
+  assert.strictEqual(res.recovery.action, 'run-verification-node');
+  assert.ok(typeof res.recovery.detail === 'string' && res.recovery.detail.length > 0);
   assert.deepStrictEqual(checkCommitSafety({ files: [], executionKind: 'verification' }), {
     allow: false, code: 'verification-task-no-commit', violations: [],
   });
@@ -363,6 +365,10 @@ test('no changes with --yes succeeds without calling commit', () => {
   assert.strictEqual(res.committed, false);
   assert.deepStrictEqual(res.staged, []);
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
+  // 커밋이 없으므로 stampPath는 null. extraOpenTask가 없으면 nextTask도 없어 finalize.
+  assert.strictEqual(res.controller, 'standalone');
+  assert.strictEqual(res.nextAction, 'finalize');
+  assert.strictEqual(res.stampPath, null);
 });
 
 test('nextTask is earliest other open task; pointer is untouched', () => {
@@ -415,8 +421,77 @@ test('gate failure returns validate reason without staging', () => {
   });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'validate');
+  assert.strictEqual(res.recovery.action, 'fix-gate-failures');
+  assert.ok(typeof res.recovery.detail === 'string' && res.recovery.detail.length > 0);
   assert.ok(res.failures.some((f) => f.code === 'G6'));
   assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
+});
+
+test('standalone dry-run reports standalone, confirm-commit, and a null stampPath', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const res = commitTask({
+    repoRoot: repo, blueprintDir: BP_REL, git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.dryRun, true);
+  assert.strictEqual(res.controller, 'standalone');
+  assert.strictEqual(res.nextAction, 'confirm-commit');
+  assert.strictEqual(res.stampPath, null);
+});
+
+test('standalone --yes with a nextTask asks next-task and stamps tasks.md', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo, { extraOpenTask: true });
+  const res = commitTask({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.committed, true);
+  assert.ok(res.nextTask);
+  assert.strictEqual(res.controller, 'standalone');
+  assert.strictEqual(res.nextAction, 'ask-next-task');
+  assert.strictEqual(res.stampPath, `${BP_REL}/tasks/001/tasks.md`);
+});
+
+test('standalone --yes with no nextTask finalizes', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const res = commitTask({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.nextTask, null);
+  assert.strictEqual(res.controller, 'standalone');
+  assert.strictEqual(res.nextAction, 'finalize');
+  assert.strictEqual(res.stampPath, `${BP_REL}/tasks/001/tasks.md`);
+});
+
+test('out-of-scope recovery is return-to-plan standalone and coordinator-revise on a drive', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const standalone = commitTask({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    yes: true,
+    git: trackingGit(['src/auth/login.ts', 'src/payments/charge.ts'], []).api,
+  });
+  assert.strictEqual(standalone.ok, false);
+  assert.strictEqual(standalone.reason, 'out-of-scope');
+  assert.strictEqual(standalone.recovery.action, 'return-to-plan');
+  assert.ok(typeof standalone.recovery.detail === 'string' && standalone.recovery.detail.length > 0);
+
+  const { worker, blueprint } = coordinatorFixture();
+  const coordinator = commitTask({
+    repoRoot: worker,
+    blueprintDir: blueprint,
+    yes: true,
+    git: trackingGit(['src/auth/login.ts', 'src/payments/charge.ts'], []).api,
+  });
+  assert.strictEqual(coordinator.ok, false);
+  assert.strictEqual(coordinator.reason, 'out-of-scope');
+  assert.strictEqual(coordinator.recovery.action, 'coordinator-revise');
+  assert.ok(typeof coordinator.recovery.detail === 'string' && coordinator.recovery.detail.length > 0);
 });
 
 // --- coordinator mode -------------------------------------------------------
@@ -536,6 +611,9 @@ test('a coordinator commit returns actual paths, provenance SHAs and the next re
   });
   assert.strictEqual(res.ok, true, JSON.stringify(res.failures));
   assert.strictEqual(res.committed, true);
+  assert.strictEqual(res.controller, 'coordinator');
+  assert.strictEqual(res.nextAction, 'return-to-coordinator');
+  assert.strictEqual(res.stampPath, `${blueprint}/tasks/001/tasks.md`);
   assert.deepStrictEqual(res.actualPaths, ['src/auth/login.ts']);
   assert.strictEqual(res.taskSha, 'abcdef0123456789abcdef0123456789abcdef01');
   assert.strictEqual(typeof res.integrationHeadBefore, 'string');
@@ -544,6 +622,43 @@ test('a coordinator commit returns actual paths, provenance SHAs and the next re
   assert.deepStrictEqual(res.readyWave, ['002']);
   assert.strictEqual(res.nextTask.id, 'TASKS-002');
   assert.strictEqual(res.scopeRevision, null);
+});
+
+test('a coordinator dry-run reports coordinator, confirm-commit, and a null stampPath', () => {
+  // 드라이브에서도 --yes 전 확인이 있어야 한다. 이 분기를 return-to-coordinator와
+  // 바꾸면 스킬 Confirm 단계가 사라져 F1이 놓친 교환을 다시 허용한다.
+  const { worker, blueprint } = coordinatorFixture();
+  writeCurrent({
+    repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
+  });
+  const res = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, git: trackingGit(['src/auth/login.ts'], []).api,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.dryRun, true);
+  assert.strictEqual(res.controller, 'coordinator');
+  assert.strictEqual(res.nextAction, 'confirm-commit');
+  assert.strictEqual(res.stampPath, null);
+});
+
+test('a coordinator empty staged --yes returns to coordinator without a stampPath', () => {
+  // 빈 staged는 커밋이 없으므로 stampPath는 null. dry-run이 아니므로
+  // nextAction은 confirm-commit이 아니라 return-to-coordinator다.
+  const { worker, blueprint } = coordinatorFixture();
+  writeCurrent({
+    repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
+  });
+  const g = trackingGit([], []);
+  const res = commitTask({
+    repoRoot: worker, blueprintDir: blueprint, yes: true, git: g.api,
+  });
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.committed, false);
+  assert.deepStrictEqual(res.staged, []);
+  assert.deepStrictEqual(g.calls.filter((c) => typeof c === 'string'), []);
+  assert.strictEqual(res.controller, 'coordinator');
+  assert.strictEqual(res.nextAction, 'return-to-coordinator');
+  assert.strictEqual(res.stampPath, null);
 });
 
 test('a coordinator commit refuses a staged path outside the current ledger scope', () => {
@@ -579,6 +694,8 @@ test('a task document out of step with the ledger revision refuses the commit', 
   });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'stale-revision');
+  assert.strictEqual(res.recovery.action, 'report-and-stop');
+  assert.ok(typeof res.recovery.detail === 'string' && res.recovery.detail.length > 0);
 });
 
 test('a checkout that is neither the integration nor the assigned worktree is unassigned', () => {
