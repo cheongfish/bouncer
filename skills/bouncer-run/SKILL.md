@@ -42,7 +42,8 @@ Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
 dispatch, and coordinator output fields belong to
 `agents/bouncer-coordinator.md` and `rules/governance.md` — do not repeat them
 here. The coordinator preserves those skills' ceilings: at most **1** debugger recovery
-per task. It also owns the pointer during the
+per task, discovery wave 1회, fix batch 1회, and delta certification 1회 (plus
+drive-only critical recovery 1회). It also owns the pointer during the
 drive — one `bouncer current --set` per task, since every worktree shares it.
 Scope drift is recorded with `bouncer coordinate
 revise`, which moves the task document and the ledger to one revision, so render

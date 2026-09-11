@@ -112,7 +112,7 @@ step 앞 본문의 cite는 모두 공유 규칙(`rules/plugin-root.md`,
 | 보존 대상 | 소유 | 위임 뒤 어디서 지켜지나 |
 | --- | --- | --- |
 | debugger 복구 1회 상한 | `skills/bouncer-execute` | coordinator가 task마다 execute를 돌리며 그대로 따른다. run도 coordinator도 상한을 복제하지 않는다 |
-| 조건부 세 번째 review round | `skills/bouncer-execute` | 같음. 상한 뒤 판단만 coordinator의 결정으로 바뀐다 |
+| review 상태 전이 상한 | `skills/bouncer-execute/references/review-round.md` | freeze 뒤 discovery 1회, fix batch 1회, delta certification 1회를 실행한다. drive만 critical recovery 1회를 추가할 수 있다 |
 | ACQ 시점 | `skills/bouncer-run` step 2 | 시작 ACQ 하나. `autonomy`는 보고 주기만 정하고 task별 ACQ를 열지 않는다 |
 | finalize 동의 단계 | `skills/bouncer-finalize` | coordinator는 첫 동의 단계에서 멈춰 이름만 보고한다. 대신 답하지 않는다 |
 | 출력 형식 | `rules/output.md` | 진행·완료·중단 세 줄 형식을 coordinator 절이 소유한다. run은 렌더링만 한다 |

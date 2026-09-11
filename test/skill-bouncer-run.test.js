@@ -49,6 +49,8 @@ test('run stays non-editing and does not re-judge worker reports', () => {
   assert.match(role, /does not read and fix code directly/);
   assert.match(role, /(?:does not|never)[\s\S]{0,80}reconstruct[\s\S]{0,60}worker/i);
   assert.match(role, /at most \*\*1\*\* debugger recovery/);
+  assert.match(role, /discovery wave 1회[\s\S]{0,100}delta certification 1회/);
+  assert.doesNotMatch(role, /conditional review-round ceiling/);
   assert.match(role, /\/bouncer-execute/);
   // scope drift는 정지가 아니라 기록이다. run은 그 기록을 렌더링만 한다.
   assert.match(role, /bouncer coordinate\s*\n?\s*revise/);

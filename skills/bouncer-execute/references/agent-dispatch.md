@@ -38,6 +38,14 @@ receives G6–G8 judgment after verify and review.
 
 For the verify-recovery implementer re-dispatch, use the same named-dispatch order. Only outside `/bouncer-run`, the light path may use the step-3 inline implementation branch; `/bouncer-run` always retains the named orchestration boundary.
 
-For review, dispatch named `bouncer-reviewer` with the reviewer prompt. If named agents are unavailable, fall back to a fresh generic subagent or inline read-only pass using that prompt. Reviewers remain named regardless of scale.
+For review, freeze the target first, then dispatch named `bouncer-reviewer` in
+parallel for `spec_scope`, `correctness_tests`, and
+`minimality_maintainability`; add security only when the changed surface
+requires it. Each discovery prompt contains only its own rubric, the task
+brief, and the frozen target — never another reviewer's findings. If named
+agents are unavailable, dispatch fresh generic subagents in the same order, or
+use inline read-only passes when no subagent tool exists. After one aggregate
+and one fix batch, dispatch exactly one delta reviewer with previous findings
+and the revision diff. Reviewers remain named regardless of scale.
 
 Every worker returns its Output contract to the controller — the coordinator during a drive. Its **Scope impact** / **Scope/task impact** line is an input to one coordinator decision (scope revision through `bouncer coordinate revise`, rework, a task change, or terminal blocked), never a licence for the worker to widen its own scope or move the pointer.
