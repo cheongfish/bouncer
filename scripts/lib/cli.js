@@ -16,6 +16,7 @@ const COMMANDS = {
     finalize: gitCommands.finalize,
     'seed-worktree': gitCommands['seed-worktree'],
     execute: gitCommands.execute,
+    plan: docCommands.plan,
     coordinate: gitCommands.coordinate,
     init: projectCommands.init,
     // --upgrade-graphify 는 init 핸들러(parseFlags)와 그 usage 문자열에만 있다.

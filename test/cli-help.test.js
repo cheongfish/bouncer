@@ -15,6 +15,7 @@ const SUBCOMMANDS = [
   'commit',
   'coordinate',
   'execute',
+  'plan',
   'import',
 ];
 

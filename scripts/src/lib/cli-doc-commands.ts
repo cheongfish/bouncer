@@ -18,6 +18,8 @@ import config = require('./config');
 const { readVerifyPolicy } = config;
 import time = require('./time');
 const { nowIsoKst } = time;
+import planInspectMod = require('./plan-inspect');
+const { planInspect } = planInspectMod;
 
 type CliIo = {
   out: (s: string) => void;
@@ -197,6 +199,31 @@ function cmdScaffold(rest: string[], io: CliIo) {
   return 0;
 }
 
+/**
+ * `plan inspect`만 받는다. 추천 JSON을 stdout에 내고, 거절은 같은 채널의
+ * `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드는 사용법(2).
+ *
+ * @param {string[]} rest - 서브커맨드와 플래그
+ * @param {CliIo} io - stdout/stderr 싱크
+ * @returns {number} 성공 0, 거절 1, 사용법 2
+ */
+function cmdPlan(rest: string[], io: CliIo) {
+  const command = rest[0];
+  const f = parseFlags(rest.slice(1));
+  // inspect만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
+  // 구분해, 없는 동사를 계획 쓰기로 착각하지 않게 한다.
+  if (command !== 'inspect') {
+    io.err('plan: command must be inspect\n');
+    return 2;
+  }
+  const result = planInspect({
+    repoRoot: (f.repo || process.cwd()) as string,
+    epicDir: f['epic-dir'],
+  });
+  io.out(`${JSON.stringify(result, null, 2)}\n`);
+  return result.ok ? 0 : 1;
+}
+
 // usage는 run과 같은 항목에 둔다. help 목록과 디스패치가 한쪽만 고치면
 // 어긋나던 상수 나열을 구조적으로 막기 위함.
 export = {
@@ -222,6 +249,12 @@ export = {
              context-review --blueprint <dir>
              Create a document set with correct frontmatter.
              (explain is for finalize; epic/blueprint scaffold omit it.)
+`,
+  },
+  plan: {
+    run: cmdPlan,
+    usage: `  plan       inspect [--epic-dir <dir>]
+             Print next ids, maintenance epic, verify signals, and pointer state as JSON.
 `,
   },
 };

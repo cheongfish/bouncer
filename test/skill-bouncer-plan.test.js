@@ -21,6 +21,7 @@ test('bouncer-plan rejects unrelated conditional routes', () => {
   const routes = [
     { href: './references/distill-preflight.md', triggers: ['distill', 'preflight'], source: 'When preparing the Distill baseline and preflight, read this reference:' },
     { href: './references/graphify-suggestions.md', triggers: ['graphify', 'suggestion'], source: 'When generating Graphify suggestions, read this reference:' },
+    { href: './references/scope-confirm.md', triggers: ['confirm', 'affected_paths'], source: 'When confirming affected_paths, read this reference:' },
     { href: './references/context-review.md', triggers: ['context', 'review'], source: 'When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference:' },
   ];
   for (const route of routes) {
@@ -39,15 +40,16 @@ test('bouncer-plan places discovery/ID/verify/scope/approval ACQ in numbered ste
   assertShape(mainMd, {
     headings: { required: ['ACQ (AskUserQuestion) gates'] },
     steps: {
-      required: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      required: [1, 2, 3, 4, 5, 6, 7, 8],
       order: true,
-      acq: [1, 2, 4, 6, 8],
+      acq: [1, 2, 3, 4, 6],
       links: {
-        5: ['./references/graphify-suggestions.md'],
-        7: ['./references/context-review.md'],
+        3: ['./references/graphify-suggestions.md'],
+        4: ['./references/scope-confirm.md'],
+        5: ['./references/context-review.md'],
       },
     },
-    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [1, 2, 4, 6, 8], only: true },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [1, 2, 3, 4, 6], only: true },
   });
 
   // 루트 보조는 ${BOUNCER_ROOT}/references/… 만.
@@ -76,6 +78,7 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   assert.match(body, /\bbouncer\s+scaffold\s+epic\b/);
   assert.match(body, /\bbouncer\s+scaffold\s+blueprint\b/);
   assert.match(body, /scaffold task --blueprint/);
+  assert.match(body, /\bbouncer\s+plan\s+inspect\b/);
   assert.match(body, /\bbouncer\s+validate\s+--blueprint\s+<pointer\.blueprint>\s+--gate\s+plan\b/);
   assert.match(body, /\.bouncer\/context\/epics/);
   assert.match(body, /discovery/);
@@ -116,19 +119,22 @@ test('bouncer-plan states that G4 requires a recorded graph basis', () => {
 test('bouncer-plan records G4 basis evidence before affected_paths confirmation', () => {
   const { body } = parseFrontmatter(mainMd);
   const basisAt = body.indexOf("Record G4's non-empty `scope_evidence.basis`");
-  const approvalAt = body.indexOf('6. **affected_paths');
+  const scopeAt = body.indexOf('4. **Scope confirm');
   assert.ok(basisAt >= 0, 'G4 basis recording is explicit');
-  assert.ok(approvalAt > basisAt, 'basis evidence precedes affected_paths confirmation');
+  assert.ok(scopeAt > basisAt, 'basis evidence precedes affected_paths confirmation');
 });
 
 test('bouncer-plan shows role candidates and quality before affected_paths confirm', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /candidates|role/i);
-  assert.match(body, /quality|reasons|low-confidence|confidence/i);
-  assert.match(body, /affected_paths/);
+  const scope = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/scope-confirm.md'),
+    'utf8',
+  );
+  assert.match(scope, /candidates|role/i);
+  assert.match(scope, /quality|reasons|low-confidence|confidence/i);
+  assert.match(scope, /affected_paths/);
   // 자동 승인을 금지하고 사용자 확인을 요구한다.
-  assert.match(body, /confirm|ask/i);
-  assert.doesNotMatch(body, /auto(?:matically)?\s+(?:copy|set|write)\s+affected_paths/i);
+  assert.match(scope, /confirm|ask/i);
+  assert.doesNotMatch(scope, /auto(?:matically)?\s+(?:copy|set|write)\s+affected_paths/i);
 });
 
 test('bouncer-plan reminds authors that titles feed the finalize commit message', () => {
@@ -153,13 +159,13 @@ test('bouncer-plan step 1 cites the named discovery handoff outputs', () => {
 test('bouncer-plan searches prior context before scaffold and keeps it outside approval scope', () => {
   const { body } = parseFrontmatter(mainMd);
   const discoverAt = body.indexOf('1. **Discover.**');
-  const scaffoldAt = body.indexOf('3. **Scaffold.**');
+  const scaffoldAt = body.indexOf('2. **Scaffold.**');
   const contextDiscoveryAt = body.indexOf('pre-scaffold context discovery');
-  const approvalAt = body.indexOf('6. **affected_paths');
+  const scopeAt = body.indexOf('4. **Scope confirm');
   assert.ok(contextDiscoveryAt > discoverAt && contextDiscoveryAt < scaffoldAt);
   assert.match(body, /context candidates.*advisory|advisory.*context candidates/i);
   assert.match(body, /do not.*(?:confirm|set|write).*affected_paths.*context|context.*do not.*affected_paths/i);
-  assert.ok(approvalAt > scaffoldAt, 'affected_paths confirmation remains after authoring');
+  assert.ok(scopeAt > scaffoldAt, 'affected_paths confirmation remains after authoring');
 });
 
 test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => {
@@ -221,7 +227,7 @@ test('bouncer-plan scaffolds a light blueprint with --scale light', () => {
 
 test('bouncer-plan skips the context-review step on scale light', () => {
   const { body } = parseFrontmatter(md);
-  const step = body.slice(body.indexOf('7. **Context review.**'), body.indexOf('8. **Approval'));
+  const step = body.slice(body.indexOf('5. **Review.**'), body.indexOf('6. **Approval'));
   assert.match(step, /light/);
   assert.match(step, /[Ss]kip/);
   assert.match(step, /G18/);
@@ -250,14 +256,14 @@ test('bouncer-plan points graphify enablement at the CLI only', () => {
   assert.match(body, /init --promote-graphify/);
 });
 
-test('bouncer-plan loads context-review only after the light skip in step 7', () => {
+test('bouncer-plan loads context-review only after the light skip in step 5', () => {
   const { body } = parseFrontmatter(mainMd);
-  const step7 = body.indexOf('7. **Context review.**');
+  const step5 = body.indexOf('5. **Review.**');
   const rootCite = body.indexOf('${BOUNCER_ROOT}/references/context-review/index.md');
   const localCite = body.indexOf('./references/context-review.md');
-  assert.ok(step7 >= 0, 'step 7 owns context-review');
-  assert.ok(rootCite >= step7, 'root context-review cite belongs after the light skip');
-  assert.ok(localCite >= step7, 'skill-local context-review.md belongs after the light skip');
+  assert.ok(step5 >= 0, 'step 5 owns context-review');
+  assert.ok(rootCite >= step5, 'root context-review cite belongs after the light skip');
+  assert.ok(localCite >= step5, 'skill-local context-review.md belongs after the light skip');
   const preamble = body.slice(0, body.search(/^1\. /m));
   assert.doesNotMatch(preamble, /minimality\/index\.md/);
   assert.doesNotMatch(preamble, /context-review\/index\.md/);
@@ -276,7 +282,7 @@ test('bouncer-plan preflight warns the selected pointer and shared namespace wit
   const projectRootAt = body.indexOf('**Project root.**');
   assert.ok(preflightAt >= 0 && projectRootAt > preflightAt, 'preflight precedes project root');
   const preflight = body.slice(preflightAt, projectRootAt);
-  assert.match(preflight, /\bbouncer\s+current\b/);
+  assert.match(preflight, /\bbouncer\s+plan\s+inspect\b/);
   assert.match(preflight, /blueprint/);
   assert.match(preflight, /\btask\b/);
   assert.match(preflight, /\bbase\b/);
@@ -293,9 +299,9 @@ test('bouncer-plan preflight warns the selected pointer and shared namespace wit
 
 test('bouncer-plan sets the approved blueprint through CLI-only namespace selection', () => {
   const { body } = parseFrontmatter(mainMd);
-  const pointerAt = body.indexOf('9. **Pointer.**');
-  const pointer = body.slice(pointerAt, body.indexOf('10. **Gate.**'));
-  assert.ok(pointerAt >= 0, 'step 9 owns the approved --set');
+  const pointerAt = body.indexOf('7. **Activate.**');
+  const pointer = body.slice(pointerAt, body.indexOf('8. **Gate.**'));
+  assert.ok(pointerAt >= 0, 'step 7 owns the approved --set');
   assert.match(pointer, /\bbouncer\s+current\s+--set\b/);
   assert.doesNotMatch(pointer, /scripts\/lib\/current|bouncer\/pointers|read.*pointer file/i);
 });
@@ -311,7 +317,7 @@ test('bouncer-plan authors and reviews task DAG before approval', () => {
   assert.doesNotMatch(mainMd, /integration-verified/);
   // 승인 ACQ 전에 DAG·병렬 자격·공용 계약 충돌을 보여 준다.
   const dagReviewAt = body.search(/depends_on|DAG|dependency/i);
-  const approvalAt = body.indexOf('8. **Approval');
+  const approvalAt = body.indexOf('6. **Approval');
   assert.ok(dagReviewAt >= 0, 'DAG authoring/review is present');
   assert.ok(approvalAt > 0, 'Approval step exists');
   assert.match(body, /parallel_safe|병렬/);
@@ -321,9 +327,38 @@ test('bouncer-plan authors and reviews task DAG before approval', () => {
 
 test('bouncer-plan uses context-search preflight and implementation re-ground', () => {
   const { body } = parseFrontmatter(mainMd);
+  const scope = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/scope-confirm.md'),
+    'utf8',
+  );
   assert.doesNotMatch(body, /distill/i);
+  assert.doesNotMatch(scope, /distill/i);
   assert.match(body, /context-search --mode decision/);
-  assert.match(body, /context-search --mode implementation/);
+  assert.match(scope, /context-search --mode implementation/);
   assert.match(body, /query id, status,[\s\S]*graph version/);
   assert.equal(fs.existsSync(path.join(root, 'skills/bouncer-plan/references/distill-preflight.md')), false);
+});
+
+test('bouncer-plan keeps contract blast, inventory, and verification-node rules in scope-confirm.md', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const scope = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/scope-confirm.md'),
+    'utf8',
+  );
+  const step4 = body.slice(body.indexOf('4. **Scope confirm.**'), body.indexOf('5. **Review.**'));
+  assert.match(step4, /\.\/references\/scope-confirm\.md/);
+  assert.match(scope, /Contract blast/);
+  assert.match(scope, /Prose \/ inventory/);
+  assert.match(scope, /execution_kind:\s*verification/);
+  assert.doesNotMatch(body, /Contract blast check/);
+  const result = checkDocShape(mainMd, {
+    filePath: path.join(root, 'skills', 'bouncer-plan', 'SKILL.md'),
+    links: [{
+      href: './references/scope-confirm.md',
+      resolve: true,
+      referencePreamble: true,
+      conditionalLoad: { triggers: ['confirm', 'affected_paths'] },
+    }],
+  });
+  assert.deepStrictEqual(result.errors, [], result.errors.join('; '));
 });

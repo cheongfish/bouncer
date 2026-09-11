@@ -115,7 +115,7 @@ test('tracked active surfaces reject runtime memory tokens outside the explicit 
     ['test/session-graph.test.js', { count: 4, kind: 'legacy-compatibility-regression' }],
     ['test/skill-bouncer-execute.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/skill-bouncer-finalize.test.js', { count: 2, kind: 'legacy-compatibility-regression' }],
-    ['test/skill-bouncer-plan.test.js', { count: 5, kind: 'legacy-compatibility-regression' }],
+    ['test/skill-bouncer-plan.test.js', { count: 6, kind: 'legacy-compatibility-regression' }],
     ['test/skill-bouncer-surface.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/skill-discovery.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/skill-minimality.test.js', { count: 2, kind: 'legacy-compatibility-regression' }],

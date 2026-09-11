@@ -17,6 +17,7 @@
 | `bouncer coordinate <bootstrap\|prepare\|ready\|record\|integrate\|status\|revise> --blueprint <dir> [--task <NNN>] [--sha <sha>] [--decision <text>] [--paths <p>]... [--reason <text>]` | coordinator 원장과 격리 worktree 운용. 결과 JSON은 stdout에 냄 — `{ok:false}` 거절도 `{"ok": false, "reason": …}` JSON으로 stdout에 나오고(`revise`만 예외로 stderr) 종료 코드 1. assigned-worktree 불일치·Git 실패는 throw 경로라 stderr 한 줄. 자세한 것은 아래 [`bouncer coordinate`](#bouncer-coordinate) |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 worktree로 이전하고 base를 원상복구. 옮길 것이 없으면 성공 |
 | `bouncer execute prepare --blueprint <dir>` | standalone execute worktree를 만들거나 재사용하고 plan 문서를 seed한 뒤 JSON을 출력. coordinator 원장이 있으면 `drive: true`와 배정된 worker 경로만 내고 생성·seed는 하지 않음 |
+| `bouncer plan inspect [--epic-dir <dir>]` | 다음 epic/blueprint id, `maintenance` epic, 저장소 루트 verify 신호, pointer 상태를 JSON으로 출력. 읽기 전용이며 `.bouncer/`가 없으면 `not-initialized`, `--epic-dir`가 정본 경로가 아니거나 없으면 `invalid-epic-dir` |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer project-root [--repo <dir>]` | 소비 저장소 main worktree 절대 경로 한 줄(stdout만). primary·linked worktree에서 같은 값. 비-Git이면 stderr + 종료 코드 1(빈 stdout·cwd 대체 없음) |
 | `bouncer context-search --mode <decision\|implementation\|history> --query <text> [--max-candidates <1..8>]` | canonical context graph를 role별로 검색. query id·status·graph version과 최대 8개 후보를 JSON으로 출력 |
