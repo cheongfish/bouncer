@@ -7,6 +7,29 @@
 
 ## [Unreleased]
 
+## [1.4.3] — 2026-09-11
+
+1.4.2 이후 Distill 제거, 역할 기반 컨텍스트 검색, Graphify 호환 고정, 제한된 CI 복구.
+
+### Added
+
+- **역할 기반 컨텍스트 검색** — `bouncer context-search`가 decision·implementation·
+  history 모드로 canonical context 후보와 관측 metadata를 JSON으로 반환한다.
+- **Graphify 호환 고정** — plugin 소유 manifest가 package·CLI·graph schema·Python
+  조건의 정본이고, 승격은 `--upgrade-graphify`에서만 일어난다.
+- **종단 CI 노드와 제한된 복구** — 커밋 없는 verification-only 종단 노드와, 실패 시
+  최대 두 repair wave 뒤 사용자 확인 전까지 멈추는 `partial_closed` 경로를 둔다.
+
+### Changed
+
+- **워크플로 근거 경로** — plan·execute·finalize가 Distill 재접지 대신 context
+  검색으로 작업 근거를 찾는다.
+
+### Removed
+
+- **`bouncer distill`과 Distill 생성물** — 공개 CLI·설정 키·promotion 참조와
+  tracked `.bouncer/Distill.md`·shard를 제거한다. 정본은 `.bouncer/context/`다.
+
 ## [1.4.2] — 2026-09-08
 
 1.4.1 이후 DAG 코디네이터 위임 실행, 활성 포인터 namespace, task 수명주기·워크플로
