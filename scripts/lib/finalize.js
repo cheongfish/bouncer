@@ -313,6 +313,30 @@ function stringList(value) {
         .filter((entry) => typeof entry === 'string' && entry !== '');
 }
 /**
+ * checkout이 실제로 가리키는 local branch를 읽는다. detached HEAD·삭제된
+ * worktree·Git 조회 실패는 null로 보존한다. finalize는 provenance를 못 읽었다고
+ * 닫기를 거절하지 않으므로, 계산한 이름으로 빈 사실을 채우지 않는다.
+ *
+ * @param {string | null} worktreePath - branch를 확인할 checkout 경로
+ * @returns {string | null} 실제 branch 또는 확인 불가를 뜻하는 null
+ */
+function resolveCheckoutBranch(worktreePath) {
+    if (!worktreePath)
+        return null;
+    try {
+        const branch = String(execFileSync('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], {
+            cwd: worktreePath,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+        })).trim();
+        return branch || null;
+    }
+    catch (_error) {
+        // detached HEAD와 접근 불가 checkout은 provenance에서 구별할 branch가 없다.
+        return null;
+    }
+}
+/**
  * coordinator 원장을 explain 기록과 cleanup 목록이 함께 쓰는 한 장으로 접는다.
  *
  * 원장은 삭제되는 integration worktree 안에 있어 blueprint가 닫히면 사라진다.
@@ -334,6 +358,7 @@ function buildCoordinatorProvenance(ledger, { integrationPath = null, ledgerFile
         status: typeof entry.status === 'string' ? entry.status : 'pending',
         sha: stringOrNull(entry.sha),
         worktree: stringOrNull(entry.workerPath),
+        branch: stringOrNull(entry.branch) || resolveCheckoutBranch(stringOrNull(entry.workerPath)),
         scopeRevision: entry.scope ? stringOrNull(entry.scope.revision) : null,
         paths: entry.scope ? stringList(entry.scope.paths) : [],
         actualPaths: stringList(entry.actualPaths),
@@ -347,6 +372,8 @@ function buildCoordinatorProvenance(ledger, { integrationPath = null, ledgerFile
         ledgerFile,
         base: stringOrNull(ledger.base),
         integrationHead: stringOrNull(ledger.integrationHead),
+        integrationBranch: stringOrNull(ledger.integrationBranch)
+            || resolveCheckoutBranch(integrationPath),
         revision: stringOrNull(ledger.revision),
         integrationPath,
         tasks,
@@ -383,6 +410,7 @@ function provenanceFromLedgerRead(read) {
             integrationPath: read.integrationPath || null,
             base: null,
             integrationHead: null,
+            integrationBranch: null,
             revision: null,
             tasks: [],
             decisions: [],
@@ -492,12 +520,14 @@ function writeExplainCoordinator({ repoRoot, blueprintDir, provenance }) {
     bouncer.coordinator = {
         base: provenance.base,
         integration_head: provenance.integrationHead,
+        integration_branch: provenance.integrationBranch,
         revision: provenance.revision,
         worktrees: provenance.worktrees,
         tasks: provenance.tasks.map((task) => ({
             id: task.id,
             status: task.status,
             sha: task.sha,
+            branch: task.branch,
             scope_revision: task.scopeRevision,
             paths: task.paths,
             actual_paths: task.actualPaths,
@@ -565,6 +595,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         };
     }
     const coordinator = collected;
+    const branch = coordinator ? coordinator.integrationBranch : resolveCheckoutBranch(repoRoot);
     // top-level `worktrees`는 cleanup이 읽는 안정된 자리다(위 buildCoordinatorProvenance 주석).
     const worktrees = coordinator ? coordinator.worktrees : [];
     // next 후보 계산이 finalize를 깨면 안 됨: next()가 throw하면 빈 handoff
@@ -621,6 +652,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             next: computeNext(),
             closed: lockPath,
             coordinator,
+            branch,
             worktrees,
             integration,
         };
@@ -639,6 +671,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             next: computeNext(),
             closed: lockPath,
             coordinator,
+            branch,
             worktrees,
             integration,
         };
@@ -654,7 +687,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     catch (error) {
         const code = codedErrorCode(error);
         if (code) {
-            return { ok: false, reason: 'verify', code, command: null, exitCode: null, integration };
+            return { ok: false, reason: 'verify', code, command: null, exitCode: null, integration, branch };
         }
         throw error;
     }
@@ -670,6 +703,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             command,
             exitCode: execution.exitCode,
             integration,
+            branch,
         };
     }
     // 검증 성공 뒤에만 삭제·closed 전이·stage를 수행한다.
@@ -737,6 +771,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
         closed: lockPath,
         taskCommits,
         coordinator,
+        branch,
         worktrees,
         integration,
     };

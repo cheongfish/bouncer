@@ -133,8 +133,8 @@ your diffs, so return these fields and nothing else actionable:
 - **Blocked** — the failing task, the cause, the preserved ledger and worktree
   paths, and the recovery action a human can take.
 - **Decisions** — each recorded judgment with its cause and next action.
-- **Provenance** — the changed paths recorded in your decisions, worker
-  branches and commit SHAs, and any task or edge added during the drive.
+- **Provenance** — the changed paths recorded in your decisions, each worker's
+  ledger `branch` and commit SHA, and any task or edge added during the drive.
 - **Partial close** — both repair-wave decisions, the last CI command and paths,
   post-wave-two nonzero failure evidence, `NEXT_PLAN.md`, preserved ledger and
   worktrees, and the user confirmation result.

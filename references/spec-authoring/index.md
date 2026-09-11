@@ -36,7 +36,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
      rule below: whole flow here, with the chart fence in this body.
    - **blueprint**: what this unit delivers as one review / PR. Set `title`
      (and `bouncer.commit_type` if not `feat`) for the finalize remainder
-     subject and the execute branch prefix (`<type>/<id>-<slug>`). Write the
+     subject and shared standalone/integration branch (`<type>/<epic-id>-<blueprint-id>-<slug>`). Write the
      blueprint `## Intent` as 1–2 Korean terminal sentences; finalize uses it
      as the remainder body. Do **not** set task-only authored fields on the
      blueprint. For a flow change, show only this PR segment of the epic
@@ -200,7 +200,7 @@ setting these fields:
 
 | Field | Becomes |
 | --- | --- |
-| `blueprint` `bouncer.commit_type` (default `feat`) | commit `<type>:` and execute branch prefix `<type>/…` (`.gitmessage`: feat, fix, docs, style, refactor, test, chore) |
+| `blueprint` `bouncer.commit_type` (default `feat`) | commit `<type>:` and shared standalone/integration branch prefix `<type>/…` (`.gitmessage`: feat, fix, docs, style, refactor, test, chore) |
 | `tasks` `title` | **task commit subject** (명사형 어미). Falls back to blueprint `title` only when the task title is empty |
 | `tasks` `bouncer.commit_intent` (1–2 strings) | task-commit 배경·의도 bullets (`- …함`) |
 | `tasks` `bouncer.commit_summary` (1–2 strings) | task-commit 변경 요약 bullets after intent |

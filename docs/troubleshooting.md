@@ -41,6 +41,7 @@
 | `coordinate`가 `"reason": "stale-integration-head"` JSON을 내고 종료 코드 1 | integration worktree HEAD가 원장이 아는 값과 다릅니다. 원장은 그대로 남습니다. 아래 [integration 실패 재개](#integration-실패-재개) |
 | `coordinate`가 `"reason": "not-recorded"` JSON을 내고 종료 코드 1 | fan-in 대상이 `recorded`가 아닙니다. 이미 `integrated`인 task를 다시 부른 경우가 흔하며, 이 거절이 중복 cherry-pick을 막습니다. `bouncer coordinate status`로 현재 상태를 확인하세요 |
 | `coordinate bootstrap`이 `"reason": "bootstrap-requires-main-checkout"` 또는 `"main-source-mutated"` JSON을 내고 종료 코드 1 | `bootstrap`은 main checkout에서만 돌고, 도중에 main source 상태가 바뀌면 원장을 쓰지 않고 멈춥니다. 작업 트리를 정리한 뒤 다시 부르세요 |
+| `execute prepare` 또는 `coordinate`가 `"reason": "branch-conflict"` JSON을 내고 종료 코드 1 | 계산한 branch가 다른 checkout 또는 ref에 이미 있습니다. CLI는 suffix를 붙이거나 rename하지 않습니다. 사람이 기존 branch를 다른 이름으로 옮기거나 삭제한 뒤 같은 명령을 다시 실행하세요. standalone 뒤 coordinator drive를 시작할 때도 같은 branch를 공유하므로 이 복구가 필요합니다 |
 | `coordinate: <git 오류>`로 끝난 fan-in | cherry-pick 충돌입니다. 아래 [fan-in 충돌](#fan-in-충돌) |
 | worktree에 task 묶음(`tasks/<NNN>/{tasks,verification,review}.md`)이 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |

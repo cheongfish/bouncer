@@ -67,8 +67,13 @@ only, a simple rename/move, or when a diagram would be denser than the code.
 
 ### Push + create
 
+Read the finalize payload's top-level `branch` before running either command.
+If `branch` is `null`, do not push or create a draft PR: report that the
+checkout branch could not be resolved, then continue with the selected local
+finalize/cleanup path. Do not reconstruct a branch name from blueprint data.
+
 ```bash
-git push -u origin <type>/<BP-id>-<slug>
+git push -u origin <finalize payload branch>
 gh pr create --draft --base <config.base_branch> --title "[YYMMDD] (→ MergeTarget) [Type] summary" --body-file <rendered pr body>
 ```
 

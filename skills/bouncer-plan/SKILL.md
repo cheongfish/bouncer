@@ -144,7 +144,10 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    `.gitmessage`. `/bouncer-finalize` remainder uses the blueprint `## Intent`
    (1–2 Korean terminal sentences) as its body and the blueprint `title` as
    subject.
-   `commit_type` also becomes the execute branch prefix (`<type>/<id>-<slug>`).
+   `commit_type` participates in the shared branch helper: standalone and
+   integration branches are `<type>/<epic-id>-<blueprint-id>-<slug>`; worker
+   branches are `bouncer/<epic-id>-<blueprint-id>-<task-id>`. Reused worktrees
+   retain their actual branch and are never renamed.
    **Light declaration.** When the user declared the light path, blueprint
    `index.md` frontmatter `bouncer.scale` must be `light`. Step 2 with
    `--scale light` already sets that. Scaffolding without `--scale` writes

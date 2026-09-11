@@ -40,8 +40,9 @@ coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
 
 Epic/Blueprint 식별자는 커밋에 넣지 않고 PR 본문·blueprint 문서에
 둡니다.
-execute 브랜치도 같은 `bouncer.commit_type`을 prefix로 씁니다:
-`<type>/<id>-<slug>` (`feat/…`, `refactor/…`, `test/…` 등).
+standalone execute와 coordinator integration 브랜치는 같은 helper로
+`<type>/<epic-id>-<blueprint-id>-<slug>`를 씁니다. 이미 등록된 worktree는
+실제 branch를 유지하며 rename하지 않습니다.
 scaffold 기본값(`001 slug` 등)을 남기면 그 문구가 커밋에 들어가므로,
 `/bouncer-plan`에서 `.gitmessage` 기준으로 `title`·task `commit_intent`를
 고쳐 두세요. `/bouncer-commit` 직전에 task `commit_intent`가 없으면 스킬이
