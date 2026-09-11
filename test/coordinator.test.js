@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { readyWave, transition, coordinate } = require('../scripts/lib/coordinator');
+const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
 const { writeCurrent } = require('../scripts/lib/current');
 
 test('readyWave returns only pending tasks with completed dependencies', () => {
@@ -43,6 +44,57 @@ test('verification tasks use the ready-verifying-integrated state path', () => {
   assert.strictEqual(transition('ready', 'verifying', 'verification'), 'verifying');
   assert.strictEqual(transition('verifying', 'integrated', 'verification'), 'integrated');
   assert.throws(() => transition('ready', 'prepared', 'verification'), /illegal state transition/);
+});
+
+test('critical recovery records one prepared-task recovery and rejects invalid repeats', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-critical-recovery-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const blueprint = '.bouncer/context/epics/001-x/blueprints/001-y';
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, `${blueprint}/index.md`), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  fs.writeFileSync(path.join(repo, `${blueprint}/tasks/001/tasks.md`), '---\nbouncer:\n  status: ready\n---\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const started = coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, task: '001', findings: ['R-1', 'R-2'], reason: 'false acceptance risk' });
+  assert.strictEqual(started.ok, true, JSON.stringify(started));
+  assert.deepStrictEqual(started.task.criticalRecovery, {
+    used: 1, findings: ['R-1', 'R-2'], reason: 'false acceptance risk', outcome: null,
+  });
+  assert.deepStrictEqual(started.decision, {
+    task: '001', kind: 'critical-recovery', used: 1, findings: ['R-1', 'R-2'],
+    reason: 'false acceptance risk', outcome: null,
+  });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const beforeRepeat = fs.readFileSync(ledgerFile, 'utf8');
+  assert.strictEqual(coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, task: '001', findings: ['R-3'], reason: 'again' }).reason, 'critical-recovery-exhausted');
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), beforeRepeat);
+  assert.strictEqual(coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, task: '001', outcome: 'blocked', reason: 'unresolved' }).task.criticalRecovery.outcome, 'blocked');
+  assert.strictEqual(coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, task: '001', outcome: 'resolved', reason: 'again' }).reason, 'critical-recovery-closed');
+  const withoutStart = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  withoutStart.tasks[0].criticalRecovery = undefined;
+  withoutStart.tasks[0].status = 'prepared';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(withoutStart, null, 2)}\n`);
+  const noStart = coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, task: '001', outcome: 'blocked', reason: 'x' });
+  assert.strictEqual(noStart.reason, 'critical-recovery-not-started');
+  withoutStart.tasks[0].status = 'recorded';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(withoutStart, null, 2)}\n`);
+  assert.strictEqual(coordinate({ command: 'critical-recovery', repoRoot: repo, blueprint,
+    cwd: boot.integrationPath, task: '001', findings: ['R-1'], reason: 'x' }).reason, 'illegal-transition');
+  const malformed = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  malformed.status = 'active'; malformed.tasks[0].status = 'prepared';
+  malformed.tasks[0].criticalRecovery = { used: 2, findings: ['R-1'], reason: 'x', outcome: null };
+  assert.strictEqual(validateCoordinatorLedger(malformed).reason, 'critical-recovery-invalid');
 });
 
 test('verification integrate runs CI without a worker or commit and advances only on success', () => {

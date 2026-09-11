@@ -25,6 +25,34 @@ const CONTEXT_REVIEW_STATUS = ['resolved', 'accepted'];
 const EXECUTE_REVIEW_STATUS = ['resolved', 'accepted', 'deferred'];
 const REVIEW_STATUS = CONTEXT_REVIEW_STATUS;
 const NOTE_REQUIRED_STATUS = ['accepted', 'deferred'];
+const FINDING_ACTIONABILITY = ['must_fix', 'advisory'];
+const FINDING_ORIGIN = ['discovery', 'introduced_by_revision', 'missed_critical'];
+const ROUND_MODE = ['discovery', 'delta', 'critical_recovery'];
+const REVIEW_PERSPECTIVE = ['spec_scope', 'correctness_tests', 'minimality_maintainability', 'security'];
+// 계획 문서 판정은 context reviewer의 네 판단 범위를 그대로 관점으로 쪼갠 것이다.
+// execute 관점과 이름을 섞지 않아야 G18이 diff 리뷰 원장을 계획 원장으로 오인하지 않는다.
+const CONTEXT_REVIEW_PERSPECTIVE = ['cross_document', 'scope', 'korean_quality', 'success_criteria'];
+// execute fingerprint는 접두가 없고 context fingerprint만 이 접두를 갖는다. 두 원장이
+// 같은 문자열을 만들 수 없게 해 finding을 다른 리뷰로 옮겨 적는 실수를 게이트가 잡는다.
+const CONTEXT_FINDING_NAMESPACE = 'context';
+const EXECUTE_ROUND_CONTRACT = {
+    modes: ROUND_MODE,
+    sequences: ['discovery', 'discovery,delta', 'discovery,delta,critical_recovery,delta'],
+    perspectives: REVIEW_PERSPECTIVE,
+    targetKeys: ['base', 'head'],
+    targetKey: 'head',
+    perspectiveTargetKey: 'target_head',
+    counters: true,
+};
+const CONTEXT_ROUND_CONTRACT = {
+    modes: ['discovery', 'delta'],
+    sequences: ['discovery', 'discovery,delta'],
+    perspectives: CONTEXT_REVIEW_PERSPECTIVE,
+    targetKeys: ['digest'],
+    targetKey: 'digest',
+    perspectiveTargetKey: 'target_digest',
+    counters: false,
+};
 // G10과 동일한 비어 있음 계약: 제목은 있고, comment-strip 후 본문이 있어야 함.
 // comprehension module이 어떤 section이 있는지 SSOT가 되도록 key는
 // EXPLAIN_SECTION_DEFS를 반영; regex는 parseSections 옆에 둠.
@@ -115,8 +143,26 @@ function isNonNegativeInteger(value) {
     return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 /**
+ * finding 식별자를 한 곳에서 정규화한다. review 작성자마다 `./`·대소문자가 달라
+ * 같은 문제를 새 finding으로 기록하는 일을 막기 위해, namespace는 후속 계약이
+ * 필요할 때만 정규형 앞에 붙인다.
+ */
+function findingFingerprint({ category, brief_clause, file, symbol, }, namespace) {
+    const normalized = [
+        String(category ?? '').trim().toLowerCase(),
+        String(brief_clause ?? '').trim().toLowerCase(),
+        toPosix(String(file ?? '').trim()).replace(/^\.\//, ''),
+    ].join(':');
+    const fingerprint = `${normalized}#${String(symbol ?? '').trim()}`;
+    return namespace ? `${namespace}:${fingerprint}` : fingerprint;
+}
+function missingFindingField(record, field) {
+    const value = record[field];
+    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+}
+/**
  * 리뷰 finding 형식 실패를 모은다. 본문 판정 문장은 읽지 않는다 —
- * heading 존재와 id/severity/status/note, execute면 선택적 rounds[]만 본다.
+ * heading 존재와 id/severity/status/note, 그리고 선택적 rounds[]만 본다.
  *
  * G14와 G18이 헬퍼를 공유하되 allowedStatuses로 계약을 가른다. 한 배열을
  * 쓰면 deferred가 계획 문서에 새거나, execute가 기존 resolved/accepted를
@@ -130,10 +176,13 @@ function isNonNegativeInteger(value) {
  * @param {string} sectionLabel - ## Findings 부재 메시지에 쓰는 문서 이름
  * @param {string} findingLabel - finding/round 메시지 접두
  * @param {readonly string[]} allowedStatuses - execute 또는 context 허용 status
- * @param {unknown} [rounds] - execute `bouncer.review.rounds`. 부재면 검사 생략
+ * @param {unknown} [rounds] - execute `bouncer.review.rounds` 또는 context
+ *   `bouncer.context_review.rounds`. 부재면 검사 생략
+ * @param {'context'} [namespace] - context review면 fingerprint 접두와 context round 계약.
+ *   생략하면 execute 계약(접두 없음, commit target)
  * @returns {string[]} 게이트 메시지. 없으면 빈 배열
  */
-function collectFindingFailures({ body, findings, sectionLabel, findingLabel, allowedStatuses, rounds, }) {
+function collectFindingFailures({ body, findings, sectionLabel, findingLabel, allowedStatuses, rounds, reviewStatus, namespace, }) {
     const messages = [];
     const rs = parseSections(typeof body === 'string' ? body : '', REVIEW_SECTION_DEFS);
     if (!rs.findings) {
@@ -144,6 +193,8 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel, al
         return messages;
     }
     const list = Array.isArray(findings) ? findings : [];
+    const modeContract = Array.isArray(rounds) && rounds.some((entry) => isRecord(entry) && entry.mode !== undefined);
+    const fingerprints = new Set();
     for (const fnd of list) {
         const rec = isRecord(fnd) ? fnd : fnd;
         const id = rec && rec.id ? rec.id : '(no id)';
@@ -157,19 +208,63 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel, al
             && (!rec.note || String(rec.note).trim() === '')) {
             messages.push(`${findingLabel} finding ${id} ${String(rec.status)} without note`);
         }
+        if (modeContract && rec) {
+            for (const field of [
+                'category', 'brief_clause', 'file', 'symbol', 'fingerprint', 'actionability',
+                'origin', 'first_seen_round', 'last_seen_round',
+            ]) {
+                if (missingFindingField(rec, field))
+                    messages.push(`${findingLabel} finding ${id} ${field} missing`);
+            }
+            // context category는 finding이 나온 관점 이름이다. fingerprint 일치만 보면 execute
+            // 관점(spec_scope 등)을 category와 fingerprint에 함께 적은 finding이 통과한다.
+            // execute(G14) category는 자유 분류라 이 검사를 context namespace에만 건다.
+            if (namespace === CONTEXT_FINDING_NAMESPACE && !missingFindingField(rec, 'category')
+                && !CONTEXT_REVIEW_PERSPECTIVE.includes(rec.category)) {
+                messages.push(`${findingLabel} finding ${id} category invalid: ${String(rec.category)}`);
+            }
+            if (!missingFindingField(rec, 'fingerprint')) {
+                const fingerprint = String(rec.fingerprint);
+                const hasContextPrefix = fingerprint.startsWith(`${CONTEXT_FINDING_NAMESPACE}:`);
+                // namespace 판정을 mismatch보다 먼저 한다. 접두만 틀린 경우를 mismatch로
+                // 보고하면 작성자가 구성 요소를 고치려 들고, 원장 혼동이라는 원인이 가려진다.
+                if (namespace ? !hasContextPrefix : hasContextPrefix) {
+                    messages.push(`${findingLabel} finding ${id} fingerprint namespace invalid`);
+                }
+                else if (fingerprint !== findingFingerprint({
+                    category: rec.category, brief_clause: rec.brief_clause, file: rec.file, symbol: rec.symbol,
+                }, namespace)) {
+                    messages.push(`${findingLabel} finding ${id} fingerprint mismatch`);
+                }
+                if (fingerprints.has(fingerprint))
+                    messages.push(`${findingLabel} duplicate fingerprint ${fingerprint}`);
+                fingerprints.add(fingerprint);
+            }
+            if (!FINDING_ACTIONABILITY.includes(rec.actionability)) {
+                messages.push(`${findingLabel} finding ${id} actionability invalid`);
+            }
+            if (!FINDING_ORIGIN.includes(rec.origin)) {
+                messages.push(`${findingLabel} finding ${id} origin invalid`);
+            }
+            if (reviewStatus === 'accepted' && rec.actionability === 'must_fix' && rec.status !== 'resolved') {
+                messages.push(`${findingLabel} accepted with open must_fix ${id}`);
+            }
+        }
     }
-    messages.push(...collectRoundFailures(rounds, findingLabel));
+    messages.push(...collectRoundFailures(rounds, findingLabel, list, modeContract, namespace === CONTEXT_FINDING_NAMESPACE ? CONTEXT_ROUND_CONTRACT : EXECUTE_ROUND_CONTRACT));
     return messages;
 }
 /**
  * 선택적 round ledger 형식 실패를 모은다. 집계는 문자열·소수가 아니라
  * 정수여야 하고, round 번호는 중복·역순이면 이전 finding 관계를 믿을 수 없다.
  *
- * @param {unknown} rounds - `bouncer.review.rounds`. undefined면 구문서 호환으로 통과
+ * @param {unknown} rounds - `bouncer.review.rounds` 또는 `bouncer.context_review.rounds`.
+ *   undefined면 구문서 호환으로 통과
  * @param {string} findingLabel - 메시지 접두
+ * @param {RoundContract} contract - execute 또는 context round 계약
  * @returns {string[]} 형식 실패 메시지
  */
-function collectRoundFailures(rounds, findingLabel) {
+function collectRoundFailures(rounds, findingLabel, findings = [], modeContract = false, contract = EXECUTE_ROUND_CONTRACT) {
     if (rounds === undefined)
         return [];
     if (!Array.isArray(rounds)) {
@@ -178,6 +273,8 @@ function collectRoundFailures(rounds, findingLabel) {
     const messages = [];
     const seen = new Set();
     let lastRound = 0;
+    const modes = [];
+    const modeByRound = new Map();
     for (const entry of rounds) {
         if (!isRecord(entry)) {
             messages.push(`${findingLabel} rounds entry invalid`);
@@ -196,6 +293,34 @@ function collectRoundFailures(rounds, findingLabel) {
         }
         seen.add(round);
         lastRound = round;
+        if (modeContract) {
+            if (!contract.modes.includes(entry.mode)) {
+                messages.push(`${findingLabel} round ${round} mode invalid`);
+            }
+            else {
+                modes.push(entry.mode);
+                modeByRound.set(round, entry.mode);
+            }
+            const target = isRecord(entry.target) ? entry.target : undefined;
+            if (!target || contract.targetKeys.some((key) => !target[key])) {
+                messages.push(`${findingLabel} round ${round} target invalid`);
+            }
+            if (entry.perspectives !== undefined) {
+                const perspectives = Array.isArray(entry.perspectives) ? entry.perspectives : [entry.perspectives];
+                for (const perspective of perspectives) {
+                    const item = isRecord(perspective) ? perspective : {};
+                    const name = typeof item.name === 'string' ? item.name : String(item.name ?? '(no name)');
+                    if (!contract.perspectives.includes(item.name)) {
+                        messages.push(`${findingLabel} round ${round} perspective invalid ${name}`);
+                    }
+                    else if (target && item[contract.perspectiveTargetKey] !== target[contract.targetKey]) {
+                        messages.push(`${findingLabel} round ${round} target mismatch ${name}`);
+                    }
+                }
+            }
+        }
+        if (!contract.counters)
+            continue;
         if (!Array.isArray(entry.previous_finding_ids)
             || entry.previous_finding_ids.some((id) => typeof id !== 'string')) {
             messages.push(`${findingLabel} round ${round} previous_finding_ids invalid`);
@@ -203,6 +328,22 @@ function collectRoundFailures(rounds, findingLabel) {
         for (const key of ['new', 'resolved', 'regressed']) {
             if (!isNonNegativeInteger(entry[key])) {
                 messages.push(`${findingLabel} round ${round} ${key} invalid: ${entry[key]}`);
+            }
+        }
+    }
+    if (modeContract) {
+        if (!contract.sequences.includes(modes.join(',')))
+            messages.push(`${findingLabel} rounds sequence invalid`);
+        for (const entry of findings) {
+            if (!isRecord(entry) || !isPositiveInteger(entry.first_seen_round))
+                continue;
+            if (modeByRound.get(entry.first_seen_round) !== 'delta')
+                continue;
+            const allowed = entry.origin === 'introduced_by_revision'
+                || (entry.origin === 'missed_critical' && (entry.severity === 'blocker' || entry.severity === 'major'));
+            if (!allowed) {
+                const id = entry.id ? entry.id : '(no id)';
+                messages.push(`${findingLabel} finding ${id} delta origin not allowed`);
             }
         }
     }
@@ -225,5 +366,6 @@ module.exports = {
     extractPathCandidates,
     pathsOverlap,
     pathJustifiedByTouch,
+    findingFingerprint,
     collectFindingFailures,
 };

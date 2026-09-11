@@ -164,16 +164,11 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    task change, or terminal blocked), not a return to `/bouncer-plan`.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
-   Otherwise use the `review` skill (`${BOUNCER_ROOT}/references/review/index.md`). When dispatching a named agent or applying its fallback, apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this reference: [agent-dispatch.md](./references/agent-dispatch.md). Fill `${BOUNCER_ROOT}/references/review/assets/reviewer-prompt.md` with the brief, base/HEAD, constraints, previous finding IDs, resolution, revision diff, and latest verification; scale never changes reviewer dispatch.
-   As controller, update existing `<pointer task directory>/review.md` body `## Findings` and
-   `bouncer.review.findings[]` from the reviewer output — the subagent must not
-   flip status; Findings recording and status are the controller's job on the
-   inline path too. Review is two rounds with a conditional third as the ceiling.
-
+   Otherwise, only after the latest verification passes, enter the controller-owned
+   review state procedure in the [`review` skill](`${BOUNCER_ROOT}/references/review/index.md`).
    When a review round may start or stop, read [review-round.md](./references/review-round.md).
-
-   While reviewing, you may run the `minimality` skill (`${BOUNCER_ROOT}/references/minimality/index.md`) (advisory) to flag
-   unnecessary new dependencies or abstractions in the diff.
+   The ceiling is one frozen parallel discovery wave, one fix batch, and one delta
+   certification; a drive alone may add one critical recovery.
 
 6. **Gate.** Run `validate --gate execute`:
    ```bash

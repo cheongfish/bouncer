@@ -14,7 +14,7 @@
 | `bouncer scaffold context-review --blueprint <dir>` | BP `context-review.md` 생성. 이미 있으면 덮어쓰지 않고 거절. `closed` blueprint도 거절 |
 | `bouncer commit --blueprint <dir> [--yes]` | task 커밋 범위 확인, `--yes`면 그 task만 커밋. 포인터는 옮기지 않음. 성공 JSON에 `controller`(ledger 활성이면 `coordinator`, 아니면 `standalone`)·`nextAction`(dry-run은 `confirm-commit`, drive의 커밋·빈 staged는 `return-to-coordinator`, standalone은 `nextTask`가 있으면 `ask-next-task` 없으면 `finalize`)·`stampPath`(`commit_sha`를 쓴 tasks.md, 없으면 `null`)를 싣고, 실패 JSON에 `recovery: { action, detail }`를 싣음 |
 | `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 context 변경 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear. dry-run·`--yes` 성공 JSON과 `coordinator-ledger` 거절 JSON에 `integration`(`ledger`: `absent` \| `ok` \| `unreadable`, `required`, `complete`, `openTasks`, `headVerified`)을 싣음. 보고 전용이며 거절 reason을 바꾸지 않음 |
-| `bouncer coordinate <bootstrap\|prepare\|ready\|record\|integrate\|status\|revise> --blueprint <dir> [--task <NNN>] [--sha <sha>] [--decision <text>] [--paths <p>]... [--reason <text>]` | coordinator 원장과 격리 worktree 운용. 결과 JSON은 stdout에 냄 — `{ok:false}` 거절도 `{"ok": false, "reason": …}` JSON으로 stdout에 나오고(`revise`만 예외로 stderr) 종료 코드 1. assigned-worktree 불일치·Git 실패는 throw 경로라 stderr 한 줄. 자세한 것은 아래 [`bouncer coordinate`](#bouncer-coordinate) |
+| `bouncer coordinate <bootstrap\|prepare\|ready\|record\|rerecord\|integrate\|status\|revise\|repair\|partial-close\|critical-recovery> --blueprint <dir> [--task <NNN>] [--sha <sha>] [--decision <text>] [--paths <p>]... [--findings <id>]... [--outcome <resolved\|blocked>] [--reason <text>]` | coordinator 원장과 격리 worktree 운용. 결과 JSON은 stdout에 냄 — `{ok:false}` 거절도 `{"ok": false, "reason": …}` JSON으로 stdout에 나오고(`revise`만 예외로 stderr) 종료 코드 1. assigned-worktree 불일치·Git 실패는 throw 경로라 stderr 한 줄. 자세한 것은 아래 [`bouncer coordinate`](#bouncer-coordinate) |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 worktree로 이전하고 base를 원상복구. 옮길 것이 없으면 성공 |
 | `bouncer execute prepare --blueprint <dir>` | standalone execute worktree를 만들거나 재사용하고 plan 문서를 seed한 뒤 JSON을 출력. coordinator 원장이 있으면 `drive: true`와 배정된 worker 경로만 내고 생성·seed는 하지 않음 |
 | `bouncer plan inspect [--epic-dir <dir>]` | 다음 epic/blueprint id, `maintenance` epic, 저장소 루트 verify 신호, pointer 상태를 JSON으로 출력. 읽기 전용이며 `.bouncer/`가 없으면 `not-initialized`, `--epic-dir`가 정본 경로가 아니거나 없으면 `invalid-epic-dir` |
@@ -62,17 +62,18 @@ blueprint를 가리키면 `CURRENT_INVALID`로 둘 다 보고하고 어느 쪽�
 branch·worktree·fan-in Git 작업은 전부 이 명령을 거치며, 손으로 worktree를
 만들거나 지우지 않습니다. 성공은 종료 코드 0과 stdout JSON입니다. 거절은
 종료 코드 1이며, 채널은 거절이 어떻게 나오느냐로 갈립니다. `{"ok": false,
-"reason": …}` 반환 경로는 `revise`를 뺀 여섯 서브커맨드에서 그 JSON을 그대로
+"reason": …}` 반환 경로는 `revise`를 뺀 열 서브커맨드에서 그 JSON을 그대로
 **stdout**에 냅니다. `revise`만 stdout을 비우고 `coordinate revise: <reason>`
 한 줄을 stderr에 냅니다. 반면 throw 경로 — 아래 assigned-worktree 불일치와
 cherry-pick 등 Git 실패 — 는 `reason` JSON이 아니라 `coordinate: <메시지>`
 한 줄을 **stderr**에 내고 stdout은 비웁니다. 사용법 오류는 종료 코드 2입니다.
 
 **어디서 부르나가 계약의 일부입니다.** `bootstrap`은 main checkout에서,
-`prepare`·`ready`·`status`·`integrate`는 integration worktree에서,
-`record`·`revise`는 그 task에 배정된 worker worktree에서 부릅니다.
-`prepare`·`ready`·`status`·`integrate`·`record` 다섯은 cwd를 배정 경로와
-대조해, 자리가 다르면 `coordinate command must run in its assigned worktree`로
+`prepare`·`ready`·`status`·`integrate`·`repair`·`partial-close`·`critical-recovery`는
+integration worktree에서, `record`·`rerecord`·`revise`는 그 task에 배정된 worker
+worktree에서 부릅니다. `bootstrap`·`revise`를 뺀 아홉 — `prepare`·`ready`·`status`·
+`integrate`·`repair`·`partial-close`·`critical-recovery`·`record`·`rerecord` — 은
+cwd를 배정 경로와 대조해, 자리가 다르면 `coordinate command must run in its assigned worktree`로
 끝납니다. 나머지 둘은 자리를 다르게 봅니다 — `bootstrap`은 cwd를 보지 않고
 `--repo`(없으면 cwd)가 main checkout인지만 확인해 아니면
 `bootstrap-requires-main-checkout`으로 거절하고, `revise`는 cwd를 보되 거절
@@ -86,6 +87,7 @@ cherry-pick 등 Git 실패 — 는 `reason` JSON이 아니라 `coordinate: <메�
 | `status` | integration worktree | 원장 전체 상태를 읽습니다 | `ready`, `tasks`, `decisions` |
 | `record` | worker worktree | `--task`의 worker HEAD를 결과 SHA로 원장에 올리고 `recorded`로 옮깁니다. `--sha`를 주면 worker HEAD와 같아야 하고, `--decision <text>`는 그 판단을 결정 로그에 함께 남깁니다 | `task`(`sha`·`status`), `decisions` |
 | `integrate` | integration worktree | `recorded` task의 SHA를 integration branch로 cherry-pick하고 `integrated`로 옮깁니다. 원장의 `integrationHead`를 갱신합니다 | `task`, 다음 `ready`, `decisions` |
+| `critical-recovery` | integration worktree | prepared task의 blocker/major recovery 시작을 `used: 1`, 반복 가능한 `findings`, `reason`, `outcome: null`로 기록합니다. `--outcome resolved\|blocked --reason <text>` 호출은 그 결과만 채웁니다 | `task`(`criticalRecovery`), `decision`, `decisions` |
 | `revise` | worker worktree | 실행 중 발견한 경로로 그 task의 scope를 개정합니다. task 문서와 원장을 같은 `revision`으로 옮기고 결정 로그에 이전·다음 경로를 붙입니다. `--paths`는 반복할 수 있고 `--reason`은 필수입니다 | `revision`, `previous`, `paths` |
 
 `revise`는 scope를 바꾸는 유일한 표면입니다. 저장소 source 경로만 받고, 절대
@@ -109,15 +111,22 @@ throw 경로 문단).
 | `non-git-root` | `revise`를 뺀 전부 | `--repo`/cwd가 Git 저장소가 아닙니다 |
 | `no-git` | `revise` | `revise` 경로에서 저장소 runtime 경로를 못 풀었습니다(Git 저장소가 아니거나 worktree 정보를 읽지 못함) |
 | `no-coordinator-paths` | `revise` | `revise` 경로에서 blueprint 경로로부터 epic/blueprint id를 뽑지 못했습니다. coordinator 대상이 아닌 레거시 경로입니다 |
-| `unknown-coordinate-command` | 코어 직접 호출 | 코어가 모르는 서브커맨드입니다. CLI 앞단은 일곱 이름만 통과시키므로, 이 코드는 CLI를 거치지 않고 코어를 직접 부른 호출에서만 나옵니다 |
+| `unknown-coordinate-command` | 코어 직접 호출 | 코어가 모르는 서브커맨드입니다. CLI 앞단은 열한 이름만 통과시키므로, 이 코드는 CLI를 거치지 않고 코어를 직접 부른 호출에서만 나옵니다 |
 | `bootstrap-requires-main-checkout` | `bootstrap` | `bootstrap`을 main checkout이 아닌 자리에서 불렀습니다 |
 | `main-source-mutated` | `bootstrap` | integration 등록 도중 main worktree의 source 상태가 바뀌었습니다. 원장을 쓰지 않고 멈춥니다 |
-| `unassigned-integration-worktree` | `bootstrap`·`status`·`prepare`·`record`·`integrate` | integration 경로가 등록된 worktree가 아니거나 symlink로 바뀌었습니다 |
+| `unassigned-integration-worktree` | `bootstrap`·`status`·`prepare`·`record`·`integrate`·`critical-recovery` | integration 경로가 등록된 worktree가 아니거나 symlink로 바뀌었습니다 |
 | `unassigned-worker-worktree` | `prepare`·`record` | worker 경로가 등록된 worktree가 아니거나, 원장이 기억하는 경로와 다릅니다 |
-| `missing-ledger` | `status`·`prepare`·`record`·`integrate`·`revise` | integration worktree에 원장이 없습니다. 먼저 `bootstrap` |
-| `task-required` / `task-outside-blueprint` | `record`·`integrate`·`revise` | `--task`가 없거나 세 자리 형식이 아니거나, 그 blueprint의 task가 아닙니다 |
+| `missing-ledger` | `status`·`prepare`·`record`·`integrate`·`critical-recovery`·`revise` | integration worktree에 원장이 없습니다. 먼저 `bootstrap` |
+| `task-required` / `task-outside-blueprint` | `record`·`integrate`·`critical-recovery`·`revise` | `--task`가 없거나 세 자리 형식이 아니거나, 그 blueprint의 task가 아닙니다 |
 | `missing-worktree` / `missing-blueprint` / `copy-failed` | `prepare` | `prepare`가 worker에 계획 문서를 seed하다 실패했습니다. 이 셋은 `seed-worktree` 코어가 내는 코드를 `prepare`가 그대로 표면화한 것입니다 — worker 경로가 디렉터리가 아니거나, blueprint 디렉터리가 없거나, 복사가 실패했습니다 |
-| `illegal-transition` | `record` | `record` 대상이 `prepared`가 아닙니다 |
+| `illegal-transition` | `record`·`critical-recovery` | `record` 또는 recovery 시작 대상이 `prepared`가 아닙니다 |
+| `critical-recovery-exhausted` | `critical-recovery` | 시작 기록이 이미 있는 task에 두 번째 recovery 시작을 시도했습니다 |
+| `critical-recovery-not-started` | `critical-recovery` | 시작 기록 없이 `--outcome` 결과를 쓰려 했습니다 |
+| `critical-recovery-closed` | `critical-recovery` | outcome이 이미 있는 recovery의 결과를 다시 쓰려 했습니다 |
+| `critical-recovery-outcome-invalid` | `critical-recovery` | `--outcome` 값이 `resolved` 또는 `blocked`가 아닙니다 |
+| `critical-recovery-invalid` | `critical-recovery` | 원장의 recovery가 `used: 1`과 필수 필드 형태를 지키지 않습니다. 원장은 쓰지 않습니다 |
+| `findings-required` | `critical-recovery` | 시작 기록에 `--findings`가 없거나 값 없는 `--findings`만 있습니다 |
+| `reason-required` | `critical-recovery` | 시작·결과 기록에 비어 있지 않은 `--reason`이 없습니다 |
 | `sha-not-worker-head` | `record` | `--sha`가 그 worker의 HEAD가 아닙니다 |
 | `not-recorded` | `integrate` | `integrate` 대상이 `recorded`가 아닙니다. 이미 `integrated`인 task를 다시 부른 경우도 여기 걸려 중복 cherry-pick을 막습니다 |
 | `sha-not-owned-by-worker` | `integrate` | 기록된 SHA가 그 worker HEAD의 조상이 아닙니다 |
@@ -131,7 +140,7 @@ throw 경로 문단).
 | `unreadable-ledger` | `revise` | 원장 JSON을 읽을 수 없습니다. `revise`는 위치(main checkout인지, 배정된 worker인지)를 먼저 보므로 위치가 틀리면 이 코드 대신 위치 코드가 나옵니다 |
 
 `unreadable-ledger`를 `reason`으로 내는 서브커맨드는 `revise`뿐입니다.
-`bootstrap`·`status`(별칭 `ready` 포함)·`prepare`·`record`·`integrate`는 원장을 가드 없이
+`bootstrap`·`status`(별칭 `ready` 포함)·`prepare`·`record`·`integrate`·`critical-recovery`는 원장을 가드 없이
 파싱하므로, 손상된 원장을 만나면 거절 코드가 아니라 파싱 예외가 stderr에
 `coordinate: Unexpected token …` 한 줄로 나오고 종료 코드는 1입니다.
 `bootstrap`의 `loadLedger(...) || {…}` 대체도 예외가 아닙니다 — 그 대체는

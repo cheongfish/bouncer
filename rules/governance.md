@@ -167,6 +167,14 @@ the current task scope, its `revision`, and an append-only decision log.
   to the worktree the coordinator assigned; the main checkout stays read-only
   provenance for the whole drive. Workers report; only the coordinator revises
   scope, moves the pointer, and records the judgment behind either.
+- **Critical recovery budget** — delta certification may send one qualifying
+  `introduced_by_revision` or `missed_critical` blocker/major finding back to a
+  prepared task when the brief and diff show false-acceptance risk without
+  changing task intent or introducing a product decision, dependency, or public
+  interface. Record its findings and reason with `coordinate critical-recovery`
+  before dispatch, then record `resolved` or `blocked` afterward. The task has
+  exactly one such recovery: a remaining same finding or any new blocker/major
+  is terminal `blocked`, never another dispatch.
 
 The commit gate is the weaker of the three layers. **G17** judges staged paths
 against the task document alone and reads no ledger, so it accepts a stale

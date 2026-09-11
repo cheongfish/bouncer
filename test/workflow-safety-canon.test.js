@@ -178,7 +178,8 @@ test('row 7 debugger recovery ceiling lives in verification-recovery.md', () => 
 
 test('row 8 review round ceiling lives in review-round.md', () => {
   const rounds = read('skills/bouncer-execute/references/review-round.md');
-  assert.match(rounds, /fourth round/);
+  assert.match(rounds, /discovery wave 1회[\s\S]{0,100}delta certification 1회/);
+  assert.doesNotMatch(rounds, /fourth round/);
   assertSkillCites(['bouncer-execute'], /review-round\.md/, 'row 8');
 });
 

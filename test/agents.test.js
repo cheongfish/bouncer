@@ -146,6 +146,33 @@ test('bouncer-reviewer reports previous-finding relations and all actionable fin
   assert.match(prompt, /Latest verification/);
 });
 
+test('bouncer-reviewer separates discovery perspectives from delta certification', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  const prompt = fs.readFileSync(
+    path.join(root, 'references/review/assets/reviewer-prompt.md'),
+    'utf8',
+  );
+  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+
+  for (const placeholder of ['{{MODE}}', '{{PERSPECTIVE}}', '{{TARGET}}']) {
+    assert.ok(prompt.includes(placeholder), `reviewer prompt must include ${placeholder}`);
+  }
+  for (const perspective of [
+    'spec_scope',
+    'correctness_tests',
+    'minimality_maintainability',
+    'security',
+  ]) {
+    assert.match(md, new RegExp(`\\b${perspective}\\b`));
+  }
+  assert.match(md, /introduced_by_revision/);
+  assert.match(md, /missed_critical/);
+  assert.match(md, /origin/);
+
+  const tomlPath = path.join(root, '.codex/agents/bouncer-reviewer.toml');
+  assert.strictEqual(fs.readFileSync(tomlPath, 'utf8'), mdToCodexToml(md));
+});
+
 // 네 판정 scope의 본문 정본은 이 agent 문서다(skills/context-review Step 3에서 옮겨옴).
 // 스킬 쪽 doesNotMatch까지 함께 봐야 '복사가 아니라 이동'이 지켜졌음을 보장한다.
 const contextReviewSkill = () =>
@@ -204,6 +231,26 @@ test('bouncer-context-reviewer treats severity as a label, not a reporting filte
   assert.match(md, /report every real issue/i);
   assert.doesNotMatch(contextReviewSkill(), /label, not a filter/i);
   assert.doesNotMatch(contextReviewSkill(), /report every real issue/i);
+});
+
+// plan review도 execute처럼 관점 단위 discovery와 delta 인증으로 수렴한다.
+// 관점 이름은 G18이 round perspectives에서 받는 값과 같아야 한다.
+test('bouncer-context-reviewer judges one perspective and certifies deltas with origin', () => {
+  const md = contextReviewerAgent();
+  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+  for (const perspective of ['cross_document', 'scope', 'korean_quality', 'success_criteria']) {
+    assert.match(md, new RegExp(`\`${perspective}\``));
+  }
+  assert.match(md, /### Discovery/);
+  assert.match(md, /### Delta/);
+  assert.match(md, /introduced_by_revision/);
+  assert.match(md, /missed_critical/);
+  assert.match(md, /`origin`/);
+  assert.match(md, /context:/);
+  assert.match(md, /brief_clause/);
+
+  const tomlPath = path.join(root, '.codex/agents/bouncer-context-reviewer.toml');
+  assert.strictEqual(fs.readFileSync(tomlPath, 'utf8'), mdToCodexToml(md));
 });
 
 // coordinator는 /bouncer-run이 drive 권한을 넘긴 controller다. 이 네 절이

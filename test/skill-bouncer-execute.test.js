@@ -81,7 +81,7 @@ test('bouncer-execute uses root/local reference prefixes and states no-question 
       links: {
         3: ['./references/agent-dispatch.md'],
         4: ['./references/verification-recovery.md'],
-        5: ['./references/agent-dispatch.md', './references/review-round.md'],
+        5: ['./references/review-round.md'],
       },
     },
     acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [], only: true },
@@ -98,9 +98,7 @@ test('bouncer-execute uses root/local reference prefixes and states no-question 
   assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/implementation\/index\.md/);
   assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/verification\/index\.md/);
   assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/review\/index\.md/);
-  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/minimality\/index\.md/);
   assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/debugging\/index\.md/);
-  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/review\/assets\/reviewer-prompt\.md/);
   assert.match(body, /\.\/references\/agent-dispatch\.md/);
   assert.match(body, /\.\/references\/verification-recovery\.md/);
   assert.match(body, /\.\/references\/review-round\.md/);
@@ -205,48 +203,57 @@ test('bouncer-execute re-dispatches implementer with the debugger report after v
   assert.match(body, /sequential/);
 });
 
-test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', () => {
-  const { body } = parseFrontmatter(md);
+test('bouncer-execute step 5 keeps only review entry conditions and ceilings', () => {
+  const { body } = parseFrontmatter(mainMd);
   const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
-  assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/review\/assets\/reviewer-prompt\.md/);
-  assert.match(body, /bouncer-reviewer/);
+  const step5 = body.slice(body.indexOf('5. **Review.**'), body.indexOf('6. **Gate.**'));
+  assert.match(step5, /\$\{BOUNCER_ROOT\}\/references\/review\/index\.md/);
+  assert.match(step5, /\.\/references\/review-round\.md/);
+  assert.match(step5, /required\s*===\s*false|required === false/i);
+  assert.match(step5, /one frozen parallel discovery wave[\s\S]*one fix batch[\s\S]*one delta\s*\n?\s*certification/i);
+  assert.match(step5, /drive alone may add one\s*\n?\s*critical recovery/i);
+  assert.doesNotMatch(step5, /reviewer-prompt|bouncer-reviewer|fresh generic|## Findings|bouncer\.review\.findings|review\s*→\s*accepted/i);
   assert.match(dispatch, /rules\/subagent-model\.md/);
   assert.match(dispatch, /fresh generic|generic.*subagent/i);
-  assert.match(body, /controller/i);
-  assert.match(body, /## Findings/);
-  assert.match(body, /bouncer\.review\.findings/);
-  assert.match(body, /review\s*→\s*accepted|set\s*`?review\s*→\s*accepted/i);
-  assert.match(body, /required\s*===\s*false|required === false/i);
-  assert.match(body, /inline|no subagent/i);
+  assert.match(dispatch, /bouncer-reviewer/);
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
 
-test('bouncer-execute allows a conditional third review round then stops', () => {
+test('bouncer-execute runs one frozen discovery wave and one delta certification', () => {
   const { body } = parseFrontmatter(mainMd);
   const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
   assert.match(body, /\.\/references\/review-round\.md/);
-  assert.match(round, /round <= 2/);
-  assert.match(round, /round == 3/);
-  assert.match(round, /previous blocker\/major findings are resolved/);
-  assert.match(round, /latest verify passed/);
-  assert.match(round, /new actionable findings fit Goal, Interface, Constraints, affected_paths/);
-  assert.match(round, /Never start a fourth|네 번째/);
-  assert.match(round, /never flip[\s\S]{0,80}accepted/);
+  assert.match(round, /1 freeze[\s\S]*2 discover[\s\S]*3 aggregate[\s\S]*4 fix[\s\S]*5 verify[\s\S]*6 certify/);
+  assert.match(round, /must_fix/);
+  assert.match(round, /advisory/);
+  assert.match(round, /critical recovery/);
+  assert.match(round, /blocked/);
+  assert.doesNotMatch(round, /round <= 2/);
 });
 
 test('bouncer-execute replans instead of deferring accuracy findings', () => {
   const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
   assert.match(round, /Do not classify[\s\S]{0,80}deferred|deferred[\s\S]{0,80}accuracy/i);
   assert.match(round, /\/bouncer-plan/);
-  assert.match(round, /regresses|재발/);
+  assert.match(round, /blocked/);
 });
 
 test('bouncer-execute records each review round ledger in review.md', () => {
   const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
   assert.match(round, /bouncer\.review\.rounds/);
-  assert.match(round, /previous finding IDs|previous_finding_ids/);
-  assert.match(round, /new[\s\S]{0,40}resolved[\s\S]{0,40}regressed/);
+  assert.match(round, /fingerprints/);
+  assert.match(round, /severity_changes/);
+  assert.match(round, /actionability/);
+  assert.match(round, /origin/);
   assert.match(round, /review\.md/);
+});
+
+test('bouncer-execute records the drive-only critical recovery convergence sequence', () => {
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  assert.match(round, /discovery\s*→\s*delta\s*→\s*critical_recovery\s*→\s*delta/);
+  assert.match(round, /mode:\s*`?critical_recovery`?/);
+  assert.match(round, /introduced_by_revision/);
+  assert.match(round, /missed_critical[\s\S]{0,160}(blocker|major)/i);
 });
 
 test('bouncer-execute uses the pointer task document as the brief', () => {
@@ -363,6 +370,7 @@ test('bouncer-execute does not create a worktree during a coordinator drive', ()
 // drift는 서술이 아니라 CLI 호출로 기록된다. 그리고 그 표면은 하나뿐이다.
 test('bouncer-execute records scope drift with coordinate revise, not prose', () => {
   const exec = readWorkflowBundle('bouncer-execute');
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
   assert.match(exec, /bouncer coordinate revise --blueprint <dir> --task <NNN>/);
   assert.match(exec, /--paths <p> \[--paths <p>…\]/);
   assert.match(exec, /--reason <r>/);
@@ -371,7 +379,7 @@ test('bouncer-execute records scope drift with coordinate revise, not prose', ()
   // 라운드 상한을 넘긴 실패는 계획 후퇴가 아니라 coordinator 판정으로 간다.
   assert.match(exec, /not a return to `\/bouncer-plan`/);
   assert.match(exec, /hand the coordinator the open findings to\s*\n?\s*disposition/);
-  assert.match(exec, /unresolved\s*\n?\s*finding is never recorded\s*\n?\s*as done/);
+  assert.match(round, /unresolved finding is never recorded as\s*\n?\s*done/);
   assert.doesNotMatch(exec, /escalate to architecture/);
 });
 

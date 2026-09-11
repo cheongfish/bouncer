@@ -654,14 +654,23 @@ test('bouncer scaffold blueprint --scale light exits 0 with four created paths',
   assert.strictEqual(JSON.parse(r.out).created.length, 4);
 });
 
-test('execute review template documents deferred and rounds; context review does not', () => {
+// context review는 rounds 기록만 연다. deferred는 계속 계획 문서에 없다.
+test('review templates document rounds; only execute review documents deferred', () => {
   const { TEMPLATES } = require('../scripts/lib/templates');
   assert.match(TEMPLATES['review.md'], /status: resolved \| accepted \| deferred/);
   assert.match(TEMPLATES['review.md'], /rounds\[\]/);
   assert.match(TEMPLATES['review.md'], /previous_finding_ids/);
+  assert.match(TEMPLATES['review.md'], /fingerprint/);
+  assert.match(TEMPLATES['review.md'], /actionability: must_fix \| advisory/);
+  assert.match(TEMPLATES['review.md'], /mode \(discovery \| delta \| critical_recovery\)/);
   assert.match(TEMPLATES['context-review.md'], /status: resolved \| accepted/);
   assert.doesNotMatch(TEMPLATES['context-review.md'], /deferred/);
-  assert.doesNotMatch(TEMPLATES['context-review.md'], /rounds\[\]/);
+  assert.match(TEMPLATES['context-review.md'], /bouncer\.context_review\.rounds\[\]/);
+  assert.match(TEMPLATES['context-review.md'], /mode \(discovery \| delta\)/);
+  assert.match(TEMPLATES['context-review.md'], /fingerprint: context:<category>:<brief_clause>:<file>#<symbol>/);
+  assert.match(TEMPLATES['context-review.md'], /target_digest/);
+  // context에는 critical recovery가 없다.
+  assert.doesNotMatch(TEMPLATES['context-review.md'], /critical_recovery/);
 });
 
 test('scaffoldTask writes compatible DAG defaults and templates expose the fields', () => {
