@@ -8,267 +8,33 @@ const { nowIsoKst } = time;
 const sessionGraph = require("./session-graph");
 const { syncSessionGraphs } = sessionGraph;
 const graphify = require("./graphify");
-const { resolveGraphifyBin } = graphify;
+const { resolveGraphifyBin, checkGraphifyCompatibility } = graphify;
 const migrateTaskLayoutMod = require("./migrate-task-layout");
 const { migrateTaskLayout } = migrateTaskLayoutMod;
 const runtimeState = require("./runtime-state");
 const { runtimePaths } = runtimeState;
-const distill = require("./distill");
-const { readShards, routeShards, renderShards, resolveDistillRoot } = distill;
-const config = require("./config");
-const { readConfig, getDistillConfig } = config;
 const graphSearch = require("./graph-search");
-const { graphSuggest } = graphSearch;
-const DISTILL_MODES = new Set(['for', 'all', 'preflight', 'route', 'audit']);
-function parseDistillArgs(rest) {
-    const targets = [];
-    let mode = null;
-    let repo;
-    let json = false;
-    const fail = (message) => ({ error: `distill: ${message}\n`, targets, mode, repo, json });
-    for (let i = 0; i < rest.length; i += 1) {
-        const token = rest[i];
-        if (token === '--json') {
-            json = true;
-            continue;
-        }
-        if (token === '--repo') {
-            const value = rest[++i];
-            if (!value || value.startsWith('--'))
-                return fail('--repo requires a directory');
-            repo = value;
-            continue;
-        }
-        if (token === '--for' || token === '--route') {
-            const nextMode = token.slice(2);
-            const value = rest[++i];
-            if (!value || value.startsWith('--'))
-                return fail(`${token} requires at least one path`);
-            if (mode && mode !== nextMode)
-                return fail('modes cannot be combined');
-            mode = nextMode;
-            targets.push(value);
-            continue;
-        }
-        if (token === '--all' || token === '--audit' || token === '--preflight') {
-            const nextMode = token.slice(2);
-            if (mode && mode !== nextMode)
-                return fail('modes cannot be combined');
-            mode = nextMode;
-            continue;
-        }
-        if (token.startsWith('--'))
-            return fail(`unknown option: ${token}`);
-        // --for/--route 만 경로를 먹는다. 나머지 모드에 남은 위치 인자는
-        // unexpected가 아니라 path 거부로 모아 세 모드의 거절 문구가 갈라지지 않게 한다.
-        if (mode === 'all' || mode === 'audit' || mode === 'preflight') {
-            targets.push(token);
-            continue;
-        }
-        return fail(`unexpected argument: ${token}`);
-    }
-    if (!mode || !DISTILL_MODES.has(mode)) {
-        return fail('one of --for, --all, --preflight, --route, or --audit is required');
-    }
-    if ((mode === 'all' || mode === 'audit' || mode === 'preflight') && targets.length > 0) {
-        return fail(`${mode} does not accept a path`);
-    }
-    return { targets, mode, repo, json };
-}
-function allDistillSelection(state, reason) {
-    const shards = Array.isArray(state.shards) ? state.shards : [];
-    return {
-        full: true,
-        reason,
-        ids: Array.isArray(state.ids) ? state.ids : shards.map((shard) => shard.id),
-        shards: shards.slice(),
-    };
-}
-/**
- * 경로가 아직 없는 계획 초반용 선택. always 본문만 고르고, 인벤토리는
- * distillPayload가 등록 전체를 따로 투영한다.
- *
- * @param {DistillState} state - readShards 결과
- * @returns {{full: boolean, reason: string, ids: string[], shards: DistillShard[]}}
- *   샤드가 아니면 전량(`not-sharded`). 아니면 `always === true`만 (`preflight-always`).
- */
-function alwaysDistillSelection(state) {
-    // 인덱스 무효·단일 파일에는 always 필터를 걸 샤드 목록이 없다.
-    // 빈 선택으로 내면 본문이 사라져 프리플라이트가 침묵하므로 전량 폴백.
-    if (state.sharded !== true) {
-        return allDistillSelection(state, 'not-sharded');
-    }
-    const shards = Array.isArray(state.shards) ? state.shards : [];
-    const selected = shards.filter((shard) => shard.always === true);
-    return {
-        full: false,
-        reason: 'preflight-always',
-        ids: selected.map((shard) => shard.id),
-        shards: selected,
-    };
-}
-/**
- * `distill --all` 전용 크기 관측을 stderr로 낸다.
- * stdout 파이프 청결을 유지하고, S26과 같은 raw UTF-8 바이트로 잰다.
- * max_bytes는 경고 표시만 붙이며 본문을 자르거나 샤드를 빼지 않는다.
- *
- * @param {DistillState} state - readShards 결과. sharded가 아니면 단일 파일 폴백.
- * @param {string} content - 렌더된 stdout 본문. 단일 파일 폴백 총량에 쓴다.
- * @param {unknown} config - `.bouncer/config.json` 값. max_bytes 기준에 사용.
- * @param {CliIo} io - 출력 포트. err만 사용한다.
- * @returns {void}
- */
-function writeDistillAllSizeSummary(state, content, config, io) {
-    const maxBytes = getDistillConfig(config).max_bytes;
-    // 인덱스 부재·무효 폴백에는 샤드 목록이 없다. across 0 shards 로 적으면
-    // 빈 인덱스로 오해되므로 (single-file) 한 줄만 낸다.
-    if (state.sharded !== true) {
-        io.err(`distill: total ${Buffer.byteLength(content, 'utf8')} bytes (single-file)\n`);
-        return;
-    }
-    const shards = Array.isArray(state.shards) ? state.shards : [];
-    let total = 0;
-    for (const shard of shards) {
-        const bytes = Buffer.byteLength(typeof shard.raw === 'string' ? shard.raw : '', 'utf8');
-        total += bytes;
-        // 초과 표시는 같은 줄에 붙여 plan/프리플라이트가 한 패스로 걸러 읽을 수 있게 한다.
-        if (bytes > maxBytes) {
-            io.err(`distill: ${shard.id} ${bytes} (exceeds ${maxBytes})\n`);
-        }
-        else {
-            io.err(`distill: ${shard.id} ${bytes}\n`);
-        }
-    }
-    io.err(`distill: total ${total} bytes across ${shards.length} shards\n`);
-}
-function distillPayload(state, selection, mode, targets, routingEnabled = state.routingEnabled === true) {
-    const ids = Array.isArray(selection.ids) ? selection.ids : [];
-    const shards = Array.isArray(state.shards) ? state.shards : [];
-    // 선택 결과와 무관하게 인덱스의 전체 등록 순서를 노출해야 소비자가
-    // route/for 결과를 다시 읽지 않고도 배치 근거를 보존할 수 있다. 본문과
-    // 원문은 이미 content에 있으므로 메타데이터만 새 객체로 투영한다.
-    const auditShards = state.sharded === true
-        ? shards.map((shard) => {
-            const projected = {
-                id: shard.id,
-                path: shard.path,
-                always: shard.always,
-                pathsKnown: shard.pathsKnown,
-                pullsKnown: shard.pullsKnown,
-            };
-            // undefined를 빈 배열로 바꾸면 미선언과 빈 규칙을 구분할 수 없다.
-            // JSON.stringify는 undefined 필드를 생략하므로 선언된 값만 명시적으로
-            // 복사해 reader가 계산한 known 신호와 원래 메타데이터를 함께 보존한다.
-            if (shard.paths !== undefined)
-                projected.paths = shard.paths;
-            if (shard.pulls !== undefined)
-                projected.pulls = shard.pulls;
-            return projected;
-        })
-        : [];
-    return {
-        mode,
-        path: state.path,
-        repoRoot: state.repoRoot,
-        targetPaths: targets,
-        routingEnabled,
-        full: selection.full === true,
-        reason: selection.reason,
-        ids,
-        content: renderShards(state, selection),
-        audit: {
-            valid: state.valid === true,
-            sharded: state.sharded === true,
-            shardCount: shards.length,
-            selectedCount: ids.length,
-            ids,
-            shards: auditShards,
-        },
-    };
-}
-function cmdDistill(rest, io) {
-    const parsed = parseDistillArgs(rest);
-    if (parsed.error) {
-        io.err(parsed.error);
-        return 2;
-    }
-    const requestedRoot = (parsed.repo || process.cwd());
-    const paths = runtimePaths({ repoRoot: requestedRoot });
-    if (paths.unavailable || !paths.projectRoot) {
-        io.err(`distill: ${paths.reason || 'Bouncer requires a Git repository'}\n`);
-        return 1;
-    }
-    // Git 가용성만 runtimePaths로 판정한다. Distill 읽기 기준을 projectRoot로
-    // 고정하면 --repo로 고른 linked checkout의 Distill을 무시하게 된다.
-    const distillRoot = resolveDistillRoot({ repoRoot: requestedRoot, runtime: paths });
-    const state = readShards({ repoRoot: distillRoot, runtime: paths });
-    const config = readConfig(distillRoot);
-    const configRecord = config
-        && typeof config === 'object'
-        && !Array.isArray(config)
-        ? config
-        : null;
-    const configDistill = configRecord
-        && configRecord.distill
-        && typeof configRecord.distill === 'object'
-        && !Array.isArray(configRecord.distill)
-        ? configRecord.distill
-        : null;
-    // 명시된 config 값은 운영자가 현재 소비 모드를 선택한 신호이므로
-    // 인덱스의 과거 메타데이터보다 우선한다. config가 없거나 깨졌을 때는
-    // 기존 인덱스 flag를 사용해 단일 파일·구 저장소의 fail-open을 보존한다.
-    const routingEnabled = configDistill
-        && typeof configDistill.routing_enabled === 'boolean'
-        ? configDistill.routing_enabled
-        : state.routingEnabled === true;
-    const selection = parsed.mode === 'all' || parsed.mode === 'audit'
-        ? allDistillSelection(state, 'forced-all')
-        : parsed.mode === 'preflight'
-            ? alwaysDistillSelection(state)
-            : routeShards({
-                shards: state.shards,
-                affectedPaths: parsed.targets,
-                routingEnabled,
-                repoRoot: state.repoRoot,
-            });
-    const payload = distillPayload(state, selection, parsed.mode, parsed.targets, routingEnabled);
-    // 본문 모드는 기존 consumer가 그대로 pipe할 수 있어야 하므로 content만 쓴다.
-    // route/audit은 선택 결과 자체가 목적이라 JSON을 고정해 사람이 읽고 도구도
-    // 같은 출력을 파싱하게 한다. fail-open 진단은 본문과 섞지 않고 stderr로 보낸다.
-    if ((parsed.mode === 'for' || parsed.mode === 'route') && selection.reason !== 'matched') {
-        io.err(`distill: ${selection.reason}; using all shards\n`);
-    }
-    // always가 0이면 content는 비지만 인벤토리는 나가야 한다. stdout에 섞으면
-    // pipe-clean이 깨지므로 선택은 비었고 샤드 인덱스일 때만 stderr로 알린다.
-    if (parsed.mode === 'preflight'
-        && state.sharded === true
-        && (!Array.isArray(selection.ids) || selection.ids.length === 0)) {
-        io.err('distill: preflight selected no always shard\n');
-    }
-    // 크기 요약은 --all 전용. --for/--route에 붙이면 선택 결과를 총량으로
-    // 오해하고, --audit 은 audit.err === '' 계약을 깨뜨린다.
-    if (parsed.mode === 'all') {
-        writeDistillAllSizeSummary(state, payload.content, config, io);
-    }
-    if (parsed.json || parsed.mode === 'route' || parsed.mode === 'audit') {
-        io.out(`${JSON.stringify(payload, null, 2)}\n`);
-    }
-    else {
-        io.out(payload.content);
-    }
-    return 0;
-}
+const { graphSuggest, contextSearch, validateContextSearchInput } = graphSearch;
 function cmdInit(rest, io) {
     const f = parseFlags(rest);
     const timestamp = typeof f.timestamp === 'string' ? f.timestamp : nowIsoKst();
     // CLI 기본은 설치 on — 라이브러리 init() 기본(install:false)과 의도적으로 다르다.
     // 테스트·프로그래밍 호출이 네트워크 pip을 타지 않게 라이브러리는 opt-in.
     const install = f['no-graphify'] !== true;
+    const repoRoot = (f.repo || process.cwd());
     const result = init({
-        repoRoot: (f.repo || process.cwd()),
+        repoRoot,
         timestamp,
-        graphify: { install },
+        graphify: {
+            install,
+            // --upgrade-graphify만 이 rebuild를 탄다. 기본 sync는 mtime skip-fresh라
+            // 패키지 schema만 바뀐 승격이 옛 graph.json을 stamp하는 것으로 끝난다.
+            // force여도 skip-version-incompatible·skip-graph-disabled 등은 failed[]
+            // 없이 돌아온다. 그 경우를 성공으로 치면 안 되는 검사는 upgradeGraphify가 한다.
+            rebuild: () => syncSessionGraphs({ repoRoot, force: true }),
+        },
         promote: f['promote-graphify'] === true,
+        upgradeGraphify: f['upgrade-graphify'] === true,
         writeGitignore: f['write-gitignore'] === true,
         seedCodexAgents: f['seed-codex-agents'] === true,
     });
@@ -353,6 +119,118 @@ function cmdGraphSuggest(rest, io) {
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return 0;
 }
+/**
+ * context-search 전용 인자 파서. 플래그 모양만 읽고, mode·query·상한 의미는
+ * graph-search JSON schema 검증기에 맡긴다. 거절은 전부 exit 2.
+ * --seed는 graph-suggest와 같이 반복 가능하다.
+ *
+ * @param {string[]} rest - 서브커맨드 뒤 argv
+ * @returns {ContextSearchArgs} 성공 시 mode·query, 실패 시 error
+ */
+function parseContextSearchArgs(rest) {
+    let mode = null;
+    let query = null;
+    let querySeen = false;
+    const seeds = [];
+    let maxCandidates = null;
+    let repo;
+    const fail = (message) => ({
+        error: `context-search: ${message}\n`,
+        mode,
+        query,
+        seeds,
+        maxCandidates,
+        repo,
+    });
+    for (let i = 0; i < rest.length; i += 1) {
+        const token = rest[i];
+        if (token === '--mode') {
+            const value = rest[++i];
+            if (value === undefined || value.startsWith('--') || value.length === 0) {
+                return fail('--mode <decision|implementation|history> is required');
+            }
+            mode = value;
+            continue;
+        }
+        if (token === '--query') {
+            const value = rest[++i];
+            if (value === undefined || value.startsWith('--') || value.length === 0) {
+                return fail('--query requires a non-empty text value');
+            }
+            query = value;
+            querySeen = true;
+            continue;
+        }
+        if (token === '--seed') {
+            const value = rest[++i];
+            if (value === undefined || value.startsWith('--') || value.length === 0) {
+                return fail('--seed requires a value');
+            }
+            seeds.push(value);
+            continue;
+        }
+        if (token === '--max-candidates') {
+            const value = rest[++i];
+            if (value === undefined || value.startsWith('--') || value.length === 0) {
+                return fail('--max-candidates requires an integer 1..8');
+            }
+            // 숫자 변환만 한다. 1..8 범위는 validateContextSearchInput이 JSON schema로 거절한다.
+            maxCandidates = Number(value);
+            continue;
+        }
+        if (token === '--repo') {
+            const value = rest[++i];
+            if (!value || value.startsWith('--'))
+                return fail('--repo requires a directory');
+            repo = value;
+            continue;
+        }
+        if (token.startsWith('--'))
+            return fail(`unknown option: ${token}`);
+        return fail(`unexpected argument: ${token}`);
+    }
+    const schemaError = validateContextSearchInput({
+        mode: mode ?? undefined,
+        query: querySeen && query !== null ? query : undefined,
+        seeds,
+        maxCandidates: maxCandidates === null ? undefined : maxCandidates,
+    });
+    if (schemaError)
+        return fail(schemaError);
+    return { mode, query, seeds, maxCandidates, repo };
+}
+function cmdContextSearch(rest, io) {
+    const parsed = parseContextSearchArgs(rest);
+    if (parsed.error) {
+        io.err(parsed.error);
+        return 2;
+    }
+    const repoRoot = (parsed.repo || process.cwd());
+    const compat = checkGraphifyCompatibility({ repoRoot });
+    if (compat.status === 'version-incompatible') {
+        // 설치를 고치지 않고 상태만 돌려 준다. 후보를 꾸며 내지 않는다.
+        io.out(`${JSON.stringify({
+            query_id: `${parsed.mode}:incompatible`,
+            terms: [],
+            seed: parsed.query,
+            raw_node_count: 0,
+            eligible_document_count: 0,
+            candidates: [],
+            status: 'version-incompatible',
+            compatibility: { reasons: compat.reasons, warnings: compat.warnings },
+        }, null, 2)}\n`);
+        return 0;
+    }
+    const result = contextSearch({
+        repoRoot,
+        mode: parsed.mode,
+        query: parsed.query,
+        seeds: parsed.seeds,
+        maxCandidates: parsed.maxCandidates === null ? undefined : parsed.maxCandidates,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+}
 function cmdGraphifyBin(rest, io) {
     const f = parseFlags(rest);
     const repoRoot = (f.repo || process.cwd());
@@ -369,8 +247,8 @@ function cmdGraphifyBin(rest, io) {
 function cmdProjectRoot(rest, io) {
     const f = parseFlags(rest);
     const repoRoot = (f.repo || process.cwd());
-    // Distill·워크플로가 소비하는 정본은 main worktree다. linked cwd나
-    // plugin root로 대체하면 도그푸드 Distill을 오독하므로 unavailable은
+    // 현재 워크플로가 소비하는 정본은 main worktree다. linked cwd나
+    // plugin root로 대체하면 도그푸드 기준을 오독하므로 unavailable은
     // 빈 stdout/cwd fallback 없이 stderr+1로 거절한다.
     const paths = runtimePaths({ repoRoot });
     if (paths.unavailable || !paths.projectRoot) {
@@ -398,7 +276,7 @@ function cmdMigrate(rest, io) {
 module.exports = {
     init: {
         run: cmdInit,
-        usage: `  init       Bootstrap .bouncer/ for this project. Never overwrites.
+        usage: `  init       [--upgrade-graphify] Bootstrap .bouncer/ for this project. Never overwrites.
 `,
     },
     'graph-sync': {
@@ -412,6 +290,13 @@ module.exports = {
              Rank implementation/test/context file candidates from graphify graphs (JSON).
 `,
     },
+    'context-search': {
+        run: cmdContextSearch,
+        usage: `  context-search --mode <decision|implementation|history> --query <text>
+             [--seed <value>] [--max-candidates <1..8>]
+             Rank decision/implementation/history document candidates (JSON).
+`,
+    },
     'graphify-bin': {
         run: cmdGraphifyBin,
         usage: `  graphify-bin
@@ -422,13 +307,6 @@ module.exports = {
         run: cmdProjectRoot,
         usage: `  project-root
              Print the consuming project's main worktree absolute path (one line).
-`,
-    },
-    distill: {
-        run: cmdDistill,
-        usage: `  distill    --for <path> [--json]
-             --all [--json] | --preflight [--json] | --route <path> | --audit [--json]
-             Render routed Project Distill content or inspect its selection.
 `,
     },
     migrate: {

@@ -30,8 +30,8 @@ const STATUS_ENUM = {
   // 'closed'는 finalize --yes가 마감한 blueprint에 찍는 잠금 status.
   // draft → approved 만 있던 어휘에 마감 표시를 추가; superseded는 유지.
   // imported는 임포트 전용 — 작업 포인터/게이트 대상에서 제외(S18).
-  'bouncer.blueprint': ['draft', 'approved', 'superseded', 'closed', 'imported'],
-  'bouncer.tasks': ['draft', 'ready', 'in_progress', 'verified'],
+  'bouncer.blueprint': ['draft', 'approved', 'superseded', 'closed', 'partial_closed', 'imported'],
+  'bouncer.tasks': ['draft', 'ready', 'in_progress', 'verified', 'verifying', 'integrated'],
   'bouncer.verification': ['pending', 'passed', 'failed'],
   'bouncer.review': ['pending', 'requested', 'addressed', 'accepted'],
   'bouncer.explain': ['draft', 'published'],
@@ -84,6 +84,25 @@ const DEPENDENCY_GATE_ENUM = ['integrated'];
 const DEFAULT_DEPENDS_ON: string[] = [];
 const DEFAULT_PARALLEL_SAFE = false;
 const DEFAULT_DEPENDENCY_GATE = 'integrated';
+
+// 키 부재는 기존 task의 commit 의미를 보존한다. 잘못 쓴 문자열은 null로
+// 남겨 구조 검사가 명시적으로 거절하게 한다.
+const EXECUTION_KIND_ENUM = ['commit', 'verification'];
+
+/**
+ * task 메타데이터의 실행 종류를 하위 호환 기본값과 함께 해석한다.
+ *
+ * @param {unknown} bouncer - tasks.md의 bouncer 객체
+ * @returns {'commit' | 'verification' | null} 유효 종류, 잘못된 객체·enum이면 null
+ */
+function executionKindOf(bouncer: unknown): 'commit' | 'verification' | null {
+  if (bouncer == null || typeof bouncer !== 'object' || Array.isArray(bouncer)) return null;
+  const value = (bouncer as Record<string, unknown>).execution_kind;
+  if (value === undefined) return 'commit';
+  return (EXECUTION_KIND_ENUM as unknown[]).includes(value)
+    ? value as 'commit' | 'verification'
+    : null;
+}
 
 /**
  * task `bouncer.depends_on` 형식만 판정한다.
@@ -145,4 +164,5 @@ export = {
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, isValidDependsOn,
+  EXECUTION_KIND_ENUM, executionKindOf,
 };

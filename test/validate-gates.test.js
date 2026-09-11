@@ -14,6 +14,42 @@ const {
 const { parseExplainSections } = require('../scripts/lib/validate-sections');
 const { TEMPLATES } = require('../scripts/lib/templates');
 
+function repairDecision(task, wave, terminal, pathName) {
+  return {
+    task, kind: 'repair', wave, reason: `repair wave ${wave}`,
+    failure: {
+      task: terminal, command: 'npm test', summary: `wave ${wave} failed`,
+      paths: [pathName], exitCode: 1, repairWave: wave - 1,
+    },
+    previousDag: [{ id: terminal, depends_on: [] }],
+    nextDag: [{ id: terminal, depends_on: [task] }, { id: task, depends_on: [] }],
+    previousScope: [], nextScope: [pathName], necessity: 'terminal CI repair is required',
+    revision: `r${wave}`,
+  };
+}
+
+test('partial-close gate requires two waves, failure evidence, untracked plan, and confirmation', () => {
+  const { checkPartialCloseEvidence } = require('../scripts/lib/validate-gates');
+  const wave1 = repairDecision('003', 1, '002', 'src/a.js');
+  const wave2 = repairDecision('004', 2, '002', 'src/b.js');
+  const evidence = {
+    status: 'awaiting_confirmation', repairWaves: [wave1, wave2], decisions: [wave1, wave2],
+    tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
+      { id: '003', status: 'integrated', decisions: [wave1] },
+      { id: '004', status: 'integrated', decisions: [wave2] }],
+    terminalFailure: { task: '002', command: 'npm test', summary: 'failed', paths: ['test/a.js'], exitCode: 1, repairWave: 2 },
+  };
+  assert.match(checkPartialCloseEvidence({ ledger: {}, userConfirmed: true }).reason, /awaiting/);
+  assert.match(checkPartialCloseEvidence({ ledger: evidence, userConfirmed: true }).reason, /next-plan/);
+  assert.match(checkPartialCloseEvidence({ ledger: evidence, nextPlanExists: true }).reason, /confirmation/);
+  assert.match(checkPartialCloseEvidence({
+    ledger: evidence, nextPlanExists: true, nextPlanTracked: true, userConfirmed: true,
+  }).reason, /untracked/);
+  assert.strictEqual(checkPartialCloseEvidence({
+    ledger: evidence, nextPlanExists: true, nextPlanTracked: false, userConfirmed: true,
+  }).ok, true);
+});
+
 const rels = {
   epicIndex: '.bouncer/context/epics/001-auth/index.md',
   blueprintIndex: '.bouncer/context/epics/001-auth/blueprints/001-login/index.md',
@@ -723,6 +759,16 @@ test('execute gate: review optional satisfies G8 (with verification body)', () =
   assert.deepStrictEqual(failures, []);
 });
 
+test('execute gate accepts an integrated verification node without review', () => {
+  const verification = passingVerificationDoc();
+  const failures = [];
+  checkGate('execute', {
+    tasks: doc('integrated', { execution_kind: 'verification' }),
+    verification,
+  }, rels, failures, { deps: ledgerDeps(verification) });
+  assert.deepStrictEqual(failures, []);
+});
+
 test('execute gate G13 ledger missing, ran_at mismatch, and matching record', () => {
   const { missing, mismatch, ok } = g13ThreeWay('execute');
   assert.ok(missing.failures.some((f) => f.code === 'G13' && /missing harness verify ledger record/.test(f.message)));
@@ -1051,6 +1097,18 @@ test('finalize gate G16 passes when all tasks verified and comprehension covers 
   checkGate('finalize', {
     tasksDocs: g16VerifiedTasks(['001']),
     explain: explainDoc([compEntry({ quiz_score: '1/5', disposition: 'accepted with gaps' })]),
+  }, rels, failures, G16_CTX);
+  assert.deepStrictEqual(failures, []);
+});
+
+test('finalize treats integrated verification nodes as closed while commit tasks stay verified', () => {
+  const failures = [];
+  checkGate('finalize', {
+    tasksDocs: [
+      doc('verified', { id: 'TASKS-001' }),
+      doc('integrated', { id: 'TASKS-002', execution_kind: 'verification' }),
+    ],
+    explain: explainDoc([compEntry()]),
   }, rels, failures, G16_CTX);
   assert.deepStrictEqual(failures, []);
 });
@@ -1663,6 +1721,30 @@ test('finalize G16 fails when comprehension entry is incomplete (empty quiz_scor
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
+test('finalize G16 does not require Distill files or promotion metadata', () => {
+  const repo = mkRepo();
+  writeFinalizeG16Fixture(repo, {
+    task2Status: 'verified',
+    entries: [
+      compEntry({ task: '001', disposition: 'ok' }),
+      compEntry({ task: '002', disposition: 'ok' }),
+    ],
+  });
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/Distill.md')));
+  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/distill')));
+
+  const res = validateBlueprint({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
+  });
+  assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
+  assert.ok(!res.failures.some((f) => f.code === 'G16' && /distill|promotion/i.test(f.message)));
+});
+
 test('finalize G16 passes with a single complete entry when all tasks are verified', () => {
   const repo = mkRepo();
   // 0.7 다중 엔트리도 마지막만 보면 통과 — 마이그레이션 없이 읽기 호환.
@@ -1968,4 +2050,34 @@ test('plan gate G19 rejects missing, self, duplicate, and cyclic dependencies', 
     /tasks\/00[12]\/tasks\.md$/.test(cycleHit.file),
     `cycle failure must carry a task path: ${cycleHit.file}`,
   );
+});
+
+test('plan gate accepts terminal verification fan-in and rejects source scope or commit successors', () => {
+  const verificationBody = READY_BODY.replace(
+    /## Touch[\s\S]*?## Do not touch/,
+    '## Touch\n- Source changes: none; record full CI evidence only.\n\n## Do not touch',
+  );
+  const valid = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001'),
+    planTaskDoc('002'),
+    planTaskDoc('003', {
+      execution_kind: 'verification', affected_paths: [], scope_evidence: undefined,
+      graph: undefined, depends_on: ['TASKS-001', 'TASKS-002'], parallel_safe: false,
+      dependency_gate: 'integrated', verify: 'node --test',
+    }, verificationBody),
+  ]), rels, valid);
+  assert.deepStrictEqual(valid.filter((f) => ['G4', 'G5', 'G20'].includes(f.code)), []);
+
+  const invalid = [];
+  checkGate('plan', planDocsWithTasks([
+    planTaskDoc('001'),
+    planTaskDoc('002', {
+      execution_kind: 'verification', affected_paths: [], depends_on: ['TASKS-001'],
+      parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
+    }),
+    planTaskDoc('003', { depends_on: ['TASKS-002'] }),
+  ]), rels, invalid);
+  assert.ok(invalid.some((f) => f.code === 'G20' && /Touch/.test(f.message)));
+  assert.ok(invalid.some((f) => f.code === 'G20' && /commit task/.test(f.message)));
 });

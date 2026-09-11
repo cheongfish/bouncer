@@ -103,3 +103,11 @@ test('run keeps start ACQ, autonomy, and no per-task ACQ without preamble helper
   // start 승인 뒤 task별 scope·계획 ACQ는 coordinator mode에서 요구하지 않는다.
   assert.match(md, /no further ACQ|does not ask again|no per-task ACQ/i);
 });
+
+test('run caps repair at two waves and renders partial-close handoff without success', () => {
+  assert.match(md, /최대 두 repair wave/);
+  assert.match(md, /세 번째 wave를 만들지 않고/);
+  assert.match(md, /coordinate partial-close --user-confirmed/);
+  assert.match(md, /NEXT_PLAN\.md를 확인하고 후속 계획 진행 여부를 승인해 주세요\./);
+  assert.match(md, /성공이나 `closed`로 표시하지 않는다/);
+});

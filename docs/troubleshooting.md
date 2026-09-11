@@ -17,7 +17,7 @@
 | `G16 explain diff_sha does not match range_from..HEAD` / `could not be computed` | 기록된 `diff_sha`가 게이트가 `range_from..HEAD`로 다시 계산한 값과 다르거나, base/저장소 문제로 계산에 실패했습니다. `range_from`은 포인터 `base`입니다. 퀴즈 이후 커밋이 쌓였다면 본문과 해시만 갱신하고 퀴즈는 다시 보지 않습니다 |
 | `G16` (열린 task / explain / comprehension) | finalize 게이트. 모든 task가 `verified`이고 explain이 `published`이며 BP 단일 comprehension 엔트리가 있어야 합니다. 남은 task는 `/bouncer-commit`으로 먼저 닫으세요 |
 | `G17 staged path outside affected_paths` / `could not read staged files` | commit 게이트. 스테이징된 경로가 포인터 task `affected_paths` 밖이거나, 스테이징 목록을 읽지 못했습니다. 범위를 고치거나 스테이징을 정리하세요 |
-| `.bouncer/Distill.md` 없음(소비 프로젝트 root 기준) | `bouncer project-root`로 확정한 consuming project root 아래 경로입니다. `bouncer init`이 골격을 만듭니다(레거시 `context/Distill.md`는 새 경로로 옮김). plan/execute 전에 `${PROJECT_ROOT}/.bouncer/Distill.md`를 Read하세요. plugin 트리의 같은 상대 경로로 대체하지 마세요 |
+| context-search `version-incompatible` | 같은 checkout에서 `graph-sync`를 다시 실행하고 CLI와 graph metadata version을 맞춘 뒤 재검색하세요. 다른 build 결과를 섞지 마세요 |
 | `S11 blueprint documents not found` | blueprint 경로가 틀렸습니다(오타 등). 경로를 확인하세요 |
 | `S13 epic directory not listed` / `lists missing epic` | `.bouncer/context/index.md`와 `epics/` 디렉터리가 어긋났습니다. 유효한 `--description`으로 `bouncer scaffold epic`을 실행하세요 |
 | `S13 epic summary mismatch` | 색인 행은 편집하지 않는 파생값입니다. epic frontmatter `description`을 확인한 뒤 같은 canonical 경로에 `bouncer scaffold epic --id <ddd> --name <slug> --description <text>`를 다시 실행해 행을 replace하고 S13을 재검사하세요 |
@@ -45,7 +45,7 @@
 | worktree에 task 묶음(`tasks/<NNN>/{tasks,verification,review}.md`)이 없음 | `/bouncer-execute` step 2의 `bouncer seed-worktree`를 건너뛰었습니다. plan은 커밋하지 않으므로 문서는 base에만 있습니다 |
 | base에 EPIC 문서가 `??`로 남고 같은 파일이 PR에도 있음 | seed 누락이거나 구버전 스킬입니다. base에서 `seed-worktree`를 실행하면 복사·정리가 한 번에 됩니다 |
 | `seed-worktree`가 `conflict`로 실패 | worktree에 같은 경로가 다른 내용으로 이미 있습니다. base는 건드리지 않았으니 손으로 정리한 뒤 다시 실행하세요 |
-| finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`, `.bouncer/runtime/`는 무시. `.bouncer/Distill.md`는 항상 허용됩니다 |
+| finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`, `.bouncer/runtime/`는 무시. 나머지 경로는 승인 범위에 있어야 합니다 |
 | finalize가 `reason: 'verify'`로 중단 | 승격 커밋 직전 검증 명령이 실패했거나 명령을 해석하지 못했다. `closed` 잠금과 스테이징은 하지 않았다. 결과의 `code`/`command`/`exitCode`로 원인을 고친 뒤 `--yes`를 다시 실행한다. 우회는 없다 |
 
 위 `commit blocked: …` 다섯 행은 `commit-safety` 훅이 낸 문장을 그대로 적은

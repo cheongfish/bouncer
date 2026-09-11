@@ -17,11 +17,13 @@ const COMMANDS = {
     'seed-worktree': gitCommands['seed-worktree'],
     coordinate: gitCommands.coordinate,
     init: projectCommands.init,
+    // --upgrade-graphify 는 init 핸들러(parseFlags)와 그 usage 문자열에만 있다.
+    // 여기 레지스트리는 도움말 조립이라 플래그를 다시 파싱하지 않는다.
     'graph-sync': projectCommands['graph-sync'],
     'graph-suggest': projectCommands['graph-suggest'],
+    'context-search': projectCommands['context-search'],
     'graphify-bin': projectCommands['graphify-bin'],
     'project-root': projectCommands['project-root'],
-    distill: projectCommands.distill,
     current: currentCommand.current,
     migrate: projectCommands.migrate,
     import: gitCommands.import,

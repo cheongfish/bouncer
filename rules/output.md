@@ -31,7 +31,7 @@
   task 경계마다, `auto`는 마감 보고에 모아 낸다.
 - 완료: `완료: <blueprint> · integration <head> · 검증: <결과> · 결정 N건 · 다음: <멈춘 동의 단계>`
 - 중단: `중단: <task id> · <원인> · 보존: <ledger·worktree 경로> · 복구: <행동>`
-- terminal outcome은 `completed` 또는 `blocked` 하나만 표시한다. 둘 다 없거나
+- terminal outcome은 `completed`, `blocked`, `partial_closed` 중 하나만 표시한다. 둘 다 없거나
   둘 다 있는 보고는 렌더링하지 않고 원인을 먼저 밝힌다.
 - 결정 로그, scope 개정의 이전·다음 경로, 미해결 reviewer finding에는 8개
   목록 제한을 적용하지 않는다.
@@ -40,7 +40,9 @@
 
 `진행: 003 · integrated · bouncer-implementer · scope r2 개정(src/session/ 추가)`
 
-`완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: Distill 승격 동의`
+`완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: explain 퀴즈`
+
+`부분 종결: 001-login · 마지막 검증: npm run ci 실패 · 보존: ledger·integration·worker·NEXT_PLAN.md · 다음: NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`
 
 ## debug
 

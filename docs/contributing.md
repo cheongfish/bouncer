@@ -5,12 +5,13 @@
 ```bash
 npm install    # devDependencies만 (테스트·린트·타입검사용)
 npm run setup  # 커밋 메시지 템플릿 + pre-commit 훅 연결 (클론마다 1회)
-npm run ci     # emit → coverage → lint → lint:docs → typecheck → audit
+npm run ci     # emit → coverage → lint → lint:docs → lint:context-comments → typecheck → audit
 ```
 
 로컬 확인은 `npm run ci` 하나다. 순서는 배포 CJS emit 검사(`check:emit`),
 제품 코드 coverage, lint, 문서 구조 린트(`lint:docs` →
-`node scripts/check-doc-shape.js`), typecheck, `npm audit --audit-level=high`다.
+`node scripts/check-doc-shape.js`), context 안내 주석 린트
+(`lint:context-comments`), typecheck, `npm audit --audit-level=high`다.
 문서만 빠르게 보려면 `npm run lint:docs`를 단독으로 돌린다.
 coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
 하한은 line 94%, branch 82%, function 96%다. 기본 병렬 러너는 같은
@@ -25,7 +26,7 @@ coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
 배경·의도 2줄 + 수정 내용 불릿. 본문에 파일·모듈 이름은 쓰지 않습니다(diff가
 이미 보여줍니다). 전체 규칙은 [`.gitmessage`](../.gitmessage)에 있습니다.
 
-`/bouncer-commit`이 task 커밋 메시지를, `/bouncer-finalize`가 Distill 승격분
+`/bouncer-commit`이 task 커밋 메시지를, `/bouncer-finalize`가 context remainder
 등 remainder 커밋 메시지를 plan 때 쓴 문서 필드로 조립합니다. 메시지를 새로
 짓지 않습니다.
 
@@ -37,7 +38,7 @@ coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
   고른 **가장 큰 번호**의 유효 `commit_intent` 2줄. 유효 항목이 없으면
   제목만.
 
-Epic/Blueprint/Distill 식별자는 커밋에 넣지 않고 PR 본문·blueprint 문서에
+Epic/Blueprint 식별자는 커밋에 넣지 않고 PR 본문·blueprint 문서에
 둡니다.
 execute 브랜치도 같은 `bouncer.commit_type`을 prefix로 씁니다:
 `<type>/<id>-<slug>` (`feat/…`, `refactor/…`, `test/…` 등).
@@ -86,7 +87,7 @@ PR **제목**은 커밋 subject와 다릅니다. finalize가 만드는 draft 제
 [YYMMDD] (→ MergeTarget) [Type/Type] 요약
 ```
 
-예: `[260803] (→ Develop) [Feat] 전역 Distill을 init·finalize 런타임에 연결`
+예: `[260803] (→ Develop) [Feat] context 검색을 plan 런타임에 연결`
 
 - `YYMMDD`: 작성일(KST)
 - `MergeTarget`: `config.base_branch` / `pr.base` (첫 글자 대문자)

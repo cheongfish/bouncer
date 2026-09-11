@@ -676,6 +676,7 @@ test('scaffoldTask writes compatible DAG defaults and templates expose the field
   assert.deepStrictEqual(tasks.bouncer.depends_on, []);
   assert.strictEqual(tasks.bouncer.parallel_safe, false);
   assert.strictEqual(tasks.bouncer.dependency_gate, 'integrated');
+  assert.strictEqual(tasks.bouncer.execution_kind, 'commit');
 
   scaffoldTask({
     repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
@@ -684,13 +685,133 @@ test('scaffoldTask writes compatible DAG defaults and templates expose the field
   assert.deepStrictEqual(tasks002.bouncer.depends_on, []);
   assert.strictEqual(tasks002.bouncer.parallel_safe, false);
   assert.strictEqual(tasks002.bouncer.dependency_gate, 'integrated');
+  assert.strictEqual(tasks002.bouncer.execution_kind, 'commit');
 
   const { TEMPLATES } = require('../scripts/lib/templates');
   assert.match(TEMPLATES['tasks.md'], /depends_on/);
   assert.match(TEMPLATES['tasks.md'], /parallel_safe/);
   assert.match(TEMPLATES['tasks.md'], /dependency_gate/);
+  assert.match(TEMPLATES['tasks.md'], /execution_kind/);
   // 템플릿 주석도 gate 값이 하나뿐임을 말해야 한다.
   assert.match(TEMPLATES['tasks.md'], /dependency_gate[\s\S]{0,10}integrated/);
   // scaffold 템플릿이 거절된 gate 값을 제공하면 실패한다.
   assert.doesNotMatch(TEMPLATES['tasks.md'], /integration-verified/);
+});
+
+test('scaffoldTask explicitly creates a verification node without review or scope', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const created = scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+    executionKind: 'verification', dependsOn: ['TASKS-001'], verify: 'node --test',
+  });
+  assert.deepStrictEqual(created, [
+    `${base}/tasks/002/tasks.md`, `${base}/tasks/002/verification.md`,
+  ]);
+  const { listTasksDocs } = require('../scripts/lib/tasks-docs');
+  const entry = listTasksDocs({ repoRoot: repo, blueprintDir: base }).entries[1];
+  assert.strictEqual(entry.executionKind, 'verification');
+  assert.strictEqual(entry.review, undefined);
+  assert.strictEqual(Object.hasOwn(entry, 'review'), false);
+  const data = readDoc(path.join(repo, entry.tasks.rel)).data.bouncer;
+  assert.deepStrictEqual(data.affected_paths, []);
+  assert.deepStrictEqual(data.depends_on, ['TASKS-001']);
+  assert.strictEqual(data.parallel_safe, false);
+  assert.strictEqual(data.dependency_gate, 'integrated');
+  assert.strictEqual(data.verify, 'node --test');
+  assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/002/review.md`)), false);
+  const { loadBlueprintDocs } = require('../scripts/lib/validate');
+  const loaded = loadBlueprintDocs({ repoRoot: repo, blueprintDir: base });
+  assert.strictEqual(loaded.docs.taskUnits[1].review, undefined);
+  assert.notStrictEqual(
+    loaded.docs.taskUnits[1].verification,
+    loaded.docs.taskUnits[1].review,
+  );
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const validation = validateBlueprint({ repoRoot: repo, blueprintDir: base });
+  assert.ok(
+    !validation.failures.some((failure) => (
+      failure.code === 'S17' && /tasks\/002\/review\.md$/.test(failure.file)
+    )),
+    JSON.stringify(validation.failures, null, 2),
+  );
+});
+
+test('bouncer scaffold task exposes verification metadata through the public CLI', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const result = captureScaffold([
+    'scaffold', 'task', '--repo', repo, '--blueprint', base, '--id', '002',
+    '--execution-kind', 'verification', '--depends-on', 'TASKS-001,TASKS-003',
+    '--verify', 'node --test', '--timestamp', TS,
+  ]);
+  assert.strictEqual(result.code, 0, result.err);
+  const data = readDoc(path.join(repo, `${base}/tasks/002/tasks.md`)).data.bouncer;
+  assert.strictEqual(data.execution_kind, 'verification');
+  assert.deepStrictEqual(data.depends_on, ['TASKS-001', 'TASKS-003']);
+  assert.strictEqual(data.verify, 'node --test');
+
+  const invalid = captureScaffold([
+    'scaffold', 'task', '--repo', repo, '--blueprint', base, '--id', '003',
+    '--execution-kind', 'verification', '--verify', 'node --test', '--timestamp', TS,
+  ]);
+  assert.strictEqual(invalid.code, 2);
+  assert.match(invalid.err, /depends-on/);
+  assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/003`)), false);
+});
+
+test('public verification scaffold uses the repository verify allowlist', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    `${JSON.stringify({ verify_allowlist: ['custom-ci'] })}\n`,
+  );
+
+  const allowed = captureScaffold([
+    'scaffold', 'task', '--repo', repo, '--blueprint', base, '--id', '002',
+    '--execution-kind', 'verification', '--depends-on', 'TASKS-001',
+    '--verify', 'custom-ci full', '--timestamp', TS,
+  ]);
+  assert.strictEqual(allowed.code, 0, allowed.err);
+
+  const excluded = captureScaffold([
+    'scaffold', 'task', '--repo', repo, '--blueprint', base, '--id', '003',
+    '--execution-kind', 'verification', '--depends-on', 'TASKS-001',
+    '--verify', 'npm test', '--timestamp', TS,
+  ]);
+  assert.strictEqual(excluded.code, 2);
+  assert.match(excluded.err, /verify/);
+  assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/003`)), false);
+});
+
+test('scaffoldTask rejects incomplete verification metadata before creating files', () => {
+  for (const options of [
+    { executionKind: 'unknown' },
+    { executionKind: 'verification', dependsOn: [], verify: 'node --test' },
+    { executionKind: 'verification', dependsOn: ['TASKS-001'], verify: 'echo nope' },
+  ]) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+    fs.mkdirSync(path.join(repo, base), { recursive: true });
+    assert.throws(() => scaffoldTask({
+      repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS, ...options,
+    }), /executionKind|dependsOn|verify/);
+    assert.strictEqual(fs.existsSync(path.join(repo, `${base}/tasks/002`)), false);
+  }
 });

@@ -15,7 +15,7 @@ When that check succeeds, dispatch named `bouncer-implementer` with the actual
 worktree cwd and only the current task's Goal & intent, Interface, Touch, Do
 not touch, Constraints, and Checklist. The generated role file already owns
 the role instructions, so do not repeat them in the named payload. Do not add
-historical commit subjects, earlier-task conversation, or Distill shards.
+historical commit subjects, earlier-task conversation, or unselected context documents.
 
 Under a coordinator drive the cwd is the task worktree `bouncer coordinate
 prepare` assigned — never the integration worktree and never the main checkout

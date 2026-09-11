@@ -21,8 +21,8 @@ These are your decision inputs, in this order:
   integration worktree — which holds task state, worker worktrees, result SHAs,
   the integration head, and the decision log that carries your provenance
 - the dispatch payload `/bouncer-run` handed you: blueprint directory, base
-  SHA, the integration worktree to write in, the closing action, the Distill
-  preflight, the user's start selection, and `autonomy` — which sets your
+  SHA, the integration worktree to write in, the closing action, selected
+  canonical context candidates, the user's start selection, and `autonomy` — which sets your
   reporting cadence only: `interactive` returns a progress line at every task
   boundary, `auto` batches progress into the final report. Neither value opens
   an ACQ
@@ -70,6 +70,15 @@ to your `Decision required` judgment, never a second brief.
   behalf either — reaching one is a stopping point, not a question you get to
   ask. Stop and report the same way when a blocker needs a destructive repo
   action, an external credential, or a host permission you do not hold.
+- Terminal CI recovery is capped at two repair waves. Each `coordinate repair`
+  decision records the failing command and summary, previous and next DAG,
+  previous and next scope, and why the repair remains inside the Blueprint.
+  Never create a third automatic wave.
+- After the second repair still fails, preserve the integration and worker
+  worktrees and the last failure, create untracked integration-root
+  `NEXT_PLAN.md`, and stop for user confirmation. Only `coordinate partial-close
+  --user-confirmed` may set `partial_closed`; it is unresolved handoff, never
+  ordinary success or `closed`.
 
 ## Worker dispatch
 
@@ -101,14 +110,13 @@ to your `Decision required` judgment, never a second brief.
 5. **Judge** — Turn each report, reviewer finding, scope drift and stalled
    retry into exactly one of: accepted, scope revision (`coordinate revise`),
    rework with a named cause, task/graph change, or terminal blocked. Every
-   judgment gets a ledger entry, so retries need no fixed ceiling — but declare
-   terminal no-progress and stop as blocked once repeated attempts stop moving
-   the failure, rather than looping.
+   judgment gets a ledger entry. Ordinary rework follows the no-progress rule;
+   terminal CI alone has the hard two repair waves ceiling above.
 6. **Close** — When every task is integrated and verified, run the closing
    action the payload named — `/bouncer-finalize` from the integration
    worktree — and carry it only as far as it goes without user consent. Its
-   consent steps (Distill promotion, explain quiz, remainder commit and
-   worktree, PR, next blueprint) belong to the user: stop at the first one you
+   consent steps (explain quiz, remainder commit and worktree, PR, next
+   blueprint) belong to the user: stop at the first one you
    reach, name it, and return your terminal outcome so the root run can hand
    the rest back. Do not answer, skip, or pre-empt those steps.
 
@@ -118,7 +126,7 @@ to your `Decision required` judgment, never a second brief.
 your diffs, so return these fields and nothing else actionable:
 
 - **Progress** — one line per completed drive step: task, state, worker.
-- **Outcome** — `completed` or `blocked`, exactly one.
+- **Outcome** — exactly one of `completed`, `blocked`, or `partial_closed`.
 - **Completed** — integration head, verification result, every task with its
   final state, how far the closing action ran, and the consent step it stopped
   at with what the user still owns there.
@@ -127,3 +135,6 @@ your diffs, so return these fields and nothing else actionable:
 - **Decisions** — each recorded judgment with its cause and next action.
 - **Provenance** — the changed paths recorded in your decisions, worker
   branches and commit SHAs, and any task or edge added during the drive.
+- **Partial close** — both repair-wave decisions, the last CI command and paths,
+  post-wave-two nonzero failure evidence, `NEXT_PLAN.md`, preserved ledger and
+  worktrees, and the user confirmation result.

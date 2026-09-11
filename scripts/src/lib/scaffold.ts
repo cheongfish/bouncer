@@ -23,7 +23,10 @@ import schema = require('./schema');
 const {
   DEFAULT_COMMIT_TYPE, DEFAULT_SCALE, SCALE_ENUM,
   DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE,
+  EXECUTION_KIND_ENUM, isValidDependsOn,
 } = schema;
+import config = require('./config');
+const { readVerifyPolicy } = config;
 
 function writeRel(repoRoot: string, rel: string, data: unknown, body: string): string {
   const abs = path.join(repoRoot, rel);
@@ -191,12 +194,19 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }: {
  * 기존 blueprint 에 tasks/<NNN>/ 묶음 3종을 추가한다.
  * 거절 조건을 모두 검사한 뒤에만 파일을 쓴다 — 일부만 생성된 상태를 남기지 않기 위함.
  */
-function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale }: {
+function scaffoldTask({
+  repoRoot, blueprintDir, taskId, timestamp, scale,
+  executionKind = 'commit', dependsOn, verify, verifyAllowlist,
+}: {
   repoRoot: string;
   blueprintDir: string;
   taskId: string;
   timestamp: string;
   scale?: string;
+  executionKind?: unknown;
+  dependsOn?: unknown;
+  verify?: unknown;
+  verifyAllowlist?: readonly string[];
 }): string[] {
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     throw new Error(`blueprintDir must be under ${CONTEXT_ROOT}/epics`);
@@ -215,6 +225,29 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale }: {
     throw new Error(
       `blueprint is closed (finalized): ${bp} — scaffold a new blueprint instead of adding a task to this one`,
     );
+  }
+
+  if (!(EXECUTION_KIND_ENUM as unknown[]).includes(executionKind)) {
+    throw new Error('executionKind must be commit or verification');
+  }
+  const isVerification = executionKind === 'verification';
+  if (isVerification) {
+    if (!isValidDependsOn(dependsOn) || !Array.isArray(dependsOn) || dependsOn.length === 0) {
+      throw new Error('verification dependsOn must be a non-empty TASKS-NNN array');
+    }
+    // 구조 검사와 같은 executable 판정을 재사용해 scaffold가 쓰자마자 S29에
+    // 걸리는 반쪽 node를 만들지 않는다. 로드는 호출 시점으로 늦춰 startup 순환을 피한다.
+    const { isValidVerifyCommand } = require('./verification');
+    const policy = verifyAllowlist === undefined ? readVerifyPolicy(repoRoot) : null;
+    if (policy && policy.ok === false) {
+      throw new Error('verification config is invalid');
+    }
+    const allowlist = verifyAllowlist === undefined
+      ? (policy as { ok: true; allowlist: readonly string[] }).allowlist
+      : verifyAllowlist;
+    if (!isValidVerifyCommand(verify, allowlist)) {
+      throw new Error('verification verify must be a single executable command');
+    }
   }
 
   const taskDir = `${bp}/tasks/${taskId}`;
@@ -243,8 +276,17 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale }: {
   created.push(writeRel(repoRoot, tasksRel,
     bouncerDoc('bouncer.tasks', `${taskId} tasks`, `Tasks for ${taskId}`, tasksRel,
       ['bouncer', 'tasks'], timestamp,
-      {
+      isVerification ? {
         id: ids.tasks, epic_id: epicId, blueprint_id: blueprintId, status: 'draft',
+        execution_kind: 'verification',
+        depends_on: dependsOn,
+        parallel_safe: false,
+        dependency_gate: 'integrated',
+        verify,
+        affected_paths: [],
+      } : {
+        id: ids.tasks, epic_id: epicId, blueprint_id: blueprintId, status: 'draft',
+        execution_kind: 'commit',
         // DAG 기본값: 의존 없음·순차·선행 integrated 해제.
         // 기존 문서의 필드 부재도 같은 의미로 읽히므로 호환이 유지된다.
         depends_on: [...DEFAULT_DEPENDS_ON],
@@ -290,14 +332,16 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale }: {
       { id: ids.verification, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }),
     body(verifyBase)));
 
-  created.push(writeRel(repoRoot, reviewRel,
-    bouncerDoc('bouncer.review', `${taskId} review`, `Review for ${taskId}`, reviewRel,
-      ['bouncer', 'review'], timestamp,
-      {
-        id: ids.review, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
-        review: { required: true },
-      }),
-    body(reviewBase)));
+  if (!isVerification) {
+    created.push(writeRel(repoRoot, reviewRel,
+      bouncerDoc('bouncer.review', `${taskId} review`, `Review for ${taskId}`, reviewRel,
+        ['bouncer', 'review'], timestamp,
+        {
+          id: ids.review, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
+          review: { required: true },
+        }),
+      body(reviewBase)));
+  }
 
   return created;
 }

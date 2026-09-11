@@ -5,8 +5,6 @@ const config = require("./config");
 const { readConfig } = config;
 const contextDigest = require("./context-digest");
 const { CONTEXT_DIGEST_OUT, DIGEST_WATCH_FILES, } = contextDigest;
-const layout = require("./layout");
-const { DISTILL_SHARD_DIR } = layout;
 // 설정·디렉터리 존재·mtime 판정만. 프로세스를 띄우지 않고 graphify.ts 도
 // require 하지 않는다 — 그 모듈의 PATH 탐색이 execFileSync 를 돌리기 때문.
 // 신선도 계산이 graphify 설치 여부를 묻기 시작하면 테스트가 deps 없이
@@ -170,8 +168,10 @@ function newestMtimeUnder(repoRoot, dir) {
     return newest;
 }
 /**
- * dirs 는 보통 디렉터리 walk, watchFiles 는 Distill 같은 단일 파일 mtime.
+ * dirs 는 보통 디렉터리 walk, watchFiles 는 config.json 같은 단일 파일 mtime.
  * 디렉터리가 아닌 경로는 walk 하지 않고 statSync 로 직접 잰다.
+ * 파생 memory 파일·디렉터리는 freshness 입력이 아니다 — context 원본과
+ * 검색 metadata만 본다.
  */
 function realNewestMtime(repoRoot, dirs, watchFiles) {
     let newest = 0;
@@ -192,13 +192,6 @@ function realNewestMtime(repoRoot, dirs, watchFiles) {
         }
     }
     const files = [...(watchFiles || [])];
-    // 기존 scope 객체의 watchFiles 계약은 index 하나로 유지하되, Distill
-    // 샤드는 그 인덱스와 별개로 추가·수정·삭제될 수 있다. 디렉터리를
-    // freshness 입력으로 확장하면 파생 graphify-out은 계속 제외하면서
-    // 정본 샤드의 lifecycle만 관찰할 수 있다.
-    if (files.includes('.bouncer/Distill.md') && !files.includes(DISTILL_SHARD_DIR)) {
-        files.push(DISTILL_SHARD_DIR);
-    }
     for (const f of files) {
         const abs = path.join(repoRoot, f);
         let st;
@@ -209,9 +202,6 @@ function realNewestMtime(repoRoot, dirs, watchFiles) {
             continue;
         }
         if (st.isDirectory()) {
-            // 파일 삭제는 남은 파일의 mtime을 바꾸지 않고 부모 디렉터리만
-            // 갱신한다. shard 디렉터리 자체를 포함해야 등록 파일의 삭제도
-            // freshness 입력으로 남는다.
             newest = Math.max(newest, st.mtimeMs, newestMtimeUnder(repoRoot, f));
         }
         else if (st.mtimeMs > newest) {
@@ -279,7 +269,7 @@ function resolveGraphScopes({ sourceDirs, contextDirs, testDirs, excludeDirs, te
         outDir: DEFAULT_CONTEXT_OUT,
         // 빌드는 파생 트리를 스캔하고, freshness 는 dirs+watchFiles(원본)만 본다.
         scanDirs: [CONTEXT_DIGEST_OUT],
-        watchFiles: [...DIGEST_WATCH_FILES],
+        ...(DIGEST_WATCH_FILES.length ? { watchFiles: [...DIGEST_WATCH_FILES] } : {}),
     });
     return scopes;
 }

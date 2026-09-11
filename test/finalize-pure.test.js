@@ -27,6 +27,8 @@ test('allowed set covers affected paths, bp subtree, ancestor indexes', () => {
   assert.ok(!allowed('context/epics/001-auth/index.md'));
   assert.ok(!allowed('src/payments/charge.ts'));
   assert.ok(!allowed('.bouncer/context/epics/002-billing/index.md'));
+  assert.ok(!allowed('.bouncer/Distill.md'));
+  assert.ok(!allowed('.bouncer/distill/core.md'));
 });
 
 test('commit message follows the template', () => {

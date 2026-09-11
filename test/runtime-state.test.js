@@ -11,6 +11,94 @@ const {
   listNamespacePointers, pointerKeyFromBlueprint, removeNamespacePointer,
 } = require('../scripts/lib/runtime-state');
 
+function copy(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+test('repair ledger validation requires two waves and the last CI failure for partial close', () => {
+  const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
+  const base = {
+    version: 1, blueprint: 'bp', base: 'main', integrationHead: 'abc', tasks: [],
+    decisions: [], repairWaves: [], status: 'active',
+  };
+  assert.strictEqual(validateCoordinatorLedger(base).ok, true);
+  assert.match(validateCoordinatorLedger({ ...base, status: 'partial_closed' }).reason, /repair-waves/);
+  const wave1 = repairDecision('003', 1, 'r1', ['src/a.js']);
+  const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
+  const waves = [wave1, wave2];
+  assert.match(validateCoordinatorLedger({
+    ...base, status: 'partial_closed', repairWaves: waves, decisions: copy(waves),
+    tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
+      { id: '003', status: 'integrated', decisions: [copy(wave1)] },
+      { id: '004', status: 'integrated', decisions: [copy(wave2)] }],
+  }).reason, /failure-evidence/);
+  const evidence = { task: '002', command: 'npm test', summary: 'one failed', paths: ['test/a.js'], exitCode: 1, repairWave: 2 };
+  const valid = {
+    ...base, status: 'partial_closed', repairWaves: waves,
+    terminalFailure: evidence, userConfirmed: true, decisions: copy(waves),
+    tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
+      { id: '003', status: 'integrated', decisions: [copy(wave1)] },
+      { id: '004', status: 'integrated', decisions: [copy(wave2)] }],
+  };
+  assert.match(validateCoordinatorLedger({ ...valid, status: 'active' }, { requirePartialClose: true }).reason, /awaiting/);
+  assert.match(validateCoordinatorLedger({ ...valid, decisions: [wave2, wave1] }).reason, /ordered/);
+  assert.match(validateCoordinatorLedger({ ...valid, terminalFailure: { ...evidence, exitCode: 0 } }).reason, /nonzero/);
+  assert.match(validateCoordinatorLedger({ ...valid, terminalFailure: { ...evidence, paths: [] } }).reason, /evidence/);
+  assert.strictEqual(validateCoordinatorLedger(valid).ok, true);
+});
+
+function repairDecision(task, wave, revision, paths) {
+  return {
+    task, kind: 'repair', wave, reason: `repair wave ${wave}`,
+    failure: {
+      task: '002', command: 'npm test', summary: `wave ${wave} failed`,
+      paths, exitCode: 1, repairWave: wave - 1,
+    },
+    previousDag: [{ id: '002', depends_on: wave === 1 ? ['001'] : ['003'] }],
+    nextDag: [{ id: '002', depends_on: [task] }, { id: task, depends_on: ['001'] }],
+    previousScope: [], nextScope: paths, necessity: 'terminal CI repair is required', revision,
+  };
+}
+
+test('partial-close repair decisions require complete canonical task and global copies', () => {
+  const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
+  const wave1 = repairDecision('003', 1, 'r1', ['src/a.js']);
+  const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
+  const valid = {
+    status: 'partial_closed', repairWaves: [wave1, wave2], decisions: copy([wave1, wave2]),
+    terminalFailure: {
+      task: '002', command: 'npm test', summary: 'still failing', paths: ['src/b.js'],
+      exitCode: 1, repairWave: 2,
+    },
+    userConfirmed: true,
+    tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
+      { id: '003', status: 'integrated', decisions: [copy(wave1)] },
+      { id: '004', status: 'integrated', decisions: [copy(wave2)] }],
+  };
+
+  for (const field of ['failure', 'previousDag', 'nextDag', 'previousScope', 'nextScope', 'necessity', 'revision']) {
+    const invalid = copy(valid);
+    delete invalid.repairWaves[0][field];
+    assert.match(validateCoordinatorLedger(invalid).reason, /repair-decision/, field);
+  }
+  for (const field of ['command', 'summary', 'paths']) {
+    const invalid = copy(valid);
+    delete invalid.repairWaves[0].failure[field];
+    assert.match(validateCoordinatorLedger(invalid).reason, /repair-decision/, `failure.${field}`);
+  }
+  const emptyFailurePaths = copy(valid);
+  emptyFailurePaths.repairWaves[0].failure.paths = [];
+  assert.match(validateCoordinatorLedger(emptyFailurePaths).reason, /repair-decision/);
+
+  const changedGlobalCopy = copy(valid);
+  changedGlobalCopy.decisions[0].necessity = 'different';
+  assert.match(validateCoordinatorLedger(changedGlobalCopy).reason, /global-repair-log/);
+  const changedTaskCopy = copy(valid);
+  changedTaskCopy.tasks[1].decisions[0].nextScope = ['src/other.js'];
+  assert.match(validateCoordinatorLedger(changedTaskCopy).reason, /task-repair-log/);
+  assert.strictEqual(validateCoordinatorLedger(valid).ok, true);
+});
+
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' });
 }

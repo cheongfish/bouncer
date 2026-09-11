@@ -16,18 +16,10 @@ user first. Used from `/bouncer-plan`.
 
 ## Steps
 
-1. **Pre-read** — Before framing, consume the caller's
-   `bouncer distill --preflight` output together with the absolute path of
-   the `--all` baseline file and epic indexes under
-   `.bouncer/context/epics/`. The caller also supplies the absolute Distill
-   path from `/bouncer-plan` for provenance; it is never derived from plugin
-   root or cwd. Do not consume `--for` or another selective route before the
-   request has confirmed paths. If the baseline file is missing, instruct the
-   caller to re-run `bouncer distill --all`; do not substitute a route result
-   for the baseline. If an index, Distill path, or shard index is missing,
-   record Overlap as "none" when the CLI's single-file fallback is empty, and
-   continue — pre-read is not a hard stop. Before scaffolding, also consume the
-   caller's context-search result from the already-synced context graph. Use
+1. **Pre-read** — Before framing, consume the caller's context-search result
+   from the already-synced context graph and epic indexes under
+   `.bouncer/context/epics/`. Preserve its query id, mode, status, graph
+   version, and selected canonical paths. Use
    its prior decisions, predecessor blueprints, and constraints only to inform
    `Overlap`; candidates remain advisory data and never set `affected_paths`.
 2. **Request** — Capture the user's ask in their words; note constraints and
@@ -39,7 +31,7 @@ user first. Used from `/bouncer-plan`.
 7. **Edge cases & failure modes** — Ask for edge cases and failure modes the
    change must handle or deliberately reject.
 8. **Overlap** — Ask how this request overlaps with existing epic/blueprint
-   streams and Distill decisions; include the pre-scaffold context-search
+   streams and prior context decisions; include the pre-scaffold context-search
    evidence, distinguish it from the current draft when present, and capture
    reuse vs. new work.
 9. **Confirmation** — Present the framing (all six handoff outputs) and get
@@ -52,8 +44,8 @@ In one clarifying pass, cover at least:
 - Goal, scope, explicit non-goals, and success criteria
 - Edge cases the change must survive
 - Failure modes (what breaks, and what the change must reject)
-- Overlap with existing epic/blueprint streams and Distill.md
-  (caller `--preflight` output plus the `--all` baseline path)
+- Overlap with existing epic/blueprint streams and canonical context decisions
+  (caller query id, status, graph version, and selected paths)
 
 ## Guardrails
 
@@ -61,8 +53,8 @@ In one clarifying pass, cover at least:
 - Prefer concrete, testable success criteria over vague aspirations.
 - If the request is still ambiguous after one clarifying pass, ask again rather
   than inventing scope.
-- Do not stop discovery solely because epic indexes or Distill.md are missing;
-  record Overlap as "none" and continue.
+- Do not stop discovery solely because epic indexes or graph candidates are
+  missing; record the broad/zero-hit diagnosis and continue.
 
 ## Return
 

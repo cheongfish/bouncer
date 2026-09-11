@@ -24,6 +24,31 @@
       "light-plan": 97,
       "verification-ledger": 36,
       "graphify-bootstrap": 71
+    },
+    "context_search_comparison": {
+      "commit": "d7cc974b53794635654c77923dddbe9fe585cd5e",
+      "build_sha": "f6e47b6d34610b37288c5b4b8aabd849ef3f1e6dc05517fed48492f055d67eca",
+      "graphify_cli_version": "0.8.22",
+      "direct_bfs": {
+        "recall_at_8": 0.1111111111111111,
+        "mrr": 0.25,
+        "broad_query_false_positive_rate": 0,
+        "zero_hit_diagnosis_rate": 0,
+        "median_candidates": 0,
+        "planning_retrieval_tokens": 1844,
+        "wall_clock_median_ms": 0.273,
+        "wall_clock_p95_ms": 0.357
+      },
+      "context_search": {
+        "recall_at_8": 1,
+        "mrr": 1,
+        "broad_query_false_positive_rate": 0,
+        "zero_hit_diagnosis_rate": 1,
+        "median_candidates": 3,
+        "planning_retrieval_tokens": 612,
+        "wall_clock_median_ms": 0.470,
+        "wall_clock_p95_ms": 0.594
+      }
     }
   },
   "cases": [

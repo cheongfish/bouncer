@@ -22,9 +22,9 @@ does not install it. Project `CLAUDE.md` / `AGENTS.md` / user instructions win o
    never hand-write verification claims ([`references/verification/index.md`](references/verification/index.md)).
 3. **Governance & Language** — One task bundle (`tasks/<NNN>/{tasks,verification,review}.md`)
    is one reviewable commit ([`rules/governance.md`](rules/governance.md)). Canonical docs live
-   under `.bouncer/context/` ([`rules/okf.md`](rules/okf.md)); Distill lives at
-   `${PROJECT_ROOT}/.bouncer/Distill.md`. Author reader-facing docs and commit messages in Korean;
-   keep identifiers, search metadata, and Distill in English. Non-obvious intent as Korean code comments
+   under `.bouncer/context/` and retrieval uses its context graph
+   ([`rules/okf.md`](rules/okf.md)). Author reader-facing docs and commit messages in Korean;
+   keep identifiers and search metadata in English. Non-obvious intent as Korean code comments
    ([`references/implementation/index.md`](references/implementation/index.md)).
 
 ## Session conduct
@@ -49,7 +49,7 @@ does not install it. Project `CLAUDE.md` / `AGENTS.md` / user instructions win o
 | Hard rules | Session-wide obligations and the trust boundary | Executable procedure; repo-only facts | `CLAUDE.md` |
 | Procedure | Steps an agent can run | Session-wide hard rules | `skills/*/SKILL.md` |
 | Contract | Shared display, pointer, OKF, plugin-root | Workflow entry routing | `rules/*.md`, `references/*/index.md` |
-| Repo-true | Facts true only in this checkout | Rules that apply on every host | `.bouncer/Distill.md` |
+| Repo-true | Facts true only in this checkout | Rules that apply on every host | `.bouncer/context/**` through context-search |
 
 `## When to invoke` is the workflow entry routing index.
 
@@ -62,7 +62,7 @@ does not install it. Project `CLAUDE.md` / `AGENTS.md` / user instructions win o
 | Implement and verify one task | `/bouncer-execute` |
 | Close one task (commit) | `/bouncer-commit` |
 | Run one blueprint to task exhaustion | `/bouncer-run` |
-| Promote Distill, explain + quiz, draft PR, cleanup | `/bouncer-finalize` |
+| Explain + quiz, draft PR, cleanup | `/bouncer-finalize` |
 
 ## Plugin root
 

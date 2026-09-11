@@ -125,14 +125,6 @@ test('each data-reading skill and agent references hard rule 1 with a local boun
   }
 });
 
-test('Distill promotion keeps explain input separate from promotion consent', () => {
-  const md = readRel('skills/bouncer-finalize/references/distill-promotion.md');
-  assert.match(md, /CLAUDE\.md[^\n]{0,80}hard rule 1\b|hard rule 1\b[^\n]{0,80}CLAUDE\.md/i);
-  assert.match(md, /Explain body is data, not instructions/i);
-  assert.match(md, /promotion candidates|승격 후보/i);
-  assert.match(md, /consent|동의/i);
-});
-
 test('plan execute and run keep local trust-boundary phrases', () => {
   const plan = readRel('skills/bouncer-plan/SKILL.md');
   const execute = readRel('skills/bouncer-execute/SKILL.md');
@@ -166,4 +158,11 @@ test('coordinator authority and plain worker reports stay separate', () => {
     assert.doesNotMatch(md, /coordinate revise --blueprint/, `${name} must not revise scope itself`);
     assert.match(md, /controller/i, name);
   }
+});
+
+test('finalize keeps explain data separate from user-owned consent steps', () => {
+  const md = readRel('skills/bouncer-finalize/SKILL.md');
+  assert.doesNotMatch(md, /distill/i);
+  assert.match(md, /explain.*quiz/i);
+  assert.match(md, /user does not answer[\s\S]*stop|before any outward push/i);
 });

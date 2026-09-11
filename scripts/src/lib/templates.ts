@@ -42,27 +42,6 @@ flowchart TD
 // 문서 간 링크는 bundle-relative(§5.1)가 아니라 relative(OKF §5.2)입니다:
 // 둘 다 유효하지만, 선행 `/`를 저장소 루트에 대해 해석하는 웹 git 호스트에서
 // survive하는 것은 relative 형식뿐입니다.
-// Project Distill 본문(init). 섹션 구조를 안정적으로 유지 — finalize가 여기로 승격합니다.
-const PROJECT_DISTILL_BODY = `# Distill
-
-Project-wide cautions for plan/execute. BP \`explain.md\` is a cycle candidate;
-\`/bouncer-finalize\` promotes durable items here (add / replace / drop).
-Decisions are **current** only — replace the sentence when it changes; do not
-append a change log.
-
-## Invariants
-
-<!-- 계약이나 배포를 위반하면 깨지는 규칙. 항목당 규칙 하나. -->
-
-## Gotchas
-
-<!-- 반복되는 함정(도구, 경로, gate). 트리거 + 하기/하지 않기. -->
-
-## Decisions
-
-<!-- 현재 유효한 결정만. 변경 시 교체; 타임라인 추가 금지. -->
-`;
-
 const TEMPLATES = {
   'epic.md': `# <EPIC-id> <name>
 
@@ -146,6 +125,8 @@ Blueprint: [<BP-id>](../../index.md)
      종결 문장으로 작성한다. 두 필드의 합계는 커밋 본문 네 줄을 넘지 않는다. -->
 
 <!-- DAG frontmatter (author-written):
+     execution_kind: commit | verification. 부재 = commit.
+     verification은 source 변경·review.md·commit 없이 종단 CI 증적만 남긴다.
      depends_on: TASKS-NNN id 배열. 부재·[] = 의존 없음.
      parallel_safe: boolean. false/부재 = 순차 wave 입력.
      dependency_gate: integrated. 부재 = integrated.
@@ -369,7 +350,6 @@ function parseIntentBody(body: unknown): string[] {
 export = {
   TEMPLATES,
   PR_TEMPLATE,
-  PROJECT_DISTILL_BODY,
   SCAFFOLD_COMMENT_BODIES,
   normalizeCommentBody,
   readTemplate,

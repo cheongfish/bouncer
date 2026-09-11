@@ -58,7 +58,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
    failure, stop without `--yes`. (Empty staged set is fine — still continue;
    `--yes` will not create an empty commit.)
 
-   Allowed task-bundle, context, and Distill workflow documents are scope
+   Allowed task-bundle and context workflow documents are scope
    candidates but are not task-commit staging candidates. Only task outputs
    are staged; an untracked path must exist before it can be staged.
 

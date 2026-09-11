@@ -72,7 +72,7 @@ For each task document, check:
 
 Judge human-facing bodies under `.bouncer/context/epics/**` against
 `references/stop-slop/index.md` (advisory). Identifiers, paths, and fenced code
-stay as-is. Do not score Distill or plugin skill markdown.
+stay as-is. Do not score derived `graphify-out/**` artifacts or plugin skill markdown.
 
 ### Verifiability of success criteria
 

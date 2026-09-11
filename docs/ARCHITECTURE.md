@@ -94,7 +94,7 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 | 스킬 | 책임 |
 | --- | --- |
 | `discovery` | 요구사항을 목표·범위·비목표·성공 조건으로 정리 |
-| `spec-authoring` | 구현 준비가 된 plan 문서(`tasks/<NNN>/tasks.md`) 작성 · explain.md에서 전역 Distill 승격 |
+| `spec-authoring` | 구현 준비가 된 plan 문서(`tasks/<NNN>/tasks.md`) 작성 |
 | `implementation` | task 문서를 유일한 의사결정 기준으로 구현 |
 | `debugging` | 재현·원인·최소 수정·회귀 검증 기록 |
 | `verification` | 실제 검증 명령과 증거를 활성 task 디렉터리의 `verification.md`에 기록 |
@@ -238,11 +238,11 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    제거한다(빈 목록이면 JavaScript를 생성물로 추측하지 않음).
    context는 설정 입력이 `context_dirs`여도, 빌드가 화이트리스트 섹션만 뽑은
    파생 트리 `graphify-out/context-src/`를 스캔한 뒤 `map.json`으로 경로를
-   원본으로 되돌린다. 화이트리스트는 `.bouncer/Distill.md`의 `## Decisions`,
-   epic `index.md`의 `## Success criteria`, BP `explain.md`의 `## Background` /
+   원본으로 되돌린다. 화이트리스트는 epic `index.md`의 `## Success criteria`,
+   BP `explain.md`의 `## Background` /
    `## Intuition` / `## Code`, BP `index.md`의 `## Intent` / `## Contract`,
    `tasks/<NNN>/tasks.md`의 `## Goal & intent` / `## Interface`다. freshness
-   판정 입력은 `context_dirs`와 `.bouncer/Distill.md`이며, 파생 트리 mtime은
+   판정 입력은 `context_dirs` 원본이며, 파생 트리 mtime은
    넣지 않는다.
 2. `graphify-out/`은 로컬 캐시다. `bouncer init`이 `.gitignore` 누락 항목을
    **안내**하고, 사용자 동의(`--write-gitignore`)가 있을 때만 `# bouncer` …
@@ -265,7 +265,7 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 
 1. `minimality`는 계획·구현·리뷰에서 권장(advisory)이며 별도 게이트가 아니다.
 2. `stop-slop`은 plan·explain 한국어 본문에서 권장(advisory)이며 별도 게이트가
-   아니다. Project Distill(`.bouncer/Distill.md`)은 영어 에이전트 런타임이다.
+   아니다.
 3. 새 의존성 추가는 근거 기록을 요구하고, 별도 하드 게이트는 두지 않는다.
 4. 최소화 제안이 승인된 태스크와 충돌하면 `/bouncer-plan`으로 재검토한다.
 5. `minimality` 래더는 7단이다. 네이티브 플랫폼 기능과 표준 라이브러리는 별도

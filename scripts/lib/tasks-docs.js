@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 // 레거시 단일/번호 문서와 새 tasks/<NNN>/ 묶음을 한 모듈에서만 판정한다.
 // 다른 모듈이 tasks.md / verification.md / review.md / \d{3} 문자열을
-// 직접 매칭하지 않게 하기 위함 (Distill invariant).
+// 직접 매칭하지 않게 하기 위함 (묶음 basename 정본).
 const LEGACY_TASKS_BASENAME = 'tasks.md';
 const INITIAL_NUMBERED_TASKS_BASENAME = 'tasks-001.md';
 // tasks-1.md · tasks-01.md 는 정본이 아니다 — 세 자리 zero-pad만 인정.
@@ -12,6 +12,10 @@ const NUMBERED_TASKS_RE = /^tasks-(\d{3})\.md$/;
 // 엔트리로 올리지 않는다. 거절 게이트는 002.
 const TASK_DIR_RE = /^(\d{3})$/;
 const TASK_UNIT_BASENAMES = ['tasks.md', 'verification.md', 'review.md'];
+const schema = require("./schema");
+const { executionKindOf } = schema;
+const frontmatter = require("./frontmatter");
+const { readDoc } = frontmatter;
 function isNumberedTasksBasename(name) {
     return typeof name === 'string' && NUMBERED_TASKS_RE.test(name);
 }
@@ -36,6 +40,18 @@ function unitDocKind(basename) {
     if (idx === 2)
         return 'review';
     return null;
+}
+/**
+ * 모든 task 소비자가 같은 부재=commit 규칙을 쓰도록 frontmatter를 해석한다.
+ *
+ * @param {unknown} data - tasks.md의 전체 frontmatter 객체
+ * @returns {'commit' | 'verification' | null} 유효 종류 또는 잘못된 선언의 null
+ */
+function taskExecutionKind(data) {
+    const bouncer = data && typeof data === 'object' && !Array.isArray(data)
+        ? data.bouncer
+        : null;
+    return executionKindOf(bouncer);
 }
 /**
  * S5 기대 id (레거시 판정용).
@@ -66,23 +82,24 @@ function expectedTaskDocIds(number) {
         review: `REVIEW-${digits}`,
     };
 }
-function makeEntry({ dir, number, tasks, verification, review, }) {
+function makeEntry({ dir, number, tasks, verification, review, executionKind, }) {
     return {
         dir,
         number,
         tasks,
         verification,
-        review,
+        ...(review ? { review } : {}),
         rel: tasks.rel,
         id: tasks.id,
         basename: path.posix.basename(tasks.rel),
+        executionKind,
     };
 }
 /**
  * blueprint 디렉터리에서 task 묶음 목록을 번호 오름차순으로 돌려준다.
  * 우선순위: tasks/<NNN>/ 디렉터리 엔트리, 그다음 루트 레거시 파일.
- * 문서 내용은 읽지 않는다 — 이름·id·레거시/혼재 판정만.
- * invalidDirs 는 이름만 담아 두고, 거절은 002 게이트가 한다.
+ * tasks.md frontmatter는 정규화된 executionKind를 붙이기 위해 한 번 읽는다.
+ * 그 외 문서 내용은 읽지 않으며 invalidDirs 거절은 002 게이트가 맡는다.
  */
 function listTasksDocs({ repoRoot, blueprintDir }) {
     // paths ↔ tasks-docs 순환: 최상단 import = require는 로드 시점을 앞당겨
@@ -135,12 +152,27 @@ function listTasksDocs({ repoRoot, blueprintDir }) {
     for (const item of dirItems) {
         const dir = `${bp}/tasks/${item.digits}`;
         const ids = expectedTaskDocIds(item.digits);
+        const tasksRel = `${dir}/${TASK_UNIT_BASENAMES[0]}`;
+        let executionKind = null;
+        try {
+            executionKind = taskExecutionKind(readDoc(path.join(repoRoot, tasksRel)).data);
+        }
+        catch (_error) {
+            // 파싱 실패는 validate loader의 S0가 경로와 함께 보고한다. listing은
+            // null을 운반해 consumer가 부재=commit으로 잘못 정규화하지 않게 한다.
+        }
+        const verificationRel = `${dir}/${TASK_UNIT_BASENAMES[1]}`;
         entries.push(makeEntry({
             dir,
             number: item.n,
-            tasks: { rel: `${dir}/${TASK_UNIT_BASENAMES[0]}`, id: ids.tasks },
-            verification: { rel: `${dir}/${TASK_UNIT_BASENAMES[1]}`, id: ids.verification },
-            review: { rel: `${dir}/${TASK_UNIT_BASENAMES[2]}`, id: ids.review },
+            tasks: { rel: tasksRel, id: ids.tasks },
+            verification: { rel: verificationRel, id: ids.verification },
+            // verification node에는 review leaf 자체가 없다. verification.md를 review로
+            // alias하면 목록 소비자가 존재하지 않는 review 단계를 다시 만들어 낸다.
+            ...(executionKind === 'verification' ? {} : {
+                review: { rel: `${dir}/${TASK_UNIT_BASENAMES[2]}`, id: ids.review },
+            }),
+            executionKind,
         }));
     }
     // 하드컷 뒤 구형 루트 파일은 묶음으로 세지 않고 잔존 목록으로만 보고한다.
@@ -157,6 +189,7 @@ module.exports = {
     isNumberedTasksBasename,
     isLegacyTasksBasename,
     unitDocKind,
+    taskExecutionKind,
     expectedTasksId,
     expectedTaskDocIds,
     listTasksDocs,

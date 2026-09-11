@@ -21,15 +21,6 @@ test('discovery clarifies goal, scope, non-goals, and success criteria', () => {
   assert.match(md, /confirm/i);
 });
 
-test('discovery asks for edge cases, failure modes, and stream overlap', () => {
-  const md = readSkill('discovery');
-  assert.match(md, /edge case/i);
-  assert.match(md, /failure mode/i);
-  assert.match(md, /overlap/i);
-  assert.match(md, /\.bouncer\/context\/epics/);
-  assert.match(md, /Distill\.md/);
-});
-
 test('discovery names the handoff contract it passes to planning', () => {
   const md = readSkill('discovery');
   assert.match(md, /Return/);
@@ -44,10 +35,12 @@ test('generic skills omit legacy protocol and methodology assumptions', () => {
 });
 
 // 프레이밍 사전 읽기는 preflight 출력 + baseline 경로. 전량 --all stdout 주입이 아니다.
-test('discovery pre-read consumes --preflight plus baseline path, not full --all stdout', () => {
+
+test('discovery uses context-search status and canonical overlap evidence', () => {
   const md = readSkill('discovery');
-  assert.match(md, /--preflight/);
-  assert.match(md, /baseline/);
-  assert.doesNotMatch(md, /complete output of the caller's[\s\S]{0,80}distill --all/);
-  assert.match(md, /none/);
+  assert.doesNotMatch(md, /distill/i);
+  assert.match(md, /query id, mode, status, graph/);
+  assert.match(md, /Edge cases & failure modes/);
+  assert.match(md, /canonical context decisions/);
+  assert.match(md, /broad\/zero-hit diagnosis/);
 });

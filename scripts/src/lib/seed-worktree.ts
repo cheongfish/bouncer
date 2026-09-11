@@ -59,8 +59,8 @@ function prepareDependencies(
 // base를 git이 기록한 상태로 되돌립니다.
 //
 // 이동 집합은 scope.makeAllowed가 context 문서에 기본으로 허용하는 경계와
-// 의도적으로 같습니다 — blueprint 트리, epic index, context index — project Distill은
-// 제외합니다. worktree가 가져가면 안 되는 base 전역 파일입니다. affected_paths 아래
+// 의도적으로 같습니다 — blueprint 트리, epic index, context index.
+// 파생 memory는 필수 입력이 아니며 복사하지 않습니다. affected_paths 아래
 // 코드와 관련 없는 로컬 변경(graph output)은 그대로 둡니다. config는 이
 // 이동 집합 밖이며, dest 보존 복사로만 전달합니다.
 function makeIsTarget({ blueprintDir }: { blueprintDir: unknown }) {

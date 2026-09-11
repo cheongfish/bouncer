@@ -12,12 +12,17 @@ const {
   SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT, DEFAULT_TEST_OUT,
 } = require('../scripts/lib/session-graph');
 
+function compatible() {
+  return { status: 'compatible', warnings: [], reasons: [] };
+}
+
 function base(over) {
   return {
     inspectBootstrap: () => 'ready',
     init: () => ({ ok: true, created: [], skipped: true, reason: 'already-initialized' }),
     graphifyEnabled: () => true,
     hasGraphify: () => true,
+    checkCompatibility: compatible,
     sourceDirs: () => ['src', 'test'],
     contextDirs: () => ['.bouncer/context'],
     existingDirs: (dirs) => dirs,
@@ -140,6 +145,34 @@ test('skips when graphify is not on PATH', () => {
 
 test('skips when both graphs are fresher than their source dirs', () => {
   assert.strictEqual(plan({ newestMtime: () => 100, graphMtime: () => 200 }).action, 'skip-fresh');
+});
+
+test('force rebuild plans all present graphs even when mtimes are fresh', () => {
+  const result = planSessionGraph({
+    repoRoot: '/r',
+    deps: base({ newestMtime: () => 100, graphMtime: () => 200, testDirs: () => ['test'] }),
+    force: true,
+  });
+  assert.strictEqual(result.action, 'build');
+  const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g.action]));
+  assert.strictEqual(byName.source, 'build');
+  assert.strictEqual(byName.test, 'build');
+  assert.strictEqual(byName.context, 'build');
+});
+
+test('syncSessionGraphs force rebuilds fresh source test and context graphs', () => {
+  const ran = [];
+  const result = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({ newestMtime: () => 100, graphMtime: () => 200, testDirs: () => ['test'] }),
+    force: true,
+    execGraphify: (graph) => {
+      ran.push(graph.name);
+    },
+  });
+  assert.deepStrictEqual(ran, ['source', 'test', 'context']);
+  assert.deepStrictEqual(result.built, ['source', 'test', 'context']);
+  assert.deepStrictEqual(result.failed, []);
 });
 
 test('builds only the stale graph when the other is fresh', () => {
@@ -428,7 +461,7 @@ test('context scope scans derived tree; freshness watches originals', () => {
   assert.deepEqual(source.watchFiles, ['.bouncer/config.json']);
   assert.deepEqual(context.dirs, ['.bouncer/context']);
   assert.deepEqual(context.scanDirs, ['graphify-out/context-src']);
-  assert.deepEqual(context.watchFiles, ['.bouncer/Distill.md']);
+  assert.equal(context.watchFiles, undefined);
 });
 
 test('source rebuilds when config exclude_dirs is newer than graph', () => {
@@ -463,6 +496,7 @@ test('source rebuilds when config exclude_dirs is newer than graph', () => {
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       sourceDirs: () => ['src'],
       contextDirs: () => [],
       testDirs: () => null,
@@ -674,6 +708,7 @@ test('invalid graphify.test_dirs is skipped with a diagnostic reason', () => {
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       graphMtime: () => 300,
       newestMtime: () => 100,
     },
@@ -704,6 +739,7 @@ test('invalid graphify.exclude_dirs is not applied and reports a skip reason', (
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       graphMtime: () => 300,
       newestMtime: () => 100,
     },
@@ -733,11 +769,11 @@ test('normalizeGraphPaths maps source_file via opts.map and drops unknowns', () 
   };
   fs.writeFileSync(path.join(repo, partOut, 'graph.json'), JSON.stringify(graph));
   const rel = normalizeGraphPaths(repo, partOut, 'graphify-out/context-src', {
-    map: { 'flat-a.md': '.bouncer/Distill.md' },
+    map: { 'flat-a.md': '.bouncer/context/epics/001-x/index.md' },
   });
   const out = JSON.parse(fs.readFileSync(path.join(repo, rel), 'utf8'));
   assert.strictEqual(out.nodes.length, 1);
-  assert.strictEqual(out.nodes[0].source_file, '.bouncer/Distill.md');
+  assert.strictEqual(out.nodes[0].source_file, '.bouncer/context/epics/001-x/index.md');
   assert.ok(out.nodes[0].id.includes('keep'));
   assert.strictEqual(out.links.length, 0);
   assert.strictEqual(out.hyperedges.length, 0);
@@ -758,7 +794,7 @@ test('normalizeGraphPaths without map keeps dir/file prefix behavior', () => {
   assert.ok(out.nodes[0].id.startsWith('scripts_'));
 });
 
-test('Distill.md mtime alone marks context graph stale', () => {
+test('Distill.md mtime alone does not mark context graph stale', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-distill-fresh-'));
   fs.mkdirSync(path.join(repo, '.bouncer/context/epics/001-x'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/context/epics/001-x/index.md'), '## Success criteria\n\nx\n');
@@ -773,7 +809,6 @@ test('Distill.md mtime alone marks context graph stale', () => {
     const abs = path.join(repo, rel);
     fs.utimesSync(abs, new Date(ms), new Date(ms));
   };
-  // context dirs + graph are old; only Distill is newer → context must build.
   touch('.bouncer/context/epics/001-x/index.md', old);
   touch(path.join(DEFAULT_CONTEXT_OUT, 'graph.json'), old);
   touch('.bouncer/Distill.md', neu);
@@ -784,35 +819,36 @@ test('Distill.md mtime alone marks context graph stale', () => {
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       sourceDirs: () => [],
       contextDirs: () => ['.bouncer/context'],
     },
   });
   const context = result.graphs.find((g) => g.name === 'context');
   assert.ok(context);
-  assert.strictEqual(context.action, 'build');
+  assert.strictEqual(context.action, 'skip-fresh');
 });
 
 test('empty context digest skips graphify, keeps prior graph, settles freshness', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-empty-digest-'));
-  // digest count === 0 은 앵커와 절 본문이 모두 비었을 때만이다다.
+  // digest count === 0 은 앵커와 절 본문이 모두 비었을 때만이다.
   // 계층 경로 화이트리스트(task 브리프 등)는 앵커만으로도 emit 되므로 empty-skip 픽스처로 쓰지 않는다.
   fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
-  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Decisions\n\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/context/notes.md'), '# not whitelisted\n');
   fs.mkdirSync(path.join(repo, DEFAULT_CONTEXT_OUT), { recursive: true });
   const graphPath = path.join(repo, DEFAULT_CONTEXT_OUT, 'graph.json');
-  const prior = JSON.stringify({ nodes: [{ id: 'keep-me', source_file: '.bouncer/Distill.md' }], links: [] });
+  const prior = JSON.stringify({ nodes: [{ id: 'keep-me', source_file: '.bouncer/context/notes.md' }], links: [] });
   fs.writeFileSync(graphPath, prior);
   const old = Date.now() - 120_000;
   fs.utimesSync(graphPath, new Date(old), new Date(old));
-  // Distill은 context watchFiles 이라 mtime만으로 freshness를 stale로 만든다.
-  const srcPath = path.join(repo, '.bouncer/Distill.md');
+  const srcPath = path.join(repo, '.bouncer/context/notes.md');
   fs.utimesSync(srcPath, new Date(old + 60_000), new Date(old + 60_000));
 
   const deps = {
     inspectBootstrap: () => 'ready',
     graphifyEnabled: () => true,
     hasGraphify: () => true,
+    checkCompatibility: compatible,
     sourceDirs: () => [],
     contextDirs: () => ['.bouncer/context'],
   };
@@ -838,6 +874,7 @@ test('empty context digest without prior graph is not reported as built', () => 
       inspectBootstrap: () => 'ready',
       graphifyEnabled: () => true,
       hasGraphify: () => true,
+      checkCompatibility: compatible,
       sourceDirs: () => [],
       contextDirs: () => ['.bouncer/context'],
     },
@@ -879,3 +916,39 @@ test('SessionStart reports legacy state with corrective command and exits zero',
   assert.match(result.stderr, /\/bouncer-init/);
   assert.strictEqual(result.stdout, '');
 });
+
+test('incompatible graphify versions skip SessionStart build without installing', () => {
+  const pipCalls = [];
+  const built = [];
+  const result = syncSessionGraphs({
+    repoRoot: '/r',
+    deps: base({
+      checkCompatibility: () => ({
+        status: 'version-incompatible',
+        reasons: ['cli mismatch'],
+        warnings: [],
+      }),
+    }),
+    execGraphify: (graph) => {
+      built.push(graph.name);
+    },
+  });
+  assert.strictEqual(result.action, 'skip-version-incompatible');
+  assert.strictEqual(result.status, 'version-incompatible');
+  assert.deepStrictEqual(built, []);
+  assert.deepStrictEqual(result.missing, []);
+  assert.deepStrictEqual(pipCalls, []);
+});
+
+test('graphSyncWarnings names version-incompatible as a skip state', () => {
+  const lines = graphSyncWarnings({
+    action: 'skip-version-incompatible',
+    status: 'version-incompatible',
+    missing: [],
+    graphs: [],
+  });
+  assert.ok(lines.length >= 1);
+  assert.match(lines[0], /version-incompatible|incompatible/i);
+  assert.match(lines.join(''), /upgrade-graphify/);
+});
+

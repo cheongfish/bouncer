@@ -9,13 +9,15 @@ const {
   digestRulesFor,
   extractSections,
   buildContextDigest,
+  parseDigestMetadata,
+  documentKindFor,
   anchorsFor,
   touchPathHeadings,
   tagLabels,
   taskCommitHeadings,
   CONTEXT_DIGEST_OUT,
 } = require('../scripts/lib/context-digest');
-const { tokenize } = require('../scripts/lib/graph-search');
+const { tokenize, contextSearch } = require('../scripts/lib/graph-search');
 const { normalizeCommitSha } = require('../scripts/lib/commit-sha');
 
 test('normalizeCommitSha keeps lowercase 8-char contract', () => {
@@ -109,13 +111,95 @@ test('anchorsFor derives hierarchy from path ids narrowest-first', () => {
   }
 });
 
-test('digestRulesFor whitelists Distill, epic index, explain, blueprint index, and task brief', () => {
-  // master는 shard 목록 정본이라 ## Shards만 색인한다. Decisions는 shard 본문에 있다.
-  assert.deepEqual(digestRulesFor('.bouncer/Distill.md'), ['## Shards']);
-  assert.deepEqual(
-    digestRulesFor('.bouncer/distill/core.md'),
-    ['## Invariants', '## Gotchas', '## Decisions'],
+test('Distill-absent digest still emits history explain and task originals', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-no-distill-'));
+  const epic = '.bouncer/context/epics/068-x';
+  const bp = `${epic}/blueprints/001-y`;
+  fs.mkdirSync(path.join(repo, bp, 'tasks/001'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Shards\n\n- core\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/distill/core.md'), '## Decisions\n\nkeep out\n');
+  fs.writeFileSync(path.join(repo, `${epic}/index.md`), '## Success criteria\n\nok\n');
+  fs.writeFileSync(
+    path.join(repo, `${bp}/index.md`),
+    [
+      '---',
+      'type: bouncer.blueprint',
+      'bouncer:',
+      "  epic_id: '068'",
+      "  blueprint_id: '001'",
+      '  status: closed',
+      '---',
+      '',
+      '## Intent',
+      '',
+      'i',
+      '',
+      '## Contract',
+      '',
+      'c',
+      '',
+    ].join('\n'),
   );
+  fs.writeFileSync(
+    path.join(repo, `${bp}/explain.md`),
+    [
+      '---',
+      'type: bouncer.explain',
+      'bouncer:',
+      "  epic_id: '068'",
+      "  blueprint_id: '001'",
+      '  status: published',
+      '---',
+      '',
+      '## Background',
+      '',
+      'closed history',
+      '',
+      '## Intuition',
+      '',
+      'int',
+      '',
+      '## Code',
+      '',
+      'code',
+      '',
+    ].join('\n'),
+  );
+  fs.writeFileSync(
+    path.join(repo, `${bp}/tasks/001/tasks.md`),
+    '## Goal & intent\n\ngoal\n\n## Interface\n\niface\n',
+  );
+
+  const result = buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  const originals = Object.values(result.map);
+  assert.ok(!originals.includes('.bouncer/Distill.md'));
+  assert.ok(!originals.includes('.bouncer/distill/core.md'));
+  assert.ok(originals.includes(`${bp}/explain.md`));
+  assert.ok(originals.includes(`${bp}/tasks/001/tasks.md`));
+  assert.equal(digestRulesFor('.bouncer/Distill.md'), null);
+  assert.equal(digestRulesFor('.bouncer/distill/core.md'), null);
+  assert.equal(documentKindFor('.bouncer/Distill.md'), null);
+
+  fs.mkdirSync(path.join(repo, 'graphify-out/context'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'graphify-out/context/graph.json'), JSON.stringify({
+    nodes: originals.map((rel, i) => ({ id: `n${i}`, label: 'closed history', source_file: rel })),
+    links: [],
+  }));
+  const history = contextSearch({
+    repoRoot: repo,
+    mode: 'history',
+    query: 'closed history explain',
+  });
+  assert.ok(!history.candidates.some((c) => /Distill|distill/.test(c.path)));
+  assert.ok(history.candidates.some((c) => c.path === `${bp}/explain.md`));
+  assert.ok(!Object.prototype.hasOwnProperty.call(history, 'distill'));
+  assert.ok(!JSON.stringify(history).includes('distill --for'));
+});
+
+test('digestRulesFor whitelists epic index, explain, blueprint index, and task brief', () => {
+  assert.equal(digestRulesFor('.bouncer/Distill.md'), null);
+  assert.equal(digestRulesFor('.bouncer/distill/core.md'), null);
   assert.deepEqual(
     digestRulesFor('.bouncer/context/epics/026-x/blueprints/001-y/explain.md'),
     ['## Background', '## Intuition', '## Code'],
@@ -198,12 +282,12 @@ test('buildContextDigest emits flat files, map, and clears prior output', () => 
     contextDirs: ['.bouncer/context'],
   });
   assert.equal(first.dir, CONTEXT_DIGEST_OUT);
-  assert.ok(first.count >= 6);
+  assert.ok(first.count >= 5);
   assert.ok(fs.existsSync(path.join(repo, CONTEXT_DIGEST_OUT, 'map.json')));
 
   const map = JSON.parse(fs.readFileSync(path.join(repo, first.dir, 'map.json'), 'utf8'));
   const originals = Object.values(map);
-  assert.ok(originals.includes('.bouncer/Distill.md'));
+  assert.ok(!originals.includes('.bouncer/Distill.md'));
   assert.ok(originals.includes(`${epic}/index.md`));
   assert.ok(originals.includes(`${bp}/explain.md`));
   assert.ok(originals.includes(`${bp}/index.md`));
@@ -351,10 +435,12 @@ test('buildContextDigest appends tag headings after anchors and Touch paths', ()
   assert.ok(epicFlat);
   const epicBody = fs.readFileSync(path.join(repo, result.dir, epicFlat), 'utf8');
   // 앵커 뒤·절 본문 앞에 태그 헤딩. kind 태그 epic·bouncer 는 승격하지 않는다.
+  // 반복 절 헤딩(## Success criteria)은 seed 본문에 남기지 않는다.
   assert.match(
     epicBody,
-    /## epic-063\n\n## context-digest\n## distill\n\n## Success criteria/,
+    /## epic-063\n\n## context-digest\n## distill\n/,
   );
+  assert.ok(!epicBody.includes('## Success criteria'));
   assert.ok(!epicBody.includes('## bouncer\n'));
   assert.ok(!/\n## epic\n/.test(epicBody));
 
@@ -363,11 +449,13 @@ test('buildContextDigest appends tag headings after anchors and Touch paths', ()
   );
   assert.ok(taskFlat);
   const taskBody = fs.readFileSync(path.join(repo, result.dir, taskFlat), 'utf8');
-  // 헤딩 순서: 앵커 → Touch 경로 → 태그 → 절 본문
+  // 헤딩 순서: 앵커 → Touch 경로 → 태그 → 절 본문(반복 heading 제외)
   assert.match(
     taskBody,
-    /## task-063-001-003\n## bp-063-001\n## epic-063\n\n## scripts\/src\/lib\/a\.ts\n\n## search-vocabulary\n\n## Goal & intent/,
+    /## task-063-001-003\n## bp-063-001\n## epic-063\n\n## scripts\/src\/lib\/a\.ts\n\n## search-vocabulary\n/,
   );
+  assert.ok(!taskBody.includes('## Goal & intent'));
+  assert.ok(!taskBody.includes('## Interface'));
   assert.ok(!taskBody.includes('## tasks\n'));
 });
 
@@ -387,16 +475,16 @@ test('buildContextDigest keeps empty-section epic via anchor-only derived file',
   const epicFlat = Object.keys(result.map).find((flat) => result.map[flat] === `${epic}/index.md`);
   assert.ok(epicFlat, 'empty-section epic must still emit a derived file');
   const body = fs.readFileSync(path.join(repo, result.dir, epicFlat), 'utf8');
-  assert.match(body, /^<!-- source: \.bouncer\/context\/epics\/063-x\/index\.md -->\n\n/);
+  assert.match(body, /<!-- source: \.bouncer\/context\/epics\/063-x\/index\.md -->/);
+  assert.match(body, /<!-- digest:/);
   assert.match(body, /## epic-063\n/);
   assert.ok(!body.includes('## Success criteria'));
 });
 
-test('buildContextDigest includes Decisions from registered shards with original map paths only', () => {
+test('buildContextDigest omits Distill shards even when they are registered', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-shards-'));
   fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
-  // frontmatter shards: 는 readShards 등록용. 본문 ## Shards는 다이제스트 규칙과 맞춘다.
+  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/068-x'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), [
     '---',
     'distill:',
@@ -414,34 +502,166 @@ test('buildContextDigest includes Decisions from registered shards with original
     'distill:',
     '  id: core',
     '---',
-    '## Invariants',
-    '',
-    'inv',
-    '',
-    '## Gotchas',
-    '',
-    'got',
-    '',
     '## Decisions',
     '',
     'shard decision',
     '',
   ].join('\n'));
-  fs.writeFileSync(path.join(repo, '.bouncer/distill/unregistered.md'), '## Decisions\n\nshould not graph\n');
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/context/epics/068-x/index.md'),
+    '## Success criteria\n\nhistory context\n',
+  );
 
   const result = buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
   const originals = Object.values(result.map);
 
-  assert.ok(originals.includes('.bouncer/Distill.md'));
-  assert.ok(originals.includes('.bouncer/distill/core.md'));
-  assert.ok(!originals.includes('.bouncer/distill/unregistered.md'));
-  const shardFlat = Object.keys(result.map).find((flat) => result.map[flat] === '.bouncer/distill/core.md');
-  assert.ok(shardFlat);
-  const shardBody = fs.readFileSync(path.join(repo, result.dir, shardFlat), 'utf8');
-  assert.match(shardBody, /<!-- source: \.bouncer\/distill\/core\.md -->/);
-  // shard 파생 본문은 Invariants → Gotchas → Decisions 순서를 유지한다.
-  assert.match(
-    shardBody,
-    /## Invariants\n\ninv\n\n## Gotchas\n\ngot\n\n## Decisions\n\nshard decision\n/,
+  assert.ok(!originals.includes('.bouncer/Distill.md'));
+  assert.ok(!originals.includes('.bouncer/distill/core.md'));
+  assert.ok(originals.includes('.bouncer/context/epics/068-x/index.md'));
+});
+
+test('documentKindFor maps whitelist paths to epic, blueprint, explain, task', () => {
+  assert.equal(documentKindFor('.bouncer/context/epics/060-x/index.md'), 'epic');
+  assert.equal(documentKindFor('.bouncer/context/epics/060-x/blueprints/001-y/index.md'), 'blueprint');
+  assert.equal(documentKindFor('.bouncer/context/epics/060-x/blueprints/001-y/explain.md'), 'explain');
+  assert.equal(documentKindFor('.bouncer/context/epics/060-x/blueprints/001-y/tasks/002/tasks.md'), 'task');
+  assert.equal(documentKindFor('.bouncer/Distill.md'), null);
+  assert.equal(documentKindFor('.bouncer/distill/core.md'), null);
+  assert.equal(documentKindFor('scripts/src/lib/cli.ts'), null);
+});
+
+test('buildContextDigest writes role, status, ids, tags, and source path metadata', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-digest-meta-'));
+  const epic = '.bouncer/context/epics/060-x';
+  const bp = `${epic}/blueprints/001-y`;
+  fs.mkdirSync(path.join(repo, bp, 'tasks/002'), { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Shards\n\n- core\n');
+  fs.writeFileSync(path.join(repo, `${epic}/index.md`), [
+    '---',
+    'type: bouncer.epic',
+    'tags:',
+    '  - bouncer',
+    '  - epic',
+    '  - graphify-search-quality',
+    'bouncer:',
+    "  epic_id: '060'",
+    '  status: approved',
+    '---',
+    '',
+    '## Success criteria',
+    '',
+    'ok',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
+    '---',
+    'type: bouncer.blueprint',
+    'tags:',
+    '  - bouncer',
+    '  - blueprint',
+    'bouncer:',
+    "  epic_id: '060'",
+    "  blueprint_id: '001'",
+    '  status: closed',
+    '---',
+    '',
+    '## Intent',
+    '',
+    'closed ranking',
+    '',
+    '## Contract',
+    '',
+    'contract',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, `${bp}/explain.md`), [
+    '---',
+    'type: bouncer.explain',
+    'tags:',
+    '  - bouncer',
+    '  - explain',
+    'bouncer:',
+    "  epic_id: '060'",
+    "  blueprint_id: '001'",
+    '  status: published',
+    '---',
+    '',
+    '## Background',
+    '',
+    'bg',
+    '',
+    '## Intuition',
+    '',
+    'int',
+    '',
+    '## Code',
+    '',
+    'code',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(repo, `${bp}/tasks/002/tasks.md`), [
+    '---',
+    'type: bouncer.tasks',
+    'tags:',
+    '  - bouncer',
+    '  - tasks',
+    '  - graph-search',
+    'bouncer:',
+    "  epic_id: '060'",
+    "  blueprint_id: '001'",
+    '  status: verified',
+    '---',
+    '',
+    '## Goal & intent',
+    '',
+    'goal',
+    '',
+    '## Interface',
+    '',
+    'iface',
+    '',
+  ].join('\n'));
+
+  const result = buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
+  const byRel = Object.fromEntries(Object.entries(result.map).map(([flat, rel]) => [rel, flat]));
+
+  const epicMeta = parseDigestMetadata(
+    fs.readFileSync(path.join(repo, result.dir, byRel[`${epic}/index.md`]), 'utf8'),
   );
+  assert.equal(epicMeta.kind, 'epic');
+  assert.equal(epicMeta.status, 'approved');
+  assert.equal(epicMeta.epic_id, '060');
+  assert.equal(epicMeta.blueprint_id, '');
+  assert.equal(epicMeta.source_path, `${epic}/index.md`);
+  assert.ok(epicMeta.tags.includes('graphify-search-quality'));
+  assert.equal(epicMeta.blueprint_status, '');
+
+  const bpMeta = parseDigestMetadata(
+    fs.readFileSync(path.join(repo, result.dir, byRel[`${bp}/index.md`]), 'utf8'),
+  );
+  assert.equal(bpMeta.kind, 'blueprint');
+  assert.equal(bpMeta.status, 'closed');
+  assert.equal(bpMeta.epic_id, '060');
+  assert.equal(bpMeta.blueprint_id, '001');
+
+  const explainMeta = parseDigestMetadata(
+    fs.readFileSync(path.join(repo, result.dir, byRel[`${bp}/explain.md`]), 'utf8'),
+  );
+  assert.equal(explainMeta.kind, 'explain');
+  assert.equal(explainMeta.status, 'published');
+  assert.equal(explainMeta.blueprint_status, 'closed');
+  assert.equal(explainMeta.source_path, `${bp}/explain.md`);
+
+  const taskMeta = parseDigestMetadata(
+    fs.readFileSync(path.join(repo, result.dir, byRel[`${bp}/tasks/002/tasks.md`]), 'utf8'),
+  );
+  assert.equal(taskMeta.kind, 'task');
+  assert.equal(taskMeta.status, 'verified');
+  assert.equal(taskMeta.blueprint_status, 'closed');
+  assert.deepEqual(taskMeta.tags, ['graph-search']);
+
+  const explainBody = fs.readFileSync(path.join(repo, result.dir, byRel[`${bp}/explain.md`]), 'utf8');
+  assert.ok(!explainBody.includes('## Background'));
+  assert.ok(explainBody.includes('bg'));
 });

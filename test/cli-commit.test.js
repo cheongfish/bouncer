@@ -8,6 +8,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
+const { commitTask } = require('../scripts/lib/commit');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 const { recordVerificationResult } = require('../scripts/lib/verification');
 
@@ -198,6 +199,80 @@ test('commit --yes stages in-scope change and returns committed:true', () => {
   assert.ok(typeof parsed.commitSha === 'string' && parsed.commitSha.length > 0);
 });
 
+test('commit --yes commits an in-scope tracked deletion already staged by the task', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  // 실제 TASKS-005 삭제 경로처럼 작업자가 이미 `git add -A`한 deletion은
+  // index에서 pathspec이 사라진다. commit이 같은 경로를 다시 add하지 않아야 한다.
+  fs.rmSync(path.join(repo, 'src/auth/login.ts'));
+  execFileSync('git', ['add', '-A', '--', 'src/auth/login.ts'], { cwd: repo });
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.committed, true);
+  assert.ok(parsed.staged.includes('src/auth/login.ts'));
+  assert.ok(!fs.existsSync(path.join(repo, 'src/auth/login.ts')));
+  const committed = execFileSync('git', ['show', '--format=', '--name-status', 'HEAD'], {
+    cwd: repo, encoding: 'utf8',
+  });
+  assert.match(committed, /^D\s+src\/auth\/login\.ts$/m);
+});
+
+test('commit --yes stages an in-scope tracked deletion from a clean index', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  fs.rmSync(path.join(repo, 'src/auth/login.ts'));
+  // 실패했던 경로는 이전 시도의 staged deletion을 물려받았다. 여기서는 index가
+  // 비어 있음을 먼저 고정해, commit이 삭제 자체를 stage하는지 검증한다.
+  assert.strictEqual(execFileSync('git', ['diff', '--cached', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim(), '');
+
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, true);
+  assert.strictEqual(parsed.committed, true);
+  assert.ok(parsed.staged.includes('src/auth/login.ts'));
+  const committed = execFileSync('git', ['show', '--format=', '--name-status', 'HEAD'], {
+    cwd: repo, encoding: 'utf8',
+  });
+  assert.match(committed, /^D\s+src\/auth\/login\.ts$/m);
+});
+
+test('commit --yes stages both existing index and later worktree changes to one task file', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const login = path.join(repo, 'src/auth/login.ts');
+  fs.writeFileSync(login, 'export const first = 1;\n');
+  execFileSync('git', ['add', '--', 'src/auth/login.ts'], { cwd: repo });
+  fs.writeFileSync(login, 'export const first = 1;\nexport const second = 2;\n');
+
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.committed, true);
+  assert.strictEqual(execFileSync('git', ['show', 'HEAD:src/auth/login.ts'], {
+    cwd: repo, encoding: 'utf8',
+  }), 'export const first = 1;\nexport const second = 2;\n');
+  assert.strictEqual(execFileSync('git', ['diff', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim(), '');
+});
+
 test('commit --yes rejects out-of-scope change before staging without a host hook', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
@@ -224,6 +299,93 @@ test('commit --yes rejects out-of-scope change before staging without a host hoo
   });
   assert.match(dirty, /src\/payments/);
   assert.match(dirty, /src\/auth\/login\.ts/);
+});
+
+test('commit --yes leaves tracked finalization remainder while committing task source', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const retainedIndex = '.bouncer/Dist' + 'ill.md';
+  const retainedShard = '.bouncer/dist' + 'ill/core.md';
+  const context = '.bouncer/context/index.md';
+  for (const rel of [retainedIndex, retainedShard, context]) {
+    const abs = path.join(repo, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    if (rel === context && fs.existsSync(abs)) {
+      fs.appendFileSync(abs, '\n<!-- finalize remainder -->\n');
+    } else {
+      fs.writeFileSync(abs, '# finalize remainder\n');
+    }
+  }
+  // 삭제 전 추적 상태를 고정한다. untracked 잔여 문서는 scope 예외가 아니어야 한다.
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'fixture remainder'], { cwd: repo });
+  fs.rmSync(path.join(repo, retainedIndex));
+  fs.rmSync(path.join(repo, retainedShard));
+  // 직전 finalize가 이미 index에 올린 삭제도 task commit이 소비하면 안 된다.
+  execFileSync('git', ['add', '-A', '--', retainedIndex, retainedShard], { cwd: repo });
+  fs.appendFileSync(path.join(repo, context), '<!-- changed finalize context -->\n');
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'], io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.deepStrictEqual(parsed.staged, ['src/auth/login.ts']);
+  const committed = execFileSync('git', ['show', '--format=', '--name-only', 'HEAD'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim().split('\n').filter(Boolean);
+  assert.deepStrictEqual(committed, ['src/auth/login.ts']);
+  const preserved = execFileSync('git', ['diff', '--cached', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim().split('\n').filter(Boolean).sort();
+  assert.deepStrictEqual(preserved, [retainedIndex, retainedShard].sort());
+});
+
+test('commit restores staged finalization remainder when the commit gate throws', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const retainedIndex = '.bouncer/Dist' + 'ill.md';
+  fs.writeFileSync(path.join(repo, retainedIndex), '# tracked\n');
+  execFileSync('git', ['add', retainedIndex], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'fixture remainder'], { cwd: repo });
+  fs.rmSync(path.join(repo, retainedIndex));
+  execFileSync('git', ['add', '-A', '--', retainedIndex], { cwd: repo });
+
+  assert.throws(() => commitTask({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    validateGate: () => { throw new Error('injected gate failure'); },
+  }), /injected gate failure/);
+  const preserved = execFileSync('git', ['diff', '--cached', '--name-only'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim().split('\n').filter(Boolean);
+  assert.deepStrictEqual(preserved, [retainedIndex]);
+});
+
+test('commit still rejects modified or untracked finalization remainder and other out-of-scope candidates', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const retainedIndex = '.bouncer/Dist' + 'ill.md';
+  const untrackedRemainder = '.bouncer/dist' + 'ill/untracked.md';
+  fs.writeFileSync(path.join(repo, retainedIndex), '# tracked\n');
+  execFileSync('git', ['add', retainedIndex], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'fixture remainder'], { cwd: repo });
+  fs.appendFileSync(path.join(repo, retainedIndex), 'changed\n');
+  fs.mkdirSync(path.dirname(path.join(repo, untrackedRemainder)), { recursive: true });
+  fs.writeFileSync(path.join(repo, untrackedRemainder), '# not remainder\n');
+  fs.writeFileSync(path.join(repo, 'README.md'), 'out of scope\n');
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'], io,
+  );
+  assert.notStrictEqual(code, 0);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.reason, 'out-of-scope');
+  assert.ok(parsed.violations.includes(retainedIndex));
+  assert.ok(parsed.violations.includes(untrackedRemainder));
+  assert.ok(parsed.violations.includes('README.md'));
 });
 
 // --- coordinator mode -------------------------------------------------------

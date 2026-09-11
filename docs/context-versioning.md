@@ -9,7 +9,6 @@
 | 대상 | 방침 | 누가 커밋하나 |
 | --- | --- | --- |
 | `.bouncer/context/**` | 커밋 | `/bouncer-finalize`가 코드·plan 문서와 함께 |
-| `.bouncer/Distill.md` | 커밋 (에이전트 런타임 주의) | finalize가 BP explain에서 승격·교체·폐기 |
 | `.bouncer/config.json` | 커밋 | **사용자가 `/bouncer-init` 직후 별도 커밋으로** |
 | `graphify-out/` | 제외 | `-` (`.gitignore`, init이 안내) |
 | 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/pointers/<epic-id>/<blueprint-id>.json` — JSON `{blueprint, task?, base}` (`task`는 task 문서 상대 경로, 없으면 미지정). cwd가 중첩·유일 평면 worktree면 그 key만 선택하고, 기준 checkout은 포인터가 하나일 때만 선택한다. 레거시 `$GIT_COMMON_DIR/bouncer/current`는 충돌 없는 첫 `--set`에서 namespace로 이관한다 |
@@ -36,7 +35,7 @@ scaffold와 finalize PR 본문은 플러그인 내장값(`scripts/lib/templates.
 이 커밋을 남길 수 있는 유일한 구간입니다.
 
 ```bash
-git add .bouncer/config.json .bouncer/context .bouncer/Distill.md && git commit -m "chore: bootstrap bouncer"
+git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
 ```
 
 ## coordinator 실행 상태의 버전·정리 경계
@@ -51,7 +50,7 @@ artifact로 무시하니 그 자리에서는 걸리지 않습니다. integration
 목록에 있어 스테이징돼도 `out-of-scope`로 보고되지 않고, `bouncer init`이
 권하는 `.gitignore` 항목에도 있어 새 저장소는 처음부터 원장을 추적하지
 않습니다. 규칙은 `.bouncer/runtime/` 한 갈래에만 적용되므로
-`.bouncer/context/**`와 `.bouncer/Distill.md`는 그대로 커밋 대상입니다.
+`.bouncer/context/**`는 그대로 커밋 대상입니다.
 
 | | 원장 | 컨텍스트 문서 |
 | --- | --- | --- |

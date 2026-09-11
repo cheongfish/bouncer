@@ -85,9 +85,8 @@ config seed는 `seed-worktree`에 복사 전용 단계로 넣는다. execute 스
 그 명령을 부르므로 호출 지점이 늘지 않고, worktree를 재사용할 때도 매번
 반영된다.
 
-- 대상은 `.bouncer/config.json` 하나로 못박는다. `.bouncer/Distill.md`는
-  [plugin-root.md](../rules/plugin-root.md)가 `${PROJECT_ROOT}` 밖에서 읽고 쓰는 것을
-  금지하므로 복사 대상이 아니다.
+- 대상은 `.bouncer/config.json` 하나로 못박는다. canonical context와 source는
+  읽기 전용 비교 입력이며 복사 대상이 아니다.
 - 기존 이전 집합과 분리한다. `seedWorktree()`의 phase 2는 base 파일을 복원하거나
   삭제하는 **이동**이므로([seed-worktree.ts](../scripts/src/lib/seed-worktree.ts)),
   config를 그 집합에 넣으면 base의 config가 사라진다. 반환값도 `moved`와 구분되는

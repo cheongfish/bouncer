@@ -88,26 +88,6 @@ test('implementer climb ladder numbers native platform before standard library',
   );
 });
 
-test('Distill core drops upper-layer restatements and keeps repo-true clauses', () => {
-  const core = fs.readFileSync(
-    path.join(__dirname, '..', '.bouncer', 'distill', 'core.md'),
-    'utf8',
-  );
-  assert.doesNotMatch(core, /Canonical Bouncer docs live only under/);
-  assert.doesNotMatch(core, /Active pointer surface is `bouncer current`/);
-  assert.doesNotMatch(core, /Workflow order is init/);
-  assert.doesNotMatch(core, /Minimality lives only in the `minimality` skill/);
-  assert.doesNotMatch(core, /only in the minimality skill/i);
-  assert.match(core, /<git-common-dir>\/bouncer\/current/);
-  assert.match(core, /\{\s*blueprint,\s*task\?,\s*base\s*\}/);
-  assert.match(core, /current\.task\.path/);
-  assert.match(core, /G16 blocks/);
-  assert.match(core, /confirm-then `--set`/);
-  assert.match(core, /One execute worktree is reused/);
-  assert.match(core, /`scripts\/` does not read/);
-  assert.match(core, /--for <path-1> --for <path-2>/);
-});
-
 test('minimality maps judgment intensity onto existing bouncer.scale', () => {
   const md = readSkill('minimality');
   assert.match(md, /bouncer\.scale/);
@@ -121,4 +101,10 @@ test('minimality do-not-minimize list applies regardless of intensity', () => {
   const md = readSkill('minimality');
   assert.match(md, /Do NOT minimize/i);
   assert.match(md, /regardless of intensity/);
+});
+
+test('removed repository-memory shards are absent', () => {
+  for (const rel of ['.bouncer/Distill.md', '.bouncer/distill/core.md']) {
+    assert.equal(fs.existsSync(path.join(__dirname, '..', rel)), false, rel);
+  }
 });

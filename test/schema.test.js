@@ -17,11 +17,13 @@ test('id prefix and status enum per type', () => {
   assert.strictEqual(schema.ID_PREFIX['bouncer.tasks'], 'TASKS-');
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.review'],
     ['pending', 'requested', 'addressed', 'accepted']);
+  assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.tasks'],
+    ['draft', 'ready', 'in_progress', 'verified', 'verifying', 'integrated']);
   assert.strictEqual(schema.KIND_TO_TYPE.explain, 'bouncer.explain');
   assert.strictEqual(schema.ID_PREFIX['bouncer.explain'], 'EXPLAIN-');
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.explain'], ['draft', 'published']);
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.blueprint'],
-    ['draft', 'approved', 'superseded', 'closed', 'imported']);
+    ['draft', 'approved', 'superseded', 'closed', 'partial_closed', 'imported']);
   assert.deepStrictEqual(schema.STATUS_ENUM['bouncer.epic'],
     ['draft', 'approved', 'closed', 'imported']);
   assert.strictEqual(schema.TYPES.length, 7);
@@ -81,4 +83,12 @@ test('schema exports dependency_gate enum and DAG scaffold defaults', () => {
   assert.deepStrictEqual(schema.DEFAULT_DEPENDS_ON, []);
   assert.strictEqual(schema.DEFAULT_PARALLEL_SAFE, false);
   assert.strictEqual(schema.DEFAULT_DEPENDENCY_GATE, 'integrated');
+});
+
+test('execution_kind accepts commit and verification while absence means commit', () => {
+  assert.deepStrictEqual(schema.EXECUTION_KIND_ENUM, ['commit', 'verification']);
+  assert.strictEqual(schema.executionKindOf({}), 'commit');
+  assert.strictEqual(schema.executionKindOf({ execution_kind: 'commit' }), 'commit');
+  assert.strictEqual(schema.executionKindOf({ execution_kind: 'verification' }), 'verification');
+  assert.strictEqual(schema.executionKindOf({ execution_kind: 'other' }), null);
 });

@@ -14,7 +14,7 @@ const { checkEpicIndexConsistency } = epicIndex;
 const validateDocs = require("./validate-docs");
 const { loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves, } = validateDocs;
 const validateStructural = require("./validate-structural");
-const { checkStructural, checkDistillStructural } = validateStructural;
+const { checkStructural } = validateStructural;
 const config = require("./config");
 const { readVerifyPolicy } = config;
 const validateGates = require("./validate-gates");
@@ -87,10 +87,6 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }) {
     // execute gate가 방금 기록한 증적을 읽도록 verification 이후에 로드.
     const { docs, rels, parseErrors, tasksListing } = loadBlueprintDocs({ repoRoot, blueprintDir });
     const failures = [...executionFailures, ...parseErrors];
-    // 문서 구조와 별개인 Distill 샤드 경고도 public validate의 동일한 실패
-    // 집합에 넣는다. 이 연결이 없으면 checkDistillStructural을 직접 부른
-    // 테스트만 경고를 보고, 실제 plan/execute 호출은 활성 라우팅을 통과시킨다.
-    failures.push(...checkDistillStructural({ repoRoot }).failures);
     // 한 blueprint에 레거시 tasks.md와 번호 문서가 섞이면 어느 규칙을
     // 적용할지 모호해지므로 구조 단계에서 거절한다.
     if (tasksListing && tasksListing.legacyFiles && tasksListing.legacyFiles.length) {

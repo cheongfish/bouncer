@@ -4,20 +4,18 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 import schema = require('./schema');
 const { detectLegacyFormat } = schema;
-import layout = require('./layout');
-const { PROJECT_DISTILL, LEGACY_PROJECT_DISTILL } = layout;
 import codexAgents = require('./codex-agents');
 const { ensureCodexAgents, shouldEnsureCodexAgents } = codexAgents;
-import templates = require('./templates');
-const { PROJECT_DISTILL_BODY } = templates;
-import time = require('./time');
-const { nowIsoKst } = time;
 import graphify = require('./graphify');
-const { setupGraphify } = graphify;
+const {
+  setupGraphify,
+  upgradeGraphify,
+  readGraphifyLock,
+  loadCompatManifest,
+} = graphify;
 import config = require('./config');
 const {
   readConfig,
-  DEFAULT_DISTILL_CONFIG,
   DEFAULT_VERIFY_ALLOWLIST,
 } = config;
 
@@ -28,6 +26,11 @@ type GraphifySetupResult = {
 };
 
 type GraphifySetupFn = (opts: { repoRoot?: string }) => GraphifySetupResult;
+type GraphifyRebuildFn = (opts: { repoRoot?: string }) => unknown;
+type GraphifyUpgradeFn = (opts: {
+  repoRoot?: string;
+  rebuild?: GraphifyRebuildFn;
+}) => GraphifySetupResult;
 
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
@@ -98,9 +101,6 @@ function defaultConfig(repoRoot: string) {
       enabled: true,
       ...(testDirs.length ? { test_dirs: testDirs } : {}),
     },
-    // 샤드 소비는 명시적으로 켜기 전까지 전량 로드한다. max_bytes는 본문을
-    // 자르는 제한이 아니라 샤드 분배를 검토할 때만 쓰는 경고 기준이다.
-    distill: { ...DEFAULT_DISTILL_CONFIG },
     verify: 'npm test',
     // 신규 저장소는 기본 허용 목록을 파일에 박아 둔다. 이후 기본값이
     // 바뀌어도 이미 init된 저장소의 실행 경계를 조용히 넓히지 않기 위함.
@@ -179,47 +179,6 @@ function writeFile(repoRoot: string, rel: string, content: string, created: stri
   created.push(rel);
 }
 
-function projectDistillDoc(timestamp?: string) {
-  // 등록된 bouncer.* schema kind가 아님 — project Distill은 gate 없는 prose,
-  // OKF 형태 meta만 (title/description/resource/tags/timestamp). `.bouncer/`
-  // 런타임 파일이지 context OKF 번들 문서가 아니다.
-  const ts = timestamp || nowIsoKst();
-  return `---
-title: Project Distill
-description: Current project invariants, gotchas, and decisions
-resource: ${PROJECT_DISTILL}
-tags:
-  - bouncer
-  - distill
-timestamp: '${ts}'
----
-${PROJECT_DISTILL_BODY}`;
-}
-
-function rewriteDistillResource(body: string) {
-  return body.replace(
-    /^resource:\s*\.bouncer\/context\/Distill\.md\s*$/m,
-    `resource: ${PROJECT_DISTILL}`,
-  );
-}
-
-// 없을 때만 Distill 생성 — 정리된 project note는 덮어쓰지 않음.
-// 레거시 `.bouncer/context/Distill.md`만 있으면 새 경로로 옮긴다.
-function ensureProjectDistill(repoRoot: string, created: string[], timestamp?: string) {
-  const abs = path.join(repoRoot, PROJECT_DISTILL);
-  if (fs.existsSync(abs)) return;
-  const legacyAbs = path.join(repoRoot, LEGACY_PROJECT_DISTILL);
-  if (fs.existsSync(legacyAbs)) {
-    const body = rewriteDistillResource(fs.readFileSync(legacyAbs, 'utf8'));
-    fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, body);
-    fs.unlinkSync(legacyAbs);
-    created.push(PROJECT_DISTILL);
-    return;
-  }
-  writeFile(repoRoot, PROJECT_DISTILL, projectDistillDoc(timestamp), created);
-}
-
 // advisory(+ 동의 시 마커 블록 쓰기) 목록. 신규 graphify venv는 git common
 // directory 아래라 작업 트리 gitignore가 필요 없다. `.bouncer/.venv/`는
 // 레거시 설치와 비-git 폴백만 아직 작업 트리에 남을 수 있어 제안에 둔다.
@@ -294,35 +253,6 @@ function graphifyEnabledIsTrue(config: unknown) {
   );
 }
 
-function seedDistillConfig(repoRoot: string, existing: Record<string, unknown> | null) {
-  if (!existing || typeof existing !== 'object' || Array.isArray(existing)) return false;
-  const current = (
-    existing.distill
-    && typeof existing.distill === 'object'
-    && !Array.isArray(existing.distill)
-  ) ? existing.distill as Record<string, unknown> : {};
-  const next = {
-    ...DEFAULT_DISTILL_CONFIG,
-    ...current,
-  };
-  // 잘못된 값은 활성화가 아니라 비활성으로 수렴시킨다. 이미 true인
-  // 저장소의 선택 라우팅을 init이 몰래 끄면 재실행만으로 운영 상태가
-  // 바뀌므로, 유효한 true/false만 보존하고 나머지만 false로 seed한다.
-  if (next.routing_enabled !== true && next.routing_enabled !== false) {
-    next.routing_enabled = false;
-  }
-  if (!Number.isSafeInteger(next.max_bytes) || next.max_bytes <= 0) {
-    next.max_bytes = DEFAULT_DISTILL_CONFIG.max_bytes;
-  }
-  if (JSON.stringify(existing.distill) === JSON.stringify(next)) return false;
-  existing.distill = next;
-  fs.writeFileSync(
-    path.join(repoRoot, '.bouncer', 'config.json'),
-    `${JSON.stringify(existing, null, 2)}\n`,
-  );
-  return true;
-}
-
 function inspectBootstrap({ repoRoot }: { repoRoot?: string }) {
   if (detectLegacyFormat({ repoRoot }).legacy) return 'legacy';
 
@@ -347,6 +277,16 @@ function inspectBootstrap({ repoRoot }: { repoRoot?: string }) {
   return 'partial';
 }
 
+function lockNeedsUpgrade(repoRoot: string): boolean {
+  const lock = readGraphifyLock({ repoRoot });
+  const manifest = loadCompatManifest();
+  if (!lock.ok || !manifest.ok) return false;
+  const expectedPkg = String(manifest.value.install_spec).split('==')[1] || '';
+  return lock.value.cli_version !== manifest.value.cli_version
+    || lock.value.graph_schema_version !== manifest.value.graph_schema_version
+    || (expectedPkg !== '' && lock.value.package_version !== expectedPkg);
+}
+
 function init({
   repoRoot,
   timestamp,
@@ -354,13 +294,20 @@ function init({
   promote,
   writeGitignore,
   seedCodexAgents,
+  upgradeGraphify: wantUpgradeGraphify,
 } = {} as {
   repoRoot?: string;
   timestamp?: string;
-  graphify?: { install?: boolean; setup?: GraphifySetupFn };
+  graphify?: {
+    install?: boolean;
+    setup?: GraphifySetupFn;
+    upgrade?: GraphifyUpgradeFn;
+    rebuild?: GraphifyRebuildFn;
+  };
   promote?: boolean;
   writeGitignore?: boolean;
   seedCodexAgents?: boolean;
+  upgradeGraphify?: boolean;
 }) {
   const bootstrap = inspectBootstrap({ repoRoot });
   // partial/legacy는 설치·승격·gitignore 쓰기를 시도하지 않는다 — 기존 반환 유지.
@@ -378,6 +325,10 @@ function init({
   const setup = (graphify && typeof graphify.setup === 'function')
     ? graphify.setup
     : setupGraphify;
+  const upgrade = (graphify && typeof graphify.upgrade === 'function')
+    ? graphify.upgrade
+    : upgradeGraphify;
+  const wantUpgrade = wantUpgradeGraphify === true;
   const wantPromote = promote === true;
   const wantWriteGitignore = writeGitignore === true;
   const wantSeedCodex = shouldEnsureCodexAgents(repoRoot as string, seedCodexAgents === true);
@@ -389,11 +340,14 @@ function init({
     gitignoreWritten = true;
   }
   const suggestions = gitignoreSuggestions({ repoRoot: repoRoot as string });
+  // timestamp는 예전 파생 memory seed 시각용이었다. seed를 끊었으므로
+  // 쓰지 않지만, session-graph 등 호출 계약은 유지한다.
+  void timestamp;
 
   if (bootstrap === 'ready') {
-    // project Distill 이전에 init된 repo용 soft-seed.
+    // 파생 memory·config seed는 하지 않는다. 이미 있는 파일은 그대로 두고
+    // context bundle과 Graphify 상태만 다룬다.
     const created: string[] = [];
-    ensureProjectDistill(repoRoot as string, created, timestamp);
     if (wantSeedCodex) {
       ensureCodexAgents({ repoRoot: repoRoot as string, created });
     }
@@ -405,12 +359,24 @@ function init({
     const existing = (raw && typeof raw === 'object' && !Array.isArray(raw))
       ? raw as Record<string, unknown>
       : null;
-    const distillSeeded = seedDistillConfig(repoRoot as string, existing);
     const alreadyEnabled = graphifyEnabledIsTrue(existing);
     let graphifyPromotion: string | undefined;
     let graphifyInstall: GraphifySetupResult | undefined;
+    let graphifyUpgrade: GraphifySetupResult | undefined;
+    let graphifyUpgradeAvailable: true | undefined;
+
+    if (wantUpgrade) {
+      // 명시적 flag만 공유 venv와 graph를 바꾼다. 일반 재실행은 lock을 보존한다.
+      graphifyUpgrade = upgrade({
+        repoRoot,
+        rebuild: graphify && graphify.rebuild,
+      });
+    } else if (lockNeedsUpgrade(repoRoot as string)) {
+      graphifyUpgradeAvailable = true;
+    }
 
     // enabled가 이미 true면 승격 경로 자체가 없다 — config를 건드리지 않는다.
+    // --upgrade-graphify는 위 분기에서 이미 처리했다.
     if (!alreadyEnabled) {
       if (!wantPromote) {
         // --promote-graphify 없이 기존 config가 바뀌는 경로는 없다.
@@ -458,14 +424,13 @@ function init({
       ok: true,
       created,
       skipped: created.length === 0,
-      reason: created.includes(PROJECT_DISTILL)
-        ? 'project-distill-seeded'
-        : (created.length ? 'codex-agents-seeded' : 'already-initialized'),
+      reason: created.length ? 'codex-agents-seeded' : 'already-initialized',
       gitignoreSuggestions: suggestions,
       gitignoreWritten,
-      ...(distillSeeded ? { distillSeeded: true } : {}),
       ...(graphifyPromotion ? { graphifyPromotion } : {}),
       ...(graphifyInstall ? { graphifyInstall } : {}),
+      ...(graphifyUpgrade ? { graphifyUpgrade } : {}),
+      ...(graphifyUpgradeAvailable ? { graphifyUpgradeAvailable: true } : {}),
     };
   }
 
@@ -473,7 +438,27 @@ function init({
   const created: string[] = [];
   const config = defaultConfig(repoRoot as string);
   let graphifyInstall: GraphifySetupResult | undefined;
-  if (wantInstall) {
+  let graphifyUpgrade: GraphifySetupResult | undefined;
+  if (wantUpgrade) {
+    graphifyUpgrade = upgrade({
+      repoRoot,
+      rebuild: graphify && graphify.rebuild,
+    });
+    if (
+      graphifyUpgrade
+      && (graphifyUpgrade.status === 'upgraded' || graphifyUpgrade.status === 'installed')
+      && typeof graphifyUpgrade.bin === 'string'
+      && graphifyUpgrade.bin
+    ) {
+      config.graphify = {
+        ...config.graphify,
+        enabled: true,
+        bin: graphifyUpgrade.bin,
+      } as { enabled: boolean; bin?: string; test_dirs?: string[] };
+    } else if (graphifyUpgrade && graphifyUpgrade.status === 'failed') {
+      config.graphify = { ...config.graphify, enabled: false };
+    }
+  } else if (wantInstall) {
     graphifyInstall = setup({ repoRoot });
     if (
       graphifyInstall
@@ -495,7 +480,6 @@ function init({
 
   writeFile(repoRoot as string, '.bouncer/context/index.md', CONTEXT_INDEX, created);
   writeFile(repoRoot as string, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
-  ensureProjectDistill(repoRoot as string, created, timestamp);
   if (wantSeedCodex) {
     ensureCodexAgents({ repoRoot: repoRoot as string, created });
   }
@@ -508,6 +492,7 @@ function init({
     gitignoreSuggestions: suggestions,
     gitignoreWritten,
     ...(graphifyInstall ? { graphifyInstall } : {}),
+    ...(graphifyUpgrade ? { graphifyUpgrade } : {}),
     ...(config.source_dirs.length === 0 ? { sourceDirsUnresolved: true } : {}),
     ...(!Object.prototype.hasOwnProperty.call(config, 'base_branch')
       ? { baseBranchUnresolved: true } : {}),

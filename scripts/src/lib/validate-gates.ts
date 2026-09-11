@@ -23,6 +23,8 @@ const {
   pathsOverlap, pathJustifiedByTouch, collectFindingFailures,
   CONTEXT_REVIEW_STATUS, EXECUTE_REVIEW_STATUS,
 } = validateSections;
+import schema = require('./schema');
+const { executionKindOf } = schema;
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
 // 않는다. scope evidence는 structural.normalizeScopeEvidence를 그대로 쓴다 — 여기
@@ -102,6 +104,7 @@ type GateContext = {
   parseErrors?: FailureEntry[];
   // plan task 분해 보조 신호. failures와 분리 — 호출부가 배열을 넘길 때만 채운다.
   warnings?: FailureEntry[];
+  partialClose?: { ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean };
 };
 
 type CheckGateOpts = {
@@ -113,7 +116,32 @@ type CheckGateOpts = {
   deps?: GateDeps;
   taskUnit?: TaskUnit | null;
   parseErrors?: FailureEntry[];
+  partialClose?: { ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean };
 };
+
+/**
+ * partial close의 네 증적을 한 경계에서 판정한다. 일반 finalize와 섞지 않아
+ * 실패한 drive가 `closed` 성공 조건을 빌려 통과하지 못하게 한다.
+ *
+ * @param {object} input - 원장, NEXT_PLAN 상태, 사용자 확인
+ * @returns {{ok: true} | {ok: false, reason: string}} gate 결과
+ */
+function checkPartialCloseEvidence(input: {
+  ledger?: unknown; nextPlanExists?: boolean; nextPlanTracked?: boolean; userConfirmed?: boolean;
+}): { ok: true } | { ok: false; reason: string } {
+  if (!input.ledger || typeof input.ledger !== 'object'
+    || (input.ledger as Record<string, unknown>).status !== 'awaiting_confirmation') {
+    return { ok: false, reason: 'partial-close-awaiting-confirmation-required' };
+  }
+  const checked = runtimeState.validateCoordinatorLedger({
+    ...(input.ledger && typeof input.ledger === 'object' ? input.ledger as object : {}),
+    status: 'partial_closed', userConfirmed: input.userConfirmed,
+  });
+  if (!checked.ok) return checked;
+  if (!input.nextPlanExists) return { ok: false, reason: 'next-plan-required' };
+  if (input.nextPlanTracked) return { ok: false, reason: 'next-plan-must-be-untracked' };
+  return { ok: true };
+}
 
 function asData(doc: DocLeaf | undefined | null): Record<string, unknown> | undefined {
   if (!doc) return undefined;
@@ -230,6 +258,54 @@ function checkTaskDependencyGraph(tasksList: DocLeaf[], failures: FailureEntry[]
   for (const nodeId of [...edges.keys()].sort()) visit(nodeId);
 }
 
+/**
+ * verification node가 구현 범위를 우회하는 중간 node가 되지 않는지 판정한다.
+ * predecessor를 갖고 source Touch가 없으며, successor가 있다면 그 successor도
+ * verification이어야 한다. shape와 argv 유효성은 S29가 먼저 맡는다.
+ *
+ * @param {DocLeaf[]} tasksList - blueprint의 모든 tasks.md
+ * @param {FailureEntry[]} failures - G20 결과 누적 배열
+ * @returns {void}
+ */
+function checkVerificationTaskGraph(tasksList: DocLeaf[], failures: FailureEntry[]): void {
+  const dependents = new Map<string, DocLeaf[]>();
+  for (const doc of tasksList) {
+    const data = asData(doc);
+    const bouncer = data && data.bouncer as Record<string, unknown> | undefined;
+    if (bouncer && Array.isArray(bouncer.depends_on)) {
+      for (const predecessor of bouncer.depends_on) {
+        if (typeof predecessor !== 'string') continue;
+        dependents.set(predecessor, [...(dependents.get(predecessor) || []), doc]);
+      }
+    }
+  }
+  for (const doc of tasksList) {
+    const data = asData(doc);
+    const bouncer = data && data.bouncer as Record<string, unknown> | undefined;
+    if (executionKindOf(bouncer) !== 'verification') continue;
+    const id = bouncer && typeof bouncer.id === 'string' ? bouncer.id : '';
+    const sections = parseTasksSections(doc.body || '');
+    if (extractPathCandidates(sections.touch || '').length > 0) {
+      failures.push({
+        code: 'G20',
+        message: 'verification task Touch must not declare source changes',
+        file: doc.rel,
+      });
+    }
+    for (const successor of dependents.get(id) || []) {
+      const successorData = asData(successor);
+      const successorBouncer = successorData && successorData.bouncer as Record<string, unknown> | undefined;
+      if (executionKindOf(successorBouncer) !== 'verification') {
+        failures.push({
+          code: 'G20',
+          message: `verification task cannot precede commit task: ${id}`,
+          file: successor.rel,
+        });
+      }
+    }
+  }
+}
+
 function defaultReadVerifyLedger({
   repoRoot, verificationRel, deps,
 }: {
@@ -344,6 +420,7 @@ function checkGate(
       deps: opts.deps,
       taskUnit: opts.taskUnit,
       parseErrors: opts.parseErrors,
+      partialClose: opts.partialClose,
       warnings,
     });
     // 기존 소비자는 warnings 부재를 허용한다 — 빈 배열이면 키를 생략한다.
@@ -367,6 +444,12 @@ function runCheckGate(
   const blueprintDir = ctx && ctx.blueprintDir;
   const deps = ctx && ctx.deps;
 
+  if (gate === 'partial-close') {
+    const result = checkPartialCloseEvidence(ctx.partialClose || {});
+    if (!result.ok) add('G20', result.reason, 'blueprintIndex');
+    return;
+  }
+
   if (gate === 'plan') {
     if (statusOf(docs.epicIndex) !== 'approved') add('G1', 'epic.status != approved', 'epicIndex');
     // closed는 finalize --yes가 마감한 blueprint의 잠금 signal(hard rule/schema 참고).
@@ -377,6 +460,12 @@ function runCheckGate(
       add(
         'G2',
         'blueprint is closed (finalized) — open a new blueprint instead of resuming this one',
+        'blueprintIndex',
+      );
+    } else if (bpStatus === 'partial_closed') {
+      add(
+        'G2',
+        'blueprint is partial_closed with unresolved CI evidence — approve NEXT_PLAN.md before new work',
         'blueprintIndex',
       );
     } else if (bpStatus !== 'approved') {
@@ -462,12 +551,15 @@ function runCheckGate(
       // `data &&`로 막으면 G4/G5가 missing 메시지로 fail-open 한다.
       const taskBouncer = (tasksDoc.data as Record<string, unknown>).bouncer as
         Record<string, unknown> | undefined;
+      const executionKind = executionKindOf(taskBouncer);
       const scopeEvidence = normalizeScopeEvidence(taskBouncer);
-      if (!scopeEvidence.evidence || scopeEvidence.error) {
+      if (executionKind !== 'verification' && (!scopeEvidence.evidence || scopeEvidence.error)) {
         addTask('G4', scopeEvidence.error || 'tasks.scope_evidence missing');
       }
       const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
-      if (!Array.isArray(ap) || ap.length === 0) addTask('G5', 'tasks.affected_paths missing or empty');
+      if (executionKind !== 'verification' && (!Array.isArray(ap) || ap.length === 0)) {
+        addTask('G5', 'tasks.affected_paths missing or empty');
+      }
       // 20 초과는 한-커밋 리뷰 판단을 돕는 보조 신호일 뿐 — G/S 실패로 올리지 않는다.
       // 정당한 넓은 task(대량 리네임·이관)도 통과해야 하므로 failures에 넣지 않는다.
       if (Array.isArray(ap) && ap.length > 20 && Array.isArray(ctx.warnings)) {
@@ -510,6 +602,7 @@ function runCheckGate(
     // G19: blueprint 안 모든 task를 한 번 모아 depends_on 참조·중복·순환을
     // 결정적으로 판정한다. shape/enum은 S28; 여기는 graph 무결성만.
     checkTaskDependencyGraph(tasksList, failures);
+    checkVerificationTaskGraph(tasksList, failures);
     return;
   }
   if (gate === 'execute') {
@@ -519,14 +612,18 @@ function runCheckGate(
     const tasksDoc = taskUnit && taskUnit.tasks;
     const verificationDoc = taskUnit && taskUnit.verification;
     const reviewDoc = taskUnit && taskUnit.review;
+    const tasksData = asData(tasksDoc);
+    const tasksBouncer = tasksData && tasksData.bouncer as Record<string, unknown> | undefined;
+    const isVerificationTask = executionKindOf(tasksBouncer) === 'verification';
     const addUnit = (code: string, message: string, leaf: string) => failures.push({
       code,
       message,
       file: unitLeafRel(taskUnit, leaf, rels[leaf]),
     });
 
-    if (statusOf(tasksDoc) !== 'verified') {
-      addUnit('G6', 'tasks.status != verified', 'tasks');
+    const expectedTaskStatus = isVerificationTask ? 'integrated' : 'verified';
+    if (statusOf(tasksDoc) !== expectedTaskStatus) {
+      addUnit('G6', `tasks.status != ${expectedTaskStatus}`, 'tasks');
     }
     if (statusOf(verificationDoc) !== 'passed') {
       addUnit('G7', 'verification.status != passed', 'verification');
@@ -536,7 +633,7 @@ function runCheckGate(
       : undefined;
     const review = reviewBouncer ? reviewBouncer.review as Record<string, unknown> | undefined : undefined;
     const reviewOk = statusOf(reviewDoc) === 'accepted' || (review && review.required === false);
-    if (!reviewOk) {
+    if (!isVerificationTask && !reviewOk) {
       addUnit('G8', 'review not accepted and review.required != false', 'review');
     }
     checkG13(verificationDoc, addUnit, ctx);
@@ -550,7 +647,7 @@ function runCheckGate(
     // G14는 execute status(deferred 포함)와 선택적 rounds[]를 검사한다.
     // G18은 CONTEXT_REVIEW_STATUS만 넘긴다 — 같은 헬퍼라도 계획 문서에
     // deferred·원장을 열면 안 된다. G8의 accepted/required 판정은 그대로 둔다.
-    if (reviewDoc && !reviewSkipped) {
+    if (!isVerificationTask && reviewDoc && !reviewSkipped) {
       for (const message of collectFindingFailures({
         body: reviewDoc.body,
         findings: reviewMeta && reviewMeta.findings,
@@ -565,16 +662,21 @@ function runCheckGate(
     return;
   }
   // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension(BP 단일
-  // 엔트리)의 diff_sha를 range_from..HEAD와 대조. G15는 폐기(결번)됐고, commit은
-  // 아래에서 G6/G7/G8 + G13 + G17로 재판정한다.
+  // 엔트리)의 diff_sha를 range_from..HEAD와 대조. 폐기된 promotion metadata는
+  // 판정하지 않는다. G15는 폐기(결번)됐고, commit은 아래에서 G6/G7/G8 + G13 + G17로
+  // 재판정한다.
   if (gate === 'finalize') {
     const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
       ? docs.tasksDocs
       : (docs.tasks ? [docs.tasks] : []);
     const openIds: string[] = [];
     for (const tasksDoc of tasksList) {
-      if (statusOf(tasksDoc) !== 'verified') {
-        const data = asData(tasksDoc);
+      const data = asData(tasksDoc);
+      const taskBouncer = data && data.bouncer as Record<string, unknown> | undefined;
+      const expectedStatus = executionKindOf(taskBouncer) === 'verification'
+        ? 'integrated'
+        : 'verified';
+      if (statusOf(tasksDoc) !== expectedStatus) {
         const id = data && data.bouncer
           ? (data.bouncer as Record<string, unknown>).id
           : undefined;
@@ -584,7 +686,14 @@ function runCheckGate(
     if (openIds.length) {
       // 열린 task id를 메시지에 담아 어느 묶음이 남았는지 바로 보이게 한다.
       // 경고가 아니라 hard fail — 사용자가 넘길 수 없다.
-      const openDoc = tasksList.find((t) => statusOf(t) !== 'verified');
+      const openDoc = tasksList.find((taskDoc) => {
+        const data = asData(taskDoc);
+        const taskBouncer = data && data.bouncer as Record<string, unknown> | undefined;
+        const expectedStatus = executionKindOf(taskBouncer) === 'verification'
+          ? 'integrated'
+          : 'verified';
+        return statusOf(taskDoc) !== expectedStatus;
+      });
       failures.push({
         code: 'G16',
         message: `open tasks remain (not verified): ${openIds.join(', ')}`,
@@ -653,7 +762,7 @@ function runCheckGate(
   // commit: explain을 보지 않는다. 포인터 task 상태(G6/G7/G8)와 G13 원장 대조,
   // 스테이징 스코프(G17)를 본다. G9·G15는 폐기 — 번호만 비워 둔다.
   if (gate === 'commit') {
-    // G9 (distill.status == published)는 폐기됨 — 번호만 비워 둠.
+    // G9는 폐기됨 — 번호만 비워 둠.
     // G15 (explain comprehension / diff_sha)는 폐기됨 — 번호만 비워 둠.
     const taskUnit = (ctx && ctx.taskUnit) || resolveTaskUnit(docs, {
       repoRoot, blueprintDir,
@@ -730,4 +839,4 @@ function runCheckGate(
   throw new Error(`unknown gate: ${gate}`);
 }
 
-export = { checkGate };
+export = { checkGate, checkPartialCloseEvidence };

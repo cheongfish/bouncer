@@ -138,7 +138,7 @@ function writeClosedLock(repoRoot, target) {
 /**
  * finalize가 closed 전이와 함께 지울 일회성 문서 경로를 모은다.
  * tasks.md·verification.md·review.md와 (있을 때만) context-review.md가 대상이다.
- * explain.md·index.md·Distill은 절대 넣지 않는다.
+ * explain.md·index.md는 절대 넣지 않는다.
  * light blueprint는 context-review.md가 없으므로 목록에 나타나지 않는다.
  *
  * @param {object} opts
@@ -152,7 +152,12 @@ function collectTransientRels({ repoRoot, blueprintDir }) {
     for (const entry of listing.entries) {
         // verification.md도 task 실행 증적이라 closed 뒤에는 남기지 않는다.
         for (const leaf of ['tasks', 'verification', 'review']) {
-            const rel = entry[leaf].rel;
+            const ref = entry[leaf];
+            // verification node는 review leaf를 만들지 않는다. 없는 leaf는 삭제
+            // 대상으로 합성하지 않고, 실제 listing이 제공한 문서만 수집한다.
+            if (!ref)
+                continue;
+            const rel = ref.rel;
             if (fs.existsSync(path.join(repoRoot, rel)))
                 rels.push(rel);
         }
@@ -346,6 +351,10 @@ function buildCoordinatorProvenance(ledger, { integrationPath = null, ledgerFile
         integrationPath,
         tasks,
         decisions: Array.isArray(ledger.decisions) ? ledger.decisions : [],
+        lifecycleStatus: typeof ledger.status === 'string' ? ledger.status : 'active',
+        repairWaves: Array.isArray(ledger.repairWaves) ? ledger.repairWaves : [],
+        terminalFailure: ledger.terminalFailure || null,
+        userConfirmed: ledger.userConfirmed === true,
         // cleanup 목록: integration이 먼저고, 할당된 worker worktree가 뒤따른다.
         // payload의 top-level `worktrees`는 이 목록의 별칭이다 — 정리 계약(SKILL
         // step 5, cleanup-handoff.md)이 읽는 안정된 자리이고, 여기 중첩된 값은
@@ -423,6 +432,20 @@ function writeExplainCoordinator({ repoRoot, blueprintDir, provenance }) {
 }
 function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent, next = nextBlueprint, verifyExec, }) {
     const gitApi = git || realGit(repoRoot);
+    const preflightTarget = resolveLockTarget({ repoRoot, blueprintDir });
+    const preflightBouncer = preflightTarget.data && typeof preflightTarget.data === 'object'
+        ? asRecord(asRecord(preflightTarget.data).bouncer) : {};
+    if (preflightBouncer.status === 'partial_closed') {
+        const coordinator = collectCoordinatorProvenance({ repoRoot, blueprintDir });
+        const nextPlan = path.join(repoRoot, 'NEXT_PLAN.md');
+        return {
+            ok: false, reason: 'partial-closed', status: 'partial_closed', coordinator,
+            worktrees: coordinator ? coordinator.worktrees : [],
+            nextPlan: fs.existsSync(nextPlan) ? nextPlan : null,
+            preserved: true,
+            message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.',
+        };
+    }
     const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
     if (!v.ok)
         return { ok: false, reason: 'validate', failures: v.failures };
@@ -480,7 +503,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
     // 때만 검증」과 「잠금 전에 검증」을 같이 지키려면, 예전처럼
     // writeClosedLock을 여기서 먼저 부르면 안 된다 — 실패해도 blueprint는
     // closed인데 커밋만 없는 상태가 남고, 재실행은 already-closed로 잠금만
-    // 건너뛰어 승격분이 다시 미검증으로 들어간다.
+    // 건너뛰어 remainder가 다시 미검증으로 들어간다.
     // 이번에 closed로 전이할 때만 일회성 문서를 지운다.
     // 이미 closed면 lockPath가 null — 보존 문서를 소급 삭제하지 않는다.
     const transientRels = lockPath
@@ -519,7 +542,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             worktrees,
         };
     }
-    // 빈 커밋 금지: Distill 승격분도 잠금도 없으면 stage/commit을 건너뛰고
+    // 빈 커밋 금지: remainder도 잠금도 없으면 stage/commit을 건너뛰고
     // 포인터만 비운다. task 커밋은 003 `bouncer commit`이 이미 끝냈다는 전제.
     // 스테이징 대상이 없으면 검증할 커밋도 없다.
     if (staged.length === 0) {
@@ -536,7 +559,7 @@ function finalize({ repoRoot, blueprintDir, yes = false, git, clearPointer = cle
             worktrees,
         };
     }
-    // 승격분이 없어도 잠금만으로 커밋이 생기면 그 커밋도 저장소를 바꾼다.
+    // remainder가 없어도 잠금만으로 커밋이 생기면 그 커밋도 저장소를 바꾼다.
     // 예외를 두면 「어떤 finalize 커밋은 검증되지 않는다」가 된다.
     // 해석 오류는 throw하지 않는다 — cmdFinalize/runCli에 최상위 처리기가
     // 없어 스택이 JSON 결과를 밀어내고 종료 코드 계약(0/1)이 깨진다.

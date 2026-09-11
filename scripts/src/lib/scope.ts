@@ -6,12 +6,7 @@ const { randomUUID } = require('node:crypto');
 import paths = require('./paths');
 const { epicDirOf, toPosix } = paths;
 import layout = require('./layout');
-const { CONTEXT_ROOT, PROJECT_DISTILL, DISTILL_SHARD_DIR } = layout;
-
-// distill의 export= 선언을 import = require로 소비한다. 예전 구조 캐스트는
-// 공급자 시그니처와 어긋나도 숨겼으므로 쓰지 않는다.
-import distill = require('./distill');
-const { readShards } = distill;
+const { CONTEXT_ROOT } = layout;
 import runtimeState = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths } = runtimeState;
 import frontmatter = require('./frontmatter');
@@ -37,7 +32,7 @@ function isUnder(file: unknown, entry: unknown): boolean {
 // `.bouncer/runtime/`은 coordinator 원장이 사는 자리 — 실행 상태이지 컨텍스트
 // 문서가 아니다. integration worktree 자신의 커밋 범위에서도 위반이 아니어야
 // 하므로 `.worktrees/` 접두만으로는 부족하다. `.bouncer/` 전체가 아니라 이
-// 한 갈래만 넣는다 — context 문서와 Distill은 커밋 대상이다.
+// 한 갈래만 넣는다 — context 문서는 커밋 대상이다.
 const RUNTIME_ARTIFACTS = ['node_modules/', 'graphify-out/', '.worktrees/', '.bouncer/.venv/', '.bouncer/runtime/'];
 
 function isRuntimeArtifact(file: unknown): boolean {
@@ -50,9 +45,7 @@ function isRuntimeArtifact(file: unknown): boolean {
 // 다른 문서까지 커밋할 수 있으므로 권한과 후보 필터를 별도 함수로 둔다.
 function isTaskWorkflowArtifact(file: unknown): boolean {
   const f = toPosix(file);
-  return isUnder(f, CONTEXT_ROOT)
-    || f === PROJECT_DISTILL
-    || isUnder(f, DISTILL_SHARD_DIR);
+  return isUnder(f, CONTEXT_ROOT);
 }
 
 type TaskCommitCandidatesInput = {
@@ -76,23 +69,6 @@ function filterTaskCommitCandidates({
     .filter((file) => !isTaskWorkflowArtifact(file)) as string[];
 }
 
-function registeredDistillShardPaths(repoRoot: unknown): Set<string> {
-  if (typeof repoRoot !== 'string' || !repoRoot) return new Set();
-  const state = readShards({ repoRoot });
-  if (!state.sharded || !state.valid) return new Set();
-  // shards는 이 모듈군 밖에서 오므로 원소 형태를 여기서만 읽는다. 배열이
-  // 아니면 예전처럼 .map에서 실패하게 두어 호출 계약을 바꾸지 않는다.
-  const shards = state.shards as Array<{ path?: unknown } | null | undefined>;
-  return new Set(
-    shards
-      .map((shard) => shard && shard.path)
-      .filter((rel: unknown): rel is string => (
-        typeof rel === 'string'
-        && new RegExp(`^${DISTILL_SHARD_DIR}/[^/]+\\.md$`).test(toPosix(rel))
-      )),
-  );
-}
-
 type AllowedPathsInput = {
   affectedPaths?: unknown;
   blueprintDir: unknown;
@@ -107,27 +83,19 @@ function makeAllowed({ affectedPaths, blueprintDir }: AllowedPathsInput): (file:
     if (isUnder(f, `${bp}/`)) return true;
     if (f === `${epicDir}/index.md`) return true;
     if (f === `${CONTEXT_ROOT}/index.md`) return true;
-    // Finalize는 promotion으로 project Distill을 항상 갱신; 모든 blueprint의
-    // affected_paths에 넣을 필요 없음.
-    if (f === PROJECT_DISTILL) return true;
     return paths.some((p: unknown) => isUnder(f, p));
   };
 }
 
-// execute/commit 범위는 affected_paths만 권한으로 삼아야 한다. finalize가
-// 별도 promotion 단계에서만 이 정책을 확장하도록 함수를 분리해 두면,
-// 공용 makeAllowed를 넓혀 일반 task가 샤드를 몰래 커밋하는 회귀를 막는다.
+// finalize remainder도 execute와 같은 권한이다. 파생 memory 승격 예외는 두지 않아
+// 일반 task가 샤드를 몰래 커밋하는 회귀를 막는다. repoRoot는 호출 계약을 유지한다.
 function makeFinalizeAllowed({ repoRoot, affectedPaths, blueprintDir }: {
   repoRoot: unknown;
   affectedPaths?: unknown;
   blueprintDir: unknown;
 }): (file: unknown) => boolean {
-  const allowed = makeAllowed({ affectedPaths, blueprintDir });
-  const registered = registeredDistillShardPaths(repoRoot);
-  return function finalizeAllowed(file: unknown): boolean {
-    const rel = toPosix(file);
-    return allowed(rel) || registered.has(rel);
-  };
+  void repoRoot;
+  return makeAllowed({ affectedPaths, blueprintDir });
 }
 
 
@@ -771,7 +739,6 @@ export = {
   RUNTIME_ARTIFACTS,
   makeAllowed,
   makeFinalizeAllowed,
-  registeredDistillShardPaths,
   coordinatorTaskId,
   readCoordinatorLedger,
   coordinatorContext,

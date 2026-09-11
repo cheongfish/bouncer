@@ -4,7 +4,6 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { readWorkflowBundle } = require('./helpers/read-skill');
 const { checkDocShape } = require('../scripts/check-doc-shape');
 
 const root = path.join(__dirname, '..');
@@ -612,37 +611,6 @@ test('master rules use the installed bouncer-root launcher', () => {
   assert.match(rule, /provider/i);
 });
 
-test('plugin-root contract is shared while CLI shells call bouncer directly', () => {
-  const consumers = [
-    'skills/bouncer-init/SKILL.md',
-    'skills/bouncer-plan/SKILL.md',
-    'skills/bouncer-execute/SKILL.md',
-    'skills/bouncer-commit/SKILL.md',
-    'skills/bouncer-finalize/SKILL.md',
-    'skills/bouncer-run/SKILL.md',
-    'skills/bouncer-finalize/references/cleanup-handoff.md',
-    'skills/bouncer-finalize/references/distill-promotion.md',
-    'skills/bouncer-finalize/references/explain-quiz.md',
-    'references/explain-diff/index.md',
-    'references/graphify-runner/index.md',
-  ];
-  for (const rel of consumers) {
-    const source = read(rel);
-    assert.match(source, /rules\/plugin-root\.md/, `${rel} must cite the shared contract`);
-    assert.doesNotMatch(source, /node "\$\{BOUNCER_ROOT\}\/scripts\/bouncer"/, `${rel} must call bouncer directly`);
-
-    const launcherBlocks = source.match(/```bash\n[\s\S]*?```/g) || [];
-    for (const block of launcherBlocks) {
-      if (block.includes('bouncer ') && block.includes('BOUNCER_ROOT=')) {
-        assert.fail(`${rel} must not bootstrap BOUNCER_ROOT in a CLI block`);
-      }
-      if (block.includes('${BOUNCER_ROOT}')) {
-        assert.match(block, /BOUNCER_ROOT="\$\(bouncer-root --auto\)"/);
-      }
-    }
-  }
-});
-
 test('workflow order includes commit between execute and finalize in When to invoke', () => {
   const claude = read('CLAUDE.md');
   const plan = read('skills/bouncer-plan/SKILL.md');
@@ -654,222 +622,6 @@ test('workflow order includes commit between execute and finalize in When to inv
   assert.doesNotMatch(claude, /Plan points at `\/bouncer-run`/);
 });
 
-
-test('master rules point at project Distill path and require reading it', () => {
-  const claude = read('CLAUDE.md');
-  assert.match(claude, /\.bouncer\/Distill\.md/);
-  assert.match(claude, /plan|execute/i);
-  assert.match(claude, /Read|읽/i);
-  assert.doesNotMatch(claude, /## Invariants/);
-  // Distill 경로는 소비 프로젝트 main worktree(project-root) 아래만 가리킨다.
-  assert.match(claude, /project-root|PROJECT_ROOT/);
-});
-
-test('workflow skills resolve PROJECT_ROOT via project-root for Distill', () => {
-  for (const name of [
-    'bouncer-plan', 'bouncer-execute', 'bouncer-run',
-  ]) {
-    const md = read(`skills/${name}/SKILL.md`);
-    assert.match(md, /project-root/, `${name} must call bouncer project-root`);
-    assert.match(md, /PROJECT_ROOT/, `${name} must bind PROJECT_ROOT`);
-    assert.match(
-      md,
-      /\$\{PROJECT_ROOT\}\/\.bouncer\/Distill\.md/,
-      `${name} must Read Distill under PROJECT_ROOT`,
-    );
-    // 상대 경로 operational Read와 plugin-root 기준 Distill은 금지.
-    assert.doesNotMatch(
-      md,
-      /Read `\.bouncer\/Distill\.md`/,
-      `${name} must not use cwd-relative Distill Read`,
-    );
-    assert.doesNotMatch(
-      md,
-      /\$\{BOUNCER_ROOT\}\/\.bouncer\/Distill\.md/,
-      `${name} must not derive Distill from BOUNCER_ROOT`,
-    );
-  }
-});
-
-test('finalize promotion uses distill JSON payload repoRoot as the write base', () => {
-  const finalize = readWorkflowBundle('bouncer-finalize');
-  // 긍정 단정으로 base 출처를 잠근다.
-  assert.match(finalize, /payload[^\n]{0,40}`?repoRoot`?/i);
-  // 경로 조립 형태만 좁게 금지한다. `project-root`라는 낱말 자체를
-  // doesNotMatch로 막으면, "project-root로 조립하지 않는다"는 금지 문구를
-  // 본문에 쓰는 순간 테스트가 깨진다(plugin-skills shard의 알려진 함정).
-  assert.doesNotMatch(finalize, /\$\{PROJECT_ROOT\}\/\.bouncer\/Distill\.md/);
-  // cwd 계약이 본문에 남아 있어야 한다.
-  assert.match(finalize, /cwd/i);
-  // 영어 본문(same checkout)과 한국어 잔존 문구를 모두 받는다.
-  assert.match(finalize, /같은 checkout|동일한 checkout|same checkout/i);
-});
-
-test('Distill consumers use full preflight, then path-routed CLI output', () => {
-  const plan = read('skills/bouncer-plan/SKILL.md');
-  const discovery = read('references/discovery/index.md');
-  // plan: --all은 baseline 파일, 컨텍스트 주입은 --preflight.
-  assert.match(plan, /distill\s+--all/);
-  assert.match(plan, /distill\s+--preflight/);
-  assert.match(discovery, /--preflight/);
-  assert.match(discovery, /baseline/);
-  assert.doesNotMatch(discovery, /complete output of the caller's[\s\S]{0,80}distill --all/);
-  assert.match(plan, /affected_paths[\s\S]{0,500}distill\s+--for|distill\s+--for[\s\S]{0,500}affected_paths/);
-
-  for (const name of ['bouncer-plan', 'discovery', 'bouncer-finalize']) {
-    let md;
-    if (name === 'bouncer-finalize') md = readWorkflowBundle(name);
-    else if (name === 'discovery') md = read('references/discovery/index.md');
-    else md = read(`skills/${name}/SKILL.md`);
-    assert.match(md, /distill\s+--all/, `${name} must still name distill --all`);
-    assert.match(md, /single-file fallback|단일 파일.*폴백/i, `${name} must preserve legacy fallback`);
-  }
-
-  for (const name of ['bouncer-execute', 'bouncer-run']) {
-    const md = read(`skills/${name}/SKILL.md`);
-    assert.match(md, /distill\s+--for/, `${name} must route after paths are fixed`);
-    assert.match(md, /affected_paths/, `${name} must use task scope for routing`);
-    assert.match(md, /single-file fallback|단일 파일.*폴백/i, `${name} must preserve legacy fallback`);
-  }
-});
-
-test('bouncer-run gives implementer the current task Distill re-ground', () => {
-  const run = read('skills/bouncer-run/SKILL.md');
-  // 현재 포인터 task의 distill --for brief만 넘기고, 이전 task 대화 전체를 금한다.
-  assert.match(
-    run,
-    /current pointer task's[\s\S]{0,80}`distill --for`\s+output\/brief|현재 포인터 task의 라우팅된\s+`distill --for` 출력\/brief/,
-  );
-  assert.match(
-    run,
-    /Do not\s+pass the full conversation context from earlier tasks|이전 task의 대화 맥락 전체를 넘기지 않는다/,
-  );
-  assert.doesNotMatch(
-    run,
-    /직전 task의\s+`distill --for` 출력|previous task's\s+`distill --for` output/,
-  );
-});
-
-test('finalize promotion searches all Distill content and splits payload content into the shard map', () => {
-  const finalize = readWorkflowBundle('bouncer-finalize');
-  const spec = read('references/spec-authoring/index.md');
-  assert.match(finalize, /distill\s+--all\s+--json/, 'promotion must start with a full JSON audit');
-  assert.match(finalize, /payload[^\n]{0,40}`?repoRoot`?/i);
-  assert.match(finalize, /audit\.shards/);
-  assert.match(finalize, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
-  assert.match(finalize, /# <id>|# `<id>`/);
-  assert.match(finalize, /relative[^\n]{0,20}path|상대 경로/i);
-  assert.match(finalize, /currentBody/);
-  assert.match(finalize, /id[^\n]{0,80}(?:path|currentBody)/i);
-  assert.match(finalize, /id[\s\S]{0,80}(?:set|집합)[\s\S]{0,120}(?:mismatch|differ|다르|불일치)/i);
-  assert.doesNotMatch(finalize, /distill\s+--route/);
-  assert.match(finalize, /aggregate|selection|합산|선택 결과/i);
-  assert.match(finalize, /never[^\n]{0,100}(?:attach|associate|individual shard|개별 샤드)/i);
-  for (const md of [finalize, spec]) {
-    assert.match(md, /replace|교체/i, 'changed decisions must be replaceable');
-    assert.match(md, /append|추가하지|덧붙이/i, 'promotion must reject append-only decisions');
-  }
-  assert.match(finalize, /full search|전량.*검색/i);
-  assert.match(spec, /conflict|충돌|plan/i);
-  assert.match(spec, /never invokes route|route.*자체/);
-  assert.match(spec, /aggregate|selection|합산|선택 결과/i);
-  assert.match(spec, /never[^\n]{0,100}(?:attach|associate|individual shard|개별 샤드)/i);
-});
-
-test('finalize Distill promotion excludes restatements of upper instruction layers', () => {
-  const promotion = read('skills/bouncer-finalize/references/distill-promotion.md');
-  const spec = read('references/spec-authoring/index.md');
-  // add/replace 후보가 상위 세 층(하드/절차/계약)과 같은 계약이면 목록에서
-  // 빼되 삭제하지 않고, 같은 ACQ의 제외 목록에 근거 경로를 붙인다. drop은
-  // 낡은 Distill 문장 제거라 재진술 판단 대상이 아니다.
-  for (const [name, md] of [
-    ['distill-promotion', promotion],
-    ['spec-authoring', spec],
-  ]) {
-    assert.match(
-      md,
-      /exclu(?:sion|de)|restatement/i,
-      `${name} must name the restatement-exclusion step`,
-    );
-    assert.match(
-      md,
-      /CLAUDE\.md[\s\S]{0,500}skills\/\*\/SKILL\.md[\s\S]{0,500}rules\/\*\.md/s,
-      `${name} must judge against the upper three instruction layers`,
-    );
-    assert.match(
-      md,
-      /exclu(?:ded|sion)[\s\S]{0,220}(?:file path|justifying file|justifying path)/i,
-      `${name} must display the justifying file path on the exclusion list`,
-    );
-    assert.match(
-      md,
-      /same ACQ|one ACQ[\s\S]{0,280}exclu/i,
-      `${name} must carry proposal and exclusion on one ACQ`,
-    );
-    assert.match(
-      md,
-      /exclu(?:sions?)[\s\S]{0,80}(?:\b0\b|zero)/i,
-      `${name} must report when exclusions are 0`,
-    );
-    assert.doesNotMatch(
-      md,
-      /exclu(?:sion|de)[\s\S]{0,80}\b(?:G\d+|S\d+)\b/i,
-      `${name} must not introduce exclusion as a gate code`,
-    );
-  }
-  // 표시 의무만으로는 부족하다. spec-authoring이 제외 목록을 반환하고
-  // finalize가 그 쌍을 받아야, 필터만 하고 목록을 비운 침묵 삭제가 막힌다.
-  assert.match(
-    spec,
-    /[Rr]eturn[\s\S]{0,160}exclu(?:sion list)/,
-    'spec-authoring must return the exclusion list with the proposal',
-  );
-  assert.match(
-    promotion,
-    /receive[\s\S]{0,220}exclu(?:sion list)/,
-    'finalize must receive the exclusion list with the proposal',
-  );
-});
-
-test('master rules preserve single-file Distill fallback and CLI trust boundary', () => {
-  const claude = read('CLAUDE.md');
-  const preflight = read('skills/bouncer-plan/references/distill-preflight.md');
-  const promotion = read('skills/bouncer-finalize/references/distill-promotion.md');
-  // CLI 절차(--all/--preflight/baseline/폴백)는 plan 레퍼런스 정본. 마스터 룰에 재진술하지 않는다.
-  assert.match(preflight, /distill\s+--all/);
-  assert.match(preflight, /distill\s+--preflight/);
-  assert.match(preflight, /baseline/);
-  assert.match(preflight, /single-file fallback|단일 파일.*폴백/i);
-  assert.doesNotMatch(claude, /distill\s+--all/);
-  assert.doesNotMatch(claude, /distill\s+--preflight/);
-  assert.doesNotMatch(claude, /distill\s+--for/);
-  assert.doesNotMatch(claude, /baseline/);
-  assert.doesNotMatch(claude, /single-file fallback|단일 파일.*폴백/i);
-  assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
-  assert.match(claude, /affected_paths/);
-  assert.match(promotion, /audit\.shards/);
-  assert.match(promotion, /relative[^\n]{0,20}path|상대 경로/i);
-  assert.doesNotMatch(claude, /audit\.shards/);
-  assert.doesNotMatch(claude, /relative[^\n]{0,20}path|상대 경로/i);
-  assert.strictEqual(
-    (claude.match(/^1\.\s+\*\*Trust boundary\*\*/gm) || []).length,
-    1,
-    'CLAUDE.md hard rule 1 is the single trust-boundary source of truth',
-  );
-});
-
-test('discovery and spec-authoring take caller-provided absolute Distill paths', () => {
-  for (const name of ['discovery', 'spec-authoring']) {
-    const md = read(`references/${name}/index.md`);
-    assert.match(
-      md,
-      /caller-provided|호출자가 넘긴|absolute Distill|절대 Distill|절대 경로/i,
-      `${name} must require caller-provided absolute Distill path`,
-    );
-    assert.doesNotMatch(md, /BOUNCER_ROOT/, `${name} must not resolve BOUNCER_ROOT`);
-    assert.doesNotMatch(md, /scripts\/bouncer/, `${name} must not invoke scripts/bouncer`);
-  }
-});
 
 test('When to invoke lists workflow entry points only; unpublished helpers drop by-name invites', () => {
   const claude = read('CLAUDE.md');
@@ -926,14 +678,6 @@ test('root context tree non-canonical lives in init, not master rules', () => {
   assert.doesNotMatch(claude, /Never a root `context\/` tree/);
 });
 
-test('master rules require Korean context bodies and English metadata in hard rule 3', () => {
-  const claude = read('CLAUDE.md');
-  const rule3 = claude.match(/^3\. \*\*Governance & Language\*\*[\s\S]*?(?=^## Session conduct)/m)[0];
-  assert.match(rule3, /Korean/);
-  assert.match(rule3, /English/);
-  assert.match(rule3, /Distill/);
-});
-
 test('hard rule 3 requires Korean code comments and points at implementation skill', () => {
   const claude = read('CLAUDE.md');
   assert.match(claude, /^3\.\s+\*\*Governance & Language\*\*/m);
@@ -943,54 +687,6 @@ test('hard rule 3 requires Korean code comments and points at implementation ski
   // Distill pattern: obligation + pointer only — examples stay in the skill.
   const hardRules = claude.split(/^## Session conduct/m)[0];
   assert.doesNotMatch(hardRules, /```/);
-});
-
-test('distill-promotion requires finalize promotion consent and caller-provided shard audit', () => {
-  const claude = read('CLAUDE.md');
-  const promotion = read('skills/bouncer-finalize/references/distill-promotion.md');
-  // consent와 샤드 맵·분할 계약은 승격 레퍼런스 정본. 마스터 룰에 재진술하지 않는다.
-  assert.match(promotion, /audit\.shards/);
-  assert.match(promotion, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
-  assert.match(promotion, /# <id>|# `<id>`/);
-  assert.match(promotion, /id[\s\S]{0,80}(?:set|집합)[\s\S]{0,160}(?:mismatch|differ|다르|불일치)/i);
-  assert.match(
-    promotion,
-    /(?:when the two id sets match|only when the two id sets match)[\s\S]{0,200}spec-authoring/i,
-  );
-  assert.doesNotMatch(claude, /audit\.shards/);
-  assert.doesNotMatch(claude, /`?content`?[\s\S]{0,200}(?:split|갈라|분해)/i);
-  assert.doesNotMatch(claude, /# <id>|# `<id>`/);
-  assert.doesNotMatch(
-    claude,
-    /(?:when the two id sets match|only when the two id sets match)[\s\S]{0,200}spec-authoring/i,
-  );
-  assert.doesNotMatch(
-    claude,
-    /Finalize must pass the full JSON audit and\s+complete shard map to spec-authoring/,
-  );
-  assert.doesNotMatch(
-    claude,
-    /reads each shard separately|각 샤드를 따로 읽/,
-  );
-  assert.match(claude, /data.*not instructions|데이터.*지시가 아니/i);
-});
-
-test('Distill re-ground uses one repeated-flag call for every confirmed path', () => {
-  for (const rel of [
-    'skills/bouncer-plan/SKILL.md',
-    'skills/bouncer-execute/SKILL.md',
-    'skills/bouncer-run/SKILL.md',
-    '.bouncer/distill/core.md',
-  ]) {
-    const md = read(rel);
-    assert.doesNotMatch(md, /once\s+(?:per|for each)[\s\S]{0,80}path|경로마다[\s\S]{0,80}한 번/i);
-    assert.match(md, /--for[\s\S]{0,160}--for/, `${rel} must show repeated --for flags`);
-  }
-  assert.match(
-    read('skills/bouncer-plan/SKILL.md'),
-    /\bbouncer distill\s+\\\n\s+--for <path-1>\s+\\\n\s+--for <path-2>/,
-    'plan must show the multiline repeated-flag shell form',
-  );
 });
 
 test('conditional workflow references keep their skill-local ownership', () => {
@@ -1117,4 +813,19 @@ test('worker and coordinator authority have one canonical statement', () => {
       `${name} must not restate the revision command`,
     );
   }
+});
+
+test('master and workflow rules use context-only repository memory', () => {
+  const active = [
+    'CLAUDE.md', 'rules/plugin-root.md', 'skills/bouncer-plan/SKILL.md',
+    'skills/bouncer-execute/SKILL.md', 'skills/bouncer-run/SKILL.md',
+    'skills/bouncer-finalize/SKILL.md', 'references/discovery/index.md',
+    'references/spec-authoring/index.md',
+  ];
+  for (const rel of active) assert.doesNotMatch(read(rel), /distill/i, rel);
+  assert.match(read('CLAUDE.md'), /Canonical docs live[\s\S]*context-search|canonical repository[\s\S]*context graph/i);
+  assert.match(read('skills/bouncer-plan/SKILL.md'), /context-search[\s\S]*decision/);
+  assert.match(read('skills/bouncer-execute/SKILL.md'), /implementation-mode context search/);
+  assert.match(read('skills/bouncer-run/SKILL.md'), /query id|query ids/);
+  assert.match(read('skills/bouncer-finalize/SKILL.md'), /Explain \+ quiz/);
 });

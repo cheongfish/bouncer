@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import paths = require('./paths');
 const { toPosix, parsePathIds } = paths;
@@ -68,6 +69,113 @@ type RuntimePointer = {
 
 type CoordinatorPaths = { integrationPath: string; workerPath?: string; ledgerFile: string };
 
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function stringList(value: unknown, nonEmpty = false): value is string[] {
+  return Array.isArray(value) && (!nonEmpty || value.length > 0)
+    && value.every((entry) => nonEmptyString(entry));
+}
+
+function dagDecision(value: unknown): boolean {
+  return Array.isArray(value) && value.every((entry) => Boolean(entry && typeof entry === 'object'
+    && !Array.isArray(entry) && nonEmptyString((entry as Record<string, unknown>).id)
+    && stringList((entry as Record<string, unknown>).depends_on)));
+}
+
+/**
+ * partial close가 신뢰하는 canonical repair 항목의 전체 shape를 검사한다.
+ * task/wave 식별자만 맞춘 복사본은 scope·DAG·실패 근거를 바꿔치기할 수 있으므로,
+ * 원장 사본 비교 전에 각 필드와 실제 실패 경로를 먼저 고정한다.
+ */
+function validRepairDecision(value: unknown, expectedWave: number): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const decision = value as Record<string, unknown>;
+  const failure = decision.failure;
+  if (!failure || typeof failure !== 'object' || Array.isArray(failure)) return false;
+  const evidence = failure as Record<string, unknown>;
+  return decision.kind === 'repair' && decision.wave === expectedWave
+    && nonEmptyString(decision.task) && nonEmptyString(decision.reason)
+    && nonEmptyString(evidence.task) && nonEmptyString(evidence.command)
+    && nonEmptyString(evidence.summary) && stringList(evidence.paths, true)
+    && typeof evidence.exitCode === 'number' && evidence.exitCode !== 0
+    && evidence.repairWave === expectedWave - 1
+    && dagDecision(decision.previousDag) && dagDecision(decision.nextDag)
+    && stringList(decision.previousScope) && stringList(decision.nextScope, true)
+    && nonEmptyString(decision.necessity)
+    && nonEmptyString(decision.revision) && /^r[1-9]\d*$/.test(decision.revision);
+}
+
+/**
+ * coordinator 원장의 repair/partial-close 불변조건을 검증한다.
+ * 활성 원장은 레거시 필드 부재를 허용하지만 partial_closed는 두 wave, 마지막
+ * 실패 증적, 명시적 사용자 확인이 모두 있어야만 유효하다.
+ *
+ * @param {unknown} value - 파싱된 coordinator 원장
+ * @returns {{ok: true} | {ok: false, reason: string}} 검증 결과
+ */
+function validateCoordinatorLedger(
+  value: unknown,
+  options: { requirePartialClose?: boolean } = {},
+): { ok: true } | { ok: false; reason: string } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, reason: 'invalid-ledger' };
+  }
+  const ledger = value as Record<string, unknown>;
+  if (options.requirePartialClose && ledger.status !== 'awaiting_confirmation') {
+    return { ok: false, reason: 'partial-close-awaiting-confirmation-required' };
+  }
+  const waves = ledger.repairWaves === undefined ? [] : ledger.repairWaves;
+  if (!Array.isArray(waves) || waves.length > 2) return { ok: false, reason: 'repair-wave-limit' };
+  if (ledger.status !== 'partial_closed') return { ok: true };
+  if (waves.length !== 2) return { ok: false, reason: 'partial-close-repair-waves-required' };
+  const repairs = waves as Array<Record<string, unknown>>;
+  if (repairs.some((entry, index) => !validRepairDecision(entry, index + 1))) {
+    return { ok: false, reason: 'partial-close-repair-decision-required' };
+  }
+  const decisions = Array.isArray(ledger.decisions) ? ledger.decisions : [];
+  const tasks = Array.isArray(ledger.tasks) ? ledger.tasks as Array<Record<string, unknown>> : [];
+  let previousGlobalIndex = -1;
+  for (const repair of repairs) {
+    // repairWaves가 canonical이고 task/global 항목은 그 전체 deep copy여야 한다.
+    // 부분 key 비교는 서로 다른 scope나 failure evidence를 같은 결정으로 오인한다.
+    const matches = (entry: unknown) => isDeepStrictEqual(entry, repair);
+    const globalIndex = decisions.findIndex(matches);
+    if (globalIndex < 0) return { ok: false, reason: 'partial-close-global-repair-log-required' };
+    if (globalIndex <= previousGlobalIndex) {
+      return { ok: false, reason: 'partial-close-repair-waves-ordered-required' };
+    }
+    previousGlobalIndex = globalIndex;
+    const task = tasks.find((entry) => entry && entry.id === repair.task);
+    if (!task || !Array.isArray(task.decisions) || !task.decisions.some(matches)) {
+      return { ok: false, reason: 'partial-close-task-repair-log-required' };
+    }
+    if (task.status !== 'integrated') {
+      return { ok: false, reason: 'partial-close-repair-wave-not-integrated' };
+    }
+  }
+  const failure = ledger.terminalFailure;
+  if (!failure || typeof failure !== 'object' || Array.isArray(failure)) {
+    return { ok: false, reason: 'partial-close-failure-evidence-required' };
+  }
+  const evidence = failure as Record<string, unknown>;
+  if (!nonEmptyString(evidence.task) || !nonEmptyString(evidence.command)
+    || !nonEmptyString(evidence.summary) || !stringList(evidence.paths, true)
+    || typeof evidence.exitCode !== 'number') {
+    return { ok: false, reason: 'partial-close-failure-evidence-required' };
+  }
+  if (evidence.exitCode === 0 || evidence.repairWave !== 2) {
+    return { ok: false, reason: 'partial-close-post-wave2-nonzero-failure-required' };
+  }
+  const terminal = tasks.find((entry) => entry && entry.id === evidence.task);
+  if (!terminal || terminal.execution_kind !== 'verification' || terminal.status !== 'verifying') {
+    return { ok: false, reason: 'partial-close-terminal-failure-state-required' };
+  }
+  if (ledger.userConfirmed !== true) return { ok: false, reason: 'partial-close-user-confirmation-required' };
+  return { ok: true };
+}
+
 function catchMessage(error: unknown): unknown {
   // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
   // TypeError 대신 undefined가 되어 unavailable reason이 바뀐다.
@@ -105,7 +213,7 @@ function runtimePaths({
   const commonGitDir = pathApi.resolve(repoRoot, commonDir);
   // dirname(.git)은 일반 repo의 main worktree root이므로, linked checkout이
   // 자기 아래에 중첩되지 않고 같은 `.worktrees/`를 공유한다.
-  // projectRoot는 그 값을 Distill/스킬 소비용으로 노출한다 — Git 계산을
+  // projectRoot는 그 값을 스킬·훅 소비용으로 노출한다 — Git 계산을
   // 스킬이나 별도 helper에서 복제하지 않기 위한 단일 정본.
   const mainRoot = pathApi.dirname(commonGitDir);
   const bouncerDir = pathApi.join(commonGitDir, 'bouncer');
@@ -505,4 +613,5 @@ export = {
   clearRuntimeCurrent, worktreePathFor, coordinatorPathsFor, verifyLedgerPathFor,
   isWorktreeDirty,
   pointerKeyFromBlueprint, listNamespacePointers, removeNamespacePointer,
+  validateCoordinatorLedger,
 };

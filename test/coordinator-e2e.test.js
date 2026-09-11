@@ -244,7 +244,7 @@ test('a single task with no DAG frontmatter drives as one sequential wave', () =
   assert.deepStrictEqual(boot.ready, ['001']);
   // 필드 부재는 의존 없음·순차·integrated로 읽힌다 — 소급 migration이 없다.
   assert.deepStrictEqual(boot.tasks, [{
-    id: '001', depends_on: [], dependency_gate: 'integrated', parallel_safe: false, status: 'pending',
+    id: '001', depends_on: [], execution_kind: 'commit', dependency_gate: 'integrated', parallel_safe: false, status: 'pending',
   }]);
 
   const prepared = coordinate({

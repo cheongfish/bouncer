@@ -18,8 +18,6 @@
 | `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run` 위임 주행의 **보고 주기** | `"auto"` (마감 보고에 모아서) · `"interactive"` (task 경계마다 진행 한 줄) |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
-| `distill.routing_enabled` | `true` \| `false` | `bouncer distill --for` 선택 소비 | `true` — 구조 preflight 통과 후 활성화 |
-| `distill.max_bytes` | 양의 정수 바이트 값 | Distill 구조 validator의 경고 기준 | `6144` — 본문을 자르지 않음 |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` | `"main"` |
 | `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
@@ -39,7 +37,7 @@ brief로 대신하지 않습니다. 이미 `bouncer init`을 돌린 config에는
 **`autonomy`의 역할이 달라졌습니다.** 예전에는 `/bouncer-run`이 얼마나 자주
 물어보는지를 정했지만, 위임 주행에서 승인은 시작 ACQ 하나뿐입니다. 두 값 모두
 task별 ACQ를 열지 않고 보고 주기만 가릅니다 — `interactive`는 task 경계마다
-진행 한 줄, `auto`는 마감 보고에 모아서. finalize의 동의 단계(Distill 승격,
+진행 한 줄, `auto`는 마감 보고에 모아서. finalize의 동의 단계(
 explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 사용자에게
 남고, coordinator는 첫 동의 단계에서 멈춰 그 이름을 보고합니다.
 
@@ -74,33 +72,12 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 `bouncer current --set`은 `--base`가 없으면 `config.base_branch`를 쓰고,
 그 키가 없으면 현재 체크아웃 브랜치를 씁니다.
 
-## Project Distill 선택 라우팅
+## Canonical context retrieval
 
-이 저장소는 전량 모드(`bouncer distill --all`)로 인덱스와 모든 shard를 먼저
-관찰한 뒤 `distill.routing_enabled: true`를 명시한다. 현재 dogfood 인덱스는
-7개 shard(`core`, `validate-gates`, `context-layout`, `git-worktree`, `graph`,
-`plugin-skills`, `build-ts`)다. `core`는 `always`만
-쓰고 경로 glob이 없으며, `plugin-skills`는 워크플로·문서 경로만 맡는다.
-활성화 전에는 구조 validator가 고아 shard, 경로가 없는
-비항상 shard, 잘못된 `pulls`, 순환, `source_dirs`의 routing 구멍을 모두 경고
-없이 통과하는지 확인해야 한다.
-
-`bouncer distill --for <path>`는 파일, 디렉터리, 복수 경로를 받아 `always`와
-매칭 shard 및 `pulls` 전이 폐쇄만 선택한다. 매칭이 없거나 경로·메타데이터를
-확정할 수 없으면 전체 shard를 사용한다. 이 fail-open 진단은 본문을 오염시키지
-않고 stderr로만 전달하며, stdout은 본문 또는 JSON으로 유지한다. 구조
-validator의 경고는 활성화 가능 여부를 판정하는 구조화된 결과이고, 운영자가
-사람에게 보여 주는 진단으로 변환할 때도 본문과 섞지 않는다.
-
-`distill.max_bytes`는 선택 결과의 하드 상한이 아니다. validator가 shard의
-UTF-8 byte 수가 기준을 넘었다는 경고(S26)를 내는 관찰 기준일 뿐이며, 결과를
-잘라내거나 shard를 버리지 않는다. 기본값과 이 저장소 dogfood 설정은 모두
-6KB(6144)다 — 대략 7.1 바이트/단어 환산으로 ≈865 단어이며, 샤드별 상한과
-전체 합계(28,416)를 테스트가 고정한다. `bouncer distill --all`은 같은
-기준으로 샤드별·총합 바이트를 stderr에만 남긴다. 그 초과 요약은
-`/bouncer-finalize` 승격 ACQ와 `/bouncer-plan` 프리플라이트 한 줄 보고에만
-보이며 게이트가 아니다. 활성화된 저장소에서 구조 경고가 남아 있으면
-validator가 활성화를 거부하므로, 먼저 경고를 해소한 뒤 true로 전환한다.
+저장소 지식은 `.bouncer/context/**`만 정본이다. plan은 scaffold 전에 decision
+mode, 경로 확정 뒤 implementation mode를 쓰며 과거 설명은 history mode로
+찾는다. handoff는 query id, status, 선택 경로, graph version을 함께 보존한다.
+version mismatch, broad query, zero hit은 진단으로 남기며 후보를 추측하지 않는다.
 
 ## verify 래퍼 패턴
 
@@ -162,7 +139,6 @@ validator가 활성화를 거부하므로, 먼저 경고를 해소한 뒤 true�
 `graphify-out/context-src/`를 스캔하고, `map.json`으로 결과 경로를 원본으로
 되돌립니다. 화이트리스트는 다음과 같습니다.
 
-- `.bouncer/Distill.md`의 `## Decisions`
 - epic `index.md`의 `## Success criteria`
 - BP `explain.md`의 `## Background` / `## Intuition` / `## Code`
 - BP `index.md`의 `## Intent` / `## Contract`

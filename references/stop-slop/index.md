@@ -7,8 +7,7 @@ description: "Use when drafting or revising Korean Bouncer context prose, or whe
 
 Strip predictable AI writing patterns from **Korean** bodies under
 `.bouncer/context/` (epics and BP explain). Advisory — not a gate. Does not
-score plan/execute/finalize success. Do not run this skill on
-`.bouncer/Distill.md`.
+score plan/execute/finalize success.
 
 Adapted from [Hardik Pandya's stop-slop](https://hvpandya.com) (MIT). Keep this
 folder's `LICENSE` with the original copyright. Skill instructions stay English
@@ -19,8 +18,7 @@ folder's `LICENSE` with the original copyright. Skill instructions stay English
 **In scope:** epic / blueprint / tasks / explain body prose under
 `.bouncer/context/` that a human reads (Korean).
 
-**Out of scope:** project Distill (`.bouncer/Distill.md`, English agent
-runtime), plugin skill markdown, CLI/gate English strings, code, identifiers,
+**Out of scope:** plugin skill markdown, CLI/gate English strings, code, identifiers,
 file paths, fenced code blocks, commit `type` tokens.
 
 ## Language
@@ -70,7 +68,6 @@ See [examples.md](examples.md).
 ## Guardrails
 
 - Advisory only — not a gate. Does not score plan/execute/finalize success.
-- Do not run this skill on project Distill (`.bouncer/Distill.md`).
 - Keep paths, ids, commands, and fenced code as-is.
 - Do not invent verification.md or gate outcomes.
 

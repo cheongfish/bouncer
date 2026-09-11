@@ -23,3 +23,4 @@ bouncer_schema: '0.1'
 * [065 workflow-reliability](epics/065-workflow-reliability/index.md) - Hardens workflow contracts so validation and review remain reliable across task lifecycles.
 * [066 workflow-contract-followup](epics/066-workflow-contract-followup/index.md) - Coordinates implementer role synchronization, workflow skill measurements, and Graphify context ranking evaluation.
 * [067 task-dag-coordinator](epics/067-task-dag-coordinator/index.md) - Delegates DAG execution to a coordinator that autonomously completes blueprint work in isolated worktrees.
+* [068 context-runtime-rearchitecture](epics/068-context-runtime-rearchitecture/index.md) - Removes Project Distill, introduces ranked canonical context retrieval, and adds bounded coordinator CI recovery.
