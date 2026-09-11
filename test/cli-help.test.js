@@ -16,6 +16,7 @@ const SUBCOMMANDS = [
   'coordinate',
   'execute',
   'plan',
+  'run',
   'import',
 ];
 
@@ -153,6 +154,11 @@ test('context-search with max-candidates out of range exits 2', () => {
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /max-candidates/i);
   assert.strictEqual(r.out, '');
+});
+
+test('usage lists run preflight --blueprint', () => {
+  const r = capture([]);
+  assert.match(r.out, /run\s+preflight --blueprint <dir>/);
 });
 
 test('usage lists current --replace', () => {

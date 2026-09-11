@@ -32,6 +32,7 @@ const COMMANDS: Record<string, CliCommand> = {
   'seed-worktree': gitCommands['seed-worktree'],
   execute: gitCommands.execute,
   plan: docCommands.plan,
+  run: projectCommands.run,
   coordinate: gitCommands.coordinate,
   init: projectCommands.init,
   // --upgrade-graphify 는 init 핸들러(parseFlags)와 그 usage 문자열에만 있다.

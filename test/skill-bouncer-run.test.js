@@ -9,7 +9,7 @@ test('run shows the blueprint DAG before the start ACQ', () => {
   const start = md.indexOf('2. **Start ACQ.**');
   assert.ok(start > 0);
   const preflight = md.slice(md.indexOf('1. **Preflight.**'), start);
-  assert.match(preflight, /\bbouncer\s+current\b/);
+  assert.match(preflight, /\bbouncer\s+run\s+preflight\b/);
   assert.match(preflight, /affected_paths/);
   const acq = md.slice(start, md.indexOf('3. **Integration bootstrap.**'));
   assert.match(acq, /depends_on/);
@@ -57,6 +57,21 @@ test('run stays non-editing and does not re-judge worker reports', () => {
   assert.doesNotMatch(role, /stop that task/);
   assert.doesNotMatch(md, /do not widen\s*\n?\s*`affected_paths`/);
   assert.match(role, /bouncer current --set/);
+});
+
+test('run defers coordinator procedure to the canonical agent and governance docs', () => {
+  const coordinator = fs.readFileSync(
+    path.join(__dirname, '..', 'agents/bouncer-coordinator.md'),
+    'utf8',
+  );
+  const governance = fs.readFileSync(
+    path.join(__dirname, '..', 'rules/governance.md'),
+    'utf8',
+  );
+  assert.match(md, /agents\/bouncer-coordinator\.md/);
+  assert.match(md, /rules\/governance\.md/);
+  assert.match(coordinator, /bouncer-implementer|worker/i);
+  assert.match(governance, /Coordinator mode|coordinator/i);
 });
 
 // finalize의 동의는 어느 경로에서도 사용자 것이다. 두 경로가 다른 주인을

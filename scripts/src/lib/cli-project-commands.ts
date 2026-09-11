@@ -16,6 +16,8 @@ import runtimeState = require('./runtime-state');
 const { runtimePaths } = runtimeState;
 import graphSearch = require('./graph-search');
 const { graphSuggest, contextSearch, validateContextSearchInput } = graphSearch;
+import runPreflightMod = require('./run-preflight');
+const { runPreflight } = runPreflightMod;
 
 type CliIo = {
   out: (s: string) => void;
@@ -288,6 +290,46 @@ function cmdProjectRoot(rest: string[], io: CliIo) {
   return 0;
 }
 
+function catchMessage(error: unknown): string {
+  // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
+  // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
+  return (error as { message: string }).message;
+}
+
+/**
+ * `run preflight`만 받는다. 정규화 JSON을 stdout에 내고, 거절은 같은 채널의
+ * `{ok:false}`와 종료 코드 1이다. 알 수 없는 서브커맨드는 사용법(2).
+ *
+ * @param {string[]} rest - 서브커맨드와 플래그
+ * @param {CliIo} io - stdout/stderr 싱크
+ * @returns {number} 성공 0, 거절 1, 사용법 2
+ */
+function cmdRun(rest: string[], io: CliIo) {
+  const command = rest[0];
+  const f = parseFlags(rest.slice(1));
+  // preflight만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
+  // 구분해, 없는 동사를 drive 쓰기로 착각하지 않게 한다.
+  if (command !== 'preflight') {
+    io.err('run: command must be preflight\n');
+    return 2;
+  }
+  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+    io.err('run: --blueprint is required\n');
+    return 2;
+  }
+  try {
+    const result = runPreflight({
+      repoRoot: (f.repo || process.cwd()) as string,
+      blueprintDir: f.blueprint,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  } catch (error) {
+    io.err(`run preflight: ${catchMessage(error)}\n`);
+    return 1;
+  }
+}
+
 function cmdMigrate(rest: string[], io: CliIo) {
   const [kind, ...flagArgs] = rest;
   // kind를 플래그보다 먼저 본다. 알 수 없는 kind에 --dry-run만 있어도
@@ -344,6 +386,12 @@ export = {
     run: cmdMigrate,
     usage: `  migrate    task-layout [--dry-run]
              Move legacy task files into tasks/<NNN>/ units.
+`,
+  },
+  run: {
+    run: cmdRun,
+    usage: `  run        preflight --blueprint <dir>
+             Print pointer, open tasks, DAG, ready wave, and autonomy as JSON.
 `,
   },
 };
