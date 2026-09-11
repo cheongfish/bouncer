@@ -103,7 +103,7 @@ test('tracked active surfaces reject runtime memory tokens outside the explicit 
     ['test/commit-guard.test.js', { count: 6, kind: 'legacy-compatibility-regression' }],
     ['test/context-corpus-search.test.js', { count: 9, kind: 'historical-corpus-and-cutover-evidence' }],
     ['test/context-digest.test.js', { count: 38, kind: 'legacy-compatibility-regression' }],
-    ['test/distill-decommission-audit.test.js', { count: 92, kind: 'historical-removal-audit' }],
+    ['test/distill-decommission-audit.test.js', { count: 102, kind: 'historical-removal-audit' }],
     ['test/finalize-pure.test.js', { count: 3, kind: 'legacy-compatibility-regression' }],
     ['test/finalize.test.js', { count: 28, kind: 'legacy-compatibility-regression' }],
     ['test/graph-search.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],

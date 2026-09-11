@@ -23,9 +23,10 @@ const REGISTERED_SOURCES = [
   'build-ts',
 ];
 
-// 원문 순서·개수를 이 배열에 고정한다. Distill 본문이 바뀌면 추출 단언이
-// 먼저 실패해야 감사 표가 조용히 어긋나지 않는다. master는 세 절에 bullet이
-// 없어 목록에 행이 없다.
+// 원문 순서·개수를 이 배열에 고정한다. 068이 추적 Distill.md를 지운 뒤에는
+// project-root 실파일을 열면 ENOENT가 나고, 되살리면 ci-contract 제거 단언과
+// 동시에 통과할 수 없다. 감사 표 대조는 이 스냅샷과 감사 문서만으로 한다.
+// master는 세 절에 bullet이 없어 목록에 행이 없다.
 const EXPECTED_BULLETS = [
   { 'source': 'core', 'distill_section': 'Invariants', 'bullet': "File is `<git-common-dir>/bouncer/current` — never `.bouncer/current`. JSON is `{ blueprint, task?, base }` where `task` is a repo-relative path string; CLI presents `task` as `{ path, id }` or `null`. `/bouncer-execute`'s brief is `current.task.path` when set." },
   { 'source': 'core', 'distill_section': 'Gotchas', 'bullet': '`affected_paths` as a wide directory (e.g. `scripts`) overlaps Do not touch paths under it and fails G12 — prefer per-file paths.' },
@@ -343,22 +344,69 @@ function loadAuditFile(auditPath) {
   }
 }
 
+/**
+ * extractRegisteredBullets용 임시 트리. 소비 저장소 Distill.md는 068이 제거했고
+ * 이 테스트가 되살리면 ci-contract와 충돌하므로 추출기 동작만 fixture로 본다.
+ *
+ * @param {{master: string, shards: Record<string, string>}} files - master 원문과 shard id→본문
+ * @returns {string} 임시 루트 절대 경로
+ */
+function writeExtractFixture(files) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'distill-extract-'));
+  fs.mkdirSync(path.join(root, '.bouncer', 'distill'), { recursive: true });
+  fs.writeFileSync(path.join(root, MASTER_SOURCE), files.master);
+  for (const [id, markdown] of Object.entries(files.shards)) {
+    fs.writeFileSync(path.join(root, '.bouncer', 'distill', `${id}.md`), markdown);
+  }
+  return root;
+}
+
 test('extracts registered Distill master and shard bullets in source order', () => {
-  const projectRoot = resolveProjectRoot();
-  const { shards, bullets } = extractRegisteredBullets(projectRoot);
-  assert.deepStrictEqual(shards, REGISTERED_SOURCES.filter((id) => id !== MASTER_SOURCE));
-  assert.strictEqual(bullets.length, EXPECTED_BULLETS.length);
-  assert.deepStrictEqual(bullets, EXPECTED_BULLETS);
-  const bySource = Object.fromEntries(REGISTERED_SOURCES.map((id) => [id, 0]));
-  for (const item of bullets) bySource[item.source] += 1;
-  assert.strictEqual(bySource[MASTER_SOURCE], 0);
-  assert.strictEqual(bySource.core, 7);
-  assert.strictEqual(bySource['validate-gates'], 8);
-  assert.strictEqual(bySource['context-layout'], 5);
-  assert.strictEqual(bySource['git-worktree'], 6);
-  assert.strictEqual(bySource.graph, 7);
-  assert.strictEqual(bySource['plugin-skills'], 11);
-  assert.strictEqual(bySource['build-ts'], 4);
+  const fixtureRoot = writeExtractFixture({
+    master: `---
+distill:
+  shards:
+    - core
+    - id: graph
+---
+## Invariants
+
+## Other
+
+- not a distill section
+`,
+    shards: {
+      core: `---
+title: core
+---
+## Invariants
+
+- first core
+
+## Gotchas
+
+- second core
+`,
+      graph: `---
+title: graph
+---
+## Decisions
+
+- graph only
+`,
+    },
+  });
+  try {
+    const { shards, bullets } = extractRegisteredBullets(fixtureRoot);
+    assert.deepStrictEqual(shards, ['core', 'graph']);
+    assert.deepStrictEqual(bullets, [
+      { source: 'core', distill_section: 'Invariants', bullet: 'first core' },
+      { source: 'core', distill_section: 'Gotchas', bullet: 'second core' },
+      { source: 'graph', distill_section: 'Decisions', bullet: 'graph only' },
+    ]);
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
 });
 
 test('rejects a missing decommission audit document', () => {
@@ -466,17 +514,34 @@ test('audit mapping covers every extracted bullet with no unresolved or migrate'
   const repoRoot = path.join(__dirname, '..');
   const loaded = loadAuditFile(path.join(repoRoot, AUDIT_REL));
   assert.ok(loaded.ok, loaded.errors && loaded.errors.join('\n'));
+  // 실파일 Distill.md가 없는 소비 저장소에서 이 테스트가 ENOENT로 죽지 않아야
+  // 한다. 매핑·요약 단언은 고정 EXPECTED_BULLETS와 감사 문서만 본다.
   const projectRoot = resolveProjectRoot();
-  const { bullets } = extractRegisteredBullets(projectRoot);
+  assert.strictEqual(
+    fs.existsSync(path.join(projectRoot, MASTER_SOURCE)),
+    false,
+    `${MASTER_SOURCE} must stay removed at project-root`,
+  );
   const parsed = parseAuditDocument(loaded.markdown);
-  const judged = evaluateAudit(bullets, parsed.rows);
+  const judged = evaluateAudit(EXPECTED_BULLETS, parsed.rows);
   assert.strictEqual(judged.migrate.length, 0, judged.errors.join('\n'));
   assert.strictEqual(judged.unresolved, 0, judged.errors.join('\n'));
-  assert.strictEqual(parsed.rows.length, bullets.length, judged.errors.join('\n'));
+  assert.strictEqual(parsed.rows.length, EXPECTED_BULLETS.length, judged.errors.join('\n'));
+  assert.strictEqual(EXPECTED_BULLETS.length, 48);
   assert.ok(judged.ok, judged.errors.join('\n'));
+  const bySource = Object.fromEntries(REGISTERED_SOURCES.map((id) => [id, 0]));
+  for (const item of EXPECTED_BULLETS) bySource[item.source] += 1;
+  assert.strictEqual(bySource[MASTER_SOURCE], 0);
+  assert.strictEqual(bySource.core, 7);
+  assert.strictEqual(bySource['validate-gates'], 8);
+  assert.strictEqual(bySource['context-layout'], 5);
+  assert.strictEqual(bySource['git-worktree'], 6);
+  assert.strictEqual(bySource.graph, 7);
+  assert.strictEqual(bySource['plugin-skills'], 11);
+  assert.strictEqual(bySource['build-ts'], 4);
   const totals = parsed.summary.find((row) => row.source === 'total');
   assert.ok(totals, 'summary must include a total row');
-  assert.strictEqual(totals.bullets, bullets.length);
+  assert.strictEqual(totals.bullets, EXPECTED_BULLETS.length);
   assert.strictEqual(totals.unresolved, 0);
   assert.strictEqual(totals.migrate, 0, 'live audit must keep migrate=0');
   const tallies = evaluateSummary(parsed.rows, parsed.summary);

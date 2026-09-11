@@ -24,9 +24,10 @@ test('bouncer-execute conditionally routes dispatch and verify recovery referenc
     links: [
       { href: './references/agent-dispatch.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['dispatch', 'fallback'] } },
       { href: './references/verification-recovery.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['verify', 'recover'] } },
+      { href: './references/review-round.md', resolve: true, referencePreamble: true, conditionalLoad: { triggers: ['review', 'round'] } },
     ],
   });
-  const routes = ['agent-dispatch.md', 'verification-recovery.md'];
+  const routes = ['agent-dispatch.md', 'verification-recovery.md', 'review-round.md'];
   for (const file of routes) {
     assert.match(
       body,
@@ -52,6 +53,11 @@ test('bouncer-execute rejects generic conditional loads for each routed referenc
       triggers: ['verify', 'recover'],
       source: '**On verify failure**, when recovering through debugger then implementer,',
     },
+    {
+      href: './references/review-round.md',
+      triggers: ['review', 'round'],
+      source: 'When a review round may start or stop, read',
+    },
   ];
   for (const route of routes) {
     const releaseRoute = mainMd.replaceAll(route.source, 'When publishing a release,');
@@ -75,7 +81,7 @@ test('bouncer-execute uses root/local reference prefixes and states no-question 
       links: {
         3: ['./references/agent-dispatch.md'],
         4: ['./references/verification-recovery.md'],
-        5: ['./references/agent-dispatch.md'],
+        5: ['./references/agent-dispatch.md', './references/review-round.md'],
       },
     },
     acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [], only: true },
@@ -97,6 +103,7 @@ test('bouncer-execute uses root/local reference prefixes and states no-question 
   assert.match(body, /\$\{BOUNCER_ROOT\}\/references\/review\/assets\/reviewer-prompt\.md/);
   assert.match(body, /\.\/references\/agent-dispatch\.md/);
   assert.match(body, /\.\/references\/verification-recovery\.md/);
+  assert.match(body, /\.\/references\/review-round\.md/);
   assert.doesNotMatch(
     body,
     /(?<!\$\{BOUNCER_ROOT\}\/|\.\/)references\/(?:implementation|verification|review|minimality|debugging)\//,
@@ -109,13 +116,12 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.ok(data.description.length > 0);
   assert.match(body, /\bbouncer\s+current\b/);
   assert.match(body, /worktree/i);
-  assert.match(body, /<type>\/<BP-id>-<slug>/);
-  assert.match(body, /commit_type/);
-  assert.match(body, /\.gitmessage|feat.*fix.*docs|refactor.*test.*chore/);
-  assert.match(body, /runtime-state/);
-  assert.match(body, /worktreePathFor/);
+  assert.match(body, /\bbouncer execute prepare\b/);
+  assert.match(body, /worktreePath/);
+  assert.match(body, /git -C/);
+  assert.doesNotMatch(body, /<type>\/<BP-id>-<slug>/);
+  assert.doesNotMatch(body, /worktreePathFor/);
   assert.doesNotMatch(body, /ensureWorktreeRoot/);
-  assert.match(body, /\.worktrees\/<epic-id>\/<bp-id>/);
   assert.doesNotMatch(body, /\.bouncer\/worktrees/);
   assert.doesNotMatch(body, /already gitignored|ignored in-repo worktree/i);
   assert.match(body, /implementation/);
@@ -129,15 +135,14 @@ test('bouncer-execute wires worktree, skills, scope, and execute gate', () => {
   assert.doesNotMatch(md, /superpowers|profile-aware|verification-adapter|review-adapter/i);
 });
 
-test('bouncer-execute step 2 seeds the worktree with the plan documents', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /seed-worktree/);
-  assert.match(body, /--to\s+"\$\{WORKTREE_PATH\}"/);
-  // The command reads the base checkout, so it must run before the cwd switch.
-  assert.ok(
-    body.indexOf('seed-worktree') > body.indexOf('git worktree add'),
-    'seed-worktree must be documented after git worktree add',
-  );
+test('bouncer-execute step 2 prepares the worktree with one CLI command', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step2 = body.slice(body.indexOf('2. **Prepare.**'), body.indexOf('3. **Implement'));
+  assert.match(step2, /\bbouncer execute prepare --blueprint <pointer\.blueprint>/);
+  assert.match(step2, /payload `worktreePath`/);
+  assert.match(step2, /Do \*\*not\*\*\s*\n?\s*run `git -C/);
+  assert.doesNotMatch(step2, /git worktree add/);
+  assert.doesNotMatch(step2, /seed-worktree/);
 });
 
 test('bouncer-execute consumes seed config status and warns when missing', () => {
@@ -217,29 +222,31 @@ test('bouncer-execute step 5 dispatches reviewer-prompt via bouncer-reviewer', (
 });
 
 test('bouncer-execute allows a conditional third review round then stops', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /round <= 2/);
-  assert.match(body, /round == 3/);
-  assert.match(body, /previous blocker\/major findings are resolved/);
-  assert.match(body, /latest verify passed/);
-  assert.match(body, /new actionable findings fit Goal, Interface, Constraints, affected_paths/);
-  assert.match(body, /Never start a fourth|네 번째/);
-  assert.match(body, /never flip[\s\S]{0,80}accepted/);
+  const { body } = parseFrontmatter(mainMd);
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  assert.match(body, /\.\/references\/review-round\.md/);
+  assert.match(round, /round <= 2/);
+  assert.match(round, /round == 3/);
+  assert.match(round, /previous blocker\/major findings are resolved/);
+  assert.match(round, /latest verify passed/);
+  assert.match(round, /new actionable findings fit Goal, Interface, Constraints, affected_paths/);
+  assert.match(round, /Never start a fourth|네 번째/);
+  assert.match(round, /never flip[\s\S]{0,80}accepted/);
 });
 
 test('bouncer-execute replans instead of deferring accuracy findings', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /Do not classify[\s\S]{0,80}deferred|deferred[\s\S]{0,80}accuracy/i);
-  assert.match(body, /\/bouncer-plan/);
-  assert.match(body, /regresses|재발/);
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  assert.match(round, /Do not classify[\s\S]{0,80}deferred|deferred[\s\S]{0,80}accuracy/i);
+  assert.match(round, /\/bouncer-plan/);
+  assert.match(round, /regresses|재발/);
 });
 
 test('bouncer-execute records each review round ledger in review.md', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /bouncer\.review\.rounds/);
-  assert.match(body, /previous finding IDs|previous_finding_ids/);
-  assert.match(body, /new[\s\S]{0,40}resolved[\s\S]{0,40}regressed/);
-  assert.match(body, /review\.md/);
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  assert.match(round, /bouncer\.review\.rounds/);
+  assert.match(round, /previous finding IDs|previous_finding_ids/);
+  assert.match(round, /new[\s\S]{0,40}resolved[\s\S]{0,40}regressed/);
+  assert.match(round, /review\.md/);
 });
 
 test('bouncer-execute uses the pointer task document as the brief', () => {
@@ -284,7 +291,7 @@ test('bouncer-execute step 3 light branch cites pointer scale', () => {
 
 test('bouncer-execute loads debugging only on the verify-failure recovery path', () => {
   const { body } = parseFrontmatter(mainMd);
-  const step4 = body.indexOf('4. **Verify.**');
+  const step4 = body.indexOf('4. **Verify/recover.**');
   const debugCite = body.indexOf('${BOUNCER_ROOT}/references/debugging/index.md');
   assert.ok(step4 >= 0, 'step 4 owns verify-failure recovery');
   assert.ok(debugCite >= step4, 'debugging/index.md belongs on the verify-failure path');
@@ -300,8 +307,8 @@ test('bouncer-execute loads debugging only on the verify-failure recovery path',
 // 본문 전체 /debug/i는 뒤쪽 debugger 토큰에 이미 통과한다.
 test('bouncer-execute step 1 warns the selected pointer and stops on CURRENT_AMBIGUOUS', () => {
   const { body } = parseFrontmatter(mainMd);
-  const step1At = body.indexOf('1. **Read the pointer.**');
-  const step1 = body.slice(step1At, body.indexOf('2. **Worktree.**'));
+  const step1At = body.indexOf('1. **Preflight.**');
+  const step1 = body.slice(step1At, body.indexOf('2. **Prepare.**'));
   assert.ok(step1At >= 0, 'step 1 owns pointer read');
   assert.match(step1, /\bbouncer\s+current\b/);
   assert.match(step1, /blueprint/);
@@ -347,9 +354,10 @@ test('bouncer-execute runs the implement/debug/review round under the coordinato
 // 경계 밖에서 라운드가 돈다.
 test('bouncer-execute does not create a worktree during a coordinator drive', () => {
   const { body } = parseFrontmatter(mainMd);
-  const step2 = body.slice(body.indexOf('2. **Worktree.**'), body.indexOf('3. **Implement'));
-  assert.match(step2, /Under a coordinator drive, skip this step/);
-  assert.match(step2, /coordinate\s*\n?\s*prepare/);
+  const step2 = body.slice(body.indexOf('2. **Prepare.**'), body.indexOf('3. **Implement'));
+  assert.match(step2, /`drive: true`/);
+  assert.match(step2, /do not write to the main worktree/);
+  assert.match(step2, /do not create another worktree/);
 });
 
 // drift는 서술이 아니라 CLI 호출로 기록된다. 그리고 그 표면은 하나뿐이다.

@@ -149,7 +149,7 @@ const CONDITIONAL_HELPERS = {
   },
   'bouncer-execute': {
     root: ['minimality/index.md', 'debugging/index.md'],
-    local: ['agent-dispatch.md', 'verification-recovery.md'],
+    local: ['agent-dispatch.md', 'verification-recovery.md', 'review-round.md'],
   },
   'bouncer-commit': { root: [], local: [] },
   'bouncer-run': { root: [], local: [] },
@@ -296,6 +296,7 @@ const SKILL_LOCAL_REFS = {
   'bouncer-execute': [
     'agent-dispatch.md',
     'verification-recovery.md',
+    'review-round.md',
   ],
   'bouncer-commit': [],
   'bouncer-finalize': [

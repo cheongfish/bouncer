@@ -14,6 +14,8 @@ import coordinatorMod = require('./coordinator');
 const { coordinate } = coordinatorMod;
 import scopeMod = require('./scope');
 const { reviseTaskScope } = scopeMod;
+import executePrepareMod = require('./execute-prepare');
+const { executePrepare } = executePrepareMod;
 
 type CliIo = {
   out: (s: string) => void;
@@ -153,6 +155,32 @@ function collectPathValues(rest: string[]): string[] {
   return out;
 }
 
+function cmdExecute(rest: string[], io: CliIo) {
+  const command = rest[0];
+  const f = parseFlags(rest.slice(1));
+  // prepare만 공개한다. 다른 서브커맨드를 받으면 사용법(2) — 런타임 거절(1)과
+  // 구분해, 없는 동사를 worktree 쓰기로 착각하지 않게 한다.
+  if (command !== 'prepare') {
+    io.err('execute: command must be prepare\n');
+    return 2;
+  }
+  if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+    io.err('execute: --blueprint is required\n');
+    return 2;
+  }
+  try {
+    const result = executePrepare({
+      repoRoot: (f.repo || process.cwd()) as string,
+      blueprintDir: f.blueprint,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  } catch (error) {
+    io.err(`execute prepare: ${catchMessage(error)}\n`);
+    return 1;
+  }
+}
+
 function cmdCoordinate(rest: string[], io: CliIo) {
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
@@ -230,6 +258,12 @@ export = {
     run: cmdSeedWorktree,
     usage: `  seed-worktree --blueprint <dir> --to <worktree>
              Move the plan context documents into a freshly created worktree.
+`,
+  },
+  execute: {
+    run: cmdExecute,
+    usage: `  execute    prepare --blueprint <dir>
+             Create or reuse the execute worktree, seed plan documents, and print JSON.
 `,
   },
   coordinate: {
