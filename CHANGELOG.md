@@ -7,6 +7,27 @@
 
 ## [Unreleased]
 
+## [1.4.4] — 2026-09-11
+
+1.4.3 이후 진입 스킬 런타임 컨텍스트 최소화. 경로·상태·기본값 판정을 CLI
+payload로 옮기고 스킬 본문은 번호 단계만 남긴다.
+
+### Added
+
+- **진입 준비 CLI** — `bouncer execute prepare`, `bouncer plan inspect`,
+  `bouncer run preflight`가 worktree·id·DAG 사전 점검을 JSON payload로
+  반환한다.
+- **커밋·마감 안내 필드** — `bouncer commit` payload에 `controller`·
+  `nextAction`·`stampPath`·`recovery`를, `bouncer finalize`에 `integration`을
+  넣는다.
+
+### Changed
+
+- **진입 스킬 본문** — execute·plan·run·commit·finalize 스킬이 CLI payload
+  필드를 읽고, 단계별 절차는 skill-local reference로 옮긴다.
+- **init Master rules** — plan 전용 규칙 적재를 빼고, 안전 경계 아홉 행은
+  `test/workflow-safety-canon.test.js`가 고정한다.
+
 ## [1.4.3] — 2026-09-11
 
 1.4.2 이후 Distill 제거, 역할 기반 컨텍스트 검색, Graphify 호환 고정, 제한된 CI 복구.
