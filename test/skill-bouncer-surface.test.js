@@ -106,25 +106,60 @@ function readWorkflow(name) {
   return fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
 }
 
-// TASKS-005 baseline (HEAD before this task): the six entry documents total
-// 7,890 words. Keep the receipt here so later prose growth is visible without
-// coupling the check to any particular sentence or numbered-step count.
-test('entry-skill word count decreases from the TASKS-005 baseline', () => {
-  const baseline = {
-    'bouncer-init': 754,
-    'bouncer-plan': 2297,
-    'bouncer-execute': 1692,
-    'bouncer-commit': 772,
-    'bouncer-run': 1279,
-    'bouncer-finalize': 1096,
-  };
-  const counts = Object.fromEntries(Object.keys(baseline).map((name) => [
+// BP001 착수 시점 단어 수. 합계가 이 값보다 작다는 기존 판정만 유지하고,
+// 스킬별 숫자는 이후 성장이 어디서 났는지 보는 영수증이다.
+const ENTRY_WORD_BASELINE = {
+  'bouncer-init': 411,
+  'bouncer-plan': 2331,
+  'bouncer-execute': 2001,
+  'bouncer-commit': 926,
+  'bouncer-run': 1141,
+  'bouncer-finalize': 985,
+};
+
+test('entry-skill word count stays below the BP001 baseline', () => {
+  const counts = Object.fromEntries(Object.keys(ENTRY_WORD_BASELINE).map((name) => [
     name,
     readWorkflow(name).trim().split(/\s+/).length,
   ]));
-  const before = Object.values(baseline).reduce((sum, count) => sum + count, 0);
+  const before = Object.values(ENTRY_WORD_BASELINE).reduce((sum, count) => sum + count, 0);
   const after = Object.values(counts).reduce((sum, count) => sum + count, 0);
   assert.ok(after < before, `expected < ${before} words, received ${after}`);
+});
+
+/**
+ * ACQ 색인 앞 본문에서 1부터 이어지는 최상위 번호 단계 개수.
+ * 들여 쓴 AskUserQuestion 항목은 세지 않는다.
+ *
+ * @param {string} md - SKILL.md 원문
+ * @returns {number} 연속된 1..N 단계 수
+ */
+function countNumberedSteps(md) {
+  const acqAt = md.search(/^## ACQ \(AskUserQuestion\) gates$/m);
+  const procedure = acqAt === -1 ? md : md.slice(0, acqAt);
+  const numbers = [...procedure.matchAll(/^(\d+)\. /gm)].map((hit) => Number(hit[1]));
+  let count = 0;
+  for (let i = 0; i < numbers.length; i += 1) {
+    if (numbers[i] !== i + 1) break;
+    count += 1;
+  }
+  return count;
+}
+
+const ENTRY_STEP_COUNTS = {
+  'bouncer-init': 4,
+  'bouncer-plan': 8,
+  'bouncer-execute': 6,
+  'bouncer-commit': 5,
+  'bouncer-run': 5,
+  'bouncer-finalize': 5,
+};
+
+test('entry skills keep the locked numbered-step counts', () => {
+  for (const [name, expected] of Object.entries(ENTRY_STEP_COUNTS)) {
+    const actual = countNumberedSteps(readWorkflow(name));
+    assert.strictEqual(actual, expected, `${name}: expected ${expected} numbered steps, received ${actual}`);
+  }
 });
 
 /**

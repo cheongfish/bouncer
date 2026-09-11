@@ -37,11 +37,11 @@ Graphify fallback과 PR 작성 절차는 reference가 소유한다.
 | Skill | 조건부 helper | 책임 정본 |
 | --- | --- | --- |
 | `bouncer-init` | `./references/init-result.md` | bootstrap 이후 step 2 |
-| `bouncer-plan` | `minimality/index.md`, `context-review/index.md`, `./references/graphify-suggestions.md`, `./references/context-review.md` | step 6 advisory, step 7 full-only |
-| `bouncer-execute` | `minimality/index.md`, `debugging/index.md`, `./references/agent-dispatch.md`, `./references/verification-recovery.md` | step 5 advisory, step 4 verify-failure, dispatch/fallback |
+| `bouncer-plan` | `minimality/index.md`, `context-review/index.md`, `./references/graphify-suggestions.md`, `./references/context-review.md`, `./references/scope-confirm.md` | step 4 scope confirm, step 6 advisory, step 7 full-only |
+| `bouncer-execute` | `minimality/index.md`, `debugging/index.md`, `./references/agent-dispatch.md`, `./references/verification-recovery.md`, `./references/review-round.md` | step 5 advisory·review round, step 4 verify-failure, dispatch/fallback |
 | `bouncer-commit` | 없음 | — |
 | `bouncer-run` | 없음 (실행 상한은 execute, 주행 판단은 `agents/bouncer-coordinator.md` 소유를 가리킴) | — |
-| `bouncer-finalize` | `explain-quiz.md`, `draft-pr.md`, `cleanup-handoff.md` | steps 1, 3, 4–5 |
+| `bouncer-finalize` | `explain-quiz.md`, `remainder.md`, `draft-pr.md`, `cleanup-handoff.md` | steps 1, 2 remainder, 3, 4–5 |
 
 ## Task 002 측정 — 변경 전
 

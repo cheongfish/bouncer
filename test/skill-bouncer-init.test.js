@@ -31,5 +31,21 @@ test('init loads result handling after bootstrap and keeps ACQ consent', () => {
   assert.doesNotMatch(preamble, /\.\/references\/init-result\.md/);
   assert.ok(skill.indexOf('bouncer init') < skill.indexOf('./references/init-result.md'));
   assert.match(skill, /rules\/acq\.md/);
-  assert.match(skill, /Step 3 — Promotion ACQ · Gitignore ACQ · Branch ACQ/);
+  assert.match(skill, /Step 2 — Promotion ACQ · Gitignore ACQ · Branch ACQ/);
+});
+
+test('init Master rules omit plan-only product rules', () => {
+  const master = skill.match(/\*\*Master rules\.\*\*[\s\S]*?(?=\n\n)/);
+  assert.ok(master, 'missing **Master rules.** block');
+  assert.match(master[0], /CLAUDE\.md/);
+  assert.doesNotMatch(master[0], /rules\/governance\.md/);
+  assert.doesNotMatch(master[0], /rules\/okf\.md/);
+});
+
+test('init keeps four numbered steps through plan handoff', () => {
+  assert.match(skill, /^1\. \*\*Init\.\*\*/m);
+  assert.match(skill, /^2\. \*\*Result handling\.\*\*/m);
+  assert.match(skill, /^3\. \*\*Bootstrap commit\.\*\*/m);
+  assert.match(skill, /^4\. \*\*Plan handoff\.\*\*/m);
+  assert.doesNotMatch(skill, /^5\. /m);
 });

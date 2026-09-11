@@ -7,15 +7,14 @@ description: "Use only when the user explicitly asks /bouncer-init; it bootstrap
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`rules/governance.md`, `rules/okf.md`.
-Output contract: `rules/output.md`. Preserve the step 3 ACQ display; report the
+(`AGENTS.md` imports `@CLAUDE.md`).
+Output contract: `rules/output.md`. Preserve the step 2 ACQ display; report the
 bootstrap outcome, created or migrated targets, Graphify result/recovery, and
 the next `/bouncer-plan` action through that shared contract.
 
 Bootstrap this project for Bouncer.
 
-1. Run `bouncer init` (idempotent for config and canonical context;
+1. **Init.** Run `bouncer init` (idempotent for config and canonical context;
    attempts graphify venv install by default). Codex named-agent TOML is
    written only when `.codex/` already exists or the user passed
    `--seed-codex-agents`:
@@ -24,14 +23,14 @@ Bootstrap this project for Bouncer.
    # Codex users without an existing .codex/ directory:
    # bouncer init --seed-codex-agents
    ```
-2. After bootstrap completes, read [init-result.md](./references/init-result.md)
+2. **Result handling.** After bootstrap completes, read [init-result.md](./references/init-result.md)
    when rendering a result or handling its Promotion, Gitignore, or Branch
    consent branch. That reference owns the result fields and branch effects;
    it never precedes bootstrap and config promotion remains CLI-only.
    Root `context/` is legacy/non-canonical and is never input.
-3. Consent gates (ACQ). Apply the conditional choices in `init-result.md`;
+   Consent gates (ACQ). Apply the conditional choices in `init-result.md`;
    never write config or `.gitignore` without agreement.
-4. Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
+3. **Bootstrap commit.** Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
    git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
    ```
@@ -46,7 +45,7 @@ Bootstrap this project for Bouncer.
 
    Do not run the commit yourself unless the user asks — bootstrapping is their
    decision to record.
-5. Point the user at `/bouncer-plan` as the next step, and mention they can edit
+4. **Plan handoff.** Point the user at `/bouncer-plan` as the next step, and mention they can edit
    `.bouncer/config.json` (`source_dirs`, `verify`, `base_branch`, `pr`) first.
 
 Do not author any epic or blueprint here — `/bouncer-init` only scaffolds
@@ -61,4 +60,4 @@ Document skeletons, product rules, and master rules live in the plugin
 Use `rules/acq.md` for the shared ACQ display and chat fallback.
 
 **Index:**
-- Step 3 — Promotion ACQ · Gitignore ACQ · Branch ACQ
+- Step 2 — Promotion ACQ · Gitignore ACQ · Branch ACQ
