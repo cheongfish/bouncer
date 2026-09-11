@@ -293,6 +293,80 @@ test('bootstrap creates only an integration worktree and resumes its ledger', ()
   assert.strictEqual(fs.existsSync(path.join(repo, 'README.md')), true);
 });
 
+test('prepare backfills a legacy prepared worker branch without renaming its checkout', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const blueprint = '.bouncer/context/epics/015-x/blueprints/016-y';
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'), '---\nbouncer:\n  depends_on: []\n---\n');
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' });
+  execFileSync('git', ['worktree', 'add', '-b', 'legacy/015-016-001', paths.workerPath, 'HEAD'], { cwd: boot.integrationPath });
+  const ledger = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
+  delete ledger.integrationBranch;
+  ledger.tasks[0].status = 'prepared';
+  ledger.tasks[0].workerPath = paths.workerPath;
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(result.integrationBranch, undefined);
+  assert.strictEqual(result.tasks[0].branch, 'legacy/015-016-001');
+  assert.strictEqual(JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8')).integrationBranch, 'feat/015-016-y');
+  assert.strictEqual(execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: paths.workerPath, encoding: 'utf8' }).trim(),
+    'legacy/015-016-001');
+});
+
+test('prepare rejects an invalid commit type before a verification-only wave can seed documents', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const blueprint = '.bouncer/context/epics/021-x/blueprints/022-y';
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'),
+    '---\nbouncer:\n  execution_kind: verification\n  depends_on: []\n---\n');
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  commit_type: wip\n---\n');
+  const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(result.reason, 'invalid-commit-type');
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, blueprint, 'tasks/001/tasks.md')), false);
+});
+
+test('standalone branch and a later ready-wave conflict create no coordinator worktree', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const standaloneBlueprint = '.bouncer/context/epics/017-x/blueprints/018-y';
+  fs.mkdirSync(path.join(repo, standaloneBlueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, standaloneBlueprint, 'tasks/001/tasks.md'), '---\nbouncer: {}\n---\n');
+  const { worktreePathFor, coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const standalone = worktreePathFor({ repoRoot: repo, blueprint: standaloneBlueprint });
+  fs.mkdirSync(path.dirname(standalone), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '-b', 'feat/017-018-y', standalone, 'HEAD'], { cwd: repo });
+  const conflict = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: standaloneBlueprint });
+  assert.strictEqual(conflict.reason, 'branch-conflict');
+  assert.strictEqual(fs.existsSync(coordinatorPathsFor({ repoRoot: repo, blueprint: standaloneBlueprint }).integrationPath), false);
+
+  const blueprint = '.bouncer/context/epics/019-x/blueprints/020-y';
+  for (const id of ['001', '002']) {
+    fs.mkdirSync(path.join(repo, blueprint, 'tasks', id), { recursive: true });
+    fs.writeFileSync(path.join(repo, blueprint, 'tasks', id, 'tasks.md'), '---\nbouncer:\n  parallel_safe: true\n---\n');
+  }
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  execFileSync('git', ['branch', 'bouncer/019-020-002'], { cwd: repo });
+  const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(result.reason, 'branch-conflict');
+  assert.strictEqual(fs.existsSync(coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath), false);
+});
+
 test('bootstrap rejects a symlink substituted for its registered integration checkout', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-integration-target-'));
@@ -323,9 +397,13 @@ test('prepare seeds each assigned worker and record accepts the worker boundary'
   fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\nbrief\n');
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.integrationBranch, 'feat/002-003-y');
   const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   assert.strictEqual(prepared.ok, true);
   const worker = prepared.tasks[0].workerPath;
+  assert.strictEqual(prepared.tasks[0].branch, 'bouncer/002-003-001');
+  const ledger = JSON.parse(fs.readFileSync(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8'));
+  assert.strictEqual(ledger.integrationBranch, boot.integrationBranch);
   assert.strictEqual(fs.readFileSync(path.join(worker, blueprint, 'tasks', '001', 'tasks.md'), 'utf8').includes('brief'), true);
   const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
   assert.strictEqual(recorded.ok, true);

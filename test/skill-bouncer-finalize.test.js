@@ -77,6 +77,10 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
   assert.match(draftPr, /Quiz|이해 상태|comprehension|quiz_score/i);
   assert.match(draftPr, /Never copy|옮기지 않|넣지 않|제외/i);
   const createBlock = (draftPr.match(/```bash\n([\s\S]*?)```/) || [])[1] || '';
+  assert.match(createBlock, /git push -u origin <finalize payload branch>/);
+  assert.doesNotMatch(createBlock, /<type>\/<BP-id>-<slug>/);
+  assert.match(draftPr, /branch.*null|null.*branch/i);
+  assert.match(draftPr, /do not push|no push|push하지 않|push.*skip/i);
   assert.match(createBlock, /gh pr create/);
   assert.doesNotMatch(createBlock, /--label/);
   assert.doesNotMatch(createBlock, /pr\.labels/);

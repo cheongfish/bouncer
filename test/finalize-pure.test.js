@@ -659,6 +659,7 @@ const LEDGER = {
   blueprint: BP,
   base: 'basesha',
   integrationHead: 'headsha',
+  integrationBranch: 'feat/001-001-login',
   revision: 'r2',
   tasks: [
     {
@@ -666,6 +667,7 @@ const LEDGER = {
       status: 'integrated',
       sha: 'worker1',
       workerPath: '/w/.worktrees/001/001/workers/001',
+      branch: 'bouncer/001-001-001',
       scope: { revision: 'r2', paths: ['src/auth/', 'src/session/token.ts'] },
       actualPaths: ['src/auth/login.ts'],
       decisions: [{ task: '001', kind: 'scope', reason: 'shared guard' }],
@@ -689,12 +691,14 @@ test('coordinator provenance folds the ledger into explain and cleanup fields', 
   assert.strictEqual(provenance.integrationHead, 'headsha');
   assert.strictEqual(provenance.base, 'basesha');
   assert.strictEqual(provenance.revision, 'r2');
+  assert.strictEqual(provenance.integrationBranch, 'feat/001-001-login');
   assert.deepStrictEqual(provenance.tasks, [
     {
       id: '001',
       status: 'integrated',
       sha: 'worker1',
       worktree: '/w/.worktrees/001/001/workers/001',
+      branch: 'bouncer/001-001-001',
       scopeRevision: 'r2',
       paths: ['src/auth/', 'src/session/token.ts'],
       actualPaths: ['src/auth/login.ts'],
@@ -705,6 +709,7 @@ test('coordinator provenance folds the ledger into explain and cleanup fields', 
       status: 'pending',
       sha: null,
       worktree: null,
+      branch: null,
       scopeRevision: null,
       paths: [],
       actualPaths: [],
@@ -727,6 +732,7 @@ test('coordinator provenance is null without a ledger and tolerates missing arra
   assert.deepStrictEqual(bare.decisions, []);
   assert.deepStrictEqual(bare.worktrees, ['/w/i']);
   assert.strictEqual(bare.integrationHead, null);
+  assert.strictEqual(bare.integrationBranch, null);
 });
 
 // 원장 항목의 id가 없거나 문자열이 아니면 그대로 null로 남긴다. String()으로

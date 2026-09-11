@@ -1156,6 +1156,8 @@ test('finalize dry-run projects the coordinator ledger and its worktree inventor
   assert.strictEqual(res.coordinator.tasks[0].id, '001');
   assert.strictEqual(res.coordinator.tasks[0].status, 'prepared');
   assert.strictEqual(res.coordinator.tasks[0].worktree, drive.worker);
+  assert.strictEqual(res.branch, res.coordinator.integrationBranch);
+  assert.strictEqual(res.coordinator.tasks[0].branch, 'bouncer/001-001-001');
   assert.strictEqual(typeof res.coordinator.integrationHead, 'string');
   // 성공 경로도 원장 경로를 실어야 한다. unreadable 분기에만 채우면 이 필드가
   // 정상 드라이브에서는 항상 null이라 아무것도 알려주지 못한다.
@@ -1172,7 +1174,26 @@ test('finalize without a coordinator ledger reports no provenance and no worktre
   fullBlueprint(repo);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
   assert.strictEqual(res.coordinator, null);
+  assert.strictEqual(res.branch, 'work');
   assert.deepStrictEqual(res.worktrees, []);
+});
+
+test('finalize resolves legacy ledger branch fields from worktrees and leaves verification branch null', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const drive = drivenBlueprint(repo);
+  const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  delete ledger.integrationBranch;
+  delete ledger.tasks[0].branch;
+  ledger.tasks.push({ id: '002', status: 'integrated', execution_kind: 'verification' });
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger)}\n`);
+
+  const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+
+  assert.strictEqual(res.coordinator.integrationBranch, 'feat/001-001-login');
+  assert.strictEqual(res.coordinator.tasks[0].branch, 'bouncer/001-001-001');
+  assert.strictEqual(res.coordinator.tasks[1].branch, null);
+  assert.strictEqual(res.branch, res.coordinator.integrationBranch);
 });
 
 function writeCoordinatorLedger(repo, tasks) {
@@ -1314,5 +1335,7 @@ test('finalize --yes copies coordinator provenance into explain frontmatter', ()
   assert.ok(recorded, 'explain must keep the drive provenance after the documents are deleted');
   assert.strictEqual(recorded.tasks[0].id, '001');
   assert.strictEqual(recorded.integration_head, res.coordinator.integrationHead);
+  assert.strictEqual(recorded.integration_branch, res.coordinator.integrationBranch);
+  assert.strictEqual(recorded.tasks[0].branch, res.coordinator.tasks[0].branch);
   assert.deepStrictEqual(recorded.worktrees, res.worktrees);
 });

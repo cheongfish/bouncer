@@ -13,10 +13,10 @@
 | `bouncer scaffold explain --blueprint <dir>` | BP `explain.md` 생성(`comprehension: []`). `/bouncer-finalize`가 호출 |
 | `bouncer scaffold context-review --blueprint <dir>` | BP `context-review.md` 생성. 이미 있으면 덮어쓰지 않고 거절. `closed` blueprint도 거절 |
 | `bouncer commit --blueprint <dir> [--yes]` | task 커밋 범위 확인, `--yes`면 그 task만 커밋. 포인터는 옮기지 않음. 성공 JSON에 `controller`(ledger 활성이면 `coordinator`, 아니면 `standalone`)·`nextAction`(dry-run은 `confirm-commit`, drive의 커밋·빈 staged는 `return-to-coordinator`, standalone은 `nextTask`가 있으면 `ask-next-task` 없으면 `finalize`)·`stampPath`(`commit_sha`를 쓴 tasks.md, 없으면 `null`)를 싣고, 실패 JSON에 `recovery: { action, detail }`를 싣음 |
-| `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 context 변경 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear. dry-run·`--yes` 성공 JSON과 `coordinator-ledger` 거절 JSON에 `integration`(`ledger`: `absent` \| `ok` \| `unreadable`, `required`, `complete`, `openTasks`, `headVerified`)을 싣음. 보고 전용이며 거절 reason을 바꾸지 않음 |
+| `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 context 변경 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear. 성공 JSON의 `branch`는 drive면 `coordinator.integrationBranch`, standalone이면 실행 checkout의 실제 branch(확인 불가면 `null`)다. `coordinator`에는 `integrationBranch`와 task별 `branch`도 싣는다. dry-run·`--yes` 성공 JSON과 `coordinator-ledger` 거절 JSON에 `integration`(`ledger`: `absent` \| `ok` \| `unreadable`, `required`, `complete`, `openTasks`, `headVerified`)을 싣음. 보고 전용이며 거절 reason을 바꾸지 않음 |
 | `bouncer coordinate <bootstrap\|prepare\|ready\|record\|rerecord\|integrate\|status\|revise\|repair\|partial-close\|critical-recovery> --blueprint <dir> [--task <NNN>] [--sha <sha>] [--decision <text>] [--paths <p>]... [--findings <id>]... [--outcome <resolved\|blocked>] [--reason <text>]` | coordinator 원장과 격리 worktree 운용. 결과 JSON은 stdout에 냄 — `{ok:false}` 거절도 `{"ok": false, "reason": …}` JSON으로 stdout에 나오고(`revise`만 예외로 stderr) 종료 코드 1. assigned-worktree 불일치·Git 실패는 throw 경로라 stderr 한 줄. 자세한 것은 아래 [`bouncer coordinate`](#bouncer-coordinate) |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 worktree로 이전하고 base를 원상복구. 옮길 것이 없으면 성공 |
-| `bouncer execute prepare --blueprint <dir>` | standalone execute worktree를 만들거나 재사용하고 plan 문서를 seed한 뒤 JSON을 출력. coordinator 원장이 있으면 `drive: true`와 배정된 worker 경로만 내고 생성·seed는 하지 않음 |
+| `bouncer execute prepare --blueprint <dir>` | standalone execute worktree를 만들거나 재사용하고 plan 문서를 seed한 뒤 JSON을 출력. 새 standalone branch는 helper의 `<commit_type>/<epic-id>-<blueprint-id>-<slug>`이고, 재사용 worktree는 실제 branch를 그대로 보고한다. coordinator 원장이 있으면 `drive: true`와 배정된 worker 경로만 내고 생성·seed는 하지 않음 |
 | `bouncer plan inspect [--epic-dir <dir>]` | 다음 epic/blueprint id, `maintenance` epic, 저장소 루트 verify 신호, pointer 상태를 JSON으로 출력. 읽기 전용이며 `.bouncer/`가 없으면 `not-initialized`, `--epic-dir`가 정본 경로가 아니거나 없으면 `invalid-epic-dir` |
 | `bouncer run preflight --blueprint <dir>` | pointer, blueprint 상태·scale, 열린 task의 `affected_paths`·DAG, ready wave, `autonomy`와 fallback 여부를 JSON으로 출력. 읽기 전용. pointer가 없으면 `no-current`, 모호하거나 충돌하면 `CURRENT_AMBIGUOUS`/`CURRENT_INVALID`이며 종료 코드 1 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
@@ -81,8 +81,8 @@ cwd를 배정 경로와 대조해, 자리가 다르면 `coordinate command must 
 
 | 서브커맨드 | 부르는 자리 | 하는 일 | 돌려주는 것 |
 | --- | --- | --- | --- |
-| `bootstrap` | main worktree | `.worktrees/<epic-id>/<bp-id>/integration`을 `bouncer/<epic-id>-<bp-id>-integration` branch로 등록하고 원장을 만들거나 이어받습니다. main source는 쓰지 않습니다 | `integrationPath`, `ready`, `tasks`, `decisions` |
-| `prepare` | integration worktree | 현재 ready wave를 열고 task마다 `workers/<NNN>`을 `bouncer/<epic-id>-<bp-id>-<NNN>` branch로 등록한 뒤 계획 문서를 복사해 넣습니다(base는 읽기만). 각 task를 `prepared`로 옮깁니다 | `ready`, `tasks`(각 `workerPath`), `decisions` |
+| `bootstrap` | main worktree | `.worktrees/<epic-id>/<bp-id>/integration`을 blueprint의 `commit_type/<epic-id>-<bp-id>-<slug>` branch로 등록하고 원장을 만들거나 이어받습니다. main source는 쓰지 않습니다 | `integrationPath`, `integrationBranch`, `ready`, `tasks`, `decisions` |
+| `prepare` | integration worktree | 현재 ready wave를 열고 task마다 `workers/<NNN>`을 `bouncer/<epic-id>-<bp-id>-<task-id>` branch로 등록한 뒤 계획 문서를 복사해 넣습니다(base는 읽기만). 각 commit task에 실제 `branch`를 기록하고 `prepared`로 옮깁니다 | `ready`, `tasks`(각 `workerPath`, `branch`), `decisions` |
 | `ready` | integration worktree | `status`의 별칭입니다. 원장을 바꾸지 않습니다 | `ready`, `tasks`, `decisions` |
 | `status` | integration worktree | 원장 전체 상태를 읽습니다 | `ready`, `tasks`, `decisions` |
 | `record` | worker worktree | `--task`의 worker HEAD를 결과 SHA로 원장에 올리고 `recorded`로 옮깁니다. `--sha`를 주면 worker HEAD와 같아야 하고, `--decision <text>`는 그 판단을 결정 로그에 함께 남깁니다 | `task`(`sha`·`status`), `decisions` |
@@ -114,6 +114,9 @@ throw 경로 문단).
 | `unknown-coordinate-command` | 코어 직접 호출 | 코어가 모르는 서브커맨드입니다. CLI 앞단은 열한 이름만 통과시키므로, 이 코드는 CLI를 거치지 않고 코어를 직접 부른 호출에서만 나옵니다 |
 | `bootstrap-requires-main-checkout` | `bootstrap` | `bootstrap`을 main checkout이 아닌 자리에서 불렀습니다 |
 | `main-source-mutated` | `bootstrap` | integration 등록 도중 main worktree의 source 상태가 바뀌었습니다. 원장을 쓰지 않고 멈춥니다 |
+| `invalid-commit-type` | `bootstrap`·`prepare` | blueprint `commit_type`이 허용된 `.gitmessage` 종류가 아닙니다 |
+| `invalid-branch-name` | `bootstrap`·`prepare` | 계산한 branch 이름이 Git ref 형식이 아닙니다 |
+| `branch-conflict` | `bootstrap`·`prepare` | 계산한 branch가 예상 checkout이 아닌 다른 곳에 이미 있습니다. suffix를 붙이지 않고 멈춥니다 |
 | `unassigned-integration-worktree` | `bootstrap`·`status`·`prepare`·`record`·`integrate`·`critical-recovery` | integration 경로가 등록된 worktree가 아니거나 symlink로 바뀌었습니다 |
 | `unassigned-worker-worktree` | `prepare`·`record` | worker 경로가 등록된 worktree가 아니거나, 원장이 기억하는 경로와 다릅니다 |
 | `missing-ledger` | `status`·`prepare`·`record`·`integrate`·`critical-recovery`·`revise` | integration worktree에 원장이 없습니다. 먼저 `bootstrap` |

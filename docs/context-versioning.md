@@ -13,7 +13,7 @@
 | `graphify-out/` | 제외 | `-` (`.gitignore`, init이 안내) |
 | 활성 blueprint 포인터 | 제외 | `$GIT_COMMON_DIR/bouncer/pointers/<epic-id>/<blueprint-id>.json` — JSON `{blueprint, task?, base}` (`task`는 task 문서 상대 경로, 없으면 미지정). cwd가 중첩·유일 평면 worktree면 그 key만 선택하고, 기준 checkout은 포인터가 하나일 때만 선택한다. 레거시 `$GIT_COMMON_DIR/bouncer/current`는 충돌 없는 첫 `--set`에서 namespace로 이관한다 |
 | execute worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>` (gitignore / finalize 무시; 이미 열린 평면 `.worktrees/<blueprint id>`만 재사용) |
-| integration worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>/integration` — branch `bouncer/<epic id>-<blueprint id>-integration`. coordinator 주행의 fan-in 대상 |
+| integration worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>/integration` — branch `<commit_type>/<epic id>-<blueprint id>-<slug>`. coordinator 주행의 fan-in 대상 |
 | worker worktree | 제외 | `<repo>/.worktrees/<epic id>/<blueprint id>/workers/<NNN>` — branch `bouncer/<epic id>-<blueprint id>-<NNN>`. ready wave가 연 task마다 하나 |
 | coordinator 원장 | 제외 | `<integration worktree>/.bouncer/runtime/coordinator.json` — 실행 상태이지 컨텍스트 문서가 아니다 (gitignore / 커밋 범위 검사 무시; init이 `.gitignore` 항목을 안내) |
 

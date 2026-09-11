@@ -83,8 +83,8 @@ function capture(argv) {
   return { code, ...buf };
 }
 
-function prepare(repo, extra = []) {
-  return capture(['execute', 'prepare', '--blueprint', BP_REL, '--repo', repo, ...extra]);
+function prepare(repo, extra = [], blueprint = BP_REL) {
+  return capture(['execute', 'prepare', '--blueprint', blueprint, '--repo', repo, ...extra]);
 }
 
 function parsePayload(result) {
@@ -101,7 +101,7 @@ function listedWorktrees(repo) {
   return paths;
 }
 
-test('execute prepare creates a nested worktree, names feat/001-<slug>, and seeds tasks.md', () => {
+test('execute prepare creates a nested worktree with the helper standalone name and seeds tasks.md', () => {
   const repo = makeRepo();
   writePlanTree(repo);
   setPointer(repo);
@@ -114,7 +114,7 @@ test('execute prepare creates a nested worktree, names feat/001-<slug>, and seed
   assert.strictEqual(payload.ok, true);
   assert.strictEqual(payload.drive, false);
   assert.strictEqual(payload.created, true);
-  assert.strictEqual(payload.branch, 'feat/001-login');
+  assert.strictEqual(payload.branch, 'feat/001-001-login');
   assert.strictEqual(payload.worktreePath, expected);
   assert.strictEqual(payload.base, 'main');
   assert.deepStrictEqual(payload.task, { id: 'TASKS-001', path: TASK_REL });
@@ -147,7 +147,7 @@ test('execute prepare reuses a registered worktree and reports its actual branch
   assert.strictEqual(second.worktreePath, worktreePath);
 });
 
-test('execute prepare names the branch from blueprint commit_type', () => {
+test('execute prepare uses the helper standalone name with the blueprint commit_type', () => {
   const repo = makeRepo();
   writePlanTree(repo, { commitType: 'fix' });
   setPointer(repo);
@@ -158,7 +158,53 @@ test('execute prepare names the branch from blueprint commit_type', () => {
   assert.strictEqual(result.code, 0);
   assert.strictEqual(payload.ok, true);
   assert.strictEqual(payload.created, true);
-  assert.strictEqual(payload.branch, 'fix/001-login');
+  assert.strictEqual(payload.branch, 'fix/001-001-login');
+});
+
+test('execute prepare rejects a calculated branch already used outside the expected worktree', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  setPointer(repo);
+  git(repo, ['branch', 'feat/001-001-login']);
+
+  const result = prepare(repo);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 1);
+  assert.deepStrictEqual(payload, { ok: false, reason: 'branch-conflict' });
+  assert.strictEqual(fs.existsSync(worktreePathFor({ repoRoot: repo, blueprint: BP_REL })), false);
+  assert.strictEqual(listedWorktrees(repo).length, 1);
+});
+
+test('execute prepare returns invalid-commit-type without creating a worktree', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { commitType: 'unsupported' });
+  setPointer(repo);
+
+  const result = prepare(repo);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 1);
+  assert.deepStrictEqual(payload, { ok: false, reason: 'invalid-commit-type' });
+  assert.strictEqual(fs.existsSync(worktreePathFor({ repoRoot: repo, blueprint: BP_REL })), false);
+  assert.strictEqual(listedWorktrees(repo).length, 1);
+});
+
+test('execute prepare returns invalid-branch-name without creating a worktree', () => {
+  const repo = makeRepo();
+  writePlanTree(repo);
+  const invalidBlueprint = `${EPIC_REL}/blueprints/001-invalid branch`;
+  fs.renameSync(path.join(repo, BP_REL), path.join(repo, invalidBlueprint));
+  const invalidTask = `${invalidBlueprint}/tasks/001/tasks.md`;
+  setPointer(repo, { blueprint: invalidBlueprint, task: invalidTask });
+
+  const result = prepare(repo, [], invalidBlueprint);
+  const payload = parsePayload(result);
+
+  assert.strictEqual(result.code, 1);
+  assert.deepStrictEqual(payload, { ok: false, reason: 'invalid-branch-name' });
+  assert.strictEqual(fs.existsSync(worktreePathFor({ repoRoot: repo, blueprint: invalidBlueprint })), false);
+  assert.strictEqual(listedWorktrees(repo).length, 1);
 });
 
 test('execute prepare reuses a detached HEAD without inventing a branch name', () => {
@@ -177,7 +223,7 @@ test('execute prepare reuses a detached HEAD without inventing a branch name', (
   assert.strictEqual(second.drive, false);
   assert.strictEqual(second.created, false);
   assert.strictEqual(second.branch, null);
-  assert.notStrictEqual(second.branch, 'feat/001-login');
+  assert.notStrictEqual(second.branch, 'feat/001-001-login');
   assert.strictEqual(second.worktreePath, worktreePath);
 });
 

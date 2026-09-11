@@ -309,7 +309,7 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
    | 자리 | 경로 | branch | 누가 쓰나 |
    | --- | --- | --- | --- |
    | main worktree | 저장소 루트 | 사용자의 브랜치 | 아무도 쓰지 않는다. base SHA와 계획 문서를 읽는 provenance 위치다 |
-   | integration worktree | `.worktrees/<epic-id>/<bp-id>/integration` | `bouncer/<epic-id>-<bp-id>-integration` | coordinator. 원장과 fan-in 대상이 여기 있다 |
+   | integration worktree | `.worktrees/<epic-id>/<bp-id>/integration` | `<commit_type>/<epic-id>-<bp-id>-<slug>` | coordinator. 원장과 fan-in 대상이 여기 있다 |
    | worker worktree | `.worktrees/<epic-id>/<bp-id>/workers/<NNN>` | `bouncer/<epic-id>-<bp-id>-<NNN>` | 그 task에 배정된 worker |
 
    경계 판정은 경로 문자열 비교가 아니라 Git worktree 등록과 realpath 대조다.

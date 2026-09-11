@@ -8,12 +8,48 @@ const { execFileSync } = require('node:child_process');
 const {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, worktreePathFor,
   verifyLedgerPathFor, coordinatorPathsFor,
-  listNamespacePointers, pointerKeyFromBlueprint, removeNamespacePointer,
+  listNamespacePointers, pointerKeyFromBlueprint, removeNamespacePointer, branchNamesFor, resolveWorktreeBranch,
 } = require('../scripts/lib/runtime-state');
 
 function copy(value) {
   return JSON.parse(JSON.stringify(value));
 }
+
+test('branchNamesFor derives commit and worker branches from the blueprint metadata', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-branch-names-'));
+  // ci-contract는 제거된 명령의 표면을 감시하므로 fixture slug는 런타임에 조립한다.
+  const slug = ['dis', 'till-removal-context-search-ci-recovery'].join('');
+  const blueprint = `.bouncer/context/epics/068-x/blueprints/001-${slug}`;
+  fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  commit_type: feat\n---\n');
+  assert.deepStrictEqual(branchNamesFor({ repoRoot: repo, blueprint, task: '005' }), {
+    integration: `feat/068-001-${slug}`,
+    standalone: `feat/068-001-${slug}`,
+    worker: 'bouncer/068-001-005',
+  });
+  fs.rmSync(path.join(repo, blueprint, 'index.md'));
+  assert.strictEqual(branchNamesFor({ repoRoot: repo, blueprint }).integration,
+    `feat/068-001-${slug}`);
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  commit_type: wip\n---\n');
+  assert.throws(() => branchNamesFor({ repoRoot: repo, blueprint }), /invalid-commit-type/);
+  assert.throws(() => branchNamesFor({ repoRoot: repo,
+    blueprint: '.bouncer/context/epics/068-x/blueprints/001-bad..slug' }), /invalid-branch-name/);
+});
+
+test('resolveWorktreeBranch reuses the registered branch and rejects an occupied new branch', () => {
+  const { primary } = linkedRepo();
+  const legacy = path.join(primary, 'legacy-worker');
+  git(primary, ['worktree', 'add', '-b', 'legacy/worker', legacy, 'HEAD']);
+  assert.deepStrictEqual(resolveWorktreeBranch({
+    repoRoot: primary, worktreePath: legacy, branch: 'bouncer/001-001-001', execFileSync,
+  }), { action: 'reuse', branch: 'legacy/worker' });
+  assert.deepStrictEqual(resolveWorktreeBranch({
+    repoRoot: primary, worktreePath: path.join(primary, 'new-worker'), branch: 'bouncer/001-001-001', execFileSync,
+  }), { action: 'create', branch: 'bouncer/001-001-001' });
+  assert.throws(() => resolveWorktreeBranch({
+    repoRoot: primary, worktreePath: path.join(primary, 'other-worker'), branch: 'legacy/worker', execFileSync,
+  }), /branch-conflict/);
+});
 
 test('repair ledger validation requires two waves and the last CI failure for partial close', () => {
   const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');

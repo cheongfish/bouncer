@@ -6,15 +6,13 @@ const { execFileSync } = require('node:child_process');
 import current = require('./current');
 const { readCurrent, presentCurrent, CurrentSelectionError } = current;
 import runtimeState = require('./runtime-state');
-const { worktreePathFor, coordinatorPathsFor } = runtimeState;
+const { worktreePathFor, coordinatorPathsFor, branchNamesFor, resolveWorktreeBranch } = runtimeState;
 import seedWorktreeMod = require('./seed-worktree');
 const { seedWorktree } = seedWorktreeMod;
 import scopeMod = require('./scope');
 const { readCoordinatorLedger } = scopeMod;
 import paths = require('./paths');
 const { toPosix } = paths;
-import frontmatter = require('./frontmatter');
-const { readDoc } = frontmatter;
 
 const TASK_DOC_RE = /(?:^|\/)tasks\/(\d{3})\/tasks\.md$/;
 
@@ -78,33 +76,6 @@ function taskDigits(task: unknown): string | null {
   if (/^\d{3}$/.test(task)) return task;
   const match = TASK_DOC_RE.exec(toPosix(task));
   return match ? match[1] : null;
-}
-
-/**
- * blueprint 디렉터리 잎(`001-slug`)과 `bouncer.commit_type`으로 기존 브랜치
- * 이름을 조립한다. 규칙은 여기서 바꾸지 않고, 스킬이 조합하던 식을 CLI로
- * 옮긴 것이다. index를 못 읽으면 `feat` — 스킬의 기본값과 같다.
- *
- * @param {string} repoRoot - 포인터가 가리키는 checkout
- * @param {string} blueprintDir - 포인터 blueprint 상대 경로
- * @returns {string} `<commit_type>/<blueprint-id>-<blueprint-slug>`
- */
-function executeBranchName(repoRoot: string, blueprintDir: string): string {
-  const leaf = path.posix.basename(toPosix(blueprintDir));
-  let type = 'feat';
-  try {
-    const doc = readDoc(path.join(repoRoot, toPosix(blueprintDir), 'index.md'));
-    const data = doc.data && typeof doc.data === 'object'
-      ? doc.data as Record<string, unknown> : {};
-    const bouncer = data.bouncer && typeof data.bouncer === 'object'
-      ? data.bouncer as Record<string, unknown> : null;
-    if (bouncer && typeof bouncer.commit_type === 'string' && bouncer.commit_type) {
-      type = bouncer.commit_type;
-    }
-  } catch (_e) {
-    // index 부재·파싱 실패는 브랜치 규칙을 바꾸지 않고 예전 스킬 default만 쓴다.
-  }
-  return `${type}/${leaf}`;
 }
 
 function gitStderr(error: unknown): string {
@@ -281,24 +252,39 @@ function executePrepare({ repoRoot, blueprintDir }: PrepareArgs): PrepareResult 
   }
 
   let branch: string | null;
+  try {
+    // standalone도 coordinator와 같은 이름·충돌 계약을 써야 한다. 그래야 새
+    // checkout만 만들고, 예전 checkout은 실제 branch를 보존하는 경계가 한 곳에 남는다.
+    const names = branchNamesFor({ repoRoot, blueprint });
+    // porcelain의 detached checkout은 helper가 branch 없는 경로를 신규로 보고
+    // 기존 ref 충돌을 돌린다. 이 경우에는 새 branch를 만들려는 요청 자체가 없으므로
+    // 실제 null을 보존한다; branchNamesFor는 위에서 계속 검증된다.
+    const resolved = matched && !matched.branch
+      ? null
+      : resolveWorktreeBranch({ repoRoot, worktreePath, branch: names.standalone });
+    branch = resolved ? resolved.branch : null;
+    if (!matched) {
+      fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
+      execFileSync('git', ['worktree', 'add', '-b', branch, worktreePath, pointer.base], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    }
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? (error as { code?: unknown }).code : null;
+    if (code === 'invalid-commit-type' || code === 'invalid-branch-name' || code === 'branch-conflict') {
+      return { ok: false, reason: code };
+    }
+    return { ok: false, reason: 'worktree-add-failed', message: gitStderr(error) };
+  }
   if (matched) {
     // 등록된 체크아웃의 실제 브랜치를 그대로 돌려준다. 계산된 이름과 달라도
     // 옮기거나 고치지 않는다. porcelain에 branch 줄이 없으면 detached HEAD이므로
     // null을 그대로 둔다 — `<commit_type>/<leaf>`를 합성하면 스킬이 그 이름으로
     // 커밋을 시도하지만 워킹 트리는 그 브랜치에 있지 않다.
     branch = matched.branch;
-  } else {
-    branch = executeBranchName(repoRoot, blueprint);
-    fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
-    try {
-      execFileSync('git', ['worktree', 'add', '-b', branch, worktreePath, pointer.base], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-    } catch (error) {
-      return { ok: false, reason: 'worktree-add-failed', message: gitStderr(error) };
-    }
   }
   const created = !matched;
 
