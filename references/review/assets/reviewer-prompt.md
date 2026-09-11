@@ -1,110 +1,102 @@
 # Reviewer prompt (call brief slot)
 
-This file is **not** the named agent's fixed body. It is the **call prompt
-slot** the controller fills and attaches when dispatching `bouncer-reviewer`
-(or the generic / inline fallback). The agent document
-(`agents/bouncer-reviewer.md`) owns persona, guards, and the Findings output
-contract; this slot carries the per-run brief and refs.
+This file is **not** the named agent's fixed body. It is the call-prompt slot
+the controller fills and attaches when dispatching `bouncer-reviewer` (or the
+generic / inline fallback). The agent document (`agents/bouncer-reviewer.md`)
+owns persona, guards, and the Findings output contract; this slot carries the
+per-run mode, target, and brief.
 
-Fill every placeholder, then hand this prompt to the dispatched reviewer. This
-is a read-only pass: do not modify files, commit, or change the pointer task
-directory's `review.md`
-status / frontmatter — Findings only.
+Fill every applicable placeholder, then hand this prompt to the dispatched
+reviewer. This is a read-only pass: do not modify files, commit, or change the
+pointer task directory's `review.md` status / frontmatter — Findings only.
 
 ## Placeholders
 
-- `{{BRIEF}}` — task brief (`tasks/<NNN>/tasks.md`) Goal & intent,
-  Interface, Touch, Do not touch, Constraints, Checklist
-- `{{BASE}}` — review base ref (branch or commit)
-- `{{HEAD}}` — review HEAD ref (usually the worktree tip)
-- `{{CONSTRAINTS}}` — the task brief `## Constraints` list verbatim, plus Do not
-  touch paths, `affected_paths`, and repo norms. Paste the rules; do not
+- `{{MODE}}` — `discovery` or `delta`
+- `{{PERSPECTIVE}}` — one discovery perspective: `spec_scope`,
+  `correctness_tests`, `minimality_maintainability`, or `security`; leave empty
+  for delta
+- `{{TARGET}}` — frozen target: base, head, brief revision, and latest verify
+  result
+- `{{BRIEF}}` — task brief (`tasks/<NNN>/tasks.md`) Goal & intent, Interface,
+  Touch, Do not touch, Constraints, Checklist
+- `{{CONSTRAINTS}}` — the task brief `## Constraints` list verbatim, plus Do
+  not touch paths, `affected_paths`, and repo norms. Paste the rules; do not
   summarize them, or the reviewer cannot tell a breach from a judgement call.
-- `{{PREVIOUS_FINDINGS}}` — stable finding IDs from earlier rounds (empty on
-  round 1)
-- `{{RESOLUTION}}` — how each previous finding was resolved
-- `{{REVISION_DIFF}}` — the change since the previous round
-- `{{LATEST_VERIFICATION}}` — latest verify command result
+- `{{PREVIOUS_FINDINGS}}` — delta only: stable IDs and fields from earlier
+  rounds
+- `{{RESOLUTION}}` — delta only: how each previous finding was resolved
+- `{{REVISION_DIFF}}` — delta only: change since the prior round
 
 ## Prompt body
+
+### Mode
+`{{MODE}}`
+
+### Perspective
+`{{PERSPECTIVE}}`
+
+### Target
+{{TARGET}}
+
+The target records the **Latest verification** result alongside its base, head,
+and brief revision; do not substitute a later verification result.
 
 ### Brief
 {{BRIEF}}
 
-### Diff basis
-Review `git diff {{BASE}}...{{HEAD}}` plus untracked files relevant to Touch /
-`affected_paths`. Cite evidence as `file:line` when possible.
-
 ### Constraints
 {{CONSTRAINTS}}
 
-### Previous findings
+### Discovery rules
+
+When mode is `discovery`, inspect the frozen target only through the assigned
+perspective. Do not receive or use other reviewers' findings, and do not report
+outside that perspective. Severity is a label, not a filter, within the assigned
+perspective.
+
+- `spec_scope`: Missing / Extra / Misunderstood / Constraint breach.
+- `correctness_tests`: logic defects, contract or test breakage, error
+  handling, and missing behavior-change tests.
+- `minimality_maintainability`: unnecessary design, explanation for non-obvious
+  logic, and structure.
+- `security`: public-input validation, authentication or authorization bypass,
+  credential or sensitive-data exposure/logging, and shell or path injection.
+  Use only when the controller assigned this perspective.
+
+### Delta rules
+
+When mode is `delta`, certify previous-finding resolution and regressions in
+`{{REVISION_DIFF}}`; do not reopen the target as a new discovery pass. Do not
+report a new `minor` or `nit` in unchanged code. A new finding must be either:
+
+- `introduced_by_revision`, with the revision-diff location as origin evidence;
+  any severity is permitted.
+- `missed_critical`, a false-acceptance path with origin evidence; only
+  `blocker` or `major` is permitted.
+
+### Previous findings (delta only)
 {{PREVIOUS_FINDINGS}}
 
-### Resolution
+### Resolution (delta only)
 {{RESOLUTION}}
 
-### Revision diff
+### Revision diff (delta only)
 {{REVISION_DIFF}}
 
-### Latest verification
-{{LATEST_VERIFICATION}}
-
-### Rubric — Spec compliance
-Judge the diff against the brief Checklist, Interface, and Constraints:
-- **Missing** — required behavior or checklist item absent. Interface declares
-  what the change rejects as well as what it provides; a missing rejection or
-  error path counts here.
-- **Extra** — work outside Touch / Interface (scope creep), or Do not touch violations
-- **Misunderstood** — brief intent present but implemented incorrectly
-- **Constraint breach** — a Constraints rule broken within an allowed path.
-  Check these even when every changed file is inside `affected_paths`.
-
-### Rubric — Code quality
-Flag defects that would ship: incorrect logic, broken contracts/tests, unsafe
-error handling, brittle structure, or unclear interfaces introduced by this
-diff. Prefer findings tied to this change over pre-existing nits. Also flag
-non-trivial new logic that lacks comments explaining **why**, invariants,
-trade-offs, or known ceilings (do not demand comments that only restate the
-next line).
-Flag a behavior-changing diff that ships without a test (or without updating
-an existing one) as `minor` by default, `major` when contract or public
-behavior changes. Do **not** apply this to docs-only or configuration-only
-diffs.
-
-### Rubric — Over-engineering
-Flag deletable or simplifiable surface the brief did not need:
-- reinvented stdlib / native platform capability
-- new dependency covered by installed code or a few lines
-- unrequested abstraction (single-implementation interface, one-product
-  factory, never-changing config, scaffolding “for later”)
-- symptom patch where a shared root-cause fix would be smaller and correct
-Do **not** treat thorough why-comments as bloat. Do **not** ask to drop an
-approved Checklist item in-place — call that out as a planning conflict.
-
-### Rubric — Calibration (severity)
-Map each finding to exactly one severity:
-- `blocker` — must fix before accept (broken verify, Do not touch breach, false acceptance risk)
-- `major` — Spec Missing / Misunderstood / Constraint breach, Extra scope creep (not Do not touch), or serious quality defect
-- `minor` — real issue, limited blast radius
-- `nit` — style/clarity only; do not inflate
-
-Over-engineering findings are `minor` by default, `nit` when purely stylistic,
-and only `major` when they are already Extra scope creep or a real quality
-defect. Simpler-is-possible is never a blocker.
-
 ### Output
+
 Return **only** a Findings list. For each finding include:
-- stable `id` — reuse a previous ID when the same finding returns
-- relation to previous findings: `new | resolved | regressed`
+
+- stable `id` and relation: `new | resolved | regressed`
 - `severity`: `blocker | major | minor | nit`
-- summary
-- evidence (`file:line` or concrete diff reference)
-- suggested disposition hint (`resolve` vs accept-with-note) — advisory only
+- `category`, `brief_clause`, `file`, `symbol`, and their TASKS-001 fingerprint
+  form: `<category>:<brief_clause>:<file>#<symbol>`
+- summary and evidence (`file:line` or concrete diff reference)
+- `origin`: `discovery`, `introduced_by_revision`, or `missed_critical`; for a
+  new delta finding, include its revision-diff location or false-acceptance path
+- actionability hint: `must_fix | advisory` (`advisory` only)
 
-Report **every** actionable finding. Severity is a
-label for the controller's disposition pass, not permission to omit a finding —
-do not self-censor to keep the list short or to sound conservative.
-
-Do **not** set review status to accepted. Do **not** edit the pointer task
-directory's `review.md`.
+Add one **Scope/task impact** line — `none`, or the paths and tasks the
+findings reach beyond the current `affected_paths`. Do **not** set review
+status. Do **not** edit the pointer task directory's `review.md`.
