@@ -25,6 +25,10 @@ const CONTEXT_REVIEW_STATUS = ['resolved', 'accepted'];
 const EXECUTE_REVIEW_STATUS = ['resolved', 'accepted', 'deferred'];
 const REVIEW_STATUS = CONTEXT_REVIEW_STATUS;
 const NOTE_REQUIRED_STATUS = ['accepted', 'deferred'];
+const FINDING_ACTIONABILITY = ['must_fix', 'advisory'];
+const FINDING_ORIGIN = ['discovery', 'introduced_by_revision', 'missed_critical'];
+const ROUND_MODE = ['discovery', 'delta', 'critical_recovery'];
+const REVIEW_PERSPECTIVE = ['spec_scope', 'correctness_tests', 'minimality_maintainability', 'security'];
 // G10과 동일한 비어 있음 계약: 제목은 있고, comment-strip 후 본문이 있어야 함.
 // comprehension module이 어떤 section이 있는지 SSOT가 되도록 key는
 // EXPLAIN_SECTION_DEFS를 반영; regex는 parseSections 옆에 둠.
@@ -115,6 +119,24 @@ function isNonNegativeInteger(value) {
     return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 /**
+ * finding 식별자를 한 곳에서 정규화한다. review 작성자마다 `./`·대소문자가 달라
+ * 같은 문제를 새 finding으로 기록하는 일을 막기 위해, namespace는 후속 계약이
+ * 필요할 때만 정규형 앞에 붙인다.
+ */
+function findingFingerprint({ category, brief_clause, file, symbol, }, namespace) {
+    const normalized = [
+        String(category ?? '').trim().toLowerCase(),
+        String(brief_clause ?? '').trim().toLowerCase(),
+        toPosix(String(file ?? '').trim()).replace(/^\.\//, ''),
+    ].join(':');
+    const fingerprint = `${normalized}#${String(symbol ?? '').trim()}`;
+    return namespace ? `${namespace}:${fingerprint}` : fingerprint;
+}
+function missingFindingField(record, field) {
+    const value = record[field];
+    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+}
+/**
  * 리뷰 finding 형식 실패를 모은다. 본문 판정 문장은 읽지 않는다 —
  * heading 존재와 id/severity/status/note, execute면 선택적 rounds[]만 본다.
  *
@@ -133,7 +155,7 @@ function isNonNegativeInteger(value) {
  * @param {unknown} [rounds] - execute `bouncer.review.rounds`. 부재면 검사 생략
  * @returns {string[]} 게이트 메시지. 없으면 빈 배열
  */
-function collectFindingFailures({ body, findings, sectionLabel, findingLabel, allowedStatuses, rounds, }) {
+function collectFindingFailures({ body, findings, sectionLabel, findingLabel, allowedStatuses, rounds, reviewStatus, }) {
     const messages = [];
     const rs = parseSections(typeof body === 'string' ? body : '', REVIEW_SECTION_DEFS);
     if (!rs.findings) {
@@ -144,6 +166,8 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel, al
         return messages;
     }
     const list = Array.isArray(findings) ? findings : [];
+    const modeContract = Array.isArray(rounds) && rounds.some((entry) => isRecord(entry) && entry.mode !== undefined);
+    const fingerprints = new Set();
     for (const fnd of list) {
         const rec = isRecord(fnd) ? fnd : fnd;
         const id = rec && rec.id ? rec.id : '(no id)';
@@ -157,8 +181,40 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel, al
             && (!rec.note || String(rec.note).trim() === '')) {
             messages.push(`${findingLabel} finding ${id} ${String(rec.status)} without note`);
         }
+        if (modeContract && rec) {
+            for (const field of [
+                'category', 'brief_clause', 'file', 'symbol', 'fingerprint', 'actionability',
+                'origin', 'first_seen_round', 'last_seen_round',
+            ]) {
+                if (missingFindingField(rec, field))
+                    messages.push(`${findingLabel} finding ${id} ${field} missing`);
+            }
+            if (!missingFindingField(rec, 'fingerprint')) {
+                const fingerprint = String(rec.fingerprint);
+                if (fingerprint.startsWith('context:')) {
+                    messages.push(`${findingLabel} finding ${id} fingerprint namespace invalid`);
+                }
+                else if (fingerprint !== findingFingerprint({
+                    category: rec.category, brief_clause: rec.brief_clause, file: rec.file, symbol: rec.symbol,
+                })) {
+                    messages.push(`${findingLabel} finding ${id} fingerprint mismatch`);
+                }
+                if (fingerprints.has(fingerprint))
+                    messages.push(`${findingLabel} duplicate fingerprint ${fingerprint}`);
+                fingerprints.add(fingerprint);
+            }
+            if (!FINDING_ACTIONABILITY.includes(rec.actionability)) {
+                messages.push(`${findingLabel} finding ${id} actionability invalid`);
+            }
+            if (!FINDING_ORIGIN.includes(rec.origin)) {
+                messages.push(`${findingLabel} finding ${id} origin invalid`);
+            }
+            if (reviewStatus === 'accepted' && rec.actionability === 'must_fix' && rec.status !== 'resolved') {
+                messages.push(`${findingLabel} accepted with open must_fix ${id}`);
+            }
+        }
     }
-    messages.push(...collectRoundFailures(rounds, findingLabel));
+    messages.push(...collectRoundFailures(rounds, findingLabel, list, modeContract));
     return messages;
 }
 /**
@@ -169,7 +225,7 @@ function collectFindingFailures({ body, findings, sectionLabel, findingLabel, al
  * @param {string} findingLabel - 메시지 접두
  * @returns {string[]} 형식 실패 메시지
  */
-function collectRoundFailures(rounds, findingLabel) {
+function collectRoundFailures(rounds, findingLabel, findings = [], modeContract = false) {
     if (rounds === undefined)
         return [];
     if (!Array.isArray(rounds)) {
@@ -178,6 +234,8 @@ function collectRoundFailures(rounds, findingLabel) {
     const messages = [];
     const seen = new Set();
     let lastRound = 0;
+    const modes = [];
+    const modeByRound = new Map();
     for (const entry of rounds) {
         if (!isRecord(entry)) {
             messages.push(`${findingLabel} rounds entry invalid`);
@@ -196,6 +254,31 @@ function collectRoundFailures(rounds, findingLabel) {
         }
         seen.add(round);
         lastRound = round;
+        if (modeContract) {
+            if (!ROUND_MODE.includes(entry.mode)) {
+                messages.push(`${findingLabel} round ${round} mode invalid`);
+            }
+            else {
+                modes.push(entry.mode);
+                modeByRound.set(round, entry.mode);
+            }
+            if (!isRecord(entry.target) || !entry.target.base || !entry.target.head) {
+                messages.push(`${findingLabel} round ${round} target invalid`);
+            }
+            if (entry.perspectives !== undefined) {
+                const perspectives = Array.isArray(entry.perspectives) ? entry.perspectives : [entry.perspectives];
+                for (const perspective of perspectives) {
+                    const item = isRecord(perspective) ? perspective : {};
+                    const name = typeof item.name === 'string' ? item.name : String(item.name ?? '(no name)');
+                    if (!REVIEW_PERSPECTIVE.includes(item.name)) {
+                        messages.push(`${findingLabel} round ${round} perspective invalid ${name}`);
+                    }
+                    else if (isRecord(entry.target) && item.target_head !== entry.target.head) {
+                        messages.push(`${findingLabel} round ${round} target mismatch ${name}`);
+                    }
+                }
+            }
+        }
         if (!Array.isArray(entry.previous_finding_ids)
             || entry.previous_finding_ids.some((id) => typeof id !== 'string')) {
             messages.push(`${findingLabel} round ${round} previous_finding_ids invalid`);
@@ -203,6 +286,23 @@ function collectRoundFailures(rounds, findingLabel) {
         for (const key of ['new', 'resolved', 'regressed']) {
             if (!isNonNegativeInteger(entry[key])) {
                 messages.push(`${findingLabel} round ${round} ${key} invalid: ${entry[key]}`);
+            }
+        }
+    }
+    if (modeContract) {
+        const allowedSequences = ['discovery', 'discovery,delta', 'discovery,delta,critical_recovery,delta'];
+        if (!allowedSequences.includes(modes.join(',')))
+            messages.push(`${findingLabel} rounds sequence invalid`);
+        for (const entry of findings) {
+            if (!isRecord(entry) || !isPositiveInteger(entry.first_seen_round))
+                continue;
+            if (modeByRound.get(entry.first_seen_round) !== 'delta')
+                continue;
+            const allowed = entry.origin === 'introduced_by_revision'
+                || (entry.origin === 'missed_critical' && (entry.severity === 'blocker' || entry.severity === 'major'));
+            if (!allowed) {
+                const id = entry.id ? entry.id : '(no id)';
+                messages.push(`${findingLabel} finding ${id} delta origin not allowed`);
             }
         }
     }
@@ -225,5 +325,6 @@ module.exports = {
     extractPathCandidates,
     pathsOverlap,
     pathJustifiedByTouch,
+    findingFingerprint,
     collectFindingFailures,
 };

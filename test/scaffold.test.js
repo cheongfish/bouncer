@@ -659,6 +659,9 @@ test('execute review template documents deferred and rounds; context review does
   assert.match(TEMPLATES['review.md'], /status: resolved \| accepted \| deferred/);
   assert.match(TEMPLATES['review.md'], /rounds\[\]/);
   assert.match(TEMPLATES['review.md'], /previous_finding_ids/);
+  assert.match(TEMPLATES['review.md'], /fingerprint/);
+  assert.match(TEMPLATES['review.md'], /actionability: must_fix \| advisory/);
+  assert.match(TEMPLATES['review.md'], /mode \(discovery \| delta \| critical_recovery\)/);
   assert.match(TEMPLATES['context-review.md'], /status: resolved \| accepted/);
   assert.doesNotMatch(TEMPLATES['context-review.md'], /deferred/);
   assert.doesNotMatch(TEMPLATES['context-review.md'], /rounds\[\]/);

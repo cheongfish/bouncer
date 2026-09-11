@@ -513,6 +513,7 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
                 sectionLabel: 'review.md',
                 findingLabel: 'review',
                 allowedStatuses: EXECUTE_REVIEW_STATUS,
+                reviewStatus: statusOf(reviewDoc),
             })) {
                 addUnit('G14', message, 'review');
             }

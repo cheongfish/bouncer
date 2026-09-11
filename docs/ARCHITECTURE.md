@@ -75,9 +75,13 @@ Execute 게이트의 검증·리뷰 판정은 상태와 본문 계약을 함께 
 - **G14**: 활성 포인터 task 디렉터리의 `review.md` 본문에 `## Findings` 필수; `bouncer.review.findings[]`는
   `{id, severity, status, note}`이며 `severity ∈ {blocker,major,minor,nit}`,
   `status ∈ {resolved,accepted,deferred}`, `accepted`와 `deferred`면 `note` 필수.
-  `deferred`는 execute review에만 허용한다. 선택적 `bouncer.review.rounds[]`는
-  `{round, previous_finding_ids, new, resolved, regressed}`이며 구문서는 이 키
-  없이 통과한다.
+  `deferred`는 execute review에만 허용한다. `rounds[]` 중 하나에 `mode`가 있으면
+  모든 finding은 `{category, brief_clause, file, symbol, fingerprint, actionability,
+  origin, first_seen_round, last_seen_round}`를 기록한다. fingerprint는
+  `<category>:<brief_clause>:<file>#<symbol>` 정규형이고, round는 `mode`,
+  `target.base/head`, 기존 집계와 `previous_finding_ids`를 가진다. G14는 허용 mode
+  순서, perspective target 일치, delta에서 새 finding의 origin, 열린 `must_fix`를
+  함께 판정한다. mode 없는 기존 rounds는 이 새 계약 없이 통과한다.
   `review.required === false`이면 G14도 건너뛴다.
 
 ### 4. 일반 워크플로 스킬을 자체 소유한다

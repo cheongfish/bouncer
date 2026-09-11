@@ -12,6 +12,7 @@ const {
   validateBlueprint,
 } = require('../scripts/lib/validate');
 const { parseExplainSections } = require('../scripts/lib/validate-sections');
+const { findingFingerprint } = require('../scripts/lib/validate-sections');
 const { TEMPLATES } = require('../scripts/lib/templates');
 
 function repairDecision(task, wave, terminal, pathName) {
@@ -888,6 +889,105 @@ function roundEntry(overrides = {}) {
     ...overrides,
   };
 }
+
+function convergenceFinding(overrides = {}) {
+  return {
+    id: 'F1', severity: 'minor', status: 'resolved',
+    category: 'correctness', brief_clause: 'Interface', file: 'src/a.ts', symbol: 'run',
+    fingerprint: 'correctness:interface:src/a.ts#run',
+    actionability: 'must_fix', origin: 'discovery', first_seen_round: 1, last_seen_round: 1,
+    ...overrides,
+  };
+}
+
+function convergenceRound(overrides = {}) {
+  return roundEntry({
+    mode: 'discovery',
+    target: { base: 'base-sha', head: 'head-sha' },
+    perspectives: [{ name: 'correctness_tests', target_head: 'head-sha' }],
+    ...overrides,
+  });
+}
+
+test('findingFingerprint normalizes its identity components', () => {
+  assert.strictEqual(
+    findingFingerprint({ category: ' Spec ', brief_clause: 'Interface.거부', file: './a/b.ts', symbol: 'f' }),
+    'spec:interface.거부:a/b.ts#f',
+  );
+});
+
+test('execute gate G14 enforces the mode convergence contract', () => {
+  const missing = executeReviewFailures({
+    findings: [convergenceFinding({ first_seen_round: undefined })], rounds: [convergenceRound()],
+  });
+  assert.ok(missing.some((f) => /finding F1 first_seen_round missing/.test(f.message)));
+
+  const fingerprint = executeReviewFailures({
+    findings: [convergenceFinding({ fingerprint: 'wrong' })], rounds: [convergenceRound()],
+  });
+  assert.ok(fingerprint.some((f) => /finding F1 fingerprint mismatch/.test(f.message)));
+
+  const duplicate = executeReviewFailures({
+    findings: [convergenceFinding(), convergenceFinding({ id: 'F2' })], rounds: [convergenceRound()],
+  });
+  assert.ok(duplicate.some((f) => /duplicate fingerprint correctness:interface:src\/a\.ts#run/.test(f.message)));
+
+  const namespace = executeReviewFailures({
+    findings: [convergenceFinding({ fingerprint: 'context:correctness:interface:src/a.ts#run' })], rounds: [convergenceRound()],
+  });
+  assert.ok(namespace.some((f) => /finding F1 fingerprint namespace invalid/.test(f.message)));
+
+  const enums = executeReviewFailures({
+    findings: [convergenceFinding({ actionability: 'maybe', origin: 'guess' })], rounds: [convergenceRound()],
+  });
+  assert.ok(enums.some((f) => /finding F1 actionability invalid/.test(f.message)));
+  assert.ok(enums.some((f) => /finding F1 origin invalid/.test(f.message)));
+
+  const target = executeReviewFailures({
+    findings: [convergenceFinding()], rounds: [convergenceRound({ target: { base: 'base-sha' } })],
+  });
+  assert.ok(target.some((f) => /round 1 target invalid/.test(f.message)));
+  const perspective = executeReviewFailures({
+    findings: [convergenceFinding()], rounds: [convergenceRound({ perspectives: [{ name: 'style', target_head: 'head-sha' }] })],
+  });
+  assert.ok(perspective.some((f) => /round 1 perspective invalid style/.test(f.message)));
+  const mismatch = executeReviewFailures({
+    findings: [convergenceFinding()], rounds: [convergenceRound({ perspectives: [{ name: 'correctness_tests', target_head: 'other' }] })],
+  });
+  assert.ok(mismatch.some((f) => /round 1 target mismatch correctness_tests/.test(f.message)));
+
+  const sequence = executeReviewFailures({
+    findings: [convergenceFinding({ first_seen_round: 2, last_seen_round: 2, origin: 'introduced_by_revision' })],
+    rounds: [convergenceRound({ mode: 'delta' }), convergenceRound({ round: 2, mode: 'discovery' })],
+  });
+  assert.ok(sequence.some((f) => /rounds sequence invalid/.test(f.message)));
+
+  assert.deepStrictEqual(executeReviewFailures({
+    findings: [convergenceFinding({ first_seen_round: 2, last_seen_round: 2, origin: 'introduced_by_revision' })],
+    rounds: [convergenceRound(), convergenceRound({ round: 2, mode: 'delta' })],
+  }), []);
+  const minorCritical = executeReviewFailures({
+    findings: [convergenceFinding({ first_seen_round: 2, last_seen_round: 2, origin: 'missed_critical' })],
+    rounds: [convergenceRound(), convergenceRound({ round: 2, mode: 'delta' })],
+  });
+  assert.ok(minorCritical.some((f) => /finding F1 delta origin not allowed/.test(f.message)));
+  assert.deepStrictEqual(executeReviewFailures({
+    findings: [convergenceFinding({ severity: 'major', first_seen_round: 2, last_seen_round: 2, origin: 'missed_critical' })],
+    rounds: [convergenceRound(), convergenceRound({ round: 2, mode: 'delta' })],
+  }), []);
+
+  const openMustFix = executeReviewFailures({
+    findings: [convergenceFinding({ status: 'accepted', note: 'not fixed' })], rounds: [convergenceRound()],
+  });
+  assert.ok(openMustFix.some((f) => /accepted with open must_fix F1/.test(f.message)));
+});
+
+test('execute gate G14 leaves mode-less legacy rounds unchanged', () => {
+  assert.deepStrictEqual(executeReviewFailures({
+    findings: [{ id: 'F3', severity: 'nit', status: 'deferred', note: 'independent follow-up' }],
+    rounds: [roundEntry({ new: 1 })],
+  }), []);
+});
 
 test('execute gate G14 accepts deferred finding with note and a valid rounds ledger', () => {
   const g14 = executeReviewFailures({

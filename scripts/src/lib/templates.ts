@@ -172,13 +172,19 @@ Blueprint: [<BP-id>](../../index.md)
   'review.md': `# Review
 
 ## Findings
-<!-- finding: id, severity, status. accepted와 deferred는 비어 있지 않은 note 필수.
+<!-- finding: id, severity, status. mode를 쓰는 rounds[]면 category, brief_clause, file,
+     symbol, fingerprint, actionability, origin, first_seen_round, last_seen_round도 필수.
      severity: blocker | major | minor | nit
      status: resolved | accepted | deferred
+     actionability: must_fix | advisory
+     origin: discovery | introduced_by_revision | missed_critical
+     fingerprint: <category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ 제거)
      accepted note: 권한 있는 위험 수용 근거
      deferred note: 현재 task와 독립인 후속 planning 항목 근거
-     optional bouncer.review.rounds[]: round (양의 정수), previous_finding_ids (문자열 배열),
-     new · resolved · regressed (0 이상 정수). 구문서는 이 키 없이 통과한다. -->
+     optional bouncer.review.rounds[]: round (양의 정수), mode (discovery | delta | critical_recovery),
+     target (base·head), perspectives (spec_scope | correctness_tests | minimality_maintainability | security,
+     target_head는 target.head와 동일), previous_finding_ids (문자열 배열), new · resolved · regressed
+     (0 이상 정수). mode 없는 구문서는 기존 계약으로 통과한다. -->
 - <finding>
 `,
   'context-review.md': `# Context review

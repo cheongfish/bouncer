@@ -48,6 +48,16 @@ Scope drift is recorded with `bouncer coordinate
 revise`, which moves the task document and the ledger to one revision, so render
 that revision instead of re-judging it.
 
+For an in-blueprint blocker, the delegated coordinator is the autonomous
+decision-maker. It decides and executes the smallest scoped remediation —
+including task metadata/plan updates and scope or DAG/graph decisions — and
+records the cause, boundary, and next action in the integration-local ledger.
+The root session does not reopen ACQ or send that decision back to
+`/bouncer-plan`. This authority stops at actions needing an external credential
+or permission, a destructive repository action, user-only finalize consent, PR
+submission, or next-blueprint selection: the coordinator preserves state and
+reports the blocker instead of taking any of those actions.
+
 `execution_kind: verification` node는 예외다. coordinator는 worker를 만들거나
 execute/review/commit/cherry-pick을 호출하지 않고 integration checkout에서 기존
 verification runner를 실행한다. 성공 증적 뒤에만 `ready → verifying → integrated`로

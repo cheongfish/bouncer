@@ -655,6 +655,7 @@ function runCheckGate(
         sectionLabel: 'review.md',
         findingLabel: 'review',
         allowedStatuses: EXECUTE_REVIEW_STATUS,
+        reviewStatus: statusOf(reviewDoc),
       })) {
         addUnit('G14', message, 'review');
       }
