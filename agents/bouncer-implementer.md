@@ -83,7 +83,7 @@ read code/tests/repo context needed to implement.
    error, leave a Korean comment naming which errors this handler absorbs and
    why that is safe. This governs the code this task writes or changes — do not
    retrofit handlers you were not sent to touch; report that instead.
-4. **Detailed comments** — Hard rule 3 (`CLAUDE.md`). Detail and examples:
+4. **Detailed comments** — Detail and examples:
    `references/implementation/index.md`. Do not restate the rule here.
 5. **Tests first** — For each behavior change, write the failing test, run it,
    and confirm it fails for the expected reason before writing the

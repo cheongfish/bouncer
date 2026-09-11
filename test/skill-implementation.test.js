@@ -35,8 +35,8 @@ test('implementation keeps the call contract and defers the role rubric to the a
 
 test('implementation requires detailed why-comments on non-trivial changes', () => {
   const md = readSkill('implementation');
-  assert.match(md, /Detailed comments/i);
-  assert.match(md, /[Hh]ard rule 3|하드룰 3/);
+  assert.match(md, /Language and detailed comments/i);
+  assert.match(md, /reader-facing documents and commit messages in Korean/i);
   assert.match(md, /\bwhy\b/i);
   assert.match(md, /invariant|trade-?off|ceiling/i);
   assert.match(md, /thorough|상세|Prefer thoroughness/i);
@@ -55,10 +55,10 @@ test('implementation shows good/bad comment contra examples from validate.js', (
 
 test('implementation requires Korean docstrings with args and returns', () => {
   const md = readSkill('implementation');
-  // 파일 전체가 아니라 Detailed comments 단계 구간에만 단정을 건다.
+  // 파일 전체가 아니라 language and detailed comments 구간에만 단정을 건다.
   // skill-minimality.test.js가 `## Decision ladder` 구간을 자르는 것과 같은 방식.
-  const step = md.match(/^## Detailed comments$[\s\S]*?(?=\n## )/m);
-  assert.ok(step, 'implementation must keep a Detailed comments section');
+  const step = md.match(/^## Language and detailed comments$[\s\S]*?(?=\n## )/m);
+  assert.ok(step, 'implementation must keep a language and detailed comments section');
   const s = step[0];
   assert.match(s, /docstring/i);
   assert.match(s, /Args|인자/);

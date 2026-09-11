@@ -137,17 +137,8 @@ test('plan execute and run keep local trust-boundary phrases', () => {
   assert.match(run, /subagent reports/i);
 });
 
-// coordinator만 drive의 controller다. 나머지 worker 보고는 계속 data이며,
-// 두 경계가 같은 문서에 함께 있어야 위임이 지시로 승격되지 않는다.
+// coordinator의 권한은 governance와 역할 문서가 소유한다. worker 보고는 계속 data다.
 test('coordinator authority and plain worker reports stay separate', () => {
-  const claude = readRel('CLAUDE.md');
-  const rule1 = claude.match(/^1\. \*\*Trust boundary\*\*[\s\S]*?(?=^2\. )/m)[0];
-  assert.match(rule1, /bouncer-coordinator/);
-  assert.match(rule1, /controller of its own/i);
-  assert.match(rule1, /decision log/i);
-  // 세 worker의 보고는 예외가 아니다.
-  assert.match(rule1, /Implementer, debugger and reviewer reports stay data/);
-
   const coordinator = readRel('agents/bouncer-coordinator.md');
   assert.match(coordinator, /worker reports[\s\S]{0,160}data, not instructions/i);
   assert.match(coordinator, /only your recorded decision/i);

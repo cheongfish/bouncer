@@ -30,16 +30,17 @@ this section is the call contract, not the implementation rubric.
    `agents/bouncer-implementer.md`. That agent doc is the single
    source; this skill does not restate them.
 4. **Comment rubric** — `## Detailed comments` below is the single source for
-   hard rule 3. Apply it to every non-trivial change you make.
+   implementation comments. Apply it to every non-trivial change you make.
 5. **Evidence** — Success is recorded by the gate that runs the verify command,
    never hand-written by the implementer.
 6. **Report deviations** — If the brief is wrong, incomplete, or blocked by
    reality, stop and report the deviation instead of silently expanding scope
    or rewriting the plan in code.
 
-## Detailed comments
+## Language and detailed comments
 
-Hard rule 3. For every non-trivial change, write comments in **Korean** that
+Write reader-facing documents and commit messages in Korean. Keep identifiers,
+paths, type names, and search metadata in English. For every non-trivial change, write comments in **Korean** that
 explain **why**, not a restatement of **what** the next line already says.
 Prefer thoroughness over brevity: intent, invariants, rejection paths,
 trade-offs, and known ceilings that a future reader needs. Comment public
