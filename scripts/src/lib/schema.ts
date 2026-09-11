@@ -65,8 +65,13 @@ const SCALE_ENUM = ['light', 'full'];
 const DEFAULT_SCALE = 'full';
 
 // finalize가 읽되 scaffold가 비우면 항상 'feat' 폴백으로 떨어지던 구멍 —
-// blueprint에 기본 commit_type을 써 둔다. 값 검사는 TASKS-002.
+// blueprint에 기본 commit_type을 써 둔다. 값 검사는 TASKS-001 branch helper가
+// 새 worktree 생성 전에 맡아, coordinator와 다른 소비자가 다른 이름을 만들지 않는다.
 const DEFAULT_COMMIT_TYPE = 'feat';
+
+// .gitmessage가 허용하는 Conventional Commit 접두를 branch 이름에도 그대로 쓴다.
+// 새 종류를 추가할 때 문서·commit hook·branch helper가 흩어지지 않도록 정본을 둔다.
+const COMMIT_TYPE_ENUM = ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore'];
 
 // config.json autonomy 허용값. 소비자는 autonomy === 'interactive'만 보고,
 // 부재·'auto'는 모두 같은 경로로 읽힌다(auto 전용 분기 금지).
@@ -160,7 +165,7 @@ function detectLegacyFormat({ repoRoot, data }: { repoRoot?: unknown; data?: unk
 export = {
   OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, KIND_TO_TYPE,
   LEGACY_GUIDANCE, detectLegacyFormat,
-  BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE,
+  BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM,
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, isValidDependsOn,

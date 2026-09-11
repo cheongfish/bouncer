@@ -113,6 +113,7 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
 
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.strictEqual(boot.integrationBranch, 'feat/010-001-drive');
   // 두 task 모두 parallel_safe라 하나의 ready wave로 열린다.
   assert.deepStrictEqual(boot.ready, ['001', '002']);
 
@@ -152,7 +153,7 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
   // 두 worker의 결과가 하나의 integration branch로 모인다.
   assert.strictEqual(
     git(boot.integrationPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
-    'bouncer/010-001-integration',
+    'feat/010-001-drive',
   );
   assert.deepStrictEqual(
     git(boot.integrationPath, ['log', '--format=%s', '-3']).split('\n'),

@@ -6,6 +6,10 @@ const { isDeepStrictEqual } = require('node:util');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import paths = require('./paths');
 const { toPosix, parsePathIds } = paths;
+import frontmatter = require('./frontmatter');
+const { readDoc } = frontmatter;
+import schema = require('./schema');
+const { DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM } = schema;
 
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
 
@@ -69,8 +73,98 @@ type RuntimePointer = {
 
 type CoordinatorPaths = { integrationPath: string; workerPath?: string; ledgerFile: string };
 
+type BranchNames = { integration: string; standalone: string; worker?: string };
+type WorktreeBranch = { action: 'reuse' | 'create'; branch: string };
+
+class BranchNameError extends Error {
+  code: 'invalid-commit-type' | 'invalid-branch-name' | 'branch-conflict';
+  constructor(code: 'invalid-commit-type' | 'invalid-branch-name' | 'branch-conflict') {
+    super(code);
+    this.code = code;
+  }
+}
+
 function nonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
+}
+
+/**
+ * blueprint 메타데이터와 경로에서 coordinator가 공유할 branch 이름을 만든다.
+ * index.md가 없거나 읽히지 않으면 기존 fixture와 이전 blueprint를 보존하기 위해
+ * DEFAULT_COMMIT_TYPE으로 계속 진행하지만, 명시된 잘못된 commit_type은 새 worktree
+ * 생성 전에 거절한다.
+ *
+ * @param {{ repoRoot: string, blueprint: string, task?: string }} opts - 저장소와 blueprint 식별자
+ * @returns {BranchNames} integration·standalone 및 선택 worker branch 이름
+ * @throws {BranchNameError} 명시 commit_type 또는 Git ref 형식이 유효하지 않을 때
+ */
+function branchNamesFor({ repoRoot, blueprint, task }: {
+  repoRoot: string; blueprint: string; task?: string;
+}): BranchNames {
+  const { epicId, blueprintId } = parsePathIds(blueprint);
+  const slug = path.basename(blueprint).replace(new RegExp(`^${blueprintId}-`), '');
+  let commitType: unknown = DEFAULT_COMMIT_TYPE;
+  try {
+    const doc = readDoc(path.join(repoRoot, blueprint, 'index.md'));
+    const bouncer = (doc.data as Record<string, unknown>).bouncer as Record<string, unknown> | undefined;
+    if (bouncer && Object.prototype.hasOwnProperty.call(bouncer, 'commit_type')) commitType = bouncer.commit_type;
+  } catch (_error) {
+    // index.md 부재·frontmatter 오류는 기존 bootstrap fixture와 같은 폴백이다.
+  }
+  if (typeof commitType !== 'string' || !COMMIT_TYPE_ENUM.includes(commitType)) {
+    throw new BranchNameError('invalid-commit-type');
+  }
+  const integration = `${commitType}/${epicId}-${blueprintId}-${slug}`;
+  const result: BranchNames = { integration, standalone: integration };
+  if (task !== undefined) result.worker = `bouncer/${epicId}-${blueprintId}-${task}`;
+  for (const branch of Object.values(result)) {
+    if (!branch || branch.includes('..') || /[ ~^:?*\\[\\]/.test(branch)) {
+      throw new BranchNameError('invalid-branch-name');
+    }
+  }
+  return result;
+}
+
+/**
+ * 등록된 checkout은 실제 branch를 유지하고, 새 checkout만 예상 branch를 만든다.
+ * 같은 branch를 다른 worktree가 잡고 있으면 suffix로 피해 provenance를 흐리지 않고
+ * 명시적으로 충돌을 돌려준다.
+ *
+ * @param {{ repoRoot: string, worktreePath: string, branch: string, execFileSync?: ExecFileSyncFn }} opts
+ *   - Git 저장소와 예상 checkout/branch
+ * @returns {WorktreeBranch} 기존 branch 재사용 또는 새 branch 생성 지시
+ * @throws {BranchNameError} ref 형식 오류나 다른 checkout의 branch 충돌일 때
+ */
+function resolveWorktreeBranch({ repoRoot, worktreePath, branch, execFileSync = realExecFileSync as ExecFileSyncFn }: {
+  repoRoot: string; worktreePath: string; branch: string; execFileSync?: ExecFileSyncFn;
+}): WorktreeBranch {
+  let listed: string;
+  try {
+    listed = String(execFileSync('git', ['worktree', 'list', '--porcelain'], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    }));
+  } catch (_error) { listed = ''; }
+  const entries = listed.trim().split(/\n\n+/).filter(Boolean).map((block) => {
+    const lines = block.split('\n');
+    return { path: lines.find((line) => line.startsWith('worktree '))?.slice(9),
+      branch: lines.find((line) => line.startsWith('branch refs/heads/'))?.slice('branch refs/heads/'.length) };
+  });
+  const existing = entries.find((entry) => entry.path && path.resolve(entry.path) === path.resolve(worktreePath));
+  if (existing?.branch) return { action: 'reuse', branch: existing.branch };
+  try {
+    execFileSync('git', ['check-ref-format', '--branch', branch], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (_error) { throw new BranchNameError('invalid-branch-name'); }
+  try {
+    execFileSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], {
+      cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    throw new BranchNameError('branch-conflict');
+  } catch (error) {
+    if (error instanceof BranchNameError) throw error;
+  }
+  return { action: 'create', branch };
 }
 
 function stringList(value: unknown, nonEmpty = false): value is string[] {
@@ -123,6 +217,17 @@ function validateCoordinatorLedger(
     return { ok: false, reason: 'invalid-ledger' };
   }
   const ledger = value as Record<string, unknown>;
+  // branch 필드는 이전 원장에는 없을 수 있지만, 있으면 이후 재개가 Git의 실제
+  // checkout을 신뢰할 수 있도록 문자열이어야 한다. 여기서 느슨하게 받으면
+  // prepare가 잘못된 값을 정상 branch 기록으로 덮어쓴 것처럼 보일 수 있다.
+  if (ledger.integrationBranch !== undefined && !nonEmptyString(ledger.integrationBranch)) {
+    return { ok: false, reason: 'invalid-ledger-branch' };
+  }
+  if (Array.isArray(ledger.tasks) && ledger.tasks.some((entry) => entry && typeof entry === 'object'
+    && (entry as Record<string, unknown>).branch !== undefined
+    && !nonEmptyString((entry as Record<string, unknown>).branch))) {
+    return { ok: false, reason: 'invalid-ledger-branch' };
+  }
   if (options.requirePartialClose && ledger.status !== 'awaiting_confirmation') {
     return { ok: false, reason: 'partial-close-awaiting-confirmation-required' };
   }
@@ -614,4 +719,5 @@ export = {
   isWorktreeDirty,
   pointerKeyFromBlueprint, listNamespacePointers, removeNamespacePointer,
   validateCoordinatorLedger,
+  branchNamesFor, resolveWorktreeBranch,
 };

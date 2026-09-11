@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import runtime = require('./runtime-state');
-const { coordinatorPathsFor, runtimePaths } = runtime;
+const { coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch } = runtime;
 import seed = require('./seed-worktree');
 const { seedCoordinatorWorker } = seed;
 import frontmatter = require('./frontmatter');
@@ -17,11 +17,11 @@ const { listTasksDocs } = tasksDocs;
 
 type Task = {
   id: string; depends_on?: string[]; dependency_gate?: string; parallel_safe?: boolean;
-  execution_kind?: 'commit' | 'verification'; status?: string; workerPath?: string; sha?: string;
+  execution_kind?: 'commit' | 'verification'; status?: string; workerPath?: string; branch?: string; sha?: string;
   decisions?: unknown[]; scope?: { revision: string; paths: string[] }; dynamic?: boolean;
 };
 type Ledger = {
-  version: 1; blueprint: string; base: string; integrationHead?: string; tasks: Task[];
+  version: 1; blueprint: string; base: string; integrationHead?: string; integrationBranch?: string; tasks: Task[];
   decisions: unknown[]; repairWaves?: RepairDecision[]; terminalFailure?: FailureEvidence;
   status?: 'active' | 'awaiting_confirmation' | 'partial_closed'; userConfirmed?: boolean; revision?: string;
 };
@@ -400,13 +400,26 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       return { ok: false, reason: 'bootstrap-requires-main-checkout' };
     }
     const before = sourceStatus(exec, repoRoot);
-    if (!fs.existsSync(paths.integrationPath)) {
-      fs.mkdirSync(path.dirname(paths.integrationPath), { recursive: true });
-      // argv 호출만 사용해 branch 이름과 경로가 shell 해석으로 새지 않게 한다.
-      const epicId = path.basename(path.dirname(path.dirname(paths.integrationPath)));
-      const integrationId = path.basename(path.dirname(paths.integrationPath));
-      git(exec, repoRoot, ['worktree', 'add', '-b', `bouncer/${epicId }-${integrationId}-integration`,
-        paths.integrationPath, 'HEAD']);
+    if (fs.existsSync(paths.integrationPath) && !registeredIntegration(exec, repoRoot, paths.integrationPath)) {
+      return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: paths.integrationPath };
+    }
+    let integrationBranch: string;
+    try {
+      const names = branchNamesFor({ repoRoot, blueprint });
+      const resolved = resolveWorktreeBranch({
+        repoRoot, worktreePath: paths.integrationPath, branch: names.integration, execFileSync: exec,
+      });
+      integrationBranch = resolved.branch;
+      if (resolved.action === 'create') {
+        fs.mkdirSync(path.dirname(paths.integrationPath), { recursive: true });
+        // argv 호출만 사용해 branch 이름과 경로가 shell 해석으로 새지 않게 한다.
+        git(exec, repoRoot, ['worktree', 'add', '-b', integrationBranch,
+          paths.integrationPath, 'HEAD']);
+      }
+    } catch (error) {
+      const reason = (error as { code?: string }).code;
+      if (reason) return { ok: false, reason };
+      throw error;
     }
     if (sourceStatus(exec, repoRoot) !== before) return { ok: false, reason: 'main-source-mutated' };
     if (!registeredIntegration(exec, repoRoot, paths.integrationPath)) {
@@ -417,10 +430,11 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       integrationHead: git(exec, paths.integrationPath, ['rev-parse', 'HEAD']),
       tasks: taskList(repoRoot, blueprint), decisions: [], status: 'active' as const, repairWaves: [],
     };
+    ledger.integrationBranch = integrationBranch;
     atomicWrite(paths.ledgerFile, ledger);
     return {
       ok: true, command, integrationPath: paths.integrationPath, ready: readyWave(ledger.tasks),
-      tasks: ledger.tasks, decisions: ledger.decisions,
+      tasks: ledger.tasks, decisions: ledger.decisions, integrationBranch,
     };
   }
   const integration = coordinatorPathsFor({ repoRoot, blueprint });
@@ -461,7 +475,63 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   }
   if (command === 'prepare') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
+    let names: { integration: string; standalone: string; worker?: string };
+    try {
+      // verification-only wave도 아래 seed가 integration 문서를 바꾸므로, task 종류를
+      // 보기 전에 blueprint 전체의 commit_type을 검증한다. 등록 checkout은 실제
+      // branch를 재사용해 legacy 원장에만 provenance 필드를 보충하고 rename하지 않는다.
+      names = branchNamesFor({ repoRoot, blueprint });
+      const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath,
+        worktreePath: integration.integrationPath, branch: names.integration, execFileSync: exec });
+      if (resolved.action !== 'reuse') {
+        return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: integration.integrationPath };
+      }
+      if (!ledger.integrationBranch) ledger.integrationBranch = resolved.branch;
+    } catch (error) {
+      const reason = (error as { code?: string }).code;
+      if (reason) return { ok: false, reason };
+      throw error;
+    }
     const ready = readyWave(ledger.tasks);
+    const plannedWorkers = new Map<string, { worker: string; branch: string; action: 'reuse' | 'create' }>();
+    try {
+      // 한 wave의 branch 충돌을 모두 확인한 뒤에만 worktree를 만든다. 앞 task를
+      // 먼저 만들고 뒤 task에서 멈추면 재시도 전 ledger와 Git 등록이 갈라지므로,
+      // 이 단계는 Git 조회만 하고 seed·mkdir·worktree add를 절대 호출하지 않는다.
+      for (const id of ready) {
+        const item = ledger.tasks.find((x) => x.id === id) as Task;
+        if (item.execution_kind === 'verification') continue;
+        const worker = coordinatorPathsFor({ repoRoot, blueprint, task: id }).workerPath as string;
+        if (fs.existsSync(worker) && !registeredWorker(exec, integration.integrationPath, worker)) {
+          return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+        }
+        const workerNames = branchNamesFor({ repoRoot, blueprint, task: id });
+        const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath, worktreePath: worker,
+          branch: workerNames.worker as string, execFileSync: exec });
+        plannedWorkers.set(id, { worker, branch: resolved.branch, action: resolved.action });
+      }
+      // 이전 원장의 prepared task는 ready wave에 없어서 별도로 실제 checkout을 읽는다.
+      // 이미 등록된 branch를 rename하지 않고 field만 채워 재개 payload의 provenance를
+      // 복원한다. prepared인데 등록이 사라진 경우에는 새 branch를 만들 수 없다.
+      for (const item of ledger.tasks) {
+        if (item.execution_kind === 'verification' || item.status !== 'prepared' || item.branch) continue;
+        const worker = coordinatorPathsFor({ repoRoot, blueprint, task: item.id }).workerPath as string;
+        if (!registeredWorker(exec, integration.integrationPath, worker)) {
+          return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+        }
+        const workerNames = branchNamesFor({ repoRoot, blueprint, task: item.id });
+        const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath, worktreePath: worker,
+          branch: workerNames.worker as string, execFileSync: exec });
+        if (resolved.action !== 'reuse') {
+          return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+        }
+        item.branch = resolved.branch;
+      }
+    } catch (error) {
+      const reason = (error as { code?: string }).code;
+      if (reason) return { ok: false, reason };
+      throw error;
+    }
     for (const id of ready) {
       const item = ledger.tasks.find((x) => x.id === id) as Task;
       if (item.execution_kind === 'verification') {
@@ -470,25 +540,26 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         item.status = transition(item.status || 'pending', 'ready', 'verification');
         continue;
       }
-      const worker = coordinatorPathsFor({ repoRoot, blueprint, task: id }).workerPath as string;
-      if (!fs.existsSync(worker)) {
-        fs.mkdirSync(path.dirname(worker), { recursive: true });
-        const integrationId = path.basename(path.dirname(integration.integrationPath));
-        const epicId = path.basename(path.dirname(path.dirname(integration.integrationPath)));
+      const planned = plannedWorkers.get(id) as { worker: string; branch: string; action: 'reuse' | 'create' };
+      if (planned.action === 'create') {
+        fs.mkdirSync(path.dirname(planned.worker), { recursive: true });
         git(exec, integration.integrationPath,
-          ['worktree', 'add', '-b', `bouncer/${epicId}-${integrationId}-${id}`, worker, 'HEAD']);
+          ['worktree', 'add', '-b', planned.branch, planned.worker, 'HEAD']);
       }
-      if (!registeredWorker(exec, integration.integrationPath, worker)) {
-        return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+      if (!registeredWorker(exec, integration.integrationPath, planned.worker)) {
+        return { ok: false, reason: 'unassigned-worker-worktree', workerPath: planned.worker };
       }
       // 동적 repair 문서는 integration checkout에만 존재한다. main checkout은
       // drive 동안 read-only이므로 repair worker seed도 그 정본에서 가져온다.
       const seedRoot = item.dynamic ? integration.integrationPath : repoRoot;
-      const seeded = seedCoordinatorWorker({ repoRoot: seedRoot, blueprintDir: blueprint, worktreePath: worker });
+      const seeded = seedCoordinatorWorker({
+        repoRoot: seedRoot, blueprintDir: blueprint, worktreePath: planned.worker,
+      });
       if (!seeded.ok) return seeded;
       item.status = transition(item.status || 'pending', 'ready');
       item.status = transition(item.status, 'prepared');
-      item.workerPath = worker;
+      item.workerPath = planned.worker;
+      item.branch = planned.branch;
     }
     atomicWrite(integration.ledgerFile, ledger);
     return { ok: true, command, ready, tasks: ledger.tasks, decisions: ledger.decisions };

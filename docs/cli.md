@@ -80,8 +80,8 @@ cherry-pick 등 Git 실패 — 는 `reason` JSON이 아니라 `coordinate: <메�
 
 | 서브커맨드 | 부르는 자리 | 하는 일 | 돌려주는 것 |
 | --- | --- | --- | --- |
-| `bootstrap` | main worktree | `.worktrees/<epic-id>/<bp-id>/integration`을 `bouncer/<epic-id>-<bp-id>-integration` branch로 등록하고 원장을 만들거나 이어받습니다. main source는 쓰지 않습니다 | `integrationPath`, `ready`, `tasks`, `decisions` |
-| `prepare` | integration worktree | 현재 ready wave를 열고 task마다 `workers/<NNN>`을 `bouncer/<epic-id>-<bp-id>-<NNN>` branch로 등록한 뒤 계획 문서를 복사해 넣습니다(base는 읽기만). 각 task를 `prepared`로 옮깁니다 | `ready`, `tasks`(각 `workerPath`), `decisions` |
+| `bootstrap` | main worktree | `.worktrees/<epic-id>/<bp-id>/integration`을 blueprint의 `commit_type/<epic-id>-<bp-id>-<slug>` branch로 등록하고 원장을 만들거나 이어받습니다. main source는 쓰지 않습니다 | `integrationPath`, `integrationBranch`, `ready`, `tasks`, `decisions` |
+| `prepare` | integration worktree | 현재 ready wave를 열고 task마다 `workers/<NNN>`을 `bouncer/<epic-id>-<bp-id>-<task-id>` branch로 등록한 뒤 계획 문서를 복사해 넣습니다(base는 읽기만). 각 commit task에 실제 `branch`를 기록하고 `prepared`로 옮깁니다 | `ready`, `tasks`(각 `workerPath`, `branch`), `decisions` |
 | `ready` | integration worktree | `status`의 별칭입니다. 원장을 바꾸지 않습니다 | `ready`, `tasks`, `decisions` |
 | `status` | integration worktree | 원장 전체 상태를 읽습니다 | `ready`, `tasks`, `decisions` |
 | `record` | worker worktree | `--task`의 worker HEAD를 결과 SHA로 원장에 올리고 `recorded`로 옮깁니다. `--sha`를 주면 worker HEAD와 같아야 하고, `--decision <text>`는 그 판단을 결정 로그에 함께 남깁니다 | `task`(`sha`·`status`), `decisions` |
@@ -112,6 +112,9 @@ throw 경로 문단).
 | `unknown-coordinate-command` | 코어 직접 호출 | 코어가 모르는 서브커맨드입니다. CLI 앞단은 일곱 이름만 통과시키므로, 이 코드는 CLI를 거치지 않고 코어를 직접 부른 호출에서만 나옵니다 |
 | `bootstrap-requires-main-checkout` | `bootstrap` | `bootstrap`을 main checkout이 아닌 자리에서 불렀습니다 |
 | `main-source-mutated` | `bootstrap` | integration 등록 도중 main worktree의 source 상태가 바뀌었습니다. 원장을 쓰지 않고 멈춥니다 |
+| `invalid-commit-type` | `bootstrap`·`prepare` | blueprint `commit_type`이 허용된 `.gitmessage` 종류가 아닙니다 |
+| `invalid-branch-name` | `bootstrap`·`prepare` | 계산한 branch 이름이 Git ref 형식이 아닙니다 |
+| `branch-conflict` | `bootstrap`·`prepare` | 계산한 branch가 예상 checkout이 아닌 다른 곳에 이미 있습니다. suffix를 붙이지 않고 멈춥니다 |
 | `unassigned-integration-worktree` | `bootstrap`·`status`·`prepare`·`record`·`integrate` | integration 경로가 등록된 worktree가 아니거나 symlink로 바뀌었습니다 |
 | `unassigned-worker-worktree` | `prepare`·`record` | worker 경로가 등록된 worktree가 아니거나, 원장이 기억하는 경로와 다릅니다 |
 | `missing-ledger` | `status`·`prepare`·`record`·`integrate`·`revise` | integration worktree에 원장이 없습니다. 먼저 `bootstrap` |
