@@ -179,6 +179,100 @@ function coordinatorProvenance(
   };
 }
 
+type ControllerMode = 'coordinator' | 'standalone';
+type NextAction = 'confirm-commit' | 'return-to-coordinator' | 'ask-next-task' | 'finalize';
+type RecoveryAction =
+  | 'return-to-plan'
+  | 'coordinator-revise'
+  | 'fix-gate-failures'
+  | 'run-verification-node'
+  | 'report-and-stop';
+
+/**
+ * 스킬이 CLI 동작을 다시 읽지 않도록, 성공 payload의 다음 행동만 고른다.
+ *
+ * dry-run이 최우선이다. 드라이브 안에서도 `--yes` 전 확인이 있어야 하고,
+ * 그 확인을 `return-to-coordinator`가 삼키면 스킬의 Confirm 단계가 사라진다.
+ * `controller`는 ledger 활성이면 항상 coordinator — nextAction과 축이 다르다.
+ * stampPath는 실제로 `commit_sha`를 쓴 경로만 싣는다. 빈 staged·기록 실패는
+ * null이라야 스킬이 없는 stamp를 있는 것처럼 다루지 않는다.
+ *
+ * @param {object} opts - 성공 분기 입력
+ * @param {CoordinatorLike} opts.coordinator - ledger 활성 여부
+ * @param {boolean} opts.dryRun - `--yes` 없는 호출이면 true
+ * @param {unknown} opts.nextTask - 기존 pointer 후보. 의미는 바꾸지 않는다
+ * @param {string | null} opts.stampPath - commit_sha를 기록한 tasks.md, 없으면 null
+ * @returns {{controller: ControllerMode, nextAction: NextAction, stampPath: string | null}}
+ */
+function commitGuidance({
+  coordinator, dryRun, nextTask, stampPath,
+}: {
+  coordinator: CoordinatorLike;
+  dryRun: boolean;
+  nextTask: unknown;
+  stampPath: string | null;
+}): { controller: ControllerMode; nextAction: NextAction; stampPath: string | null } {
+  const controller: ControllerMode = coordinator.active ? 'coordinator' : 'standalone';
+  let nextAction: NextAction;
+  if (dryRun) {
+    nextAction = 'confirm-commit';
+  } else if (coordinator.active) {
+    // 커밋 뒤와 빈 staged 모두 여기서 합친다. 드라이브는 Next task ACQ를
+    // 열지 않고 coordinator에게 결과를 돌려주는 것이 계약이다.
+    nextAction = 'return-to-coordinator';
+  } else {
+    nextAction = nextTask ? 'ask-next-task' : 'finalize';
+  }
+  return { controller, nextAction, stampPath };
+}
+
+/**
+ * 실패 reason 값은 그대로 두고, 스킬이 고를 복구 행동만 붙인다.
+ *
+ * out-of-scope만 controller가 갈린다. standalone의 return-to-plan은 payload
+ * 전용이라 스킬 본문에 `/bouncer-plan`을 한 줄 더 쓰지 않게 한다.
+ * 그 밖의 reason(stale-revision 등)은 자리와 무관하게 report-and-stop.
+ *
+ * @param {string} reason - 기존 실패 코드. 값을 바꾸지 않는다
+ * @param {boolean} coordinatorActive - ledger가 활성이면 true
+ * @returns {{action: RecoveryAction, detail: string}} 스킬이 렌더할 복구 안내
+ */
+function recoveryFor(reason: string, coordinatorActive: boolean): {
+  action: RecoveryAction;
+  detail: string;
+} {
+  if (reason === 'out-of-scope') {
+    if (coordinatorActive) {
+      return {
+        action: 'coordinator-revise',
+        detail: 'Out-of-scope changes are a hard abort with nothing staged. '
+          + 'Hand the violations to the coordinator for one scope revision.',
+      };
+    }
+    return {
+      action: 'return-to-plan',
+      detail: 'Out-of-scope changes are a hard abort with nothing staged. '
+        + 'Return to planning; do not edit affected_paths here.',
+    };
+  }
+  if (reason === 'validate') {
+    return {
+      action: 'fix-gate-failures',
+      detail: 'The commit gate reported failures. Fix every code before retrying without --yes.',
+    };
+  }
+  if (reason === 'verification-task-no-commit') {
+    return {
+      action: 'run-verification-node',
+      detail: 'This task has no reviewable commit. Run the verification node instead of committing.',
+    };
+  }
+  return {
+    action: 'report-and-stop',
+    detail: `Stop and report ${reason}. Do not stage, commit, or move the pointer.`,
+  };
+}
+
 function commitTask({
   repoRoot, blueprintDir, yes = false, git, validateGate = validateBlueprint,
 }: {
@@ -200,7 +294,11 @@ function commitTask({
   // verification node에는 reviewable commit이 없으므로 commit gate까지 보내
   // G6/G8 오류로 위장하지 않고 실행 종류 경계에서 즉시 거절한다.
   if (executionKind === 'verification') {
-    return { ok: false, reason: 'verification-task-no-commit' };
+    return {
+      ok: false,
+      reason: 'verification-task-no-commit',
+      recovery: recoveryFor('verification-task-no-commit', false),
+    };
   }
   // G17은 index 전체를 보므로 task가 stage하지 않을 finalize 삭제도 막는다.
   // 검사 중에만 index에서 분리하고 즉시 원상복구해, 이후 `--only` commit이
@@ -223,7 +321,14 @@ function commitTask({
       });
     }
   }
-  if (!v.ok) return { ok: false, reason: 'validate', failures: v.failures };
+  if (!v.ok) {
+    return {
+      ok: false,
+      reason: 'validate',
+      failures: v.failures,
+      recovery: recoveryFor('validate', false),
+    };
+  }
   // 커밋 단위는 task 하나 — 첫 docs.tasks 호환 필드가 아니라 대상 묶음의 경로.
   const affectedPaths = taskUnit && taskUnit.tasks && taskUnit.tasks.data
     && (taskUnit.tasks.data as Record<string, unknown>).bouncer
@@ -255,7 +360,15 @@ function commitTask({
   const { allow, violations, code } = checkCommitSafety({
     files: scopeCandidates, affectedPaths, blueprintDir, coordinator, executionKind,
   });
-  if (!allow) return { ok: false, reason: code || 'out-of-scope', violations };
+  if (!allow) {
+    const reason = code || 'out-of-scope';
+    return {
+      ok: false,
+      reason,
+      violations,
+      recovery: recoveryFor(reason, coordinator.active),
+    };
+  }
 
   // 범위 허용과 분리된 task 커밋 전용 필터로 workflow 문서를 남긴다.
   const all = filterTaskCommitCandidates({
@@ -277,6 +390,7 @@ function commitTask({
       commitMessage,
       nextTask,
       ...coordinatorProvenance(coordinator, null, null, null),
+      ...commitGuidance({ coordinator, dryRun: true, nextTask, stampPath: null }),
     };
   }
 
@@ -289,6 +403,7 @@ function commitTask({
       commitMessage,
       nextTask,
       ...coordinatorProvenance(coordinator, null, null, null),
+      ...commitGuidance({ coordinator, dryRun: false, nextTask, stampPath: null }),
     };
   }
 
@@ -367,6 +482,14 @@ function commitTask({
     nextTask,
     commitSha,
     ...coordinatorProvenance(coordinator, all, taskSha, ledgerRecord),
+    ...commitGuidance({
+      coordinator,
+      dryRun: false,
+      nextTask,
+      stampPath: commitSha && taskUnit && taskUnit.tasks && taskUnit.tasks.rel
+        ? toPosix(taskUnit.tasks.rel)
+        : null,
+    }),
   };
 }
 

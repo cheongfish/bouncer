@@ -36,66 +36,54 @@ If `current` is `null`, stop and tell the user to run `/bouncer-plan` first.
 Apply the shared returned-value and task-brief selection contract. This
 workflow only supplies the current task's scope and its post-commit handoff.
 
-1. **Scope dry-run.** When present, target task frontmatter fields
-   `bouncer.commit_intent` and `bouncer.commit_summary` must each contain 1–2
-   Korean terminal sentences (task document only — no blueprint fallback).
-   Missing fields remain compatible with older tasks and contribute no bullets;
-   malformed fields fail message generation rather than being partly omitted.
-   Author valid values at plan time from Goal & intent (no Epic/Blueprint ids,
-   file, module, or package names), then proceed.
-   Dry-run first:
+1. **Current.** State the selected `{ blueprint, task, base }` from `bouncer
+   current`. Later steps keep that `tasks/<NNN>/tasks.md` brief.
+
+2. **Dry-run.**
    ```bash
    bouncer commit --blueprint <pointer.blueprint>
    ```
-   This checks every uncommitted change (tracked or untracked) against the
-   task's current allowed-set — under a drive that is the coordinator ledger's
-   scope for this revision, not the approval snapshot. Anything out of scope is
-   a **hard abort — nothing staged**. Show the violations and stop: the fix is
-   the controller's, and during a drive it is one `bouncer coordinate revise`
-   decision, not an edit to `affected_paths` made here. On a clean dry-run (or
-   empty staged set), keep the staged file list + generated commit message.
-   This dry-run runs the commit gate once (G6/G7/G8 and G17); on a gate
-   failure, stop without `--yes`. (Empty staged set is fine — still continue;
-   `--yes` will not create an empty commit.)
-
-   Allowed task-bundle and context workflow documents are scope
-   candidates but are not task-commit staging candidates. Only task outputs
-   are staged; an untracked path must exist before it can be staged.
-
-2. **Commit (deterministic core).** Show the dry-run staged list + generated
-   commit message, then commit:
-   ```bash
-   bouncer commit --blueprint <pointer.blueprint> --yes
-   ```
-   Invoking this skill is the consent for this one task commit: this step asks
-   no AskUserQuestion, and a drive's start ACQ already covers every task it
-   drives. If the message or staging is wrong, fix it and re-run step 1 rather
-   than committing something the dry-run did not show.
+   Compact output follows that result; emit raw JSON only on `debug`. On
+   `ok: false`, follow `recovery.action` and stop — nothing is staged. On
+   `ok: true`, `nextAction` is `confirm-commit` and `stampPath` is `null`.
    The CLI does **not** move the pointer — `nextTask` in the JSON is a
    candidate only.
 
-   **Post-commit `tasks.md` stamp.** After a successful `--yes` that created a
-   commit, the CLI writes `bouncer.commit_sha` into the pointer task's
-   `tasks.md` (working tree only) so `/bouncer-finalize` can copy it into
-   `explain.md` `bouncer.task_commits`. That write may re-render YAML and look
-   like formatting noise — **do not** `git checkout` / `git restore` / discard
-   that dirty `tasks.md`. Leave it for the next task commit or finalize
-   remainder.
+3. **Confirm the result.** Show `staged` and `commitMessage`. If either is
+   wrong, fix the worktree and return to step 2 rather than committing
+   something the dry-run did not show. Invoking this skill is the consent for
+   this one task commit: this step asks no AskUserQuestion, and a drive's
+   start ACQ already covers every task it
+   drives.
 
-3. **Hand the result back.** The commit payload carries the provenance the
-   controller routes on: the task SHA on the worker branch, the paths the
-   commit actually carried, the ledger record result, and `nextTask`.
+4. **Commit.**
+   ```bash
+   bouncer commit --blueprint <pointer.blueprint> --yes
+   ```
+   Compact output follows that result; emit raw JSON only on `debug`. On
+   `ok: false`, follow `recovery.action` and stop. On `ok: true`, read
+   `controller`, `nextAction`, and `stampPath`. When `stampPath` is set, the
+   CLI wrote `bouncer.commit_sha` into that `tasks.md` so `/bouncer-finalize`
+   can copy it into `explain.md` `bouncer.task_commits` — **do not** `git
+   checkout` / `git restore` / discard that dirty `tasks.md`. Leave it for
+   the next task commit or finalize remainder.
 
-   Under a coordinator drive, return those to the coordinator and stop. It
-   records the worker SHA with `bouncer coordinate record`, reflects it with
-   `bouncer coordinate integrate` in dependency order, verifies the integration
+5. **Handoff.** Route on `nextAction`. The commit payload carries the
+   provenance the controller routes on: the task SHA on the worker branch,
+   the paths the commit actually carried, the ledger record result, and
+   `nextTask`.
+
+   When `nextAction` is `return-to-coordinator`, return those to the coordinator and stop. It records the worker SHA with `bouncer coordinate
+   record`, reflects it with `bouncer coordinate integrate` in dependency
+   order, verifies the integration
    head, and moves the pointer with `bouncer current --set` — one pointer
    serves the whole repository, so no worker moves it and no worker touches the
    integration branch. An unverified fan-in is not a completed task.
 
-   Outside a drive, report the commit and keep the confirm-then-set rule of
-   `rules/current-pointer.md`. With a non-null `nextTask`, show its id and path
-   (`tasks/<NNN>/tasks.md`), then run this **ACQ**:
+   When `nextAction` is `ask-next-task` or `finalize`, report the commit and
+   keep the confirm-then-set rule of `rules/current-pointer.md`. With a
+   non-null `nextTask`, show its id and path (`tasks/<NNN>/tasks.md`), then
+   run this **ACQ**:
 
    **AskUserQuestion — Next task**
    1. **Re-ground**: Whether to move the pointer to the next open task on this blueprint.
@@ -108,18 +96,14 @@ workflow only supplies the current task's scope and its post-commit handoff.
    On **A**, run that `--set` and point at `/bouncer-execute`. On **B** or
    **C**, leave the pointer as it is and say so.
 
-4. **Report.** Render through `rules/output.md`: commit outcome (including an
-   empty staged set), commit subject, worker branch SHA, pointer target, and
-   next task or `/bouncer-finalize` action.
-
 ## ACQ (AskUserQuestion) gates
 
 Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 `/bouncer-commit` is not consent for a pointer advance.
 
 **Index:**
-- Step 3 — Next task (outside a drive only)
+- Step 5 — Next task (outside a drive only)
 
-Invoking this skill is the consent for the one task commit it makes, so step 2
-asks nothing. Under a drive the coordinator owns the pointer and step 3 asks
+Invoking this skill is the consent for the one task commit it makes, so step 4
+asks nothing. Under a drive the coordinator owns the pointer and step 5 asks
 nothing either.

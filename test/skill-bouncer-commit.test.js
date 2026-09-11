@@ -23,9 +23,6 @@ test('bouncer-commit is an explicit-ask workflow skill', () => {
   assert.match(body, /bouncer commit --blueprint <pointer\.blueprint>/);
   assert.doesNotMatch(body, /validate\s+--gate\s+commit/);
   assert.match(body, /bouncer"\s+commit[\s\S]*--yes|commit\s+--blueprint[\s\S]*--yes/);
-  // commit 게이트 계약(존재) + explain-diff 호출 부재 — 부재만 두면 금지 문구가 매칭을 깨뜨림
-  assert.match(body, /G6\/G7\/G8/);
-  assert.match(body, /G17/);
   assert.doesNotMatch(body, /skills\/explain-diff\/SKILL\.md/);
   assert.match(body, /current --set/);
 });
@@ -83,24 +80,29 @@ test('bouncer-commit stops at the worker branch and leaves fan-in to the coordin
   assert.match(body, /no worker moves it and no worker touches the\s*\n?\s*integration branch/);
 });
 
-// drift는 여기서 affected_paths를 고쳐 통과시키는 것이 아니라 coordinator 판정이다.
-test('bouncer-commit routes an out-of-scope abort to coordinate revise', () => {
+// abort 규칙은 payload.recovery와 governance 정본이 들고, 본문은 그 필드를 읽는다.
+test('bouncer-commit follows recovery.action and cites governance instead of restating abort rules', () => {
   const { body } = parseFrontmatter(md);
-  assert.match(body, /hard abort — nothing staged/);
-  assert.match(body, /coordinator ledger's\s*\n?\s*scope for this revision/);
-  assert.match(body, /not the approval snapshot/);
-  assert.match(body, /one `bouncer coordinate revise`\s*\n?\s*decision/);
+  assert.match(body, /recovery\.action/);
+  assert.match(body, /rules\/governance\.md/);
 });
 
-test('bouncer-commit keeps four numbered steps and indexes only the pointer ACQ', () => {
+test('bouncer-commit routes on commit payload fields instead of restating CLI behavior', () => {
+  const { body } = parseFrontmatter(md);
+  assert.match(body, /\bcontroller\b/);
+  assert.match(body, /nextAction/);
+  assert.match(body, /stampPath/);
+});
+
+test('bouncer-commit keeps five numbered steps and indexes only the pointer ACQ', () => {
   assertShape(md, {
     headings: { required: ['ACQ (AskUserQuestion) gates'] },
-    steps: { required: [1, 2, 3, 4], order: true, acq: [3], acqOptions: [3] },
-    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [3], only: true },
+    steps: { required: [1, 2, 3, 4, 5], order: true, acq: [5], acqOptions: [5] },
+    acqIndex: { heading: 'ACQ (AskUserQuestion) gates', steps: [5], only: true },
   });
   const { body } = parseFrontmatter(md);
   const index = body.slice(body.indexOf('\n## ACQ (AskUserQuestion) gates\n'));
-  assert.match(index, /Step 3 — Next task/);
-  assert.doesNotMatch(index, /Step 2 — Commit/);
+  assert.match(index, /Step 5 — Next task/);
+  assert.doesNotMatch(index, /Step 4 — Commit/);
   assert.match(body, /rules\/acq\.md/);
 });
