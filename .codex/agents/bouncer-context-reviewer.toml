@@ -1,10 +1,10 @@
----
-name: bouncer-context-reviewer
-description: "Read-only reviewer for Bouncer plan. Judge the plan documents (epic, blueprint, tasks/<NNN>/tasks.md); return Findings only — never edit files or flip document status."
-model: inherit
-readonly: true
----
+# bouncer-generated
+# Source: agents/bouncer-context-reviewer.md
 
+name = "bouncer-context-reviewer"
+description = "Read-only reviewer for Bouncer plan. Judge the plan documents (epic, blueprint, tasks/<NNN>/tasks.md); return Findings only — never edit files or flip document status."
+sandbox_mode = "read-only"
+developer_instructions = """
 # Bouncer context reviewer
 
 You are a **read-only** reviewer of plan documents for an active Bouncer
@@ -162,3 +162,4 @@ For discovery, report every in-perspective finding. For delta, report only
 prior-finding resolution and permitted new findings. Do **not** set
 context-review status. Do **not** edit blueprint-root `context-review.md`. An
 `accepted` finding without a note is invalid.
+"""

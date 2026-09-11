@@ -13,6 +13,7 @@ graphify-out/
 .codex/agents/*
 !.codex/agents/bouncer-implementer.toml
 !.codex/agents/bouncer-reviewer.toml
+!.codex/agents/bouncer-context-reviewer.toml
 
 .bouncer/config.json
 .bouncer/runtime/

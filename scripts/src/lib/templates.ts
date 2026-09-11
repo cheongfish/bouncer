@@ -192,7 +192,18 @@ Blueprint: [<BP-id>](../../index.md)
 ## Findings
 <!-- finding: id, severity, status. accepted이면 note 필수.
      severity: blocker | major | minor | nit
-     status: resolved | accepted -->
+     status: resolved | accepted
+     mode를 쓰는 rounds[]면 category, brief_clause, file, symbol, fingerprint, actionability,
+     origin, first_seen_round, last_seen_round도 필수.
+     category: cross_document | scope | korean_quality | success_criteria
+     brief_clause: finding이 걸린 문서 절 (예: tasks/002 Interface)
+     file: 계획 문서의 저장소 상대 경로, symbol: 절 제목 slug (절이 없으면 -)
+     fingerprint: context:<category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ 제거)
+     actionability: must_fix | advisory
+     origin: discovery | introduced_by_revision | missed_critical
+     optional bouncer.context_review.rounds[]: round (양의 정수), mode (discovery | delta),
+     target (digest), perspectives (cross_document | scope | korean_quality | success_criteria,
+     target_digest는 target.digest와 동일), severity_changes. rounds 없는 구문서는 기존 계약으로 통과한다. -->
 - <finding>
 `,
   // G16를 tasks 템플릿이 G10에서 실패하는 것과 같은 방식으로 — 작성이

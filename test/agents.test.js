@@ -233,6 +233,26 @@ test('bouncer-context-reviewer treats severity as a label, not a reporting filte
   assert.doesNotMatch(contextReviewSkill(), /report every real issue/i);
 });
 
+// plan review도 execute처럼 관점 단위 discovery와 delta 인증으로 수렴한다.
+// 관점 이름은 G18이 round perspectives에서 받는 값과 같아야 한다.
+test('bouncer-context-reviewer judges one perspective and certifies deltas with origin', () => {
+  const md = contextReviewerAgent();
+  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+  for (const perspective of ['cross_document', 'scope', 'korean_quality', 'success_criteria']) {
+    assert.match(md, new RegExp(`\`${perspective}\``));
+  }
+  assert.match(md, /### Discovery/);
+  assert.match(md, /### Delta/);
+  assert.match(md, /introduced_by_revision/);
+  assert.match(md, /missed_critical/);
+  assert.match(md, /`origin`/);
+  assert.match(md, /context:/);
+  assert.match(md, /brief_clause/);
+
+  const tomlPath = path.join(root, '.codex/agents/bouncer-context-reviewer.toml');
+  assert.strictEqual(fs.readFileSync(tomlPath, 'utf8'), mdToCodexToml(md));
+});
+
 // coordinator는 /bouncer-run이 drive 권한을 넘긴 controller다. 이 네 절이
 // 빠지면 위임받은 쪽이 어디까지 결정할 수 있는지가 문서에 남지 않는다.
 test('bouncer-coordinator owns delegated drive authority and worker dispatch', () => {

@@ -58,6 +58,38 @@ test('context-review declares itself full-plan only', () => {
   assert.match(md, /no light variant|set `scale` back to `full`/);
 });
 
+// 호출 계약: 네 관점을 병렬로 나눠 보내고, 결과를 context_review.rounds[]에 남긴다.
+test('context-review dispatches four perspectives in parallel and records rounds', () => {
+  const md = readSkill('context-review');
+  assert.match(md, /parallel/i);
+  for (const perspective of ['cross_document', 'scope', 'korean_quality', 'success_criteria']) {
+    assert.match(md, new RegExp(`\`${perspective}\``));
+  }
+  assert.match(md, /bouncer\.context_review\.rounds/);
+  assert.match(md, /target_digest/);
+  assert.match(md, /discovery/);
+  assert.match(md, /delta/);
+  assert.match(md, /context:/);
+});
+
+// controller 절차: snapshot 고정 → digest → 관점별 병렬 dispatch → 단일 수정 → delta 인증.
+test('plan context-review controller freezes a digest, revises once, and certifies the delta', () => {
+  const md = fs.readFileSync(planContextReviewPath, 'utf8');
+  assert.match(md, /snapshot/i);
+  assert.match(md, /sha256/);
+  assert.match(md, /frontmatter/);
+  // digest 입력 순서: epic → blueprint → tasks 번호 오름차순.
+  assert.match(md, /epic `index\.md`[\s\S]{0,80}blueprint `index\.md`[\s\S]{0,80}tasks\/<NNN>\/tasks\.md/);
+  assert.match(md, /ascending/i);
+  assert.match(md, /in parallel/i);
+  assert.match(md, /target_digest/);
+  assert.match(md, /once/i);
+  assert.match(md, /\bdelta\b/);
+  assert.match(md, /previous findings/i);
+  assert.match(md, /introduced_by_revision/);
+  assert.match(md, /missed_critical/);
+});
+
 // controller 기록 경로가 finding note에 같은 YAML 선두 인용 규칙을 갖는지 본다.
 // 문구 고정이 아니라 위험 입력·안전 형식·정본 연결의 식별자만 본다.
 test('plan context-review controller quotes YAML-leading reserved characters in finding notes', () => {

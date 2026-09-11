@@ -367,12 +367,18 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
                     ? crData.bouncer
                     : {};
                 const crMeta = crBouncer.context_review;
+                // status는 CONTEXT_REVIEW_STATUS(resolved | accepted)로 닫아 둔다 — 계획 문서에는
+                // deferred가 계속 없다. 이번에 여는 것은 rounds 기록뿐이며, 'context' namespace가
+                // context: fingerprint와 digest target·계획 관점 round 계약을 고른다.
+                // rounds 키가 없는 구문서는 이전과 같은 판정만 받는다.
                 for (const message of collectFindingFailures({
                     body: docs.contextReview.body,
                     findings: crMeta && crMeta.findings,
+                    rounds: crMeta && crMeta.rounds,
                     sectionLabel: 'context-review',
                     findingLabel: 'context-review',
                     allowedStatuses: CONTEXT_REVIEW_STATUS,
+                    namespace: 'context',
                 })) {
                     add('G18', message, 'contextReview');
                 }
@@ -503,8 +509,9 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             : undefined;
         const reviewSkipped = reviewMeta && reviewMeta.required === false;
         // G14는 execute status(deferred 포함)와 선택적 rounds[]를 검사한다.
-        // G18은 CONTEXT_REVIEW_STATUS만 넘긴다 — 같은 헬퍼라도 계획 문서에
-        // deferred·원장을 열면 안 된다. G8의 accepted/required 판정은 그대로 둔다.
+        // G18은 CONTEXT_REVIEW_STATUS와 context namespace를 넘긴다 — 같은 헬퍼라도
+        // 계획 문서에는 deferred를 열지 않고, round 원장은 digest target 계약으로만 연다.
+        // G8의 accepted/required 판정은 그대로 둔다.
         if (!isVerificationTask && reviewDoc && !reviewSkipped) {
             for (const message of collectFindingFailures({
                 body: reviewDoc.body,
