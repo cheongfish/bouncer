@@ -3,6 +3,10 @@ const paths = require("./paths");
 const { toPosix } = paths;
 const SECTION_DEFS = [
     { key: 'goal', re: /^##\s+(Goal\s*&\s*intent|목적[·・.]?의도)\s*$/i },
+    // 선택 절: G10 필수 목록에는 없지만 경계로 등록한다. def가 없으면
+    // Goal & intent에 흡수되어 placeholder 검사가 goal로만 보고된다.
+    { key: 'currentBehavior', re: /^##\s+(Current\s+behavior|현재\s*동작)\s*$/i },
+    { key: 'targetBehavior', re: /^##\s+(Target\s+behavior|목표\s*동작)\s*$/i },
     { key: 'interface', re: /^##\s+(Interface|인터페이스)\s*$/i },
     { key: 'touch', re: /^##\s+(Touch|수정할\s*부분)\s*$/i },
     { key: 'doNotTouch', re: /^##\s+(Do\s+not\s+touch|절대\s*수정\s*금지)\s*$/i },

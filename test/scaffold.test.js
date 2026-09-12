@@ -600,8 +600,22 @@ test('light task bodies carry only the three gated sections', () => {
   assert.match(body, /^## Checklist$/m);
   assert.doesNotMatch(body, /^## Interface$/m);
   assert.doesNotMatch(body, /^## Do not touch$/m);
+  assert.doesNotMatch(body, /^## Current behavior$/m);
+  assert.doesNotMatch(body, /^## Target behavior$/m);
   // 미작성 상태로는 G10을 통과할 수 없어야 한다.
   assert.match(body, /<TODO:/);
+});
+
+test('full tasks template includes behavior sections and a symbol Touch table', () => {
+  const { TEMPLATES } = require('../scripts/lib/templates');
+  assert.match(TEMPLATES['tasks.md'], /^## Current behavior$/m);
+  assert.match(TEMPLATES['tasks.md'], /^## Target behavior$/m);
+  assert.match(
+    TEMPLATES['tasks.md'],
+    /\| 경로 \| 심볼 \| 변경 \| 현재 책임 \| 계획한 변경 \| 근거 \|/,
+  );
+  assert.doesNotMatch(TEMPLATES['tasks-light.md'], /^## Current behavior$/m);
+  assert.doesNotMatch(TEMPLATES['tasks-light.md'], /^## Target behavior$/m);
 });
 
 test('a later task on a light blueprint keeps the light template', () => {
