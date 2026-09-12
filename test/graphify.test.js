@@ -308,8 +308,19 @@ test('setupGraphify stops after the first failing step and never throws', () => 
   assert.strictEqual(r.bin, null);
   assert.match(r.reason, /venv/);
   assert.match(r.reason, /no python/);
-  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls.length, 2);
   assert.deepStrictEqual(calls[0].args, ['-m', 'venv', path.join(repo, '.bouncer/.venv')]);
+  assert.deepStrictEqual(calls[1], {
+    file: 'uv',
+    args: [
+      'venv',
+      '--seed',
+      '--relocatable',
+      '--python',
+      'python3',
+      path.join(repo, '.bouncer/.venv'),
+    ],
+  });
 });
 
 test('context freshness does not watch Distill index or shard directory lifecycle', () => {
@@ -658,6 +669,47 @@ test('upgradeGraphify restamps three graphs and swaps the shared venv to the man
   assert.ok(calls.some((c) => c.args[0] === 'install' && c.args[1] === 'graphifyy==0.9.56'));
 });
 
+test('upgradeGraphify falls back to uv --seed when python venv lacks ensurepip', () => {
+  const repo = initGitRepo();
+  writeGraphs(repo, '0');
+  const calls = [];
+  const r = upgradeGraphify({
+    repoRoot: repo,
+    platform: 'linux',
+    now: () => '2026-09-12T00:00:00.000+09:00',
+    exec: (file, args = []) => {
+      calls.push({ file, args: [...args] });
+      if (file === 'python3' && args[0] === '-m' && args[1] === 'venv') {
+        fs.mkdirSync(args[2], { recursive: true });
+        throw new Error('ensurepip is not available');
+      }
+      if (file === 'uv' && args[0] === 'venv') {
+        fs.mkdirSync(args[args.length - 1], { recursive: true });
+        return '';
+      }
+      if (file === 'uv' && args[0] === 'pip') return '';
+      if (args[0] === '--version') return '0.9.56\n';
+      if (args[0] === 'show') return 'Version: 0.9.56\n';
+      return '';
+    },
+    rebuild: () => {
+      writeGraphs(repo, 'pending');
+      return { ok: true };
+    },
+  });
+  assert.strictEqual(r.status, 'upgraded');
+  assert.ok(calls.some((c) => c.file === 'uv'
+    && c.args[0] === 'venv'
+    && c.args.includes('--seed')
+    && c.args.includes('--relocatable')
+    && c.args.includes('--python')));
+  assert.ok(calls.some((c) => c.file === 'uv'
+    && c.args[0] === 'pip'
+    && c.args[1] === 'install'
+    && c.args.includes('graphifyy==0.9.56')));
+  assert.strictEqual(readGraphifyLock({ repoRoot: repo }).value.cli_version, '0.9.56');
+});
+
 test('upgradeGraphify failure restores prior lock venv and graphs', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
@@ -939,4 +991,3 @@ test('upgradeGraphify restorePrior still restores graphs when lock rewrite throw
   );
   assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior-venv');
 });
-

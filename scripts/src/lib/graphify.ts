@@ -44,6 +44,14 @@ function venvBinAbsAt(venvDir: string, platform: string) {
   return path.join(venvDir, venvExecRel(platform, 'graphify'));
 }
 
+function venvPythonAbsAt(venvDir: string, platform: string) {
+  return path.join(venvDir, platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+}
+
+function uvBinFor(platform: string) {
+  return platform === 'win32' ? 'uv.exe' : 'uv';
+}
+
 function removeCreatedVenvDir(venvDir: string, createdThisRun: boolean) {
   // 이번 실행이 mkdir/venv 한 디렉터리만 지운다. 이미 있던 잔해·공유 bouncer/ 는 건드리지 않는다.
   if (!createdThisRun) return;
@@ -646,7 +654,16 @@ function rebuildFailureReason(rebuilt: unknown): string | null {
   if (!rebuilt || typeof rebuilt !== 'object') return null;
   const rec = rebuilt as { failed?: unknown; action?: unknown };
   if (Array.isArray(rec.failed) && rec.failed.length > 0) {
-    return 'rebuild-failed';
+    const detail = rec.failed
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') return String(entry);
+        const row = entry as { name?: unknown; message?: unknown };
+        const name = typeof row.name === 'string' ? row.name : 'unknown';
+        const message = typeof row.message === 'string' ? row.message : 'failed';
+        return `${name}: ${message}`;
+      })
+      .join('; ');
+    return detail ? `rebuild-failed (${detail})` : 'rebuild-failed';
   }
   const action = rec.action;
   if (typeof action === 'string' && REBUILD_SKIP_WITHOUT_BUILD.has(action)) {
@@ -667,6 +684,51 @@ function removeDirIfExists(abs: string) {
   }
 }
 
+/**
+ * 표준 venv가 ensurepip 부재로 실패하는 최소 Linux 설치에서도 로컬 uv를
+ * 폴백으로 쓴다. uv에는 pip 실행 파일이 필요하므로 --seed를, upgrade의
+ * staging rename 뒤 console-script shebang이 깨지지 않도록 --relocatable을 붙인다.
+ * 기존 디렉터리는 호출자가 이번 시도용으로 새로 만든 것이 확실할 때만 지운다.
+ */
+function createSeededVenv({
+  root,
+  venvDir,
+  plat,
+  run,
+  replaceOnFallback,
+}: {
+  root: string;
+  venvDir: string;
+  plat: string;
+  run: ExecFn;
+  replaceOnFallback: boolean;
+}): { ok: true; provider: 'python' | 'uv' } | { ok: false; reason: string } {
+  try {
+    run('python3', ['-m', 'venv', venvDir], { cwd: root, stdio: 'pipe' });
+    return { ok: true, provider: 'python' };
+  } catch (pythonError) {
+    if (!replaceOnFallback) {
+      return { ok: false, reason: `venv: ${catchMessageOrString(pythonError)}` };
+    }
+    // 실패한 python venv가 남긴 부분 디렉터리만 정리한다. upgrade staging과
+    // setup이 이번 실행에서 처음 만든 경로만 replaceOnFallback=true를 넘긴다.
+    removeDirIfExists(venvDir);
+    const uvBin = uvBinFor(plat);
+    try {
+      run(uvBin, ['venv', '--seed', '--relocatable', '--python', 'python3', venvDir], {
+        cwd: root,
+        stdio: 'pipe',
+      });
+      return { ok: true, provider: 'uv' };
+    } catch (uvError) {
+      return {
+        ok: false,
+        reason: `venv: ${catchMessageOrString(pythonError)}; uv fallback: ${catchMessageOrString(uvError)}`,
+      };
+    }
+  }
+}
+
 function installExactSpec({
   root,
   venvDir,
@@ -680,16 +742,30 @@ function installExactSpec({
   run: ExecFn;
   spec: string;
 }): { ok: true } | { ok: false; reason: string } {
-  try {
-    run('python3', ['-m', 'venv', venvDir], { cwd: root, stdio: 'pipe' });
-  } catch (e) {
-    return { ok: false, reason: `venv: ${catchMessageOrString(e)}` };
-  }
+  const venv = createSeededVenv({
+    root,
+    venvDir,
+    plat,
+    run,
+    // upgrade의 stagingDir는 호출 직전 항상 제거한 전용 경로다.
+    replaceOnFallback: true,
+  });
+  if (!venv.ok) return venv;
   if (!fs.existsSync(venvDir)) fs.mkdirSync(venvDir, { recursive: true });
   const pipAbs = path.join(venvDir, venvExecRel(plat, 'pip'));
   const binAbs = venvBinAbsAt(venvDir, plat);
   try {
-    run(pipAbs, ['install', spec], { cwd: root, stdio: 'pipe' });
+    if (venv.provider === 'uv') {
+      run(uvBinFor(plat), [
+        'pip',
+        'install',
+        '--python',
+        venvPythonAbsAt(venvDir, plat),
+        spec,
+      ], { cwd: root, stdio: 'pipe' });
+    } else {
+      run(pipAbs, ['install', spec], { cwd: root, stdio: 'pipe' });
+    }
   } catch (e) {
     return { ok: false, reason: `pip: ${catchMessageOrString(e)}` };
   }
@@ -757,21 +833,36 @@ function setupGraphify({
     const spec = manifestLoad.value.install_spec;
 
     // 1) venv 생성 — 절대 경로라 cwd와 무관하게 common dir / 폴백 위치를 가리킨다.
-    try {
-      run('python3', ['-m', 'venv', venvDir], { cwd: root, stdio: 'pipe' });
-    } catch (e) {
+    const venv = createSeededVenv({
+      root,
+      venvDir,
+      plat,
+      run,
+      replaceOnFallback: createdThisRun,
+    });
+    if (!venv.ok) {
       removeCreatedVenvDir(venvDir, createdThisRun);
       return {
         status: 'failed',
         bin: null,
-        reason: `venv: ${catchMessageOrString(e)}`,
+        reason: venv.reason,
       };
     }
 
     // 2) pip은 exact spec만. 언핀 graphifyy는 조회마다 다른 환경을 만든다.
     const pipAbs = path.join(venvDir, venvExecRel(plat, 'pip'));
     try {
-      run(pipAbs, ['install', spec], { cwd: root, stdio: 'pipe' });
+      if (venv.provider === 'uv') {
+        run(uvBinFor(plat), [
+          'pip',
+          'install',
+          '--python',
+          venvPythonAbsAt(venvDir, plat),
+          spec,
+        ], { cwd: root, stdio: 'pipe' });
+      } else {
+        run(pipAbs, ['install', spec], { cwd: root, stdio: 'pipe' });
+      }
     } catch (e) {
       removeCreatedVenvDir(venvDir, createdThisRun);
       return {
