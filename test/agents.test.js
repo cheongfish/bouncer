@@ -45,6 +45,19 @@ test('bouncer-context-reviewer records into blueprint-root context-review.md', (
   assert.match(md, /context-review\.md/);
 });
 
+// Authority는 여덟 절을 같은 순서로 권한 대상으로 둔다. 두 동작 절이 빠지면
+// 구현자가 템플릿에 생긴 Current/Target behavior를 무시한다.
+test('bouncer-implementer Authority includes Current and Target behavior', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  const authority = md.match(/## Authority\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  assert.match(authority, /- Current behavior/);
+  assert.match(authority, /- Target behavior/);
+  assert.match(
+    authority,
+    /Goal & intent[\s\S]*Current behavior[\s\S]*Target behavior[\s\S]*Interface[\s\S]*Touch[\s\S]*Do not touch[\s\S]*Constraints[\s\S]*Checklist/,
+  );
+});
+
 // 컨트롤러(특히 /bouncer-run 루프)는 diff를 다시 읽지 않고 이 필드로만 라우팅한다.
 test('bouncer-implementer applies debugger report as evidence on verify-failure re-dispatch', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');

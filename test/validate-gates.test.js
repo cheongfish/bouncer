@@ -503,6 +503,61 @@ test('the shipped tasks template cannot pass the plan gate untouched', () => {
   assert.match(g10[0].message, /placeholders: goal, interface, touch, doNotTouch, checklist/);
 });
 
+test('parseTasksSections reads Current and Target behavior as distinct keys', () => {
+  const s = parseTasksSections(
+    '## Goal & intent\ng\n## Current behavior\nc\n## Target behavior\nt\n## Interface\ni',
+  );
+  assert.strictEqual(s.goal, 'g');
+  assert.strictEqual(s.currentBehavior, 'c');
+  assert.strictEqual(s.targetBehavior, 't');
+  assert.strictEqual(s.interface, 'i');
+});
+
+test('plan gate G10 rejects TODO placeholders in optional behavior sections', () => {
+  // 문서 lint가 자리표시 원문을 막으므로 조합한다.
+  const todo = '<' + 'TODO: x>';
+  const withTarget = READY_BODY + `\n## Target behavior\n${todo}\n`;
+  const withCurrent = READY_BODY + `\n## Current behavior\n${todo}\n`;
+
+  const targetFailures = [];
+  checkGate('plan', planDocs(withTarget), rels, targetFailures);
+  const targetG10 = targetFailures.filter((f) => f.code === 'G10');
+  assert.strictEqual(targetG10.length, 1);
+  assert.match(targetG10[0].message, /placeholders: targetBehavior/);
+
+  const currentFailures = [];
+  checkGate('plan', planDocs(withCurrent), rels, currentFailures);
+  const currentG10 = currentFailures.filter((f) => f.code === 'G10');
+  assert.strictEqual(currentG10.length, 1);
+  assert.match(currentG10[0].message, /placeholders: currentBehavior/);
+
+  // 새 절이 없으면 기존 READY_BODY 판정이 그대로다.
+  const absentFailures = [];
+  checkGate('plan', planDocs(READY_BODY), rels, absentFailures);
+  assert.deepStrictEqual(absentFailures.filter((f) => f.code === 'G10'), []);
+});
+
+test('plan gate G11 accepts backtick paths inside a Touch table cell', () => {
+  const body = READY_BODY.replace(
+    '## Touch\n- `src/auth/`\n- `test/auth/`',
+    '## Touch\n| 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |\n'
+      + '| --- | --- | --- | --- | --- | --- |\n'
+      + '| `scripts/a.ts` | `fn` | Modify | a | b | c |',
+  );
+  const docs = {
+    epicIndex: doc('approved'),
+    blueprintIndex: doc('approved'),
+    tasks: doc('ready', {
+      graph: { suggested_paths: ['scripts/a.ts'], basis: 'manual: scripts/a.ts' },
+      affected_paths: ['scripts/a.ts'],
+    }, body),
+    contextReview: contextReviewDoc('accepted'),
+  };
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.deepStrictEqual(failures.filter((f) => f.code === 'G11'), []);
+});
+
 test('plan gate G11 fails when affected_paths not justified by Touch', () => {
   const docs = {
     epicIndex: doc('approved'),

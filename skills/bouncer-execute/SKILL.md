@@ -115,8 +115,9 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    [`rules/subagent-model.md`](../../rules/subagent-model.md) and read this
    reference: [agent-dispatch.md](./references/agent-dispatch.md). That reference
    owns the compact named payload and the full fallback payload. In every path,
-   pass only the pointer task brief's Goal & intent, Interface, Touch, Do not
-   touch, Constraints, and Checklist as decision authority.
+   pass only the pointer task brief's Goal & intent, Current behavior, Target
+   behavior, Interface, Touch, Do not touch, Constraints, and Checklist as
+   decision authority (omit absent behavior sections).
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —

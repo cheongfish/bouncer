@@ -123,3 +123,21 @@ test('spec-authoring consumes selected canonical context without promotion', () 
   assert.match(md, /explain-diff/);
   assert.match(md, /Korean bodies/);
 });
+
+// 여덟 절·Touch 표·모호성 금지·full 전환 네 조건은 tasks 항목과 plan Light
+// authoring scope가 함께 실어야 작성자와 구현자가 같은 계약을 본다.
+test('spec-authoring tasks item carries eight-section rules and full-return signals', () => {
+  const md = readSkill('spec-authoring');
+  const item = md.slice(md.indexOf('- **tasks**'), md.indexOf('- **verification / review**'));
+  assert.match(item, /Current behavior[\s\S]*Target behavior/);
+  assert.match(item, /reproduc/i);
+  assert.match(item, /success[\s\S]{0,120}failure[\s\S]{0,120}preserv/i);
+  assert.match(item, /경로 \| 심볼 \| 변경 \| 현재 책임 \| 계획한 변경 \| 근거/);
+  assert.match(item, /신규 추출 지점/);
+  assert.match(item, /적절히 처리한다/);
+  assert.match(item, /discovery task/i);
+  assert.match(item, /dry-run/);
+  const full4 = /public interface[\s\S]{0,300}protected path[\s\S]{0,300}error contract[\s\S]{0,300}multiple modules/i;
+  assert.match(item, full4);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'skills/bouncer-plan/SKILL.md'), 'utf8'), full4);
+});

@@ -438,7 +438,14 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             const tasksBody = tasksDoc && typeof tasksDoc.body === 'string' ? tasksDoc.body : '';
             const sections = parseTasksSections(tasksBody);
             const missing = sectionKeys.filter((k) => !sections[k]);
-            const unfilled = sectionKeys.filter((k) => sections[k] && TODO_RE.test(sections[k]));
+            // currentBehavior·targetBehavior는 필수 목록에 넣지 않는다(없으면 통과).
+            // 다만 절이 있으면 TODO 자리표시를 남긴 채 승인되면 미작성 브리프가
+            // 통과하므로, 존재하는 경우에만 placeholder 검사 키 뒤에 붙인다.
+            // Constraints는 계속 검사하지 않는다 — 기존 G10 계약을 유지한다.
+            const optionalPlaceholderKeys = ['currentBehavior', 'targetBehavior']
+                .filter((k) => sections[k]);
+            const unfilled = [...sectionKeys, ...optionalPlaceholderKeys]
+                .filter((k) => sections[k] && TODO_RE.test(sections[k]));
             if (missing.length) {
                 addTask('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`);
             }
