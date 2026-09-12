@@ -650,6 +650,203 @@ test('a missing verification bundle in a mixed wave is rejected before any worke
   assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
 });
 
+// task bundle 세 문서를 지정한 상태로 쓴다. commit_sha는 `bouncer commit`이 찍는
+// 8자리 short SHA 자리이고, 따옴표로 감싸 숫자뿐인 SHA도 문자열로 남긴다.
+function writeBundle(root, blueprint, id, { tasks, verification, review, commitSha }) {
+  const dir = path.join(root, blueprint, 'tasks', id);
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = commitSha ? `  commit_sha: '${commitSha}'\n` : '';
+  fs.writeFileSync(path.join(dir, 'tasks.md'),
+    `---\nbouncer:\n  id: TASKS-${id}\n  status: ${tasks}\n  depends_on: []\n  parallel_safe: true\n${stamp}---\nbrief ${id}\n`);
+  fs.writeFileSync(path.join(dir, 'verification.md'),
+    `---\nbouncer:\n  id: VERIFY-${id}\n  status: ${verification}\n---\n# Verification\n`);
+  fs.writeFileSync(path.join(dir, 'review.md'),
+    `---\nbouncer:\n  id: REVIEW-${id}\n  status: ${review}\n---\n# Review\n`);
+}
+
+const SCAFFOLD = { tasks: 'ready', verification: 'pending', review: 'pending' };
+const TERMINAL = { tasks: 'verified', verification: 'passed', review: 'accepted' };
+
+// 계획을 커밋하지 않은 두 task drive를 001 record까지 진행한다. worker와 integration의
+// bundle은 모두 scaffold 상태이고, 001 worker만 source 커밋 하나를 가진다.
+function recordedDrive(prefix, blueprint) {
+  const repo = uncommittedPlanRepo(prefix, blueprint, []);
+  for (const id of ['001', '002']) writeBundle(repo, blueprint, id, SCAFFOLD);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks.find((entry) => entry.id === '001').workerPath;
+  fs.mkdirSync(path.join(worker, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(worker, 'src/task.js'), 'changed by 001\n');
+  execFileSync('git', ['add', 'src/task.js'], { cwd: worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'feat: 001'],
+    { cwd: worker });
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+  return {
+    repo, worker, sha, integrationPath: boot.integrationPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+    head: () => execFileSync('git', ['rev-parse', 'HEAD'], { cwd: boot.integrationPath, encoding: 'utf8' }).trim(),
+  };
+}
+
+test('commit integrate refuses worker evidence that is not terminal or stamps another SHA', () => {
+  const blueprint = '.bouncer/context/epics/050-x/blueprints/051-y';
+  const drive = recordedDrive('bouncer-coordinator-evidence-', blueprint);
+  const bundle = `${blueprint}/tasks/001`;
+  const integrationBundle = snapshotTree(path.join(drive.integrationPath, bundle));
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const headBefore = drive.head();
+
+  // scaffold 상태 그대로 record한 worker는 증적이 없다.
+  const scaffold = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+  });
+  assert.strictEqual(scaffold.reason, 'worker-evidence-not-terminal', JSON.stringify(scaffold));
+  assert.deepStrictEqual(scaffold.files,
+    ['tasks.md', 'verification.md', 'review.md'].map((name) => `${bundle}/${name}`));
+  assert.strictEqual(drive.head(), headBefore);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+  assert.deepStrictEqual(snapshotTree(path.join(drive.integrationPath, bundle)), integrationBundle);
+
+  // 상태가 terminal이어도 다른 커밋의 SHA가 찍힌 증적은 이 fan-in의 증적이 아니다.
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: 'deadbeef' });
+  const mismatch = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+  });
+  assert.strictEqual(mismatch.reason, 'worker-evidence-sha-mismatch', JSON.stringify(mismatch));
+  assert.deepStrictEqual(mismatch.files, [`${bundle}/tasks.md`]);
+  assert.strictEqual(drive.head(), headBefore);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+  assert.deepStrictEqual(snapshotTree(path.join(drive.integrationPath, bundle)), integrationBundle);
+});
+
+test('commit integrate copies only the terminal task bundle into the integration worktree', () => {
+  const blueprint = '.bouncer/context/epics/052-x/blueprints/053-y';
+  const drive = recordedDrive('bouncer-coordinator-copy-', blueprint);
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
+  // worker 쪽 다른 bundle과 blueprint index가 바뀌어도 integration으로 번지면 안 된다.
+  fs.writeFileSync(path.join(drive.worker, blueprint, 'tasks/002/tasks.md'), 'worker-only edit\n');
+  fs.writeFileSync(path.join(drive.worker, blueprint, 'index.md'), 'worker-only index\n');
+  const otherBundle = snapshotTree(path.join(drive.integrationPath, blueprint, 'tasks/002'));
+  const indexBefore = fs.readFileSync(path.join(drive.integrationPath, blueprint, 'index.md'));
+
+  const result = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(result.task.status, 'integrated');
+  for (const name of ['tasks.md', 'verification.md', 'review.md']) {
+    const rel = path.join(blueprint, 'tasks/001', name);
+    assert.deepStrictEqual(fs.readFileSync(path.join(drive.integrationPath, rel)),
+      fs.readFileSync(path.join(drive.worker, rel)), rel);
+  }
+  assert.deepStrictEqual(snapshotTree(path.join(drive.integrationPath, blueprint, 'tasks/002')), otherBundle);
+  assert.deepStrictEqual(fs.readFileSync(path.join(drive.integrationPath, blueprint, 'index.md')), indexBefore);
+  assert.strictEqual(fs.readFileSync(path.join(drive.integrationPath, 'src/task.js'), 'utf8'), 'changed by 001\n');
+});
+
+test('a failed cherry-pick restores the copied bundle and keeps the throw path', () => {
+  const blueprint = '.bouncer/context/epics/054-x/blueprints/055-y';
+  const drive = recordedDrive('bouncer-coordinator-restore-', blueprint);
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
+  // review.md가 integration에 없던 경우도 되돌림 대상이다 — 복사로 생긴 파일은 지운다.
+  const bundle = path.join(drive.integrationPath, blueprint, 'tasks/001');
+  fs.rmSync(path.join(bundle, 'review.md'));
+  const bundleBefore = snapshotTree(bundle);
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const headBefore = drive.head();
+  const failingCherryPick = (file, args, options) => {
+    if (args[0] === 'cherry-pick') throw new Error('injected cherry-pick failure');
+    return execFileSync(file, args, options);
+  };
+
+  assert.throws(() => coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    deps: { execFileSync: failingCherryPick },
+  }), /injected cherry-pick failure/);
+  assert.deepStrictEqual(snapshotTree(bundle), bundleBefore);
+  assert.strictEqual(fs.existsSync(path.join(bundle, 'review.md')), false);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+  assert.strictEqual(drive.head(), headBefore);
+
+  // bundle 디렉터리 자체가 없던 경우 복사가 만든 `tasks/001/`까지 지워야 복사 전과 같다.
+  // 파일만 지우는 되돌림이면 빈 디렉터리가 남아 여기서 갈린다.
+  fs.rmSync(bundle, { recursive: true, force: true });
+  assert.throws(() => coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    deps: { execFileSync: failingCherryPick },
+  }), /injected cherry-pick failure/);
+  assert.strictEqual(fs.existsSync(bundle), false);
+  assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, blueprint, 'tasks/002/tasks.md')), true);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+  assert.strictEqual(drive.head(), headBefore);
+});
+
+test('a dynamic repair task integrates only with terminal worker evidence and copies its bundle', () => {
+  const blueprint = '.bouncer/context/epics/056-x/blueprints/057-y';
+  const repo = uncommittedPlanRepo('bouncer-coordinator-repair-evidence-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const integrationPath = boot.integrationPath;
+  const ledgerFile = path.join(integrationPath, '.bouncer/runtime/coordinator.json');
+  // 선행 조건만 원장에 둔다: 001은 통합되었고 terminal 검증 002가 실패한 상태다.
+  // repair task 003 자체는 아래 `coordinate repair`가 만든다.
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  seeded.tasks[0].status = 'integrated';
+  seeded.tasks[1].status = 'verifying';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+  const repaired = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['src/fix.js'], decision: 'repair source',
+  });
+  assert.strictEqual(repaired.ok, true, JSON.stringify(repaired));
+  assert.strictEqual(repaired.repairTask.id, '003');
+  assert.strictEqual(repaired.repairTask.dynamic, true);
+
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.deepStrictEqual(prepared.ready, ['003']);
+  const worker = prepared.tasks.find((entry) => entry.id === '003').workerPath;
+  fs.mkdirSync(path.join(worker, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(worker, 'src/fix.js'), 'repaired\n');
+  execFileSync('git', ['add', 'src/fix.js'], { cwd: worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fix: 003'],
+    { cwd: worker });
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '003' });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+
+  // repair가 쓴 scaffold(tasks ready, verification·review pending) 그대로는 증적이 아니다.
+  const bundle = `${blueprint}/tasks/003`;
+  const integrationBundle = snapshotTree(path.join(integrationPath, bundle));
+  const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
+  const headBefore = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: integrationPath, encoding: 'utf8' }).trim();
+  const scaffold = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '003' });
+  assert.strictEqual(scaffold.reason, 'worker-evidence-not-terminal', JSON.stringify(scaffold));
+  assert.deepStrictEqual(scaffold.files,
+    ['tasks.md', 'verification.md', 'review.md'].map((name) => `${bundle}/${name}`));
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
+  assert.strictEqual(
+    execFileSync('git', ['rev-parse', 'HEAD'], { cwd: integrationPath, encoding: 'utf8' }).trim(), headBefore);
+  assert.deepStrictEqual(snapshotTree(path.join(integrationPath, bundle)), integrationBundle);
+
+  writeBundle(worker, blueprint, '003', { ...TERMINAL, commitSha: sha.slice(0, 8) });
+  const integrated = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '003' });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  assert.strictEqual(integrated.task.status, 'integrated');
+  for (const name of ['tasks.md', 'verification.md', 'review.md']) {
+    const rel = path.join(bundle, name);
+    assert.deepStrictEqual(fs.readFileSync(path.join(integrationPath, rel)), fs.readFileSync(path.join(worker, rel)), rel);
+  }
+  assert.strictEqual(fs.readFileSync(path.join(integrationPath, 'src/fix.js'), 'utf8'), 'repaired\n');
+});
+
 test('record refuses a SHA that is not the assigned worker HEAD', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });

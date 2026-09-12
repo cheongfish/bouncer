@@ -25,6 +25,10 @@ const { listTasksDocs } = tasksDocs;
 import validateSections = require('./validate-sections');
 const { parseTasksSections } = validateSections;
 import templates = require('./templates');
+// finalize → current → coordinator 경로가 이미 있으므로 직접 import해도 새 순환은
+// 없다(coordinator의 import 닫힘에는 finalize가 없다).
+import coordinatorLib = require('./coordinator');
+const { readBouncerBlock } = coordinatorLib;
 const { normalizeAuthoredLines, parseIntentBody } = templates;
 
 // migrate-ids.ts와 같은 조합: 별도 YAML 직렬화 경로를 새로 만들지 않는다.
@@ -608,6 +612,54 @@ function buildIntegration(read: LedgerReadLike): IntegrationReport {
   };
 }
 
+type EvidenceMismatch = { id: string | null; expected: string; actual: string | null };
+
+/**
+ * 원장에서 integrated인 task마다 integration 사본의 tasks.md 상태를 대조한다.
+ * commit task는 `verified`, verification task는 `integrated`여야 한다. 원장만 앞서
+ * 가고 문서가 따라오지 않으면 G16이 원인 모를 열린 task로 보고하므로, 그 앞에서
+ * 어긋난 task를 이름으로 돌려준다. 읽기만 한다.
+ *
+ * @param {object} read - 읽기에 성공한 `readCoordinatorLedger` 결과
+ * @param {string} blueprintDir - blueprint 상대 경로
+ * @returns {EvidenceMismatch[]} 어긋난 task. 비어 있으면 일치
+ */
+function coordinatorEvidenceMismatches(
+  read: Extract<LedgerReadLike, { ok: true }>,
+  blueprintDir: string,
+): EvidenceMismatch[] {
+  const tasks = (Array.isArray(read.ledger.tasks) ? read.ledger.tasks : [])
+    .filter((entry) => Boolean(entry) && typeof entry === 'object')
+    .map((entry) => asRecord(entry))
+    .filter((entry) => entry.status === 'integrated');
+  const mismatches: EvidenceMismatch[] = [];
+  for (const entry of tasks) {
+    const id = threeDigitTaskId(entry.id);
+    const expected = entry.execution_kind === 'verification' ? 'integrated' : 'verified';
+    let actual: string | null = null;
+    if (id && read.integrationPath) {
+      const file = path.join(read.integrationPath, toPosix(blueprintDir), 'tasks', id, 'tasks.md');
+      actual = readTaskStatus(file);
+    }
+    if (actual !== expected) mismatches.push({ id, expected, actual });
+  }
+  return mismatches;
+}
+
+/**
+ * tasks.md의 `bouncer.status`를 읽는다. 문서가 없거나 frontmatter를 읽을 수 없으면
+ * null — 대조에서는 둘 다 기대 상태와 다른 값이다.
+ *
+ * @param {string} file - tasks.md 절대 경로
+ * @returns {string | null} 상태 문자열 또는 null
+ */
+function readTaskStatus(file: string): string | null {
+  // 부재·frontmatter 없음·깨진 YAML의 흡수 범위는 integrate 증적 판정과 같아야 하므로
+  // coordinator의 한 구현을 쓴다. integrated인데 읽을 수 없는 문서도 불일치로 보고된다.
+  const status = readBouncerBlock(file)?.status;
+  return typeof status === 'string' ? status : null;
+}
+
 /**
  * explain.md frontmatter에 drive provenance를 남긴다. task_commits와 같은
  * 이유로 삭제 직전에 쓴다 — 원장이 사라진 뒤 PR과 리뷰가 읽을 유일한 출처다.
@@ -673,6 +725,19 @@ function finalize({
     };
   }
 
+  // 원장은 G16보다 먼저 한 번만 읽는다. 증적 대조와 아래 provenance·integration이
+  // 같은 읽기를 써야 dry-run과 --yes, 그리고 두 필드가 서로 다른 원장을 보지 않는다.
+  const ledgerRead = readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });
+  // drive에서 원장만 integrated로 앞서고 integration 문서가 따라오지 않으면 G16은
+  // 원인 없이 "open tasks remain"만 낸다. 그 판정 전에 어긋난 task를 이름으로 멈춘다.
+  // 문서와 커밋은 쓰지 않으며 dry-run과 --yes가 같은 자리에서 멈춘다.
+  if (ledgerRead.ok) {
+    const mismatches = coordinatorEvidenceMismatches(ledgerRead, blueprintDir);
+    if (mismatches.length > 0) {
+      return { ok: false, reason: 'coordinator-evidence-mismatch', tasks: mismatches };
+    }
+  }
+
   const v = validateBlueprint({ repoRoot, blueprintDir, gate: 'finalize' });
   if (!v.ok) return { ok: false, reason: 'validate', failures: v.failures };
 
@@ -696,9 +761,8 @@ function finalize({
   const commitMessage = buildFinalizeCommitMessage(docs);
   // 위임 실행이면 원장이 이 마감의 provenance 정본이다. dry-run과 --yes가 같은
   // 값을 보고해야 사용자가 미리 본 정리 대상과 실제 정리 대상이 갈라지지 않는다.
-  // integration은 같은 읽기에서 접는다 — 보고 전용이라 거절 reason을 바꾸지 않고,
-  // 두 번 읽으면 그 사이 원장이 바뀌었을 때 두 필드가 어긋난다.
-  const ledgerRead = readCoordinatorLedger({ repoRoot, blueprint: blueprintDir });
+  // integration은 위에서 읽은 같은 원장에서 접는다 — 보고 전용이라 거절 reason을
+  // 바꾸지 않고, 두 번 읽으면 그 사이 원장이 바뀌었을 때 두 필드가 어긋난다.
   const collected = provenanceFromLedgerRead(ledgerRead);
   const integration = buildIntegration(ledgerRead);
   // 깨진 원장으로는 fan-in이 끝났는지 판정할 수 없다. 여기서 멈추지 않으면

@@ -13,7 +13,7 @@
 | `bouncer scaffold explain --blueprint <dir>` | BP `explain.md` 생성(`comprehension: []`). `/bouncer-finalize`가 호출 |
 | `bouncer scaffold context-review --blueprint <dir>` | BP `context-review.md` 생성. 이미 있으면 덮어쓰지 않고 거절. `closed` blueprint도 거절 |
 | `bouncer commit --blueprint <dir> [--yes]` | task 커밋 범위 확인, `--yes`면 그 task만 커밋. 포인터는 옮기지 않음. 성공 JSON에 `controller`(ledger 활성이면 `coordinator`, 아니면 `standalone`)·`nextAction`(dry-run은 `confirm-commit`, drive의 커밋·빈 staged는 `return-to-coordinator`, standalone은 `nextTask`가 있으면 `ask-next-task` 없으면 `finalize`)·`stampPath`(`commit_sha`를 쓴 tasks.md, 없으면 `null`)를 싣고, 실패 JSON에 `recovery: { action, detail }`를 싣음 |
-| `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 context 변경 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear. 성공 JSON의 `branch`는 drive면 `coordinator.integrationBranch`, standalone이면 실행 checkout의 실제 branch(확인 불가면 `null`)다. `coordinator`에는 `integrationBranch`와 task별 `branch`도 싣는다. dry-run·`--yes` 성공 JSON과 `coordinator-ledger` 거절 JSON에 `integration`(`ledger`: `absent` \| `ok` \| `unreadable`, `required`, `complete`, `openTasks`, `headVerified`)을 싣음. 보고 전용이며 거절 reason을 바꾸지 않음 |
+| `bouncer finalize --blueprint <dir> [--yes]` | 마감 게이트(G16) + 남은 context 변경 범위 확인. `--yes`면 스테이징 전에 검증 명령을 실행하고, 통과하면 커밋 후 포인터 clear. 성공 JSON의 `branch`는 drive면 `coordinator.integrationBranch`, standalone이면 실행 checkout의 실제 branch(확인 불가면 `null`)다. `coordinator`에는 `integrationBranch`와 task별 `branch`도 싣는다. dry-run·`--yes` 성공 JSON과 `coordinator-ledger` 거절 JSON에 `integration`(`ledger`: `absent` \| `ok` \| `unreadable`, `required`, `complete`, `openTasks`, `headVerified`)을 싣음. 보고 전용이며 거절 reason을 바꾸지 않음. 원장을 읽을 수 있는 drive는 G16보다 먼저 원장에서 `integrated`인 task마다 integration 사본의 `tasks.md` 상태(commit task `verified`, verification task `integrated`)를 대조하고, 어긋나면 dry-run과 `--yes` 모두 `{ ok: false, reason: 'coordinator-evidence-mismatch', tasks }`(각 `id`, `expected`, `actual` — 문서를 못 읽으면 `actual: null`)로 멈춤. 문서와 커밋은 바꾸지 않음 |
 | `bouncer coordinate <bootstrap\|prepare\|ready\|record\|rerecord\|integrate\|status\|revise\|repair\|partial-close\|critical-recovery> --blueprint <dir> [--task <NNN>] [--sha <sha>] [--decision <text>] [--paths <p>]... [--findings <id>]... [--outcome <resolved\|blocked>] [--reason <text>]` | coordinator 원장과 격리 worktree 운용. 결과 JSON은 stdout에 냄 — `{ok:false}` 거절도 `{"ok": false, "reason": …}` JSON으로 stdout에 나오고(`revise`만 예외로 stderr) 종료 코드 1. assigned-worktree 불일치·Git 실패는 throw 경로라 stderr 한 줄. 자세한 것은 아래 [`bouncer coordinate`](#bouncer-coordinate) |
 | `bouncer seed-worktree --blueprint <dir> --to <worktree>` | plan 컨텍스트 문서를 base 체크아웃에서 worktree로 이전하고 base를 원상복구. 옮길 것이 없으면 성공 |
 | `bouncer execute prepare --blueprint <dir>` | standalone execute worktree를 만들거나 재사용하고 plan 문서를 seed한 뒤 JSON을 출력. 새 standalone branch는 helper의 `<commit_type>/<epic-id>-<blueprint-id>-<slug>`이고, 재사용 worktree는 실제 branch를 그대로 보고한다. coordinator 원장이 있으면 `drive: true`와 배정된 worker 경로만 내고 생성·seed는 하지 않음 |
@@ -86,7 +86,7 @@ cwd를 배정 경로와 대조해, 자리가 다르면 `coordinate command must 
 | `ready` | integration worktree | `status`의 별칭입니다. 원장을 바꾸지 않습니다 | `ready`, `tasks`, `decisions` |
 | `status` | integration worktree | 원장 전체 상태를 읽습니다 | `ready`, `tasks`, `decisions` |
 | `record` | worker worktree | `--task`의 worker HEAD를 결과 SHA로 원장에 올리고 `recorded`로 옮깁니다. `--sha`를 주면 worker HEAD와 같아야 하고, `--decision <text>`는 그 판단을 결정 로그에 함께 남깁니다 | `task`(`sha`·`status`), `decisions` |
-| `integrate` | integration worktree | `recorded` task의 SHA를 integration branch로 cherry-pick하고 `integrated`로 옮깁니다. 원장의 `integrationHead`를 갱신합니다 | `task`, 다음 `ready`, `decisions` |
+| `integrate` | integration worktree | commit task는 기존 가드(`not-recorded`·`sha-not-owned-by-worker`·`stale-integration-head`) 뒤에 worker의 `<blueprint>/tasks/<NNN>/{tasks,verification,review}.md`를 읽어, tasks `verified`·verification `passed`·review `accepted`이고 tasks `commit_sha`가 기록된 SHA의 앞 8자리일 때만 그 세 문서를 integration의 같은 경로로 복사합니다. 다른 task bundle·blueprint `index.md`·source는 복사하지 않습니다. 그 뒤 `recorded` task의 SHA를 integration branch로 cherry-pick하고 `integrated`로 옮기며 원장의 `integrationHead`를 갱신합니다. 동적 repair task도 같은 규칙입니다. verification task는 증적 복사 없이 `ready → verifying → integrated`로 검증만 돌립니다 | `task`, 다음 `ready`, `decisions` |
 | `critical-recovery` | integration worktree | prepared task의 blocker/major recovery 시작을 `used: 1`, 반복 가능한 `findings`, `reason`, `outcome: null`로 기록합니다. `--outcome resolved\|blocked --reason <text>` 호출은 그 결과만 채웁니다 | `task`(`criticalRecovery`), `decision`, `decisions` |
 | `revise` | worker worktree | 실행 중 발견한 경로로 그 task의 scope를 개정합니다. task 문서와 원장을 같은 `revision`으로 옮기고 결정 로그에 이전·다음 경로를 붙입니다. `--paths`는 반복할 수 있고 `--reason`은 필수입니다 | `revision`, `previous`, `paths` |
 
@@ -137,6 +137,8 @@ throw 경로 문단).
 | `not-recorded` | `integrate` | `integrate` 대상이 `recorded`가 아닙니다. 이미 `integrated`인 task를 다시 부른 경우도 여기 걸려 중복 cherry-pick을 막습니다 |
 | `sha-not-owned-by-worker` | `integrate` | 기록된 SHA가 그 worker HEAD의 조상이 아닙니다 |
 | `stale-integration-head` | `integrate` | integration worktree HEAD가 원장이 아는 값과 다릅니다. 원장은 그대로 남습니다 |
+| `worker-evidence-not-terminal` | `integrate` | commit task의 worker bundle 문서 중 terminal 상태(tasks `verified`, verification `passed`, review `accepted`)가 아니거나 없거나 frontmatter를 읽을 수 없는 문서가 있습니다. 그 문서들을 `files`로 반환하며 복사·cherry-pick·원장 쓰기를 하지 않습니다 |
+| `worker-evidence-sha-mismatch` | `integrate` | worker `tasks.md`의 `commit_sha`가 원장에 기록된 SHA의 앞 8자리와 다릅니다. 그 `tasks.md`를 `files`로 반환하며 복사·cherry-pick·원장 쓰기를 하지 않습니다 |
 | `main-worktree-source-write` | `revise` | `revise`를 main checkout에서 불렀습니다 |
 | `unassigned-worktree` | `revise` | `revise`를 그 task에 배정되지 않은 checkout에서 불렀습니다 |
 | `decision-reason-required` / `scope-paths-required` | `revise` | `--reason`이 비었거나 유효한 `--paths` 값이 없습니다 |
@@ -173,7 +175,9 @@ throw 경로 문단).
 | `missing-coordinator-ledger` | 배정된 worktree에 원장이 없습니다. 손상되거나 사라진 원장 하나가 모든 checkout의 커밋을 막습니다 |
 
 fan-in 충돌은 `reason` 코드가 아니라 cherry-pick 실패입니다. Git stderr가
-`coordinate: …`로 나오고 원장은 갱신되지 않습니다 — 복구 절차는
+`coordinate: …`로 나오고 원장은 갱신되지 않습니다. cherry-pick 전에 복사한
+task bundle 세 문서는 복사 전 바이트로 되돌리고, 복사 전에 없던 문서는 지웁니다. 복사 전에
+`tasks/<NNN>/` 디렉터리가 없었다면 복사가 만든 그 디렉터리도 지웁니다 — 복구 절차는
 [troubleshooting.md](troubleshooting.md)에 있습니다.
 
 `context-search`는 exact anchor/path, domain tag, intent/evidence를 점수화하고

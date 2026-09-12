@@ -14,6 +14,8 @@ const schema = require("./schema");
 const { executionKindOf } = schema;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs } = tasksDocs;
+const commitShaMod = require("./commit-sha");
+const { normalizeCommitSha } = commitShaMod;
 function readyWave(tasks) {
     const ready = tasks.filter((task) => (task.status || 'pending') === 'pending'
         && (task.depends_on || []).every((id) => {
@@ -275,6 +277,131 @@ function writeVerificationTaskStatus(integrationPath, blueprint, taskId, status)
     const bouncer = data.bouncer;
     bouncer.status = status;
     fs.writeFileSync(file, renderDoc(data, doc.body));
+}
+// commit task가 fan-in될 수 있는 worker 증적. 문서마다 execute gate와 review가
+// 남기는 terminal 상태 하나만 받는다.
+const EVIDENCE_FILES = [
+    ['tasks.md', 'verified'], ['verification.md', 'passed'], ['review.md', 'accepted'],
+];
+// frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
+// 앞부분과 같다. 이 검사를 통과한 문서는 parseFrontmatter가 블록 부재로 throw할 수
+// 없으므로, 블록 부재를 오류 문구 비교 없이 구조로 판정한다.
+const FRONTMATTER_FENCE_RE = /^---\n[\s\S]*?\n---/;
+/**
+ * 문서의 bouncer 블록을 읽는다. 문서가 없거나 frontmatter 블록이 없거나 YAML이
+ * 깨졌으면 null — 호출자는 셋 다 "상태를 읽을 수 없다"로 판정한다. integrate의
+ * worker 증적 판정과 finalize의 원장·문서 대조가 이 한 구현을 같이 쓴다.
+ *
+ * @param {string} file - 문서 절대 경로
+ * @returns {Record<string, unknown> | null} bouncer 블록 또는 null
+ * @example
+ * readBouncerBlock('/wt/.bouncer/.../tasks/001/tasks.md'); // { id: 'TASKS-001', status: 'verified', ... }
+ * readBouncerBlock('/wt/.bouncer/.../tasks/001/missing.md'); // null
+ */
+function readBouncerBlock(file) {
+    let source;
+    try {
+        source = fs.readFileSync(file, 'utf8');
+    }
+    catch (error) {
+        // 파일 부재(ENOENT)만 흡수한다. 아직 쓰이지 않은 문서는 상태를 읽을 수 없는 것으로
+        // 판정하면 되지만, 권한 오류 같은 다른 실패를 "문서 없음"으로 접으면 원인이 가려진다.
+        if (error.code === 'ENOENT')
+            return null;
+        throw error;
+    }
+    if (!FRONTMATTER_FENCE_RE.test(source))
+        return null;
+    let data;
+    try {
+        data = parseFrontmatter(source).data;
+    }
+    catch (error) {
+        // YAML 파싱 오류만 흡수한다. 블록 부재는 위 구조 검사가 이미 걸렀으므로 여기 오는
+        // 것은 깨진 YAML뿐이고, 상태를 읽을 수 없는 문서라 null로 접어도 판정이 안전하다.
+        if (error.name === 'YAMLException')
+            return null;
+        throw error;
+    }
+    const bouncer = data && typeof data === 'object' ? data.bouncer : null;
+    return bouncer && typeof bouncer === 'object' ? bouncer : null;
+}
+/**
+ * commit task의 worker bundle이 fan-in할 terminal 증적인지 판정한다. 읽기만 한다.
+ * 상태가 모자라면 그 문서들을, 상태는 맞는데 `commit_sha`가 기록된 SHA의 앞
+ * 8자리(`bouncer commit`이 찍는 길이)와 다르면 tasks.md를 `files`로 돌려준다.
+ *
+ * @param {string} workerPath - 배정된 worker worktree
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task 번호
+ * @param {string} sha - 원장에 기록된 worker SHA
+ * @returns {{ ok: true } | { ok: false; reason: string; files: string[] }} 판정
+ */
+function checkWorkerEvidence(workerPath, blueprint, taskId, sha) {
+    const relOf = (name) => `${blueprint.replaceAll('\\', '/')}/tasks/${taskId}/${name}`;
+    const open = [];
+    let stamped;
+    for (const [name, terminal] of EVIDENCE_FILES) {
+        const bouncer = readBouncerBlock(path.join(workerPath, blueprint, 'tasks', taskId, name));
+        if (!bouncer || bouncer.status !== terminal)
+            open.push(relOf(name));
+        if (name === 'tasks.md' && bouncer)
+            stamped = bouncer.commit_sha;
+    }
+    if (open.length > 0)
+        return { ok: false, reason: 'worker-evidence-not-terminal', files: open };
+    // normalizeCommitSha는 YAML이 숫자로 읽은 SHA도 문자열로 되돌리고 소문자로 맞춘다.
+    if (normalizeCommitSha(stamped) !== sha.slice(0, 8).toLowerCase()) {
+        return { ok: false, reason: 'worker-evidence-sha-mismatch', files: [relOf('tasks.md')] };
+    }
+    return { ok: true };
+}
+/**
+ * worker의 task bundle 세 문서를 integration의 같은 경로로 복사한다. 다른 task
+ * bundle·blueprint index·source는 건드리지 않는다. 돌려주는 함수는 복사 전 바이트로
+ * 되돌리며, 복사 전에 없던 파일은 지우고 복사가 새로 만든 `tasks/<NNN>/`도 지운다.
+ *
+ * @param {string} workerPath - 배정된 worker worktree
+ * @param {string} integrationPath - integration checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task 번호
+ * @returns {() => void} 복사 되돌림
+ */
+function copyEvidenceBundle(workerPath, integrationPath, blueprint, taskId) {
+    const targetDir = path.join(integrationPath, blueprint, 'tasks', taskId);
+    // 복사 전에 bundle 디렉터리가 없었다면 그 안의 파일은 모두 이 복사가 만든 것이다.
+    // 파일만 지우면 빈 `tasks/<NNN>/`이 남아 integration 사본이 복사 전과 달라진다.
+    const dirExisted = fs.existsSync(targetDir);
+    const entries = EVIDENCE_FILES.map(([name]) => {
+        const target = path.join(targetDir, name);
+        return {
+            source: path.join(workerPath, blueprint, 'tasks', taskId, name), target,
+            before: fs.existsSync(target) ? fs.readFileSync(target) : null,
+        };
+    });
+    const restore = () => {
+        if (!dirExisted) {
+            fs.rmSync(targetDir, { recursive: true, force: true });
+            return;
+        }
+        for (const entry of entries) {
+            if (entry.before === null)
+                fs.rmSync(entry.target, { force: true });
+            else
+                fs.writeFileSync(entry.target, entry.before);
+        }
+    };
+    try {
+        fs.mkdirSync(targetDir, { recursive: true });
+        for (const entry of entries)
+            fs.copyFileSync(entry.source, entry.target);
+    }
+    catch (error) {
+        // 흡수하지 않는다. 일부만 복사된 bundle을 되돌린 뒤 같은 예외를 올린다.
+        restore();
+        throw error;
+    }
+    return restore;
 }
 function registeredWorker(exec, integrationPath, workerPath) {
     try {
@@ -756,7 +883,22 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         if (ledger.integrationHead !== git(exec, integration.integrationPath, ['rev-parse', 'HEAD'])) {
             return { ok: false, reason: 'stale-integration-head' };
         }
-        git(exec, integration.integrationPath, ['cherry-pick', item.sha]);
+        // 증적 판정은 기존 가드 뒤, 어떤 쓰기보다 앞이다. worker에만 남은 terminal
+        // 문서를 integration으로 가져오지 않으면 finalize G16이 이 task를 열린 task로
+        // 본다. 동적 repair task도 같은 commit 경로라 같은 규칙을 받는다.
+        const evidence = checkWorkerEvidence(worker, blueprint, task, item.sha);
+        if (!evidence.ok)
+            return evidence;
+        const restoreBundle = copyEvidenceBundle(worker, integration.integrationPath, blueprint, task);
+        try {
+            git(exec, integration.integrationPath, ['cherry-pick', item.sha]);
+        }
+        catch (error) {
+            // cherry-pick 실패는 흡수하지 않는다. 복사한 문서만 되돌리고 기존 throw 경로로
+            // 올려, 원장이 recorded로 남은 채 integration 문서만 terminal인 상태를 막는다.
+            restoreBundle();
+            throw error;
+        }
         item.status = transition('recorded', 'integrated');
         ledger.integrationHead = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
         atomicWrite(integration.ledgerFile, ledger);
@@ -764,4 +906,4 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     }
     return { ok: false, reason: 'unknown-coordinate-command' };
 }
-module.exports = { readyWave, transition, coordinate, loadLedger };
+module.exports = { readyWave, transition, coordinate, loadLedger, readBouncerBlock };

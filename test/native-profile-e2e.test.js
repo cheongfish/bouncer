@@ -131,6 +131,18 @@ test('the coordinator lifecycle runs end to end through the shipped CLI surface'
   git(worker, ['add', 'src/login.js']);
   git(worker, ['commit', '-m', 'feat: login']);
   const workerSha = git(worker, ['rev-parse', 'HEAD']);
+  // integrate는 worker bundle이 terminal 증적일 때만 fan-in한다. execute gate와
+  // `bouncer commit`이 남기는 값 — commit_sha는 worker SHA의 앞 8자리다.
+  writeDoc(worker, `${BP_REL}/tasks/001/tasks.md`,
+    base('bouncer.tasks', 'TASKS-001', 'verified', {
+      affected_paths: ['src/login.js'], depends_on: [], parallel_safe: true,
+      dependency_gate: 'integrated', commit_sha: workerSha.slice(0, 8),
+    }),
+    '# Tasks\n');
+  writeDoc(worker, `${BP_REL}/tasks/001/verification.md`,
+    base('bouncer.verification', 'VERIFY-001', 'passed'), '# Verification\n');
+  writeDoc(worker, `${BP_REL}/tasks/001/review.md`,
+    base('bouncer.review', 'REVIEW-001', 'accepted'), '# Review\n');
 
   const recorded = cli(worker, [
     'coordinate', 'record', '--blueprint', BP_REL, '--repo', repo,

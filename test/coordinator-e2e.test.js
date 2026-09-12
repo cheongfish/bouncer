@@ -12,6 +12,12 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { coordinate, loadLedger } = require('../scripts/lib/coordinator');
+const { readDoc } = require('../scripts/lib/frontmatter');
+const { renderDoc } = require('../scripts/lib/render');
+const { validateBlueprint } = require('../scripts/lib/validate');
+const { finalize } = require('../scripts/lib/finalize');
+const { readCoordinatorLedger } = require('../scripts/lib/scope');
+const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
 function git(cwd, args) {
   return execFileSync('git', args, {
@@ -98,6 +104,32 @@ function commitInWorker(worker, rel, body, message) {
   return git(worker, ['rev-parse', 'HEAD']);
 }
 
+/**
+ * worker의 task bundle을 execute·commit이 끝난 terminal 증적으로 쓴다. 실제
+ * 흐름에서는 execute gate와 `bouncer commit`이 쓰는 값이다 — tasks `verified`와
+ * 8자리 `commit_sha`, verification `passed`, review `accepted`. 이미 있는 문서는
+ * frontmatter와 본문을 보존하고 상태만 바꾼다.
+ *
+ * @param {string} worker - worker worktree 경로
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} id - 세 자리 task id
+ * @param {string} sha - worker 커밋 전체 SHA
+ */
+function writeTerminalEvidence(worker, blueprint, id, sha) {
+  const dir = path.join(worker, blueprint, 'tasks', id);
+  for (const [name, prefix, status] of [
+    ['tasks.md', 'TASKS', 'verified'], ['verification.md', 'VERIFY', 'passed'], ['review.md', 'REVIEW', 'accepted'],
+  ]) {
+    const file = path.join(dir, name);
+    const doc = fs.existsSync(file)
+      ? readDoc(file)
+      : { data: { bouncer: { id: `${prefix}-${id}` } }, body: `# ${prefix}\n` };
+    doc.data.bouncer.status = status;
+    if (name === 'tasks.md') doc.data.bouncer.commit_sha = sha.slice(0, 8);
+    fs.writeFileSync(file, renderDoc(doc.data, doc.body));
+  }
+}
+
 test('a parallel ready wave commits in worker worktrees and fans in to one integration branch', () => {
   const blueprint = '.bouncer/context/epics/010-parallel/blueprints/001-drive';
   const repo = makeRepo({
@@ -135,6 +167,7 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
   const shas = {};
   for (const id of ['001', '002']) {
     shas[id] = commitInWorker(workers[id], edits[id], `changed by ${id}\n`, `feat: task ${id}`);
+    writeTerminalEvidence(workers[id], blueprint, id, shas[id]);
     const recorded = coordinate({
       command: 'record', repoRoot: repo, blueprint, cwd: workers[id], task: id,
     });
@@ -191,6 +224,7 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
   assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
   const worker = prepared.tasks[0].workerPath;
   const workerSha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
+  writeTerminalEvidence(worker, blueprint, '001', workerSha);
   assert.strictEqual(
     coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok,
     true,
@@ -256,7 +290,8 @@ test('a single task with no DAG frontmatter drives as one sequential wave', () =
   assert.strictEqual(prepared.tasks.length, 1);
 
   const worker = prepared.tasks[0].workerPath;
-  commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
+  const workerSha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
+  writeTerminalEvidence(worker, blueprint, '001', workerSha);
   assert.strictEqual(
     coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok,
     true,
@@ -273,4 +308,84 @@ test('a single task with no DAG frontmatter drives as one sequential wave', () =
 
   assert.deepStrictEqual(trackedSourceSnapshot(repo), before);
   assert.strictEqual(sourceStatus(repo), '');
+});
+
+/**
+ * 계획 문서 한 벌을 schema에 맞춰 쓴다. 이 fixture는 계획을 커밋하지 않으므로
+ * bootstrap이 integration에 seed한 사본만 drive의 정본이 된다.
+ *
+ * @param {string} repo - 저장소 루트
+ * @param {string} rel - 문서 상대 경로
+ * @param {string} type - 문서 type (예: `bouncer.tasks`)
+ * @param {object} bouncer - bouncer 블록
+ * @param {string} body - 본문
+ */
+function writePlanDoc(repo, rel, type, bouncer, body) {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, renderDoc({
+    type, title: `${bouncer.id} doc`, description: 'd', resource: rel, tags: ['bouncer'],
+    timestamp: '2026-09-12T00:00:00+09:00', bouncer,
+  }, body));
+}
+
+test('an uncommitted-plan drive reaches the finalize gate with no open task after integrate', () => {
+  const epic = '.bouncer/context/epics/013-evidence';
+  const blueprint = `${epic}/blueprints/004-drive`;
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'source']);
+  const ids = { epic_id: '013', blueprint_id: '004' };
+  writePlanDoc(repo, `${epic}/index.md`, 'bouncer.epic', { id: '013', epic_id: '013', status: 'approved' }, '# Epic\n');
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: '013', name: 'evidence', description: 'd' });
+  writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint',
+    { id: '004', ...ids, status: 'approved', commit_type: 'feat' },
+    '# Blueprint\n\n## Intent\n- 통합된 task는 열린 task로 남지 않는다\n');
+  writePlanDoc(repo, `${blueprint}/tasks/001/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-001', ...ids, status: 'ready', depends_on: [], parallel_safe: false,
+    dependency_gate: 'integrated', affected_paths: ['src/alpha.js'],
+  }, '# Tasks\n\n## Goal & intent\nalpha를 바꾼다.\n\n## Interface\n- 제공: alpha\n\n'
+    + '## Touch\n- Modify `src/alpha.js`\n\n## Do not touch\n- `README.md`\n\n'
+    + '## Constraints\n- 없음\n\n## Checklist\n- [ ] alpha를 바꾼다\n');
+  writePlanDoc(repo, `${blueprint}/tasks/001/verification.md`, 'bouncer.verification',
+    { id: 'VERIFY-001', ...ids, status: 'pending' }, '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n');
+  writePlanDoc(repo, `${blueprint}/tasks/001/review.md`, 'bouncer.review',
+    { id: 'REVIEW-001', ...ids, status: 'pending', review: { required: true } }, '# Review\n\n## Findings\n- <finding>\n');
+  assert.strictEqual(git(repo, ['ls-files', '--', '.bouncer']), '');
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const integrationPath = boot.integrationPath;
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const sha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
+  writeTerminalEvidence(worker, blueprint, '001', sha);
+  const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+
+  const openTasks = () => validateBlueprint({ repoRoot: integrationPath, blueprintDir: blueprint, gate: 'finalize' })
+    .failures.filter((f) => f.code === 'G16' && /open tasks remain/.test(f.message));
+  // 대조군: integrate 전에는 integration 사본이 scaffold라 열린 task가 보인다.
+  assert.strictEqual(openTasks().length, 1);
+
+  const integrated = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001' });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  assert.strictEqual(loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json')).tasks[0].status,
+    'integrated');
+
+  const after = validateBlueprint({ repoRoot: integrationPath, blueprintDir: blueprint, gate: 'finalize' });
+  assert.ok(!after.failures.some((f) => /^S/.test(f.code)), JSON.stringify(after.failures));
+  assert.strictEqual(openTasks().length, 0);
+  assert.match(fs.readFileSync(path.join(integrationPath, blueprint, 'tasks/001/tasks.md'), 'utf8'), /status: verified/);
+
+  // 원장과 integration 문서가 맞으므로 drive finalize는 증적 불일치로 멈추지 않는다.
+  const noGit = { changedFiles: () => [], untrackedFiles: () => [], stage: () => {}, commit: () => {} };
+  const dry = finalize({ repoRoot: integrationPath, blueprintDir: blueprint, git: noGit });
+  assert.notStrictEqual(dry.reason, 'coordinator-evidence-mismatch', JSON.stringify(dry));
+  // 양성 판독: 대조는 원장을 읽은 drive에서만 돈다. 원장이 `ok`로 읽혀야 위 부정 단언이
+  // "대조를 건너뛰어서"가 아니라 "대조가 맞아서" 통과했다는 뜻이 된다.
+  assert.strictEqual(readCoordinatorLedger({ repoRoot: integrationPath, blueprint }).ok, true);
+  // 대조를 지난 dry-run은 이 fixture에서 다음 단계인 validate 게이트에서 멈춘다.
+  assert.strictEqual(dry.reason, 'validate', JSON.stringify(dry));
 });

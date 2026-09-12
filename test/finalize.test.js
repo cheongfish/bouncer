@@ -1187,6 +1187,7 @@ test('finalize resolves legacy ledger branch fields from worktrees and leaves ve
   delete ledger.tasks[0].branch;
   ledger.tasks.push({ id: '002', status: 'integrated', execution_kind: 'verification' });
   fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger)}\n`);
+  writeIntegrationTask(drive.integration, '002', 'integrated', 'verification');
 
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
 
@@ -1209,6 +1210,51 @@ function writeCoordinatorLedger(repo, tasks) {
   }, null, 2)}\n`);
   return paths;
 }
+
+// integration 사본의 tasks.md 상태를 쓴다. drive finalize는 원장에서 integrated인
+// task마다 이 문서를 대조하므로, 원장만 쓴 fixture는 증적 불일치로 멈춘다.
+function writeIntegrationTask(integrationPath, id, status, executionKind = 'commit') {
+  const kind = executionKind === 'verification' ? { execution_kind: 'verification' } : {};
+  writeDoc(integrationPath, `${BP_REL}/tasks/${id}/tasks.md`, {
+    type: 'bouncer.tasks', title: `Task ${id}`, description: 'd', resource: `${BP_REL}/tasks/${id}/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: `TASKS-${id}`, epic_id: '001', blueprint_id: '001', status, ...kind },
+  }, TASK_DESIGN_BODY);
+}
+
+test('drive finalize stops before G16 when an integrated ledger task has an open integration document', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  // explain 본문을 비워 main 쪽 G16도 실패하게 둔다. 대조가 G16보다 먼저라면
+  // validate 대신 이름 붙은 증적 불일치가 나와야 한다.
+  fullBlueprint(repo, { comprehensionOk: false });
+  const paths = writeCoordinatorLedger(repo, [
+    { id: '001', status: 'integrated', execution_kind: 'commit' },
+    { id: '002', status: 'integrated', execution_kind: 'verification' },
+    { id: '003', status: 'recorded', execution_kind: 'commit' },
+  ]);
+  writeIntegrationTask(paths.integrationPath, '001', 'ready');
+  writeIntegrationTask(paths.integrationPath, '002', 'integrated', 'verification');
+  const taskFile = path.join(paths.integrationPath, `${BP_REL}/tasks/001/tasks.md`);
+  const taskBefore = fs.readFileSync(taskFile);
+  const indexBefore = fs.readFileSync(path.join(repo, `${BP_REL}/index.md`));
+  const expected = {
+    ok: false,
+    reason: 'coordinator-evidence-mismatch',
+    tasks: [{ id: '001', expected: 'verified', actual: 'ready' }],
+  };
+
+  const dry = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
+  assert.deepStrictEqual(dry, expected);
+
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const verify = countingVerify();
+  const yes = finalize({ repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: verify });
+  assert.deepStrictEqual(yes, expected);
+  assert.deepStrictEqual(g.calls, { staged: null, committed: null });
+  assert.strictEqual(verify.calls, 0);
+  assert.deepStrictEqual(fs.readFileSync(taskFile), taskBefore);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`)), indexBefore);
+});
 
 const ABSENT_INTEGRATION = {
   ledger: 'absent',
@@ -1235,10 +1281,11 @@ test('finalize reports absent integration when there is no coordinator ledger', 
 test('finalize integration lists non-integrated tasks and is incomplete until they close', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
-  writeCoordinatorLedger(repo, [
+  const paths = writeCoordinatorLedger(repo, [
     { id: '001', status: 'integrated', execution_kind: 'commit' },
     { id: '002', status: 'recorded', execution_kind: 'commit' },
   ]);
+  writeIntegrationTask(paths.integrationPath, '001', 'verified');
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
   assert.strictEqual(res.ok, true);
   assert.deepStrictEqual(res.integration, {
@@ -1258,7 +1305,10 @@ test('finalize integration headVerified follows verification-task integration', 
     { id: '002', status: 'integrated', execution_kind: 'commit' },
     { id: '003', status: 'verifying', execution_kind: 'verification' },
   ];
-  writeCoordinatorLedger(repo, verifying);
+  const paths = writeCoordinatorLedger(repo, verifying);
+  writeIntegrationTask(paths.integrationPath, '001', 'verified');
+  writeIntegrationTask(paths.integrationPath, '002', 'verified');
+  writeIntegrationTask(paths.integrationPath, '003', 'verifying', 'verification');
   const open = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
   assert.strictEqual(open.integration.complete, false);
   assert.deepStrictEqual(open.integration.openTasks, ['003']);
@@ -1267,6 +1317,7 @@ test('finalize integration headVerified follows verification-task integration', 
   writeCoordinatorLedger(repo, verifying.map((task) => (
     task.id === '003' ? { ...task, status: 'integrated' } : task
   )));
+  writeIntegrationTask(paths.integrationPath, '003', 'integrated', 'verification');
   const closed = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
   assert.strictEqual(closed.integration.complete, true);
   assert.deepStrictEqual(closed.integration.openTasks, []);
