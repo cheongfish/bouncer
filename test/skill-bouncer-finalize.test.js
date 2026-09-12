@@ -216,3 +216,29 @@ test('bouncer-finalize uses the shortened context-only sequence', () => {
   assert.match(body, /headVerified/);
   assert.equal(fs.existsSync(path.join(root, 'skills/bouncer-finalize/references/distill-promotion.md')), false);
 });
+
+test('cleanup-handoff releases main plan copies before any worktree removal', () => {
+  const handoff = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'cleanup-handoff.md'), 'utf8',
+  );
+  const release = handoff.indexOf('bouncer coordinate release');
+  assert.ok(release > -1, 'cleanup-handoff must name coordinate release');
+  assert.ok(release < handoff.indexOf('git worktree remove'), 'release must come before git worktree remove');
+  assert.match(handoff, /`integration\.ledger` is `ok`/);
+  assert.match(handoff, /whether the worktrees are removed or kept/);
+  assert.match(handoff, /main worktree/);
+  assert.match(handoff, /`preserved`/);
+  // finalize 뒤에는 포인터가 비므로, placeholder 출처와 main 경로를 명령에 적는다.
+  assert.match(handoff, /bouncer coordinate release --blueprint <pointer\.blueprint> --repo <main>/);
+  assert.match(handoff, /`finalize --yes`/);
+  // preserved는 고친 사본과 판정하지 않은 항목을 모두 담는다.
+  assert.match(handoff, /edited during the drive/);
+  assert.match(handoff, /did not judge/);
+  // 잘못된 manifest 항목은 경로가 아니라 JSON 텍스트로 preserved에 들어오므로, 경로로 오해하지 않고 그대로 보고하게 한다.
+  assert.match(handoff, /malformed manifest entry/);
+  assert.match(handoff, /JSON text/);
+  assert.match(handoff, /report it as-is/);
+  // 기존 순서와 보존 규칙은 그대로다.
+  assert.match(handoff, /remove the worker worktrees first, then the integration one/);
+  assert.match(handoff, /Preserve the whole inventory/);
+});

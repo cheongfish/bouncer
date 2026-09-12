@@ -373,3 +373,43 @@ test('coordinate usage advertises revise as the only reviseTaskScope surface', (
   assert.match(buf.out, /--paths/);
   assert.match(buf.out, /--reason/);
 });
+
+test('coordinate release prints its payload from main and a JSON refusal elsewhere', () => {
+  const drive = preparedDrive();
+  const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  const open = coordinateCli(drive.repo, 'release', []);
+  assert.strictEqual(open.code, 1);
+  assert.deepStrictEqual(JSON.parse(open.buf.out), { ok: false, reason: 'blueprint-not-closed' });
+
+  writeDoc(drive.integration, `${BP_REL}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${BP_REL}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'closed' },
+  });
+  const misplaced = coordinateCli(drive.integration, 'release', ['--repo', drive.repo]);
+  assert.strictEqual(misplaced.code, 1);
+  assert.deepStrictEqual(JSON.parse(misplaced.buf.out), { ok: false, reason: 'release-requires-main-checkout' });
+
+  const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
+  assert.strictEqual(code, 0, buf.err);
+  const parsed = JSON.parse(buf.out);
+  assert.deepStrictEqual(Object.keys(parsed).sort(),
+    ['absent', 'command', 'ok', 'preserved', 'released', 'restored']);
+  assert.strictEqual(parsed.command, 'release');
+  // 이 fixture는 계획을 커밋했으므로 main 사본이 HEAD와 같아 할 일이 없다.
+  assert.ok(parsed.absent.includes(`${BP_REL}/tasks/001/tasks.md`));
+  assert.deepStrictEqual([parsed.released, parsed.restored, parsed.preserved], [[], [], []]);
+});
+
+test('coordinate usage lists release among the allowed commands', () => {
+  const { io, buf } = capture();
+  runCli(['help'], io);
+  assert.match(buf.out, /coordinate release --blueprint <dir>/);
+  const refused = capture();
+  assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
+  assert.match(refused.buf.err, /critical-recovery, or release/);
+});

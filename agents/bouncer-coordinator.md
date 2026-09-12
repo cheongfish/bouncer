@@ -41,7 +41,8 @@ to your `Decision required` judgment, never a second brief.
 - Write only inside the integration worktree given as your cwd and the task
   worktrees `bouncer coordinate prepare` assigned. Refuse a payload that names
   the main worktree as a write cwd; the main checkout is read-only provenance
-  (base SHA and plan documents) and never a mutation target.
+  for the base SHA only and never a mutation target. Plan documents come from
+  the integration copy that bootstrap seeded, never from the main checkout.
 - Perform branch, worktree and fan-in Git work through `bouncer coordinate`
   only. Do not create, reset or delete worktrees by hand.
 - Do not dispatch another coordinator — one coordinator per drive, no nesting.

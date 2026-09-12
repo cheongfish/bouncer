@@ -563,28 +563,29 @@ test('malformed authored fields fail instead of being partially omitted', () => 
   assert.throws(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['English summary'] } } },
   }), /commit_summary.*한국어/);
-  assert.throws(() => buildCommitMessage(docs, {
+  // 경로가 든 문장도 한국어 종결 문장이면 받는다. 거절 대상은 형식 결함뿐이다.
+  assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['scripts/login.ts를 수정함'] } } },
-  }), /commit_summary/);
+  }));
 });
 
-test('authored fields reject package and module names but allow uppercase technical prose', () => {
+test('authored fields accept package, module, and path names inside Korean sentences', () => {
   const docs = { blueprintIndex: { data: { title: '로그인 흐름' } } };
-  assert.throws(() => buildCommitMessage(docs, {
+  assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_intent: ['lodash 의존성을 제거함'] } } },
-  }), /commit_intent/);
-  assert.throws(() => buildCommitMessage(docs, {
+  }));
+  assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['commit-message 모듈을 정리함'] } } },
-  }), /commit_summary/);
-  assert.throws(() => buildCommitMessage(docs, {
+  }));
+  assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['express를 제거함'] } } },
-  }), /commit_summary/);
-  assert.throws(() => buildCommitMessage(docs, {
+  }));
+  assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['koa 모듈을 정리함'] } } },
-  }), /commit_summary/);
-  assert.throws(() => buildCommitMessage(docs, {
+  }));
+  assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['fs 모듈을 정리함'] } } },
-  }), /commit_summary/);
+  }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['API 요청을 처리함'] } } },
   }));
@@ -595,12 +596,12 @@ test('authored fields reject package and module names but allow uppercase techni
   assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['HTTP/2를 지원함'] } } },
   }));
-  assert.throws(() => buildCommitMessage(docs, {
+  assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['scripts/lib/를 정리함'] } } },
-  }), /commit_summary/);
+  }));
 });
 
-test('authored fields reject lowercase package names in ordinary sentence positions', () => {
+test('authored fields accept lowercase package names in ordinary sentence positions', () => {
   const docs = { blueprintIndex: { data: { title: '로그인 흐름' } } };
   for (const sentence of [
     'fs를 개선함',
@@ -610,16 +611,41 @@ test('authored fields reject lowercase package names in ordinary sentence positi
     'lodash로 바꿈',
     'fs가 필요함',
   ]) {
-    assert.throws(() => buildCommitMessage(docs, {
+    assert.doesNotThrow(() => buildCommitMessage(docs, {
       tasks: { data: { title: '변경', bouncer: { commit_intent: [sentence] } } },
-    }), /commit_intent/);
+    }));
   }
   assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_intent: ['`HEAD`가 스테이징 범위를 벗어나지 않게 함'] } } },
   }));
-  assert.throws(() => buildCommitMessage(docs, {
+  assert.doesNotThrow(() => buildCommitMessage(docs, {
     tasks: { data: { title: '변경', bouncer: { commit_summary: ['`express`를 씀'] } } },
-  }), /commit_summary/);
+  }));
+});
+
+// 저작 문장 검사는 형식(줄 수, 한글 포함, 한국어 종결형)만 본다. 계약 용어,
+// 경로, 패키지 이름, backtick 인용은 blueprint Intent와 두 task 필드에서
+// 똑같이 통과하고, 형식 결함은 기존 오류 문구로 계속 거절된다.
+test('authored sentence check accepts identifiers and rejects only malformed shapes', () => {
+  const { normalizeAuthoredLines, parseIntentBody } = require('../scripts/lib/templates');
+  const accepted = [
+    'branch 이름을 CLI helper 한 곳에서 계산함.',
+    'integrationBranch 값을 재계산 없이 사용함.',
+    'scripts/lib/finalize.js의 검사를 완화함.',
+    '`bouncer finalize`가 기록된 값을 읽음.',
+  ];
+  const rejected = [[], [''], ['가함.\n나함.'], ['가함.', '나함.', '다함.'], ['update branch name.'], ['branch 이름 계산']];
+  for (const field of ['commit_intent', 'commit_summary']) {
+    for (const line of accepted) assert.doesNotThrow(() => normalizeAuthoredLines([line], field));
+    for (const bad of rejected) assert.throws(() => normalizeAuthoredLines(bad, field), /Korean terminal sentences/);
+  }
+  for (const line of accepted) assert.doesNotThrow(() => parseIntentBody(`## Intent\n${line}\n`));
+  assert.throws(() => parseIntentBody('## Intent\nupdate branch name.\n'), /Korean terminal sentences/);
+  // 부재 필드는 기존 문서 호환을 위해 빈 배열로 읽는다.
+  assert.deepStrictEqual(normalizeAuthoredLines(undefined, 'commit_intent'), []);
+  // 문자열이 아닌 항목도 같은 문구로 거절한다.
+  assert.throws(() => normalizeAuthoredLines([1], 'commit_intent'), /Korean terminal sentences/);
+  assert.throws(() => normalizeAuthoredLines('가함.', 'commit_intent'), /Korean terminal sentences/);
 });
 
 test('finalize message parses blueprint Intent and ignores task authored fields', () => {

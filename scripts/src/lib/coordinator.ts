@@ -5,7 +5,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch } = runtime;
 import seed = require('./seed-worktree');
-const { seedCoordinatorWorker } = seed;
+const { seedCoordinatorWorker, seedIntegration, releaseSeedManifest } = seed;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter, readDoc } = frontmatter;
 import render = require('./render');
@@ -14,6 +14,8 @@ import schema = require('./schema');
 const { executionKindOf } = schema;
 import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
+import commitShaMod = require('./commit-sha');
+const { normalizeCommitSha } = commitShaMod;
 
 type Task = {
   id: string; depends_on?: string[]; dependency_gate?: string; parallel_safe?: boolean;
@@ -23,6 +25,7 @@ type Task = {
 };
 type Ledger = {
   version: 1; blueprint: string; base: string; integrationHead?: string; integrationBranch?: string; tasks: Task[];
+  seedManifest?: Array<{ path: string; sha256: string }>;
   decisions: unknown[]; repairWaves?: RepairDecision[]; terminalFailure?: FailureEvidence;
   status?: 'active' | 'awaiting_confirmation' | 'partial_closed'; userConfirmed?: boolean; revision?: string;
 };
@@ -290,40 +293,25 @@ function taskList(repoRoot: string, blueprint: string): Task[] {
 }
 
 /**
- * integration checkout에 terminal node의 문서와 검증 정책을 준비한다.
- * worker 전체 blueprint seed와 달리 아직 실행되지 않은 해당 bundle만 덮어써,
- * 이미 fan-in된 predecessor 증적을 되돌리지 않는다. config는 destination이
- * 없을 때만 복사해 integration checkout의 기존 정책을 보존한다.
+ * terminal node를 실행할 bundle이 integration checkout에 있는지 확인한다.
+ * 계획 문서와 config는 bootstrap이 이미 integration에 seed했고, 그 뒤로는
+ * integration 사본이 정본이다. 여기서 main을 다시 복사하면 `coordinate repair`가
+ * integration에서 바꾼 terminal `tasks.md`(depends_on)가 main 바이트로 되돌아간다.
  *
- * @param {string} repoRoot - 승인된 plan 문서가 있는 기준 checkout
  * @param {string} integrationPath - 검증을 실행할 integration checkout
  * @param {string} blueprint - blueprint 저장소 상대 경로
  * @param {string} taskId - 세 자리 terminal task 번호
- * @returns {{ ok: true } | { ok: false; reason: string; message?: string }} 준비 결과
+ * @returns {{ ok: true } | { ok: false; reason: string }} 확인 결과
  */
-function seedVerificationNode(
-  repoRoot: string,
+function checkVerificationNode(
   integrationPath: string,
   blueprint: string,
   taskId: string,
-): { ok: true } | { ok: false; reason: string; message?: string } {
-  const rel = path.join(blueprint, 'tasks', taskId);
-  const source = path.join(repoRoot, rel);
-  if (!fs.existsSync(source)) return { ok: false, reason: 'missing-verification-bundle' };
-  try {
-    fs.mkdirSync(path.dirname(path.join(integrationPath, rel)), { recursive: true });
-    fs.cpSync(source, path.join(integrationPath, rel), { recursive: true, force: true });
-    const configRel = path.join('.bouncer', 'config.json');
-    const sourceConfig = path.join(repoRoot, configRel);
-    const targetConfig = path.join(integrationPath, configRel);
-    if (!fs.existsSync(targetConfig) && fs.existsSync(sourceConfig)) {
-      fs.mkdirSync(path.dirname(targetConfig), { recursive: true });
-      fs.copyFileSync(sourceConfig, targetConfig);
-    }
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, reason: 'copy-failed', message: (error as Error).message };
+): { ok: true } | { ok: false; reason: string } {
+  if (!fs.existsSync(path.join(integrationPath, blueprint, 'tasks', taskId))) {
+    return { ok: false, reason: 'missing-verification-bundle' };
   }
+  return { ok: true };
 }
 
 /**
@@ -348,6 +336,127 @@ function writeVerificationTaskStatus(
   const bouncer = data.bouncer as Record<string, unknown>;
   bouncer.status = status;
   fs.writeFileSync(file, renderDoc(data, doc.body));
+}
+
+// commit task가 fan-in될 수 있는 worker 증적. 문서마다 execute gate와 review가
+// 남기는 terminal 상태 하나만 받는다.
+const EVIDENCE_FILES: ReadonlyArray<readonly [string, string]> = [
+  ['tasks.md', 'verified'], ['verification.md', 'passed'], ['review.md', 'accepted'],
+];
+
+// frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
+// 앞부분과 같다. 이 검사를 통과한 문서는 parseFrontmatter가 블록 부재로 throw할 수
+// 없으므로, 블록 부재를 오류 문구 비교 없이 구조로 판정한다.
+const FRONTMATTER_FENCE_RE = /^---\n[\s\S]*?\n---/;
+
+/**
+ * 문서의 bouncer 블록을 읽는다. 문서가 없거나 frontmatter 블록이 없거나 YAML이
+ * 깨졌으면 null — 호출자는 셋 다 "상태를 읽을 수 없다"로 판정한다. integrate의
+ * worker 증적 판정과 finalize의 원장·문서 대조가 이 한 구현을 같이 쓴다.
+ *
+ * @param {string} file - 문서 절대 경로
+ * @returns {Record<string, unknown> | null} bouncer 블록 또는 null
+ * @example
+ * readBouncerBlock('/wt/.bouncer/.../tasks/001/tasks.md'); // { id: 'TASKS-001', status: 'verified', ... }
+ * readBouncerBlock('/wt/.bouncer/.../tasks/001/missing.md'); // null
+ */
+function readBouncerBlock(file: string): Record<string, unknown> | null {
+  let source: string;
+  try {
+    source = fs.readFileSync(file, 'utf8');
+  } catch (error) {
+    // 파일 부재(ENOENT)만 흡수한다. 아직 쓰이지 않은 문서는 상태를 읽을 수 없는 것으로
+    // 판정하면 되지만, 권한 오류 같은 다른 실패를 "문서 없음"으로 접으면 원인이 가려진다.
+    if ((error as { code?: string }).code === 'ENOENT') return null;
+    throw error;
+  }
+  if (!FRONTMATTER_FENCE_RE.test(source)) return null;
+  let data: unknown;
+  try {
+    data = parseFrontmatter(source).data;
+  } catch (error) {
+    // YAML 파싱 오류만 흡수한다. 블록 부재는 위 구조 검사가 이미 걸렀으므로 여기 오는
+    // 것은 깨진 YAML뿐이고, 상태를 읽을 수 없는 문서라 null로 접어도 판정이 안전하다.
+    if ((error as Error).name === 'YAMLException') return null;
+    throw error;
+  }
+  const bouncer = data && typeof data === 'object' ? (data as Record<string, unknown>).bouncer : null;
+  return bouncer && typeof bouncer === 'object' ? bouncer as Record<string, unknown> : null;
+}
+
+/**
+ * commit task의 worker bundle이 fan-in할 terminal 증적인지 판정한다. 읽기만 한다.
+ * 상태가 모자라면 그 문서들을, 상태는 맞는데 `commit_sha`가 기록된 SHA의 앞
+ * 8자리(`bouncer commit`이 찍는 길이)와 다르면 tasks.md를 `files`로 돌려준다.
+ *
+ * @param {string} workerPath - 배정된 worker worktree
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task 번호
+ * @param {string} sha - 원장에 기록된 worker SHA
+ * @returns {{ ok: true } | { ok: false; reason: string; files: string[] }} 판정
+ */
+function checkWorkerEvidence(workerPath: string, blueprint: string, taskId: string, sha: string):
+  { ok: true } | { ok: false; reason: string; files: string[] } {
+  const relOf = (name: string) => `${blueprint.replaceAll('\\', '/')}/tasks/${taskId}/${name}`;
+  const open: string[] = [];
+  let stamped: unknown;
+  for (const [name, terminal] of EVIDENCE_FILES) {
+    const bouncer = readBouncerBlock(path.join(workerPath, blueprint, 'tasks', taskId, name));
+    if (!bouncer || bouncer.status !== terminal) open.push(relOf(name));
+    if (name === 'tasks.md' && bouncer) stamped = bouncer.commit_sha;
+  }
+  if (open.length > 0) return { ok: false, reason: 'worker-evidence-not-terminal', files: open };
+  // normalizeCommitSha는 YAML이 숫자로 읽은 SHA도 문자열로 되돌리고 소문자로 맞춘다.
+  if (normalizeCommitSha(stamped) !== sha.slice(0, 8).toLowerCase()) {
+    return { ok: false, reason: 'worker-evidence-sha-mismatch', files: [relOf('tasks.md')] };
+  }
+  return { ok: true };
+}
+
+/**
+ * worker의 task bundle 세 문서를 integration의 같은 경로로 복사한다. 다른 task
+ * bundle·blueprint index·source는 건드리지 않는다. 돌려주는 함수는 복사 전 바이트로
+ * 되돌리며, 복사 전에 없던 파일은 지우고 복사가 새로 만든 `tasks/<NNN>/`도 지운다.
+ *
+ * @param {string} workerPath - 배정된 worker worktree
+ * @param {string} integrationPath - integration checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task 번호
+ * @returns {() => void} 복사 되돌림
+ */
+function copyEvidenceBundle(
+  workerPath: string, integrationPath: string, blueprint: string, taskId: string,
+): () => void {
+  const targetDir = path.join(integrationPath, blueprint, 'tasks', taskId);
+  // 복사 전에 bundle 디렉터리가 없었다면 그 안의 파일은 모두 이 복사가 만든 것이다.
+  // 파일만 지우면 빈 `tasks/<NNN>/`이 남아 integration 사본이 복사 전과 달라진다.
+  const dirExisted = fs.existsSync(targetDir);
+  const entries = EVIDENCE_FILES.map(([name]) => {
+    const target = path.join(targetDir, name);
+    return {
+      source: path.join(workerPath, blueprint, 'tasks', taskId, name), target,
+      before: fs.existsSync(target) ? fs.readFileSync(target) as Buffer : null,
+    };
+  });
+  const restore = () => {
+    if (!dirExisted) {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.before === null) fs.rmSync(entry.target, { force: true });
+      else fs.writeFileSync(entry.target, entry.before);
+    }
+  };
+  try {
+    fs.mkdirSync(targetDir, { recursive: true });
+    for (const entry of entries) fs.copyFileSync(entry.source, entry.target);
+  } catch (error) {
+    // 흡수하지 않는다. 일부만 복사된 bundle을 되돌린 뒤 같은 예외를 올린다.
+    restore();
+    throw error;
+  }
+  return restore;
 }
 
 function registeredWorker(exec: Exec, integrationPath: string, workerPath: string): boolean {
@@ -431,17 +540,32 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     if (!registeredIntegration(exec, repoRoot, paths.integrationPath)) {
       return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: paths.integrationPath };
     }
-    const ledger = loadLedger(paths.ledgerFile) || {
-      version: 1 as const, blueprint, base,
-      integrationHead: git(exec, paths.integrationPath, ['rev-parse', 'HEAD']),
-      tasks: taskList(repoRoot, blueprint), decisions: [], status: 'active' as const, repairWaves: [],
-    };
+    let ledger = loadLedger(paths.ledgerFile);
+    if (!ledger) {
+      const seeded = seedIntegration({ repoRoot, blueprintDir: blueprint, integrationPath: paths.integrationPath });
+      if (!seeded.ok) return seeded;
+      ledger = {
+        version: 1 as const, blueprint, base,
+        integrationHead: git(exec, paths.integrationPath, ['rev-parse', 'HEAD']),
+        tasks: taskList(paths.integrationPath, blueprint), decisions: [], status: 'active' as const, repairWaves: [],
+        seedManifest: seeded.manifest,
+      };
+    }
     ledger.integrationBranch = integrationBranch;
-    atomicWrite(paths.ledgerFile, ledger);
+    writeLedger(paths.ledgerFile, ledger);
     return {
       ok: true, command, integrationPath: paths.integrationPath, ready: readyWave(ledger.tasks),
       tasks: ledger.tasks, decisions: ledger.decisions, integrationBranch,
     };
+  }
+  if (command === 'release') {
+    // release는 main의 계획 사본을 쓰는 유일한 명령이다. --repo와 실제 cwd가 모두 main
+    // 루트여야 한다 — 어느 하나라도 integration·worker면 그 checkout의 파일을 main
+    // 사본으로 오인해 되돌리게 된다. 원장보다 먼저 판정해 자리가 틀린 호출은 원장을 읽지 않는다.
+    const mainRoot = fs.realpathSync(main.projectRoot as string);
+    if (fs.realpathSync(repoRoot) !== mainRoot || fs.realpathSync(cwd) !== mainRoot) {
+      return { ok: false, reason: 'release-requires-main-checkout' };
+    }
   }
   const integration = coordinatorPathsFor({ repoRoot, blueprint });
   if (!registeredIntegration(exec, repoRoot, integration.integrationPath)) {
@@ -449,6 +573,22 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   }
   const ledger = loadLedger(integration.ledgerFile);
   if (!ledger) return { ok: false, reason: 'missing-ledger' };
+  if (command === 'release') {
+    // 판정은 모두 읽기뿐이고 main 쓰기는 마지막 releaseSeedManifest 하나다. 어떤 거절도
+    // main 파일을 바꾸지 않는다. 멈춘 drive(확인 대기·partial close·열린 task)는 main
+    // 사본까지 복구 상태이므로 건드리지 않는다.
+    if (!Array.isArray(ledger.seedManifest)) return { ok: false, reason: 'missing-seed-manifest' };
+    if (ledger.status === 'awaiting_confirmation' || ledger.status === 'partial_closed'
+      || ledger.tasks.some((entry) => entry.status !== 'integrated')) {
+      return { ok: false, reason: 'drive-not-closed' };
+    }
+    // 원장이 끝났어도 finalize가 integration blueprint를 닫기 전이면 main 사본이 아직
+    // 병합으로 돌아올 정본이 없다. closed는 integration 사본에서만 읽는다.
+    const index = readBouncerBlock(path.join(integration.integrationPath, blueprint, 'index.md'));
+    if (!index || index.status !== 'closed') return { ok: false, reason: 'blueprint-not-closed' };
+    const released = releaseSeedManifest({ repoRoot, blueprintDir: blueprint, manifest: ledger.seedManifest });
+    return { ok: true, command, ...released };
+  }
   if (command === 'critical-recovery') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
     const checked = runtime.validateCoordinatorLedger(ledger);
@@ -488,10 +628,13 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
     let names: { integration: string; standalone: string; worker?: string };
     try {
-      // verification-only wave도 아래 seed가 integration 문서를 바꾸므로, task 종류를
-      // 보기 전에 blueprint 전체의 commit_type을 검증한다. 등록 checkout은 실제
+      // verification-only wave는 worker branch를 만들지 않아 아래 branch 판정에서
+      // commit_type을 한 번도 읽지 않는다. task 종류를 보기 전에 blueprint 전체의
+      // commit_type을 검증해야, 잘못된 값이 verification node의 ready 전이를 원장에
+      // 남긴 뒤 다음 commit wave에서야 드러나는 일을 막는다. 등록 checkout은 실제
       // branch를 재사용해 legacy 원장에만 provenance 필드를 보충하고 rename하지 않는다.
-      names = branchNamesFor({ repoRoot, blueprint });
+      // commit_type은 integration 사본에서 읽는다. drive 동안 main은 base SHA 출처일 뿐이다.
+      names = branchNamesFor({ repoRoot: integration.integrationPath, blueprint });
       const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath,
         worktreePath: integration.integrationPath, branch: names.integration, execFileSync: exec });
       if (resolved.action !== 'reuse') {
@@ -504,6 +647,22 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       throw error;
     }
     const ready = readyWave(ledger.tasks);
+    // 판정 단계의 사전 검사. worker seed 출처는 integration의 blueprint 트리뿐이므로,
+    // 그것이 없으면 worktree를 하나도 만들기 전에 멈춰야 ledger와 Git 등록이 갈라지지 않는다.
+    const integrationBlueprint = path.join(integration.integrationPath, blueprint);
+    if (!fs.existsSync(integrationBlueprint) || !fs.statSync(integrationBlueprint).isDirectory()) {
+      return { ok: false, reason: 'missing-blueprint', blueprintDir: blueprint,
+        integrationPath: integration.integrationPath };
+    }
+    // verification bundle 확인도 읽기만 하므로 같은 판정 단계에 둔다. 섞인 wave에서
+    // 아래 루프가 commit worker를 먼저 만든 뒤 이 node에서 멈추면, 원장은 쓰이지 않았는데
+    // Git에는 worker가 등록되어 재시도 전 둘이 갈라진다.
+    for (const id of ready) {
+      const item = ledger.tasks.find((x) => x.id === id) as Task;
+      if (item.execution_kind !== 'verification') continue;
+      const checked = checkVerificationNode(integration.integrationPath, blueprint, id);
+      if (!checked.ok) return checked;
+    }
     const plannedWorkers = new Map<string, { worker: string; branch: string; action: 'reuse' | 'create' }>();
     try {
       // 한 wave의 branch 충돌을 모두 확인한 뒤에만 worktree를 만든다. 앞 task를
@@ -516,7 +675,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         if (fs.existsSync(worker) && !registeredWorker(exec, integration.integrationPath, worker)) {
           return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
         }
-        const workerNames = branchNamesFor({ repoRoot, blueprint, task: id });
+        const workerNames = branchNamesFor({ repoRoot: integration.integrationPath, blueprint, task: id });
         const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath, worktreePath: worker,
           branch: workerNames.worker as string, execFileSync: exec });
         plannedWorkers.set(id, { worker, branch: resolved.branch, action: resolved.action });
@@ -530,7 +689,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         if (!registeredWorker(exec, integration.integrationPath, worker)) {
           return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
         }
-        const workerNames = branchNamesFor({ repoRoot, blueprint, task: item.id });
+        const workerNames = branchNamesFor({ repoRoot: integration.integrationPath, blueprint, task: item.id });
         const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath, worktreePath: worker,
           branch: workerNames.worker as string, execFileSync: exec });
         if (resolved.action !== 'reuse') {
@@ -546,8 +705,6 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     for (const id of ready) {
       const item = ledger.tasks.find((x) => x.id === id) as Task;
       if (item.execution_kind === 'verification') {
-        const seeded = seedVerificationNode(repoRoot, integration.integrationPath, blueprint, id);
-        if (!seeded.ok) return seeded;
         item.status = transition(item.status || 'pending', 'ready', 'verification');
         continue;
       }
@@ -560,11 +717,12 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       if (!registeredWorker(exec, integration.integrationPath, planned.worker)) {
         return { ok: false, reason: 'unassigned-worker-worktree', workerPath: planned.worker };
       }
-      // 동적 repair 문서는 integration checkout에만 존재한다. main checkout은
-      // drive 동안 read-only이므로 repair worker seed도 그 정본에서 가져온다.
-      const seedRoot = item.dynamic ? integration.integrationPath : repoRoot;
+      // 모든 worker는 integration 사본을 받는다. bootstrap 뒤 계획 문서의 정본은
+      // integration이고(동적 repair 문서는 그곳에만 있다), main은 drive 동안 base SHA
+      // 출처로만 남으므로 main 계획이 사라져도 준비가 이어진다. cpSync는 worker마다
+      // 독립 사본을 쓰므로 병렬 worker끼리 문서를 공유하지 않는다.
       const seeded = seedCoordinatorWorker({
-        repoRoot: seedRoot, blueprintDir: blueprint, worktreePath: planned.worker,
+        repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: planned.worker,
       });
       if (!seeded.ok) return seeded;
       item.status = transition(item.status || 'pending', 'ready');
@@ -765,7 +923,20 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     if (ledger.integrationHead !== git(exec, integration.integrationPath, ['rev-parse', 'HEAD'])) {
       return { ok: false, reason: 'stale-integration-head' };
     }
-    git(exec, integration.integrationPath, ['cherry-pick', item.sha]);
+    // 증적 판정은 기존 가드 뒤, 어떤 쓰기보다 앞이다. worker에만 남은 terminal
+    // 문서를 integration으로 가져오지 않으면 finalize G16이 이 task를 열린 task로
+    // 본다. 동적 repair task도 같은 commit 경로라 같은 규칙을 받는다.
+    const evidence = checkWorkerEvidence(worker, blueprint, task, item.sha);
+    if (!evidence.ok) return evidence;
+    const restoreBundle = copyEvidenceBundle(worker, integration.integrationPath, blueprint, task);
+    try {
+      git(exec, integration.integrationPath, ['cherry-pick', item.sha]);
+    } catch (error) {
+      // cherry-pick 실패는 흡수하지 않는다. 복사한 문서만 되돌리고 기존 throw 경로로
+      // 올려, 원장이 recorded로 남은 채 integration 문서만 terminal인 상태를 막는다.
+      restoreBundle();
+      throw error;
+    }
     item.status = transition('recorded', 'integrated');
     ledger.integrationHead = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
     atomicWrite(integration.ledgerFile, ledger);
@@ -774,4 +945,4 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   return { ok: false, reason: 'unknown-coordinate-command' };
 }
 
-export = { readyWave, transition, coordinate, loadLedger };
+export = { readyWave, transition, coordinate, loadLedger, readBouncerBlock };
