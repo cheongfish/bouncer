@@ -326,16 +326,12 @@ function normalizeAuthoredLines(raw: unknown, field: string): string[] {
       throw new Error(`${field} must contain 1-2 Korean terminal sentences`);
     }
     const line = value.trim();
-    // 소문자 라틴 식별자와 경로·패키지는 조사·동작어와 붙지 않아도 문장
-    // 어디서나 거부한다. 백틱은 인용일 뿐이라 감싼 이름도 그대로 막고,
-    // 명령 인용처럼 식별자가 아닌 백틱은 통과시킨다. API 같은 대문자
-    // 기술 약어는 일괄 거부하지 않는다. HTTP/2처럼 대문자만으로 이뤄진
-    // 토큰 뒤의 `/숫자`는 프로토콜 버전이므로 모듈 경로로 보지 않는다.
-    const lowercaseLatinIdentifier = /(?:^|[^A-Za-z0-9])(?:@[a-z][a-z0-9-]*\/)?[a-z][a-z0-9]*(?:[-_.][A-Za-z0-9]+)*(?=[^A-Za-z0-9]|$)/u;
-    const namesImplementation = /(?:^|[\s(`])(?:\.{0,2}\/|(?![A-Z]+\/\d)[A-Za-z0-9_.-]+\/)|(?:^|[\s(`])[A-Za-z0-9_.-]+\.[A-Za-z][A-Za-z0-9]{0,9}(?=[가-힣]|$|[\s`),])/u.test(line)
-      || lowercaseLatinIdentifier.test(line);
+    // 판정은 형식만 본다: 빈 문장, 줄바꿈, 한글 부재, 한국어 종결형 부재.
+    // 영문 식별자·경로·패키지 이름·backtick 인용은 받는다. 계약 용어
+    // (예: `integrationBranch 값을 재계산 없이 사용함.`)를 막으면 정확한
+    // 한국어 문장까지 커밋 직전에 거절되고, 저자는 용어를 뭉개 쓰게 된다.
+    // Epic·Blueprint id를 넣지 말라는 권고는 문서 몫이며 여기서 강제하지 않는다.
     if (!line || line.includes('\n') || !/[가-힣]/u.test(line)
-      || namesImplementation
       || !/(?:함|임|음|됨|줌|둠|남|김|씀|듦|림|움|춤|짐|감|앰|냄|꿈|뜀|다|요|죠|까|네|지)[.!?]?$/u.test(line)) {
       throw new Error(`${field} must contain 1-2 Korean terminal sentences (한국어 종결 문장)`);
     }

@@ -23,8 +23,9 @@ coverage는 vendored third-party와 test를 빼고 `scripts/lib/**`만 재며
 ## 커밋·PR 규약
 
 커밋 메시지는 한국어 Conventional Commits를 따릅니다. `type: 명사형 제목` +
-배경·의도 2줄 + 수정 내용 불릿. 본문에 파일·모듈 이름은 쓰지 않습니다(diff가
-이미 보여줍니다). 전체 규칙은 [`.gitmessage`](../.gitmessage)에 있습니다.
+배경·의도 2줄 + 수정 내용 불릿. 본문 문장에 영문 식별자·경로·패키지 이름을
+써도 되지만, 문장은 한국어 종결형으로 끝나야 합니다. 전체 규칙은
+[`.gitmessage`](../.gitmessage)에 있습니다.
 
 `/bouncer-commit`이 task 커밋 메시지를, `/bouncer-finalize`가 context remainder
 등 remainder 커밋 메시지를 plan 때 쓴 문서 필드로 조립합니다. 메시지를 새로

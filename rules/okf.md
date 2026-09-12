@@ -90,8 +90,10 @@ lists of 1–2 Korean terminal sentences. `/bouncer-commit` renders present
 fields in that order and rejects malformed values without partial omission;
 missing fields keep older task documents readable. `/bouncer-finalize` renders
 1–2 Korean terminal sentences parsed from the blueprint `## Intent` section and
-rejects an absent or malformed section. Authored intent and summary do not name
-files, modules, or packages and do not add dependencies or trailers.
+rejects an absent or malformed section. Authored intent and summary may name
+identifiers, paths, and packages inside a Korean terminal sentence; the check
+covers only line count, Korean text, and the Korean terminal ending. Keep Epic /
+Blueprint ids out of them, and do not add dependencies or trailers.
 
 **Scope evidence.** `bouncer.scope_evidence` is the canonical write form for
 the candidate paths and basis used to judge a task's scope. It contains

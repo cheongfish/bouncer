@@ -214,9 +214,12 @@ field rejects message generation rather than being partly omitted. Finalize
 reads only the blueprint `## Intent` section, which must contain 1–2 Korean
 terminal sentences.
 
-Leave Epic / Blueprint identifiers and file paths out of titles,
+Leave Epic / Blueprint identifiers out of titles,
 `commit_intent`, and `commit_summary` — they belong in the blueprint docs and PR body, not the commit
-message. Do not put module or package names in those fields either. Replace
+message. Keep file paths, module names, and package names out of titles too. Inside `commit_intent` and
+`commit_summary`, English identifiers, file paths, package names, and backtick
+quotes are allowed as long as the line stays one Korean terminal sentence
+(`integrationBranch 값을 재계산 없이 사용함.`). Replace
 scaffold defaults like `001 slug` / `001 tasks` before approval; otherwise
 those placeholders ship as the commit subject and body.
 
