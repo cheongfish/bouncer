@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 import paths = require('./paths');
 const { epicDirOf, toPosix } = paths;
 import layout = require('./layout');
@@ -284,4 +285,56 @@ function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath }: {
   }
 }
 
-export = { makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker };
+/**
+ * integration checkout은 base의 계획 문서를 소비해도 base를 정리하지 않는다.
+ * 이미 있는 destination은 main 또는 HEAD와 같은 경우에만 안전하게 갱신한다.
+ */
+function seedIntegration({ repoRoot, blueprintDir, integrationPath }: {
+  repoRoot: string; blueprintDir: unknown; integrationPath: string;
+}) {
+  const bp = toPosix(blueprintDir);
+  const source = path.join(repoRoot, bp);
+  const targets: string[] = [];
+  if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) {
+    return { ok: false, reason: 'missing-blueprint', targets: [bp] };
+  }
+  const visit = (dir: string, rel: string) => {
+    for (const name of fs.readdirSync(dir).sort()) {
+      const child = path.join(dir, name);
+      const childRel = `${rel}/${name}`;
+      if (fs.statSync(child).isDirectory()) visit(child, childRel);
+      else targets.push(childRel);
+    }
+  };
+  visit(source, bp);
+  for (const rel of [`${epicDirOf(bp)}/index.md`, `${CONTEXT_ROOT}/index.md`]) {
+    if (fs.existsSync(path.join(repoRoot, rel))) targets.push(rel);
+  }
+  targets.sort();
+  const gitApi = realGit(repoRoot);
+  const conflicts: string[] = [];
+  for (const rel of targets) {
+    const dst = path.join(integrationPath, rel);
+    if (!fs.existsSync(dst)) continue;
+    const current = fs.readFileSync(dst);
+    const main = fs.readFileSync(path.join(repoRoot, rel));
+    const head = gitApi.readHead(rel);
+    if (!current.equals(main) && !(head && current.equals(head))) conflicts.push(rel);
+  }
+  if (conflicts.length) return { ok: false, reason: 'seed-conflict', conflicts, targets };
+  try {
+    for (const rel of targets) {
+      const dst = path.join(integrationPath, rel);
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      fs.copyFileSync(path.join(repoRoot, rel), dst);
+    }
+    const config = seedConfig(repoRoot, integrationPath, gitApi);
+    const manifest = targets.map((rel) => ({ path: rel,
+      sha256: createHash('sha256').update(fs.readFileSync(path.join(integrationPath, rel))).digest('hex') }));
+    return { ok: true, seeded: targets, manifest, config };
+  } catch (error) {
+    return { ok: false, reason: 'seed-failed', message: (error as { message: unknown }).message, targets };
+  }
+}
+
+export = { makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker, seedIntegration };

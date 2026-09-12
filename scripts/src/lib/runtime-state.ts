@@ -226,6 +226,12 @@ function validateCoordinatorLedger(
     return { ok: false, reason: 'invalid-ledger' };
   }
   const ledger = value as Record<string, unknown>;
+  if (ledger.seedManifest !== undefined && (!Array.isArray(ledger.seedManifest)
+    || ledger.seedManifest.some((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry)
+      || !nonEmptyString((entry as Record<string, unknown>).path)
+      || !/^[a-f0-9]{64}$/.test((entry as Record<string, unknown>).sha256 as string)))) {
+    return { ok: false, reason: 'invalid-seed-manifest' };
+  }
   // partial_closed 여부와 무관하게 먼저 검사한다. 조기 성공 반환 뒤에 두면 active
   // ledger가 used 2를 품은 채 다음 coordinator 명령의 기준점이 될 수 있다.
   const tasksForRecovery = Array.isArray(ledger.tasks) ? ledger.tasks as Array<Record<string, unknown>> : [];

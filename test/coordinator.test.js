@@ -293,6 +293,59 @@ test('bootstrap creates only an integration worktree and resumes its ledger', ()
   assert.strictEqual(fs.existsSync(path.join(repo, 'README.md')), true);
 });
 
+test('bootstrap seeds an untracked blueprint once and preserves the integration copy on resume', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const blueprint = '.bouncer/context/epics/030-x/blueprints/031-y';
+  const task = `${blueprint}/tasks/001/tasks.md`;
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, task), '---\nbouncer:\n  depends_on: []\n---\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{"verify":"node --test"}\n');
+  const before = execFileSync('git', ['status', '--porcelain'], { cwd: repo, encoding: 'utf8' });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, task)), true);
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, '.bouncer/config.json')), true);
+  const ledger = JSON.parse(fs.readFileSync(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8'));
+  assert.ok(ledger.seedManifest.some((entry) => entry.path === task && /^[a-f0-9]{64}$/.test(entry.sha256)));
+  assert.ok(!ledger.seedManifest.some((entry) => entry.path === '.bouncer/config.json'));
+  const after = execFileSync('git', ['status', '--porcelain'], { cwd: repo, encoding: 'utf8' })
+    .split('\n').filter((line) => !line.slice(3).startsWith('.worktrees/')).join('\n');
+  assert.strictEqual(after.trim(), before.trim());
+  fs.writeFileSync(path.join(boot.integrationPath, task), 'integration canonical\n');
+  const resumed = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  assert.strictEqual(fs.readFileSync(path.join(boot.integrationPath, task), 'utf8'), 'integration canonical\n');
+});
+
+test('bootstrap rejects a third integration plan version without creating its ledger', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const blueprint = '.bouncer/context/epics/032-x/blueprints/033-y';
+  const task = `${blueprint}/tasks/001/tasks.md`;
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, task), 'main plan bytes\n');
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint });
+  fs.mkdirSync(path.dirname(paths.integrationPath), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '-b', 'feat/032-033-y', paths.integrationPath, 'HEAD'], { cwd: repo });
+  fs.mkdirSync(path.join(paths.integrationPath, blueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(paths.integrationPath, task), 'third plan bytes\n');
+  const mainBefore = fs.readFileSync(path.join(repo, task));
+  const result = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(result.ok, false, JSON.stringify(result));
+  assert.strictEqual(result.reason, 'seed-conflict');
+  assert.deepStrictEqual(result.conflicts, [task]);
+  assert.strictEqual(fs.existsSync(paths.ledgerFile), false);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, task)), mainBefore);
+});
+
 test('prepare backfills a legacy prepared worker branch without renaming its checkout', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
@@ -335,7 +388,8 @@ test('prepare rejects an invalid commit type before a verification-only wave can
   fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  commit_type: wip\n---\n');
   const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   assert.strictEqual(result.reason, 'invalid-commit-type');
-  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, blueprint, 'tasks/001/tasks.md')), false);
+  // bootstrap seed는 prepare의 branch metadata 검증보다 먼저 끝난다.
+  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, blueprint, 'tasks/001/tasks.md')), true);
 });
 
 test('standalone branch and a later ready-wave conflict create no coordinator worktree', () => {

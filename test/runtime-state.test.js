@@ -9,6 +9,7 @@ const {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, worktreePathFor,
   verifyLedgerPathFor, coordinatorPathsFor,
   listNamespacePointers, pointerKeyFromBlueprint, removeNamespacePointer, branchNamesFor, resolveWorktreeBranch,
+  validateCoordinatorLedger,
 } = require('../scripts/lib/runtime-state');
 
 function copy(value) {
@@ -34,6 +35,13 @@ test('branchNamesFor derives commit and worker branches from the blueprint metad
   assert.throws(() => branchNamesFor({ repoRoot: repo, blueprint }), /invalid-commit-type/);
   assert.throws(() => branchNamesFor({ repoRoot: repo,
     blueprint: '.bouncer/context/epics/068-x/blueprints/001-bad..slug' }), /invalid-branch-name/);
+});
+
+test('coordinator ledger rejects malformed seed manifests while accepting legacy ledgers', () => {
+  const base = { version: 1, blueprint: 'bp', base: 'main', tasks: [], decisions: [] };
+  assert.strictEqual(validateCoordinatorLedger(base).ok, true);
+  assert.strictEqual(validateCoordinatorLedger({ ...base, seedManifest: [{ path: '', sha256: 'x' }] }).reason,
+    'invalid-seed-manifest');
 });
 
 test('resolveWorktreeBranch reuses the registered branch and rejects an occupied new branch', () => {

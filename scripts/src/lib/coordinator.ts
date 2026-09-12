@@ -5,7 +5,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch } = runtime;
 import seed = require('./seed-worktree');
-const { seedCoordinatorWorker } = seed;
+const { seedCoordinatorWorker, seedIntegration } = seed;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter, readDoc } = frontmatter;
 import render = require('./render');
@@ -23,6 +23,7 @@ type Task = {
 };
 type Ledger = {
   version: 1; blueprint: string; base: string; integrationHead?: string; integrationBranch?: string; tasks: Task[];
+  seedManifest?: Array<{ path: string; sha256: string }>;
   decisions: unknown[]; repairWaves?: RepairDecision[]; terminalFailure?: FailureEvidence;
   status?: 'active' | 'awaiting_confirmation' | 'partial_closed'; userConfirmed?: boolean; revision?: string;
 };
@@ -431,13 +432,19 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     if (!registeredIntegration(exec, repoRoot, paths.integrationPath)) {
       return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: paths.integrationPath };
     }
-    const ledger = loadLedger(paths.ledgerFile) || {
-      version: 1 as const, blueprint, base,
-      integrationHead: git(exec, paths.integrationPath, ['rev-parse', 'HEAD']),
-      tasks: taskList(repoRoot, blueprint), decisions: [], status: 'active' as const, repairWaves: [],
-    };
+    let ledger = loadLedger(paths.ledgerFile);
+    if (!ledger) {
+      const seeded = seedIntegration({ repoRoot, blueprintDir: blueprint, integrationPath: paths.integrationPath });
+      if (!seeded.ok) return seeded;
+      ledger = {
+        version: 1 as const, blueprint, base,
+        integrationHead: git(exec, paths.integrationPath, ['rev-parse', 'HEAD']),
+        tasks: taskList(paths.integrationPath, blueprint), decisions: [], status: 'active' as const, repairWaves: [],
+        seedManifest: seeded.manifest,
+      };
+    }
     ledger.integrationBranch = integrationBranch;
-    atomicWrite(paths.ledgerFile, ledger);
+    writeLedger(paths.ledgerFile, ledger);
     return {
       ok: true, command, integrationPath: paths.integrationPath, ready: readyWave(ledger.tasks),
       tasks: ledger.tasks, decisions: ledger.decisions, integrationBranch,

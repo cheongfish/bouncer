@@ -81,7 +81,7 @@ cwd를 배정 경로와 대조해, 자리가 다르면 `coordinate command must 
 
 | 서브커맨드 | 부르는 자리 | 하는 일 | 돌려주는 것 |
 | --- | --- | --- | --- |
-| `bootstrap` | main worktree | `.worktrees/<epic-id>/<bp-id>/integration`을 blueprint의 `commit_type/<epic-id>-<bp-id>-<slug>` branch로 등록하고 원장을 만들거나 이어받습니다. main source는 쓰지 않습니다 | `integrationPath`, `integrationBranch`, `ready`, `tasks`, `decisions` |
+| `bootstrap` | main worktree | `.worktrees/<epic-id>/<bp-id>/integration`을 blueprint의 `commit_type/<epic-id>-<bp-id>-<slug>` branch로 등록합니다. 새 원장일 때 main의 blueprint 트리·상위 epic/context index와 config를 integration에 복사하고, 계획 문서의 경로별 sha256 `seedManifest`를 coordinator 원장에 남깁니다. `seedManifest`는 `release`가 쓰는 원장 내부 상태이고, 소비자가 읽거나 계약으로 삼는 CLI 응답 필드가 아닙니다. main source는 쓰지 않습니다 | `integrationPath`, `integrationBranch`, `ready`, `tasks`, `decisions` |
 | `prepare` | integration worktree | 현재 ready wave를 열고 task마다 `workers/<NNN>`을 `bouncer/<epic-id>-<bp-id>-<task-id>` branch로 등록한 뒤 계획 문서를 복사해 넣습니다(base는 읽기만). 각 commit task에 실제 `branch`를 기록하고 `prepared`로 옮깁니다 | `ready`, `tasks`(각 `workerPath`, `branch`), `decisions` |
 | `ready` | integration worktree | `status`의 별칭입니다. 원장을 바꾸지 않습니다 | `ready`, `tasks`, `decisions` |
 | `status` | integration worktree | 원장 전체 상태를 읽습니다 | `ready`, `tasks`, `decisions` |
@@ -114,6 +114,7 @@ throw 경로 문단).
 | `unknown-coordinate-command` | 코어 직접 호출 | 코어가 모르는 서브커맨드입니다. CLI 앞단은 열한 이름만 통과시키므로, 이 코드는 CLI를 거치지 않고 코어를 직접 부른 호출에서만 나옵니다 |
 | `bootstrap-requires-main-checkout` | `bootstrap` | `bootstrap`을 main checkout이 아닌 자리에서 불렀습니다 |
 | `main-source-mutated` | `bootstrap` | integration 등록 도중 main worktree의 source 상태가 바뀌었습니다. 원장을 쓰지 않고 멈춥니다 |
+| `missing-blueprint` / `seed-conflict` / `seed-failed` | `bootstrap` | integration용 계획 문서를 seed할 수 없습니다. 충돌 때는 `conflicts`, 모두 `targets`를 함께 반환하며 원장은 쓰지 않습니다 |
 | `invalid-commit-type` | `bootstrap`·`prepare` | blueprint `commit_type`이 허용된 `.gitmessage` 종류가 아닙니다 |
 | `invalid-branch-name` | `bootstrap`·`prepare` | 계산한 branch 이름이 Git ref 형식이 아닙니다 |
 | `branch-conflict` | `bootstrap`·`prepare` | 계산한 branch가 예상 checkout이 아닌 다른 곳에 이미 있습니다. suffix를 붙이지 않고 멈춥니다 |

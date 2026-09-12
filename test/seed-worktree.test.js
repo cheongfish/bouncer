@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { seedWorktree, realGit } = require('../scripts/lib/seed-worktree');
+const { seedWorktree, realGit, seedIntegration } = require('../scripts/lib/seed-worktree');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
@@ -72,6 +72,33 @@ function assertConfigNotMoved(res) {
     assert.ok(!res.restored.includes(CONFIG_REL), 'config must not appear in restored');
   }
 }
+
+test('seedIntegration copies an untracked plan without changing the source', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${EPIC_REL}/index.md`, 'epic\n');
+  write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
+  write(repo, CONFIG_REL, CONFIG_DIRTY);
+  const before = status(repo);
+  const result = seedIntegration({ repoRoot: repo, blueprintDir: BP_REL, integrationPath: wt });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(read(wt, `${BP_REL}/tasks/001/tasks.md`), 'brief\n');
+  assert.strictEqual(read(wt, CONFIG_REL), CONFIG_DIRTY);
+  assert.ok(result.manifest.some((entry) => entry.path === `${BP_REL}/tasks/001/tasks.md` && /^[a-f0-9]{64}$/.test(entry.sha256)));
+  assert.strictEqual(status(repo), before);
+});
+
+test('seedIntegration refuses a third document version and leaves source untouched', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${BP_REL}/tasks/001/tasks.md`, 'main\n');
+  write(wt, `${BP_REL}/tasks/001/tasks.md`, 'third\n');
+  const before = read(repo, `${BP_REL}/tasks/001/tasks.md`);
+  const result = seedIntegration({ repoRoot: repo, blueprintDir: BP_REL, integrationPath: wt });
+  assert.deepStrictEqual(result.reason, 'seed-conflict');
+  assert.deepStrictEqual(result.conflicts, [`${BP_REL}/tasks/001/tasks.md`]);
+  assert.strictEqual(read(repo, `${BP_REL}/tasks/001/tasks.md`), before);
+});
 
 test('a fresh worktree forces locked development dependencies before seeding documents', () => {
   const repo = makeRepo();
