@@ -5,7 +5,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 const runtime = require("./runtime-state");
 const { coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch } = runtime;
 const seed = require("./seed-worktree");
-const { seedCoordinatorWorker, seedIntegration } = seed;
+const { seedCoordinatorWorker, seedIntegration, releaseSeedManifest } = seed;
 const frontmatter = require("./frontmatter");
 const { parseFrontmatter, readDoc } = frontmatter;
 const render = require("./render");
@@ -509,6 +509,15 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             tasks: ledger.tasks, decisions: ledger.decisions, integrationBranch,
         };
     }
+    if (command === 'release') {
+        // release는 main의 계획 사본을 쓰는 유일한 명령이다. --repo와 실제 cwd가 모두 main
+        // 루트여야 한다 — 어느 하나라도 integration·worker면 그 checkout의 파일을 main
+        // 사본으로 오인해 되돌리게 된다. 원장보다 먼저 판정해 자리가 틀린 호출은 원장을 읽지 않는다.
+        const mainRoot = fs.realpathSync(main.projectRoot);
+        if (fs.realpathSync(repoRoot) !== mainRoot || fs.realpathSync(cwd) !== mainRoot) {
+            return { ok: false, reason: 'release-requires-main-checkout' };
+        }
+    }
     const integration = coordinatorPathsFor({ repoRoot, blueprint });
     if (!registeredIntegration(exec, repoRoot, integration.integrationPath)) {
         return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: integration.integrationPath };
@@ -516,6 +525,24 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     const ledger = loadLedger(integration.ledgerFile);
     if (!ledger)
         return { ok: false, reason: 'missing-ledger' };
+    if (command === 'release') {
+        // 판정은 모두 읽기뿐이고 main 쓰기는 마지막 releaseSeedManifest 하나다. 어떤 거절도
+        // main 파일을 바꾸지 않는다. 멈춘 drive(확인 대기·partial close·열린 task)는 main
+        // 사본까지 복구 상태이므로 건드리지 않는다.
+        if (!Array.isArray(ledger.seedManifest))
+            return { ok: false, reason: 'missing-seed-manifest' };
+        if (ledger.status === 'awaiting_confirmation' || ledger.status === 'partial_closed'
+            || ledger.tasks.some((entry) => entry.status !== 'integrated')) {
+            return { ok: false, reason: 'drive-not-closed' };
+        }
+        // 원장이 끝났어도 finalize가 integration blueprint를 닫기 전이면 main 사본이 아직
+        // 병합으로 돌아올 정본이 없다. closed는 integration 사본에서만 읽는다.
+        const index = readBouncerBlock(path.join(integration.integrationPath, blueprint, 'index.md'));
+        if (!index || index.status !== 'closed')
+            return { ok: false, reason: 'blueprint-not-closed' };
+        const released = releaseSeedManifest({ repoRoot, blueprintDir: blueprint, manifest: ledger.seedManifest });
+        return { ok: true, command, ...released };
+    }
     if (command === 'critical-recovery') {
         ensureIntegrationCwd(repoRoot, blueprint, cwd);
         const checked = runtime.validateCoordinatorLedger(ledger);

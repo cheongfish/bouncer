@@ -137,9 +137,12 @@ function seedConfig(repoRoot, worktreePath, gitApi) {
     fs.writeFileSync(dest, fs.readFileSync(src));
     return 'copied';
 }
-function pruneEmptyDirs(repoRoot, rel) {
+// stopRel은 지우지 않을 상한 디렉터리(저장소 상대)다. 생략하면 저장소 루트에서 멈춘다.
+// release는 blueprint의 부모 `blueprints/`를 넘겨, 다른 blueprint와 공유하는 epic 트리를
+// 비었다는 이유로 지우지 않는다.
+function pruneEmptyDirs(repoRoot, rel, stopRel = '') {
     let dir = path.dirname(path.join(repoRoot, rel));
-    const stop = path.resolve(repoRoot);
+    const stop = path.resolve(repoRoot, stopRel);
     while (path.resolve(dir) !== stop && fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
         fs.rmdirSync(dir);
         dir = path.dirname(dir);
@@ -318,4 +321,84 @@ function seedIntegration({ repoRoot, blueprintDir, integrationPath }) {
         return { ok: false, reason: 'seed-failed', message: error.message, targets };
     }
 }
-module.exports = { makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker, seedIntegration };
+// 원장 manifest 경로가 저장소 상대 POSIX 정규형인지. makeIsTarget은 접두어만 보므로
+// `<bp>/../../x` 같은 경로도 통과시킨다. 정규화 결과가 그대로인 경로만 판정에 넣는다.
+function isCanonicalRel(rel) {
+    return rel !== '' && !path.posix.isAbsolute(rel) && !/^[A-Za-z]:/.test(rel)
+        && path.posix.normalize(rel) === rel && !rel.split('/').includes('..');
+}
+/**
+ * drive가 끝난 뒤 main에 남은 계획 사본을 bootstrap manifest와 대조해 git이 기록한
+ * 상태로 돌려놓는다. 해시가 맞는 사본만 되돌리므로 drive 도중 main에서 고친 문서는
+ * 남는다. seed 집합(makeIsTarget) 밖이거나 정규형이 아닌 manifest 항목은 원장이 손으로
+ * 바뀐 경우이므로 판정하지 않고 preserved로만 보고한다. 객체가 아니거나 `path`가 문자열이
+ * 아닌 항목도 같다 — 경로 대신 항목의 JSON 텍스트로 보고한다. 되돌린 뒤 다시 부르면 모든
+ * 처리 경로가 absent가 되어 같은 상태로 수렴한다. 빈 디렉터리 정리는 blueprint 트리
+ * 안에서만 한다.
+ *
+ * @param {object} opts - main checkout, blueprint 경로, 원장의 seedManifest, 주입용 git
+ * @returns {ReleaseResult} 경로별 판정. 순서는 manifest 순서다.
+ * @example
+ * releaseSeedManifest({ repoRoot: '/repo', blueprintDir: bp, manifest: ledger.seedManifest });
+ * // { released: [`${bp}/index.md`], restored: ['.bouncer/context/index.md'], preserved: [], absent: [] }
+ * releaseSeedManifest({ repoRoot: '/repo', blueprintDir: bp, manifest: [null] });
+ * // { released: [], restored: [], preserved: ['null'], absent: [] }
+ */
+function releaseSeedManifest({ repoRoot, blueprintDir, manifest, git }) {
+    const gitApi = git || realGit(repoRoot);
+    const isTarget = makeIsTarget({ blueprintDir });
+    const bp = toPosix(blueprintDir);
+    // 쓰기 전에 모든 항목을 먼저 판정 가능한 것과 아닌 것으로 나눈다. 반복 도중에 `null.path`
+    // 같은 항목을 만나 throw하면, 앞 항목만 되돌려진 main이 남고 보고도 없다.
+    const entries = manifest.map((entry) => {
+        const record = entry && typeof entry === 'object' ? entry : null;
+        if (!record || typeof record.path !== 'string') {
+            // JSON.stringify(undefined)는 문자열이 아니므로 String으로 채운다.
+            return { rel: JSON.stringify(entry) ?? String(entry), sha256: undefined, judged: false };
+        }
+        const rel = toPosix(record.path);
+        return { rel, sha256: record.sha256, judged: isCanonicalRel(rel) && isTarget(rel) };
+    });
+    // `diff HEAD`는 staged 추가도 나열한다. HEAD에 없는 경로가 여기 있으면 index에만
+    // 올라간 새 파일이므로 지우기 전에 unstage해야 index에 유령이 남지 않는다.
+    const changed = new Set(gitApi.changedFiles());
+    const result = { released: [], restored: [], preserved: [], absent: [] };
+    for (const { rel, sha256, judged } of entries) {
+        if (!judged) {
+            result.preserved.push(rel);
+            continue;
+        }
+        const abs = path.join(repoRoot, rel);
+        if (!fs.existsSync(abs)) {
+            result.absent.push(rel);
+            continue;
+        }
+        const current = fs.readFileSync(abs);
+        const inHead = gitApi.existsInHead(rel);
+        const head = inHead ? gitApi.readHead(rel) : null;
+        if (head && current.equals(head)) {
+            result.absent.push(rel);
+            continue;
+        }
+        if (createHash('sha256').update(current).digest('hex') !== sha256) {
+            result.preserved.push(rel);
+            continue;
+        }
+        if (inHead) {
+            gitApi.restore(rel);
+            result.restored.push(rel);
+        }
+        else {
+            if (changed.has(rel))
+                gitApi.unstage(rel);
+            fs.rmSync(abs, { force: true });
+            // blueprint 트리 안의 파일만 정리한다. 상한은 부모 `blueprints/`라 비워진 blueprint
+            // 디렉터리까지만 지워진다. epic·context index는 공유 트리의 파일이므로 정리하지 않는다.
+            if (isUnder(rel, `${bp}/`))
+                pruneEmptyDirs(repoRoot, rel, path.posix.dirname(bp));
+            result.released.push(rel);
+        }
+    }
+    return result;
+}
+module.exports = { makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker, seedIntegration, releaseSeedManifest };

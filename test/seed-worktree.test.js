@@ -6,7 +6,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { seedWorktree, realGit, seedIntegration } = require('../scripts/lib/seed-worktree');
+const { createHash } = require('node:crypto');
+const { seedWorktree, realGit, seedIntegration, releaseSeedManifest } = require('../scripts/lib/seed-worktree');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
@@ -98,6 +99,142 @@ test('seedIntegration refuses a third document version and leaves source untouch
   assert.deepStrictEqual(result.reason, 'seed-conflict');
   assert.deepStrictEqual(result.conflicts, [`${BP_REL}/tasks/001/tasks.md`]);
   assert.strictEqual(read(repo, `${BP_REL}/tasks/001/tasks.md`), before);
+});
+
+function sha256(body) {
+  return createHash('sha256').update(body).digest('hex');
+}
+
+// bootstrap이 남긴 manifest를 흉내 낸다. 각 경로의 해시는 seed 순간의 main 바이트다.
+function manifestOf(entries) {
+  return entries.map(([rel, body]) => ({ path: rel, sha256: sha256(body) }))
+    .sort((a, b) => a.path.localeCompare(b.path));
+}
+
+test('releaseSeedManifest judges each manifest path and leaves everything else alone', () => {
+  const repo = makeRepo();
+  const epicIndex = `${EPIC_REL}/index.md`;
+  write(repo, epicIndex, 'epic committed\n');
+  git(repo, ['add', '--', epicIndex]);
+  git(repo, ['commit', '-qm', 'epic']);
+  const dirtyIndex = `${COMMITTED_INDEX}* EPIC-001\n`;
+  const tasks = `${BP_REL}/tasks/001/tasks.md`;
+  const review = `${BP_REL}/tasks/001/review.md`;
+  const bpIndex = `${BP_REL}/index.md`;
+  const gone = `${BP_REL}/tasks/001/verification.md`;
+  const other = `${BP_REL}/tasks/002/tasks.md`;
+  write(repo, INDEX_REL, dirtyIndex); // tracked, seed 바이트와 같음 → restored
+  write(repo, tasks, 'brief\n'); // untracked, 일치 → released
+  write(repo, review, 'findings\n'); // staged 새 파일, 일치 → unstage 뒤 released
+  git(repo, ['add', '--', review]);
+  write(repo, bpIndex, 'edited during drive\n'); // 불일치 → preserved
+  write(repo, other, 'outside manifest\n'); // manifest 밖 → 불변
+  write(repo, 'scripts/keep.js', 'locally edited\n'); // manifest 밖 source → 불변
+  const manifest = manifestOf([
+    [INDEX_REL, dirtyIndex], [tasks, 'brief\n'], [review, 'findings\n'], [bpIndex, 'seeded index\n'],
+    [gone, 'evidence\n'], [epicIndex, 'epic committed\n'],
+  ]);
+
+  const res = releaseSeedManifest({ repoRoot: repo, blueprintDir: BP_REL, manifest });
+
+  assert.deepStrictEqual(res.restored, [INDEX_REL]);
+  assert.deepStrictEqual(res.released.sort(), [review, tasks].sort());
+  assert.deepStrictEqual(res.preserved, [bpIndex]);
+  // 없는 경로와 이미 HEAD blob과 같은 경로는 할 일이 없다.
+  assert.deepStrictEqual(res.absent.sort(), [epicIndex, gone].sort());
+  assert.strictEqual(read(repo, INDEX_REL), COMMITTED_INDEX);
+  assert.strictEqual(fs.existsSync(path.join(repo, tasks)), false);
+  assert.strictEqual(fs.existsSync(path.join(repo, review)), false);
+  assert.strictEqual(git(repo, ['ls-files', '--', review]), '', 'staged new file must leave the index');
+  assert.strictEqual(read(repo, bpIndex), 'edited during drive\n');
+  assert.strictEqual(read(repo, other), 'outside manifest\n');
+  assert.strictEqual(read(repo, 'scripts/keep.js'), 'locally edited\n');
+  assert.strictEqual(read(repo, epicIndex), 'epic committed\n');
+  // 비워진 bundle 디렉터리는 남지 않지만 무언가 남은 blueprint 디렉터리는 유지된다.
+  assert.strictEqual(fs.existsSync(path.join(repo, `${BP_REL}/tasks/001`)), false);
+  assert.strictEqual(fs.existsSync(path.join(repo, BP_REL)), true);
+
+  // 두 번째 실행은 같은 상태로 수렴한다. 앞서 처리한 경로는 모두 absent다.
+  const again = releaseSeedManifest({ repoRoot: repo, blueprintDir: BP_REL, manifest });
+  assert.deepStrictEqual(again.released, []);
+  assert.deepStrictEqual(again.restored, []);
+  assert.deepStrictEqual(again.preserved, [bpIndex]);
+  assert.deepStrictEqual(again.absent.sort(), [INDEX_REL, epicIndex, gone, review, tasks].sort());
+});
+
+test('releaseSeedManifest never touches a manifest entry outside the seeded plan set', () => {
+  const repo = makeRepo();
+  write(repo, 'scripts/keep.js', 'locally edited\n');
+  write(repo, 'notes.md', 'untracked note\n');
+  // 원장은 integration의 일반 파일이다. seed 집합 밖이나 저장소를 벗어나는 경로가
+  // 섞여도 해시가 맞는다는 이유로 되돌리거나 지우지 않는다.
+  const manifest = manifestOf([
+    ['scripts/keep.js', 'locally edited\n'], ['notes.md', 'untracked note\n'],
+    [`${BP_REL}/../../../../../notes.md`, 'untracked note\n'],
+  ]);
+
+  const res = releaseSeedManifest({ repoRoot: repo, blueprintDir: BP_REL, manifest });
+
+  assert.deepStrictEqual(res.released, []);
+  assert.deepStrictEqual(res.restored, []);
+  assert.strictEqual(res.preserved.length, 3);
+  assert.strictEqual(read(repo, 'scripts/keep.js'), 'locally edited\n');
+  assert.strictEqual(read(repo, 'notes.md'), 'untracked note\n');
+});
+
+test('releaseSeedManifest prunes empty directories inside the blueprint tree only', () => {
+  const repo = makeRepo();
+  const bpIndex = `${BP_REL}/index.md`;
+  const tasks = `${BP_REL}/tasks/001/tasks.md`;
+  write(repo, bpIndex, 'seeded index\n');
+  write(repo, tasks, 'brief\n');
+
+  const res = releaseSeedManifest({
+    repoRoot: repo, blueprintDir: BP_REL, manifest: manifestOf([[bpIndex, 'seeded index\n'], [tasks, 'brief\n']]),
+  });
+
+  assert.deepStrictEqual(res.released.sort(), [bpIndex, tasks].sort());
+  // 비워진 blueprint 디렉터리까지는 지우지만, 다른 blueprint가 쓰는 상위 blueprints/와
+  // epic 디렉터리는 비어도 남긴다.
+  assert.strictEqual(fs.existsSync(path.join(repo, BP_REL)), false);
+  assert.strictEqual(fs.existsSync(path.join(repo, `${EPIC_REL}/blueprints`)), true);
+  assert.strictEqual(fs.existsSync(path.join(repo, EPIC_REL)), true);
+});
+
+test('releaseSeedManifest does not prune after releasing the epic or context index', () => {
+  const repo = makeRepo();
+  git(repo, ['rm', '-q', '--', INDEX_REL]);
+  git(repo, ['commit', '-qm', 'drop context index']);
+  const epicIndex = `${EPIC_REL}/index.md`;
+  // 두 index가 각자 디렉터리의 유일한 파일이라, 정리가 돌면 epic과 context 디렉터리가 사라진다.
+  write(repo, epicIndex, 'epic\n');
+  write(repo, INDEX_REL, 'context\n');
+
+  const res = releaseSeedManifest({
+    repoRoot: repo, blueprintDir: BP_REL, manifest: manifestOf([[epicIndex, 'epic\n'], [INDEX_REL, 'context\n']]),
+  });
+
+  assert.deepStrictEqual(res.released.sort(), [epicIndex, INDEX_REL].sort());
+  assert.strictEqual(fs.existsSync(path.join(repo, EPIC_REL)), true);
+  assert.strictEqual(fs.existsSync(path.join(repo, '.bouncer/context')), true);
+});
+
+test('releaseSeedManifest reports malformed manifest entries as preserved without throwing', () => {
+  const repo = makeRepo();
+  const tasks = `${BP_REL}/tasks/001/tasks.md`;
+  write(repo, tasks, 'brief\n');
+  // 원장은 손으로 바뀔 수 있는 일반 JSON이다. 유효한 항목 뒤의 null이 반쯤 쓴 뒤 throw하게
+  // 두면 main이 일부만 되돌려진 채 멈춘다.
+  const manifest = [...manifestOf([[tasks, 'brief\n']]), null, { path: 42, sha256: 'x' }, 'bare'];
+
+  let res;
+  assert.doesNotThrow(() => { res = releaseSeedManifest({ repoRoot: repo, blueprintDir: BP_REL, manifest }); });
+
+  assert.deepStrictEqual(res.released, [tasks]);
+  assert.deepStrictEqual(res.restored, []);
+  assert.deepStrictEqual(res.absent, []);
+  assert.deepStrictEqual(res.preserved, ['null', '{"path":42,"sha256":"x"}', '"bare"']);
+  assert.strictEqual(fs.existsSync(path.join(repo, tasks)), false);
 });
 
 test('a fresh worktree forces locked development dependencies before seeding documents', () => {

@@ -389,3 +389,66 @@ test('an uncommitted-plan drive reaches the finalize gate with no open task afte
   // 대조를 지난 dry-run은 이 fixture에서 다음 단계인 validate 게이트에서 멈춘다.
   assert.strictEqual(dry.reason, 'validate', JSON.stringify(dry));
 });
+
+test('release after a drive finalize lets main merge the integration branch without a plan conflict', () => {
+  const epic = '.bouncer/context/epics/014-release';
+  const blueprint = `${epic}/blueprints/004-drive`;
+  const epicIndex = `${epic}/index.md`;
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
+  const ids = { epic_id: '014', blueprint_id: '004' };
+  writePlanDoc(repo, epicIndex, 'bouncer.epic', { id: '014', epic_id: '014', status: 'approved' },
+    '# Epic\n\n## Blueprints\n');
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: '014', name: 'release', description: 'd' });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'source and epic']);
+  // plan 워크플로가 남기는 main 상태: 추적되는 epic index에 커밋하지 않은 새 줄,
+  // blueprint 트리는 통째로 untracked.
+  fs.appendFileSync(path.join(repo, epicIndex), '- [004-drive](blueprints/004-drive/index.md)\n');
+  writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint',
+    { id: '004', ...ids, status: 'approved', commit_type: 'feat' }, '# Blueprint\n\n## Intent\n- release\n');
+  writePlanDoc(repo, `${blueprint}/context-review.md`, 'bouncer.context-review',
+    { id: 'CR-004', ...ids, status: 'accepted' }, '# Context review\n');
+  writePlanDoc(repo, `${blueprint}/tasks/001/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-001', ...ids, status: 'ready', depends_on: [], parallel_safe: false,
+    dependency_gate: 'integrated', affected_paths: ['src/alpha.js'],
+  }, '# Tasks\n\nalpha를 바꾼다.\n');
+  writePlanDoc(repo, `${blueprint}/tasks/001/verification.md`, 'bouncer.verification',
+    { id: 'VERIFY-001', ...ids, status: 'pending' }, '# Verification\n');
+  writePlanDoc(repo, `${blueprint}/tasks/001/review.md`, 'bouncer.review',
+    { id: 'REVIEW-001', ...ids, status: 'pending' }, '# Review\n');
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const { integrationPath, integrationBranch } = boot;
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const sha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
+  writeTerminalEvidence(worker, blueprint, '001', sha);
+  assert.strictEqual(coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok, true);
+  const integrated = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001' });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+
+  // finalize remainder가 integration에 남기는 상태를 재현한다.
+  fs.rmSync(path.join(integrationPath, blueprint, 'tasks'), { recursive: true, force: true });
+  fs.rmSync(path.join(integrationPath, blueprint, 'context-review.md'), { force: true });
+  const indexFile = path.join(integrationPath, blueprint, 'index.md');
+  const indexDoc = readDoc(indexFile);
+  indexDoc.data.bouncer.status = 'closed';
+  fs.writeFileSync(indexFile, renderDoc(indexDoc.data, indexDoc.body));
+  writePlanDoc(integrationPath, `${blueprint}/explain.md`, 'bouncer.explain',
+    { id: 'EXPLAIN-004', ...ids, comprehension: [] }, '# Explain\n');
+  git(integrationPath, ['add', '--', `${blueprint}/index.md`, `${blueprint}/explain.md`, epicIndex]);
+  git(integrationPath, ['commit', '-m', 'chore: close blueprint']);
+
+  assert.throws(() => git(repo, ['merge', '--no-edit', integrationBranch])); // 대조군: release 전에는 충돌
+  const released = coordinate({ command: 'release', repoRoot: repo, blueprint, cwd: repo });
+  assert.equal(released.ok, true, JSON.stringify(released));
+  assert.ok(released.restored.includes(epicIndex), JSON.stringify(released));
+  assert.deepStrictEqual(released.preserved, []);
+  git(repo, ['merge', '--no-edit', integrationBranch]); // throw 없이 끝나야 함
+  assert.match(fs.readFileSync(path.join(repo, epicIndex), 'utf8'), /blueprints\/004-/); // 새 줄이 병합으로 돌아옴
+  assert.match(fs.readFileSync(path.join(repo, blueprint, 'index.md'), 'utf8'), /status: closed/);
+  assert.strictEqual(fs.existsSync(path.join(repo, blueprint, 'tasks')), false);
+  assert.strictEqual(sourceStatus(repo), '');
+});

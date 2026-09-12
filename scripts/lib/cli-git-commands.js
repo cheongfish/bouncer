@@ -195,11 +195,11 @@ function cmdCoordinate(rest, io) {
     const f = parseFlags(rest.slice(1));
     const commands = [
         'bootstrap', 'prepare', 'ready', 'record', 'rerecord', 'integrate',
-        'status', 'revise', 'repair', 'partial-close', 'critical-recovery',
+        'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'release',
     ];
     if (!commands.includes(command)) {
         io.err('coordinate: command must be bootstrap, prepare, ready, record, rerecord, '
-            + 'integrate, status, revise, repair, partial-close, or critical-recovery\n');
+            + 'integrate, status, revise, repair, partial-close, critical-recovery, or release\n');
         return 2;
     }
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -296,6 +296,9 @@ module.exports = {
             + '             Record the one permitted blocker or major recovery for a prepared task.\n'
             + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --outcome <resolved|blocked> --reason <text>\n'
             + '             Record the outcome without permitting another recovery.\n'
+            + '  coordinate release --blueprint <dir> [--repo <main>]\n'
+            + '             After finalize closes the drive, restore or remove main plan copies\n'
+            + '             that still match the bootstrap manifest. Run it from the main checkout.\n'
             + '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
             + '             --reason <text>\n'
             + '             Record one scope decision in the task document and ledger.\n'

@@ -941,3 +941,123 @@ test('prepare refuses a symlink at an assigned worker path before seeding', () =
   assert.deepStrictEqual(result, { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker });
   assert.strictEqual(fs.existsSync(path.join(outside, blueprint)), false);
 });
+
+// 계획을 커밋하지 않은 한 task drive를 integrate까지 진행한다. main의 계획 사본은
+// bootstrap 때 바이트 그대로 남아 있고, integration blueprint는 아직 approved다.
+function integratedDrive(prefix, blueprint) {
+  const drive = uncommittedPlanRepo(prefix, blueprint, []);
+  writeBundle(drive, blueprint, '001', SCAFFOLD);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: drive, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({ command: 'prepare', repoRoot: drive, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  fs.mkdirSync(path.join(worker, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(worker, 'src/task.js'), 'changed by 001\n');
+  execFileSync('git', ['add', 'src/task.js'], { cwd: worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'feat: 001'],
+    { cwd: worker });
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  writeBundle(worker, blueprint, '001', { ...TERMINAL, commitSha: sha.slice(0, 8) });
+  assert.strictEqual(coordinate({ command: 'record', repoRoot: drive, blueprint, cwd: worker, task: '001' }).ok, true);
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: drive, blueprint, cwd: boot.integrationPath, task: '001',
+  });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  return {
+    repo: drive, integrationPath: boot.integrationPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+    close: () => fs.writeFileSync(path.join(boot.integrationPath, blueprint, 'index.md'),
+      '---\nbouncer:\n  status: closed\n---\n# Blueprint\n'),
+  };
+}
+
+function mainState(repo, blueprint) {
+  return {
+    status: execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: repo, encoding: 'utf8' }),
+    plan: snapshotTree(path.join(repo, blueprint)),
+  };
+}
+
+test('release removes main plan copies that still match the seed manifest and converges on rerun', () => {
+  const blueprint = '.bouncer/context/epics/058-x/blueprints/059-y';
+  const { repo, close } = integratedDrive('bouncer-coordinator-release-', blueprint);
+  close();
+
+  const released = coordinate({ command: 'release', repoRoot: repo, blueprint, cwd: repo });
+  assert.equal(released.ok, true, JSON.stringify(released));
+  assert.equal(released.command, 'release');
+  assert.ok(released.released.includes(`${blueprint}/tasks/001/tasks.md`));
+  assert.ok(released.released.includes(`${blueprint}/index.md`));
+  assert.deepStrictEqual(released.restored, []);
+  assert.deepStrictEqual(released.preserved, []);
+  assert.ok(!fs.existsSync(path.join(repo, blueprint)));
+  // 빈 디렉터리 정리는 blueprint 트리 안에서 멈춘다. 상위 blueprints/와 epic 디렉터리는 남는다.
+  assert.ok(fs.existsSync(path.join(repo, path.dirname(blueprint))));
+  assert.ok(fs.existsSync(path.join(repo, path.dirname(path.dirname(blueprint)))));
+  // manifest 밖 main 파일(config)은 그대로다.
+  assert.strictEqual(fs.readFileSync(path.join(repo, '.bouncer/config.json'), 'utf8'), '{"verify":"node --test"}\n');
+
+  const again = coordinate({ command: 'release', repoRoot: repo, blueprint, cwd: repo });
+  assert.equal(again.ok, true, JSON.stringify(again));
+  assert.deepStrictEqual(again.released, []);
+  assert.deepStrictEqual(again.restored, []);
+  assert.deepStrictEqual(again.absent.sort(), [...released.released].sort());
+});
+
+test('release preserves a main plan copy edited after bootstrap', () => {
+  const blueprint = '.bouncer/context/epics/060-x/blueprints/061-y';
+  const { repo, close } = integratedDrive('bouncer-coordinator-preserve-', blueprint);
+  close();
+  const edited = path.join(repo, blueprint, 'tasks/001/tasks.md');
+  fs.writeFileSync(edited, 'edited on main during the drive\n');
+
+  const result = coordinate({ command: 'release', repoRoot: repo, blueprint, cwd: repo });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.preserved, [`${blueprint}/tasks/001/tasks.md`]);
+  assert.strictEqual(fs.readFileSync(edited, 'utf8'), 'edited on main during the drive\n');
+  assert.ok(result.released.includes(`${blueprint}/tasks/001/review.md`));
+});
+
+test('release refuses every unfinished or misplaced drive without changing main', () => {
+  const blueprint = '.bouncer/context/epics/062-x/blueprints/063-y';
+  const { repo, integrationPath, ledgerFile, close } = integratedDrive('bouncer-coordinator-refuse-', blueprint);
+  const before = mainState(repo, blueprint);
+  const release = (extra = {}) => coordinate({ command: 'release', repoRoot: repo, blueprint, cwd: repo, ...extra });
+  const refuse = (reason, extra) => {
+    const result = release(extra);
+    assert.deepStrictEqual(result, { ok: false, reason }, JSON.stringify(result));
+    assert.deepStrictEqual(mainState(repo, blueprint), before, reason);
+  };
+
+  // integration blueprint가 아직 approved다.
+  refuse('blueprint-not-closed');
+  close();
+
+  refuse('release-requires-main-checkout', { cwd: integrationPath });
+  refuse('release-requires-main-checkout', { repoRoot: integrationPath, cwd: integrationPath });
+
+  const ledgerBytes = fs.readFileSync(ledgerFile, 'utf8');
+  const withLedger = (mutate, reason) => {
+    const ledger = JSON.parse(ledgerBytes);
+    mutate(ledger);
+    fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+    refuse(reason);
+    fs.writeFileSync(ledgerFile, ledgerBytes);
+  };
+  withLedger((ledger) => { delete ledger.seedManifest; }, 'missing-seed-manifest');
+  withLedger((ledger) => { ledger.status = 'awaiting_confirmation'; }, 'drive-not-closed');
+  withLedger((ledger) => { ledger.tasks[0].status = 'recorded'; }, 'drive-not-closed');
+  // 두 원인이 겹치면 Interface 순서대로 앞선 reason이 나온다.
+  withLedger((ledger) => {
+    delete ledger.seedManifest;
+    ledger.status = 'awaiting_confirmation';
+  }, 'missing-seed-manifest');
+
+  fs.renameSync(ledgerFile, `${ledgerFile}.bak`);
+  refuse('missing-ledger');
+  fs.renameSync(`${ledgerFile}.bak`, ledgerFile);
+
+  // 거절이 끝난 뒤의 같은 drive는 정상 release된다.
+  assert.equal(release().ok, true);
+});
