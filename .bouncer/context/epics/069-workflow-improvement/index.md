@@ -35,6 +35,10 @@ bouncer:
 9. 예상 경로에 등록된 worktree는 기존 branch로 재사용되고, 계산한 branch가 예상 worktree에 연결되지 않은 채 이미 존재하면 worktree나 source를 바꾸기 전에 명시적 충돌로 중단된다.
 10. Coordinator ledger, finalize payload, explain의 coordinator frontmatter가 실제 integration branch와 worker branch를 기록하고, draft PR push는 branch 이름을 재계산하지 않고 기록된 값을 쓴다.
 11. 각 blueprint를 마감할 때 `npm run ci`가 통과한다.
+12. 커밋되지 않은 blueprint만 있는 메인 worktree에서 `coordinate bootstrap`이 계획 문서와 `.bouncer/config.json`을 integration에 복사하고 ledger `seedManifest`에 경로와 sha256을 남기며, `coordinate prepare`가 integration 사본만으로 worker를 준비한다는 `test/coordinator.test.js`가 통과한다.
+13. `coordinate integrate`가 worker의 terminal 증적을 integration의 같은 task bundle로 가져오고, untracked 계획으로 시작한 drive가 수동 문서 편집 없이 finalize G16의 열린 task 판정을 통과한다는 `test/coordinator-e2e.test.js`가 통과한다.
+14. finalize 뒤 `coordinate release`가 manifest와 바이트가 같은 메인 계획 문서만 되돌리고, 그 뒤 메인에서 `git merge <integrationBranch>`가 계획 문서 충돌 없이 끝난다는 `test/coordinator-e2e.test.js`가 통과한다.
+15. 영문 식별자·경로·패키지 이름을 담은 한국어 종결 문장을 blueprint Intent, `commit_intent`, `commit_summary`가 모두 받아들이고, 줄바꿈·빈 문장·3문장 이상·한국어 부재·종결형 부재는 계속 거절한다는 `test/finalize-pure.test.js`가 통과한다.
 
 ## Out of scope
 - 결정 1(Plan 작성 역할의 계층 분리), 결정 2(Plan 비용 계측과 wave 리뷰), 결정 3(Explain task 제목의 SHA 표시), 결정 4(PR의 Explain 병합 후 경로), 결정 5(Explain 인수인계 확장). 이후 이 epic에 blueprint를 추가해 계획한다.
@@ -45,13 +49,9 @@ bouncer:
 - Blueprint `043/007-shared-rule-blocks`가 정본화한 공통 규칙의 재추출과 새 공통 헤더.
 
 ## Blueprints
-<!-- OKF §6 인덱스 형식. 새 blueprint를 만드는 기준은 하나 — 한 커밋으로
-     리뷰 가능한 단위인가. 더 크면 blueprint를 쪼갠다. 하위 태스크 계층은
-     만들지 않는다 (rules/governance.md).
-     한 줄 목적에는 무엇이 바뀌는지(what)와 어디를 건드리는지(where)를
-     함께 적는다. 기존 라인은 소급 수정하지 않는다. -->
 * [001 진입 스킬 런타임 컨텍스트 최소화](blueprints/001-entry-skill-runtime-context/index.md) - 진입 스킬 본문을 단계 뼈대로 줄이고 CLI preflight payload와 조건부 reference로 옮김 — `skills/bouncer-*`, `scripts/src/lib/`
 * [002 병렬 리뷰와 delta 인증 기반 리뷰 수렴](blueprints/002-review-convergence/index.md) - execute·plan 리뷰를 병렬 discovery, 단일 수정, delta 인증으로 바꾸고 gate와 ledger로 고정 — `references/review/`, `agents/`, `scripts/src/lib/validate-*`
 * [003 worktree branch 이름 표준화](blueprints/003-worktree-branch-naming/index.md) - integration·standalone·worker branch 이름을 CLI helper 하나로 계산하고 실제 branch를 기록 — `scripts/src/lib/runtime-state.ts`, `coordinator.ts`, `execute-prepare.ts`, `finalize.ts`, finalize reference
+* [004 드라이브 계획 문서 흐름과 마감 정리](blueprints/004-drive-document-flow/index.md) - integration을 drive 계획 문서 정본으로 삼아 seed·증적 반환·메인 사본 반환을 잇고 커밋 문장 parser를 완화 — `scripts/src/lib/coordinator.ts`, `seed-worktree.ts`, `finalize.ts`, `templates.ts`, finalize cleanup reference
 
-실행 순서는 001 → 002 → 003이다. 002는 001이 만든 execute review reference를 고치고, 003은 001이 만든 `bouncer execute prepare`의 branch 계산을 교체한다.
+실행 순서는 001 → 002 → 003이다. 002는 001이 만든 execute review reference를 고치고, 003은 001이 만든 `bouncer execute prepare`의 branch 계산을 교체한다. 004는 003이 기록한 integration branch를 병합 대상으로 쓴다.
