@@ -119,8 +119,9 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    The payload is:
    - write cwd: `integrationPath` — the coordinator and its workers mutate only
      there and in the task worktrees it assigns. Never pass the main worktree as
-     a write cwd; `${PROJECT_ROOT}` goes in as read-only provenance (base SHA,
-     plan documents) only.
+     a write cwd; `${PROJECT_ROOT}` goes in as read-only provenance for the
+     base SHA only. Plan documents come from the integration copy that
+     bootstrap seeded, never from the main checkout.
    - blueprint directory, base SHA, and the integration-local ledger path
      `.bouncer/runtime/coordinator.json`
    - the closing action: after every task is integrated and verified, run

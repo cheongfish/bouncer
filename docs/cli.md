@@ -82,7 +82,7 @@ cwd를 배정 경로와 대조해, 자리가 다르면 `coordinate command must 
 | 서브커맨드 | 부르는 자리 | 하는 일 | 돌려주는 것 |
 | --- | --- | --- | --- |
 | `bootstrap` | main worktree | `.worktrees/<epic-id>/<bp-id>/integration`을 blueprint의 `commit_type/<epic-id>-<bp-id>-<slug>` branch로 등록합니다. 새 원장일 때 main의 blueprint 트리·상위 epic/context index와 config를 integration에 복사하고, 계획 문서의 경로별 sha256 `seedManifest`를 coordinator 원장에 남깁니다. `seedManifest`는 `release`가 쓰는 원장 내부 상태이고, 소비자가 읽거나 계약으로 삼는 CLI 응답 필드가 아닙니다. main source는 쓰지 않습니다 | `integrationPath`, `integrationBranch`, `ready`, `tasks`, `decisions` |
-| `prepare` | integration worktree | 현재 ready wave를 열고 task마다 `workers/<NNN>`을 `bouncer/<epic-id>-<bp-id>-<task-id>` branch로 등록한 뒤 계획 문서를 복사해 넣습니다(base는 읽기만). 각 commit task에 실제 `branch`를 기록하고 `prepared`로 옮깁니다 | `ready`, `tasks`(각 `workerPath`, `branch`), `decisions` |
+| `prepare` | integration worktree | 현재 ready wave를 열고 task마다 `workers/<NNN>`을 `bouncer/<epic-id>-<bp-id>-<task-id>` branch로 등록한 뒤, `--repo`와 관계없이 integration 사본의 blueprint 트리와 config를 worker마다 독립 사본으로 복사해 넣습니다. `commit_type`도 integration 사본의 blueprint `index.md`에서 읽습니다. main의 계획 문서는 읽지 않으므로 drive 동안 main은 base SHA 출처로만 남습니다. verification node는 복사 없이 integration에 그 bundle이 있는지만 확인하므로 `repair`가 integration에서 바꾼 terminal `tasks.md`가 그대로 남습니다. 각 commit task에 실제 `branch`를 기록하고 `prepared`로 옮깁니다 | `ready`, `tasks`(각 `workerPath`, `branch`), `decisions` |
 | `ready` | integration worktree | `status`의 별칭입니다. 원장을 바꾸지 않습니다 | `ready`, `tasks`, `decisions` |
 | `status` | integration worktree | 원장 전체 상태를 읽습니다 | `ready`, `tasks`, `decisions` |
 | `record` | worker worktree | `--task`의 worker HEAD를 결과 SHA로 원장에 올리고 `recorded`로 옮깁니다. `--sha`를 주면 worker HEAD와 같아야 하고, `--decision <text>`는 그 판단을 결정 로그에 함께 남깁니다 | `task`(`sha`·`status`), `decisions` |
@@ -122,7 +122,9 @@ throw 경로 문단).
 | `unassigned-worker-worktree` | `prepare`·`record` | worker 경로가 등록된 worktree가 아니거나, 원장이 기억하는 경로와 다릅니다 |
 | `missing-ledger` | `status`·`prepare`·`record`·`integrate`·`critical-recovery`·`revise` | integration worktree에 원장이 없습니다. 먼저 `bootstrap` |
 | `task-required` / `task-outside-blueprint` | `record`·`integrate`·`critical-recovery`·`revise` | `--task`가 없거나 세 자리 형식이 아니거나, 그 blueprint의 task가 아닙니다 |
-| `missing-worktree` / `missing-blueprint` / `copy-failed` | `prepare` | `prepare`가 worker에 계획 문서를 seed하다 실패했습니다. 이 셋은 `seed-worktree` 코어가 내는 코드를 `prepare`가 그대로 표면화한 것입니다 — worker 경로가 디렉터리가 아니거나, blueprint 디렉터리가 없거나, 복사가 실패했습니다 |
+| `missing-blueprint` | `prepare` | integration worktree에 blueprint 디렉터리가 없습니다. worker worktree를 만들기 전 판정 단계에서 `blueprintDir`, `integrationPath`와 함께 거절하며, 원장과 Git worktree 등록은 바뀌지 않습니다 |
+| `missing-verification-bundle` | `prepare` | ready wave의 verification node bundle(`tasks/<NNN>`)이 integration worktree에 없습니다. `missing-blueprint`와 같은 판정 단계에서, 같은 wave의 commit task worker worktree를 만들기 전에 거절합니다. main에서 되살리지 않고 원장과 Git worktree 등록도 바꾸지 않습니다 |
+| `missing-worktree` / `copy-failed` | `prepare` | `prepare`가 worker에 integration의 계획 문서를 seed하다 실패했습니다. `seed-worktree` 코어가 내는 코드를 `prepare`가 그대로 표면화한 것입니다 — worker 경로가 디렉터리가 아니거나 복사가 실패했습니다. 실패는 main 문서와 다른 worker의 문서를 바꾸지 않습니다 |
 | `illegal-transition` | `record`·`critical-recovery` | `record` 또는 recovery 시작 대상이 `prepared`가 아닙니다 |
 | `critical-recovery-exhausted` | `critical-recovery` | 시작 기록이 이미 있는 task에 두 번째 recovery 시작을 시도했습니다 |
 | `critical-recovery-not-started` | `critical-recovery` | 시작 기록 없이 `--outcome` 결과를 쓰려 했습니다 |

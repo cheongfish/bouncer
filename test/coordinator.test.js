@@ -374,7 +374,7 @@ test('prepare backfills a legacy prepared worker branch without renaming its che
     'legacy/015-016-001');
 });
 
-test('prepare rejects an invalid commit type before a verification-only wave can seed documents', () => {
+test('prepare validates the integration commit type even when the ready wave is verification-only', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coordinator-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
@@ -385,11 +385,14 @@ test('prepare rejects an invalid commit type before a verification-only wave can
   fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'),
     '---\nbouncer:\n  execution_kind: verification\n  depends_on: []\n---\n');
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
-  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  commit_type: wip\n---\n');
+  // prepare는 commit_type을 integration 사본에서 읽는다. main에 쓰면 판정에 닿지 않는다.
+  fs.writeFileSync(path.join(boot.integrationPath, blueprint, 'index.md'), '---\nbouncer:\n  commit_type: wip\n---\n');
   const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   assert.strictEqual(result.reason, 'invalid-commit-type');
-  // bootstrap seed는 prepare의 branch metadata 검증보다 먼저 끝난다.
-  assert.strictEqual(fs.existsSync(path.join(boot.integrationPath, blueprint, 'tasks/001/tasks.md')), true);
+  // verification-only wave는 worker branch를 만들지 않지만 commit_type 검증은 그대로 받는다.
+  // 거절은 node를 ready로 옮기기 전이라 원장의 task 상태가 bootstrap 그대로 남는다.
+  const ledger = JSON.parse(fs.readFileSync(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8'));
+  assert.strictEqual(ledger.tasks[0].status || 'pending', 'pending');
 });
 
 test('standalone branch and a later ready-wave conflict create no coordinator worktree', () => {
@@ -461,6 +464,190 @@ test('prepare seeds each assigned worker and record accepts the worker boundary'
   assert.strictEqual(fs.readFileSync(path.join(worker, blueprint, 'tasks', '001', 'tasks.md'), 'utf8').includes('brief'), true);
   const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
   assert.strictEqual(recorded.ok, true);
+});
+
+// 계획 문서를 커밋하지 않은 fixture. bootstrap이 integration에 seed한 뒤로는
+// integration 사본만 정본이므로, main 사본을 지워도 drive가 이어져야 한다.
+function uncommittedPlanRepo(prefix, blueprint, tasks) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), '{"verify":"node --test"}\n');
+  fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  for (const [id, metadata] of tasks) {
+    fs.mkdirSync(path.join(repo, blueprint, 'tasks', id), { recursive: true });
+    fs.writeFileSync(path.join(repo, blueprint, 'tasks', id, 'tasks.md'), `---\nbouncer:\n${metadata}---\nbrief ${id}\n`);
+  }
+  return repo;
+}
+
+test('prepare seeds workers from the integration plan after the main plan is removed', () => {
+  const blueprint = '.bouncer/context/epics/040-x/blueprints/041-y';
+  const repo = uncommittedPlanRepo('bouncer-coordinator-seed-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+    ['002', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  fs.rmSync(path.join(repo, blueprint), { recursive: true, force: true });
+  fs.rmSync(path.join(repo, '.bouncer/config.json'), { force: true });
+  const edited = Buffer.from('---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n---\nintegration edit\n');
+  fs.writeFileSync(path.join(boot.integrationPath, blueprint, 'tasks/001/tasks.md'), edited);
+
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker1 = prepared.tasks.find((t) => t.id === '001').workerPath;
+  const worker2 = prepared.tasks.find((t) => t.id === '002').workerPath;
+  assert.ok(fs.existsSync(path.join(worker1, blueprint, 'tasks/001/tasks.md')));
+  assert.deepStrictEqual(fs.readFileSync(path.join(worker1, blueprint, 'tasks/001/tasks.md')), edited);
+  assert.deepStrictEqual(fs.readFileSync(path.join(worker2, blueprint, 'tasks/001/tasks.md')), edited);
+  assert.strictEqual(fs.readFileSync(path.join(worker1, '.bouncer/config.json'), 'utf8'), '{"verify":"node --test"}\n');
+  // prepare는 main을 다시 채우지 않는다.
+  assert.strictEqual(fs.existsSync(path.join(repo, blueprint)), false);
+
+  // 병렬 worker는 각자 독립 사본을 받는다. 한 worker의 수정은 다른 worker와
+  // integration 정본에 번지지 않는다.
+  const shared = path.join(blueprint, 'tasks/002/tasks.md');
+  const before = fs.readFileSync(path.join(boot.integrationPath, shared));
+  fs.writeFileSync(path.join(worker1, shared), 'worker 001 local edit\n');
+  assert.deepStrictEqual(fs.readFileSync(path.join(worker2, shared)), before);
+  assert.deepStrictEqual(fs.readFileSync(path.join(boot.integrationPath, shared)), before);
+});
+
+test('prepare rejects a missing integration blueprint before creating any worker', () => {
+  const blueprint = '.bouncer/context/epics/042-x/blueprints/043-y';
+  const repo = uncommittedPlanRepo('bouncer-coordinator-missing-', blueprint, [['001', '  depends_on: []\n']]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  fs.rmSync(path.join(boot.integrationPath, blueprint), { recursive: true, force: true });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
+
+  const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.deepStrictEqual(result, {
+    ok: false, reason: 'missing-blueprint', blueprintDir: blueprint, integrationPath: boot.integrationPath,
+  });
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8' });
+  assert.doesNotMatch(listed, /workers/);
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
+});
+
+test('prepare keeps the repaired integration terminal bundle without reading main', () => {
+  const blueprint = '.bouncer/context/epics/044-x/blueprints/045-y';
+  const repo = uncommittedPlanRepo('bouncer-coordinator-verify-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  fs.rmSync(path.join(repo, blueprint), { recursive: true, force: true });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  ledger.tasks[1].status = 'verifying';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const repaired = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['src/fix.js'], decision: 'repair source',
+  });
+  assert.strictEqual(repaired.ok, true, JSON.stringify(repaired));
+  const terminalFile = path.join(boot.integrationPath, blueprint, 'tasks/002/tasks.md');
+  const terminalAfterRepair = fs.readFileSync(terminalFile);
+  const afterRepair = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  afterRepair.tasks.find((entry) => entry.id === '003').status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(afterRepair, null, 2)}\n`);
+
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.deepStrictEqual(prepared.ready, ['002']);
+  assert.strictEqual(prepared.tasks.find((entry) => entry.id === '002').status, 'ready');
+  assert.deepStrictEqual(fs.readFileSync(terminalFile), terminalAfterRepair);
+
+  // integration에 bundle이 없으면 main에서 되살리지 않고 원장도 그대로 둔다.
+  // main에는 tasks/002를 되돌려 두고 integration에서만 지운다. main을 읽는 구현이면
+  // 여기서 bundle을 되살려 통과하므로, 이 배치가 main 비의존을 가른다.
+  const reset = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  reset.tasks.find((entry) => entry.id === '002').status = 'pending';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(reset, null, 2)}\n`);
+  const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/002'), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'tasks/002/tasks.md'), terminalAfterRepair);
+  const integrationBundle = path.join(boot.integrationPath, blueprint, 'tasks/002');
+  fs.rmSync(integrationBundle, { recursive: true, force: true });
+  const missing = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(missing.reason, 'missing-verification-bundle');
+  assert.strictEqual(fs.existsSync(integrationBundle), false);
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
+});
+
+// 디렉터리 아래 모든 파일의 상대 경로와 바이트. 실패 전후 사본을 바이트 단위로 대조한다.
+function snapshotTree(root) {
+  const files = {};
+  const visit = (dir) => {
+    for (const name of fs.readdirSync(dir).sort()) {
+      const child = path.join(dir, name);
+      if (fs.statSync(child).isDirectory()) visit(child);
+      else files[path.relative(root, child)] = fs.readFileSync(child);
+    }
+  };
+  visit(root);
+  return files;
+}
+
+test('a failed second worker seed leaves main plan, the first worker copy, and the ledger unchanged', () => {
+  const blueprint = '.bouncer/context/epics/046-x/blueprints/047-y';
+  const repo = uncommittedPlanRepo('bouncer-coordinator-seedfail-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+    ['002', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  // 002 worker를 미리 등록해 prepare가 재사용하게 하고, blueprint가 들어갈 자리의 조상을
+  // 일반 파일로 막는다. 001 seed가 끝난 뒤 002의 cpSync만 결정적으로 실패한다.
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const worker1 = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
+  const worker2 = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '002' }).workerPath;
+  fs.mkdirSync(path.dirname(worker2), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '-b', 'bouncer/046-047-002', worker2, 'HEAD'], { cwd: boot.integrationPath });
+  fs.mkdirSync(path.join(worker2, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(worker2, '.bouncer/context'), 'blocks the blueprint copy\n');
+  const mainBefore = snapshotTree(path.join(repo, '.bouncer'));
+  const integrationPlan = snapshotTree(path.join(boot.integrationPath, blueprint));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
+
+  const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(result.reason, 'copy-failed', JSON.stringify(result));
+  assert.deepStrictEqual(snapshotTree(path.join(repo, '.bouncer')), mainBefore);
+  // 001 사본은 002 실패 전에 integration에서 받은 바이트 그대로다.
+  assert.deepStrictEqual(snapshotTree(path.join(worker1, blueprint)), integrationPlan);
+  assert.deepStrictEqual(snapshotTree(path.join(boot.integrationPath, blueprint)), integrationPlan);
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
+});
+
+test('a missing verification bundle in a mixed wave is rejected before any worker worktree exists', () => {
+  const blueprint = '.bouncer/context/epics/048-x/blueprints/049-y';
+  const repo = uncommittedPlanRepo('bouncer-coordinator-mixed-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+    ['002', '  depends_on: []\n  parallel_safe: true\n'],
+    ['003', '  execution_kind: verification\n  depends_on: []\n  parallel_safe: true\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.deepStrictEqual(boot.ready, ['001', '002', '003']);
+  fs.rmSync(path.join(boot.integrationPath, blueprint, 'tasks/003'), { recursive: true, force: true });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
+
+  const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(result.reason, 'missing-verification-bundle');
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8' });
+  assert.doesNotMatch(listed, /workers/);
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
 });
 
 test('record refuses a SHA that is not the assigned worker HEAD', () => {
