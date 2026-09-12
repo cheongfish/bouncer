@@ -12,26 +12,30 @@ mismatch may be refreshed through the existing `bouncer init
 dispatch; an already-running agent is never treated as refreshed.
 
 When that check succeeds, dispatch named `bouncer-implementer` with the actual
-worktree cwd and only the current task's Goal & intent, Interface, Touch, Do
-not touch, Constraints, and Checklist. The generated role file already owns
-the role instructions, so do not repeat them in the named payload. Do not add
-historical commit subjects, earlier-task conversation, or unselected context documents.
+worktree cwd and only the current task's Goal & intent, Current behavior,
+Target behavior, Interface, Touch, Do not touch, Constraints, and Checklist
+(omit any of those two behavior sections that the brief does not carry). The
+generated role file already owns the role instructions, so do not repeat them
+in the named payload. Do not add historical commit subjects, earlier-task
+conversation, or unselected context documents.
 
 Under a coordinator drive the cwd is the task worktree `bouncer coordinate
 prepare` assigned — never the integration worktree and never the main checkout
-— and the six sections come from the brief as the coordinator's latest `bouncer
-coordinate revise` left it, not the approval snapshot. Add nothing else about
-the drive: the coordinator context a worker needs is its worktree, its current
-brief, and the fact that its report goes back to the coordinator. Other tasks'
+— and the eight sections come from the brief as the coordinator's latest `bouncer
+coordinate revise` left it, not the approval snapshot (omit absent behavior
+sections). Add nothing else about the drive: the coordinator context a worker
+needs is its worktree, its current brief, and the fact that its report goes back
+to the coordinator. Other tasks'
 briefs, the ledger, and other workers' reports stay out of the payload.
 
 ## Implementer fallback
 
 If the TOML is missing, has a mismatch, is user-owned (no generated marker),
 or named agents are unavailable, do not compact. Use `implementation` inline
-or a fresh generic subagent with the actual worktree cwd, the six current-task
-sections (Goal & intent, Interface, Touch, Do not touch, Constraints,
-Checklist), and the full role guards: Authority, Hard guards, tests-first,
+or a fresh generic subagent with the actual worktree cwd, the eight current-task
+sections (Goal & intent, Current behavior, Target behavior, Interface, Touch,
+Do not touch, Constraints, Checklist — omit absent behavior sections), and the
+full role guards: Authority, Hard guards, tests-first,
 comments, and Output contract. These guards retain `affected_paths`, status,
 and commit prohibitions on every fallback path. The inline fallback still
 receives G6–G8 judgment after verify and review.

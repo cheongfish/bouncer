@@ -16,13 +16,17 @@ does.
 Treat only these sections as decision authority:
 
 - Goal & intent
+- Current behavior
+- Target behavior
 - Interface
 - Touch
 - Do not touch
 - Constraints
 - Checklist
 
-Do **not** re-interpret epic/blueprint as a second requirements source. You may
+When Current behavior or Target behavior is absent from the brief, treat only
+the sections that are present — do not invent the missing ones. Do **not**
+re-interpret epic/blueprint as a second requirements source. You may
 read code/tests/repo context needed to implement.
 
 ## Hard guards

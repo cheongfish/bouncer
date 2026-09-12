@@ -43,8 +43,11 @@ body content only; never edits harness-owned frontmatter fields. Used from
      Mermaid chart.
    - **tasks**: fill every implementation-ready section in each
      `tasks/<NNN>/tasks.md` bundle before approval —
-     Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.
-     Those sections are the sole brief for execution. Set `title` as the
+     Goal & intent, Current behavior, Target behavior, Interface, Touch,
+     Do not touch, Constraints, Checklist.
+     Those sections are the sole brief for execution. Current behavior and
+     Target behavior are optional on the template; when absent, execution
+     passes only the sections that exist. Set `title` as the
      **task commit subject** (`/bouncer-commit` copies it). Set
      `bouncer.commit_intent` to 1–2 Korean terminal sentences (배경·의도) drawn
      from Goal & intent, and optionally `bouncer.commit_summary` to 1–2 Korean
@@ -78,17 +81,37 @@ body content only; never edits harness-owned frontmatter fields. Used from
        생성되는 두 문서는 `tasks.md`와 `verification.md`뿐이다.
      - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
        다시 열거하지 않고 절차만 담는다.
+     - **Current behavior**: record inputs, state, and outputs for the change
+       surface, plus the reproduction path (commands, fixtures, or gate runs)
+       and the tests or commands already confirmed. The implementer must be
+       able to re-run what you observed without inventing a baseline.
+     - **Target behavior**: separate success paths, failure paths, and
+       preserved behavior. Do not collapse them into one aspirational sentence.
+       When the task does not change runtime behavior, write artifact checks,
+       schema assertions, or dry-run commands as the judgment basis instead.
      - **Interface**: state what the change provides *and* what it rejects.
        A contract with only the positive half cannot be reviewed against.
-     - **Touch**: one entry per file with a verb (`Create`, `Modify`,
-       `Delete`, `Rename`), not per directory. A bare directory opens every
-       file under it, so G11 passes without constraining anything. Touch must
-       justify every `affected_paths` entry.
+     - **Touch**: write a Markdown table with columns
+       `경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거`. One row per file;
+       `변경` is `Create`, `Modify`, `Delete`, or `Rename`. List only symbols
+       tied to the entry point, state change, or verification point, and give
+       the selection reason in `근거`. When the symbol name is not yet
+       grounded, write `신규 추출 지점: <responsibility>` instead of inventing
+       a name. Internal symbol names are search hints — completion must not
+       depend on keeping that exact name. A bare directory still opens every
+       file under it, so Touch must justify every `affected_paths` entry.
      - **Touch** (contract change): when Interface revises a shared
        serialized shape or gate input, also list every test/fixture file that
        *constructs or asserts* that shape, with `Modify` — even if the owning
        production module is under Do not touch. Import absence is not absence
        of blast radius.
+     - **Judgable prose**: ban undecidable verbs such as `개선한다` or
+       `적절히 처리한다`. Replace them with observable outcomes a gate or
+       test can accept or reject.
+     - **Unresolved design**: do not hand the implementer a design choice
+       investigation could not settle. Close it by deepening the investigation,
+       adding a prior discovery task, or confirming with the user before
+       approval.
      - **Do not touch**: paths only; must not overlap `affected_paths`.
      - **Constraints**: the rules that hold inside the allowed paths —
        compatibility promises, contracts to preserve, conventions to keep.
@@ -108,13 +131,13 @@ body content only; never edits harness-owned frontmatter fields. Used from
        Checklist. The scaffolded body has no Interface / Do not touch / Constraints
        headings and you do not add them; G10 asks for the three only. Write
        them shorter, not vaguer: Goal & intent is one or two sentences that
-       name the acceptance condition, Touch keeps the per-file verb entries
+       name the acceptance condition, Touch keeps the per-file table rows
        (it still has to justify every `affected_paths` entry for G11), and the
-       Checklist keeps the failing-test-first ordering. If the change needs a
-       rejection contract or a protected path spelled out, that is the signal
-       to set `scale` back to `full` rather than to smuggle the rule into
-       Goal & intent — a path you must protect has nowhere to live in a light
-       task, and G12 can only judge a Do not touch section that exists.
+       Checklist keeps the failing-test-first ordering. Needing a public interface,
+       a protected path, an error contract, or state changes across multiple modules
+       is the signal to set `scale` back to `full` rather than to smuggle those
+       rules into Goal & intent — a path you must protect has nowhere to live in a
+       light task, and G12 can only judge a Do not touch section that exists.
        The whole light plan set is budgeted at 100 lines
        (`rules/governance.md` `## Lightweight cycle`).
    - **verification / review**: only author these when a command sends you

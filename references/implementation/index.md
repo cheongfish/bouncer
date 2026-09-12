@@ -21,8 +21,9 @@ tests green, and reports any deviations from the plan. Used from `/bouncer-execu
 The caller (`/bouncer-execute` via `bouncer-implementer`) owns the dispatch;
 this section is the call contract, not the implementation rubric.
 
-1. **Approved tasks** — Treat the task brief (`tasks/<NNN>/tasks.md`: Goal & intent, Interface, Touch, Do not touch, Constraints,
-   Checklist) as the sole authority. Do not invent requirements.
+1. **Approved tasks** — Treat the task brief (`tasks/<NNN>/tasks.md`: Goal & intent, Current behavior, Target behavior, Interface, Touch, Do not touch, Constraints,
+   Checklist) as the sole authority. When Current behavior or Target behavior is
+   absent, use only the sections present. Do not invent requirements.
 2. **Allowed paths** — Change only what Touch / `affected_paths` justifies, and
    honour Do not touch and Constraints inside those paths.
 3. **Role rubric** — The minimality ladder, focused-change rule,

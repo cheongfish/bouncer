@@ -168,7 +168,10 @@ test('bouncer-execute compacts only a synchronized fresh named implementer paylo
   assert.match(named, /byte-for-byte|exact match/i);
   assert.match(named, /new named dispatch|fresh named dispatch/i);
   assert.match(named, /cwd|worktree/i);
-  assert.match(named, /Goal & intent[\s\S]*Interface[\s\S]*Touch[\s\S]*Do\s+not touch[\s\S]*Constraints[\s\S]*Checklist/);
+  assert.match(
+    named,
+    /Goal & intent[\s\S]*Current behavior[\s\S]*Target behavior[\s\S]*Interface[\s\S]*Touch[\s\S]*Do\s+not touch[\s\S]*Constraints[\s\S]*Checklist/,
+  );
   assert.doesNotMatch(named, /Prior commit subjects/i);
   assert.doesNotMatch(named, /Hard guards|tests-first|Output contract/i);
 });
@@ -179,7 +182,10 @@ test('bouncer-execute keeps full implementer guards for every compact-payload fa
 
   assert.match(fallback, /mismatch|user-owned|unavailable/i);
   assert.match(fallback, /Authority[\s\S]*Hard guards[\s\S]*tests-first[\s\S]*comments[\s\S]*Output contract/i);
-  assert.match(fallback, /Goal & intent[\s\S]*Interface[\s\S]*Touch[\s\S]*Do\s+not touch[\s\S]*Constraints[\s\S]*Checklist/);
+  assert.match(
+    fallback,
+    /Goal & intent[\s\S]*Current behavior[\s\S]*Target behavior[\s\S]*Interface[\s\S]*Touch[\s\S]*Do\s+not touch[\s\S]*Constraints[\s\S]*Checklist/,
+  );
   assert.match(fallback, /status[\s\S]{0,80}commit|commit[\s\S]{0,80}status/i);
 });
 

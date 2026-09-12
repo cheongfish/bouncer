@@ -122,10 +122,10 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
 3. **Author.** Use the `spec-authoring` skill (`${BOUNCER_ROOT}/references/spec-authoring/index.md`) to write the epic, blueprint, and
    tasks bodies in **Korean** (paths, ids, and code fences stay as-is). For every
    `tasks/<NNN>/tasks.md` under the blueprint, fill every implementation-ready
-   section before approval — Goal & intent, Interface, Touch, Do not touch,
-   Constraints, Checklist. Those sections are the sole brief for
-   `/bouncer-execute`. Write Touch per file with a verb rather than
-   per directory, and put non-path rules in Constraints.
+   section before approval — Goal & intent, Current behavior, Target behavior,
+   Interface, Touch, Do not touch, Constraints, Checklist. Those sections are
+   the sole brief for `/bouncer-execute`. Author each named section, including
+   Touch, per `${BOUNCER_ROOT}/references/spec-authoring/index.md`.
    For every task, author the DAG frontmatter execution reads:
    `bouncer.depends_on` (array of `TASKS-NNN` ids; `[]` when none),
    `bouncer.parallel_safe` (boolean), and `bouncer.dependency_gate`
@@ -156,10 +156,10 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    check `scale === 'light'`.
    **Light authoring scope.** Fill only Goal & intent, Touch, and Checklist in
    light task bodies — the template has no Interface or Do not touch headings
-   and G10 requires only those three. Needing protected paths or rejection
-   contracts signals a return to full: set `scale` back, run `bouncer scaffold
-   context-review --blueprint <dir>`, fill Interface and Do not touch, and
-   rejoin the normal path.
+   and G10 requires only those three. Needing a public interface, a protected path,
+   an error contract, or state changes across multiple modules signals a return to
+   full: set `scale` back, run `bouncer scaffold context-review --blueprint <dir>`,
+   fill Interface and Do not touch, and rejoin the normal path.
    **Verify command (optional).** Once the draft bodies make this blueprint's
    character clear, use `verifySignals` from `bouncer plan inspect`. The
    command reports **repository root only** presence of `docker-compose.yml`,
