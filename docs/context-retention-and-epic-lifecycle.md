@@ -40,10 +40,13 @@ commit에서 각 task의 `bouncer.commit_sha`(8자리)를 `explain.md`의
 미해결 위험은 새 sibling Blueprint 범위로 옮기거나 `explain.md`에 후속 제약으로
 적는다.
 
-`task_commits` 항목은 `{ id: '<NNN>', sha: '<8 hex>' }`다. `/bouncer-commit`이
-커밋 직후 `tasks.md`에 `commit_sha`를 남기고, finalize가 삭제 전에 모아
-explain에 기록한다. context-digest는 이 배열에서 `task-<epic>-<bp>-<id>` 앵커와
-8자리 sha 헤딩을 파생해 그래프 질의에 남긴다.
+`task_commits` 항목은 `{ task: 'EPIC-<ddd>/BP-<ddd>/TASK-<ddd>', sha: '<8 hex>',
+intent_anchor: 'task-<ddd>' }`다. `/bouncer-commit`이 커밋 직후 `tasks.md`에
+8자리 `commit_sha`를 남기고, finalize가 삭제 전에 모아 이 새 행만 explain에
+기록한다. 이미 닫힌 Explain의 legacy `{ id: '<NNN>', sha: '<8 hex>' }`는
+일괄 고치지 않고 읽기만 한다. context-digest는 새 행을 먼저 읽고, 같은
+8자리 sha와 `task-<epic>-<bp>-<id>` 앵커를 파생하며, legacy 행도 같은
+형식으로 해석한다.
 
 닫힌 Blueprint의 축약 레이아웃은 위 삭제 대상의 부재를 허용한다. 구조 검증은
 `draft` 또는 `approved` Blueprint에서 기존 task bundle과 full 계획의

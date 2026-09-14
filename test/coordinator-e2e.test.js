@@ -208,6 +208,43 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
   assert.strictEqual(git(repo, ['rev-parse', '--abbrev-ref', 'HEAD']), 'work');
 });
 
+test('cherry-picked worker commits keep stable provenance trailers', () => {
+  const blueprint = '.bouncer/context/epics/010-parallel/blueprints/001-drive';
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
+  writeTask(repo, blueprint, '001', { depends_on: [], parallel_safe: true });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const message = [
+    'feat: task 001',
+    '',
+    'Bouncer-Task: EPIC-010/BP-001/TASK-001',
+    'Bouncer-Intent: EPIC-010/BP-001',
+  ].join('\n');
+  const workerSha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', message);
+  writeTerminalEvidence(worker, blueprint, '001', workerSha);
+  assert.strictEqual(
+    coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok,
+    true,
+  );
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+  });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  const body = git(boot.integrationPath, ['log', '--format=%B', '-1']);
+  assert.match(body, /^Bouncer-Task: EPIC-010\/BP-001\/TASK-001$/m);
+  assert.match(body, /^Bouncer-Intent: EPIC-010\/BP-001$/m);
+  assert.strictEqual((body.match(/^Bouncer-Task:/gm) || []).length, 1);
+  assert.strictEqual((body.match(/^Bouncer-Intent:/gm) || []).length, 1);
+});
+
 test('a rejected fan-in preserves the ledger and resumes without a duplicate cherry-pick', () => {
   const blueprint = '.bouncer/context/epics/011-resume/blueprints/002-drive';
   const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });

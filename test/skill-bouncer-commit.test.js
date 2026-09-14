@@ -52,6 +52,8 @@ test('bouncer-commit forbids discarding the post-commit tasks.md commit_sha stam
   const { body } = parseFrontmatter(md);
   assert.match(body, /commit_sha/);
   assert.match(body, /task_commits/);
+  assert.match(body, /intent_anchor/);
+  assert.match(body, /EPIC-<ddd>\/BP-<ddd>\/TASK-<ddd>/);
   assert.match(body, /do not[\s\S]{0,80}(?:git checkout|git restore|discard)/i);
 });
 

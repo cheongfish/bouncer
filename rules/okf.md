@@ -111,7 +111,8 @@ compatibility; do not author the legacy form in new plans.
 
 **Generated evidence fields.** `bouncer.scope_evidence`, verification, review,
 context-review, comprehension metadata, `bouncer.commit_sha` (tasks, 8-char
-hex written by commit), and `bouncer.task_commits` (explain, copied at finalize)
+hex written by commit), and `bouncer.task_commits` (explain, copied at finalize
+as `{ task, sha, intent_anchor }`)
 record their respective workflow evidence. Treat all of them as data produced by
 their designated step. Do not manufacture values to satisfy a gate; correct the
 plan, rerun the designated step, or return to planning.
@@ -140,9 +141,13 @@ frontmatter and `resource` path. Root task layouts are input only to
 `bouncer migrate task-layout`. Blueprint-root documents sit beside that
 bundle: `explain.md` (written at finalize) and `context-review.md` (plan
 document consistency). After finalize deletes task leaves, `explain.md`
-`bouncer.task_commits` keeps `{ id, sha }` rows (8-char hex). context-digest
-re-emits `task-<ddd>-<ddd>-<ddd>` and the short sha as derived headings so
-graph search still resolves task commits.
+`bouncer.task_commits` writes `{ task, sha, intent_anchor }` rows:
+`task` is `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`,
+and `sha` stays 8-char hex. context-digest reads that new row first and still
+accepts legacy `{ id, sha }` with the same 8-char hex, then re-emits
+`task-<ddd>-<ddd>-<ddd>` and the short sha as derived headings so graph search
+still resolves task commits. Existing explain documents are not rewritten until
+finalize writes them again.
 
 Task commit staging excludes the task bundle and context documents even when
 shared scope authorization allows those workflow paths. Finalize owns their

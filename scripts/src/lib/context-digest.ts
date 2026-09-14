@@ -6,7 +6,8 @@ const { TASK_DIR_RE, TASK_UNIT_BASENAMES } = tasksDocs;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter } = frontmatter;
 import commitSha = require('./commit-sha');
-const { normalizeCommitSha } = commitSha;
+const { normalizeCommitSha, buildStableProvenance } = commitSha;
+const INTENT_ANCHOR_RE = /^task-(\d{3})$/;
 
 /** graphify가 스캔할 파생 트리 (gitignore 대상 graphify-out 아래). */
 const CONTEXT_DIGEST_OUT = 'graphify-out/context-src';
@@ -44,9 +45,41 @@ function digestRulesFor(rel: unknown): string[] | null {
 }
 
 /**
+ * 새 `{ task, sha, intent_anchor }` 행에서 task 번호와 8자리 sha를 읽는다.
+ * intent_anchor는 `task-<ddd>`여야 하고, `task`는 Explain 부모 ID로 다시 만든
+ * stable ref와 같아야 한다. 다른 Blueprint를 가리키거나 형식이 깨지면 null.
+ *
+ * @param {Record<string, unknown>} row - task_commits 한 행
+ * @param {string} epicId - explain `bouncer.epic_id`
+ * @param {string} bpId - explain `bouncer.blueprint_id`
+ * @returns {{taskId: string, sha: string} | null}
+ */
+function headingsFromNewTaskCommit(
+  row: Record<string, unknown>,
+  epicId: string,
+  bpId: string,
+): { taskId: string; sha: string } | null {
+  const sha = normalizeCommitSha(row.sha);
+  if (!sha) return null;
+  const anchorMatch = INTENT_ANCHOR_RE.exec(String(row.intent_anchor || ''));
+  if (!anchorMatch) return null;
+  const taskDigits = anchorMatch[1];
+  // 부모 ID는 호출 전에 \d{3}이고 TASKS-NNN도 여기서 조립한다.
+  // helper 실패는 행 skip이 아니라 그 전제 파손이므로 삼키지 않는다.
+  const expected = buildStableProvenance({
+    epicId,
+    blueprintId: bpId,
+    taskId: `TASKS-${taskDigits}`,
+  });
+  if (String(row.task || '') !== expected.task) return null;
+  return { taskId: taskDigits, sha };
+}
+
+/**
  * explain.md `bouncer.task_commits`에서 그래프 검색 헤딩을 파생한다.
  * tasks.md 삭제 뒤에도 task 앵커와 8자리 sha가 질의에 걸리게 한다.
- * 형식: `task-<epic>-<bp>-<id>`, 이어서 `sha`(8 hex). 깨진 항목은 건너뛴다.
+ * 새 `{ task, sha, intent_anchor }`를 먼저 읽고, 키가 없으면 legacy `{ id, sha }`로
+ * 떨어진다. 형식: `task-<epic>-<bp>-<id>`, 이어서 `sha`(8 hex). 깨진 항목은 건너뛴다.
  *
  * @param {string} markdown - explain 원본(frontmatter 포함)
  * @param {string} rel - 저장소 상대 경로(explain.md만 대상)
@@ -71,18 +104,32 @@ function taskCommitHeadings(markdown: string, rel: string): string[] {
   if (!Array.isArray(rows)) return [];
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const row of rows) {
-    if (!row || typeof row !== 'object') continue;
-    const id = String((row as Record<string, unknown>).id || '');
-    if (!TASK_DIR_RE.test(id)) continue;
-    const sha = normalizeCommitSha((row as Record<string, unknown>).sha);
-    if (!sha) continue;
-    const taskAnchor = `task-${epicId}-${bpId}-${id}`;
+  const pushPair = (taskId: string, sha: string) => {
+    const taskAnchor = `task-${epicId}-${bpId}-${taskId}`;
     for (const label of [taskAnchor, sha]) {
       if (seen.has(label)) continue;
       seen.add(label);
       out.push(label);
     }
+  };
+  for (const row of rows) {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    const record = row as Record<string, unknown>;
+    // task 또는 intent_anchor가 있으면 새 형식으로만 판정한다. 깨진 새 행을
+    // legacy id로 구하면 다른 Blueprint SHA가 이 Explain 앵커로 승격된다.
+    const looksNew = Object.prototype.hasOwnProperty.call(record, 'task')
+      || Object.prototype.hasOwnProperty.call(record, 'intent_anchor');
+    if (looksNew) {
+      const parsed = headingsFromNewTaskCommit(record, epicId, bpId);
+      if (!parsed) continue;
+      pushPair(parsed.taskId, parsed.sha);
+      continue;
+    }
+    const id = String(record.id || '');
+    if (!TASK_DIR_RE.test(id)) continue;
+    const sha = normalizeCommitSha(record.sha);
+    if (!sha) continue;
+    pushPair(id, sha);
   }
   return out;
 }

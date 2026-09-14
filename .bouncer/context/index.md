@@ -26,3 +26,4 @@ bouncer_schema: '0.1'
 * [068 context-runtime-rearchitecture](epics/068-context-runtime-rearchitecture/index.md) - Removes Project Distill, introduces ranked canonical context retrieval, and adds bounded coordinator CI recovery.
 * [069 workflow-improvement](epics/069-workflow-improvement/index.md) - Incremental Bouncer workflow improvements to runtime context cost, review convergence, and execution traceability, delivered as independent blueprints.
 * [070 task-brief-specificity](epics/070-task-brief-specificity/index.md) - Makes task briefs executable without extra design judgment by linking current behavior, target behavior, code symbols, and verification.
+* [071 code-grounded-intent-provenance](epics/071-code-grounded-intent-provenance/index.md) - Connects code changes to durable task intent through stable task identifiers and commit provenance.
