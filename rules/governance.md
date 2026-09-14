@@ -33,7 +33,11 @@ scope helper, then stage task outputs only. Task bundles and context documents
 remain for finalize; finalize stages tracked transient deletions and removes
 untracked documents without adding paths that no longer exist. The
 task's `commit_sha` stays in its working-tree document until finalize copies it
-to `explain.md`.
+to `explain.md` as `{ task, sha, intent_anchor }`: `task` is
+`EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`, and both
+`commit_sha` and `sha` stay lowercase 8-char hex. Finalize does not rewrite
+existing explain rows in bulk; only the document it writes at close switches to
+the new shape. Readers keep accepting legacy `{ id, sha }`.
 
 ## Lightweight cycle
 

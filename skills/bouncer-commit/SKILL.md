@@ -64,9 +64,12 @@ workflow only supplies the current task's scope and its post-commit handoff.
    `ok: false`, follow `recovery.action` and stop. On `ok: true`, read
    `controller`, `nextAction`, and `stampPath`. When `stampPath` is set, the
    CLI wrote `bouncer.commit_sha` into that `tasks.md` so `/bouncer-finalize`
-   can copy it into `explain.md` `bouncer.task_commits` — **do not** `git
+   can copy the 8-char stamp into `explain.md` `bouncer.task_commits` as
+   `{ task: EPIC-<ddd>/BP-<ddd>/TASK-<ddd>, sha, intent_anchor: task-<ddd> }`
+   — **do not** `git
    checkout` / `git restore` / discard that dirty `tasks.md`. Leave it for
-   the next task commit or finalize remainder.
+   the next task commit or finalize remainder. Legacy `{ id, sha }` rows stay
+   readable; finalize does not rewrite them until it writes that explain again.
 
 5. **Handoff.** Route on `nextAction`. The commit payload carries the
    provenance the controller routes on: the task SHA on the worker branch,

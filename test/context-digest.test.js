@@ -58,6 +58,68 @@ test('taskCommitHeadings derives task anchors and 8-char shas from explain', () 
   assert.deepEqual(taskCommitHeadings(md, '.bouncer/context/epics/039-x/index.md'), []);
 });
 
+test('taskCommitHeadings reads new stable rows then legacy id rows', () => {
+  const rel = '.bouncer/context/epics/071-x/blueprints/001-y/explain.md';
+  const md = [
+    '---',
+    'type: bouncer.explain',
+    'bouncer:',
+    "  epic_id: '071'",
+    "  blueprint_id: '001'",
+    '  task_commits:',
+    '    - task: EPIC-071/BP-001/TASK-001',
+    '      sha: AABBCCDD1122',
+    '      intent_anchor: task-001',
+    "    - id: '002'",
+    "      sha: '11223344'",
+    '---',
+    '',
+  ].join('\n');
+  assert.deepEqual(taskCommitHeadings(md, rel), [
+    'task-071-001-001',
+    'aabbccdd',
+    'task-071-001-002',
+    '11223344',
+  ]);
+});
+
+test('taskCommitHeadings excludes malformed and cross-blueprint rows', () => {
+  const rel = '.bouncer/context/epics/071-x/blueprints/001-y/explain.md';
+  const md = [
+    '---',
+    'type: bouncer.explain',
+    'bouncer:',
+    "  epic_id: '071'",
+    "  blueprint_id: '001'",
+    '  task_commits:',
+    '    - task: EPIC-071/BP-002/TASK-001',
+    '      sha: aabbccdd',
+    '      intent_anchor: task-001',
+    '    - task: EPIC-071/BP-001/TASK-002',
+    '      sha: 11223344',
+    '      intent_anchor: not-task',
+    '    - task: EPIC-071/BP-001/TASK-003',
+    '      sha: nope',
+    '      intent_anchor: task-003',
+    '    - task: EPIC-071/BP-001/TASK-004',
+    '      sha: 44556677',
+    '      intent_anchor: task-005',
+    '    - task: EPIC-071/BP-001/TASK-006',
+    '      sha: 8899aabb',
+    '      intent_anchor: task-006',
+    '    - task: not-a-ref',
+    "      id: '007'",
+    '      sha: ccddeeff',
+    '      intent_anchor: task-007',
+    '---',
+    '',
+  ].join('\n');
+  assert.deepEqual(taskCommitHeadings(md, rel), [
+    'task-071-001-006',
+    '8899aabb',
+  ]);
+});
+
 test('tagLabels keeps domain tags and drops structural ones', () => {
   const fm = [
     '---', 'type: bouncer.epic', 'tags:',

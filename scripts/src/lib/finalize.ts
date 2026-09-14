@@ -45,7 +45,8 @@ type GitApi = {
   headSha?: () => string;
 };
 
-type TaskCommitEntry = { id: string; sha: string };
+type TaskCommitEntry = { task: string; sha: string; intent_anchor: string };
+const STABLE_TASK_RE = /^EPIC-(\d{3})\/BP-(\d{3})\/TASK-(\d{3})$/;
 
 // executeVerify의 exec 칸은 execSync 계약이다. 테스트는 종료 코드만
 // { ok, exitCode, output }로 주입하므로, 그 형태를 여기서 throw로 바꾼다.
@@ -295,13 +296,57 @@ function realGit(repoRoot: string): GitApi {
 }
 
 /**
- * tasks.md에 적힌 commit_sha를 모아 explain 보존용 task_commits 배열을 만든다.
- * id는 tasks/<NNN> 디렉터리 숫자(3자리). sha 없는·깨진 항목은 건너뛴다.
+ * explain.md frontmatter의 Epic·Blueprint 번호를 읽는다.
+ * task_commits 행의 stable ref가 이 부모와 같은 번호인지 대조하기 위해서다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 저장소 루트
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @returns {{epicId: string, blueprintId: string} | null} 읽을 수 없으면 null
+ */
+function explainParentIds({ repoRoot, blueprintDir }: {
+  repoRoot: string;
+  blueprintDir: string;
+}): { epicId: string; blueprintId: string } | null {
+  const abs = path.join(repoRoot, `${toPosix(blueprintDir)}/explain.md`);
+  if (!fs.existsSync(abs)) return null;
+  let data: unknown;
+  try {
+    data = readDoc(abs).data;
+  } catch (_e) {
+    // 깨진 YAML·frontmatter만 흡수한다. 부모 ID를 경로에서 추측하면 다른
+    // Blueprint의 커밋이 이 Explain에 실릴 수 있다. collectTaskCommits는
+    // null이면 행을 만들지 않고, writeExplainTaskCommits도 같은 부모 대조로
+    // 직렬화를 거절한다.
+    return null;
+  }
+  if (!data || typeof data !== 'object') return null;
+  const bouncer = asRecord(asRecord(data).bouncer);
+  const epicId = bouncer.epic_id;
+  const blueprintId = bouncer.blueprint_id;
+  if (typeof epicId !== 'string' || typeof blueprintId !== 'string') return null;
+  return { epicId, blueprintId };
+}
+
+/**
+ * tasks.md의 commit_sha와 stable Task ID를 모아 explain 보존용 task_commits를 만든다.
+ * 새 행은 `{ task, sha, intent_anchor }`만 쓴다. sha가 없거나 짧은 hex가 아니면 건너뛴다.
+ * stable ID가 정본이 아니거나 Explain 부모 ID를 못 읽거나 Epic·Blueprint가
+ * 다르면 행을 만들지 않는다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 저장소 루트
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @returns {TaskCommitEntry[]} 쓸 수 있는 provenance 행. 없으면 빈 배열
  */
 function collectTaskCommits({ repoRoot, blueprintDir }: {
   repoRoot: string;
   blueprintDir: string;
 }): TaskCommitEntry[] {
+  const parent = explainParentIds({ repoRoot, blueprintDir });
+  // 부모 번호를 못 읽으면 행을 만들지 않는다. 경로에서 채우면 다른
+  // Blueprint SHA가 이 Explain에 남는다.
+  if (!parent) return [];
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   const out: TaskCommitEntry[] = [];
   for (const entry of listing.entries) {
@@ -314,9 +359,38 @@ function collectTaskCommits({ repoRoot, blueprintDir }: {
     } catch (_e) {
       continue;
     }
-    const sha = normalizeCommitSha(asRecord(asRecord(data).bouncer).commit_sha);
+    const bouncer = asRecord(asRecord(data).bouncer);
+    const sha = normalizeCommitSha(bouncer.commit_sha);
     if (!sha) continue;
-    out.push({ id: String(entry.number).padStart(3, '0'), sha });
+    let provenance: ReturnType<typeof buildStableProvenance>;
+    try {
+      provenance = buildStableProvenance({
+        epicId: bouncer.epic_id,
+        blueprintId: bouncer.blueprint_id,
+        taskId: bouncer.id,
+      });
+    } catch (error) {
+      // epic_id·blueprint_id가 \d{3}이 아니거나 id가 TASKS-NNN이 아닌 경우만
+      // 건너뛴다. 잘못된 값을 패딩하면 다른 Blueprint 커밋과 같은 ref가 된다.
+      if (
+        error instanceof Error
+        && /must be a three-digit id|must be TASKS-NNN/.test(error.message)
+      ) {
+        continue;
+      }
+      throw error;
+    }
+    const parts = STABLE_TASK_RE.exec(provenance.task);
+    // helper가 만든 문자열만 온다. 매칭 실패는 계약 파손이라 추측해서 채우지 않는다.
+    if (!parts) continue;
+    if (parts[1] !== parent.epicId || parts[2] !== parent.blueprintId) {
+      continue;
+    }
+    out.push({
+      task: provenance.task,
+      sha,
+      intent_anchor: `task-${parts[3]}`,
+    });
   }
   return out;
 }
@@ -324,6 +398,15 @@ function collectTaskCommits({ repoRoot, blueprintDir }: {
 /**
  * explain.md frontmatter에 task_commits를 쓴다. 파일이 없으면 false.
  * 기존 배열은 통째로 교체한다 — finalize가 삭제 직전 스냅샷의 정본이다.
+ * 직렬화는 `{ task, sha, intent_anchor }`만 남긴다. legacy `{ id, sha }`는 쓰지 않는다.
+ * 부모 Epic·Blueprint를 못 읽거나 행의 stable ref가 그 번호와 다르면 그 행은
+ * 쓰지 않는다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 저장소 루트
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @param {TaskCommitEntry[]} opts.taskCommits - collectTaskCommits 결과
+ * @returns {boolean} 썼으면 true, explain 부재·파싱 실패면 false
  */
 function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }: {
   repoRoot: string;
@@ -336,7 +419,23 @@ function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }: {
   const { data, body } = readDoc(abs);
   if (!data || typeof data !== 'object') return false;
   const bouncer = asRecord(asRecord(data).bouncer);
-  bouncer.task_commits = taskCommits.map((entry) => ({ id: entry.id, sha: entry.sha }));
+  const epicId = bouncer.epic_id;
+  const blueprintId = bouncer.blueprint_id;
+  // collectTaskCommits가 걸러도 직접 호출이면 다른 Epic·Blueprint 행이
+  // 들어온다. 부모 번호를 못 읽거나 다르면 새 행을 남기지 않는다.
+  if (typeof epicId !== 'string' || typeof blueprintId !== 'string') {
+    bouncer.task_commits = [];
+  } else {
+    bouncer.task_commits = taskCommits.flatMap((entry) => {
+      const parts = STABLE_TASK_RE.exec(entry.task);
+      if (!parts || parts[1] !== epicId || parts[2] !== blueprintId) return [];
+      return [{
+        task: entry.task,
+        sha: entry.sha,
+        intent_anchor: entry.intent_anchor,
+      }];
+    });
+  }
   fs.writeFileSync(abs, renderDoc(data, body));
   return true;
 }

@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
-const { finalize } = require('../scripts/lib/finalize');
+const { finalize, collectTaskCommits, writeExplainTaskCommits } = require('../scripts/lib/finalize');
 const { computeDiffSha } = require('../scripts/lib/comprehension');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 
@@ -942,21 +942,193 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
     fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8').split(/^---$/m)[1],
   );
   assert.deepStrictEqual(explainData.bouncer.task_commits, [
-    { id: '001', sha: 'aabbccdd' },
-    { id: '002', sha: '11223344' },
+    { task: 'EPIC-001/BP-001/TASK-001', sha: 'aabbccdd', intent_anchor: 'task-001' },
+    { task: 'EPIC-001/BP-001/TASK-002', sha: '11223344', intent_anchor: 'task-002' },
   ]);
   const explainBody = fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8');
   assert.match(explainBody, /## Tasks\n\n### Task 001/);
   assert.match(explainBody, /## Goal & intent\n[\s\S]*마감은 blueprint 단위로 묶는다/);
   assert.doesNotMatch(explainBody, /verification evidence|## Checklist/);
   assert.deepStrictEqual(res.taskCommits, [
-    { id: '001', sha: 'aabbccdd' },
-    { id: '002', sha: '11223344' },
+    { task: 'EPIC-001/BP-001/TASK-001', sha: 'aabbccdd', intent_anchor: 'task-001' },
+    { task: 'EPIC-001/BP-001/TASK-002', sha: '11223344', intent_anchor: 'task-002' },
   ]);
+  for (const row of explainData.bouncer.task_commits) {
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(row, 'id'), false);
+  }
 
   const { validateBlueprint } = require('../scripts/lib/validate');
   const re = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(re.ok, true, JSON.stringify(re.failures, null, 2));
+});
+
+test('collectTaskCommits distinguishes TASK-001 across blueprints by stable id', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const bp001 = '.bouncer/context/epics/071-x/blueprints/001-a';
+  const bp002 = '.bouncer/context/epics/071-x/blueprints/002-b';
+  writeDoc(repo, `${bp001}/explain.md`, {
+    type: 'bouncer.explain',
+    bouncer: { epic_id: '071', blueprint_id: '001' },
+  });
+  writeDoc(repo, `${bp001}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '071', blueprint_id: '001', commit_sha: 'aabbccdd',
+    },
+  });
+  writeDoc(repo, `${bp002}/explain.md`, {
+    type: 'bouncer.explain',
+    bouncer: { epic_id: '071', blueprint_id: '002' },
+  });
+  writeDoc(repo, `${bp002}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '071', blueprint_id: '002', commit_sha: '11223344',
+    },
+  });
+
+  const from001 = collectTaskCommits({ repoRoot: repo, blueprintDir: bp001 });
+  const from002 = collectTaskCommits({ repoRoot: repo, blueprintDir: bp002 });
+  assert.deepStrictEqual(from001, [{
+    task: 'EPIC-071/BP-001/TASK-001',
+    sha: 'aabbccdd',
+    intent_anchor: 'task-001',
+  }]);
+  assert.deepStrictEqual(from002, [{
+    task: 'EPIC-071/BP-002/TASK-001',
+    sha: '11223344',
+    intent_anchor: 'task-001',
+  }]);
+  assert.notStrictEqual(from001[0].task, from002[0].task);
+});
+
+test('collectTaskCommits omits a row when sha or stable id is not canonical', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const bp = '.bouncer/context/epics/071-x/blueprints/001-a';
+  writeDoc(repo, `${bp}/explain.md`, {
+    type: 'bouncer.explain',
+    bouncer: { epic_id: '071', blueprint_id: '001' },
+  });
+  writeDoc(repo, `${bp}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '071', blueprint_id: '001', commit_sha: 'aabbccdd',
+    },
+  });
+  writeDoc(repo, `${bp}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '071', blueprint_id: '001', commit_sha: 'not-hex',
+    },
+  });
+  writeDoc(repo, `${bp}/tasks/003/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-3', epic_id: '071', blueprint_id: '001', commit_sha: '11223344',
+    },
+  });
+  assert.deepStrictEqual(collectTaskCommits({ repoRoot: repo, blueprintDir: bp }), [{
+    task: 'EPIC-071/BP-001/TASK-001',
+    sha: 'aabbccdd',
+    intent_anchor: 'task-001',
+  }]);
+});
+
+test('collectTaskCommits omits a row when task Epic or Blueprint disagrees with Explain', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const bp = '.bouncer/context/epics/071-x/blueprints/001-a';
+  writeDoc(repo, `${bp}/explain.md`, {
+    type: 'bouncer.explain',
+    bouncer: { epic_id: '071', blueprint_id: '001' },
+  });
+  writeDoc(repo, `${bp}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '071', blueprint_id: '001', commit_sha: 'aabbccdd',
+    },
+  });
+  writeDoc(repo, `${bp}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '071', blueprint_id: '002', commit_sha: '11223344',
+    },
+  });
+  assert.deepStrictEqual(collectTaskCommits({ repoRoot: repo, blueprintDir: bp }), [{
+    task: 'EPIC-071/BP-001/TASK-001',
+    sha: 'aabbccdd',
+    intent_anchor: 'task-001',
+  }]);
+});
+
+test('collectTaskCommits omits a row when Explain parent ids cannot be read', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const missingExplain = '.bouncer/context/epics/071-x/blueprints/001-a';
+  writeDoc(repo, `${missingExplain}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '071', blueprint_id: '001', commit_sha: 'aabbccdd',
+    },
+  });
+  assert.deepStrictEqual(
+    collectTaskCommits({ repoRoot: repo, blueprintDir: missingExplain }),
+    [],
+  );
+
+  const incompleteExplain = '.bouncer/context/epics/071-x/blueprints/002-b';
+  writeDoc(repo, `${incompleteExplain}/explain.md`, {
+    type: 'bouncer.explain',
+    bouncer: { blueprint_id: '002' },
+  });
+  writeDoc(repo, `${incompleteExplain}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '071', blueprint_id: '002', commit_sha: '11223344',
+    },
+  });
+  assert.deepStrictEqual(
+    collectTaskCommits({ repoRoot: repo, blueprintDir: incompleteExplain }),
+    [],
+  );
+});
+
+test('writeExplainTaskCommits omits rows when parent ids are missing or disagree', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const matching = '.bouncer/context/epics/071-x/blueprints/001-a';
+  writeDoc(repo, `${matching}/explain.md`, {
+    type: 'bouncer.explain',
+    bouncer: { epic_id: '071', blueprint_id: '001' },
+  });
+  assert.strictEqual(writeExplainTaskCommits({
+    repoRoot: repo,
+    blueprintDir: matching,
+    taskCommits: [
+      { task: 'EPIC-071/BP-001/TASK-001', sha: 'aabbccdd', intent_anchor: 'task-001' },
+      { task: 'EPIC-071/BP-002/TASK-002', sha: '11223344', intent_anchor: 'task-002' },
+    ],
+  }), true);
+  const matchingData = yaml.load(
+    fs.readFileSync(path.join(repo, `${matching}/explain.md`), 'utf8').split(/^---$/m)[1],
+  );
+  assert.deepStrictEqual(matchingData.bouncer.task_commits, [
+    { task: 'EPIC-071/BP-001/TASK-001', sha: 'aabbccdd', intent_anchor: 'task-001' },
+  ]);
+
+  const incomplete = '.bouncer/context/epics/071-x/blueprints/002-b';
+  writeDoc(repo, `${incomplete}/explain.md`, {
+    type: 'bouncer.explain',
+    bouncer: { blueprint_id: '002' },
+  });
+  assert.strictEqual(writeExplainTaskCommits({
+    repoRoot: repo,
+    blueprintDir: incomplete,
+    taskCommits: [
+      { task: 'EPIC-071/BP-002/TASK-001', sha: '55667788', intent_anchor: 'task-001' },
+    ],
+  }), true);
+  const incompleteData = yaml.load(
+    fs.readFileSync(path.join(repo, `${incomplete}/explain.md`), 'utf8').split(/^---$/m)[1],
+  );
+  assert.deepStrictEqual(incompleteData.bouncer.task_commits, []);
 });
 
 test('finalize stages tracked transient deletions but removes untracked ones without staging them', () => {
