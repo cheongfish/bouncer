@@ -19,10 +19,16 @@ S13은 epic 경로 목록뿐 아니라 각 색인 행의 요약이 해당 epic f
 
 `bouncer --help`의 명령 이름은 `validate`, `verify`, `scaffold`, `commit`,
 `finalize`, `seed-worktree`, `coordinate`, `init`, `graph-sync`, `graph-suggest`,
-`graphify-bin`, `project-root`, `context-search`, `current`, `migrate`, `import`다.
+`graphify-bin`, `project-root`, `context-search`, `intent`, `current`, `migrate`,
+`import`다.
 `coordinate`의 서브커맨드는 `bootstrap`, `prepare`, `ready`, `record`,
 `integrate`, `status`, `revise` 일곱이다. 하위 kind와 플래그는
 [cli.md](cli.md)에 있다.
+
+`intent`의 색인 경계는 TypeScript·JavaScript 함수 정의다. 다른 언어와 익명
+callback·계산된 property·runtime 생성 함수는 지원하지 않으며 현재 정의가 없으면
+`unresolved`다. 개발 입력은 `scripts/src` TypeScript이고, 플러그인 소비 런타임은
+`scripts/lib` CommonJS emit이다 — 소비 시점에 tsc를 요구하지 않는다.
 
 ### 문서 스키마
 

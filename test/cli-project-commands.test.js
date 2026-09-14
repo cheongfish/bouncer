@@ -280,3 +280,203 @@ test('context-search records version-incompatible without installing', () => {
   assert.deepStrictEqual(payload.candidates, []);
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
 });
+
+function intentGit(repo, args, extraEnv = {}) {
+  return execFileSync('git', args, {
+    cwd: repo,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_AUTHOR_NAME: 'bouncer-test',
+      GIT_AUTHOR_EMAIL: 't@example.com',
+      GIT_COMMITTER_NAME: 'bouncer-test',
+      GIT_COMMITTER_EMAIL: 't@example.com',
+      ...extraEnv,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function intentRepo() {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-intent-'));
+  intentGit(repo, ['init', '-b', 'main']);
+  return repo;
+}
+
+function writeIntentFile(repo, rel, content) {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, content);
+}
+
+function commitIntent(repo, message) {
+  intentGit(repo, ['add', '-A']);
+  intentGit(repo, ['-c', 'commit.gpgsign=false', 'commit', '-m', message], {
+    GIT_AUTHOR_DATE: '2026-01-01T00:00:00 +0900',
+    GIT_COMMITTER_DATE: '2026-01-01T00:00:00 +0900',
+  });
+  return intentGit(repo, ['rev-parse', 'HEAD']).trim();
+}
+
+function writeIntentExplain(repo, sha8) {
+  const rel = '.bouncer/context/epics/071-epic/blueprints/002-bp/explain.md';
+  writeIntentFile(repo, rel, [
+    '---',
+    'type: bouncer.explain',
+    'title: fixture',
+    'description: fixture',
+    `resource: ${rel}`,
+    'tags: [bouncer]',
+    "timestamp: '2026-09-14T00:00:00+09:00'",
+    'bouncer:',
+    '  id: EXPLAIN-001',
+    "  epic_id: '071'",
+    "  blueprint_id: '002'",
+    '  status: published',
+    '  task_commits:',
+    '    - task: "EPIC-071/BP-002/TASK-001"',
+    '      sha: "' + sha8 + '"',
+    '      intent_anchor: task-001',
+    '---',
+    '# Explain',
+    '',
+    '## Background',
+    '',
+    'approved function intent',
+    '',
+    '## Intuition',
+    '',
+    'stable task id is the join key',
+    '',
+    '## Code',
+    '',
+    'src/app.ts targetFn',
+    '',
+  ].join('\n'));
+  return rel;
+}
+
+test('intent returns resolved JSON and exit 0 for a linked function', () => {
+  const repo = intentRepo();
+  writeIntentFile(repo, 'src/app.ts', 'export function targetFn() { return 1; }\n');
+  const sha = commitIntent(
+    repo,
+    'feat: add targetFn\n\nBouncer-Task: EPIC-071/BP-002/TASK-001\nBouncer-Intent: EPIC-071/BP-002\n',
+  );
+  writeIntentExplain(repo, sha.slice(0, 8));
+
+  const result = capture(['intent', '--repo', repo, '--symbol', 'targetFn']);
+  assert.equal(result.code, 0);
+  assert.equal(result.err, '');
+  const payload = JSON.parse(result.out);
+  assert.equal(payload.status, 'resolved');
+  assert.equal(payload.symbol, 'targetFn');
+  assert.equal(payload.symbol_ref.path, 'src/app.ts');
+  assert.ok(Array.isArray(payload.candidates));
+  assert.ok(payload.candidates.length >= 1);
+  assert.equal(payload.candidates[0].task, 'EPIC-071/BP-002/TASK-001');
+  assert.equal(typeof payload.truncated, 'boolean');
+
+  const limited = capture(['intent', '--repo', repo, '--symbol', 'targetFn', '--limit', '1']);
+  assert.equal(limited.code, 0);
+  assert.ok(JSON.parse(limited.out).candidates.length <= 1);
+});
+
+test('intent returns exit-0 JSON for ambiguous, unresolved, and unlinked statuses', () => {
+  const ambiguousRepo = intentRepo();
+  writeIntentFile(ambiguousRepo, 'src/one.ts', 'export function shared() { return 1; }\n');
+  writeIntentFile(ambiguousRepo, 'src/two.ts', 'export function shared() { return 2; }\n');
+  commitIntent(ambiguousRepo, 'feat: two shared defs\n');
+  const ambiguous = capture(['intent', '--repo', ambiguousRepo, '--symbol', 'shared']);
+  assert.equal(ambiguous.code, 0);
+  assert.equal(ambiguous.err, '');
+  const ambiguousPayload = JSON.parse(ambiguous.out);
+  assert.equal(ambiguousPayload.status, 'ambiguous');
+  assert.ok(ambiguousPayload.candidates.length >= 2);
+  assert.equal(typeof ambiguousPayload.candidates[0].candidate_ref, 'string');
+
+  const chosen = capture([
+    'intent', '--repo', ambiguousRepo, '--symbol', 'shared',
+    '--candidate', ambiguousPayload.candidates[0].candidate_ref,
+  ]);
+  assert.equal(chosen.code, 0);
+  const chosenPayload = JSON.parse(chosen.out);
+  assert.ok(chosenPayload.status === 'resolved' || chosenPayload.status === 'unlinked');
+
+  const unresolvedRepo = intentRepo();
+  writeIntentFile(unresolvedRepo, 'src/keep.ts', 'export function keep() { return 1; }\n');
+  commitIntent(unresolvedRepo, 'feat: keep\n');
+  const unresolved = capture(['intent', '--repo', unresolvedRepo, '--symbol', 'neverDefined']);
+  assert.equal(unresolved.code, 0);
+  assert.equal(unresolved.err, '');
+  assert.equal(JSON.parse(unresolved.out).status, 'unresolved');
+
+  const unlinkedRepo = intentRepo();
+  writeIntentFile(unlinkedRepo, 'src/app.ts', 'export function targetFn() { return 1; }\n');
+  commitIntent(unlinkedRepo, 'feat: unlinked targetFn\n');
+  const unlinked = capture(['intent', '--repo', unlinkedRepo, '--symbol', 'targetFn']);
+  assert.equal(unlinked.code, 0);
+  assert.equal(unlinked.err, '');
+  assert.equal(JSON.parse(unlinked.out).status, 'unlinked');
+});
+
+test('intent rejects missing, empty, invalid, duplicate, and unknown argv with exit 2', () => {
+  for (const args of [
+    [],
+    ['--symbol', ''],
+    ['--symbol', '   '],
+    ['--symbol'],
+    ['--symbol', 'fn', '--candidate'],
+    ['--symbol', 'fn', '--candidate', ''],
+    ['--symbol', 'fn', '--limit'],
+    ['--symbol', 'fn', '--limit', '0'],
+    ['--symbol', 'fn', '--limit', '6'],
+    ['--symbol', 'fn', '--limit', 'abc'],
+    ['--symbol', 'fn', '--limit', '1.5'],
+    ['--symbol', 'fn', '--symbol', 'fn'],
+    ['--symbol', 'fn', '--limit', '1', '--limit', '2'],
+    ['--symbol', 'fn', '--candidate', 'ref', '--candidate', 'ref'],
+    ['--symbol', 'fn', '--repo', '.', '--repo', '.'],
+    ['--symbol', 'fn', '--unknown'],
+    ['--symbol', 'fn', 'positional'],
+    ['--symbol', 'fn', '--repo'],
+  ]) {
+    const result = capture(['intent', ...args]);
+    assert.equal(result.code, 2, args.join(' '));
+    assert.equal(result.out, '');
+    assert.match(result.err, /^intent:/);
+  }
+});
+
+test('intent reports resolver Git and filesystem errors on stderr with exit 1', () => {
+  const missingGit = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-intent-nogit-'));
+  writeIntentFile(missingGit, 'src/app.ts', 'export function targetFn() { return 1; }\n');
+  const gitFail = capture(['intent', '--repo', missingGit, '--symbol', 'targetFn']);
+  assert.equal(gitFail.code, 1);
+  assert.equal(gitFail.out, '');
+  assert.match(gitFail.err, /^intent:/);
+  assert.match(gitFail.err, /git/i);
+
+  const missingDir = path.join(tmpRoot(), `bouncer-cli-intent-missing-${process.pid}`);
+  const fsFail = capture(['intent', '--repo', missingDir, '--symbol', 'targetFn']);
+  assert.equal(fsFail.code, 1);
+  assert.equal(fsFail.out, '');
+  assert.match(fsFail.err, /^intent:/);
+});
+
+test('intent reports unknown --candidate on stderr with exit 1 and empty stdout', () => {
+  // 파서는 비어 있지 않은 opaque ref를 통과시킨다. 발급되지 않은 값은
+  // resolver가 던지므로 Git 부재와 같은 runtime 실패(exit 1)다. 부분 JSON을
+  // 남기지 않는 계약은 여기만 덮는다 — empty --candidate는 이미 exit 2.
+  const repo = intentRepo();
+  writeIntentFile(repo, 'src/app.ts', 'export function targetFn() { return 1; }\n');
+  commitIntent(repo, 'feat: add targetFn\n');
+
+  const result = capture([
+    'intent', '--repo', repo, '--symbol', 'targetFn', '--candidate', 'not-a-real-ref',
+  ]);
+  assert.equal(result.code, 1);
+  assert.equal(result.out, '');
+  assert.match(result.err, /^intent:/);
+});

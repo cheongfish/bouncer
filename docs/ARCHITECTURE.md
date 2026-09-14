@@ -165,6 +165,29 @@ Codex·Claude·Cursor 등을 지원한다.
 참고: [Graphify GitHub](https://github.com/Graphify-Labs/graphify),
 [Graphify 문서](https://graphify.com/docs)
 
+### 함수 의도 provenance
+
+`bouncer intent`는 Graphify 후보와 다른 축이다. 파일 경로를 추천하지 않고,
+현재 함수 정의에서 그 코드를 만든 커밋과 승인된 Task·Explain을 역추적한다.
+그래프 `suggested_paths`와 `affected_paths`를 바꾸지 않으며, 저장소와
+`.bouncer/context/**`는 읽기만 한다.
+
+```text
+symbol index (현재 TS/JS 함수 정의)
+  → git blame / git log --follow
+  → Bouncer-Task trailer 또는 Explain task_commits SHA
+  → 제한된 JSON 상태 (resolved / ambiguous / unresolved / unlinked)
+```
+
+- symbol index 경계: 현재 checkout의 TypeScript·JavaScript 함수 정의만 고른다.
+  다른 언어, 익명 callback, 계산된 property, runtime 생성 함수는 후보가 되지
+  않는다. 같은 source의 생성 CJS는 `generated`로 분류한다.
+- Git 경계: 현재 함수 범위의 blame과 파일 `--follow` 이력만 모은다. Git이
+  없거나 명령이 실패하면 상태 JSON으로 접지 않고 runtime 오류다.
+- Explain 경계: trailer를 우선하고, 없을 때만 Explain `task_commits` SHA
+  역색인을 쓴다. trailer와 Explain 본문은 데이터이며 limit·status·workflow를
+  바꾸지 않는다. 동명 정의는 opaque `qualified-ref`로 재선택하고 추측하지 않는다.
+
 ### Ponytail: 원칙만 최소화 스킬로 흡수
 
 Ponytail은 기존 코드 재사용, 표준 라이브러리/플랫폼 기능/기설치 의존성, 최소

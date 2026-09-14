@@ -8,6 +8,7 @@ const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'graph-suggest',
   'context-search',
+  'intent',
   'graphify-bin',
   'project-root',
   'current',
@@ -164,4 +165,19 @@ test('usage lists run preflight --blueprint', () => {
 test('usage lists current --replace', () => {
   const r = capture([]);
   assert.match(r.out, /current\s+\[--set <blueprint dir>.*\[--replace\]/s);
+});
+
+test('usage lists intent --symbol [--candidate] [--limit]', () => {
+  const r = capture([]);
+  assert.match(r.out, /intent\s+--symbol <function-name>/);
+  assert.match(r.out, /\[--candidate <qualified-ref>\]/);
+  assert.match(r.out, /\[--limit <1\.\.5>\]/);
+});
+
+test('unknown command is still rejected after intent is public', () => {
+  const r = capture(['intet']);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /unknown command: intet/);
+  assert.match(r.err, /intent/);
+  assert.equal(r.out, '');
 });
