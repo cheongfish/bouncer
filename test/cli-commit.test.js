@@ -169,6 +169,27 @@ test('commit dry-run exits 0 with dryRun JSON', () => {
   assert.ok(Array.isArray(parsed.staged));
 });
 
+test('commit --yes writes stable provenance trailers to the real git message', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.strictEqual(code, 0, buf.out + buf.err);
+  const parsed = JSON.parse(buf.out);
+  const body = execFileSync('git', ['log', '--format=%B', '-1'], {
+    cwd: repo, encoding: 'utf8',
+  });
+  assert.strictEqual(body.replace(/\n+$/u, ''), parsed.commitMessage);
+  assert.match(body, /^Bouncer-Task: EPIC-001\/BP-001\/TASK-001$/m);
+  assert.match(body, /^Bouncer-Intent: EPIC-001\/BP-001$/m);
+  assert.strictEqual((body.match(/^Bouncer-Task:/gm) || []).length, 1);
+  assert.strictEqual((body.match(/^Bouncer-Intent:/gm) || []).length, 1);
+});
+
 test('commit --yes stages in-scope change and returns committed:true', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);

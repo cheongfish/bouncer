@@ -8,8 +8,24 @@ const {
   buildTaskContext,
 } = require('../scripts/lib/finalize');
 const { makeAllowed, isUnder } = require('../scripts/lib/scope');
+const { buildStableProvenance, COMMIT_SHA_LEN } = require('../scripts/lib/commit-sha');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
+const TASK_IDS = { id: 'TASKS-001', epic_id: '001', blueprint_id: '001' };
+
+function taskBouncer(extra = {}) {
+  return { ...TASK_IDS, ...extra };
+}
+
+function withDefaultTrailers(lines) {
+  const head = Array.isArray(lines) ? lines : [lines];
+  return [
+    ...head,
+    '',
+    'Bouncer-Task: EPIC-001/BP-001/TASK-001',
+    'Bouncer-Intent: EPIC-001/BP-001',
+  ].join('\n');
+}
 
 test('isUnder treats entries as directories', () => {
   assert.ok(isUnder('src/auth/login.ts', 'src/auth/'));
@@ -34,7 +50,7 @@ test('allowed set covers affected paths, bp subtree, ancestor indexes', () => {
 test('commit message follows the template', () => {
   const docs = {
     blueprintIndex: { data: { title: 'Login flow', bouncer: { id: '001', epic_id: '001' } } },
-    tasks: { data: { title: 'Implement login' } },
+    tasks: { data: { title: 'Implement login', bouncer: taskBouncer() } },
     verification: { data: { title: 'Login verified' } },
     explain: { data: { resource: `${BP}/explain.md` } },
   };
@@ -42,9 +58,7 @@ test('commit message follows the template', () => {
 
   // 대상 묶음이 없으면 subject는 blueprint title. tasks title은 subject에 없으므로
   // 수정 내용 bullet은 verification만 (호환 필드 폴백).
-  assert.strictEqual(msg, [
-    'feat: Login flow',
-  ].join('\n'));
+  assert.strictEqual(msg, withDefaultTrailers('feat: Login flow'));
   assert.ok(!msg.includes('Epic:'), 'identifiers stay out of the commit message');
   assert.ok(!msg.includes('Blueprint:'), 'identifiers stay out of the commit message');
   assert.ok(!msg.includes('Distill:'), 'paths stay out of the commit message');
@@ -66,12 +80,12 @@ test('commit_intent supplies task background bullets without verification title'
     tasks: {
       data: {
         title: '재시도 간격을 지수적으로 늘림',
-        bouncer: {
+        bouncer: taskBouncer({
           commit_intent: [
             '로그인 실패 재시도가 서버에 부담을 줌',
             '지수 백오프로 안정성을 높이려 함',
           ],
-        },
+        }),
       },
       rel: `${BP}/tasks/001/tasks.md`,
     },
@@ -81,12 +95,12 @@ test('commit_intent supplies task background bullets without verification title'
     },
     review: undefined,
   };
-  assert.strictEqual(buildCommitMessage(docs, taskUnit), [
+  assert.strictEqual(buildCommitMessage(docs, taskUnit), withDefaultTrailers([
     'feat: 재시도 간격을 지수적으로 늘림',
     '',
     '- 로그인 실패 재시도가 서버에 부담을 줌',
     '- 지수 백오프로 안정성을 높이려 함',
-  ].join('\n'));
+  ]));
 });
 
 test('missing commit_intent does not fall back to verification title', () => {
@@ -97,39 +111,39 @@ test('missing commit_intent does not fall back to verification title', () => {
         bouncer: { commit_intent: ['only one line'] },
       },
     },
-    tasks: { data: { title: 'Implement login' } },
+    tasks: { data: { title: 'Implement login', bouncer: taskBouncer() } },
     verification: { data: { title: 'Login verified' } },
   };
-  assert.strictEqual(buildCommitMessage(docs), [
-    'feat: Login flow',
-  ].join('\n'));
+  assert.strictEqual(buildCommitMessage(docs), withDefaultTrailers('feat: Login flow'));
 });
 
 test('missing titles omit body bullets', () => {
   const docs = {
     blueprintIndex: { data: { title: 'Login flow', bouncer: { commit_type: 'fix' } } },
+    tasks: { data: { bouncer: taskBouncer() } },
   };
-  assert.strictEqual(buildCommitMessage(docs), 'fix: Login flow');
+  assert.strictEqual(buildCommitMessage(docs), withDefaultTrailers('fix: Login flow'));
 });
 
 test('commit bullets prefer target taskUnit verification over docs.tasks compat field', () => {
   const docs = {
     blueprintIndex: { data: { title: 'Login flow', bouncer: { id: '001', epic_id: '001' } } },
     // 호환 필드(첫 묶음) — taskUnit이 있으면 무시되어야 한다.
-    tasks: { data: { title: 'First unit title' } },
+    tasks: { data: { title: 'First unit title', bouncer: taskBouncer() } },
     verification: { data: { title: 'First unit verify' } },
   };
   const taskUnit = {
     number: 2,
     dir: `${BP}/tasks/002`,
-    tasks: { data: { title: 'Second unit implement' }, rel: `${BP}/tasks/002/tasks.md` },
+    tasks: {
+      data: { title: 'Second unit implement', bouncer: taskBouncer() },
+      rel: `${BP}/tasks/002/tasks.md`,
+    },
     verification: { data: { title: 'Second unit verified' }, rel: `${BP}/tasks/002/verification.md` },
     review: undefined,
   };
   // subject는 task title, 수정 내용 bullet은 verification만 (tasks title은 subject에 있음).
-  assert.strictEqual(buildCommitMessage(docs, taskUnit), [
-    'feat: Second unit implement',
-  ].join('\n'));
+  assert.strictEqual(buildCommitMessage(docs, taskUnit), withDefaultTrailers('feat: Second unit implement'));
 });
 
 test('subject uses taskUnit tasks title over blueprint title', () => {
@@ -142,7 +156,7 @@ test('subject uses taskUnit tasks title over blueprint title', () => {
     number: 1,
     dir: `${BP}/tasks/001`,
     tasks: {
-      data: { title: '게이트를 task 단위로 좁힘' },
+      data: { title: '게이트를 task 단위로 좁힘', bouncer: taskBouncer() },
       rel: `${BP}/tasks/001/tasks.md`,
     },
     verification: {
@@ -192,18 +206,18 @@ test('task authored fields are independent of blueprint and verification fields'
       tasks: {
         data: {
           title: '게이트를 task 단위로 좁힘',
-          bouncer: { commit_intent: taskIntent, commit_summary: ['대상 작업 제목을 제목으로 사용함'] },
+          bouncer: taskBouncer({ commit_intent: taskIntent, commit_summary: ['대상 작업 제목을 제목으로 사용함'] }),
         },
         rel: `${BP}/tasks/001/tasks.md`,
       },
     }),
-    [
+    withDefaultTrailers([
       'feat: 게이트를 task 단위로 좁힘',
       '',
       `- ${taskIntent[0]}`,
       `- ${taskIntent[1]}`,
       '- 대상 작업 제목을 제목으로 사용함',
-    ].join('\n'),
+    ]),
   );
 
   // task에 authored field가 없으면 blueprint나 verification으로 폴백하지 않는다.
@@ -211,13 +225,11 @@ test('task authored fields are independent of blueprint and verification fields'
     buildCommitMessage(docs, {
       ...baseUnit,
       tasks: {
-        data: { title: '게이트를 task 단위로 좁힘' },
+        data: { title: '게이트를 task 단위로 좁힘', bouncer: taskBouncer() },
         rel: `${BP}/tasks/001/tasks.md`,
       },
     }),
-    [
-      'feat: 게이트를 task 단위로 좁힘',
-    ].join('\n'),
+    withDefaultTrailers('feat: 게이트를 task 단위로 좁힘'),
   );
 
   // task는 한 줄 intent도 허용한다.
@@ -226,15 +238,15 @@ test('task authored fields are independent of blueprint and verification fields'
     tasks: {
       data: {
         title: '게이트를 task 단위로 좁힘',
-        bouncer: { commit_intent: ['한 줄임'] },
+        bouncer: taskBouncer({ commit_intent: ['한 줄임'] }),
       },
       rel: `${BP}/tasks/001/tasks.md`,
     },
-  }), [
+  }), withDefaultTrailers([
     'feat: 게이트를 task 단위로 좁힘',
     '',
     '- 한 줄임',
-  ].join('\n'));
+  ]));
 
   // task가 3줄이면 slice하지 않고 메시지 생성을 거부한다.
   assert.throws(() => buildCommitMessage(docs, {
@@ -262,7 +274,7 @@ test('empty task title falls subject to blueprint title', () => {
     number: 1,
     dir: `${BP}/tasks/001`,
     tasks: {
-      data: { title: '   ' },
+      data: { title: '   ', bouncer: taskBouncer() },
       rel: `${BP}/tasks/001/tasks.md`,
     },
     verification: {
@@ -319,6 +331,7 @@ test('undefined taskUnit falls subject to blueprint title', () => {
       },
     },
     verification: { data: { title: '검증 통과' } },
+    tasks: { data: { bouncer: taskBouncer() } },
   };
   assert.match(
     buildCommitMessage(docs, undefined).split('\n')[0],
@@ -537,22 +550,22 @@ test('task message is composed from intent then authored summary', () => {
     tasks: {
       data: {
         title: '재시도 간격 조정',
-        bouncer: {
+        bouncer: taskBouncer({
           commit_intent: ['재시도가 서버에 부담을 줌', '안정적인 재시도 정책이 필요함'],
           commit_summary: ['간격을 지수적으로 늘림', '최대 간격을 제한함'],
-        },
+        }),
       },
     },
     verification: { data: { title: '검증 제목은 사용하지 않음' } },
   };
-  assert.strictEqual(buildCommitMessage(docs, taskUnit), [
+  assert.strictEqual(buildCommitMessage(docs, taskUnit), withDefaultTrailers([
     'feat: 재시도 간격 조정',
     '',
     '- 재시도가 서버에 부담을 줌',
     '- 안정적인 재시도 정책이 필요함',
     '- 간격을 지수적으로 늘림',
     '- 최대 간격을 제한함',
-  ].join('\n'));
+  ]));
 });
 
 test('malformed authored fields fail instead of being partially omitted', () => {
@@ -565,39 +578,39 @@ test('malformed authored fields fail instead of being partially omitted', () => 
   }), /commit_summary.*한국어/);
   // 경로가 든 문장도 한국어 종결 문장이면 받는다. 거절 대상은 형식 결함뿐이다.
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['scripts/login.ts를 수정함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['scripts/login.ts를 수정함'] }) } },
   }));
 });
 
 test('authored fields accept package, module, and path names inside Korean sentences', () => {
   const docs = { blueprintIndex: { data: { title: '로그인 흐름' } } };
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_intent: ['lodash 의존성을 제거함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_intent: ['lodash 의존성을 제거함'] }) } },
   }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['commit-message 모듈을 정리함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['commit-message 모듈을 정리함'] }) } },
   }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['express를 제거함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['express를 제거함'] }) } },
   }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['koa 모듈을 정리함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['koa 모듈을 정리함'] }) } },
   }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['fs 모듈을 정리함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['fs 모듈을 정리함'] }) } },
   }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['API 요청을 처리함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['API 요청을 처리함'] }) } },
   }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['API 모듈을 정리함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['API 모듈을 정리함'] }) } },
   }));
   // ALL-CAPS 약어 뒤의 버전 슬래시(HTTP/2)는 모듈 경로가 아니다.
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['HTTP/2를 지원함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['HTTP/2를 지원함'] }) } },
   }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['scripts/lib/를 정리함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['scripts/lib/를 정리함'] }) } },
   }));
 });
 
@@ -612,14 +625,14 @@ test('authored fields accept lowercase package names in ordinary sentence positi
     'fs가 필요함',
   ]) {
     assert.doesNotThrow(() => buildCommitMessage(docs, {
-      tasks: { data: { title: '변경', bouncer: { commit_intent: [sentence] } } },
+      tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_intent: [sentence] }) } },
     }));
   }
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_intent: ['`HEAD`가 스테이징 범위를 벗어나지 않게 함'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_intent: ['`HEAD`가 스테이징 범위를 벗어나지 않게 함'] }) } },
   }));
   assert.doesNotThrow(() => buildCommitMessage(docs, {
-    tasks: { data: { title: '변경', bouncer: { commit_summary: ['`express`를 씀'] } } },
+    tasks: { data: { title: '변경', bouncer: taskBouncer({ commit_summary: ['`express`를 씀'] }) } },
   }));
 });
 
@@ -764,6 +777,117 @@ test('coordinator provenance is null without a ledger and tolerates missing arra
 // 원장 항목의 id가 없거나 문자열이 아니면 그대로 null로 남긴다. String()으로
 // 감싸면 "undefined"가 explain frontmatter에 실재하는 id처럼 기록되고, 원장이
 // 사라진 뒤에는 그것이 오류였는지 확인할 출처가 남지 않는다.
+// --- stable Task / Intent provenance ---------------------------------------
+
+test('stable provenance helper builds exact task and intent refs', () => {
+  assert.deepStrictEqual(
+    buildStableProvenance({ epicId: '071', blueprintId: '001', taskId: 'TASKS-001' }),
+    {
+      task: 'EPIC-071/BP-001/TASK-001',
+      intent: 'EPIC-071/BP-001',
+      trailers: [
+        'Bouncer-Task: EPIC-071/BP-001/TASK-001',
+        'Bouncer-Intent: EPIC-071/BP-001',
+      ],
+    },
+  );
+  assert.strictEqual(COMMIT_SHA_LEN, 8);
+});
+
+test('stable provenance helper rejects malformed three-digit ids without correcting them', () => {
+  const valid = { epicId: '071', blueprintId: '001', taskId: 'TASKS-001' };
+  assert.throws(() => buildStableProvenance({ ...valid, epicId: '71' }), /epic_id/);
+  assert.throws(() => buildStableProvenance({ ...valid, epicId: 71 }), /epic_id/);
+  assert.throws(() => buildStableProvenance({ ...valid, epicId: undefined }), /epic_id/);
+  assert.throws(() => buildStableProvenance({ ...valid, blueprintId: '1' }), /blueprint_id/);
+  assert.throws(() => buildStableProvenance({ ...valid, blueprintId: '0001' }), /blueprint_id/);
+  assert.throws(() => buildStableProvenance({ ...valid, taskId: 'TASKS-1' }), /TASKS-NNN/);
+  assert.throws(() => buildStableProvenance({ ...valid, taskId: '001' }), /TASKS-NNN/);
+  assert.throws(() => buildStableProvenance({ ...valid, taskId: 'TASKS-0001' }), /TASKS-NNN/);
+  assert.throws(() => buildStableProvenance({ ...valid, taskId: 'TASKS-01' }), /TASKS-NNN/);
+});
+
+test('commit message appends unique Bouncer trailers after authored bullets', () => {
+  const docs = {
+    blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } },
+  };
+  const taskUnit = {
+    tasks: {
+      data: {
+        title: 'stable ID trailer 도입',
+        bouncer: {
+          id: 'TASKS-001',
+          epic_id: '071',
+          blueprint_id: '001',
+          commit_intent: ['Task 번호만으로는 Blueprint를 구분하지 못함'],
+          commit_summary: ['stable Task ID trailer를 기록함'],
+        },
+      },
+    },
+  };
+  const msg = buildCommitMessage(docs, taskUnit);
+  assert.strictEqual(msg, [
+    'feat: stable ID trailer 도입',
+    '',
+    '- Task 번호만으로는 Blueprint를 구분하지 못함',
+    '- stable Task ID trailer를 기록함',
+    '',
+    'Bouncer-Task: EPIC-071/BP-001/TASK-001',
+    'Bouncer-Intent: EPIC-071/BP-001',
+  ].join('\n'));
+  assert.strictEqual((msg.match(/^Bouncer-Task:/gm) || []).length, 1);
+  assert.strictEqual((msg.match(/^Bouncer-Intent:/gm) || []).length, 1);
+  assert.ok(msg.indexOf('Bouncer-Task:') < msg.indexOf('Bouncer-Intent:'));
+  assert.match(msg, /\n\nBouncer-Task: EPIC-071\/BP-001\/TASK-001\nBouncer-Intent: EPIC-071\/BP-001$/);
+});
+
+test('commit message rejects missing or malformed identity before emitting trailers', () => {
+  const docs = {
+    blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } },
+  };
+  const unit = (bouncer) => ({
+    tasks: { data: { title: '변경', bouncer } },
+  });
+  assert.throws(() => buildCommitMessage(docs, unit({
+    id: 'TASKS-001', blueprint_id: '001',
+  })), /epic_id/);
+  assert.throws(() => buildCommitMessage(docs, unit({
+    id: 'TASKS-001', epic_id: '71', blueprint_id: '001',
+  })), /epic_id/);
+  assert.throws(() => buildCommitMessage(docs, unit({
+    id: 'TASKS-1', epic_id: '071', blueprint_id: '001',
+  })), /TASKS-NNN/);
+});
+
+test('commit message rejects authored fields that already contain Bouncer trailers', () => {
+  const docs = {
+    blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } },
+  };
+  const ids = { id: 'TASKS-001', epic_id: '071', blueprint_id: '001' };
+  assert.throws(() => buildCommitMessage(docs, {
+    tasks: {
+      data: {
+        title: '변경',
+        bouncer: {
+          ...ids,
+          commit_intent: ['Bouncer-Task: EPIC-071/BP-001/TASK-001를 본문에 넣음'],
+        },
+      },
+    },
+  }), /Bouncer-Task|Bouncer-Intent/);
+  assert.throws(() => buildCommitMessage(docs, {
+    tasks: {
+      data: {
+        title: '변경',
+        bouncer: {
+          ...ids,
+          commit_summary: ['Bouncer-Intent: EPIC-071/BP-001를 본문에 넣음'],
+        },
+      },
+    },
+  }), /Bouncer-Task|Bouncer-Intent/);
+});
+
 test('coordinator provenance keeps a malformed ledger task id visibly null', () => {
   const provenance = buildCoordinatorProvenance({
     tasks: [

@@ -209,6 +209,28 @@ test('verification tasks are rejected by both commitTask and the shared commit g
   assert.deepStrictEqual(g.calls, []);
 });
 
+test('dry-run and --yes share one commit message and stamp an 8-char sha', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = trackingGit(['src/auth/login.ts'], []);
+  const dry = commitTask({ repoRoot: repo, blueprintDir: BP_REL, git: g.api });
+  assert.strictEqual(dry.ok, true);
+  assert.strictEqual(dry.dryRun, true);
+  assert.match(
+    dry.commitMessage,
+    /\n\nBouncer-Task: EPIC-001\/BP-001\/TASK-001\nBouncer-Intent: EPIC-001\/BP-001$/,
+  );
+  const live = commitTask({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
+  });
+  assert.strictEqual(live.ok, true);
+  assert.strictEqual(live.committed, true);
+  assert.strictEqual(live.commitMessage, dry.commitMessage);
+  assert.strictEqual(g.calls._msg, dry.commitMessage);
+  assert.strictEqual(live.commitSha, 'abcdef01');
+  assert.match(live.commitSha, /^[0-9a-f]{8}$/);
+});
+
 test('task dry-run builds authored intent and summary in order', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
@@ -229,6 +251,9 @@ test('task dry-run builds authored intent and summary in order', () => {
     '- 재시도가 서버에 부담을 줌',
     '- 안정적인 정책이 필요함',
     '- 간격을 지수적으로 늘림',
+    '',
+    'Bouncer-Task: EPIC-001/BP-001/TASK-001',
+    'Bouncer-Intent: EPIC-001/BP-001',
   ].join('\n'));
 });
 
