@@ -25,6 +25,7 @@ const COMMANDS = {
     'graph-sync': projectCommands['graph-sync'],
     'graph-suggest': projectCommands['graph-suggest'],
     'context-search': projectCommands['context-search'],
+    intent: projectCommands.intent,
     'graphify-bin': projectCommands['graphify-bin'],
     'project-root': projectCommands['project-root'],
     current: currentCommand.current,

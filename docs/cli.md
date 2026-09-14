@@ -22,6 +22,7 @@
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer project-root [--repo <dir>]` | 소비 저장소 main worktree 절대 경로 한 줄(stdout만). primary·linked worktree에서 같은 값. 비-Git이면 stderr + 종료 코드 1(빈 stdout·cwd 대체 없음) |
 | `bouncer context-search --mode <decision\|implementation\|history> --query <text> [--max-candidates <1..8>]` | canonical context graph를 role별로 검색. query id·status·graph version과 최대 8개 후보를 JSON으로 출력 |
+| `bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>] [--repo <dir>]` | 현재 checkout의 함수 정의에서 Git blame/log와 Explain을 연결한 provenance JSON을 stdout에 하나만 출력. 읽기 전용이며 저장소와 `.bouncer/context/**`를 수정하지 않음. `resolved`가 아니어도 구조화된 상태는 종료 코드 0 |
 | `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>] [--replace]] [--clear]` | 위치별 활성 포인터 읽기 / 기록 / 지우기. 저장 경로는 Git common directory의 `pointers/<epic-id>/<blueprint-id>.json`이고 본문은 `{ blueprint, task?, base }`. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); `scale`은 호출 시점에 blueprint `index.md`의 `bouncer.scale`에서 파생한 문자열(없거나 읽을 수 없으면 `null`). 없으면 `ready` 후보. 기본 `--set`은 대상 namespace key를 추가·갱신하고 다른 key를 보존한다. `--replace`는 현재 위치에서 유일하게 선택된 key를 지운 뒤 대상을 쓰며, 성공 payload의 stdout JSON과 stderr `previous`에 `{ blueprint, base, task }`를 싣는다. 기준 checkout에 포인터가 둘 이상이면 읽기·`--replace` 모두 `CURRENT_AMBIGUOUS`와 정렬된 `candidates`로 종료 코드 1이며 어느 쪽도 추측하지 않는다. `--clear`는 현재 선택된 key만 지운다. `--replace`만 쓰거나 `--clear`와 함께 쓰면 사용법 오류다. |
 | `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
 | `bouncer import [--source merges\|commits] [--since <ref>] [--limit <n>] [--epic-id <ddd>] [--epic-name <slug>] [--yes --message <msg>]` | git 히스토리를 `imported` epic/blueprint 문서로 전사. 기본은 dry-run(계획 JSON만 출력). `--yes --message`일 때만 파일을 쓰고 커밋 하나로 남김 |
@@ -185,6 +186,18 @@ fan-in 충돌은 `reason` 코드가 아니라 cherry-pick 실패입니다. Git s
 task bundle 세 문서는 복사 전 바이트로 되돌리고, 복사 전에 없던 문서는 지웁니다. 복사 전에
 `tasks/<NNN>/` 디렉터리가 없었다면 복사가 만든 그 디렉터리도 지웁니다 — 복구 절차는
 [troubleshooting.md](troubleshooting.md)에 있습니다.
+
+`intent`는 `--symbol`로 현재 워킹트리의 TypeScript·JavaScript 함수 정의를 고르고,
+Git blame/`log --follow`와 `Bouncer-Task` trailer 또는 Explain `task_commits`
+SHA로 승인된 Task 의도를 연결합니다. `--candidate`는 `ambiguous` 응답이 준
+opaque `qualified-ref`만 받으며 path 문자열로 재선택하지 않습니다. `--limit`는
+1..5 정수이고 생략 시 3입니다. stdout에는 상태 JSON 하나만 나가며 진단 문구를
+섞지 않습니다. `resolved`·`ambiguous`·`unresolved`·`unlinked`는 모두 종료 코드
+0입니다 — 연결에 실패한 상태도 Plan이 코드 탐색을 이어갈 수 있게 사용법 오류로
+취급하지 않습니다. argv 모양 오류(누락·빈 `--symbol`, 값 없는 플래그, 중복
+singleton, 범위 밖 `--limit`, 알 수 없는 option/positional)는 빈 stdout,
+`intent:` 접두 stderr, 종료 코드 2입니다. Git·filesystem 조회 실패는 부분 JSON
+없이 stderr와 종료 코드 1입니다.
 
 `context-search`는 exact anchor/path, domain tag, intent/evidence를 점수화하고
 broad-query와 zero-hit을 빈 후보로 진단합니다. Graphify build/version이
