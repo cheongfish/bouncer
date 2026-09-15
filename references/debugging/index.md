@@ -11,6 +11,9 @@ Investigate failures with an evidence-first four-stage loop. Named agent
 and the controller re-dispatches `bouncer-implementer` with that report as
 evidence. The debugger never applies the fix.
 
+The controller supplies the failing evidence, current task brief, and
+read-only cwd; the role returns the six-field report for controller routing.
+
 ## When this applies
 
 When a change fails verification or behaves unexpectedly. Investigates root
@@ -34,6 +37,9 @@ Four stages, in this order: **Root cause** → **Pattern** → **Hypothesis** �
 
 ## Return
 
-Read the returned report by its five fields: **Reproduction**, **Evidence**,
-**Single hypothesis**, **Minimum fix proposal**, **Required regression test**.
-Named debugger never edits; do not invent verify success.
+Consume the returned report by all six fields: **Reproduction**, **Evidence**,
+**Single hypothesis**, **Minimum fix proposal**, **Required regression test**,
+and **Scope/task impact**. The first five are evidence for the constrained
+implementer re-dispatch; Scope/task impact is controller decision input, never
+worker scope authority. Named debugger never edits; do not invent verify
+success.

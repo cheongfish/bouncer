@@ -199,6 +199,63 @@ test('bouncer-execute step 4 dispatches bouncer-debugger on verify failure', () 
   assert.match(body, /debugging/);
 });
 
+// fallback 문장부터 문단 끝까지만 자른다. 앞의 named dispatch 문장이 같은 입력을
+// 이미 나열하므로, 문단 전체를 보면 fallback이 입력을 빠뜨려도 통과한다.
+const FALLBACK_START = /(?:When|If)\s+named\s+agents\s+are\s+unavailable/;
+function fallbackOf(text) {
+  const at = text.search(FALLBACK_START);
+  assert.ok(at >= 0, 'missing fallback sentence');
+  const rest = text.slice(at);
+  const end = rest.indexOf('\n\n');
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+// debugger fallback은 역할 문서 전체와 실패 증적, brief 여섯 절, read-only cwd를
+// 싣는다. "inline or a fresh generic read-only subagent"만으로는 generic
+// subagent가 Procedure gate와 Output contract를 받는다는 보장이 없다.
+test('bouncer-execute debugger fallback carries the whole debugger role and its inputs', () => {
+  const recovery = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/verification-recovery.md'), 'utf8');
+  const fallback = fallbackOf(recovery);
+  assert.match(fallback, /entire\s+body\s+of\s+`agents\/bouncer-debugger\.md`/);
+  assert.match(fallback, /Authority\s+through\s+Output\s+contract/);
+  assert.match(fallback, /first\s+reads\s+`agents\/bouncer-debugger\.md`/);
+  assert.match(fallback, /failing\s+verify\s+evidence/);
+  assert.match(fallback, /read-only\s+cwd/);
+  // 절 이름은 대소문자를 구분하고 단어 경계를 건다 — `Touch`가 "Do not touch"에
+  // 걸리면 Touch를 지워도 통과한다.
+  for (const section of [/\bGoal & intent\b/, /\bInterface\b/, /(?<!not\s)\bTouch\b/,
+    /\bDo\s+not\s+touch\b/, /\bConstraints\b/, /\bChecklist\b/]) {
+    assert.match(fallback, section);
+  }
+});
+
+// reviewer fallback은 두 dispatcher(review step 3, agent-dispatch review 문단)에서
+// 모두 역할 문서 전체와 채운 reviewer-prompt를 싣는다. named는 call slot만 받는다.
+test('bouncer-execute reviewer fallback carries the whole reviewer role and the filled call slot', () => {
+  const review = fs.readFileSync(path.join(root, 'references/review/index.md'), 'utf8');
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  const prompt = fs.readFileSync(path.join(root, 'references/review/assets/reviewer-prompt.md'), 'utf8');
+  // 두 문단 모두 fallback 문장부터만 본다. step 3 앞머리 "Freeze base, HEAD,
+  // task-brief revision, and latest verify"와 "resolved model"이 fallback의
+  // base·HEAD·verify·mode를 대신 채우면 입력을 지워도 통과한다.
+  const step3 = fallbackOf(review.slice(review.indexOf('3. **Review**')));
+  const dispatchReview = fallbackOf(dispatch.slice(dispatch.indexOf('For review,')));
+  for (const [label, text] of [['review step 3', step3], ['agent-dispatch review', dispatchReview]]) {
+    assert.match(text, /entire\s+body\s+of\s+`agents\/bouncer-reviewer\.md`/, label);
+    assert.match(text, /reviewer-prompt/, label);
+    assert.match(text, /first\s+reads\s+`agents\/bouncer-reviewer\.md`/, label);
+    for (const input of [/\bbase\b/, /\bHEAD\b/, /\btask\s+brief\s+revision\b/, /\bmode\b/,
+      /\bperspective\b/, /\blatest\s+verify\b/, /\bprevious\s+findings\b/,
+      /\brevision\s+diff\b/, /\bread-only\s+cwd\b/]) {
+      assert.match(text, input, label);
+    }
+    assert.doesNotMatch(text, /same prompt/i, label);
+  }
+  // call slot 자체도 두 운반 경로의 차이를 적는다.
+  assert.match(prompt, /named[\s\S]{0,200}only\s+this\s+(?:filled\s+)?call\s+slot/i);
+  assert.match(prompt, /entire\s+body\s+of\s+`agents\/bouncer-reviewer\.md`/);
+});
+
 test('bouncer-execute re-dispatches implementer with the debugger report after verify failure', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /Then dispatch \*\*`bouncer-implementer`\*\*|then re-dispatches `bouncer-implementer`/);

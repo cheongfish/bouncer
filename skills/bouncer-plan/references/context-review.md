@@ -42,9 +42,16 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    unaccepted and bring the open finding to the user; only the user's
    accepted-risk note may record it `accepted`.
 
-If named agents are unavailable, run the `context-review` skill inline once
-per call (or use a fresh generic read-only subagent with the same brief). Do
-**not** skip this step.
+If named agents are unavailable, do **not** skip this step. Per call, use a
+fresh generic read-only subagent whose payload carries the entire body of
+`agents/bouncer-context-reviewer.md` — every section from Authority through
+Output contract, verbatim — plus that call's controller input: mode, frozen
+target (the digest and the document list it covers), perspective (discovery),
+previous findings (delta), and the read-only cwd. Or run the
+`context-review` skill inline once per call: the inline pass first reads
+`agents/bouncer-context-reviewer.md` and follows every section with that
+controller input before it judges. A role name or summary alone is not a
+fallback payload.
 
 As controller, update existing blueprint-root `context-review.md` body `## Findings`, `bouncer.context_review.findings[]`, and `bouncer.context_review.rounds[]` from the reviewer output — the subagent must not edit documents or flip status. An `accepted` finding requires a note. Only when every finding is `resolved` or `accepted` with a note, set `context-review → accepted`.
 

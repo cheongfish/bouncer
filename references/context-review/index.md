@@ -10,6 +10,8 @@ finding fields; this skill only produces findings. Named agent: plugin
 `agents/bouncer-context-reviewer.md`. `/bouncer-plan` dispatches that agent
 (or runs this skill inline). The controller records the result into the
 blueprint-root `context-review.md` — not a task-directory `review.md`.
+The controller provides mode, frozen target, perspective, and read-only cwd;
+the agent returns its Findings schema without taking record or status actions.
 
 ## When this applies
 

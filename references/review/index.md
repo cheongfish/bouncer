@@ -16,6 +16,8 @@ only produces findings and dispositions.
 
 Dispatch template: [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) (call
 brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
+The controller supplies the frozen target, task brief, mode, perspective, and
+read-only cwd; named and fallback reviewers return the same Findings schema.
 
 ## When this applies
 
@@ -47,9 +49,15 @@ unresolved. Used from `/bouncer-execute`.
    when the changed surface requires it. Fill
    [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) for each reviewer
    without sharing another discovery reviewer's findings. Use named
-   **`bouncer-reviewer`** with the resolved model, then a **fresh generic**
-   subagent with the same prompt, then an inline read-only pass when no
-   subagent tool exists.
+   **`bouncer-reviewer`** with the resolved model and only that filled call
+   slot. When named agents are unavailable, use a **fresh generic** subagent
+   whose payload carries the entire body of `agents/bouncer-reviewer.md` —
+   every section from Authority through Output contract, verbatim — plus the
+   filled reviewer-prompt: frozen base and HEAD, task brief revision, mode,
+   perspective, latest verify, and for delta the previous findings and revision
+   diff, with the read-only cwd. When no subagent tool exists, run an inline
+   read-only pass that first reads `agents/bouncer-reviewer.md` and follows
+   every section with that same input.
 
    The controller verifies evidence, merges duplicate fingerprints, records
    `severity_changes`, `origin`, and `actionability`, and decides `must_fix` or

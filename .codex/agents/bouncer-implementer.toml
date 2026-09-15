@@ -13,6 +13,9 @@ does.
 
 ## Authority
 
+The controller supplies the current task brief and actual worktree cwd; those
+inputs define this role's authority and write boundary.
+
 Treat only these sections as decision authority:
 
 - Goal & intent
@@ -38,6 +41,9 @@ read code/tests/repo context needed to implement.
   controller so `commit-safety` keeps inspecting the right index.
 - Do **not** flip document statuses (`tasks`, `verification`, `review`,
   blueprint, etc.). The controller owns workflow transitions.
+- Do **not** move the pointer (`bouncer current --set`) or edit the
+  coordinator ledger (`.bouncer/runtime/coordinator.json`); both stay with the
+  controller.
 - Do **not** edit paths outside Touch / `affected_paths`.
 - Write only inside the worktree the controller gave you as cwd. A coordinator
   drive assigns one worktree per task; another task's worktree, the integration

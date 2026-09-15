@@ -464,6 +464,32 @@ test('agent doc bodies use English headings', () => {
   }
 });
 
+// 다섯 역할 문서는 Authority → Hard guards → 역할 절차/rubric → Output contract
+// 순서의 짧은 실행 brief다. named Codex dispatch는 generated TOML을, fallback은
+// dispatcher 지시문(rules/subagent-model.md 4항)에 따라 이 Markdown 본문 전체를
+// 받는다. 두 운반 경로가 같은 본문을 전달하려면 TOML이 변환 결과와 바이트
+// 단위로 같아야 한다. fallback payload 계약 자체는 test/subagents.test.js가
+// dispatcher 문단에서 검사한다 — 역할 문서의 자기 선언은 증명이 아니다.
+const ROLE_PROCEDURE = /^## (?:Procedure|Review modes|Rubric\b.*|Worker dispatch)$/m;
+
+test('all five role briefs keep Authority, guards, procedure, output order and TOML parity', () => {
+  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+  for (const name of AGENTS) {
+    const markdown = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    const toml = fs.readFileSync(path.join(root, '.codex/agents', `${name}.toml`), 'utf8');
+    const authorityAt = markdown.search(/^## Authority$/m);
+    const guardsAt = markdown.search(/^## Hard guards/m);
+    const procedureAt = markdown.search(ROLE_PROCEDURE);
+    const outputAt = markdown.search(/^## Output contract$/m);
+    assert.ok(authorityAt >= 0 && authorityAt < guardsAt, `${name}: Authority before Hard guards`);
+    assert.ok(guardsAt < procedureAt, `${name}: role procedure/rubric after Hard guards`);
+    assert.ok(procedureAt < outputAt, `${name}: Output contract after role procedure/rubric`);
+    // 실제 cwd 경계는 controller가 넘기는 입력이다 — 역할 문서가 이를 받는다고 적어야 한다.
+    assert.match(markdown, /cwd/, name);
+    assert.strictEqual(toml, mdToCodexToml(markdown), name);
+  }
+});
+
 test('mdToCodexToml preserves name description body and readonly sandbox', () => {
   const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   for (const name of AGENTS) {
