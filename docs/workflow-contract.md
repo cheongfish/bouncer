@@ -8,7 +8,8 @@
 
 | 소유자 | 소유하는 내용 | workflow skill이 맡는 내용 |
 | --- | --- | --- |
-| `CLAUDE.md`, `rules/*.md` | 신뢰 경계, 문서 구조, pointer와 출력의 공통 계약 | 규칙을 읽는 시점과 workflow별 예외 |
+| `CLAUDE.md` | 신뢰 경계, gate 우선, 명시적 사용자 승인, controller가 지정한 실제 write cwd의 공통 runtime contract | 네 경계만 한 번 읽고 상세 product rule을 다시 요약하지 않음 |
+| `rules/*.md` | 문서 구조, pointer·출력과 조건별 product 계약 | 소유 numbered step에서 필요할 때 원문을 직접 열어 적용 |
 | CLI와 validator 테스트 | staging 필터, 삭제 대상, JSON 필드, G/S code | CLI 입력과 결과에 따른 다음 행동 |
 | `SKILL.md` | 단계 순서, ACQ, 승인 시점, workflow별 분기 | 조건부 reference를 읽는 시점 |
 | `agents/*.md` | named agent 역할의 작성 정본 | 현재 task의 authority 입력 |
@@ -19,6 +20,15 @@
 CLI 내부 동작과 전체 gate code를 skill에 반복하지 않는다. skill에는 사용자가
 확인할 정보, 호출 순서, 실패 후 복구 행동을 남긴다. 조건부로만 필요한 worktree,
 Graphify fallback과 PR 작성 절차는 reference가 소유한다.
+
+## Runtime contract 적재
+
+모든 workflow는 시작 시 `CLAUDE.md`만 기본 runtime contract로 읽는다. 이 문서는
+신뢰 경계, gate 우선, 명시적 사용자 승인, controller가 지정한 실제 write cwd라는
+네 공통 경계만 소유한다. `rules/governance.md`, `rules/okf.md`를 비롯한 product
+rule은 기본 선행 적재하지 않고, 해당 조건을 소유한 numbered step이 기존 정본을
+직접 연다. 따라서 runtime contract가 product schema·enum·실패 code·복구 절차의
+두 번째 정본이 되지 않으며, 기존 상세 rule도 삭제하지 않는다.
 
 ## 측정 정의
 

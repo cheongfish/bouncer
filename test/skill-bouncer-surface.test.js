@@ -175,6 +175,25 @@ function numberedProcedurePreamble(md) {
   return md.slice(0, match.index);
 }
 
+test('entry Master rules load only the shared runtime contract', () => {
+  const productRules = [
+    'rules/governance.md',
+    'rules/okf.md',
+    'rules/current-pointer.md',
+    'rules/output.md',
+    'rules/subagent-model.md',
+  ];
+  for (const name of WORKFLOW) {
+    const master = readWorkflow(name).match(/\*\*Master rules\.\*\*[\s\S]*?(?=\n\n)/)?.[0];
+    assert.ok(master, `${name}: missing Master rules block`);
+    assert.match(master, /CLAUDE\.md/, `${name}: runtime contract must load first`);
+    for (const rule of productRules) {
+      assert.doesNotMatch(master, new RegExp(rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+        `${name}: ${rule} belongs to its owning numbered step`);
+    }
+  }
+});
+
 // 기본 성공 경로가 아닌 helper. 소유는 해당 numbered step 또는 skill-local reference.
 const CONDITIONAL_HELPERS = {
   'bouncer-init': { root: [], local: ['init-result.md'] },
@@ -405,11 +424,14 @@ test('pointer consumers retain only their local application while using the CLI 
   const commit = readWorkflow('bouncer-commit');
   const finalize = readWorkflow('bouncer-finalize');
   const run = readWorkflow('bouncer-run');
-  for (const md of [execute, commit, finalize, run]) {
+  for (const md of [execute, commit, finalize]) {
     assert.match(md, /rules\/current-pointer\.md/);
     assert.match(md, /\bbouncer\s+current\b/);
     assert.doesNotMatch(md, /scripts\/lib\/current/);
   }
+  assert.match(run, /rules\/current-pointer\.md/);
+  assert.match(run, /\bbouncer\s+run\s+preflight\b/);
+  assert.doesNotMatch(run, /scripts\/lib\/current/);
   assert.match(execute, /scale.*light|light.*scale/i, 'execute keeps its local status/scale stop condition');
   assert.match(commit, /nextTask/, 'commit keeps its local next-task handoff');
   assert.match(finalize, /finalize --yes/, 'finalize keeps its local clear/handoff consequence');

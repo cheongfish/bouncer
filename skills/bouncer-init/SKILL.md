@@ -8,9 +8,6 @@ description: "Use only when the user explicitly asks /bouncer-init; it bootstrap
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
 (`AGENTS.md` imports `@CLAUDE.md`).
-Output contract: `rules/output.md`. Preserve the step 2 ACQ display; report the
-bootstrap outcome, created or migrated targets, Graphify result/recovery, and
-the next `/bouncer-plan` action through that shared contract.
 
 Bootstrap this project for Bouncer.
 
@@ -30,6 +27,8 @@ Bootstrap this project for Bouncer.
    Root `context/` is legacy/non-canonical and is never input.
    Consent gates (ACQ). Apply the conditional choices in `init-result.md`;
    never write config or `.gitignore` without agreement.
+   Render the bootstrap outcome and next `/bouncer-plan` action through
+   `rules/output.md`.
 3. **Bootstrap commit.** Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
    git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"

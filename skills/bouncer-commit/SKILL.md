@@ -7,12 +7,7 @@ description: "Use only when the user explicitly asks /bouncer-commit; it commits
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`rules/governance.md`, `rules/okf.md`.
-Pointer contract: `rules/current-pointer.md`.
-Output contract: `rules/output.md`. Render the commit outcome, subject, worker
-SHA, pointer target, and next task or finalize action through that shared
-contract; never hide a gate failure or scope violation.
+(`AGENTS.md` imports `@CLAUDE.md`).
 
 Close one task on the active blueprint. Follow this sequence. Do **not** open a
 draft PR, remove a worktree, or run `explain-diff` here — those are
@@ -37,7 +32,8 @@ Apply the shared returned-value and task-brief selection contract. This
 workflow only supplies the current task's scope and its post-commit handoff.
 
 1. **Current.** State the selected `{ blueprint, task, base }` from `bouncer
-   current`. Later steps keep that `tasks/<NNN>/tasks.md` brief.
+   current`. Read `rules/governance.md` for the controller/worktree boundary;
+   later steps keep that `tasks/<NNN>/tasks.md` brief.
 
 2. **Dry-run.**
    ```bash
@@ -83,8 +79,8 @@ workflow only supplies the current task's scope and its post-commit handoff.
    serves the whole repository, so no worker moves it and no worker touches the
    integration branch. An unverified fan-in is not a completed task.
 
-   When `nextAction` is `ask-next-task` or `finalize`, report the commit and
-   keep the confirm-then-set rule of `rules/current-pointer.md`. With a
+   When `nextAction` is `ask-next-task` or `finalize`, report the commit through
+   `rules/output.md` and read `rules/current-pointer.md` for confirm-then-set. With a
    non-null `nextTask`, show its id and path (`tasks/<NNN>/tasks.md`), then
    run this **ACQ**:
 

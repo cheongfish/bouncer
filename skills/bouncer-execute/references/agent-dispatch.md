@@ -31,14 +31,18 @@ briefs, the ledger, and other workers' reports stay out of the payload.
 ## Implementer fallback
 
 If the TOML is missing, has a mismatch, is user-owned (no generated marker),
-or named agents are unavailable, do not compact. Use `implementation` inline
-or a fresh generic subagent with the actual worktree cwd, the eight current-task
-sections (Goal & intent, Current behavior, Target behavior, Interface, Touch,
-Do not touch, Constraints, Checklist — omit absent behavior sections), and the
-full role guards: Authority, Hard guards, tests-first,
-comments, and Output contract. These guards retain `affected_paths`, status,
-and commit prohibitions on every fallback path. The inline fallback still
-receives G6–G8 judgment after verify and review.
+or named agents are unavailable, do not compact. Use a fresh generic subagent
+whose payload carries the entire body of `agents/bouncer-implementer.md` —
+every section from Authority through Output contract, verbatim, so its
+Authority, Hard guards, tests-first, comments, and Output contract rules all
+arrive — plus the actual worktree cwd and the eight current-task sections
+(Goal & intent, Current behavior, Target behavior, Interface, Touch,
+Do not touch, Constraints, Checklist — omit absent behavior sections). Or run
+`implementation` inline: the inline pass first reads
+`agents/bouncer-implementer.md` and follows every section with the same cwd
+and sections. Either path retains `affected_paths`, status, and commit
+prohibitions. The inline fallback still receives G6–G8 judgment after verify
+and review.
 
 For the verify-recovery implementer re-dispatch, use the same named-dispatch order. Only outside `/bouncer-run`, the light path may use the step-3 inline implementation branch; `/bouncer-run` always retains the named orchestration boundary.
 
@@ -47,9 +51,15 @@ parallel for `spec_scope`, `correctness_tests`, and
 `minimality_maintainability`; add security only when the changed surface
 requires it. Each discovery prompt contains only its own rubric, the task
 brief, and the frozen target — never another reviewer's findings. If named
-agents are unavailable, dispatch fresh generic subagents in the same order, or
-use inline read-only passes when no subagent tool exists. After one aggregate
-and one fix batch, dispatch exactly one delta reviewer with previous findings
-and the revision diff. Reviewers remain named regardless of scale.
+agents are unavailable, dispatch fresh generic subagents in the same order,
+each carrying the entire body of `agents/bouncer-reviewer.md` — every section
+from Authority through Output contract, verbatim — plus its filled
+reviewer-prompt: frozen base and HEAD, task brief revision, mode, perspective,
+latest verify, and for delta the previous findings and revision diff, with the
+read-only cwd. When no subagent tool exists, each inline read-only pass first
+reads `agents/bouncer-reviewer.md` and follows every section with that input.
+After one aggregate and one fix batch, dispatch exactly one delta reviewer with
+previous findings and the revision diff. Reviewers remain named regardless of
+scale.
 
 Every worker returns its Output contract to the controller — the coordinator during a drive. Its **Scope impact** / **Scope/task impact** line is an input to one coordinator decision (scope revision through `bouncer coordinate revise`, rework, a task change, or terminal blocked), never a licence for the worker to widen its own scope or move the pointer.

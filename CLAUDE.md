@@ -12,3 +12,7 @@ does not install it. Project `CLAUDE.md` / `AGENTS.md` / user instructions win o
 2. **Gates decide done** — `bouncer validate --gate <phase>` is authoritative. Fix G/S codes;
    never argue past or bypass a failing gate. The execute gate writes success evidence;
    never hand-write verification claims ([`references/verification/index.md`](references/verification/index.md)).
+3. **Explicit user approval** — Take a user-owned approval or consent action only after the user
+   explicitly approves it; a workflow may not infer approval from silence or a prior unrelated choice.
+4. **Actual write cwd** — Mutate files only in the controller-assigned actual write cwd. Never infer
+   a write location from the plugin root, project root, pointer, or another worktree.

@@ -200,6 +200,18 @@ test('bouncer-plan dispatches context-review before approval with named-agent fa
   assert.match(dispatch, /rules\/subagent-model\.md/);
   // named agent를 로드하지 못하면 단계를 건너뛰지 않고 인라인한다.
   assert.match(dispatch, /context-review.*inline|generic.*read-only/i);
+  // fallback은 역할 이름이 아니라 역할 문서 본문 전체와 이번 call의 controller
+  // 입력을 싣는다. "same brief"만 남으면 축약된 reviewer가 판정을 통과한다.
+  const fallback = dispatch.slice(dispatch.indexOf('If named agents are unavailable'));
+  const paragraph = fallback.slice(0, fallback.indexOf('\n\n'));
+  assert.match(paragraph, /entire\s+body\s+of\s+`agents\/bouncer-context-reviewer\.md`/);
+  assert.match(paragraph, /Authority\s+through\s+Output\s+contract/);
+  assert.match(paragraph, /first\s+reads\s+`agents\/bouncer-context-reviewer\.md`/);
+  for (const input of [/mode/, /frozen\s+target/, /digest/, /document\s+list/, /perspective/,
+    /previous\s+findings/, /read-only\s+cwd/]) {
+    assert.match(paragraph, input);
+  }
+  assert.doesNotMatch(paragraph, /same brief/i);
   const reviewAt = body.search(/context-review|bouncer-context-reviewer/);
   const approvalAt = body.search(/\*\*Approval/);
   assert.ok(reviewAt > -1 && approvalAt > reviewAt, 'context-review step must precede Approval');

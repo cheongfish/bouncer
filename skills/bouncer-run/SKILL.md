@@ -7,10 +7,7 @@ description: "Use only when the user explicitly asks /bouncer-run; it repeats /b
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** At drive entry, Read `${BOUNCER_ROOT}/CLAUDE.md` once
-(`AGENTS.md` imports `@CLAUDE.md`). Product detail: `rules/governance.md`,
-`rules/okf.md`. Pointer contract: `rules/current-pointer.md`. Dispatch contract:
-`rules/subagent-model.md`. Output contract: `rules/output.md`. Do not reload
-these immutable rules later in the same drive.
+(`AGENTS.md` imports `@CLAUDE.md`). Do not reload it later in the drive.
 
 **Project root.** Resolve once at drive start:
 ```bash
@@ -40,14 +37,7 @@ do not use execute's inline branch during a drive.
 
 Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
 dispatch, and coordinator output fields belong to
-`agents/bouncer-coordinator.md` and `rules/governance.md` — do not repeat them
-here. The coordinator preserves those skills' ceilings: at most **1** debugger recovery
-per task, discovery wave 1회, fix batch 1회, and delta certification 1회 (plus
-drive-only critical recovery 1회). It also owns the pointer during the
-drive — one `bouncer current --set` per task, since every worktree shares it.
-Scope drift is recorded with `bouncer coordinate
-revise`, which moves the task document and the ledger to one revision, so render
-that revision instead of re-judging it.
+`agents/bouncer-coordinator.md` — do not repeat them here.
 
 For an in-blueprint blocker, the delegated coordinator is the autonomous
 decision-maker. It decides and executes the smallest scoped remediation —
@@ -75,12 +65,11 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    bouncer run preflight --blueprint <dir>
    ```
    Compact output follows that result; emit raw JSON only on `debug`. The payload
-   already holds the pointer, blueprint status and scale, open-task
-   `affected_paths` and DAG fields, `readyWave`, and `autonomy` (including
-   fallback). `CURRENT_AMBIGUOUS` and `CURRENT_INVALID` are not `null`: stop
-   without picking a candidate. When `ok` is false with `no-current`, send the
-   user to `/bouncer-plan`. Apply `rules/current-pointer.md` for return values.
-   When `delegable` is false, there is nothing to delegate — tell the
+   holds the pointer, remaining-task presentation fields (including
+   `affected_paths`), DAG, and
+   reporting cadence. Follow its status and `delegable` result; read
+   `rules/current-pointer.md` for pointer return values. When nothing to delegate,
+   tell the
    user to run `/bouncer-finalize` themselves and stop. Finalize's consent
    steps stay with the user on both paths: this session never runs them, and a
    delegated drive stops at the first one instead of answering it.
@@ -113,7 +102,8 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    `ok: false`, report the reason and stop — do not retry into a different path.
 
 4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` exactly once
-   per `rules/subagent-model.md`. When named agents are unavailable, dispatch
+   per `rules/subagent-model.md`; read `rules/governance.md` for coordinator
+   authority. When named agents are unavailable, dispatch
    one generic subagent with the same coordinator brief and the same worktree
    guards; either way it happens once, and never without the step 2 approval.
    The payload is:
@@ -137,7 +127,7 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    Then wait. Do not edit files, move the pointer, or dispatch a worker
    yourself while the coordinator holds the drive.
 
-5. **Report.** Render the coordinator's progress lines and its single terminal
+5. **Report.** Render the coordinator's progress lines and its terminal
    outcome through `rules/output.md`: `completed` with the integration head,
    verification result, how far the closing action ran, and the consent step it
    stopped at — name that step and tell the user to run `/bouncer-finalize` to

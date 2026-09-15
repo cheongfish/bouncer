@@ -48,17 +48,15 @@ test('run stays non-editing and does not re-judge worker reports', () => {
   assert.ok(role.length > 0, 'run must keep a delegation role section');
   assert.match(role, /does not read and fix code directly/);
   assert.match(role, /(?:does not|never)[\s\S]{0,80}reconstruct[\s\S]{0,60}worker/i);
-  assert.match(role, /at most \*\*1\*\* debugger recovery/);
-  assert.match(role, /discovery wave 1회[\s\S]{0,100}delta certification 1회/);
-  assert.doesNotMatch(role, /conditional review-round ceiling/);
+  assert.match(role, /agents\/bouncer-coordinator\.md/);
+  assert.doesNotMatch(role, /at most \*\*1\*\* debugger recovery/);
+  assert.doesNotMatch(role, /discovery wave 1회[\s\S]{0,100}delta certification 1회/);
   assert.match(role, /\/bouncer-execute/);
-  // scope drift는 정지가 아니라 기록이다. run은 그 기록을 렌더링만 한다.
-  assert.match(role, /bouncer coordinate\s*\n?\s*revise/);
-  assert.match(role, /one revision/);
-  assert.match(role, /instead of re-judging it/);
+  // scope drift의 기록 절차는 coordinator 정본이 소유한다.
+  assert.doesNotMatch(role, /bouncer coordinate\s*\n?\s*revise/);
   assert.doesNotMatch(role, /stop that task/);
   assert.doesNotMatch(md, /do not widen\s*\n?\s*`affected_paths`/);
-  assert.match(role, /bouncer current --set/);
+  assert.doesNotMatch(role, /bouncer current --set/);
 });
 
 test('run defers coordinator procedure to the canonical agent and governance docs', () => {
