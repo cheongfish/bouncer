@@ -7,12 +7,7 @@ description: "Use only when the user explicitly asks /bouncer-execute; it implem
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`rules/governance.md`, `rules/okf.md`.
-Pointer contract: `rules/current-pointer.md`.
-Output contract: `rules/output.md`. Render changed targets, verification and
-review results, execute-gate outcome, and the next `/bouncer-commit` action
-through that shared contract; never hide a gate failure or scope violation.
+(`AGENTS.md` imports `@CLAUDE.md`).
 
 Implement the active blueprint's current task. Follow this sequence. Do **not**
 run `git commit` or `bouncer commit` here — after the execute gate passes, point
@@ -68,7 +63,7 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
      `bouncer current --set <dir>` (or `/bouncer-plan` if they meant a different
      blueprint), then stop.
    - When `ready` is empty, stop and tell the user to run `/bouncer-plan` first.
-   Apply the shared rule's returned-value and task-brief contract:
+   Read `rules/current-pointer.md` for the returned-value and task-brief contract:
    `current.task.path` is the task brief when present, else its first/single
    resolver result; later steps retain that `tasks/<NNN>/tasks.md` brief and do
    not re-pick it. Exclude `bouncer.scope_evidence` from read and injection
@@ -96,6 +91,8 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    run `git -C worktreePath ...` from the project root — the
    `commit-safety` PreToolUse hook uses the command's actual working directory
    and would otherwise inspect the wrong index.
+   For the coordinator and actual-cwd boundary in this branch, read
+   `rules/governance.md`.
 
 3. **Implement (task brief is the sole authority).** The `implementation`
    skill remains the behavioral brief either way.

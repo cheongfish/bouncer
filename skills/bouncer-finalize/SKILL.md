@@ -7,12 +7,7 @@ description: "Use only when the user explicitly asks /bouncer-finalize; it close
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`rules/governance.md`, `rules/okf.md`.
-Pointer contract: `rules/current-pointer.md`.
-Output contract: `rules/output.md`. Preserve every ACQ display; render the
-finalize outcome, changed targets, verification, and next blueprint or
-`/bouncer-plan` action through that shared contract.
+(`AGENTS.md` imports `@CLAUDE.md`).
 
 Close out the active blueprint after every task has been committed via
 `/bouncer-commit`. Follow this sequence. Do **not** run `bouncer commit` here —
@@ -51,7 +46,8 @@ the quiz, **stop** — do not continue to validate or `finalize --yes`.
    `reason: 'coordinator-ledger'` stop, not a non-drive close; do not invent a
    new reject reason. `complete: false` (see `openTasks`; `headVerified` is
    `false` when a verification task is not integrated) is unfinished — stop and
-   hand it to the coordinator instead of recording it as done. When running
+   hand it to the coordinator instead of recording it as done. Read
+   `rules/governance.md` for the integration-worktree boundary. When running
    the finalize gate, showing the dry-run, or handling scope or `reason:
    'verify'` failures, read [remainder.md](./references/remainder.md). On a
    clean dry-run (or empty staged set), run this **ACQ** before `--yes`:
@@ -82,6 +78,7 @@ the quiz, **stop** — do not continue to validate or `finalize --yes`.
 4. **Cleanup.** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
 
 5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) reference handles next-blueprint only after cleanup and only from the finalize payload. **ACQ — Next blueprint:** run that reference's AskUserQuestion before `current --set`; advancement remains confirm-then-`current --set`, never automatic.
+   Read `rules/current-pointer.md` for that pointer change.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
    work plans a sibling Blueprint in the same Epic or a new Epic via
    `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined

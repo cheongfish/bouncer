@@ -7,12 +7,7 @@ description: "Use only when the user explicitly asks /bouncer-plan; it authors e
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`). Product detail:
-`rules/governance.md`, `rules/okf.md`.
-Pointer contract: `rules/current-pointer.md`.
-Output contract: `rules/output.md`. Preserve every ACQ display and render the
-approved plan, active pointer, plan-gate result, and next `/bouncer-run` action
-through that shared contract.
+(`AGENTS.md` imports `@CLAUDE.md`).
 
 Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
@@ -132,7 +127,8 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    (`integrated`, the only accepted value). Task numbers never decide ordering.
    The scaffold defaults for `depends_on` (`[]`) and `parallel_safe` (`false`)
    are placeholders — replace them when the plan has real edges.
-   For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
+   For document schema and product-detail decisions in this authoring branch,
+   read `rules/okf.md` and `rules/governance.md`. For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
    whole flow → blueprint PR segment → tasks implementation branch; charts stay
    optional and their source is each document body.
    Also replace scaffold default frontmatter `title` values (and set
@@ -213,10 +209,8 @@ Skill flow (recommended): pre-scaffold `graphify-runner` context discovery (`${B
    ```bash
    bouncer current --set <blueprint dir>
    ```
-   Default `--set` adds or updates that key and leaves other namespace
-   pointers in place. This is the approved initial-pointer application of the
-   shared `rules/current-pointer.md` contract; its `--set` plan-gate refusal
-   stops this workflow.
+   Read `rules/current-pointer.md` for the approved initial-pointer application;
+   its `--set` refusal stops this workflow.
 
 8. **Gate.** Run `bouncer validate --gate plan` and render its result through
    `rules/output.md`:

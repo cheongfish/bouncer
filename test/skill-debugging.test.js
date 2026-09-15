@@ -36,18 +36,15 @@ test('debugging escalates after 1 unsuccessful cycle', () => {
   assert.match(md, /1(?:\*\*)?\s*(?:failures?|times?|attempts?)[\s\S]{0,120}escalat/i);
 });
 
-// execute / debugging / debugger / run이 같은 verify 실패 재디스패치 상한(**1**)을
-// 공유해야 한다. 문서마다 숫자가 갈리면 수동 경로와 /bouncer-run 자동 주행이
-// 다른 루프 비용을 갖게 된다. 에이전트 문서는 영어 — at most / allows **1**.
-test('debugger redispatch cap is **1** across execute, debugging, agent, and run', () => {
+// 재디스패치 상한(**1**)은 execute/debugging/debugger 정본이 소유한다. run은
+// 그 절차를 /bouncer-execute에 위임하므로 두 번째 상한 정본이 되지 않는다.
+test('debugger redispatch cap is **1** in canonical execute and debugger sources', () => {
   // execute는 "at most"와 "**1**"을 줄바꿈으로 나눈다 — \s+로 줄바꿈도 허용.
-  // run은 "allows **1** fix retry" 형태.
   const CAP = /at most\s+\*\*1\*\*|allows\s+\*\*1\*\*/;
   const sources = [
     ['bouncer-execute workflow bundle', readWorkflowBundle('bouncer-execute')],
     ['references/debugging/index.md', read('references/debugging/index.md')],
     ['agents/bouncer-debugger.md', read('agents/bouncer-debugger.md')],
-    ['skills/bouncer-run/SKILL.md', read('skills/bouncer-run/SKILL.md')],
   ];
   for (const [rel, md] of sources) {
     assert.match(md, CAP, rel);
@@ -59,5 +56,5 @@ test('run delegates debugger dispatch to execute without loading debugging/index
   const run = read('skills/bouncer-run/SKILL.md');
   assert.doesNotMatch(run, /references\/debugging\/index\.md/);
   assert.match(run, /\/bouncer-execute/ );
-  assert.match(run, /at most\s+\*\*1\*\* debugger recovery/);
+  assert.doesNotMatch(run, /at most\s+\*\*1\*\* debugger recovery/);
 });
