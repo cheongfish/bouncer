@@ -153,7 +153,8 @@ function resolveGraphifyBin({
 }
 
 const GRAPHIFY_LOCK_REL = '.bouncer/graphify.lock.json';
-const GRAPH_OUT_DIRS = ['graphify-out/source', 'graphify-out/test', 'graphify-out/context'] as const;
+// leftover graphify-out/context 는 승격 대상이 아니다 — snapshot·restore·stamp에서 뺀다.
+const GRAPH_OUT_DIRS = ['graphify-out/source', 'graphify-out/test'] as const;
 
 type ExecFn = typeof execFileSync;
 
@@ -563,8 +564,9 @@ function listGraphTreeFiles(abs: string): Array<{ rel: string; body: Buffer }> {
 }
 
 /**
- * 세 graph 출력 트리 전체를 스냅샷한다. graph.json만 되돌리면 rebuild가
+ * source·test graph 출력 트리 전체를 스냅샷한다. graph.json만 되돌리면 rebuild가
  * 만든 sidecar·하위 파일이 실패 후에도 남고, 원래 없던 트리는 삭제되지 않는다.
+ * leftover context 트리는 승격 대상이 아니므로 여기 넣지 않는다.
  *
  * @param {string} repoRoot - 소비 저장소 루트
  * @returns {GraphTreeSnap[]}
@@ -605,8 +607,8 @@ function restoreGraphs(snapshot: GraphTreeSnap[]) {
 }
 
 /**
- * 세 graph.json에 플러그인이 검증한 schema 버전을 찍는다. Graphify 원본
- * 필드와 섞이지 않게 metadata 아래로만 넣는다.
+ * source·test graph.json에 플러그인이 검증한 schema 버전을 찍는다. Graphify 원본
+ * 필드와 섞이지 않게 metadata 아래로만 넣는다. leftover context 는 건드리지 않는다.
  *
  * @param {string} repoRoot - 소비 저장소 루트
  * @param {string} schemaVersion - manifest.graph_schema_version

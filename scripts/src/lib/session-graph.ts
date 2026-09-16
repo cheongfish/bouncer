@@ -7,7 +7,6 @@ import graphScope = require('./graph-scope');
 const {
   realGraphifyEnabled,
   realSourceDirs,
-  realContextDirs,
   realTestDirs,
   realExcludeDirs,
   realExistingDirs,
@@ -18,8 +17,6 @@ const {
   SCAN_EXCLUDED_DIRS,
   DEFAULT_SOURCE_OUT,
   DEFAULT_TEST_OUT,
-  DEFAULT_CONTEXT_OUT,
-  DEFAULT_CONTEXT_DIRS,
 } = graphScope;
 import graphExec = require('./graph-exec');
 const {
@@ -55,9 +52,8 @@ type SessionGraphDeps = {
   hasGraphify?: () => unknown;
   checkCompatibility?: () => { status?: string; reasons?: string[]; warnings?: string[] };
   sourceDirs?: () => string[];
-  contextDirs?: () => string[];
   // null = test 항목을 skip-unconfigured로 실음(필드 부재·무효와 동일).
-  // 단위 테스트가 config 없이 세-scope 경로만 검증할 때 주입한다.
+  // 단위 테스트가 config 없이 두-scope 경로만 검증할 때 주입한다.
   testDirs?: () => string[] | null;
   excludeDirs?: () => string[];
   existingDirs?: (dirs: string[]) => string[];
@@ -145,7 +141,7 @@ function planOneGraph(args: {
   if (present.length === 0) {
     return { ...base, action: 'skip-no-dirs', reason: `${name} dirs missing` };
   }
-  // 승격은 패키지 schema가 바뀌므로 mtime이 같아도 세 graph를 다시 만들어야 한다.
+  // 승격은 패키지 schema가 바뀌므로 mtime이 같아도 두 graph를 다시 만들어야 한다.
   // skip-fresh를 그대로 두면 stampGraphSchema가 옛 graph.json만 다시 찍는다.
   if (force === true) {
     return { ...base, action: 'build', reason: `${name} graph force rebuild` };
@@ -178,7 +174,6 @@ function planSessionGraph({ repoRoot, deps, force }: {
     hasGraphify: () => realHasGraphify(repoRoot),
     checkCompatibility: () => checkGraphifyCompatibility({ repoRoot }),
     sourceDirs: () => realSourceDirs(repoRoot),
-    contextDirs: () => realContextDirs(repoRoot),
     existingDirs: (dirs: string[]) => realExistingDirs(repoRoot, dirs),
     newestMtime: (dirs: string[], watchFiles?: string[]) => realNewestMtime(repoRoot, dirs, watchFiles),
     graphMtime: (outDir: string) => realGraphMtime(repoRoot, outDir),
@@ -208,7 +203,7 @@ function planSessionGraph({ repoRoot, deps, force }: {
     ? d.checkCompatibility()
     : checkGraphifyCompatibility({ repoRoot });
   if (compat && compat.status === 'version-incompatible') {
-    // 조회 경로는 설치를 고치지 않는다. 세 graph 빌드를 건너뛰고 상태만 남긴다.
+    // 조회 경로는 설치를 고치지 않는다. 두 graph 빌드를 건너뛰고 상태만 남긴다.
     return {
       bootstrap,
       action: 'skip-version-incompatible',
@@ -253,13 +248,10 @@ function planSessionGraph({ repoRoot, deps, force }: {
 
   const scopes = resolveGraphScopes({
     sourceDirs: d.sourceDirs(),
-    contextDirs: d.contextDirs(),
     testDirs,
     excludeDirs,
     testUnconfiguredReason,
   });
-  // context freshness는 `.bouncer/context/**` 원본과 검색 metadata만 본다.
-  // 파생 memory master·shard mtime은 계획을 바꾸지 않는다.
   const graphs = scopes.map((scope: GraphScope) => planOneGraph({
     ...scope,
     existingDirs: d.existingDirs,
@@ -283,8 +275,8 @@ function planSessionGraph({ repoRoot, deps, force }: {
       reason: toBuild.map((g: GraphPlan) => g.reason).join('; '),
     });
   }
-  // skip-unconfigured는 빌드 시도가 아니다. 요약 집계에서 빼야 source·context가
-  // 모두 skip-no-dirs인 저장소가 항상 실리는 test 자리 때문에 skip-fresh로
+  // skip-unconfigured는 빌드 시도가 아니다. 요약 집계에서 빼야 source가
+  // skip-no-dirs인 저장소가 항상 실리는 test 자리 때문에 skip-fresh로
   // 뒤집히지 않는다. 제외 후 남는 항목이 없으면 skip-no-dirs를 유지한다.
   const countable = graphs.filter((g: GraphPlan) => g.action !== 'skip-unconfigured');
   if (countable.length === 0 || countable.every((g: GraphPlan) => g.action === 'skip-no-dirs')) {
@@ -308,9 +300,9 @@ const NO_GRAPH_WORK = new Set([
 ]);
 
 /**
- * source + test + context graph freshness를 계획하고 stale한 것을
- * 재빌드한다. SessionStart와 /bouncer-plan(graphify-runner) query 전에 다시 사용.
- * graphs[]는 config와 무관하게 세 항목이지만, skip-unconfigured test는
+ * source + test graph freshness를 계획하고 stale한 것을 재빌드한다.
+ * SessionStart와 /bouncer-plan(graphify-runner) query 전에 다시 사용.
+ * graphs[]는 config와 무관하게 두 항목이지만, skip-unconfigured test는
  * 빌드·missing·경고 대상이 아니다. force는 명시적 승격 전용 — 일반
  * graph-sync가 skip-fresh를 버리게 하지 않는다.
  *
@@ -332,12 +324,9 @@ function syncSessionGraphs({ repoRoot, deps, execGraphify, force }: {
     for (const graph of decision.graphs) {
       if (graph.action !== 'build' || !graph.dirs.length) continue;
       try {
-        const outcome = run(graph);
-        // 빈 다이제스트 + graph.json 없음 = 순수 no-op → built 에 넣지 않는다.
-        // touched 면 freshness만 가라앉힌 것이므로 built 로 보고한다.
-        const skippedEmpty = outcome && (outcome as { skippedEmpty?: unknown }).skippedEmpty;
-        const touched = outcome && (outcome as { touched?: unknown }).touched;
-        if (outcome && skippedEmpty && !touched) continue;
+        // context digest 제거 후 defaultExecGraphify는 skippedEmpty/touched를
+        // 반환하지 않는다. 성공하면 항상 built에 올린다.
+        run(graph);
         built.push(graph.name);
       } catch (error) {
         failed.push({ name: graph.name, message: catchMessageOrString(error) });
@@ -419,10 +408,8 @@ function graphSyncWarnings(decision: SessionDecision) {
     };
     if (graph.action === 'skip-unconfigured') continue;
     const configured = Array.isArray(graph.configured) ? graph.configured : [];
-    // test는 config 상 graphify.test_dirs. source/context는 루트 키.
-    const dirsKey = name === 'context'
-      ? 'context_dirs'
-      : (name === 'test' ? 'graphify.test_dirs' : `${name}_dirs`);
+    // test는 config 상 graphify.test_dirs. source는 루트 키.
+    const dirsKey = name === 'test' ? 'graphify.test_dirs' : `${name}_dirs`;
     // "none of … exist"는 skip-no-dirs/빈 present dirs일 때만 참.
     const noDirs = graph.action === 'skip-no-dirs'
       || !Array.isArray(graph.dirs)
@@ -461,6 +448,4 @@ export = {
   SCAN_EXCLUDED_DIRS,
   DEFAULT_SOURCE_OUT,
   DEFAULT_TEST_OUT,
-  DEFAULT_CONTEXT_OUT,
-  DEFAULT_CONTEXT_DIRS,
 };

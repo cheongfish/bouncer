@@ -90,9 +90,9 @@ test('usage lists scaffold blueprint --scale light|full', () => {
   assert.match(r.out, /blueprint --epic-dir <dir> --id <ddd> --name <slug> \[--scale light\|full\]/);
 });
 
-test('graph-sync help names source + test + context scopes', () => {
+test('graph-sync help names source + test scopes', () => {
   const r = capture([]);
-  assert.match(r.out, /graph-sync Rebuild stale graphify source \+ test \+ context graphs/);
+  assert.match(r.out, /graph-sync Rebuild stale graphify source \+ test graphs/);
 });
 
 test('usage lists graph-suggest --query <text> [--seed <value>]...', () => {

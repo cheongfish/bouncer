@@ -18,10 +18,6 @@ const {
   GRAPHIFY_LOCK_REL,
 } = require('../scripts/lib/graphify');
 const {
-  realNewestMtime,
-  resolveGraphScopes,
-} = require('../scripts/lib/graph-scope');
-const {
   applyExcludeDirs,
   defaultExecGraphify,
   writeFilteredGraph,
@@ -323,31 +319,6 @@ test('setupGraphify stops after the first failing step and never throws', () => 
   });
 });
 
-test('context freshness does not watch Distill index or shard directory lifecycle', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-shard-fresh-'));
-  fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
-  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), 'index');
-  fs.writeFileSync(path.join(repo, '.bouncer/distill/core.md'), 'core');
-  fs.writeFileSync(path.join(repo, '.bouncer/context/index.md'), 'epics');
-
-  const context = resolveGraphScopes({ sourceDirs: [], contextDirs: ['.bouncer/context'] })
-    .find((scope) => scope.name === 'context');
-  assert.equal(context.watchFiles, undefined);
-
-  const graphMtime = Date.now() - 60_000;
-  const touch = (rel, mtime) => {
-    const abs = path.join(repo, rel);
-    fs.utimesSync(abs, new Date(mtime), new Date(mtime));
-  };
-  touch('.bouncer/context/index.md', graphMtime);
-  touch('.bouncer/Distill.md', graphMtime + 5_000);
-  touch('.bouncer/distill/core.md', graphMtime + 5_000);
-  touch('.bouncer/distill', graphMtime + 5_000);
-  const newest = realNewestMtime(repo, context.dirs, context.watchFiles);
-  assert.ok(newest <= graphMtime + 1);
-});
-
 test('registered Distill shards are not finalize or execute allowances', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-shard-scope-'));
   fs.mkdirSync(path.join(repo, '.bouncer/distill'), { recursive: true });
@@ -635,7 +606,7 @@ test('setupGraphify reuse preserves an existing lock and does not pip', () => {
   assert.deepStrictEqual(fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL)), before);
 });
 
-test('upgradeGraphify restamps three graphs and swaps the shared venv to the manifest spec', () => {
+test('upgradeGraphify restamps source and test graphs and swaps the shared venv to the manifest spec', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
   writeGraphs(repo, '0');
@@ -651,7 +622,14 @@ test('upgradeGraphify restamps three graphs and swaps the shared venv to the man
       return '';
     },
     rebuild: () => {
-      writeGraphs(repo, 'pending');
+      for (const name of ['source', 'test']) {
+        const abs = path.join(repo, 'graphify-out', name, 'graph.json');
+        fs.writeFileSync(abs, JSON.stringify({
+          nodes: [{ id: name, source_file: `${name}/a.ts` }],
+          links: [],
+          metadata: { graph_schema_version: 'pending' },
+        }));
+      }
       return { ok: true };
     },
   });
@@ -659,13 +637,19 @@ test('upgradeGraphify restamps three graphs and swaps the shared venv to the man
   const lock = readGraphifyLock({ repoRoot: repo });
   assert.strictEqual(lock.value.cli_version, '0.9.56');
   assert.strictEqual(lock.value.graph_schema_version, '1');
-  for (const name of ['source', 'test', 'context']) {
+  for (const name of ['source', 'test']) {
     const graph = JSON.parse(fs.readFileSync(
       path.join(repo, 'graphify-out', name, 'graph.json'),
       'utf8',
     ));
     assert.strictEqual(graph.metadata.graph_schema_version, '1');
   }
+  // leftover context는 stamp 대상이 아니다 — rebuild도 건드리지 않으면 원본 유지.
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(repo, 'graphify-out/context/graph.json'), 'utf8'))
+      .metadata.graph_schema_version,
+    '0',
+  );
   assert.ok(calls.some((c) => c.args[0] === 'install' && c.args[1] === 'graphifyy==0.9.56'));
 });
 
@@ -778,7 +762,7 @@ test('setupGraphify fails when the compatibility manifest cannot be loaded', () 
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
 });
 
-test('upgradeGraphify rebuild failure after swap restores lock venv and all three graph trees', () => {
+test('upgradeGraphify rebuild failure after swap restores lock venv and source/test graph trees', () => {
   const repo = initGitRepo();
   writeLock(repo, { cli_version: '0.8.0', package_version: '0.8.0', graph_schema_version: '0' });
   writeGraphs(repo, '0');
@@ -797,7 +781,14 @@ test('upgradeGraphify rebuild failure after swap restores lock venv and all thre
     now: () => '2026-09-10T00:00:00.000+09:00',
     exec: succeedingUpgradeExec(),
     rebuild: () => {
-      writeGraphs(repo, '1');
+      for (const name of ['source', 'test']) {
+        const abs = path.join(repo, 'graphify-out', name, 'graph.json');
+        fs.writeFileSync(abs, JSON.stringify({
+          nodes: [{ id: name, source_file: `${name}/a.ts` }],
+          links: [],
+          metadata: { graph_schema_version: '1' },
+        }));
+      }
       fs.writeFileSync(path.join(repo, 'graphify-out/source/extra.txt'), 'new-extra');
       fs.writeFileSync(path.join(repo, 'graphify-out/source/sidecar.json'), 'new-only');
       return { failed: [{ name: 'source', message: 'boom' }] };
@@ -807,12 +798,17 @@ test('upgradeGraphify rebuild failure after swap restores lock venv and all thre
   assert.match(r.reason, /rebuild/);
   assert.deepStrictEqual(fs.readFileSync(path.join(repo, GRAPHIFY_LOCK_REL)), beforeLock);
   assert.strictEqual(fs.readFileSync(path.join(venvDir, 'keep'), 'utf8'), 'prior-venv');
-  for (const name of ['source', 'test', 'context']) {
+  for (const name of ['source', 'test']) {
     assert.deepStrictEqual(
       fs.readFileSync(path.join(repo, 'graphify-out', name, 'graph.json')),
       beforeGraphs[name],
     );
   }
+  // leftover context는 restore 대상이 아니라 처음부터 그대로다.
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, 'graphify-out/context/graph.json')),
+    beforeGraphs.context,
+  );
   assert.strictEqual(
     fs.readFileSync(path.join(repo, 'graphify-out/source/extra.txt'), 'utf8'),
     'prior-extra',
@@ -834,8 +830,15 @@ test('upgradeGraphify rollback deletes a new lock when none existed before swap'
     now: () => '2026-09-10T00:00:00.000+09:00',
     exec: succeedingUpgradeExec(),
     rebuild: () => {
-      writeGraphs(repo, '1');
-      return { failed: [{ name: 'context', message: 'boom' }] };
+      for (const name of ['source', 'test']) {
+        const abs = path.join(repo, 'graphify-out', name, 'graph.json');
+        fs.writeFileSync(abs, JSON.stringify({
+          nodes: [{ id: name, source_file: `${name}/a.ts` }],
+          links: [],
+          metadata: { graph_schema_version: '1' },
+        }));
+      }
+      return { failed: [{ name: 'source', message: 'boom' }] };
     },
   });
   assert.strictEqual(r.status, 'failed');

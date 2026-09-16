@@ -362,7 +362,7 @@ export = {
   },
   'graph-sync': {
     run: cmdGraphSync,
-    usage: `  graph-sync Rebuild stale graphify source + test + context graphs (SessionStart / plan).
+    usage: `  graph-sync Rebuild stale graphify source + test graphs (SessionStart / plan).
 `,
   },
   'graph-suggest': {
