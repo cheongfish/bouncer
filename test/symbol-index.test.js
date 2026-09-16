@@ -537,3 +537,20 @@ test('postfix increment division does not drop earlier function definitions', ()
   assert.equal(result.status, 'resolved');
   assert.equal(result.symbol_ref.path, 'src/keep.ts');
 });
+
+test('type predicate return types keep the rest of the file indexed', () => {
+  const repo = tmpRepo();
+  writeFile(repo, 'src/pred.ts', [
+    'function isStr(v: unknown): v is string { return typeof v === "string"; }',
+    'function assertStr(v: unknown): asserts v is string { if (typeof v !== "string") throw new Error("x"); }',
+    'function assertOk(v: unknown): asserts v { if (!v) throw new Error("x"); }',
+    'class Box { isBox(): this is Box { return true; } }',
+    'const isNum = (v: unknown): v is number => typeof v === "number";',
+    'function after() { return 1; }',
+  ].join('\n'));
+  for (const symbol of ['isStr', 'assertStr', 'assertOk', 'isBox', 'isNum', 'after']) {
+    const result = resolveSymbol({ repoRoot: repo, symbol });
+    assert.notEqual(result.status, 'unresolved', symbol);
+    assert.equal(result.symbol_ref.path, 'src/pred.ts', symbol);
+  }
+});

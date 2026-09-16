@@ -15,10 +15,9 @@ test('graphify-runner resolves bin then queries; no PATH `graphify query`', () =
   const md = readSkill('graphify-runner');
   assert.match(md, /graphify-bin/);
   assert.match(md, /GRAPHIFY_BIN/);
-  assert.match(md, /bouncer\.scope_evidence\.suggested_paths/);
-  assert.match(md, /legacy read compatibility/i);
+  assert.match(md, /suggested_paths/);
   assert.match(md, /not available|unavailable|absent|skip/i);
-  assert.match(md, /bouncer\.graph|\/bouncer-plan/);
+  assert.match(md, /\/bouncer-plan/);
   // PATH 직접 호출 형태는 거부 — 해석된 "$GRAPHIFY_BIN" query 만 허용.
   assert.doesNotMatch(md, /`graphify query`/);
   assert.doesNotMatch(md, /\bsdd\b|superpowers/i);
@@ -26,11 +25,17 @@ test('graphify-runner resolves bin then queries; no PATH `graphify query`', () =
 
 test('graphify-runner records basis and documents freshness policy', () => {
   const md = readSkill('graphify-runner');
-  assert.match(md, /bouncer\.scope_evidence\.basis/);
-  assert.match(md, /producer: graphify/);
-  assert.match(md, /legacy.*compatibility/i);
+  assert.match(md, /basis/);
   assert.match(md, /SessionStart|freshness|mtime/i);
   assert.match(md, /graph-sync/);
+});
+
+test('graphify-runner returns evidence to the caller without writing task frontmatter', () => {
+  const md = readSkill('graphify-runner');
+  assert.doesNotMatch(md, /scope_evidence|producer: graphify|legacy read compatibility/);
+  assert.match(md, /\/bouncer-plan/);
+  assert.match(md, /suggested_paths/);
+  assert.match(md, /(does not|never) write[\s\S]{0,60}frontmatter/i);
 });
 
 test('graphify-runner basis status enum lists all five values', () => {
@@ -132,8 +137,8 @@ test('graphify-runner calls graph-suggest after sync and records structured qual
   const md = readSkill('graphify-runner');
   assert.match(md, /graph-sync/);
   assert.match(md, /graph-suggest/);
-  assert.match(md, /scope_evidence\.quality|quality:/);
-  assert.match(md, /scope_evidence\.candidates|candidates:/);
+  assert.match(md, /quality/);
+  assert.match(md, /candidates/);
   assert.match(md, /implementation/);
   assert.match(md, /low-confidence/);
   assert.match(md, /graphify-out\/source/);

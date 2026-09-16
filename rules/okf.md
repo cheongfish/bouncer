@@ -62,6 +62,9 @@ task's acceptance criteria, not prose such as "run tests." Blueprint
 merely to make an implementation easier to fit. Epic and blueprint
 `bouncer.supersedes` lists document paths this one replaces; validation checks
 shape only (absent or an array of non-empty strings), not referential integrity.
+`graph-suggest` candidates and `bouncer intent` results are advisory input; do
+not store them in frontmatter. No code reads leftover `bouncer.scope_evidence`
+or `bouncer.graph` on older task documents.
 
 Task DAG fields are author-written on `bouncer.tasks` only. Task numbers are
 display and default sort order — not execution authority.
@@ -95,21 +98,7 @@ identifiers, paths, and packages inside a Korean terminal sentence; the check
 covers only line count, Korean text, and the Korean terminal ending. Keep Epic /
 Blueprint ids out of them, and do not add dependencies or trailers.
 
-**Scope evidence.** `bouncer.scope_evidence` is the canonical write form for
-the candidate paths and basis used to judge a task's scope. It contains
-`generated_at`, `producer`, `suggested_paths`, and `basis`; Graphify writes
-`producer: graphify`. Optional paired `quality` and `candidates` record
-`graph-suggest` status (`ranked` / `low-confidence` / `unavailable`),
-confidence, reasons, and role arrays (`implementation` / `test` / `context`).
-When either optional field is present, both must be valid; 
-`low-confidence` / `unavailable` require empty `suggested_paths`. Basis
-`graph` values are `source` | `test` | `context`. `suggested_paths` and role
-candidates are advisory evidence, never an approved change scope: only the
-user-confirmed `affected_paths` may authorize changes. Read legacy
-`bouncer.graph` and evidence without `quality`/`candidates` only for
-compatibility; do not author the legacy form in new plans.
-
-**Generated evidence fields.** `bouncer.scope_evidence`, verification, review,
+**Generated evidence fields.** verification, review,
 context-review, comprehension metadata, `bouncer.commit_sha` (tasks, 8-char
 hex written by commit), and `bouncer.task_commits` (explain, copied at finalize
 as `{ task, sha, intent_anchor }`)

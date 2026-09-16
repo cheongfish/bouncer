@@ -143,9 +143,11 @@ body content only; never edits harness-owned frontmatter fields. Used from
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.
-   - **context evidence**: use only caller-selected canonical documents from
-     context-search. Preserve query id, mode, status, and graph version; a
-     broad or zero-hit diagnosis never authorizes guessed evidence.
+   - **intent evidence**: use only resolver-selected Explain sections from
+     `bouncer intent`. Skip `historical` freshness; when freshness is
+     `possibly-superseded`, treat current code as live behavior and confirm
+     whether to keep the older constraint. Missing or unresolved provenance
+     never authorizes guessed evidence.
 3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
    Match each document's length to what the work needs — cover the substance,
    then stop. No filler sections, no summary that restates the section above it,

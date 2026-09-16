@@ -104,17 +104,9 @@ Epic: [<EPIC-id>](../../index.md)
 * [Context review](context-review.md) - 계획 문서 정합성 판정
 <!-- explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다. -->
 `,
-  // 본문 HTML 주석은 G10이 strip한 뒤 비어 있음으로 본다. 허용값은 에이전트만
-  // 보고, 프론트매터 basis[]를 채우지 않아 S9/G4는 그대로 실패한다.
   'tasks.md': `# Tasks
 
 Blueprint: [<BP-id>](../../index.md)
-
-<!-- scope_evidence.basis 엔트리 필드: graph, status, query, result.
-     graph: source | test | context
-     status: updated | reused | fail-skip | skip-disabled | missing
-     quality/candidates는 graph-suggest 결과로만 채운다(scaffold는 비워 둔다).
-     프론트매터 값은 []로 둔다. 이 주석을 실제 엔트리로 옮기면 빈 계획이 승인된다. -->
 
 ## Goal & intent
 <!-- 구현자가 다른 문서 없이 시작할 수 있게.

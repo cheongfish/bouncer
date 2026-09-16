@@ -10,167 +10,6 @@ const tasksDocs = require("./tasks-docs");
 const { expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = tasksDocs;
 const config = require("./config");
 const { DEFAULT_VERIFY_ALLOWLIST } = config;
-// graph.basis는 레거시 문자열과 그래프별 엔트리 배열을 모두 받는다.
-// S9(구조)와 G4(plan)가 같은 헬퍼를 써야 두 경로가 다른 답을 내지 않는다.
-const GRAPH_BASIS_STATUS = ['updated', 'reused', 'fail-skip', 'skip-disabled', 'missing'];
-// test는 구현·연결 테스트 그래프용. 질의 실패해도 runner가 엔트리를 남기므로
-// 허용값에 두고, 세 그래프를 강제하지는 않는다(구 source|context 문서 호환).
-const GRAPH_BASIS_GRAPH = ['source', 'test', 'context'];
-const SCOPE_QUALITY_STATUS = ['ranked', 'low-confidence', 'unavailable'];
-const SCOPE_CONFIDENCE = ['high', 'medium', 'low'];
-const SCOPE_CANDIDATE_ROLES = ['implementation', 'test', 'context'];
-function isValidGraphBasis(basis) {
-    if (typeof basis === 'string')
-        return basis.trim().length > 0;
-    if (!Array.isArray(basis) || basis.length === 0)
-        return false;
-    for (const entry of basis) {
-        if (entry == null || typeof entry !== 'object' || Array.isArray(entry))
-            return false;
-        const rec = entry;
-        if (!GRAPH_BASIS_GRAPH.includes(rec.graph))
-            return false;
-        if (!GRAPH_BASIS_STATUS.includes(rec.status))
-            return false;
-        if (typeof rec.query !== 'string' || !rec.query.trim())
-            return false;
-        if (typeof rec.result !== 'string' || !rec.result.trim())
-            return false;
-    }
-    return true;
-}
-function isNonEmptyStringArray(value) {
-    return Array.isArray(value)
-        && value.length > 0
-        && value.every((entry) => typeof entry === 'string' && entry.trim().length > 0);
-}
-/**
- * Task 002 graph-suggest 후보와 같은 모양. path는 저장소-상대 **파일**이어야 하고
- * score는 정수, basis는 비어 있지 않은 문자열 배열이다.
- * 디렉터리 롤업(`scripts/src/lib/`, `test`)은 새 quality/candidates write form에서만
- * 거절한다 — quality 없는 legacy evidence의 suggested_paths는 건드리지 않는다.
- */
-function isValidScopeCandidate(candidate) {
-    if (candidate == null || typeof candidate !== 'object' || Array.isArray(candidate))
-        return false;
-    const rec = candidate;
-    if (typeof rec.path !== 'string' || !rec.path.trim())
-        return false;
-    const filePath = rec.path.trim();
-    if (filePath.includes('\\') || filePath.startsWith('/') || /^[A-Za-z]:/.test(filePath))
-        return false;
-    if (filePath.split('/').includes('..'))
-        return false;
-    // trailing slash → 디렉터리. basename에 '.' 없음 → 롤업 경로(test, scripts/src/lib).
-    if (filePath.endsWith('/'))
-        return false;
-    const base = filePath.split('/').pop() || '';
-    if (!base || base === '.' || base === '..' || !base.includes('.'))
-        return false;
-    if (!Number.isInteger(rec.score))
-        return false;
-    if (!SCOPE_CONFIDENCE.includes(rec.confidence))
-        return false;
-    return isNonEmptyStringArray(rec.basis);
-}
-function isValidScopeQuality(quality) {
-    if (quality == null || typeof quality !== 'object' || Array.isArray(quality))
-        return false;
-    const rec = quality;
-    if (!SCOPE_QUALITY_STATUS.includes(rec.status))
-        return false;
-    if (!SCOPE_CONFIDENCE.includes(rec.confidence))
-        return false;
-    return isNonEmptyStringArray(rec.reasons);
-}
-function isValidScopeCandidates(candidates) {
-    if (candidates == null || typeof candidates !== 'object' || Array.isArray(candidates))
-        return false;
-    const rec = candidates;
-    for (const role of SCOPE_CANDIDATE_ROLES) {
-        const list = rec[role];
-        if (!Array.isArray(list))
-            return false;
-        if (!list.every((entry) => isValidScopeCandidate(entry)))
-            return false;
-    }
-    return true;
-}
-function isRecord(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-/**
- * tasks의 범위 근거를 새 정본과 구형 graph 형식에서 한 번만 읽는다. 새 문서는
- * scope_evidence만 쓰게 하지만, 이미 승인된 graph 문서를 여기서 같은 내부 모양으로
- * 바꿔야 S9와 G4가 migration 시점에 따라 다른 결론을 내리지 않는다. 이 함수는
- * affected_paths를 절대 만지지 않는다. suggested_paths는 graphify의 제안 근거이고,
- * 사람이 확정한 task 범위를 자동 교체하면 계획 승인 경계가 사라지기 때문이다.
- */
-function normalizeScopeEvidence(bouncer) {
-    if (!isRecord(bouncer))
-        return { evidence: null, error: 'scope evidence missing' };
-    const hasScopeEvidence = bouncer.scope_evidence !== undefined;
-    const hasLegacyGraph = bouncer.graph !== undefined;
-    if (hasScopeEvidence && hasLegacyGraph) {
-        return { evidence: null, error: 'tasks must not contain both scope_evidence and graph' };
-    }
-    if (!hasScopeEvidence && !hasLegacyGraph)
-        return { evidence: null, error: null };
-    const source = hasScopeEvidence ? bouncer.scope_evidence : bouncer.graph;
-    if (!isRecord(source))
-        return { evidence: null, error: 'scope evidence must be an object' };
-    // graph는 과거 write form이라 producer/generated_at을 강제하지 않았다. 그 문서는
-    // 계속 읽되, 새 scope_evidence에는 graphify producer와 생성 시각을 명시적으로
-    // 요구해 앞으로 만들어지는 근거의 출처·시점을 잃지 않게 한다.
-    const evidence = {
-        producer: hasScopeEvidence ? source.producer : 'graphify',
-        generated_at: hasScopeEvidence ? source.generated_at : 'legacy graph',
-        suggested_paths: source.suggested_paths,
-        basis: source.basis,
-    };
-    if (evidence.producer !== 'graphify') {
-        return { evidence: null, error: 'scope_evidence.producer must be graphify' };
-    }
-    if (typeof evidence.generated_at !== 'string' || !evidence.generated_at.trim()) {
-        return { evidence: null, error: 'scope_evidence.generated_at missing or empty' };
-    }
-    if (!Array.isArray(evidence.suggested_paths)) {
-        return { evidence: null, error: 'scope evidence suggested_paths missing' };
-    }
-    if (!isValidGraphBasis(evidence.basis)) {
-        return { evidence: null, error: 'scope evidence basis missing or empty' };
-    }
-    // quality·candidates는 선택이다. 둘 다 없으면 구 evidence를 그대로 통과시키고,
-    // 하나만 있거나 형식이 틀리면 S9/G4가 같은 메시지로 거절한다.
-    const hasQuality = source.quality !== undefined;
-    const hasCandidates = source.candidates !== undefined;
-    if (hasQuality !== hasCandidates) {
-        return {
-            evidence: null,
-            error: 'scope_evidence.quality and candidates must both be present or both absent',
-        };
-    }
-    if (hasQuality && hasCandidates) {
-        if (!isValidScopeQuality(source.quality)) {
-            return { evidence: null, error: 'scope_evidence.quality missing or invalid' };
-        }
-        if (!isValidScopeCandidates(source.candidates)) {
-            return { evidence: null, error: 'scope_evidence.candidates has invalid candidate shape' };
-        }
-        const quality = source.quality;
-        // 저신뢰·불가 상태에서는 파일 추천을 내지 않는다 — 비어 있지 않으면 승인 경계가 흐려진다.
-        if ((quality.status === 'low-confidence' || quality.status === 'unavailable')
-            && evidence.suggested_paths.length > 0) {
-            return {
-                evidence: null,
-                error: 'scope_evidence.suggested_paths must be empty when quality is low-confidence or unavailable',
-            };
-        }
-        evidence.quality = source.quality;
-        evidence.candidates = source.candidates;
-    }
-    return { evidence, error: null };
-}
 /**
  * 경로가 요구하는 bouncer type. 위치 규칙이 없으면 null — S19를 내지 않는다.
  * task 묶음 basename은 TASK_UNIT_BASENAMES만 순회하고 문자열을 여기 두지 않는다.
@@ -322,10 +161,6 @@ function checkStructural(doc, failures, verifyAllowlist = DEFAULT_VERIFY_ALLOWLI
         if (executionKind !== 'verification' && (!Array.isArray(ap) || ap.length === 0)) {
             add('S7', 'tasks.affected_paths missing or empty');
         }
-        const scopeEvidence = normalizeScopeEvidence(bouncer);
-        if (executionKind !== 'verification' && scopeEvidence.error) {
-            add('S9', scopeEvidence.error);
-        }
         // 선택 필드: 없으면 기존 tasks.md가 모두 유효하게 유지됨. S12와
         // VERIFY_COMMAND_INVALID가 같은 allowlist를 써야 두 경로가 어긋나지 않는다.
         if (bouncer.verify !== undefined && !isValidVerifyCommand(bouncer.verify, verifyAllowlist)) {
@@ -374,8 +209,4 @@ function checkStructural(doc, failures, verifyAllowlist = DEFAULT_VERIFY_ALLOWLI
 module.exports = {
     expectedTypeForPath,
     checkStructural,
-    GRAPH_BASIS_STATUS,
-    GRAPH_BASIS_GRAPH,
-    isValidGraphBasis,
-    normalizeScopeEvidence,
 };

@@ -61,7 +61,6 @@ G 코드는 게이트별 검사, S 코드는 항상 실행되는 구조·스키�
 | `G1` | epic `approved` |
 | `G2` | blueprint `approved` |
 | `G3` | task 계획 상태 유효 |
-| `G4` | graph 추천 경로와 basis 존재 |
 | `G5` | `affected_paths` 존재 |
 | `G6` | task `verified` |
 | `G7` | verification `passed` |
@@ -78,7 +77,7 @@ G 코드는 게이트별 검사, S 코드는 항상 실행되는 구조·스키�
 
 S 코드는 `S0`–`S28`이다. `S0` 파싱, `S1` OKF 필드, `S2` 타입·레거시 형식,
 `S3` resource, `S4` id 형식, `S5` id/상위 id 정합성, `S6` status, `S7` task
-`affected_paths`, `S8` index 누락, `S9` graph basis, `S10` blueprint 경로,
+`affected_paths`, `S8` index 누락, `S10` blueprint 경로,
 `S11` blueprint 문서 부재, `S12` 단일 verify 명령, `S13` epic index 목록, `S15` 레거시 task
 파일, `S16` task 디렉터리, `S17` task 세 문서, `S18` imported blueprint,
 `S19` type과 위치, `S20` blueprint scale, `S27` epic·blueprint supersedes,
@@ -87,8 +86,9 @@ S 코드는 `S0`–`S28`이다. `S0` 파싱, `S1` OKF 필드, `S2` 타입·레�
 
 `S21`–`S26`은 제거된 구조 검사의 결번이다.
 
-G9(초기 repository-memory 상태), G15(explain comprehension/diff), S14(구·신 task
-레이아웃 혼재)는 폐기된 결번이다. 다시 사용하지 않는다.
+G4(graph 추천 경로와 basis), G9(초기 repository-memory 상태), G15(explain
+comprehension/diff), S9(graph basis), S14(구·신 task 레이아웃 혼재)는 폐기된
+결번이다. 다시 사용하지 않는다.
 
 ### 워크플로 스킬
 
@@ -212,7 +212,7 @@ breaking change가 아니다.
 않고**, **G10** 필수 절을 `Goal & intent`·`Touch`·`Checklist` 셋으로 줄인다.
 
 **왜.** 좁은 범위 작업에도 340줄짜리 계획 문서와 별도 판정 왕복이 고정비로
-들어갔다. 줄인 것은 서술 분량과 판정 문서이고, 승인 범위 증적(G4·G5·G11·G12)은
+들어갔다. 줄인 것은 서술 분량과 판정 문서이고, 승인 범위 증적(G5·G11·G12)은
 그대로 둔다.
 
 **영향.** G18의 "모든 blueprint" 계약과 G10의 "다섯 절" 계약이 깨진다. 두 코드의

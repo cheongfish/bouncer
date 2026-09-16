@@ -67,9 +67,7 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    `current.task.path` is the task brief when present, else its first/single
    resolver result; later steps retain that `tasks/<NNN>/tasks.md` brief and do
    not re-pick it. Exclude `bouncer.scope_evidence` from read and injection
-   targets — it is plan-evidence audit only (authored by graphify-runner, gated
-   by G4, checked by context-review), execute has no consumer, and as G4 input
-   it must not be deleted from documents.
+   targets — older plans may still carry it and nothing reads it.
 
 2. **Prepare.** From the project-root `cwd` (the base checkout that still holds
    the plan documents), create or reuse the execute worktree with one command:

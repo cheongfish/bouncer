@@ -200,11 +200,9 @@ test('context-review covers the four judgment scopes', () => {
   assert.match(md, /Cross-document contradiction/);
   assert.match(md, /Walk epic → blueprint → tasks/);
   assert.match(md, /Scope review/);
-  assert.match(md, /scope_evidence\.suggested_paths/);
-  assert.match(md, /scope_evidence\.quality|quality/);
-  assert.match(md, /candidates/);
-  assert.match(md, /absence or empty[\s\S]{0,60}state, not a failure/i);
-  assert.match(md, /do not (?:widen|expand|treat[\s\S]{0,40}authority)|advisory/i);
+  // scope_evidence 불릿 제거 후 Scope-review 전용 pin; widen/expand|advisory는
+  // Hard-guards에도 걸려 더 이상 Scope review를 고정하지 않는다.
+  assert.doesNotMatch(md, /scope_evidence/);
   assert.match(md, /Korean quality/);
   assert.match(md, /stop-slop/);
   assert.match(md, /Identifiers, paths, and fenced/);

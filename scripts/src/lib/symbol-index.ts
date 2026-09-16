@@ -1267,6 +1267,11 @@ class Collector {
   skipType(): void {
     this.skipTypePrefix();
     this.skipTypeAtom();
+    // 반환 타입의 type predicate(`v is T`, `this is T`). `asserts` 접두사는
+    // skipTypePrefix가 이미 먹는다. 원자만 건너뛰면 남는 `is`를 본문 `{`로
+    // 오인해 파일 전체를 버리므로, 여기서 `is`와 오른쪽 타입을 이어서 삼킨다.
+    // 값 식·문자열의 `is`는 skipType 밖이라 정의로 승격되지 않는다.
+    if (this.eatId('is')) this.skipType();
     for (;;) {
       if (this.eat('|') || this.eat('&')) {
         this.skipTypeAtom();

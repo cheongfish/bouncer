@@ -12,8 +12,6 @@ import validateDocs = require('./validate-docs');
 const {
   defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf,
 } = validateDocs;
-import validateStructural = require('./validate-structural');
-const { normalizeScopeEvidence } = validateStructural;
 import runtimeState = require('./runtime-state');
 const { verifyLedgerPathFor } = runtimeState;
 import validateSections = require('./validate-sections');
@@ -27,9 +25,8 @@ import schema = require('./schema');
 const { executionKindOf } = schema;
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
-// 않는다. scope evidence는 structural.normalizeScopeEvidence를 그대로 쓴다 — 여기
-// 다시 구현하면 S9와 G4가 갈라진다. validate.ts를 require하지 않는다
-// (validate → gates → structural, 순환 금지).
+// 않는다. 승인 범위는 G5·G11·G12가 판정한다(G4는 결번). validate.ts를
+// require하지 않는다(validate → gates → structural, 순환 금지).
 
 type FailureEntry = { code: string; message: string; file: string };
 type DocLeaf = { data: unknown; body: string; rel: string };
@@ -526,8 +523,8 @@ function runCheckGate(
       }
     }
     // G10 필수 절. light는 Goal & intent·Touch·Checklist 셋만 요구한다.
-    // 승인 범위 판정(G4·G5·G11·G12)은 두 경로가 똑같이 받는다 — 줄어드는 것은
-    // 서술 분량이지 범위 증적이 아니다.
+    // 승인 범위 판정(G5·G11·G12)은 두 경로가 똑같이 받는다 — 줄어드는 것은
+    // 서술 분량이지 범위 증적이 아니다. G4는 결번.
     const sectionKeys = isLight
       ? ['goal', 'touch', 'checklist']
       : ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
@@ -539,7 +536,6 @@ function runCheckGate(
       : (docs.tasks ? [docs.tasks] : []);
     if (tasksList.length === 0) {
       add('G3', 'tasks.status != ready', 'tasks');
-      add('G4', 'tasks.graph.suggested_paths missing', 'tasks');
       add('G5', 'tasks.affected_paths missing or empty', 'tasks');
       add('G10', `tasks missing implementation-ready sections: ${sectionKeys.join(', ')}`, 'tasks');
       return;
@@ -554,14 +550,10 @@ function runCheckGate(
         addTask('G3', 'tasks.status != ready');
       }
       // YAML data가 null/undefined면 `.bouncer`에서 터지는 게 기존 실패 형태다.
-      // `data &&`로 막으면 G4/G5가 missing 메시지로 fail-open 한다.
+      // `data &&`로 막으면 G5가 missing 메시지로 fail-open 한다.
       const taskBouncer = (tasksDoc.data as Record<string, unknown>).bouncer as
         Record<string, unknown> | undefined;
       const executionKind = executionKindOf(taskBouncer);
-      const scopeEvidence = normalizeScopeEvidence(taskBouncer);
-      if (executionKind !== 'verification' && (!scopeEvidence.evidence || scopeEvidence.error)) {
-        addTask('G4', scopeEvidence.error || 'tasks.scope_evidence missing');
-      }
       const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
       if (executionKind !== 'verification' && (!Array.isArray(ap) || ap.length === 0)) {
         addTask('G5', 'tasks.affected_paths missing or empty');

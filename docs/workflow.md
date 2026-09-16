@@ -136,7 +136,7 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   `tasks/001/{tasks,verification,review}.md`만 만듭니다. `context-review.md`가
   없으니 계획 문서 판정 단계도, plan 게이트의 G18도 없습니다. task 본문은
   Goal & intent·Touch·Checklist 셋만 쓰면 G10을 통과하고, `affected_paths`
-  확정과 G4·G5·G11·G12는 일반 경로와 똑같이 받습니다.
+  확정과 G5·G11·G12는 일반 경로와 똑같이 받습니다.
 - **full로 돌아가려면** blueprint `index.md`의 `bouncer.scale`을 `full`로
   되돌리고, `bouncer scaffold context-review --blueprint <dir>`로 판정 문서를
   만든 뒤 task에 Interface·Do not touch 절을 채웁니다. 그 다음 plan 게이트를
