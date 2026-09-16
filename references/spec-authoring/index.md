@@ -163,18 +163,18 @@ body content only; never edits harness-owned frontmatter fields. Used from
   open a Korean section with an English overview sentence.
 - **Discovery fields.** For new or modified docs, `title` stays Korean as the
   `.gitmessage` nominal commit-title source; do not translate it. Write
-  `description` and `tags` in English ASCII. Derived anchors and search queries
-  also use English ASCII for graph-suggest; do not propose tokenizer or
-  Korean-search support or bulk-rewrite the existing corpus.
-- **Domain tags.** Frontmatter `tags` are the domain search vocabulary
-  promoted by context-digest for graph-suggest. Each item is an English ASCII
-  single token matching `[A-Za-z0-9_./-]`. Scaffold `bouncer` and the
-  document's own kind tag are not promoted, so add 2–5 domain tags (for
-  example `worktree`, `context-digest`, `graph-suggest`).
+  `description` and `tags` in English ASCII. Search queries also use English
+  ASCII for graph-suggest; do not propose tokenizer or Korean-search support or
+  bulk-rewrite the existing corpus.
+- **Domain tags.** Frontmatter `tags` are the domain search vocabulary that
+  people and `graph-suggest` queries use. Each item is an English ASCII
+  single token matching `[A-Za-z0-9_./-]`. Keep scaffold `bouncer` and the
+  document's own kind tag, then add 2–5 domain tags (for
+  example `worktree`, `intent`, `graph-suggest`).
 - **Stop slop.** After drafting Korean plan/explain bodies, apply the
   `stop-slop` skill (`references/stop-slop/index.md`) — advisory, not a gate. Strip
   filler, formulaic contrast, empty passives, and section-restating closers.
-  It applies to reader-facing prose only, not derived anchors or search metadata.
+  It applies to reader-facing prose only, not search metadata.
 
 ## Optional Mermaid zoom for flow changes
 

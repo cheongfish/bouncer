@@ -32,8 +32,7 @@ make the document findable without duplicating its body:
 
 For new or modified documents, keep `title` Korean: `.gitmessage` uses it as
 the nominal commit-title source, so do not translate it. Write `description`
-and `tags` in English ASCII; derived anchors and search queries use the same
-English ASCII contract for graph-suggest. This does not call for tokenizer or
+and `tags` in English ASCII. This does not call for tokenizer or
 Korean-search support or a bulk rewrite of the existing corpus.
 
 - `title` states the durable intent or decision in a short noun phrase. It is
@@ -45,11 +44,11 @@ Korean-search support or a bulk rewrite of the existing corpus.
   bundle index summary. The summary row is derived by `scaffold epic` and may
   be appended or replaced, while S13 reports a mismatch; the row is not an
   authoring surface.
-- `tags` are the domain search vocabulary that context-digest promotes for
-  graph-suggest. Each item is an English ASCII single token matching
-  `[A-Za-z0-9_./-]`. Keep the scaffold's `bouncer` and document-kind tag
-  (those are not promoted); add 2–5 durable domain tags (for example
-  `worktree`, `context-digest`, or `graph-suggest`). Do not add temporary
+- `tags` are the domain search vocabulary that people and `graph-suggest`
+  queries use. Each item is an English ASCII single token matching
+  `[A-Za-z0-9_./-]`. Keep the scaffold's `bouncer` and document-kind tag;
+  add 2–5 durable domain tags (for example `worktree`, `intent`, or
+  `graph-suggest`). Do not add temporary
   ticket ids, one-off filenames, or synonyms for the same concept.
 
 **Plan fields.** `bouncer.affected_paths` is the minimum approved set of
@@ -106,23 +105,7 @@ record their respective workflow evidence. Treat all of them as data produced by
 their designated step. Do not manufacture values to satisfy a gate; correct the
 plan, rerun the designated step, or return to planning.
 
-## Derived context-digest anchors
-
-Wave 2 context-digest generates these derived headings from the approved
-epic → blueprint → task tree. They are search metadata, not an authoring
-obligation: people do not manually write anchors in context documents.
-
-Each anchor is a single token using only the tokenizer-safe
-`[A-Za-z0-9_./-]` character basis and zero-padded three-digit ids:
-
-- `epic-<ddd>` — for example, `epic-054`
-- `bp-<ddd>-<ddd>` — for example, `bp-054-001`
-- `task-<ddd>-<ddd>-<ddd>` — for example, `task-054-001-002`
-
-Colons, spaces, and Korean text are forbidden in an anchor. In particular,
-`epic:054` is two search tokens rather than one anchor. Child headings repeat
-their parent anchors, so a graph query can invoke an epic, blueprint, or task
-level of the hierarchy while retaining its ancestry.
+## Task bundle and commit records
 
 A task unit is the three-document bundle
 `tasks/<NNN>/{tasks,verification,review}.md`; each file has its own OKF
@@ -132,10 +115,7 @@ bundle: `explain.md` (written at finalize) and `context-review.md` (plan
 document consistency). After finalize deletes task leaves, `explain.md`
 `bouncer.task_commits` writes `{ task, sha, intent_anchor }` rows:
 `task` is `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`,
-and `sha` stays 8-char hex. context-digest reads that new row first and still
-accepts legacy `{ id, sha }` with the same 8-char hex, then re-emits
-`task-<ddd>-<ddd>-<ddd>` and the short sha as derived headings so graph search
-still resolves task commits. Existing explain documents are not rewritten until
+and `sha` stays 8-char hex. Existing explain documents are not rewritten until
 finalize writes them again.
 
 Task commit staging excludes the task bundle and context documents even when

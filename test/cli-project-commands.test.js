@@ -48,150 +48,15 @@ test('tracked active sources contain no retired Distill public surface', () => {
   assert.deepStrictEqual(matches, []);
 });
 
-test('retired distill command is rejected while context-search remains public', () => {
+test('retired distill command is rejected', () => {
   const retired = capture([['d', 'istill'].join('')]);
   assert.strictEqual(retired.code, 2);
   assert.match(retired.err, /unknown command/);
-  assert.match(retired.err, /context-search/);
-  assert.match(capture([]).out, /^\s*context-search\b/m);
 });
 
 function tmpRoot() {
   return fs.realpathSync(os.tmpdir());
 }
-
-function fixture() {
-  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-context-'));
-  execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
-  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin.json'), 'utf8'));
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  fs.writeFileSync(path.join(repo, '.bouncer', 'graphify.lock.json'), `${JSON.stringify({
-    schema_version: 1,
-    package: 'graphifyy',
-    package_version: '0.9.56',
-    cli_version: '0.9.56',
-    bouncer_version: pkg.version,
-    graph_schema_version: '1',
-    installed_at: '2026-01-01T00:00:00.000+09:00',
-  }, null, 2)}\n`);
-  return repo;
-}
-
-test('context-search rejects invalid structured input with exit 2 and empty stdout', () => {
-  const repo = fixture();
-  const { validateContextSearchInput } = require('../scripts/lib/graph-search');
-  for (const args of [
-    ['--query', 'epic-060'],
-    ['--mode', 'decision'],
-    ['--mode', 'nope', '--query', 'epic-060'],
-    ['--mode', 'decision', '--query', 'epic-060', '--max-candidates', '0'],
-    ['--mode', 'decision', '--query', 'epic-060', '--max-candidates', '9'],
-  ]) {
-    const result = capture(['context-search', '--repo', repo, ...args]);
-    assert.strictEqual(result.code, 2, args.join(' '));
-    assert.strictEqual(result.out, '');
-    assert.match(result.err, /context-search:/);
-  }
-  // CLI 거절 문구는 graph-search JSON schema 검증기와 동일해야 한다.
-  const modeErr = validateContextSearchInput({ mode: 'nope', query: 'epic-060' });
-  const capErr = validateContextSearchInput({ mode: 'decision', query: 'epic-060', maxCandidates: 9 });
-  const modeCli = capture(['context-search', '--repo', repo, '--mode', 'nope', '--query', 'epic-060']);
-  const capCli = capture([
-    'context-search', '--repo', repo, '--mode', 'decision', '--query', 'epic-060', '--max-candidates', '9',
-  ]);
-  assert.equal(modeCli.err, `context-search: ${modeErr}\n`);
-  assert.equal(capCli.err, `context-search: ${capErr}\n`);
-});
-
-test('context-search returns JSON payload with query id, terms, seed, counts, candidates, status', () => {
-  const repo = fixture();
-  const result = capture([
-    'context-search',
-    '--repo', repo,
-    '--mode', 'decision',
-    '--query', 'zzzx-missing-anchor-999',
-    '--seed', 'epic-999',
-    '--max-candidates', '4',
-  ]);
-  assert.strictEqual(result.code, 0);
-  assert.strictEqual(result.err, '');
-  const payload = JSON.parse(result.out);
-  assert.equal(typeof payload.query_id, 'string');
-  assert.ok(payload.query_id.length > 0);
-  assert.ok(Array.isArray(payload.terms));
-  assert.ok('seed' in payload);
-  assert.equal(typeof payload.raw_node_count, 'number');
-  assert.equal(typeof payload.eligible_document_count, 'number');
-  assert.ok(Array.isArray(payload.candidates));
-  assert.ok(
-    payload.status === 'ranked'
-    || payload.status === 'low-confidence'
-    || payload.status === 'low-confidence: broad-query'
-    || payload.status === 'zero-hit',
-  );
-  if (payload.status !== 'ranked') {
-    assert.deepEqual(payload.candidates, []);
-  } else {
-    for (const row of payload.candidates) {
-      assert.equal(typeof row.path, 'string');
-      assert.equal(typeof row.role, 'string');
-      assert.ok(Array.isArray(row.tags));
-      assert.ok(Array.isArray(row.anchors));
-      assert.equal(typeof row.score, 'number');
-      assert.ok(Array.isArray(row.basis));
-    }
-  }
-});
-
-test('context-search CLI JSON includes a ranked candidate object', () => {
-  const repo = fixture();
-  const epic = '.bouncer/context/epics/060-graphify-search-quality';
-  fs.mkdirSync(path.join(repo, epic), { recursive: true });
-  fs.writeFileSync(path.join(repo, `${epic}/index.md`), [
-    '---',
-    'type: bouncer.epic',
-    'tags:',
-    '  - bouncer',
-    '  - epic',
-    '  - graphify-search-quality',
-    'bouncer:',
-    "  epic_id: '060'",
-    '  status: approved',
-    '---',
-    '',
-    '## Success criteria',
-    '',
-    'ranked context retrieval for graphify-search-quality',
-    '',
-  ].join('\n'));
-  const { buildContextDigest } = require('../scripts/lib/context-digest');
-  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
-  const graphDir = path.join(repo, 'graphify-out', 'context');
-  fs.mkdirSync(graphDir, { recursive: true });
-  fs.writeFileSync(path.join(graphDir, 'graph.json'), JSON.stringify({
-    nodes: [
-      { id: 'e', label: 'epic-060', source_file: `${epic}/index.md` },
-    ],
-    links: [],
-  }));
-  const result = capture([
-    'context-search', '--repo', repo, '--mode', 'decision', '--query', 'epic-060',
-  ]);
-  assert.strictEqual(result.code, 0);
-  assert.strictEqual(result.err, '');
-  const payload = JSON.parse(result.out);
-  assert.equal(payload.status, 'ranked');
-  assert.ok(payload.candidates.length >= 1);
-  const row = payload.candidates[0];
-  assert.equal(typeof row.path, 'string');
-  assert.ok(row.path.length > 0);
-  assert.equal(typeof row.role, 'string');
-  assert.ok(Array.isArray(row.tags));
-  assert.ok(Array.isArray(row.anchors));
-  assert.equal(typeof row.score, 'number');
-  assert.ok(Array.isArray(row.basis));
-  assert.ok(row.basis.length > 0);
-});
 
 test('init --upgrade-graphify exposes the upgrade payload', () => {
   const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-upgrade-'));
@@ -257,27 +122,6 @@ test('graph-sync records version-incompatible without installing', () => {
   const payload = JSON.parse(result.out);
   assert.strictEqual(payload.status, 'version-incompatible');
   assert.strictEqual(payload.action, 'skip-version-incompatible');
-  assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
-});
-
-test('context-search records version-incompatible without installing', () => {
-  const repo = fixture();
-  fs.writeFileSync(path.join(repo, '.bouncer', 'graphify.lock.json'), `${JSON.stringify({
-    schema_version: 1,
-    package: 'graphifyy',
-    package_version: '0.8.0',
-    cli_version: '0.8.0',
-    bouncer_version: '1.0.0',
-    graph_schema_version: '0',
-    installed_at: '2026-01-01T00:00:00.000+09:00',
-  }, null, 2)}\n`);
-  const result = capture([
-    'context-search', '--repo', repo, '--mode', 'decision', '--query', 'epic-060',
-  ]);
-  assert.strictEqual(result.code, 0);
-  const payload = JSON.parse(result.out);
-  assert.strictEqual(payload.status, 'version-incompatible');
-  assert.deepStrictEqual(payload.candidates, []);
   assert.ok(!fs.existsSync(path.join(repo, '.bouncer/.venv')));
 });
 

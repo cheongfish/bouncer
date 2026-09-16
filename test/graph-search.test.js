@@ -8,18 +8,11 @@ const path = require('node:path');
 
 const {
   graphSuggest,
-  contextSearch,
   scoreConfidence,
   tokenize,
-  normalizeQuery,
   ROLE_PRIORITY,
   SCORE,
-  CORPUS_SCORE,
-  SEARCH_MODES,
-  CONTEXT_SEARCH_INPUT_SCHEMA,
-  validateContextSearchInput,
 } = require('../scripts/lib/graph-search');
-const { buildContextDigest } = require('../scripts/lib/context-digest');
 
 function tmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-graph-search-'));
@@ -46,40 +39,6 @@ function mainBranch() {
   return 'main';
 }
 
-const qualityFixture = JSON.parse(fs.readFileSync(
-  path.join(__dirname, 'fixtures', 'graph-search-quality.json'),
-  'utf8',
-));
-
-function materializeQualityCase(caseEntry, includeContext) {
-  const repo = tmpRepo();
-  writeConfig(repo, {
-    source_dirs: ['scripts/src', 'hooks'],
-    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: ['scripts/lib'] },
-  });
-  for (const role of ['source', 'test', 'context']) {
-    writeGraph(
-      repo,
-      role,
-      role === 'context' && !includeContext
-        ? { nodes: [], links: [] }
-        : (caseEntry.graphs[role] || { nodes: [], links: [] }),
-    );
-  }
-  return repo;
-}
-
-function topKRecall(result, goldPaths, topK) {
-  const top = result.suggested_paths.slice(0, topK);
-  return top.filter((candidate) => goldPaths.includes(candidate)).length / goldPaths.length;
-}
-
-function falsePositiveCount(result, goldPaths, topK) {
-  return result.suggested_paths
-    .slice(0, topK)
-    .filter((candidate) => !goldPaths.includes(candidate)).length;
-}
-
 test('derived-anchor token grammar preserves hierarchy anchors and rejects colon form', () => {
   const anchors = [
     'epic-054',
@@ -98,33 +57,11 @@ test('derived-anchor token grammar preserves hierarchy anchors and rejects colon
 });
 
 /**
- * 최소 연결 그래프: context가 심볼·경로를 가리키고, source가 정의를 소유하며
+ * 최소 연결 그래프: source가 정의를 소유하며
  * calls/imports로 이웃을 열고, test가 구현 심볼을 호출한다.
  */
 function connectedFixture(repo) {
   writeConfig(repo);
-  writeGraph(repo, 'context', {
-    nodes: [
-      {
-        id: 'ctx::doc',
-        label: 'tasks.md',
-        source_file: '.bouncer/context/epics/060/blueprints/001/tasks/002/tasks.md',
-      },
-      {
-        id: 'ctx::sym',
-        label: 'verifyLedgerPathFor',
-        source_file: '.bouncer/context/epics/060/blueprints/001/tasks/002/tasks.md',
-      },
-    ],
-    links: [
-      {
-        relation: 'contains',
-        source: 'ctx::doc',
-        target: 'ctx::sym',
-        source_file: '.bouncer/context/epics/060/blueprints/001/tasks/002/tasks.md',
-      },
-    ],
-  });
   writeGraph(repo, 'source', {
     nodes: [
       { id: 'src::file', label: 'verification.ts', source_file: 'src/lib/verification.ts' },
@@ -160,7 +97,6 @@ function connectedFixture(repo) {
 
 test('SCORE table exposes the fixed relation and penalty weights', () => {
   assert.equal(SCORE.uniqueSeedDefinition, 5);
-  assert.equal(SCORE.contextHit, 4);
   assert.equal(SCORE.implementationPath, 3);
   assert.equal(SCORE.relationEdge, 2);
   assert.equal(SCORE.connectedTest, 1);
@@ -168,6 +104,16 @@ test('SCORE table exposes the fixed relation and penalty weights', () => {
   assert.equal(SCORE.testOnlyUnlinked, -5);
   assert.equal(SCORE.excludedPath, -5);
   assert.equal(SCORE.containsOnly, -3);
+  assert.equal(SCORE.contextHit, undefined);
+});
+
+// context-search 공개 surface는 TASKS-001에서 제거됐다. 재도입되면 이 네 단언이 깨진다.
+test('graph-search does not export retired context-search surface', () => {
+  const graphSearch = require('../scripts/lib/graph-search');
+  assert.equal(graphSearch.contextSearch, undefined);
+  assert.equal(graphSearch.validateContextSearchInput, undefined);
+  assert.equal(graphSearch.normalizeQuery, undefined);
+  assert.equal(graphSearch.CONTEXT_SEARCH_INPUT_SCHEMA, undefined);
 });
 
 test('scoreConfidence boundary values 3/4 and 7/8', () => {
@@ -177,40 +123,88 @@ test('scoreConfidence boundary values 3/4 and 7/8', () => {
   assert.equal(scoreConfidence(8), 'high');
 });
 
-test('ROLE_PRIORITY ranks implementation before test before context', () => {
+test('ROLE_PRIORITY ranks implementation before test', () => {
   assert.ok(ROLE_PRIORITY.implementation < ROLE_PRIORITY.test);
-  assert.ok(ROLE_PRIORITY.test < ROLE_PRIORITY.context);
+  assert.equal(ROLE_PRIORITY.context, undefined);
 });
 
-test('ranked high: unique seed + context + implementation + relation scores', () => {
+// TASKS-002: context graph를 열지 않으면 손상된 context/graph.json 이 있어도 동일 결과여야 한다.
+test('graphSuggest ignores broken context graph and omits context candidates', () => {
   const repo = tmpRepo();
-  connectedFixture(repo);
+  writeConfig(repo);
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'sf', label: 'x.ts', source_file: 'src/x.ts' },
+      { id: 's', label: 'uniqueSym', source_file: 'src/x.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'sf', target: 's', source_file: 'src/x.ts' },
+    ],
+  });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const base = graphSuggest({ repoRoot: repo, query: 'q', seeds: ['uniqueSym'] });
+  fs.mkdirSync(path.join(repo, 'graphify-out/context'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'graphify-out/context/graph.json'), '{');
+  const withBroken = graphSuggest({ repoRoot: repo, query: 'q', seeds: ['uniqueSym'] });
+  assert.deepStrictEqual(withBroken, base);
+  assert.deepStrictEqual(Object.keys(base.candidates), ['implementation', 'test']);
+  assert.ok(base.reasons.every((r) => !/^context/.test(r)));
+});
+
+test('ranked high: unique seed + implementation + relation scores', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  // unique(+5)+impl(+3)+relation(+2)=10.
+  // contains 소유가 있으면 containsOnly(−3)가 붙고, 양끝 start면 relation 마크가
+  // 건너뛰어지므로 — 심볼은 source_file만 두고 caller→file imports로 +2를 연다.
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'src::file', label: 'owner.ts', source_file: 'src/owner.ts' },
+      { id: 'src::sym', label: 'uniqueSym', source_file: 'src/owner.ts' },
+      { id: 'src::nbr', label: 'nbr.ts', source_file: 'src/nbr.ts' },
+      { id: 'src::caller', label: 'callFromNbr', source_file: 'src/nbr.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'src::nbr', target: 'src::caller', source_file: 'src/nbr.ts' },
+      { relation: 'calls', source: 'src::caller', target: 'src::sym', source_file: 'src/nbr.ts' },
+      { relation: 'imports', source: 'src::caller', target: 'src::file', source_file: 'src/nbr.ts' },
+    ],
+  });
+  writeGraph(repo, 'test', {
+    nodes: [
+      { id: 'test::file', label: 'owner.test.js', source_file: 'test/owner.test.js' },
+      { id: 'test::sym', label: 'coversUnique', source_file: 'test/owner.test.js' },
+    ],
+    links: [
+      { relation: 'contains', source: 'test::file', target: 'test::sym', source_file: 'test/owner.test.js' },
+      { relation: 'calls', source: 'test::sym', target: 'src::sym', source_file: 'test/owner.test.js' },
+    ],
+  });
   const result = graphSuggest({
     repoRoot: repo,
-    query: 'verifyLedgerPathFor ledger',
-    seeds: ['verifyLedgerPathFor'],
+    query: 'uniqueSym',
+    seeds: ['uniqueSym'],
   });
   assert.equal(result.status, 'ranked');
   assert.equal(result.confidence, 'high');
   assert.ok(result.reasons.length > 0);
-  assert.match(result.reasons.join('\n'), /context seed/i);
+  assert.ok(result.reasons.every((r) => !/^context/.test(r)));
   assert.match(result.reasons.join('\n'), /calls|imports/i);
+  assert.deepStrictEqual(Object.keys(result.candidates), ['implementation', 'test']);
 
   const impl = result.candidates.implementation;
   assert.ok(impl.length >= 1);
-  const primary = impl.find((c) => c.path === 'src/lib/verification.ts');
+  const primary = impl.find((c) => c.path === 'src/owner.ts');
   assert.ok(primary, 'implementation owner missing');
-  // unique(+5) + context(+4) + impl(+3) + relation via imports neighbor still on owner? owner defines seed
-  // At minimum unique+context+impl = 12 → high
-  assert.ok(primary.score >= 8, `expected high score, got ${primary.score}`);
+  assert.equal(primary.score, 10);
   assert.equal(primary.confidence, 'high');
   assert.ok(primary.basis.length > 0);
 
-  const linkedTest = result.candidates.test.find((c) => c.path === 'test/verification.test.js');
+  const linkedTest = result.candidates.test.find((c) => c.path === 'test/owner.test.js');
   assert.ok(linkedTest, 'connected test missing');
   assert.ok(linkedTest.score >= 1);
-  assert.ok(result.suggested_paths.includes('src/lib/verification.ts'));
-  assert.ok(result.suggested_paths.includes('test/verification.test.js'));
+  assert.ok(result.suggested_paths.includes('src/owner.ts'));
+  assert.ok(result.suggested_paths.includes('test/owner.test.js'));
   assert.ok(!result.suggested_paths.some((p) => p.startsWith('.bouncer/')));
   assert.ok(!result.candidates.implementation.some((c) => c.path.startsWith('graphify-out/')));
 });
@@ -474,32 +468,6 @@ test('low-confidence: top results are test-only', () => {
   );
 });
 
-test('low-confidence: no source/context functional link', () => {
-  const repo = tmpRepo();
-  writeConfig(repo);
-  writeGraph(repo, 'context', {
-    nodes: [{ id: 'c', label: 'PastDecisionOnly', source_file: '.bouncer/context/old.md' }],
-    links: [],
-  });
-  writeGraph(repo, 'source', {
-    nodes: [
-      { id: 's', label: 'UnrelatedFn', source_file: 'src/other.ts' },
-      { id: 'sf', label: 'other.ts', source_file: 'src/other.ts' },
-    ],
-    links: [{ relation: 'contains', source: 'sf', target: 's', source_file: 'src/other.ts' }],
-  });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-  const result = graphSuggest({
-    repoRoot: repo,
-    query: 'PastDecisionOnly',
-    seeds: ['PastDecisionOnly'],
-  });
-  assert.equal(result.status, 'low-confidence');
-  assert.equal(result.confidence, 'low');
-  assert.deepEqual(result.suggested_paths, []);
-  assert.ok(result.reasons.some((r) => /link|connect|source.*context|context.*source/i.test(r)));
-});
-
 test('unavailable when source graph cannot be read', () => {
   const repo = tmpRepo();
   writeConfig(repo);
@@ -520,28 +488,21 @@ test('unavailable when source graph cannot be read', () => {
 test('corrupt partial graph keeps valid nodes and records omissions in reasons', () => {
   const repo = tmpRepo();
   writeConfig(repo);
-  writeGraph(repo, 'context', {
-    nodes: [
-      { id: 'c', label: 'GoodSym', source_file: '.bouncer/context/x.md' },
-      { label: 'no-id' },
-      null,
-    ],
-    links: [
-      { relation: 'contains', source: 'c', target: 'missing' },
-      { relation: 'weird_unknown', source: 'c', target: 'c' },
-      'bad-link',
-    ],
-  });
+  // context graph는 더 이상 읽지 않으므로 omission 단언은 source 손상 항목으로 고정한다.
   writeGraph(repo, 'source', {
     nodes: [
       { id: 's', label: 'GoodSym', source_file: 'src/good.ts' },
       { id: 'sf', label: 'good.ts', source_file: 'src/good.ts' },
       { id: 'bad', label: 'NoPath' },
       { id: 'gout', label: 'leak', source_file: 'graphify-out/source/parts/x.ts' },
+      { label: 'no-id' },
+      null,
     ],
     links: [
       { relation: 'contains', source: 'sf', target: 's', source_file: 'src/good.ts' },
       { relation: 'calls', source: 's', target: 'missing-target', source_file: 'src/good.ts' },
+      { relation: 'weird_unknown', source: 's', target: 's' },
+      'bad-link',
     ],
   });
   writeGraph(repo, 'test', { nodes: [], links: [] });
@@ -615,14 +576,10 @@ test('relation scoring applies calls imports imports_from and contains-only pena
   // 소유 파일은 contains로만 도달 → −3와 basis 고정
   assert.ok(byPath['src/def.ts'], 'definition owner');
   assert.ok(byPath['src/def.ts'].basis.some((b) => /contains-only/i.test(b)));
-  assert.ok(
-    byPath['src/def.ts'].score
-      <= SCORE.uniqueSeedDefinition + SCORE.contextHit + SCORE.implementationPath + SCORE.containsOnly,
-  );
-  // unique(+5)+context(+4)+impl(+3)+containsOnly(−3) = 9
+  // unique(+5)+impl(+3)+containsOnly(−3) = 5 (contextHit 제거 후)
   assert.equal(
     byPath['src/def.ts'].score,
-    SCORE.uniqueSeedDefinition + SCORE.contextHit + SCORE.implementationPath + SCORE.containsOnly,
+    SCORE.uniqueSeedDefinition + SCORE.implementationPath + SCORE.containsOnly,
   );
 });
 
@@ -741,609 +698,4 @@ test('trailing paren with spaces trims to same lookup key as bare seed', () => {
   writeGraph(repo, 'test', { nodes: [], links: [] });
   const result = graphSuggest({ repoRoot: repo, query: 'graphify', seeds: ['setupGraphify'] });
   assert.ok(result.candidates.implementation.some((c) => c.path === 'src/lib/graphify.ts'));
-});
-
-test('fixed corpus measures context contribution without changing recommendation policy', () => {
-  const topK = qualityFixture.meta.context_contribution.top_k;
-
-  for (const caseEntry of qualityFixture.cases) {
-    const withoutContext = graphSuggest({
-      repoRoot: materializeQualityCase(caseEntry, false),
-      query: caseEntry.query,
-      seeds: caseEntry.seeds,
-    });
-    const withContext = graphSuggest({
-      repoRoot: materializeQualityCase(caseEntry, true),
-      query: caseEntry.query,
-      seeds: caseEntry.seeds,
-    });
-    const expected = caseEntry.context_contribution;
-    const expectedBaselines = expected.baselines;
-    const goldPaths = [...caseEntry.gold.implementation, ...caseEntry.gold.test];
-    const extraPaths = withContext.suggested_paths
-      .filter((candidate) => !withoutContext.suggested_paths.includes(candidate));
-    const baselineFalsePositives = falsePositiveCount(withoutContext, goldPaths, topK);
-    const contextFalsePositives = falsePositiveCount(withContext, goldPaths, topK);
-
-    for (const [name, result] of Object.entries({ without_context: withoutContext, with_context: withContext })) {
-      const baseline = expectedBaselines[name];
-      // These fixed source/test sets catch ranking or confidence changes that aggregate
-      // contribution metrics can hide (for example, a same-size path replacement).
-      assert.deepEqual(result.suggested_paths, baseline.suggested_paths, `${caseEntry.id}: ${name} paths`);
-      assert.deepEqual(
-        {
-          implementation: result.candidates.implementation.map((candidate) => candidate.path),
-          test: result.candidates.test.map((candidate) => candidate.path),
-        },
-        baseline.candidates,
-        `${caseEntry.id}: ${name} source/test candidates`,
-      );
-      assert.equal(result.status, baseline.status, `${caseEntry.id}: ${name} status`);
-      assert.equal(result.confidence, baseline.confidence, `${caseEntry.id}: ${name} confidence`);
-    }
-
-    assert.equal(extraPaths.length, expected.extra_paths, `${caseEntry.id}: extra paths`);
-    assert.equal(
-      topKRecall(withoutContext, goldPaths, topK),
-      expected.top_k_recall.without_context,
-      `${caseEntry.id}: baseline top-${topK} recall`,
-    );
-    assert.equal(
-      topKRecall(withContext, goldPaths, topK),
-      expected.top_k_recall.with_context,
-      `${caseEntry.id}: context top-${topK} recall`,
-    );
-    assert.equal(
-      baselineFalsePositives,
-      expected.false_positives.without_context,
-      `${caseEntry.id}: baseline false positives`,
-    );
-    assert.equal(
-      contextFalsePositives,
-      expected.false_positives.with_context,
-      `${caseEntry.id}: context false positives`,
-    );
-    assert.ok(
-      contextFalsePositives <= baselineFalsePositives,
-      `${caseEntry.id}: context false positives must not exceed the baseline`,
-    );
-  }
-});
-
-test('fixed corpus exposes a current-draft context self-hit separately from path suggestions', () => {
-  const draft = qualityFixture.draft_self_hit;
-  const policy = qualityFixture.meta.context_contribution.policy;
-  const result = graphSuggest({
-    repoRoot: materializeQualityCase(draft, true),
-    query: draft.query,
-    seeds: draft.seeds,
-  });
-  const contextPaths = result.candidates.context.map((candidate) => candidate.path);
-  const selfHitRatio = contextPaths.filter((candidate) => candidate === draft.draft_path).length
-    / contextPaths.length;
-
-  assert.equal(selfHitRatio, draft.expected_ratio);
-  assert.equal(policy.false_positive_comparison, 'context must not exceed the source/test baseline');
-  assert.equal(policy.max_self_hit_ratio, 0);
-  // 사후 context 검색은 현재 draft를 되찾아 0 임계치를 넘는다. 이 fixture는
-  // pre-scaffold 순서를 깨뜨렸을 때 policy 통과로 오인하지 않게 하는 실패 모델이다.
-  assert.ok(selfHitRatio > policy.max_self_hit_ratio);
-  assert.ok(!result.suggested_paths.includes(draft.draft_path));
-});
-
-test('context-search JSON schema owns mode enum and max-candidates 1..8', () => {
-  assert.deepEqual(CONTEXT_SEARCH_INPUT_SCHEMA.properties.mode.enum, [...SEARCH_MODES]);
-  assert.equal(CONTEXT_SEARCH_INPUT_SCHEMA.properties.maxCandidates.minimum, 1);
-  assert.equal(CONTEXT_SEARCH_INPUT_SCHEMA.properties.maxCandidates.maximum, 8);
-  assert.equal(validateContextSearchInput({ mode: 'decision', query: 'epic-060' }), null);
-  assert.equal(validateContextSearchInput({
-    mode: 'history',
-    query: 'bp-060-001',
-    maxCandidates: 4,
-    seeds: ['epic-060'],
-  }), null);
-  assert.match(
-    String(validateContextSearchInput({ mode: 'other', query: 'epic-060' })),
-    /mode/,
-  );
-  assert.match(
-    String(validateContextSearchInput({ mode: 'decision', query: 'epic-060', maxCandidates: 9 })),
-    /max-candidates/,
-  );
-  assert.match(
-    String(validateContextSearchInput({ mode: 'decision', query: 'epic-060', maxCandidates: 0 })),
-    /max-candidates/,
-  );
-  assert.match(
-    String(validateContextSearchInput({ mode: 'decision', query: '' })),
-    /query/,
-  );
-});
-
-test('normalizeQuery maps confirmed Korean vocabulary and keeps anchors and paths', () => {
-  const korean = normalizeQuery('결정 검색 epic-060');
-  assert.ok(korean.terms.includes('decision'));
-  assert.ok(korean.terms.includes('epic-060'));
-  assert.ok(!korean.genericOnly);
-
-  const generic = normalizeQuery('plan test result');
-  assert.equal(generic.genericOnly, true);
-  assert.ok(generic.terms.length > 0);
-
-  const unknownKorean = normalizeQuery('알 수 없는 문장만');
-  assert.equal(unknownKorean.terms.length === 0, true);
-});
-
-test('file-level corpus scoring applies exact, tag, intent, evidence, and structural weights', () => {
-  const repo = tmpRepo();
-  const epic = '.bouncer/context/epics/060-x';
-  const bp = `${epic}/blueprints/001-y`;
-  fs.mkdirSync(path.join(repo, bp), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  writeConfig(repo, {
-    source_dirs: ['scripts/src'],
-    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
-  });
-  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Shards\n\n- core\n');
-  fs.writeFileSync(path.join(repo, `${epic}/index.md`), [
-    '---',
-    'type: bouncer.epic',
-    'tags:',
-    '  - bouncer',
-    '  - epic',
-    '  - graphify-search-quality',
-    'bouncer:',
-    "  epic_id: '060'",
-    '  status: approved',
-    '---',
-    '',
-    '## Success criteria',
-    '',
-    'graphify-search-quality ranked retrieval',
-    '',
-  ].join('\n'));
-  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
-    '---',
-    'type: bouncer.blueprint',
-    'tags:',
-    '  - bouncer',
-    '  - blueprint',
-    'bouncer:',
-    "  epic_id: '060'",
-    "  blueprint_id: '001'",
-    '  status: closed',
-    '---',
-    '',
-    '## Intent',
-    '',
-    'context-first ranking',
-    '',
-    '## Contract',
-    '',
-    'closed evidence for graphify-search-quality',
-    '',
-  ].join('\n'));
-  fs.writeFileSync(path.join(repo, `${bp}/explain.md`), [
-    '---',
-    'type: bouncer.explain',
-    'tags:',
-    '  - bouncer',
-    '  - explain',
-    'bouncer:',
-    "  epic_id: '060'",
-    "  blueprint_id: '001'",
-    '  status: published',
-    '---',
-    '',
-    '## Background',
-    '',
-    'closed explain background',
-    '',
-    '## Intuition',
-    '',
-    'seed then expand',
-    '',
-    '## Code',
-    '',
-    'graphSuggest',
-    '',
-  ].join('\n'));
-  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
-  writeGraph(repo, 'context', {
-    nodes: [
-      { id: 'e', label: 'epic-060', source_file: `${epic}/index.md` },
-      { id: 't', label: 'graphify-search-quality', source_file: `${epic}/index.md` },
-      { id: 'b', label: 'bp-060-001', source_file: `${bp}/index.md` },
-      { id: 'x', label: 'explain', source_file: `${bp}/explain.md` },
-    ],
-    links: [],
-  });
-  writeGraph(repo, 'source', { nodes: [], links: [] });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-
-  const result = contextSearch({
-    repoRoot: repo,
-    mode: 'decision',
-    query: 'epic-060 graphify-search-quality',
-  });
-  assert.equal(result.status, 'ranked');
-  const epicHit = result.candidates.find((row) => row.path === `${epic}/index.md`);
-  assert.ok(epicHit);
-  assert.ok(epicHit.score >= CORPUS_SCORE.exactAnchorOrPath);
-  assert.ok(epicHit.basis.some((b) => /exact anchor|path/i.test(b)));
-  assert.ok(epicHit.anchors.includes('epic-060'));
-  assert.ok(epicHit.tags.includes('graphify-search-quality'));
-
-  const closed = result.candidates.find((row) => row.path === `${bp}/index.md`);
-  assert.ok(closed);
-  assert.ok(closed.score >= CORPUS_SCORE.closedEvidenceSection || closed.basis.length > 0);
-  assert.ok(closed.basis.some((b) => /closed evidence/i.test(b)));
-});
-
-test('closed evidence +3 comes from digest body not graph labels', () => {
-  const repo = tmpRepo();
-  const bp = '.bouncer/context/epics/083-labelonly/blueprints/001-doc';
-  fs.mkdirSync(path.join(repo, bp), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  writeConfig(repo, {
-    source_dirs: ['scripts/src'],
-    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
-  });
-  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
-    '---',
-    'type: bouncer.blueprint',
-    'tags:',
-    '  - bouncer',
-    '  - blueprint',
-    '  - uniquelabelxyz',
-    'bouncer:',
-    "  epic_id: '083'",
-    "  blueprint_id: '001'",
-    '  status: closed',
-    '---',
-    '',
-    '## Intent',
-    '',
-    'plain closed body without the label token',
-    '',
-    '## Contract',
-    '',
-    'plain closed body without the label token',
-    '',
-  ].join('\n'));
-  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
-  writeGraph(repo, 'context', {
-    nodes: [{ id: 'b', label: 'uniquelabelxyz', source_file: `${bp}/index.md` }],
-    links: [],
-  });
-  writeGraph(repo, 'source', { nodes: [], links: [] });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-
-  const result = contextSearch({
-    repoRoot: repo,
-    mode: 'decision',
-    query: 'uniquelabelxyz',
-  });
-  assert.equal(result.status, 'ranked');
-  const closed = result.candidates.find((row) => row.path === `${bp}/index.md`);
-  assert.ok(closed);
-  assert.equal(closed.score, CORPUS_SCORE.domainTag);
-  assert.ok(!closed.basis.some((b) => /closed evidence/i.test(b)));
-});
-
-test('structural heading query applies the locked -5 weight', () => {
-  const repo = tmpRepo();
-  const bp = '.bouncer/context/epics/081-struct/blueprints/001-doc';
-  fs.mkdirSync(path.join(repo, bp), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  writeConfig(repo, {
-    source_dirs: ['scripts/src'],
-    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
-  });
-  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
-    '---',
-    'type: bouncer.blueprint',
-    'tags:',
-    '  - bouncer',
-    '  - blueprint',
-    'bouncer:',
-    "  epic_id: '081'",
-    "  blueprint_id: '001'",
-    '  status: approved',
-    '---',
-    '',
-    '## Intent',
-    '',
-    'template heading only',
-    '',
-    '## Contract',
-    '',
-    'template heading only',
-    '',
-  ].join('\n'));
-  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
-  writeGraph(repo, 'context', {
-    nodes: [{ id: 'b', label: 'Intent', source_file: `${bp}/index.md` }],
-    links: [],
-  });
-  writeGraph(repo, 'source', { nodes: [], links: [] });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-
-  const result = contextSearch({
-    repoRoot: repo,
-    mode: 'decision',
-    query: 'intent',
-  });
-  assert.equal(result.status, 'ranked');
-  const hit = result.candidates.find((row) => row.path === `${bp}/index.md`);
-  assert.ok(hit);
-  assert.equal(hit.score, CORPUS_SCORE.taskOnlyOrStructuralHeading);
-  assert.ok(hit.basis.some((b) => /task-only or structural heading/i.test(b)));
-});
-
-test('structural heading -5 applies only to docs that hit those headings', () => {
-  const repo = tmpRepo();
-  const epic = '.bouncer/context/epics/085-structpen';
-  const startRel = `${epic}/blueprints/001-start/index.md`;
-  fs.mkdirSync(path.join(repo, `${epic}/blueprints/001-start`), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  writeConfig(repo, {
-    source_dirs: ['scripts/src'],
-    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
-  });
-  fs.writeFileSync(path.join(repo, startRel), [
-    '---',
-    'type: bouncer.blueprint',
-    'tags:',
-    '  - bouncer',
-    '  - blueprint',
-    'bouncer:',
-    "  epic_id: '085'",
-    "  blueprint_id: '001'",
-    '  status: approved',
-    '---',
-    '',
-    '## Intent',
-    '',
-    'template heading only',
-    '',
-    '## Contract',
-    '',
-    'template heading only',
-    '',
-  ].join('\n'));
-  const extraRels = [];
-  const nodes = [{ id: 'start', label: 'Intent', source_file: startRel }];
-  for (let i = 2; i <= 10; i += 1) {
-    const id = String(i).padStart(3, '0');
-    const rel = `${epic}/blueprints/${id}-filler/index.md`;
-    extraRels.push(rel);
-    fs.mkdirSync(path.join(repo, path.dirname(rel)), { recursive: true });
-    fs.writeFileSync(path.join(repo, rel), [
-      '---',
-      'type: bouncer.blueprint',
-      'tags:',
-      '  - bouncer',
-      '  - blueprint',
-      'bouncer:',
-      "  epic_id: '085'",
-      `  blueprint_id: '${id}'`,
-      '  status: approved',
-      '---',
-      '',
-      '## Intent',
-      '',
-      'plain ranked retrieval body',
-      '',
-      '## Contract',
-      '',
-      'plain ranked retrieval body',
-      '',
-    ].join('\n'));
-    nodes.push({ id: `f${id}`, label: `bp-085-${id}`, source_file: rel });
-  }
-  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
-  writeGraph(repo, 'context', { nodes, links: [] });
-  writeGraph(repo, 'source', { nodes: [], links: [] });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-
-  const result = contextSearch({
-    repoRoot: repo,
-    mode: 'decision',
-    query: 'intent',
-  });
-  assert.notEqual(result.status, 'low-confidence: broad-query');
-  assert.equal(result.status, 'ranked');
-  assert.ok(result.eligible_document_count > 8);
-  const startHit = result.candidates.find((row) => row.path === startRel);
-  assert.ok(startHit);
-  assert.equal(startHit.score, CORPUS_SCORE.taskOnlyOrStructuralHeading);
-  const penalizedExtras = result.candidates.filter((row) => (
-    extraRels.includes(row.path) && row.score === CORPUS_SCORE.taskOnlyOrStructuralHeading
-  ));
-  assert.equal(penalizedExtras.length, 0);
-  assert.ok(!extraRels.every((rel) => result.candidates.some((row) => row.path === rel)));
-});
-
-test('zero-hit retry ranks after camelCase to kebab command expansion', () => {
-  const repo = tmpRepo();
-  const bp = '.bouncer/context/epics/084-synonym/blueprints/001-doc';
-  fs.mkdirSync(path.join(repo, bp), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  writeConfig(repo, {
-    source_dirs: ['scripts/src'],
-    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
-  });
-  fs.writeFileSync(path.join(repo, `${bp}/index.md`), [
-    '---',
-    'type: bouncer.blueprint',
-    'tags:',
-    '  - bouncer',
-    '  - blueprint',
-    'bouncer:',
-    "  epic_id: '084'",
-    "  blueprint_id: '001'",
-    '  status: closed',
-    '---',
-    '',
-    '## Intent',
-    '',
-    'public command context-search retrieval',
-    '',
-    '## Contract',
-    '',
-    'ranked context-search candidates',
-    '',
-  ].join('\n'));
-  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
-  writeGraph(repo, 'context', {
-    nodes: [{ id: 'b', label: 'bp-084-001', source_file: `${bp}/index.md` }],
-    links: [],
-  });
-  writeGraph(repo, 'source', { nodes: [], links: [] });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-
-  const miss = contextSearch({
-    repoRoot: repo,
-    mode: 'decision',
-    query: 'contextSearch',
-  });
-  assert.equal(miss.status, 'ranked');
-  const hit = miss.candidates.find((row) => row.path === `${bp}/index.md`);
-  assert.ok(hit);
-  assert.ok(hit.score > 0);
-});
-
-test('zero-hit retry does not promote a missed blueprint to the parent epic', () => {
-  const repo = tmpRepo();
-  const epic = '.bouncer/context/epics/060-x';
-  fs.mkdirSync(path.join(repo, epic), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  writeConfig(repo, {
-    source_dirs: ['scripts/src'],
-    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
-  });
-  fs.writeFileSync(path.join(repo, `${epic}/index.md`), [
-    '---',
-    'type: bouncer.epic',
-    'tags:',
-    '  - bouncer',
-    '  - epic',
-    'bouncer:',
-    "  epic_id: '060'",
-    '  status: approved',
-    '---',
-    '',
-    '## Success criteria',
-    '',
-    'parent epic body',
-    '',
-  ].join('\n'));
-  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
-  writeGraph(repo, 'context', {
-    nodes: [{ id: 'e', label: 'epic-060', source_file: `${epic}/index.md` }],
-    links: [],
-  });
-  writeGraph(repo, 'source', { nodes: [], links: [] });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-
-  const result = contextSearch({
-    repoRoot: repo,
-    mode: 'decision',
-    query: 'bp-060-999',
-  });
-  assert.equal(result.status, 'zero-hit');
-  assert.deepEqual(result.candidates, []);
-});
-
-test('document start with all-zero scores is low-confidence not zero-hit', () => {
-  const repo = tmpRepo();
-  const epic = '.bouncer/context/epics/082-zeroscore';
-  fs.mkdirSync(path.join(repo, epic), { recursive: true });
-  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
-  writeConfig(repo, {
-    source_dirs: ['scripts/src'],
-    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
-  });
-  fs.writeFileSync(path.join(repo, `${epic}/index.md`), [
-    '---',
-    'type: bouncer.epic',
-    'tags:',
-    '  - bouncer',
-    '  - epic',
-    'bouncer:',
-    "  epic_id: '082'",
-    '  status: approved',
-    '---',
-    '',
-    '## Success criteria',
-    '',
-    'uniquetermxyz appears in the evidence body',
-    '',
-  ].join('\n'));
-  buildContextDigest({ repoRoot: repo, contextDirs: ['.bouncer/context'] });
-  writeGraph(repo, 'context', {
-    nodes: [{ id: 'e', label: 'zeroscore-epic', source_file: `${epic}/index.md` }],
-    links: [],
-  });
-  writeGraph(repo, 'source', { nodes: [], links: [] });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-
-  const result = contextSearch({
-    repoRoot: repo,
-    mode: 'decision',
-    query: 'uniquetermxyz',
-  });
-  assert.equal(result.status, 'low-confidence');
-  assert.deepEqual(result.candidates, []);
-});
-
-test('implementation mode still returns graphSuggest-compatible source files', () => {
-  const repo = tmpRepo();
-  connectedFixture(repo);
-  const suggest = graphSuggest({
-    repoRoot: repo,
-    query: 'verifyLedgerPathFor ledger',
-    seeds: ['verifyLedgerPathFor'],
-  });
-  assert.equal(suggest.status, 'ranked');
-  assert.ok(suggest.candidates.implementation.some((c) => c.path === 'src/lib/verification.ts'));
-
-  const search = contextSearch({
-    repoRoot: repo,
-    mode: 'implementation',
-    query: 'verifyLedgerPathFor',
-    seeds: ['verifyLedgerPathFor'],
-  });
-  assert.equal(search.status, 'ranked');
-  assert.ok(search.candidates.some((row) => row.path === 'src/lib/verification.ts'));
-});
-
-test('implementation mode feeds graphSuggest normalized Korean command terms', () => {
-  const repo = tmpRepo();
-  writeConfig(repo);
-  writeGraph(repo, 'context', { nodes: [], links: [] });
-  writeGraph(repo, 'source', {
-    nodes: [
-      { id: 'src::file', label: 'graph-search.ts', source_file: 'scripts/src/lib/graph-search.ts' },
-      { id: 'src::sym', label: 'graphSuggest', source_file: 'scripts/src/lib/graph-search.ts' },
-    ],
-    links: [
-      {
-        relation: 'contains',
-        source: 'src::file',
-        target: 'src::sym',
-        source_file: 'scripts/src/lib/graph-search.ts',
-      },
-    ],
-  });
-  writeGraph(repo, 'test', { nodes: [], links: [] });
-
-  const search = contextSearch({
-    repoRoot: repo,
-    mode: 'implementation',
-    query: '그래프 제안',
-  });
-  assert.equal(search.status, 'ranked');
-  assert.ok(search.candidates.some((row) => row.path === 'scripts/src/lib/graph-search.ts'));
 });

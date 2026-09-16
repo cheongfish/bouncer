@@ -21,7 +21,6 @@
 | `bouncer run preflight --blueprint <dir>` | pointer, blueprint 상태·scale, 열린 task의 `affected_paths`·DAG, ready wave, `autonomy`와 fallback 여부를 JSON으로 출력. 읽기 전용. pointer가 없으면 `no-current`, 모호하거나 충돌하면 `CURRENT_AMBIGUOUS`/`CURRENT_INVALID`이며 종료 코드 1 |
 | `bouncer init` | `.bouncer/` 부트스트랩. 덮어쓰지 않음 |
 | `bouncer project-root [--repo <dir>]` | 소비 저장소 main worktree 절대 경로 한 줄(stdout만). primary·linked worktree에서 같은 값. 비-Git이면 stderr + 종료 코드 1(빈 stdout·cwd 대체 없음) |
-| `bouncer context-search --mode <decision\|implementation\|history> --query <text> [--max-candidates <1..8>]` | canonical context graph를 role별로 검색. query id·status·graph version과 최대 8개 후보를 JSON으로 출력 |
 | `bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>] [--repo <dir>]` | 현재 checkout의 함수 정의에서 Git blame/log와 Explain을 연결한 provenance JSON을 stdout에 하나만 출력. 읽기 전용이며 저장소와 `.bouncer/context/**`를 수정하지 않음. `resolved`가 아니어도 구조화된 상태는 종료 코드 0 |
 | `bouncer current [--set <dir> [--task <NNN\|TASKS-NNN>] [--replace]] [--clear]` | 위치별 활성 포인터 읽기 / 기록 / 지우기. 저장 경로는 Git common directory의 `pointers/<epic-id>/<blueprint-id>.json`이고 본문은 `{ blueprint, task?, base }`. `--task` 없이 `--set`하면 번호 오름차순 첫 `ready`/`in_progress` task를 고르고, 열린 후보가 없으면 task 없이 쓴다. 출력의 `task`는 `{path, id}`(미지정이면 `null`); `scale`은 호출 시점에 blueprint `index.md`의 `bouncer.scale`에서 파생한 문자열(없거나 읽을 수 없으면 `null`). 없으면 `ready` 후보. 기본 `--set`은 대상 namespace key를 추가·갱신하고 다른 key를 보존한다. `--replace`는 현재 위치에서 유일하게 선택된 key를 지운 뒤 대상을 쓰며, 성공 payload의 stdout JSON과 stderr `previous`에 `{ blueprint, base, task }`를 싣는다. 기준 checkout에 포인터가 둘 이상이면 읽기·`--replace` 모두 `CURRENT_AMBIGUOUS`와 정렬된 `candidates`로 종료 코드 1이며 어느 쪽도 추측하지 않는다. `--clear`는 현재 선택된 key만 지운다. `--replace`만 쓰거나 `--clear`와 함께 쓰면 사용법 오류다. |
 | `bouncer migrate task-layout [--dry-run]` | 구형 루트 task 문서를 `tasks/<NNN>/` 묶음으로 이관합니다. 먼저 dry-run 결과를 확인하세요. |
@@ -199,7 +198,4 @@ singleton, 범위 밖 `--limit`, 알 수 없는 option/positional)는 빈 stdout
 `intent:` 접두 stderr, 종료 코드 2입니다. Git·filesystem 조회 실패는 부분 JSON
 없이 stderr와 종료 코드 1입니다.
 
-`context-search`는 exact anchor/path, domain tag, intent/evidence를 점수화하고
-broad-query와 zero-hit을 빈 후보로 진단합니다. Graphify build/version이
-호환되지 않으면 검색을 진행하지 않습니다.
 종료 코드는 도움말 0, 게이트 실패 1, 사용법 오류 2입니다.

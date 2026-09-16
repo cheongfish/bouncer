@@ -19,7 +19,7 @@ run 세션 자체는 코드를 고치지 않고 coordinator가 돌려주는 보�
 
 | 자리 | 무엇을 하나 |
 | --- | --- |
-| main worktree | 읽기 전용 provenance — base SHA·계획 문서·context-search 결과만 읽습니다. 주행 중 source를 쓰지 않습니다. main checkout 아래에 무언가를 만드는 명령은 `bouncer coordinate bootstrap`과 `prepare` 둘뿐입니다. `bootstrap`은 main worktree에서 불러 integration worktree를, `prepare`는 integration worktree에서 불러 wave의 worker worktree를 등록합니다 — 부르는 자리는 다르지만 둘 다 `.worktrees/…` 디렉터리 생성과 worktree 등록까지이고, tracked source는 어느 쪽도 건드리지 않습니다 |
+| main worktree | 읽기 전용 provenance — base SHA·계획 문서만 읽습니다. 주행 중 source를 쓰지 않습니다. main checkout 아래에 무언가를 만드는 명령은 `bouncer coordinate bootstrap`과 `prepare` 둘뿐입니다. `bootstrap`은 main worktree에서 불러 integration worktree를, `prepare`는 integration worktree에서 불러 wave의 worker worktree를 등록합니다 — 부르는 자리는 다르지만 둘 다 `.worktrees/…` 디렉터리 생성과 worktree 등록까지이고, tracked source는 어느 쪽도 건드리지 않습니다 |
 | **integration worktree** | coordinator의 작업 자리. 원장(ledger)과 fan-in 대상 branch가 있습니다 |
 | **worker worktree** | **ready wave**가 연 task마다 하나. 구현·검증·리뷰·task 커밋이 여기서 일어납니다 |
 

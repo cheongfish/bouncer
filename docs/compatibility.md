@@ -19,7 +19,7 @@ S13은 epic 경로 목록뿐 아니라 각 색인 행의 요약이 해당 epic f
 
 `bouncer --help`의 명령 이름은 `validate`, `verify`, `scaffold`, `commit`,
 `finalize`, `seed-worktree`, `coordinate`, `init`, `graph-sync`, `graph-suggest`,
-`graphify-bin`, `project-root`, `context-search`, `intent`, `current`, `migrate`,
+`graphify-bin`, `project-root`, `intent`, `current`, `migrate`,
 `import`다.
 `coordinate`의 서브커맨드는 `bootstrap`, `prepare`, `ready`, `record`,
 `integrate`, `status`, `revise` 일곱이다. 하위 kind와 플래그는
@@ -107,15 +107,14 @@ finalize이고 plan 뒤 기본 주행은 run이다.
 
 ### 설정 키
 
-`.bouncer/config.json`의 공개 최상위 키는 다음 다섯 기능 묶음으로 구분한다.
+`.bouncer/config.json`의 공개 최상위 키는 다음 네 기능 묶음으로 구분한다.
 이름은 실제 `config.example.json`의 키를 그대로 쓴다.
 
 | 묶음 | 최상위 키 |
 | --- | --- |
-| 입력 경로 | `source_dirs`, `context_dirs` |
+| 입력 경로 | `source_dirs` |
 | 실행·작업 흐름 | `verify`, `verify_allowlist`, `base_branch`, `autonomy` |
 | 그래프 | `graphify` |
-| 지식 | `context_dirs`, context-search graph metadata |
 | 마감·에이전트 | `pr`, `subagents` |
 
 중첩 필드와 값은 [configuration.md](configuration.md) 및

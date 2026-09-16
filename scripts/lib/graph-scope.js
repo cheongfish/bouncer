@@ -3,20 +3,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const config = require("./config");
 const { readConfig } = config;
-const contextDigest = require("./context-digest");
-const { CONTEXT_DIGEST_OUT, DIGEST_WATCH_FILES, } = contextDigest;
 // 설정·디렉터리 존재·mtime 판정만. 프로세스를 띄우지 않고 graphify.ts 도
 // require 하지 않는다 — 그 모듈의 PATH 탐색이 execFileSync 를 돌리기 때문.
 // 신선도 계산이 graphify 설치 여부를 묻기 시작하면 테스트가 deps 없이
 // 안전한 함수와 아닌 함수를 구분하지 못한다.
 const DEFAULT_SOURCE_OUT = 'graphify-out/source';
 const DEFAULT_TEST_OUT = 'graphify-out/test';
-const DEFAULT_CONTEXT_OUT = 'graphify-out/context';
-const DEFAULT_CONTEXT_DIRS = ['.bouncer/context'];
 // freshness walk 전용 이름 기반 prune — config key 아님.
 // graphify-out 을 건너뛰는 이유 둘:
-// 1) 파생 트리는 freshness 입력이 아니다. 컨텍스트 그래프는
-//    graphify-out/context-src 를 스캔하지만, 그 mtime 이 stale 을 만들면
+// 1) 파생 트리는 freshness 입력이 아니다. 산출물 mtime 이 stale 을 만들면
 //    매 sync 가 자기 산출물을 보고 재빌드한다.
 // 2) 사용자가 source_dirs: ["."] 로 graphify-out 을 다시 넣으면
 //    build 가 graphify-out 아래에 쓰기 → mtime 갱신 → rebuild 무한 루프.
@@ -129,13 +124,6 @@ function realSourceDirs(repoRoot) {
     const dirs = configField(cfg, 'source_dirs');
     return Array.isArray(dirs) ? dirs : [];
 }
-function realContextDirs(repoRoot) {
-    const cfg = readConfig(repoRoot);
-    const dirs = configField(cfg, 'context_dirs');
-    if (Array.isArray(dirs))
-        return dirs;
-    return DEFAULT_CONTEXT_DIRS;
-}
 function realExistingDirs(repoRoot, dirs) {
     return dirs.filter((d) => fs.existsSync(path.join(repoRoot, d)));
 }
@@ -170,8 +158,7 @@ function newestMtimeUnder(repoRoot, dir) {
 /**
  * dirs 는 보통 디렉터리 walk, watchFiles 는 config.json 같은 단일 파일 mtime.
  * 디렉터리가 아닌 경로는 walk 하지 않고 statSync 로 직접 잰다.
- * 파생 memory 파일·디렉터리는 freshness 입력이 아니다 — context 원본과
- * 검색 metadata만 본다.
+ * 파생 memory 파일·디렉터리는 freshness 입력이 아니다 — 소스 원본만 본다.
  */
 function realNewestMtime(repoRoot, dirs, watchFiles) {
     let newest = 0;
@@ -215,21 +202,20 @@ function realGraphMtime(repoRoot, outDir) {
     return fs.existsSync(abs) ? fs.statSync(abs).mtimeMs : null;
 }
 /**
- * source·test·context 세 scope 계획을 항상 만든다. testDirs가 null/undefined면
- * 빌드 불가 test 항목을 남기고 unconfiguredReason을 싣는다(보고 길이 3 유지).
+ * source·test 두 scope 계획을 항상 만든다. testDirs가 null/undefined면
+ * 빌드 불가 test 항목을 남기고 unconfiguredReason을 싣는다(보고 길이 2 유지).
  * 빈 배열은 필드 존재 → skip-no-dirs. excludeDirs는 source에만 실어 merge 뒤
  * 필터가 소비한다 — 빈 목록이면 필터 no-op.
  *
  * @param {{
  *   sourceDirs: string[],
- *   contextDirs: string[],
  *   testDirs?: string[] | null,
  *   excludeDirs?: string[],
  *   testUnconfiguredReason?: string
  * }} args
- * @returns {GraphScopePlan[]} 빌드·freshness 계획 목록(길이 3)
+ * @returns {GraphScopePlan[]} 빌드·freshness 계획 목록(길이 2)
  */
-function resolveGraphScopes({ sourceDirs, contextDirs, testDirs, excludeDirs, testUnconfiguredReason }) {
+function resolveGraphScopes({ sourceDirs, testDirs, excludeDirs, testUnconfiguredReason }) {
     const source = {
         name: 'source',
         dirs: sourceDirs,
@@ -263,25 +249,14 @@ function resolveGraphScopes({ sourceDirs, contextDirs, testDirs, excludeDirs, te
                 || 'graphify.test_dirs is not configured',
         });
     }
-    scopes.push({
-        name: 'context',
-        dirs: contextDirs,
-        outDir: DEFAULT_CONTEXT_OUT,
-        // 빌드는 파생 트리를 스캔하고, freshness 는 dirs+watchFiles(원본)만 본다.
-        scanDirs: [CONTEXT_DIGEST_OUT],
-        ...(DIGEST_WATCH_FILES.length ? { watchFiles: [...DIGEST_WATCH_FILES] } : {}),
-    });
     return scopes;
 }
 module.exports = {
     SCAN_EXCLUDED_DIRS,
     DEFAULT_SOURCE_OUT,
     DEFAULT_TEST_OUT,
-    DEFAULT_CONTEXT_OUT,
-    DEFAULT_CONTEXT_DIRS,
     realGraphifyEnabled,
     realSourceDirs,
-    realContextDirs,
     realTestDirs,
     realExcludeDirs,
     parseDirList,

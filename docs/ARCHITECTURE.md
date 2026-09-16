@@ -150,12 +150,12 @@ Codex·Claude·Cursor 등을 지원한다.
 
 ```text
 승인된 blueprint → graph-sync → graph-suggest
-  (quality · role candidates · file suggested_paths · source/test/context basis)
+  (quality · role candidates · file suggested_paths · source/test basis)
   → 역할·사유 표시 → 사용자 확인 → affected_paths 확정
 ```
 
 - `suggested_paths`와 role `candidates`는 조언이며 권위 있는
-  변경 범위가 아니다. context 후보는 근거일 뿐 Touch를 넓히지 않는다.
+  변경 범위가 아니다. Touch를 넓히지 않는다.
 - 최종 `affected_paths`는 사용자가 확인하고 Bouncer 하네스가 검증한다.
 - Graphify가 없거나 그래프가 오래되었거나 `graph-suggest`가
   `low-confidence` / `unavailable`이면 빈 파일 추천과 사유를 남기고 수동
@@ -257,20 +257,11 @@ Ponytail이 공개한 성능 수치는 자체 벤치마크이므로 참고 자�
 ### D. Graphify 정책
 
 1. 그래프 최신성은 SessionStart와 plan의 `bouncer graph-sync`가 같은
-   mtime 판정으로 맞춘다. **source**(`source_dirs` → `graphify-out/source`),
-   선택 **test**(`graphify.test_dirs` → `graphify-out/test`),
-   **context**(`context_dirs` → `graphify-out/context`) 그래프를 유지한다.
-   `graphify.test_dirs`가 없는 기존 config는 source·context만 만든다.
+   mtime 판정으로 맞춘다. **source**(`source_dirs` → `graphify-out/source`)와
+   선택 **test**(`graphify.test_dirs` → `graphify-out/test`) 그래프를 유지한다.
+   `graphify.test_dirs`가 없는 기존 config는 source만 만든다.
    source 병합 뒤에는 `graphify.exclude_dirs` prefix 아래 node와 연결을
    제거한다(빈 목록이면 JavaScript를 생성물로 추측하지 않음).
-   context는 설정 입력이 `context_dirs`여도, 빌드가 화이트리스트 섹션만 뽑은
-   파생 트리 `graphify-out/context-src/`를 스캔한 뒤 `map.json`으로 경로를
-   원본으로 되돌린다. 화이트리스트는 epic `index.md`의 `## Success criteria`,
-   BP `explain.md`의 `## Background` /
-   `## Intuition` / `## Code`, BP `index.md`의 `## Intent` / `## Contract`,
-   `tasks/<NNN>/tasks.md`의 `## Goal & intent` / `## Interface`다. freshness
-   판정 입력은 `context_dirs` 원본이며, 파생 트리 mtime은
-   넣지 않는다.
 2. `graphify-out/`은 로컬 캐시다. `bouncer init`이 `.gitignore` 누락 항목을
    **안내**하고, 사용자 동의(`--write-gitignore`)가 있을 때만 `# bouncer` …
    `# /bouncer` 마커 블록을 쓴다(마커 밖 줄은 읽기만 함). finalize/커밋 가드는

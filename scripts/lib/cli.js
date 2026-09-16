@@ -24,7 +24,6 @@ const COMMANDS = {
     // 여기 레지스트리는 도움말 조립이라 플래그를 다시 파싱하지 않는다.
     'graph-sync': projectCommands['graph-sync'],
     'graph-suggest': projectCommands['graph-suggest'],
-    'context-search': projectCommands['context-search'],
     intent: projectCommands.intent,
     'graphify-bin': projectCommands['graphify-bin'],
     'project-root': projectCommands['project-root'],

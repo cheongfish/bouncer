@@ -9,7 +9,7 @@ const {
   planSessionGraph, syncSessionGraphs, graphSyncWarnings,
   newestMtimeUnder, runGraphifyUpdate, partOutDir, resolveGraphScopes,
   normalizeGraphPaths,
-  SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_CONTEXT_OUT, DEFAULT_TEST_OUT,
+  SCAN_EXCLUDED_DIRS, DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT,
 } = require('../scripts/lib/session-graph');
 
 function compatible() {
@@ -24,7 +24,6 @@ function base(over) {
     hasGraphify: () => true,
     checkCompatibility: compatible,
     sourceDirs: () => ['src', 'test'],
-    contextDirs: () => ['.bouncer/context'],
     existingDirs: (dirs) => dirs,
     newestMtime: () => 200,
     graphMtime: () => 100,
@@ -126,15 +125,13 @@ test('graphify opt-in retains missing graph build behavior for both scopes', () 
     graphMtime: () => null,
   });
   assert.strictEqual(result.action, 'build');
-  assert.strictEqual(result.graphs.length, 3);
-  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test', 'context']);
+  assert.strictEqual(result.graphs.length, 2);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test']);
   const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g]));
   assert.strictEqual(byName.source.action, 'build');
-  assert.strictEqual(byName.context.action, 'build');
   assert.strictEqual(byName.test.action, 'skip-unconfigured');
   assert.strictEqual(byName.source.outDir, DEFAULT_SOURCE_OUT);
   assert.strictEqual(byName.test.outDir, DEFAULT_TEST_OUT);
-  assert.strictEqual(byName.context.outDir, DEFAULT_CONTEXT_OUT);
 });
 
 test('skips when graphify is not on PATH', () => {
@@ -157,10 +154,9 @@ test('force rebuild plans all present graphs even when mtimes are fresh', () => 
   const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g.action]));
   assert.strictEqual(byName.source, 'build');
   assert.strictEqual(byName.test, 'build');
-  assert.strictEqual(byName.context, 'build');
 });
 
-test('syncSessionGraphs force rebuilds fresh source test and context graphs', () => {
+test('syncSessionGraphs force rebuilds fresh source and test graphs', () => {
   const ran = [];
   const result = syncSessionGraphs({
     repoRoot: '/r',
@@ -170,8 +166,8 @@ test('syncSessionGraphs force rebuilds fresh source test and context graphs', ()
       ran.push(graph.name);
     },
   });
-  assert.deepStrictEqual(ran, ['source', 'test', 'context']);
-  assert.deepStrictEqual(result.built, ['source', 'test', 'context']);
+  assert.deepStrictEqual(ran, ['source', 'test']);
+  assert.deepStrictEqual(result.built, ['source', 'test']);
   assert.deepStrictEqual(result.failed, []);
 });
 
@@ -179,11 +175,12 @@ test('builds only the stale graph when the other is fresh', () => {
   const result = plan({
     graphMtime: (outDir) => (outDir === DEFAULT_SOURCE_OUT ? 100 : 300),
     newestMtime: () => 200,
+    testDirs: () => ['test'],
   });
   assert.strictEqual(result.action, 'build');
   const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g.action]));
   assert.strictEqual(byName.source, 'build');
-  assert.strictEqual(byName.context, 'skip-fresh');
+  assert.strictEqual(byName.test, 'skip-fresh');
 });
 
 test('builds when a source dir is newer than the graph', () => {
@@ -193,16 +190,15 @@ test('builds when a source dir is newer than the graph', () => {
 test('build dirs are limited to source dirs that exist', () => {
   const r = plan({
     graphMtime: () => null,
-    existingDirs: (dirs) => dirs.filter((d) => d === 'src' || d === '.bouncer/context'),
+    existingDirs: (dirs) => dirs.filter((d) => d === 'src'),
   });
   assert.deepStrictEqual(r.graphs.find((g) => g.name === 'source').dirs, ['src']);
-  assert.deepStrictEqual(r.graphs.find((g) => g.name === 'context').dirs, ['.bouncer/context']);
 });
 
 test('planOneGraph keeps configured dirs even when only some exist', () => {
   const r = plan({
     graphMtime: () => null,
-    existingDirs: (dirs) => dirs.filter((d) => d === 'src' || d === '.bouncer/context'),
+    existingDirs: (dirs) => dirs.filter((d) => d === 'src'),
   });
   const src = r.graphs.find((g) => g.name === 'source');
   assert.deepStrictEqual(src.configured, ['src', 'test']);
@@ -213,9 +209,8 @@ test('syncSessionGraphs reports missing source when opted in but source dirs abs
   const result = syncSessionGraphs({
     repoRoot: '/r',
     deps: base({
-      existingDirs: (dirs) => dirs.filter((d) => d === '.bouncer/context'),
-      // Context graph present and fresh; source never built.
-      graphMtime: (outDir) => (outDir === DEFAULT_CONTEXT_OUT ? 300 : null),
+      existingDirs: () => [],
+      graphMtime: () => null,
       newestMtime: () => 200,
     }),
   });
@@ -251,7 +246,7 @@ test('syncSessionGraphs omits scope from missing when leftover graph exists unde
     }),
   });
   assert.ok(!result.missing.includes('source'));
-  assert.deepStrictEqual(result.missing, ['context']);
+  assert.deepStrictEqual(result.missing, []);
 });
 
 test('graphSyncWarnings is silent when graphify is disabled', () => {
@@ -343,35 +338,35 @@ test('graphSyncWarnings covers partial, legacy, no-graphify, and failed in order
   const failed = graphSyncWarnings({
     action: 'build',
     missing: [],
-    failed: [{ name: 'context', message: 'boom' }],
+    failed: [{ name: 'source', message: 'boom' }],
   });
-  assert.match(failed[0], /graphify sync failed for context/);
+  assert.match(failed[0], /graphify sync failed for source/);
 });
 
 test('syncSessionGraphs builds stale graphs via execGraphify', () => {
   const calls = [];
   const result = syncSessionGraphs({
     repoRoot: '/r',
-    deps: base({ graphMtime: () => null }),
+    deps: base({ graphMtime: () => null, testDirs: () => ['test'] }),
     execGraphify: (graph) => { calls.push(graph.name); },
   });
   assert.strictEqual(result.action, 'build');
-  assert.deepStrictEqual(calls, ['source', 'context']);
-  assert.deepStrictEqual(result.built, ['source', 'context']);
+  assert.deepStrictEqual(calls, ['source', 'test']);
+  assert.deepStrictEqual(result.built, ['source', 'test']);
   assert.deepStrictEqual(result.failed, []);
 });
 
 test('syncSessionGraphs records per-graph failures without throwing', () => {
   const result = syncSessionGraphs({
     repoRoot: '/r',
-    deps: base({ graphMtime: () => null }),
+    deps: base({ graphMtime: () => null, testDirs: () => ['test'] }),
     execGraphify: (graph) => {
-      if (graph.name === 'context') throw new Error('boom');
+      if (graph.name === 'test') throw new Error('boom');
     },
   });
   assert.deepStrictEqual(result.built, ['source']);
   assert.strictEqual(result.failed.length, 1);
-  assert.strictEqual(result.failed[0].name, 'context');
+  assert.strictEqual(result.failed[0].name, 'test');
 });
 
 test('newestMtimeUnder skips SCAN_EXCLUDED_DIRS even when they are newer', () => {
@@ -449,19 +444,13 @@ test('runGraphifyUpdate exec first argument is the resolved bin path', () => {
   assert.strictEqual(seen, resolvedBin);
 });
 
-test('context scope scans derived tree; freshness watches originals', () => {
-  // context scope는 파생 트리를 스캔하고, freshness는 원본을 본다
-  const scopes = resolveGraphScopes({ sourceDirs: ['scripts'], contextDirs: ['.bouncer/context'] });
+test('resolveGraphScopes plans source and test only', () => {
+  const scopes = resolveGraphScopes({ sourceDirs: ['scripts'] });
+  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'test']);
   const source = scopes.find((s) => s.name === 'source');
-  const context = scopes.find((s) => s.name === 'context');
-  assert.ok(source);
-  assert.ok(context);
   assert.equal(source.scanDirs, undefined);
   // exclude_dirs 변경이 skip-fresh에 가리지 않도록 source는 config mtime을 본다.
   assert.deepEqual(source.watchFiles, ['.bouncer/config.json']);
-  assert.deepEqual(context.dirs, ['.bouncer/context']);
-  assert.deepEqual(context.scanDirs, ['graphify-out/context-src']);
-  assert.equal(context.watchFiles, undefined);
 });
 
 test('source rebuilds when config exclude_dirs is newer than graph', () => {
@@ -484,7 +473,6 @@ test('source rebuilds when config exclude_dirs is newer than graph', () => {
   touch(path.join(DEFAULT_SOURCE_OUT, 'graph.json'), old);
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
     source_dirs: ['src'],
-    context_dirs: ['.bouncer/context'],
     verify: 'npm test',
     graphify: { enabled: true, exclude_dirs: ['scripts/lib'] },
   }));
@@ -498,7 +486,6 @@ test('source rebuilds when config exclude_dirs is newer than graph', () => {
       hasGraphify: () => true,
       checkCompatibility: compatible,
       sourceDirs: () => ['src'],
-      contextDirs: () => [],
       testDirs: () => null,
       excludeDirs: () => ['scripts/lib'],
     },
@@ -529,9 +516,8 @@ test('graphSyncWarnings emits diagnostic lines for config skips', () => {
 test('resolveGraphScopes always includes test when testDirs are absent', () => {
   const scopes = resolveGraphScopes({
     sourceDirs: ['src'],
-    contextDirs: ['.bouncer/context'],
   });
-  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'test', 'context']);
+  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'test']);
   const testScope = scopes.find((s) => s.name === 'test');
   assert.ok(testScope.unconfiguredReason);
   assert.deepStrictEqual(testScope.dirs, []);
@@ -541,10 +527,9 @@ test('resolveGraphScopes adds test scope and source excludeDirs when provided', 
   const scopes = resolveGraphScopes({
     sourceDirs: ['src'],
     testDirs: ['test'],
-    contextDirs: ['.bouncer/context'],
     excludeDirs: ['scripts/lib'],
   });
-  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'test', 'context']);
+  assert.deepStrictEqual(scopes.map((s) => s.name), ['source', 'test']);
   const source = scopes.find((s) => s.name === 'source');
   const testScope = scopes.find((s) => s.name === 'test');
   assert.strictEqual(testScope.outDir, DEFAULT_TEST_OUT);
@@ -552,14 +537,14 @@ test('resolveGraphScopes adds test scope and source excludeDirs when provided', 
   assert.deepStrictEqual(source.excludeDirs, ['scripts/lib']);
 });
 
-test('legacy config without test_dirs keeps three-scope plan with skip-unconfigured test', () => {
+test('legacy config without test_dirs keeps two-scope plan with skip-unconfigured test', () => {
   const result = plan({
     graphifyEnabled: () => true,
     graphMtime: () => null,
     testDirs: () => null,
   });
-  assert.strictEqual(result.graphs.length, 3);
-  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test', 'context']);
+  assert.strictEqual(result.graphs.length, 2);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test']);
   const testGraph = result.graphs.find((g) => g.name === 'test');
   assert.strictEqual(testGraph.action, 'skip-unconfigured');
   assert.ok(!Object.prototype.hasOwnProperty.call(result, 'skips')
@@ -573,8 +558,8 @@ test('unset test_dirs yields skip-unconfigured test and stays out of build missi
     graphMtime: () => null,
     testDirs: () => null,
   });
-  assert.strictEqual(result.graphs.length, 3);
-  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test', 'context']);
+  assert.strictEqual(result.graphs.length, 2);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test']);
   const testGraph = result.graphs.find((g) => g.name === 'test');
   assert.strictEqual(testGraph.action, 'skip-unconfigured');
   assert.strictEqual(testGraph.reason, 'graphify.test_dirs is not configured');
@@ -624,7 +609,6 @@ test('top-level action stays skip-no-dirs when only unconfigured test is present
   const result = plan({
     graphifyEnabled: () => true,
     sourceDirs: () => ['missing-src'],
-    contextDirs: () => ['missing-context'],
     testDirs: () => null,
     existingDirs: () => [],
     graphMtime: () => null,
@@ -666,7 +650,6 @@ test('test scope builds freshness and missing like other scopes', () => {
   const byName = Object.fromEntries(result.graphs.map((g) => [g.name, g]));
   assert.strictEqual(byName.source.action, 'skip-fresh');
   assert.strictEqual(byName.test.action, 'build');
-  assert.strictEqual(byName.context.action, 'skip-fresh');
   assert.strictEqual(byName.test.outDir, DEFAULT_TEST_OUT);
 
   let testGraphPresent = false;
@@ -713,7 +696,7 @@ test('invalid graphify.test_dirs is skipped with a diagnostic reason', () => {
       newestMtime: () => 100,
     },
   });
-  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test', 'context']);
+  assert.deepStrictEqual(result.graphs.map((g) => g.name), ['source', 'test']);
   assert.ok(Array.isArray(result.skips));
   assert.ok(result.skips.some((s) => /test_dirs/.test(s)));
   const testGraph = result.graphs.find((g) => g.name === 'test');
@@ -750,35 +733,6 @@ test('invalid graphify.exclude_dirs is not applied and reports a skip reason', (
   assert.ok(result.skips.some((s) => /exclude_dirs/.test(s)));
 });
 
-test('normalizeGraphPaths maps source_file via opts.map and drops unknowns', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-norm-map-'));
-  const partOut = 'graphify-out/context/parts/digest';
-  fs.mkdirSync(path.join(repo, partOut), { recursive: true });
-  const graph = {
-    nodes: [
-      { id: 'keep', source_file: 'flat-a.md' },
-      { id: 'drop', source_file: 'unknown.md' },
-    ],
-    links: [
-      { source: 'keep', target: 'drop', source_file: 'flat-a.md' },
-      { source: 'drop', target: 'keep', source_file: 'unknown.md' },
-    ],
-    hyperedges: [
-      { nodes: ['keep', 'drop'], source_file: 'flat-a.md' },
-    ],
-  };
-  fs.writeFileSync(path.join(repo, partOut, 'graph.json'), JSON.stringify(graph));
-  const rel = normalizeGraphPaths(repo, partOut, 'graphify-out/context-src', {
-    map: { 'flat-a.md': '.bouncer/context/epics/001-x/index.md' },
-  });
-  const out = JSON.parse(fs.readFileSync(path.join(repo, rel), 'utf8'));
-  assert.strictEqual(out.nodes.length, 1);
-  assert.strictEqual(out.nodes[0].source_file, '.bouncer/context/epics/001-x/index.md');
-  assert.ok(out.nodes[0].id.includes('keep'));
-  assert.strictEqual(out.links.length, 0);
-  assert.strictEqual(out.hyperedges.length, 0);
-});
-
 test('normalizeGraphPaths without map keeps dir/file prefix behavior', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-norm-prefix-'));
   const partOut = 'graphify-out/source/parts/scripts';
@@ -792,97 +746,6 @@ test('normalizeGraphPaths without map keeps dir/file prefix behavior', () => {
   const out = JSON.parse(fs.readFileSync(path.join(repo, rel), 'utf8'));
   assert.strictEqual(out.nodes[0].source_file, 'scripts/lib/a.ts');
   assert.ok(out.nodes[0].id.startsWith('scripts_'));
-});
-
-test('Distill.md mtime alone does not mark context graph stale', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-distill-fresh-'));
-  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/001-x'), { recursive: true });
-  fs.writeFileSync(path.join(repo, '.bouncer/context/epics/001-x/index.md'), '## Success criteria\n\nx\n');
-  fs.writeFileSync(path.join(repo, '.bouncer/Distill.md'), '## Decisions\n\nd\n');
-  fs.mkdirSync(path.join(repo, DEFAULT_CONTEXT_OUT), { recursive: true });
-  const graphPath = path.join(repo, DEFAULT_CONTEXT_OUT, 'graph.json');
-  fs.writeFileSync(graphPath, JSON.stringify({ nodes: [], links: [] }));
-
-  const old = Date.now() - 60_000;
-  const neu = Date.now() + 60_000;
-  const touch = (rel, ms) => {
-    const abs = path.join(repo, rel);
-    fs.utimesSync(abs, new Date(ms), new Date(ms));
-  };
-  touch('.bouncer/context/epics/001-x/index.md', old);
-  touch(path.join(DEFAULT_CONTEXT_OUT, 'graph.json'), old);
-  touch('.bouncer/Distill.md', neu);
-
-  const result = planSessionGraph({
-    repoRoot: repo,
-    deps: {
-      inspectBootstrap: () => 'ready',
-      graphifyEnabled: () => true,
-      hasGraphify: () => true,
-      checkCompatibility: compatible,
-      sourceDirs: () => [],
-      contextDirs: () => ['.bouncer/context'],
-    },
-  });
-  const context = result.graphs.find((g) => g.name === 'context');
-  assert.ok(context);
-  assert.strictEqual(context.action, 'skip-fresh');
-});
-
-test('empty context digest skips graphify, keeps prior graph, settles freshness', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-empty-digest-'));
-  // digest count === 0 은 앵커와 절 본문이 모두 비었을 때만이다.
-  // 계층 경로 화이트리스트(task 브리프 등)는 앵커만으로도 emit 되므로 empty-skip 픽스처로 쓰지 않는다.
-  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
-  fs.writeFileSync(path.join(repo, '.bouncer/context/notes.md'), '# not whitelisted\n');
-  fs.mkdirSync(path.join(repo, DEFAULT_CONTEXT_OUT), { recursive: true });
-  const graphPath = path.join(repo, DEFAULT_CONTEXT_OUT, 'graph.json');
-  const prior = JSON.stringify({ nodes: [{ id: 'keep-me', source_file: '.bouncer/context/notes.md' }], links: [] });
-  fs.writeFileSync(graphPath, prior);
-  const old = Date.now() - 120_000;
-  fs.utimesSync(graphPath, new Date(old), new Date(old));
-  const srcPath = path.join(repo, '.bouncer/context/notes.md');
-  fs.utimesSync(srcPath, new Date(old + 60_000), new Date(old + 60_000));
-
-  const deps = {
-    inspectBootstrap: () => 'ready',
-    graphifyEnabled: () => true,
-    hasGraphify: () => true,
-    checkCompatibility: compatible,
-    sourceDirs: () => [],
-    contextDirs: () => ['.bouncer/context'],
-  };
-  const sync = syncSessionGraphs({ repoRoot: repo, deps });
-  assert.ok(sync.built.includes('context'));
-  assert.strictEqual(fs.readFileSync(graphPath, 'utf8'), prior);
-  assert.ok(!fs.existsSync(path.join(repo, DEFAULT_CONTEXT_OUT, 'parts')));
-  assert.ok(fs.statSync(graphPath).mtimeMs > old + 60_000);
-
-  const after = planSessionGraph({ repoRoot: repo, deps });
-  const context = after.graphs.find((g) => g.name === 'context');
-  assert.strictEqual(context.action, 'skip-fresh');
-});
-
-test('empty context digest without prior graph is not reported as built', () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-empty-digest-miss-'));
-  fs.mkdirSync(path.join(repo, '.bouncer/context'), { recursive: true });
-  fs.writeFileSync(path.join(repo, '.bouncer/context/readme.md'), '# not whitelisted\n');
-
-  const sync = syncSessionGraphs({
-    repoRoot: repo,
-    deps: {
-      inspectBootstrap: () => 'ready',
-      graphifyEnabled: () => true,
-      hasGraphify: () => true,
-      checkCompatibility: compatible,
-      sourceDirs: () => [],
-      contextDirs: () => ['.bouncer/context'],
-    },
-  });
-  assert.ok(!sync.built.includes('context'));
-  assert.ok(sync.missing.includes('context'));
-  assert.ok(!fs.existsSync(path.join(repo, DEFAULT_CONTEXT_OUT, 'graph.json')));
-  assert.ok(!fs.existsSync(path.join(repo, DEFAULT_CONTEXT_OUT, 'parts')));
 });
 
 test('SessionStart reports partial state on stderr and exits zero', () => {
@@ -950,5 +813,110 @@ test('graphSyncWarnings names version-incompatible as a skip state', () => {
   assert.ok(lines.length >= 1);
   assert.match(lines[0], /version-incompatible|incompatible/i);
   assert.match(lines.join(''), /upgrade-graphify/);
+});
+
+// context graph 제거 후: sync는 source·test만 계획하고 context 산출물을 만들지 않는다.
+test('syncSessionGraphs plans only source and test and does not create context trees', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-no-context-build-'));
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  fs.mkdirSync(path.join(repo, '.bouncer/context/epics/001-x'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/context/epics/001-x/index.md'), '## Success criteria\n\nx\n');
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    context_dirs: ['.bouncer/context'],
+    verify: 'npm test',
+    graphify: { enabled: true, test_dirs: ['test'] },
+  }));
+  fs.mkdirSync(path.join(repo, 'test'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'test/a.test.ts'), 'export {};\n');
+
+  const d = syncSessionGraphs({
+    repoRoot: repo,
+    deps: {
+      inspectBootstrap: () => 'ready',
+      graphifyEnabled: () => true,
+      hasGraphify: () => true,
+      checkCompatibility: compatible,
+    },
+    execGraphify: () => {},
+  });
+  assert.deepStrictEqual(d.graphs.map((g) => g.name), ['source', 'test']);
+  assert.ok(!fs.existsSync(path.join(repo, 'graphify-out/context-src')));
+  assert.ok(!fs.existsSync(path.join(repo, 'graphify-out/context')));
+});
+
+// 기존 leftover context graph는 sync가 건드리지 않는다(삭제·mtime 갱신 금지).
+test('syncSessionGraphs preserves leftover context graph.json content and mtime', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-keep-context-'));
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    verify: 'npm test',
+    graphify: { enabled: true },
+  }));
+  const contextGraph = path.join(repo, 'graphify-out/context/graph.json');
+  fs.mkdirSync(path.dirname(contextGraph), { recursive: true });
+  const prior = JSON.stringify({ nodes: [{ id: 'keep', source_file: 'legacy.md' }], links: [] });
+  fs.writeFileSync(contextGraph, prior);
+  const old = Date.now() - 120_000;
+  fs.utimesSync(contextGraph, new Date(old), new Date(old));
+  const beforeMtime = fs.statSync(contextGraph).mtimeMs;
+
+  syncSessionGraphs({
+    repoRoot: repo,
+    deps: {
+      inspectBootstrap: () => 'ready',
+      graphifyEnabled: () => true,
+      hasGraphify: () => true,
+      checkCompatibility: compatible,
+    },
+    execGraphify: () => {},
+  });
+
+  assert.strictEqual(fs.readFileSync(contextGraph, 'utf8'), prior);
+  assert.strictEqual(fs.statSync(contextGraph).mtimeMs, beforeMtime);
+});
+
+// context graph.json 부재·정상·손상(`{`)이 graphs/action에 영향을 주지 않는다.
+test('syncSessionGraphs graphs and action ignore leftover context graph.json shape', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-context-parity-'));
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    verify: 'npm test',
+    graphify: { enabled: true },
+  }));
+
+  const deps = {
+    inspectBootstrap: () => 'ready',
+    graphifyEnabled: () => true,
+    hasGraphify: () => true,
+    checkCompatibility: compatible,
+  };
+  const run = () => syncSessionGraphs({
+    repoRoot: repo,
+    deps,
+    execGraphify: () => {},
+  });
+
+  const absent = run();
+  const contextDir = path.join(repo, 'graphify-out/context');
+  fs.mkdirSync(contextDir, { recursive: true });
+  fs.writeFileSync(path.join(contextDir, 'graph.json'), JSON.stringify({ nodes: [], links: [] }));
+  const healthy = run();
+  fs.writeFileSync(path.join(contextDir, 'graph.json'), '{');
+  const corrupt = run();
+
+  const shape = (d) => ({
+    action: d.action,
+    graphs: d.graphs.map((g) => ({ name: g.name, action: g.action, outDir: g.outDir })),
+  });
+  assert.deepStrictEqual(shape(healthy), shape(absent));
+  assert.deepStrictEqual(shape(corrupt), shape(absent));
 });
 

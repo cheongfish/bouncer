@@ -90,9 +90,6 @@ function defaultConfig(repoRoot: string) {
   return {
     // scaffold 시점에만 감지 — ready bootstrap에서는 다시 쓰지 않음.
     source_dirs: detectSourceDirs(repoRoot),
-    // Bouncer context docs graph (epics/blueprints). source_dirs와 함께
-    // graphify-out/source, graphify-out/context 이중 graphify 출력에 사용.
-    context_dirs: ['.bouncer/context'],
     // 라이브러리 기본(install:false)은 enabled만 true — bin은 설치 성공 시에만 기록.
     // CLI는 install:true가 기본이라 실패 시 enabled:false로 내려 soft-fail한다.
     // 실재하는 test/tests만 test_dirs에 넣어 구현 그래프 seed와 분리한다.

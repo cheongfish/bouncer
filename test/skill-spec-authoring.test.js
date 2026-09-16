@@ -46,7 +46,6 @@ test('okf states tags are the domain search vocabulary', () => {
   const okf = fs.readFileSync(path.join(root, 'rules/okf.md'), 'utf8');
   assert.match(okf, /tags[\s\S]{0,300}(search label|search vocabulary|graph-suggest)/i);
   assert.match(okf, /\[A-Za-z0-9_\.\/-\]/);
-  assert.doesNotMatch(okf, /Wave 2 context-digest will generate/);
 });
 
 test('spec-authoring ships completed reference examples and points SKILL.md at them', () => {

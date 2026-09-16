@@ -97,23 +97,17 @@ test('tracked active surfaces reject runtime memory tokens outside the explicit 
   // 파일만 허용하지 않고 count도 대조해 새 토큰이 숨지 못하게 한다.
   const allowed = new Map([
     ['docs/distill-decommission-audit.md', { count: 22, kind: 'historical-removal-audit' }],
-    ['docs/context-search-benchmark.md', { count: 1, kind: 'cutover-evidence' }],
     ['test/cli-help.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/cli-project-commands.test.js', { count: 2, kind: 'legacy-compatibility-regression' }],
     ['test/commit-guard.test.js', { count: 6, kind: 'legacy-compatibility-regression' }],
-    ['test/context-corpus-search.test.js', { count: 9, kind: 'historical-corpus-and-cutover-evidence' }],
-    ['test/context-digest.test.js', { count: 38, kind: 'legacy-compatibility-regression' }],
     ['test/distill-decommission-audit.test.js', { count: 102, kind: 'historical-removal-audit' }],
     ['test/finalize-pure.test.js', { count: 3, kind: 'legacy-compatibility-regression' }],
     ['test/finalize.test.js', { count: 28, kind: 'legacy-compatibility-regression' }],
-    ['test/graph-search.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
-    ['test/graphify.test.js', { count: 16, kind: 'legacy-compatibility-regression' }],
+    ['test/graphify.test.js', { count: 9, kind: 'legacy-compatibility-regression' }],
     ['test/init.test.js', { count: 32, kind: 'legacy-compatibility-regression' }],
     ['test/lightweight-cycle.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/master-rules.test.js', { count: 4, kind: 'legacy-compatibility-regression' }],
     ['test/seed-worktree.test.js', { count: 9, kind: 'legacy-compatibility-regression' }],
-    ['test/session-graph.test.js', { count: 4, kind: 'legacy-compatibility-regression' }],
-    ['test/skill-bouncer-execute.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/skill-bouncer-finalize.test.js', { count: 2, kind: 'legacy-compatibility-regression' }],
     ['test/skill-bouncer-plan.test.js', { count: 6, kind: 'legacy-compatibility-regression' }],
     ['test/skill-bouncer-surface.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
@@ -122,16 +116,12 @@ test('tracked active surfaces reject runtime memory tokens outside the explicit 
     ['test/skill-spec-authoring.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/trust-boundary.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/validate-gates.test.js', { count: 4, kind: 'legacy-compatibility-regression' }],
-    ['test/fixtures/context-corpus-queries.json', { count: 12, kind: 'historical-corpus-and-cutover-evidence' }],
-    ['test/fixtures/graph-search-quality.json', { count: 2, kind: 'historical-corpus-identity' }],
+    ['test/fixtures/graph-search-quality.json', { count: 1, kind: 'historical-corpus-identity' }],
   ]);
   const scanned = git(root, [
     'ls-files', '--', 'README.md', 'CLAUDE.md', '.codex/agents', 'agents', 'docs',
     'references', 'rules', 'scripts/src', 'scripts/lib', 'skills', 'test',
   ]).trim().split('\n').filter(Boolean);
-  if (!scanned.includes('docs/context-search-benchmark.md')) {
-    scanned.push('docs/context-search-benchmark.md');
-  }
   const seenAllowed = new Set();
   const unexpected = [];
   for (const rel of scanned) {

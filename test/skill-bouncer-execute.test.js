@@ -462,11 +462,3 @@ test('bouncer-execute verify recovery hands a repeat failure to the coordinator'
   assert.match(recovery, /terminal blocked/);
   assert.match(recovery, /bouncer coordinate revise/);
 });
-
-test('bouncer-execute hands selected canonical context to the implementer', () => {
-  const { body } = parseFrontmatter(md);
-  assert.doesNotMatch(body, /distill/i);
-  assert.match(body, /implementation-mode context search/);
-  assert.match(body, /query id, status,[\s\S]*graph version/);
-  assert.match(body, /broad, or zero-hit/);
-});

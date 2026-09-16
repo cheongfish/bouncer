@@ -15,7 +15,6 @@
 | `G16 explain diff_sha does not match range_from..HEAD` / `could not be computed` | 기록된 `diff_sha`가 게이트가 `range_from..HEAD`로 다시 계산한 값과 다르거나, base/저장소 문제로 계산에 실패했습니다. `range_from`은 포인터 `base`입니다. 퀴즈 이후 커밋이 쌓였다면 본문과 해시만 갱신하고 퀴즈는 다시 보지 않습니다 |
 | `G16` (열린 task / explain / comprehension) | finalize 게이트. 모든 task가 `verified`이고 explain이 `published`이며 BP 단일 comprehension 엔트리가 있어야 합니다. 남은 task는 `/bouncer-commit`으로 먼저 닫으세요 |
 | `G17 staged path outside affected_paths` / `could not read staged files` | commit 게이트. 스테이징된 경로가 포인터 task `affected_paths` 밖이거나, 스테이징 목록을 읽지 못했습니다. 범위를 고치거나 스테이징을 정리하세요 |
-| context-search `version-incompatible` | 같은 checkout에서 `graph-sync`를 다시 실행하고 CLI와 graph metadata version을 맞춘 뒤 재검색하세요. 다른 build 결과를 섞지 마세요 |
 | `S11 blueprint documents not found` | blueprint 경로가 틀렸습니다(오타 등). 경로를 확인하세요 |
 | `S13 epic directory not listed` / `lists missing epic` | `.bouncer/context/index.md`와 `epics/` 디렉터리가 어긋났습니다. 유효한 `--description`으로 `bouncer scaffold epic`을 실행하세요 |
 | `S13 epic summary mismatch` | 색인 행은 편집하지 않는 파생값입니다. epic frontmatter `description`을 확인한 뒤 같은 canonical 경로에 `bouncer scaffold epic --id <ddd> --name <slug> --description <text>`를 다시 실행해 행을 replace하고 S13을 재검사하세요 |
