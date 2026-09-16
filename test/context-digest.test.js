@@ -17,7 +17,7 @@ const {
   taskCommitHeadings,
   CONTEXT_DIGEST_OUT,
 } = require('../scripts/lib/context-digest');
-const { tokenize, contextSearch } = require('../scripts/lib/graph-search');
+const { tokenize } = require('../scripts/lib/graph-search');
 const { normalizeCommitSha } = require('../scripts/lib/commit-sha');
 
 test('normalizeCommitSha keeps lowercase 8-char contract', () => {
@@ -243,20 +243,6 @@ test('Distill-absent digest still emits history explain and task originals', () 
   assert.equal(digestRulesFor('.bouncer/distill/core.md'), null);
   assert.equal(documentKindFor('.bouncer/Distill.md'), null);
 
-  fs.mkdirSync(path.join(repo, 'graphify-out/context'), { recursive: true });
-  fs.writeFileSync(path.join(repo, 'graphify-out/context/graph.json'), JSON.stringify({
-    nodes: originals.map((rel, i) => ({ id: `n${i}`, label: 'closed history', source_file: rel })),
-    links: [],
-  }));
-  const history = contextSearch({
-    repoRoot: repo,
-    mode: 'history',
-    query: 'closed history explain',
-  });
-  assert.ok(!history.candidates.some((c) => /Distill|distill/.test(c.path)));
-  assert.ok(history.candidates.some((c) => c.path === `${bp}/explain.md`));
-  assert.ok(!Object.prototype.hasOwnProperty.call(history, 'distill'));
-  assert.ok(!JSON.stringify(history).includes('distill --for'));
 });
 
 test('digestRulesFor whitelists epic index, explain, blueprint index, and task brief', () => {

@@ -8,13 +8,13 @@ const { nowIsoKst } = time;
 const sessionGraph = require("./session-graph");
 const { syncSessionGraphs } = sessionGraph;
 const graphify = require("./graphify");
-const { resolveGraphifyBin, checkGraphifyCompatibility } = graphify;
+const { resolveGraphifyBin } = graphify;
 const migrateTaskLayoutMod = require("./migrate-task-layout");
 const { migrateTaskLayout } = migrateTaskLayoutMod;
 const runtimeState = require("./runtime-state");
 const { runtimePaths } = runtimeState;
 const graphSearch = require("./graph-search");
-const { graphSuggest, contextSearch, validateContextSearchInput } = graphSearch;
+const { graphSuggest } = graphSearch;
 const intentProvenance = require("./intent-provenance");
 const { resolveIntentProvenance } = intentProvenance;
 const runPreflightMod = require("./run-preflight");
@@ -119,118 +119,6 @@ function cmdGraphSuggest(rest, io) {
         repoRoot,
         query: parsed.query,
         seeds: parsed.seeds,
-    });
-    io.out(`${JSON.stringify(result, null, 2)}\n`);
-    return 0;
-}
-/**
- * context-search 전용 인자 파서. 플래그 모양만 읽고, mode·query·상한 의미는
- * graph-search JSON schema 검증기에 맡긴다. 거절은 전부 exit 2.
- * --seed는 graph-suggest와 같이 반복 가능하다.
- *
- * @param {string[]} rest - 서브커맨드 뒤 argv
- * @returns {ContextSearchArgs} 성공 시 mode·query, 실패 시 error
- */
-function parseContextSearchArgs(rest) {
-    let mode = null;
-    let query = null;
-    let querySeen = false;
-    const seeds = [];
-    let maxCandidates = null;
-    let repo;
-    const fail = (message) => ({
-        error: `context-search: ${message}\n`,
-        mode,
-        query,
-        seeds,
-        maxCandidates,
-        repo,
-    });
-    for (let i = 0; i < rest.length; i += 1) {
-        const token = rest[i];
-        if (token === '--mode') {
-            const value = rest[++i];
-            if (value === undefined || value.startsWith('--') || value.length === 0) {
-                return fail('--mode <decision|implementation|history> is required');
-            }
-            mode = value;
-            continue;
-        }
-        if (token === '--query') {
-            const value = rest[++i];
-            if (value === undefined || value.startsWith('--') || value.length === 0) {
-                return fail('--query requires a non-empty text value');
-            }
-            query = value;
-            querySeen = true;
-            continue;
-        }
-        if (token === '--seed') {
-            const value = rest[++i];
-            if (value === undefined || value.startsWith('--') || value.length === 0) {
-                return fail('--seed requires a value');
-            }
-            seeds.push(value);
-            continue;
-        }
-        if (token === '--max-candidates') {
-            const value = rest[++i];
-            if (value === undefined || value.startsWith('--') || value.length === 0) {
-                return fail('--max-candidates requires an integer 1..8');
-            }
-            // 숫자 변환만 한다. 1..8 범위는 validateContextSearchInput이 JSON schema로 거절한다.
-            maxCandidates = Number(value);
-            continue;
-        }
-        if (token === '--repo') {
-            const value = rest[++i];
-            if (!value || value.startsWith('--'))
-                return fail('--repo requires a directory');
-            repo = value;
-            continue;
-        }
-        if (token.startsWith('--'))
-            return fail(`unknown option: ${token}`);
-        return fail(`unexpected argument: ${token}`);
-    }
-    const schemaError = validateContextSearchInput({
-        mode: mode ?? undefined,
-        query: querySeen && query !== null ? query : undefined,
-        seeds,
-        maxCandidates: maxCandidates === null ? undefined : maxCandidates,
-    });
-    if (schemaError)
-        return fail(schemaError);
-    return { mode, query, seeds, maxCandidates, repo };
-}
-function cmdContextSearch(rest, io) {
-    const parsed = parseContextSearchArgs(rest);
-    if (parsed.error) {
-        io.err(parsed.error);
-        return 2;
-    }
-    const repoRoot = (parsed.repo || process.cwd());
-    const compat = checkGraphifyCompatibility({ repoRoot });
-    if (compat.status === 'version-incompatible') {
-        // 설치를 고치지 않고 상태만 돌려 준다. 후보를 꾸며 내지 않는다.
-        io.out(`${JSON.stringify({
-            query_id: `${parsed.mode}:incompatible`,
-            terms: [],
-            seed: parsed.query,
-            raw_node_count: 0,
-            eligible_document_count: 0,
-            candidates: [],
-            status: 'version-incompatible',
-            compatibility: { reasons: compat.reasons, warnings: compat.warnings },
-        }, null, 2)}\n`);
-        return 0;
-    }
-    const result = contextSearch({
-        repoRoot,
-        mode: parsed.mode,
-        query: parsed.query,
-        seeds: parsed.seeds,
-        maxCandidates: parsed.maxCandidates === null ? undefined : parsed.maxCandidates,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return 0;
@@ -455,13 +343,6 @@ module.exports = {
         run: cmdGraphSuggest,
         usage: `  graph-suggest --query <text> [--seed <value>]...
              Rank implementation/test/context file candidates from graphify graphs (JSON).
-`,
-    },
-    'context-search': {
-        run: cmdContextSearch,
-        usage: `  context-search --mode <decision|implementation|history> --query <text>
-             [--seed <value>] [--max-candidates <1..8>]
-             Rank decision/implementation/history document candidates (JSON).
 `,
     },
     intent: {

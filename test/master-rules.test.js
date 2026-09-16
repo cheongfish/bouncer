@@ -791,7 +791,5 @@ test('master and workflow rules use context-only repository memory', () => {
   ];
   for (const rel of active) assert.doesNotMatch(read(rel), /distill/i, rel);
   assert.match(read('skills/bouncer-plan/SKILL.md'), /bouncer intent --symbol/);
-  assert.match(read('skills/bouncer-execute/SKILL.md'), /implementation-mode context search/);
-  assert.match(read('skills/bouncer-run/SKILL.md'), /query id|query ids/);
   assert.match(read('skills/bouncer-finalize/SKILL.md'), /Explain \+ quiz/);
 });

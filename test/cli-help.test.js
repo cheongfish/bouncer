@@ -7,7 +7,6 @@ const { runCli } = require('../scripts/lib/cli');
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
   'graph-suggest',
-  'context-search',
   'intent',
   'graphify-bin',
   'project-root',
@@ -125,36 +124,21 @@ test('graph-suggest with valueless --seed exits 2', () => {
   assert.strictEqual(r.out, '');
 });
 
-test('usage lists context-search --mode --query [--seed] [--max-candidates]', () => {
+test('help output does not list context-search', () => {
   const r = capture([]);
-  assert.match(
-    r.out,
-    /context-search\s+--mode <decision\|implementation\|history> --query <text>/,
-  );
-  assert.match(r.out, /\[--max-candidates <1\.\.8>\]/);
+  assert.doesNotMatch(r.out, /context-search/);
 });
 
-test('context-search without --mode exits 2 on stderr', () => {
-  const r = capture(['context-search', '--query', 'epic-060']);
-  assert.strictEqual(r.code, 2);
-  assert.match(r.err, /mode/i);
-  assert.strictEqual(r.out, '');
-});
-
-test('context-search with invalid --mode exits 2', () => {
-  const r = capture(['context-search', '--mode', 'other', '--query', 'epic-060']);
-  assert.strictEqual(r.code, 2);
-  assert.match(r.err, /mode/i);
-  assert.strictEqual(r.out, '');
-});
-
-test('context-search with max-candidates out of range exits 2', () => {
-  const r = capture([
-    'context-search', '--mode', 'decision', '--query', 'epic-060', '--max-candidates', '9',
-  ]);
-  assert.strictEqual(r.code, 2);
-  assert.match(r.err, /max-candidates/i);
-  assert.strictEqual(r.out, '');
+test('context-search is unknown command exit 2', () => {
+  let stdout = '';
+  let stderr = '';
+  const code = runCli(['context-search', '--mode', 'decision', '--query', 'x'], {
+    out: (s) => { stdout += s; },
+    err: (s) => { stderr += s; },
+  });
+  assert.strictEqual(code, 2);
+  assert.strictEqual(stdout, '');
+  assert.match(stderr, /unknown command: context-search/);
 });
 
 test('usage lists run preflight --blueprint', () => {
