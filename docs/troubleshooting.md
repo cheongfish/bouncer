@@ -46,6 +46,7 @@
 | `seed-worktree`가 `conflict`로 실패 | worktree에 같은 경로가 다른 내용으로 이미 있습니다. base는 건드리지 않았으니 손으로 정리한 뒤 다시 실행하세요 |
 | finalize가 `out-of-scope`로 중단 | `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`, `.bouncer/runtime/`는 무시. 나머지 경로는 승인 범위에 있어야 합니다 |
 | finalize가 `reason: 'verify'`로 중단 | 승격 커밋 직전 검증 명령이 실패했거나 명령을 해석하지 못했다. `closed` 잠금과 스테이징은 하지 않았다. 결과의 `code`/`command`/`exitCode`로 원인을 고친 뒤 `--yes`를 다시 실행한다. 우회는 없다 |
+| integration/verification worktree에서 `npm run ci`가 `ENOENT`로 `node_modules/...`(예: js-yaml, typescript/bin/tsc)를 못 찾음 | worktree에 deps가 없는 상태입니다. integration checkout에서 `npm ci` 후 `npm run ci`를 다시 실행하세요 |
 
 위 `commit blocked: …` 다섯 행은 `commit-safety` 훅이 낸 문장을 그대로 적은
 것입니다. 같은 범위 판정을 `bouncer commit`으로 부르면 문장 대신 stdout JSON의
