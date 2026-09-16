@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **context-search와 context graph** — 공개 CLI `context-search`, 설정 키
+  `context_dirs`, context graph 빌드·질의 안내, context-digest / derived
+  anchor 승격 경로를 제거했다. Graphify는 source·test 두 scope만 유지한다.
+
 ## [1.4.7] — 2026-09-14
 
 1.4.6 이후 task 브리프 본문 계약과 Graphify venv 준비 보정. full task가

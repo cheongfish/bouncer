@@ -1,8 +1,5 @@
 {
   "source_dirs": [],
-  "context_dirs": [
-    ".bouncer/context"
-  ],
   "graphify": {
     "enabled": true,
     "test_dirs": [

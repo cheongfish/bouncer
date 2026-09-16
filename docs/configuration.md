@@ -11,7 +11,6 @@
 | `verify` | 단일 실행 문자열 (`&&`·`;`·파이프·리디렉션·`cd` 불가 → `S12`). 실행 시 argv로 파싱되며 `shell: false` | **execute 게이트(G13)**, `/bouncer-plan`이 blueprint별 `tasks.bouncer.verify` 제안 | `"npm test"` · `"make test"` · `"npm run test:e2e"` |
 | `verify_allowlist` | argv0 실행 파일명 문자열 배열. Windows에서는 `npm.cmd`·`node.exe`처럼 관용 확장자를 벗긴 뒤 비교 | 런타임 검증 실행 직전 허용 목록. 없거나 배열이 아니면 기본값(`npm`·`node`·`make` 등). plan/S12의 `tasks.bouncer.verify` 검사는 이 키가 아니라 기본 목록만 사용 | `["npm", "node", "make"]` |
 | `source_dirs` | 저장소 상대 디렉터리 배열 | `/bouncer-init`(자동 채움), `graphify-runner` 소스 그래프 입력 | `["src", "scripts"]` |
-| `context_dirs` | 저장소 상대 디렉터리 배열 | `graphify-runner` 컨텍스트 그래프 입력 | `[".bouncer/context"]` |
 | `graphify.test_dirs` | 저장소 상대 디렉터리 배열 (선택) | 테스트 그래프 입력 → `graphify-out/test` | `["test"]` · `["tests"]` |
 | `graphify.exclude_dirs` | 저장소 상대 prefix 배열 (선택) | source 병합 뒤 제거할 경로 prefix | `["scripts/lib"]` |
 | `base_branch` | 브랜치 이름 | `/bouncer-execute` worktree 기준, `/bouncer-finalize` PR 기준 | `"main"` · `"develop"` |
@@ -46,7 +45,7 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 있으면 그대로 씁니다.
 
 `graphify.test_dirs`와 `graphify.exclude_dirs`는 선택 필드입니다. `test_dirs`가
-없어도 `graph-sync`의 `graphs[]`는 언제나 source·test·context 세 항목을
+없어도 `graph-sync`의 `graphs[]`는 언제나 source·test 두 항목을
 보고합니다 — 미설정·무효 test 항목은 `action: skip-unconfigured`로 남고
 빌드·`missing`·SessionStart 경고 대상이 아닙니다. 빌드되는 그래프 수와
 보고되는 스코프 수가 다를 수 있습니다. 키가 있으면 문자열 배열이어야 하고,
@@ -71,13 +70,6 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 
 `bouncer current --set`은 `--base`가 없으면 `config.base_branch`를 쓰고,
 그 키가 없으면 현재 체크아웃 브랜치를 씁니다.
-
-## Canonical context retrieval
-
-저장소 지식은 `.bouncer/context/**`만 정본이다. plan은 scaffold 전에 decision
-mode, 경로 확정 뒤 implementation mode를 쓰며 과거 설명은 history mode로
-찾는다. handoff는 query id, status, 선택 경로, graph version을 함께 보존한다.
-version mismatch, broad query, zero hit은 진단으로 남기며 후보를 추측하지 않는다.
 
 ## verify 래퍼 패턴
 
@@ -132,17 +124,6 @@ version mismatch, broad query, zero hit은 진단으로 남기며 후보를 추�
 - 이미 `bouncer init`을 돌린 저장소는 `antigravity` 블록과
   `bouncer-coordinator` 키를 직접 추가해야 합니다. 없어도 부모 모델을
   상속하므로 깨지지는 않습니다.
-
-## 컨텍스트 그래프
-
-`context_dirs`의 빌드는 화이트리스트 섹션만 뽑은 파생 트리
-`graphify-out/context-src/`를 스캔하고, `map.json`으로 결과 경로를 원본으로
-되돌립니다. 화이트리스트는 다음과 같습니다.
-
-- epic `index.md`의 `## Success criteria`
-- BP `explain.md`의 `## Background` / `## Intuition` / `## Code`
-- BP `index.md`의 `## Intent` / `## Contract`
-- `tasks/<NNN>/tasks.md`의 `## Goal & intent` / `## Interface`
 
 Graphify 설치와 오프라인 폴백은 [install.md](install.md#선택-graphify-경로-추천)에
 있습니다.

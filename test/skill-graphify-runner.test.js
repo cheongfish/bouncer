@@ -81,40 +81,34 @@ test('graphify-runner tells users how to enable graphify when skipping', () => {
   // 사람용 문서 경로를 두지 않으므로 그 문자열을 요구하지 않는다.
 });
 
-test('graphify-runner queries source and context graphs after plan-time sync', () => {
+test('graphify-runner queries source and test graphs after plan-time sync', () => {
   const md = readSkill('graphify-runner');
   assert.match(md, /graphify-out\/source/);
-  assert.match(md, /graphify-out\/context/);
-  assert.match(md, /context_dirs|source_dirs/);
+  assert.match(md, /graphify-out\/test/);
+  assert.match(md, /source_dirs/);
   assert.match(md, /graph-sync/);
+  // context graph 입력·질의·후보 안내가 남아 있으면 제거된 기능을 다시 가르친다.
+  assert.doesNotMatch(md, /context_dirs|graphify-out\/context|candidates\.context|context graph/);
 });
 
-test('graphify-runner reuses pre-scaffold context evidence and keeps it advisory', () => {
+test('graphify-runner syncs before resolve/skip and rank; no context flow', () => {
   const md = readSkill('graphify-runner');
-  assert.match(md, /pre-scaffold context discovery/i);
-  assert.match(md, /reuse.*context|context.*reuse/i);
-  assert.match(md, /do not.*sync.*context.*after authoring|after authoring.*do not.*sync.*context/i);
-  assert.match(md, /context candidates.*advisory|advisory.*context candidates/i);
-  // graph-suggest는 source 부재 시 unavailable이므로, 사전 discovery는 context 파일만
-  // 읽는 Graphify query를 써야 한다. 그렇지 않으면 source 상태가 Overlap 발견을 막는다.
-  assert.match(md, /"\$GRAPHIFY_BIN"\s+query[\s\S]{0,240}--graph\s+"graphify-out\/context\/graph\.json"/);
-  assert.match(md, /not[\s\S]{0,24}use\s+`bouncer graph-suggest`|instead of[\s\S]{0,80}graph-suggest/i);
-});
-
-test('graphify-runner guards an unavailable context query and records its basis', () => {
-  const md = readSkill('graphify-runner');
-  // 사전 discovery도 선택 기능이다. 실행 파일 또는 그래프가 없을 때 빈 명령을
-  // 실행하면 이후 수동 scope 확인까지 중단되므로, query 전에 두 입력을 함께 막는다.
-  assert.match(md, /CONTEXT_QUERY=/);
-  assert.match(md, /if\s+\[\[\s+-n\s+"\$GRAPHIFY_BIN"\s+&&\s+-f\s+"graphify-out\/context\/graph\.json"\s+\]\]/);
-  assert.match(md, /else[\s\S]{0,500}basis[\s\S]{0,500}(reason|이유|why)/i);
-});
-
-test('graphify-runner records unavailable basis evidence when context query exits nonzero', () => {
-  const md = readSkill('graphify-runner');
-  assert.match(md, /if\s*!\s*CONTEXT_RESULT=.*"\$GRAPHIFY_BIN"\s+query[\s\S]{0,180}2>&1/);
-  assert.match(md, /query exits\s+nonzero[\s\S]{0,220}non-empty\s+`result`\s+reason/i);
-  assert.match(md, /result:\s*"unavailable:\s*\$CONTEXT_RESULT"/);
+  const steps = md.slice(md.indexOf('## Steps'));
+  // Headings keep the period inside bold (`**….**`), so match that form.
+  const syncPos = steps.search(/\*\*Sync graphs after authoring\.\*\*/);
+  const resolvePos = steps.search(/\*\*Resolve executable and availability\.\*\*/);
+  const rankPos = steps.search(/\*\*Rank file candidates after authoring\.\*\*/);
+  assert.ok(syncPos >= 0, 'sync step present');
+  assert.ok(resolvePos >= 0, 'resolve/skip step present');
+  assert.ok(rankPos >= 0, 'rank step present');
+  // sync-derived skip checks must not precede plan-time graph-sync.
+  assert.ok(syncPos < resolvePos, 'sync before resolve/skip');
+  assert.ok(resolvePos < rankPos, 'resolve/skip before rank');
+  // basis graph enum is source|test only — stronger than token absence alone.
+  assert.match(md, /`graph`\s*\|\s*`source`\s*\\\|\s*`test`/);
+  assert.doesNotMatch(md, /`graph`\s*\|\s*`source`\s*\\\|\s*`test`\s*\\\|\s*`context`/);
+  assert.doesNotMatch(md, /pre-scaffold context|context candidates|candidates\.context/i);
+  assert.doesNotMatch(md, /graphify-out\/context|context_dirs/);
 });
 
 test('graphify-runner skips on source graph missing via graph-sync missing', () => {
@@ -143,7 +137,6 @@ test('graphify-runner calls graph-suggest after sync and records structured qual
   assert.match(md, /low-confidence/);
   assert.match(md, /graphify-out\/source/);
   assert.match(md, /graphify-out\/test/);
-  assert.match(md, /graphify-out\/context/);
   // 디렉터리 롤업은 파일 후보 계약으로 대체된다.
   assert.doesNotMatch(md, /Roll up to directories/);
   assert.match(md, /suggested_paths/);
@@ -154,13 +147,6 @@ test('graphify-runner leaves empty suggested_paths on low-confidence or unavaila
   assert.match(md, /low-confidence/);
   assert.match(md, /unavailable/);
   assert.match(md, /suggested_paths[\s\S]{0,160}(\[\]|empty|빈)/i);
-});
-
-test('graphify-runner records an unavailable context query when its binary is absent', () => {
-  const md = readSkill('graphify-runner');
-  // binary를 해석하지 못하면 context 그래프가 남아 있어도 질의하지 않았음을 남긴다.
-  assert.match(md, /`GRAPHIFY_BIN` is empty[\s\S]{0,600}context query[\s\S]{0,240}(not run|not queried|unavailable)/i);
-  assert.match(md, /context[\s\S]{0,240}(not run|not queried)[\s\S]{0,240}binary/i);
 });
 
 test('graphify-runner uses English ASCII noun queries and prioritizes ASCII seeds', () => {

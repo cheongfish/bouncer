@@ -114,9 +114,15 @@ test('init writes the exact config.json shape', () => {
   // Empty tmp repo → no candidate dirs; source_dirs is detected, not hard-coded.
   // tmp 디렉터리는 git이 아니라 탐지가 실패한다. 키를 추측해 넣지 않는다.
   init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
-  assert.deepStrictEqual(JSON.parse(read(repo, '.bouncer/config.json')), {
+  const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  // 신규 config와 공개 예제 모두 context graph 입력 키를 두지 않는다.
+  assert.ok(!Object.hasOwn(cfg, 'context_dirs'));
+  assert.ok(!Object.hasOwn(
+    JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.example.json'), 'utf8')),
+    'context_dirs',
+  ));
+  assert.deepStrictEqual(cfg, {
     source_dirs: [],
-    context_dirs: ['.bouncer/context'],
     graphify: { enabled: true },
     verify: 'npm test',
     verify_allowlist: [...DEFAULT_VERIFY_ALLOWLIST],
@@ -593,7 +599,6 @@ test('ready bootstrap without promote reports candidate and leaves config bytes 
   const cfgPath = path.join(repo, '.bouncer/config.json');
   const disabled = {
     source_dirs: ['src'],
-    context_dirs: ['.bouncer/context'],
     graphify: { enabled: false },
     verify: 'npm test',
     base_branch: 'develop',
@@ -613,7 +618,6 @@ test('ready bootstrap with promote:true flips only graphify.enabled', () => {
   const cfgPath = path.join(repo, '.bouncer/config.json');
   const existing = {
     source_dirs: ['custom'],
-    context_dirs: ['.bouncer/context'],
     graphify: { enabled: false },
     verify: 'make test',
     base_branch: 'main',
@@ -630,6 +634,7 @@ test('ready bootstrap with promote:true flips only graphify.enabled', () => {
   });
   assert.strictEqual(res.graphifyPromotion, 'promoted');
   const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.ok(!Object.hasOwn(cfg, 'context_dirs'));
   assert.strictEqual(cfg.graphify.enabled, true);
   assert.deepStrictEqual(cfg.verify, 'make test');
   assert.deepStrictEqual(cfg.base_branch, 'main');
@@ -644,7 +649,6 @@ test('ready bootstrap promote+install records bin and preserves other keys', () 
   const bin = '.bouncer/.venv/bin/graphify';
   const existing = {
     source_dirs: ['custom'],
-    context_dirs: ['.bouncer/context'],
     graphify: { enabled: false },
     verify: 'make test',
     base_branch: 'main',
@@ -665,6 +669,7 @@ test('ready bootstrap promote+install records bin and preserves other keys', () 
   });
   assert.strictEqual(res.graphifyPromotion, 'promoted');
   const cfg = JSON.parse(read(repo, '.bouncer/config.json'));
+  assert.ok(!Object.hasOwn(cfg, 'context_dirs'));
   assert.strictEqual(cfg.graphify.enabled, true);
   assert.strictEqual(cfg.graphify.bin, bin);
   assert.deepStrictEqual(cfg.verify, 'make test');
