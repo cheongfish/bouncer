@@ -66,7 +66,7 @@ self-hit 비율은 `1/2`이다. 정책 임계치(pre-scaffold current-draft 허�
 3. authoring 뒤 context를 다시 sync하거나 직접 query하지 않는다. 그러면 현재 draft의
    Touch/태그가 context seed로 되돌아오는 순환을 막을 수 있다.
 4. 후보, confidence, basis와 self-hit를 보여 준 뒤에도 사용자가 `affected_paths`를
-   확인·수정한다. G4 evidence와 그 확인 순서는 변하지 않는다.
+   확인·수정한다. 그 확인 순서는 변하지 않는다.
 
 ## 정책 판정
 
@@ -79,7 +79,7 @@ self-hit 비율은 `1/2`이다. 정책 임계치(pre-scaffold current-draft 허�
 | self-hit | pre-scaffold 실패 아님 | 세 사례와 합산하지 않음. 별도 draft `1/2`는 사후 실패 모델이며 이 분기 조건이 아님 |
 | 발견 기여 | 없음 | extra_paths `0`, top-k recall이 기준선보다 높지 않음 |
 
-**권고: 현 advisory 역할을 유지한다.** context 결과만으로 G4 품질이나
+**권고: 현 advisory 역할을 유지한다.** context 결과만으로 품질이나
 `affected_paths`를 승인하지 않는다. 오추천이 늘지 않았고 pre-scaffold
 self-hit도 실패가 아니며, 발견 기여도 없어 context를 승인 근거로 격상할
 측정값이 없다.

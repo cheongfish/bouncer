@@ -62,9 +62,9 @@ What shrinks (five things only):
    documents total **100 lines or fewer**.
 2. **Gated task sections** — **G10** requires only `Goal & intent`, `Touch`,
    and `Checklist` on a light blueprint. `Interface` and `Do not touch` are
-   neither templated nor demanded. Approved scope is untouched: **G3–G5**,
-   and **G11** judge an ordinary commit task exactly as they judge a full one, so
-   an empty `affected_paths` or an empty `scope_evidence.basis` still fails.
+   neither templated nor demanded. Approved scope is untouched: **G3–G5**
+   (G4 is retired), and **G11** judge an ordinary commit task exactly as they
+   judge a full one, so an empty `affected_paths` still fails.
    **G12** stays wired on light and judges a `Do not touch` section the same
    way when one is present — the light template ships none, so a light plan
    normally gives it nothing to judge.
@@ -90,7 +90,7 @@ What stays the same:
   `explain.md` are still authored and gated.
 - Ordinary commit-task gate judgments **G1–G8** and **G11–G17** are unchanged in the light path
   (G16 comprehension at finalize; G17 staged scope at commit).
-  G15 is retired. Only **G18** (not applied) and the **G10** section list
+  G4 and G15 are retired. Only **G18** (not applied) and the **G10** section list
   differ, and both differences follow from the document set above rather than
   from any agent judgment.
 - Canonical context remains the only repository-knowledge source at finalize.
