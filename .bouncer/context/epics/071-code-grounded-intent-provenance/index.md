@@ -52,6 +52,14 @@ bouncer:
 26. 빈 `affected_paths`(G5), Touch가 정당화하지 않는 경로(G11), Do not touch와 겹치는 경로(G12)는 계속 plan gate에서 거절된다.
 27. `/bouncer-plan`과 scope-confirm reference는 intent·Explain·Graphify 후보로 `affected_paths`를 채우거나 넓히지 않고 사용자가 확정한 값만 기록한다고 기술한다.
 28. 반환 타입에 `x is T`·`asserts x is T`를 쓴 TypeScript 파일의 함수도 `bouncer intent`가 source 정의로 찾는다. 이 저장소에서 `node scripts/bouncer intent --symbol isNumericContextId`가 `status: resolved`를 반환하고 `symbol_ref.path`가 `scripts/src/lib/paths.ts`다.
+29. 임시 Git 저장소에서 Bouncer 초기화부터 intent 조회, Task commit, Explain provenance, 후속 함수 변경까지 이어지는 종단 회귀가 통과한다.
+30. 같은 이름의 source 함수가 둘이면 `bouncer intent`가 `ambiguous`와 opaque candidate 목록을 반환하고, 명시한 candidate만 다시 선택한다.
+31. 종단 회귀의 Task commit에는 `Bouncer-Task`와 `Bouncer-Intent` trailer가 각각 한 번 있으며 Explain 행의 stable Task ID와 일치한다.
+32. 종단 회귀의 Explain SHA는 소문자 8자리이고 resolver candidate의 commit 좌표는 소문자 40자리다.
+33. 같은 함수를 후속 Task commit이 바꾸면 앞선 intent candidate가 `possibly-superseded`로 분류된다.
+34. Plan 전제 점검과 SessionStart 경로가 `graphify-out/context/` 또는 `graphify-out/context-src/`를 생성하거나 읽지 않는다.
+35. 종단 회귀의 Graphify 결과는 source·test scope만 포함한다.
+36. 종단 회귀를 포함한 `npm run ci`가 통과한다.
 
 ## Out of scope
 
@@ -66,3 +74,4 @@ bouncer:
 * [002 Function intent resolver](blueprints/002-function-intent-resolver/index.md) - 현재 함수 정의에서 Git commit과 연결된 Task·Explain 의도를 역추적한다.
 * [003 코드 우선 Plan 전환](blueprints/003-code-first-plan-cutover/index.md) - Plan이 현재 코드와 함수 의도 조회로 근거를 읽고 G4·S9 범위 근거 검사를 없앤다.
 * [004 Context graph 제거](blueprints/004-context-graph-removal/index.md) - context graph의 CLI·build·질의·설정·문서 표면을 없애고 Graphify를 source·test 두 scope로 줄인다.
+* [005 터미널 의도 provenance 종단 검증](blueprints/005-terminal-verification/index.md) - 임시 Git 저장소에서 함수 선택부터 commit·Explain·후속 intent와 source/test Graphify까지 하나의 종단 회귀로 검증한다.
