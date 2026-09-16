@@ -114,12 +114,12 @@ test('spec-authoring writes explicit task dependency and parallel-ready frontmat
   assert.match(md, /boolean|불리언|true|false/);
 });
 
-test('spec-authoring consumes selected canonical context without promotion', () => {
+test('spec-authoring consumes resolver-selected intent evidence without promotion', () => {
   const md = readSkill('spec-authoring');
   assert.doesNotMatch(md, /distill/i);
-  assert.match(md, /caller-selected canonical documents/);
-  assert.match(md, /query id, mode, status, and graph version/);
-  assert.match(md, /broad or zero-hit[\s\S]*never authorizes guessed evidence/);
+  assert.match(md, /intent evidence/);
+  assert.match(md, /historical/);
+  assert.doesNotMatch(md, /context-search/);
   assert.match(md, /explain-diff/);
   assert.match(md, /Korean bodies/);
 });

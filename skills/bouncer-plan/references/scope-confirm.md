@@ -1,14 +1,15 @@
 When confirming affected_paths, read this reference.
 
 For each `tasks/<NNN>/tasks.md` under the blueprint, first show that task's
-structured Graphify evidence — role `candidates` (`implementation` / `test` /
-`context`) with scores and basis, `quality.status` / `quality.confidence`, and
-non-empty `quality.reasons` (especially on `low-confidence` or `unavailable`).
-Then show `scope_evidence.suggested_paths` as the narrower file-path advisory
-list (empty when quality is low-confidence/unavailable). Only after that
-display, return to the numbered step's **ACQ — affected_paths**. Do not seed or
-modify `affected_paths` automatically from `suggested_paths` or `candidates`;
-write only the user's confirmed value into that task document's frontmatter.
+`graph-suggest` stdout when a source graph is available — role `candidates`
+(`implementation` / `test`) with scores, `quality.status` /
+`quality.confidence`, and non-empty `quality.reasons` (especially on
+`low-confidence` or `unavailable`). Then show any narrower file-path advisory
+list from that stdout (empty when quality is low-confidence/unavailable). Only
+after that display, return to the numbered step's **ACQ — affected_paths**.
+Intent, Explain, and Graphify candidates never set, fill, or widen
+`affected_paths`; write only the user's confirmed value into that task
+document's frontmatter.
 
 **Contract blast check (before user confirm).** When the task Interface
 changes a serialized shape, gate input, or exported contract (field names,
@@ -30,11 +31,6 @@ hit list minus Do not touch; rewrite Goal so it does not claim files outside
 the list (Goal ⊆ Touch). Commit scope is the same set: every path that must
 be staged for `/bouncer-commit` belongs in `affected_paths`, or commit-safety
 blocks it.
-
-**Context re-ground.** After the user confirms each task's `affected_paths`,
-run `bouncer context-search --mode implementation --query <english anchors>`
-and pass the selected canonical documents to final authoring. Repeat after a
-path-list change and preserve broad/zero-hit status without guessed results.
 
 `execution_kind: verification`인 종단 fan-in node는 이 확인의 예외다.
 Graphify scope 제안과 ACQ를 만들지 않고 `affected_paths: []`를 유지한다.

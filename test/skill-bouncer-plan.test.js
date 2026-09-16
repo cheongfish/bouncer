@@ -111,17 +111,38 @@ test('bouncer-plan recommends minimality (advisory) and keeps graphify-runner', 
   assert.match(md, /unavailable|skip|fallback|manual/i);
 });
 
-test('bouncer-plan states that G4 requires a recorded graph basis', () => {
-  assert.match(md, /G4[^\n]*basis|basis[^\n]*G4/);
-  assert.match(md, /scaffold[^\n]*empty list|empty list[^\n]*basis/i);
+test('bouncer-plan discovers code first and resolves function intent before scaffold', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const discoverAt = body.indexOf('1. **Discover.**');
+  const scaffoldAt = body.indexOf('2. **Scaffold.**');
+  const intentAt = body.indexOf('bouncer intent --symbol', discoverAt);
+  assert.ok(intentAt > discoverAt && intentAt < scaffoldAt);
+  const discover = body.slice(discoverAt, scaffoldAt);
+  assert.match(discover, /ambiguous[\s\S]{0,240}--candidate/);
+  assert.match(discover, /unresolved[\s\S]{0,40}unlinked[\s\S]{0,240}(continue|proceed)/i);
+  assert.match(discover, /historical/);
+  assert.match(discover, /(intent|Explain)[\s\S]{0,160}(do not|never)[\s\S]{0,60}(set|widen|fill)[\s\S]{0,40}affected_paths/i);
 });
 
-test('bouncer-plan records G4 basis evidence before affected_paths confirmation', () => {
+test('plan skill and references drop context search and scope evidence', () => {
   const { body } = parseFrontmatter(mainMd);
-  const basisAt = body.indexOf("Record G4's non-empty `scope_evidence.basis`");
-  const scopeAt = body.indexOf('4. **Scope confirm');
-  assert.ok(basisAt >= 0, 'G4 basis recording is explicit');
-  assert.ok(scopeAt > basisAt, 'basis evidence precedes affected_paths confirmation');
+  const scope = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/scope-confirm.md'), 'utf8');
+  assert.doesNotMatch(body, /distill/i);
+  assert.doesNotMatch(scope, /distill/i);
+  assert.equal(fs.existsSync(path.join(root, 'skills/bouncer-plan/references/distill-preflight.md')), false);
+  assert.match(scope, /(intent|Explain|Graphify)[\s\S]{0,160}(do not|never)[\s\S]{0,60}(set|widen|fill)[\s\S]{0,40}affected_paths/i);
+  for (const rel of [
+    'skills/bouncer-plan/SKILL.md',
+    'skills/bouncer-plan/references/scope-confirm.md',
+    'skills/bouncer-plan/references/graphify-suggestions.md',
+    'skills/bouncer-plan/references/context-review.md',
+    'references/discovery/index.md',
+    'references/spec-authoring/index.md',
+  ]) {
+    const text = fs.readFileSync(path.join(root, rel), 'utf8');
+    assert.doesNotMatch(text, /context-search|graphify-out\/context|scope_evidence/, rel);
+  }
 });
 
 test('bouncer-plan shows role candidates and quality before affected_paths confirm', () => {
@@ -154,18 +175,6 @@ test('bouncer-plan step 1 cites the named discovery handoff outputs', () => {
   assert.match(body, /Edge cases & failure modes/);
   assert.match(body, /Overlap/);
   assert.match(body, /실패 모드|failure mode/i);
-});
-
-test('bouncer-plan searches prior context before scaffold and keeps it outside approval scope', () => {
-  const { body } = parseFrontmatter(mainMd);
-  const discoverAt = body.indexOf('1. **Discover.**');
-  const scaffoldAt = body.indexOf('2. **Scaffold.**');
-  const contextDiscoveryAt = body.indexOf('pre-scaffold context discovery');
-  const scopeAt = body.indexOf('4. **Scope confirm');
-  assert.ok(contextDiscoveryAt > discoverAt && contextDiscoveryAt < scaffoldAt);
-  assert.match(body, /context candidates.*advisory|advisory.*context candidates/i);
-  assert.match(body, /do not.*(?:confirm|set|write).*affected_paths.*context|context.*do not.*affected_paths/i);
-  assert.ok(scopeAt > scaffoldAt, 'affected_paths confirmation remains after authoring');
 });
 
 test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => {
@@ -335,20 +344,6 @@ test('bouncer-plan authors and reviews task DAG before approval', () => {
   assert.match(body, /parallel_safe|병렬/);
   assert.match(body, /충돌|overlap|conflict/i);
   assert.match(body, /G19|plan gate[\s\S]{0,120}DAG|DAG[\s\S]{0,120}plan gate|depends_on[\s\S]{0,200}validate/i);
-});
-
-test('bouncer-plan uses context-search preflight and implementation re-ground', () => {
-  const { body } = parseFrontmatter(mainMd);
-  const scope = fs.readFileSync(
-    path.join(root, 'skills/bouncer-plan/references/scope-confirm.md'),
-    'utf8',
-  );
-  assert.doesNotMatch(body, /distill/i);
-  assert.doesNotMatch(scope, /distill/i);
-  assert.match(body, /context-search --mode decision/);
-  assert.match(scope, /context-search --mode implementation/);
-  assert.match(body, /query id, status,[\s\S]*graph version/);
-  assert.equal(fs.existsSync(path.join(root, 'skills/bouncer-plan/references/distill-preflight.md')), false);
 });
 
 test('bouncer-plan keeps contract blast, inventory, and verification-node rules in scope-confirm.md', () => {

@@ -16,12 +16,11 @@ user first. Used from `/bouncer-plan`.
 
 ## Steps
 
-1. **Pre-read** — Before framing, consume the caller's context-search result
-   from the already-synced context graph and epic indexes under
-   `.bouncer/context/epics/`. Preserve its query id, mode, status, graph
-   version, and selected canonical paths. Use
-   its prior decisions, predecessor blueprints, and constraints only to inform
-   `Overlap`; candidates remain advisory data and never set `affected_paths`.
+1. **Pre-read** — Before framing, consume the caller's code-search hits and
+   `bouncer intent` results for related functions, plus epic indexes under
+   `.bouncer/context/epics/`. Use resolver-selected non-historical Explain
+   bodies only to inform `Overlap`; intent and Explain remain advisory data
+   and never set `affected_paths`.
 2. **Request** — Capture the user's ask in their words; note constraints and
    open questions.
 3. **Goal** — State the outcome in one or two sentences.
@@ -31,9 +30,9 @@ user first. Used from `/bouncer-plan`.
 7. **Edge cases & failure modes** — Ask for edge cases and failure modes the
    change must handle or deliberately reject.
 8. **Overlap** — Ask how this request overlaps with existing epic/blueprint
-   streams and prior context decisions; include the pre-scaffold context-search
-   evidence, distinguish it from the current draft when present, and capture
-   reuse vs. new work.
+   streams and prior decisions; include the caller's intent/Explain evidence
+   and epic-index hits, distinguish them from the current draft when present,
+   and capture reuse vs. new work.
 9. **Confirmation** — Present the framing (all six handoff outputs) and get
    explicit user confirmation before moving on.
 
@@ -44,8 +43,8 @@ In one clarifying pass, cover at least:
 - Goal, scope, explicit non-goals, and success criteria
 - Edge cases the change must survive
 - Failure modes (what breaks, and what the change must reject)
-- Overlap with existing epic/blueprint streams and canonical context decisions
-  (caller query id, status, graph version, and selected paths)
+- Overlap with existing epic/blueprint streams and resolver-selected intent
+  evidence (Explain sections that are not historical)
 
 ## Guardrails
 
@@ -53,8 +52,8 @@ In one clarifying pass, cover at least:
 - Prefer concrete, testable success criteria over vague aspirations.
 - If the request is still ambiguous after one clarifying pass, ask again rather
   than inventing scope.
-- Do not stop discovery solely because epic indexes or graph candidates are
-  missing; record the broad/zero-hit diagnosis and continue.
+- Do not stop discovery solely because epic indexes or intent provenance are
+  missing; record the gap and continue.
 
 ## Return
 

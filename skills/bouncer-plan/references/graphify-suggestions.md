@@ -1,24 +1,15 @@
 When generating Graphify suggestions, read this reference.
 
-Before scaffold, use the `graphify-runner` skill
-(`references/graphify-runner/index.md`) to sync and directly query the existing
-**context** graph for discovery Overlap. That direct Graphify query names
-`graphify-out/context/graph.json`; do not use `bouncer graph-suggest`, which
-loads source and cannot discover context when source is unavailable. After
-authoring, use `graph-suggest` for file-path ranking only when source is
-available and reuse the pre-scaffold context evidence; do not sync or directly
-query context after authoring. Then write structured
-`bouncer.scope_evidence` into each `tasks/<NNN>/tasks.md` under the blueprint:
-`suggested_paths` (file paths only), paired `quality` + role `candidates`, and a
-non-empty `basis` entry list for source·test·context. If graphify is unavailable,
-it leaves `suggested_paths` empty, records `quality.status: unavailable` with
-reasons, empty role candidates, and a graceful fallback `basis` with
-`producer: graphify` (per-graph `status` such as `skip-disabled` / `missing`),
-tells the user how to enable Graphify (`bouncer init` for a fresh bootstrap, or
-`bouncer init --promote-graphify` on an existing project — same path
-graphify-runner prints; do not edit `config.json` by hand), and says so so the
-user can seed paths manually. On `low-confidence`, keep role candidates for
-review but leave `suggested_paths` empty.
+After authoring, use `bouncer graph-suggest` for file-path ranking only when a
+**source** graph is available (and optionally **test**). Show the stdout
+candidates and `quality` / `reasons` before step 4 confirmation. Do not sync
+or directly query a context graph, and do not write suggestion output into
+task frontmatter. If Graphify is unavailable or source is missing, leave the
+advisory list empty, tell the user how to enable Graphify (`bouncer init` for
+a fresh bootstrap, or `bouncer init --promote-graphify` on an existing project —
+same path graphify-runner prints; do not edit `config.json` by hand), and say
+so so the user can seed paths manually. On `low-confidence`, keep role
+candidates for review but treat the narrower path list as empty.
 
 When composing the plan-time `--query` and `--seed` values, shrink the search
 space the same way graphify-runner does:
@@ -29,13 +20,8 @@ space the same way graphify-runner does:
    change (ASCII paths, function names, anchors).
 3. **Deletion targets as seeds** — if the plan deletes files, seed those paths
    directly so dependent neighbors still rank.
-4. **User confirmation** — Graphify candidates, including context candidates,
-   are advisory; write
+4. **User confirmation** — Graphify candidates are advisory; write
    `affected_paths` only after the user confirms.
 
-Scaffold leaves `basis` as an empty list on purpose, so this step must run: G4
-fails until a real non-empty basis entry array is recorded. Existing
-`bouncer.graph` and evidence without `quality`/`candidates` are read only for
-legacy compatibility and are never a new authoring target. Suggestions never
-write or modify `affected_paths` automatically — show role candidates and
-quality reasons first, then confirm paths with the user.
+Suggestions never write or modify `affected_paths` automatically — show role
+candidates and quality reasons first, then confirm paths with the user.

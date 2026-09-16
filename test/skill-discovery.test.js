@@ -36,11 +36,10 @@ test('generic skills omit legacy protocol and methodology assumptions', () => {
 
 // 프레이밍 사전 읽기는 preflight 출력 + baseline 경로. 전량 --all stdout 주입이 아니다.
 
-test('discovery uses context-search status and canonical overlap evidence', () => {
+test('discovery uses bouncer intent and code-grounded overlap evidence', () => {
   const md = readSkill('discovery');
   assert.doesNotMatch(md, /distill/i);
-  assert.match(md, /query id, mode, status, graph/);
+  assert.match(md, /bouncer intent/);
   assert.match(md, /Edge cases & failure modes/);
-  assert.match(md, /canonical context decisions/);
-  assert.match(md, /broad\/zero-hit diagnosis/);
+  assert.doesNotMatch(md, /context-search|query id|graph version/);
 });
