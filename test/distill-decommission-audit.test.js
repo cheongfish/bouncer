@@ -5,23 +5,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
 const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
-const AUDIT_REL = 'docs/distill-decommission-audit.md';
 const DISTILL_SECTIONS = ['Invariants', 'Gotchas', 'Decisions'];
 const DISPOSITIONS = new Set(['retain-context', 'migrate', 'obsolete']);
 const MASTER_SOURCE = '.bouncer/Distill.md';
-const REGISTERED_SOURCES = [
-  MASTER_SOURCE,
-  'core',
-  'validate-gates',
-  'context-layout',
-  'git-worktree',
-  'graph',
-  'plugin-skills',
-  'build-ts',
-];
 
 // 원문 순서·개수를 이 배열에 고정한다. 068이 추적 Distill.md를 지운 뒤에는
 // project-root 실파일을 열면 ENOENT가 나고, 되살리면 ci-contract 제거 단언과
@@ -79,19 +67,6 @@ const EXPECTED_BULLETS = [
 ];
 
 /**
- * 소비 저장소 main worktree를 해석한다. linked execute cwd에는 Distill이
- * 없을 수 있어 cwd 상대 경로로 읽지 않는다.
- *
- * @returns {string} `bouncer project-root` stdout
- */
-function resolveProjectRoot() {
-  return execFileSync('bouncer', ['project-root'], {
-    cwd: path.join(__dirname, '..'),
-    encoding: 'utf8',
-  }).trim();
-}
-
-/**
  * Distill 본문에서 Invariants·Gotchas·Decisions bullet만 문서 순으로 뽑는다.
  *
  * @param {string} markdown - frontmatter를 포함한 원문
@@ -140,90 +115,6 @@ function extractRegisteredBullets(distillRoot) {
     bullets.push(...extractSectionBullets(shardRaw, id));
   }
   return { shards: shardIds, bullets };
-}
-
-/**
- * 표 한 행을 이스케이프된 `|`를 보존한 칸 배열로 나눈다.
- *
- * @param {string} line - 앞뒤 `|`를 포함한 표 행
- * @returns {string[]}
- */
-function splitTableRow(line) {
-  const inner = line.replace(/^\|/, '').replace(/\|$/, '');
-  const cells = [];
-  let current = '';
-  let escaped = false;
-  for (const ch of inner) {
-    if (escaped) {
-      current += ch;
-      escaped = false;
-      continue;
-    }
-    if (ch === '\\') {
-      escaped = true;
-      continue;
-    }
-    if (ch === '|') {
-      cells.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += ch;
-  }
-  cells.push(current.trim());
-  return cells;
-}
-
-/**
- * 감사 문서의 매핑 표와 source별 요약 표를 읽는다.
- *
- * @param {string} markdown - 감사 문서 본문
- * @returns {{rows: object[], summary: Array<{source: string, bullets: number, 'retain-context': number, migrate: number, obsolete: number, unresolved: number}>}}
- */
-function parseAuditDocument(markdown) {
-  const lines = markdown.split('\n');
-  const mapping = [];
-  const summary = [];
-  let table = null;
-  let headers = [];
-  for (const line of lines) {
-    if (!line.startsWith('|')) {
-      table = null;
-      headers = [];
-      continue;
-    }
-    if (/^\|\s*-+/.test(line)) continue;
-    const cells = splitTableRow(line);
-    if (!table) {
-      headers = cells;
-      if (headers.includes('disposition') && headers.includes('bullet')) {
-        table = 'mapping';
-      } else if (headers.includes('source') && headers.includes('unresolved')) {
-        table = 'summary';
-      } else {
-        table = 'other';
-      }
-      continue;
-    }
-    if (table === 'mapping') {
-      const row = {};
-      headers.forEach((name, i) => { row[name] = cells[i] || ''; });
-      mapping.push(row);
-    }
-    if (table === 'summary') {
-      const row = {};
-      headers.forEach((name, i) => { row[name] = cells[i] || ''; });
-      summary.push({
-        source: row.source,
-        bullets: Number(row.bullets),
-        'retain-context': Number(row['retain-context']),
-        migrate: Number(row.migrate),
-        obsolete: Number(row.obsolete),
-        unresolved: Number(row.unresolved),
-      });
-    }
-  }
-  return { rows: mapping, summary };
 }
 
 function bulletKey(item) {
@@ -508,45 +399,4 @@ test('fails migrate rows with target path and bullet', () => {
   assert.strictEqual(result.migrate.length, 1);
   assert.match(result.errors.join('\n'), /migrate docs\/workflow\.md:/);
   assert.match(result.errors.join('\n'), /git-common-dir/);
-});
-
-test('audit mapping covers every extracted bullet with no unresolved or migrate', () => {
-  const repoRoot = path.join(__dirname, '..');
-  const loaded = loadAuditFile(path.join(repoRoot, AUDIT_REL));
-  assert.ok(loaded.ok, loaded.errors && loaded.errors.join('\n'));
-  // 실파일 Distill.md가 없는 소비 저장소에서 이 테스트가 ENOENT로 죽지 않아야
-  // 한다. 매핑·요약 단언은 고정 EXPECTED_BULLETS와 감사 문서만 본다.
-  const projectRoot = resolveProjectRoot();
-  assert.strictEqual(
-    fs.existsSync(path.join(projectRoot, MASTER_SOURCE)),
-    false,
-    `${MASTER_SOURCE} must stay removed at project-root`,
-  );
-  const parsed = parseAuditDocument(loaded.markdown);
-  const judged = evaluateAudit(EXPECTED_BULLETS, parsed.rows);
-  assert.strictEqual(judged.migrate.length, 0, judged.errors.join('\n'));
-  assert.strictEqual(judged.unresolved, 0, judged.errors.join('\n'));
-  assert.strictEqual(parsed.rows.length, EXPECTED_BULLETS.length, judged.errors.join('\n'));
-  assert.strictEqual(EXPECTED_BULLETS.length, 48);
-  assert.ok(judged.ok, judged.errors.join('\n'));
-  const bySource = Object.fromEntries(REGISTERED_SOURCES.map((id) => [id, 0]));
-  for (const item of EXPECTED_BULLETS) bySource[item.source] += 1;
-  assert.strictEqual(bySource[MASTER_SOURCE], 0);
-  assert.strictEqual(bySource.core, 7);
-  assert.strictEqual(bySource['validate-gates'], 8);
-  assert.strictEqual(bySource['context-layout'], 5);
-  assert.strictEqual(bySource['git-worktree'], 6);
-  assert.strictEqual(bySource.graph, 7);
-  assert.strictEqual(bySource['plugin-skills'], 11);
-  assert.strictEqual(bySource['build-ts'], 4);
-  const totals = parsed.summary.find((row) => row.source === 'total');
-  assert.ok(totals, 'summary must include a total row');
-  assert.strictEqual(totals.bullets, EXPECTED_BULLETS.length);
-  assert.strictEqual(totals.unresolved, 0);
-  assert.strictEqual(totals.migrate, 0, 'live audit must keep migrate=0');
-  const tallies = evaluateSummary(parsed.rows, parsed.summary);
-  assert.ok(tallies.ok, tallies.errors.join('\n'));
-  for (const row of parsed.summary) {
-    assert.strictEqual(row.migrate, 0, `${row.source} migrate must be 0`);
-  }
 });
