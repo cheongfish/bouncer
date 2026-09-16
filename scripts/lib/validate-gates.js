@@ -10,8 +10,6 @@ const scope = require("./scope");
 const { makeAllowed, isRuntimeArtifact } = scope;
 const validateDocs = require("./validate-docs");
 const { defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf, } = validateDocs;
-const validateStructural = require("./validate-structural");
-const { normalizeScopeEvidence } = validateStructural;
 const runtimeState = require("./runtime-state");
 const { verifyLedgerPathFor } = runtimeState;
 const validateSections = require("./validate-sections");
@@ -385,8 +383,8 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             }
         }
         // G10 필수 절. light는 Goal & intent·Touch·Checklist 셋만 요구한다.
-        // 승인 범위 판정(G4·G5·G11·G12)은 두 경로가 똑같이 받는다 — 줄어드는 것은
-        // 서술 분량이지 범위 증적이 아니다.
+        // 승인 범위 판정(G5·G11·G12)은 두 경로가 똑같이 받는다 — 줄어드는 것은
+        // 서술 분량이지 범위 증적이 아니다. G4는 결번.
         const sectionKeys = isLight
             ? ['goal', 'touch', 'checklist']
             : ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
@@ -398,7 +396,6 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             : (docs.tasks ? [docs.tasks] : []);
         if (tasksList.length === 0) {
             add('G3', 'tasks.status != ready', 'tasks');
-            add('G4', 'tasks.graph.suggested_paths missing', 'tasks');
             add('G5', 'tasks.affected_paths missing or empty', 'tasks');
             add('G10', `tasks missing implementation-ready sections: ${sectionKeys.join(', ')}`, 'tasks');
             return;
@@ -413,13 +410,9 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
                 addTask('G3', 'tasks.status != ready');
             }
             // YAML data가 null/undefined면 `.bouncer`에서 터지는 게 기존 실패 형태다.
-            // `data &&`로 막으면 G4/G5가 missing 메시지로 fail-open 한다.
+            // `data &&`로 막으면 G5가 missing 메시지로 fail-open 한다.
             const taskBouncer = tasksDoc.data.bouncer;
             const executionKind = executionKindOf(taskBouncer);
-            const scopeEvidence = normalizeScopeEvidence(taskBouncer);
-            if (executionKind !== 'verification' && (!scopeEvidence.evidence || scopeEvidence.error)) {
-                addTask('G4', scopeEvidence.error || 'tasks.scope_evidence missing');
-            }
             const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
             if (executionKind !== 'verification' && (!Array.isArray(ap) || ap.length === 0)) {
                 addTask('G5', 'tasks.affected_paths missing or empty');

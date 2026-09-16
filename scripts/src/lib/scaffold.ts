@@ -261,7 +261,6 @@ function scaffoldTask({
   // 호출자가 scale을 주지 않으면 blueprint가 선언한 값을 따른다. 나중에 붙는
   // task도 같은 blueprint 계약을 쓰게 하려는 것 — 새 플래그를 만들지 않는다.
   const taskScale = requireScale(scale === undefined ? blueprintScale(repoRoot, bp) : scale);
-  const isLight = taskScale === 'light';
   const body = (templateName: string) => templateBody(
     templateNameFor(templateName, taskScale), { epicId, blueprintId, name: taskId },
   );
@@ -293,38 +292,8 @@ function scaffoldTask({
         parallel_safe: DEFAULT_PARALLEL_SAFE,
         dependency_gate: DEFAULT_DEPENDENCY_GATE,
         affected_paths: [],
-        scope_evidence: {
-          producer: 'graphify',
-          generated_at: timestamp,
-          suggested_paths: [],
-          // 새 문서는 scope_evidence만 쓴다. 빈 리스트는 G4가 거절한다 —
-          // graphify-runner가 실제 조회 근거를 채우기 전에는 계획을 승인하지 않기 위함.
-          basis: [],
-        },
       }),
     body(tasksBase)));
-  // yaml.dump는 주석을 직렬화하지 못한다. basis를 예시 엔트리로 채우면
-  // S9/G4가 통과해 미작성 계획이 승인되므로, dump 뒤에 YAML 주석만 끼워
-  // 필드·허용값을 보여주고 파싱 값은 []로 둔다.
-  // light는 이 5줄짜리 YAML 주석을 넣지 않는다 — 계획 문서 100줄 예산에서
-  // 가장 큰 고정비다. basis 자체는 light에서도 G4가 그대로 요구하고,
-  // 필드(graph/status/query/result)와 허용값은 skills/graphify-runner가 갖는다.
-  if (!isLight) {
-    const abs = path.join(repoRoot, tasksRel);
-    const hinted = fs.readFileSync(abs, 'utf8').replace(
-      /^([ \t]*)basis: \[\][ \t]*$/m,
-      [
-        '$1# 유효 엔트리 필드: graph, status, query, result — 예시는 주석이라 파싱되지 않는다',
-        '$1# - graph: source | test | context',
-        '$1#   status: updated | reused | fail-skip | skip-disabled | missing',
-        '$1#   query: <graphify 조회>',
-        '$1#   result: <한 줄 요약>',
-        '$1# quality/candidates는 graph-suggest 뒤에만 채운다 — scaffold가 제조하지 않는다',
-        '$1basis: []',
-      ].join('\n'),
-    );
-    fs.writeFileSync(abs, hinted);
-  }
 
   created.push(writeRel(repoRoot, verifyRel,
     bouncerDoc('bouncer.verification', `${taskId} verification`, `Verification for ${taskId}`, verifyRel,

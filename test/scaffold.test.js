@@ -143,12 +143,7 @@ test('scaffoldBlueprint writes five plan docs (no explain) with numeric child id
   assert.strictEqual(tasks.bouncer.blueprint_id, '001');
   assert.strictEqual(tasks.bouncer.status, 'draft');
   assert.deepStrictEqual(tasks.bouncer.affected_paths, []);
-  assert.deepStrictEqual(tasks.bouncer.scope_evidence, {
-    producer: 'graphify',
-    generated_at: TS,
-    suggested_paths: [],
-    basis: [],
-  });
+  assert.strictEqual(tasks.bouncer.scope_evidence, undefined);
   assert.strictEqual(tasks.bouncer.graph, undefined);
   const review = readDoc(path.join(repo, `${base}/tasks/001/review.md`)).data;
   assert.strictEqual(review.bouncer.id, 'REVIEW-001');
@@ -446,7 +441,7 @@ test('scaffoldEpic ignores a project .bouncer/templates override', () => {
   assert.ok(body.includes('## Intent'));
 });
 
-test('scaffoldBlueprint leaves scope_evidence.basis empty so G4 needs recorded evidence', () => {
+test('scaffoldBlueprint omits scope_evidence from commit task frontmatter', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -454,14 +449,17 @@ test('scaffoldBlueprint leaves scope_evidence.basis empty so G4 needs recorded e
     blueprintId: '001', name: 'login', timestamp: TS,
   });
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
-  const tasks = readDoc(path.join(repo, `${base}/tasks/001/tasks.md`)).data;
-  assert.deepStrictEqual(tasks.bouncer.scope_evidence.basis, []);
+  const tasksPath = path.join(repo, `${base}/tasks/001/tasks.md`);
+  const tasks = readDoc(tasksPath).data;
+  const rawTasks = fs.readFileSync(tasksPath, 'utf8');
+  assert.strictEqual(tasks.bouncer.scope_evidence, undefined);
+  assert.doesNotMatch(rawTasks, /scope_evidence/);
   assert.strictEqual(tasks.bouncer.graph, undefined);
 });
 
-// 에이전트가 S9/G4·G18/G14 입력 모양을 빈 값과 함께 보게 한다.
-// 주석 예시는 파싱되면 안 되고, 검증 값은 비워 빈 계획이 승인되지 않는다.
-test('scaffold leaves basis and findings empty so gates require authoring', () => {
+// 에이전트가 G18/G14 입력 모양을 빈 값과 함께 보게 한다.
+// findings는 비워 두어 빈 계획이 승인되지 않는다.
+test('scaffold leaves findings empty so gates require authoring', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
   scaffoldBlueprint({
@@ -469,13 +467,12 @@ test('scaffold leaves basis and findings empty so gates require authoring', () =
     blueprintId: '001', name: 'login', timestamp: TS,
   });
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
-  const tasks = readDoc(path.join(repo, `${base}/tasks/001/tasks.md`)).data;
+  const tasksPath = path.join(repo, `${base}/tasks/001/tasks.md`);
+  const tasks = readDoc(tasksPath).data;
+  const rawTasks = fs.readFileSync(tasksPath, 'utf8');
   const ctxReview = readDoc(path.join(repo, `${base}/context-review.md`)).data;
-  assert.deepStrictEqual(tasks.bouncer.scope_evidence.basis, []);
-  assert.deepStrictEqual(tasks.bouncer.scope_evidence.suggested_paths, []);
-  // scaffold는 품질 판정을 제조하지 않는다 — runner가 graph-suggest 뒤에 채운다.
-  assert.strictEqual(tasks.bouncer.scope_evidence.quality, undefined);
-  assert.strictEqual(tasks.bouncer.scope_evidence.candidates, undefined);
+  assert.strictEqual(tasks.bouncer.scope_evidence, undefined);
+  assert.doesNotMatch(rawTasks, /scope_evidence/);
   assert.deepStrictEqual(ctxReview.bouncer.context_review.findings, []);
   assert.strictEqual(ctxReview.bouncer.status, 'pending');
 });
@@ -539,9 +536,9 @@ test('full scaffold bodies stay byte-identical to the shipped templates', () => 
   for (const [rel, body] of Object.entries(expected)) {
     assert.strictEqual(readDoc(path.join(repo, base, rel)).body, body, rel);
   }
-  // basis 힌트 주석은 full 계약의 일부 — light에서만 빠진다.
+  // scope_evidence는 scaffold가 더 이상 쓰지 않는다 — 원문에도 문자열이 없어야 한다.
   const rawTasks = fs.readFileSync(path.join(repo, base, 'tasks/001/tasks.md'), 'utf8');
-  assert.match(rawTasks, /# 유효 엔트리 필드: graph, status, query, result/);
+  assert.doesNotMatch(rawTasks, /scope_evidence/);
 });
 
 test('--scale full and an omitted --scale produce identical trees', () => {
@@ -574,10 +571,13 @@ test('scale light writes four plan docs and no context-review', () => {
   const bp = readDoc(path.join(repo, base, 'index.md')).data;
   assert.strictEqual(bp.bouncer.scale, 'light');
   assert.strictEqual(bp.bouncer.commit_type, 'feat');
-  // 승인 범위 증적은 light에서도 그대로 비어 있는 채로 시작한다 (G4/G5).
-  const tasks = readDoc(path.join(repo, base, 'tasks/001/tasks.md')).data;
+  // 승인 범위는 light에서도 affected_paths만 비어 있는 채로 시작한다 (G5).
+  const tasksPath = path.join(repo, base, 'tasks/001/tasks.md');
+  const tasks = readDoc(tasksPath).data;
+  const rawTasks = fs.readFileSync(tasksPath, 'utf8');
   assert.deepStrictEqual(tasks.bouncer.affected_paths, []);
-  assert.deepStrictEqual(tasks.bouncer.scope_evidence.basis, []);
+  assert.strictEqual(tasks.bouncer.scope_evidence, undefined);
+  assert.doesNotMatch(rawTasks, /scope_evidence/);
 });
 
 test('the light plan document set stays within 100 lines total', () => {
@@ -704,11 +704,15 @@ test('scaffoldTask writes compatible DAG defaults and templates expose the field
   scaffoldTask({
     repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
   });
-  const tasks002 = readDoc(path.join(repo, `${base}/tasks/002/tasks.md`)).data;
+  const tasks002Path = path.join(repo, `${base}/tasks/002/tasks.md`);
+  const tasks002 = readDoc(tasks002Path).data;
+  const rawTasks002 = fs.readFileSync(tasks002Path, 'utf8');
   assert.deepStrictEqual(tasks002.bouncer.depends_on, []);
   assert.strictEqual(tasks002.bouncer.parallel_safe, false);
   assert.strictEqual(tasks002.bouncer.dependency_gate, 'integrated');
   assert.strictEqual(tasks002.bouncer.execution_kind, 'commit');
+  assert.strictEqual(tasks002.bouncer.scope_evidence, undefined);
+  assert.doesNotMatch(rawTasks002, /scope_evidence/);
 
   const { TEMPLATES } = require('../scripts/lib/templates');
   assert.match(TEMPLATES['tasks.md'], /depends_on/);
