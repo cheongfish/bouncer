@@ -368,7 +368,7 @@ export = {
   'graph-suggest': {
     run: cmdGraphSuggest,
     usage: `  graph-suggest --query <text> [--seed <value>]...
-             Rank implementation/test/context file candidates from graphify graphs (JSON).
+             Rank implementation/test file candidates from graphify source/test graphs (JSON).
 `,
   },
   intent: {

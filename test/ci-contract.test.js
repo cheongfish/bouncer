@@ -118,7 +118,7 @@ test('tracked active surfaces reject runtime memory tokens outside the explicit 
     ['test/skill-spec-authoring.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/trust-boundary.test.js', { count: 1, kind: 'legacy-compatibility-regression' }],
     ['test/validate-gates.test.js', { count: 4, kind: 'legacy-compatibility-regression' }],
-    ['test/fixtures/graph-search-quality.json', { count: 2, kind: 'historical-corpus-identity' }],
+    ['test/fixtures/graph-search-quality.json', { count: 1, kind: 'historical-corpus-identity' }],
   ]);
   const scanned = git(root, [
     'ls-files', '--', 'README.md', 'CLAUDE.md', '.codex/agents', 'agents', 'docs',

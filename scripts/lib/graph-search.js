@@ -2,11 +2,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const graphScope = require("./graph-scope");
-const { DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT, DEFAULT_CONTEXT_OUT, realExcludeDirs, } = graphScope;
+const { DEFAULT_SOURCE_OUT, DEFAULT_TEST_OUT, realExcludeDirs, } = graphScope;
 // 점수표는 Task 003·평가 corpus가 같은 숫자를 재사용하므로 상수로 고정한다.
+// contextHit(+4)는 문서 seed 폭증·저신뢰 유발로 제거했다(TASKS-002).
 const SCORE = {
     uniqueSeedDefinition: 5,
-    contextHit: 4,
     implementationPath: 3,
     relationEdge: 2,
     connectedTest: 1,
@@ -18,7 +18,6 @@ const SCORE = {
 const ROLE_PRIORITY = {
     implementation: 0,
     test: 1,
-    context: 2,
 };
 // contains는 소유 확인에만 쓰고 BFS 확장 관계에서는 뺀다.
 const EXPAND_RELATIONS = new Set(['calls', 'imports', 'imports_from']);
@@ -93,7 +92,7 @@ function emptyResult(status, confidence, reasons) {
     return {
         status,
         confidence,
-        candidates: { implementation: [], test: [], context: [] },
+        candidates: { implementation: [], test: [] },
         suggested_paths: [],
         reasons: reasons.length > 0 ? reasons : [`${status}: no further detail`],
     };
@@ -376,11 +375,6 @@ function scoreFile(acc) {
     if (acc.flags.uniqueDef) {
         score += SCORE.uniqueSeedDefinition;
     }
-    if (acc.flags.contextHit) {
-        score += SCORE.contextHit;
-        if (!basis.some((b) => /context/i.test(b)))
-            basis.push('context hit for same feature');
-    }
     if (acc.role === 'implementation') {
         score += SCORE.implementationPath;
         basis.push('implementation path');
@@ -392,7 +386,7 @@ function scoreFile(acc) {
         score += SCORE.connectedTest;
         basis.push('connected test');
     }
-    if (acc.flags.genericOnly && !acc.flags.uniqueDef && !acc.flags.relation && !acc.flags.contextHit) {
+    if (acc.flags.genericOnly && !acc.flags.uniqueDef && !acc.flags.relation) {
         score += SCORE.genericNameOnly;
         if (!basis.some((b) => /generic/i.test(b)))
             basis.push('generic name only');
@@ -431,8 +425,9 @@ function sortCandidates(list, roleOf) {
     });
 }
 /**
- * context-first로 seed를 모은 뒤 source·test 관계를 확장하고 역할별 점수를 매긴다.
- * 그래프 본문은 데이터가 아니며 node·link·path만 소비한다.
+ * source·test graph만으로 seed를 확장하고 역할별 점수를 매긴다.
+ * context graph는 열지 않는다 — 문서 label seed가 후보를 폭증시키던 경로를 끊는다.
+ * 그래프 본문은 지시가 아니며 node·link·path만 소비한다.
  *
  * @param {{ repoRoot: string, query: string, seeds?: string[] }} opts
  * @returns {GraphSuggestResult} ranked|low-confidence|unavailable JSON 계약
@@ -446,28 +441,15 @@ function graphSuggest(opts) {
     const reasons = [];
     const sourcePath = path.join(repoRoot, DEFAULT_SOURCE_OUT, 'graph.json');
     const testPath = path.join(repoRoot, DEFAULT_TEST_OUT, 'graph.json');
-    const contextPath = path.join(repoRoot, DEFAULT_CONTEXT_OUT, 'graph.json');
     const sourceLoad = loadGraphFile(sourcePath);
     if (!sourceLoad.graph) {
         reasons.push(`source graph unavailable: ${sourceLoad.reason || 'unreadable'}`);
-        // context가 있어도 source 없이는 구현 확장이 불가능 — unavailable로 구분한다.
-        const ctxLoad = loadGraphFile(contextPath);
-        if (ctxLoad.graph && ctxLoad.graph.omissions.length > 0) {
-            reasons.push(`context omissions: ${ctxLoad.graph.omissions.slice(0, 5).join('; ')}`);
-        }
+        // source 없이는 구현 확장이 불가능 — unavailable로 구분한다.
         return emptyResult('unavailable', 'low', reasons);
     }
     const source = sourceLoad.graph;
     if (source.omissions.length > 0) {
         reasons.push(`source omissions: ${[...new Set(source.omissions)].slice(0, 8).join('; ')}`);
-    }
-    const contextLoad = loadGraphFile(contextPath);
-    const context = contextLoad.graph;
-    if (!context) {
-        reasons.push(`context graph missing: ${contextLoad.reason || 'unreadable'}`);
-    }
-    else if (context.omissions.length > 0) {
-        reasons.push(`context omissions: ${[...new Set(context.omissions)].slice(0, 8).join('; ')}`);
     }
     const testLoad = loadGraphFile(testPath);
     const testGraph = testLoad.graph;
@@ -483,76 +465,12 @@ function graphSuggest(opts) {
     const excludeDirs = exclude.dirs || [];
     const queryTokens = tokenize(query);
     const seedSet = new Set([...queryTokens, ...explicitSeeds]);
-    // context hit에서 경로·심볼을 seed로 추출
-    const contextHitPaths = new Set();
-    const contextSeedLabels = new Set();
-    if (context) {
-        for (const seed of seedSet) {
-            const seedKey = lookupKey(seed);
-            const lower = seed.toLowerCase();
-            for (const node of context.nodes) {
-                const labelHit = !!(node.label && seedKey && lookupKey(node.label) === seedKey);
-                const normHit = !!(node.norm_label && seedKey && lookupKey(node.norm_label) === seedKey);
-                const pathHit = node.source_file && (() => {
-                    const sf = toPosix(node.source_file).toLowerCase();
-                    // substring 남용 금지 — 정확 경로 또는 path segment 일치만.
-                    if (sf === lower)
-                        return true;
-                    return sf.split('/').includes(lower) || sf.endsWith(`/${lower}`);
-                })();
-                if (!labelHit && !normHit && !pathHit)
-                    continue;
-                if (node.source_file && isSafeRepoRelative(node.source_file)) {
-                    contextHitPaths.add(toPosix(node.source_file));
-                }
-                if (node.label && node.label.length >= 2)
-                    contextSeedLabels.add(node.label);
-            }
-        }
-    }
-    for (const label of contextSeedLabels)
-        seedSet.add(label);
-    for (const p of contextHitPaths)
-        seedSet.add(p);
     const seeds = [...seedSet];
-    reasons.push(`context seeds: ${contextSeedLabels.size} labels, ${contextHitPaths.size} paths`);
     reasons.push('relation filter: calls, imports, imports_from (depth ≤ 2); contains ownership only');
     const files = new Map();
-    // context 후보 기록
-    for (const p of contextHitPaths) {
-        const acc = ensureFile(files, p, 'context');
-        if (!acc)
-            continue;
-        acc.role = 'context';
-        acc.flags.contextHit = true;
-        acc.basis.add('context graph hit');
-    }
     const sourceExpand = expandFromSeeds(source, seeds, 'implementation', files, {
         excludeDirs,
     });
-    // context에서 추출한 심볼이 이 파일의 고유 정의면 같은 기능 hit(+4)
-    for (const [, acc] of files) {
-        if (acc.role !== 'implementation')
-            continue;
-        if (contextHitPaths.has(acc.path)) {
-            acc.flags.contextHit = true;
-            acc.basis.add('context hit for same feature');
-            continue;
-        }
-        const definedFromContext = [...acc.basis].some((b) => {
-            const m = /^defines unique seed (.+)$/.exec(b);
-            if (!m)
-                return false;
-            const definedKey = lookupKey(m[1]);
-            if (!definedKey)
-                return false;
-            return [...contextSeedLabels].some((label) => lookupKey(label) === definedKey);
-        });
-        if (definedFromContext) {
-            acc.flags.contextHit = true;
-            acc.basis.add('context hit for same feature');
-        }
-    }
     // 구현 후보 경로·비일반 심볼 — 테스트 연결은 관계 엣지로만 판정한다.
     const implSpecificLabels = new Set();
     for (const [p, acc] of files) {
@@ -663,7 +581,6 @@ function graphSuggest(opts) {
     }
     const implCandidates = [];
     const testCandidates = [];
-    const contextCandidates = [];
     for (const acc of files.values()) {
         const { score, basis } = scoreFile(acc);
         const cand = {
@@ -676,31 +593,25 @@ function graphSuggest(opts) {
             implCandidates.push(cand);
         else if (acc.role === 'test')
             testCandidates.push(cand);
-        else
-            contextCandidates.push(cand);
     }
     const byRole = (c) => {
         if (implCandidates.includes(c))
             return 'implementation';
-        if (testCandidates.includes(c))
-            return 'test';
-        return 'context';
+        return 'test';
     };
     const sortedImpl = sortCandidates(implCandidates, () => 'implementation');
     const sortedTest = sortCandidates(testCandidates, () => 'test');
-    const sortedContext = sortCandidates(contextCandidates, () => 'context');
     const pack = (status, confidence, extraReason) => ({
         status,
         confidence,
         candidates: {
             implementation: sortedImpl,
             test: sortedTest,
-            context: sortedContext,
         },
         suggested_paths: [],
         reasons: [...reasons, extraReason],
     });
-    // 질의·명시 seed만 본다. context가 자동 추가한 문서 경로는 고유 seed로 치지 않는다.
+    // 질의·명시 seed만 본다.
     const primarySeeds = [...new Set([...queryTokens, ...explicitSeeds])];
     const hasSpecificPrimary = primarySeeds.some((s) => {
         if (!s)
@@ -715,20 +626,11 @@ function graphSuggest(opts) {
     if (primarySeeds.length > 0 && !hasSpecificPrimary) {
         return pack('low-confidence', 'low', 'generic-only seeds; no unique symbol or path seed');
     }
-    // 저신뢰: source/context 기능 연결 부재 — 구현 부재보다 구체적 사유를 남긴다.
-    const contextHadSeeds = contextSeedLabels.size > 0 || contextHitPaths.size > 0;
-    const sourceLinked = sourceExpand.hitLabels.size > 0 || sourceExpand.startNodes > 0;
-    if (contextHadSeeds && !sourceLinked) {
-        const detail = sortedImpl.length === 0
-            ? 'no source/context functional link; no implementation candidates'
-            : 'no source/context functional link';
-        return pack('low-confidence', 'low', detail);
-    }
     // 저신뢰: 구현 후보 없음
     if (sortedImpl.length === 0) {
         return pack('low-confidence', 'low', 'no implementation candidates');
     }
-    // 저신뢰: 상위 결과가 test-only — 구현·테스트만 본다(context +4가 상위를 가로채지 않게).
+    // 저신뢰: 상위 결과가 test-only — 구현·테스트만 본다.
     // 최고 점수 티어가 전부 test이면 발동. low 구현이 뒤에 있어도 가리지 않는다.
     const codeFacing = sortCandidates([...sortedImpl, ...sortedTest], byRole);
     if (codeFacing.length > 0 && sortedTest.length > 0) {
@@ -765,7 +667,6 @@ function graphSuggest(opts) {
         candidates: {
             implementation: sortedImpl,
             test: sortedTest,
-            context: sortedContext,
         },
         suggested_paths: suggested,
         reasons,
