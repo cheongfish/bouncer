@@ -7,6 +7,26 @@
 
 ## [Unreleased]
 
+## [1.4.8] — 2026-09-16
+
+1.4.7 이후 task·커밋 provenance, 코드 우선 Plan, 워크플로 프롬프트 계약,
+context graph 제거. 커밋·Explain·함수 의도가 같은 Task ID로 이어지고, Plan은
+문서 그래프 대신 현재 코드와 함수 의도를 본다.
+
+### Added
+
+- **Task commit provenance** — 안정 Task ID trailer로 커밋 메시지와 Explain
+  행을 연결한다.
+- **함수 의도 해석** — 정의 색인·Git provenance·조회 CLI로 함수 단위 의도를
+  해석한다.
+- **워크플로 프롬프트 runtime contract** — 공통 런타임 계약을 정본으로 두고
+  진입 스킬·authority brief 기본 적재를 줄인다.
+
+### Changed
+
+- **코드 우선 Plan** — 탐색을 현재 코드와 함수 의도 조회로 바꾸고, plan
+  gate의 Graphify 범위 근거 검사를 제거한다.
+
 ### Removed
 
 - **context-search와 context graph** — 공개 CLI `context-search`, 설정 키
