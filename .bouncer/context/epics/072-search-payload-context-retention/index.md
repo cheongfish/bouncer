@@ -52,3 +52,5 @@ bouncer:
 
 * [Graphify 추천 payload 상한](blueprints/001-graphify-compact-payload/index.md) - `graph-search` traversal과 `graph-suggest` 기본·debug payload를 결정적 상한으로 제한한다.
 * [Intent 런타임 지연 적재 경계](blueprints/002-lazy-intent-runtime-boundary/index.md) - 일반 CLI 호출에서 intent 구현을 제외하고 `bouncer intent` 실행 시점에만 resolver를 적재한다.
+* [완료 컨텍스트 보존 감사와 이관](blueprints/003-retention-audit-migration/index.md) - 신규 finalize의 장기 intent 승격을 바로잡고 legacy closed Blueprint를 안전하게 분류·이관하는 명령을 제공한다.
+* Legacy context compaction (계획) - BP-003 감사가 `eligible`로 반환한 정확한 Blueprint 경로에만 실제 정리를 적용해 success criterion 9를 완료한다.
