@@ -62,6 +62,39 @@ intent_anchor: 'task-<ddd>' }`다. `/bouncer-commit`이 커밋 직후 `tasks.md`
 규제·감사·완전한 실행 재현처럼 전체 원본이 필요하면 Bouncer 기본 보존 밖
 별도 보관 수단을 쓴다. 이 문서는 그 운영 절차를 정의하지 않는다.
 
+## Retention migration (legacy closed Blueprint)
+
+신규 finalize가 닫는 Blueprint는 위 보존 기준으로 이미 축약된다. 과거에
+`closed`로 남았지만 transient 문서가 아직 있는 Blueprint는
+`bouncer migrate retention`으로만 소급 정리한다.
+
+기본 호출(`bouncer migrate retention`)은 쓰기 없는 감사다. 정본
+`.bouncer/context/epics/**/blueprints/**` 아래 closed Blueprint를 경로순으로
+읽어 각 경로에 다음 상태 중 하나와 근거, 승격·삭제 예정 경로를 JSON으로
+반환한다.
+
+| 상태 | 의미 |
+| --- | --- |
+| `eligible` | Explain이 있고, task가 안전한 승격 입력이며, 장기 설계 절이 있어 transient를 지울 수 있다 |
+| `blocked-missing-explain` | Explain 부재·파싱 실패. transient가 없어도 이 상태를 `already-compacted`보다 우선한다 |
+| `blocked-invalid-task` | task 파싱 실패, 비정본 ID·부모 ID, 중복 번호 등으로 승격 입력을 만들 수 없다 |
+| `blocked-insufficient-intent` | 파싱 가능한 task에 `Goal & intent` 등 장기 allowlist 본문이 없다 |
+| `already-compacted` | Explain이 있고 transient 문서가 하나도 없다 |
+
+적용은 `bouncer migrate retention --apply --blueprint <dir>`만 허용한다.
+`<dir>`는 저장소 상대 정본 Blueprint 경로여야 하고, 감사 결과가 그 경로에 대해
+`eligible`일 때만 Explain `## Tasks`를 먼저 쓴 뒤 존재하는
+`tasks.md`·`verification.md`·`review.md`·`context-review.md`를 삭제한다.
+`--apply`만, `--blueprint`만, 절대 경로·`..` 탈출, Blueprint dir·`explain.md` 등
+쓰기·삭제 대상의 realpath가 저장소 밖인 symlink, open Blueprint, 비적격 상태는
+쓰기 전에 거절한다. 승격·삭제 중 실패하면 적용 전 바이트로 복구를 시도하고,
+복구가 다시 실패해도 `ok:false`와 사유를 반환한다(uncaught로 끝내지 않는다).
+기존 `task_commits`와 누락 provenance는 합성·교체하지 않는다.
+
+실제 legacy corpus(001–071) 일괄 적용은 이 명령의 감사 결과를 사용자가 승인한
+뒤 BP-004 운영 범위에서 수행한다. 이 Blueprint(003)는 감사·단일 경로 적용
+경계만 제공한다.
+
 ## Explain의 역할
 
 `tasks/<NNN>/tasks.md`는 에이전트가 현재 작업을 수행하기 위한 단기
