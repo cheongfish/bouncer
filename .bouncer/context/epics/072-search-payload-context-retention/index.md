@@ -51,3 +51,4 @@ bouncer:
 ## Blueprints
 
 * [Graphify 추천 payload 상한](blueprints/001-graphify-compact-payload/index.md) - `graph-search` traversal과 `graph-suggest` 기본·debug payload를 결정적 상한으로 제한한다.
+* [Intent 런타임 지연 적재 경계](blueprints/002-lazy-intent-runtime-boundary/index.md) - 일반 CLI 호출에서 intent 구현을 제외하고 `bouncer intent` 실행 시점에만 resolver를 적재한다.
