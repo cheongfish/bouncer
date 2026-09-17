@@ -1,0 +1,723 @@
+---
+type: bouncer.explain
+title: 적격 레거시 컨텍스트 축약
+description: Explain for BP-004 legacy context compaction drive
+resource: .bouncer/context/epics/072-search-payload-context-retention/blueprints/004-legacy-context-compaction/explain.md
+tags:
+  - bouncer
+  - explain
+timestamp: '2026-09-17T17:56:20.000+09:00'
+bouncer:
+  id: EXPLAIN-004
+  epic_id: '072'
+  blueprint_id: '004'
+  status: published
+  comprehension:
+    - range_from: develop
+      range_to: de2492847f0801347497a878c72b004efe4a25b0
+      diff_sha: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      quiz_score: 3/3
+      disposition: 퀴즈 3/3 정답. eligible 54경로 선정·index/explain 보존·실패 즉시 중단을 확인함.
+      recorded_at: '2026-09-17T17:56:20+09:00'
+  task_commits:
+    - task: EPIC-072/BP-004/TASK-001
+      sha: 5ee2511b
+      intent_anchor: task-001
+  coordinator:
+    base: 086f1ff2d492f209b4d2edf8b63d87505be3dc91
+    integration_head: de2492847f0801347497a878c72b004efe4a25b0
+    integration_branch: feat/072-004-legacy-context-compaction
+    revision: null
+    worktrees:
+      - /home/cheongwoon/workspace/chunjae/etc/bouncer/.worktrees/072/004/integration
+      - /home/cheongwoon/workspace/chunjae/etc/bouncer/.worktrees/072/004/workers/001
+    tasks:
+      - id: '001'
+        status: integrated
+        sha: 5ee2511bd8f3885993753275d9eb075a424e5f6c
+        branch: bouncer/072-004-001
+        scope_revision: null
+        paths: []
+        actual_paths:
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/context-review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/explain.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/context-review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/explain.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/context-review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/explain.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/context-review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/explain.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/verification.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/review.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/tasks.md
+          - .bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/context-review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/explain.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/context-review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/explain.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md
+          - .bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/explain.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/context-review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/explain.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/context-review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/explain.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/context-review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/explain.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/context-review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/explain.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/verification.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/review.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/tasks.md
+          - .bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/context-review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/explain.md
+          - .bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/tasks/001/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/tasks/001/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/tasks/001/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/context-review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/explain.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/context-review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/explain.md
+          - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/context-review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/explain.md
+          - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/context-review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/explain.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/context-review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/explain.md
+          - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/context-review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/explain.md
+          - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/context-review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/explain.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/verification.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/review.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/tasks.md
+          - .bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/explain.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/context-review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/explain.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/context-review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/explain.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/context-review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/explain.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/context-review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/explain.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/context-review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/explain.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/review.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/tasks.md
+          - .bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/context-review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/explain.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/explain.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/context-review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/explain.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/context-review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/explain.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/verification.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/context-review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/explain.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/review.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/tasks.md
+          - .bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/explain.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/context-review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/explain.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/context-review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/explain.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/context-review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/explain.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/verification.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/review.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/tasks.md
+          - .bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/context-review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/explain.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/context-review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/explain.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/context-review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/explain.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/verification.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/review.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/tasks.md
+          - .bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/context-review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/explain.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/context-review.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/explain.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/context-review.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/explain.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/verification.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/review.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/tasks.md
+          - .bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/context-review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/explain.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/001/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/001/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/001/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/002/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/002/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/002/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/003/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/003/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/003/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/004/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/004/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/004/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/005/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/005/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/005/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/context-review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/explain.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/001/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/001/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/001/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/002/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/002/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/002/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/context-review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/explain.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/context-review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/explain.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/context-review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/explain.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/context-review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/explain.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/context-review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/explain.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/verification.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/context-review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/explain.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/review.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/tasks.md
+          - .bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/context-review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/explain.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/001/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/001/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/001/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/002/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/002/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/002/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/003/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/003/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/003/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/004/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/004/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/001-context-first-ranking/tasks/004/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/context-review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/explain.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/context-review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/explain.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/context-review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/explain.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/context-review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/explain.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/verification.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/review.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/tasks.md
+          - .bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/verification.md
+    decisions:
+      - task: '001'
+        decision: 'Accepted TASKS-001: 54 explain promotions + 560 transient deletes under affected_paths. Plan hygiene scaffold-comment strip on active BP-004 index.md and tasks/001/review.md. Commit used in-memory isTaskWorkflowArtifact override (product filter stages 0 for CONTEXT_ROOT); override not shipped. Discovery review: no findings.'
+---
+# Explain
+
+## Background
+
+BP-003이 closed Blueprint에 대한 retention 감사·단일 경로 apply를 심었다. 이번 Blueprint는 그 계약으로 `eligible` 54개 경로만 축약해 Epic success criterion 9를 닫는다. 제품 코드는 건드리지 않고, 감사 JSON이 열거한 transient 문서만 제거한다.
+
+## Intuition
+
+이미 끝난 Blueprint 폴더에서 장기 Explain만 남기고, 실행 증거(tasks/verification/review/context-review)는 경로 단위로 치운다.
+
+## Code
+
+- 적용 명령: `bouncer migrate retention --apply --blueprint <exact-path>` (감사 순서, 경로당 1회)
+- 회귀: `node --test test/retention-migration.test.js test/cli-project-commands.test.js`
+- 저장소 검증: `npm run ci`
+- 드라이브 결과: worker `bouncer/072-004-001` @ `5ee2511bd8f3885993753275d9eb075a424e5f6c` → integration `feat/072-004-legacy-context-compaction` @ `de2492847f0801347497a878c72b004efe4a25b0`
+- 실제 커밋 경로 614개(54× explain 수정 + 560 삭제). `index.md`는 바이트 동일.
+
+## Quiz
+
+1. 이번 apply 대상 선정 기준은?
+   - A) closed Blueprint 전체
+   - B) 감사 상태가 `eligible`인 승인 54개 exact path만
+   - C) epic `072` 아래 모든 Blueprint
+
+2. apply 후 각 대상에서 반드시 남아야 하는 것은?
+   - A) `index.md`와 `explain.md`(기존 provenance 포함)
+   - B) `tasks.md`와 `verification.md`
+   - C) `context-review.md`만
+
+3. 한 경로 apply가 실패하면?
+   - A) 남은 eligible 경로를 계속 적용한다
+   - B) blocked로 바꾸고 재시도한다
+   - C) 즉시 중단하고 뒤 경로를 실행하지 않는다
+
+## 이해 상태
+
+- 정답: 1-B, 2-A, 3-C
+- 응답: 1-B, 2-A, 3-C
+- 채점: 3/3 전부 정답
+- disposition: 퀴즈 3/3 정답. eligible 54경로 선정·index/explain 보존·실패 즉시 중단을 확인함.
+- quiz_score: 3/3 · range develop..de249284 · recorded_at 2026-09-17T17:56:20+09:00
+
+## Tasks
+
+### Task 001
+
+#### Goal & intent
+
+현재 checkout의 BP-003 감사가 `eligible`로 판정한 54개 Blueprint에만 단일 경로 apply를 수행한다. 각 경로의 index와 Explain 파일, 기존 SHA·provenance는 남기고 감사 결과가 열거한 transient 문서만 제거한다.
+
+#### Interface
+
+- 제공: 각 승인 경로에 `bouncer migrate retention --apply --blueprint <exact-path>`를 호출하고, 적용 전후 감사 JSON으로 대상 상태와 보존 결과를 판정한다.
+- 거부: `eligible`이 아닌 경로, 승인 목록 밖 경로, 절대 경로, `..` 탈출, symlink 탈출과 open Blueprint에는 apply를 호출하지 않는다. 감사 결과가 기준선과 다르면 새 목록을 추론하지 않고 계획으로 돌아온다.
+
+#### Do not touch
+
+- `.bouncer/context/index.md` — bundle 목록은 이번 corpus 정리 대상이 아니다.
+- `.bouncer/context/epics/072-search-payload-context-retention/index.md` — 승인된 Epic 계약과 Blueprint 목록을 보존한다.
+- `scripts/` — BP-003 retention 구현과 생성 CommonJS를 변경하지 않는다.
+- `test/` — 이미 검증된 BP-003 계약을 새 동작으로 넓히지 않는다.
+- `docs/` — 보존 정책과 CLI 문서를 변경하지 않는다.
+- `bouncer-roadmap.md` — roadmap은 이 실행 task의 산출물이 아니다.
