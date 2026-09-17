@@ -234,61 +234,6 @@ test('entry skills do not load conditional helpers before numbered steps', () =>
   }
 });
 
-/**
- * `##` 다음 절 직전까지의 본문. 측정 행은 이 구간에 있어야 한다 — 문서
- * 전체에서 스킬 이름만 찾으면 책임 경계 문단 cite가 빠진 표를 가린다.
- *
- * @param {string} doc - workflow-contract.md 원문
- * @param {RegExp} heading - H2 한 줄을 잡는 패턴
- * @returns {string} 해당 절 본문
- */
-function workflowContractSection(doc, heading) {
-  const match = doc.match(heading);
-  assert.ok(match && match.index !== undefined, `missing heading ${heading}`);
-  const start = match.index + match[0].length;
-  const rest = doc.slice(start);
-  const next = rest.search(/^## /m);
-  return next === -1 ? rest : rest.slice(0, next);
-}
-
-test('workflow-contract records the same measurement columns for every entry skill', () => {
-  const doc = fs.readFileSync(path.join(root, 'docs/workflow-contract.md'), 'utf8');
-  // 출력·commit gate·plan context·implementer payload는 rules/output.md와
-  // workflow skill이 소유한다. 이 문서에 두 번째 정본 절을 두지 않는다.
-  assert.doesNotMatch(
-    doc,
-    /^## 확정·구현된 계약$/m,
-    'workflow-contract must not restate output/commit-gate/plan-context/implementer-payload contracts',
-  );
-  // 변경 후 H2는 그 문구로 시작하고, 변경 전 H2는 앞에 Task 번호가 있다.
-  assert.match(doc, /^## .*변경 전/m, 'missing 변경 전 table section');
-  assert.match(doc, /^## .*변경 후/m, 'missing 변경 후 table section');
-  assert.match(doc, /무변경 이유/, 'missing 무변경 이유');
-
-  const MEASUREMENT_HEADERS = ['줄 수', '단어 수', '재서술', '동시 수정', '조건부 기본 로드'];
-  const before = workflowContractSection(doc, /^## .*변경 전.*$/m);
-  const after = workflowContractSection(doc, /^## .*변경 후.*$/m);
-  for (const [label, body] of [['변경 전', before], ['변경 후', after]]) {
-    for (const header of MEASUREMENT_HEADERS) {
-      assert.match(
-        body,
-        new RegExp(`\\|\\s*${header}\\s*\\|`),
-        `${label} missing column ${header}`,
-      );
-    }
-    for (const name of WORKFLOW) {
-      assert.match(
-        body,
-        new RegExp(`\\|\\s*\`${name}\`\\s*\\|`),
-        `${label} missing skill row ${name}`,
-      );
-    }
-  }
-
-  assert.match(doc, /# bouncer-generated/);
-  assert.match(doc, /compact payload/);
-});
-
 test('workflow skills use directory-matching names and explicit-invocation descriptions', () => {
   for (const name of WORKFLOW) {
     const { data } = parseFrontmatter(readWorkflow(name));

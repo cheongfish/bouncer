@@ -36,7 +36,7 @@ claude plugin install bouncer@chunjae-tools --scope local     # 본인만
 `.gitignore` 추가는 **안내만** 하므로 알려주는 항목을 직접 넣으세요.
 
 부트스트랩은 바로 커밋해야 합니다. (`/bouncer-plan` 전에만 가능).
-`config.json`은 blueprint 커밋 범위 밖이라, 안 넣으면 첫 finalize가 막힙니다. 자세한 내용은 [docs/context-versioning.md](docs/context-versioning.md).
+`config.json`은 blueprint 커밋 범위 밖이라, 부트스트랩 직후 별도로 커밋하세요.
 
 ```bash
 git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
@@ -73,17 +73,17 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 
 문서는 독자에 따라 두 곳에 있습니다. 목차는 [docs/README.md](docs/README.md)입니다.
 
-- **[`docs/`](docs/)** — 사람용. 설치, 실패 대처, 설계 배경, 기여.
+- **[`docs/`](docs/)** — 사람용. 설치, 워크플로, 설정.
 - **[`rules/`](rules/)** — 에이전트 런타임 정본. 스킬과 `CLAUDE.md`가 인용하므로,
   고치면 에이전트 행동이 바뀝니다.
 
-설계 배경은 [ARCHITECTURE.md](docs/ARCHITECTURE.md)에 있습니다. PreToolUse
-커밋 가드는 실수 방지용이며 악의적 우회를 막지 않습니다. 신뢰 경계는
+게이트와 CLI 계약은 [`rules/gates.md`](rules/gates.md),
+[`rules/cli.md`](rules/cli.md)에 있습니다. PreToolUse 커밋 가드는 실수 방지용이며
+악의적 우회를 막지 않습니다. 신뢰 경계는
 [`CLAUDE.md`](CLAUDE.md) hard rule 1이 정본입니다.
 
 ## Contributing · License
 
-개발 환경, 커밋·PR 규약, CI는 [contributing.md](docs/contributing.md)를 보세요.
 버그와 막힌 지점은 이슈 템플릿(**버그** / **막힌 지점**)으로 받습니다.
 보안 취약점은 공개 이슈가 아니라 [SECURITY.md](SECURITY.md)의 비공개 경로로
 제보하세요. 참여 기준은 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)입니다.
