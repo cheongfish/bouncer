@@ -93,8 +93,11 @@ read code/tests/repo context needed to implement.
    error, leave a Korean comment naming which errors this handler absorbs and
    why that is safe. This governs the code this task writes or changes — do not
    retrofit handlers you were not sent to touch; report that instead.
-4. **Detailed comments** — Detail and examples:
-   `references/implementation/index.md`. Do not restate the rule here.
+4. **Detailed comments** — Before editing code, read
+   `references/implementation/index.md`. This is mandatory for every commit
+   task; it contains the Korean docstring contract requiring Summary, Args for
+   every parameter, and Returns on each non-trivial function or method you
+   change. Do not restate the rule here.
 5. **Tests first** — For each behavior change, write the failing test, run it,
    and confirm it fails for the expected reason before writing the
    implementation. A test that passes before the change proves nothing, and

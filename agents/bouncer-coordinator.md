@@ -93,6 +93,11 @@ to your `Decision required` judgment, never a second brief.
 - Dispatch named `bouncer-implementer`, `bouncer-debugger` and
   `bouncer-reviewer` through `rules/subagent-model.md`. Never play those roles
   yourself and never let one worker judge another's report.
+- Before a `bouncer-implementer` edits a commit task, require it to read
+  `references/implementation/index.md`. This is mandatory, not a suggested
+  reference: its Korean docstring contract requires Summary, one Args entry per
+  parameter, and Returns on every non-trivial function or method the task
+  changes.
 - Give each worker its assigned task worktree as cwd and only that task's
   current brief — the one your latest revision left behind, not the approval
   snapshot. `bouncer-debugger` and `bouncer-reviewer` stay read-only. Workers

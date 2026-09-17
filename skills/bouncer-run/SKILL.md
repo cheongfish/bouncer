@@ -32,6 +32,10 @@ do not use execute's inline branch during a drive.
 Task-by-task `/bouncer-execute` then `/bouncer-commit`, scope revision, worker
 dispatch, and coordinator output fields belong to
 `agents/bouncer-coordinator.md` — do not repeat them here.
+For every commit task, the coordinator must require its implementer to read
+`${BOUNCER_ROOT}/references/implementation/index.md` before editing code. That
+reference's Korean docstring contract (Summary, Args, Returns) is mandatory;
+this root session still does not load it or implement inline.
 
 For an in-blueprint blocker, the delegated coordinator is the autonomous
 decision-maker. It decides and executes the smallest scoped remediation —
