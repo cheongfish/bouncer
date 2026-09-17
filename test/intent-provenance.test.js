@@ -310,9 +310,33 @@ test('rename is followed and later linked edits mark earlier candidates possibly
       '',
       'first design of targetFn',
       '',
+      '#### Current behavior',
+      '',
+      'returns 1',
+      '',
+      '#### Target behavior',
+      '',
+      'returns rewritten value',
+      '',
       '#### Interface',
       '',
       'targetFn(): number',
+      '',
+      '#### Touch',
+      '',
+      '- `src/old-name.ts`',
+      '',
+      '#### Constraints',
+      '',
+      '- keep return type',
+      '',
+      '#### Do not touch',
+      '',
+      '- DO_NOT_TOUCH_MARKER',
+      '',
+      '#### Checklist',
+      '',
+      '- [ ] CHECKLIST_MARKER',
       '',
       '### Task 002',
       '',
@@ -320,9 +344,33 @@ test('rename is followed and later linked edits mark earlier candidates possibly
       '',
       'rewrite targetFn return',
       '',
+      '#### Current behavior',
+      '',
+      'returns 1 after rename',
+      '',
+      '#### Target behavior',
+      '',
+      'returns 2',
+      '',
       '#### Interface',
       '',
       'targetFn(): number',
+      '',
+      '#### Touch',
+      '',
+      '- `src/new-name.ts`',
+      '',
+      '#### Constraints',
+      '',
+      '- keep export name',
+      '',
+      '#### Do not touch',
+      '',
+      '- DO_NOT_TOUCH_MARKER',
+      '',
+      '#### Checklist',
+      '',
+      '- [ ] CHECKLIST_MARKER',
       '',
     ].join('\n'),
   });
@@ -333,14 +381,32 @@ test('rename is followed and later linked edits mark earlier candidates possibly
   const byTask = Object.fromEntries(result.candidates.map((item) => [item.task, item]));
   assert.equal(byTask['EPIC-071/BP-002/TASK-002'].commit, currentSha);
   assert.equal(byTask['EPIC-071/BP-002/TASK-002'].freshness, 'current');
-  assert.ok(byTask['EPIC-071/BP-002/TASK-002'].sections.includes('Goal & intent'));
-  assert.ok(byTask['EPIC-071/BP-002/TASK-002'].sections.includes('Interface'));
+  // buildTaskContext allowlist order among the six durable task sections (CT-001).
+  // Explain may also contribute Background/Intuition/Code ahead of these.
+  const durableOrder = [
+    'Goal & intent', 'Current behavior', 'Target behavior', 'Interface', 'Touch', 'Constraints',
+  ];
+  assert.deepEqual(
+    byTask['EPIC-071/BP-002/TASK-002'].sections.filter((name) => durableOrder.includes(name)),
+    durableOrder,
+  );
+  assert.ok(!byTask['EPIC-071/BP-002/TASK-002'].sections.includes('Do not touch'));
+  assert.ok(!byTask['EPIC-071/BP-002/TASK-002'].sections.includes('Checklist'));
   assert.match(byTask['EPIC-071/BP-002/TASK-002'].body, /rewrite targetFn return/);
+  assert.match(byTask['EPIC-071/BP-002/TASK-002'].body, /returns 2/);
+  assert.match(byTask['EPIC-071/BP-002/TASK-002'].body, /keep export name/);
+  assert.doesNotMatch(byTask['EPIC-071/BP-002/TASK-002'].body, /DO_NOT_TOUCH_MARKER|CHECKLIST_MARKER/);
   assert.equal(byTask['EPIC-071/BP-002/TASK-001'].commit, firstSha);
   assert.equal(byTask['EPIC-071/BP-002/TASK-001'].freshness, 'possibly-superseded');
-  assert.ok(byTask['EPIC-071/BP-002/TASK-001'].sections.includes('Goal & intent'));
-  assert.ok(byTask['EPIC-071/BP-002/TASK-001'].sections.includes('Interface'));
+  assert.deepEqual(
+    byTask['EPIC-071/BP-002/TASK-001'].sections.filter((name) => durableOrder.includes(name)),
+    durableOrder,
+  );
+  assert.ok(!byTask['EPIC-071/BP-002/TASK-001'].sections.includes('Do not touch'));
+  assert.ok(!byTask['EPIC-071/BP-002/TASK-001'].sections.includes('Checklist'));
   assert.match(byTask['EPIC-071/BP-002/TASK-001'].body, /first design of targetFn/);
+  assert.match(byTask['EPIC-071/BP-002/TASK-001'].body, /returns 1/);
+  assert.doesNotMatch(byTask['EPIC-071/BP-002/TASK-001'].body, /DO_NOT_TOUCH_MARKER|CHECKLIST_MARKER/);
   assert.equal(byTask['EPIC-071/BP-002/TASK-000'].commit, historicalSha);
   assert.equal(byTask['EPIC-071/BP-002/TASK-000'].freshness, 'historical');
   assert.equal(byTask['EPIC-071/BP-002/TASK-000'].body, '');

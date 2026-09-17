@@ -40,6 +40,13 @@ test('usage lists task-layout migration', () => {
   assert.match(capture([]).out, /task-layout \[--dry-run\]/);
 });
 
+test('usage lists retention dry-run and apply forms', () => {
+  const out = capture([]).out;
+  assert.match(out, /migrate\s+retention\b/);
+  assert.match(out, /Audit closed blueprints for retention \(dry-run/);
+  assert.match(out, /retention --apply --blueprint <dir>/);
+});
+
 test('every subcommand is listed in the usage text', () => {
   const r = capture([]);
   for (const name of SUBCOMMANDS) {

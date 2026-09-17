@@ -516,3 +516,411 @@ test('graph-suggest rejects duplicate --debug and valued --debug with exit 2', (
   assert.match(valued.err, /debug/i);
   assert.equal(valued.out, '');
 });
+
+test('migrate retention dry-run returns JSON audit without writes', () => {
+  const yaml = require('js-yaml');
+  const crypto = require('node:crypto');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-retention-'));
+  const bp = '.bouncer/context/epics/091-cli-retention/blueprints/001-sample';
+  const writeDoc = (rel, data, body = '# x\n') => {
+    const abs = path.join(repo, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
+  };
+  const hashTree = () => {
+    const out = {};
+    const walk = (absDir, relBase) => {
+      for (const name of fs.readdirSync(absDir).sort()) {
+        const abs = path.join(absDir, name);
+        const rel = relBase ? `${relBase}/${name}` : name;
+        if (fs.statSync(abs).isDirectory()) walk(abs, rel);
+        else out[rel] = crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+      }
+    };
+    const context = path.join(repo, '.bouncer/context');
+    if (fs.existsSync(context)) walk(context, '.bouncer/context');
+    return out;
+  };
+  writeDoc(`${bp}/index.md`, {
+    type: 'bouncer.blueprint',
+    title: 'Sample',
+    description: 'cli retention fixture',
+    resource: `${bp}/index.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: '001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'closed',
+      commit_type: 'feat',
+      scale: 'light',
+      supersedes: [],
+    },
+  });
+  writeDoc(`${bp}/explain.md`, {
+    type: 'bouncer.explain',
+    title: 'Explain',
+    description: 'cli retention explain',
+    resource: `${bp}/explain.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'EXPLAIN-001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'published',
+    },
+  }, '# Explain\n\n## Background\nx\n');
+
+  const compactedBefore = hashTree();
+  const result = capture(['migrate', 'retention', '--repo', repo]);
+  assert.strictEqual(result.code, 0, result.err);
+  const json = JSON.parse(result.out);
+  assert.strictEqual(json.ok, true);
+  assert.ok(Array.isArray(json.results));
+  assert.strictEqual(json.results[0].status, 'already-compacted');
+  assert.deepStrictEqual(hashTree(), compactedBefore);
+  assert.equal(result.err, '');
+
+  // eligible fixture — dry-run이 이미 축약된 경우만이 아니라 적격 대상에서도
+  // 바이트를 바꾸지 않는지 해시로 잠근다.
+  const eligibleBp = '.bouncer/context/epics/091-cli-retention/blueprints/002-eligible';
+  writeDoc(`${eligibleBp}/index.md`, {
+    type: 'bouncer.blueprint',
+    title: 'Eligible',
+    description: 'cli retention eligible',
+    resource: `${eligibleBp}/index.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: '002',
+      epic_id: '091',
+      blueprint_id: '002',
+      status: 'closed',
+      commit_type: 'feat',
+      scale: 'full',
+      supersedes: [],
+    },
+  });
+  writeDoc(`${eligibleBp}/explain.md`, {
+    type: 'bouncer.explain',
+    title: 'Explain',
+    description: 'cli retention explain',
+    resource: `${eligibleBp}/explain.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'EXPLAIN-002',
+      epic_id: '091',
+      blueprint_id: '002',
+      status: 'published',
+    },
+  }, '# Explain\n\n## Background\nx\n');
+  writeDoc(`${eligibleBp}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks',
+    title: 'Task 001',
+    description: 'fixture task',
+    resource: `${eligibleBp}/tasks/001/tasks.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001',
+      epic_id: '091',
+      blueprint_id: '002',
+      status: 'done',
+      execution_kind: 'commit',
+      affected_paths: ['scripts/src/lib/retention-migration.ts'],
+      commit_sha: 'deadbeef',
+      depends_on: [],
+      parallel_safe: false,
+      dependency_gate: 'integrated',
+    },
+  }, `# Tasks
+
+## Goal & intent
+CLI dry-run must not mutate eligible fixtures.
+
+## Interface
+auditRetention
+
+## Touch
+- \`scripts/src/lib/retention-migration.ts\`
+
+## Constraints
+- no writes on dry-run
+
+## Do not touch
+- marker
+
+## Checklist
+- [ ] marker
+`);
+  writeDoc(`${eligibleBp}/tasks/001/verification.md`, {
+    type: 'bouncer.verification',
+    title: 'Verify 001',
+    description: 'fixture verify',
+    resource: `${eligibleBp}/tasks/001/verification.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'VERIFY-001',
+      epic_id: '091',
+      blueprint_id: '002',
+      status: 'passed',
+    },
+  }, '# Verification\n');
+  writeDoc(`${eligibleBp}/tasks/001/review.md`, {
+    type: 'bouncer.review',
+    title: 'Review 001',
+    description: 'fixture review',
+    resource: `${eligibleBp}/tasks/001/review.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001',
+      epic_id: '091',
+      blueprint_id: '002',
+      status: 'approved',
+    },
+  }, '# Review\n');
+  writeDoc(`${eligibleBp}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: 'Context review',
+    description: 'fixture context-review',
+    resource: `${eligibleBp}/context-review.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'CONTEXT-REVIEW-002',
+      epic_id: '091',
+      blueprint_id: '002',
+      status: 'passed',
+    },
+  }, '# Context review\n');
+
+  const eligibleBefore = hashTree();
+  const eligibleDry = capture(['migrate', 'retention', '--repo', repo]);
+  assert.strictEqual(eligibleDry.code, 0, eligibleDry.err);
+  const eligibleJson = JSON.parse(eligibleDry.out);
+  assert.strictEqual(eligibleJson.ok, true);
+  const eligibleRow = eligibleJson.results.find((row) => row.blueprint === eligibleBp);
+  assert.ok(eligibleRow);
+  assert.strictEqual(eligibleRow.status, 'eligible');
+  assert.deepStrictEqual(hashTree(), eligibleBefore);
+});
+
+test('migrate retention option combinations exit 2; apply failure exits 1', () => {
+  const yaml = require('js-yaml');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-retention-'));
+  const bp = '.bouncer/context/epics/091-cli-retention/blueprints/001-sample';
+  const writeDoc = (rel, data, body = '# x\n') => {
+    const abs = path.join(repo, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
+  };
+  writeDoc(`${bp}/index.md`, {
+    type: 'bouncer.blueprint',
+    title: 'Sample',
+    description: 'cli retention fixture',
+    resource: `${bp}/index.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: '001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'closed',
+      commit_type: 'feat',
+      scale: 'light',
+      supersedes: [],
+    },
+  });
+  writeDoc(`${bp}/explain.md`, {
+    type: 'bouncer.explain',
+    title: 'Explain',
+    description: 'cli retention explain',
+    resource: `${bp}/explain.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'EXPLAIN-001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'published',
+    },
+  }, '# Explain\n\n## Background\nx\n');
+
+  const blueprintOnly = capture(['migrate', 'retention', '--blueprint', bp, '--repo', repo]);
+  assert.strictEqual(blueprintOnly.code, 2);
+  assert.match(blueprintOnly.err, /--blueprint requires --apply/);
+  assert.equal(blueprintOnly.out, '');
+
+  const applyOnly = capture(['migrate', 'retention', '--apply', '--repo', repo]);
+  assert.strictEqual(applyOnly.code, 2);
+  assert.match(applyOnly.err, /--apply requires --blueprint/);
+  assert.equal(applyOnly.out, '');
+
+  const unknown = capture(['migrate', 'retention', '--dry-run', '--repo', repo]);
+  assert.strictEqual(unknown.code, 2);
+  assert.match(unknown.err, /unknown option/);
+
+  const dup = capture([
+    'migrate', 'retention', '--apply', '--blueprint', bp, '--blueprint', bp, '--repo', repo,
+  ]);
+  assert.strictEqual(dup.code, 2);
+  assert.match(dup.err, /duplicate option: --blueprint/);
+
+  // already-compacted 대상 apply → 실행 실패(1), 사용법(2)이 아님
+  const notEligible = capture([
+    'migrate', 'retention', '--apply', '--blueprint', bp, '--repo', repo,
+  ]);
+  assert.strictEqual(notEligible.code, 1);
+  const payload = JSON.parse(notEligible.out);
+  assert.strictEqual(payload.ok, false);
+  assert.strictEqual(payload.status, 'already-compacted');
+});
+
+test('migrate retention apply eligible exits 0; invalid paths exit 1 with INVALID_PATH', () => {
+  const yaml = require('js-yaml');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-retention-apply-'));
+  const bp = '.bouncer/context/epics/091-cli-apply/blueprints/001-ready';
+  const writeDoc = (rel, data, body = '# x\n') => {
+    const abs = path.join(repo, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, `---\n${yaml.dump(data)}---\n${body}`);
+  };
+  writeDoc(`${bp}/index.md`, {
+    type: 'bouncer.blueprint',
+    title: 'Ready',
+    description: 'cli retention apply fixture',
+    resource: `${bp}/index.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: '001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'closed',
+      commit_type: 'feat',
+      scale: 'full',
+      supersedes: [],
+    },
+  });
+  writeDoc(`${bp}/explain.md`, {
+    type: 'bouncer.explain',
+    title: 'Explain',
+    description: 'cli retention explain',
+    resource: `${bp}/explain.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'EXPLAIN-001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'published',
+    },
+  }, '# Explain\n\n## Background\nx\n');
+  writeDoc(`${bp}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks',
+    title: 'Task 001',
+    description: 'fixture task',
+    resource: `${bp}/tasks/001/tasks.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'done',
+      execution_kind: 'commit',
+      affected_paths: ['scripts/src/lib/retention-migration.ts'],
+      commit_sha: 'deadbeef',
+      depends_on: [],
+      parallel_safe: false,
+      dependency_gate: 'integrated',
+    },
+  }, `# Tasks
+
+## Goal & intent
+CLI apply on eligible blueprint should exit 0.
+
+## Interface
+migrateRetention
+
+## Touch
+- \`scripts/src/lib/retention-migration.ts\`
+
+## Constraints
+- single path apply
+
+## Do not touch
+- marker
+
+## Checklist
+- [ ] marker
+`);
+  writeDoc(`${bp}/tasks/001/verification.md`, {
+    type: 'bouncer.verification',
+    title: 'Verify 001',
+    description: 'fixture verify',
+    resource: `${bp}/tasks/001/verification.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'VERIFY-001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'passed',
+    },
+  }, '# Verification\n');
+  writeDoc(`${bp}/tasks/001/review.md`, {
+    type: 'bouncer.review',
+    title: 'Review 001',
+    description: 'fixture review',
+    resource: `${bp}/tasks/001/review.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-09-17T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001',
+      epic_id: '091',
+      blueprint_id: '001',
+      status: 'approved',
+    },
+  }, '# Review\n');
+
+  const applied = capture([
+    'migrate', 'retention', '--apply', '--blueprint', bp, '--repo', repo,
+  ]);
+  assert.strictEqual(applied.code, 0, applied.err || applied.out);
+  const appliedPayload = JSON.parse(applied.out);
+  assert.strictEqual(appliedPayload.ok, true);
+  assert.strictEqual(appliedPayload.status, 'eligible');
+  assert.match(
+    fs.readFileSync(path.join(repo, `${bp}/explain.md`), 'utf8'),
+    /## Tasks/,
+  );
+  assert.equal(fs.existsSync(path.join(repo, `${bp}/tasks/001/tasks.md`)), false);
+
+  const absolute = capture([
+    'migrate', 'retention', '--apply', '--blueprint', path.resolve(repo, bp), '--repo', repo,
+  ]);
+  assert.strictEqual(absolute.code, 1);
+  assert.strictEqual(JSON.parse(absolute.out).code, 'INVALID_PATH');
+
+  const escaped = capture([
+    'migrate', 'retention', '--apply',
+    '--blueprint', '.bouncer/context/epics/091-x/blueprints/../001-ready',
+    '--repo', repo,
+  ]);
+  assert.strictEqual(escaped.code, 1);
+  assert.strictEqual(JSON.parse(escaped.out).code, 'INVALID_PATH');
+
+  const nonBlueprint = capture([
+    'migrate', 'retention', '--apply',
+    '--blueprint', '.bouncer/context/epics/091-cli-apply',
+    '--repo', repo,
+  ]);
+  assert.strictEqual(nonBlueprint.code, 1);
+  assert.strictEqual(JSON.parse(nonBlueprint.out).code, 'INVALID_PATH');
+});

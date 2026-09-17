@@ -621,8 +621,8 @@ function taskDigitsOf(task) {
     return match ? match[3] : null;
 }
 /**
- * Background·Intuition·Code와 해당 Task의 Goal & intent·Interface만 고른다.
- * Quiz·Checklist·verification·review는 입력 예산에 넣지 않는다.
+ * Background·Intuition·Code와 해당 Task의 장기 설계 절만 고른다.
+ * Quiz·Checklist·Do not touch·verification·review는 입력 예산에 넣지 않는다.
  *
  * @param {ExplainDoc} doc - 이미 읽은 Explain
  * @param {string | null} taskDigits - TASK-NNN의 숫자
@@ -635,12 +635,14 @@ function selectSections(doc, taskDigits) {
     return selected.concat(parseTaskDesign(doc.body, taskDigits));
 }
 /**
- * Explain 본문에서 해당 Task의 설계 절만 덧붙인다. Checklist는 같은 ### 아래
+ * Explain 본문에서 해당 Task의 장기 설계 절만 덧붙인다.
+ * finalize `buildTaskContext`와 같은 allowlist·순서를 유지해 Plan 입력이
+ * 보존 계약과 갈라지지 않게 한다. Do not touch·Checklist는 같은 ### 아래
  * 있어도 고르지 않는다.
  *
  * @param {string} body - frontmatter를 벗긴 Explain 본문
  * @param {string} taskDigits - `001`
- * @returns {SelectedSection[]} Goal & intent, Interface
+ * @returns {SelectedSection[]} 값이 있는 장기 절만
  */
 function parseTaskDesign(body, taskDigits) {
     const explainSections = parseExplainSections(body);
@@ -654,7 +656,11 @@ function parseTaskDesign(body, taskDigits) {
     const parts = splitSubheadings(chunk);
     const selected = [];
     pushSection(selected, 'Goal & intent', parts.get('goal'));
+    pushSection(selected, 'Current behavior', parts.get('currentBehavior'));
+    pushSection(selected, 'Target behavior', parts.get('targetBehavior'));
     pushSection(selected, 'Interface', parts.get('interface'));
+    pushSection(selected, 'Touch', parts.get('touch'));
+    pushSection(selected, 'Constraints', parts.get('constraints'));
     return selected;
 }
 function splitTaskChunks(tasksBody) {
@@ -677,10 +683,22 @@ function splitSubheadings(chunk) {
     const starts = [];
     for (let i = 0; i < lines.length; i += 1) {
         const line = lines[i].trim();
+        // Touch는 제목 전체 일치(`^####\s+Touch\s*$`)로만 맞춘다. Do not touch를
+        // Touch로 승격하면 실행용 범위 통제가 Plan 입력에 장기 금지로 남는다.
         if (/^####\s+Goal\s*&\s*intent\s*$/i.test(line))
             starts.push({ key: 'goal', line: i });
+        else if (/^####\s+Current\s+behavior\s*$/i.test(line)) {
+            starts.push({ key: 'currentBehavior', line: i });
+        }
+        else if (/^####\s+Target\s+behavior\s*$/i.test(line)) {
+            starts.push({ key: 'targetBehavior', line: i });
+        }
         else if (/^####\s+Interface\s*$/i.test(line))
             starts.push({ key: 'interface', line: i });
+        else if (/^####\s+Touch\s*$/i.test(line))
+            starts.push({ key: 'touch', line: i });
+        else if (/^####\s+Constraints\s*$/i.test(line))
+            starts.push({ key: 'constraints', line: i });
         else if (/^####\s+/.test(line))
             starts.push({ key: 'other', line: i });
     }

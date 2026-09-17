@@ -33,10 +33,15 @@ Git commit이 파일 diff와 변경 이력의 정본이다. 컨텍스트 문서�
 
 `/bouncer-finalize`는 `explain.md`를 작성하고 G16을 통과한 뒤, 같은 remainder
 commit에서 각 task의 `bouncer.commit_sha`(8자리)를 `explain.md`의
-`bouncer.task_commits`로 옮기고, `tasks/<NNN>/tasks.md`,
+`bouncer.task_commits`로 옮기고, task 문서의 장기 설계 절(`Goal & intent`,
+값이 있는 `Current behavior`·`Target behavior`, `Interface`, `Touch`,
+`Constraints`)을 `explain.md`의 `## Tasks`로 옮긴 뒤 `tasks/<NNN>/tasks.md`,
 `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`, 있을 때의
-`context-review.md`를 지운 뒤 Blueprint를 `closed`로 바꾼다. 후속에 필요한
-제약·판단·검증 요지는 `explain.md`에 옮긴다.
+`context-review.md`를 지우고 Blueprint를 `closed`로 바꾼다.
+
+승격하지 않는 것: `Do not touch`, `Checklist`, verification·review 원문.
+실행 당시의 범위 통제와 절차 증적은 Git history에만 남긴다. 후속에도 유효한
+금지는 작성자가 `Interface` 또는 `Constraints`에 이유와 함께 기록해야 한다.
 미해결 위험은 새 sibling Blueprint 범위로 옮기거나 `explain.md`에 후속 제약으로
 적는다.
 
@@ -56,6 +61,39 @@ intent_anchor: 'task-<ddd>' }`다. `/bouncer-commit`이 커밋 직후 `tasks.md`
 
 규제·감사·완전한 실행 재현처럼 전체 원본이 필요하면 Bouncer 기본 보존 밖
 별도 보관 수단을 쓴다. 이 문서는 그 운영 절차를 정의하지 않는다.
+
+## Retention migration (legacy closed Blueprint)
+
+신규 finalize가 닫는 Blueprint는 위 보존 기준으로 이미 축약된다. 과거에
+`closed`로 남았지만 transient 문서가 아직 있는 Blueprint는
+`bouncer migrate retention`으로만 소급 정리한다.
+
+기본 호출(`bouncer migrate retention`)은 쓰기 없는 감사다. 정본
+`.bouncer/context/epics/**/blueprints/**` 아래 closed Blueprint를 경로순으로
+읽어 각 경로에 다음 상태 중 하나와 근거, 승격·삭제 예정 경로를 JSON으로
+반환한다.
+
+| 상태 | 의미 |
+| --- | --- |
+| `eligible` | Explain이 있고, task가 안전한 승격 입력이며, 장기 설계 절이 있어 transient를 지울 수 있다 |
+| `blocked-missing-explain` | Explain 부재·파싱 실패. transient가 없어도 이 상태를 `already-compacted`보다 우선한다 |
+| `blocked-invalid-task` | task 파싱 실패, 비정본 ID·부모 ID, 중복 번호 등으로 승격 입력을 만들 수 없다 |
+| `blocked-insufficient-intent` | 파싱 가능한 task에 `Goal & intent` 등 장기 allowlist 본문이 없다 |
+| `already-compacted` | Explain이 있고 transient 문서가 하나도 없다 |
+
+적용은 `bouncer migrate retention --apply --blueprint <dir>`만 허용한다.
+`<dir>`는 저장소 상대 정본 Blueprint 경로여야 하고, 감사 결과가 그 경로에 대해
+`eligible`일 때만 Explain `## Tasks`를 먼저 쓴 뒤 존재하는
+`tasks.md`·`verification.md`·`review.md`·`context-review.md`를 삭제한다.
+`--apply`만, `--blueprint`만, 절대 경로·`..` 탈출, Blueprint dir·`explain.md` 등
+쓰기·삭제 대상의 realpath가 저장소 밖인 symlink, open Blueprint, 비적격 상태는
+쓰기 전에 거절한다. 승격·삭제 중 실패하면 적용 전 바이트로 복구를 시도하고,
+복구가 다시 실패해도 `ok:false`와 사유를 반환한다(uncaught로 끝내지 않는다).
+기존 `task_commits`와 누락 provenance는 합성·교체하지 않는다.
+
+실제 legacy corpus(001–071) 일괄 적용은 이 명령의 감사 결과를 사용자가 승인한
+뒤 BP-004 운영 범위에서 수행한다. 이 Blueprint(003)는 감사·단일 경로 적용
+경계만 제공한다.
 
 ## Explain의 역할
 
@@ -94,8 +132,12 @@ Blueprint diff를 이해했는지 확인하는 질문과 보기만 둔다.
 - 명령어 전문, 재시도, 중간 실패처럼 실행 당시만 유효한 정보
 - 변경 파일의 기계적인 전체 목록
 - 코드와 테스트에서 바로 확인되는 자명한 설명
-- task별 체크리스트와 개별 리뷰 대화
+- task별 `Do not touch`·체크리스트와 개별 리뷰 대화
 - `## Quiz` 안의 정답, 사용자 응답, 채점 결과
+
+finalize가 `## Tasks`로 옮기는 장기 설계 절은 `Goal & intent`, 값이 있는
+`Current behavior`·`Target behavior`, `Interface`, `Touch`, `Constraints`다.
+`Do not touch`는 실행 시점 범위 통제이므로 장기 금지로 재해석하지 않는다.
 
 6개월 뒤 같은 논쟁이나 잘못된 수정이 다시 일어날 수 있는 정보만 남긴다. 제품
 계약이나 설정 의미처럼 코드 가까이에 둘 정보는 별도 사용자 문서나 코드 인접

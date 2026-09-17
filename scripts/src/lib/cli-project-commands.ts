@@ -12,6 +12,8 @@ import graphify = require('./graphify');
 const { resolveGraphifyBin } = graphify;
 import migrateTaskLayoutMod = require('./migrate-task-layout');
 const { migrateTaskLayout } = migrateTaskLayoutMod;
+import retentionMigration = require('./retention-migration');
+const { auditRetention, migrateRetention } = retentionMigration;
 import runtimeState = require('./runtime-state');
 const { runtimePaths } = runtimeState;
 import graphSearch = require('./graph-search');
@@ -243,10 +245,95 @@ function cmdRun(rest: string[], io: CliIo) {
   }
 }
 
+/**
+ * migrate retention 전용 argv. parseFlags는 중복·알 수 없는 option을 조용히
+ * 삼키므로, --apply/--blueprint 조합을 여기서 닫아 부분 적용을 막는다.
+ *
+ * @param {string[]} flagArgs - `migrate retention` 뒤 argv
+ * @returns {{ error?: string, apply: boolean, blueprint: string | null, repo?: string }}
+ */
+function parseRetentionMigrateArgs(flagArgs: string[]): {
+  error?: string;
+  apply: boolean;
+  blueprint: string | null;
+  repo?: string;
+} {
+  let apply = false;
+  let applySeen = false;
+  let blueprint: string | null = null;
+  let blueprintSeen = false;
+  let repo: string | undefined;
+  let repoSeen = false;
+  const fail = (message: string) => ({
+    error: `migrate retention: ${message}\n`,
+    apply,
+    blueprint,
+    repo,
+  });
+
+  for (let i = 0; i < flagArgs.length; i += 1) {
+    const token = flagArgs[i];
+    if (token === '--apply') {
+      if (applySeen) return fail('duplicate option: --apply');
+      applySeen = true;
+      apply = true;
+      continue;
+    }
+    if (token === '--blueprint') {
+      if (blueprintSeen) return fail('duplicate option: --blueprint');
+      blueprintSeen = true;
+      const value = flagArgs[++i];
+      if (value === undefined || value.startsWith('--') || value.trim() === '') {
+        return fail('--blueprint requires a directory');
+      }
+      blueprint = value.trim();
+      continue;
+    }
+    if (token === '--repo') {
+      if (repoSeen) return fail('duplicate option: --repo');
+      repoSeen = true;
+      const value = flagArgs[++i];
+      if (!value || value.startsWith('--')) return fail('--repo requires a directory');
+      repo = value;
+      continue;
+    }
+    if (token.startsWith('--')) return fail(`unknown option: ${token}`);
+    return fail(`unexpected argument: ${token}`);
+  }
+
+  // dry-run이 기본이다. --blueprint만 주면 단일 경로 적용처럼 보이므로 거절한다.
+  if (blueprintSeen && !applySeen) {
+    return fail('--blueprint requires --apply');
+  }
+  if (applySeen && !blueprintSeen) {
+    return fail('--apply requires --blueprint <dir>');
+  }
+  return { apply, blueprint, repo };
+}
+
 function cmdMigrate(rest: string[], io: CliIo) {
   const [kind, ...flagArgs] = rest;
   // kind를 플래그보다 먼저 본다. 알 수 없는 kind에 --dry-run만 있어도
   // task-layout으로 떨어지면 안 된다.
+  if (kind === 'retention') {
+    const parsed = parseRetentionMigrateArgs(flagArgs);
+    if (parsed.error) {
+      io.err(parsed.error);
+      return 2;
+    }
+    const repoRoot = (parsed.repo || process.cwd()) as string;
+    if (parsed.apply) {
+      const result = migrateRetention({
+        repoRoot,
+        blueprintDir: parsed.blueprint as string,
+      });
+      io.out(`${JSON.stringify(result, null, 2)}\n`);
+      return result.ok ? 0 : 1;
+    }
+    const result = auditRetention({ repoRoot });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  }
   if (kind !== 'task-layout') {
     io.err(`unknown migrate kind: ${kind || '(missing)'}\n`);
     return 2;
@@ -298,6 +385,10 @@ export = {
     run: cmdMigrate,
     usage: `  migrate    task-layout [--dry-run]
              Move legacy task files into tasks/<NNN>/ units.
+  migrate    retention
+             Audit closed blueprints for retention (dry-run, JSON, no writes).
+  migrate    retention --apply --blueprint <dir>
+             Promote Explain then delete transients for one eligible closed blueprint.
 `,
   },
   run: {
