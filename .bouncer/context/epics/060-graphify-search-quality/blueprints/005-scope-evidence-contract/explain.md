@@ -16,7 +16,7 @@ bouncer:
     - range_from: develop
       range_to: 34ebaf2ba1c5d564ada4d9d3d973e6c3447ee0ba
       diff_sha: 94b2927d3b591ae5fbdac5b7c6b85ccc8466cb5f44461f6428cb36ffc0cc6ad6
-      quiz_score: '3/3'
+      quiz_score: 3/3
       disposition: 범위 근거와 승인 범위의 경계, 새·구 형식의 충돌 처리, 공통 정규화의 목적을 정확히 설명함
       recorded_at: '2026-08-18T09:55:00.000+09:00'
 ---
@@ -54,3 +54,67 @@ bouncer:
 
 ## 이해 상태
 정답은 1-B, 2-A, 3-C이며 응답도 모두 일치했다. `scope_evidence`와 `graph`의 동시 작성은 거절하고, 후보 경로는 승인 범위를 자동 변경하지 않으며, S9/G4는 공통 정규화 결과로 같은 계약을 판단한다. 결과: 3/3.
+
+## Tasks
+
+### Task 001
+
+#### Goal & intent
+
+`bouncer.scope_evidence`를 task 범위 판단의 정본으로 도입한다. 새 문서는 이 구조를 쓰고, 기존 `bouncer.graph` 문서는 읽기 시에만 같은 내부 형태로 정규화하여 기존 계획을 계속 검증한다.
+
+#### Interface
+
+- 제공: `scope_evidence`의 `producer: graphify`, `generated_at`, `suggested_paths`, `basis`를 검사하는 단일 helper와 Graphify 결과를 이 구조에 쓰는 scaffold 경로.
+- 거부: `scope_evidence`와 `graph`를 한 문서에 함께 쓰는 모호한 입력, 비어 있거나 형식이 틀린 evidence, 승인 없이 `affected_paths`를 evidence 후보로 교체하는 동작.
+
+#### Touch
+
+- Modify `scripts/src/lib/validate-structural.ts` — 새·구 evidence를 정규화하고 S9의 구조 검증을 한 helper에 둔다.
+- Modify `scripts/lib/validate-structural.js` — TypeScript source와 동기화된 실행 산출물을 반영한다.
+- Modify `scripts/src/lib/validate-gates.ts` — G4가 정규화 결과의 후보 경로와 basis를 검사하게 한다.
+- Modify `scripts/lib/validate-gates.js` — TypeScript source와 동기화된 실행 산출물을 반영한다.
+- Modify `scripts/src/lib/scaffold.ts` — 새 task scaffold가 `scope_evidence` 빈 구조를 만든다.
+- Modify `scripts/lib/scaffold.js` — TypeScript source와 동기화된 실행 산출물을 반영한다.
+- Modify `test/validate-structural.test.js` — 새 형식, 구 형식 호환, 혼합 형식 거절을 검증한다.
+- Modify `test/validate-gates.test.js` — G4가 새 정본과 구 형식 정규화를 같은 규칙으로 판단함을 검증한다.
+- Modify `test/scaffold.test.js` — scaffold의 새 frontmatter 출력과 빈 evidence 상태를 검증한다.
+
+#### Constraints
+
+- S9와 G4는 별도 검사 구현을 만들지 않고 같은 정규화·검증 helper를 공유한다.
+- 새 문서의 쓰기 형식은 `scope_evidence` 하나이며, `graph`는 기존 문서 읽기 호환에만 쓴다.
+- legacy 정규화는 의미를 보존해야 하며, 두 형식 동시 존재를 묵인하면 안 된다.
+- 새 의존성이나 config key를 추가하지 않는다.
+
+### Task 002
+
+#### Goal & intent
+
+규칙, planning·Graphify 스킬, 템플릿, 사용자 문서를 `scope_evidence` 계약에 맞춘다. 어느 문서도 Graphify 후보 경로를 승인된 변경 범위로 표현하지 않게 한다.
+
+#### Interface
+
+- 제공: 새 frontmatter 예시와, Graphify가 `scope_evidence`를 쓰되 `affected_paths`는 사용자가 확정한다는 일관된 안내.
+- 거부: `bouncer.graph`를 새 작성 형식으로 안내하는 문서, Graphify가 범위를 승인하거나 새 producer를 이미 지원한다고 암시하는 설명.
+
+#### Touch
+
+- Modify `rules/okf.md` — evidence의 소유·의미와 legacy 읽기 호환 경계를 정한다.
+- Modify `docs/ARCHITECTURE.md` — 범위 판단 흐름과 정본 evidence 명칭을 바꾼다.
+- Modify `docs/gates.md` — G4의 새 입력과 legacy 호환을 설명한다.
+- Modify `docs/troubleshooting.md` — S9/G4 실패 시 확인할 `scope_evidence` 필드를 안내한다.
+- Modify `docs/PILOT.md` — Graphify 비활성 시 기록할 evidence 명칭을 갱신한다.
+- Modify `skills/bouncer-plan/SKILL.md` — 계획 단계의 Graphify 기록과 G4 안내를 새 형식으로 바꾼다.
+- Modify `skills/graphify-runner/SKILL.md` — Graphify runner의 write 대상과 handoff를 바꾼다.
+- Modify `skills/context-review/SKILL.md` — 후보 경로와 승인 범위의 대조 대상을 바꾼다.
+- Modify `skills/implementation/SKILL.md` — 구현 예시의 검증 helper와 설명을 새 계약으로 갱신한다.
+- Modify `skills/spec-authoring/references/tasks.md` — 새 scaffold frontmatter 예시를 제공한다.
+- Modify `test/skill-graphify-runner.test.js` — runner 안내가 새 정본 필드를 가리키는지 검증한다.
+- Modify `test/skill-context-review.test.js` — review 안내가 새 evidence 필드를 가리키는지 검증한다.
+
+#### Constraints
+
+- 사람용 `.bouncer/context` 본문은 한국어로 쓰고, 코드·경로·필드명은 그대로 둔다.
+- 규칙과 스킬은 새 작성 형식만 권장하며 구 `graph`는 읽기 호환이라는 사실만 남긴다.
+- 후보 경로는 advisory이며, `affected_paths`는 사용자 승인 뒤에만 기록된다는 경계를 반복해 보존한다.

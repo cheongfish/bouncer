@@ -16,8 +16,8 @@ bouncer:
     - range_from: develop
       range_to: 44b9c4ed93742dfee57f4fc453a162f9d7c07ad0
       diff_sha: e4bc78d5e01f02302762761da44e69fc544e2adb3f348f404807ab051a77e01f
-      quiz_score: '3/3'
-      disposition: 'canonical benchmark hierarchy and verification boundary understood'
+      quiz_score: 3/3
+      disposition: canonical benchmark hierarchy and verification boundary understood
       recorded_at: '2026-09-02T17:48:00.000+09:00'
 ---
 # Explain
@@ -49,3 +49,2837 @@ bouncer:
 
 ## 이해 상태
 정답은 1A, 2B, 3C이며 사용자 응답도 각각 1A, 2B, 3C이다. 세 문항 모두 정답으로 `3/3`을 기록했고, canonical benchmark hierarchy와 검증 범위를 이해한 상태로 마감한다.
+
+## Tasks
+
+### Task 001
+
+#### Goal & intent
+
+002, 008, 010, 012, 013, 018–024, 030, 041, 042, 044의 BP를 `018-task-unit-commits` 아래 순차 이동한다.
+
+#### Interface
+
+- 제공: context index에는 canonical `018` 행 하나와 모든 이동 BP의 유효한 부모 링크가 남는다.
+- 거부: `024-light-path`·`024-lightweight-cycle`을 별도 epic으로 보존하지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/002-commit-artifacts/blueprints/001-evidence-and-message/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/002-commit-artifacts/blueprints/001-evidence-and-message/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/002-commit-artifacts/blueprints/001-evidence-and-message/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/002-commit-artifacts/blueprints/001-evidence-and-message/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/002-commit-artifacts/blueprints/001-evidence-and-message/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/002-commit-artifacts/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/008-worktree-seed/blueprints/001-seed-plan-artifacts/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/008-worktree-seed/blueprints/001-seed-plan-artifacts/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/008-worktree-seed/blueprints/001-seed-plan-artifacts/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/008-worktree-seed/blueprints/001-seed-plan-artifacts/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/008-worktree-seed/blueprints/001-seed-plan-artifacts/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/008-worktree-seed/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/010-active-pointer-cli/blueprints/001-current-command/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/010-active-pointer-cli/blueprints/001-current-command/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/010-active-pointer-cli/blueprints/001-current-command/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/010-active-pointer-cli/blueprints/001-current-command/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/010-active-pointer-cli/blueprints/001-current-command/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/010-active-pointer-cli/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/012-finalize-handoff/blueprints/001-next-blueprint-handoff/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/012-finalize-handoff/blueprints/001-next-blueprint-handoff/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/012-finalize-handoff/blueprints/001-next-blueprint-handoff/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/012-finalize-handoff/blueprints/001-next-blueprint-handoff/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/012-finalize-handoff/blueprints/001-next-blueprint-handoff/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/012-finalize-handoff/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/001-explain-doc-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/001-explain-doc-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/001-explain-doc-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/001-explain-doc-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/001-explain-doc-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/002-explain-diff-skill/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/002-explain-diff-skill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/002-explain-diff-skill/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/002-explain-diff-skill/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/002-explain-diff-skill/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/003-promotion-pr-body/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/003-promotion-pr-body/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/003-promotion-pr-body/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/003-promotion-pr-body/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/blueprints/003-promotion-pr-body/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-tasks-doc-resolver/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-tasks-doc-resolver/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-tasks-doc-resolver/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-tasks-doc-resolver/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-tasks-doc-resolver/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/019-task-pointer/blueprints/001-pointer-task-field/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/019-task-pointer/blueprints/001-pointer-task-field/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/019-task-pointer/blueprints/001-pointer-task-field/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/019-task-pointer/blueprints/001-pointer-task-field/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/019-task-pointer/blueprints/001-pointer-task-field/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/019-task-pointer/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/blueprints/001-task-dir-layout/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/blueprints/001-commit-stage/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/blueprints/001-closed-status/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/blueprints/001-closed-status/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/blueprints/001-closed-status/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/blueprints/001-closed-status/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/blueprints/001-closed-status/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/blueprints/001-closed-status/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/blueprints/001-closed-status/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/blueprints/001-closed-status/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/023-worktree-layout/blueprints/001-nested-worktree-path/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/023-worktree-layout/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/blueprints/001-scale-light-convention/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-light-path/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-lightweight-cycle/blueprints/001-lightweight-cycle-guidance/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-lightweight-cycle/blueprints/001-lightweight-cycle-guidance/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-lightweight-cycle/blueprints/001-lightweight-cycle-guidance/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-lightweight-cycle/blueprints/001-lightweight-cycle-guidance/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-lightweight-cycle/blueprints/001-lightweight-cycle-guidance/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/024-lightweight-cycle/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/blueprints/001-comprehension-gate-move/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/blueprints/001-mermaid-authoring-convention/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/blueprints/001-mermaid-authoring-convention/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/blueprints/001-mermaid-authoring-convention/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/blueprints/001-mermaid-authoring-convention/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/blueprints/001-mermaid-authoring-convention/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/blueprints/001-mermaid-authoring-convention/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/blueprints/001-gate-integrity/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/blueprints/001-promotion-verify/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+#### Constraints
+
+- BP bundle은 통째로 이동하며 harness-owned ID·resource·상대 링크를 같은 commit에서 갱신한다.
+
+### Task 002
+
+#### Goal & intent
+
+027, 031, 049, 061의 BP를 기존 canonical root `014-numeric-context-ids` 아래 `005`부터 순차 통합한다. 현재 실행 blueprint `004-corpus-consolidation`은 이동하거나 재번호화하지 않는다.
+
+#### Interface
+
+- 제공: context schema·history·index 결정을 하나의 parent hierarchy에서 찾는다.
+- 거부: 기존 BP 내용을 새 계약으로 재해석하거나 digest 구현을 바꾸지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/001-id-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/001-id-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/001-id-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/001-id-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/001-id-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/002-migrate-ids-cli/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/002-migrate-ids-cli/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/002-migrate-ids-cli/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/002-migrate-ids-cli/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/002-migrate-ids-cli/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/003-dogfood-context/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/003-dogfood-context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/003-dogfood-context/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/003-dogfood-context/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/003-dogfood-context/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/blueprints/001-history-import-cli/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/027-history-import/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/blueprints/001-schema-cutover/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/031-document-schema/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/001-context-digest-grain/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/001-context-digest-grain/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/001-context-digest-grain/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/001-context-digest-grain/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/001-context-digest-grain/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/001-context-digest-grain/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/002-supersedes-field/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/002-supersedes-field/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/002-supersedes-field/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/002-supersedes-field/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/002-supersedes-field/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/blueprints/002-supersedes-field/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/049-context-searchability/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/blueprints/001-derived-summary-regeneration/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/blueprints/001-derived-summary-regeneration/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/blueprints/001-derived-summary-regeneration/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/blueprints/001-derived-summary-regeneration/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/blueprints/001-derived-summary-regeneration/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/blueprints/001-derived-summary-regeneration/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+#### Constraints
+
+- 이동은 bundle 단위이며 metadata `description`·tags는 영어 ASCII로 정규화한다.
+
+### Task 003
+
+#### Goal & intent
+
+011, 026, 040, 062, 063, 064의 BP를 `060-graphify-search-quality`로 이동하고 고정 query 회귀 증적을 남긴다.
+
+#### Interface
+
+- 제공: graph/search 결정은 060 hierarchy와 고정 query fixture에서 검증된다.
+- 거부: tokenizer·ranking·graphify 형식은 바꾸지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/001-silent-skip-signal/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/001-silent-skip-signal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/001-silent-skip-signal/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/001-silent-skip-signal/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/001-silent-skip-signal/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/002-graph-path-contract/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/002-graph-path-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/002-graph-path-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/002-graph-path-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/blueprints/002-graph-path-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/blueprints/001-context-section-digest/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/blueprints/001-context-section-digest/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/blueprints/001-context-section-digest/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/blueprints/001-context-section-digest/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/blueprints/001-context-section-digest/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/blueprints/001-context-section-digest/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/blueprints/001-context-section-digest/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/blueprints/001-context-section-digest/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/blueprints/001-scope-evidence-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/blueprints/001-english-search-contract/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/blueprints/001-derived-anchors-and-coverage/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/blueprints/001-scope-separation-and-reporting/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `docs/benchmark/context-corpus-search.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `test/context-corpus-search.test.js` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `test/fixtures/context-corpus-queries.json` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `test/graph-search.test.js` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/tasks.md` — destination 순번 충돌 해소 및 task 번들 상태·증적 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/verification.md` — destination 순번 충돌 해소 및 task 번들 상태·증적 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/review.md` — destination 순번 충돌 해소 및 task 번들 상태·증적 갱신.
+
+#### Constraints
+
+- query·seed·frontmatter 검색 메타데이터는 영어 ASCII만 쓴다.
+- fixture는 `epic-018`, `epic-007`, `epic-060` query를 고정하고, 각각 최종 canonical epic index를 필수 context hit로 요구한다. 후보 수는 각 query의 압축 전 기준선보다 늘어나면 실패한다.
+
+
+
+- 기존 `060-graphify-search-quality/blueprints/001-context-first-ranking`은 유지하고, 이관 BP는 `002`부터 순번을 부여한다.
+
+### Task 004
+
+#### Goal & intent
+
+007,036,037,038,047,055,058의 BP를 `007-project-distill`으로 통합한다.
+
+#### Interface
+
+- 제공: Distill runtime 결정은 하나의 hierarchy에 모인다.
+- 거부: Distill 런타임 동작은 변경하지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/001-global-distill-runtime/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/001-global-distill-runtime/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/001-global-distill-runtime/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/001-global-distill-runtime/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/001-global-distill-runtime/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/002-project-root-distill/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/007-project-distill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/006/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/006/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/006/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/007/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/007/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/blueprints/001-path-routed-distill/tasks/007/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/blueprints/001-promotion-proposal-acq/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/blueprints/001-checkout-relative-distill/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/001-brief-injection-slim/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/blueprints/002-distill-shard-discipline/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/047-context-injection/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/blueprints/001-for-union-single-call/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/055-distill-injection/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/blueprints/001-master-distill-compaction/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+- Modify `test/fixtures/context-corpus-queries.json` — corpus baseline·task 번들 갱신.
+- Modify `test/context-corpus-search.test.js` — corpus baseline·task 번들 갱신.
+- Modify `docs/benchmark/context-corpus-search.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/tasks.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/verification.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/review.md` — corpus baseline·task 번들 갱신.
+
+#### Constraints
+
+- bundle 이동·resource·상대 링크를 같은 commit에서 갱신한다.
+
+- corpus fixture·benchmark 문서는 이 task의 canonical epic 통합 후 baseline(hit·후보 상한)을 갱신하는 데 쓴다.
+
+### Task 005
+
+#### Goal & intent
+
+009,015,016,032,046,050,057의 BP를 `009-subagent-model-config`으로 통합한다.
+
+#### Interface
+
+- 제공: agent·automation·review flow의 history가 하나의 hierarchy에 있다.
+- 거부: dispatch와 reviewer 동작은 바꾸지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/009-subagent-model-config/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/001-subagent-model-config-contract/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/002-named-agent-routing/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/003-adaptive-quiz/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/004-graph-basis-record/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/005-pr-single-confirm/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/006-debugger-agent/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/007-ponytail-advisor-removal/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/008-run-loop/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/009-execute-review-cap/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/010-finalize-pointer-scope/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/011-distill-read-scope/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/blueprints/013-structured-pr-body/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/009-subagent-model-config/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/001-adaptive-quiz/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/002-graph-basis-record/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/002-graph-basis-record/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/002-graph-basis-record/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/002-graph-basis-record/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/002-graph-basis-record/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/003-pr-single-confirm/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/003-pr-single-confirm/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/003-pr-single-confirm/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/003-pr-single-confirm/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/003-pr-single-confirm/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/004-debugger-agent/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/004-debugger-agent/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/004-debugger-agent/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/004-debugger-agent/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/blueprints/004-debugger-agent/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/016-advisor-removal/blueprints/001-ponytail-advisor-removal/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/016-advisor-removal/blueprints/001-ponytail-advisor-removal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/016-advisor-removal/blueprints/001-ponytail-advisor-removal/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/016-advisor-removal/blueprints/001-ponytail-advisor-removal/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/016-advisor-removal/blueprints/001-ponytail-advisor-removal/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/016-advisor-removal/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/blueprints/001-run-loop/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/blueprints/001-execute-review-cap/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/blueprints/001-execute-review-cap/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/blueprints/001-execute-review-cap/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/blueprints/001-execute-review-cap/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/blueprints/001-execute-review-cap/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/blueprints/001-execute-review-cap/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/001-finalize-pointer-scope/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/001-finalize-pointer-scope/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/001-finalize-pointer-scope/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/001-finalize-pointer-scope/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/001-finalize-pointer-scope/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/001-finalize-pointer-scope/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/002-distill-read-scope/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/blueprints/003-plugin-arm-benchmark/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/blueprints/001-structured-pr-body/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/blueprints/001-structured-pr-body/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/blueprints/001-structured-pr-body/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/blueprints/001-structured-pr-body/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/blueprints/001-structured-pr-body/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/blueprints/001-structured-pr-body/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+- Modify `test/fixtures/context-corpus-queries.json` — corpus baseline·task 번들 갱신.
+- Modify `test/context-corpus-search.test.js` — corpus baseline·task 번들 갱신.
+- Modify `docs/benchmark/context-corpus-search.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/tasks.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/verification.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/review.md` — corpus baseline·task 번들 갱신.
+
+#### Constraints
+
+- bundle 이동과 metadata ASCII 정규화를 함께 적용한다.
+
+- corpus fixture·benchmark 문서는 이 task의 canonical epic 통합 후 baseline(hit·후보 상한)을 갱신하는 데 쓴다.
+
+### Task 006
+
+#### Goal & intent
+
+001,003,025,028,048,059의 BP를 `001-cli-usability`로 통합한다.
+
+#### Interface
+
+- 제공: product surface와 host history가 하나의 hierarchy에 있다.
+- 거부: 설치·host 동작은 변경하지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/001-cursor-codex-manifests/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/001-cursor-codex-manifests/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/001-cursor-codex-manifests/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/001-cursor-codex-manifests/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/001-cursor-codex-manifests/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/002-commands-to-skills/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/002-commands-to-skills/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/002-commands-to-skills/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/002-commands-to-skills/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/blueprints/002-commands-to-skills/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/blueprints/001-venv-install-bin-resolution/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/blueprints/001-antigravity-plugin-surface/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/blueprints/001-antigravity-plugin-surface/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/blueprints/001-antigravity-plugin-surface/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/blueprints/001-antigravity-plugin-surface/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/blueprints/001-antigravity-plugin-surface/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/blueprints/001-antigravity-plugin-surface/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/blueprints/001-antigravity-plugin-surface/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/blueprints/001-antigravity-plugin-surface/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/blueprints/001-host-candidate-launcher/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/001-install-first-five-minutes/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/002-instruction-layers/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/blueprints/004-debt-items/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/059-audit-followup/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/001-cli-help/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/002-cursor-codex-manifests/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/003-commands-to-skills/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/004-venv-install-bin-resolution/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/005-antigravity-plugin-surface/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/006-host-candidate-launcher/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/007-install-first-five-minutes/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/008-instruction-layers/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/blueprints/009-debt-items/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `test/fixtures/context-corpus-queries.json` — corpus baseline·task 번들 갱신.
+- Modify `test/context-corpus-search.test.js` — corpus baseline·task 번들 갱신.
+- Modify `docs/benchmark/context-corpus-search.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/tasks.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/verification.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/review.md` — corpus baseline·task 번들 갱신.
+
+#### Constraints
+
+- bundle 이동과 resource 갱신을 함께 한다.
+- corpus fixture·benchmark 문서는 이 task의 canonical epic 통합 후 baseline(hit·후보 상한)을 갱신하는 데 쓴다.
+
+### Task 007
+
+#### Goal & intent
+
+004,005,017,033,053의 BP를 `004-starter-kit-convergence`로 통합한다.
+
+#### Interface
+
+- 제공: planning·quality governance history가 하나의 hierarchy에 있다.
+- 거부: gate 동작은 변경하지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/005-reviewer-prompt/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/006-plan-verify-detection/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/007-context-review-guard/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/002-init-rules-scaffold/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/003-per-task-verify-command/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/blueprints/004-discovery-depth/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/005-review-depth/blueprints/001-reviewer-prompt/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/005-review-depth/blueprints/001-reviewer-prompt/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/005-review-depth/blueprints/001-reviewer-prompt/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/005-review-depth/blueprints/001-reviewer-prompt/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/005-review-depth/blueprints/001-reviewer-prompt/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/005-review-depth/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/review.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/tasks.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/verification.md` — corpus baseline·task 번들 갱신.
+- Modify `.bouncer/context/epics/017-verify-wrapper-guidance/blueprints/001-plan-verify-detection/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/017-verify-wrapper-guidance/blueprints/001-plan-verify-detection/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/017-verify-wrapper-guidance/blueprints/001-plan-verify-detection/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/017-verify-wrapper-guidance/blueprints/001-plan-verify-detection/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/017-verify-wrapper-guidance/blueprints/001-plan-verify-detection/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/017-verify-wrapper-guidance/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/blueprints/001-context-review-guard/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/033-quality-security/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/blueprints/001-plan-explain-execute-fixes/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `docs/benchmark/context-corpus-search.md` — corpus baseline·task 번들 갱신.
+- Modify `test/context-corpus-search.test.js` — corpus baseline·task 번들 갱신.
+- Modify `test/fixtures/context-corpus-queries.json` — corpus baseline·task 번들 갱신.
+
+#### Constraints
+
+- bundle 이동과 resource 갱신을 함께 한다.
+- corpus fixture·benchmark 문서는 이 task의 canonical epic 통합 후 baseline(hit·후보 상한)을 갱신하는 데 쓴다.
+
+### Task 008
+
+#### Goal & intent
+
+006,029,035,045,056의 BP를 `006-scripts-typescript`로 통합한다.
+
+#### Interface
+
+- 제공: platform architecture history가 하나의 hierarchy에 있다.
+- 거부: scripts 구현은 변경하지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/002-skill-structure/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/003-core-module-split/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/004-skill-body-shape/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/005-implementation-doc-comments/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/005-implementation-doc-comments/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/005-implementation-doc-comments/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/005-implementation-doc-comments/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/005-implementation-doc-comments/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/005-implementation-doc-comments/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/006-catalog-hide/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/distill.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/blueprints/001-tsc-cjs-migrate/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/blueprints/001-skill-structure/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/blueprints/001-core-module-split/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/001-skill-body-shape/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/002-implementation-doc-comments/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/002-implementation-doc-comments/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/002-implementation-doc-comments/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/002-implementation-doc-comments/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/002-implementation-doc-comments/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/blueprints/002-implementation-doc-comments/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/045-skill-shape/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/blueprints/001-catalog-hide/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+#### Constraints
+
+- bundle 이동과 resource 갱신을 함께 한다.
+
+### Task 009
+
+#### Goal & intent
+
+034, 051, 052의 BP를 실제 canonical epic인 `034-evaluation-benchmarking` 아래에 통합하고 legacy source 경로를 제거한다.
+
+#### Interface
+
+- 제공: benchmark history가 `034-evaluation-benchmarking` 하나의 hierarchy에 있다.
+- 거부: benchmark runner와 benchmark 내용은 변경하지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/001-benchmark-skill/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/002-deepswe-run-path/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/003-deepswe-run-plumbing/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/blueprints/004-checkout-arms-comparison/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/034-agentic-benchmark/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/blueprints/001-deepswe-run-path/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/001-deepswe-run-plumbing/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/blueprints/002-checkout-arms-comparison/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/context-review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/explain.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/context-review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/explain.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/context-review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/explain.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/review.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/tasks.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/verification.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/index.md` — canonical epic migration의 destination 문서를 생성하고 source·resource·링크를 갱신한다.
+
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/001/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/003/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/004/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/001-measured-cost-reduction/tasks/005/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/002-light-plan-contract/tasks/002/tasks.md` — 034-evaluation-benchmarking으로 이동한 경로에 맞춰 stale 참조를 갱신한다.
+
+#### Constraints
+
+- source가 작업 트리에서 삭제된 상태여도 HEAD의 source를 기준으로 동일한 bundle 구조를 destination에 보존한다.
+- destination blueprint 번호는 기존 `001`~`004`를 유지하고 중복 bundle을 만들지 않는다.
+- bundle 이동과 resource·부모 링크 갱신을 함께 한다.
+
+### Task 010
+
+#### Goal & intent
+
+039 문서가 이미 존재하는 canonical epic `039-open-source-one-zero`에만 속하는지 확인하고, 존재하지 않는 `039-release-security` source mapping을 계획에서 제거한다.
+
+#### Interface
+
+- 제공: release/security history가 `039-open-source-one-zero` 하나에 보존된다.
+- 거부: 존재하지 않는 `039-release-security` hierarchy를 생성하거나 release artifact와 보안 정책을 변경하지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/004/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/004/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/004/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/005/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/005/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/005/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/006/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/006/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/006/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/007/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/007/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/007/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/008/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/008/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/001-security-legal-baseline/tasks/008/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/002-public-contract-freeze/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/context-review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/explain.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/001/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/001/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/001/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/002/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/002/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/002/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/003/review.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/003/tasks.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/blueprints/003-one-zero-release/tasks/003/verification.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/epics/039-open-source-one-zero/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+- Modify `.bouncer/context/index.md` — canonical epic migration의 source, destination, index 또는 regression artifact를 갱신한다.
+
+#### Constraints
+
+- 실제 inventory에 없는 source 파일은 이동 대상으로 취급하지 않는다.
+- canonical 039 문서의 `resource`, 부모 경로, 내부 링크와 context index만 검증·정합화한다.
+
+### Task 011
+
+#### Goal & intent
+
+현재 execute worktree에 남은 전체 context migration 변경을 일관된 canonical corpus로 복구하고, 054의 6개 BP 전체 문서 묶음(`index.md`, `context-review.md`, `explain.md`, task bundle)을 기존 canonical epic `043-bouncer-cost-improvement` 아래 `004`~`009`로 재번호화한다. 존재하지 않는 `043-efficiency-optimization` mapping과 누락된 `003-breadcrumb-consistency` breadcrumb 참조를 제거하며, 실제 canonical epic 디렉터리와 `.bouncer/context/index.md`의 row를 1:1로 맞춰 `S13`을 해소한다.
+
+#### Interface
+
+- 제공: execute worktree의 canonical context epic 디렉터리만 `.bouncer/context/index.md`에 등록되고, 실제 디렉터리와 index row가 1:1이며, context cost history가 `043-bouncer-cost-improvement` 하나의 hierarchy에 있고 실제 존재하는 각 blueprint의 설명·판정 문서까지 연결된다.
+- 거부: 존재하지 않는 `043-efficiency-optimization` hierarchy나 `003-breadcrumb-consistency` blueprint를 생성하거나 `skills/` runtime 본문을 변경하지 않는다.
+
+#### Touch
+
+- Modify `.bouncer/context/epics/054-skill-context-optimization/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/001-baseline-measurement/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/004-baseline-measurement/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/002-agent-rubric-ssot/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/005-agent-rubric-ssot/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/003-conditional-reference-split/tasks/005/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/006-conditional-reference-split/tasks/005/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/004-shared-rule-blocks/tasks/005/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/004/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/007-shared-rule-blocks/tasks/005/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/005-description-budget-lock/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/002/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/008-description-budget-lock/tasks/003/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/054-skill-context-optimization/blueprints/006-execution-baseline/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/context-review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/explain.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/review.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/tasks.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/blueprints/009-execution-baseline/tasks/001/verification.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/043-bouncer-cost-improvement/index.md` — migration 문서의 resource와 부모 링크를 정합하게 갱신한다.
+- Modify `.bouncer/context/epics/001-cli-usability/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/001-cli-help/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/002-cursor-codex-manifests/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/003-commands-to-skills/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/004-venv-install-bin-resolution/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/005-antigravity-plugin-surface/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/006-host-candidate-launcher/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/007-install-first-five-minutes/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/008-instruction-layers/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/blueprints/009-debt-items/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/001-product-surface-hosts/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/002-commit-artifacts/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/003-multi-agent-plugin/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/001-spec-authoring-guardrails/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/002-init-rules-scaffold/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/003-per-task-verify-command/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/004-discovery-depth/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/005-reviewer-prompt/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/006-plan-verify-detection/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/007-context-review-guard/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/blueprints/008-plan-explain-execute-fixes/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-planning-quality-governance/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/004-starter-kit-convergence/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/005-review-depth/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/001-tsc-cjs-migrate/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/002-skill-structure/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/003-core-module-split/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/004-skill-body-shape/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/005-implementation-doc-comments/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/blueprints/006-catalog-hide/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-platform-architecture/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/006-scripts-typescript/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/006/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/003-path-routed-distill/tasks/007/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/004-promotion-proposal-acq/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/005-checkout-relative-distill/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/006-brief-injection-slim/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/007-distill-shard-discipline/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/008-for-union-single-call/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/blueprints/009-master-distill-compaction/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/007-project-distill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/008-worktree-seed/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/001-subagent-model-config-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/002-named-agent-routing/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/003-adaptive-quiz/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/004-graph-basis-record/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/005-pr-single-confirm/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/006-debugger-agent/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/007-ponytail-advisor-removal/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/008-run-loop/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/009-execute-review-cap/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/010-finalize-pointer-scope/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/011-distill-read-scope/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/012-plugin-arm-benchmark/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/blueprints/013-structured-pr-body/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/009-agent-orchestration/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/010-active-pointer-cli/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/011-graphify-signal/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/012-finalize-handoff/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/013-comprehension-gate/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/006/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/007/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/008/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/009/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/010/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/004-corpus-consolidation/tasks/011/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/005-history-import-cli/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/006-schema-cutover/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/007-context-digest-grain/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/008-supersedes-field/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/blueprints/009-derived-summary-regeneration/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/014-numeric-context-ids/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/015-workflow-ergonomics/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/016-advisor-removal/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/017-verify-wrapper-guidance/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/001-evidence-and-message/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/002-seed-plan-artifacts/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/003-current-command/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/004-next-blueprint-handoff/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/005-explain-doc-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/006-explain-diff-skill/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/007-promotion-pr-body/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/008-tasks-doc-resolver/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/009-pointer-task-field/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/010-task-dir-layout/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/011-commit-stage/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/012-closed-status/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/013-nested-worktree-path/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/014-scale-light-convention/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/015-lightweight-cycle-guidance/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/016-comprehension-gate-move/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/017-mermaid-authoring-convention/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/018-gate-integrity/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/blueprints/019-promotion-verify/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/018-task-unit-commits/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/019-task-pointer/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/020-task-unit-artifacts/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/021-task-commit-stage/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/022-blueprint-closure/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/023-worktree-layout/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/024-light-path/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/024-lightweight-cycle/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/025-graphify-bootstrap/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/026-context-graph-slim/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/027-history-import/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/028-antigravity-host/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/029-release-one-zero/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/030-gate-restructure/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/031-document-schema/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/032-autonomous-run/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/033-quality-security/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/001-benchmark-skill/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/002-deepswe-run-path/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/003-deepswe-run-plumbing/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/blueprints/004-checkout-arms-comparison/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/034-evaluation-benchmarking/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/035-scripts-refactor/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/036-distill-sharding/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/037-distill-promotion-consent/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/038-distill-worktree-base/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/006/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/007/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/001-security-legal-baseline/tasks/008/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/002-public-contract-freeze/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/blueprints/003-one-zero-release/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/039-release-security/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/040-scope-evidence/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/041-plan-mermaid-zoom/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/042-gate-integrity/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/044-finalize-evidence/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/045-skill-shape/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/046-review-loop-cap/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/047-context-injection/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/048-plugin-root-resolution/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/049-context-searchability/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/050-cycle-friction/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/051-deepswe-original-benchmark/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/052-deepswe-arm-comparison/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/053-skill-doc-defects/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/055-distill-injection/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/056-unpublished-helper-skills/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/057-review-ready-pr/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/058-context-runtime-compaction/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/059-audit-followup/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/002-silent-skip-signal/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/distill.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/003-graph-path-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/004-context-section-digest/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/005-scope-evidence-contract/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/006-english-search-contract/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/004/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/007-derived-anchors-and-coverage/tasks/005/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/context-review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/explain.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/001/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/002/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/review.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/tasks.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/blueprints/008-scope-separation-and-reporting/tasks/003/verification.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/060-graphify-search-quality/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/061-epic-index-consistency/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/062-search-language-contract/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/063-context-digest-search-index/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+- Modify `.bouncer/context/epics/064-scope-graph-convergence/index.md` — execute worktree와 context index의 정합성을 유지하도록 migration 상태를 반영한다.
+
+#### Constraints
+
+- 054의 source blueprint `001`~`006`은 destination `004`~`009`에 일대일로 대응한다.
+- 기존 043 destination `001`~`003`과 번호를 겹치게 하지 않는다.
+- bundle 이동, metadata ASCII 정규화, `resource`·부모 링크 갱신을 함께 한다.
+- canonical epic index에는 실제로 존재하는 blueprint만 링크한다.
+- `.bouncer/context/index.md`에는 canonical epic 11개만 등록하고 제거된 legacy epic row를 남기지 않는다.
+- 실행 worktree의 pre-existing 변경을 보존하고, `git -C .worktrees/014/004 diff --name-only develop -- .bouncer/context/epics/054-skill-context-optimization .bouncer/context/epics/043-bouncer-cost-improvement .bouncer/context/index.md` 결과가 이 task의 `affected_paths` 안에만 있는지 확인한다.
+- 현재 worktree에 남은 선행 migration 변경을 이 task의 명시적 scope로 흡수하되, `skills/` 및 코드 runtime은 제외한다.
+- 기존 043 blueprint `001`~`003`은 보존 대상이므로 worktree set 비교에서 제외하고 파일 내용을 변경하지 않는다.
+- source 설명 문서는 orphan으로 남기지 않으며, destination `context-review.md`와 `explain.md`는 원본의 판정·설명 의미를 보존해 생성한다.
