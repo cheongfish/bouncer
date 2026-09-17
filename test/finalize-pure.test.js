@@ -498,11 +498,44 @@ test('finalize remainder uses blueprint Intent, ignoring task commit_intent', ()
   ].join('\n'));
 });
 
-test('task context preserves authored semantic line breaks and excludes verification', () => {
-  const taskUnits = [{
-    number: 2,
-    tasks: {
-      body: `# Tasks
+test('task context keeps six durable sections, authored breaks, and task order', () => {
+  const taskUnits = [
+    {
+      number: 2,
+      tasks: {
+        body: `# Tasks
+
+## Goal & intent
+두 번째 작업 목표다.
+
+## Current behavior
+지금은 두 번째만 남긴다.
+
+## Target behavior
+두 번째를 바꾼다.
+
+## Interface
+- 두 번째 입력
+
+## Touch
+- \`src/second.ts\`
+
+## Constraints
+- 두 번째 제약
+
+## Do not touch
+- \`src/legacy/\` 경로
+
+## Checklist
+- [ ] 구현
+`,
+      },
+      verification: { body: 'verification evidence must not be copied' },
+    },
+    {
+      number: 1,
+      tasks: {
+        body: `# Tasks
 
 ## Goal & intent
 첫 번째 줄이다.
@@ -512,19 +545,26 @@ test('task context preserves authored semantic line breaks and excludes verifica
 - 입력을 그대로 받는다.
 - 결과는 한 줄로 반환한다.
 
+## Touch
+- \`src/first.ts\`
+
+## Constraints
+- 첫 번째 제약
+
 ## Do not touch
-- \`src/legacy/\` 경로
+- DO_NOT_TOUCH_MARKER
 
 ## Checklist
-- [ ] 구현
+- [ ] CHECKLIST_MARKER
 `,
+      },
     },
-    verification: { body: 'verification evidence must not be copied' },
-  }];
+  ];
 
-  assert.strictEqual(buildTaskContext(taskUnits), `## Tasks
+  const rendered = buildTaskContext(taskUnits);
+  assert.strictEqual(rendered, `## Tasks
 
-### Task 002
+### Task 001
 
 #### Goal & intent
 
@@ -536,10 +576,101 @@ test('task context preserves authored semantic line breaks and excludes verifica
 - 입력을 그대로 받는다.
 - 결과는 한 줄로 반환한다.
 
-#### Do not touch
+#### Touch
 
-- \`src/legacy/\` 경로
+- \`src/first.ts\`
+
+#### Constraints
+
+- 첫 번째 제약
+
+### Task 002
+
+#### Goal & intent
+
+두 번째 작업 목표다.
+
+#### Current behavior
+
+지금은 두 번째만 남긴다.
+
+#### Target behavior
+
+두 번째를 바꾼다.
+
+#### Interface
+
+- 두 번째 입력
+
+#### Touch
+
+- \`src/second.ts\`
+
+#### Constraints
+
+- 두 번째 제약
 `);
+  assert.ok(!rendered.includes('Do not touch'));
+  assert.ok(!rendered.includes('DO_NOT_TOUCH_MARKER'));
+  assert.ok(!rendered.includes('Checklist'));
+  assert.ok(!rendered.includes('CHECKLIST_MARKER'));
+  assert.ok(!rendered.includes('verification evidence'));
+  assert.ok(rendered.indexOf('### Task 001') < rendered.indexOf('### Task 002'));
+});
+
+test('task context omits empty Current/Target and yields nothing without durable sections', () => {
+  assert.strictEqual(buildTaskContext([{
+    number: 1,
+    tasks: {
+      body: `# Tasks
+
+## Goal & intent
+목표만 남긴다.
+
+## Current behavior
+
+
+## Target behavior
+
+## Interface
+제공: 입력
+
+## Do not touch
+- \`src/pay/\`
+
+## Checklist
+- [ ] 실행만
+`,
+    },
+  }]), `## Tasks
+
+### Task 001
+
+#### Goal & intent
+
+목표만 남긴다.
+
+#### Interface
+
+제공: 입력
+`);
+
+  assert.strictEqual(buildTaskContext([{
+    number: 1,
+    tasks: {
+      body: `# Tasks
+
+## Do not touch
+- \`src/pay/\`
+
+## Checklist
+- [ ] 실행만
+`,
+    },
+  }]), '');
+
+  assert.strictEqual(buildTaskContext([{ number: 1, tasks: { body: '' } }]), '');
+  assert.strictEqual(buildTaskContext([]), '');
 });
 
 test('task message is composed from intent then authored summary', () => {

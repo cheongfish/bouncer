@@ -33,10 +33,15 @@ Git commit이 파일 diff와 변경 이력의 정본이다. 컨텍스트 문서�
 
 `/bouncer-finalize`는 `explain.md`를 작성하고 G16을 통과한 뒤, 같은 remainder
 commit에서 각 task의 `bouncer.commit_sha`(8자리)를 `explain.md`의
-`bouncer.task_commits`로 옮기고, `tasks/<NNN>/tasks.md`,
+`bouncer.task_commits`로 옮기고, task 문서의 장기 설계 절(`Goal & intent`,
+값이 있는 `Current behavior`·`Target behavior`, `Interface`, `Touch`,
+`Constraints`)을 `explain.md`의 `## Tasks`로 옮긴 뒤 `tasks/<NNN>/tasks.md`,
 `tasks/<NNN>/verification.md`, `tasks/<NNN>/review.md`, 있을 때의
-`context-review.md`를 지운 뒤 Blueprint를 `closed`로 바꾼다. 후속에 필요한
-제약·판단·검증 요지는 `explain.md`에 옮긴다.
+`context-review.md`를 지우고 Blueprint를 `closed`로 바꾼다.
+
+승격하지 않는 것: `Do not touch`, `Checklist`, verification·review 원문.
+실행 당시의 범위 통제와 절차 증적은 Git history에만 남긴다. 후속에도 유효한
+금지는 작성자가 `Interface` 또는 `Constraints`에 이유와 함께 기록해야 한다.
 미해결 위험은 새 sibling Blueprint 범위로 옮기거나 `explain.md`에 후속 제약으로
 적는다.
 
@@ -94,8 +99,12 @@ Blueprint diff를 이해했는지 확인하는 질문과 보기만 둔다.
 - 명령어 전문, 재시도, 중간 실패처럼 실행 당시만 유효한 정보
 - 변경 파일의 기계적인 전체 목록
 - 코드와 테스트에서 바로 확인되는 자명한 설명
-- task별 체크리스트와 개별 리뷰 대화
+- task별 `Do not touch`·체크리스트와 개별 리뷰 대화
 - `## Quiz` 안의 정답, 사용자 응답, 채점 결과
+
+finalize가 `## Tasks`로 옮기는 장기 설계 절은 `Goal & intent`, 값이 있는
+`Current behavior`·`Target behavior`, `Interface`, `Touch`, `Constraints`다.
+`Do not touch`는 실행 시점 범위 통제이므로 장기 금지로 재해석하지 않는다.
 
 6개월 뒤 같은 논쟁이나 잘못된 수정이 다시 일어날 수 있는 정보만 남긴다. 제품
 계약이나 설정 의미처럼 코드 가까이에 둘 정보는 별도 사용자 문서나 코드 인접

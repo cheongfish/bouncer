@@ -443,7 +443,12 @@ function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }: {
 /**
  * task 문서에서 장기 보존할 설계 절만 렌더링한다.
  * parseTasksSections가 반환한 본문을 그대로 사용해 작성자가 나눈 줄바꿈을
- * 보존하고, verification·review·checklist 같은 실행 문서는 이 경로에 넣지 않는다.
+ * 보존한다. Do not touch·Checklist·verification·review는 실행 시점 범위
+ * 통제·절차라서 여기 넣지 않는다 — Git history와 삭제된 task 원문이 정본이다.
+ * Current/Target은 값이 있을 때만 넣어 legacy task에 두 절을 요구하지 않는다.
+ *
+ * @param {TaskUnitLike[] | undefined} taskUnits - Blueprint의 task 묶음
+ * @returns {string} Explain `## Tasks` 본문. 장기 절이 없으면 빈 문자열
  */
 function buildTaskContext(taskUnits: TaskUnitLike[] | undefined): string {
   const units = (Array.isArray(taskUnits) ? taskUnits : [])
@@ -454,10 +459,15 @@ function buildTaskContext(taskUnits: TaskUnitLike[] | undefined): string {
   const rendered: string[] = [];
   for (const unit of units) {
     const sections = parseTasksSections(unit.tasks && unit.tasks.body);
+    // 순서는 Plan/intent 소비자가 기대하는 장기 allowlist와 같다.
+    // doNotTouch는 의도적으로 빠진다 — 후속 금지는 Interface·Constraints에 적는다.
     const selected = [
       ['Goal & intent', sections.goal],
+      ['Current behavior', sections.currentBehavior],
+      ['Target behavior', sections.targetBehavior],
       ['Interface', sections.interface],
-      ['Do not touch', sections.doNotTouch],
+      ['Touch', sections.touch],
+      ['Constraints', sections.constraints],
     ].filter(([, body]) => typeof body === 'string' && body.trim()) as Array<[string, string]>;
     if (!selected.length) continue;
     const number = typeof unit.number === 'number'
@@ -1093,6 +1103,9 @@ function finalize({
 
 export = {
   buildCommitMessage, buildFinalizeCommitMessage, realGit, finalize,
+  // collectTransientRels는 retention 적용(일괄 정리)이 같은 삭제 목록을
+  // 재사용하도록 공개한다. finalize 내부 스냅샷과 목록이 갈라지면 복구 경계가 깨진다.
+  collectTransientRels,
   buildTaskContext, collectTaskCommits, writeExplainTaskCommits, writeExplainTaskContext,
   buildCoordinatorProvenance, collectCoordinatorProvenance, writeExplainCoordinator,
 };

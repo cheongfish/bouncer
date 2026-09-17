@@ -36,16 +36,27 @@ const TASK_DESIGN_BODY = `# Tasks
 ## Goal & intent
 마감은 blueprint 단위로 묶는다.
 
+## Current behavior
+지금은 Goal과 Interface만 Explain에 남긴다.
+
+## Target behavior
+장기 설계 절만 Explain에 남긴다.
+
 ## Interface
 task 설계 맥락을 explain에 남긴다.
 
 ## Touch
 - \`src/auth/\`
 
+## Constraints
+- 후속에도 유효한 금지는 Constraints에 적는다.
+
 ## Do not touch
+- DO_NOT_TOUCH_MARKER
 - \`src/payments/\`
 
 ## Checklist
+- [ ] CHECKLIST_MARKER
 - [ ] preserve context
 `;
 
@@ -948,7 +959,12 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
   const explainBody = fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8');
   assert.match(explainBody, /## Tasks\n\n### Task 001/);
   assert.match(explainBody, /## Goal & intent\n[\s\S]*마감은 blueprint 단위로 묶는다/);
-  assert.doesNotMatch(explainBody, /verification evidence|## Checklist/);
+  assert.match(explainBody, /#### Current behavior\n\n지금은 Goal과 Interface만 Explain에 남긴다/);
+  assert.match(explainBody, /#### Target behavior\n\n장기 설계 절만 Explain에 남긴다/);
+  assert.match(explainBody, /#### Touch\n\n- `src\/auth\//);
+  assert.match(explainBody, /#### Constraints\n\n- 후속에도 유효한 금지는 Constraints에 적는다/);
+  assert.doesNotMatch(explainBody, /DO_NOT_TOUCH_MARKER|#### Do not touch/);
+  assert.doesNotMatch(explainBody, /verification evidence|## Checklist|CHECKLIST_MARKER/);
   assert.deepStrictEqual(res.taskCommits, [
     { task: 'EPIC-001/BP-001/TASK-001', sha: 'aabbccdd', intent_anchor: 'task-001' },
     { task: 'EPIC-001/BP-001/TASK-002', sha: '11223344', intent_anchor: 'task-002' },
@@ -1181,11 +1197,12 @@ test('stage failure restores transient docs and approved status', () => {
   fullBlueprint(repo);
   writeContextReview(repo);
   const before = {
-    tasks: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
-    verification: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
-    review: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
-    cr: fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
-    index: fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'),
+    tasks: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`)),
+    verification: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`)),
+    review: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`)),
+    cr: fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`)),
+    index: fs.readFileSync(path.join(repo, `${BP_REL}/index.md`)),
+    explain: fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`)),
   };
   const api = {
     changedFiles: () => ['src/auth/login.ts'],
@@ -1199,24 +1216,28 @@ test('stage failure restores transient docs and approved status', () => {
     }),
     /stage boom/,
   );
-  assert.strictEqual(
-    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`)),
     before.tasks,
   );
-  assert.strictEqual(
-    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`)),
     before.verification,
   );
-  assert.strictEqual(
-    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`)),
     before.review,
   );
-  assert.strictEqual(
-    fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`)),
     before.cr,
   );
-  assert.strictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), before.index);
-  assert.match(before.index, /status: approved/);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`)), before.index);
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`)),
+    before.explain,
+  );
+  assert.match(before.index.toString('utf8'), /status: approved/);
 });
 
 test('commit failure restores transient docs and approved status', () => {
@@ -1224,11 +1245,12 @@ test('commit failure restores transient docs and approved status', () => {
   fullBlueprint(repo);
   writeContextReview(repo);
   const before = {
-    tasks: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
-    verification: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
-    review: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
-    cr: fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
-    index: fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'),
+    tasks: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`)),
+    verification: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`)),
+    review: fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`)),
+    cr: fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`)),
+    index: fs.readFileSync(path.join(repo, `${BP_REL}/index.md`)),
+    explain: fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`)),
   };
   const staged = [];
   const api = {
@@ -1244,23 +1266,27 @@ test('commit failure restores transient docs and approved status', () => {
     /commit boom/,
   );
   assert.ok(staged.length > 0, 'stage ran before commit failed');
-  assert.strictEqual(
-    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`), 'utf8'),
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/tasks.md`)),
     before.tasks,
   );
-  assert.strictEqual(
-    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`), 'utf8'),
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/verification.md`)),
     before.verification,
   );
-  assert.strictEqual(
-    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`), 'utf8'),
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/tasks/001/review.md`)),
     before.review,
   );
-  assert.strictEqual(
-    fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`), 'utf8'),
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/context-review.md`)),
     before.cr,
   );
-  assert.strictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`), 'utf8'), before.index);
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, `${BP_REL}/index.md`)), before.index);
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`)),
+    before.explain,
+  );
 });
 
 test('light blueprint finalize does not invent a missing context-review deletion', () => {
