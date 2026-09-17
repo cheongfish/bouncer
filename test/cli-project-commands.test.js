@@ -324,3 +324,79 @@ test('intent reports unknown --candidate on stderr with exit 1 and empty stdout'
   assert.equal(result.out, '');
   assert.match(result.err, /^intent:/);
 });
+
+function writeSuggestGraphs(repo) {
+  const sourceDir = path.join(repo, 'graphify-out', 'source');
+  const testDir = path.join(repo, 'graphify-out', 'test');
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.mkdirSync(testDir, { recursive: true });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({
+    source_dirs: ['src'],
+    verify: 'npm test',
+    base_branch: 'main',
+    graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] },
+  }));
+  fs.writeFileSync(path.join(sourceDir, 'graph.json'), JSON.stringify({
+    nodes: [
+      { id: 'f', label: 'owner.ts', source_file: 'src/owner.ts' },
+      { id: 's', label: 'CliDbgSym', source_file: 'src/owner.ts' },
+      { id: 'n', label: 'nbr.ts', source_file: 'src/nbr.ts' },
+      { id: 'c', label: 'callFrom', source_file: 'src/nbr.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'n', target: 'c', source_file: 'src/nbr.ts' },
+      { relation: 'calls', source: 'c', target: 's', source_file: 'src/nbr.ts' },
+      { relation: 'imports', source: 'c', target: 'f', source_file: 'src/nbr.ts' },
+    ],
+  }));
+  fs.writeFileSync(path.join(testDir, 'graph.json'), JSON.stringify({
+    nodes: [
+      { id: 'tf', label: 'owner.test.js', source_file: 'test/owner.test.js' },
+      { id: 'ts', label: 'covers', source_file: 'test/owner.test.js' },
+    ],
+    links: [
+      { relation: 'contains', source: 'tf', target: 'ts', source_file: 'test/owner.test.js' },
+      { relation: 'calls', source: 'ts', target: 's', source_file: 'test/owner.test.js' },
+    ],
+  }));
+}
+
+test('graph-suggest --debug succeeds and keeps default fields identical', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-gsuggest-'));
+  writeSuggestGraphs(repo);
+  const plain = capture([
+    'graph-suggest', '--repo', repo, '--query', 'CliDbgSym', '--seed', 'CliDbgSym',
+  ]);
+  assert.equal(plain.code, 0);
+  const withDebug = capture([
+    'graph-suggest', '--repo', repo, '--query', 'CliDbgSym', '--seed', 'CliDbgSym', '--debug',
+  ]);
+  assert.equal(withDebug.code, 0);
+  const plainJson = JSON.parse(plain.out);
+  const debugJson = JSON.parse(withDebug.out);
+  const { debug, ...defaultFromDebug } = debugJson;
+  assert.deepStrictEqual(defaultFromDebug, plainJson);
+  assert.equal(plainJson.debug, undefined);
+  assert.ok(debug);
+  assert.ok(debug.candidates);
+  assert.ok(debug.traversal);
+});
+
+test('graph-suggest rejects duplicate --debug and valued --debug with exit 2', () => {
+  const dup = capture([
+    'graph-suggest', '--query', 'x', '--debug', '--debug',
+  ]);
+  assert.equal(dup.code, 2);
+  assert.match(dup.err, /^graph-suggest:/);
+  assert.match(dup.err, /debug/i);
+  assert.equal(dup.out, '');
+
+  const valued = capture([
+    'graph-suggest', '--query', 'x', '--debug', 'yes',
+  ]);
+  assert.equal(valued.code, 2);
+  assert.match(valued.err, /^graph-suggest:/);
+  assert.match(valued.err, /debug/i);
+  assert.equal(valued.out, '');
+});

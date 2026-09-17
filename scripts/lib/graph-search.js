@@ -19,6 +19,43 @@ const ROLE_PRIORITY = {
     implementation: 0,
     test: 1,
 };
+/** 역할별·전체 후보 상한. cap 초과 탐색은 ranked로 위장하지 않는다. */
+const MAX_CANDIDATES_PER_ROLE = 3;
+const MAX_CANDIDATES_TOTAL = 8;
+/** seed 하나가 건드릴 수 있는 파일 수. 초과 시 seed.fanout_cap → low-confidence. */
+const MAX_FILES_PER_SEED = 8;
+/** seed 하나 BFS가 방문할 수 있는 노드 수. 초과 시 traversal.frontier_cap. */
+const MAX_FRONTIER_PER_SEED = 32;
+const MAX_DEPTH = 2;
+/** 기본 응답에 남기는 implementation 최소 점수(medium 경계와 동일). */
+const IMPLEMENTATION_SCORE_THRESHOLD = 4;
+/** 기본 candidate basis — 폐쇄형 enum, 각 값 ≤24 ASCII. */
+const COMPACT_BASIS = {
+    seedUnique: 'seed.unique',
+    seedPath: 'seed.path',
+    seedMatch: 'seed.match',
+    relCalls: 'rel.calls',
+    relImports: 'rel.imports',
+    relImportsFrom: 'rel.imports_from',
+    roleImplementation: 'role.implementation',
+    testConnected: 'test.connected',
+    reachContainsOnly: 'reach.contains_only',
+    graphEvidence: 'graph.evidence',
+};
+/** 기본 reasons — 폐쇄형 enum. 동적 설명은 debug에만 둔다. */
+const REASON = {
+    ranked: 'result.ranked',
+    sourceUnavailable: 'source.unavailable',
+    sourceOmitted: 'source.omitted',
+    testUnavailable: 'test.unavailable',
+    testOmitted: 'test.omitted',
+    excludeSkipped: 'exclude.skipped',
+    seedGenericOnly: 'seed.generic_only',
+    seedFanoutCap: 'seed.fanout_cap',
+    frontierCap: 'traversal.frontier_cap',
+    implementationNone: 'implementation.none',
+    implementationLowOnly: 'implementation.low_only',
+};
 // contains는 소유 확인에만 쓰고 BFS 확장 관계에서는 뺀다.
 const EXPAND_RELATIONS = new Set(['calls', 'imports', 'imports_from']);
 const KNOWN_RELATIONS = new Set(['contains', 'calls', 'imports', 'imports_from']);
@@ -29,8 +66,6 @@ const GENERIC_WORDS = new Set([
     'query', 'seed', 'run', 'call', 'import', 'module', 'index', 'main', 'util',
     'helper', 'config', 'option', 'error', 'status', 'state', 'context', 'source',
 ]);
-const MAX_DEPTH = 2;
-const EXPLOSION_LIMIT = 50;
 function toPosix(p) {
     return p.split('\\').join('/');
 }
@@ -88,14 +123,64 @@ function tokenize(text) {
         .map((t) => t.trim())
         .filter((t) => t.length >= 2);
 }
-function emptyResult(status, confidence, reasons) {
-    return {
+/**
+ * path seed는 generic 단어 필터로 버리지 않는다. `/` 또는 확장자처럼 보이면 path.
+ *
+ * @param {string} seed
+ * @returns {boolean}
+ */
+function isPathSeed(seed) {
+    return seed.includes('/') || /\.[A-Za-z0-9]+$/.test(seed);
+}
+function isGenericWord(seed) {
+    return GENERIC_WORDS.has(seed.toLowerCase());
+}
+/**
+ * label seed에서 generic을 제거하고 path seed는 보존한다.
+ *
+ * @param {string[]} rawSeeds - query token + 명시 seed
+ * @returns {{ kept: string[], droppedGeneric: string[] }}
+ */
+function prepareSeeds(rawSeeds) {
+    const kept = [];
+    const droppedGeneric = [];
+    const seen = new Set();
+    for (const seed of rawSeeds) {
+        if (!seed || seen.has(seed))
+            continue;
+        seen.add(seed);
+        if (!isPathSeed(seed) && isGenericWord(seed)) {
+            droppedGeneric.push(seed);
+            continue;
+        }
+        kept.push(seed);
+    }
+    // 결정성: 입력 순서를 버리고 동일 집합이면 같은 순회가 되게 정렬한다.
+    kept.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    return { kept, droppedGeneric };
+}
+function emptyResult(status, confidence, reasons, debug) {
+    const result = {
         status,
         confidence,
         candidates: { implementation: [], test: [] },
         suggested_paths: [],
-        reasons: reasons.length > 0 ? reasons : [`${status}: no further detail`],
+        reasons: reasons.length > 0 ? uniqueReasons(reasons) : [REASON.implementationNone],
     };
+    if (debug)
+        result.debug = debug;
+    return result;
+}
+function uniqueReasons(codes) {
+    const out = [];
+    const seen = new Set();
+    for (const c of codes) {
+        if (seen.has(c))
+            continue;
+        seen.add(c);
+        out.push(c);
+    }
+    return out;
 }
 /**
  * graph.json을 관대하게 읽는다. 손상·알 수 없는 관계는 버리고 omissions에 남긴다.
@@ -154,6 +239,12 @@ function loadGraphFile(absPath) {
             byLabel.set(key, list);
         }
     }
+    // label 버킷·nodes 순회를 id 오름차순으로 고정해 입력 배열 순서 독립성을 만든다.
+    for (const [key, list] of byLabel) {
+        list.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+        byLabel.set(key, list);
+    }
+    nodes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const links = [];
     const rawLinks = Array.isArray(root.links) ? root.links : [];
     for (const entry of rawLinks) {
@@ -179,6 +270,15 @@ function loadGraphFile(absPath) {
             source_file: typeof l.source_file === 'string' ? l.source_file : undefined,
         });
     }
+    links.sort((a, b) => {
+        if (a.source !== b.source)
+            return a.source < b.source ? -1 : 1;
+        if (a.target !== b.target)
+            return a.target < b.target ? -1 : 1;
+        if (a.relation !== b.relation)
+            return a.relation < b.relation ? -1 : 1;
+        return 0;
+    });
     return { graph: { nodes, links, byId, byLabel, omissions } };
 }
 function labelFiles(graph, label, excludeDirs = []) {
@@ -205,14 +305,12 @@ function isUniqueSeed(graph, seed, excludeDirs = []) {
 function isRepeatedSeed(graph, seed, excludeDirs = []) {
     return labelFiles(graph, seed, excludeDirs).size >= 2;
 }
-function isGenericWord(seed) {
-    return GENERIC_WORDS.has(seed.toLowerCase());
-}
 /**
  * 관계 인접 리스트. contains는 소유 조회용으로만 따로 둔다.
+ * 이웃은 id·relation 오름차순으로 정렬해 link 입력 순서가 queue에 남지 않게 한다.
  *
  * @param {LoadedGraph} graph
- * @returns {{ expand: Map<string, string[]>, ownedBy: Map<string, string[]> }}
+ * @returns {{ expand: Map<string, { id: string, relation: string }[]>, ownedBy: Map<string, string[]> }}
  */
 function buildAdjacency(graph) {
     const expand = new Map();
@@ -234,6 +332,18 @@ function buildAdjacency(graph) {
         addExpand(link.source, link.target, link.relation);
         addExpand(link.target, link.source, link.relation);
     }
+    for (const [id, list] of expand) {
+        list.sort((a, b) => {
+            if (a.id !== b.id)
+                return a.id < b.id ? -1 : 1;
+            return a.relation < b.relation ? -1 : a.relation > b.relation ? 1 : 0;
+        });
+        expand.set(id, list);
+    }
+    for (const [id, list] of ownedBy) {
+        list.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        ownedBy.set(id, list);
+    }
     return { expand, ownedBy };
 }
 function ensureFile(map, filePath, role) {
@@ -244,30 +354,34 @@ function ensureFile(map, filePath, role) {
         return null;
     let acc = map.get(posix);
     if (!acc) {
-        acc = { path: posix, role, flags: {}, basis: new Set() };
+        acc = { path: posix, role, flags: {}, detailBasis: new Set() };
         map.set(posix, acc);
     }
     return acc;
 }
 /**
- * seed 노드에서 calls/imports/imports_from 만 depth≤2로 확장한다.
- * contains는 시작 심볼의 소유 파일 확인에만 사용한다.
+ * seed마다 정렬된 시작 노드·인접으로 calls/imports/imports_from 만 depth≤2 확장한다.
+ * seed별 file fan-out·frontier 예산을 넘기면 해당 플래그만 세우고 계속하지 않는다.
  *
  * @param {LoadedGraph} graph
- * @param {string[]} seedLabels
+ * @param {string[]} seedLabels - prepareSeeds를 거친 kept seed
  * @param {Role} role
  * @param {Map<string, FileAcc>} files
- * @param {{ markUnique?: boolean, markGeneric?: boolean }} opts
- * @returns {{ hitLabels: Set<string>, startNodes: number }}
+ * @param {{ excludeDirs?: string[] }} opts
+ * @returns {{ hitLabels: Set<string>, startNodes: number, budget: ExpandBudget }}
  */
 function expandFromSeeds(graph, seedLabels, role, files, opts = {}) {
     const excludeDirs = opts.excludeDirs || [];
     const { expand, ownedBy } = buildAdjacency(graph);
     const hitLabels = new Set();
-    const startIds = new Set();
+    let startNodes = 0;
+    const budget = { fanoutCapped: false, frontierCapped: false };
     for (const seed of seedLabels) {
-        const nodes = graph.byLabel.get(lookupKey(seed)) || [];
-        for (const node of nodes) {
+        const seedFiles = new Set();
+        const startIds = new Set();
+        const labelNodes = [...(graph.byLabel.get(lookupKey(seed)) || [])];
+        // path seed와 label seed를 같은 seed 예산으로 묶는다.
+        for (const node of labelNodes) {
             // 제외 경로에만 있는 라벨 히트는 seed로 쓰지 않는다.
             if (node.source_file
                 && excludeDirs.length > 0
@@ -296,9 +410,15 @@ function expandFromSeeds(graph, seedLabels, role, files, opts = {}) {
                 ownerFiles.push({ path: node.source_file });
             }
             for (const owner of ownerFiles) {
+                const posix = toPosix(owner.path);
+                if (seedFiles.size >= MAX_FILES_PER_SEED && !seedFiles.has(posix)) {
+                    budget.fanoutCapped = true;
+                    continue;
+                }
                 const acc = ensureFile(files, owner.path, role);
                 if (!acc)
                     continue;
+                seedFiles.add(posix);
                 // 소유 확인은 contains 엣지다. 관계 BFS로 다시 닿기 전까지 contains-only로 둔다.
                 if (owners.length > 0) {
                     acc.flags.containsOnly = true;
@@ -306,18 +426,20 @@ function expandFromSeeds(graph, seedLabels, role, files, opts = {}) {
                 // 고유 정의 가산은 구현 그래프에만 적용 — 테스트 라벨 일치로 +5가 되면 안 된다.
                 if (role === 'implementation' && unique) {
                     acc.flags.uniqueDef = true;
-                    acc.basis.add(`defines unique seed ${seed}`);
+                    acc.detailBasis.add(`defines unique seed ${seed}`);
                 }
                 else if (genericWord || repeated) {
                     acc.flags.genericOnly = true;
-                    acc.basis.add(`generic name match for ${seed}`);
+                    acc.flags.seedMatch = true;
+                    acc.detailBasis.add(`generic name match for ${seed}`);
                 }
                 else {
-                    acc.basis.add(`seed match ${seed}`);
+                    acc.flags.seedMatch = true;
+                    acc.detailBasis.add(`seed match ${seed}`);
                 }
             }
         }
-        // 경로 seed: source_file 정확·접미사 일치
+        // 경로 seed: source_file 정확·접미사 일치 — nodes는 load 시 id 정렬됨.
         for (const node of graph.nodes) {
             if (!node.source_file)
                 continue;
@@ -325,152 +447,364 @@ function expandFromSeeds(graph, seedLabels, role, files, opts = {}) {
             if (excludeDirs.length > 0 && matchesPrefix(sf, excludeDirs))
                 continue;
             if (sf === seed || sf.endsWith(`/${seed}`)) {
+                if (seedFiles.size >= MAX_FILES_PER_SEED && !seedFiles.has(sf)) {
+                    budget.fanoutCapped = true;
+                    continue;
+                }
                 const acc = ensureFile(files, sf, role);
                 if (!acc)
                     continue;
                 hitLabels.add(seed);
-                acc.basis.add(`path seed ${seed}`);
+                seedFiles.add(sf);
+                acc.flags.seedPath = true;
+                acc.detailBasis.add(`path seed ${seed}`);
                 startIds.add(node.id);
             }
         }
-    }
-    // 관계 BFS — contains는 큐에 넣지 않는다.
-    const visited = new Map();
-    const queue = [];
-    for (const id of startIds) {
-        visited.set(id, 0);
-        queue.push({ id, depth: 0 });
-    }
-    while (queue.length > 0) {
-        const cur = queue.shift();
-        if (cur.depth >= MAX_DEPTH)
-            continue;
-        for (const next of expand.get(cur.id) || []) {
-            const prev = visited.get(next.id);
-            const nextDepth = cur.depth + 1;
-            if (prev !== undefined && prev <= nextDepth)
-                continue;
-            visited.set(next.id, nextDepth);
-            queue.push({ id: next.id, depth: nextDepth });
-            const node = graph.byId.get(next.id);
-            if (!node || !node.source_file)
-                continue;
-            if (excludeDirs.length > 0 && matchesPrefix(toPosix(node.source_file), excludeDirs)) {
-                continue;
+        const sortedStarts = [...startIds].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        startNodes += sortedStarts.length;
+        // seed별 BFS — frontier는 방문 노드 수, fan-out은 이 seed가 연 파일 수.
+        const visited = new Map();
+        const queue = [];
+        for (const id of sortedStarts) {
+            if (visited.size >= MAX_FRONTIER_PER_SEED) {
+                budget.frontierCapped = true;
+                break;
             }
-            const acc = ensureFile(files, node.source_file, role);
-            if (!acc)
+            visited.set(id, 0);
+            queue.push({ id, depth: 0 });
+        }
+        while (queue.length > 0) {
+            if (budget.fanoutCapped || budget.frontierCapped)
+                break;
+            const cur = queue.shift();
+            if (cur.depth >= MAX_DEPTH)
                 continue;
-            acc.flags.relation = true;
-            // calls/imports로 닿으면 contains-only 감점을 걷는다.
-            acc.flags.containsOnly = false;
-            acc.basis.add(`${next.relation} relation`);
+            for (const next of expand.get(cur.id) || []) {
+                const prev = visited.get(next.id);
+                const nextDepth = cur.depth + 1;
+                if (prev !== undefined && prev <= nextDepth)
+                    continue;
+                if (visited.size >= MAX_FRONTIER_PER_SEED && !visited.has(next.id)) {
+                    budget.frontierCapped = true;
+                    break;
+                }
+                visited.set(next.id, nextDepth);
+                queue.push({ id: next.id, depth: nextDepth });
+                const node = graph.byId.get(next.id);
+                if (!node || !node.source_file)
+                    continue;
+                if (excludeDirs.length > 0 && matchesPrefix(toPosix(node.source_file), excludeDirs)) {
+                    continue;
+                }
+                const posix = toPosix(node.source_file);
+                if (seedFiles.size >= MAX_FILES_PER_SEED && !seedFiles.has(posix)) {
+                    budget.fanoutCapped = true;
+                    break;
+                }
+                const acc = ensureFile(files, node.source_file, role);
+                if (!acc)
+                    continue;
+                seedFiles.add(posix);
+                acc.flags.relation = true;
+                // calls/imports로 닿으면 contains-only 감점을 걷는다.
+                acc.flags.containsOnly = false;
+                if (next.relation === 'calls')
+                    acc.flags.relCalls = true;
+                else if (next.relation === 'imports')
+                    acc.flags.relImports = true;
+                else if (next.relation === 'imports_from')
+                    acc.flags.relImportsFrom = true;
+                acc.detailBasis.add(`${next.relation} relation`);
+            }
+        }
+        if (budget.fanoutCapped || budget.frontierCapped) {
+            // 어느 seed든 예산 초과면 전체 추천을 low-confidence로 내린다 — 부분 ranked 금지.
+            break;
         }
     }
-    return { hitLabels, startNodes: startIds.size };
+    return { hitLabels, startNodes, budget };
 }
 function scoreFile(acc) {
     let score = 0;
-    const basis = [...acc.basis];
+    const detailBasis = [...acc.detailBasis];
     if (acc.flags.uniqueDef) {
         score += SCORE.uniqueSeedDefinition;
     }
     if (acc.role === 'implementation') {
         score += SCORE.implementationPath;
-        basis.push('implementation path');
+        detailBasis.push('implementation path');
     }
     if (acc.flags.relation) {
         score += SCORE.relationEdge;
     }
     if (acc.flags.linkedTest) {
         score += SCORE.connectedTest;
-        basis.push('connected test');
+        detailBasis.push('connected test');
     }
     if (acc.flags.genericOnly && !acc.flags.uniqueDef && !acc.flags.relation) {
         score += SCORE.genericNameOnly;
-        if (!basis.some((b) => /generic/i.test(b)))
-            basis.push('generic name only');
+        if (!detailBasis.some((b) => /generic/i.test(b)))
+            detailBasis.push('generic name only');
     }
     else if (acc.flags.genericOnly && !acc.flags.uniqueDef) {
         // 반복 이름 정의 파일: 고유 +5는 없고 일반 이름 감점만 적용
         score += SCORE.genericNameOnly;
-        if (!basis.some((b) => /generic/i.test(b)))
-            basis.push('generic name only');
+        if (!detailBasis.some((b) => /generic/i.test(b)))
+            detailBasis.push('generic name only');
     }
     if (acc.flags.unlinkedTest) {
         score += SCORE.testOnlyUnlinked;
-        basis.push('test-only without implementation link');
+        detailBasis.push('test-only without implementation link');
     }
     if (acc.flags.excluded) {
         score += SCORE.excludedPath;
-        basis.push('excluded path');
+        detailBasis.push('excluded path');
     }
     if (acc.flags.containsOnly) {
         score += SCORE.containsOnly;
-        basis.push('contains-only reach');
+        detailBasis.push('contains-only reach');
     }
-    if (basis.length === 0)
-        basis.push('graph evidence');
-    return { score, basis };
+    if (detailBasis.length === 0)
+        detailBasis.push('graph evidence');
+    return { score, detailBasis };
 }
-function sortCandidates(list, roleOf) {
+/**
+ * FileAcc flags → 중복 없는 compact basis code.
+ *
+ * @param {FileAcc} acc
+ * @returns {CompactBasisCode[]}
+ */
+function compactBasisFrom(acc) {
+    const codes = [];
+    const add = (c) => {
+        if (!codes.includes(c))
+            codes.push(c);
+    };
+    if (acc.flags.uniqueDef)
+        add(COMPACT_BASIS.seedUnique);
+    if (acc.flags.seedPath)
+        add(COMPACT_BASIS.seedPath);
+    if (acc.flags.seedMatch && !acc.flags.uniqueDef)
+        add(COMPACT_BASIS.seedMatch);
+    if (acc.flags.relCalls)
+        add(COMPACT_BASIS.relCalls);
+    if (acc.flags.relImports)
+        add(COMPACT_BASIS.relImports);
+    if (acc.flags.relImportsFrom)
+        add(COMPACT_BASIS.relImportsFrom);
+    if (acc.role === 'implementation')
+        add(COMPACT_BASIS.roleImplementation);
+    if (acc.flags.linkedTest)
+        add(COMPACT_BASIS.testConnected);
+    if (acc.flags.containsOnly)
+        add(COMPACT_BASIS.reachContainsOnly);
+    if (codes.length === 0)
+        add(COMPACT_BASIS.graphEvidence);
+    return codes;
+}
+function sortDetailed(list) {
     return list.slice().sort((a, b) => {
         if (b.score !== a.score)
             return b.score - a.score;
-        const ra = ROLE_PRIORITY[roleOf(a)];
-        const rb = ROLE_PRIORITY[roleOf(b)];
+        const ra = ROLE_PRIORITY[a.role];
+        const rb = ROLE_PRIORITY[b.role];
         if (ra !== rb)
             return ra - rb;
         return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
     });
 }
 /**
+ * 역할·전체 상한을 적용해 compact 후보를 만든다.
+ *
+ * @param {ScoredRow[]} implRows
+ * @param {ScoredRow[]} testRows
+ * @returns {{ implementation: CompactCandidate[], test: CompactCandidate[] }}
+ */
+function projectCompact(implRows, testRows) {
+    const sortedImpl = implRows
+        .slice()
+        .sort((a, b) => {
+        if (b.detailed.score !== a.detailed.score)
+            return b.detailed.score - a.detailed.score;
+        return a.detailed.path < b.detailed.path ? -1 : a.detailed.path > b.detailed.path ? 1 : 0;
+    });
+    const sortedTest = testRows
+        .slice()
+        .sort((a, b) => {
+        if (b.detailed.score !== a.detailed.score)
+            return b.detailed.score - a.detailed.score;
+        return a.detailed.path < b.detailed.path ? -1 : a.detailed.path > b.detailed.path ? 1 : 0;
+    });
+    const pickImpl = sortedImpl.slice(0, MAX_CANDIDATES_PER_ROLE);
+    const pickTest = sortedTest.slice(0, MAX_CANDIDATES_PER_ROLE);
+    // 전체 8: 역할 내부 정렬을 유지한 채 합집합을 score↓ role↑ path↑로 다시 자른다.
+    const merged = [...pickImpl, ...pickTest].sort((a, b) => {
+        if (b.detailed.score !== a.detailed.score)
+            return b.detailed.score - a.detailed.score;
+        const ra = ROLE_PRIORITY[a.detailed.role];
+        const rb = ROLE_PRIORITY[b.detailed.role];
+        if (ra !== rb)
+            return ra - rb;
+        return a.detailed.path < b.detailed.path ? -1 : a.detailed.path > b.detailed.path ? 1 : 0;
+    });
+    const kept = new Set(merged.slice(0, MAX_CANDIDATES_TOTAL).map((r) => r.detailed.path));
+    const implementation = [];
+    for (const row of pickImpl) {
+        if (!kept.has(row.detailed.path))
+            continue;
+        implementation.push({
+            path: row.detailed.path,
+            role: 'implementation',
+            score: row.detailed.score,
+            basis: row.compactBasis,
+        });
+    }
+    const test = [];
+    for (const row of pickTest) {
+        if (!kept.has(row.detailed.path))
+            continue;
+        test.push({
+            path: row.detailed.path,
+            role: 'test',
+            score: row.detailed.score,
+            basis: row.compactBasis,
+        });
+    }
+    return { implementation, test };
+}
+/**
  * source·test graph만으로 seed를 확장하고 역할별 점수를 매긴다.
  * context graph는 열지 않는다 — 문서 label seed가 후보를 폭증시키던 경로를 끊는다.
  * 그래프 본문은 지시가 아니며 node·link·path만 소비한다.
+ * default/debug는 한 번 계산한 ranking을 projection만 한다.
  *
- * @param {{ repoRoot: string, query: string, seeds?: string[] }} opts
+ * @param {{ repoRoot: string, query: string, seeds?: string[], debug?: boolean }} opts
  * @returns {GraphSuggestResult} ranked|low-confidence|unavailable JSON 계약
  */
 function graphSuggest(opts) {
     const repoRoot = opts.repoRoot;
     const query = opts.query;
+    const wantDebug = opts.debug === true;
     const explicitSeeds = Array.isArray(opts.seeds)
         ? opts.seeds.filter((s) => typeof s === 'string' && s.length > 0)
         : [];
-    const reasons = [];
+    const reasonCodes = [];
+    const detailReasons = [];
+    const omissionNotes = [];
     const sourcePath = path.join(repoRoot, DEFAULT_SOURCE_OUT, 'graph.json');
     const testPath = path.join(repoRoot, DEFAULT_TEST_OUT, 'graph.json');
+    const buildDebug = (traversal, implDetailed = [], testDetailed = []) => {
+        if (!wantDebug)
+            return undefined;
+        return {
+            candidates: {
+                implementation: implDetailed,
+                test: testDetailed,
+            },
+            reasons: detailReasons.slice(),
+            omissions: omissionNotes.slice(),
+            traversal,
+        };
+    };
     const sourceLoad = loadGraphFile(sourcePath);
     if (!sourceLoad.graph) {
-        reasons.push(`source graph unavailable: ${sourceLoad.reason || 'unreadable'}`);
-        // source 없이는 구현 확장이 불가능 — unavailable로 구분한다.
-        return emptyResult('unavailable', 'low', reasons);
+        reasonCodes.push(REASON.sourceUnavailable);
+        detailReasons.push(`source graph unavailable: ${sourceLoad.reason || 'unreadable'}`);
+        const traversal = {
+            max_depth: MAX_DEPTH,
+            max_files_per_seed: MAX_FILES_PER_SEED,
+            max_frontier_per_seed: MAX_FRONTIER_PER_SEED,
+            seeds_used: [],
+            seeds_dropped_generic: [],
+            fanout_capped: false,
+            frontier_capped: false,
+            files_touched: 0,
+        };
+        return emptyResult('unavailable', 'low', reasonCodes, buildDebug(traversal));
     }
     const source = sourceLoad.graph;
     if (source.omissions.length > 0) {
-        reasons.push(`source omissions: ${[...new Set(source.omissions)].slice(0, 8).join('; ')}`);
+        reasonCodes.push(REASON.sourceOmitted);
+        const note = `source omissions: ${[...new Set(source.omissions)].slice(0, 8).join('; ')}`;
+        detailReasons.push(note);
+        omissionNotes.push(note);
     }
     const testLoad = loadGraphFile(testPath);
     const testGraph = testLoad.graph;
     if (!testGraph) {
-        reasons.push(`test graph missing: ${testLoad.reason || 'unreadable'}`);
+        reasonCodes.push(REASON.testUnavailable);
+        detailReasons.push(`test graph missing: ${testLoad.reason || 'unreadable'}`);
     }
     else if (testGraph.omissions.length > 0) {
-        reasons.push(`test omissions: ${[...new Set(testGraph.omissions)].slice(0, 8).join('; ')}`);
+        reasonCodes.push(REASON.testOmitted);
+        const note = `test omissions: ${[...new Set(testGraph.omissions)].slice(0, 8).join('; ')}`;
+        detailReasons.push(note);
+        omissionNotes.push(note);
     }
     const exclude = realExcludeDirs(repoRoot);
-    if (exclude.skipReason)
-        reasons.push(`exclude_dirs: ${exclude.skipReason}`);
+    if (exclude.skipReason) {
+        detailReasons.push(`exclude_dirs: ${exclude.skipReason}`);
+    }
     const excludeDirs = exclude.dirs || [];
     const queryTokens = tokenize(query);
-    const seedSet = new Set([...queryTokens, ...explicitSeeds]);
-    const seeds = [...seedSet];
-    reasons.push('relation filter: calls, imports, imports_from (depth ≤ 2); contains ownership only');
+    const rawSeeds = [...new Set([...queryTokens, ...explicitSeeds])];
+    const { kept: seeds, droppedGeneric } = prepareSeeds(rawSeeds);
+    detailReasons.push('relation filter: calls, imports, imports_from (depth ≤ 2); contains ownership only');
+    const baseTraversal = () => ({
+        max_depth: MAX_DEPTH,
+        max_files_per_seed: MAX_FILES_PER_SEED,
+        max_frontier_per_seed: MAX_FRONTIER_PER_SEED,
+        seeds_used: seeds.slice(),
+        seeds_dropped_generic: droppedGeneric.slice(),
+        fanout_capped: false,
+        frontier_capped: false,
+        files_touched: 0,
+    });
+    // generic-only: 준비 단계에서 label이 전부 떨어져 path seed도 없을 때.
+    if (seeds.length === 0) {
+        reasonCodes.push(REASON.seedGenericOnly);
+        detailReasons.push('generic-only seeds; no unique symbol or path seed');
+        return emptyResult('low-confidence', 'low', reasonCodes, buildDebug(baseTraversal()));
+    }
     const files = new Map();
     const sourceExpand = expandFromSeeds(source, seeds, 'implementation', files, {
         excludeDirs,
     });
+    if (sourceExpand.budget.fanoutCapped) {
+        reasonCodes.push(REASON.seedFanoutCap);
+        detailReasons.push(`seed file fan-out exceeded ${MAX_FILES_PER_SEED} files for at least one seed`);
+    }
+    if (sourceExpand.budget.frontierCapped) {
+        reasonCodes.push(REASON.frontierCap);
+        detailReasons.push(`BFS frontier exceeded ${MAX_FRONTIER_PER_SEED} nodes for at least one seed`);
+    }
+    // 예산 초과는 부분 결과를 ranked로 내보내지 않는다.
+    if (sourceExpand.budget.fanoutCapped || sourceExpand.budget.frontierCapped) {
+        const traversal = baseTraversal();
+        traversal.fanout_capped = sourceExpand.budget.fanoutCapped;
+        traversal.frontier_capped = sourceExpand.budget.frontierCapped;
+        traversal.files_touched = files.size;
+        // debug: 예산 안에서 이미 모은 후보를 남긴다(finishLow와 동일). 기본 응답은 비운다.
+        const abortImpl = [];
+        const abortTest = [];
+        const abortSorted = [...files.values()].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+        for (const acc of abortSorted) {
+            const { score, detailBasis } = scoreFile(acc);
+            const detailed = {
+                path: acc.path,
+                role: acc.role,
+                score,
+                confidence: scoreConfidence(score),
+                basis: detailBasis,
+            };
+            if (acc.role === 'implementation')
+                abortImpl.push(detailed);
+            else if (acc.role === 'test')
+                abortTest.push(detailed);
+        }
+        return emptyResult('low-confidence', 'low', reasonCodes, buildDebug(traversal, sortDetailed(abortImpl), sortDetailed(abortTest)));
+    }
     // 구현 후보 경로·비일반 심볼 — 테스트 연결은 관계 엣지로만 판정한다.
     const implSpecificLabels = new Set();
     for (const [p, acc] of files) {
@@ -492,12 +826,13 @@ function graphSuggest(opts) {
         if (!isGenericWord(s))
             implSpecificLabels.add(s);
     }
+    // source 성공 후 test 2차 expand 예산 — 추천을 지우지 않고 traversal/reasons에만 남긴다.
+    const testBudgetFlags = { fanoutCapped: false, frontierCapped: false };
     if (testGraph) {
         const { ownedBy } = buildAdjacency(testGraph);
         const linkedTestFiles = new Set();
         const matchedTestNodeIds = new Set();
         // cross-graph: test link가 구현 심볼/노드를 가리킬 때만 연결로 본다.
-        // 같은 일반 명사 라벨 공유만으로는 connected로 승격하지 않는다.
         for (const link of testGraph.links) {
             if (!EXPAND_RELATIONS.has(link.relation))
                 continue;
@@ -539,26 +874,38 @@ function graphSuggest(opts) {
                     linkedTestFiles.add(toPosix(owner.source_file));
             }
         }
-        for (const fp of linkedTestFiles) {
+        for (const fp of [...linkedTestFiles].sort()) {
             const acc = ensureFile(files, fp, 'test');
             if (!acc)
                 continue;
             acc.role = 'test';
             acc.flags.linkedTest = true;
-            acc.basis.add('connected test');
+            acc.detailBasis.add('connected test');
         }
-        // seed로 직접 맞은 테스트이지만 구현 연결이 없으면 test-only 감점
-        expandFromSeeds(testGraph, seeds, 'test', files, {});
+        // seed로 직접 맞은 테스트 — debug에는 남기되 기본 추천에서는 연결분만.
+        // source가 이미 예산 안이면 test 2차 expand의 fan-out/frontier는 추천을 지우지 않는다.
+        const testExpand = expandFromSeeds(testGraph, seeds, 'test', files, {});
+        if (testExpand.budget.fanoutCapped) {
+            reasonCodes.push(REASON.seedFanoutCap);
+            detailReasons.push('test-graph seed file fan-out exceeded');
+        }
+        if (testExpand.budget.frontierCapped) {
+            reasonCodes.push(REASON.frontierCap);
+            detailReasons.push('test-graph BFS frontier exceeded');
+        }
+        // test 예산 플래그는 실제 budget을 미러한다(하드코드 금지). emptyResult 하지 않음.
+        testBudgetFlags.fanoutCapped = testExpand.budget.fanoutCapped;
+        testBudgetFlags.frontierCapped = testExpand.budget.frontierCapped;
         for (const [, acc] of files) {
             if (acc.role !== 'test')
                 continue;
             if (!acc.flags.linkedTest) {
                 acc.flags.unlinkedTest = true;
-                acc.basis.add('test-only without implementation link');
+                acc.detailBasis.add('test-only without implementation link');
             }
         }
     }
-    // 제외·graphify-out·경로 없음 제거 (exclude는 후보에서 drop; −5는 점수표 상수로만 유지)
+    // 제외·graphify-out·경로 없음 제거
     const droppedExcluded = [];
     for (const [p, acc] of [...files.entries()]) {
         if (!p || p.startsWith('graphify-out/')) {
@@ -571,110 +918,98 @@ function graphSuggest(opts) {
         }
     }
     if (droppedExcluded.length > 0) {
-        reasons.push(`dropped ${droppedExcluded.length} excluded path(s) `
+        reasonCodes.push(REASON.excludeSkipped);
+        detailReasons.push(`dropped ${droppedExcluded.length} excluded path(s) `
             + `(exclude_dirs; score ${SCORE.excludedPath} not applied to kept candidates)`);
     }
-    // 후보 수 폭발 — 추천 포기
-    if (files.size >= EXPLOSION_LIMIT) {
-        reasons.push(`result explosion: ${files.size} candidates (≥ ${EXPLOSION_LIMIT})`);
-        return emptyResult('low-confidence', 'low', reasons);
-    }
-    const implCandidates = [];
-    const testCandidates = [];
-    for (const acc of files.values()) {
-        const { score, basis } = scoreFile(acc);
-        const cand = {
+    const implRows = [];
+    const testRows = [];
+    // path 오름차순으로 점수화해 Map 삽입 순서가 결과에 안 남게 한다.
+    const sortedAcc = [...files.values()].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    for (const acc of sortedAcc) {
+        const { score, detailBasis } = scoreFile(acc);
+        const detailed = {
             path: acc.path,
+            role: acc.role,
             score,
             confidence: scoreConfidence(score),
-            basis,
+            basis: detailBasis,
+        };
+        const row = {
+            detailed,
+            compactBasis: compactBasisFrom(acc),
+            linkedTest: !!acc.flags.linkedTest && !acc.flags.unlinkedTest,
         };
         if (acc.role === 'implementation')
-            implCandidates.push(cand);
+            implRows.push(row);
         else if (acc.role === 'test')
-            testCandidates.push(cand);
+            testRows.push(row);
     }
-    const byRole = (c) => {
-        if (implCandidates.includes(c))
-            return 'implementation';
-        return 'test';
+    // 기본 추천: implementation은 threshold 이상, test는 연결분만.
+    const eligibleImpl = implRows.filter((r) => r.detailed.score >= IMPLEMENTATION_SCORE_THRESHOLD);
+    const eligibleTest = testRows.filter((r) => r.linkedTest);
+    const allImplDetailed = sortDetailed(implRows.map((r) => r.detailed));
+    const allTestDetailed = sortDetailed(testRows.map((r) => r.detailed));
+    const traversal = baseTraversal();
+    traversal.files_touched = files.size;
+    // source는 여기까지 오면 예산 안; test 2차 expand 플래그만 실제 budget을 미러한다.
+    traversal.fanout_capped = testBudgetFlags.fanoutCapped;
+    traversal.frontier_capped = testBudgetFlags.frontierCapped;
+    const finishLow = (extra, detail) => {
+        reasonCodes.push(extra);
+        detailReasons.push(detail);
+        return emptyResult('low-confidence', 'low', reasonCodes, buildDebug(traversal, allImplDetailed, allTestDetailed));
     };
-    const sortedImpl = sortCandidates(implCandidates, () => 'implementation');
-    const sortedTest = sortCandidates(testCandidates, () => 'test');
-    const pack = (status, confidence, extraReason) => ({
-        status,
-        confidence,
-        candidates: {
-            implementation: sortedImpl,
-            test: sortedTest,
-        },
-        suggested_paths: [],
-        reasons: [...reasons, extraReason],
-    });
-    // 질의·명시 seed만 본다.
-    const primarySeeds = [...new Set([...queryTokens, ...explicitSeeds])];
-    const hasSpecificPrimary = primarySeeds.some((s) => {
-        if (!s)
-            return false;
-        if (isGenericWord(s))
-            return false;
-        if (s.includes('/') || /\.[a-z]+$/i.test(s))
-            return true;
-        return true;
-    });
-    // 저신뢰: 일반 단어 seed만 (반복 심볼은 감점만 하고 여기선 막지 않는다)
-    if (primarySeeds.length > 0 && !hasSpecificPrimary) {
-        return pack('low-confidence', 'low', 'generic-only seeds; no unique symbol or path seed');
+    // 구현 후보 없음 (threshold 전 전체 기준 — 탐색 자체가 비었을 때)
+    if (implRows.length === 0) {
+        return finishLow(REASON.implementationNone, 'no implementation candidates');
     }
-    // 저신뢰: 구현 후보 없음
-    if (sortedImpl.length === 0) {
-        return pack('low-confidence', 'low', 'no implementation candidates');
-    }
-    // 저신뢰: 상위 결과가 test-only — 구현·테스트만 본다.
-    // 최고 점수 티어가 전부 test이면 발동. low 구현이 뒤에 있어도 가리지 않는다.
-    const codeFacing = sortCandidates([...sortedImpl, ...sortedTest], byRole);
-    if (codeFacing.length > 0 && sortedTest.length > 0) {
-        const bestScore = codeFacing[0].score;
-        const leading = codeFacing.filter((c) => c.score === bestScore);
-        const leadingAllTest = leading.every((c) => sortedTest.some((t) => t.path === c.path));
-        if (leadingAllTest) {
-            return pack('low-confidence', 'low', 'top results are test-only');
-        }
-    }
-    // 저신뢰: 구현 후보가 모두 low (Interface confidence 규칙)
-    const hasHighImpl = sortedImpl.some((c) => c.confidence === 'high');
-    const hasMediumImpl = sortedImpl.some((c) => c.confidence === 'medium');
+    // 구현 후보가 모두 low (score < 4). medium 경계 === threshold이므로 이 게이트가
+    // implementation.low_only의 유일한 진입점이다(별도 eligibleImpl 빈 분기 불필요).
+    const hasHighImpl = implRows.some((r) => r.detailed.confidence === 'high');
+    const hasMediumImpl = implRows.some((r) => r.detailed.confidence === 'medium');
     if (!hasHighImpl && !hasMediumImpl) {
-        return pack('low-confidence', 'low', 'implementation candidates are all low confidence');
+        // low-only여도 debug에는 후보를 남긴다. 기본 candidates는 비운다.
+        const lowPack = finishLow(REASON.implementationLowOnly, 'implementation candidates are all low confidence');
+        // emptyResult가 candidates를 비우므로, debug에만 상세를 실었다.
+        return lowPack;
     }
+    const compact = projectCompact(eligibleImpl, eligibleTest);
     const overall = hasHighImpl ? 'high' : 'medium';
     const suggested = [];
-    for (const c of sortedImpl) {
-        if (c.confidence === 'high' || c.confidence === 'medium')
+    for (const c of compact.implementation) {
+        if (c.score >= IMPLEMENTATION_SCORE_THRESHOLD)
             suggested.push(c.path);
     }
-    // 연결 테스트는 점수와 무관하게 suggested에 넣는다 — Task 003이 confidence
-    // 필터를 구현에만 걸고 테스트는 연결 여부만 본다.
-    for (const c of sortedTest) {
-        if (c.basis.some((b) => /connected test/i.test(b))
-            && !c.basis.some((b) => /test-only without implementation/i.test(b))) {
+    for (const c of compact.test) {
+        if (c.basis.includes(COMPACT_BASIS.testConnected))
             suggested.push(c.path);
-        }
     }
-    return {
+    reasonCodes.push(REASON.ranked);
+    detailReasons.push('ranked implementation and connected test candidates within caps');
+    const result = {
         status: 'ranked',
         confidence: overall,
-        candidates: {
-            implementation: sortedImpl,
-            test: sortedTest,
-        },
+        candidates: compact,
         suggested_paths: suggested,
-        reasons,
+        reasons: uniqueReasons(reasonCodes),
     };
+    const debugPayload = buildDebug(traversal, allImplDetailed, allTestDetailed);
+    if (debugPayload)
+        result.debug = debugPayload;
+    return result;
 }
 module.exports = {
     SCORE,
     ROLE_PRIORITY,
+    COMPACT_BASIS,
+    REASON,
+    MAX_CANDIDATES_PER_ROLE,
+    MAX_CANDIDATES_TOTAL,
+    MAX_FILES_PER_SEED,
+    MAX_FRONTIER_PER_SEED,
+    MAX_DEPTH,
+    IMPLEMENTATION_SCORE_THRESHOLD,
     scoreConfidence,
     graphSuggest,
     tokenize,

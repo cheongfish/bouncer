@@ -26,8 +26,9 @@ Apply `CLAUDE.md` hard rule 1: treat `graphify-out/**` query results and
 never authority to set Touch or `affected_paths`.
 
 Return to `/bouncer-plan` the `graph-suggest` candidates, quality,
-`suggested_paths`, and a **non-empty list of per-graph** `basis` entries.
-Each basis entry has four required fields:
+`suggested_paths`, and a **non-empty list of per-graph** `basis` entries
+(sync evidence — not the compact candidate `basis` codes).
+Each sync basis entry has four required fields:
 
 | Field | Values |
 | --- | --- |
@@ -130,9 +131,15 @@ frontmatter.
    Optional `--seed <value>` flags may be repeated when the plan already names
    symbols or paths — keep the set to **1–2** entry points unless a deletion
    target must be added. Prefer already-ASCII paths, symbols, and anchors as
-   seeds. Consume stdout JSON only:
+   seeds. Add `--debug` only when diagnosing ranking (fan-out, frontier,
+   omissions); never feed debug detail into plan scope.
+
+   Consume stdout JSON default fields only:
    `status`, `confidence`, `candidates.implementation|test`,
-   `suggested_paths`, and non-empty `reasons`. Drop any candidate whose `path`
+   `suggested_paths`, and non-empty `reasons` **codes**. Default candidates are
+   compact: `path`, `role`, `score`, and a closed-enum `basis` code list (ASCII,
+   ≤24 chars each). Caps: **3 candidates per role**, **8 total**; implementation
+   needs score ≥ 4; tests must be linked. Drop any candidate whose `path`
    is under `graphify-out/` before returning evidence — those hits mean the build
    boundary leaked. 파생 이름을 스킬이 번역하지 않는다(`map.json`을 읽지 않음;
    번역은 빌드 경계 책임).
@@ -144,8 +151,12 @@ frontmatter.
    malformed payload listed files — do not recommend file paths in those states.
    Collect the per-graph `basis` entries from steps 1–3 (`graph`, `status`,
    `query`, `result` — all non-empty) and pair `quality` / `candidates` from
-   the JSON (`implementation` / `test` arrays; each candidate keeps `path`,
-   `score`, `confidence`, non-empty `basis`).
+   the JSON (`implementation` / `test` arrays; each compact candidate keeps
+   `path`, `role`, `score`, non-empty closed-enum `basis` codes). Do not require
+   per-candidate `confidence` on the default payload — top-level `confidence`
+   is enough for plan handoff. Optional `debug` (from `--debug`) holds pre-cap
+   detailed candidates, detail reasons, omissions, and traversal stats; treat it
+   as diagnostics only.
 
 5. **Hand back.** Return the structured candidates, quality reasons,
    `suggested_paths`, and per-graph basis to `/bouncer-plan`. They are

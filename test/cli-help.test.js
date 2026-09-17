@@ -95,12 +95,14 @@ test('graph-sync help names source + test scopes', () => {
   assert.match(r.out, /graph-sync Rebuild stale graphify source \+ test graphs/);
 });
 
-test('usage lists graph-suggest --query <text> [--seed <value>]...', () => {
+test('usage lists graph-suggest --query <text> [--seed <value>]... [--debug]', () => {
   const r = capture([]);
   assert.match(
     r.out,
-    /graph-suggest\s+--query <text> \[--seed <value>\]\.\.\./,
+    /graph-suggest\s+--query <text> \[--seed <value>\]\.\.\. \[--debug\]/,
   );
+  // --debug는 값 없는 boolean flag — usage에 <...> 값을 붙이지 않는다.
+  assert.doesNotMatch(r.out, /graph-suggest[\s\S]{0,120}--debug\s+</);
 });
 
 test('graph-suggest without --query exits 2 on stderr', () => {
