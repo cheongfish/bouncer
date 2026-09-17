@@ -140,6 +140,13 @@ test('graphify-runner calls graph-suggest after sync and records structured qual
   // 디렉터리 롤업은 파일 후보 계약으로 대체된다.
   assert.doesNotMatch(md, /Roll up to directories/);
   assert.match(md, /suggested_paths/);
+  // compact 기본 payload: path/role/score/basis code, 역할·전체 상한, 선택 debug.
+  assert.match(md, /\brole\b/);
+  assert.match(md, /3 candidates per role|역할당 최대 3|per role.*3/i);
+  assert.match(md, /8 total|전체 8/i);
+  assert.match(md, /compact/i);
+  assert.match(md, /--debug/);
+  assert.match(md, /\bdebug\b/);
 });
 
 test('graphify-runner leaves empty suggested_paths on low-confidence or unavailable', () => {

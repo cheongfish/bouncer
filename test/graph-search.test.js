@@ -189,7 +189,7 @@ test('ranked high: unique seed + implementation + relation scores', () => {
   assert.equal(result.confidence, 'high');
   assert.ok(result.reasons.length > 0);
   assert.ok(result.reasons.every((r) => !/^context/.test(r)));
-  assert.match(result.reasons.join('\n'), /calls|imports/i);
+  assert.ok(result.reasons.includes('result.ranked'));
   assert.deepStrictEqual(Object.keys(result.candidates), ['implementation', 'test']);
 
   const impl = result.candidates.implementation;
@@ -197,12 +197,19 @@ test('ranked high: unique seed + implementation + relation scores', () => {
   const primary = impl.find((c) => c.path === 'src/owner.ts');
   assert.ok(primary, 'implementation owner missing');
   assert.equal(primary.score, 10);
-  assert.equal(primary.confidence, 'high');
-  assert.ok(primary.basis.length > 0);
+  assert.equal(primary.role, 'implementation');
+  assert.ok(primary.basis.includes('seed.unique'));
+  assert.ok(primary.basis.includes('role.implementation'));
+  // relation evidence는 compact basis code로만 기본 응답에 남는다.
+  assert.ok(
+    primary.basis.some((b) => b === 'rel.calls' || b === 'rel.imports'),
+    `expected rel.* basis, got: ${primary.basis.join(',')}`,
+  );
 
   const linkedTest = result.candidates.test.find((c) => c.path === 'test/owner.test.js');
   assert.ok(linkedTest, 'connected test missing');
   assert.ok(linkedTest.score >= 1);
+  assert.ok(linkedTest.basis.includes('test.connected'));
   assert.ok(result.suggested_paths.includes('src/owner.ts'));
   assert.ok(result.suggested_paths.includes('test/owner.test.js'));
   assert.ok(!result.suggested_paths.some((p) => p.startsWith('.bouncer/')));
@@ -276,8 +283,8 @@ test('ranked medium when best implementation is medium only', () => {
   assert.equal(result.confidence, 'medium');
   const core = result.candidates.implementation.find((c) => c.path === 'src/core.ts');
   assert.ok(core);
-  assert.equal(core.confidence, 'medium');
-  assert.ok(core.basis.some((b) => /contains-only/i.test(b)));
+  assert.ok(core.score >= 4 && core.score < 8);
+  assert.ok(core.basis.includes('reach.contains_only'));
 
   const mediumRepo = tmpRepo();
   writeConfig(mediumRepo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
@@ -307,8 +314,8 @@ test('ranked medium when best implementation is medium only', () => {
   assert.equal(medium.status, 'ranked');
   assert.equal(medium.confidence, 'medium');
   assert.ok(medium.reasons.length > 0);
-  assert.ok(medium.candidates.implementation.every((c) => c.confidence !== 'high'));
-  assert.ok(medium.candidates.implementation.some((c) => c.confidence === 'medium'));
+  assert.ok(medium.candidates.implementation.every((c) => c.score < 8));
+  assert.ok(medium.candidates.implementation.some((c) => c.score >= 4));
 });
 
 test('low-confidence: no implementation candidates', () => {
@@ -327,7 +334,7 @@ test('low-confidence: no implementation candidates', () => {
   assert.equal(result.status, 'low-confidence');
   assert.equal(result.confidence, 'low');
   assert.deepEqual(result.suggested_paths, []);
-  assert.ok(result.reasons.some((r) => /implementation/i.test(r)));
+  assert.ok(result.reasons.includes('implementation.none'));
 });
 
 test('low-confidence: all implementation candidates are low', () => {
@@ -353,11 +360,19 @@ test('low-confidence: all implementation candidates are low', () => {
   assert.equal(result.confidence, 'low');
   assert.deepEqual(result.suggested_paths, []);
   assert.ok(
-    result.reasons.some((r) => /implementation candidates are all low confidence/i.test(r)),
-    `expected all-low reason, got: ${result.reasons.join(' | ')}`,
+    result.reasons.includes('implementation.low_only'),
+    `expected implementation.low_only, got: ${result.reasons.join(' | ')}`,
   );
-  assert.ok(result.candidates.implementation.length > 0);
-  assert.ok(result.candidates.implementation.every((c) => c.confidence === 'low'));
+  // 기본 후보는 threshold(≥4)만 남기므로 all-low에서는 비운다. 상세는 debug에만.
+  assert.deepEqual(result.candidates.implementation, []);
+  const debug = graphSuggest({
+    repoRoot: repo,
+    query: 'SharedLow',
+    seeds: ['SharedLow'],
+    debug: true,
+  });
+  assert.ok(debug.debug.candidates.implementation.length > 0);
+  assert.ok(debug.debug.candidates.implementation.every((c) => c.confidence === 'low'));
 });
 
 test('low-confidence: generic-only seeds', () => {
@@ -387,10 +402,10 @@ test('low-confidence: generic-only seeds', () => {
   assert.equal(result.status, 'low-confidence');
   assert.equal(result.confidence, 'low');
   assert.deepEqual(result.suggested_paths, []);
-  assert.ok(result.reasons.some((r) => /generic/i.test(r)));
+  assert.ok(result.reasons.includes('seed.generic_only'));
 });
 
-test('low-confidence: result explosion at 50 or more candidates', () => {
+test('low-confidence: seed fan-out supersedes legacy 50-candidate explosion', () => {
   const repo = tmpRepo();
   writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
   writeGraph(repo, 'context', {
@@ -402,6 +417,7 @@ test('low-confidence: result explosion at 50 or more candidates', () => {
   nodes.push({ id: 'seed', label: 'BoomFn', source_file: 'src/0.ts' });
   nodes.push({ id: 'seedFile', label: '0.ts', source_file: 'src/0.ts' });
   links.push({ relation: 'contains', source: 'seedFile', target: 'seed', source_file: 'src/0.ts' });
+  // 50 neighbors는 fan-out 8을 먼저 넘긴다 — 부분 ranked 없이 low-confidence.
   for (let i = 1; i <= 50; i += 1) {
     const id = `n${i}`;
     const fid = `f${i}`;
@@ -417,7 +433,7 @@ test('low-confidence: result explosion at 50 or more candidates', () => {
   assert.equal(result.status, 'low-confidence');
   assert.equal(result.confidence, 'low');
   assert.deepEqual(result.suggested_paths, []);
-  assert.ok(result.reasons.some((r) => /50|explod/i.test(r)));
+  assert.ok(result.reasons.includes('seed.fanout_cap'));
 });
 
 test('low-confidence: top results are test-only', () => {
@@ -462,9 +478,10 @@ test('low-confidence: top results are test-only', () => {
   assert.equal(result.status, 'low-confidence');
   assert.equal(result.confidence, 'low');
   assert.deepEqual(result.suggested_paths, []);
+  // 약한 반복 구현은 score < 4라 implementation.low_only로 수렴한다(구 test-only 분기 대체).
   assert.ok(
-    result.reasons.some((r) => /top results are test-only/i.test(r)),
-    `expected test-only reason, got: ${result.reasons.join(' | ')}`,
+    result.reasons.includes('implementation.low_only'),
+    `expected implementation.low_only, got: ${result.reasons.join(' | ')}`,
   );
 });
 
@@ -482,7 +499,7 @@ test('unavailable when source graph cannot be read', () => {
   assert.equal(result.confidence, 'low');
   assert.deepEqual(result.suggested_paths, []);
   assert.ok(result.reasons.length > 0);
-  assert.ok(result.reasons.some((r) => /source/i.test(r)));
+  assert.ok(result.reasons.includes('source.unavailable'));
 });
 
 test('corrupt partial graph keeps valid nodes and records omissions in reasons', () => {
@@ -506,12 +523,16 @@ test('corrupt partial graph keeps valid nodes and records omissions in reasons',
     ],
   });
   writeGraph(repo, 'test', { nodes: [], links: [] });
-  const result = graphSuggest({ repoRoot: repo, query: 'GoodSym', seeds: ['GoodSym'] });
+  const result = graphSuggest({ repoRoot: repo, query: 'GoodSym', seeds: ['GoodSym'], debug: true });
   assert.ok(['ranked', 'low-confidence'].includes(result.status));
-  assert.ok(result.reasons.some((r) => /omit|invalid|unknown|corrupt|skip/i.test(r)));
+  assert.ok(result.reasons.includes('source.omitted'));
+  assert.ok(result.debug.omissions.some((r) => /omit|invalid|unknown|corrupt|skip/i.test(r)));
   assert.ok(!result.candidates.implementation.some((c) => !c.path));
   assert.ok(!result.candidates.implementation.some((c) => c.path.startsWith('graphify-out/')));
-  assert.ok(result.candidates.implementation.some((c) => c.path === 'src/good.ts'));
+  assert.ok(
+    result.debug.candidates.implementation.some((c) => c.path === 'src/good.ts')
+      || result.candidates.implementation.some((c) => c.path === 'src/good.ts'),
+  );
 });
 
 test('contains is not used to BFS from generic nouns', () => {
@@ -564,23 +585,27 @@ test('relation scoring applies calls imports imports_from and contains-only pena
     ],
   });
   writeGraph(repo, 'test', { nodes: [], links: [] });
-  const result = graphSuggest({ repoRoot: repo, query: 'RelSym', seeds: ['RelSym'] });
+  const result = graphSuggest({ repoRoot: repo, query: 'RelSym', seeds: ['RelSym'], debug: true });
   assert.equal(result.status, 'ranked');
-  const byPath = Object.fromEntries(result.candidates.implementation.map((c) => [c.path, c]));
+  // 기본 후보는 역할당 3개라 이웃 전부는 debug(top-N 전)에서 확인한다.
+  const byPath = Object.fromEntries(
+    result.debug.candidates.implementation.map((c) => [c.path, c]),
+  );
   assert.ok(byPath['src/caller.ts'], 'calls neighbor');
   assert.ok(byPath['src/importer.ts'], 'imports neighbor');
   assert.ok(byPath['src/from.ts'], 'imports_from neighbor');
-  // relation neighbors should carry relation basis (+2) and not be contains-only
   assert.ok(byPath['src/caller.ts'].basis.some((b) => /calls|relation/i.test(b)));
   assert.ok(!byPath['src/caller.ts'].basis.some((b) => /contains-only/i.test(b)));
-  // 소유 파일은 contains로만 도달 → −3와 basis 고정
   assert.ok(byPath['src/def.ts'], 'definition owner');
   assert.ok(byPath['src/def.ts'].basis.some((b) => /contains-only/i.test(b)));
-  // unique(+5)+impl(+3)+containsOnly(−3) = 5 (contextHit 제거 후)
   assert.equal(
     byPath['src/def.ts'].score,
     SCORE.uniqueSeedDefinition + SCORE.implementationPath + SCORE.containsOnly,
   );
+  const compactDef = result.candidates.implementation.find((c) => c.path === 'src/def.ts');
+  assert.ok(compactDef);
+  assert.ok(compactDef.basis.includes('reach.contains_only'));
+  assert.ok(compactDef.basis.includes('seed.unique'));
 });
 
 test('excluded path penalty and drop of pathless or graphify-out candidates', () => {
@@ -602,8 +627,11 @@ test('unlinked test-only gets penalty and is not suggested', () => {
     repoRoot: repo,
     query: 'verifyLedgerPathFor plan',
     seeds: ['verifyLedgerPathFor', 'plan'],
+    debug: true,
   });
-  const orphan = result.candidates.test.find((c) => c.path === 'test/orphan.test.js');
+  // 기본 추천에서는 연결되지 않은 test를 빼고, debug detail에만 남긴다.
+  assert.ok(!result.candidates.test.some((c) => c.path === 'test/orphan.test.js'));
+  const orphan = result.debug.candidates.test.find((c) => c.path === 'test/orphan.test.js');
   if (orphan) {
     assert.ok(orphan.score <= SCORE.connectedTest + SCORE.testOnlyUnlinked);
     assert.ok(orphan.basis.some((b) => /test-only|unlinked|no implementation/i.test(b)));
@@ -698,4 +726,445 @@ test('trailing paren with spaces trims to same lookup key as bare seed', () => {
   writeGraph(repo, 'test', { nodes: [], links: [] });
   const result = graphSuggest({ repoRoot: repo, query: 'graphify', seeds: ['setupGraphify'] });
   assert.ok(result.candidates.implementation.some((c) => c.path === 'src/lib/graphify.ts'));
+});
+
+// --- TASKS-001 compact payload / traversal budget contracts ---
+
+const COMPACT_BASIS = new Set([
+  'seed.unique',
+  'seed.path',
+  'seed.match',
+  'rel.calls',
+  'rel.imports',
+  'rel.imports_from',
+  'role.implementation',
+  'test.connected',
+  'reach.contains_only',
+  'graph.evidence',
+]);
+
+const DEFAULT_REASONS = new Set([
+  'result.ranked',
+  'source.unavailable',
+  'source.omitted',
+  'test.unavailable',
+  'test.omitted',
+  'exclude.skipped',
+  'seed.generic_only',
+  'seed.fanout_cap',
+  'traversal.frontier_cap',
+  'implementation.none',
+  'implementation.low_only',
+]);
+
+function assertCompactCandidate(c) {
+  assert.deepEqual(Object.keys(c).sort(), ['basis', 'path', 'role', 'score']);
+  assert.equal(typeof c.path, 'string');
+  assert.ok(c.role === 'implementation' || c.role === 'test');
+  assert.equal(typeof c.score, 'number');
+  assert.ok(Array.isArray(c.basis));
+  assert.equal(c.basis.length, new Set(c.basis).size, 'basis codes must be unique');
+  for (const code of c.basis) {
+    assert.ok(COMPACT_BASIS.has(code), `unknown basis code: ${code}`);
+    assert.ok(/^[ -~]+$/.test(code), `basis not ASCII: ${code}`);
+    assert.ok(code.length <= 24, `basis longer than 24: ${code}`);
+  }
+}
+
+function assertDefaultReasons(reasons) {
+  assert.ok(Array.isArray(reasons) && reasons.length > 0);
+  assert.equal(reasons.length, new Set(reasons).size, 'reasons must be unique');
+  for (const code of reasons) {
+    assert.ok(DEFAULT_REASONS.has(code), `unknown reason code: ${code}`);
+  }
+}
+
+function defaultFields(result) {
+  const { debug: _debug, ...rest } = result;
+  void _debug;
+  return rest;
+}
+
+test('compact payload: candidate keys, basis enum, reason enum, role/total caps', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  const nodes = [];
+  const links = [];
+  // unique(+5)+impl(+3)+relation(+2)=10 on hub; fan neighbors also medium via relation.
+  nodes.push({ id: 'hub', label: 'CapHub', source_file: 'src/hub.ts' });
+  nodes.push({ id: 'hubf', label: 'hub.ts', source_file: 'src/hub.ts' });
+  links.push({ relation: 'contains', source: 'hubf', target: 'hub', source_file: 'src/hub.ts' });
+  for (let i = 0; i < 6; i += 1) {
+    const p = `src/n${i}.ts`;
+    nodes.push({ id: `n${i}`, label: `N${i}`, source_file: p });
+    nodes.push({ id: `nf${i}`, label: `n${i}.ts`, source_file: p });
+    links.push({ relation: 'contains', source: `nf${i}`, target: `n${i}`, source_file: p });
+    links.push({ relation: 'calls', source: `n${i}`, target: 'hub', source_file: p });
+  }
+  writeGraph(repo, 'source', { nodes, links });
+  const testNodes = [];
+  const testLinks = [];
+  for (let i = 0; i < 5; i += 1) {
+    const p = `test/t${i}.test.js`;
+    testNodes.push({ id: `t${i}`, label: `covers${i}`, source_file: p });
+    testNodes.push({ id: `tf${i}`, label: `t${i}.test.js`, source_file: p });
+    testLinks.push({ relation: 'contains', source: `tf${i}`, target: `t${i}`, source_file: p });
+    testLinks.push({ relation: 'calls', source: `t${i}`, target: 'hub', source_file: p });
+  }
+  writeGraph(repo, 'test', { nodes: testNodes, links: testLinks });
+
+  const result = graphSuggest({ repoRoot: repo, query: 'CapHub', seeds: ['CapHub'] });
+  assert.equal(result.status, 'ranked');
+  assertDefaultReasons(result.reasons);
+  assert.ok(result.reasons.includes('result.ranked'));
+
+  const impl = result.candidates.implementation;
+  const tests = result.candidates.test;
+  assert.ok(impl.length <= 3, `impl cap 3, got ${impl.length}`);
+  assert.ok(tests.length <= 3, `test cap 3, got ${tests.length}`);
+  assert.ok(impl.length + tests.length <= 8, `total cap 8, got ${impl.length + tests.length}`);
+  for (const c of [...impl, ...tests]) assertCompactCandidate(c);
+  assert.ok(impl.every((c) => c.score >= 4), 'implementation threshold score >= 4');
+  assert.ok(tests.every((c) => c.basis.includes('test.connected')));
+});
+
+test('generic-only seeds return low-confidence with seed.generic_only and empty suggested_paths', () => {
+  const repo = tmpRepo();
+  writeConfig(repo);
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'a', label: 'result', source_file: 'src/a.ts' },
+      { id: 'af', label: 'a.ts', source_file: 'src/a.ts' },
+    ],
+    links: [{ relation: 'contains', source: 'af', target: 'a', source_file: 'src/a.ts' }],
+  });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const result = graphSuggest({
+    repoRoot: repo,
+    query: 'result plan hook',
+    seeds: ['result', 'plan', 'hook'],
+  });
+  assert.equal(result.status, 'low-confidence');
+  assert.deepEqual(result.suggested_paths, []);
+  assertDefaultReasons(result.reasons);
+  assert.ok(result.reasons.includes('seed.generic_only'));
+});
+
+test('path seed survives generic-word filter', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  // path seed만으로도 관계 이웃을 열어 medium 이상(≥4)이 되게 한다.
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'f', label: 'plan.ts', source_file: 'src/plan.ts' },
+      { id: 's', label: 'PlanHelper', source_file: 'src/plan.ts' },
+      { id: 'n', label: 'nbr.ts', source_file: 'src/nbr.ts' },
+      { id: 'c', label: 'callPlan', source_file: 'src/nbr.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'f', target: 's', source_file: 'src/plan.ts' },
+      { relation: 'contains', source: 'n', target: 'c', source_file: 'src/nbr.ts' },
+      { relation: 'calls', source: 'c', target: 's', source_file: 'src/nbr.ts' },
+      { relation: 'imports', source: 'c', target: 'f', source_file: 'src/nbr.ts' },
+    ],
+  });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  // generic token "plan" alone would fail; explicit path seed must preserve ranking.
+  const alone = graphSuggest({ repoRoot: repo, query: 'plan', seeds: [] });
+  assert.equal(alone.status, 'low-confidence');
+  assert.ok(alone.reasons.includes('seed.generic_only'));
+
+  const result = graphSuggest({
+    repoRoot: repo,
+    query: 'plan',
+    seeds: ['src/plan.ts'],
+    debug: true,
+  });
+  assert.equal(result.status, 'ranked');
+  assert.ok(result.suggested_paths.length > 0);
+  // path seed 파일은 start라 relation 재방문이 없어 score 3일 수 있다.
+  // 필터 보존 증거는 debug detail basis의 path seed 문자열과 ranked 성공이다.
+  assert.ok(
+    result.debug.candidates.implementation.some(
+      (c) => c.path === 'src/plan.ts' && c.basis.some((b) => /path seed/i.test(b)),
+    ),
+    'path seed must record detail basis on src/plan.ts',
+  );
+});
+
+test('seed fan-out cap (>8 files) yields low-confidence + seed.fanout_cap', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  const nodes = [{ id: 'seed', label: 'FanSym', source_file: 'src/0.ts' }, { id: 'seedf', label: '0.ts', source_file: 'src/0.ts' }];
+  const links = [{ relation: 'contains', source: 'seedf', target: 'seed', source_file: 'src/0.ts' }];
+  // seed file + 8 neighbors = 9 files from one seed → fan-out > 8
+  for (let i = 1; i <= 8; i += 1) {
+    const p = `src/f${i}.ts`;
+    nodes.push({ id: `n${i}`, label: `Fn${i}`, source_file: p });
+    nodes.push({ id: `f${i}`, label: `f${i}.ts`, source_file: p });
+    links.push({ relation: 'contains', source: `f${i}`, target: `n${i}`, source_file: p });
+    links.push({ relation: 'calls', source: `n${i}`, target: 'seed', source_file: p });
+  }
+  writeGraph(repo, 'source', { nodes, links });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const result = graphSuggest({ repoRoot: repo, query: 'FanSym', seeds: ['FanSym'] });
+  assert.equal(result.status, 'low-confidence');
+  assert.deepEqual(result.suggested_paths, []);
+  assertDefaultReasons(result.reasons);
+  assert.ok(result.reasons.includes('seed.fanout_cap'));
+});
+
+test('BFS frontier cap (>32 nodes) yields low-confidence + traversal.frontier_cap', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  // One seed symbol owned by a file; 33 distinct neighbor symbol nodes via calls
+  // stay within file fan-out (reuse few files) but exceed frontier 32.
+  const nodes = [
+    { id: 'seed', label: 'FrontSym', source_file: 'src/hub.ts' },
+    { id: 'hubf', label: 'hub.ts', source_file: 'src/hub.ts' },
+    { id: 'a', label: 'a.ts', source_file: 'src/a.ts' },
+    { id: 'b', label: 'b.ts', source_file: 'src/b.ts' },
+    { id: 'c', label: 'c.ts', source_file: 'src/c.ts' },
+  ];
+  const links = [
+    { relation: 'contains', source: 'hubf', target: 'seed', source_file: 'src/hub.ts' },
+  ];
+  const files = ['src/a.ts', 'src/b.ts', 'src/c.ts'];
+  const fileIds = ['a', 'b', 'c'];
+  for (let i = 0; i < 33; i += 1) {
+    const fi = i % 3;
+    const id = `sym${i}`;
+    nodes.push({ id, label: `Sym${i}`, source_file: files[fi] });
+    links.push({ relation: 'contains', source: fileIds[fi], target: id, source_file: files[fi] });
+    links.push({ relation: 'calls', source: id, target: 'seed', source_file: files[fi] });
+  }
+  writeGraph(repo, 'source', { nodes, links });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const result = graphSuggest({ repoRoot: repo, query: 'FrontSym', seeds: ['FrontSym'] });
+  assert.equal(result.status, 'low-confidence');
+  assert.deepEqual(result.suggested_paths, []);
+  assertDefaultReasons(result.reasons);
+  assert.ok(result.reasons.includes('traversal.frontier_cap'));
+});
+
+test('test-graph frontier cap preserves ranked implementation (secondary expand)', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  // Source-only: unique + implementation + relation → ranked high.
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'f', label: 'core.ts', source_file: 'src/core.ts' },
+      { id: 's', label: 'KeepRank', source_file: 'src/core.ts' },
+      { id: 'n', label: 'nbr.ts', source_file: 'src/nbr.ts' },
+      { id: 'c', label: 'callNbr', source_file: 'src/nbr.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'n', target: 'c', source_file: 'src/nbr.ts' },
+      { relation: 'calls', source: 'c', target: 's', source_file: 'src/nbr.ts' },
+      { relation: 'imports', source: 'c', target: 'f', source_file: 'src/nbr.ts' },
+    ],
+  });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const sourceOnly = graphSuggest({
+    repoRoot: repo,
+    query: 'KeepRank',
+    seeds: ['KeepRank'],
+  });
+  assert.equal(sourceOnly.status, 'ranked');
+  assert.equal(sourceOnly.confidence, 'high');
+  assert.ok(sourceOnly.suggested_paths.includes('src/core.ts'));
+  assert.ok(!sourceOnly.reasons.includes('traversal.frontier_cap'));
+
+  // Same seed in test graph with frontier>32 (few files, many symbol nodes).
+  // Secondary expand is for debug unlinked hits — must not wipe ranked impl.
+  const testNodes = [
+    { id: 'tseed', label: 'KeepRank', source_file: 'test/hub.test.js' },
+    { id: 'thub', label: 'hub.test.js', source_file: 'test/hub.test.js' },
+    { id: 'ta', label: 'a.test.js', source_file: 'test/a.test.js' },
+    { id: 'tb', label: 'b.test.js', source_file: 'test/b.test.js' },
+    { id: 'tc', label: 'c.test.js', source_file: 'test/c.test.js' },
+  ];
+  const testLinks = [
+    { relation: 'contains', source: 'thub', target: 'tseed', source_file: 'test/hub.test.js' },
+  ];
+  const tFiles = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js'];
+  const tFileIds = ['ta', 'tb', 'tc'];
+  for (let i = 0; i < 33; i += 1) {
+    const fi = i % 3;
+    const id = `tsym${i}`;
+    testNodes.push({ id, label: `TSym${i}`, source_file: tFiles[fi] });
+    testLinks.push({
+      relation: 'contains',
+      source: tFileIds[fi],
+      target: id,
+      source_file: tFiles[fi],
+    });
+    testLinks.push({
+      relation: 'calls',
+      source: id,
+      target: 'tseed',
+      source_file: tFiles[fi],
+    });
+  }
+  writeGraph(repo, 'test', { nodes: testNodes, links: testLinks });
+
+  const withTestBudget = graphSuggest({
+    repoRoot: repo,
+    query: 'KeepRank',
+    seeds: ['KeepRank'],
+    debug: true,
+  });
+  assert.equal(withTestBudget.status, 'ranked');
+  assert.equal(withTestBudget.confidence, 'high');
+  assert.ok(withTestBudget.suggested_paths.includes('src/core.ts'));
+  assert.ok(withTestBudget.suggested_paths.length > 0);
+  assertDefaultReasons(withTestBudget.reasons);
+  assert.ok(withTestBudget.reasons.includes('result.ranked'));
+  assert.ok(withTestBudget.reasons.includes('traversal.frontier_cap'));
+  assert.ok(withTestBudget.debug);
+  assert.equal(withTestBudget.debug.traversal.frontier_capped, true);
+  // frontier-only trip: fanout flag must mirror actual budget, not hardcode true
+  assert.equal(withTestBudget.debug.traversal.fanout_capped, false);
+});
+
+test('source fan-out abort debug keeps discovered candidates', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  const nodes = [
+    { id: 'seed', label: 'FanDbg', source_file: 'src/0.ts' },
+    { id: 'seedf', label: '0.ts', source_file: 'src/0.ts' },
+  ];
+  const links = [
+    { relation: 'contains', source: 'seedf', target: 'seed', source_file: 'src/0.ts' },
+  ];
+  for (let i = 1; i <= 8; i += 1) {
+    const p = `src/f${i}.ts`;
+    nodes.push({ id: `n${i}`, label: `Fn${i}`, source_file: p });
+    nodes.push({ id: `f${i}`, label: `f${i}.ts`, source_file: p });
+    links.push({ relation: 'contains', source: `f${i}`, target: `n${i}`, source_file: p });
+    links.push({ relation: 'calls', source: `n${i}`, target: 'seed', source_file: p });
+  }
+  writeGraph(repo, 'source', { nodes, links });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const result = graphSuggest({
+    repoRoot: repo,
+    query: 'FanDbg',
+    seeds: ['FanDbg'],
+    debug: true,
+  });
+  assert.equal(result.status, 'low-confidence');
+  assert.deepEqual(result.suggested_paths, []);
+  assert.ok(result.reasons.includes('seed.fanout_cap'));
+  assert.ok(result.debug);
+  assert.ok(
+    result.debug.candidates.implementation.length > 0,
+    'budget abort debug must keep in-budget implementation rows',
+  );
+});
+
+test('missing test graph preserves implementation ranking with test.unavailable', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'f', label: 'core.ts', source_file: 'src/core.ts' },
+      { id: 's', label: 'SoloSym', source_file: 'src/core.ts' },
+      { id: 'n', label: 'nbr.ts', source_file: 'src/nbr.ts' },
+      { id: 'c', label: 'callNbr', source_file: 'src/nbr.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'n', target: 'c', source_file: 'src/nbr.ts' },
+      { relation: 'calls', source: 'c', target: 's', source_file: 'src/nbr.ts' },
+      { relation: 'imports', source: 'c', target: 'f', source_file: 'src/nbr.ts' },
+    ],
+  });
+  // no test graph.json
+  const result = graphSuggest({ repoRoot: repo, query: 'SoloSym', seeds: ['SoloSym'] });
+  assert.equal(result.status, 'ranked');
+  assert.equal(result.confidence, 'high');
+  assert.ok(result.candidates.implementation.some((c) => c.path === 'src/core.ts'));
+  assert.deepEqual(result.candidates.test, []);
+  assertDefaultReasons(result.reasons);
+  assert.ok(result.reasons.includes('test.unavailable'));
+  assert.ok(result.reasons.includes('result.ranked'));
+});
+
+test('debug on/off keeps identical default fields; debug adds detail', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  writeGraph(repo, 'source', {
+    nodes: [
+      { id: 'f', label: 'owner.ts', source_file: 'src/owner.ts' },
+      { id: 's', label: 'DbgSym', source_file: 'src/owner.ts' },
+      { id: 'n', label: 'nbr.ts', source_file: 'src/nbr.ts' },
+      { id: 'c', label: 'callFrom', source_file: 'src/nbr.ts' },
+    ],
+    links: [
+      { relation: 'contains', source: 'n', target: 'c', source_file: 'src/nbr.ts' },
+      { relation: 'calls', source: 'c', target: 's', source_file: 'src/nbr.ts' },
+      { relation: 'imports', source: 'c', target: 'f', source_file: 'src/nbr.ts' },
+    ],
+  });
+  writeGraph(repo, 'test', {
+    nodes: [
+      { id: 'tf', label: 'owner.test.js', source_file: 'test/owner.test.js' },
+      { id: 'ts', label: 'coversDbg', source_file: 'test/owner.test.js' },
+    ],
+    links: [
+      { relation: 'contains', source: 'tf', target: 'ts', source_file: 'test/owner.test.js' },
+      { relation: 'calls', source: 'ts', target: 's', source_file: 'test/owner.test.js' },
+    ],
+  });
+  const plain = graphSuggest({ repoRoot: repo, query: 'DbgSym', seeds: ['DbgSym'] });
+  const withDebug = graphSuggest({
+    repoRoot: repo,
+    query: 'DbgSym',
+    seeds: ['DbgSym'],
+    debug: true,
+  });
+  assert.deepStrictEqual(defaultFields(withDebug), plain);
+  assert.equal(plain.debug, undefined);
+  assert.ok(withDebug.debug);
+  assert.ok(withDebug.debug.candidates);
+  assert.ok(Array.isArray(withDebug.debug.reasons));
+  assert.ok(withDebug.debug.traversal);
+  assert.ok(
+    withDebug.debug.candidates.implementation.length
+      >= plain.candidates.implementation.length,
+  );
+});
+
+test('equal score sorts by role then path; shuffled nodes/links match', () => {
+  const repo = tmpRepo();
+  writeConfig(repo, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  const baseNodes = [
+    { id: 's1', label: 'Alpha', source_file: 'src/z.ts' },
+    { id: 's2', label: 'Beta', source_file: 'src/a.ts' },
+    { id: 'sf1', label: 'z.ts', source_file: 'src/z.ts' },
+    { id: 'sf2', label: 'a.ts', source_file: 'src/a.ts' },
+  ];
+  const baseLinks = [
+    { relation: 'contains', source: 'sf1', target: 's1', source_file: 'src/z.ts' },
+    { relation: 'contains', source: 'sf2', target: 's2', source_file: 'src/a.ts' },
+  ];
+  writeGraph(repo, 'source', { nodes: baseNodes, links: baseLinks });
+  writeGraph(repo, 'test', { nodes: [], links: [] });
+  const ordered = graphSuggest({ repoRoot: repo, query: 'Alpha Beta', seeds: ['Alpha', 'Beta'] });
+  assert.equal(ordered.status, 'ranked');
+  const paths = ordered.candidates.implementation.map((c) => c.path);
+  assert.deepEqual(paths.slice(0, 2), ['src/a.ts', 'src/z.ts']);
+
+  const repo2 = tmpRepo();
+  writeConfig(repo2, { graphify: { enabled: true, test_dirs: ['test'], exclude_dirs: [] } });
+  writeGraph(repo2, 'source', {
+    nodes: [...baseNodes].reverse(),
+    links: [...baseLinks].reverse(),
+  });
+  writeGraph(repo2, 'test', { nodes: [], links: [] });
+  const shuffled = graphSuggest({
+    repoRoot: repo2,
+    query: 'Alpha Beta',
+    seeds: ['Alpha', 'Beta'],
+  });
+  assert.deepStrictEqual(defaultFields(shuffled), defaultFields(ordered));
 });
