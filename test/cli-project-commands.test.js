@@ -5,9 +5,36 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 
 const { runCli } = require('../scripts/lib/cli');
+const repoRoot = path.join(__dirname, '..');
+
+/**
+ * 격리된 Node process에서 CLI module cache를 관측한다. 같은 테스트 process의
+ * require.cache는 이전 suite가 이미 intent를 적재했을 수 있어, lazy 경계를
+ * 이 helper로만 고정한다.
+ *
+ * @param {string} source - cwd=repoRoot에서 실행할 -e 본문. 마지막에
+ *   `{keys,code,out,err}` JSON을 stdout에 써야 한다.
+ * @returns {{keys: string[], code: number|null, out: string, err: string}}
+ */
+function probeIntentCache(source) {
+  const result = spawnSync(process.execPath, ['-e', source], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: process.env,
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return JSON.parse(result.stdout);
+}
+
+const INTENT_CACHE_FILTER = `
+  var keys = Object.keys(require.cache)
+    .filter((p) => /\\/(symbol-index|intent-provenance|cli-intent-command)\\.js$/.test(p))
+    .map((p) => require('path').basename(p))
+    .sort();
+`;
 
 function capture(argv) {
   const buf = { out: '', err: '' };
@@ -290,6 +317,95 @@ test('intent rejects missing, empty, invalid, duplicate, and unknown argv with e
     assert.equal(result.code, 2, args.join(' '));
     assert.equal(result.out, '');
     assert.match(result.err, /^intent:/);
+  }
+});
+
+test('CLI require, help, and a non-intent command leave intent modules out of require.cache', () => {
+  // require·help·대표 일반 명령은 projectCommands만 타야 한다. intent-provenance와
+  // symbol-index가 여기에 있으면 정적 import 회귀다.
+  const cold = probeIntentCache(`
+    'use strict';
+    require('./scripts/lib/cli');
+    ${INTENT_CACHE_FILTER}
+    const afterRequire = keys.slice();
+    const { runCli } = require('./scripts/lib/cli');
+    const sink = { out() {}, err() {} };
+    runCli(['help'], sink);
+    ${INTENT_CACHE_FILTER}
+    const afterHelp = keys.slice();
+    runCli(['graphify-bin'], sink);
+    ${INTENT_CACHE_FILTER}
+    process.stdout.write(JSON.stringify({
+      afterRequire, afterHelp, afterGeneral: keys, code: null, out: '', err: '',
+    }));
+  `);
+  for (const label of ['afterRequire', 'afterHelp', 'afterGeneral']) {
+    assert.deepStrictEqual(
+      cold[label].filter((name) => name === 'intent-provenance.js' || name === 'symbol-index.js'),
+      [],
+      label,
+    );
+  }
+});
+
+test('valid intent dispatch loads dedicated command and provenance modules once', () => {
+  const repo = intentRepo();
+  writeIntentFile(repo, 'src/app.ts', 'export function targetFn() { return 1; }\n');
+  const sha = commitIntent(
+    repo,
+    'feat: add targetFn\n\nBouncer-Task: EPIC-071/BP-002/TASK-001\nBouncer-Intent: EPIC-071/BP-002\n',
+  );
+  writeIntentExplain(repo, sha.slice(0, 8));
+
+  const warm = probeIntentCache(`
+    'use strict';
+    const { runCli } = require('./scripts/lib/cli');
+    let out = '';
+    let err = '';
+    const code = runCli(
+      ${JSON.stringify(['intent', '--repo', repo, '--symbol', 'targetFn'])},
+      { out: (s) => { out += s; }, err: (s) => { err += s; } },
+    );
+    ${INTENT_CACHE_FILTER}
+    process.stdout.write(JSON.stringify({ keys, code, out, err }));
+  `);
+  assert.equal(warm.code, 0);
+  assert.equal(warm.err, '');
+  const payload = JSON.parse(warm.out);
+  assert.equal(payload.status, 'resolved');
+  assert.equal(payload.symbol, 'targetFn');
+  assert.ok(warm.keys.includes('cli-intent-command.js'));
+  assert.ok(warm.keys.includes('intent-provenance.js'));
+  assert.ok(warm.keys.includes('symbol-index.js'));
+});
+
+test('rejected intent argv exits 2 without loading provenance or symbol-index', () => {
+  // 값 없음·중복 option은 파서가 exit 2로 끝낸다. 이 경로에서 resolver를
+  // require하면 lazy 경계가 깨진 것이다.
+  for (const args of [
+    ['intent'],
+    ['intent', '--symbol'],
+    ['intent', '--symbol', 'fn', '--symbol', 'fn'],
+    ['intent', '--symbol', 'fn', '--limit', '1', '--limit', '2'],
+    ['intent', '--symbol', 'fn', '--repo'],
+  ]) {
+    const rejected = probeIntentCache(`
+      'use strict';
+      const { runCli } = require('./scripts/lib/cli');
+      let out = '';
+      let err = '';
+      const code = runCli(
+        ${JSON.stringify(args)},
+        { out: (s) => { out += s; }, err: (s) => { err += s; } },
+      );
+      ${INTENT_CACHE_FILTER}
+      process.stdout.write(JSON.stringify({ keys, code, out, err }));
+    `);
+    assert.equal(rejected.code, 2, args.join(' '));
+    assert.equal(rejected.out, '');
+    assert.match(rejected.err, /^intent:/);
+    assert.ok(!rejected.keys.includes('intent-provenance.js'), args.join(' '));
+    assert.ok(!rejected.keys.includes('symbol-index.js'), args.join(' '));
   }
 });
 

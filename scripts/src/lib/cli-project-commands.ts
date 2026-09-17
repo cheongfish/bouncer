@@ -16,8 +16,6 @@ import runtimeState = require('./runtime-state');
 const { runtimePaths } = runtimeState;
 import graphSearch = require('./graph-search');
 const { graphSuggest } = graphSearch;
-import intentProvenance = require('./intent-provenance');
-const { resolveIntentProvenance } = intentProvenance;
 import runPreflightMod = require('./run-preflight');
 const { runPreflight } = runPreflightMod;
 
@@ -160,132 +158,20 @@ function cmdGraphSuggest(rest: string[], io: CliIo) {
   return 0;
 }
 
-type IntentArgs = {
-  error?: string;
-  symbol: string | null;
-  candidate: string | null;
-  limit: number | null;
-  repo?: string;
-};
-
 /**
- * intent 전용 인자 파서. parseFlags는 마지막 값만 남기고 빈 문자열을 통과시키므로
- * 중복 singleton·빈 --symbol/--candidate·정수 아닌 --limit를 여기서 거절한다.
- * 값 검증만 하고 Git은 치지 않는다 — 잘못된 예산을 들고 resolver를 열지 않기 위함.
+ * 첫 intent 실행에서만 전용 CommonJS command를 적재한다. usage 문자열은 여기
+ * 레지스트리에 남겨 help가 projectCommands만으로도 조립되게 하고,
+ * parser·resolver는 cli-intent-command 쪽으로 미룬다.
  *
  * @param {string[]} rest - `intent` 뒤 argv
- * @returns {IntentArgs} 성공 시 symbol·optional candidate/limit/repo, 실패 시 error
+ * @param {CliIo} io - stdout/stderr 싱크
+ * @returns {number} 전용 handler의 종료 코드
  */
-function parseIntentArgs(rest: string[]): IntentArgs {
-  let symbol: string | null = null;
-  let symbolSeen = false;
-  let candidate: string | null = null;
-  let candidateSeen = false;
-  let limit: number | null = null;
-  let limitSeen = false;
-  let repo: string | undefined;
-  let repoSeen = false;
-  const fail = (message: string): IntentArgs => ({
-    error: `intent: ${message}\n`,
-    symbol,
-    candidate,
-    limit,
-    repo,
-  });
-
-  for (let i = 0; i < rest.length; i += 1) {
-    const token = rest[i];
-    if (token === '--symbol') {
-      // 1. singleton — 두 번째 --symbol을 마지막 값으로 덮으면 호출자가 고른
-      //    함수와 다른 조회가 성공한 것처럼 보인다.
-      if (symbolSeen) return fail('duplicate option: --symbol');
-      symbolSeen = true;
-      const value = rest[++i];
-      if (value === undefined || value.startsWith('--') || value.trim().length === 0) {
-        return fail('--symbol requires a non-empty function name');
-      }
-      symbol = value.trim();
-      continue;
-    }
-    if (token === '--candidate') {
-      if (candidateSeen) return fail('duplicate option: --candidate');
-      candidateSeen = true;
-      const value = rest[++i];
-      // opaque ref는 resolver가 발급한 값이다. 빈 문자열을 path로 재해석하지 않는다.
-      if (value === undefined || value.startsWith('--') || value.trim().length === 0) {
-        return fail('--candidate requires a non-empty qualified-ref');
-      }
-      candidate = value.trim();
-      continue;
-    }
-    if (token === '--limit') {
-      if (limitSeen) return fail('duplicate option: --limit');
-      limitSeen = true;
-      const value = rest[++i];
-      if (value === undefined || value.startsWith('--') || value.length === 0) {
-        return fail('--limit requires an integer 1..5');
-      }
-      // 1..5 한 자리만 받는다. Number('3.0')·parseInt('3abc')는 통과하므로 정규식으로 막는다.
-      if (!/^[1-5]$/.test(value)) {
-        return fail('--limit requires an integer 1..5');
-      }
-      limit = Number(value);
-      continue;
-    }
-    if (token === '--repo') {
-      if (repoSeen) return fail('duplicate option: --repo');
-      repoSeen = true;
-      const value = rest[++i];
-      if (!value || value.startsWith('--')) return fail('--repo requires a directory');
-      repo = value;
-      continue;
-    }
-    if (token.startsWith('--')) return fail(`unknown option: ${token}`);
-    return fail(`unexpected argument: ${token}`);
-  }
-
-  if (!symbolSeen || symbol === null) {
-    return fail('--symbol <function-name> is required');
-  }
-  return { symbol, candidate, limit, repo };
-}
-
-/**
- * 함수 의도 provenance를 조회한다. resolved가 아닌 상태 JSON도 exit 0이다 —
- * Plan이 코드 탐색을 이어가려면 ambiguous/unresolved/unlinked가 사용법 오류가
- * 아니어야 한다. 저장소와 `.bouncer/context/**`는 읽기만 한다.
- *
- * @param {string[]} rest - `intent` 뒤 argv
- * @param {CliIo} io - stdout은 JSON 하나만, 진단은 stderr
- * @returns {number} 상태 JSON 0, Git/filesystem 조회 실패 1, 사용법 2
- */
-function cmdIntent(rest: string[], io: CliIo) {
-  const parsed = parseIntentArgs(rest);
-  if (parsed.error) {
-    io.err(parsed.error);
-    return 2;
-  }
-  const repoRoot = (parsed.repo || process.cwd()) as string;
-  try {
-    // JSON은 resolver가 돌아온 뒤에만 쓴다. throw 경로에 부분 payload가 남지 않게.
-    const result = resolveIntentProvenance({
-      repoRoot,
-      symbol: parsed.symbol as string,
-      candidateRef: parsed.candidate,
-      limit: parsed.limit === null ? undefined : parsed.limit,
-    });
-    io.out(`${JSON.stringify(result, null, 2)}\n`);
-    return 0;
-  } catch (error) {
-    // Git 부재·명령 실패, repo 실경로 조회 실패, 현재 후보에 없는 candidate ref는
-    // resolver가 Error로 던진다. 입력 shape는 파서가 이미 exit 2로 거절했으므로
-    // 메시지 있는 조회 실패만 stderr+1로 흡수한다. 메시지 없는 예외는 핸들러
-    // 버그이므로 다시 던져 숨기지 않는다.
-    const message = catchMessage(error);
-    if (typeof message !== 'string' || message.length === 0) throw error;
-    io.err(`intent: ${message}\n`);
-    return 1;
-  }
+function cmdIntentLazy(rest: string[], io: CliIo): number {
+  const intentCommand = require('./cli-intent-command') as {
+    run: (rest: string[], io: CliIo) => number;
+  };
+  return intentCommand.run(rest, io);
 }
 
 function cmdGraphifyBin(rest: string[], io: CliIo) {
@@ -391,7 +277,7 @@ export = {
 `,
   },
   intent: {
-    run: cmdIntent,
+    run: cmdIntentLazy,
     usage: `  intent     --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>]
              Print function intent provenance JSON (read-only).
 `,
