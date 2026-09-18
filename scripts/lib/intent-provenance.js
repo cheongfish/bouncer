@@ -1,6 +1,7 @@
 'use strict';
 const fs = require("node:fs");
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const symbolIndex = require("./symbol-index");
 const { resolveSymbol } = symbolIndex;
@@ -20,6 +21,8 @@ const STABLE_INTENT_RE = /^EPIC-(\d{3})\/BP-(\d{3})$/;
 const INTENT_ANCHOR_RE = /^task-(\d{3})$/;
 const TASK_DIR_RE = /^(\d{3})$/;
 const TRAILER_RE = /^(Bouncer-Task|Bouncer-Intent)\s*:\s*(.*?)\s*$/;
+// loadExplainDocs가 걷는 경로와 같은 canonical Explain만 projection 입력이 된다.
+const CANONICAL_EXPLAIN_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+\/explain\.md$/;
 const SKIP_DIR_NAMES = new Set(['.git', 'node_modules', '.worktrees', 'graphify-out']);
 const FRESHNESS_RANK = {
     current: 0,
@@ -635,6 +638,69 @@ function selectSections(doc, taskDigits) {
     return selected.concat(parseTaskDesign(doc.body, taskDigits));
 }
 /**
+ * selectSections와 같은 allowlist로 절을 고른 뒤 각 절 본문의 SHA-256을 만든다.
+ * 공개 resolver JSON은 이름 목록과 예산 본문만 노출하므로, bundle fast path가
+ * 같은 절을 재해시할 수 있게 별도 projection으로 둔다 — allowlist가 갈라지면
+ * stale hit가 생긴다.
+ *
+ * @param {SelectedSection[]} sections - selectSections 결과
+ * @returns {SectionHash[]} 이름 순서 유지, hash는 lowercase 64자리 hex
+ */
+function projectSectionHashes(sections) {
+    return sections.map((part) => ({
+        name: part.name,
+        hash: createHash('sha256').update(part.body, 'utf8').digest('hex'),
+    }));
+}
+/**
+ * 저장소 안 canonical Explain 실경로만 읽어 selectSections → projectSectionHashes를 적용한다.
+ * cache가 임의 상대경로를 읽기 대상으로 넘기면 allowlist에서 거절하고, symlink가
+ * 루트 밖으로 나가거나 파일이 없으면 null — cache hit로 승격하지 않는다.
+ *
+ * @param {object} input - 조회 입력
+ * @param {string} input.repoRoot - 저장소 루트
+ * @param {string} input.explainRel - repo-relative Explain 경로
+ * @param {string} input.task - `EPIC-ddd/BP-ddd/TASK-ddd` stable Task ID
+ * @returns {SectionHash[] | null} 절 hash 목록 또는 검증 실패 시 null
+ */
+function projectExplainSectionHashes(input) {
+    if (typeof input.explainRel !== 'string' || input.explainRel.length === 0)
+        return null;
+    const explainRel = toPosix(input.explainRel);
+    // cache body가 지시하는 경로는 live walkExplain과 같은 canonical만 연다.
+    if (path.isAbsolute(explainRel) || explainRel.includes('..'))
+        return null;
+    if (!CANONICAL_EXPLAIN_RE.test(explainRel))
+        return null;
+    let repoReal;
+    try {
+        repoReal = fs.realpathSync(input.repoRoot);
+    }
+    catch (error) {
+        if (isSkippableFsError(error))
+            return null;
+        throw error;
+    }
+    const abs = path.resolve(repoReal, explainRel);
+    let real;
+    try {
+        real = fs.realpathSync(abs);
+    }
+    catch (error) {
+        // 부재·권한·루프는 hit 검증 실패로만 접는다. 다른 I/O는 위장하지 않는다.
+        if (isSkippableFsError(error))
+            return null;
+        throw error;
+    }
+    if (!isInsideRepo(real, repoReal))
+        return null;
+    const doc = parseExplainDoc(abs, repoReal);
+    if (!doc)
+        return null;
+    const taskDigits = taskDigitsOf(input.task);
+    return projectSectionHashes(selectSections(doc, taskDigits));
+}
+/**
  * Explain 본문에서 해당 Task의 장기 설계 절만 덧붙인다.
  * finalize `buildTaskContext`와 같은 allowlist·순서를 유지해 Plan 입력이
  * 보존 계약과 갈라지지 않게 한다. Do not touch·Checklist는 같은 ### 아래
@@ -773,4 +839,8 @@ function isSkippableFsError(error) {
         || isFsCode(error, 'ELOOP')
         || isFsCode(error, 'ENOTDIR');
 }
-module.exports = { resolveIntentProvenance };
+module.exports = {
+    resolveIntentProvenance,
+    projectSectionHashes,
+    projectExplainSectionHashes,
+};

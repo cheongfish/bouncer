@@ -7,7 +7,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const {
   runtimePaths, readRuntimeCurrent, writeRuntimeCurrent, worktreePathFor,
-  verifyLedgerPathFor, coordinatorPathsFor,
+  verifyLedgerPathFor, intentBundlePathFor, coordinatorPathsFor,
   listNamespacePointers, pointerKeyFromBlueprint, removeNamespacePointer, branchNamesFor, resolveWorktreeBranch,
   validateCoordinatorLedger,
 } = require('../scripts/lib/runtime-state');
@@ -401,6 +401,35 @@ test('verifyLedgerPathFor reports non-Git directories unavailable', () => {
   assert.strictEqual(result.unavailable, true);
   assert.ok(result.reason);
   assert.strictEqual(result.ledgerFile, undefined);
+});
+
+test('intentBundlePathFor hashes the task rel under the Git common directory for every worktree', () => {
+  const { createHash } = require('node:crypto');
+  const { primary, linked } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const rel = '.bouncer/context/epics/073-x/blueprints/001-y/tasks/001/tasks.md';
+  const primaryIntent = intentBundlePathFor({ repoRoot: primary, taskRel: rel, deps });
+  const linkedIntent = intentBundlePathFor({ repoRoot: linked, taskRel: rel, deps });
+
+  assert.strictEqual(primaryIntent.unavailable, undefined);
+  assert.strictEqual(linkedIntent.intentFile, primaryIntent.intentFile);
+  const digest = createHash('sha256').update(rel, 'utf8').digest('hex').slice(0, 16);
+  assert.strictEqual(
+    primaryIntent.intentFile,
+    path.join(primaryIntent.commonGitDir, 'bouncer', 'intent', `${digest}.json`),
+  );
+});
+
+test('intentBundlePathFor reports non-Git directories unavailable', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-'));
+  const result = intentBundlePathFor({
+    repoRoot: repo,
+    taskRel: 'x.md',
+    deps: { execFileSync },
+  });
+  assert.strictEqual(result.unavailable, true);
+  assert.ok(result.reason);
+  assert.strictEqual(result.intentFile, undefined);
 });
 
 const BP_A = '.bouncer/context/epics/001-x/blueprints/001-y';
