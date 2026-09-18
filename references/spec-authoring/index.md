@@ -85,12 +85,25 @@ body content only; never edits harness-owned frontmatter fields. Used from
        surface, plus the reproduction path (commands, fixtures, or gate runs)
        and the tests or commands already confirmed. The implementer must be
        able to re-run what you observed without inventing a baseline.
+     - **Current behavior** (I/O coupling): record each `direct process spawn`,
+       `file I/O`, or `module state` that decides testability as a
+       `file:line` observation point.
      - **Target behavior**: separate success paths, failure paths, and
        preserved behavior. Do not collapse them into one aspirational sentence.
        When the task does not change runtime behavior, write artifact checks,
        schema assertions, or dry-run commands as the judgment basis instead.
      - **Interface**: state what the change provides *and* what it rejects.
        A contract with only the positive half cannot be reviewed against.
+     - **Interface** (test seam): when Checklist asserts `call count`,
+       `absence of I/O`, or `injected error`, Interface must define each
+       `injection parameter` by name and `shape` (example:
+       `deps.runGit(args: string[]) → { stdout: string }`). Do not require a
+       seam when Checklist does not assert those probes.
+     - **Interface** (throw vs miss): write immediate `throw` input errors and
+       `cache miss` or `fallback` states as `separate lists`.
+     - **Domain terms**: define each `domain term` used in a rejection rule
+       inside the section that uses it (Interface, etc.) with one `shape` and
+       one `example`.
      - **Touch**: write a Markdown table with columns
        `경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거`. One row per file;
        `변경` is `Create`, `Modify`, `Delete`, or `Rename`. List only symbols
@@ -121,6 +134,17 @@ body content only; never edits harness-owned frontmatter fields. Used from
        it fails → implement. Write expected assertions, constants, and
        commands as literal code blocks; this is where implementation detail
        deferred from the blueprint Contract lands.
+     - **Checklist** (expected red): every red step names the
+       `expected failing assertion` or failure point. Unless the brief requires
+       it, `module-load failure` is not expected red.
+     - **Checklist** (generated artifacts): when an artifact check presupposes
+       staging, write the order `npm run build` → `git add <generated path>` →
+       `npm run check:emit`. State that `git add` is allowed while
+       commit, push, and branch remain forbidden.
+     - **Checklist** (focused vs verify): focused tests and `check:emit` are
+       mid-implementation checks; the final completion command is
+       `bouncer.verify` (or `config.verify` when absent), and the
+       `execute gate` records the evidence.
      - **Checklist** (verify vs paths): if the verify command is the full
        suite (e.g. `npm test`), the set of files that must change for green
        must be ⊆ Touch / `affected_paths`. If a fixture outside that set would

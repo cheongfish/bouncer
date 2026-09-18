@@ -140,3 +140,23 @@ test('spec-authoring tasks item carries eight-section rules and full-return sign
   assert.match(item, full4);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'skills/bouncer-plan/SKILL.md'), 'utf8'), full4);
 });
+
+// tasks 항목의 seam·throw/miss·I/O 관찰·기대 red·staging·verify 구분·domain term
+// 규칙은 예시 tasks.md와 함께 고정한다. 규칙 문장 삭제나 예시 모순을 회귀로 잡는다.
+test('spec-authoring tasks item requires seam, throw/miss, expected red, and staging rules', () => {
+  const md = readSkill('spec-authoring');
+  const item = md.slice(md.indexOf('- **tasks**'), md.indexOf('- **verification / review**'));
+  assert.match(item, /call count[\s\S]{0,200}injection parameter[\s\S]{0,120}shape/i);
+  assert.match(item, /throw[\s\S]{0,200}(cache miss|fallback)[\s\S]{0,120}separate/i);
+  assert.match(item, /process spawn[\s\S]{0,200}`file:line`/i);
+  assert.match(item, /expected failing assertion|expected red/i);
+  assert.match(item, /module-load failure/i);
+  assert.match(item, /npm run build[\s\S]{0,80}git add[\s\S]{0,80}check:emit/);
+  assert.match(item, /bouncer\.verify[\s\S]{0,200}execute gate/i);
+  assert.match(item, /domain term[\s\S]{0,200}shape[\s\S]{0,80}example/i);
+  assert.match(item, /`git add` is allowed[\s\S]{0,120}(commit|push|branch)/i);
+  assert.doesNotMatch(md, /^## (Context|Done)$/m);
+  const example = fs.readFileSync(refPath('tasks.md'), 'utf8');
+  assert.match(example, /^## Interface\n[\s\S]*throw[\s\S]*fallback[\s\S]*?\n## Touch/m);
+  assert.match(example, /^## Checklist\n[\s\S]*기대 red/m);
+});

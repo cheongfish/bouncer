@@ -35,6 +35,7 @@ Blueprint: [001](../../index.md)
 
 ## Current behavior
 - 입력: `config.verify`에 `timeout_ms` 키가 없다. 상태: `runVerify`가 자식 프로세스를 상한 없이 기다린다. 출력: hang fixture는 종료되지 않는다.
+- I/O 관찰 지점: `runVerify`의 spawn 대기는 `scripts/src/lib/verification.ts:349`이다.
 - 재현: hang fixture로 `npm test`를 돌리면 프로세스가 끝나지 않는다. 확인한 명령은 `node --test test/cli-verify.test.js`이며, 현재 스위트에는 timeout 단언이 없다.
 
 ## Target behavior
@@ -44,7 +45,8 @@ Blueprint: [001](../../index.md)
 
 ## Interface
 - 제공: `verify.timeout_ms`가 양의 정수이면 해당 ms 후 자식 프로세스를 종료하고 timeout 실패를 증적에 남긴다. `init` 기본 config와 `config.example.json`에 `timeout_ms: 600000`이 있다.
-- 거부: 음수·NaN·문자열 `timeout_ms`는 설정 로드에서 에러로 거절한다. 하위 호환 별칭(`timeout` 등)은 두지 않는다.
+- 거부 (throw): 음수·NaN·문자열 `timeout_ms`는 설정 로드에서 에러로 거절한다. 하위 호환 별칭(`timeout` 등)은 두지 않는다.
+- fallback: 키 부재·`0`은 변경 전과 같이 무제한 대기로 돌아간다.
 
 ## Touch
 | 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |
@@ -63,7 +65,7 @@ Blueprint: [001](../../index.md)
 - 공개 에러 메시지는 한국어를 유지한다.
 
 ## Checklist
-- [ ] `test/cli-verify.test.js`에 실패 테스트를 추가한다.
+- [ ] `test/cli-verify.test.js`에 실패 테스트를 추가한다. 기대 red: `assert.rejects`가 `/timeout_ms/`로 거절하고, hang fixture + `timeout_ms: 50`은 non-zero exit와 `/timeout/i` 증적이다.
   ```js
   assert.rejects(() => loadVerifyConfig({ timeout_ms: -1 }), /timeout_ms/);
   // hang fixture + timeout_ms: 50 → exit non-zero, evidence matches /timeout/i
