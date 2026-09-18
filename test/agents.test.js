@@ -209,6 +209,16 @@ test('context-review covers the four judgment scopes', () => {
   assert.match(md, /Verifiability of success criteria/);
   assert.match(md, /cannot be judged true or false/i);
   assert.match(md, /say yes or no from a command/);
+  // Checklist↔Interface seam·red 기대 실패 누락은 agent rubric에만 두고
+  // skill 호출 계약에는 복사하지 않는다(기존 doesNotMatch 패턴과 동일).
+  const cross = md.match(/### Cross-document contradiction[\s\S]*?(?=\n### )/)[0];
+  assert.match(cross, /inside one task document/i);
+  assert.match(cross, /call count[\s\S]{0,240}does not define[\s\S]{0,80}injection parameter/i);
+  assert.match(cross, /throw[\s\S]{0,160}(cache miss|fallback)[\s\S]{0,80}in one list/i);
+  const sc = md.match(/### Verifiability of success criteria[\s\S]*?(?=\n### )/)[0];
+  assert.match(sc, /task Checklist red steps/i);
+  assert.match(sc, /red step[\s\S]{0,160}expected failing assertion/i);
+  assert.doesNotMatch(skill, /injection parameter/i);
   assert.doesNotMatch(skill, /Walk epic → blueprint → tasks/);
   assert.doesNotMatch(skill, /scope_evidence\.suggested_paths/);
   assert.doesNotMatch(skill, /stop-slop/);
