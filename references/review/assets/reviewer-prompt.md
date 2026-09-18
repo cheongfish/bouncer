@@ -23,10 +23,15 @@ pointer task directory's `review.md` status / frontmatter — Findings only.
 - `{{PERSPECTIVE}}` — one discovery perspective: `spec_scope`,
   `correctness_tests`, `minimality_maintainability`, or `security`; leave empty
   for delta
-- `{{TARGET}}` — frozen target: base, head, brief revision, and latest verify
-  result
+- `{{TARGET}}` — frozen target: base, head, brief revision, `task_brief_hash`,
+  `intent_bundle_id`, `intent_bundle_revision`, and latest verify result
 - `{{BRIEF}}` — task brief (`tasks/<NNN>/tasks.md`) Goal & intent, Interface,
   Touch, Do not touch, Constraints, Checklist
+- `{{INTENT_SECTIONS}}` — role `intent_sections` projection from the shared
+  intent bundle; do not paste the full Explain body here
+- `{{TASK_BRIEF_HASH}}` — frozen `task_brief_hash`
+- `{{INTENT_BUNDLE_ID}}` — frozen `intent_bundle_id`
+- `{{INTENT_BUNDLE_REVISION}}` — frozen `intent_bundle_revision`
 - `{{CONSTRAINTS}}` — the task brief `## Constraints` list verbatim, plus Do
   not touch paths, `affected_paths`, and repo norms. Paste the rules; do not
   summarize them, or the reviewer cannot tell a breach from a judgement call.
@@ -47,10 +52,20 @@ pointer task directory's `review.md` status / frontmatter — Findings only.
 {{TARGET}}
 
 The target records the **Latest verification** result alongside its base, head,
-and brief revision; do not substitute a later verification result.
+brief revision, `task_brief_hash`, `intent_bundle_id`, and
+`intent_bundle_revision`; do not substitute a later verification result or mix
+a different bundle revision into this round.
+
+### Bundle identifiers
+- `task_brief_hash`: `{{TASK_BRIEF_HASH}}`
+- `intent_bundle_id`: `{{INTENT_BUNDLE_ID}}`
+- `intent_bundle_revision`: `{{INTENT_BUNDLE_REVISION}}`
 
 ### Brief
 {{BRIEF}}
+
+### Intent sections
+{{INTENT_SECTIONS}}
 
 ### Constraints
 {{CONSTRAINTS}}

@@ -538,6 +538,39 @@ test('checked-in implementer TOML matches mdToCodexToml byte-for-byte', () => {
   assert.strictEqual(checkedIn, generated);
 });
 
+// intent bundle 식별자는 advisory data다. Authority가 brief 권한과 bundle을
+// 같은 근거로 취급하면 scope를 Explain/bundle로 넓힐 수 있다.
+test('execute role Authority separates advisory intent bundle from brief authority', () => {
+  for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
+    const md = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    const authority = md.match(/## Authority\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+    assert.match(authority, /task_brief_hash/, name);
+    assert.match(authority, /intent_bundle_id/, name);
+    assert.match(authority, /intent_bundle_revision/, name);
+    assert.match(authority, /intent_sections|advisory/, name);
+    assert.match(
+      authority,
+      /(?:advisory|not[\s\S]{0,40}(?:decision\s+)?authority|does not[\s\S]{0,40}(?:change|widen|override)[\s\S]{0,40}(?:brief|authority|scope))/i,
+      name,
+    );
+  }
+});
+
+// debugger·reviewer TOML도 정본 변환과 byte-identical이어야 compact named
+// dispatch가 fallback과 같은 권한 경계를 받는다.
+test('checked-in debugger and reviewer TOML match mdToCodexToml byte-for-byte', () => {
+  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  for (const name of ['bouncer-debugger', 'bouncer-reviewer']) {
+    const markdown = fs.readFileSync(path.join(agentsDir, `${name}.md`), 'utf8');
+    const generated = mdToCodexToml(markdown);
+    const checkedIn = fs.readFileSync(path.join(root, '.codex/agents', `${name}.toml`), 'utf8');
+    assert.strictEqual(checkedIn.split(/\r?\n/, 1)[0], GENERATED_MARKER, name);
+    assert.strictEqual(checkedIn, generated, name);
+    assert.match(markdown, /task_brief_hash/, name);
+    assert.match(markdown, /intent_bundle_id/, name);
+  }
+});
+
 test('an unmarked implementer TOML remains user-owned and requires the full fallback', () => {
   const { ensureCodexAgents } = require('../scripts/lib/codex-agents');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-agents-'));

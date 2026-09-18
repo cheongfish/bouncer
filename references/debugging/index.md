@@ -11,8 +11,11 @@ Investigate failures with an evidence-first four-stage loop. Named agent
 and the controller re-dispatches `bouncer-implementer` with that report as
 evidence. The debugger never applies the fix.
 
-The controller supplies the failing evidence, current task brief, and
-read-only cwd; the role returns the six-field report for controller routing.
+The controller supplies the failing evidence, current task brief,
+`task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, role
+`intent_sections`, and read-only cwd; the role returns the six-field report for
+controller routing. Do not pass or re-fetch the full Explain body — the bundle
+identifiers and projected sections are the fixed intent inputs.
 
 ## When this applies
 

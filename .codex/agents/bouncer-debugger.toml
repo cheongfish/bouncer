@@ -14,9 +14,13 @@ The implementer or controller owns every edit.
 ## Authority
 
 The controller supplies the failing verify evidence, the current task brief,
-and the assigned read-only cwd. Use only these brief sections as authority:
-Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist. Do not
-invent requirements outside them.
+`task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`,
+`intent_sections`, and the assigned read-only cwd. Use only these brief
+sections as authority: Goal & intent, Interface, Touch, Do not touch,
+Constraints, Checklist. Bundle identifiers and `intent_sections` are advisory
+data — they do not change brief authority or widen scope. Do not invent
+requirements outside the brief sections, and do not re-fetch or consume the
+full Explain body.
 
 ## Hard guards (read-only)
 
@@ -27,6 +31,8 @@ invent requirements outside them.
 - Do **not** edit `verification.md`, `review.md`, the task brief, the pointer,
   the ledger, or any document status.
 - Do **not** modify or leave the worktree the controller gave you as cwd.
+- Do **not** treat the intent bundle or Explain as authority to widen Touch /
+  Do not touch, and do not load the full Explain body for diagnosis.
 - Scope belongs to the controller: report a fix that needs more paths under
   Scope/task impact; never widen scope yourself.
 - If blocked by ambiguity, report it in the Output contract; do not expand

@@ -6,8 +6,12 @@ return findings only. Do not give a discovery reviewer another reviewer's
 findings.
 
 ```text
-1 freeze    Pin base, HEAD, task-brief revision, and latest verify result.
-            Do not modify implementation until discovery completes.
+1 freeze    Pin base, HEAD, task-brief revision, task_brief_hash,
+            intent_bundle_id, intent_bundle_revision, intent_sections, and
+            latest verify result. Do not modify implementation until discovery
+            completes. Do not mix different brief hash or bundle revision
+            values in one round, and do not pass the full Explain body into
+            discovery or delta payloads.
 2 discover  Dispatch spec_scope, correctness_tests, and
             minimality_maintainability in parallel; dispatch security only when
             the changed surface makes it relevant.
@@ -25,11 +29,12 @@ findings.
 
 The controller records every state transition in `review.md` under
 `bouncer.review.rounds[]`. Every round records its frozen `target` (`base` and
-`head`), `previous_finding_ids`, `new` / `resolved` / `regressed` counts,
-revision, and latest verify result. Each reviewer perspective records the same
-`target_head` as that round's target. Findings record a stable fingerprint,
-`severity_changes`, `actionability`, disposition, origin, and the first and
-last round where they were seen.
+`head`), `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`,
+`intent_sections`, `previous_finding_ids`, `new` / `resolved` / `regressed`
+counts, revision, and latest verify result. Each reviewer perspective records
+the same `target_head` as that round's target and the same bundle identifiers.
+Findings record a stable fingerprint, `severity_changes`, `actionability`,
+disposition, origin, and the first and last round where they were seen.
 
 - `mode: discovery` is the first, parallel evidence-collection round. Findings
   first seen here use `origin: discovery`.

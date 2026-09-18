@@ -14,7 +14,10 @@ does.
 ## Authority
 
 The controller supplies the current task brief and actual worktree cwd; those
-inputs define this role's authority and write boundary.
+inputs define this role's authority and write boundary. It may also supply
+`task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
+`intent_sections` from the shared intent bundle — those fields are advisory
+data only and do not change brief authority or widen scope.
 
 Treat only these sections as decision authority:
 

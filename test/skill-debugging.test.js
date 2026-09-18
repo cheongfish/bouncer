@@ -82,3 +82,27 @@ test('run delegates debugger dispatch to execute without loading debugging/index
   assert.match(run, /\/bouncer-execute/ );
   assert.doesNotMatch(run, /at most\s+\*\*1\*\* debugger recovery/);
 });
+
+// debugger는 실패 evidence와 고정 bundle 식별자를 받고, Explain 전체 body를
+// 다시 조회하거나 payload에 실지 않는다.
+test('debugger payload pins bundle identifiers with failing evidence and omits full Explain', () => {
+  const recovery = read('skills/bouncer-execute/references/verification-recovery.md');
+  const debugging = read('references/debugging/index.md');
+  const agent = read('agents/bouncer-debugger.md');
+
+  for (const [label, text] of [
+    ['verification-recovery', recovery],
+    ['debugging index', debugging],
+    ['bouncer-debugger agent', agent],
+  ]) {
+    assert.match(text, /task_brief_hash/, label);
+    assert.match(text, /intent_bundle_id/, label);
+    assert.match(text, /intent_bundle_revision/, label);
+  }
+  assert.match(recovery, /failing\s+verify\s+evidence/);
+  assert.match(recovery, /intent_sections/);
+  const forbidExplain = /(?:do not|never|omit|without)[\s\S]{0,80}(?:full|entire|whole)\s+Explain(?:\s+body)?|(?:full|entire|whole)\s+Explain(?:\s+body)?[\s\S]{0,80}(?:do not|never|omit|not|forbid)/i;
+  assert.match(recovery, forbidExplain);
+  assert.match(agent, forbidExplain);
+  assert.match(debugging, forbidExplain);
+});
