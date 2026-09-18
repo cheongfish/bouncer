@@ -77,12 +77,17 @@ Each scope below is one discovery perspective; judge the one you were assigned.
 
 Walk epic → blueprint → tasks. Flag goal or scope that disagrees across those
 documents (a success criterion the tasks never open, a Touch path the epic put
-out of scope, Interface that drops a Contract rejection). When Mermaid charts
-are present for a flow change, also judge the zoom: epic whole flow → blueprint
-PR segment → tasks implementation branch. Flag a child chart that contradicts
-its parent zoom (wrong PR segment, a new box, or a copied whole-flow chart).
-Chart absence is optional and not a finding; Mermaid is a Cross-document
-detail, not a fifth judgment scope.
+out of scope, Interface that drops a Contract rejection). Also judge Checklist
+versus Interface mismatch inside one task document. When Checklist asserts
+`call count`, `absence of I/O`, or an `injected error`, flag an Interface that
+`does not define` the `injection parameter` name or shape. Separately — without
+a Checklist when-clause — flag an Interface that lists inputs that `throw`
+together with `cache miss` or `fallback` states `in one list`. When Mermaid
+charts are present for a flow change, also judge the zoom: epic whole flow →
+blueprint PR segment → tasks implementation branch. Flag a child chart that
+contradicts its parent zoom (wrong PR segment, a new box, or a copied
+whole-flow chart). Chart absence is optional and not a finding; Mermaid is a
+Cross-document detail, not a fifth judgment scope.
 
 ### Scope review (`scope`)
 
@@ -101,8 +106,10 @@ stay as-is. Do not score derived `graphify-out/**` artifacts or plugin skill mar
 
 Flag epic `## Success criteria` (and blueprint acceptance lines that stand in
 for them) that cannot be judged true or false — slogans, "improve" / "정리한다"
-with no observable outcome. A criterion is verifiable when a later reader can
-say yes or no from a command, a file, or a gate result.
+with no observable outcome. Also judge task Checklist red steps: flag a
+`red step` that omits the `expected failing assertion` or failure point. A
+criterion is verifiable when a later reader can say yes or no from a command,
+a file, or a gate result.
 
 ### Out of judgment
 

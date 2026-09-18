@@ -29,3 +29,4 @@ bouncer_schema: '0.1'
 * [071 code-grounded-intent-provenance](epics/071-code-grounded-intent-provenance/index.md) - Connects code changes to durable task intent through stable task identifiers and commit provenance.
 * [072 search-payload-context-retention](epics/072-search-payload-context-retention/index.md) - Bounds search payloads and retained context while preserving provenance and Node-only distribution.
 * [073 task-intent-bundle-reuse](epics/073-task-intent-bundle-reuse/index.md) - Reuses task intent bundles across execute roles and creates a new revision when function or Explain inputs change.
+* [074 plan-context-quality-efficiency](epics/074-plan-context-quality-efficiency/index.md) - Makes task briefs settle test seams and failure classes, ties worker reports to brief revisions, and trims plan-time context use.
