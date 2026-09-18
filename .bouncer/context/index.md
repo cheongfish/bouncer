@@ -28,3 +28,4 @@ bouncer_schema: '0.1'
 * [070 task-brief-specificity](epics/070-task-brief-specificity/index.md) - Makes task briefs executable without extra design judgment by linking current behavior, target behavior, code symbols, and verification.
 * [071 code-grounded-intent-provenance](epics/071-code-grounded-intent-provenance/index.md) - Connects code changes to durable task intent through stable task identifiers and commit provenance.
 * [072 search-payload-context-retention](epics/072-search-payload-context-retention/index.md) - Bounds search payloads and retained context while preserving provenance and Node-only distribution.
+* [073 task-intent-bundle-reuse](epics/073-task-intent-bundle-reuse/index.md) - Reuses task intent bundles across execute roles and creates a new revision when function or Explain inputs change.
