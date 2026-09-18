@@ -339,6 +339,8 @@ module.exports = {
         run: cmdIntentLazy,
         usage: `  intent     --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>]
              Print function intent provenance JSON (read-only).
+  intent     bundle --task <tasks.md> --symbol <name> [--candidate <qualified-ref>]...
+             Create or reuse a task intent bundle JSON (read/write cache).
 `,
     },
     'graphify-bin': {

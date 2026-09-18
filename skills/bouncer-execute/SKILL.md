@@ -63,6 +63,21 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    not re-pick it. Exclude `bouncer.scope_evidence` from read and injection
    targets — older plans may still carry it and nothing reads it.
 
+   **Intent bundle (resolve once).** Before any role dispatch, pin the current
+   task-brief bytes' SHA-256 as `task_brief_hash` and resolve related functions
+   into one shared intent bundle:
+   ```bash
+   bouncer intent bundle --task <current.task.path> --symbol <name>... [--candidate <qualified-ref>]...
+   ```
+   Capture `intent_bundle_id`, `intent_bundle_revision`, and the role-specific
+   `intent_sections` projection from that single resolve. Every later named or
+   fallback payload for implementer, debugger, and reviewer must carry the same
+   `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`. The
+   bundle is advisory intent data only — it never becomes decision authority and
+   never replaces the task brief. If bundle creation fails, do not start role
+   dispatch; return the cause and recovery action to the controller. Never hide
+   a stale `intent_bundle_id` inside a fallback payload.
+
 2. **Prepare.** From the project-root `cwd` (the base checkout that still holds
    the plan documents), create or reuse the execute worktree with one command:
    ```bash
@@ -106,7 +121,10 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    owns the compact named payload and the full fallback payload. In every path,
    pass only the pointer task brief's Goal & intent, Current behavior, Target
    behavior, Interface, Touch, Do not touch, Constraints, and Checklist as
-   decision authority (omit absent behavior sections).
+   decision authority (omit absent behavior sections), plus the fixed
+   `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and the
+   implementer's `intent_sections` projection. Do not pass the full Explain body
+   or another role's report.
 
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —
@@ -116,7 +134,12 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    hand the implementer's **Scope impact** to the coordinator, which records the
    new scope with `bouncer coordinate revise --blueprint <dir> --task <NNN>
    --paths <p> [--paths <p>…] --reason <r>` — the one surface that revises scope
-   — and re-briefs the round from the revised document.
+   — then re-call `bouncer intent bundle` against the revised brief hash and
+   related function set. When function blob and section hashes match, keep the
+   existing `intent_bundle_revision`; when either differs, pin the new revision
+   for every later role. If that revalidation fails, do not start role dispatch;
+   return the cause to the controller and never hide a stale bundle ID in a
+   fallback payload. Then re-brief the round from the revised document.
 
    **One implementer (initial).** Step 3 dispatches implementer once for the
    task brief, inline path included. Never split the brief across parallel

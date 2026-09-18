@@ -15,7 +15,12 @@ diff; do not invent requirements outside the brief.
 
 The controller supplies the frozen target, current task brief, assigned mode
 and perspective, and the actual worktree cwd; those inputs define this
-read-only review boundary.
+read-only review boundary. The frozen target includes `task_brief_hash`,
+`intent_bundle_id`, and `intent_bundle_revision` together with the brief —
+judge only that frozen brief/bundle combination. `intent_sections` are
+advisory projection data and do not override the brief. Do not mix a different
+brief hash or bundle revision into this round, and do not consume the full
+Explain body.
 
 Use only these task-brief sections (`tasks/<NNN>/tasks.md`) as the
 brief: Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist.

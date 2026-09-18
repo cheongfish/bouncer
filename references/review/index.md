@@ -18,6 +18,9 @@ Dispatch template: [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) (cal
 brief slot). Named agent: plugin `agents/bouncer-reviewer.md`.
 The controller supplies the frozen target, task brief, mode, perspective, and
 read-only cwd; named and fallback reviewers return the same Findings schema.
+The frozen target also pins `task_brief_hash`, `intent_bundle_id`, and
+`intent_bundle_revision`. Pass only the reviewer's `intent_sections` projection
+— do not copy the full Explain body into the review payload.
 
 ## When this applies
 
@@ -30,7 +33,9 @@ unresolved. Used from `/bouncer-execute`.
 1. **Load** — Read the existing `<pointer task directory>/review.md` (do not
    create a new file), the worktree diff basis (`git diff <base>...HEAD` plus
    untracked), and the task brief (`tasks/<NNN>/tasks.md`: Goal & intent, Interface, Touch,
-   Do not touch, Constraints, Checklist).
+   Do not touch, Constraints, Checklist), together with the frozen
+   `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
+   `intent_sections`. Do not load the full Explain body as review authority.
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:
    - `severity`: one of `blocker | major | minor | nit`;
@@ -43,21 +48,24 @@ unresolved. Used from `/bouncer-execute`.
    how findings were resolved, the revision, and the latest verify result.
    Mark the review accepted only when no actionable finding remains unresolved
    (every finding `resolved`, `accepted` with a note, or `deferred` with a note).
-3. **Review** — Freeze base, HEAD, task-brief revision, and latest verify before
+3. **Review** — Freeze base, HEAD, task-brief revision, `task_brief_hash`,
+   `intent_bundle_id`, `intent_bundle_revision`, and latest verify before
    review. Dispatch `spec_scope`, `correctness_tests`, and
    `minimality_maintainability` reviewers in parallel; dispatch security only
    when the changed surface requires it. Fill
    [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) for each reviewer
-   without sharing another discovery reviewer's findings. Use named
+   without sharing another discovery reviewer's findings and without the full
+   Explain body. Use named
    **`bouncer-reviewer`** with the resolved model and only that filled call
    slot. When named agents are unavailable, use a **fresh generic** subagent
    whose payload carries the entire body of `agents/bouncer-reviewer.md` —
    every section from Authority through Output contract, verbatim — plus the
-   filled reviewer-prompt: frozen base and HEAD, task brief revision, mode,
-   perspective, latest verify, and for delta the previous findings and revision
-   diff, with the read-only cwd. When no subagent tool exists, run an inline
-   read-only pass that first reads `agents/bouncer-reviewer.md` and follows
-   every section with that same input.
+   filled reviewer-prompt: frozen base and HEAD, task brief revision,
+   `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`,
+   `intent_sections`, mode, perspective, latest verify, and for delta the
+   previous findings and revision diff, with the read-only cwd. When no
+   subagent tool exists, run an inline read-only pass that first reads
+   `agents/bouncer-reviewer.md` and follows every section with that same input.
 
    The controller verifies evidence, merges duplicate fingerprints, records
    `severity_changes`, `origin`, and `actionability`, and decides `must_fix` or

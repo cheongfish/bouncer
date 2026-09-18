@@ -31,10 +31,16 @@ function probeIntentCache(source) {
 
 const INTENT_CACHE_FILTER = `
   var keys = Object.keys(require.cache)
-    .filter((p) => /\\/(symbol-index|intent-provenance|cli-intent-command)\\.js$/.test(p))
+    .filter((p) => /\\/(symbol-index|intent-provenance|intent-bundle|cli-intent-command)\\.js$/.test(p))
     .map((p) => require('path').basename(p))
     .sort();
 `;
+
+const INTENT_RESOLVER_MODULES = [
+  'intent-bundle.js',
+  'intent-provenance.js',
+  'symbol-index.js',
+];
 
 function capture(argv) {
   const buf = { out: '', err: '' };
@@ -341,7 +347,7 @@ test('CLI require, help, and a non-intent command leave intent modules out of re
   `);
   for (const label of ['afterRequire', 'afterHelp', 'afterGeneral']) {
     assert.deepStrictEqual(
-      cold[label].filter((name) => name === 'intent-provenance.js' || name === 'symbol-index.js'),
+      cold[label].filter((name) => INTENT_RESOLVER_MODULES.includes(name)),
       [],
       label,
     );
@@ -404,8 +410,9 @@ test('rejected intent argv exits 2 without loading provenance or symbol-index', 
     assert.equal(rejected.code, 2, args.join(' '));
     assert.equal(rejected.out, '');
     assert.match(rejected.err, /^intent:/);
-    assert.ok(!rejected.keys.includes('intent-provenance.js'), args.join(' '));
-    assert.ok(!rejected.keys.includes('symbol-index.js'), args.join(' '));
+    for (const name of INTENT_RESOLVER_MODULES) {
+      assert.ok(!rejected.keys.includes(name), `${args.join(' ')} loads ${name}`);
+    }
   }
 });
 
@@ -439,6 +446,350 @@ test('intent reports unknown --candidate on stderr with exit 1 and empty stdout'
   assert.equal(result.code, 1);
   assert.equal(result.out, '');
   assert.match(result.err, /^intent:/);
+});
+
+function intentBundleTaskRel(epic = '073', bp = '001', task = '001') {
+  return `.bouncer/context/epics/${epic}-epic/blueprints/${bp}-bp/tasks/${task}/tasks.md`;
+}
+
+function writeIntentBundleTask(repo, {
+  epic = '073',
+  bp = '001',
+  task = '001',
+  body = 'Goal for targetFn provenance reuse.\n',
+} = {}) {
+  const rel = intentBundleTaskRel(epic, bp, task);
+  writeIntentFile(repo, rel, [
+    '---',
+    'type: bouncer.tasks',
+    'title: fixture',
+    'description: fixture',
+    `resource: ${rel}`,
+    'tags: [bouncer]',
+    "timestamp: '2026-09-17T00:00:00+09:00'",
+    'bouncer:',
+    `  id: TASKS-${task}`,
+    `  epic_id: '${epic}'`,
+    `  blueprint_id: '${bp}'`,
+    '  status: ready',
+    '---',
+    '# Tasks',
+    '',
+    body,
+    '',
+  ].join('\n'));
+  return rel;
+}
+
+function seedIntentBundleRepo(bodyLine = 1) {
+  const repo = intentRepo();
+  writeIntentFile(repo, 'src/app.ts', [
+    'export function targetFn() {',
+    `  return ${bodyLine};`,
+    '}',
+    '',
+  ].join('\n'));
+  const sha = commitIntent(
+    repo,
+    'feat: add targetFn\n\nBouncer-Task: EPIC-071/BP-002/TASK-001\nBouncer-Intent: EPIC-071/BP-002\n',
+  );
+  writeIntentExplain(repo, sha.slice(0, 8));
+  const taskFile = writeIntentBundleTask(repo);
+  return { repo, sha, taskFile };
+}
+
+function intentBundleRecordPath(repo, taskFile) {
+  const { intentBundlePathFor } = require('../scripts/lib/runtime-state');
+  const located = intentBundlePathFor({
+    repoRoot: repo,
+    taskRel: taskFile,
+    deps: { execFileSync },
+  });
+  return located.intentFile;
+}
+
+test('intent help names both query and bundle forms', () => {
+  const result = capture(['help']);
+  assert.strictEqual(result.code, 0);
+  assert.match(result.out, /intent\s+--symbol/);
+  assert.match(result.out, /intent\s+bundle --task/);
+});
+
+test('intent bundle creates then reuses the same bundle_id and revision', () => {
+  const { repo, taskFile } = seedIntentBundleRepo();
+  const first = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
+  ]);
+  assert.equal(first.code, 0);
+  assert.equal(first.err, '');
+  const created = JSON.parse(first.out);
+  assert.equal(created.status, 'created');
+  assert.match(created.bundle_id, /^[a-f0-9]{64}$/);
+  assert.equal(created.revision, 1);
+  assert.equal(created.task, 'EPIC-073/BP-001/TASK-001');
+
+  const second = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
+  ]);
+  assert.equal(second.code, 0);
+  assert.equal(second.err, '');
+  const reused = JSON.parse(second.out);
+  assert.equal(reused.status, 'reused');
+  assert.equal(reused.bundle_id, created.bundle_id);
+  assert.equal(reused.revision, created.revision);
+});
+
+test('intent bundle bumps revision when function body, Explain section, or set changes', () => {
+  const { repo, taskFile } = seedIntentBundleRepo(1);
+  const base = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
+  ]);
+  assert.equal(base.code, 0);
+  const basePayload = JSON.parse(base.out);
+  assert.equal(basePayload.revision, 1);
+
+  writeIntentFile(repo, 'src/app.ts', [
+    'export function targetFn() {',
+    '  return 2;',
+    '}',
+    '',
+  ].join('\n'));
+  commitIntent(
+    repo,
+    'feat: retarget body\n\nBouncer-Task: EPIC-071/BP-002/TASK-001\nBouncer-Intent: EPIC-071/BP-002\n',
+  );
+  const afterBlob = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
+  ]);
+  assert.equal(afterBlob.code, 0);
+  const afterBlobPayload = JSON.parse(afterBlob.out);
+  assert.equal(afterBlobPayload.status, 'created');
+  assert.notEqual(afterBlobPayload.bundle_id, basePayload.bundle_id);
+  assert.equal(afterBlobPayload.revision, 2);
+
+  writeIntentFile(repo, 'src/other.ts', 'export function otherFn() { return 1; }\n');
+  commitIntent(
+    repo,
+    'feat: add otherFn\n\nBouncer-Task: EPIC-071/BP-002/TASK-002\nBouncer-Intent: EPIC-071/BP-002\n',
+  );
+  const afterSet = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile,
+    '--symbol', 'targetFn', '--symbol', 'otherFn',
+  ]);
+  assert.equal(afterSet.code, 0);
+  const afterSetPayload = JSON.parse(afterSet.out);
+  assert.equal(afterSetPayload.status, 'created');
+  assert.notEqual(afterSetPayload.bundle_id, afterBlobPayload.bundle_id);
+  assert.equal(afterSetPayload.revision, 3);
+
+  const sha = intentGit(repo, ['rev-parse', 'HEAD']).trim();
+  writeIntentExplain(repo, sha.slice(0, 8));
+  // Explain Background를 바꿔 section hash miss를 강제한다.
+  const explainRel = '.bouncer/context/epics/071-epic/blueprints/002-bp/explain.md';
+  const explainBody = fs.readFileSync(path.join(repo, explainRel), 'utf8')
+    .replace('approved function intent', 'rewritten background for cache miss');
+  fs.writeFileSync(path.join(repo, explainRel), explainBody);
+  const afterExplain = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile,
+    '--symbol', 'targetFn', '--symbol', 'otherFn',
+  ]);
+  assert.equal(afterExplain.code, 0);
+  const afterExplainPayload = JSON.parse(afterExplain.out);
+  assert.equal(afterExplainPayload.status, 'created');
+  assert.notEqual(afterExplainPayload.bundle_id, afterSetPayload.bundle_id);
+  assert.equal(afterExplainPayload.revision, 4);
+});
+
+test('intent bundle returns ambiguous candidates without writing a record', () => {
+  const repo = intentRepo();
+  writeIntentFile(repo, 'src/one.ts', 'export function shared() { return 1; }\n');
+  writeIntentFile(repo, 'src/two.ts', 'export function shared() { return 2; }\n');
+  commitIntent(repo, 'feat: two shared defs\n');
+  const taskFile = writeIntentBundleTask(repo);
+  const recordPath = intentBundleRecordPath(repo, taskFile);
+
+  const ambiguous = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'shared',
+  ]);
+  assert.equal(ambiguous.code, 0);
+  assert.equal(ambiguous.err, '');
+  const payload = JSON.parse(ambiguous.out);
+  assert.equal(payload.status, 'ambiguous');
+  assert.equal(payload.symbol, 'shared');
+  assert.ok(payload.candidates.length >= 2);
+  assert.equal(typeof payload.candidates[0].candidate_ref, 'string');
+  assert.equal(fs.existsSync(recordPath), false);
+
+  const chosen = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile,
+    '--symbol', 'shared', '--candidate', payload.candidates[0].candidate_ref,
+  ]);
+  assert.equal(chosen.code, 0);
+  const chosenPayload = JSON.parse(chosen.out);
+  assert.ok(chosenPayload.status === 'created' || chosenPayload.status === 'reused');
+  assert.ok(fs.existsSync(recordPath));
+});
+
+test('intent bundle rejects malformed argv with exit 2 and empty stdout', () => {
+  const task = intentBundleTaskRel();
+  for (const args of [
+    ['bundle'],
+    ['bundle', '--task', task],
+    ['bundle', '--symbol', 'fn'],
+    ['bundle', '--task', '', '--symbol', 'fn'],
+    ['bundle', '--task', '   ', '--symbol', 'fn'],
+    ['bundle', '--task', 'docs/tasks.md', '--symbol', 'fn'],
+    ['bundle', '--task', task, '--symbol', ''],
+    ['bundle', '--task', task, '--symbol'],
+    ['bundle', '--task', task, '--candidate', 'ref'],
+    ['bundle', '--task', task, '--symbol', 'fn', '--candidate'],
+    ['bundle', '--task', task, '--symbol', 'fn', '--candidate', ''],
+    ['bundle', '--task', task, '--symbol', 'fn', '--candidate', 'a', '--candidate', 'b'],
+    ['bundle', '--task', task, '--symbol', 'fn', '--symbol', 'fn'],
+    ['bundle', '--task', task, '--symbol', 'fn', '--limit', '3'],
+    ['bundle', '--task', task, '--symbol', 'fn', '--unknown'],
+    ['bundle', '--task', task, '--symbol', 'fn', 'positional'],
+    ['bundle', '--task', task, '--task', task, '--symbol', 'fn'],
+    ['bundle', '--task', task, '--symbol', 'fn', '--repo'],
+    ['not-bundle', '--task', task, '--symbol', 'fn'],
+  ]) {
+    const result = capture(['intent', ...args]);
+    assert.equal(result.code, 2, args.join(' '));
+    assert.equal(result.out, '');
+    assert.match(result.err, /^intent:/);
+  }
+});
+
+test('intent bundle Git and resolver failures leave empty stdout and no record', () => {
+  const missingGit = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-bundle-nogit-'));
+  writeIntentFile(missingGit, 'src/app.ts', 'export function targetFn() { return 1; }\n');
+  const taskFile = writeIntentBundleTask(missingGit);
+  const gitFail = capture([
+    'intent', 'bundle', '--repo', missingGit, '--task', taskFile, '--symbol', 'targetFn',
+  ]);
+  assert.equal(gitFail.code, 1);
+  assert.equal(gitFail.out, '');
+  assert.match(gitFail.err, /^intent:/);
+
+  const { repo, taskFile: okTask } = seedIntentBundleRepo();
+  const boom = capture([
+    'intent', 'bundle', '--repo', repo, '--task', okTask,
+    '--symbol', 'targetFn', '--candidate', 'not-a-real-ref',
+  ]);
+  assert.equal(boom.code, 1);
+  assert.equal(boom.out, '');
+  assert.match(boom.err, /^intent:/);
+  assert.equal(fs.existsSync(intentBundleRecordPath(repo, okTask)), false);
+});
+
+test('intent bundle ambiguous recovery maps secondary resolver throw to exit 1', () => {
+  // ambiguous 본 경로에서 2차 resolveIntentProvenance가 던지면 미처리 예외가
+  // 아니라 다른 조회 실패와 같은 stderr+1·빈 stdout이어야 한다(CT-001).
+  const task = intentBundleTaskRel();
+  const probed = spawnSync(process.execPath, ['-e', `
+    'use strict';
+    const Module = require('module');
+    const path = require('path');
+    const origLoad = Module._load;
+    Module._load = function(request, parent, isMain) {
+      const resolved = Module._resolveFilename(request, parent, isMain);
+      if (resolved.endsWith(path.sep + 'intent-bundle.js')) {
+        return {
+          resolveTaskIntentBundle() {
+            throw new Error('ambiguous symbol requires candidate ref: shared');
+          },
+        };
+      }
+      if (resolved.endsWith(path.sep + 'intent-provenance.js')) {
+        return {
+          resolveIntentProvenance() {
+            throw new Error('secondary provenance boom');
+          },
+        };
+      }
+      return origLoad.apply(this, arguments);
+    };
+    const { runCli } = require('./scripts/lib/cli');
+    let out = '';
+    let err = '';
+    let code = 0;
+    let threw = null;
+    try {
+      code = runCli(
+        ['intent', 'bundle', '--repo', '.', '--task', ${JSON.stringify(task)}, '--symbol', 'shared'],
+        { out: (s) => { out += s; }, err: (s) => { err += s; } },
+      );
+    } catch (error) {
+      threw = error && error.message ? error.message : String(error);
+    }
+    process.stdout.write(JSON.stringify({ code, out, err, threw }));
+  `], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: process.env,
+  });
+  assert.equal(probed.status, 0, probed.stderr || probed.stdout);
+  const result = JSON.parse(probed.stdout);
+  assert.equal(result.threw, null);
+  assert.equal(result.code, 1);
+  assert.equal(result.out, '');
+  assert.match(result.err, /^intent: secondary provenance boom\n$/);
+});
+
+test('rejected intent bundle argv exits 2 without loading resolver modules', () => {
+  const task = intentBundleTaskRel();
+  for (const args of [
+    ['intent', 'bundle'],
+    ['intent', 'bundle', '--task', task],
+    ['intent', 'bundle', '--task', task, '--symbol', 'fn', '--limit', '1'],
+    ['intent', 'bundle', '--task', 'docs/x.md', '--symbol', 'fn'],
+    ['intent', 'not-bundle', '--task', task, '--symbol', 'fn'],
+  ]) {
+    const rejected = probeIntentCache(`
+      'use strict';
+      const { runCli } = require('./scripts/lib/cli');
+      let out = '';
+      let err = '';
+      const code = runCli(
+        ${JSON.stringify(args)},
+        { out: (s) => { out += s; }, err: (s) => { err += s; } },
+      );
+      ${INTENT_CACHE_FILTER}
+      process.stdout.write(JSON.stringify({ keys, code, out, err }));
+    `);
+    assert.equal(rejected.code, 2, args.join(' '));
+    assert.equal(rejected.out, '');
+    assert.match(rejected.err, /^intent:/);
+    for (const name of INTENT_RESOLVER_MODULES) {
+      assert.ok(!rejected.keys.includes(name), `${args.join(' ')} loads ${name}`);
+    }
+  }
+});
+
+test('valid intent bundle dispatch loads bundle and provenance modules', () => {
+  const { repo, taskFile } = seedIntentBundleRepo();
+  const warm = probeIntentCache(`
+    'use strict';
+    const { runCli } = require('./scripts/lib/cli');
+    let out = '';
+    let err = '';
+    const code = runCli(
+      ${JSON.stringify([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
+  ])},
+      { out: (s) => { out += s; }, err: (s) => { err += s; } },
+    );
+    ${INTENT_CACHE_FILTER}
+    process.stdout.write(JSON.stringify({ keys, code, out, err }));
+  `);
+  assert.equal(warm.code, 0);
+  assert.equal(warm.err, '');
+  const payload = JSON.parse(warm.out);
+  assert.equal(payload.status, 'created');
+  assert.ok(warm.keys.includes('cli-intent-command.js'));
+  assert.ok(warm.keys.includes('intent-bundle.js'));
+  assert.ok(warm.keys.includes('intent-provenance.js'));
+  assert.ok(warm.keys.includes('symbol-index.js'));
 });
 
 function writeSuggestGraphs(repo) {

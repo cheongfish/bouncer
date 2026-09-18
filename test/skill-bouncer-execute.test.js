@@ -462,3 +462,86 @@ test('bouncer-execute verify recovery hands a repeat failure to the coordinator'
   assert.match(recovery, /terminal blocked/);
   assert.match(recovery, /bouncer coordinate revise/);
 });
+
+// intent bundle은 role dispatch 전에 한 번만 resolve한다. named/fallback이 같은
+// brief hash·bundle ID/revision을 받지 않으면 역할마다 다른 의도를 재해석한다.
+test('bouncer-execute resolves one intent bundle before role dispatch and shares identifiers', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  const recovery = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/verification-recovery.md'), 'utf8');
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  const named = dispatch.match(/## Named implementer[\s\S]*?(?=\n## )/)?.[0] || '';
+  const fallback = dispatch.match(/## Implementer fallback[\s\S]*?(?=\n## |$)/)?.[0] || '';
+  const reviewFallback = fallbackOf(dispatch.slice(dispatch.indexOf('For review,')));
+
+  assert.match(body, /\bbouncer intent bundle\b/);
+  assert.match(body, /task_brief_hash/);
+  assert.match(body, /intent_bundle_id/);
+  assert.match(body, /intent_bundle_revision/);
+  // resolve-once: 역할 dispatch 시작 전에 bundle을 고정한다.
+  assert.match(body, /before[\s\S]{0,120}(?:role|implementer|named)[\s\S]{0,80}dispatch|resolve[\s\S]{0,80}(?:once|one)[\s\S]{0,80}(?:bundle|intent)/i);
+
+  for (const [label, text] of [
+    ['named implementer', named],
+    ['implementer fallback', fallback],
+    ['debugger recovery', recovery],
+    ['reviewer fallback', reviewFallback],
+    ['review round', round],
+  ]) {
+    assert.match(text, /task_brief_hash/, label);
+    assert.match(text, /intent_bundle_id/, label);
+    assert.match(text, /intent_bundle_revision/, label);
+    assert.match(text, /intent_sections/, label);
+  }
+});
+
+// 역할별 evidence는 유지하되 Explain 전체 body는 어느 payload에도 넣지 않는다.
+test('bouncer-execute role payloads keep role evidence and omit full Explain body', () => {
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  const recovery = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/verification-recovery.md'), 'utf8');
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  const review = fs.readFileSync(path.join(root, 'references/review/index.md'), 'utf8');
+  const prompt = fs.readFileSync(path.join(root, 'references/review/assets/reviewer-prompt.md'), 'utf8');
+
+  assert.match(recovery, /failing\s+verify\s+evidence/);
+  assert.match(dispatch, /frozen/);
+  assert.match(dispatch, /latest\s+verify/);
+  assert.match(round, /task_brief_hash/);
+  assert.match(round, /intent_bundle_id/);
+  assert.match(round, /intent_bundle_revision/);
+  assert.match(prompt, /task_brief_hash/);
+  assert.match(prompt, /intent_bundle_id/);
+  assert.match(prompt, /intent_bundle_revision/);
+  assert.match(prompt, /intent_sections/);
+
+  const forbidExplain = /(?:do not|never|omit|without)[\s\S]{0,80}(?:full|entire|whole)\s+Explain(?:\s+body)?|(?:full|entire|whole)\s+Explain(?:\s+body)?[\s\S]{0,80}(?:do not|never|omit|not)/i;
+  for (const [label, text] of [
+    ['agent-dispatch', dispatch],
+    ['verification-recovery', recovery],
+    ['review-round', round],
+    ['review index', review],
+    ['reviewer-prompt', prompt],
+  ]) {
+    assert.match(text, forbidExplain, label);
+  }
+});
+
+// scope revision 뒤 bundle을 재검증하고, 실패 시 stale ID를 fallback에 숨기지 않는다.
+test('bouncer-execute revalidates the intent bundle after scope revision and stops on failure', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  assert.match(body, /coordinate revise[\s\S]{0,500}(?:bouncer intent bundle|intent_bundle|re-?(?:validat|resolv|call)[\s\S]{0,40}bundle)/i);
+  assert.match(
+    body,
+    /(?:bundle|intent_bundle)[\s\S]{0,160}(?:fail|error)[\s\S]{0,200}(?:do not|never|stop)[\s\S]{0,80}dispatch|(?:do not|never|stop)[\s\S]{0,80}dispatch[\s\S]{0,160}(?:bundle|intent_bundle)/i,
+  );
+  assert.match(
+    body,
+    /stale[\s\S]{0,80}(?:bundle|intent_bundle_id)|(?:never|do not)[\s\S]{0,80}stale[\s\S]{0,80}(?:bundle|intent_bundle)/i,
+  );
+  // named와 fallback이 같은 식별자 집합을 받는다는 문구가 dispatch 정본에 있어야 한다.
+  assert.match(
+    dispatch,
+    /(?:named|fallback)[\s\S]{0,200}(?:same|identical)[\s\S]{0,120}(?:task_brief_hash|intent_bundle_id)|(?:same|identical)[\s\S]{0,80}task_brief_hash[\s\S]{0,80}intent_bundle_id/i,
+  );
+});

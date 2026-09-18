@@ -617,6 +617,31 @@ function verifyLedgerPathFor({ repoRoot, verificationRel, deps }) {
     };
 }
 /**
+ * 실행 Task 문서 경로의 intent bundle record 위치를 계산한다.
+ * verify ledger와 같이 Git common directory 아래에 두어 main·linked worktree가
+ * 같은 파일을 보고, `.git/` 안이라 staging에 실리지 않게 한다.
+ *
+ * @param {{ repoRoot: string, taskRel: unknown, deps?: RuntimeDeps | null }} opts
+ *   - `taskRel`은 저장소 상대 tasks.md 경로
+ * @returns {RuntimePaths} 성공 시 `intentFile`, 비-Git이면 `unavailable`
+ */
+function intentBundlePathFor({ repoRoot, taskRel, deps }) {
+    const paths = resolvedPaths({ repoRoot, deps });
+    if (paths.unavailable) {
+        return { unavailable: true, reason: paths.reason };
+    }
+    const d = deps || {};
+    const platform = d.platform || process.platform;
+    const pathApi = platform === 'win32' ? path.win32 : path;
+    // verify ledger와 같은 digest 길이·배치를 유지한다. 경로 문자를 파일명에
+    // 넣지 않으면서 worktree마다 다른 checkout 문자열이 섞이지 않게 한다.
+    const digest = createHash('sha256').update(toPosix(taskRel), 'utf8').digest('hex').slice(0, 16);
+    return {
+        ...paths,
+        intentFile: pathApi.join(paths.commonGitDir, 'bouncer', 'intent', `${digest}.json`),
+    };
+}
+/**
  * porcelain 출력이 비어 있지 않으면 dirty. git 실패도 dirty로 본다 —
  * migrate task-layout·import-history가 부분 쓰기를 남기지 않게 apply를 막기 위함.
  */
@@ -636,7 +661,7 @@ function isWorktreeDirty(repoRoot, execFileSync = realExecFileSync) {
 module.exports = {
     runtimePaths, readRuntimeCurrent, readLegacyRuntimeCurrent, writeRuntimeCurrent,
     clearRuntimeCurrent, worktreePathFor, coordinatorPathsFor, verifyLedgerPathFor,
-    isWorktreeDirty,
+    intentBundlePathFor, isWorktreeDirty,
     pointerKeyFromBlueprint, listNamespacePointers, removeNamespacePointer,
     validateCoordinatorLedger,
     branchNamesFor, resolveWorktreeBranch,
