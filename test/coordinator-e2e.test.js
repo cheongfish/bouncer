@@ -130,6 +130,27 @@ function writeTerminalEvidence(worker, blueprint, id, sha) {
   }
 }
 
+
+/**
+ * dispatch → accepted report → record. TASKS-001 이후 record는 활성 attempt의
+ * accepted 보고와 brief hash 일치가 있어야만 worker HEAD를 올린다.
+ */
+function acceptDispatchAndRecord(repo, blueprint, worker, task) {
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const reported = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
+    attempt: dispatched.metadata.attempt,
+    taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted',
+    summary: `accepted ${task}`,
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  return coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task });
+}
+
 test('a parallel ready wave commits in worker worktrees and fans in to one integration branch', () => {
   const blueprint = '.bouncer/context/epics/010-parallel/blueprints/001-drive';
   const repo = makeRepo({
@@ -168,9 +189,7 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
   for (const id of ['001', '002']) {
     shas[id] = commitInWorker(workers[id], edits[id], `changed by ${id}\n`, `feat: task ${id}`);
     writeTerminalEvidence(workers[id], blueprint, id, shas[id]);
-    const recorded = coordinate({
-      command: 'record', repoRoot: repo, blueprint, cwd: workers[id], task: id,
-    });
+    const recorded = acceptDispatchAndRecord(repo, blueprint, workers[id], id);
     assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
     assert.strictEqual(recorded.task.sha, shas[id]);
   }
@@ -231,7 +250,7 @@ test('cherry-picked worker commits keep stable provenance trailers', () => {
   const workerSha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', message);
   writeTerminalEvidence(worker, blueprint, '001', workerSha);
   assert.strictEqual(
-    coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok,
+    acceptDispatchAndRecord(repo, blueprint, worker, '001').ok,
     true,
   );
   const integrated = coordinate({
@@ -263,7 +282,7 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
   const workerSha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
   writeTerminalEvidence(worker, blueprint, '001', workerSha);
   assert.strictEqual(
-    coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok,
+    acceptDispatchAndRecord(repo, blueprint, worker, '001').ok,
     true,
   );
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
@@ -330,7 +349,7 @@ test('a single task with no DAG frontmatter drives as one sequential wave', () =
   const workerSha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
   writeTerminalEvidence(worker, blueprint, '001', workerSha);
   assert.strictEqual(
-    coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok,
+    acceptDispatchAndRecord(repo, blueprint, worker, '001').ok,
     true,
   );
   const integrated = coordinate({
@@ -398,7 +417,7 @@ test('an uncommitted-plan drive reaches the finalize gate with no open task afte
   const worker = prepared.tasks[0].workerPath;
   const sha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
   writeTerminalEvidence(worker, blueprint, '001', sha);
-  const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
+  const recorded = acceptDispatchAndRecord(repo, blueprint, worker, '001');
   assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
 
   const openTasks = () => validateBlueprint({ repoRoot: integrationPath, blueprintDir: blueprint, gate: 'finalize' })
@@ -462,7 +481,7 @@ test('release after a drive finalize lets main merge the integration branch with
   const worker = prepared.tasks[0].workerPath;
   const sha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
   writeTerminalEvidence(worker, blueprint, '001', sha);
-  assert.strictEqual(coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok, true);
+  assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, worker, '001').ok, true);
   const integrated = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001' });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
 
@@ -488,4 +507,31 @@ test('release after a drive finalize lets main merge the integration branch with
   assert.match(fs.readFileSync(path.join(repo, blueprint, 'index.md'), 'utf8'), /status: closed/);
   assert.strictEqual(fs.existsSync(path.join(repo, blueprint, 'tasks')), false);
   assert.strictEqual(sourceStatus(repo), '');
+});
+
+test('record requires dispatch and an accepted report before storing worker HEAD', () => {
+  const blueprint = '.bouncer/context/epics/010-parallel/blueprints/001-drive';
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
+  writeTask(repo, blueprint, '001', { depends_on: [], parallel_safe: true });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const sha = commitInWorker(worker, 'src/alpha.js', 'changed\n', 'feat: task 001');
+  writeTerminalEvidence(worker, blueprint, '001', sha);
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const before = fs.readFileSync(ledgerFile, 'utf8');
+  const skipped = coordinate({
+    command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001',
+  });
+  assert.strictEqual(skipped.ok, false);
+  assert.match(skipped.reason, /accepted-report-required|no-accepted-report/);
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), before);
+  const recorded = acceptDispatchAndRecord(repo, blueprint, worker, '001');
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+  assert.strictEqual(recorded.task.sha, sha);
 });

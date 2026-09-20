@@ -578,3 +578,50 @@ test('listNamespacePointers reports a broken file instead of hiding it', () => {
   assert.strictEqual(issue.issue.path, broken);
   assert.ok(typeof issue.issue.reason === 'string' && issue.issue.reason.length > 0);
 });
+
+
+test('coordinator ledger rejects malformed dispatch attempt metadata', () => {
+  const base = {
+    version: 1, blueprint: 'bp', base: 'main', tasks: [{
+      id: '001', status: 'prepared',
+      dispatch: {
+        attempt: 1,
+        task_brief_hash: 'a'.repeat(64),
+        base_head: 'abc123',
+        initial_worktree_state: '',
+        status: 'active',
+      },
+    }], decisions: [],
+  };
+  assert.strictEqual(validateCoordinatorLedger(base).ok, true);
+  assert.match(validateCoordinatorLedger({
+    ...base,
+    tasks: [{ ...base.tasks[0], dispatch: { ...base.tasks[0].dispatch, attempt: 0 } }],
+  }).reason, /dispatch/);
+  assert.match(validateCoordinatorLedger({
+    ...base,
+    tasks: [{ ...base.tasks[0], dispatch: { ...base.tasks[0].dispatch, task_brief_hash: 'abc' } }],
+  }).reason, /dispatch/);
+  assert.match(validateCoordinatorLedger({
+    ...base,
+    tasks: [{ ...base.tasks[0], dispatch: { ...base.tasks[0].dispatch, status: 'open' } }],
+  }).reason, /dispatch/);
+  assert.match(validateCoordinatorLedger({
+    ...base,
+    tasks: [{
+      ...base.tasks[0],
+      dispatch: {
+        ...base.tasks[0].dispatch, status: 'reported', outcome: 'accepted', summary: '',
+      },
+    }],
+  }).reason, /dispatch/);
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base,
+    tasks: [{
+      ...base.tasks[0],
+      dispatch: {
+        ...base.tasks[0].dispatch, status: 'reported', outcome: 'rework', summary: 'retry',
+      },
+    }],
+  }).ok, true);
+});

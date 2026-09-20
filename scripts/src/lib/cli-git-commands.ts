@@ -207,12 +207,12 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
   const commands = [
-    'bootstrap', 'prepare', 'ready', 'record', 'rerecord', 'integrate',
+    'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
     'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'release',
   ];
   if (!commands.includes(command)) {
     io.err(
-      'coordinate: command must be bootstrap, prepare, ready, record, rerecord, '
+      'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
       + 'integrate, status, revise, repair, partial-close, critical-recovery, or release\n',
     );
     return 2;
@@ -220,6 +220,26 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
     io.err('coordinate: --blueprint is required\n');
     return 2;
+  }
+  if (command === 'report') {
+    // report metadata는 core가 다시 검사하지만, 필수 flag 부재는 usage(2)로
+    // 돌려 argv 누락과 stale mismatch(1)를 구분한다.
+    if (typeof f.attempt !== 'string' || f.attempt === '') {
+      io.err('coordinate report: --attempt is required\n');
+      return 2;
+    }
+    if (typeof f['task-brief-hash'] !== 'string' || f['task-brief-hash'] === '') {
+      io.err('coordinate report: --task-brief-hash is required\n');
+      return 2;
+    }
+    if (typeof f.outcome !== 'string' || f.outcome === '') {
+      io.err('coordinate report: --outcome is required\n');
+      return 2;
+    }
+    if (typeof f.summary !== 'string' || f.summary === '') {
+      io.err('coordinate report: --summary is required\n');
+      return 2;
+    }
   }
   if (command === 'revise') {
     // scope 판정은 coordinator의 것이고 본체는 scope.reviseTaskScope 하나뿐이다.
@@ -244,6 +264,9 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   }
   try {
     // --repo는 main checkout을 가리키고 cwd는 실제 write boundary 검증에 쓴다.
+    const attemptRaw = typeof f.attempt === 'string' ? f.attempt : undefined;
+    const attemptNum = attemptRaw !== undefined && /^\d+$/.test(attemptRaw)
+      ? Number(attemptRaw) : undefined;
     const result = coordinate({
       command: command === 'ready' ? 'status' : command,
       repoRoot: (f.repo || process.cwd()) as string,
@@ -259,6 +282,8 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       findings: collectFindingValues(rest.slice(1)),
       outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
       reason: typeof f.reason === 'string' ? f.reason : undefined,
+      attempt: attemptNum,
+      taskBriefHash: typeof f['task-brief-hash'] === 'string' ? f['task-brief-hash'] : undefined,
       userConfirmed: f['user-confirmed'] === true,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
@@ -293,9 +318,15 @@ export = {
   },
   coordinate: {
     run: cmdCoordinate,
-    usage: '  coordinate <bootstrap|prepare|ready|record|rerecord|integrate|status> --blueprint <dir>\n'
+    usage: '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|integrate|status> --blueprint <dir>\n'
       + '             [--task <ddd>] [--sha <sha>]\n'
       + '             Operate the coordinator ledger and isolated integration worktrees.\n'
+      + '  coordinate dispatch --blueprint <dir> --task <ddd> [--repo <main>]\n'
+      + '             Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.\n'
+      + '  coordinate report --blueprint <dir> --task <ddd> --attempt <n>\n'
+      + '             --task-brief-hash <sha256> --outcome <accepted|rework|scope_revision|task_change|blocked>\n'
+      + '             --summary <text> [--repo <main>]\n'
+      + '             Record a worker report against the active attempt, or append stale-report evidence.\n'
       + '  coordinate rerecord --blueprint <dir> --task <ddd> --reason <text> [--sha <sha>]\n'
       + '             Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.\n'
       + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>\n'
