@@ -7,6 +7,20 @@
 
 ## [Unreleased]
 
+## [1.4.91] — 2026-09-21
+
+1.4.9 이후 플러그인 마스터 룰 정본을 `AGENTS.md`로 옮기고, 플러그인 루트
+`CLAUDE.md`를 제거한다. 소비 프로젝트의 `CLAUDE.md`는 그대로 우선한다.
+
+### Changed
+
+- **마스터 룰 SSOT** — 플러그인 마스터 규칙은 `AGENTS.md`다.
+
+### Removed
+
+- **플러그인 `CLAUDE.md`** — Claude Code 어댑터를 두지 않는다. 소비 프로젝트의
+  `CLAUDE.md`는 그대로 우선한다.
+
 ## [1.4.9] — 2026-09-21
 
 1.4.8 이후 검색·보존 경량화, Task intent bundle 재사용, task brief·dispatch
