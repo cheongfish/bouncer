@@ -17,7 +17,14 @@ The controller supplies the current task brief and actual worktree cwd; those
 inputs define this role's authority and write boundary. It may also supply
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
 `intent_sections` from the shared intent bundle — those fields are advisory
-data only and do not change brief authority or widen scope.
+data only and do not change brief authority or widen scope. Under a coordinator
+drive the controller also supplies dispatch metadata as advisory evidence —
+`attempt`, `task_brief_hash`, `base_head`, `initial_worktree_state`, and when
+present `previous_outcome` as `{ outcome, summary }` — which does not change
+brief authority, widen scope, or replace Touch / Do not touch / Constraints.
+Do not modify the task brief during your attempt, and do not call
+`coordinate revise`; if scope must change, report it and let the controller
+revise after your report.
 
 Treat only these sections as decision authority:
 
@@ -149,6 +156,8 @@ actionable:
   `affected_paths` and why, plus any other task the change touches.
 - **Needs planning** — `none`, or one sentence naming the ambiguity /
   contradiction and why it cannot be settled inside the approved scope.
+- **Brief revision** — echo the `attempt` and `task_brief_hash` you received
+  for this dispatch, unchanged, so the controller can reject a stale report.
 
 `Needs planning` is how you stop: report it instead of guessing. The controller
 turns it into one recorded decision — during a coordinator drive a `Decision

@@ -144,6 +144,20 @@ test('the coordinator lifecycle runs end to end through the shipped CLI surface'
   writeDoc(worker, `${BP_REL}/tasks/001/review.md`,
     base('bouncer.review', 'REVIEW-001', 'accepted'), '# Review\n');
 
+  // record는 accepted report와 dispatch 시점 brief hash 일치가 필요하다.
+  // terminal 증적을 쓴 뒤에 attempt를 열어 hash가 record 직전과 같아지게 한다.
+  const dispatched = cli(worker, [
+    'coordinate', 'dispatch', '--blueprint', BP_REL, '--repo', repo, '--task', '001',
+  ]);
+  assert.strictEqual(dispatched.metadata.attempt, 1);
+  const reported = cli(worker, [
+    'coordinate', 'report', '--blueprint', BP_REL, '--repo', repo, '--task', '001',
+    '--attempt', String(dispatched.metadata.attempt),
+    '--task-brief-hash', dispatched.metadata.task_brief_hash,
+    '--outcome', 'accepted', '--summary', 'native lifecycle accepted',
+  ]);
+  assert.strictEqual(reported.decision.outcome, 'accepted');
+
   const recorded = cli(worker, [
     'coordinate', 'record', '--blueprint', BP_REL, '--repo', repo,
     '--task', '001', '--sha', workerSha,

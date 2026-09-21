@@ -1,6 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -8,6 +9,25 @@ const { execFileSync } = require('node:child_process');
 const { readyWave, transition, coordinate } = require('../scripts/lib/coordinator');
 const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
 const { writeCurrent } = require('../scripts/lib/current');
+
+/**
+ * dispatch → accepted report. record 사전조건을 채운 뒤 호출부가 record를 이어서 부른다.
+ */
+function acceptDispatchReport(repo, blueprint, worker, task = '001') {
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task,
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const reported = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task,
+    attempt: dispatched.metadata.attempt,
+    taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted',
+    summary: `accepted ${task}`,
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  return dispatched;
+}
 
 test('readyWave returns only pending tasks with completed dependencies', () => {
   const tasks = [
@@ -462,6 +482,7 @@ test('prepare seeds each assigned worker and record accepts the worker boundary'
   const ledger = JSON.parse(fs.readFileSync(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8'));
   assert.strictEqual(ledger.integrationBranch, boot.integrationBranch);
   assert.strictEqual(fs.readFileSync(path.join(worker, blueprint, 'tasks', '001', 'tasks.md'), 'utf8').includes('brief'), true);
+  acceptDispatchReport(repo, blueprint, worker, '001');
   const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
   assert.strictEqual(recorded.ok, true);
 });
@@ -683,6 +704,7 @@ function recordedDrive(prefix, blueprint) {
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'feat: 001'],
     { cwd: worker });
   const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  acceptDispatchReport(repo, blueprint, worker, '001');
   const recorded = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
   assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
   return {
@@ -771,6 +793,7 @@ test('record refuses a SHA that is not the assigned worker HEAD', () => {
   fs.writeFileSync(path.join(repo, blueprint, 'tasks', '001', 'tasks.md'), '---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\n');
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  acceptDispatchReport(repo, blueprint, prepared.tasks[0].workerPath, '001');
   const result = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: prepared.tasks[0].workerPath, task: '001', sha: 'deadbeef' });
   assert.deepStrictEqual(result, { ok: false, reason: 'sha-not-worker-head' });
 });
@@ -810,6 +833,7 @@ test('integrate rejects a recorded worker path replaced by a symlink to main', (
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   const worker = prepared.tasks[0].workerPath;
+  acceptDispatchReport(repo, blueprint, worker, '001');
   assert.strictEqual(coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' }).ok, true);
   fs.rmSync(worker, { recursive: true, force: true });
   fs.symlinkSync(repo, worker, 'dir');
@@ -853,4 +877,237 @@ test('prepare refuses a symlink at an assigned worker path before seeding', () =
   const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   assert.deepStrictEqual(result, { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker });
   assert.strictEqual(fs.existsSync(path.join(outside, blueprint)), false);
+});
+
+
+/**
+ * prepared commit task fixture. bootstrap·prepare만 끝내 worker를 돌려준다.
+ */
+function preparedCommitDrive(prefix, blueprint) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  fs.writeFileSync(path.join(repo, blueprint, 'tasks/001/tasks.md'),
+    '---\nbouncer:\n  status: ready\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n---\nbrief\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  return { repo, blueprint, worker, integrationPath: boot.integrationPath, ledgerFile };
+}
+
+function briefHash(worker, blueprint, task) {
+  return crypto.createHash('sha256')
+    .update(fs.readFileSync(path.join(worker, blueprint, 'tasks', task, 'tasks.md')))
+    .digest('hex');
+}
+
+test('first dispatch returns attempt 1 metadata without previous_outcome', () => {
+  const blueprint = '.bouncer/context/epics/060-x/blueprints/061-y';
+  const drive = preparedCommitDrive('bouncer-dispatch-first-', blueprint);
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: drive.worker, encoding: 'utf8' }).trim();
+  const clean = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(clean.ok, true, JSON.stringify(clean));
+  assert.deepStrictEqual(clean.metadata, {
+    attempt: 1,
+    task_brief_hash: briefHash(drive.worker, blueprint, '001'),
+    base_head: head,
+    initial_worktree_state: '',
+  });
+  assert.strictEqual('previous_outcome' in clean.metadata, false);
+
+  // dirty porcelain은 원문 그대로 저장된다. 활성 attempt를 닫고 다시 연다.
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  ledger.tasks[0].dispatch.status = 'reported';
+  ledger.tasks[0].dispatch.outcome = 'rework';
+  ledger.tasks[0].dispatch.summary = 'retry dirty';
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  fs.writeFileSync(path.join(drive.worker, 'dirty.txt'), 'dirty\n');
+  const porcelain = execFileSync('git', ['status', '--porcelain=v1'], {
+    cwd: drive.worker, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const dirty = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dirty.ok, true, JSON.stringify(dirty));
+  assert.strictEqual(dirty.metadata.attempt, 2);
+  assert.strictEqual(dirty.metadata.initial_worktree_state, porcelain);
+});
+
+test('duplicate dispatch is rejected and accepted report enables redispatch with previous_outcome', () => {
+  const blueprint = '.bouncer/context/epics/062-x/blueprints/063-y';
+  const drive = preparedCommitDrive('bouncer-dispatch-dup-', blueprint);
+  const first = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  const dup = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dup.ok, false);
+  assert.strictEqual(dup.reason, 'dispatch-already-active');
+
+  const hash = first.metadata.task_brief_hash;
+  const reported = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: 1, taskBriefHash: hash, outcome: 'accepted', summary: 'implementer done',
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.strictEqual(reported.attempt, 1);
+  assert.strictEqual(reported.decision.kind, 'report');
+  assert.strictEqual(reported.decision.outcome, 'accepted');
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks[0].dispatch.status, 'reported');
+  assert.strictEqual(ledger.tasks[0].status, 'prepared');
+
+  // accepted 뒤에도 재디스패치는 가능하지만 previous_outcome을 싣는다.
+  const again = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.strictEqual(again.metadata.attempt, 2);
+  assert.deepStrictEqual(again.metadata.previous_outcome, {
+    outcome: 'accepted', summary: 'implementer done',
+  });
+});
+
+test('stale report appends expected/received and keeps the active attempt open', () => {
+  const blueprint = '.bouncer/context/epics/064-x/blueprints/065-y';
+  const drive = preparedCommitDrive('bouncer-dispatch-stale-', blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const expected = {
+    attempt: dispatched.metadata.attempt,
+    task_brief_hash: dispatched.metadata.task_brief_hash,
+  };
+  const received = {
+    attempt: 9,
+    task_brief_hash: 'a'.repeat(64),
+  };
+  const before = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const stale = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: received.attempt, taskBriefHash: received.task_brief_hash,
+    outcome: 'accepted', summary: 'late report',
+  });
+  assert.strictEqual(stale.ok, false);
+  assert.strictEqual(stale.reason, 'stale-report');
+  assert.deepStrictEqual(stale.expected, expected);
+  assert.deepStrictEqual(stale.received, received);
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks[0].dispatch.status, 'active');
+  assert.strictEqual(ledger.tasks[0].status, 'prepared');
+  assert.strictEqual(ledger.tasks[0].sha, undefined);
+  const decision = ledger.decisions.at(-1);
+  assert.strictEqual(decision.kind, 'stale-report');
+  assert.deepStrictEqual(decision.expected, expected);
+  assert.deepStrictEqual(decision.received, received);
+  assert.notStrictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), before);
+});
+
+test('record rejects after brief bytes change following an accepted report', () => {
+  const blueprint = '.bouncer/context/epics/066-x/blueprints/067-y';
+  const drive = preparedCommitDrive('bouncer-dispatch-stale-record-', blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const reported = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: 1, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted', summary: 'ready to record',
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  fs.appendFileSync(path.join(drive.worker, blueprint, 'tasks/001/tasks.md'), '\nchanged after accept\n');
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const rejected = coordinate({
+    command: 'record', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'stale-worker-report');
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks[0].status, 'prepared');
+  assert.strictEqual(ledger.tasks[0].sha, undefined);
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+});
+
+test('record rejects a non-accepted report without storing worker SHA', () => {
+  const blueprint = '.bouncer/context/epics/068-x/blueprints/069-y';
+  const drive = preparedCommitDrive('bouncer-dispatch-non-accepted-record-', blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const reported = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: dispatched.metadata.attempt,
+    taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'rework', summary: 'needs another pass',
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  assert.strictEqual(reported.decision.outcome, 'rework');
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const rejected = coordinate({
+    command: 'record', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'accepted-report-required');
+  const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(ledger.tasks[0].status, 'prepared');
+  assert.strictEqual(ledger.tasks[0].sha, undefined);
+  assert.strictEqual(ledger.tasks[0].dispatch.status, 'reported');
+  assert.strictEqual(ledger.tasks[0].dispatch.outcome, 'rework');
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+});
+
+test('report without an active dispatch attempt is rejected', () => {
+  const blueprint = '.bouncer/context/epics/070-x/blueprints/071-y';
+  const drive = preparedCommitDrive('bouncer-dispatch-no-active-', blueprint);
+  const hash = briefHash(drive.worker, blueprint, '001');
+  const beforeDispatch = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const neverDispatched = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: 1, taskBriefHash: hash, outcome: 'accepted', summary: 'too early',
+  });
+  assert.strictEqual(neverDispatched.ok, false);
+  assert.strictEqual(neverDispatched.reason, 'no-active-dispatch');
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), beforeDispatch);
+
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const closed = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: dispatched.metadata.attempt,
+    taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'blocked', summary: 'stop here',
+  });
+  assert.strictEqual(closed.ok, true, JSON.stringify(closed));
+  const afterClosed = fs.readFileSync(drive.ledgerFile, 'utf8');
+  const again = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: dispatched.metadata.attempt,
+    taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted', summary: 'after closed',
+  });
+  assert.strictEqual(again.ok, false);
+  assert.strictEqual(again.reason, 'no-active-dispatch');
+  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), afterClosed);
+  const ledger = JSON.parse(afterClosed);
+  assert.strictEqual(ledger.tasks[0].dispatch.status, 'reported');
+  assert.strictEqual(ledger.tasks[0].dispatch.outcome, 'blocked');
+  assert.strictEqual(ledger.tasks[0].sha, undefined);
 });

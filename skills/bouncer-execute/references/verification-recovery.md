@@ -23,9 +23,14 @@ report only: **Reproduction**, **Evidence**, **Single hypothesis**,
 **Minimum fix proposal**, **Required regression test**, and
 **Scope/task impact**. Then sequentially re-dispatch `bouncer-implementer` with
 the same task-brief authority, the same bundle identifiers, and the debugger
-Output contract as evidence. Apply only the proposed minimum fix and required
-regression test inside `affected_paths`; Scope/task impact is controller-only
-decision input. Do not stack alternatives or treat the report as authority.
-Then re-verify.
+Output contract as evidence. Under a coordinator drive that re-dispatch crosses
+the same report→dispatch metadata boundary: judge the prior attempt with
+`coordinate report`, revise only when the outcome requires it, then open a new
+`coordinate dispatch` so the implementer receives the increased `attempt`,
+`task_brief_hash`, `base_head`, `initial_worktree_state`, and
+`previous_outcome` before applying the minimum fix. Apply only the proposed
+minimum fix and required regression test inside `affected_paths`; Scope/task
+impact is controller-only decision input. Do not stack alternatives or treat
+the report as authority. Then re-verify.
 
 When re-verify fails again, the cycle is over: do not retreat to `/bouncer-plan` mid-drive and do not start a third round. Hand the debugger's Reproduction, Single hypothesis and Scope/task impact to the controller. Under a coordinator drive that becomes exactly one recorded decision — rework with a named cause, a scope revision through `bouncer coordinate revise`, a task change, or terminal blocked when repeated attempts stop moving the failure.

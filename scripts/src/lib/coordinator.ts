@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import runtime = require('./runtime-state');
 const { coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch } = runtime;
@@ -17,11 +18,34 @@ const { listTasksDocs } = tasksDocs;
 import commitShaMod = require('./commit-sha');
 const { normalizeCommitSha } = commitShaMod;
 
+/** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
+const REPORT_OUTCOMES = ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'] as const;
+type ReportOutcome = (typeof REPORT_OUTCOMES)[number];
+
+type DispatchState = {
+  attempt: number; task_brief_hash: string; base_head: string; initial_worktree_state: string;
+  status: 'active' | 'reported'; outcome?: ReportOutcome; summary?: string;
+};
+type DispatchDecision = {
+  task: string; kind: 'dispatch'; attempt: number; task_brief_hash: string;
+  base_head: string; initial_worktree_state: string;
+};
+type ReportDecision = {
+  task: string; kind: 'report'; attempt: number; task_brief_hash: string;
+  outcome: ReportOutcome; summary: string;
+};
+type StaleReportDecision = {
+  task: string; kind: 'stale-report';
+  expected: { attempt: number; task_brief_hash: string };
+  received: { attempt: number; task_brief_hash: string };
+};
+
 type Task = {
   id: string; depends_on?: string[]; dependency_gate?: string; parallel_safe?: boolean;
   execution_kind?: 'commit' | 'verification'; status?: string; workerPath?: string; branch?: string; sha?: string;
   decisions?: unknown[]; scope?: { revision: string; paths: string[] }; dynamic?: boolean;
   criticalRecovery?: { used: 1; findings: string[]; reason: string; outcome: 'resolved' | 'blocked' | null };
+  dispatch?: DispatchState;
 };
 type Ledger = {
   version: 1; blueprint: string; base: string; integrationHead?: string; integrationBranch?: string; tasks: Task[];
@@ -96,6 +120,34 @@ function loadLedger(file: string): Ledger | null {
 
 function git(exec: Exec, cwd: string, args: string[]): string {
   return String(exec('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).trim();
+}
+
+/**
+ * canonical tasks.md 전체 bytes의 SHA-256. trim·재직렬화 없이 읽어 dispatch·record가
+ * 같은 정의를 쓰게 한다 — intent-bundle의 task_brief_hash와 바이트 계약을 맞춘다.
+ *
+ * @param {string} workerRoot - 할당된 worker worktree
+ * @param {string} blueprint - blueprint 상대 경로
+ * @param {string} taskId - 세 자리 task id
+ * @returns {string} 64자리 소문자 hex
+ */
+function taskBriefHashOf(workerRoot: string, blueprint: string, taskId: string): string {
+  const bytes = fs.readFileSync(path.join(workerRoot, blueprint, 'tasks', taskId, 'tasks.md'));
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+/**
+ * dispatch 직전 working-tree 원문. trim하지 않는다 — clean은 빈 문자열, dirty는
+ * porcelain=v1 stdout 그대로여야 재개 시 baseline과 바이트 비교가 가능하다.
+ *
+ * @param {Exec} exec - 주입 가능한 Git 실행기
+ * @param {string} cwd - worker worktree
+ * @returns {string} `git status --porcelain=v1` stdout 원문
+ */
+function initialWorktreeState(exec: Exec, cwd: string): string {
+  return String(exec('git', ['status', '--porcelain=v1'], {
+    cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }));
 }
 
 function sourceStatus(exec: Exec, cwd: string): string {
@@ -498,10 +550,12 @@ function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, 
 }
 
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
-  failureCommand, summary, paths: repairPaths, findings, outcome, reason, userConfirmed = false, deps = {} }: {
+  failureCommand, summary, paths: repairPaths, findings, outcome, reason, attempt, taskBriefHash,
+  userConfirmed = false, deps = {} }: {
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; outcome?: string; reason?: string;
+  attempt?: number; taskBriefHash?: string;
   deps?: { execFileSync?: Exec; runVerification?: VerificationRunner; writeLedger?: typeof atomicWrite };
 }) {
   const exec = deps.execFileSync || realExecFileSync as unknown as Exec;
@@ -768,6 +822,109 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     atomicWrite(integration.ledgerFile, ledger);
     return { ok: true, command, task: item, decision: started, decisions: ledger.decisions };
   }
+  if (command === 'dispatch' || command === 'report') {
+    // dispatch/report는 implementer 경계다. record와 같이 할당 worker에서만 열리며,
+    // task 상태(prepared)는 유지하고 attempt 상태(active|reported)만 바꾼다.
+    const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
+    if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
+      return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+    }
+    ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
+    if (item.execution_kind === 'verification') {
+      return { ok: false, reason: 'dispatch-commit-task-required' };
+    }
+    if ((item.status || 'pending') !== 'prepared') return { ok: false, reason: 'illegal-transition' };
+  }
+  if (command === 'dispatch') {
+    if (item.dispatch?.status === 'active') {
+      return { ok: false, reason: 'dispatch-already-active' };
+    }
+    // 직전 reported attempt가 있을 때만 previous_outcome을 싣는다. 최초 1회는 필드를
+    // 생략해 "없음"과 빈 객체를 구분한다.
+    const previousOutcome = item.dispatch?.status === 'reported'
+      && item.dispatch.outcome && item.dispatch.summary
+      ? { outcome: item.dispatch.outcome, summary: item.dispatch.summary }
+      : undefined;
+    let baseHead: string;
+    let porcelain: string;
+    try {
+      baseHead = git(exec, cwd, ['rev-parse', 'HEAD']);
+      porcelain = initialWorktreeState(exec, cwd);
+    } catch (_error) {
+      // HEAD·porcelain 조회 실패는 attempt를 열지 않는다. 부분 ledger를 남기면 재개가
+      // 깨진 baseline을 정본으로 삼는다.
+      return { ok: false, reason: 'dispatch-git-read-failed' };
+    }
+    const hash = taskBriefHashOf(cwd, blueprint, task);
+    const nextAttempt = (item.dispatch?.attempt || 0) + 1;
+    item.dispatch = {
+      attempt: nextAttempt, task_brief_hash: hash, base_head: baseHead,
+      initial_worktree_state: porcelain, status: 'active',
+    };
+    const dispatchDecision: DispatchDecision = {
+      task, kind: 'dispatch', attempt: nextAttempt, task_brief_hash: hash,
+      base_head: baseHead, initial_worktree_state: porcelain,
+    };
+    item.decisions = [...(item.decisions || []), dispatchDecision];
+    ledger.decisions.push(dispatchDecision);
+    atomicWrite(integration.ledgerFile, ledger);
+    const metadata: {
+      attempt: number; task_brief_hash: string; base_head: string; initial_worktree_state: string;
+      previous_outcome?: { outcome: string; summary: string };
+    } = {
+      attempt: nextAttempt, task_brief_hash: hash, base_head: baseHead,
+      initial_worktree_state: porcelain,
+    };
+    if (previousOutcome) metadata.previous_outcome = previousOutcome;
+    return { ok: true, command, metadata, task: item, decisions: ledger.decisions };
+  }
+  if (command === 'report') {
+    if (!item.dispatch || item.dispatch.status !== 'active') {
+      return { ok: false, reason: 'no-active-dispatch' };
+    }
+    if (!Number.isInteger(attempt) || (attempt as number) < 1) {
+      return { ok: false, reason: 'invalid-attempt' };
+    }
+    if (typeof taskBriefHash !== 'string' || !/^[a-f0-9]{64}$/.test(taskBriefHash)) {
+      return { ok: false, reason: 'invalid-task-brief-hash' };
+    }
+    if (!(REPORT_OUTCOMES as readonly string[]).includes(outcome || '')) {
+      return { ok: false, reason: 'invalid-report-outcome' };
+    }
+    if (typeof summary !== 'string' || summary.trim() === '') {
+      return { ok: false, reason: 'summary-required' };
+    }
+    const expected = {
+      attempt: item.dispatch.attempt, task_brief_hash: item.dispatch.task_brief_hash,
+    };
+    const received = { attempt: attempt as number, task_brief_hash: taskBriefHash };
+    // mismatch는 stale 증적만 남기고 활성 attempt를 유지한다. recorded로 올리면
+    // 늦은 보고가 현재 dispatch를 닫아 재시도를 막는다.
+    if (received.attempt !== expected.attempt
+      || received.task_brief_hash !== expected.task_brief_hash) {
+      const stale: StaleReportDecision = {
+        task, kind: 'stale-report', expected, received,
+      };
+      item.decisions = [...(item.decisions || []), stale];
+      ledger.decisions.push(stale);
+      atomicWrite(integration.ledgerFile, ledger);
+      return { ok: false, reason: 'stale-report', expected, received };
+    }
+    item.dispatch.status = 'reported';
+    item.dispatch.outcome = outcome as ReportOutcome;
+    item.dispatch.summary = summary;
+    const reportDecision: ReportDecision = {
+      task, kind: 'report', attempt: attempt as number, task_brief_hash: taskBriefHash,
+      outcome: outcome as ReportOutcome, summary,
+    };
+    item.decisions = [...(item.decisions || []), reportDecision];
+    ledger.decisions.push(reportDecision);
+    atomicWrite(integration.ledgerFile, ledger);
+    return {
+      ok: true, command, attempt: attempt as number, decision: reportDecision,
+      task: item, decisions: ledger.decisions,
+    };
+  }
   if (command === 'record') {
     // record는 worker가 만든 SHA와 provenance를 ledger로 올리는 경계다. integration
     // checkout에서 다시 worker 경계를 요구하면 어떤 정상 worker도 기록할 수 없다.
@@ -779,6 +936,17 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     }
     ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
     if ((item.status || 'pending') !== 'prepared') return { ok: false, reason: 'illegal-transition' };
+    // accepted report가 없는 HEAD는 어느 brief·attempt의 결과인지 알 수 없다.
+    // dispatch 없이 record하던 경로를 여기서 끊는다.
+    if (!item.dispatch || item.dispatch.status !== 'reported'
+      || item.dispatch.outcome !== 'accepted') {
+      return { ok: false, reason: 'accepted-report-required' };
+    }
+    // report 이후 brief bytes가 바뀌면 수락한 보고와 다른 문서다. attempt를 닫지
+    // 않은 채 stale-worker-report로만 거절해 재디스패치 여지를 남긴다.
+    if (taskBriefHashOf(cwd, blueprint, task) !== item.dispatch.task_brief_hash) {
+      return { ok: false, reason: 'stale-worker-report' };
+    }
     const workerHead = git(exec, cwd, ['rev-parse', 'HEAD']);
     // record 시점의 HEAD만 허용한다. caller가 임의 SHA를 주장하거나 worker가
     // 다른 commit을 향한 뒤의 값을 기록하면 coordinator provenance가 무너진다.

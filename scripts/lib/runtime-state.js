@@ -124,6 +124,39 @@ function validCriticalRecovery(value) {
         && nonEmptyString(recovery.reason)
         && (recovery.outcome === null || recovery.outcome === 'resolved' || recovery.outcome === 'blocked');
 }
+const DISPATCH_REPORT_OUTCOMES = new Set([
+    'accepted', 'rework', 'scope_revision', 'task_change', 'blocked',
+]);
+/**
+ * 최신 dispatch attempt 메타 shape. attempt·hash·status가 깨지면 재개 시
+ * stale/accepted 판정이 다른 답을 내므로 critical recovery와 같이 엄격히 막는다.
+ *
+ * @param {unknown} value - task.dispatch 후보
+ * @returns {boolean} 유효하면 true
+ */
+function validDispatch(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return false;
+    const dispatch = value;
+    if (!Number.isInteger(dispatch.attempt) || dispatch.attempt < 1)
+        return false;
+    if (typeof dispatch.task_brief_hash !== 'string'
+        || !/^[a-f0-9]{64}$/.test(dispatch.task_brief_hash))
+        return false;
+    if (!nonEmptyString(dispatch.base_head))
+        return false;
+    if (typeof dispatch.initial_worktree_state !== 'string')
+        return false;
+    if (dispatch.status !== 'active' && dispatch.status !== 'reported')
+        return false;
+    if (dispatch.status === 'reported') {
+        if (!DISPATCH_REPORT_OUTCOMES.has(dispatch.outcome))
+            return false;
+        if (!nonEmptyString(dispatch.summary))
+            return false;
+    }
+    return true;
+}
 /**
  * partial close가 신뢰하는 canonical repair 항목의 전체 shape를 검사한다.
  * task/wave 식별자만 맞춘 복사본은 scope·DAG·실패 근거를 바꿔치기할 수 있으므로,
@@ -173,6 +206,12 @@ function validateCoordinatorLedger(value, options = {}) {
     if (tasksForRecovery.some((task) => task.criticalRecovery !== undefined
         && !validCriticalRecovery(task.criticalRecovery))) {
         return { ok: false, reason: 'critical-recovery-invalid' };
+    }
+    // dispatch는 레거시 원장에 없을 수 있다. 필드가 있을 때만 shape를 강제해
+    // 손상 attempt가 재개 기준이 되는 일을 막는다.
+    if (tasksForRecovery.some((task) => task.dispatch !== undefined
+        && !validDispatch(task.dispatch))) {
+        return { ok: false, reason: 'dispatch-invalid' };
     }
     // branch 필드는 이전 원장에는 없을 수 있지만, 있으면 이후 재개가 Git의 실제
     // checkout을 신뢰할 수 있도록 문자열이어야 한다. 여기서 느슨하게 받으면

@@ -122,6 +122,18 @@ function recordedDrive() {
   run(drive.worker, ['add', 'README']);
   run(drive.worker, ['commit', '-m', 'first']);
   const oldSha = run(drive.worker, ['rev-parse', 'HEAD']);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint: BP_REL,
+    cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  assert.strictEqual(coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint: BP_REL,
+    cwd: drive.worker, task: '001',
+    attempt: dispatched.metadata.attempt,
+    taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted', summary: 'accepted first result',
+  }).ok, true);
   const recorded = coordinate({
     command: 'record', repoRoot: drive.repo, blueprint: BP_REL,
     cwd: drive.worker, task: '001', sha: oldSha, decision: 'accepted first result',
@@ -412,4 +424,55 @@ test('coordinate usage lists release among the allowed commands', () => {
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
   assert.match(refused.buf.err, /critical-recovery, or release/);
+});
+
+
+test('coordinate dispatch and report require worker cwd and report metadata flags', () => {
+  const drive = preparedDrive();
+  const refused = coordinateCli(drive.integration, 'dispatch', ['--repo', drive.repo, '--task', '001']);
+  assert.strictEqual(refused.code, 1);
+  assert.match(`${refused.buf.err}${refused.buf.out}`, /assigned worktree/);
+
+  const dispatched = coordinateCli(drive.worker, 'dispatch', ['--repo', drive.repo, '--task', '001']);
+  assert.strictEqual(dispatched.code, 0, dispatched.buf.err + dispatched.buf.out);
+  const meta = JSON.parse(dispatched.buf.out).metadata;
+  assert.strictEqual(meta.attempt, 1);
+  assert.match(meta.task_brief_hash, /^[a-f0-9]{64}$/);
+  assert.strictEqual(typeof meta.base_head, 'string');
+  assert.strictEqual(meta.initial_worktree_state, '');
+
+  const missingFlags = coordinateCli(drive.worker, 'report', [
+    '--repo', drive.repo, '--task', '001', '--outcome', 'accepted', '--summary', 'x',
+  ]);
+  assert.strictEqual(missingFlags.code, 2);
+  assert.match(missingFlags.buf.err, /attempt|task-brief-hash/);
+
+  const badOutcome = coordinateCli(drive.worker, 'report', [
+    '--repo', drive.repo, '--task', '001',
+    '--attempt', String(meta.attempt), '--task-brief-hash', meta.task_brief_hash,
+    '--outcome', 'maybe', '--summary', 'x',
+  ]);
+  assert.strictEqual(badOutcome.code, 1);
+  assert.match(JSON.parse(badOutcome.buf.out).reason, /outcome/);
+
+  const reported = coordinateCli(drive.worker, 'report', [
+    '--repo', drive.repo, '--task', '001',
+    '--attempt', String(meta.attempt), '--task-brief-hash', meta.task_brief_hash,
+    '--outcome', 'accepted', '--summary', 'cli accepted',
+  ]);
+  assert.strictEqual(reported.code, 0, reported.buf.err + reported.buf.out);
+  const body = JSON.parse(reported.buf.out);
+  assert.strictEqual(body.attempt, 1);
+  assert.strictEqual(body.decision.kind, 'report');
+  assert.strictEqual(body.decision.outcome, 'accepted');
+});
+
+test('coordinate usage lists dispatch and report verbs', () => {
+  const { io, buf } = capture();
+  runCli(['help'], io);
+  assert.match(buf.out, /coordinate dispatch/);
+  assert.match(buf.out, /coordinate report/);
+  const refused = capture();
+  assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
+  assert.match(refused.buf.err, /dispatch|report/);
 });

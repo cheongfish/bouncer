@@ -98,6 +98,17 @@ to your `Decision required` judgment, never a second brief.
   reference: its Korean docstring contract requires Summary, one Args entry per
   parameter, and Returns on every non-trivial function or method the task
   changes.
+- Immediately before every `bouncer-implementer` call, run `bouncer coordinate
+  dispatch` from that task's worktree. Pass only the returned five metadata
+  fields with the current brief: `attempt`, `task_brief_hash`, `base_head`,
+  `initial_worktree_state`, and — when present — `previous_outcome` as
+  `{ outcome, summary }`. The first attempt has no `previous_outcome`. Named
+  and fallback payloads receive the same shape; do not add the ledger, other
+  task briefs, prior worker report bodies, or past conversation.
+- While that attempt is active, freeze the task brief: do not call
+  `coordinate revise` and do not edit the brief until you have judged the
+  implementer's report. If scope must change, wait for the report, record
+  `scope_revision`, revise, then open a new dispatch.
 - Give each worker its assigned task worktree as cwd and only that task's
   current brief — the one your latest revision left behind, not the approval
   snapshot. `bouncer-debugger` and `bouncer-reviewer` stay read-only. Workers
@@ -112,11 +123,21 @@ to your `Decision required` judgment, never a second brief.
 2. **Prepare** — `bouncer coordinate prepare` opens the current ready wave and
    assigns one worktree per task. Tasks the wave did not open stay closed.
 3. **Drive** — For each ready task, set the shared pointer to it with `bouncer
-   current --set <blueprint> --task <NNN>`, run the task workflow in that
-   task's worktree, then `bouncer coordinate record` its result SHA together
-   with a decision naming the paths the task actually changed. `record` stores
-   the SHA and that decision, so provenance the ledger must keep travels inside
-   the decision text.
+   current --set <blueprint> --task <NNN>`, open `coordinate dispatch`, run the
+   task workflow in that task's worktree with the returned metadata, then judge
+   the implementer's **Brief revision** (`attempt` and `task_brief_hash`)
+   against the active dispatch. Matching values: call `coordinate report` with
+   the same pair, the outcome, and a summary; only an `accepted` report may
+   then `bouncer coordinate record` its result SHA together with a decision
+   naming the paths the task actually changed. `record` stores the SHA and that
+   decision, so provenance the ledger must keep travels inside the decision
+   text. A missing or mismatched Brief revision is stale — call
+   `coordinate report` with the received `attempt` and `task_brief_hash` so
+   runtime can append `stale-report`; do not call `accepted` or
+   `coordinate record`, and keep the attempt open. After `rework`,
+   `scope_revision`, or `task_change`, revise only when the outcome requires
+   it, then redispatch so runtime supplies the increased `attempt` and
+   `previous_outcome`.
 4. **Integrate** — `bouncer coordinate integrate` in dependency order, then
    verify the integration head. A rejected fan-in is a decision to record and
    resolve, not a retry to repeat blindly.

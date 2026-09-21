@@ -18,7 +18,12 @@ findings.
 3 aggregate Verify evidence, merge duplicate fingerprints, record
             severity_changes and origin, then decide must_fix or advisory from
             the brief, evidence, and changed range — never a reviewer vote.
-4 fix       Dispatch one implementer once with a repair brief containing every
+4 fix       Under a coordinator drive: judge the prior implementer report
+            (`coordinate report`), revise only when the outcome requires it,
+            then open a new `coordinate dispatch` so the fix implementer
+            receives the increased attempt, task_brief_hash, base_head,
+            initial_worktree_state, and previous_outcome. Outside a drive,
+            dispatch one implementer once with a repair brief containing every
             must_fix finding.
 5 verify    Re-run latest verify.
 6 certify   Dispatch one delta reviewer with previous findings and revision diff.

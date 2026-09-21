@@ -607,3 +607,75 @@ test('an unmarked implementer TOML remains user-owned and requires the full fall
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+// coordinator는 implementer 직전 coordinate dispatch로 attempt metadata를 열고,
+// 보고를 판정할 때까지 brief를 동결한다. Brief revision mismatch는 accepted/record
+// 로 넘기지 않고 stale로만 남긴다.
+test('bouncer-coordinator dispatches attempt metadata and rejects stale Brief revision', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const worker = md.match(/## Worker dispatch\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  const procedure = md.match(/## Procedure\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  const body = `${worker}\n${procedure}`;
+
+  assert.match(body, /coordinate dispatch/);
+  assert.match(body, /\battempt\b/);
+  assert.match(body, /task_brief_hash/);
+  assert.match(body, /base_head/);
+  assert.match(body, /initial_worktree_state/);
+  assert.match(body, /previous_outcome/);
+  assert.match(body, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
+  // implementer 호출 직전/전에 dispatch를 연다.
+  assert.match(
+    body,
+    /(?:before|immediately before)[\s\S]{0,120}(?:implementer|bouncer-implementer)|(?:implementer|bouncer-implementer)[\s\S]{0,80}(?:before|after)[\s\S]{0,40}dispatch|dispatch[\s\S]{0,120}(?:before|then)[\s\S]{0,80}(?:implementer|bouncer-implementer)/i,
+  );
+  // 활성 attempt 동안 brief revise 금지 — report 판정 뒤에만 revise.
+  assert.match(
+    body,
+    /(?:do not|never|freeze|frozen)[\s\S]{0,120}(?:revise|brief)|(?:revise|brief)[\s\S]{0,120}(?:after|until)[\s\S]{0,80}(?:report|outcome)/i,
+  );
+  assert.match(body, /coordinate report/);
+  assert.match(body, /Brief revision/);
+  // stale mismatch: received attempt/hash로 coordinate report를 호출해 runtime이
+  // stale-report를 append하게 하고, accepted/record는 호출하지 않는다.
+  assert.match(
+    body,
+    /(?:stale|mismatch)[\s\S]{0,240}coordinate report[\s\S]{0,160}(?:received|attempt|task_brief_hash)|coordinate report[\s\S]{0,160}(?:received|stale|mismatch)[\s\S]{0,120}(?:attempt|task_brief_hash|stale-report)/i,
+  );
+  assert.match(
+    body,
+    /(?:stale|mismatch)[\s\S]{0,200}(?:accepted|coordinate record)|(?:do not|never)[\s\S]{0,80}(?:accepted|coordinate record)[\s\S]{0,120}(?:stale|mismatch|Brief revision)/i,
+  );
+  // rework / scope_revision / task_change 뒤 재디스패치는 증가한 attempt와 previous_outcome.
+  assert.match(
+    body,
+    /(?:rework|scope_revision|task_change)[\s\S]{0,200}(?:previous_outcome|redispatch|re-?dispatch)/i,
+  );
+});
+
+// implementer는 받은 attempt·task_brief_hash를 Brief revision으로 돌려줘야
+// coordinator가 diff 재독 없이 stale을 판정한다.
+test('bouncer-implementer Output contract returns Brief revision attempt and task_brief_hash', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-implementer.md'), 'utf8');
+  const authority = md.match(/## Authority\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  const contract = md.slice(md.indexOf('## Output contract'));
+
+  assert.match(authority, /\battempt\b/);
+  assert.match(authority, /task_brief_hash/);
+  assert.match(authority, /base_head/);
+  assert.match(authority, /initial_worktree_state/);
+  assert.match(authority, /previous_outcome/);
+  assert.match(authority, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
+  // attempt 동안 task brief 자체를 수정하는 것도 금지한다 (revise CLI만 막는 것으로 부족).
+  assert.match(
+    authority,
+    /(?:do not|never|forbid)[\s\S]{0,80}(?:modif(?:y|ying)|edit(?:ing)?)[\s\S]{0,80}(?:task\s+)?brief|(?:task\s+)?brief[\s\S]{0,80}(?:do not|never)[\s\S]{0,80}(?:modif(?:y|ying)|edit)/i,
+  );
+  assert.match(
+    authority,
+    /(?:advisory|evidence|does not[\s\S]{0,40}(?:change|widen|override)[\s\S]{0,40}(?:brief|authority|scope))/i,
+  );
+  assert.match(contract, /\*\*Brief revision\*\*/);
+  assert.match(contract, /\battempt\b/);
+  assert.match(contract, /task_brief_hash/);
+});
