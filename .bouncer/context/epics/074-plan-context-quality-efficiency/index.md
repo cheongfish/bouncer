@@ -48,3 +48,4 @@ bouncer:
 ## Blueprints
 * [001 task-brief-contract-precision](blueprints/001-task-brief-contract-precision/index.md) - 성공 기준 1~4, 9: spec-authoring tasks 규칙·예시와 context reviewer rubric에 seam·실패 분류·기대 red 판정 추가
 * [002 dispatch-revision-attempt-evidence](blueprints/002-dispatch-revision-attempt-evidence/index.md) - 성공 기준 5~6, 9: implementer dispatch와 보고를 task brief hash·attempt에 묶고 stale 보고의 수락과 record를 거부
+* [003 plan-context-efficiency](blueprints/003-plan-context-efficiency/index.md) - 성공 기준 7~9: discovery·context reviewer 입력과 Graphify 질의를 필요한 근거로 제한
