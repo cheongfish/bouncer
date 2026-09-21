@@ -90,6 +90,33 @@ test('plan context-review controller freezes a digest, revises once, and certifi
   assert.match(md, /missed_critical/);
 });
 
+// named dispatch는 대화 이력을 싣지 않고, delta는 실제 수정 문서만 받는다.
+test('plan context-review named dispatch excludes conversation history and limits delta docs', () => {
+  const md = fs.readFileSync(planContextReviewPath, 'utf8');
+  const discoveryAt = md.indexOf('2. **Discovery**');
+  const mergeAt = md.indexOf('3. **Merge**');
+  const deltaAt = md.indexOf('5. **Certify the delta**');
+  const closeAt = md.indexOf('6. **Close**');
+  assert.ok(discoveryAt >= 0 && mergeAt > discoveryAt);
+  assert.ok(deltaAt >= 0 && closeAt > deltaAt);
+  const discovery = md.slice(discoveryAt, mergeAt);
+  const delta = md.slice(deltaAt, closeAt);
+
+  assert.match(discovery, /fork_turns:\s*"none"/);
+  assert.match(delta, /fork_turns:\s*"none"/);
+  // 전체 대화 이력을 controller input에서 배제한다.
+  assert.match(discovery, /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full )?conversation|full conversation[\s\S]{0,80}(?:do not|never|exclude|배제)|대화 이력/i);
+  assert.match(delta, /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full )?conversation|full conversation[\s\S]{0,80}(?:do not|never|exclude|배제)|대화 이력/i);
+  // discovery도 판단 집합 밖 문서를 거절한다.
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,100}(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)|(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)[\s\S]{0,80}(?:do not|never|exclude|배제)|판단 대상 밖/i,
+  );
+  // delta 입력은 previous findings + 실제 수정된 문서 목록으로 경계를 고정한다.
+  assert.match(delta, /previous findings/i);
+  assert.match(delta, /modified document|실제 수정|documents? (?:actually )?modified|revised documents? only/i);
+});
+
 // controller 기록 경로가 finding note에 같은 YAML 선두 인용 규칙을 갖는지 본다.
 // 문구 고정이 아니라 위험 입력·안전 형식·정본 연결의 식별자만 본다.
 test('plan context-review controller quotes YAML-leading reserved characters in finding notes', () => {

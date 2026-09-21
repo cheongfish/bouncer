@@ -124,6 +124,21 @@ test('bouncer-plan discovers code first and resolves function intent before scaf
   assert.match(discover, /(intent|Explain)[\s\S]{0,160}(do not|never)[\s\S]{0,60}(set|widen|fill)[\s\S]{0,40}affected_paths/i);
 });
 
+// discovery는 광역 덤프를 반복하지 않고 후보 → 질문별 검색 → line window 순서를 고정한다.
+test('bouncer-plan discovery narrows candidates before question-specific reads', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const discover = body.slice(body.indexOf('1. **Discover.**'), body.indexOf('2. **Scaffold.**'));
+  // 1) 후보 파일 목록을 먼저 만든다.
+  assert.match(discover, /rg --files|`rg --files`/);
+  assert.match(discover, /rg -l|`rg -l`/);
+  // 2) 질문마다 path/glob으로 좁힌 뒤 관련 section·line window만 읽는다.
+  assert.match(discover, /path\/glob|path or glob|question-specific/i);
+  assert.match(discover, /line window|section or line/i);
+  // 3) 잘린 광역 출력을 같은 형태로 다시 돌리지 않는다.
+  assert.match(discover, /truncat|잘린/i);
+  assert.match(discover, /do not (?:repeat|re-run)|never (?:repeat|re-run)|동일 형태 반복/i);
+});
+
 test('plan skill and references drop context search and scope evidence', () => {
   const { body } = parseFrontmatter(mainMd);
   const scope = fs.readFileSync(
@@ -226,6 +241,70 @@ test('bouncer-plan dispatches context-review before approval with named-agent fa
   assert.ok(reviewAt > -1 && approvalAt > reviewAt, 'context-review step must precede Approval');
 });
 
+// named discovery/delta는 대화 fork 없이 mode별 allowlist controller input만 받는다.
+test('bouncer-plan named context-reviewer uses fork_turns none and mode input allowlists', () => {
+  const dispatch = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/context-review.md'),
+    'utf8',
+  );
+  const discoveryAt = dispatch.indexOf('2. **Discovery**');
+  const mergeAt = dispatch.indexOf('3. **Merge**');
+  const deltaAt = dispatch.indexOf('5. **Certify the delta**');
+  const closeAt = dispatch.indexOf('6. **Close**');
+  assert.ok(discoveryAt >= 0 && mergeAt > discoveryAt, 'Discovery section present');
+  assert.ok(deltaAt >= 0 && closeAt > deltaAt, 'Certify the delta section present');
+  const discovery = dispatch.slice(discoveryAt, mergeAt);
+  const delta = dispatch.slice(deltaAt, closeAt);
+
+  // 무이력 fork — discovery·delta 모두.
+  assert.match(discovery, /fork_turns:\s*"none"/);
+  assert.match(delta, /fork_turns:\s*"none"/);
+
+  // discovery allowlist: mode, 단일 perspective, frozen digest, epic·blueprint·task 목록, read-only cwd.
+  assert.match(discovery, /\bmode\b/);
+  assert.match(discovery, /perspective/);
+  assert.match(discovery, /digest/);
+  assert.match(discovery, /epic[\s\S]{0,80}blueprint[\s\S]{0,80}task/i);
+  assert.match(discovery, /read-only\s+cwd/i);
+  // discovery 거절: 극성 결합 — "Pass the full conversation…"류 허용 문구는 실패해야 한다.
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full )?conversation|full conversation[\s\S]{0,80}(?:do not|never|exclude|배제)|대화 이력/i,
+  );
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:(?:other|another).{0,40}findings|findings.{0,40}(?:other|another)|다른.{0,20}findings)|(?:(?:other|another).{0,40}findings|findings.{0,40}(?:other|another))[\s\S]{0,80}(?:do not|never|exclude|배제)/i,
+  );
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full |entire |whole )?ledger|(?:full |entire |whole )?ledger[\s\S]{0,80}(?:do not|never|exclude|배제)|전체 ledger/i,
+  );
+  // discovery도 판단 집합 밖 문서를 거절한다 (delta-only 공백 메움).
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,100}(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)|(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)[\s\S]{0,80}(?:do not|never|exclude|배제)|판단 대상 밖/i,
+  );
+
+  // delta allowlist: 새 digest, previous findings, 실제 수정 문서 목록, read-only cwd.
+  assert.match(delta, /digest/);
+  assert.match(delta, /previous findings/i);
+  assert.match(delta, /modified document|실제 수정|revised documents? only|documents? (?:actually )?modified/i);
+  assert.match(delta, /read-only\s+cwd/i);
+  // delta 거절: 극성 결합 — 허용(pass/include) 문구는 실패해야 한다.
+  assert.match(
+    delta,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full )?conversation|full conversation[\s\S]{0,80}(?:do not|never|exclude|배제)|대화 이력/i,
+  );
+  assert.match(
+    delta,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full |entire |whole )?ledger|(?:full |entire |whole )?ledger[\s\S]{0,80}(?:do not|never|exclude|배제)|전체 ledger/i,
+  );
+  assert.match(
+    delta,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,100}(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)|(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)[\s\S]{0,80}(?:do not|never|exclude|배제)|판단 대상 밖/i,
+  );
+});
+
 // 경량 경로는 사용자 선언만 — 자동 판정·schema 등록 없이 산문에 고정한다.
 test('bouncer-plan asks for the light path and reuses the shared maintenance epic', () => {
   const { body } = parseFrontmatter(md);
@@ -275,6 +354,47 @@ test('bouncer-plan points graphify enablement at the CLI only', () => {
   assert.doesNotMatch(body, /graphify\.enabled:\s*true/);
   assert.doesNotMatch(body, /pip install graphifyy/);
   assert.match(body, /init --promote-graphify/);
+});
+
+// query/seed/cap debug·retry 숫자·조건은 graphify-runner 정본만 소유한다.
+// plan skill과 로컬 suggestion은 링크·handoff·사용자 확인만 남긴다.
+test('bouncer-plan Graphify docs defer query/seed/debug/retry rules to graphify-runner', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const suggestions = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/graphify-suggestions.md'),
+    'utf8',
+  );
+  const authorAt = body.indexOf('3. **Author.**');
+  const scopeAt = body.indexOf('4. **Scope confirm.**');
+  assert.ok(authorAt >= 0 && scopeAt > authorAt, 'Author step owns Graphify paragraph');
+  const author = body.slice(authorAt, scopeAt);
+
+  // 진입 skill·로컬 suggestion 모두 runner 정본을 가리킨다.
+  assert.match(author, /\$\{BOUNCER_ROOT\}\/references\/graphify-runner\/index\.md/);
+  assert.match(suggestions, /graphify-runner|\$\{BOUNCER_ROOT\}\/references\/graphify-runner/);
+
+  // 숫자·cap 사유·retry 조건 본문은 plan 문서에 복제하지 않는다.
+  for (const [label, text] of [
+    ['SKILL.md Author', author],
+    ['graphify-suggestions.md', suggestions],
+  ]) {
+    assert.doesNotMatch(text, /seed\.fanout_cap/, `${label} must not own fanout_cap`);
+    assert.doesNotMatch(text, /traversal\.frontier_cap/, `${label} must not own frontier_cap`);
+    assert.doesNotMatch(
+      text,
+      /1\s*[–-]?\s*2\s+entry|one unique (?:function|path) seed|seed 1\s*[–-]?\s*2/i,
+      `${label} must not own seed-count rule body`,
+    );
+    assert.doesNotMatch(
+      text,
+      /inspect `--debug` once|retry once with fewer|--debug` once and retry|cap-only\s+`--debug`|a single shrink retry/i,
+      `${label} must not own debug/retry counts`,
+    );
+  }
+
+  // suggestion은 query 조성 숫자 목록 대신 handoff·사용자 확인을 유지한다.
+  assert.match(suggestions, /advisory|confirm|affected_paths/i);
+  assert.doesNotMatch(suggestions, /No hubs \/ generic words|1–2 entry symbols|Deletion targets as seeds/i);
 });
 
 test('bouncer-plan loads context-review only after the light skip in step 5', () => {
