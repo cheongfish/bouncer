@@ -197,6 +197,12 @@ function cmdCoordinate(rest, io) {
         'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
         'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'release',
     ];
+    // bootstrap·status(ready 별칭)만 원장 fence 예외. 그 외 mutation은 path/hash 쌍이
+    // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
+    const fencedCommands = new Set([
+        'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
+        'repair', 'partial-close', 'critical-recovery', 'release',
+    ]);
     if (!commands.includes(command)) {
         io.err('coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
             + 'integrate, status, revise, repair, partial-close, critical-recovery, or release\n');
@@ -205,6 +211,17 @@ function cmdCoordinate(rest, io) {
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
         io.err('coordinate: --blueprint is required\n');
         return 2;
+    }
+    const ledgerPath = typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined;
+    const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
+    if (fencedCommands.has(command)) {
+        // Interface: 누락은 usage(2)가 아니라 다른 coordinate 거절과 같은 JSON reason + exit 1.
+        // argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
+        if (ledgerPath === undefined || ledgerPath === ''
+            || ledgerHash === undefined || ledgerHash === '') {
+            io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' }, null, 2)}\n`);
+            return 1;
+        }
     }
     if (command === 'report') {
         // report metadata는 core가 다시 검사하지만, 필수 flag 부재는 usage(2)로
@@ -232,8 +249,31 @@ function cmdCoordinate(rest, io) {
         // reviseTaskScope는 `repoRoot`를 write boundary로 쓴다(main checkout·미할당
         // worktree 거절). 그래서 `--repo`를 받아 넘기면 호출자가 자기 경계를 스스로
         // 고르게 되어 두 거절이 무력화된다 — 실제 cwd만 넘긴다.
+        // fence도 같은 cwd 원장에 묶는다. `--repo` 원장을 검사하면 다른 checkout의
+        // hash로 통과한 뒤 cwd 원장을 쓰는 불일치가 생긴다.
+        const { coordinatorPathsFor } = require('./runtime-state');
+        const { assertLedgerFence, projectCheckpoint, loadLedgerBytes } = require('./coordinator');
+        const reviseRoot = process.cwd();
+        const paths = coordinatorPathsFor({
+            repoRoot: reviseRoot,
+            blueprint: f.blueprint,
+        });
+        // load bytes → fence → (이후 revise가 같은 경로를 씀). 디스크를 두 번 읽어
+        // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다.
+        const loaded = loadLedgerBytes(paths.ledgerFile);
+        if (!loaded) {
+            io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' }, null, 2)}\n`);
+            return 1;
+        }
+        const fenced = assertLedgerFence({
+            ledgerPath, ledgerHash, ledgerBytes: loaded.bytes,
+        });
+        if (!fenced.ok) {
+            io.out(`${JSON.stringify(fenced, null, 2)}\n`);
+            return 1;
+        }
         const result = reviseTaskScope({
-            repoRoot: process.cwd(),
+            repoRoot: reviseRoot,
             blueprint: f.blueprint,
             task: typeof f.task === 'string' ? f.task : undefined,
             paths: collectPathValues(rest.slice(1)),
@@ -244,7 +284,12 @@ function cmdCoordinate(rest, io) {
             io.err(`coordinate revise: ${result.reason}\n`);
             return 1;
         }
-        io.out(`${JSON.stringify(result, null, 2)}\n`);
+        // 성공 시 다음 fencing token이 될 checkpoint를 돌려 status→revise 루프를 잇는다.
+        const after = loadLedgerBytes(paths.ledgerFile);
+        const payload = after
+            ? { ...result, checkpoint: projectCheckpoint(after.ledger, paths.ledgerFile, after.bytes) }
+            : result;
+        io.out(`${JSON.stringify(payload, null, 2)}\n`);
         return 0;
     }
     try {
@@ -269,6 +314,8 @@ function cmdCoordinate(rest, io) {
             reason: typeof f.reason === 'string' ? f.reason : undefined,
             attempt: attemptNum,
             taskBriefHash: typeof f['task-brief-hash'] === 'string' ? f['task-brief-hash'] : undefined,
+            ledgerPath,
+            ledgerHash,
             userConfirmed: f['user-confirmed'] === true,
         });
         io.out(`${JSON.stringify(result, null, 2)}\n`);
@@ -309,32 +356,41 @@ module.exports = {
         usage: '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|integrate|status> --blueprint <dir>\n'
             + '             [--task <ddd>] [--sha <sha>]\n'
             + '             Operate the coordinator ledger and isolated integration worktrees.\n'
-            + '  coordinate dispatch --blueprint <dir> --task <ddd> [--repo <main>]\n'
+            + '  coordinate dispatch --blueprint <dir> --task <ddd> --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             [--repo <main>]\n'
             + '             Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.\n'
             + '  coordinate report --blueprint <dir> --task <ddd> --attempt <n>\n'
             + '             --task-brief-hash <sha256> --outcome <accepted|rework|scope_revision|task_change|blocked>\n'
-            + '             --summary <text> [--repo <main>]\n'
+            + '             --summary <text> --ledger-path <path> --ledger-hash <sha256> [--repo <main>]\n'
             + '             Record a worker report against the active attempt, or append stale-report evidence.\n'
-            + '  coordinate rerecord --blueprint <dir> --task <ddd> --reason <text> [--sha <sha>]\n'
+            + '  coordinate rerecord --blueprint <dir> --task <ddd> --reason <text>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256> [--sha <sha>]\n'
             + '             Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.\n'
             + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>\n'
             + '             --summary <text> --paths <p> --decision <reason>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
             + '             Add one audited repair task and move the terminal CI dependency.\n'
             + '  coordinate partial-close --blueprint <dir> --user-confirmed\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
             + '             Preserve the failed drive and mark it partial_closed after two repair waves.\n'
             + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --findings <id>\n'
             + '             [--findings <id>]... --reason <text>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
             + '             Record the one permitted blocker or major recovery for a prepared task.\n'
-            + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --outcome <resolved|blocked> --reason <text>\n'
+            + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --outcome <resolved|blocked>\n'
+            + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
             + '             Record the outcome without permitting another recovery.\n'
-            + '  coordinate release --blueprint <dir> [--repo <main>]\n'
+            + '  coordinate release --blueprint <dir> --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             [--repo <main>]\n'
             + '             After finalize closes the drive, restore or remove main plan copies\n'
             + '             that still match the bootstrap manifest. Run it from the main checkout.\n'
             + '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
-            + '             --reason <text>\n'
+            + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
             + '             Record one scope decision in the task document and ledger.\n'
             + '             Takes no --repo: the write boundary is the current directory, so\n'
-            + '             run it from the assigned task worktree, not the main checkout.\n',
+            + '             run it from the assigned task worktree, not the main checkout.\n'
+            + '  Mutations (except bootstrap/status) require --ledger-path and --ledger-hash from\n'
+            + '  the latest status checkpoint so stale ledger writes are rejected before mutation.\n',
     },
     import: {
         run: cmdImport,

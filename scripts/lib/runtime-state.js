@@ -281,6 +281,88 @@ function validateCoordinatorLedger(value, options = {}) {
         return { ok: false, reason: 'partial-close-user-confirmation-required' };
     return { ok: true };
 }
+// coordinator.ts fence·checkpoint와 같은 상대 경로 문자열이어야 path/hash 쌍이
+// 모듈마다 다른 정본을 가리키지 않는다. 한 상수만 export하고 양쪽에서 import한다.
+const COORDINATOR_LEDGER_REL = '.bouncer/runtime/coordinator.json';
+const COMPLETED_SUMMARY_FORBIDDEN = new Set([
+    'dispatch', 'decisions', 'workerPath', 'branch', 'criticalRecovery',
+]);
+/**
+ * compact coordinator checkpoint와 원장 참조 shape를 검증한다. 완료 summary에
+ * dispatch·decisions 본문이 실리면 status compaction이 무의미해지므로 여기서 막는다.
+ * `recent_failure`는 null이어도 키가 있어야 status가 실패 증적 유무를 놓치지 않는다.
+ *
+ * @param {unknown} value - projectCheckpoint 결과 후보
+ * @returns {{ok: true} | {ok: false, reason: string}} 검증 결과
+ */
+function validateCoordinatorCheckpoint(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return { ok: false, reason: 'invalid-checkpoint' };
+    }
+    const checkpoint = value;
+    if (!Array.isArray(checkpoint.ready) || !checkpoint.ready.every((id) => nonEmptyString(id))) {
+        return { ok: false, reason: 'invalid-checkpoint' };
+    }
+    if (!Array.isArray(checkpoint.active_tasks) || !Array.isArray(checkpoint.completed_tasks)
+        || !Array.isArray(checkpoint.unresolved_decisions)) {
+        return { ok: false, reason: 'invalid-checkpoint' };
+    }
+    // 키 부재와 null은 다르다. null은 "실패 없음"이고 키 누락은 projection 결함이다.
+    if (!Object.prototype.hasOwnProperty.call(checkpoint, 'recent_failure')) {
+        return { ok: false, reason: 'invalid-checkpoint' };
+    }
+    if (checkpoint.recent_failure !== null) {
+        if (!checkpoint.recent_failure || typeof checkpoint.recent_failure !== 'object'
+            || Array.isArray(checkpoint.recent_failure)) {
+            return { ok: false, reason: 'invalid-checkpoint' };
+        }
+    }
+    for (const entry of checkpoint.completed_tasks) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+            return { ok: false, reason: 'invalid-completed-summary' };
+        }
+        const summary = entry;
+        if (!nonEmptyString(summary.id) || !nonEmptyString(summary.status)) {
+            return { ok: false, reason: 'invalid-completed-summary' };
+        }
+        for (const key of COMPLETED_SUMMARY_FORBIDDEN) {
+            if (Object.prototype.hasOwnProperty.call(summary, key)) {
+                return { ok: false, reason: 'invalid-completed-summary' };
+            }
+        }
+    }
+    for (const entry of checkpoint.active_tasks) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+            return { ok: false, reason: 'invalid-checkpoint' };
+        }
+        if (!nonEmptyString(entry.id)
+            || !nonEmptyString(entry.status)) {
+            return { ok: false, reason: 'invalid-checkpoint' };
+        }
+    }
+    const ledger = checkpoint.ledger;
+    if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) {
+        return { ok: false, reason: 'invalid-ledger-ref' };
+    }
+    const ref = ledger;
+    if (typeof ref.path !== 'string' || path.isAbsolute(ref.path) || ref.path !== COORDINATOR_LEDGER_REL
+        || ref.path.includes('..')) {
+        return { ok: false, reason: 'invalid-ledger-ref' };
+    }
+    if (typeof ref.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(ref.sha256)) {
+        return { ok: false, reason: 'invalid-ledger-ref' };
+    }
+    if (ref.revision !== null && !nonEmptyString(ref.revision)) {
+        return { ok: false, reason: 'invalid-ledger-ref' };
+    }
+    if (checkpoint.integration_head !== null && !nonEmptyString(checkpoint.integration_head)) {
+        return { ok: false, reason: 'invalid-checkpoint' };
+    }
+    if (checkpoint.revision !== null && !nonEmptyString(checkpoint.revision)) {
+        return { ok: false, reason: 'invalid-checkpoint' };
+    }
+    return { ok: true };
+}
 function catchMessage(error) {
     // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
     // TypeError 대신 undefined가 되어 unavailable reason이 바뀐다.
@@ -631,7 +713,9 @@ function coordinatorPathsFor({ repoRoot, blueprint, task, deps }) {
     const integrationPath = pathApi.join(root, 'integration');
     const result = {
         integrationPath,
-        ledgerFile: pathApi.join(integrationPath, '.bouncer', 'runtime', 'coordinator.json'),
+        // COORDINATOR_LEDGER_REL과 같은 세그먼트로 절대 경로를 만들어 fence path 비교와
+        // 실제 파일이 어긋나지 않게 한다.
+        ledgerFile: pathApi.join(integrationPath, ...COORDINATOR_LEDGER_REL.split('/')),
     };
     if (typeof task === 'string' && /^\d{3}$/.test(task))
         result.workerPath = pathApi.join(root, 'workers', task);
@@ -717,5 +801,7 @@ module.exports = {
     intentBundlePathFor, isWorktreeDirty,
     pointerKeyFromBlueprint, listNamespacePointers, removeNamespacePointer,
     validateCoordinatorLedger,
+    validateCoordinatorCheckpoint,
     branchNamesFor, resolveWorktreeBranch,
+    COORDINATOR_LEDGER_REL,
 };

@@ -11,7 +11,32 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { coordinate, loadLedger } = require('../scripts/lib/coordinator');
+const __coordinatorMod = require('../scripts/lib/coordinator');
+const { loadLedger } = __coordinatorMod;
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const __crypto = require('node:crypto');
+const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
+const __FENCED = new Set([
+  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
+  'repair', 'integrate', 'partial-close', 'release',
+]);
+function __fence(repoRoot, blueprint) {
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
+  return {
+    ledgerPath: __LEDGER_REL,
+    ledgerHash: __crypto.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
+  };
+}
+function coordinate(opts) {
+  if (__FENCED.has(opts.command)
+    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
+    try {
+      opts = { ...opts, ...__fence(opts.repoRoot, opts.blueprint) };
+    } catch (_error) { /* missing ledger → core rejects */ }
+  }
+  return __coordinatorMod.coordinate(opts);
+}
+
 const { readDoc } = require('../scripts/lib/frontmatter');
 const { renderDoc } = require('../scripts/lib/render');
 const { validateBlueprint } = require('../scripts/lib/validate');
@@ -217,8 +242,11 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
   const status = coordinate({
     command: 'status', repoRoot: repo, blueprint, cwd: boot.integrationPath,
   });
-  assert.deepStrictEqual(status.ready, []);
-  assert.deepStrictEqual(status.tasks.map((task) => task.status), ['integrated', 'integrated']);
+  assert.deepStrictEqual(status.checkpoint.ready, []);
+  assert.deepStrictEqual(
+    status.checkpoint.completed_tasks.map((task) => task.status),
+    ['integrated', 'integrated'],
+  );
 
   // main worktree는 provenance를 읽히는 자리일 뿐이다: 시작과 끝의 tracked
   // source가 바이트 단위로 같고, 브랜치도 옮겨가지 않는다.
