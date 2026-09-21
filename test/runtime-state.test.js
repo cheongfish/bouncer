@@ -391,6 +391,27 @@ test('verifyLedgerPathFor hashes the verification rel under the Git common direc
   );
 });
 
+test('verifyLedgerPathFor uses evidenceId for v2 paths and keeps legacy miss separate', () => {
+  const { createHash } = require('node:crypto');
+  const { primary, linked } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const rel = '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001/verification.md';
+  const evidenceId = 'a'.repeat(64);
+  const v2 = verifyLedgerPathFor({
+    repoRoot: primary, verificationRel: rel, evidenceId, deps,
+  });
+  const linkedV2 = verifyLedgerPathFor({
+    repoRoot: linked, verificationRel: rel, evidenceId, deps,
+  });
+  const legacy = verifyLedgerPathFor({ repoRoot: primary, verificationRel: rel, deps });
+  assert.strictEqual(linkedV2.ledgerFile, v2.ledgerFile);
+  assert.notStrictEqual(v2.ledgerFile, legacy.ledgerFile);
+  const digest = createHash('sha256').update(`v2:${evidenceId}`, 'utf8').digest('hex').slice(0, 16);
+  assert.strictEqual(
+    v2.ledgerFile,
+    path.join(v2.commonGitDir, 'bouncer', 'verify', `${digest}.json`),
+  );
+});
 test('verifyLedgerPathFor reports non-Git directories unavailable', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-'));
   const result = verifyLedgerPathFor({
@@ -624,4 +645,52 @@ test('coordinator ledger rejects malformed dispatch attempt metadata', () => {
       },
     }],
   }).ok, true);
+});
+
+test('validateCoordinatorCheckpoint accepts compact summary and rejects bad ledger refs', () => {
+  const { validateCoordinatorCheckpoint, COORDINATOR_LEDGER_REL } = require('../scripts/lib/runtime-state');
+  const { LEDGER_REL } = require('../scripts/lib/coordinator');
+  // MM-001: coordinator·runtime-state가 같은 상대 경로 정본을 공유한다.
+  assert.strictEqual(LEDGER_REL, COORDINATOR_LEDGER_REL);
+  assert.strictEqual(typeof validateCoordinatorCheckpoint, 'function');
+  const valid = {
+    ready: ['002'],
+    active_tasks: [{
+      id: '002', status: 'prepared', depends_on: ['001'], dependency_gate: 'integrated',
+      parallel_safe: false, workerPath: '/tmp/w', branch: 'b',
+    }],
+    completed_tasks: [{
+      id: '001', status: 'integrated', attempt: 1, commit_sha: 'abc',
+      changed_paths: ['src/'], scope_revision: 'r1', verify_evidence_id: 'v'.repeat(64),
+    }],
+    unresolved_decisions: [{ task: '002', kind: 'critical-recovery', outcome: null }],
+    recent_failure: {
+      task: '002', command: 'npm test', summary: 'x', paths: ['lib/'], exitCode: 1, repairWave: 1,
+    },
+    integration_head: 'deadbeef',
+    revision: 'r2',
+    ledger: {
+      path: COORDINATOR_LEDGER_REL,
+      sha256: 'a'.repeat(64),
+      revision: 'r2',
+    },
+  };
+  assert.strictEqual(validateCoordinatorCheckpoint(valid).ok, true);
+  assert.strictEqual(validateCoordinatorCheckpoint({ ...valid, recent_failure: null }).ok, true);
+  // CT-003: recent_failure 키 부재는 null과 다르며 checkpoint로 거절한다.
+  const withoutFailure = { ...valid };
+  delete withoutFailure.recent_failure;
+  assert.match(validateCoordinatorCheckpoint(withoutFailure).reason, /checkpoint/);
+  assert.match(validateCoordinatorCheckpoint({
+    ...valid,
+    completed_tasks: [{ id: '001', status: 'integrated', dispatch: { attempt: 1 } }],
+  }).reason, /completed-summary|checkpoint/);
+  assert.match(validateCoordinatorCheckpoint({
+    ...valid,
+    ledger: { path: '/abs/.bouncer/runtime/coordinator.json', sha256: 'a'.repeat(64), revision: 'r2' },
+  }).reason, /ledger-ref|checkpoint/);
+  assert.match(validateCoordinatorCheckpoint({
+    ...valid,
+    ledger: { path: COORDINATOR_LEDGER_REL, sha256: 'zz', revision: 'r2' },
+  }).reason, /ledger-ref|checkpoint/);
 });

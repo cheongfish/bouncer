@@ -98,6 +98,23 @@ test('run payload names the closing action and autonomy effect', () => {
   assert.match(acq, /`interactive`[\s\S]{0,120}progress is reported/);
 });
 
+// coordinator 진입 payload는 compact checkpoint·ledger ref만 싣는다. 완료 task
+// 원문이나 전체 원장을 다시 넣으면 runtime compaction 절감이 성립하지 않는다.
+test('run hands the coordinator a status checkpoint and ledger hash without completed details', () => {
+  const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'));
+  assert.match(delegation, /coordinate status|checkpoint/i);
+  assert.match(delegation, /checkpoint\.ledger\.(?:path|sha256)|ledger:\s*\{\s*path\s*,\s*sha256/i);
+  assert.match(
+    delegation,
+    /(?:do not|never|without)[\s\S]{0,160}(?:full ledger|entire ledger|completed task|prior[\s\S]{0,20}report|past conversation)/i,
+  );
+  // 옛 계약: ledger 경로만 넘기고 hash/checkpoint 소비를 말하지 않던 문구는 제거한다.
+  assert.doesNotMatch(
+    delegation,
+    /integration-local ledger path\s*\n?\s*`\.bouncer\/runtime\/coordinator\.json`(?![\s\S]{0,200}sha256)/,
+  );
+});
+
 test('run renders progress, blocked, and completed outcomes through the shared contract', () => {
   const report = md.slice(md.indexOf('5. **Report.**'));
   assert.match(report, /rules\/output\.md/);

@@ -411,7 +411,32 @@ test('commit still rejects modified or untracked finalization remainder and othe
 
 // --- coordinator mode -------------------------------------------------------
 
-const { coordinate } = require('../scripts/lib/coordinator');
+
+const __coordinatorMod = require('../scripts/lib/coordinator');
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const __crypto = require('node:crypto');
+const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
+const __FENCED = new Set([
+  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
+  'repair', 'integrate', 'partial-close', 'release',
+]);
+function __fence(repoRoot, blueprint) {
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
+  return {
+    ledgerPath: __LEDGER_REL,
+    ledgerHash: __crypto.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
+  };
+}
+function coordinate(opts) {
+  if (__FENCED.has(opts.command)
+    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
+    try {
+      opts = { ...opts, ...__fence(opts.repoRoot, opts.blueprint) };
+    } catch (_error) { /* missing ledger → core rejects */ }
+  }
+  return __coordinatorMod.coordinate(opts);
+}
+
 
 test('commit JSON reports actual paths and coordinator provenance', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));

@@ -8,7 +8,32 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
-const { coordinate } = require('../scripts/lib/coordinator');
+
+const __coordinatorMod = require('../scripts/lib/coordinator');
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const __crypto = require('node:crypto');
+const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
+const __FENCED = new Set([
+  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
+  'repair', 'integrate', 'partial-close', 'release',
+]);
+function __fence(repoRoot, blueprint) {
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
+  return {
+    ledgerPath: __LEDGER_REL,
+    ledgerHash: __crypto.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
+  };
+}
+function coordinate(opts) {
+  if (__FENCED.has(opts.command)
+    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
+    try {
+      opts = { ...opts, ...__fence(opts.repoRoot, opts.blueprint) };
+    } catch (_error) { /* missing ledger → core rejects */ }
+  }
+  return __coordinatorMod.coordinate(opts);
+}
+
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -70,31 +95,49 @@ function preparedDrive() {
   };
 }
 
+function ledgerFlagArgs(repoRoot) {
+  const fence = __fence(repoRoot, BP_REL);
+  return ['--ledger-path', fence.ledgerPath, '--ledger-hash', fence.ledgerHash];
+}
+
 /**
  * revise의 write boundary는 CLI가 실제로 서 있는 cwd다. 테스트가 경계를
  * 플래그로 지정하면 거절 경로를 한 번도 밟지 않으므로, 진짜로 cwd를 옮겨서
- * 부른다.
+ * 부른다. repoRoot가 있으면 최신 ledger fence를 붙여 mutation usage를 충족한다.
  */
-function revise(cwd, extra, flags = []) {
+function revise(cwd, extra, flags = [], repoRoot = null) {
   const { io, buf } = capture();
   const before = process.cwd();
   process.chdir(cwd);
   let code;
   try {
-    code = runCli(['coordinate', 'revise', ...flags, '--blueprint', BP_REL, ...extra], io);
+    const fenceArgs = repoRoot && !flags.includes('--ledger-path') && !extra.includes('--ledger-path')
+      ? ledgerFlagArgs(repoRoot) : [];
+    code = runCli(['coordinate', 'revise', ...fenceArgs, ...flags, '--blueprint', BP_REL, ...extra], io);
   } finally {
     process.chdir(before);
   }
   return { code, buf };
 }
 
-function coordinateCli(cwd, command, extra) {
+function coordinateCli(cwd, command, extra, { fence = true } = {}) {
   const { io, buf } = capture();
   const before = process.cwd();
   process.chdir(cwd);
   let code;
   try {
-    code = runCli(['coordinate', command, '--blueprint', BP_REL, ...extra], io);
+    const fenced = new Set([
+      'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
+      'repair', 'partial-close', 'critical-recovery', 'release',
+    ]);
+    let args = [...extra];
+    if (fence && fenced.has(command) && !args.includes('--ledger-path')) {
+      const repoIdx = args.indexOf('--repo');
+      if (repoIdx >= 0) {
+        args = [...ledgerFlagArgs(args[repoIdx + 1]), ...args];
+      }
+    }
+    code = runCli(['coordinate', command, '--blueprint', BP_REL, ...args], io);
   } finally {
     process.chdir(before);
   }
@@ -286,19 +329,23 @@ test('coordinate partial-close rejects a directory NEXT_PLAN and rolls back inde
 });
 
 test('coordinate revise records every repeated --paths value in one revision', () => {
-  const { worker } = preparedDrive();
+  const { worker, repo } = preparedDrive();
   const { code, buf } = revise(worker, [
     '--task', '001',
     '--paths', 'src/auth/',
     '--paths', 'src/session/token.ts',
     '--reason', 'session token shares the login guard',
-  ]);
+  ], [], repo);
   assert.strictEqual(code, 0, buf.err);
   const parsed = JSON.parse(buf.out);
   assert.strictEqual(parsed.ok, true);
   assert.strictEqual(parsed.revision, 'r1');
   assert.deepStrictEqual(parsed.previous, ['src/auth/']);
   assert.deepStrictEqual(parsed.paths, ['src/auth/', 'src/session/token.ts']);
+  // CT-002: 성공 revise도 다음 fencing token이 될 checkpoint/hash를 돌려야 한다.
+  assert.ok(parsed.checkpoint);
+  assert.match(parsed.checkpoint.ledger.sha256, /^[a-f0-9]{64}$/);
+  assert.strictEqual(parsed.checkpoint.ledger.path, '.bouncer/runtime/coordinator.json');
 
   // 같은 revision이 task 문서와 원장 양쪽에 남아야 stale 판정이 서지 않는다.
   const doc = yaml.load(
@@ -324,7 +371,7 @@ test('coordinate revise carries every reviseTaskScope reason code to stderr with
     ['scope-path-out-of-bounds', ['--task', '001', '--paths', '.bouncer/context/', '--reason', 'r']],
   ];
   for (const [reason, extra] of cases) {
-    const { code, buf } = revise(drive.worker, extra);
+    const { code, buf } = revise(drive.worker, extra, [], drive.repo);
     assert.strictEqual(code, 1, `${reason}: ${buf.out}`);
     assert.match(buf.err, new RegExp(reason));
     assert.strictEqual(buf.out, '', `${reason} must not print a success payload`);
@@ -334,8 +381,8 @@ test('coordinate revise carries every reviseTaskScope reason code to stderr with
 // `--paths` 자체가 없는 호출과 값 없는 `--paths`는 같은 거절이어야 한다.
 // 값 없는 플래그를 경로로 삼으면 빈 문자열이 scope에 들어간다.
 test('coordinate revise refuses a valueless --paths as scope-paths-required', () => {
-  const { worker } = preparedDrive();
-  const { code, buf } = revise(worker, ['--task', '001', '--paths', '--reason', 'r']);
+  const { worker, repo } = preparedDrive();
+  const { code, buf } = revise(worker, ['--task', '001', '--paths', '--reason', 'r'], [], repo);
   assert.strictEqual(code, 1);
   assert.match(buf.err, /scope-paths-required/);
 });
@@ -344,11 +391,11 @@ test('coordinate revise refuses the main worktree and an unassigned worktree', (
   const drive = preparedDrive();
   const args = ['--task', '001', '--paths', 'src/auth/', '--reason', 'r'];
 
-  const main = revise(drive.repo, args);
+  const main = revise(drive.repo, args, [], drive.repo);
   assert.strictEqual(main.code, 1);
   assert.match(main.buf.err, /main-worktree-source-write/);
 
-  const integration = revise(drive.integration, args);
+  const integration = revise(drive.integration, args, [], drive.repo);
   assert.strictEqual(integration.code, 1);
   assert.match(integration.buf.err, /unassigned-worktree/);
 });
@@ -360,14 +407,40 @@ test('coordinate revise ignores --repo and judges the boundary by the real cwd',
   const drive = preparedDrive();
   const args = ['--task', '001', '--paths', 'src/auth/', '--reason', 'r'];
 
-  const spoofed = revise(drive.repo, args, ['--repo', drive.worker]);
+  const spoofed = revise(drive.repo, args, ['--repo', drive.worker], drive.repo);
   assert.strictEqual(spoofed.code, 1, spoofed.buf.out);
   assert.match(spoofed.buf.err, /main-worktree-source-write/);
   assert.strictEqual(spoofed.buf.out, '');
 
   // 반대 방향도 같다: 올바른 worktree에 서 있으면 잘못된 --repo가 막지 못한다.
-  const honest = revise(drive.worker, args, ['--repo', drive.repo]);
+  const honest = revise(drive.worker, args, ['--repo', drive.repo], drive.repo);
   assert.strictEqual(honest.code, 0, honest.buf.err);
+});
+
+// SEC-002: fence가 `--repo` 원장을 보면 다른 checkout의 hash로 통과한 뒤 cwd 원장을
+// 쓸 수 있다. revise fence는 reviseTaskScope와 같은 cwd 원장만 본다.
+test('coordinate revise fence uses cwd ledger even when --repo points elsewhere', () => {
+  const drive = preparedDrive();
+  const other = preparedDrive();
+  const otherHash = require('node:crypto').createHash('sha256')
+    .update(fs.readFileSync(path.join(other.integration, '.bouncer/runtime/coordinator.json')))
+    .digest('hex');
+  const before = fs.readFileSync(
+    path.join(drive.integration, '.bouncer/runtime/coordinator.json'),
+  );
+  const { code, buf } = revise(drive.worker, [
+    '--task', '001', '--paths', 'src/auth/', '--reason', 'spoofed fence',
+  ], [
+    '--repo', other.repo,
+    '--ledger-path', '.bouncer/runtime/coordinator.json',
+    '--ledger-hash', otherHash,
+  ]);
+  assert.strictEqual(code, 1, buf.out + buf.err);
+  assert.strictEqual(JSON.parse(buf.out).reason, 'stale-ledger-checkpoint');
+  assert.deepStrictEqual(
+    fs.readFileSync(path.join(drive.integration, '.bouncer/runtime/coordinator.json')),
+    before,
+  );
 });
 
 test('coordinate revise without --blueprint is a usage refusal', () => {
@@ -393,7 +466,7 @@ test('coordinate release prints its payload from main and a JSON refusal elsewhe
   ledger.tasks[0].status = 'integrated';
   fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
 
-  const open = coordinateCli(drive.repo, 'release', []);
+  const open = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(open.code, 1);
   assert.deepStrictEqual(JSON.parse(open.buf.out), { ok: false, reason: 'blueprint-not-closed' });
 
@@ -410,7 +483,7 @@ test('coordinate release prints its payload from main and a JSON refusal elsewhe
   assert.strictEqual(code, 0, buf.err);
   const parsed = JSON.parse(buf.out);
   assert.deepStrictEqual(Object.keys(parsed).sort(),
-    ['absent', 'command', 'ok', 'preserved', 'released', 'restored']);
+    ['absent', 'checkpoint', 'command', 'ok', 'preserved', 'released', 'restored']);
   assert.strictEqual(parsed.command, 'release');
   // 이 fixture는 계획을 커밋했으므로 main 사본이 HEAD와 같아 할 일이 없다.
   assert.ok(parsed.absent.includes(`${BP_REL}/tasks/001/tasks.md`));
@@ -475,4 +548,44 @@ test('coordinate usage lists dispatch and report verbs', () => {
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
   assert.match(refused.buf.err, /dispatch|report/);
+});
+
+test('coordinate mutations require ledger path/hash pair and return next checkpoint hash', () => {
+  const drive = preparedDrive();
+  const ledgerFile = path.join(drive.integration, '.bouncer/runtime/coordinator.json');
+  const hash = require('node:crypto').createHash('sha256')
+    .update(fs.readFileSync(ledgerFile)).digest('hex');
+  const missing = coordinateCli(drive.integration, 'critical-recovery', [
+    '--repo', drive.repo, '--task', '001', '--findings', 'R-1', '--reason', 'x',
+  ], { fence: false });
+  // Interface: 누락은 usage(2)가 아니라 다른 coordinate 실패와 같은 JSON + exit 1.
+  assert.strictEqual(missing.code, 1);
+  assert.deepStrictEqual(JSON.parse(missing.buf.out), {
+    ok: false, reason: 'ledger-checkpoint-invalid',
+  });
+  const stale = coordinateCli(drive.integration, 'critical-recovery', [
+    '--repo', drive.repo, '--task', '001', '--findings', 'R-1', '--reason', 'x',
+    '--ledger-path', '.bouncer/runtime/coordinator.json',
+    '--ledger-hash', 'b'.repeat(64),
+  ]);
+  assert.strictEqual(stale.code, 1);
+  assert.match(JSON.parse(stale.buf.out).reason, /stale-ledger-checkpoint/);
+  assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8').includes('"criticalRecovery"'), false);
+  const ok = coordinateCli(drive.integration, 'critical-recovery', [
+    '--repo', drive.repo, '--task', '001', '--findings', 'R-1', '--reason', 'x',
+    '--ledger-path', '.bouncer/runtime/coordinator.json',
+    '--ledger-hash', hash,
+  ]);
+  assert.strictEqual(ok.code, 0, ok.buf.err + ok.buf.out);
+  const body = JSON.parse(ok.buf.out);
+  assert.ok(body.checkpoint);
+  assert.match(body.checkpoint.ledger.sha256, /^[a-f0-9]{64}$/);
+  assert.notStrictEqual(body.checkpoint.ledger.sha256, hash);
+});
+
+test('coordinate usage advertises ledger-path and ledger-hash for mutations', () => {
+  const { io, buf } = capture();
+  runCli(['help'], io);
+  assert.match(buf.out, /ledger-path/);
+  assert.match(buf.out, /ledger-hash/);
 });

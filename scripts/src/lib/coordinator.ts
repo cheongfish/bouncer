@@ -4,7 +4,10 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import runtime = require('./runtime-state');
-const { coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch } = runtime;
+const {
+  coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch,
+  COORDINATOR_LEDGER_REL,
+} = runtime;
 import seed = require('./seed-worktree');
 const { seedCoordinatorWorker, seedIntegration, releaseSeedManifest } = seed;
 import frontmatter = require('./frontmatter');
@@ -17,6 +20,20 @@ import tasksDocs = require('./tasks-docs');
 const { listTasksDocs } = tasksDocs;
 import commitShaMod = require('./commit-sha');
 const { normalizeCommitSha } = commitShaMod;
+import pathsMod = require('./paths');
+const { parsePathIds } = pathsMod;
+
+// runtime-state가 정본. 여기서 다시 문자열을 쓰면 fence path와 validator가 갈라진다.
+const LEDGER_REL = COORDINATOR_LEDGER_REL;
+
+/**
+ * status/bootstrap을 제외한 원장 쓰기 명령. path/hash 쌍이 없거나 어긋나면
+ * Git·파일 mutation보다 먼저 거절해야 stale checkpoint로 상태가 갈라지지 않는다.
+ */
+const LEDGER_FENCED_COMMANDS = new Set([
+  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
+  'repair', 'integrate', 'partial-close', 'release',
+]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
 const REPORT_OUTCOMES = ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'] as const;
@@ -46,6 +63,7 @@ type Task = {
   decisions?: unknown[]; scope?: { revision: string; paths: string[] }; dynamic?: boolean;
   criticalRecovery?: { used: 1; findings: string[]; reason: string; outcome: 'resolved' | 'blocked' | null };
   dispatch?: DispatchState;
+  verify_evidence_id?: string; review_evidence_id?: string; advisory?: unknown;
 };
 type Ledger = {
   version: 1; blueprint: string; base: string; integrationHead?: string; integrationBranch?: string; tasks: Task[];
@@ -73,8 +91,35 @@ type CriticalRecoveryDecision = {
 type Exec = (file: string, args?: readonly string[], options?: {
   cwd?: unknown; encoding?: unknown; stdio?: unknown;
 }) => string | Buffer;
-type VerificationRunner = (opts: { repoRoot: string; blueprintDir: string }) => {
+type VerificationRunner = (opts: {
+  repoRoot: string;
+  blueprintDir: string;
+  scope?: { kind: 'task' | 'wave' | 'terminal'; key: string };
+}) => {
   ok: boolean; command: string; exitCode: number;
+  evidenceId?: string; reused?: boolean; reusedFrom?: string;
+};
+
+type LedgerRef = { path: string; sha256: string; revision: string | null };
+type CompletedTaskSummary = {
+  id: string; status: string; attempt?: number; commit_sha?: string;
+  changed_paths?: string[]; scope_revision?: string;
+  verify_evidence_id?: string; review_evidence_id?: string; advisory?: unknown;
+};
+type ActiveTaskProjection = {
+  id: string; status: string; depends_on?: string[]; dependency_gate?: string;
+  parallel_safe?: boolean; workerPath?: string; branch?: string;
+  scope?: { revision: string; paths: string[] }; dispatch?: DispatchState;
+};
+type CoordinatorCheckpoint = {
+  ready: string[];
+  active_tasks: ActiveTaskProjection[];
+  completed_tasks: CompletedTaskSummary[];
+  unresolved_decisions: unknown[];
+  recent_failure: FailureEvidence | null;
+  integration_head: string | null;
+  revision: string | null;
+  ledger: LedgerRef;
 };
 
 function readyWave(tasks: Task[]): string[] {
@@ -113,9 +158,187 @@ function atomicWrite(file: string, data: unknown): void {
   fs.renameSync(temporary, file);
 }
 
-function loadLedger(file: string): Ledger | null {
+/**
+ * 원장 파일 bytes와 파싱 결과를 한 번에 읽는다. fence hash는 이 bytes에만 묶여야
+ * load 직후 재read로 다른 내용이 검증되는 TOCTOU가 생기지 않는다.
+ *
+ * @param {string} file - 원장 절대 경로
+ * @returns {{ ledger: Ledger, bytes: Buffer } | null} 없거나 파싱 실패 전 부재면 null
+ */
+function loadLedgerBytes(file: string): { ledger: Ledger; bytes: Buffer } | null {
   if (!fs.existsSync(file)) return null;
-  return JSON.parse(fs.readFileSync(file, 'utf8')) as Ledger;
+  const bytes = fs.readFileSync(file);
+  return { ledger: JSON.parse(bytes.toString('utf8')) as Ledger, bytes };
+}
+
+function loadLedger(file: string): Ledger | null {
+  const loaded = loadLedgerBytes(file);
+  return loaded ? loaded.ledger : null;
+}
+
+/**
+ * 이미 읽은 원장 bytes의 SHA-256. trim·재직렬화 없이 status token과 mutation fence가
+ * 같은 메모리 bytes를 쓰게 한다 — 디스크를 다시 읽으면 load와 fence 사이에 내용이
+ * 바뀌어도 통과할 수 있다.
+ *
+ * @param {Buffer} bytes - load 시점에 고정한 원장 bytes
+ * @returns {string} 64자리 소문자 hex
+ */
+function ledgerBytesHash(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+/**
+ * mutation이 들고 온 ledger path/hash 쌍을 쓰기 전에 검사한다. 절대·escaping·
+ * 잘못된 상대경로·비 64-hex는 invalid, 이미 로드한 bytes hash 불일치는 stale로 구분한다.
+ * hash는 `ledgerBytes`에만 묶는다 — 호출자가 load한 내용과 다른 디스크 snapshot을
+ * 다시 읽어 fencing하면 토큰이 곧 변조될 bytes와 어긋난다.
+ *
+ * @param {{ ledgerPath?: string, ledgerHash?: string, ledgerBytes: Buffer }} opts
+ * @returns {{ok: true} | {ok: false, reason: string}}
+ */
+function assertLedgerFence(opts: {
+  ledgerPath?: string; ledgerHash?: string; ledgerBytes: Buffer;
+}): { ok: true } | { ok: false; reason: string } {
+  const { ledgerPath, ledgerHash, ledgerBytes } = opts;
+  if (typeof ledgerPath !== 'string' || ledgerPath === ''
+    || typeof ledgerHash !== 'string' || ledgerHash === '') {
+    return { ok: false, reason: 'ledger-checkpoint-invalid' };
+  }
+  // 절대 경로는 integration-relative 계약을 깨뜨려 다른 worktree 원장을 가리킬 수 있다.
+  if (path.isAbsolute(ledgerPath)) {
+    return { ok: false, reason: 'ledger-checkpoint-invalid' };
+  }
+  if (ledgerPath.includes('\\') || ledgerPath.split('/').includes('..')
+    || ledgerPath.split('/').includes('')
+    || ledgerPath !== LEDGER_REL) {
+    return { ok: false, reason: 'ledger-checkpoint-invalid' };
+  }
+  if (!/^[a-f0-9]{64}$/.test(ledgerHash)) {
+    return { ok: false, reason: 'ledger-checkpoint-invalid' };
+  }
+  if (!Buffer.isBuffer(ledgerBytes) || ledgerBytes.length === 0) {
+    return { ok: false, reason: 'ledger-checkpoint-invalid' };
+  }
+  if (ledgerBytesHash(ledgerBytes) !== ledgerHash) {
+    return { ok: false, reason: 'stale-ledger-checkpoint' };
+  }
+  return { ok: true };
+}
+
+/**
+ * 완료 task를 status에 실을 요약만 고른다. dispatch·decisions 본문은 상세 원장에
+ * 남기고, 없는 선택 필드는 키 자체를 생략해 응답이 커지지 않게 한다.
+ *
+ * @param {Task} task - 원장 task
+ * @returns {CompletedTaskSummary} 완료 summary
+ */
+function summarizeCompletedTask(task: Task): CompletedTaskSummary {
+  const summary: CompletedTaskSummary = { id: task.id, status: task.status || 'integrated' };
+  if (task.dispatch && Number.isInteger(task.dispatch.attempt)) {
+    summary.attempt = task.dispatch.attempt;
+  }
+  if (typeof task.sha === 'string' && task.sha !== '') summary.commit_sha = task.sha;
+  if (task.scope && Array.isArray(task.scope.paths)) summary.changed_paths = [...task.scope.paths];
+  if (task.scope && typeof task.scope.revision === 'string') {
+    summary.scope_revision = task.scope.revision;
+  }
+  if (typeof task.verify_evidence_id === 'string' && task.verify_evidence_id !== '') {
+    summary.verify_evidence_id = task.verify_evidence_id;
+  }
+  if (typeof task.review_evidence_id === 'string' && task.review_evidence_id !== '') {
+    summary.review_evidence_id = task.review_evidence_id;
+  }
+  if (task.advisory !== undefined) summary.advisory = task.advisory;
+  return summary;
+}
+
+/**
+ * 다음 dispatch/fan-in에 필요한 활성 task 필드만 고른다. Interface allowlist는
+ * current scope·dependency·branch/worktree·dispatch metadata뿐이다 —
+ * execution_kind/sha/criticalRecovery/dynamic은 상세 원장에 두고 status를 키우지 않는다.
+ *
+ * @param {Task} task - 아직 integrated가 아닌 task
+ * @returns {ActiveTaskProjection} 활성 projection
+ */
+function projectActiveTask(task: Task): ActiveTaskProjection {
+  const projected: ActiveTaskProjection = {
+    id: task.id,
+    status: task.status || 'pending',
+  };
+  if (task.depends_on) projected.depends_on = [...task.depends_on];
+  if (task.dependency_gate) projected.dependency_gate = task.dependency_gate;
+  if (task.parallel_safe !== undefined) projected.parallel_safe = task.parallel_safe;
+  if (task.workerPath) projected.workerPath = task.workerPath;
+  if (task.branch) projected.branch = task.branch;
+  if (task.scope) projected.scope = { revision: task.scope.revision, paths: [...task.scope.paths] };
+  if (task.dispatch) projected.dispatch = { ...task.dispatch };
+  return projected;
+}
+
+/**
+ * 상세 원장을 보존한 채 status/mutation 응답에 실을 bounded checkpoint를 만든다.
+ * unresolved decision은 아직 integrated가 아닌 task를 가리키는 항목만 남겨,
+ * 완료 task의 과거 decision 본문이 활성 context로 되살아나지 않게 한다.
+ * sha256은 호출자가 넘긴 원장 bytes(또는 쓰기 직후 디스크)에 묶는다.
+ *
+ * @param {Ledger} ledger - 메모리상 원장 정본
+ * @param {string} ledgerFile - 쓰기 후 hash용 절대 경로(ledgerBytes 없을 때)
+ * @param {Buffer} [ledgerBytes] - load 시 고정한 bytes. 있으면 디스크를 다시 읽지 않는다
+ * @returns {CoordinatorCheckpoint} compact checkpoint
+ */
+function projectCheckpoint(
+  ledger: Ledger, ledgerFile: string, ledgerBytes?: Buffer,
+): CoordinatorCheckpoint {
+  const completed_tasks: CompletedTaskSummary[] = [];
+  const active_tasks: ActiveTaskProjection[] = [];
+  const integratedIds = new Set<string>();
+  for (const task of ledger.tasks) {
+    if (task.status === 'integrated') {
+      integratedIds.add(task.id);
+      completed_tasks.push(summarizeCompletedTask(task));
+    } else {
+      active_tasks.push(projectActiveTask(task));
+    }
+  }
+  const unresolved_decisions = (Array.isArray(ledger.decisions) ? ledger.decisions : [])
+    .filter((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+      const id = (entry as { task?: unknown }).task;
+      return typeof id === 'string' && !integratedIds.has(id);
+    });
+  // 쓰기 직후는 디스크로 확정된 bytes를 읽고, status·fence 직전에는 load bytes를 재사용한다.
+  const sha256 = ledgerBytes
+    ? ledgerBytesHash(ledgerBytes)
+    : ledgerBytesHash(fs.readFileSync(ledgerFile));
+  return {
+    ready: readyWave(ledger.tasks),
+    active_tasks,
+    completed_tasks,
+    unresolved_decisions,
+    recent_failure: ledger.terminalFailure || null,
+    integration_head: typeof ledger.integrationHead === 'string' ? ledger.integrationHead : null,
+    revision: typeof ledger.revision === 'string' ? ledger.revision : null,
+    ledger: {
+      path: LEDGER_REL,
+      sha256,
+      revision: typeof ledger.revision === 'string' ? ledger.revision : null,
+    },
+  };
+}
+
+/**
+ * 성공 mutation 결과에 다음 fencing token이 될 checkpoint를 붙인다.
+ *
+ * @param {object} result - ok:true mutation 결과
+ * @param {Ledger} ledger - 기록 직후 원장
+ * @param {string} ledgerFile - 원장 절대 경로
+ * @returns {object} checkpoint가 추가된 결과
+ */
+function withCheckpoint<T extends { ok: true }>(
+  result: T, ledger: Ledger, ledgerFile: string,
+): T & { checkpoint: CoordinatorCheckpoint } {
+  return { ...result, checkpoint: projectCheckpoint(ledger, ledgerFile) };
 }
 
 function git(exec: Exec, cwd: string, args: string[]): string {
@@ -551,11 +774,13 @@ function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, 
 
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
   failureCommand, summary, paths: repairPaths, findings, outcome, reason, attempt, taskBriefHash,
+  ledgerPath, ledgerHash,
   userConfirmed = false, deps = {} }: {
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; outcome?: string; reason?: string;
   attempt?: number; taskBriefHash?: string;
+  ledgerPath?: string; ledgerHash?: string;
   deps?: { execFileSync?: Exec; runVerification?: VerificationRunner; writeLedger?: typeof atomicWrite };
 }) {
   const exec = deps.execFileSync || realExecFileSync as unknown as Exec;
@@ -607,10 +832,10 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     }
     ledger.integrationBranch = integrationBranch;
     writeLedger(paths.ledgerFile, ledger);
-    return {
-      ok: true, command, integrationPath: paths.integrationPath, ready: readyWave(ledger.tasks),
+    return withCheckpoint({
+      ok: true as const, command, integrationPath: paths.integrationPath, ready: readyWave(ledger.tasks),
       tasks: ledger.tasks, decisions: ledger.decisions, integrationBranch,
-    };
+    }, ledger, paths.ledgerFile);
   }
   if (command === 'release') {
     // release는 main의 계획 사본을 쓰는 유일한 명령이다. --repo와 실제 cwd가 모두 main
@@ -625,8 +850,17 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   if (!registeredIntegration(exec, repoRoot, integration.integrationPath)) {
     return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: integration.integrationPath };
   }
-  const ledger = loadLedger(integration.ledgerFile);
-  if (!ledger) return { ok: false, reason: 'missing-ledger' };
+  const loaded = loadLedgerBytes(integration.ledgerFile);
+  if (!loaded) return { ok: false, reason: 'missing-ledger' };
+  const { ledger, bytes: ledgerBytes } = loaded;
+  // status는 읽기 전용, bootstrap은 위에서 이미 반환. 그 외 쓰기는 path/hash가
+  // 방금 로드한 원장 bytes와 같을 때만 진행해 stale checkpoint로 Git·원장이 갈라지지 않게 한다.
+  if (LEDGER_FENCED_COMMANDS.has(command)) {
+    const fenced = assertLedgerFence({
+      ledgerPath, ledgerHash, ledgerBytes,
+    });
+    if (!fenced.ok) return fenced;
+  }
   if (command === 'release') {
     // 판정은 모두 읽기뿐이고 main 쓰기는 마지막 releaseSeedManifest 하나다. 어떤 거절도
     // main 파일을 바꾸지 않는다. 멈춘 drive(확인 대기·partial close·열린 task)는 main
@@ -641,7 +875,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     const index = readBouncerBlock(path.join(integration.integrationPath, blueprint, 'index.md'));
     if (!index || index.status !== 'closed') return { ok: false, reason: 'blueprint-not-closed' };
     const released = releaseSeedManifest({ repoRoot, blueprintDir: blueprint, manifest: ledger.seedManifest });
-    return { ok: true, command, ...released };
+    return withCheckpoint({ ok: true as const, command, ...released }, ledger, integration.ledgerFile);
   }
   if (command === 'critical-recovery') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
@@ -650,7 +884,12 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   }
   if (command === 'status') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
-    return { ok: true, command, ready: readyWave(ledger.tasks), tasks: ledger.tasks, decisions: ledger.decisions };
+    return {
+      ok: true as const,
+      command,
+      // load bytes를 그대로 해시해 status token과 이후 fence가 같은 snapshot을 본다.
+      checkpoint: projectCheckpoint(ledger, integration.ledgerFile, ledgerBytes),
+    };
   }
   if (command === 'partial-close') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
@@ -674,9 +913,10 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       rollbackBlueprint();
       throw error;
     }
-    return { ok: true, command, status: 'partial_closed', nextPlan,
+    return withCheckpoint({ ok: true as const, command, status: 'partial_closed', nextPlan,
       message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.',
-      preserved: [integration.integrationPath, ...ledger.tasks.map((entry) => entry.workerPath).filter(Boolean)] };
+      preserved: [integration.integrationPath, ...ledger.tasks.map((entry) => entry.workerPath).filter(Boolean)] },
+    ledger, integration.ledgerFile);
   }
   if (command === 'prepare') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
@@ -785,7 +1025,8 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       item.branch = planned.branch;
     }
     atomicWrite(integration.ledgerFile, ledger);
-    return { ok: true, command, ready, tasks: ledger.tasks, decisions: ledger.decisions };
+    return withCheckpoint({ ok: true as const, command, ready, tasks: ledger.tasks, decisions: ledger.decisions },
+      ledger, integration.ledgerFile);
   }
   if (!task || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
   const item = ledger.tasks.find((x) => x.id === task);
@@ -806,7 +1047,8 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       item.decisions = [...(item.decisions || []), result];
       ledger.decisions.push(result);
       atomicWrite(integration.ledgerFile, ledger);
-      return { ok: true, command, task: item, decision: result, decisions: ledger.decisions };
+      return withCheckpoint({ ok: true as const, command, task: item, decision: result, decisions: ledger.decisions },
+        ledger, integration.ledgerFile);
     }
     if (item.status !== 'prepared') return { ok: false, reason: 'illegal-transition' };
     if (item.criticalRecovery) return { ok: false, reason: 'critical-recovery-exhausted' };
@@ -820,7 +1062,8 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     item.decisions = [...(item.decisions || []), started];
     ledger.decisions.push(started);
     atomicWrite(integration.ledgerFile, ledger);
-    return { ok: true, command, task: item, decision: started, decisions: ledger.decisions };
+    return withCheckpoint({ ok: true as const, command, task: item, decision: started, decisions: ledger.decisions },
+      ledger, integration.ledgerFile);
   }
   if (command === 'dispatch' || command === 'report') {
     // dispatch/report는 implementer 경계다. record와 같이 할당 worker에서만 열리며,
@@ -876,7 +1119,8 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       initial_worktree_state: porcelain,
     };
     if (previousOutcome) metadata.previous_outcome = previousOutcome;
-    return { ok: true, command, metadata, task: item, decisions: ledger.decisions };
+    return withCheckpoint({ ok: true as const, command, metadata, task: item, decisions: ledger.decisions },
+      ledger, integration.ledgerFile);
   }
   if (command === 'report') {
     if (!item.dispatch || item.dispatch.status !== 'active') {
@@ -920,10 +1164,10 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     item.decisions = [...(item.decisions || []), reportDecision];
     ledger.decisions.push(reportDecision);
     atomicWrite(integration.ledgerFile, ledger);
-    return {
-      ok: true, command, attempt: attempt as number, decision: reportDecision,
+    return withCheckpoint({
+      ok: true as const, command, attempt: attempt as number, decision: reportDecision,
       task: item, decisions: ledger.decisions,
-    };
+    }, ledger, integration.ledgerFile);
   }
   if (command === 'record') {
     // record는 worker가 만든 SHA와 provenance를 ledger로 올리는 경계다. integration
@@ -957,7 +1201,8 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       ledger.decisions.push({ task, decision });
     }
     atomicWrite(integration.ledgerFile, ledger);
-    return { ok: true, command, task: item, decisions: ledger.decisions };
+    return withCheckpoint({ ok: true as const, command, task: item, decisions: ledger.decisions },
+      ledger, integration.ledgerFile);
   }
   if (command === 'rerecord') {
     const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
@@ -985,7 +1230,9 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     item.decisions = [...(item.decisions || []), rerecordDecision];
     ledger.decisions.push(rerecordDecision);
     atomicWrite(integration.ledgerFile, ledger);
-    return { ok: true, command, task: item, decision: rerecordDecision, decisions: ledger.decisions };
+    return withCheckpoint({
+      ok: true as const, command, task: item, decision: rerecordDecision, decisions: ledger.decisions,
+    }, ledger, integration.ledgerFile);
   }
   if (command === 'repair') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
@@ -1037,7 +1284,9 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       rollbackDocuments();
       throw error;
     }
-    return { ok: true, command, wave, repairTask: repair, terminalTask: item, decision: repairDecision };
+    return withCheckpoint({
+      ok: true as const, command, wave, repairTask: repair, terminalTask: item, decision: repairDecision,
+    }, ledger, integration.ledgerFile);
   }
   if (command === 'integrate') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
@@ -1052,7 +1301,20 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       // runner를 로드한다. 테스트 주입도 같은 최소 계약을 따른다.
       const runner = deps.runVerification
         || (require('./verification').runVerification as VerificationRunner);
-      const result = runner({ repoRoot: integration.integrationPath, blueprintDir: blueprint });
+      // terminal CI는 task/wave evidence와 분리된 scope key를 쓴다. blueprint 안정 ID와
+      // 현재 integration HEAD를 묶어야 같은 명령이어도 fan-in 전후 hit가 섞이지 않는다.
+      const { epicId, blueprintId } = parsePathIds(blueprint);
+      const integrationHead = typeof ledger.integrationHead === 'string'
+        ? ledger.integrationHead
+        : git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
+      const result = runner({
+        repoRoot: integration.integrationPath,
+        blueprintDir: blueprint,
+        scope: {
+          kind: 'terminal',
+          key: `EPIC-${epicId}/BP-${blueprintId}:${integrationHead}`,
+        },
+      });
       if (!result.ok) {
         const lastRepair = (ledger.repairWaves || []).at(-1);
         const evidence: FailureEvidence = {
@@ -1075,10 +1337,14 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
           repairWaves: (ledger.repairWaves || []).length, stopped: exhausted };
       }
       item.status = transition('verifying', 'integrated', 'verification');
+      if (typeof result.evidenceId === 'string' && result.evidenceId !== '') {
+        item.verify_evidence_id = result.evidenceId;
+      }
       writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'integrated');
       atomicWrite(integration.ledgerFile, ledger);
-      return { ok: true, command, task: item, verification: result,
-        ready: readyWave(ledger.tasks), decisions: ledger.decisions };
+      return withCheckpoint({ ok: true as const, command, task: item, verification: result,
+        ready: readyWave(ledger.tasks), decisions: ledger.decisions },
+      ledger, integration.ledgerFile);
     }
     if (item.status !== 'recorded' || !item.sha) return { ok: false, reason: 'not-recorded' };
     const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
@@ -1108,9 +1374,14 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     item.status = transition('recorded', 'integrated');
     ledger.integrationHead = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
     atomicWrite(integration.ledgerFile, ledger);
-    return { ok: true, command, task: item, ready: readyWave(ledger.tasks), decisions: ledger.decisions };
+    return withCheckpoint({
+      ok: true as const, command, task: item, ready: readyWave(ledger.tasks), decisions: ledger.decisions,
+    }, ledger, integration.ledgerFile);
   }
   return { ok: false, reason: 'unknown-coordinate-command' };
 }
 
-export = { readyWave, transition, coordinate, loadLedger, readBouncerBlock };
+export = {
+  readyWave, transition, coordinate, loadLedger, loadLedgerBytes, readBouncerBlock,
+  projectCheckpoint, assertLedgerFence, LEDGER_REL,
+};

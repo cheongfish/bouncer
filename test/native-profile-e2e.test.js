@@ -27,7 +27,16 @@ function base(type, id, status, extra) {
 test('execute validation reruns the configured command instead of trusting evidence', () => {
   const { execFileSync } = require('node:child_process');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-native-e2e-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const git = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+  git(['init', '--quiet']);
+  // identity는 HEAD를 요구한다. init만으로는 rev-parse가 실패해 fail-closed로
+  // 검증 명령이 돌지 않으므로, 트리비얼 커밋으로 HEAD를 만든 뒤 아래 docs는
+  // dirty로 남겨 identity는 성공·명령은 실제 재실행되게 한다.
+  git(['config', 'user.email', 'test@example.com']);
+  git(['config', 'user.name', 'test']);
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  git(['add', 'README.md']);
+  git(['commit', '-m', 'fixture']);
 
   // native Bouncer workflow: self-contained verification + review docs
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
@@ -120,11 +129,28 @@ test('the coordinator lifecycle runs end to end through the shipped CLI surface'
     return JSON.parse(out);
   };
 
+  // bootstrap은 원장을 만들기 전이므로 path/hash가 없다.
   const boot = cli(repo, ['coordinate', 'bootstrap', '--blueprint', BP_REL]);
   assert.strictEqual(boot.ok, true);
   assert.deepStrictEqual(boot.ready, ['001']);
 
-  const prepared = cli(boot.integrationPath, ['coordinate', 'prepare', '--blueprint', BP_REL, '--repo', repo]);
+  // bootstrap·status(ready)만 fence 예외. mutation은 직전 status checkpoint의
+  // path/hash를 써야 stale 쓰기가 원장·Git보다 먼저 거절된다. status cwd는
+  // task 없는 명령이라 integration worktree여야 한다.
+  const ledgerFenceArgs = () => {
+    const status = cli(boot.integrationPath, [
+      'coordinate', 'status', '--blueprint', BP_REL, '--repo', repo,
+    ]);
+    return [
+      '--ledger-path', status.checkpoint.ledger.path,
+      '--ledger-hash', status.checkpoint.ledger.sha256,
+    ];
+  };
+
+  const prepared = cli(boot.integrationPath, [
+    'coordinate', 'prepare', ...ledgerFenceArgs(),
+    '--blueprint', BP_REL, '--repo', repo,
+  ]);
   const worker = prepared.tasks[0].workerPath;
 
   fs.writeFileSync(path.join(worker, 'src/login.js'), 'implemented\n');
@@ -147,11 +173,13 @@ test('the coordinator lifecycle runs end to end through the shipped CLI surface'
   // record는 accepted report와 dispatch 시점 brief hash 일치가 필요하다.
   // terminal 증적을 쓴 뒤에 attempt를 열어 hash가 record 직전과 같아지게 한다.
   const dispatched = cli(worker, [
-    'coordinate', 'dispatch', '--blueprint', BP_REL, '--repo', repo, '--task', '001',
+    'coordinate', 'dispatch', ...ledgerFenceArgs(),
+    '--blueprint', BP_REL, '--repo', repo, '--task', '001',
   ]);
   assert.strictEqual(dispatched.metadata.attempt, 1);
   const reported = cli(worker, [
-    'coordinate', 'report', '--blueprint', BP_REL, '--repo', repo, '--task', '001',
+    'coordinate', 'report', ...ledgerFenceArgs(),
+    '--blueprint', BP_REL, '--repo', repo, '--task', '001',
     '--attempt', String(dispatched.metadata.attempt),
     '--task-brief-hash', dispatched.metadata.task_brief_hash,
     '--outcome', 'accepted', '--summary', 'native lifecycle accepted',
@@ -159,18 +187,21 @@ test('the coordinator lifecycle runs end to end through the shipped CLI surface'
   assert.strictEqual(reported.decision.outcome, 'accepted');
 
   const recorded = cli(worker, [
-    'coordinate', 'record', '--blueprint', BP_REL, '--repo', repo,
+    'coordinate', 'record', ...ledgerFenceArgs(),
+    '--blueprint', BP_REL, '--repo', repo,
     '--task', '001', '--sha', workerSha,
   ]);
   assert.strictEqual(recorded.task.sha, workerSha);
 
   const integrated = cli(boot.integrationPath, [
-    'coordinate', 'integrate', '--blueprint', BP_REL, '--repo', repo, '--task', '001',
+    'coordinate', 'integrate', ...ledgerFenceArgs(),
+    '--blueprint', BP_REL, '--repo', repo, '--task', '001',
   ]);
   assert.strictEqual(integrated.task.status, 'integrated');
 
+  // ready는 status 별칭이라 fence 없이 읽기만 한다. ready wave는 checkpoint에만 있다.
   const ready = cli(boot.integrationPath, ['coordinate', 'ready', '--blueprint', BP_REL, '--repo', repo]);
-  assert.deepStrictEqual(ready.ready, []);
+  assert.deepStrictEqual(ready.checkpoint.ready, []);
   assert.strictEqual(
     fs.readFileSync(path.join(boot.integrationPath, 'src/login.js'), 'utf8'),
     'implemented\n',

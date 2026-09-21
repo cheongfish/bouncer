@@ -97,8 +97,8 @@ TOML을 넣어 base md/TOML 드리프트를 해소했다.
 ### 2.3 남은 문제
 
 1. Coordinator가 완료 task의 대화와 원문을 들고 있어 blueprint 후반으로 갈수록
-   실행 context가 커진다. 역할별 Explain 복제는 P2.1로 줄였으나, 완료 task summary
-   접기와 checkpoint compaction은 P2.4에 남아 있다.
+   실행 context가 커지던 문제는 Epic 076의 checkpoint·hash fence와 workflow 비주입
+   계약으로 줄인다. P2.3/P2.4 계약은 아래 절에 고정한다.
 2. TypeScript 원본과 생성 CommonJS를 함께 추적해 코드 탐색 결과가 중복된다. Git에서
    생성 JS를 제거하려면 marketplace release artifact 선행 조건이 필요하다.
 
@@ -585,21 +585,26 @@ recovery 한도는 유지한다. Dispatcher만 plan과 diff의 규모, 변경 �
 
 #### P2.3 Verification result reuse
 
-검증 evidence는 Git SHA와 dirty digest, command, cwd, 관련 config hash, exit code와
-검증 범위를 기록한다. 같은 SHA, command, 환경 hash와 범위의 성공 결과만 재사용한다.
-Task-local, wave와 terminal verification의 범위가 다르면 다시 실행한다.
+검증 evidence ID는 Git HEAD, dirty path의 status·content digest, 실제 command,
+저장소 기준 POSIX cwd, platform·arch·Node·verify policy config hash와
+`{ kind, key }` scope의 canonical JSON SHA-256이다. `exit_code: 0`인 완전한
+원장 레코드만 hit이며, `task` / `wave` / `terminal` scope는 서로 재사용하지 않는다.
+`verification.md`와 harness 원장은 `evidenceId`, `reused`, 선택적 `reusedFrom`을
+함께 남기고 G13이 문서·원장을 대조한다.
 
 #### P2.4 Coordinator checkpoint compaction
 
-Coordinator는 완료 task를 다음 summary로 접는다.
-
-- task ID, 상태와 attempt
-- commit SHA, changed paths와 scope revision
-- verify/review evidence ID
-- 남은 advisory와 후속 결정
-
-활성 context에는 ready wave, unresolved decision, 최근 실패와 다음 fan-in에 필요한 ledger
-revision만 둔다. Ledger 경로와 hash가 상세 기록의 정본이다.
+`bouncer coordinate status`는 전체 tasks/decisions 대신
+`{ checkpoint: { ready, active_tasks, completed_tasks, unresolved_decisions,
+recent_failure, integration_head, revision, ledger: { path, sha256, revision } } }`만
+반환한다. 완료 task summary는 ID, 상태, attempt, commit SHA, changed paths,
+scope revision, verify/review evidence ID와 advisory다. Mutation
+(`prepare`·`dispatch`·`report`·`record`·`revise`·`integrate` 등)은
+`--ledger-path <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`
+쌍으로 fence하고, 성공 응답의 새 hash가 다음 token이다. Coordinator와
+`/bouncer-run`은 그 checkpoint와 ledger hash만 활성 입력으로 쓰며 완료 task 원문,
+prior worker report, 전체 ledger, 과거 대화를 payload에 다시 싣지 않는다.
+상세 원장 파일은 감사·복구용으로 보존한다.
 
 ### P3. Pointer-independent 병렬 Task Run
 
@@ -747,7 +752,8 @@ CLI가 title, body, base, head와 Explain URL 후보를 만든다. Agent는 사�
           ├→ [완료] P1-BP-003 retention audit (PR #122)
           │   → [완료] P1-BP-004 legacy context compaction (PR #123)
           ├→ [완료] P2.1 task intent bundle 재사용 (PR #124)
-          │   → [다음] P2.2 adaptive review · P2.3 verification reuse · P2.4 checkpoint
+          │   → [다음] P2.2 adaptive review
+          │   → [진행] P2.3 verification reuse · P2.4 checkpoint (Epic 076)
           │   → P4 finalize digest · Explain · Quiz · PR
           └→ P3 lease · scheduler · safe fan-in · parallel dispatch
 ```
@@ -757,7 +763,8 @@ CLI가 title, body, base, head와 Explain URL 후보를 만든다. Agent는 사�
 상태는 사용자에게 배포하지 않았다. Epic 071 terminal verification까지 완료했고,
 Epic 072의 Graphify·lazy intent·retention audit·legacy context compaction 계열(PR #120·#121·#122·#123)과
 Epic 073 Task intent bundle 재사용(PR #124)도 닫혔다.
-다음 계획 대상은 P2.2 규모·위험 기반 review dispatch이다. P3은 서로 다른 모듈에서
+다음 계획 대상은 P2.2 규모·위험 기반 review dispatch이다. P2.3/P2.4의 evidence ID·
+checkpoint·workflow 비주입 계약은 Epic 076에서 구현 중이다. P3은 서로 다른 모듈에서
 병행할 수 있다. 생성 JS의 Git 추적 제거는 배포 선행 조건 뒤로 미룬다.
 
 ## 10. 통합 작업 목록
@@ -776,7 +783,7 @@ Epic 073 Task intent bundle 재사용(PR #124)도 닫혔다.
 | 10 | Legacy context compaction (eligible corpus) | 완료 | PR #123 병합(`3aa5223`), eligible corpus의 transient 문서만 정리 |
 | 11 | Task intent bundle 재사용 | 완료 | PR #124 병합(`166db0d`), blob·Explain 절 hash hit 시 revision 재사용 + lazy CLI + execute payload 공유 |
 | 12 | 규모·위험 기반 review dispatch | **다음 계획 대상** | 작은 변경은 단일 reviewer, 고위험 변경은 전문 관점 추가 |
-| 13 | Verification reuse와 coordinator checkpoint | 제안 | 같은 evidence 재사용, 완료 task 원문 비주입 |
+| 13 | Verification reuse와 coordinator checkpoint | 진행 (Epic 076) | evidence ID 재사용, status checkpoint·ledger hash fence, workflow 비주입 |
 | 14 | Pointer-independent parallel task run | 제안 | 독립 task 동시 실행과 실패 격리 e2e |
 | 15 | Finalize digest 기반 Explain·Quiz·PR | 제안 | 전체 ledger 재독 없이 마감 계약 통과 |
 | 16 | TypeScript 정본과 CommonJS build artifact 전환 | 보류·조건부 | 빌드된 marketplace artifact와 무설치 Node 실행 확보 |

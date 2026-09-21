@@ -31,3 +31,4 @@ bouncer_schema: '0.1'
 * [073 task-intent-bundle-reuse](epics/073-task-intent-bundle-reuse/index.md) - Reuses task intent bundles across execute roles and creates a new revision when function or Explain inputs change.
 * [074 plan-context-quality-efficiency](epics/074-plan-context-quality-efficiency/index.md) - Makes task briefs settle test seams and failure classes, ties worker reports to brief revisions, and trims plan-time context use.
 * [075 adaptive-review-dispatch](epics/075-adaptive-review-dispatch/index.md) - Selects plan and execute review perspectives from deterministic size and risk signals while preserving review convergence contracts.
+* [076 verification-reuse-checkpoint-compaction](epics/076-verification-reuse-checkpoint-compaction/index.md) - Reuses successful verification evidence and compacts completed coordinator state without weakening auditability.

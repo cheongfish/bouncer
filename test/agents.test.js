@@ -497,6 +497,48 @@ test('bouncer-coordinator reports progress, blocked, and completed outcomes', ()
   assert.match(contract, /rules\/output\.md/);
 });
 
+// status checkpoint와 ledger path/hash만 활성 입력이다. 완료 task 원문·전체
+// ledger·과거 report를 다시 실으면 runtime compaction이 역할 프롬프트에서 무너진다.
+test('bouncer-coordinator grounds on status checkpoint and fences mutations with ledger path/hash', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const authority = md.match(/## Authority\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  const procedure = md.match(/## Procedure\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  const ground = procedure.match(/1\.\s*\*\*Ground\*\*[\s\S]*?(?=\n2\.\s*\*\*|$)/)?.[0] || '';
+
+  assert.match(authority, /checkpoint/);
+  assert.match(authority, /ledger:\s*\{\s*path\s*,\s*sha256\s*,\s*revision\s*\}/);
+  assert.match(ground, /coordinate status/);
+  assert.match(ground, /checkpoint/);
+  // open/active brief만 읽고 완료 task는 summary로만 남긴다.
+  assert.match(ground, /open[\s\S]{0,40}task|active[\s\S]{0,40}task/i);
+  assert.match(ground, /completed[\s\S]{0,80}summary|summary[\s\S]{0,80}completed/i);
+  // mutation마다 status가 준 path/hash 쌍을 전달하고 성공 응답 hash로 교체한다.
+  assert.match(md, /--ledger-path\s+<checkpoint\.ledger\.path>/);
+  assert.match(md, /--ledger-hash\s+<checkpoint\.ledger\.sha256>/);
+  assert.match(
+    md,
+    /(?:replace|update|refresh)[\s\S]{0,80}(?:hash|checkpoint\.ledger\.sha256)|(?:hash|checkpoint\.ledger\.sha256)[\s\S]{0,80}(?:replace|update|refresh|success)/i,
+  );
+  // 금지 payload: 전체 ledger, 완료 task 문서, prior report, past conversation.
+  assert.match(
+    md,
+    /(?:do not|never|refuse|reject)[\s\S]{0,160}(?:full ledger|raw ledger|entire ledger)|(?:full ledger|raw ledger|entire ledger)[\s\S]{0,80}(?:do not|never)/i,
+  );
+  assert.match(
+    md,
+    /(?:do not|never)[\s\S]{0,160}(?:completed task|prior worker report|past conversation)/i,
+  );
+  // hash mismatch는 재계산·추측 없이 status 재조회로 회복한다.
+  assert.match(
+    md,
+    /(?:stale|mismatch)[\s\S]{0,160}(?:status|re-?(?:run|fetch|query))|(?:status|re-?(?:run|fetch|query))[\s\S]{0,160}(?:stale|mismatch|hash)/i,
+  );
+  assert.match(
+    md,
+    /(?:do not|never)[\s\S]{0,120}(?:recompute|guess|invent)[\s\S]{0,40}hash|(?:recompute|guess)[\s\S]{0,40}hash[\s\S]{0,80}(?:do not|never)/i,
+  );
+});
+
 test('checked-in coordinator TOML matches mdToCodexToml byte-for-byte', () => {
   const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
   const markdown = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');

@@ -6,7 +6,34 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { readyWave, transition, coordinate } = require('../scripts/lib/coordinator');
+const { readyWave, transition } = require('../scripts/lib/coordinator');
+
+const __coordinatorMod = require('../scripts/lib/coordinator');
+const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+const __crypto = require('node:crypto');
+const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
+const __FENCED = new Set([
+  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
+  'repair', 'integrate', 'partial-close', 'release',
+]);
+function __fence(repoRoot, blueprint) {
+  const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
+  return {
+    ledgerPath: __LEDGER_REL,
+    ledgerHash: __crypto.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
+  };
+}
+function coordinate(opts) {
+  if (__FENCED.has(opts.command)
+    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
+    try {
+      opts = { ...opts, ...__fence(opts.repoRoot, opts.blueprint) };
+    } catch (_error) { /* missing ledger → core rejects */ }
+  }
+  return __coordinatorMod.coordinate(opts);
+}
+const coordinateRaw = __coordinatorMod.coordinate;
+
 const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
 const { writeCurrent } = require('../scripts/lib/current');
 
@@ -146,12 +173,28 @@ test('verification integrate runs CI without a worker or commit and advances onl
   assert.strictEqual(prepared.tasks[1].status, 'ready');
   assert.strictEqual(prepared.tasks[1].workerPath, undefined);
   let calls = 0;
+  let seenScope = null;
+  const integrationHead = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).integrationHead
+    || execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: boot.integrationPath, encoding: 'utf8',
+    }).trim();
   const passed = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
-    deps: { runVerification: () => { calls += 1; return { ok: true, command: 'node --test', exitCode: 0 }; } },
+    deps: {
+      runVerification: (opts) => {
+        calls += 1;
+        seenScope = opts.scope;
+        return { ok: true, command: 'node --test', exitCode: 0 };
+      },
+    },
   });
   assert.strictEqual(calls, 1);
   assert.strictEqual(passed.task.status, 'integrated');
+  // CT-001: terminal CI evidence key는 blueprint 안정 ID + integration HEAD다.
+  assert.deepStrictEqual(seenScope, {
+    kind: 'terminal',
+    key: `EPIC-011/BP-012:${integrationHead}`,
+  });
 
   const afterPass = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
   afterPass.tasks[1].status = 'ready';
@@ -1131,4 +1174,183 @@ test('report without an active dispatch attempt is rejected', () => {
   assert.strictEqual(ledger.tasks[0].dispatch.status, 'reported');
   assert.strictEqual(ledger.tasks[0].dispatch.outcome, 'blocked');
   assert.strictEqual(ledger.tasks[0].sha, undefined);
+});
+
+const LEDGER_REL = '.bouncer/runtime/coordinator.json';
+
+/**
+ * status checkpoint·hash fence 전용 픽스처. 001을 통합한 뒤 002를 pending ready로 두고
+ * unresolved decision·terminalFailure를 원장에만 남겨 projection을 검증한다.
+ */
+function checkpointFixture() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-checkpoint-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'fixture'], { cwd: repo });
+  const blueprint = '.bouncer/context/epics/076-x/blueprints/001-y';
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/002'), { recursive: true });
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.js'), 'base\n');
+  fs.writeFileSync(path.join(repo, `${blueprint}/index.md`),
+    '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  fs.writeFileSync(path.join(repo, `${blueprint}/tasks/001/tasks.md`),
+    '---\nbouncer:\n  status: ready\n  affected_paths:\n    - src/\n---\n');
+  fs.writeFileSync(path.join(repo, `${blueprint}/tasks/002/tasks.md`),
+    '---\nbouncer:\n  status: ready\n  depends_on: ["001"]\n  affected_paths:\n    - lib/\n---\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  // setup은 구현 전·후에도 통하도록, 있을 때만 fence를 붙인다.
+  const prepareOpts = {
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  };
+  if (boot.checkpoint && boot.checkpoint.ledger) {
+    prepareOpts.ledgerPath = boot.checkpoint.ledger.path;
+    prepareOpts.ledgerHash = boot.checkpoint.ledger.sha256;
+  }
+  const prepared = coordinate(prepareOpts);
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  fs.writeFileSync(path.join(worker, 'src/a.js'), 'ok\n');
+  execFileSync('git', ['add', 'src/a.js'], { cwd: worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'wip'], { cwd: worker });
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const ledgerFile = path.join(boot.integrationPath, LEDGER_REL);
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  const openDecision = {
+    task: '002', kind: 'critical-recovery', used: 1, findings: ['R-1'],
+    reason: 'needs follow-up', outcome: null,
+  };
+  ledger.tasks[0].status = 'integrated';
+  ledger.tasks[0].sha = sha;
+  ledger.tasks[0].dispatch = {
+    attempt: 1, task_brief_hash: 'a'.repeat(64), base_head: 'abc',
+    initial_worktree_state: '', status: 'reported', outcome: 'accepted', summary: 'done',
+  };
+  ledger.tasks[0].scope = { revision: 'r1', paths: ['src/'] };
+  ledger.tasks[0].verify_evidence_id = 'v'.repeat(64);
+  ledger.tasks[0].decisions = [{ task: '001', kind: 'dispatch', attempt: 1, task_brief_hash: 'a'.repeat(64),
+    base_head: 'abc', initial_worktree_state: '' }];
+  ledger.tasks[1].status = 'pending';
+  ledger.tasks[1].criticalRecovery = {
+    used: 1, findings: ['R-1'], reason: 'needs follow-up', outcome: null,
+  };
+  ledger.decisions = [openDecision, { task: '001', kind: 'report', attempt: 1,
+    task_brief_hash: 'a'.repeat(64), outcome: 'accepted', summary: 'done' }];
+  ledger.terminalFailure = {
+    task: '002', command: 'npm test', summary: 'wave failed',
+    paths: ['lib/'], exitCode: 1, repairWave: 1,
+  };
+  ledger.revision = 'r2';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  return { repo, blueprint, integration: boot.integrationPath, ledgerFile, sha };
+}
+
+test('status checkpoint summarizes completed tasks without dispatch or decision bodies', () => {
+  const drive = checkpointFixture();
+  const status = coordinate({
+    command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
+  });
+  assert.strictEqual(status.ok, true, JSON.stringify(status));
+  assert.strictEqual(status.tasks, undefined);
+  assert.strictEqual(status.decisions, undefined);
+  const completed = status.checkpoint.completed_tasks;
+  assert.strictEqual(completed.length, 1);
+  assert.deepStrictEqual(completed[0], {
+    id: '001',
+    status: 'integrated',
+    attempt: 1,
+    commit_sha: drive.sha,
+    changed_paths: ['src/'],
+    scope_revision: 'r1',
+    verify_evidence_id: 'v'.repeat(64),
+  });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(completed[0], 'advisory'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(completed[0], 'review_evidence_id'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(completed[0], 'dispatch'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(completed[0], 'decisions'), false);
+});
+
+test('status checkpoint keeps ready wave, active tasks, unresolved decisions, and recent failure', () => {
+  const drive = checkpointFixture();
+  const status = coordinate({
+    command: 'status', repoRoot: drive.repo, blueprint: drive.blueprint, cwd: drive.integration,
+  });
+  assert.strictEqual(status.ok, true, JSON.stringify(status));
+  const cp = status.checkpoint;
+  assert.deepStrictEqual(cp.ready, ['002']);
+  assert.strictEqual(cp.active_tasks.length, 1);
+  assert.strictEqual(cp.active_tasks[0].id, '002');
+  assert.strictEqual(cp.active_tasks[0].status, 'pending');
+  assert.ok(cp.active_tasks[0].dispatch === undefined || cp.active_tasks[0].dispatch);
+  // SS-002: Interface allowlist 밖 필드는 active projection에 실리면 안 된다.
+  for (const forbidden of ['execution_kind', 'sha', 'criticalRecovery', 'dynamic']) {
+    assert.strictEqual(
+      Object.prototype.hasOwnProperty.call(cp.active_tasks[0], forbidden),
+      false,
+      forbidden,
+    );
+  }
+  assert.deepStrictEqual(cp.unresolved_decisions, [{
+    task: '002', kind: 'critical-recovery', used: 1, findings: ['R-1'],
+    reason: 'needs follow-up', outcome: null,
+  }]);
+  assert.deepStrictEqual(cp.recent_failure, {
+    task: '002', command: 'npm test', summary: 'wave failed',
+    paths: ['lib/'], exitCode: 1, repairWave: 1,
+  });
+  assert.strictEqual(cp.revision, 'r2');
+  assert.strictEqual(typeof cp.integration_head, 'string');
+  assert.strictEqual(cp.ledger.path, LEDGER_REL);
+  assert.match(cp.ledger.sha256, /^[a-f0-9]{64}$/);
+  assert.strictEqual(cp.ledger.revision, 'r2');
+  const expectedHash = crypto.createHash('sha256')
+    .update(fs.readFileSync(drive.ledgerFile)).digest('hex');
+  assert.strictEqual(cp.ledger.sha256, expectedHash);
+});
+
+test('mutation ledger fence rejects missing, absolute, escaping, wrong path, and stale hash without writes', () => {
+  const drive = checkpointFixture();
+  const before = fs.readFileSync(drive.ledgerFile);
+  const beforeMain = execFileSync('git', ['status', '--porcelain'], {
+    cwd: drive.repo, encoding: 'utf8',
+  });
+  const hash = crypto.createHash('sha256').update(before).digest('hex');
+  const cases = [
+    { label: 'missing both', opts: {} },
+    { label: 'missing hash', opts: { ledgerPath: LEDGER_REL } },
+    { label: 'missing path', opts: { ledgerHash: hash } },
+    { label: 'absolute', opts: { ledgerPath: path.join(drive.integration, LEDGER_REL), ledgerHash: hash } },
+    { label: 'escaping', opts: { ledgerPath: '../runtime/coordinator.json', ledgerHash: hash } },
+    { label: 'wrong path', opts: { ledgerPath: '.bouncer/runtime/other.json', ledgerHash: hash } },
+    { label: 'bad hash shape', opts: { ledgerPath: LEDGER_REL, ledgerHash: 'zzzz' } },
+    { label: 'stale hash', opts: { ledgerPath: LEDGER_REL, ledgerHash: 'b'.repeat(64) } },
+  ];
+  for (const entry of cases) {
+    const rejected = coordinateRaw({
+      command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint,
+      cwd: drive.integration, ...entry.opts,
+    });
+    assert.strictEqual(rejected.ok, false, entry.label);
+    assert.match(rejected.reason, /ledger-checkpoint-invalid|stale-ledger-checkpoint/, entry.label);
+    assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), before, entry.label);
+  }
+  assert.strictEqual(execFileSync('git', ['status', '--porcelain'], {
+    cwd: drive.repo, encoding: 'utf8',
+  }), beforeMain);
+  // stale이 아니면 다음 hash로 prepare가 이어진다.
+  const next = coordinateRaw({
+    command: 'prepare', repoRoot: drive.repo, blueprint: drive.blueprint,
+    cwd: drive.integration, ledgerPath: LEDGER_REL, ledgerHash: hash,
+  });
+  assert.strictEqual(next.ok, true, JSON.stringify(next));
+  assert.ok(next.checkpoint);
+  assert.match(next.checkpoint.ledger.sha256, /^[a-f0-9]{64}$/);
+  assert.notStrictEqual(next.checkpoint.ledger.sha256, hash);
 });

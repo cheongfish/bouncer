@@ -205,10 +205,18 @@ function checkVerificationTaskGraph(tasksList, failures) {
         }
     }
 }
-function defaultReadVerifyLedger({ repoRoot, verificationRel, deps, }) {
+/**
+ * Git common dir의 verify 원장을 읽는다. evidenceId가 있으면 v2 경로를 쓰고,
+ * 없으면 legacy(rel-only) 경로를 연다 — 구 원장 miss와 v2 hit 경계를 같게 유지한다.
+ *
+ * @param {{ repoRoot?: string, verificationRel?: string, evidenceId?: string, deps?: GateDeps }} opts
+ * @returns {VerifyLedgerRecord | null} 파싱된 원장. 부재·파손은 null, 비-Git은 unavailable
+ */
+function defaultReadVerifyLedger({ repoRoot, verificationRel, evidenceId, deps, }) {
     const paths = verifyLedgerPathFor({
         repoRoot: repoRoot,
         verificationRel,
+        evidenceId,
         // 경로 해석만 위임한다. ledger 파일 읽기는 아래 fsApi가 담당하므로
         // GateDeps.fs(부분 InjectedFs)를 RuntimeDeps로 억지 대입하지 않는다.
         deps: deps
@@ -231,6 +239,59 @@ function defaultReadVerifyLedger({ repoRoot, verificationRel, deps, }) {
         return null;
     }
 }
+/**
+ * 객체의 키를 재귀적으로 정렬한 뒤 UTF-8 JSON으로 직렬화한다.
+ * verification runner의 identity hash와 같은 규칙이어야 손기록이
+ * 키 순서로 evidence_id를 위조하지 못한다.
+ *
+ * @param {unknown} value - 직렬화할 값
+ * @returns {string} canonical JSON 문자열
+ */
+function canonicalJson(value) {
+    const normalize = (input) => {
+        if (Array.isArray(input))
+            return input.map(normalize);
+        if (input && typeof input === 'object') {
+            const record = input;
+            const sorted = {};
+            for (const key of Object.keys(record).sort()) {
+                sorted[key] = normalize(record[key]);
+            }
+            return sorted;
+        }
+        return input;
+    };
+    return JSON.stringify(normalize(value));
+}
+/**
+ * canonical JSON의 SHA-256 hex를 돌려준다.
+ *
+ * @param {unknown} value - 해시할 값
+ * @returns {string} 64자 hex digest
+ */
+function sha256Canonical(value) {
+    return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
+}
+/**
+ * 객체를 키 정렬 JSON으로 비교한다. G13 identity/scope 대조가 삽입 순서에
+ * 흔들리지 않게 한다.
+ *
+ * @param {unknown} left - 문서 값
+ * @param {unknown} right - 원장 값
+ * @returns {boolean} 동치면 true
+ */
+function sameCanonical(left, right) {
+    return canonicalJson(left) === canonicalJson(right);
+}
+/**
+ * execute/commit G13 — verification.md 하네스 메타와 common-dir 원장을 대조한다.
+ * v2는 evidence_id·scope·reused lineage까지 맞아야 통과하고, 손기록 변조를 거절한다.
+ *
+ * @param {DocLeaf | undefined | null} verificationDoc - verification.md 문서
+ * @param {(code: string, message: string, leaf: string) => void} addUnit - 실패 누적
+ * @param {GateContext} ctx - repoRoot·deps
+ * @returns {void}
+ */
 function checkG13(verificationDoc, addUnit, ctx) {
     if (!verificationDoc)
         return;
@@ -242,15 +303,33 @@ function checkG13(verificationDoc, addUnit, ctx) {
     }
     const vBouncer = verificationDoc.data.bouncer;
     const evidence = vBouncer && vBouncer.verification;
+    const scope = evidence && evidence.scope;
     const validEvidence = evidence
         && typeof evidence.command === 'string'
         && evidence.command.trim()
         && typeof evidence.ran_at === 'string'
         && evidence.ran_at.trim()
         && evidence.exit_code === 0
-        && typeof evidence.output_tail === 'string';
+        && typeof evidence.output_tail === 'string'
+        && typeof evidence.evidence_id === 'string'
+        && /^[a-f0-9]{64}$/.test(evidence.evidence_id)
+        && isRecord(evidence.identity)
+        && isRecord(scope)
+        && (scope.kind === 'task' || scope.kind === 'wave' || scope.kind === 'terminal')
+        && typeof scope.key === 'string'
+        && scope.key.trim()
+        && typeof evidence.reused === 'boolean'
+        && (evidence.reused === false
+            || (typeof evidence.reused_from === 'string' && /^[a-f0-9]{64}$/.test(evidence.reused_from)));
     if (!validEvidence) {
         addUnit('G13', 'verification.md missing successful harness verification metadata', 'verification');
+        return;
+    }
+    // evidence_id는 identity의 content-addressed 해시여야 한다. 원장과 숫자만
+    // 맞추고 identity를 손기록하면 다른 입력의 성공을 위조할 수 있다.
+    const expectedEvidenceId = sha256Canonical(evidence.identity);
+    if (evidence.evidence_id !== expectedEvidenceId) {
+        addUnit('G13', 'verification.md evidence_id does not match canonical identity hash', 'verification');
         return;
     }
     if (!vs.command.includes(`\`${evidence.command}\``)
@@ -265,6 +344,7 @@ function checkG13(verificationDoc, addUnit, ctx) {
     const record = reader({
         repoRoot: ctx && ctx.repoRoot,
         verificationRel: verificationDoc.rel,
+        evidenceId: evidence.evidence_id,
         deps,
     });
     if (record && record.unavailable) {
@@ -277,7 +357,14 @@ function checkG13(verificationDoc, addUnit, ctx) {
     }
     if (record.command !== evidence.command
         || record.ran_at !== evidence.ran_at
-        || record.exit_code !== evidence.exit_code) {
+        || record.exit_code !== evidence.exit_code
+        || record.evidence_id !== evidence.evidence_id
+        || record.reused !== evidence.reused
+        || !sameCanonical(record.identity, evidence.identity)
+        || !sameCanonical(record.scope, evidence.scope)
+        || (evidence.reused
+            ? record.reused_from !== evidence.reused_from
+            : record.reused_from !== undefined && record.reused_from !== null)) {
         addUnit('G13', 'verification.md harness metadata does not match verify ledger', 'verification');
         return;
     }
@@ -285,6 +372,9 @@ function checkG13(verificationDoc, addUnit, ctx) {
     if (record.output_sha !== outputSha) {
         addUnit('G13', 'verification.md output_tail does not match verify ledger output_sha', 'verification');
     }
+}
+function isRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 function checkGate(gate, docs, rels, failures, ctx) {
     if (typeof gate === 'object' && gate !== null) {
