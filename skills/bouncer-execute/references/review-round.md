@@ -12,9 +12,29 @@ findings.
             completes. Do not mix different brief hash or bundle revision
             values in one round, and do not pass the full Explain body into
             discovery or delta payloads.
-2 discover  Dispatch spec_scope, correctness_tests, and
-            minimality_maintainability in parallel; dispatch security only when
-            the changed surface makes it relevant.
+2 discover  Run `bouncer review-dispatch execute --blueprint <dir> --task <NNN>
+            --base <frozen-base> --head <frozen-head>`. That CLI result is the
+            only discovery dispatch authority: do not recompute file/line
+            stats, guess risk from path names or diff bodies, merge or split
+            perspectives, or override `strategy` / `perspectives` /
+            `risk_flags`. When the payload is `ok: false`, or when its
+            `target.base` / `target.head` / `target.task` disagree with the
+            frozen values, or when `risk_flags` disagree with the current
+            task's `review_risk`, stop — do not open a review round and do not
+            mark the review accepted.
+
+            Dispatch discovery reviewers by walking the CLI `perspectives`
+            array in order — that list is the only fan-out. Do not also branch
+            on `strategy` to invent calls, and do not append `security` from
+            `risk_flags` separately; the CLI already placed those choices in
+            `perspectives` (for example `single` without risk → `combined`;
+            small risk → `combined` then `security`; `parallel` without risk →
+            `spec_scope`, `correctness_tests`, `minimality_maintainability`;
+            large risk → those three then `security`). Record round 1
+            perspectives in that CLI order. Each discovery call receives the
+            same frozen target, task_brief_hash, intent bundle identifiers,
+            intent_sections, and latest verify — never another reviewer's
+            findings.
 3 aggregate Verify evidence, merge duplicate fingerprints, record
             severity_changes and origin, then decide must_fix or advisory from
             the brief, evidence, and changed range — never a reviewer vote.
@@ -26,7 +46,9 @@ findings.
             dispatch one implementer once with a repair brief containing every
             must_fix finding.
 5 verify    Re-run latest verify.
-6 certify   Dispatch one delta reviewer with previous findings and revision diff.
+6 certify   Dispatch one delta reviewer with previous findings, resolution,
+            and revision diff only — never a discovery perspective and never a
+            second strategy-shaped fan-out.
 7 outcome   All must_fix resolved and verify passed: accepted.
 ```
 

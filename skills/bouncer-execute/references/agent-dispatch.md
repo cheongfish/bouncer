@@ -74,22 +74,37 @@ For the verify-recovery implementer re-dispatch, use the same named-dispatch ord
 
 For review, freeze the target first (base, HEAD, task-brief revision,
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and latest
-verify), then dispatch named `bouncer-reviewer` in parallel for `spec_scope`,
-`correctness_tests`, and `minimality_maintainability`; add security only when
-the changed surface requires it. Each discovery prompt contains only its own
-rubric, the six brief sections, the reviewer's `intent_sections` projection,
-the frozen target (including the shared bundle identifiers), and never another
-reviewer's findings or the full Explain body. If named agents are unavailable,
-dispatch fresh generic subagents in the same order, each carrying the entire
-body of `agents/bouncer-reviewer.md` — every section from Authority through
-Output contract, verbatim — plus its filled reviewer-prompt: frozen base and
-HEAD, task brief revision, `task_brief_hash`, `intent_bundle_id`,
-`intent_bundle_revision`, `intent_sections`, mode, perspective, latest verify,
-and for delta the previous findings and revision diff, with the read-only cwd.
-When no subagent tool exists, each inline read-only pass first reads
-`agents/bouncer-reviewer.md` and follows every section with that input.
-After one aggregate and one fix batch, dispatch exactly one delta reviewer with
-previous findings and the revision diff. Reviewers remain named regardless of
-scale.
+verify), then run `bouncer review-dispatch execute --blueprint <dir> --task
+<NNN> --base <frozen-base> --head <frozen-head>`. Use that CLI JSON's
+`strategy`, `perspectives` order, and `risk_flags` as the only discovery
+dispatch choice — do not recompute file/line stats, guess risk from path names
+or diff bodies, or override the returned list. When the payload is `ok: false`,
+or when its `target` / `risk_flags` disagree with the frozen values and the
+current task's `review_risk`, stop — do not open a review round and do not mark
+the review accepted.
+
+Dispatch discovery reviewers by walking the CLI `perspectives` array in order
+— that list is the only fan-out. Do not also branch on `strategy` to invent
+calls, and do not append `security` from `risk_flags` separately; the CLI
+already placed those choices in `perspectives` (for example `single` without
+risk → `combined`; small risk → `combined` then `security`; `parallel`
+without risk → the three non-security perspectives; large risk → those three
+then `security`). Named, generic fallback, and inline paths all walk that same
+`perspectives` sequence — never a different fan-out per host. Each discovery prompt contains only its assigned perspective,
+the six brief sections, the reviewer's `intent_sections` projection, the frozen
+target (including the shared bundle identifiers), `strategy`, and `risk_flags`,
+and never another reviewer's findings or the full Explain body. If named agents
+are unavailable, dispatch fresh generic subagents in the same `perspectives`
+order, each carrying the entire body of `agents/bouncer-reviewer.md` — every
+section from Authority through Output contract, verbatim — plus its filled
+reviewer-prompt: frozen base and HEAD, task brief revision, `task_brief_hash`,
+`intent_bundle_id`, `intent_bundle_revision`, `intent_sections`, mode,
+perspective, strategy, risk_flags, latest verify, and for delta the previous
+findings and revision diff, with the read-only cwd. When no subagent tool
+exists, each inline read-only pass first reads `agents/bouncer-reviewer.md` and
+follows every section with that input. After one aggregate and one fix batch,
+dispatch exactly one delta reviewer with previous findings and the revision
+diff — delta does not receive a discovery perspective. Reviewers remain named
+regardless of scale.
 
 Every worker returns its Output contract to the controller — the coordinator during a drive. Its **Scope impact** / **Scope/task impact** line is an input to one coordinator decision (scope revision through `bouncer coordinate revise`, rework, a task change, or terminal blocked), never a licence for the worker to widen its own scope or move the pointer.

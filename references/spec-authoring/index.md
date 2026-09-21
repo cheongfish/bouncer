@@ -79,6 +79,14 @@ body content only; never edits harness-owned frontmatter fields. Used from
        public scaffold는 `bouncer scaffold task --execution-kind verification
        --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>`로 호출하며
        생성되는 두 문서는 `tasks.md`와 `verification.md`뿐이다.
+     - **review_risk**: commit task의 선택적 frontmatter 배열이다. 허용 값은
+       `public_interface`, `authentication`, `authorization`, `credential`뿐이며
+       중복 없이 쓴다. Interface·Touch가 공개 API, authentication, authorization,
+       credential 변경을 명시하면 해당 enum을 빠짐없이 기록하고, 그 위험이
+       없으면 `[]`를 명시한다(신규 작성에서 필드를 생략하지 않는다). legacy
+       문서의 부재는 dispatch가 `[]`로 읽고, malformed 값만 `S30`으로 거절한다
+       (`rules/okf.md`). `review_risk`는 Execute reviewer 수를 늘리는 입력일
+       뿐이며 does not auto-approve `affected_paths`, status, or a gate.
      - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
        다시 열거하지 않고 절차만 담는다.
      - **Current behavior**: record inputs, state, and outputs for the change

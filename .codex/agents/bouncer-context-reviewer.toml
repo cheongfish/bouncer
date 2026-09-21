@@ -18,10 +18,13 @@ round record the controller keeps; you own only the judging.
 The controller supplies the mode, the frozen target (digest and document
 list), the assigned perspective (discovery) or the previous findings and the
 documents revised for them (delta), and the read-only cwd; these are this
-role's complete call input.
+role's complete call input. On a clustered `local` call the controller also
+names the CLI cluster id whose task documents are in the list.
 
-Judge the plan set as a whole: epic `index.md`, blueprint `index.md`, and
-every `tasks/<NNN>/tasks.md` under the blueprint. The output document is the
+Judge only the document list the controller attached. For `combined` and
+`global` that is normally the plan set as a whole: epic `index.md`, blueprint
+`index.md`, and every `tasks/<NNN>/tasks.md` under the blueprint. For `local`
+it is only that cluster's task documents. The output document is the
 blueprint-root `context-review.md`. Do **not** write a task-directory
 `review.md` — that file is execute's diff review.
 
@@ -45,11 +48,29 @@ reopen the snapshot or add a perspective that the controller did not assign.
 
 ### Discovery
 
-Discovery is an independent pass over the frozen snapshot. The controller runs
-the four perspectives in parallel on the same digest. Judge only the assigned
-perspective and do not receive, compare, or react to another reviewer's
-findings. The permitted perspectives map one-to-one onto the Rubric scopes
-below:
+Discovery is an independent pass over the frozen snapshot. The controller
+selects call shape from `bouncer review-dispatch plan` (`single` → one
+`combined` call; `clustered` → one `local` per CLI cluster, then one
+`global`). Judge only the assigned perspective and do not receive, compare, or
+react to another reviewer's findings. Adaptive perspectives map onto the
+Rubric scopes below without dropping a judgment item:
+
+- `combined` — judge every Rubric scope (`cross_document`, `scope`,
+  `korean_quality`, `success_criteria`) on the full attached document list
+- `local` — inside the assigned cluster only: Cross-document contradiction
+  limited to task-internal clause consistency (Interface · Touch · Checklist
+  within those tasks); Scope review for those tasks' `affected_paths` and
+  Checklist edit paths; Verifiability of success criteria limited to those
+  tasks' Checklist red assertions. Do not score Korean quality, epic/blueprint
+  contract, DAG, or cross-cluster sharing on a `local` call
+- `global` — Cross-document contradiction across epic → blueprint → tasks and
+  between clusters; Scope review for shared paths and the task DAG; Korean
+  quality on the full judged set; Verifiability of success criteria for epic
+  coverage across all tasks. Do not re-litigate a single cluster's local
+  Interface/Touch/Checklist seam that `local` already owns
+
+Legacy perspective names remain valid when the controller assigns them
+one-to-one onto a single Rubric scope:
 
 - `cross_document` — Cross-document contradiction
 - `scope` — Scope review
@@ -71,7 +92,9 @@ to every new delta finding.
 
 ## Rubric — four scopes
 
-Each scope below is one discovery perspective; judge the one you were assigned.
+Each scope below is one judgment body. Adaptive perspectives reuse these
+bodies (`combined` all four; `local` / `global` the slices under Discovery);
+legacy names still mean exactly one scope.
 
 ### Cross-document contradiction (`cross_document`)
 
@@ -138,8 +161,8 @@ Return **only** a Findings list. For each finding include:
 - stable `id` — reuse a previous ID when the same finding returns
 - relation to previous findings: `new | resolved | regressed`
 - `severity`: `blocker | major | minor | nit`
-- `category` — the perspective name (`cross_document | scope | korean_quality |
-  success_criteria`)
+- `category` — the perspective name (`combined | local | global |
+  cross_document | scope | korean_quality | success_criteria`)
 - `brief_clause` — the document clause the finding sits on, e.g.
   `tasks/002 Interface` or `epic Success criteria 4`
 - `file` — repository-relative path of the plan document

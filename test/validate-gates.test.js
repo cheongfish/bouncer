@@ -574,6 +574,38 @@ test('plan gate G18 accepts a context finding in the context namespace', () => {
   }), []);
 });
 
+test('plan gate G18 accepts adaptive combined local global perspectives', () => {
+  assert.deepStrictEqual(contextReviewFailures({
+    findings: [contextFinding()],
+    rounds: [contextRound({
+      perspectives: [
+        { name: 'combined', target_digest: 'digest-1' },
+      ],
+    })],
+  }), []);
+  assert.deepStrictEqual(contextReviewFailures({
+    findings: [contextFinding()],
+    rounds: [contextRound({
+      perspectives: [
+        { name: 'local', target_digest: 'digest-1' },
+        { name: 'global', target_digest: 'digest-1' },
+      ],
+    })],
+  }), []);
+});
+
+test('execute gate G14 accepts combined perspective and still rejects bad target', () => {
+  assert.deepStrictEqual(executeReviewFailures({
+    findings: [convergenceFinding()],
+    rounds: [convergenceRound({ perspectives: [{ name: 'combined', target_head: 'head-sha' }] })],
+  }), []);
+  const mismatch = executeReviewFailures({
+    findings: [convergenceFinding()],
+    rounds: [convergenceRound({ perspectives: [{ name: 'combined', target_head: 'other' }] })],
+  });
+  assert.ok(mismatch.some((f) => /round 1 target mismatch combined/.test(f.message)));
+});
+
 test('plan gate G18 enforces the context convergence contract', () => {
   const duplicate = contextReviewFailures({
     findings: [contextFinding(), contextFinding({ id: 'CR-2' })], rounds: [contextRound()],

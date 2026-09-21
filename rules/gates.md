@@ -67,5 +67,9 @@ finalize gates inspect the whole blueprint.
   has empty `affected_paths`, non-empty `depends_on`, `parallel_safe: false`,
   `dependency_gate: integrated`, and one valid `verify` command. It has only
   `tasks.md` and `verification.md`; it produces no source commit or review.
+- `S30`: optional `bouncer.review_risk` must be an array of unique values from
+  `public_interface | authentication | authorization | credential`. Absent is
+  legacy-compatible (read as `[]`). Fix shape, unknown values, or duplicates
+  in the task frontmatter before running `review-dispatch`.
 
 Retired codes (`G4`, `G9`, `G15`, `S14`, and `S21`–`S26`) are never reused.

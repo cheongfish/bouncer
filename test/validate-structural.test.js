@@ -998,3 +998,23 @@ test('S29: verification execution_kind requires empty scope, fan-in metadata, an
   ]) assert.ok(failuresFor(extra).length > 0, JSON.stringify(extra));
   assert.ok(failuresFor({ execution_kind: 'commit', status: 'integrated' }).length > 0);
 });
+
+test('S30: review_risk must be a unique enum array; absent is legacy-compatible', () => {
+  const failuresFor = (extra) => {
+    const failures = [];
+    const base = goodTasks();
+    const rel = `${BP_REL}/tasks/001/tasks.md`;
+    checkStructural({ data: { ...base, resource: rel, bouncer: { ...base.bouncer, ...extra } }, rel }, failures);
+    return failures.filter((f) => f.code === 'S30');
+  };
+  assert.deepStrictEqual(failuresFor({}), []);
+  assert.deepStrictEqual(failuresFor({ review_risk: [] }), []);
+  assert.deepStrictEqual(failuresFor({
+    review_risk: ['public_interface', 'authentication', 'authorization', 'credential'],
+  }), []);
+  assert.ok(failuresFor({ review_risk: 'public_interface' }).some((f) => /must be an array/.test(f.message)));
+  assert.ok(failuresFor({ review_risk: ['mystery'] }).some((f) => /value invalid/.test(f.message)));
+  assert.ok(failuresFor({
+    review_risk: ['public_interface', 'public_interface'],
+  }).some((f) => /duplicate/.test(f.message)));
+});

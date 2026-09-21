@@ -685,6 +685,15 @@ test('review templates document rounds; only execute review documents deferred',
   assert.match(TEMPLATES['context-review.md'], /target_digest/);
   // context에는 critical recovery가 없다.
   assert.doesNotMatch(TEMPLATES['context-review.md'], /critical_recovery/);
+  // adaptive dispatch 이름과 legacy 관점을 template이 함께 안내해야 validator와 어긋나지 않는다.
+  assert.match(
+    TEMPLATES['review.md'],
+    /combined \| spec_scope \| correctness_tests \| minimality_maintainability \| security/,
+  );
+  assert.match(
+    TEMPLATES['context-review.md'],
+    /combined \| local \| global \| cross_document \| scope \| korean_quality \| success_criteria/,
+  );
 });
 
 test('scaffoldTask writes compatible DAG defaults and templates expose the fields', () => {

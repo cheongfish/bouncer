@@ -275,6 +275,12 @@ test('bouncer-execute step 5 keeps only review entry conditions and ceilings', (
   assert.match(step5, /required\s*===\s*false|required === false/i);
   assert.match(step5, /one frozen parallel discovery wave[\s\S]*one fix batch[\s\S]*one delta\s*\n?\s*certification/i);
   assert.match(step5, /drive alone may add one\s*\n?\s*critical recovery/i);
+  // SEC-001: stop conditions must name risk_flags ↔ task review_risk (fail closed).
+  assert.match(
+    step5,
+    /risk_flags[\s\S]{0,120}review_risk|review_risk[\s\S]{0,120}risk_flags/i,
+  );
+  assert.match(step5, /fail closed|disagree|mismatch/i);
   assert.doesNotMatch(step5, /reviewer-prompt|bouncer-reviewer|fresh generic|## Findings|bouncer\.review\.findings|review\s*→\s*accepted/i);
   assert.match(dispatch, /rules\/subagent-model\.md/);
   assert.match(dispatch, /fresh generic|generic.*subagent/i);
@@ -317,6 +323,121 @@ test('bouncer-execute records the drive-only critical recovery convergence seque
   assert.match(round, /mode:\s*`?critical_recovery`?/);
   assert.match(round, /introduced_by_revision/);
   assert.match(round, /missed_critical[\s\S]{0,160}(blocker|major)/i);
+});
+
+// frozen base/head 뒤 CLI가 discovery fan-out을 고른다. controller가 file/line을
+// 다시 세거나 path·diff에서 위험을 추측하면 분류기와 round가 갈라진다.
+test('bouncer-execute discovers via review-dispatch execute without override', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step5 = body.slice(body.indexOf('5. **Review.**'), body.indexOf('6. **Gate.**'));
+  assert.match(step5, /review-dispatch execute|review-dispatch/);
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  const review = fs.readFileSync(path.join(root, 'references/review/index.md'), 'utf8');
+  for (const [label, text] of [
+    ['review-round', round],
+    ['agent-dispatch', dispatch],
+    ['review skill', review],
+  ]) {
+    assert.match(text, /bouncer review-dispatch execute/, label);
+    assert.match(text, /`single`/, label);
+    assert.match(text, /`parallel`/, label);
+    assert.match(text, /`combined`/, label);
+    assert.match(text, /`security`/, label);
+    assert.match(text, /ok:\s*false|`ok`:\s*`false`/, label);
+    assert.match(
+      text,
+      /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:reviewer|review round|accepted)|(?:reviewer|review round|accepted)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
+      label,
+    );
+  }
+  // CLI perspectives 순서를 그대로 쓰고, file/line 재계산·위험 추측으로 덮지 않는다.
+  assert.match(
+    round,
+    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess|덮어|재계산|추측)[\s\S]{0,80}(?:do not|never)/i,
+  );
+  assert.match(round, /perspectives/);
+  assert.match(dispatch, /perspectives/);
+  // 작은/큰/위험 결과 예시는 CLI perspectives에 이미 들어 있다. fan-out은
+  // perspectives walk만 — strategy 분기 + risk_flags로 security를 또 붙이면 안 된다.
+  assert.match(round, /`single`[\s\S]{0,200}`combined`|strategy:\s*`?single`?[\s\S]{0,200}`combined`/i);
+  assert.match(
+    round,
+    /`parallel`[\s\S]{0,240}spec_scope[\s\S]{0,80}correctness_tests[\s\S]{0,80}minimality_maintainability/i,
+  );
+  assert.match(
+    round,
+    /risk[\s\S]{0,120}`security`|`security`[\s\S]{0,120}risk|risk_flags[\s\S]{0,120}`security`|small risk[\s\S]{0,80}`combined`[\s\S]{0,40}`security`/i,
+  );
+  // CT-002: 작은 위험 diff는 perspectives walk만으로 combined → security 두 호출.
+  // strategy로 한 번, risk_flags로 security를 또 붙이는 dual fan-out 문구가 없어야 한다.
+  for (const [label, text] of [
+    ['review-round', round],
+    ['agent-dispatch', dispatch],
+    ['review skill', review],
+  ]) {
+    assert.match(
+      text,
+      /walk(?:ing)?[\s\S]{0,80}`perspectives`|`perspectives`[\s\S]{0,80}(?:only fan-out|array in order)/i,
+      label,
+    );
+    assert.match(
+      text,
+      /(?:do not|never)[\s\S]{0,100}branch on[\s\S]{0,40}`strategy`|(?:do not|never)[\s\S]{0,120}append[\s\S]{0,40}`security`/i,
+      label,
+    );
+    assert.match(
+      text,
+      /small risk[\s\S]{0,80}`combined`[\s\S]{0,40}`security`/i,
+      label,
+    );
+  }
+  // delta는 discovery perspective를 받지 않고 이전 finding·resolution·revision만 본다.
+  assert.match(
+    round,
+    /delta[\s\S]{0,200}(?:(?:do not|never|without)[\s\S]{0,80}(?:discovery perspective|perspective)|previous findings[\s\S]{0,80}revision)/i,
+  );
+  // named·fallback·inline이 같은 CLI 순서를 쓴다.
+  const reviewAt = dispatch.indexOf('For review,');
+  assert.ok(reviewAt >= 0);
+  const reviewDispatch = dispatch.slice(reviewAt);
+  assert.match(reviewDispatch, /perspectives/);
+  assert.match(reviewDispatch, /named/);
+  assert.match(reviewDispatch, /fallback|generic|inline/i);
+});
+
+// CT-002: 작은 위험은 CLI perspectives [combined, security] 두 호출만.
+// strategy로 세 관점을 열고 risk_flags로 security를 또 붙이는 dual fan-out 금지.
+test('bouncer-execute small-risk discovery is combined then security via perspectives walk only', () => {
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  const review = fs.readFileSync(path.join(root, 'references/review/index.md'), 'utf8');
+  for (const [label, text] of [
+    ['agent-dispatch', dispatch],
+    ['review-round', round],
+    ['review skill', review],
+  ]) {
+    assert.match(
+      text,
+      /small risk[\s\S]{0,100}`combined`[\s\S]{0,60}`security`/i,
+      label,
+    );
+    assert.match(
+      text,
+      /walk(?:ing)?[\s\S]{0,100}`perspectives`[\s\S]{0,120}only fan-out|`perspectives`[\s\S]{0,80}(?:only fan-out|array in order)/i,
+      label,
+    );
+    assert.match(
+      text,
+      /(?:do not|never)[\s\S]{0,160}branch[\s\S]{0,40}on[\s\S]{0,40}`strategy`/i,
+      label,
+    );
+    assert.match(
+      text,
+      /(?:do not|never)[\s\S]{0,160}append[\s\S]{0,80}`security`[\s\S]{0,80}`risk_flags`/i,
+      label,
+    );
+  }
 });
 
 test('bouncer-execute uses the pointer task document as the brief', () => {

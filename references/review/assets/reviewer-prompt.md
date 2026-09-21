@@ -20,9 +20,13 @@ pointer task directory's `review.md` status / frontmatter — Findings only.
 ## Placeholders
 
 - `{{MODE}}` — `discovery` or `delta`
-- `{{PERSPECTIVE}}` — one discovery perspective: `spec_scope`,
+- `{{PERSPECTIVE}}` — one discovery perspective: `combined`, `spec_scope`,
   `correctness_tests`, `minimality_maintainability`, or `security`; leave empty
   for delta
+- `{{STRATEGY}}` — CLI `strategy` from `bouncer review-dispatch execute`
+  (`single` | `parallel`); leave empty for delta
+- `{{RISK_FLAGS}}` — CLI `risk_flags` array (may be empty); leave empty for
+  delta
 - `{{TARGET}}` — frozen target: base, head, brief revision, `task_brief_hash`,
   `intent_bundle_id`, `intent_bundle_revision`, and latest verify result
 - `{{BRIEF}}` — task brief (`tasks/<NNN>/tasks.md`) Goal & intent, Interface,
@@ -47,6 +51,12 @@ pointer task directory's `review.md` status / frontmatter — Findings only.
 
 ### Perspective
 `{{PERSPECTIVE}}`
+
+### Strategy
+`{{STRATEGY}}`
+
+### Risk flags
+`{{RISK_FLAGS}}`
 
 ### Target
 {{TARGET}}
@@ -77,6 +87,11 @@ perspective. Do not receive or use other reviewers' findings, and do not report
 outside that perspective. Severity is a label, not a filter, within the assigned
 perspective.
 
+- `combined`: apply `spec_scope`, `correctness_tests`, and
+  `minimality_maintainability` in one pass. Do not mix in the `security` rubric.
+  Record each finding's `category` as the actual sub-rubric name
+  (`spec_scope` | `correctness_tests` | `minimality_maintainability`), never
+  `combined`.
 - `spec_scope`: Missing / Extra / Misunderstood / Constraint breach.
 - `correctness_tests`: logic defects, contract or test breakage, error
   handling, and missing behavior-change tests.
@@ -84,13 +99,15 @@ perspective.
   logic, and structure.
 - `security`: public-input validation, authentication or authorization bypass,
   credential or sensitive-data exposure/logging, and shell or path injection.
-  Use only when the controller assigned this perspective.
+  Use only when the controller assigned this perspective (non-empty
+  `risk_flags`).
 
 ### Delta rules
 
 When mode is `delta`, certify previous-finding resolution and regressions in
-`{{REVISION_DIFF}}`; do not reopen the target as a new discovery pass. Do not
-report a new `minor` or `nit` in unchanged code. A new finding must be either:
+`{{REVISION_DIFF}}`; do not reopen the target as a new discovery pass and do
+not receive a discovery perspective. Do not report a new `minor` or `nit` in
+unchanged code. A new finding must be either:
 
 - `introduced_by_revision`, with the revision-diff location as origin evidence;
   any severity is permitted.

@@ -20,6 +20,15 @@ const {
 import config = require('./config');
 const { DEFAULT_VERIFY_ALLOWLIST } = config;
 
+// review-dispatch Execute 경로와 같은 허용 목록. 여기 S30과 분류기 거절이
+// 어긋나면 malformed 위험이 한쪽에만 통과한다.
+const REVIEW_RISK_ENUM = [
+  'public_interface',
+  'authentication',
+  'authorization',
+  'credential',
+] as const;
+
 // 문서 하나(프론트매터)를 보는 S 코드 층. 게이트(G) 판정과 분리해 두면
 // 스키마/id 규칙을 고치는 사람이 checkGate 분기를 같이 읽지 않아도 된다.
 // 승인 범위는 plan 게이트의 G5·G11·G12가 판정한다 — 이 파일은 affected_paths
@@ -235,6 +244,26 @@ function checkStructural(
       }
     } else if (bouncer.status === 'verifying' || bouncer.status === 'integrated') {
       add('S29', `commit task cannot use verification status ${bouncer.status}`);
+    }
+    // S30: review_risk는 승인 enum의 중복 없는 배열만 받는다. 부재는 legacy []
+    // 로 읽히므로 통과 — 새 문서의 malformed 값만 dispatch 전에 막는다.
+    if (bouncer.review_risk !== undefined) {
+      if (!Array.isArray(bouncer.review_risk)) {
+        add('S30', 'review_risk must be an array');
+      } else {
+        const seen = new Set<string>();
+        for (const entry of bouncer.review_risk) {
+          if (typeof entry !== 'string' || !(REVIEW_RISK_ENUM as readonly string[]).includes(entry)) {
+            add('S30', `review_risk value invalid: ${String(entry)}`);
+            continue;
+          }
+          if (seen.has(entry)) {
+            add('S30', `review_risk duplicate: ${entry}`);
+            continue;
+          }
+          seen.add(entry);
+        }
+      }
     }
   }
 }

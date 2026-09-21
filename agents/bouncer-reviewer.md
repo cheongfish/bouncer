@@ -46,13 +46,22 @@ or add a perspective that the controller did not assign.
 
 ### Discovery
 
-Discovery is an independent pass over the frozen target. Judge only the
-assigned perspective and do not receive, compare, or react to another
-reviewer's findings. Severity is a label, not a filter, **within that assigned
+Discovery is an independent pass over the frozen target. The controller
+selects call shape from `bouncer review-dispatch execute` (`single` → one
+`combined` call; `parallel` → the three non-security perspectives; non-empty
+`risk_flags` → append a separate `security` call). Judge only the assigned
+perspective and do not receive, compare, or react to another reviewer's
+findings. Severity is a label, not a filter, **within that assigned
 perspective**: report every real issue found there, including `nit`.
 
 The permitted perspectives are:
 
+- `combined` — apply every non-security rubric (`spec_scope`,
+  `correctness_tests`, `minimality_maintainability`) in one pass. Do not mix
+  the `security` rubric into a combined judgment. For each finding, record
+  `category` as the actual sub-rubric name
+  (`spec_scope` | `correctness_tests` | `minimality_maintainability`), never
+  `combined`.
 - `spec_scope` — Missing, Extra, Misunderstood, and Constraint breach.
 - `correctness_tests` — logic defects, contract or test breakage, error
   handling, and missing tests for changed behavior.
@@ -60,10 +69,13 @@ The permitted perspectives are:
   non-obvious logic, and structure.
 - `security` — public-input validation, authentication or authorization bypass,
   credential or sensitive-data exposure/logging, and shell or path injection.
-  Review this perspective only when the controller assigns it for the change.
+  Review this perspective only when the controller assigns it for the change
+  (non-empty `risk_flags`).
 
-Do not report a finding outside the assigned perspective, even when it would
-otherwise be valid.
+Legacy perspective names remain valid when the controller assigns them
+one-to-one. Do not report a finding outside the assigned perspective, even when
+it would otherwise be valid. Do not mix an unassigned `security` rubric into a
+`combined` judgment.
 
 ### Delta
 
@@ -150,7 +162,10 @@ Return **only** a Findings list. For each finding include:
 - relation to previous findings: `new | resolved | regressed`
 - `severity`: `blocker | major | minor | nit`
 - `category`, `brief_clause`, `file`, and `symbol` — the components of the
-  TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`)
+  TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`). On a
+  `combined` discovery call, `category` is the actual sub-rubric
+  (`spec_scope` | `correctness_tests` | `minimality_maintainability`), not
+  `combined`.
 - summary
 - evidence (`file:line` or concrete diff reference)
 - `origin`: `discovery`, `introduced_by_revision`, or `missed_critical`; new

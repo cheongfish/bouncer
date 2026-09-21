@@ -10,6 +10,14 @@ const tasksDocs = require("./tasks-docs");
 const { expectedTasksId, expectedTaskDocIds, TASK_UNIT_BASENAMES, unitDocKind, } = tasksDocs;
 const config = require("./config");
 const { DEFAULT_VERIFY_ALLOWLIST } = config;
+// review-dispatch Execute 경로와 같은 허용 목록. 여기 S30과 분류기 거절이
+// 어긋나면 malformed 위험이 한쪽에만 통과한다.
+const REVIEW_RISK_ENUM = [
+    'public_interface',
+    'authentication',
+    'authorization',
+    'credential',
+];
 /**
  * 경로가 요구하는 bouncer type. 위치 규칙이 없으면 null — S19를 내지 않는다.
  * task 묶음 basename은 TASK_UNIT_BASENAMES만 순회하고 문자열을 여기 두지 않는다.
@@ -203,6 +211,27 @@ function checkStructural(doc, failures, verifyAllowlist = DEFAULT_VERIFY_ALLOWLI
         }
         else if (bouncer.status === 'verifying' || bouncer.status === 'integrated') {
             add('S29', `commit task cannot use verification status ${bouncer.status}`);
+        }
+        // S30: review_risk는 승인 enum의 중복 없는 배열만 받는다. 부재는 legacy []
+        // 로 읽히므로 통과 — 새 문서의 malformed 값만 dispatch 전에 막는다.
+        if (bouncer.review_risk !== undefined) {
+            if (!Array.isArray(bouncer.review_risk)) {
+                add('S30', 'review_risk must be an array');
+            }
+            else {
+                const seen = new Set();
+                for (const entry of bouncer.review_risk) {
+                    if (typeof entry !== 'string' || !REVIEW_RISK_ENUM.includes(entry)) {
+                        add('S30', `review_risk value invalid: ${String(entry)}`);
+                        continue;
+                    }
+                    if (seen.has(entry)) {
+                        add('S30', `review_risk duplicate: ${entry}`);
+                        continue;
+                    }
+                    seen.add(entry);
+                }
+            }
         }
     }
 }

@@ -50,31 +50,45 @@ unresolved. Used from `/bouncer-execute`.
    (every finding `resolved`, `accepted` with a note, or `deferred` with a note).
 3. **Review** — Freeze base, HEAD, task-brief revision, `task_brief_hash`,
    `intent_bundle_id`, `intent_bundle_revision`, and latest verify before
-   review. Dispatch `spec_scope`, `correctness_tests`, and
-   `minimality_maintainability` reviewers in parallel; dispatch security only
-   when the changed surface requires it. Fill
-   [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md) for each reviewer
-   without sharing another discovery reviewer's findings and without the full
-   Explain body. Use named
-   **`bouncer-reviewer`** with the resolved model and only that filled call
-   slot. When named agents are unavailable, use a **fresh generic** subagent
-   whose payload carries the entire body of `agents/bouncer-reviewer.md` —
-   every section from Authority through Output contract, verbatim — plus the
-   filled reviewer-prompt: frozen base and HEAD, task brief revision,
-   `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`,
-   `intent_sections`, mode, perspective, latest verify, and for delta the
-   previous findings and revision diff, with the read-only cwd. When no
-   subagent tool exists, run an inline read-only pass that first reads
-   `agents/bouncer-reviewer.md` and follows every section with that same input.
+   review. Run `bouncer review-dispatch execute --blueprint <dir> --task <NNN>
+   --base <frozen-base> --head <frozen-head>`. That CLI result is the only
+   discovery dispatch authority: do not recompute file/line stats, guess risk
+   from path names or diff bodies, or override `strategy` / `perspectives` /
+   `risk_flags`. When the payload is `ok: false`, or when its `target` /
+   `risk_flags` disagree with the frozen values and the current task's
+   `review_risk`, stop — do not call a reviewer and do not mark the review
+   accepted.
+
+   Dispatch discovery reviewers by walking the CLI `perspectives` array in
+   order — that list is the only fan-out. Do not also branch on `strategy` to
+   invent calls, and do not append `security` from `risk_flags` separately; the
+   CLI already placed those choices in `perspectives` (for example `single`
+   without risk → `combined`; small risk → `combined` then `security`;
+   `parallel` without risk → the three non-security perspectives; large risk →
+   those three then `security`). Fill
+   [`assets/reviewer-prompt.md`](assets/reviewer-prompt.md)
+   for each reviewer without sharing another discovery reviewer's findings and
+   without the full Explain body. Use named **`bouncer-reviewer`** with the
+   resolved model and only that filled call slot. When named agents are
+   unavailable, use a **fresh generic** subagent whose payload carries the
+   entire body of `agents/bouncer-reviewer.md` — every section from Authority
+   through Output contract, verbatim — plus the filled reviewer-prompt: frozen
+   base and HEAD, task brief revision, `task_brief_hash`, `intent_bundle_id`,
+   `intent_bundle_revision`, `intent_sections`, mode, perspective, strategy,
+   risk_flags, latest verify, and for delta the previous findings and revision
+   diff, with the read-only cwd. When no subagent tool exists, run an inline
+   read-only pass that first reads `agents/bouncer-reviewer.md` and follows
+   every section with that same input.
 
    The controller verifies evidence, merges duplicate fingerprints, records
    `severity_changes`, `origin`, and `actionability`, and decides `must_fix` or
    `advisory` from the brief, evidence, and changed range. It dispatches one
    implementer once for all must-fix findings, reruns verify, then dispatches
-   one delta reviewer with the prior findings and revision diff. The controller
-   (not the subagent) updates existing `<pointer task directory>/review.md`
-   `## Findings`, `bouncer.review.findings[]`, and `bouncer.review.rounds[]`.
-   An advisory is recorded once as accepted or deferred with a note, not fixed.
+   one delta reviewer with the prior findings and revision diff — delta does
+   not receive a discovery perspective. The controller (not the subagent)
+   updates existing `<pointer task directory>/review.md` `## Findings`,
+   `bouncer.review.findings[]`, and `bouncer.review.rounds[]`. An advisory is
+   recorded once as accepted or deferred with a note, not fixed.
 4. **Assert** — Confirm `## Findings` is present and every finding has an
    actionable disposition. Never leave a false acceptance while an actionable
    finding is unresolved.
