@@ -8,6 +8,16 @@ role-specific `intent_sections` projection. Named and fallback receive identical
 identifiers and the same role section set. Do not pass the full Explain body,
 another task's bundle, or another role's report.
 
+Under a coordinator drive, every implementer dispatch — named or fallback —
+also carries the same five `coordinate dispatch` metadata fields: `attempt`,
+`task_brief_hash`, `base_head`, `initial_worktree_state`, and when present
+`previous_outcome` as `{ outcome, summary }`. Freeze the task brief while the
+attempt is active: do not revise until after the implementer report is judged.
+The implementer returns **Brief revision** with the same `attempt` and
+`task_brief_hash`; a mismatch is stale — call `coordinate report` with the
+received attempt and hash so runtime can append `stale-report`, and do not
+treat it as accepted or call `coordinate record`.
+
 ## Named implementer
 
 Before a **new named dispatch**, compare the temporary
@@ -23,19 +33,22 @@ worktree cwd and only the current task's Goal & intent, Current behavior,
 Target behavior, Interface, Touch, Do not touch, Constraints, and Checklist
 (omit any of those two behavior sections that the brief does not carry), plus
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and the
-implementer's `intent_sections` projection. The generated role file already owns
-the role instructions, so do not repeat them in the named payload. Do not add
-historical commit subjects, earlier-task conversation, unselected context
-documents, or the full Explain body.
+implementer's `intent_sections` projection. Under a coordinator drive also pass
+`attempt`, `base_head`, `initial_worktree_state`, and when present
+`previous_outcome` from `coordinate dispatch` — the same five metadata fields
+as the fallback path — and require **Brief revision** in the report. The
+generated role file already owns the role instructions, so do not repeat them
+in the named payload. Do not add historical commit subjects, earlier-task
+conversation, unselected context documents, or the full Explain body.
 
 Under a coordinator drive the cwd is the task worktree `bouncer coordinate
 prepare` assigned — never the integration worktree and never the main checkout
 — and the eight sections come from the brief as the coordinator's latest `bouncer
 coordinate revise` left it, not the approval snapshot (omit absent behavior
 sections). Add nothing else about the drive: the coordinator context a worker
-needs is its worktree, its current brief, the shared bundle identifiers, and
-the fact that its report goes back to the coordinator. Other tasks'
-briefs, the ledger, and other workers' reports stay out of the payload.
+needs is its worktree, its current brief, the shared bundle identifiers, the
+dispatch metadata above, and the fact that its report goes back to the
+coordinator. Other tasks' briefs, the ledger, and other workers' reports stay out of the payload.
 
 ## Implementer fallback
 
@@ -48,7 +61,10 @@ arrive — plus the actual worktree cwd and the eight current-task sections
 (Goal & intent, Current behavior, Target behavior, Interface, Touch,
 Do not touch, Constraints, Checklist — omit absent behavior sections), with the
 same `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
-`intent_sections` as the named path. Or run `implementation` inline: the inline
+`intent_sections` as the named path, and under a coordinator drive the same
+five dispatch metadata fields (`attempt`, `task_brief_hash`, `base_head`,
+`initial_worktree_state`, and conditional `previous_outcome`) so **Brief revision**
+stays comparable. Or run `implementation` inline: the inline
 pass first reads `agents/bouncer-implementer.md` and follows every section with
 the same cwd and sections. Either path retains `affected_paths`, status, and
 commit prohibitions. The inline fallback still receives G6–G8 judgment after

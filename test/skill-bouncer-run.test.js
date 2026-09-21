@@ -126,3 +126,21 @@ test('run caps repair at two waves and renders partial-close handoff without suc
   assert.match(md, /NEXT_PLAN\.md를 확인하고 후속 계획 진행 여부를 승인해 주세요\./);
   assert.match(md, /성공이나 `closed`로 표시하지 않는다/);
 });
+
+// attempt metadata는 delegated coordinator 소유다. root run이 자체 생성하면
+// controller 경계가 중복된다.
+test('run leaves dispatch attempt metadata ownership with the delegated coordinator', () => {
+  const coordinator = fs.readFileSync(
+    path.join(__dirname, '..', 'agents/bouncer-coordinator.md'),
+    'utf8',
+  );
+  const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'));
+  assert.match(coordinator, /coordinate dispatch/);
+  assert.match(coordinator, /\battempt\b/);
+  assert.match(coordinator, /previous_outcome/);
+  // root run skill은 attempt/previous_outcome을 자체 만들지 않는다.
+  assert.doesNotMatch(delegation, /coordinate dispatch/);
+  assert.doesNotMatch(md, /previous_outcome/);
+  assert.doesNotMatch(md, /initial_worktree_state/);
+  assert.doesNotMatch(md, /base_head/);
+});

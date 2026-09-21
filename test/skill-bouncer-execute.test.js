@@ -545,3 +545,65 @@ test('bouncer-execute revalidates the intent bundle after scope revision and sto
     /(?:named|fallback)[\s\S]{0,200}(?:same|identical)[\s\S]{0,120}(?:task_brief_hash|intent_bundle_id)|(?:same|identical)[\s\S]{0,80}task_brief_hash[\s\S]{0,80}intent_bundle_id/i,
   );
 });
+
+// named/fallback·review fix·verify recovery는 같은 다섯 dispatch metadata field를
+// 받고, brief revise는 report 판정 뒤에만 연다.
+test('bouncer-execute carries the five dispatch metadata fields on every implementer path', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
+  const recovery = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/verification-recovery.md'), 'utf8');
+  const round = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/review-round.md'), 'utf8');
+  const named = dispatch.match(/## Named implementer[\s\S]*?(?=\n## )/)?.[0] || '';
+  const fallback = dispatch.match(/## Implementer fallback[\s\S]*?(?=\n## |$)/)?.[0] || '';
+
+  for (const [label, text] of [
+    ['named implementer', named],
+    ['implementer fallback', fallback],
+  ]) {
+    assert.match(text, /\battempt\b/, label);
+    assert.match(text, /task_brief_hash/, label);
+    assert.match(text, /base_head/, label);
+    assert.match(text, /initial_worktree_state/, label);
+    assert.match(text, /previous_outcome/, label);
+    assert.match(text, /Brief revision/, label);
+  }
+
+  // review fix·verify recovery·execute body도 named/fallback과 같은 다섯 field를 요구한다.
+  for (const [label, text] of [
+    ['review-round fix', round],
+    ['verification-recovery', recovery],
+    ['execute skill body', body],
+  ]) {
+    assert.match(text, /\battempt\b/, label);
+    assert.match(text, /task_brief_hash/, label);
+    assert.match(text, /base_head/, label);
+    assert.match(text, /initial_worktree_state/, label);
+    assert.match(text, /previous_outcome/, label);
+  }
+
+  // previous_outcome shape는 TASKS-001 dispatch 출력 그대로다.
+  assert.match(dispatch, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
+  // stale mismatch도 coordinate report(received)로 남겨 runtime이 stale-report를 append한다.
+  assert.match(
+    dispatch,
+    /(?:stale|mismatch)[\s\S]{0,200}coordinate report|coordinate report[\s\S]{0,160}(?:received|stale|mismatch)/i,
+  );
+
+  // report 판정 → (필요 시) revise → 새 dispatch. 실행 중 brief 수정 금지.
+  assert.match(
+    body,
+    /coordinate report[\s\S]{0,400}(?:coordinate revise|revise)[\s\S]{0,400}(?:coordinate dispatch|dispatch)|(?:report)[\s\S]{0,200}(?:revise)[\s\S]{0,200}(?:dispatch)/i,
+  );
+  assert.match(
+    dispatch,
+    /(?:do not|never|freeze|frozen)[\s\S]{0,120}(?:revise|brief)|(?:revise)[\s\S]{0,120}(?:after|until)[\s\S]{0,80}(?:report|outcome)/i,
+  );
+  assert.match(
+    recovery,
+    /(?:coordinate report|report)[\s\S]{0,200}(?:coordinate dispatch|dispatch|attempt)|(?:report|outcome)[\s\S]{0,160}(?:re-?dispatch|new attempt)/i,
+  );
+  assert.match(
+    round,
+    /(?:coordinate report|report)[\s\S]{0,200}(?:coordinate dispatch|dispatch|attempt|previous_outcome)|(?:fix|re-?dispatch)[\s\S]{0,160}(?:attempt|previous_outcome)/i,
+  );
+});

@@ -126,20 +126,28 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    implementer's `intent_sections` projection. Do not pass the full Explain body
    or another role's report.
 
+   Under a coordinator drive, also pass the five `coordinate dispatch` fields
+   (`attempt`, `task_brief_hash`, `base_head`, `initial_worktree_state`, and
+   conditional `previous_outcome`) on both compact and generic paths, require
+   **Brief revision** in the report, and freeze the brief until that report is
+   judged.
+
    Modify only within `affected_paths` (commit-safety enforces). Honor Do not
    touch, and honor Constraints inside the paths you are allowed to edit —
    staying in `affected_paths` is not by itself compliance. When the work needs
    a path the brief does not carry, do not expand it in place: outside a drive
    stop and send the user back to `/bouncer-plan`; under a coordinator drive
-   hand the implementer's **Scope impact** to the coordinator, which records the
-   new scope with `bouncer coordinate revise --blueprint <dir> --task <NNN>
+   hand the implementer's **Scope impact** to the coordinator, which records
+   `coordinate report` for the active attempt, then — only after that report
+   outcome — records the new scope with `bouncer coordinate revise --blueprint <dir> --task <NNN>
    --paths <p> [--paths <p>…] --reason <r>` — the one surface that revises scope
-   — then re-call `bouncer intent bundle` against the revised brief hash and
-   related function set. When function blob and section hashes match, keep the
-   existing `intent_bundle_revision`; when either differs, pin the new revision
-   for every later role. If that revalidation fails, do not start role dispatch;
-   return the cause to the controller and never hide a stale bundle ID in a
-   fallback payload. Then re-brief the round from the revised document.
+   — then opens a new `coordinate dispatch` and re-calls `bouncer intent bundle`
+   against the revised brief hash and related function set. When function blob
+   and section hashes match, keep the existing `intent_bundle_revision`; when
+   either differs, pin the new revision for every later role. If that
+   revalidation fails, do not start role dispatch; return the cause to the
+   controller and never hide a stale bundle ID in a fallback payload. Then
+   re-brief the round from the revised document.
 
    **One implementer (initial).** Step 3 dispatches implementer once for the
    task brief, inline path included. Never split the brief across parallel
