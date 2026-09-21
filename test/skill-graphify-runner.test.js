@@ -171,15 +171,25 @@ test('graphify-runner excludes hub seeds and generic query words from examples',
   assert.doesNotMatch(md, /--seed\s+"scripts\/bouncer"/);
   assert.doesNotMatch(md, /--query\s+"graph suggestion task evidence"/);
   // F1: 예시는 이 저장소의 실제 진입 경로/심볼이어야 한다(가짜 lib/… 금지).
+  // 정본은 entry seed 1개를 기본 예시로 둔다(≥3 seeds / CLI hub 금지).
   assert.match(md, /--seed\s+"scripts\/(?:src\/)?lib\/graph-search\.(?:ts|js)"/);
-  assert.match(md, /--seed\s+"graphSuggest"/);
   assert.doesNotMatch(md, /--seed\s+"lib\/graph-suggest"/);
   assert.doesNotMatch(md, /--seed\s+"writeScopeEvidence"/);
-  // F2: 원칙 1이 배제한 일반어가 예시 --query에 남아 있으면 안 된다.
+  // F2: 원칙 1이 배제한 일반어·넓은 4-token 예시가 --query에 남아 있으면 안 된다.
   assert.doesNotMatch(md, /--query\s+"[^"]*\bevidence\b[^"]*"/);
   assert.doesNotMatch(md, /--query\s+"[^"]*\bsuggestion\b[^"]*"/);
   assert.doesNotMatch(md, /--query\s+"[^"]*\btask\b[^"]*"/);
-  assert.match(md, /--query\s+"[^"]+"/);
+  assert.doesNotMatch(md, /--query\s+"[^"]*\bcandidates\b[^"]*"/);
+  assert.doesNotMatch(md, /--query\s+"[^"]*\bconfidence\b[^"]*"/);
+  assert.doesNotMatch(md, /--query\s+"scope quality candidates confidence"/);
+  // 짧은 noun phrase: 예시 query는 공백 기준 1~2 token만.
+  const queryMatch = md.match(/--query\s+"([^"]+)"/);
+  assert.ok(queryMatch, 'example --query present');
+  const tokens = queryMatch[1].trim().split(/\s+/).filter(Boolean);
+  assert.ok(tokens.length >= 1 && tokens.length <= 2, `example query must be 1–2 tokens, got ${tokens.length}`);
+  // 예시 블록의 --seed 반복은 1~2개(≥3은 거부).
+  const seedCount = (md.match(/--seed\s+"/g) || []).length;
+  assert.ok(seedCount >= 1 && seedCount <= 2, `example --seed count must be 1–2, got ${seedCount}`);
 });
 
 test('graphify-runner documents search-space reduction principles', () => {
@@ -192,16 +202,30 @@ test('graphify-runner documents search-space reduction principles', () => {
   assert.match(md, /user\s+confirm|사용자\s*승인|confirm[\s\S]{0,40}`affected_paths`/i);
 });
 
-test('bouncer-plan graphify-suggestions reinforces search-space reduction', () => {
-  const fs = require('node:fs');
-  const path = require('node:path');
-  const suggestions = fs.readFileSync(
-    path.join(__dirname, '..', 'skills', 'bouncer-plan', 'references', 'graphify-suggestions.md'),
-    'utf8',
+test('graphify-runner owns plan-time query token cost and cap debug/retry limits', () => {
+  const md = readSkill('graphify-runner');
+  // query token도 traversal seed에 합쳐지므로 첫 질의를 짧게 유지하는 비용을 정본이 설명한다.
+  assert.match(md, /query\s+token[\s\S]{0,120}(seed|traversal)|각\s*query\s*token[\s\S]{0,80}seed/i);
+  assert.match(md, /short\s+English\s+ASCII\s+noun|짧은\s*English\s*ASCII\s*noun/i);
+  // cap 사유 allowlist만 debug+축소 retry를 연다 — 각 1회.
+  assert.match(md, /seed\.fanout_cap/);
+  assert.match(md, /traversal\.frontier_cap/);
+  assert.match(md, /low-confidence/);
+  assert.match(md, /--debug/);
+  assert.match(md, /(?:once|한\s*번|1\s*회)[\s\S]{0,80}(?:retry|재시도)|(?:retry|재시도)[\s\S]{0,80}(?:once|한\s*번|1\s*회)/i);
+  assert.match(md, /(?:shrink|fewer|narrow|축소|줄인?)[\s\S]{0,60}(?:query|seed|token)/i);
+  // allowlist 배타성: 비-cap 사유로는 debug/retry를 열지 않는다는 극성 문구가 있어야 한다.
+  assert.match(
+    md,
+    /do not\s+`--debug`\s+or\s+retry\s+for\s+any\s+other\s+reason|any\s+other\s+reason[\s\S]{0,40}(?:do not|금지)|다른\s*사유/i,
   );
-  assert.doesNotMatch(suggestions, /--seed\s+"scripts\/bouncer"/);
-  assert.match(suggestions, /hub|허브|generic|일반어/i);
-  assert.match(suggestions, /1\s*[–-]?\s*2|one\s*(?:or|to)\s*two|진입\s*심볼|entry\s*symbol/i);
-  assert.match(suggestions, /delet(?:e|ion)|삭제/i);
-  assert.match(suggestions, /confirm|승인|affected_paths/i);
+  // debug-once 결합: cap allowlist 경로에서만 `--debug` 1회가 열리도록 묶는다(단독 긍정 매치만으로는 부족).
+  assert.match(
+    md,
+    /(?:fanout_cap|frontier_cap)[\s\S]{0,200}(?:run\s+once\s+with\s+`--debug`|`--debug`[\s\S]{0,60}once|once[\s\S]{0,60}`--debug`)/i,
+  );
+  // 비-cap debug/retry나 반복 재시도를 권장 절차로 두면 안 된다.
+  // "do not raise …" 금지는 허용; 상한 상향을 권하는 문구만 거부한다.
+  assert.doesNotMatch(md, /retry\s+(?:until|again|repeatedly|multiple|several)|반복\s*재시도|여러\s*번\s*재시도/i);
+  assert.doesNotMatch(md, /(?:then|or|and)\s+raise\s+(?:the\s+)?(?:fixed\s+)?traversal|increase\s+(?:fan-?out|frontier)|widen\s+(?:the\s+)?(?:fixed\s+)?traversal\s+caps\s+to/i);
 });

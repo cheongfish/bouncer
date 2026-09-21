@@ -106,33 +106,55 @@ frontmatter.
 
 3. **Rank file candidates after authoring.** Only reach this step when the
    source graph is available (step 2 did not skip). Run `graph-suggest` as the
-   combined source/test ranking. Build an **English ASCII noun-oriented
-   query** from the blueprint goal plus the tasks checklist intent. Do not use
-   Korean query examples or suggest a tokenizer extension; `basis[].query`
-   records the exact English query used. Shrink the search space before
-   calling `graph-suggest`:
+   combined source/test ranking. This step is the **sole plan-time rule body**
+   for the initial `--query`, explicit `--seed` count, cap-diagnosis `--debug`,
+   and a single shrink retry — plan skill and local suggestion docs link here
+   and must not restate the numbers or conditions.
+
+   Build a **short English ASCII noun phrase** from the blueprint goal plus the
+   tasks checklist intent. Prefer distinctive domain nouns; do not concatenate
+   every blueprint word. Do not use Korean query examples or suggest a tokenizer extension;
+   `basis[].query` records the exact English query used.
+
+   **Query-token cost:** each query token also becomes a traversal seed, so a
+   long or generic phrase inflates fan-out and frontier before any explicit
+   `--seed` is added. Keep the first query to a few discriminating nouns.
+
+   Shrink the search space before calling `graph-suggest`:
 
    1. **Exclude hubs and generic words** — do not seed CLI hubs such as
       `scripts/bouncer`, and drop vague query nouns (`suggestion`, `task`,
-      `evidence`, `graph` alone) that match half the corpus.
+      `evidence`, `candidates`, `confidence`, `graph` alone) that match half
+      the corpus.
    2. **Seed 1–2 entry symbols** — only the real entry files or symbols the
       change starts from (paths, function names, anchors already in ASCII).
+      Reject **three or more entry** seeds on the first call; the entry default
+      stays 1–2 and is not raised by other seed kinds.
    3. **Seed deletion targets directly** — when the plan removes files, pass
       those paths as `--seed` so neighbors surface even if query terms miss.
+      A deletion-target seed may be added on top of the 1–2 entry seeds; it is
+      not an entry seed and does not make ≥3 entry seeds acceptable.
    4. **User confirmation first** — candidates stay advisory; write
       `affected_paths` only after the user confirms (never from suggest alone).
 
-   Then run (entry-symbol example — not a hub):
+   Then run (one real entry-path seed — not a hub; short distinctive query):
    ```bash
    bouncer graph-suggest \
-     --query "scope quality candidates confidence" \
-     --seed "scripts/src/lib/graph-search.ts" --seed "graphSuggest"
+     --query "scope quality" \
+     --seed "scripts/src/lib/graph-search.ts"
    ```
    Optional `--seed <value>` flags may be repeated when the plan already names
-   symbols or paths — keep the set to **1–2** entry points unless a deletion
-   target must be added. Prefer already-ASCII paths, symbols, and anchors as
-   seeds. Add `--debug` only when diagnosing ranking (fan-out, frontier,
-   omissions); never feed debug detail into plan scope.
+   symbols or paths — keep **entry** seeds to **1–2**; a deletion-target seed
+   may be added without raising that entry default. Prefer already-ASCII
+   paths, symbols, and anchors as seeds.
+
+   **Cap diagnosis and single shrink retry (allowlist only):** when the first
+   result is `low-confidence` and a `reasons` code is `seed.fanout_cap` **or**
+   `traversal.frontier_cap`, run once with `--debug` to inspect fan-out /
+   frontier / omissions, then retry **once** with fewer query tokens and at
+   most one unique entry seed. Do not `--debug` or retry for any other reason,
+   do not loop, and never widen the fixed traversal caps. Never feed debug
+   detail into plan scope.
 
    Consume stdout JSON default fields only:
    `status`, `confidence`, `candidates.implementation|test`,
@@ -179,12 +201,14 @@ frontmatter.
   `affected_paths` manually.
 - Path candidates are repo-relative POSIX **files**; do not roll up to
   directories.
-- Use English ASCII noun-oriented `--query` values and record the exact value
-  in `basis[].query`; never provide Korean query examples or suggest extending
-  the tokenizer. For `--seed`, prioritize already-ASCII paths, symbols, then
-  anchors — never hub paths like `scripts/bouncer`, never generic-only query
-  words, prefer 1–2 entry symbols, seed deletion targets directly, and leave
-  `affected_paths` until the user confirms.
+- Use short English ASCII noun-oriented `--query` values and record the exact
+  value in `basis[].query`; never provide Korean query examples or suggest
+  extending the tokenizer. Remember query tokens also seed traversal. For
+  `--seed`, prioritize already-ASCII paths, symbols, then anchors — never hub
+  paths like `scripts/bouncer`, never generic-only query words, prefer 1–2
+  entry symbols, seed deletion targets directly, and leave `affected_paths`
+  until the user confirms. Cap-only `--debug` once and one shrink retry apply
+  solely for `seed.fanout_cap` / `traversal.frontier_cap`.
 
 ## Return
 

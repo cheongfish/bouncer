@@ -356,6 +356,47 @@ test('bouncer-plan points graphify enablement at the CLI only', () => {
   assert.match(body, /init --promote-graphify/);
 });
 
+// query/seed/cap debug·retry 숫자·조건은 graphify-runner 정본만 소유한다.
+// plan skill과 로컬 suggestion은 링크·handoff·사용자 확인만 남긴다.
+test('bouncer-plan Graphify docs defer query/seed/debug/retry rules to graphify-runner', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const suggestions = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/graphify-suggestions.md'),
+    'utf8',
+  );
+  const authorAt = body.indexOf('3. **Author.**');
+  const scopeAt = body.indexOf('4. **Scope confirm.**');
+  assert.ok(authorAt >= 0 && scopeAt > authorAt, 'Author step owns Graphify paragraph');
+  const author = body.slice(authorAt, scopeAt);
+
+  // 진입 skill·로컬 suggestion 모두 runner 정본을 가리킨다.
+  assert.match(author, /\$\{BOUNCER_ROOT\}\/references\/graphify-runner\/index\.md/);
+  assert.match(suggestions, /graphify-runner|\$\{BOUNCER_ROOT\}\/references\/graphify-runner/);
+
+  // 숫자·cap 사유·retry 조건 본문은 plan 문서에 복제하지 않는다.
+  for (const [label, text] of [
+    ['SKILL.md Author', author],
+    ['graphify-suggestions.md', suggestions],
+  ]) {
+    assert.doesNotMatch(text, /seed\.fanout_cap/, `${label} must not own fanout_cap`);
+    assert.doesNotMatch(text, /traversal\.frontier_cap/, `${label} must not own frontier_cap`);
+    assert.doesNotMatch(
+      text,
+      /1\s*[–-]?\s*2\s+entry|one unique (?:function|path) seed|seed 1\s*[–-]?\s*2/i,
+      `${label} must not own seed-count rule body`,
+    );
+    assert.doesNotMatch(
+      text,
+      /inspect `--debug` once|retry once with fewer|--debug` once and retry|cap-only\s+`--debug`|a single shrink retry/i,
+      `${label} must not own debug/retry counts`,
+    );
+  }
+
+  // suggestion은 query 조성 숫자 목록 대신 handoff·사용자 확인을 유지한다.
+  assert.match(suggestions, /advisory|confirm|affected_paths/i);
+  assert.doesNotMatch(suggestions, /No hubs \/ generic words|1–2 entry symbols|Deletion targets as seeds/i);
+});
+
 test('bouncer-plan loads context-review only after the light skip in step 5', () => {
   const { body } = parseFrontmatter(mainMd);
   const step5 = body.indexOf('5. **Review.**');
