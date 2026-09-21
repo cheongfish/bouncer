@@ -18,6 +18,7 @@ const SUBCOMMANDS = [
   'plan',
   'run',
   'import',
+  'review-dispatch',
 ];
 
 function capture(argv) {
@@ -173,4 +174,20 @@ test('unknown command is still rejected after intent is public', () => {
   assert.match(r.err, /unknown command: intet/);
   assert.match(r.err, /intent/);
   assert.equal(r.out, '');
+});
+
+test('usage lists review-dispatch plan and execute forms', () => {
+  const out = capture([]).out;
+  assert.match(out, /review-dispatch\s+plan --blueprint <dir>/);
+  assert.match(
+    out,
+    /review-dispatch\s+execute --blueprint <dir> --task <ddd> --base <sha> --head <sha>/,
+  );
+});
+
+test('review-dispatch without subcommand exits 2 on stderr', () => {
+  const r = capture(['review-dispatch']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /review-dispatch/);
+  assert.strictEqual(r.out, '');
 });

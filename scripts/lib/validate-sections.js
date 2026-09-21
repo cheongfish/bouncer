@@ -32,10 +32,26 @@ const NOTE_REQUIRED_STATUS = ['accepted', 'deferred'];
 const FINDING_ACTIONABILITY = ['must_fix', 'advisory'];
 const FINDING_ORIGIN = ['discovery', 'introduced_by_revision', 'missed_critical'];
 const ROUND_MODE = ['discovery', 'delta', 'critical_recovery'];
-const REVIEW_PERSPECTIVE = ['spec_scope', 'correctness_tests', 'minimality_maintainability', 'security'];
-// 계획 문서 판정은 context reviewer의 네 판단 범위를 그대로 관점으로 쪼갠 것이다.
+// adaptive Execute는 combined를 추가하고, legacy 네 이름은 기존 round를 계속
+// 통과시킨다. security는 위험 flag가 있을 때만 별도 call로 붙는다.
+const REVIEW_PERSPECTIVE = [
+    'combined',
+    'spec_scope',
+    'correctness_tests',
+    'minimality_maintainability',
+    'security',
+];
+// adaptive Plan은 combined·local·global을 쓰되, legacy 네 관점 round도 읽는다.
 // execute 관점과 이름을 섞지 않아야 G18이 diff 리뷰 원장을 계획 원장으로 오인하지 않는다.
-const CONTEXT_REVIEW_PERSPECTIVE = ['cross_document', 'scope', 'korean_quality', 'success_criteria'];
+const CONTEXT_REVIEW_PERSPECTIVE = [
+    'combined',
+    'local',
+    'global',
+    'cross_document',
+    'scope',
+    'korean_quality',
+    'success_criteria',
+];
 // execute fingerprint는 접두가 없고 context fingerprint만 이 접두를 갖는다. 두 원장이
 // 같은 문자열을 만들 수 없게 해 finding을 다른 리뷰로 옮겨 적는 실수를 게이트가 잡는다.
 const CONTEXT_FINDING_NAMESPACE = 'context';

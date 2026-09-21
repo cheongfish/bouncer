@@ -171,6 +171,8 @@ Blueprint: [<BP-id>](../../index.md)
     // G14/G18은 findings[]와 status로 미완성을 거절한다. 본문에 허용값을
     // HTML 주석으로만 두면 stripComments 후 섹션이 비지 않고(플레이스홀더 유지),
     // 파서가 예시 finding을 실제 값으로 읽지도 않는다.
+    // scaffold.test.js는 perspectives pipe 목록을 개행 없는 연속 문자열로 검사한다.
+    // eslint max-len(≤120) 줄바꿈은 enum 안쪽이 아니라 `perspectives (` 앞에서만 한다.
     'review.md': `# Review
 
 ## Findings
@@ -184,7 +186,8 @@ Blueprint: [<BP-id>](../../index.md)
      accepted note: 권한 있는 위험 수용 근거
      deferred note: 현재 task와 독립인 후속 planning 항목 근거
      optional bouncer.review.rounds[]: round (양의 정수), mode (discovery | delta | critical_recovery),
-     target (base·head), perspectives (spec_scope | correctness_tests | minimality_maintainability | security,
+     target (base·head),
+     perspectives (combined | spec_scope | correctness_tests | minimality_maintainability | security,
      target_head는 target.head와 동일), previous_finding_ids (문자열 배열), new · resolved · regressed
      (0 이상 정수). mode 없는 구문서는 기존 계약으로 통과한다. -->
 - <finding>
@@ -204,7 +207,8 @@ Blueprint: [<BP-id>](../../index.md)
      actionability: must_fix | advisory
      origin: discovery | introduced_by_revision | missed_critical
      optional bouncer.context_review.rounds[]: round (양의 정수), mode (discovery | delta),
-     target (digest), perspectives (cross_document | scope | korean_quality | success_criteria,
+     target (digest),
+     perspectives (combined | local | global | cross_document | scope | korean_quality | success_criteria,
      target_digest는 target.digest와 동일), severity_changes. rounds 없는 구문서는 기존 계약으로 통과한다. -->
 - <finding>
 `,

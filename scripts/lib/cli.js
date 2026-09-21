@@ -5,6 +5,7 @@ const docCommands = require("./cli-doc-commands");
 const gitCommands = require("./cli-git-commands");
 const projectCommands = require("./cli-project-commands");
 const currentCommand = require("./cli-current-command");
+const reviewDispatchCommand = require("./cli-review-dispatch-command");
 // 선언 순서 = 옛 USAGE 나열 순서. 디스패치는 키 조회라 이 순서에 의존하지
 // 않지만, help 문자열이 레지스트리에서 조립되므로 키를 빼먹으면 목록에서
 // 사라지고 usage를 빼먹으면 해당 블록이 비어 테스트가 실패한다.
@@ -30,6 +31,9 @@ const COMMANDS = {
     current: currentCommand.current,
     migrate: projectCommands.migrate,
     import: gitCommands.import,
+    // read-only 분류기. Plan/Execute controller가 reviewer 수를 같은 JSON으로
+    // 고르도록 registry에만 등록하고, 구현은 cli-review-dispatch-command에 둔다.
+    'review-dispatch': reviewDispatchCommand,
 };
 const USAGE_HEADER = `usage: bouncer <command> [options]
 

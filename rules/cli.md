@@ -65,11 +65,19 @@ bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <
 bouncer graphify-bin
 bouncer graph-sync
 bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
+bouncer review-dispatch plan --blueprint <dir>
+bouncer review-dispatch execute --blueprint <dir> --task <ddd> --base <sha> --head <sha>
 ```
 
 Use `project-root` to locate the consuming repository from linked worktrees.
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
+
+`review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
+clustered`) or Execute (`single | parallel`, with `security` when
+`review_risk` is non-empty). On structural or input failure it prints
+`{ ok: false }` without a reviewer list (exit 1). Invalid argv is exit 2.
+Do not invent a strategy when the command fails.
 
 ## Controlled migrations
 
