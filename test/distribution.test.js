@@ -208,3 +208,26 @@ test('the package ships the Graphify compatibility manifest for every host insta
   assert.strictEqual(manifest.package, 'graphifyy');
   assert.strictEqual(manifest.install_spec, 'graphifyy==0.9.56');
 });
+
+// 배포 md와 로컬 Codex 생성 TOML이 같은 checkpoint·hash fence 계약을 담아야
+// host마다 다른 coordinator 입력을 실행하지 않는다. `.codex/`는 pack에서 빠지므로
+// 저장소 생성본과 md→toml 변환 결과를 여기서 맞춘다.
+test('coordinator Markdown and generated Codex TOML share the checkpoint ledger contract', () => {
+  const { mdToCodexToml, GENERATED_MARKER } = require('../scripts/lib/codex-agents');
+  const md = fs.readFileSync(path.join(root, 'agents/bouncer-coordinator.md'), 'utf8');
+  const tomlPath = path.join(root, '.codex/agents/bouncer-coordinator.toml');
+  const checkedIn = fs.readFileSync(tomlPath, 'utf8');
+  const generated = mdToCodexToml(md);
+
+  assert.strictEqual(checkedIn.split(/\r?\n/, 1)[0], GENERATED_MARKER);
+  assert.strictEqual(checkedIn, generated);
+  for (const needle of [
+    'checkpoint',
+    '--ledger-path <checkpoint.ledger.path>',
+    '--ledger-hash <checkpoint.ledger.sha256>',
+    'coordinate status',
+  ]) {
+    assert.ok(md.includes(needle), `coordinator md missing: ${needle}`);
+    assert.ok(generated.includes(needle), `generated toml missing: ${needle}`);
+  }
+});

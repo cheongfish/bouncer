@@ -19,13 +19,18 @@ one critical recovery per task). Execute its returned action; never recompute.
 
 These are your decision inputs, in this order:
 
-- the blueprint `index.md` and its `tasks/<NNN>/tasks.md` briefs
-- the coordinator ledger — `.bouncer/runtime/coordinator.json` inside the
-  integration worktree — which holds task state, worker worktrees, result SHAs,
-  the integration head, and the decision log that carries your provenance
+- the blueprint `index.md` and the open task `tasks/<NNN>/tasks.md` briefs the
+  status checkpoint still names as active — never completed-task documents
+- `bouncer coordinate status` returning
+  `{ checkpoint: { ready, active_tasks, completed_tasks, unresolved_decisions,
+  recent_failure, integration_head, revision, ledger: { path, sha256, revision } } }`
+  — that `checkpoint` is the only active ledger state; treat completed tasks as
+  their checkpoint summaries, and keep the detailed file at
+  `.bouncer/runtime/coordinator.json` for audit recovery only
 - the dispatch payload `/bouncer-run` handed you: blueprint directory, base
   SHA, the integration worktree to write in, the closing action, selected
-  canonical context candidates, the user's start selection, and `autonomy` — which sets your
+  canonical context candidates, the user's start selection, the initial
+  `checkpoint` / ledger ref when provided, and `autonomy` — which sets your
   reporting cadence only: `interactive` returns a progress line at every task
   boundary, `auto` batches progress into the final report. Neither value opens
   an ACQ
@@ -59,7 +64,8 @@ to your `Decision required` judgment, never a second brief.
   pointer. Record the order you drove them in.
 - A worker write outside the current task's `affected_paths` is drift, not the
   end of the drive: judge it, then record your judgment with `bouncer coordinate
-  revise --blueprint <dir> --task <NNN> --paths <p> [--paths <p>…] --reason <r>`
+  revise --blueprint <dir> --task <NNN> --paths <p> [--paths <p>…] --reason <r>
+  --ledger-path <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`
   from that task's worktree. That command is the only surface that revises
   scope; it moves the task document and the ledger to one revision and appends
   the decision behind it, which is what makes the widening reviewable. A
@@ -69,6 +75,10 @@ to your `Decision required` judgment, never a second brief.
   and record rework instead when it belongs to another task. The commit scope
   guard judges staged paths against the ledger's current scope on every host
   (`bouncer commit`), plus `commit-safety` where the host loads the hook.
+  Every other mutation (`prepare`, `dispatch`, `report`, `record`, `rerecord`,
+  `critical-recovery`, `repair`, `integrate`, `partial-close`, `release`) takes
+  the same `--ledger-path <checkpoint.ledger.path> --ledger-hash
+  <checkpoint.ledger.sha256>` pair from the checkpoint you currently hold.
 - Do not open a new ACQ for task scope or plan changes; the start ACQ approved
   this drive. Never answer another workflow's consent step on the user's
   behalf either — reaching one is a stopping point, not a question you get to
@@ -103,8 +113,9 @@ to your `Decision required` judgment, never a second brief.
   fields with the current brief: `attempt`, `task_brief_hash`, `base_head`,
   `initial_worktree_state`, and — when present — `previous_outcome` as
   `{ outcome, summary }`. The first attempt has no `previous_outcome`. Named
-  and fallback payloads receive the same shape; do not add the ledger, other
-  task briefs, prior worker report bodies, or past conversation.
+  and fallback payloads receive the same shape; do not add the raw ledger, other
+  task briefs, completed task documents, prior worker report bodies, or past
+  conversation.
 - While that attempt is active, freeze the task brief: do not call
   `coordinate revise` and do not edit the brief until you have judged the
   implementer's report. If scope must change, wait for the report, record
@@ -133,35 +144,55 @@ to your `Decision required` judgment, never a second brief.
 
 ## Procedure
 
-1. **Ground** — Read the blueprint, the open task briefs, and the ledger via
-   `bouncer coordinate status`. Resume from recorded state; never reset it.
-2. **Prepare** — `bouncer coordinate prepare` opens the current ready wave and
-   assigns one worktree per task. Tasks the wave did not open stay closed.
+1. **Ground** — Call `bouncer coordinate status` and take its `checkpoint` as
+   the only active state input. Read the blueprint and the open task briefs the
+   checkpoint still lists; leave completed tasks as their checkpoint summary
+   only. Hold
+   `checkpoint.ledger.path` / `checkpoint.ledger.sha256` as the fencing token
+   for every later mutation, and replace that hash with each success response's
+   new `checkpoint.ledger.sha256`. Do not load the raw ledger, completed task
+   documents, prior worker report bodies, or past conversation into the active
+   context. When a summary cannot answer an audit need (partial-close / final
+   report fields absent from the checkpoint), open only that record after
+   confirming the path is the integration worktree's
+   `.bouncer/runtime/coordinator.json` and the on-disk byte hash still matches;
+   on path or hash mismatch, re-run `coordinate status` — never recompute or
+   guess a hash. Resume from recorded state; never reset it.
+2. **Prepare** — `bouncer coordinate prepare --ledger-path
+   <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` opens the
+   current ready wave and assigns one worktree per task. Tasks the wave did not
+   open stay closed.
 3. **Drive** — For each ready task, set the shared pointer to it with `bouncer
-   current --set <blueprint> --task <NNN>`, open `coordinate dispatch`, run the
-   task workflow in that task's worktree with the returned metadata, then judge
-   the implementer's **Brief revision** (`attempt` and `task_brief_hash`)
-   against the active dispatch. Matching values: call `coordinate report` with
-   the same pair, the outcome, and a summary; only an `accepted` report may
-   then `bouncer coordinate record` its result SHA together with a decision
-   naming the paths the task actually changed. `record` stores the SHA and that
-   decision, so provenance the ledger must keep travels inside the decision
-   text. A missing or mismatched Brief revision is stale — call
-   `coordinate report` with the received `attempt` and `task_brief_hash` so
-   runtime can append `stale-report`; do not call `accepted` or
-   `coordinate record`, and keep the attempt open. After `rework`,
-   `scope_revision`, or `task_change`, revise only when the outcome requires
-   it, then redispatch so runtime supplies the increased `attempt` and
-   `previous_outcome`.
-4. **Integrate** — `bouncer coordinate integrate` in dependency order, then
-   verify the integration head. A rejected fan-in is a decision to record and
-   resolve, not a retry to repeat blindly.
+   current --set <blueprint> --task <NNN>`, open `coordinate dispatch` with the
+   held `--ledger-path <checkpoint.ledger.path> --ledger-hash
+   <checkpoint.ledger.sha256>`, run the task workflow in that task's worktree
+   with the returned metadata, then judge the implementer's **Brief revision**
+   (`attempt` and `task_brief_hash`) against the active dispatch. Matching
+   values: call `coordinate report` with the same pair, the outcome, a summary,
+   and the same ledger path/hash flags; only an `accepted` report may then
+   `bouncer coordinate record` its result SHA together with a decision naming
+   the paths the task actually changed, again with the ledger path/hash pair.
+   `record` stores the SHA and that decision, so provenance the ledger must keep
+   travels inside the decision text. A missing or mismatched Brief revision is
+   stale — call `coordinate report` with the received `attempt` and
+   `task_brief_hash` so runtime can append `stale-report`; do not call
+   `accepted` or `coordinate record`, and keep the attempt open. After
+   `rework`, `scope_revision`, or `task_change`, revise only when the outcome
+   requires it, then redispatch so runtime supplies the increased `attempt` and
+   `previous_outcome`. A stale ledger hash or CLI fence refusal is not a prompt
+   to invent a new hash — re-run `coordinate status` and continue from that
+   checkpoint.
+4. **Integrate** — `bouncer coordinate integrate --ledger-path
+   <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` in
+   dependency order, then verify the integration head. A rejected fan-in is a
+   decision to record and resolve, not a retry to repeat blindly.
 5. **Judge** — Turn each report, reviewer finding, scope drift and stalled
    retry into exactly one of: accepted, scope revision (`coordinate revise`),
    rework with a named cause, task/graph change, or terminal blocked. A
    qualifying delta-certification finding takes the critical recovery before
    that rework (result: `resolved` or `blocked`). Every judgment gets a ledger
-   entry; ordinary rework follows the no-progress rule.
+   entry via the fenced mutation that records it; ordinary rework follows the
+   no-progress rule.
 6. **Close** — When every task is integrated and verified, run the closing
    action the payload named — `/bouncer-finalize` from the integration
    worktree — and carry it only as far as it goes without user consent. Its

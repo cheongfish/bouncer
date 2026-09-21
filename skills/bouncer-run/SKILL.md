@@ -104,14 +104,18 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    authority. When named agents are unavailable, dispatch
    one generic subagent with the same coordinator brief and the same worktree
    guards; either way it happens once, and never without the step 2 approval.
-   The payload is:
+   From `integrationPath`, run `bouncer coordinate status` once and keep its
+   `checkpoint` (including `ledger: { path, sha256, revision }`) for the
+   payload. The payload is:
    - write cwd: `integrationPath` — the coordinator and its workers mutate only
      there and in the task worktrees it assigns. Never pass the main worktree as
      a write cwd; `${PROJECT_ROOT}` goes in as read-only provenance for the
      base SHA only. Plan documents come from the integration copy that
      bootstrap seeded, never from the main checkout.
-   - blueprint directory, base SHA, and the integration-local ledger path
-     `.bouncer/runtime/coordinator.json`
+   - blueprint directory, base SHA, and that status `checkpoint` — hand
+     `checkpoint.ledger.path` / `checkpoint.ledger.sha256` as the fencing ref
+     only; never attach the raw ledger body, completed task documents, prior
+     worker report bodies, or past conversation
    - the closing action: after every task is integrated and verified, run
      `/bouncer-finalize` from `integrationPath`, carrying it only as far as it
      goes without user consent. Its consent steps — explain quiz, remainder
