@@ -186,7 +186,7 @@ test('entry Master rules load only the shared runtime contract', () => {
   for (const name of WORKFLOW) {
     const master = readWorkflow(name).match(/\*\*Master rules\.\*\*[\s\S]*?(?=\n\n)/)?.[0];
     assert.ok(master, `${name}: missing Master rules block`);
-    assert.match(master, /CLAUDE\.md/, `${name}: runtime contract must load first`);
+    assert.match(master, /AGENTS\.md/, `${name}: runtime contract must load first`);
     for (const rule of productRules) {
       assert.doesNotMatch(master, new RegExp(rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
         `${name}: ${rule} belongs to its owning numbered step`);

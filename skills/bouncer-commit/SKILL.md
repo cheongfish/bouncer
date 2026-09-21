@@ -6,8 +6,7 @@ description: "Use only when the user explicitly asks /bouncer-commit; it commits
 
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
-**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`).
+**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
 
 Close one task on the active blueprint. Follow this sequence. Do **not** open a
 draft PR, remove a worktree, or run `explain-diff` here — those are

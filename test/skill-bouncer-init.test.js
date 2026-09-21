@@ -37,7 +37,7 @@ test('init loads result handling after bootstrap and keeps ACQ consent', () => {
 test('init Master rules omit plan-only product rules', () => {
   const master = skill.match(/\*\*Master rules\.\*\*[\s\S]*?(?=\n\n)/);
   assert.ok(master, 'missing **Master rules.** block');
-  assert.match(master[0], /CLAUDE\.md/);
+  assert.match(master[0], /AGENTS\.md/);
   assert.doesNotMatch(master[0], /rules\/governance\.md/);
   assert.doesNotMatch(master[0], /rules\/okf\.md/);
 });

@@ -31,9 +31,8 @@ plugin-root variables to those shells. Cursor hooks use relative paths.
 
 ## Master and product rules
 
-Before a workflow's numbered steps, read `${BOUNCER_ROOT}/CLAUDE.md`; `AGENTS.md`
-imports `@CLAUDE.md` for Codex and Cursor. `CLAUDE.md` is the only default
-runtime contract. Product rules are conditional detail: the owning numbered
+Before a workflow's numbered steps, read `${BOUNCER_ROOT}/AGENTS.md`.
+`AGENTS.md` is the only default runtime contract. Product rules are conditional detail: the owning numbered
 step opens the existing rule directly when its branch needs it; do not preload
 `rules/governance.md`, `rules/okf.md`, or another product rule for every
 workflow. Each master or product rule a workflow opens loads once per session.

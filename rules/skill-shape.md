@@ -2,7 +2,7 @@
 
 Authoritative section order for plugin skill and agent bodies. Skills that
 consume this plugin follow these shapes; session runtime agents do not load this
-file as a hard rule (it is not linked from `CLAUDE.md`).
+file as a hard rule (it is not linked from `AGENTS.md`).
 
 Body H2 headings in skills and agents are English.
 
@@ -40,7 +40,7 @@ Required body order after YAML frontmatter:
 
 1. **No blank line** between the closing `---` and the title.
 2. `# /<name>` — slash-command title matching the skill name.
-3. **Plugin root** and **Master rules** blocks (labels and `CLAUDE.md` cite stay).
+3. **Plugin root** and **Master rules** blocks (labels and `AGENTS.md` cite stay).
 4. Top-level numbered procedure (`1.` `2.` `3.` …) — the only procedural spine.
    Put each AskUserQuestion description (timing, options, answer consequences)
    inline in the numbered step where the question runs. If the skill never asks,

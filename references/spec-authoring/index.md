@@ -21,7 +21,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
 
 ## Steps
 
-1. Read the plugin master rules (`CLAUDE.md` / `AGENTS.md`) and the pinned
+1. Read the plugin master rules (`AGENTS.md`) and the pinned
    materials for the document kind you are writing. Product rules live in the
    plugin (`rules/governance.md`, `rules/okf.md`), not under
    the project's `.bouncer/`.

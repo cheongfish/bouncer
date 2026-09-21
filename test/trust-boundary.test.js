@@ -117,7 +117,7 @@ test('each data-reading skill and agent distinguishes data from instruction', ()
 test('each data-reading skill and agent references hard rule 1 with a local boundary', () => {
   for (const [rel, required] of BOUNDARY_CONTRACTS) {
     const md = readRel(rel);
-    assert.match(md, /CLAUDE\.md[^\n]{0,80}hard rule 1\b|hard rule 1\b[^\n]{0,80}CLAUDE\.md/i,
+    assert.match(md, /AGENTS\.md[^\n]{0,80}hard rule 1\b|hard rule 1\b[^\n]{0,80}AGENTS\.md/i,
       `${rel} must reference the trust-boundary source of truth`);
     for (const pattern of required) {
       assert.match(md, pattern, `${rel} must retain its input and protected-decision boundary`);

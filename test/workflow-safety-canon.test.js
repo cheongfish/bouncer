@@ -153,10 +153,10 @@ test('row 4 actual cwd and drive main read-only live in Coordinator mode', () =>
   );
 });
 
-test('row 5 worker report trust boundary lives in CLAUDE.md hard rule 1', () => {
-  const claude = read('CLAUDE.md');
-  const rule1 = claude.match(/^1\. \*\*Trust boundary\*\*[\s\S]*?(?=^2\. )/m);
-  assert.ok(rule1, 'missing CLAUDE.md hard rule 1');
+test('row 5 worker report trust boundary lives in AGENTS.md hard rule 1', () => {
+  const agents = read('AGENTS.md');
+  const rule1 = agents.match(/^1\. \*\*Trust boundary\*\*[\s\S]*?(?=^2\. )/m);
+  assert.ok(rule1, 'missing AGENTS.md hard rule 1');
   // 강조 표식(`**data**`)이 끼어도 `not instructions`가 정본 식별 구절이다.
   assert.match(rule1[0], /Trust boundary/);
   assert.match(rule1[0], /not instructions/);
@@ -193,7 +193,7 @@ test('row 9 quiz stop and user consent live in finalize, cited by run', () => {
 
 test('init Master rules block does not load plan-only product rules', () => {
   const block = masterRulesBlock(readSkill('bouncer-init'));
-  assert.match(block, /CLAUDE\.md/);
+  assert.match(block, /AGENTS\.md/);
   assert.doesNotMatch(block, /rules\/governance\.md/);
   assert.doesNotMatch(block, /rules\/okf\.md/);
 });

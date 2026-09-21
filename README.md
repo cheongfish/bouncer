@@ -74,13 +74,13 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 문서는 독자에 따라 두 곳에 있습니다. 목차는 [docs/README.md](docs/README.md)입니다.
 
 - **[`docs/`](docs/)** — 사람용. 설치, 워크플로, 설정.
-- **[`rules/`](rules/)** — 에이전트 런타임 정본. 스킬과 `CLAUDE.md`가 인용하므로,
+- **[`rules/`](rules/)** — 에이전트 런타임 정본. 스킬과 `AGENTS.md`가 인용하므로,
   고치면 에이전트 행동이 바뀝니다.
 
 게이트와 CLI 계약은 [`rules/gates.md`](rules/gates.md),
 [`rules/cli.md`](rules/cli.md)에 있습니다. PreToolUse 커밋 가드는 실수 방지용이며
 악의적 우회를 막지 않습니다. 신뢰 경계는
-[`CLAUDE.md`](CLAUDE.md) hard rule 1이 정본입니다.
+[`AGENTS.md`](AGENTS.md) hard rule 1이 정본입니다.
 
 ## Contributing · License
 

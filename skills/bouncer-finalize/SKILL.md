@@ -6,8 +6,7 @@ description: "Use only when the user explicitly asks /bouncer-finalize; it close
 
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
-**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`).
+**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
 
 Close out the active blueprint after every task has been committed via
 `/bouncer-commit`. Follow this sequence. Do **not** run `bouncer commit` here —

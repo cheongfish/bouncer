@@ -6,8 +6,7 @@ description: "Use only when the user explicitly asks /bouncer-init; it bootstrap
 
 **Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
 
-**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/CLAUDE.md`
-(`AGENTS.md` imports `@CLAUDE.md`).
+**Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
 
 Bootstrap this project for Bouncer.
 
@@ -52,7 +51,7 @@ Do not author any epic or blueprint here — `/bouncer-init` only scaffolds
 named-agent TOML under `.codex/agents/`.
 Document skeletons, product rules, and master rules live in the plugin
 (`scripts/lib/templates.js`, `rules/governance.md`, `rules/okf.md`,
-`CLAUDE.md`); init does not install them into the project.
+`AGENTS.md`); init does not install them into the project.
 
 ## ACQ (AskUserQuestion) gates
 
