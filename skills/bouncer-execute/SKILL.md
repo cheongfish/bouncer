@@ -187,7 +187,12 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    Otherwise, only after the latest verification passes, enter the controller-owned
    review state procedure in the [`review` skill](`${BOUNCER_ROOT}/references/review/index.md`).
    When a review round may start or stop, read [review-round.md](./references/review-round.md).
-   The ceiling is one frozen parallel discovery wave, one fix batch, and one delta
+   Freeze the target, then run `bouncer review-dispatch execute --blueprint <dir>
+   --task <NNN> --base <sha> --head <sha>`; that CLI strategy (`single` |
+   `parallel`) and `perspectives` order are the only discovery dispatch choice —
+   do not override them. On `ok: false`, a target mismatch, or when
+   `risk_flags` disagree with the current task's `review_risk`, stop without
+   calling reviewers or recording accepted (fail closed). The ceiling is one frozen parallel discovery wave, one fix batch, and one delta
    certification; a drive alone may add one critical recovery.
 
 6. **Gate.** Run `validate --gate execute`:

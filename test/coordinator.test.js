@@ -910,6 +910,27 @@ function briefHash(worker, blueprint, task) {
     .digest('hex');
 }
 
+// drive false acceptance 방지: CLI 전략 실패·frozen target 불일치에서는
+// review round를 열거나 accepted로 기록하지 않는다. coordinator.ts 전이가 아니라
+// Worker dispatch 계약이 막는다 — ledger에 새 상태를 추가하지 않는다.
+test('coordinator agent refuses review recording on strategy failure or target mismatch', () => {
+  const root = path.join(__dirname, '..');
+  const md = fs.readFileSync(path.join(root, 'agents/bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
+  assert.match(md, /ok:\s*false|`ok`:\s*`false`/);
+  assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i);
+  assert.match(
+    md,
+    /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:accepted|review round|record)|(?:accepted|review round)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
+  );
+  // risk_flags·perspectives는 CLI 그대로; file/line 재계산으로 전략을 바꾸지 않는다.
+  assert.match(md, /risk_flags|perspectives/);
+  assert.match(
+    md,
+    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
+  );
+});
+
 test('first dispatch returns attempt 1 metadata without previous_outcome', () => {
   const blueprint = '.bouncer/context/epics/060-x/blueprints/061-y';
   const drive = preparedCommitDrive('bouncer-dispatch-first-', blueprint);

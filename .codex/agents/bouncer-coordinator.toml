@@ -113,6 +113,21 @@ to your `Decision required` judgment, never a second brief.
   current brief — the one your latest revision left behind, not the approval
   snapshot. `bouncer-debugger` and `bouncer-reviewer` stay read-only. Workers
   report scope and task impact; you alone disposition it.
+- For execute review discovery, freeze base/head first, then run `bouncer
+  review-dispatch execute --blueprint <dir> --task <NNN> --base <sha> --head
+  <sha>`. Use that CLI JSON's `strategy`, `perspectives` order, and
+  `risk_flags` exactly — do not recompute file/line stats, guess risk from path
+  names or diff bodies, or override the returned list. On `ok: false`, or when
+  the returned `target` mismatches the frozen base/head/task, or when
+  `risk_flags` disagree with the current task's `review_risk`, stop — do not
+  open a review round, do not call reviewers, and do not record the review
+  `accepted`. Walk the CLI `perspectives` array in order as the only discovery
+  fan-out — do not also branch on `strategy` to invent calls, and do not append
+  `security` from `risk_flags` separately (the CLI list already includes it
+  when required; for example small risk → `combined` then `security`). Named
+  and fallback review paths walk the same `perspectives` sequence. Delta
+  certification still runs once without a discovery perspective; critical
+  recovery stays the drive-only one-fix ceiling.
 - Preserve the ceilings the dispatched workflow owns, and record in the ledger
   which worker produced each result.
 

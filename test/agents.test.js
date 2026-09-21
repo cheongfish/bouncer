@@ -170,6 +170,7 @@ test('bouncer-reviewer separates discovery perspectives from delta certification
     assert.ok(prompt.includes(placeholder), `reviewer prompt must include ${placeholder}`);
   }
   for (const perspective of [
+    'combined',
     'spec_scope',
     'correctness_tests',
     'minimality_maintainability',
@@ -182,6 +183,59 @@ test('bouncer-reviewer separates discovery perspectives from delta certification
   assert.match(md, /origin/);
 
   const tomlPath = path.join(root, '.codex/agents/bouncer-reviewer.toml');
+  assert.strictEqual(fs.readFileSync(tomlPath, 'utf8'), mdToCodexToml(md));
+});
+
+// adaptive execute: combined는 세 비보안 rubric을 한 pass에서 판단하고 category에
+// 하위 rubric 이름을 쓴다. security는 위험 flag가 있을 때만 별도 call이며
+// combined에 섞지 않는다. delta·critical recovery 순서는 그대로다.
+test('bouncer-reviewer judges combined and separate security without mixing rubrics', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
+  const prompt = fs.readFileSync(
+    path.join(root, 'references/review/assets/reviewer-prompt.md'),
+    'utf8',
+  );
+  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+
+  assert.match(
+    md,
+    /`combined`[\s\S]{0,400}spec_scope[\s\S]{0,200}correctness_tests[\s\S]{0,200}minimality_maintainability/i,
+  );
+  // combined finding의 category는 실제 하위 rubric 이름이다 "combined"가 아니다.
+  assert.match(
+    md,
+    /combined[\s\S]{0,500}category[\s\S]{0,200}(?:spec_scope|correctness_tests|minimality_maintainability)|category[\s\S]{0,200}(?:하위|sub-?rubric|actual)/i,
+  );
+  // security rubric은 배정받았을 때만; combined에 섞지 않는다.
+  assert.match(
+    md,
+    /(?:do not|never|without)[\s\S]{0,120}(?:mix|blend|섞)[\s\S]{0,80}security|security[\s\S]{0,120}(?:do not|never)[\s\S]{0,80}(?:combined|mix|섞)/i,
+  );
+  assert.match(prompt, /`combined`/);
+  assert.match(prompt, /risk_flags|strategy/);
+  assert.match(md, /### Discovery/);
+  assert.match(md, /### Delta/);
+  assert.match(md, /introduced_by_revision/);
+  assert.match(md, /missed_critical/);
+
+  const tomlPath = path.join(root, '.codex/agents/bouncer-reviewer.toml');
+  assert.strictEqual(fs.readFileSync(tomlPath, 'utf8'), mdToCodexToml(md));
+});
+
+// coordinator drive도 Execute와 같은 CLI perspectives 순서를 쓰고, 결과를 덮지 않는다.
+test('bouncer-coordinator dispatches reviewers from exact review-dispatch execute result', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const { mdToCodexToml } = require('../scripts/lib/codex-agents');
+  assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
+  assert.match(md, /perspectives/);
+  assert.match(md, /`combined`|combined/);
+  assert.match(md, /`security`|security/);
+  assert.match(
+    md,
+    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
+  );
+  assert.match(md, /ok:\s*false|`ok`:\s*`false`|target[\s\S]{0,80}mismatch/i);
+  const tomlPath = path.join(root, '.codex/agents/bouncer-coordinator.toml');
   assert.strictEqual(fs.readFileSync(tomlPath, 'utf8'), mdToCodexToml(md));
 });
 
