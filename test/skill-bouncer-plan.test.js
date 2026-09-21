@@ -333,6 +333,53 @@ test('bouncer-plan skips the context-review step on scale light', () => {
   assert.match(step, /G18/);
   // 대체 판정을 세우지 말 것.
   assert.match(step, /do not substitute|not substitute/i);
+  // skip을 빈 accepted context-review나 inline 리뷰로 대체하지 않는다.
+  assert.match(step, /do not scaffold|not scaffold|inline/i);
+});
+
+// Step 5는 frozen snapshot 뒤 CLI 결과를 유일한 dispatch 선택으로 쓴다.
+// controller가 cluster를 합치거나 single에 관점을 덧붙이면 분류기와 round가 갈라진다.
+test('bouncer-plan step 5 uses review-dispatch plan strategy without override', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step = body.slice(body.indexOf('5. **Review.**'), body.indexOf('6. **Approval'));
+  assert.match(step, /review-dispatch plan|review-dispatch/);
+  const dispatch = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/context-review.md'),
+    'utf8',
+  );
+  assert.match(dispatch, /bouncer review-dispatch plan/);
+  assert.match(dispatch, /`single`/);
+  assert.match(dispatch, /`clustered`/);
+  assert.match(dispatch, /`combined`/);
+  assert.match(dispatch, /`local`/);
+  assert.match(dispatch, /`global`/);
+  // ok:false 또는 digest/document set 불일치면 reviewer를 호출하지 않는다.
+  assert.match(dispatch, /ok:\s*false|`ok`:\s*`false`/);
+  assert.match(
+    dispatch,
+    /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:reviewer|context-review)|(?:reviewer|context-review)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
+  );
+  // CLI cluster를 합치거나 나누지 않고, single에 임의 관점을 추가하지 않는다.
+  assert.match(
+    dispatch,
+    /(?:do not|never|without)[\s\S]{0,120}(?:merge|split|combine|divide|합치|나누)|(?:merge|split|combine|divide|합치|나누)[\s\S]{0,80}(?:do not|never)/i,
+  );
+  assert.match(
+    dispatch,
+    /(?:do not|never)[\s\S]{0,100}(?:add|extra|additional|임의)[\s\S]{0,60}perspective|(?:perspective)[\s\S]{0,80}(?:do not|never)[\s\S]{0,60}(?:add|extra)/i,
+  );
+  // local끼리·local/global 사이 finding을 공유하지 않는다.
+  assert.match(
+    dispatch,
+    /(?:do not|never|without)[\s\S]{0,100}(?:share|pass|교환|공유)[\s\S]{0,80}finding|finding[\s\S]{0,80}(?:do not|never|without)[\s\S]{0,60}(?:share|pass|다른)/i,
+  );
+  // CT-001: finding 비공유만으로는 다른 cluster 문서를 local에 넘기는 회귀가 안 잡힌다.
+  // discovery allowlist가 each local → 해당 cluster task docs만 / 타 cluster docs 금지를 명시해야 한다.
+  // 앞쪽 "one `local` call"에 걸리지 않도록 allowlist 문구(each `local`: …)에 고정한다.
+  assert.match(
+    dispatch,
+    /each\s+`local`:\s*only that cluster'?s\s+task documents\s*[—\-–]\s*never another cluster'?s docs/i,
+  );
 });
 
 test('bouncer-plan keeps light scope explicit while delegating gate details', () => {

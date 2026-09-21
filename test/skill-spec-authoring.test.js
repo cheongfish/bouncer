@@ -113,6 +113,39 @@ test('spec-authoring writes explicit task dependency and parallel-ready frontmat
   assert.match(md, /boolean|불리언|true|false/);
 });
 
+// review_risk는 Plan author가 Interface·Touch 근거로 확정한다. 위험이 없으면 []를
+// 명시하고, 필드가 있어도 affected_paths·status·gate를 자동 승인하지 않는다.
+test('spec-authoring requires review_risk enum with empty-array and grounding rules', () => {
+  const md = readSkill('spec-authoring');
+  const okf = fs.readFileSync(path.join(__dirname, '..', 'rules/okf.md'), 'utf8');
+  assert.match(md, /review_risk/);
+  assert.match(okf, /review_risk/);
+  for (const value of [
+    'public_interface',
+    'authentication',
+    'authorization',
+    'credential',
+  ]) {
+    assert.match(md, new RegExp(value));
+    assert.match(okf, new RegExp(value));
+  }
+  // 위험 없음은 필드 생략이 아니라 빈 배열을 쓴다(신규 작성).
+  assert.match(md, /review_risk[\s\S]{0,200}\[\]|`\[\]`[\s\S]{0,80}review_risk/);
+  // Interface·Touch가 공개 API·인증·권한·credential을 말할 때 enum을 빠짐없이 기록.
+  assert.match(
+    md,
+    /Interface[\s\S]{0,200}Touch[\s\S]{0,200}review_risk|review_risk[\s\S]{0,200}Interface[\s\S]{0,120}Touch/i,
+  );
+  // 자동 승인이 아님을 긍정 문구로 고정.
+  assert.match(
+    md,
+    /(?:does not|do not|never|not)[\s\S]{0,100}(?:auto(?:matic(?:ally)?)?|자동)[\s\S]{0,80}(?:approv|승인|affected_paths|gate)|(?:affected_paths|status|gate)[\s\S]{0,100}(?:does not|do not|never|not)[\s\S]{0,60}(?:auto|자동)/i,
+  );
+  // legacy 부재는 []로 읽고, 신규 malformed만 S30 — okf가 제품 정본.
+  assert.match(okf, /legacy|absent|부재/i);
+  assert.match(okf, /S30/);
+});
+
 test('spec-authoring consumes resolver-selected intent evidence without promotion', () => {
   const md = readSkill('spec-authoring');
   assert.doesNotMatch(md, /distill/i);

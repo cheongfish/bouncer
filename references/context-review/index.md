@@ -52,16 +52,25 @@ On a light plan, approved scope rests on the user's confirmation of
    contract. Mark the context review accepted only when no actionable finding
    remains unresolved (every finding `resolved`, or `accepted` with a note).
 
-3. **Judge** — In `discovery`, the controller dispatches four calls in
-   parallel on the same digest, one per perspective: `cross_document`
-   (Cross-document contradiction), `scope` (Scope review), `korean_quality`
-   (Korean quality), and `success_criteria` (Verifiability of success
-   criteria). Each call judges only its perspective and never sees another
-   call's findings. In `delta`, one call certifies whether the previous
-   findings are resolved and whether the revision introduced a problem. The
-   scope bodies, the delta origin rule, what each scope excludes, and the
-   severity mapping are canonical in the named agent
-   `agents/bouncer-context-reviewer.md` (`## Review modes`,
+3. **Judge** — In `discovery`, the controller first runs
+   `bouncer review-dispatch plan` on the frozen snapshot and uses that
+   strategy as the only call shape. On `single`, one call with perspective
+   `combined` judges every rubric scope. On `clustered`, one `local` call per
+   CLI cluster (same cluster-id order) plus one `global` call cover the same
+   four rubrics without loss: `local` owns task-local cross-document
+   consistency, `affected_paths`/Checklist edit paths, and red assertions
+   inside its cluster; `global` owns epic→blueprint→tasks and cross-cluster
+   consistency, shared paths and DAG, Korean quality overall, and epic
+   success-criteria coverage. Legacy perspective names
+   `cross_document | scope | korean_quality | success_criteria` remain valid
+   on recorded rounds. Each call judges only its assigned perspective and
+   never sees another call's findings. When the CLI returns `ok: false` or
+   the digest/document set drifts from the freeze, do not judge and do not
+   accept. In `delta`, one call certifies whether the previous findings are
+   resolved and whether the revision introduced a problem — once, regardless
+   of strategy or cluster count. The scope bodies, the delta origin rule,
+   what each scope excludes, and the severity mapping are canonical in the
+   named agent `agents/bouncer-context-reviewer.md` (`## Review modes`,
    `## Rubric — four scopes`, `## Calibration (severity)`). Read them there;
    this skill does not carry a second copy.
 

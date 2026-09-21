@@ -10,17 +10,28 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    their bodies with frontmatter removed, concatenated in this order: the
    epic `index.md`, the blueprint `index.md`, then every
    `tasks/<NNN>/tasks.md` under the blueprint in ascending task number.
-2. **Discovery** — Dispatch four `bouncer-context-reviewer` calls in parallel,
-   one per perspective: `cross_document`, `scope`, `korean_quality`, and
-   `success_criteria`. Each named call uses `fork_turns: "none"` (exclude full
-   conversation history) and receives only this controller input allowlist:
-   `mode: discovery`, its one perspective, the frozen digest, the epic ·
-   blueprint · task document list under judgment, and the read-only cwd. Do not
-   pass the full conversation, another call's findings, the full ledger, or
-   documents outside that judged set. Do not pass one call's findings to
-   another. Record round 1 as `mode: discovery`, `target: { digest }`, and
-   `perspectives: [{ name, target_digest }]`, each `target_digest` equal to the
-   digest.
+2. **Discovery** — Run `bouncer review-dispatch plan --blueprint <dir>` on the
+   frozen blueprint. That CLI result is the only dispatch authority: do not
+   merge, split, combine, or divide its clusters, and do not add an extra
+   perspective to a `single` result. When the payload is `ok: false`, or when
+   its `target.digest` / document set disagrees with the frozen snapshot,
+   stop — do not call a reviewer and do not mark `context-review` accepted.
+
+   On `strategy: single`, dispatch one `bouncer-context-reviewer` call with
+   perspective `combined` (all four rubrics). On `strategy: clustered`,
+   dispatch one `local` call per CLI cluster in that same cluster-id order,
+   then one `global` call. Record round 1 perspectives in that CLI dispatch
+   order (`combined`, or each `local` then `global`). Each named call uses
+   `fork_turns: "none"` (exclude full conversation history) and receives only
+   this controller input allowlist: `mode: discovery`, its one perspective,
+   the frozen digest, the document list for that call (combined/global: the
+   full judged epic · blueprint · task set; each `local`: only that cluster's
+   task documents — never another cluster's docs), the cluster id when
+   perspective is `local`, and the read-only cwd. Do not pass the full
+   conversation, another call's findings, the full ledger, or documents
+   outside that judged set. Do not share or pass findings between local
+   calls, or between local and global. Every discovery `target_digest` equals
+   the frozen digest.
 3. **Merge** — Verify each finding's evidence. Record `category`,
    `brief_clause`, `file`, `symbol`, and the fingerprint
    `context:<category>:<brief_clause>:<file>#<symbol>`; merge findings with the
@@ -38,11 +49,12 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    controller input allowlist: the new digest, previous findings, the actual
    modified document list from the revision (revised documents only — never
    the full ledger or documents out of judgment), and the read-only cwd — not
-   another four-perspective pass. Record round 2 as `mode: delta` with the new
-   digest. Accept a new delta finding only when it is `introduced_by_revision`
-   with a revised passage as evidence, or `missed_critical` with `blocker` or
-   `major` severity; its `first_seen_round` is 2. Update `last_seen_round` on
-   returning findings.
+   another discovery pass and not a second strategy-shaped fan-out. Delta
+   runs once regardless of `single` or `clustered` and of cluster count.
+   Record round 2 as `mode: delta` with the new digest. Accept a new delta
+   finding only when it is `introduced_by_revision` with a revised passage as
+   evidence, or `missed_critical` with `blocker` or `major` severity; its
+   `first_seen_round` is 2. Update `last_seen_round` on returning findings.
 6. **Close** — Delta runs once; context review has no third round and no
    critical recovery. Mark findings the delta certified as `resolved`. When a
    `must_fix` finding stays open after the delta, leave `context-review`

@@ -58,21 +58,28 @@ test('context-review declares itself full-plan only', () => {
   assert.match(md, /no light variant|set `scale` back to `full`/);
 });
 
-// 호출 계약: 네 관점을 병렬로 나눠 보내고, 결과를 context_review.rounds[]에 남긴다.
-test('context-review dispatches four perspectives in parallel and records rounds', () => {
+// 호출 계약: CLI 전략이 single이면 combined, clustered이면 local(+cluster)+global.
+// legacy 네 관점 이름은 round·category 호환으로만 남기고 고정 호출 단위가 아니다.
+test('context-review dispatches adaptive combined or local+global perspectives and records rounds', () => {
   const md = readSkill('context-review');
-  assert.match(md, /parallel/i);
-  for (const perspective of ['cross_document', 'scope', 'korean_quality', 'success_criteria']) {
+  assert.match(md, /review-dispatch/);
+  for (const perspective of ['combined', 'local', 'global']) {
     assert.match(md, new RegExp(`\`${perspective}\``));
+  }
+  // 네 기존 rubric 판단 항목은 관점 매핑으로 보존한다 — 호출 단위 이름과 1:1이 아니다.
+  for (const rubric of ['cross_document', 'scope', 'korean_quality', 'success_criteria']) {
+    assert.match(md, new RegExp(rubric));
   }
   assert.match(md, /bouncer\.context_review\.rounds/);
   assert.match(md, /target_digest/);
   assert.match(md, /discovery/);
   assert.match(md, /delta/);
   assert.match(md, /context:/);
+  // delta는 전략·cluster 수와 무관하게 한 번만 인증한다.
+  assert.match(md, /delta[\s\S]{0,200}(?:once|한 번)|(?:once|한 번)[\s\S]{0,80}delta/i);
 });
 
-// controller 절차: snapshot 고정 → digest → 관점별 병렬 dispatch → 단일 수정 → delta 인증.
+// controller 절차: snapshot 고정 → CLI 전략 → single|clustered discovery → 단일 수정 → delta 인증.
 test('plan context-review controller freezes a digest, revises once, and certifies the delta', () => {
   const md = fs.readFileSync(planContextReviewPath, 'utf8');
   assert.match(md, /snapshot/i);
@@ -81,13 +88,21 @@ test('plan context-review controller freezes a digest, revises once, and certifi
   // digest 입력 순서: epic → blueprint → tasks 번호 오름차순.
   assert.match(md, /epic `index\.md`[\s\S]{0,80}blueprint `index\.md`[\s\S]{0,80}tasks\/<NNN>\/tasks\.md/);
   assert.match(md, /ascending/i);
-  assert.match(md, /in parallel/i);
+  assert.match(md, /review-dispatch plan/);
+  assert.match(md, /`single`/);
+  assert.match(md, /`clustered`/);
+  assert.match(md, /`combined`/);
+  assert.match(md, /`local`/);
+  assert.match(md, /`global`/);
   assert.match(md, /target_digest/);
   assert.match(md, /once/i);
   assert.match(md, /\bdelta\b/);
   assert.match(md, /previous findings/i);
   assert.match(md, /introduced_by_revision/);
   assert.match(md, /missed_critical/);
+  // CLI 실패·digest 불일치에서는 reviewer를 부르지 않는다.
+  assert.match(md, /ok:\s*false|`ok`:\s*`false`/);
+  assert.match(md, /(?:do not|never|stop|halt|abort)[\s\S]{0,120}reviewer|reviewer[\s\S]{0,80}(?:do not|never|stop|halt|abort)/i);
 });
 
 // named dispatch는 대화 이력을 싣지 않고, delta는 실제 수정 문서만 받는다.
@@ -111,6 +126,12 @@ test('plan context-review named dispatch excludes conversation history and limit
   assert.match(
     discovery,
     /(?:do not|never|without|exclude|배제)[\s\S]{0,100}(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)|(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)[\s\S]{0,80}(?:do not|never|exclude|배제)|판단 대상 밖/i,
+  );
+  // CT-001: "documents outside" 일반 거절만으로는 cluster 간 local 문서 격리가 고정되지 않는다.
+  // allowlist 문구(each `local`: …)에 고정 — 앞쪽 "one `local` call"과 혼동하지 않는다.
+  assert.match(
+    discovery,
+    /each\s+`local`:\s*only that cluster'?s\s+task documents\s*[—\-–]\s*never another cluster'?s docs/i,
   );
   // delta 입력은 previous findings + 실제 수정된 문서 목록으로 경계를 고정한다.
   assert.match(delta, /previous findings/i);

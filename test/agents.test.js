@@ -254,12 +254,20 @@ test('bouncer-context-reviewer treats severity as a label, not a reporting filte
 });
 
 // plan review도 execute처럼 관점 단위 discovery와 delta 인증으로 수렴한다.
-// 관점 이름은 G18이 round perspectives에서 받는 값과 같아야 한다.
-test('bouncer-context-reviewer judges one perspective and certifies deltas with origin', () => {
+// adaptive 관점(combined|local|global)이 네 기존 rubric을 손실 없이 나눠 판단하고,
+// legacy 네 이름은 계속 유효하다. 관점 이름은 G18 round perspectives와 같아야 한다.
+test('bouncer-context-reviewer judges adaptive perspectives and certifies deltas with origin', () => {
   const md = contextReviewerAgent();
   const { mdToCodexToml } = require('../scripts/lib/codex-agents');
-  for (const perspective of ['cross_document', 'scope', 'korean_quality', 'success_criteria']) {
+  for (const perspective of ['combined', 'local', 'global']) {
     assert.match(md, new RegExp(`\`${perspective}\``));
+  }
+  // combined는 네 rubric 전체, local·global은 손실 없이 분할한다.
+  assert.match(md, /combined[\s\S]{0,400}cross_document[\s\S]{0,200}scope[\s\S]{0,200}korean_quality[\s\S]{0,200}success_criteria/i);
+  assert.match(md, /`local`[\s\S]{0,500}(?:Interface|Touch|Checklist|affected_paths|red)/i);
+  assert.match(md, /`global`[\s\S]{0,500}(?:epic|blueprint|DAG|Korean|coverage)/i);
+  for (const legacy of ['cross_document', 'scope', 'korean_quality', 'success_criteria']) {
+    assert.match(md, new RegExp(`\`${legacy}\``));
   }
   assert.match(md, /### Discovery/);
   assert.match(md, /### Delta/);

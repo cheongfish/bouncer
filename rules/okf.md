@@ -87,6 +87,16 @@ display and default sort order — not execution authority.
   reads as `integrated`: the successor opens when each predecessor reaches that
   integration state.
 
+- `bouncer.review_risk` is an optional array of unique values from
+  `public_interface | authentication | authorization | credential`. Plan
+  authoring owns the field: when Interface or Touch names a public API,
+  authentication, authorization, or credential change, record every matching
+  enum; when none of those risks apply, write `[]` explicitly on new documents.
+  Absent on legacy tasks reads as `[]` for dispatch compatibility; malformed
+  shape, unknown values, and duplicates fail structural validation as `S30`.
+  The field only widens Execute reviewer fan-out — it never auto-approves
+  `affected_paths`, document status, or a gate.
+
 Task `bouncer.commit_intent` and `bouncer.commit_summary` are optional authored
 lists of 1–2 Korean terminal sentences. `/bouncer-commit` renders present
 fields in that order and rejects malformed values without partial omission;

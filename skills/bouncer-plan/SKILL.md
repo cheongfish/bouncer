@@ -203,10 +203,12 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    `bouncer.scale` is `light`** — that blueprint has no `context-review.md`
    (scaffold does not create one) and the plan gate applies no G18 to it. Do
    not scaffold the document just to run the judgment, and do not substitute a
-   lighter inline review; go to step 6. On a light plan the user's
-   `affected_paths` confirmation and G3–G5 / G10–G12 carry approved scope.
+   lighter inline review or an empty accepted `context-review.md`; go to step
+   6. Light matches CLI `strategy: skip` — do not invent reviewer calls. On a
+   light plan the user's `affected_paths` confirmation and G3–G5 / G10–G12
+   carry approved scope.
 
-   When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference: [context-review.md](./references/context-review.md). The `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`) is the behavioral brief. Do not approve while an actionable finding remains unresolved; return to authoring (step 3).
+   When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference: [context-review.md](./references/context-review.md). Freeze the snapshot, then run `bouncer review-dispatch plan --blueprint <dir>`; that CLI strategy (`single` | `clustered`) is the only discovery dispatch choice — do not override it. On `ok: false` or a digest/document-set mismatch, stop without calling reviewers. The `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`) is the behavioral brief. Do not approve while an actionable finding remains unresolved; return to authoring (step 3).
 
 6. **Approval (explicit).** Before asking for approval, show the authored
    task DAG: each task's `depends_on`, `parallel_safe`, and
