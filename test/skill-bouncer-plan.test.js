@@ -124,6 +124,21 @@ test('bouncer-plan discovers code first and resolves function intent before scaf
   assert.match(discover, /(intent|Explain)[\s\S]{0,160}(do not|never)[\s\S]{0,60}(set|widen|fill)[\s\S]{0,40}affected_paths/i);
 });
 
+// discovery는 광역 덤프를 반복하지 않고 후보 → 질문별 검색 → line window 순서를 고정한다.
+test('bouncer-plan discovery narrows candidates before question-specific reads', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const discover = body.slice(body.indexOf('1. **Discover.**'), body.indexOf('2. **Scaffold.**'));
+  // 1) 후보 파일 목록을 먼저 만든다.
+  assert.match(discover, /rg --files|`rg --files`/);
+  assert.match(discover, /rg -l|`rg -l`/);
+  // 2) 질문마다 path/glob으로 좁힌 뒤 관련 section·line window만 읽는다.
+  assert.match(discover, /path\/glob|path or glob|question-specific/i);
+  assert.match(discover, /line window|section or line/i);
+  // 3) 잘린 광역 출력을 같은 형태로 다시 돌리지 않는다.
+  assert.match(discover, /truncat|잘린/i);
+  assert.match(discover, /do not (?:repeat|re-run)|never (?:repeat|re-run)|동일 형태 반복/i);
+});
+
 test('plan skill and references drop context search and scope evidence', () => {
   const { body } = parseFrontmatter(mainMd);
   const scope = fs.readFileSync(
@@ -224,6 +239,70 @@ test('bouncer-plan dispatches context-review before approval with named-agent fa
   const reviewAt = body.search(/context-review|bouncer-context-reviewer/);
   const approvalAt = body.search(/\*\*Approval/);
   assert.ok(reviewAt > -1 && approvalAt > reviewAt, 'context-review step must precede Approval');
+});
+
+// named discovery/delta는 대화 fork 없이 mode별 allowlist controller input만 받는다.
+test('bouncer-plan named context-reviewer uses fork_turns none and mode input allowlists', () => {
+  const dispatch = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/context-review.md'),
+    'utf8',
+  );
+  const discoveryAt = dispatch.indexOf('2. **Discovery**');
+  const mergeAt = dispatch.indexOf('3. **Merge**');
+  const deltaAt = dispatch.indexOf('5. **Certify the delta**');
+  const closeAt = dispatch.indexOf('6. **Close**');
+  assert.ok(discoveryAt >= 0 && mergeAt > discoveryAt, 'Discovery section present');
+  assert.ok(deltaAt >= 0 && closeAt > deltaAt, 'Certify the delta section present');
+  const discovery = dispatch.slice(discoveryAt, mergeAt);
+  const delta = dispatch.slice(deltaAt, closeAt);
+
+  // 무이력 fork — discovery·delta 모두.
+  assert.match(discovery, /fork_turns:\s*"none"/);
+  assert.match(delta, /fork_turns:\s*"none"/);
+
+  // discovery allowlist: mode, 단일 perspective, frozen digest, epic·blueprint·task 목록, read-only cwd.
+  assert.match(discovery, /\bmode\b/);
+  assert.match(discovery, /perspective/);
+  assert.match(discovery, /digest/);
+  assert.match(discovery, /epic[\s\S]{0,80}blueprint[\s\S]{0,80}task/i);
+  assert.match(discovery, /read-only\s+cwd/i);
+  // discovery 거절: 극성 결합 — "Pass the full conversation…"류 허용 문구는 실패해야 한다.
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full )?conversation|full conversation[\s\S]{0,80}(?:do not|never|exclude|배제)|대화 이력/i,
+  );
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:(?:other|another).{0,40}findings|findings.{0,40}(?:other|another)|다른.{0,20}findings)|(?:(?:other|another).{0,40}findings|findings.{0,40}(?:other|another))[\s\S]{0,80}(?:do not|never|exclude|배제)/i,
+  );
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full |entire |whole )?ledger|(?:full |entire |whole )?ledger[\s\S]{0,80}(?:do not|never|exclude|배제)|전체 ledger/i,
+  );
+  // discovery도 판단 집합 밖 문서를 거절한다 (delta-only 공백 메움).
+  assert.match(
+    discovery,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,100}(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)|(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)[\s\S]{0,80}(?:do not|never|exclude|배제)|판단 대상 밖/i,
+  );
+
+  // delta allowlist: 새 digest, previous findings, 실제 수정 문서 목록, read-only cwd.
+  assert.match(delta, /digest/);
+  assert.match(delta, /previous findings/i);
+  assert.match(delta, /modified document|실제 수정|revised documents? only|documents? (?:actually )?modified/i);
+  assert.match(delta, /read-only\s+cwd/i);
+  // delta 거절: 극성 결합 — 허용(pass/include) 문구는 실패해야 한다.
+  assert.match(
+    delta,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full )?conversation|full conversation[\s\S]{0,80}(?:do not|never|exclude|배제)|대화 이력/i,
+  );
+  assert.match(
+    delta,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,80}(?:full |entire |whole )?ledger|(?:full |entire |whole )?ledger[\s\S]{0,80}(?:do not|never|exclude|배제)|전체 ledger/i,
+  );
+  assert.match(
+    delta,
+    /(?:do not|never|without|exclude|배제)[\s\S]{0,100}(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)|(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)[\s\S]{0,80}(?:do not|never|exclude|배제)|판단 대상 밖/i,
+  );
 });
 
 // 경량 경로는 사용자 선언만 — 자동 판정·schema 등록 없이 산문에 고정한다.

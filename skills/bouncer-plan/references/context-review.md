@@ -12,8 +12,12 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    `tasks/<NNN>/tasks.md` under the blueprint in ascending task number.
 2. **Discovery** — Dispatch four `bouncer-context-reviewer` calls in parallel,
    one per perspective: `cross_document`, `scope`, `korean_quality`, and
-   `success_criteria`. Each call gets mode `discovery`, its one perspective,
-   the digest, and the documents above. Do not pass one call's findings to
+   `success_criteria`. Each named call uses `fork_turns: "none"` (exclude full
+   conversation history) and receives only this controller input allowlist:
+   `mode: discovery`, its one perspective, the frozen digest, the epic ·
+   blueprint · task document list under judgment, and the read-only cwd. Do not
+   pass the full conversation, another call's findings, the full ledger, or
+   documents outside that judged set. Do not pass one call's findings to
    another. Record round 1 as `mode: discovery`, `target: { digest }`, and
    `perspectives: [{ name, target_digest }]`, each `target_digest` equal to the
    digest.
@@ -29,13 +33,16 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    exists, skip the revision and the delta; the round sequence stays
    `discovery`.
 5. **Certify the delta** — Recompute the digest over the revised snapshot.
-   Dispatch one `bouncer-context-reviewer` call in mode `delta` with the
-   previous findings and the revised documents only — not another
-   four-perspective pass. Record round 2 as `mode: delta` with the new digest.
-   Accept a new delta finding only when it is `introduced_by_revision` with a
-   revised passage as evidence, or `missed_critical` with `blocker` or `major`
-   severity; its `first_seen_round` is 2. Update `last_seen_round` on returning
-   findings.
+   Dispatch one `bouncer-context-reviewer` call in mode `delta` with
+   `fork_turns: "none"` (exclude full conversation history) and only this
+   controller input allowlist: the new digest, previous findings, the actual
+   modified document list from the revision (revised documents only — never
+   the full ledger or documents out of judgment), and the read-only cwd — not
+   another four-perspective pass. Record round 2 as `mode: delta` with the new
+   digest. Accept a new delta finding only when it is `introduced_by_revision`
+   with a revised passage as evidence, or `missed_critical` with `blocker` or
+   `major` severity; its `first_seen_round` is 2. Update `last_seen_round` on
+   returning findings.
 6. **Close** — Delta runs once; context review has no third round and no
    critical recovery. Mark findings the delta certified as `resolved`. When a
    `must_fix` finding stays open after the delta, leave `context-review`

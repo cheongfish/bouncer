@@ -45,8 +45,14 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
 
 1. **Discover.** Before scaffolding, ground the request in the current checkout,
    then use the `discovery` skill (`${BOUNCER_ROOT}/references/discovery/index.md`).
-   Search `PROJECT_ROOT` source, test, and config for request-related entry points
-   and function definitions. For each related function, call
+   Narrow evidence in this order — do not dump the whole tree into context:
+   (1) build a candidate file list with `rg --files` and/or `rg -l` over
+   `PROJECT_ROOT` source, test, and config for request-related entry points and
+   function definitions; (2) for each discovery question, re-search only with a
+   question-specific path/glob against that candidate list; (3) read only the
+   related section or line window that answers the question. When a broad search
+   truncates, do not repeat the same truncated form — narrow the path/glob or
+   switch to a named file before searching again. For each related function, call
    `bouncer intent --symbol <name> --repo "$PROJECT_ROOT"` once (default `--limit`).
    When the result is `ambiguous`, pick one candidate from the code-search evidence
    and re-call with `--candidate <candidate_ref>`; if evidence is insufficient, ask
