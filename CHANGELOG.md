@@ -7,6 +7,32 @@
 
 ## [Unreleased]
 
+## [1.4.9] — 2026-09-21
+
+1.4.8 이후 검색·보존 경량화, Task intent bundle 재사용, task brief·dispatch
+증적, Plan 컨텍스트 축소. Graphify·intent·Explain 복제와 Plan 입력을 필요한
+만큼만 읽고, 보고는 받은 brief revision에 묶인다.
+
+### Added
+
+- **Graphify 추천 payload 상한** — `graph-suggest` 기본 후보를 역할별 3·전체
+  8로 제한하고 path/role/score/basis code만 반환한다.
+- **Intent 지연 적재** — 유효 `bouncer intent` 실행에서만 intent 런타임을
+  적재한다.
+- **Retention 감사·이관** — 신규 finalize는 장기 설계 절만 Explain에 승격하고,
+  `bouncer migrate retention`으로 closed Blueprint를 감사·단일 경로 정리한다.
+- **Task intent bundle** — Task·함수 집합을 내용 주소화하고 같은 blob·절
+  hash에서 revision을 재사용해 역할 간 Explain 본문 복제를 줄인다.
+- **Task brief 계약 정밀화** — Interface에 test seam과 실패 분류를 두고,
+  Checklist의 기대 red와 build→add→검사 순서를 요구한다.
+- **Dispatch revision·attempt 증적** — implementer 보고를 `task_brief_hash`와
+  attempt에 묶고 stale 보고를 거부한다.
+
+### Changed
+
+- **Plan 컨텍스트 입력** — discovery·context reviewer 입력과 Graphify 계획
+  질의를 필요한 근거·짧은 query·제한된 seed로 줄인다.
+
 ## [1.4.8] — 2026-09-16
 
 1.4.7 이후 task·커밋 provenance, 코드 우선 Plan, 워크플로 프롬프트 계약,
