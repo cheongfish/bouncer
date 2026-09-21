@@ -20,6 +20,11 @@ const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 function setupRepo(verify = 'npm test') {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verification-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  // identity는 rev-parse HEAD를 요구한다. unborn branch면 VERIFY_IDENTITY_INVALID.
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '--allow-empty', '-m', 'init',
+  ], { cwd: repo });
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify }));
   const verification = path.join(repo, BP_REL, 'tasks/001/verification.md');
@@ -43,6 +48,33 @@ bouncer:
 Existing notes.
 `);
   return repo;
+}
+
+function fixedDeps(overrides = {}) {
+  return {
+    git: (args) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') return 'abc123head\n';
+      if (args[0] === 'status') return '';
+      throw new Error(`unexpected git ${args.join(' ')}`);
+    },
+    platform: 'linux',
+    arch: 'x64',
+    nodeVersion: 'v24.0.0',
+    ...overrides,
+  };
+}
+
+function assertRunOk(result, { command, exitCode = 0, reused = false, reusedFrom }) {
+  assert.strictEqual(result.ok, exitCode === 0);
+  assert.strictEqual(result.command, command);
+  assert.strictEqual(result.exitCode, exitCode);
+  assert.strictEqual(result.reused, reused);
+  assert.ok(typeof result.evidenceId === 'string' && /^[a-f0-9]{64}$/.test(result.evidenceId));
+  if (reused) {
+    assert.strictEqual(result.reusedFrom, reusedFrom || result.evidenceId);
+  } else {
+    assert.strictEqual(result.reusedFrom, undefined);
+  }
 }
 
 function writeTasks(repo, verifyField) {
@@ -86,15 +118,15 @@ test('runVerification records successful command evidence', () => {
     },
   });
 
-  assert.deepStrictEqual(result, { ok: true, command: 'npm test', exitCode: 0 });
+  assertRunOk(result, { command: 'npm test' });
   const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.status, 'passed');
-  assert.deepStrictEqual(verification.data.bouncer.verification, {
-    command: 'npm test',
-    ran_at: '2026-07-27T09:00:00.000+09:00',
-    exit_code: 0,
-    output_tail: 'line one\nline two',
-  });
+  assert.strictEqual(verification.data.bouncer.verification.command, 'npm test');
+  assert.strictEqual(verification.data.bouncer.verification.ran_at, '2026-07-27T09:00:00.000+09:00');
+  assert.strictEqual(verification.data.bouncer.verification.exit_code, 0);
+  assert.strictEqual(verification.data.bouncer.verification.output_tail, 'line one\nline two');
+  assert.strictEqual(verification.data.bouncer.verification.reused, false);
+  assert.strictEqual(verification.data.bouncer.verification.evidence_id, result.evidenceId);
   assert.match(verification.body, /## Command\n`npm test`/);
   assert.match(verification.body, /## Evidence[\s\S]*Exit code: 0/);
 });
@@ -113,7 +145,7 @@ test('runVerification records failed command evidence', () => {
     exec: () => { throw failure; },
   });
 
-  assert.deepStrictEqual(result, { ok: false, command: 'npm test', exitCode: 7 });
+  assertRunOk(result, { command: 'npm test', exitCode: 7 });
   const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.status, 'failed');
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 7);
@@ -130,19 +162,21 @@ test('runVerification writes a verify ledger record matching the re-read output_
     now: () => new Date('2026-07-27T00:00:00.000Z'),
     exec: () => ({ status: 0, stdout: 'line one\nline two\n', stderr: '' }),
   });
-  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
-  const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
   const verification = readDoc(path.join(repo, rel));
+  const paths = verifyLedgerPathFor({
+    repoRoot: repo, verificationRel: rel, evidenceId: verification.data.bouncer.verification.evidence_id,
+  });
+  const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
   const outputSha = createHash('sha256')
     .update(verification.data.bouncer.verification.output_tail, 'utf8')
     .digest('hex');
-  assert.deepStrictEqual(record, {
-    rel,
-    command: 'npm test',
-    ran_at: '2026-07-27T09:00:00.000+09:00',
-    exit_code: 0,
-    output_sha: outputSha,
-  });
+  assert.strictEqual(record.rel, rel);
+  assert.strictEqual(record.command, 'npm test');
+  assert.strictEqual(record.ran_at, '2026-07-27T09:00:00.000+09:00');
+  assert.strictEqual(record.exit_code, 0);
+  assert.strictEqual(record.output_sha, outputSha);
+  assert.strictEqual(record.evidence_id, verification.data.bouncer.verification.evidence_id);
+  assert.strictEqual(record.reused, false);
 });
 
 test('failed verification still writes a ledger record that does not pass G13', () => {
@@ -158,11 +192,13 @@ test('failed verification still writes a ledger record that does not pass G13', 
     now: () => new Date('2026-07-27T00:00:00.000Z'),
     exec: () => { throw failure; },
   });
-  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
+  const verification = readDoc(path.join(repo, rel));
+  const paths = verifyLedgerPathFor({
+    repoRoot: repo, verificationRel: rel, evidenceId: verification.data.bouncer.verification.evidence_id,
+  });
   const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
   assert.strictEqual(record.exit_code, 7);
 
-  const verification = readDoc(path.join(repo, rel));
   verification.rel = rel;
   const result = checkGate({
     gate: 'execute',
@@ -200,7 +236,9 @@ test('recordVerificationResult hashes output_tail after YAML round-trip of CRLF 
     output,
   });
   const reread = readDoc(path.join(repo, rel));
-  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
+  const paths = verifyLedgerPathFor({
+    repoRoot: repo, verificationRel: rel, evidenceId: reread.data.bouncer.verification.evidence_id,
+  });
   const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
   const outputSha = createHash('sha256')
     .update(reread.data.bouncer.verification.output_tail, 'utf8')
@@ -322,6 +360,7 @@ test('runVerification prefers tasks.bouncer.verify over config.verify', () => {
   });
   assert.strictEqual(executed, 'node -e process.exit(0)');
   assert.strictEqual(result.command, declared);
+  assert.strictEqual(result.reused, false);
   const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.verification.command, declared);
 });
@@ -574,9 +613,10 @@ test('runVerification records evidence into the pointer tasks/002 unit only', ()
     now: () => new Date('2026-07-27T00:00:00.000Z'),
     exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
   });
-  assert.deepStrictEqual(result, {
-    ok: true, command: 'node -e "process.exit(0)"', exitCode: 0,
-  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.command, 'node -e "process.exit(0)"');
+  assert.strictEqual(result.exitCode, 0);
+  assert.strictEqual(result.reused, false);
 
   const recorded = readDoc(path.join(repo, BP_REL, 'tasks/002/verification.md'));
   assert.strictEqual(recorded.data.bouncer.verification.exit_code, 0);
@@ -689,11 +729,10 @@ test('runVerification rejects argv0 outside the allowlist before starting a proc
     exec: () => { executed = true; return { status: 0, stdout: '', stderr: '' }; },
   });
   assert.strictEqual(executed, false);
-  assert.deepStrictEqual(result, {
-    ok: false,
-    command: 'curl https://example.invalid',
-    exitCode: 1,
-  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.command, 'curl https://example.invalid');
+  assert.strictEqual(result.exitCode, 1);
+  assert.strictEqual(result.reused, false);
   const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.status, 'failed');
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 1);
@@ -832,7 +871,10 @@ test('project allowlist bun accepts bun test and rejects npm test at runtime', (
     },
   });
   assert.strictEqual(bunExecuted, true);
-  assert.deepStrictEqual(bunResult, { ok: true, command: 'bun test', exitCode: 0 });
+  assert.strictEqual(bunResult.ok, true);
+  assert.strictEqual(bunResult.command, 'bun test');
+  assert.strictEqual(bunResult.exitCode, 0);
+  assert.strictEqual(bunResult.reused, false);
   assert.strictEqual(readVerifyCommand(repo, BP_REL), 'bun test');
 
   writeTasks(repo, 'npm test');
@@ -912,7 +954,9 @@ test('missing config uses the default allowlist; broken JSON and read errors abo
     },
   });
   assert.strictEqual(missingExecuted, true);
-  assert.deepStrictEqual(missingResult, { ok: true, command: 'npm test', exitCode: 0 });
+  assert.strictEqual(missingResult.ok, true);
+  assert.strictEqual(missingResult.command, 'npm test');
+  assert.strictEqual(missingResult.exitCode, 0);
   assert.strictEqual(readVerifyCommand(missingRepo, BP_REL), 'npm test');
 
   const brokenRepo = setupRepo('npm test');
@@ -1067,4 +1111,499 @@ bouncer:
   });
   assert.strictEqual(readVerifyCommand(wtA, currentA.blueprint), 'node -e "process.exit(0)"');
   assert.strictEqual(readVerifyCommand(wtB, currentB.blueprint), 'node -e "process.exit(11)"');
+});
+
+test('second runVerification with same identity/scope reuses evidence and skips exec', () => {
+  const repo = setupRepo();
+  const deps = fixedDeps();
+  const scope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
+  let calls = 0;
+  const exec = () => {
+    calls += 1;
+    return { status: 0, stdout: 'ok\n', stderr: '' };
+  };
+  const first = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    scope,
+    deps,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec,
+  });
+  assertRunOk(first, { command: 'npm test', reused: false });
+  assert.strictEqual(calls, 1);
+
+  const second = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    scope,
+    deps,
+    now: () => new Date('2026-07-28T00:00:00.000Z'),
+    exec,
+  });
+  assert.strictEqual(calls, 1);
+  assertRunOk(second, {
+    command: 'npm test',
+    reused: true,
+    reusedFrom: first.evidenceId,
+  });
+  assert.strictEqual(second.evidenceId, first.evidenceId);
+  const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
+  assert.strictEqual(verification.data.bouncer.verification.reused, true);
+  assert.strictEqual(verification.data.bouncer.verification.reused_from, first.evidenceId);
+  assert.strictEqual(
+    verification.data.bouncer.verification.ran_at,
+    '2026-07-27T09:00:00.000+09:00',
+  );
+});
+
+test('scope kind/key isolation yields distinct evidence ids and three exec calls', () => {
+  const repo = setupRepo();
+  const deps = fixedDeps();
+  const scopes = [
+    { kind: 'task', key: 'EPIC-076/BP-001/TASK-001' },
+    { kind: 'wave', key: 'r1:TASKS-001,TASKS-002' },
+    { kind: 'terminal', key: 'EPIC-076/BP-001:<integration-head>' },
+  ];
+  let calls = 0;
+  const exec = () => {
+    calls += 1;
+    return { status: 0, stdout: 'ok\n', stderr: '' };
+  };
+  const ids = new Set();
+  const ledgerFiles = new Set();
+  for (const scope of scopes) {
+    const result = runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      scope,
+      deps,
+      exec,
+    });
+    assert.strictEqual(result.reused, false);
+    ids.add(result.evidenceId);
+    const rel = `${BP_REL}/tasks/001/verification.md`;
+    const paths = verifyLedgerPathFor({
+      repoRoot: repo, verificationRel: rel, evidenceId: result.evidenceId,
+    });
+    ledgerFiles.add(paths.ledgerFile);
+    assert.ok(fs.existsSync(paths.ledgerFile));
+  }
+  assert.strictEqual(calls, 3);
+  assert.strictEqual(ids.size, 3);
+  assert.strictEqual(ledgerFiles.size, 3);
+});
+
+test('identity field changes and corrupt/failed records miss the cache', () => {
+  const repo = setupRepo();
+  const baseScope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
+  let calls = 0;
+  const exec = () => {
+    calls += 1;
+    return { status: 0, stdout: 'ok\n', stderr: '' };
+  };
+  const run = (deps, scope = baseScope) => runVerification({
+    repoRoot: repo, blueprintDir: BP_REL, scope, deps, exec,
+  });
+
+  run(fixedDeps());
+  assert.strictEqual(calls, 1);
+
+  const cases = [
+    fixedDeps({ git: (args) => {
+      if (args[0] === 'rev-parse') return 'otherhead\n';
+      if (args[0] === 'status') return '';
+      throw new Error(`unexpected git ${args.join(' ')}`);
+    } }),
+    fixedDeps({ git: (args) => {
+      if (args[0] === 'rev-parse') return 'abc123head\n';
+      if (args[0] === 'status') return ' M dirty.txt\0';
+      throw new Error(`unexpected git ${args.join(' ')}`);
+    } }),
+    fixedDeps({ platform: 'darwin' }),
+    null,
+  ];
+  fs.writeFileSync(path.join(repo, 'dirty.txt'), 'changed\n');
+  for (const deps of cases.slice(0, 3)) {
+    run(deps);
+  }
+  // scope key change
+  run(fixedDeps(), { kind: 'task', key: 'EPIC-001/BP-001/TASK-002' });
+  // command change via tasks verify
+  writeTasks(repo, 'node -e "process.exit(0)"');
+  run(fixedDeps());
+  assert.strictEqual(calls, 6);
+
+  // failure record is not reusable
+  const failRepo = setupRepo();
+  let failCalls = 0;
+  const failScope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
+  const failDeps = fixedDeps();
+  runVerification({
+    repoRoot: failRepo,
+    blueprintDir: BP_REL,
+    scope: failScope,
+    deps: failDeps,
+    exec: () => {
+      failCalls += 1;
+      return { status: 3, stdout: 'no\n', stderr: '' };
+    },
+  });
+  runVerification({
+    repoRoot: failRepo,
+    blueprintDir: BP_REL,
+    scope: failScope,
+    deps: failDeps,
+    exec: () => {
+      failCalls += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(failCalls, 2);
+
+  // corrupt v2 record → miss
+  const corruptRepo = setupRepo();
+  const corruptDeps = fixedDeps();
+  const corruptScope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
+  const first = runVerification({
+    repoRoot: corruptRepo,
+    blueprintDir: BP_REL,
+    scope: corruptScope,
+    deps: corruptDeps,
+    exec: () => {
+      failCalls += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  const paths = verifyLedgerPathFor({
+    repoRoot: corruptRepo,
+    verificationRel: `${BP_REL}/tasks/001/verification.md`,
+    evidenceId: first.evidenceId,
+  });
+  const broken = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
+  delete broken.identity;
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify(broken, null, 2)}\n`);
+  let corruptCalls = 0;
+  runVerification({
+    repoRoot: corruptRepo,
+    blueprintDir: BP_REL,
+    scope: corruptScope,
+    deps: corruptDeps,
+    exec: () => {
+      corruptCalls += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(corruptCalls, 1);
+
+  // reused 누락·비 boolean은 손상 miss (CT-001)
+  const reusedMissRepo = setupRepo();
+  const reusedMissDeps = fixedDeps();
+  const reusedMissScope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
+  const reusedFirst = runVerification({
+    repoRoot: reusedMissRepo,
+    blueprintDir: BP_REL,
+    scope: reusedMissScope,
+    deps: reusedMissDeps,
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  const reusedPaths = verifyLedgerPathFor({
+    repoRoot: reusedMissRepo,
+    verificationRel: `${BP_REL}/tasks/001/verification.md`,
+    evidenceId: reusedFirst.evidenceId,
+  });
+  const reusedBroken = JSON.parse(fs.readFileSync(reusedPaths.ledgerFile, 'utf8'));
+  delete reusedBroken.reused;
+  fs.writeFileSync(reusedPaths.ledgerFile, `${JSON.stringify(reusedBroken, null, 2)}\n`);
+  let reusedMissCalls = 0;
+  runVerification({
+    repoRoot: reusedMissRepo,
+    blueprintDir: BP_REL,
+    scope: reusedMissScope,
+    deps: reusedMissDeps,
+    exec: () => {
+      reusedMissCalls += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(reusedMissCalls, 1);
+  const reusedNonBool = JSON.parse(fs.readFileSync(reusedPaths.ledgerFile, 'utf8'));
+  reusedNonBool.reused = 'yes';
+  fs.writeFileSync(reusedPaths.ledgerFile, `${JSON.stringify(reusedNonBool, null, 2)}\n`);
+  reusedMissCalls = 0;
+  runVerification({
+    repoRoot: reusedMissRepo,
+    blueprintDir: BP_REL,
+    scope: reusedMissScope,
+    deps: reusedMissDeps,
+    exec: () => {
+      reusedMissCalls += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(reusedMissCalls, 1);
+
+  // v1 legacy record is never a hit
+  const v1Repo = setupRepo();
+  const v1Deps = fixedDeps();
+  const v1Scope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
+  const v1First = runVerification({
+    repoRoot: v1Repo,
+    blueprintDir: BP_REL,
+    scope: v1Scope,
+    deps: v1Deps,
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  const v1Paths = verifyLedgerPathFor({
+    repoRoot: v1Repo,
+    verificationRel: `${BP_REL}/tasks/001/verification.md`,
+    evidenceId: v1First.evidenceId,
+  });
+  fs.writeFileSync(v1Paths.ledgerFile, `${JSON.stringify({
+    rel: `${BP_REL}/tasks/001/verification.md`,
+    command: 'npm test',
+    ran_at: '2026-07-27T00:00:00.000Z',
+    exit_code: 0,
+    output_sha: createHash('sha256').update('ok', 'utf8').digest('hex'),
+  }, null, 2)}\n`);
+  let v1Calls = 0;
+  runVerification({
+    repoRoot: v1Repo,
+    blueprintDir: BP_REL,
+    scope: v1Scope,
+    deps: v1Deps,
+    exec: () => {
+      v1Calls += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(v1Calls, 1);
+});
+
+test('explicit and pointer-derived scopes, and identity errors reject before spawn', () => {
+  const { writeCurrent } = require('../scripts/lib/current');
+  const repo = setupRepo();
+  writeTasks(repo, 'npm test');
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  const deps = fixedDeps();
+  let calls = 0;
+  const exec = () => {
+    calls += 1;
+    return { status: 0, stdout: 'ok\n', stderr: '' };
+  };
+  const explicit = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' },
+    deps,
+    exec,
+  });
+  const derived = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    deps,
+    exec,
+  });
+  // 첫 실행 후 같은 identity면 재사용. pointer-derived와 명시 scope가 같으면 hit.
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(derived.reused, true);
+  assert.strictEqual(derived.evidenceId, explicit.evidenceId);
+  assert.strictEqual(
+    readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md')).data.bouncer.verification.scope.key,
+    'EPIC-001/BP-001/TASK-001',
+  );
+
+  let spawned = false;
+  assert.throws(
+    () => runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      scope: { kind: 'task', key: '' },
+      deps,
+      exec: () => { spawned = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_IDENTITY_INVALID',
+  );
+  assert.strictEqual(spawned, false);
+
+  assert.throws(
+    () => runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      scope: { kind: 'nope', key: 'x' },
+      deps,
+      exec: () => { spawned = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_IDENTITY_INVALID',
+  );
+  assert.strictEqual(spawned, false);
+
+  assert.throws(
+    () => runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' },
+      deps: fixedDeps({
+        git: () => { throw new Error('git unavailable'); },
+      }),
+      exec: () => { spawned = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_IDENTITY_INVALID',
+  );
+  assert.strictEqual(spawned, false);
+
+  const dirtyRepo = setupRepo();
+  assert.throws(
+    () => runVerification({
+      repoRoot: dirtyRepo,
+      blueprintDir: BP_REL,
+      scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' },
+      deps: fixedDeps({
+        git: (args) => {
+          if (args[0] === 'rev-parse') return 'abc123head\n';
+          if (args[0] === 'status') return '?? /tmp/outside\0';
+          throw new Error(`unexpected git ${args.join(' ')}`);
+        },
+      }),
+      exec: () => { spawned = true; return { status: 0, stdout: '', stderr: '' }; },
+    }),
+    (e) => e.code === 'VERIFY_IDENTITY_INVALID',
+  );
+  assert.strictEqual(spawned, false);
+
+  // CT-004: in-repo `..foo`는 부모 탈출이 아니다 — escape 거절로 오탐하면 안 된다.
+  const dotDotNameRepo = setupRepo();
+  fs.writeFileSync(path.join(dotDotNameRepo, '..foo'), 'in-repo\n');
+  let dotDotSpawned = 0;
+  const dotDotOk = runVerification({
+    repoRoot: dotDotNameRepo,
+    blueprintDir: BP_REL,
+    scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' },
+    deps: fixedDeps({
+      git: (args) => {
+        if (args[0] === 'rev-parse') return 'abc123head\n';
+        if (args[0] === 'status') return '?? ..foo\0';
+        throw new Error(`unexpected git ${args.join(' ')}`);
+      },
+    }),
+    exec: () => {
+      dotDotSpawned += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(dotDotOk.ok, true);
+  assert.strictEqual(dotDotSpawned, 1);
+});
+
+test('omitted scope with numbered unit missing epic_id falls back to path key and runs exec once', () => {
+  const { writeCurrent } = require('../scripts/lib/current');
+  const repo = setupRepo();
+  // coordinator integrate fixture처럼 id만 있고 epic/blueprint frontmatter가 없다.
+  // provenance digit 거절 뒤 경로 숫자로 scope를 만들어야 한다.
+  const abs = path.join(repo, BP_REL, 'tasks/001/tasks.md');
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---
+type: bouncer.tasks
+title: Login tasks
+description: Tasks for 001
+resource: ${BP_REL}/tasks/001/tasks.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-001
+  status: ready
+  verify: npm test
+---
+# Tasks
+`);
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  let calls = 0;
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    deps: fixedDeps(),
+    exec: () => {
+      calls += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(result.reused, false);
+  assert.strictEqual(
+    readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md')).data.bouncer.verification.scope.key,
+    'EPIC-001/BP-001/TASK-001',
+  );
+});
+
+test('omitted scope with legacy root tasks.md only resolves scope and runs exec', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verification-legacy-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '--allow-empty', '-m', 'init',
+  ], { cwd: repo });
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: 'npm test' }));
+  // numbered entries가 비고 루트 tasks.md만 있을 때 resolveVerificationRel과 같이
+  // 레거시 경로로 scope를 잡는다 — native-profile-e2e execute 경로.
+  fs.mkdirSync(path.join(repo, BP_REL), { recursive: true });
+  fs.writeFileSync(path.join(repo, BP_REL, 'tasks.md'), `---
+type: bouncer.tasks
+title: Login tasks
+description: Tasks for 001
+resource: ${BP_REL}/tasks.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-001
+  epic_id: '001'
+  blueprint_id: '001'
+  status: verified
+---
+# Tasks
+`);
+  fs.writeFileSync(path.join(repo, BP_REL, 'verification.md'), `---
+type: bouncer.verification
+title: Verify 001
+description: Verification evidence
+resource: ${BP_REL}/verification.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: VERIFY-001
+  epic_id: '001'
+  blueprint_id: '001'
+  status: pending
+---
+# Verification
+`);
+  let calls = 0;
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    deps: fixedDeps(),
+    exec: () => {
+      calls += 1;
+      return { status: 0, stdout: 'ok\n', stderr: '' };
+    },
+  });
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(
+    readDoc(path.join(repo, BP_REL, 'verification.md')).data.bouncer.verification.scope.key,
+    'EPIC-001/BP-001/TASK-001',
+  );
 });

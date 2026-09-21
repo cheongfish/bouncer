@@ -18,11 +18,13 @@ const { listTasksDocs } = tasksDocs;
 const current = require("./current");
 const { readCurrent } = current;
 const paths = require("./paths");
-const { toPosix } = paths;
+const { toPosix, parsePathIds } = paths;
 const runtimeState = require("./runtime-state");
 const { verifyLedgerPathFor } = runtimeState;
 const config = require("./config");
 const { readConfigResult, readVerifyPolicy, DEFAULT_VERIFY_ALLOWLIST, } = config;
+const commitSha = require("./commit-sha");
+const { buildStableProvenance } = commitSha;
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
 // 증거이므로 훨씬 더 많이 — 그리고 리뷰어가 읽는 문서 본문에, frontmatter에만
@@ -30,6 +32,11 @@ const { readConfigResult, readVerifyPolicy, DEFAULT_VERIFY_ALLOWLIST, } = config
 const OUTPUT_TAIL_LINES = 100;
 const PASSING_OUTPUT_TAIL_LINES = 20;
 const MAX_VERIFY_OUTPUT_BYTES = 10 * 1024 * 1024;
+// config.json 부재와 빈 파일·파손 파일을 같은 해시로 접지 않기 위한 고정값.
+// 환경 해시가 플랫폼만 같아도 “설정 없음”을 구분해야 miss가 된다.
+const VERIFY_CONFIG_MISSING_SENTINEL = '__bouncer_verify_config_missing__';
+const SCOPE_KINDS = new Set(['task', 'wave', 'terminal']);
+const TASK_DIR_RE = /(?:^|\/)tasks\/(\d{3})(?:\/|$)/;
 function verificationError(code, message) {
     const error = new Error(message);
     error.code = code;
@@ -369,12 +376,394 @@ function executeVerify(command, { cwd, exec, allowlist }) {
         };
     }
 }
-function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, deps, }) {
+/**
+ * 객체의 키를 재귀적으로 정렬한 뒤 UTF-8 JSON으로 직렬화한다.
+ * identity·environment 해시가 키 삽입 순서에 흔들리지 않게 한다.
+ *
+ * @param {unknown} value - 직렬화할 값
+ * @returns {string} canonical JSON 문자열
+ */
+function canonicalJson(value) {
+    const normalize = (input) => {
+        if (Array.isArray(input))
+            return input.map(normalize);
+        if (input && typeof input === 'object') {
+            const record = input;
+            const sorted = {};
+            for (const key of Object.keys(record).sort()) {
+                sorted[key] = normalize(record[key]);
+            }
+            return sorted;
+        }
+        return input;
+    };
+    return JSON.stringify(normalize(value));
+}
+/**
+ * canonical JSON의 SHA-256 hex를 돌려준다.
+ *
+ * @param {unknown} value - 해시할 값
+ * @returns {string} 64자 hex digest
+ */
+function sha256Canonical(value) {
+    return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
+}
+/**
+ * scope shape을 검사한다. kind/key가 잘못되면 process를 시작하기 전에 거절한다.
+ *
+ * @param {unknown} scope - 호출자 또는 포인터에서 온 범위
+ * @returns {VerificationScope} 정규화된 scope
+ */
+function assertVerificationScope(scope) {
+    if (!isRecord(scope)) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', 'verification scope must be an object');
+    }
+    const kind = scope.kind;
+    const key = scope.key;
+    if (typeof kind !== 'string' || !SCOPE_KINDS.has(kind)) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', 'verification scope.kind must be task, wave, or terminal');
+    }
+    if (typeof key !== 'string' || key.trim() === '') {
+        throw verificationError('VERIFY_IDENTITY_INVALID', 'verification scope.key must be a non-empty string');
+    }
+    return { kind: kind, key };
+}
+/**
+ * 활성 포인터 또는 번호 순 첫 task 묶음에서 task scope를 만든다.
+ * frontmatter가 있으면 stable provenance를 쓰고, epic/blueprint 누락·형식
+ * 거절·문서 부재는 경로 숫자로 같은 형식의 키를 만든다. numbered entries가
+ * 비면 레거시 루트 `blueprintDir/tasks.md`를 본다 — omit-scope 호출자가
+ * 예전처럼 executeVerify까지 닿게 한다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} blueprintDir - blueprint 상대 경로
+ * @returns {VerificationScope} `{ kind: 'task', key: 'EPIC-…/BP-…/TASK-…' }`
+ */
+function resolveDefaultTaskScope(repoRoot, blueprintDir) {
+    const entries = entriesForVerify(repoRoot, blueprintDir);
+    const pointer = readCurrent({ repoRoot });
+    const bp = toPosix(blueprintDir);
+    let tasksRel = null;
+    if (isRecord(pointer) && typeof pointer.task === 'string' && toPosix(pointer.blueprint) === bp) {
+        tasksRel = toPosix(pointer.task);
+    }
+    else if (entries[0] && entries[0].tasks && entries[0].tasks.rel) {
+        tasksRel = toPosix(entries[0].tasks.rel);
+    }
+    // resolveVerificationRel과 같은 레거시 폴백. listing이 비어도 루트
+    // tasks.md가 있으면 omit-scope 호출이 tasksRel 부재로 막히지 않게 한다.
+    if (!tasksRel) {
+        const legacyRel = `${bp}/tasks.md`;
+        if (fs.existsSync(path.join(repoRoot, legacyRel))) {
+            tasksRel = legacyRel;
+        }
+    }
+    if (!tasksRel) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', 'verification task scope requires an active pointer task or task unit');
+    }
+    const abs = path.join(repoRoot, tasksRel);
+    try {
+        const { data } = readDoc(abs);
+        const bouncer = data && isRecord(data) ? data.bouncer : null;
+        if (isRecord(bouncer)) {
+            const stable = buildStableProvenance({
+                epicId: bouncer.epic_id,
+                blueprintId: bouncer.blueprint_id,
+                taskId: bouncer.id,
+            });
+            return { kind: 'task', key: stable.task };
+        }
+    }
+    catch {
+        // ENOENT·깨진 frontmatter뿐 아니라 epic/blueprint 누락으로 나는
+        // three-digit/TASKS-NNN 거절도 경로 폴백으로 넘긴다. coordinator
+        // fixture는 id만 두고 epic_id를 생략하므로, 여기서 hard-fail하면
+        // omit-scope integrate가 executeVerify에 닿지 못한다. 경로에서도
+        // 키를 못 만들 때만 아래에서 identity 오류로 올린다.
+    }
+    const ids = parsePathIds(tasksRel);
+    const taskMatch = TASK_DIR_RE.exec(tasksRel);
+    if (!ids.epicId || !ids.blueprintId || !taskMatch) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', 'cannot derive stable task scope from pointer or task path');
+    }
+    return {
+        kind: 'task',
+        key: `EPIC-${ids.epicId}/BP-${ids.blueprintId}/TASK-${taskMatch[1]}`,
+    };
+}
+/**
+ * deps.git 또는 spawnSync로 git argv를 실행한다. 비0·예외는 identity 오류다.
+ *
+ * @param {string} repoRoot - cwd
+ * @param {string[]} args - git 인자(git 자체 제외)
+ * @param {VerificationDeps} [deps] - 주입 git
+ * @returns {string} stdout
+ */
+function runGit(repoRoot, args, deps) {
+    try {
+        if (deps && typeof deps.git === 'function') {
+            return String(deps.git(args) ?? '');
+        }
+        const result = spawnSync('git', args, {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        if (result.status !== 0) {
+            throw verificationError('VERIFY_IDENTITY_INVALID', `git ${args.join(' ')} failed: ${String(result.stderr || result.error || 'non-zero exit')}`);
+        }
+        return String(result.stdout || '');
+    }
+    catch (error) {
+        if (errorCode(error) === 'VERIFY_IDENTITY_INVALID')
+            throw error;
+        throw verificationError('VERIFY_IDENTITY_INVALID', `git ${args.join(' ')} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+/**
+ * 파일을 읽어 Buffer로 돌려준다. 주입 readFile이 있으면 그걸 쓴다.
+ *
+ * @param {string} absPath - 절대 경로
+ * @param {VerificationDeps} [deps] - 주입 읽기
+ * @returns {Buffer} 파일 바이트
+ */
+function readBytes(absPath, deps) {
+    try {
+        if (deps && typeof deps.readFile === 'function') {
+            const raw = deps.readFile(absPath);
+            return typeof raw === 'string' ? Buffer.from(raw, 'utf8') : raw;
+        }
+        return fs.readFileSync(absPath);
+    }
+    catch (error) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', `failed to read ${absPath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+/**
+ * porcelain -z 한 항목과 대상 path의 type·content digest를 만든다.
+ * 절대 worktree 경로는 identity에 넣지 않고 repo-relative POSIX만 쓴다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} xy - status XY 코드
+ * @param {string} relPath - dirty 상대경로
+ * @param {VerificationDeps} [deps] - 파일 읽기 주입
+ * @returns {{ path: string, xy: string, type: string, content_sha256: string }}
+ */
+function dirtyEntryDigest(repoRoot, xy, relPath, deps) {
+    const posixRel = toPosix(relPath);
+    const abs = path.resolve(repoRoot, posixRel);
+    const rootReal = fs.realpathSync(repoRoot);
+    // resolve만으로도 .. 탈출을 막지만, realpath로 symlink 탈출도 거절한다.
+    let targetReal = abs;
+    try {
+        if (fs.existsSync(abs))
+            targetReal = fs.realpathSync(abs);
+    }
+    catch (_error) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', `dirty path is not readable: ${posixRel}`);
+    }
+    const relToRoot = path.relative(rootReal, targetReal);
+    // `..foo` 같은 in-repo 이름은 `startsWith('..')`에 걸리면 안 된다.
+    // 부모 탈출만 거절: 정확히 `..` 이거나 `../`·`..\` 세그먼트로 시작할 때.
+    if (relToRoot === '..'
+        || relToRoot.startsWith(`..${path.sep}`)
+        || path.isAbsolute(relToRoot)) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', `dirty path escapes the repository: ${posixRel}`);
+    }
+    // missing은 catch 경로에서만 확정 — 초기값 할당은 전 분기에서 덮어써 no-useless-assignment에 걸린다.
+    let type;
+    let contentSha = createHash('sha256').update('', 'utf8').digest('hex');
+    try {
+        const st = fs.lstatSync(abs);
+        if (st.isSymbolicLink()) {
+            type = 'symlink';
+            contentSha = createHash('sha256').update(fs.readlinkSync(abs), 'utf8').digest('hex');
+        }
+        else if (st.isDirectory()) {
+            type = 'directory';
+            contentSha = createHash('sha256').update('dir', 'utf8').digest('hex');
+        }
+        else if (st.isFile()) {
+            type = 'file';
+            contentSha = createHash('sha256').update(readBytes(abs, deps)).digest('hex');
+        }
+        else {
+            type = 'other';
+        }
+    }
+    catch (error) {
+        if (errorCode(error) === 'VERIFY_IDENTITY_INVALID')
+            throw error;
+        // 삭제된 dirty(D) 등은 파일이 없어도 status 항목 자체는 digest에 남긴다.
+        type = 'missing';
+    }
+    return { path: posixRel, xy, type, content_sha256: contentSha };
+}
+/**
+ * `git status --porcelain=v1 -z`와 dirty path 내용을 정렬한 digest를 계산한다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {VerificationDeps} [deps] - git/readFile 주입
+ * @returns {string} dirty digest SHA-256
+ */
+function computeDirtyDigest(repoRoot, deps) {
+    const raw = runGit(repoRoot, ['status', '--porcelain=v1', '-z'], deps);
+    const entries = [];
+    const parts = String(raw).split('\0').filter((part) => part.length > 0);
+    for (let i = 0; i < parts.length; i += 1) {
+        const part = parts[i];
+        // porcelain -z: "XY PATH" 또는 rename이면 다음 토큰이 새 경로.
+        const xy = part.slice(0, 2);
+        const pathPart = part.slice(3);
+        const isRename = xy[0] === 'R' || xy[0] === 'C' || xy[1] === 'R' || xy[1] === 'C';
+        if (isRename && i + 1 < parts.length) {
+            const fromPath = pathPart;
+            const toPath = parts[i + 1];
+            i += 1;
+            entries.push(dirtyEntryDigest(repoRoot, xy, fromPath, deps));
+            entries.push(dirtyEntryDigest(repoRoot, xy, toPath, deps));
+        }
+        else {
+            entries.push(dirtyEntryDigest(repoRoot, xy, pathPart, deps));
+        }
+    }
+    entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    return sha256Canonical(entries);
+}
+/**
+ * platform/arch/node/verify config의 environment hash를 계산한다.
+ * config 부재는 고정 sentinel로 두어 빈 파일 해시와 구분한다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {VerificationDeps} [deps] - platform·arch·node·readFile 주입
+ * @returns {string} environment SHA-256
+ */
+function computeEnvironmentHash(repoRoot, deps) {
+    const configPath = path.join(repoRoot, '.bouncer', 'config.json');
+    let verifyConfigHash = VERIFY_CONFIG_MISSING_SENTINEL;
+    const exists = fs.existsSync(configPath);
+    if (exists) {
+        try {
+            const st = fs.statSync(configPath);
+            if (!st.isFile()) {
+                throw verificationError('VERIFY_IDENTITY_INVALID', `verification config is not a file: ${configPath}`);
+            }
+            verifyConfigHash = createHash('sha256').update(readBytes(configPath, deps)).digest('hex');
+        }
+        catch (error) {
+            if (errorCode(error) === 'VERIFY_IDENTITY_INVALID')
+                throw error;
+            throw verificationError('VERIFY_IDENTITY_INVALID', `failed to hash verification config: ${configPath}`);
+        }
+    }
+    return sha256Canonical({
+        platform: (deps && deps.platform) || process.platform,
+        arch: (deps && deps.arch) || process.arch,
+        node_version: (deps && deps.nodeVersion) || process.version,
+        verify_config_hash: verifyConfigHash,
+    });
+}
+/**
+ * 검증 실행 입력의 content-addressed identity와 evidence_id를 계산한다.
+ * Git·dirty·config 조회 실패는 실행으로 우회하지 않고 전용 오류로 중단한다.
+ *
+ * @param {{ repoRoot: string, command: string, scope: VerificationScope, deps?: VerificationDeps }} opts
+ * @returns {{ identity: EvidenceIdentity, evidenceId: string }}
+ */
+function computeEvidenceIdentity({ repoRoot, command, scope, deps, }) {
+    const head = runGit(repoRoot, ['rev-parse', 'HEAD'], deps).trim();
+    if (!head) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', 'git HEAD is empty');
+    }
+    const identity = {
+        head,
+        dirty_digest: computeDirtyDigest(repoRoot, deps),
+        command,
+        cwd: '.',
+        environment_hash: computeEnvironmentHash(repoRoot, deps),
+        scope,
+    };
+    return { identity, evidenceId: sha256Canonical(identity) };
+}
+/**
+ * v2 성공 원장만 reuse hit로 인정한다. v1·실패·필드 누락·identity/scope 불일치는 miss.
+ *
+ * @param {unknown} record - 디스크 원장
+ * @param {EvidenceIdentity} identity - 현재 입력 identity
+ * @param {string} evidenceId - 현재 evidence_id
+ * @returns {record is VerifyLedgerRecordV2} hit이면 true
+ */
+function isReuseHit(record, identity, evidenceId) {
+    if (!isRecord(record))
+        return false;
+    // v1은 evidence_id가 없다. 읽을 수는 있어도 hit로 승격하지 않는다.
+    if (typeof record.evidence_id !== 'string' || !record.evidence_id)
+        return false;
+    if (record.evidence_id !== evidenceId)
+        return false;
+    if (record.exit_code !== 0)
+        return false;
+    if (typeof record.ran_at !== 'string' || !record.ran_at)
+        return false;
+    if (typeof record.output_sha !== 'string' || !record.output_sha)
+        return false;
+    if (typeof record.command !== 'string')
+        return false;
+    // reused는 성공 hit의 필수 boolean. 누락·문자열·숫자는 손상으로 miss.
+    if (typeof record.reused !== 'boolean')
+        return false;
+    if (!isRecord(record.identity) || !isRecord(record.scope))
+        return false;
+    if (canonicalJson(record.identity) !== canonicalJson(identity))
+        return false;
+    if (canonicalJson(record.scope) !== canonicalJson(identity.scope))
+        return false;
+    return true;
+}
+/**
+ * 원장 파일을 읽어 파싱한다. 부재·파손은 null(정상 miss).
+ *
+ * @param {string} ledgerFile - 절대 경로
+ * @returns {unknown | null}
+ */
+function readLedgerFile(ledgerFile) {
+    if (!fs.existsSync(ledgerFile))
+        return null;
+    try {
+        const parsed = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+            return null;
+        return parsed;
+    }
+    catch (_error) {
+        return null;
+    }
+}
+function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, evidenceId, identity, scope, reused = false, reusedFrom, deps, }) {
     // verificationRel이 정식 인자. blueprintDir은 구 호출 호환(루트 verification.md).
     const rel = verificationRel
         || (blueprintDir ? `${toPosix(blueprintDir)}/verification.md` : null);
     if (!rel) {
         throw verificationError('VERIFY_DOCUMENT_MISSING', 'verification document path missing');
+    }
+    // 직접 호출 테스트는 evidence를 생략한다. 그 경우 현재 checkout identity를
+    // 채워 v2 원장·G13 계약과 맞춘다 — runVerification 경로와 키 공간을 공유한다.
+    let resolvedScope = scope;
+    let resolvedIdentity = identity;
+    let resolvedEvidenceId = evidenceId;
+    if (!resolvedScope || !resolvedIdentity || !resolvedEvidenceId) {
+        const blueprintGuess = blueprintDir
+            || rel.replace(/\/tasks\/\d{3}\/verification\.md$/, '')
+            || rel.replace(/\/verification\.md$/, '');
+        resolvedScope = resolvedScope || resolveDefaultTaskScope(repoRoot, blueprintGuess);
+        const computed = computeEvidenceIdentity({
+            repoRoot,
+            command,
+            scope: resolvedScope,
+            deps,
+        });
+        resolvedIdentity = resolvedIdentity || computed.identity;
+        resolvedEvidenceId = resolvedEvidenceId || computed.evidenceId;
     }
     const verificationPath = path.join(repoRoot, rel);
     let document;
@@ -393,12 +782,21 @@ function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, com
     const bouncer = (data.bouncer || {});
     data.bouncer = bouncer;
     bouncer.status = exitCode === 0 ? 'passed' : 'failed';
-    bouncer.verification = {
+    const verificationMeta = {
         command,
         ran_at: ranAt,
         exit_code: exitCode,
         output_tail: output,
+        evidence_id: resolvedEvidenceId,
+        identity: resolvedIdentity,
+        scope: resolvedScope,
+        reused,
     };
+    // reused_from은 hit일 때만 기록한다. false인데 키가 있으면 G13이 손기록을 통과시킨다.
+    if (reused && reusedFrom) {
+        verificationMeta.reused_from = reusedFrom;
+    }
+    bouncer.verification = verificationMeta;
     const evidence = exitCode === 0
         ? ''
         : `\n\`\`\`\n${output}\n\`\`\`\n`;
@@ -421,7 +819,12 @@ ${evidence}`;
         : {};
     const outputTail = typeof rereadEvidence.output_tail === 'string' ? rereadEvidence.output_tail : '';
     const outputSha = createHash('sha256').update(outputTail, 'utf8').digest('hex');
-    const ledgerPaths = verifyLedgerPathFor({ repoRoot, verificationRel: rel, deps });
+    const ledgerPaths = verifyLedgerPathFor({
+        repoRoot,
+        verificationRel: rel,
+        evidenceId: resolvedEvidenceId,
+        deps,
+    });
     if (ledgerPaths.unavailable || !ledgerPaths.ledgerFile) {
         // 원장 없이 문서만 남기면 에이전트 Write와 구분이 안 된다. Git을 못 쓰면
         // verify 자체를 실패시켜 복구 경로(저장소에서 재실행)만 남긴다.
@@ -434,7 +837,18 @@ ${evidence}`;
         ran_at: ranAt,
         exit_code: exitCode,
         output_sha: outputSha,
+        evidence_id: resolvedEvidenceId,
+        identity: resolvedIdentity,
+        scope: resolvedScope,
+        reused,
     };
+    if (reused && reusedFrom) {
+        record.reused_from = reusedFrom;
+    }
+    // reuse hit가 문서 output_tail을 다시 쓸 수 있게 성공 원장에만 본문을 남긴다.
+    if (exitCode === 0) {
+        record.output_tail = outputTail;
+    }
     fs.writeFileSync(ledgerPaths.ledgerFile, `${JSON.stringify(record, null, 2)}\n`);
 }
 function resolveVerificationRel(repoRoot, blueprintDir) {
@@ -446,7 +860,25 @@ function resolveVerificationRel(repoRoot, blueprintDir) {
     }
     return `${toPosix(blueprintDir)}/verification.md`;
 }
-function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() }) {
+/**
+ * 활성 task의 검증 명령을 실행하거나, 같은 identity·scope의 성공 원장이 있으면
+ * process spawn 없이 재사용 증적을 기록한다. identity 계산 실패는 실행으로
+ * 우회하지 않는다.
+ *
+ * @param {object} opts - 실행 옵션
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @param {VerificationScope} [opts.scope] - 생략 시 포인터/첫 task의 stable Task ID
+ * @param {VerifyExec} [opts.exec] - 주입 실행기(테스트용)
+ * @param {() => Date} [opts.now] - 시각 주입
+ * @param {VerificationDeps} [opts.deps] - git/readFile/platform 주입
+ * @returns {{
+ *   ok: boolean, command: string, exitCode: number, evidenceId: string,
+ *   reused: boolean, reusedFrom?: string
+ * }}
+ */
+function runVerification({ repoRoot, blueprintDir, scope: scopeInput, exec, now = () => new Date(), deps, }) {
+    // 1. blueprint·명령·문서 존재 — 기존 거절을 identity보다 먼저 유지한다.
     if (!isCanonicalBlueprintDir(blueprintDir)) {
         throw verificationError('VERIFY_BLUEPRINT_INVALID', 'blueprintDir must be under .bouncer/context/epics');
     }
@@ -462,6 +894,53 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
     if (policy.ok === false) {
         throw verificationError('VERIFY_CONFIG_INVALID', `verification config is invalid: ${path.join(repoRoot, '.bouncer', 'config.json')}`);
     }
+    // 2. scope·identity는 spawn 전에 확정한다. 실패는 전용 오류.
+    const scope = scopeInput
+        ? assertVerificationScope(scopeInput)
+        : resolveDefaultTaskScope(repoRoot, blueprintDir);
+    const { identity, evidenceId } = computeEvidenceIdentity({
+        repoRoot, command, scope, deps,
+    });
+    // 3. 성공 v2 원장 hit면 exec를 건너뛰고 원본 ran_at·output을 재기록한다.
+    const ledgerPaths = verifyLedgerPathFor({
+        repoRoot,
+        verificationRel,
+        evidenceId,
+    });
+    if (!ledgerPaths.unavailable && ledgerPaths.ledgerFile) {
+        const existing = readLedgerFile(ledgerPaths.ledgerFile);
+        if (isReuseHit(existing, identity, evidenceId)) {
+            const output = typeof existing.output_tail === 'string'
+                ? existing.output_tail
+                : '';
+            const outputSha = createHash('sha256').update(output, 'utf8').digest('hex');
+            // 원장 output_tail이 비었거나 해시가 깨졌으면 hit를 포기하고 재실행한다.
+            if (outputSha === existing.output_sha) {
+                recordVerificationResult({
+                    repoRoot,
+                    verificationRel,
+                    command,
+                    ranAt: existing.ran_at,
+                    exitCode: 0,
+                    output,
+                    evidenceId,
+                    identity,
+                    scope,
+                    reused: true,
+                    reusedFrom: existing.evidence_id,
+                });
+                return {
+                    ok: true,
+                    command,
+                    exitCode: 0,
+                    evidenceId,
+                    reused: true,
+                    reusedFrom: existing.evidence_id,
+                };
+            }
+        }
+    }
+    // 4. cache miss — 실제 명령을 한 번 실행하고 v2 증적을 남긴다.
     const execution = executeVerify(command, {
         cwd: repoRoot,
         exec,
@@ -475,8 +954,18 @@ function runVerification({ repoRoot, blueprintDir, exec, now = () => new Date() 
         ranAt,
         exitCode: execution.exitCode,
         output: execution.output,
+        evidenceId,
+        identity,
+        scope,
+        reused: false,
     });
-    return { ok: execution.ok, command, exitCode: execution.exitCode };
+    return {
+        ok: execution.ok,
+        command,
+        exitCode: execution.exitCode,
+        evidenceId,
+        reused: false,
+    };
 }
 module.exports = {
     OUTPUT_TAIL_LINES,

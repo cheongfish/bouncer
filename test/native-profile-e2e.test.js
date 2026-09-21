@@ -27,7 +27,16 @@ function base(type, id, status, extra) {
 test('execute validation reruns the configured command instead of trusting evidence', () => {
   const { execFileSync } = require('node:child_process');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-native-e2e-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  const git = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+  git(['init', '--quiet']);
+  // identity는 HEAD를 요구한다. init만으로는 rev-parse가 실패해 fail-closed로
+  // 검증 명령이 돌지 않으므로, 트리비얼 커밋으로 HEAD를 만든 뒤 아래 docs는
+  // dirty로 남겨 identity는 성공·명령은 실제 재실행되게 한다.
+  git(['config', 'user.email', 'test@example.com']);
+  git(['config', 'user.name', 'test']);
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  git(['add', 'README.md']);
+  git(['commit', '-m', 'fixture']);
 
   // native Bouncer workflow: self-contained verification + review docs
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });

@@ -726,9 +726,21 @@ function coordinatorPathsFor({ repoRoot, blueprint, task, deps }: {
   return result;
 }
 
-function verifyLedgerPathFor({ repoRoot, verificationRel, deps }: {
+/**
+ * Git common directory 아래의 verify 원장 경로를 계산한다.
+ * evidenceId가 있으면 v2(내용 주소) 키를 쓰고, 없으면 verificationRel만
+ * 해시하는 legacy 경로를 돌려 — 구 원장은 읽을 수 있어도 reuse hit 키가
+ * 되지 않게 한다. linked worktree는 같은 common dir을 공유한다.
+ *
+ * @param {{ repoRoot: string, verificationRel: unknown, evidenceId?: unknown, deps?: RuntimeDeps | null }} opts
+ *   - `verificationRel`은 저장소 상대 verification.md 경로(legacy 키)
+ *   - `evidenceId`는 v2 evidence SHA-256. 있으면 legacy 키를 쓰지 않는다
+ * @returns {RuntimePaths} 성공 시 `ledgerFile`, 비-Git이면 `unavailable`
+ */
+function verifyLedgerPathFor({ repoRoot, verificationRel, evidenceId, deps }: {
   repoRoot: string;
   verificationRel: unknown;
+  evidenceId?: unknown;
   deps?: RuntimeDeps | null;
 }): RuntimePaths {
   const paths = resolvedPaths({ repoRoot, deps });
@@ -740,9 +752,12 @@ function verifyLedgerPathFor({ repoRoot, verificationRel, deps }: {
   const pathApi = platform === 'win32' ? path.win32 : path;
   // 원장은 current 포인터와 같이 common dir 아래에 둔다. linked worktree가
   // 같은 레코드를 보게 하고, `.git/` 안이라 커밋 스코프에 절대 안 실린다.
-  // 파일명은 상대경로 sha256의 앞 16자면 충돌을 피하면서 경로 문자(슬래시)를
-  // 파일 이름에 넣지 않는다.
-  const digest = createHash('sha256').update(toPosix(verificationRel), 'utf8').digest('hex').slice(0, 16);
+  // v2는 evidence_id로 키를 잡아 scope·identity가 다르면 파일을 덮어쓰지
+  // 않는다. legacy는 rel만 해시해 구 판독기가 옛 경로를 열 수 있게 남긴다.
+  const key = typeof evidenceId === 'string' && evidenceId.trim()
+    ? `v2:${evidenceId.trim()}`
+    : toPosix(verificationRel);
+  const digest = createHash('sha256').update(key, 'utf8').digest('hex').slice(0, 16);
   return {
     ...paths,
     ledgerFile: pathApi.join(paths.commonGitDir as string, 'bouncer', 'verify', `${digest}.json`),

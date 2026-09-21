@@ -33,6 +33,10 @@ function setupRepo(verify = 'node -e "process.exit(0)"') {
   const { execFileSync } = require('node:child_process');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-verify-'));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '--allow-empty', '-m', 'init',
+  ], { cwd: repo });
   fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify }));
   writeDoc(repo, '.bouncer/context/epics/001-auth/index.md',
@@ -79,17 +83,27 @@ test('verify executes the configured command and records evidence', () => {
   const code = runCli(['verify', '--repo', repo, '--blueprint', BP_REL], io);
 
   assert.strictEqual(code, 0);
-  assert.strictEqual(JSON.parse(buf.out).ok, true);
+  const payload = JSON.parse(buf.out);
+  assert.strictEqual(payload.ok, true);
+  assert.strictEqual(payload.reused, false);
+  assert.ok(typeof payload.evidenceId === 'string' && /^[a-f0-9]{64}$/.test(payload.evidenceId));
   const verification = readDoc(path.join(repo, BP_REL, 'tasks/001/verification.md'));
   assert.strictEqual(verification.data.bouncer.status, 'passed');
   assert.strictEqual(verification.data.bouncer.verification.exit_code, 0);
+  assert.strictEqual(verification.data.bouncer.verification.scope.kind, 'task');
+  assert.strictEqual(verification.data.bouncer.verification.scope.key, 'EPIC-001/BP-001/TASK-001');
+  assert.strictEqual(verification.data.bouncer.verification.evidence_id, payload.evidenceId);
   const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
   const rel = `${BP_REL}/tasks/001/verification.md`;
-  const paths = verifyLedgerPathFor({ repoRoot: repo, verificationRel: rel });
+  const paths = verifyLedgerPathFor({
+    repoRoot: repo, verificationRel: rel, evidenceId: payload.evidenceId,
+  });
   const record = JSON.parse(fs.readFileSync(paths.ledgerFile, 'utf8'));
   assert.strictEqual(record.rel, rel);
   assert.strictEqual(record.exit_code, 0);
   assert.strictEqual(record.command, verification.data.bouncer.verification.command);
+  assert.strictEqual(record.evidence_id, payload.evidenceId);
+  assert.strictEqual(record.reused, false);
 });
 
 test('execute gate reruns verification before evaluating gates', () => {
@@ -151,10 +165,16 @@ test('verify records evidence into the pointer task-dir unit', () => {
   const { io, buf } = capture();
   const code = runCli(['verify', '--repo', repo, '--blueprint', BP_REL], io);
   assert.strictEqual(code, 0);
-  assert.strictEqual(JSON.parse(buf.out).ok, true);
+  const payload = JSON.parse(buf.out);
+  assert.strictEqual(payload.ok, true);
+  assert.ok(typeof payload.evidenceId === 'string' && /^[a-f0-9]{64}$/.test(payload.evidenceId));
 
   const unit = readDoc(path.join(repo, `${u2}/verification.md`));
   assert.strictEqual(unit.data.bouncer.verification.exit_code, 0);
+  // Interface omit-scope → active pointer의 stable Task ID로 task scope를 고정한다.
+  assert.strictEqual(unit.data.bouncer.verification.scope.kind, 'task');
+  assert.strictEqual(unit.data.bouncer.verification.scope.key, 'EPIC-001/BP-001/TASK-002');
+  assert.strictEqual(unit.data.bouncer.verification.evidence_id, payload.evidenceId);
   assert.strictEqual(
     fs.readFileSync(path.join(repo, BP_REL, 'tasks/001/verification.md'), 'utf8'),
     unit001Before,

@@ -15,6 +15,29 @@ const { parseExplainSections } = require('../scripts/lib/validate-sections');
 const { findingFingerprint } = require('../scripts/lib/validate-sections');
 const { TEMPLATES } = require('../scripts/lib/templates');
 
+/**
+ * verification/G13과 같은 키 정렬 canonical JSON.
+ * fixture evidence_id가 삽입 순서에 묶이지 않게 한다.
+ */
+function canonicalJson(value) {
+  const normalize = (input) => {
+    if (Array.isArray(input)) return input.map(normalize);
+    if (input && typeof input === 'object') {
+      const sorted = {};
+      for (const key of Object.keys(input).sort()) {
+        sorted[key] = normalize(input[key]);
+      }
+      return sorted;
+    }
+    return input;
+  };
+  return JSON.stringify(normalize(value));
+}
+
+function sha256Canonical(value) {
+  return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
+}
+
 function repairDecision(task, wave, terminal, pathName) {
   return {
     task, kind: 'repair', wave, reason: `repair wave ${wave}`,
@@ -744,12 +767,25 @@ All 42 tests passed.
 `;
 
 function passingVerificationDoc() {
+  const identity = {
+    head: 'abc123',
+    dirty_digest: 'd'.repeat(64),
+    command: 'npm test',
+    cwd: '.',
+    environment_hash: 'e'.repeat(64),
+    scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' },
+  };
+  const evidenceId = sha256Canonical(identity);
   const verification = doc('passed', {
     verification: {
       command: 'npm test',
       ran_at: '2026-07-27T00:00:00.000Z',
       exit_code: 0,
       output_tail: 'All 42 tests passed.',
+      evidence_id: evidenceId,
+      identity,
+      scope: identity.scope,
+      reused: false,
     },
   }, VERIFY_BODY_OK);
   verification.rel = rels.verification;
@@ -764,6 +800,11 @@ function matchingLedger(verificationDoc, overrides = {}) {
     ran_at: evidence.ran_at,
     exit_code: evidence.exit_code,
     output_sha: createHash('sha256').update(String(evidence.output_tail), 'utf8').digest('hex'),
+    evidence_id: evidence.evidence_id,
+    identity: evidence.identity,
+    scope: evidence.scope,
+    reused: evidence.reused,
+    ...(evidence.reused_from ? { reused_from: evidence.reused_from } : {}),
     ...overrides,
   };
 }
@@ -859,6 +900,62 @@ test('execute gate G13 hashes output_tail after trailing space and CRLF survive 
     deps: ledgerDeps(verification),
   });
   assert.deepStrictEqual(result.failures, []);
+});
+
+test('execute gate G13 accepts reused evidence and rejects lineage or hash tampering', () => {
+  const verification = passingVerificationDoc();
+  const evidenceId = verification.data.bouncer.verification.evidence_id;
+  verification.data.bouncer.verification.reused = true;
+  verification.data.bouncer.verification.reused_from = evidenceId;
+  const ok = checkGate({
+    gate: 'execute',
+    docs: executeDocs(verification),
+    rels,
+    deps: ledgerDeps(verification),
+  });
+  assert.deepStrictEqual(ok.failures.filter((f) => f.code === 'G13'), []);
+
+  const badId = passingVerificationDoc();
+  badId.data.bouncer.verification.evidence_id = 'a'.repeat(64);
+  const idMismatch = checkGate({
+    gate: 'execute',
+    docs: executeDocs(badId),
+    rels,
+    deps: ledgerDeps(badId, matchingLedger(badId)),
+  });
+  assert.ok(idMismatch.failures.some(
+    (f) => f.code === 'G13' && /evidence_id does not match canonical identity hash/.test(f.message),
+  ));
+
+  const scopeTamper = passingVerificationDoc();
+  scopeTamper.data.bouncer.verification.scope = { kind: 'wave', key: 'other' };
+  assert.ok(checkGate({
+    gate: 'execute',
+    docs: executeDocs(scopeTamper),
+    rels,
+    deps: ledgerDeps(scopeTamper, matchingLedger(passingVerificationDoc())),
+  }).failures.some((f) => f.code === 'G13' && /does not match verify ledger|canonical identity hash/.test(f.message)));
+
+  const reusedTamper = passingVerificationDoc();
+  reusedTamper.data.bouncer.verification.reused = true;
+  reusedTamper.data.bouncer.verification.reused_from = 'b'.repeat(64);
+  assert.ok(checkGate({
+    gate: 'execute',
+    docs: executeDocs(reusedTamper),
+    rels,
+    deps: ledgerDeps(reusedTamper, matchingLedger(reusedTamper, {
+      reused: true,
+      reused_from: evidenceId,
+    })),
+  }).failures.some((f) => f.code === 'G13' && /does not match verify ledger/.test(f.message)));
+
+  const hashTamper = passingVerificationDoc();
+  assert.ok(checkGate({
+    gate: 'execute',
+    docs: executeDocs(hashTamper),
+    rels,
+    deps: ledgerDeps(hashTamper, matchingLedger(hashTamper, { output_sha: 'c'.repeat(64) })),
+  }).failures.some((f) => f.code === 'G13' && /output_sha/.test(f.message)));
 });
 
 test('execute gate flags G13 when verification lacks harness metadata', () => {
@@ -1677,13 +1774,6 @@ function unitReviewData(nnn, status, resource, reviewExtra) {
   };
 }
 
-const PASS_EVIDENCE = {
-  command: 'node -e "process.exit(0)"',
-  ran_at: '2026-07-27T00:00:00.000Z',
-  exit_code: 0,
-  output_tail: 'ok',
-};
-
 const PASS_VERIFY_BODY = `# Verification
 
 ## Command
@@ -1693,6 +1783,26 @@ const PASS_VERIFY_BODY = `# Verification
 Ran at: 2026-07-27T00:00:00.000Z
 Exit code: 0
 `;
+
+const PASS_IDENTITY = {
+  head: 'abc123',
+  dirty_digest: 'd'.repeat(64),
+  command: 'node -e "process.exit(0)"',
+  cwd: '.',
+  environment_hash: 'e'.repeat(64),
+  scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' },
+};
+
+const PASS_EVIDENCE = {
+  command: 'node -e "process.exit(0)"',
+  ran_at: '2026-07-27T00:00:00.000Z',
+  exit_code: 0,
+  output_tail: 'ok',
+  evidence_id: sha256Canonical(PASS_IDENTITY),
+  identity: PASS_IDENTITY,
+  scope: PASS_IDENTITY.scope,
+  reused: false,
+};
 
 /**
  * tasks/001 완결 + tasks/002 draft/pending 묶음 fixture.
@@ -1741,6 +1851,10 @@ function setPointerTask(repo, taskRel) {
   const { execFileSync } = require('node:child_process');
   const { writeCurrent } = require('../scripts/lib/current');
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  execFileSync('git', [
+    '-c', 'user.name=Bouncer Test', '-c', 'user.email=test@example.com',
+    'commit', '--allow-empty', '-m', 'init',
+  ], { cwd: repo });
   writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop', task: taskRel });
 }
 

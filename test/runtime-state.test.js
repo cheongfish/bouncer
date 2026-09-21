@@ -391,6 +391,27 @@ test('verifyLedgerPathFor hashes the verification rel under the Git common direc
   );
 });
 
+test('verifyLedgerPathFor uses evidenceId for v2 paths and keeps legacy miss separate', () => {
+  const { createHash } = require('node:crypto');
+  const { primary, linked } = linkedRepo();
+  const deps = { execFileSync, platform: 'linux' };
+  const rel = '.bouncer/context/epics/001-x/blueprints/001-y/tasks/001/verification.md';
+  const evidenceId = 'a'.repeat(64);
+  const v2 = verifyLedgerPathFor({
+    repoRoot: primary, verificationRel: rel, evidenceId, deps,
+  });
+  const linkedV2 = verifyLedgerPathFor({
+    repoRoot: linked, verificationRel: rel, evidenceId, deps,
+  });
+  const legacy = verifyLedgerPathFor({ repoRoot: primary, verificationRel: rel, deps });
+  assert.strictEqual(linkedV2.ledgerFile, v2.ledgerFile);
+  assert.notStrictEqual(v2.ledgerFile, legacy.ledgerFile);
+  const digest = createHash('sha256').update(`v2:${evidenceId}`, 'utf8').digest('hex').slice(0, 16);
+  assert.strictEqual(
+    v2.ledgerFile,
+    path.join(v2.commonGitDir, 'bouncer', 'verify', `${digest}.json`),
+  );
+});
 test('verifyLedgerPathFor reports non-Git directories unavailable', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-nongit-'));
   const result = verifyLedgerPathFor({
