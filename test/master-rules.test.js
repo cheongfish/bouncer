@@ -676,17 +676,18 @@ test('conditional workflow references keep their skill-local ownership', () => {
 });
 
 test('plan and planning lock the approved task DAG contract', () => {
-  const okf = read('rules/okf.md');
+  // schema 정본은 경로만 이전됐으므로 필드 계약은 새 경로에서 동일하게 잠근다.
+  const schema = read('rules/document-schema.md');
   const planning = read('rules/planning.md');
   const plan = read('skills/bouncer-plan/SKILL.md');
 
-  assert.match(okf, /depends_on/);
-  assert.match(okf, /parallel_safe/);
-  assert.match(okf, /dependency_gate/);
+  assert.match(schema, /depends_on/);
+  assert.match(schema, /parallel_safe/);
+  assert.match(schema, /dependency_gate/);
   // 산문 문구가 아니라 "한 문맥에서 dependency_gate와 integrated를 함께 말한다"는 사실만 고정한다.
-  assert.match(okf, /dependency_gate[\s\S]{0,10}integrated/);
+  assert.match(schema, /dependency_gate[\s\S]{0,10}integrated/);
   // 산문이 아니라 값의 부재를 고정한다: 거절된 gate 값이 정본 규칙으로 다시 새어 들어오면 실패한다.
-  assert.doesNotMatch(okf, /integration-verified/);
+  assert.doesNotMatch(schema, /integration-verified/);
 
   assert.match(planning, /depends_on|DAG/);
   assert.match(planning, /dependency_gate[\s\S]{0,10}integrated/);
@@ -721,7 +722,7 @@ test('plugin-root loads only the runtime contract by default', () => {
   assert.ok(section, 'plugin-root must keep a Master and product rules section');
   assert.match(section, /AGENTS\.md[\s\S]{0,140}(?:only|만)[\s\S]{0,80}(?:default|기본)/i);
   assert.match(section, /product rules?[\s\S]{0,120}(?:owning step|소유 단계|conditional|조건)/i);
-  assert.doesNotMatch(section, /normally\s+`?rules\/(?:governance|okf)\.md`?/i);
+  assert.doesNotMatch(section, /normally\s+`?rules\/(?:governance|document-schema)\.md`?/i);
 });
 
 test('governance defines coordinator dynamic scope, audit and commit ownership', () => {

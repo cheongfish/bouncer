@@ -543,6 +543,6 @@ test('bouncer-plan Author step loads rules/planning.md for product-detail decisi
   const { body } = parseFrontmatter(mainMd);
   const author = body.slice(body.indexOf('3. **Author.**'), body.indexOf('4. **Scope confirm.**'));
   assert.match(author, /rules\/planning\.md/);
-  assert.match(author, /rules\/okf\.md/);
+  assert.match(author, /rules\/document-schema\.md/);
   assert.doesNotMatch(author, /rules\/governance\.md/);
 });

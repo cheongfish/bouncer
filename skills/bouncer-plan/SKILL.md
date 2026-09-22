@@ -141,7 +141,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    The scaffold defaults for `depends_on` (`[]`) and `parallel_safe` (`false`)
    are placeholders — replace them when the plan has real edges.
    For document schema and product-detail decisions in this authoring branch,
-   read `rules/okf.md` and `rules/planning.md`. For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
+   read `rules/document-schema.md` and `rules/planning.md`. For a flow change, delegate Mermaid zoom authoring to `spec-authoring`: epic
    whole flow → blueprint PR segment → tasks implementation branch; charts stay
    optional and their source is each document body.
    Also replace scaffold default frontmatter `title` values (and set

@@ -49,7 +49,8 @@ test('init scaffolds the safe .bouncer tree', () => {
   assert.ok(!exists(repo, '.bouncer/templates'));
   assert.ok(!exists(repo, '.bouncer/governance.md'));
   assert.ok(!exists(repo, '.bouncer/workflow.md'));
-  assert.ok(!exists(repo, '.bouncer/okf.md'));
+  // plugin schema 정본은 프로젝트 .bouncer/에 설치되지 않는다(경로명만 이전).
+  assert.ok(!exists(repo, '.bouncer/document-schema.md'));
   assert.ok(!exists(repo, '.bouncer/current'));
   assert.ok(!exists(repo, 'context/index.md'));
   assert.ok(!exists(repo, '.bouncer/superpowers.md'));
@@ -401,8 +402,8 @@ test('init preserves partial user-authored Bouncer state', () => {
 test('plugin governance materials have no Superpowers profile language', () => {
   const root = path.join(__dirname, '..');
   const gov = fs.readFileSync(path.join(root, 'rules/governance.md'), 'utf8');
-  const okf = fs.readFileSync(path.join(root, 'rules/okf.md'), 'utf8');
-  const all = gov + okf;
+  const schema = fs.readFileSync(path.join(root, 'rules/document-schema.md'), 'utf8');
+  const all = gov + schema;
   assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(all));
 });
 

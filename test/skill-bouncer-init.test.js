@@ -39,7 +39,9 @@ test('init Master rules omit plan-only product rules', () => {
   assert.ok(master, 'missing **Master rules.** block');
   assert.match(master[0], /AGENTS\.md/);
   assert.doesNotMatch(master[0], /rules\/governance\.md/);
+  // 옛 경로와 새 schema 정본 모두 startup Master rules에 올리면 안 된다.
   assert.doesNotMatch(master[0], /rules\/okf\.md/);
+  assert.doesNotMatch(master[0], /rules\/document-schema\.md/);
 });
 
 test('init keeps four numbered steps through plan handoff', () => {

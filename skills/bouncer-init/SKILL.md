@@ -50,7 +50,7 @@ Do not author any epic or blueprint here — `/bouncer-init` only scaffolds
 `.bouncer/` and, when a Codex signal or `--seed-codex-agents` is present,
 named-agent TOML under `.codex/agents/`.
 Document skeletons, product rules, and master rules live in the plugin
-(`scripts/lib/templates.js`, `rules/governance.md`, `rules/okf.md`,
+(`scripts/lib/templates.js`, `rules/governance.md`, `rules/document-schema.md`,
 `AGENTS.md`); init does not install them into the project.
 
 ## ACQ (AskUserQuestion) gates

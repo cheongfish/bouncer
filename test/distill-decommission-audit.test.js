@@ -329,10 +329,10 @@ test('rejects missing bullets, duplicate dispositions, and empty rationale', () 
       source: sample[0].source,
       distill_section: sample[0].distill_section,
       bullet: sample[0].bullet,
-      canonical_path: 'rules/okf.md',
+      canonical_path: 'rules/document-schema.md',
       section: 'Frontmatter',
       disposition: 'retain-context',
-      rationale: 'already in okf',
+      rationale: 'already in document-schema',
     },
     {
       source: sample[0].source,

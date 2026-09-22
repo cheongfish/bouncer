@@ -41,11 +41,11 @@ test('spec-authoring separates Korean reader prose from ASCII discovery fields',
   assert.match(language, /bulk-rewrite the existing corpus/i);
 });
 
-test('okf states tags are the domain search vocabulary', () => {
+test('document-schema states tags are the domain search vocabulary', () => {
   const root = path.join(__dirname, '..');
-  const okf = fs.readFileSync(path.join(root, 'rules/okf.md'), 'utf8');
-  assert.match(okf, /tags[\s\S]{0,300}(search label|search vocabulary|graph-suggest)/i);
-  assert.match(okf, /\[A-Za-z0-9_\.\/-\]/);
+  const schema = fs.readFileSync(path.join(root, 'rules/document-schema.md'), 'utf8');
+  assert.match(schema, /tags[\s\S]{0,300}(search label|search vocabulary|graph-suggest)/i);
+  assert.match(schema, /\[A-Za-z0-9_\.\/-\]/);
 });
 
 test('spec-authoring ships completed reference examples and points SKILL.md at them', () => {
@@ -117,9 +117,9 @@ test('spec-authoring writes explicit task dependency and parallel-ready frontmat
 // 명시하고, 필드가 있어도 affected_paths·status·gate를 자동 승인하지 않는다.
 test('spec-authoring requires review_risk enum with empty-array and grounding rules', () => {
   const md = readSkill('spec-authoring');
-  const okf = fs.readFileSync(path.join(__dirname, '..', 'rules/okf.md'), 'utf8');
+  const schema = fs.readFileSync(path.join(__dirname, '..', 'rules/document-schema.md'), 'utf8');
   assert.match(md, /review_risk/);
-  assert.match(okf, /review_risk/);
+  assert.match(schema, /review_risk/);
   for (const value of [
     'public_interface',
     'authentication',
@@ -127,7 +127,7 @@ test('spec-authoring requires review_risk enum with empty-array and grounding ru
     'credential',
   ]) {
     assert.match(md, new RegExp(value));
-    assert.match(okf, new RegExp(value));
+    assert.match(schema, new RegExp(value));
   }
   // 위험 없음은 필드 생략이 아니라 빈 배열을 쓴다(신규 작성).
   assert.match(md, /review_risk[\s\S]{0,200}\[\]|`\[\]`[\s\S]{0,80}review_risk/);
@@ -141,9 +141,9 @@ test('spec-authoring requires review_risk enum with empty-array and grounding ru
     md,
     /(?:does not|do not|never|not)[\s\S]{0,100}(?:auto(?:matic(?:ally)?)?|자동)[\s\S]{0,80}(?:approv|승인|affected_paths|gate)|(?:affected_paths|status|gate)[\s\S]{0,100}(?:does not|do not|never|not)[\s\S]{0,60}(?:auto|자동)/i,
   );
-  // legacy 부재는 []로 읽고, 신규 malformed만 S30 — okf가 제품 정본.
-  assert.match(okf, /legacy|absent|부재/i);
-  assert.match(okf, /S30/);
+  // legacy 부재는 []로 읽고, 신규 malformed만 S30 — document-schema가 제품 정본.
+  assert.match(schema, /legacy|absent|부재/i);
+  assert.match(schema, /S30/);
 });
 
 test('spec-authoring consumes resolver-selected intent evidence without promotion', () => {
@@ -199,7 +199,7 @@ test('spec-authoring tasks item requires seam, throw/miss, expected red, and sta
 test('spec-authoring cites rules/planning.md for product rules and light budget', () => {
   const md = readSkill('spec-authoring');
   assert.match(md, /rules\/planning\.md/);
-  assert.match(md, /rules\/okf\.md/);
+  assert.match(md, /rules\/document-schema\.md/);
   assert.match(md, /rules\/planning\.md`?\s*`?## Lightweight cycle/);
   assert.doesNotMatch(md, /rules\/governance\.md/);
 });
