@@ -140,17 +140,21 @@ test('row 3 pointer confirm-then-set lives in current-pointer.md', () => {
   );
 });
 
-test('row 4 actual cwd and drive main read-only live in Coordinator mode', () => {
-  const section = h2Section(read('rules/governance.md'), '## Coordinator mode');
+test('row 4 actual cwd and drive main read-only live in commit-scope', () => {
+  const section = h2Section(read('rules/commit-scope.md'), '## Worktree and enforcement layers');
   // 줄바꿈으로 `read-only`와 `provenance`가 갈라져도 경계를 식별하게 한다.
   assert.match(section, /read-only/);
   assert.match(section, /provenance/);
   assert.match(section, /assigned worktree/);
+  // 이 경계를 직접 판단하는 소비자는 세 workflow다. run은 coordinator dispatch
+  // 단계에서 `rules/governance.md`만 열고, 그 문서가 실행 범위 정본을 가리킨다.
   assertSkillCites(
-    ['bouncer-execute', 'bouncer-commit', 'bouncer-finalize', 'bouncer-run'],
-    /rules\/governance\.md/,
+    ['bouncer-execute', 'bouncer-commit', 'bouncer-finalize'],
+    /rules\/commit-scope\.md/,
     'row 4',
   );
+  assertSkillCites(['bouncer-run'], /rules\/governance\.md/, 'row 4 run');
+  assert.match(read('rules/governance.md'), /rules\/commit-scope\.md/);
 });
 
 test('row 5 worker report trust boundary lives in AGENTS.md hard rule 1', () => {

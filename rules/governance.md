@@ -6,23 +6,8 @@
 문서 형태(어떤 파일을 scaffold하는지)는 `rules/planning.md`
 `## Blueprint sizing rule`이 소유한다. 실패한 실행은 integrated로 전이하지 않는다.
 
-`/bouncer-commit` closes one task (scope check → `bouncer commit`).
-`/bouncer-run` repeats that commit unit; verification node에서는 commit 대신
-integration checkout의 verification runner만 실행한다.
-`/bouncer-execute` does not commit. `/bouncer-finalize` closes the blueprint
-(explain + quiz, remainder commit, draft PR, worktree cleanup) after every task
-is committed.
-
-Task commits authorize the complete existing candidate set through the shared
-scope helper, then stage task outputs only. Task bundles and context documents
-remain for finalize; finalize stages tracked transient deletions and removes
-untracked documents without adding paths that no longer exist. The
-task's `commit_sha` stays in its working-tree document until finalize copies it
-to `explain.md` as `{ task, sha, intent_anchor }`: `task` is
-`EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`, and both
-`commit_sha` and `sha` stay lowercase 8-char hex. Finalize does not rewrite
-existing explain rows in bulk; only the document it writes at close switches to
-the new shape. Readers keep accepting legacy `{ id, sha }`.
+workflow별 commit 단위, task·finalize의 staging 책임과 explain stamp는
+`rules/commit-scope.md` `## Commit unit and staging`이 소유한다.
 
 ## Lightweight cycle
 
@@ -62,16 +47,15 @@ restoring the missing plan documents is owned by `rules/planning.md`
 Plan-time DAG fields, ready waves, the plan-gate cycle check, and the approved baseline are owned by
 `rules/planning.md` `## Task DAG and approved scope`.
 
-Under coordinator-owned execution the approved `affected_paths` is an initial
-estimate the coordinator may revise — see **Coordinator mode** below.
+coordinator 실행에서 승인 `affected_paths`가 무엇으로 취급되는지는
+`rules/commit-scope.md` `## Approved and ledger scope`가 소유한다.
 
 ## Coordinator mode
 
-A drive delegated to `bouncer-coordinator` runs from an integration worktree
-with one assigned worktree per open task. In that mode `affected_paths` is the
-**initial expected scope** recorded at approval, and the coordinator ledger
-(`.bouncer/runtime/coordinator.json` inside the integration worktree) carries
-the current task scope, its `revision`, and an append-only decision log.
+coordinator drive의 worktree 위상과 ledger가 담는 scope·`revision`·결정 기록의
+정의, 개정이 이름 붙일 수 있는 경로 경계, staged path 감사, worktree 경계와
+G17·CLI·hook의 강제 계층은 `rules/commit-scope.md`가 소유한다. 아래는 coordinator만
+수행하는 mutation 절차다.
 
 - **Dynamic plan** — a scope revision moves the task document and the ledger to
   one shared `revision` and is refused without a reason. Each revision appends a
@@ -91,21 +75,8 @@ the current task scope, its `revision`, and an append-only decision log.
   `scope_revision` disagrees with the ledger is stale, and commit safety keeps
   refusing the commit rather than guessing which side is current; so does a
   ledger it cannot read, and a pointer task the ledger does not carry.
-- **What a revision may name** — repository source paths only. Absolute paths,
-  paths escaping the repository, whole-tree spellings, `.git/`, and the
-  `.bouncer/` governance tree are refused. Inside that boundary there is no
-  ceiling: a newly discovered source path is accepted on the coordinator's word,
-  and the append-only decision log — not a path limit — is what makes the
-  widening reviewable. Judge revisions at review time accordingly.
-- **Scope audit** — commit safety judges the actual staged paths against the
-  ledger's current scope instead of the approval snapshot, and refuses a commit
-  made in the main worktree, outside the task's assigned worktree, on a stale
-  revision, or with the ledger missing. A completed commit records the paths it
-  actually carried back into the ledger beside the initial estimate.
-- **Commit ownership** — a task commit is still one task bundle, and it belongs
-  to the worktree the coordinator assigned; the main checkout stays read-only
-  provenance for the whole drive. Workers report; only the coordinator revises
-  scope, moves the pointer, and records the judgment behind either.
+- **Commit ownership** — workers report; only the coordinator revises scope,
+  moves the pointer, and records the judgment behind either.
 - **Critical recovery budget** — delta certification may send one qualifying
   `introduced_by_revision` or `missed_critical` blocker/major finding back to a
   prepared task when the brief and diff show false-acceptance risk without
@@ -115,15 +86,9 @@ the current task scope, its `revision`, and an append-only decision log.
   exactly one such recovery: a remaining same finding or any new blocker/major
   is terminal `blocked`, never another dispatch.
 
-The commit gate is the weaker of the three layers. **G17** judges staged paths
-against the task document alone and reads no ledger, so it accepts a stale
-revision, a main-worktree commit, and an unassigned worktree that `bouncer
-commit` and the `commit-safety` hook both refuse. The CLI and the hook are the
-enforcement points; treat a passing commit gate as a document-level check, not
-as coordinator authorization.
-
-Without a coordinator ledger nothing above applies: plan and commit gates treat
-the approved `affected_paths` as the change boundary exactly as before.
+commit gate와 CLI·hook의 상대적 강제력, ledger 없는 standalone 흐름의 범위
+판정은 `rules/commit-scope.md` `## Worktree and enforcement layers`와
+`## Approved and ledger scope`가 소유한다.
 
 Terminal CI failure may add at most two dynamic repair tasks. Each append-only
 decision records the failed command and summary, previous/next DAG,

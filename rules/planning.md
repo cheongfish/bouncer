@@ -1,7 +1,8 @@
 # Planning
 
 계획 단계(plan · spec-authoring · template)가 읽는 계약이다.
-실행·coordinator 규범은 `rules/governance.md`에 남긴다.
+실행 범위·commit 계약은 `rules/commit-scope.md`, coordinator mutation 절차는
+`rules/governance.md`에 있다.
 
 ## Blueprint sizing rule
 
@@ -99,7 +100,8 @@ baseline for later coordinator revision; it does not freeze runtime ledger
 state.
 
 Coordinator-owned revision of approved `affected_paths` after plan time is
-owned by `rules/governance.md` `## Task DAG and approved scope`.
+owned by `rules/commit-scope.md` `## Approved and ledger scope`; the revision
+procedure itself is `rules/governance.md` `## Coordinator mode`.
 
 ## Epic naming
 
