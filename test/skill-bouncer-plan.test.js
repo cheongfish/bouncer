@@ -536,3 +536,13 @@ test('bouncer-plan keeps contract blast, inventory, and verification-node rules 
   });
   assert.deepStrictEqual(result.errors, [], result.errors.join('; '));
 });
+
+// Author 단계는 계획 정본을 planning으로 열고, 혼합 governance를 다시 계획 정본으로
+// 쓰지 않는다. load graph의 plan step과 같은 경로를 잠근다.
+test('bouncer-plan Author step loads rules/planning.md for product-detail decisions', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const author = body.slice(body.indexOf('3. **Author.**'), body.indexOf('4. **Scope confirm.**'));
+  assert.match(author, /rules\/planning\.md/);
+  assert.match(author, /rules\/document-schema\.md/);
+  assert.doesNotMatch(author, /rules\/governance\.md/);
+});

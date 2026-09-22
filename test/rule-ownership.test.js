@@ -465,8 +465,13 @@ test('current owner preserves sizing, light, DAG, and coordinator contracts', ()
   }
 
   const required = [
-    ['Blueprint sizing', 'GOV-SIZING-ONE-COMMIT', /one reviewable commit[\s\S]*?integrated로 전이하지 않는다/],
-    ['light/full', 'GOV-LIGHT-DECLARATION', /no automatic sizing[\s\S]*?named agents are unavailable/],
+    // BP2 sizing/light/DAG는 planning 정본 절에만 있다. BP3 실행 구절과 한 파일에
+    // 걸쳐 맞추면 owner가 갈라진 뒤에도 옛 governance 절을 통과시키므로 분리한다.
+    ['Blueprint sizing', 'GOV-SIZING-ONE-COMMIT', /one reviewable commit/],
+    ['verification node shape', 'GOV-SIZING-VERIFY-SHAPE', /source diff/],
+    ['verification fail stay', 'GOV-SIZING-VERIFY-RUN', /integrated로 전이하지 않는다/],
+    ['light/full', 'GOV-LIGHT-DECLARATION', /no automatic sizing[\s\S]*?100 lines or fewer/],
+    ['light inline', 'GOV-LIGHT-INLINE-DISPATCH', /named agents are unavailable/],
     ['DAG and approved scope', 'GOV-DAG-FIELDS', /depends_on[\s\S]*?dependency_gate[\s\S]*?initial\s+baseline/],
     ['coordinator revision', 'GOV-COORD-REVISION', /revision[\s\S]*?refused without a reason/],
     ['actual worktree', 'GOV-COORD-COMMIT-WORKTREE', /assigned worktree[\s\S]*?main checkout stays read-only/],
@@ -480,6 +485,40 @@ test('current owner preserves sizing, light, DAG, and coordinator contracts', ()
       sectionForOwnershipId(rowId),
       pattern,
       `current owners: missing ${name} characterization contract in ownership row ${rowId}`,
+    );
+  }
+
+  // BP2 행은 planning만, BP3·BP4 행은 governance만 가리켜 이중 정본을 막는다.
+  for (const row of ownership) {
+    const ownerPath = stripTicks(row['current owner']);
+    if (row['migration BP'] === 'BP2') {
+      assert.strictEqual(
+        ownerPath,
+        'rules/planning.md',
+        `line ${row.line}: BP2 row ${row.id} must own under rules/planning.md`,
+      );
+    } else {
+      assert.strictEqual(
+        ownerPath,
+        'rules/governance.md',
+        `line ${row.line}: ${row['migration BP']} row ${row.id} must remain under rules/governance.md`,
+      );
+    }
+  }
+
+  const planningText = read('rules/planning.md');
+  const governanceText = read('rules/governance.md');
+  for (const row of ownership) {
+    if (row['migration BP'] !== 'BP2') continue;
+    const [, locator] = row.source.split(' / ').map((part) => stripTicks(part));
+    // heading이 governance에 남아 있어도 BP2 구절 자체는 planning에만 있어야 한다.
+    assert.ok(
+      !governanceText.replace(/\s+/g, ' ').includes(locator.replace(/\s+/g, ' ')),
+      `BP2 locator ${locator} leaked into rules/governance.md`,
+    );
+    assert.ok(
+      planningText.replace(/\s+/g, ' ').includes(locator.replace(/\s+/g, ' ')),
+      `BP2 locator ${locator} missing from rules/planning.md`,
     );
   }
 });

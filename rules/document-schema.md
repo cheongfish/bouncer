@@ -1,4 +1,4 @@
-# OKF
+# Document schema
 
 Target OKF spec version: **0.1**, declared in the bundle-root
 `.bouncer/context/index.md` frontmatter. That is the one place OKF §11 permits it.

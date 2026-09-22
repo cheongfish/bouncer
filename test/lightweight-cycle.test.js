@@ -11,19 +11,26 @@ function read(rel) {
   return fs.readFileSync(path.join(root, rel), 'utf8');
 }
 
-test('governance defines Lightweight cycle contract', () => {
+test('planning defines Lightweight cycle contract', () => {
+  const planning = read('rules/planning.md');
+  assert.match(planning, /## Lightweight cycle/);
+  assert.match(planning, /declare|declaration/i);
+  assert.match(planning, /bouncer\.scale:\s*light|scale:\s*light|scale.*light/i);
+  assert.match(planning, /scaffold.*full|full.*light/i);
+  assert.match(planning, /set `scale` back to `full`|back to `full`/);
+  assert.match(planning, /maintenance epic/i);
+  assert.match(planning, /explain\.md/);
+  assert.doesNotMatch(planning, /distill/i);
+  assert.match(planning, /\bG16\b/);
+  // BP3 실행 문장(inline·quiz·self-review)은 governance 잔여 절이 소유한다.
+  assert.doesNotMatch(planning, /named agents are unavailable/);
+});
+
+test('governance keeps light execution contracts after planning extraction', () => {
   const gov = read('rules/governance.md');
   assert.match(gov, /## Lightweight cycle/);
-  assert.match(gov, /declare|declaration/i);
-  assert.match(gov, /bouncer\.scale:\s*light|scale:\s*light|scale.*light/i);
-  assert.match(gov, /scaffold.*full|full.*light/i);
-  assert.match(gov, /set `scale` back to `full`|back to `full`/);
-  assert.match(gov, /maintenance epic/i);
   assert.match(gov, /inline/i);
   assert.match(gov, /one question|single question/i);
-  assert.match(gov, /explain\.md/);
-  assert.doesNotMatch(gov, /distill/i);
-  assert.match(gov, /\bG16\b/);
   assert.match(gov, /its own diff|self-review/i);
   assert.match(gov, /named agents are unavailable/);
 });
@@ -41,13 +48,13 @@ test('bouncer-plan routes light-path work to maintenance epic', () => {
   assert.doesNotMatch(plan, /키 자체를 넣지 않는다/);
 });
 
-test('governance light path flips full to light instead of omitting the key', () => {
-  const gov = read('rules/governance.md');
-  assert.match(gov, /no automatic sizing/i);
-  assert.match(gov, /scaffold\s+default\s+`full`\s+to\s+`light`/);
-  assert.match(gov, /back to `full`/);
+test('planning light path flips full to light instead of omitting the key', () => {
+  const planning = read('rules/planning.md');
+  assert.match(planning, /no automatic sizing/i);
+  assert.match(planning, /scaffold\s+default\s+`full`\s+to\s+`light`/);
+  assert.match(planning, /back to `full`/);
   // 키 자체를 빼는 방식으로 되돌아가지 않는다 — 값만 뒤집는다.
-  assert.doesNotMatch(gov, /omit(ting)? the key|키를 쓰지 않/i);
+  assert.doesNotMatch(planning, /omit(ting)? the key|키를 쓰지 않/i);
 });
 
 test('bouncer-execute inlines implementer on scale light and keeps host fallback wording', () => {
@@ -82,19 +89,19 @@ test('explain-diff fixes one quiz question on scale light', () => {
   assert.match(ed, /bouncer-finalize|\/bouncer-finalize/);
 });
 
-test('governance defines the light plan document set and gate branch', () => {
-  const gov = read('rules/governance.md');
-  assert.match(gov, /--scale light/);
-  assert.match(gov, /context-review\.md/);
-  assert.match(gov, /\bG18\b/);
-  assert.match(gov, /\bG10\b/);
-  assert.match(gov, /100 lines or fewer/);
-  assert.match(gov, /`Goal & intent`, `Touch`,\s+and `Checklist`/);
+test('planning defines the light plan document set and gate branch', () => {
+  const planning = read('rules/planning.md');
+  assert.match(planning, /--scale light/);
+  assert.match(planning, /context-review\.md/);
+  assert.match(planning, /\bG18\b/);
+  assert.match(planning, /\bG10\b/);
+  assert.match(planning, /100 lines or fewer/);
+  assert.match(planning, /`Goal & intent`, `Touch`,\s+and `Checklist`/);
   // 승인 범위 게이트는 그대로다.
-  assert.match(gov, /G3[–-]G5/);
-  assert.match(gov, /\bG11\b/);
-  assert.match(gov, /\bG12\b/);
-  assert.match(gov, /exit code 2/);
+  assert.match(planning, /G3[–-]G5/);
+  assert.match(planning, /\bG11\b/);
+  assert.match(planning, /\bG12\b/);
+  assert.match(planning, /exit code 2/);
 });
 
 test('spec-authoring documents the three light task sections', () => {

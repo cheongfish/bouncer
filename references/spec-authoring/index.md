@@ -23,7 +23,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
 
 1. Read the plugin master rules (`AGENTS.md`) and the pinned
    materials for the document kind you are writing. Product rules live in the
-   plugin (`rules/governance.md`, `rules/okf.md`), not under
+   plugin (`rules/planning.md`, `rules/document-schema.md`), not under
    the project's `.bouncer/`.
 2. Fill the skeleton with concrete, specific content. 종류별 완성 예시는
    필요할 때 `epic.md`, `blueprint.md`,
@@ -85,7 +85,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        credential 변경을 명시하면 해당 enum을 빠짐없이 기록하고, 그 위험이
        없으면 `[]`를 명시한다(신규 작성에서 필드를 생략하지 않는다). legacy
        문서의 부재는 dispatch가 `[]`로 읽고, malformed 값만 `S30`으로 거절한다
-       (`rules/okf.md`). `review_risk`는 Execute reviewer 수를 늘리는 입력일
+       (`rules/document-schema.md`). `review_risk`는 Execute reviewer 수를 늘리는 입력일
        뿐이며 does not auto-approve `affected_paths`, status, or a gate.
      - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
        다시 열거하지 않고 절차만 담는다.
@@ -171,7 +171,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        rules into Goal & intent — a path you must protect has nowhere to live in a
        light task, and G12 can only judge a Do not touch section that exists.
        The whole light plan set is budgeted at 100 lines
-       (`rules/governance.md` `## Lightweight cycle`).
+       (`rules/planning.md` `## Lightweight cycle`).
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.

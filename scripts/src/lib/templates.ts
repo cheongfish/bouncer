@@ -63,7 +63,7 @@ const TEMPLATES = {
 ## Blueprints
 <!-- OKF §6 인덱스 형식. 새 blueprint를 만드는 기준은 하나 — 한 커밋으로
      리뷰 가능한 단위인가. 더 크면 blueprint를 쪼갠다. 하위 태스크 계층은
-     만들지 않는다 (rules/governance.md).
+     만들지 않는다 (rules/planning.md).
      한 줄 목적에는 무엇이 바뀌는지(what)와 어디를 건드리는지(where)를
      함께 적는다. 기존 라인은 소급 수정하지 않는다. -->
 * [<TODO: 00x 제목>](blueprints/<TODO: 00x-slug>/index.md) - <TODO: 한 줄 목적 — what changes + where touched>
@@ -93,7 +93,7 @@ Epic: [<EPIC-id>](../../index.md)
 - <TODO: 이 blueprint에서 하지 않을 것>
 
 ## One-commit justification
-<!-- rules/governance.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.
+<!-- rules/planning.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.
      이 칸을 못 채우겠으면 blueprint를 쪼갤 신호입니다. -->
 - <TODO: 한 커밋에 들어가는 이유>
 
@@ -240,7 +240,7 @@ Blueprint: [<BP-id>](../../index.md)
 `,
   // --- scale: light 전용 본문 ---
   // light는 plan 단계 네 문서(blueprint index + tasks/001 세 문서) 전체 줄 수를
-  // 100줄 이하로 묶는 계약이다(rules/governance.md). 그래서 full 템플릿의 작성
+  // 100줄 이하로 묶는 계약이다(rules/planning.md). 그래서 full 템플릿의 작성
   // 가이드 주석을 옮겨오지 않는다 — 가이드는 skills/spec-authoring이 갖고,
   // 본문에는 게이트가 요구하는 제목과 <TODO:> 자리만 남긴다.
   // full 본문은 바이트 단위로 그대로 두고 여기서만 갈라진다.

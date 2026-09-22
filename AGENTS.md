@@ -20,6 +20,7 @@ does not install it. Project `CLAUDE.md` / `AGENTS.md` / user instructions win o
 
 - [`rules/gates.md`](rules/gates.md) — gate protocol and verification-task constraints; read for the active phase or a reported G/S code.
 - [`rules/cli.md`](rules/cli.md) — supported command forms and result handling; read before an unfamiliar CLI operation.
-- [`rules/governance.md`](rules/governance.md) — blueprint sizing, lightweight cycle, DAG, and coordinator scope.
-- [`rules/okf.md`](rules/okf.md) — document schema ownership and authoring requirements.
+- [`rules/planning.md`](rules/planning.md) — blueprint sizing, lightweight cycle, plan-time DAG, and epic naming.
+- [`rules/governance.md`](rules/governance.md) — execution contracts, coordinator scope, and remaining light/runtime norms.
+- [`rules/document-schema.md`](rules/document-schema.md) — document schema ownership and authoring requirements.
 - [`rules/plugin-root.md`](rules/plugin-root.md) — plugin-root resolution.
