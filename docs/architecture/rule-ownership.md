@@ -110,7 +110,7 @@ coordinator의 `rules/governance.md` 인용은 Hard guards의 scope revision 문
 | `test/workflow-safety-canon.test.js:167` | 없음 | 없음. GOV-LIGHT-INLINE-DISPATCH. execute, run의 cite를 요구한다 |
 | `test/skill-bouncer-surface.test.js:180` | 없음 | 없음. 여섯 workflow의 Master rules 블록에 `rules/governance.md`가 없음을 고정한다 |
 | `test/skill-bouncer-run.test.js:68` | 없음 | 없음. run step 4가 coordinator 문서와 `rules/governance.md`를 함께 가리키는지 본다 |
-| `test/init.test.js:403` | 없음 | 없음. 파일 전체에 Superpowers profile 문구가 없음을 본다 |
+| `test/init.test.js:403` | 없음 | 없음. 파일 전체에 폐기된 외부 profile 문구가 없음을 본다 |
 | `test/distribution.test.js:74` | 없음 | 없음. 패키지 파일 목록에 `rules/governance.md`가 있는지를 본다. 제거는 BP4이다 |
 | `test/agents.test.js:383` | 없음 | 없음. 경로 문자열은 없고 coordinator 본문의 `no ceiling`을 본다. 정본 구절은 GOV-COORD-PATH-BOUNDARY이다 |
 
