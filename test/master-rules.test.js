@@ -675,9 +675,9 @@ test('conditional workflow references keep their skill-local ownership', () => {
   }
 });
 
-test('plan and governance lock the approved task DAG contract', () => {
+test('plan and planning lock the approved task DAG contract', () => {
   const okf = read('rules/okf.md');
-  const governance = read('rules/governance.md');
+  const planning = read('rules/planning.md');
   const plan = read('skills/bouncer-plan/SKILL.md');
 
   assert.match(okf, /depends_on/);
@@ -688,10 +688,10 @@ test('plan and governance lock the approved task DAG contract', () => {
   // 산문이 아니라 값의 부재를 고정한다: 거절된 gate 값이 정본 규칙으로 다시 새어 들어오면 실패한다.
   assert.doesNotMatch(okf, /integration-verified/);
 
-  assert.match(governance, /depends_on|DAG/);
-  assert.match(governance, /dependency_gate[\s\S]{0,10}integrated/);
-  assert.doesNotMatch(governance, /integration-verified/);
-  assert.match(governance, /affected_paths|초기.*scope|initial scope/i);
+  assert.match(planning, /depends_on|DAG/);
+  assert.match(planning, /dependency_gate[\s\S]{0,10}integrated/);
+  assert.doesNotMatch(planning, /integration-verified/);
+  assert.match(planning, /initial\s+baseline/);
 
   assert.match(plan, /depends_on/);
   assert.match(plan, /parallel_safe/);

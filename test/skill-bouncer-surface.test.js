@@ -178,6 +178,7 @@ function numberedProcedurePreamble(md) {
 test('entry Master rules load only the shared runtime contract', () => {
   const productRules = [
     'rules/governance.md',
+    'rules/planning.md',
     'rules/okf.md',
     'rules/current-pointer.md',
     'rules/output.md',

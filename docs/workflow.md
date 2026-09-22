@@ -130,7 +130,7 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   따릅니다.
 - **좁은 범위 작업**은 `/bouncer-plan`이 경량 여부를 묻고 blueprint
   `bouncer.scale`을 `light`로 바꿉니다. 무엇이 줄고 무엇이 그대로인지는
-  [`rules/governance.md`](../rules/governance.md) `## Lightweight cycle`에
+  [`rules/planning.md`](../rules/planning.md) `## Lightweight cycle`에
   있습니다.
 - **경량 계획은 문서 넷·100줄입니다.** 선언을 받으면 plan이
   `bouncer scaffold blueprint --scale light`로 blueprint `index.md`와

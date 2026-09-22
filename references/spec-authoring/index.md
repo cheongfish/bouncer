@@ -23,7 +23,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
 
 1. Read the plugin master rules (`AGENTS.md`) and the pinned
    materials for the document kind you are writing. Product rules live in the
-   plugin (`rules/governance.md`, `rules/okf.md`), not under
+   plugin (`rules/planning.md`, `rules/okf.md`), not under
    the project's `.bouncer/`.
 2. Fill the skeleton with concrete, specific content. 종류별 완성 예시는
    필요할 때 `epic.md`, `blueprint.md`,
@@ -171,7 +171,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        rules into Goal & intent — a path you must protect has nowhere to live in a
        light task, and G12 can only judge a Do not touch section that exists.
        The whole light plan set is budgeted at 100 lines
-       (`rules/governance.md` `## Lightweight cycle`).
+       (`rules/planning.md` `## Lightweight cycle`).
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.

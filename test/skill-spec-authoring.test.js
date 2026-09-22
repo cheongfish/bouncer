@@ -193,3 +193,13 @@ test('spec-authoring tasks item requires seam, throw/miss, expected red, and sta
   assert.match(example, /^## Interface\n[\s\S]*throw[\s\S]*fallback[\s\S]*?\n## Touch/m);
   assert.match(example, /^## Checklist\n[\s\S]*기대 red/m);
 });
+
+// 제품 규칙 위치와 light 예산은 planning 정본을 가리킨다. governance를 다시
+// 계획 정본으로 쓰면 BP2 이전 회귀다.
+test('spec-authoring cites rules/planning.md for product rules and light budget', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /rules\/planning\.md/);
+  assert.match(md, /rules\/okf\.md/);
+  assert.match(md, /rules\/planning\.md`?\s*`?## Lightweight cycle/);
+  assert.doesNotMatch(md, /rules\/governance\.md/);
+});
