@@ -76,7 +76,9 @@ Graph absence is a reported state, not permission to invent graph results.
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
 clustered`) or Execute (`single | parallel`, with `security` when
 `review_risk` is non-empty). On structural or input failure it prints
-`{ ok: false }` without a reviewer list (exit 1). Invalid argv is exit 2.
+`{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
+`{ ok: false }` with `plan draft validation failed` and the plan-gate
+`failures` (G5, G10–G12, G19, G20) when the draft fails. Invalid argv is exit 2.
 Do not invent a strategy when the command fails.
 
 ## Controlled migrations

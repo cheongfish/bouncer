@@ -836,3 +836,12 @@ test('master and workflow rules use context-only repository memory', () => {
   assert.match(read('skills/bouncer-plan/SKILL.md'), /bouncer intent --symbol/);
   assert.match(read('skills/bouncer-finalize/SKILL.md'), /Explain \+ quiz/);
 });
+
+// gate/CLI 규칙 문서가 draft 검증 실패, G18 신선도, 재발 코드 규범을 안내하는지 본다.
+test('gate and CLI rules document draft validation, G18 freshness, and recurring codes', () => {
+  const gates = read('rules/gates.md');
+  assert.match(gates, /^## Recurring failure codes$/m);
+  assert.match(gates, /context review is stale/);
+  assert.match(gates, /Source 변경 경로 없음\./);
+  assert.match(read('rules/cli.md'), /plan draft validation failed/);
+});

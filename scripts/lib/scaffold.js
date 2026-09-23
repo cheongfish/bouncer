@@ -158,8 +158,24 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }) {
     return created;
 }
 /**
- * 기존 blueprint 에 tasks/<NNN>/ 묶음 3종을 추가한다.
+ * 기존 blueprint 에 tasks/<NNN>/ 묶음을 추가한다. commit task는 세 문서,
+ * verification task는 review.md 없이 두 문서를 쓰고 tasks.md 본문도
+ * 경로 없는 Touch를 가진 `verification-tasks.md`에서 가져온다.
  * 거절 조건을 모두 검사한 뒤에만 파일을 쓴다 — 일부만 생성된 상태를 남기지 않기 위함.
+ * closed blueprint, 잘못된 id·scale·executionKind, verification의 빈 dependsOn·
+ * 무효 verify, 이미 있는 task 디렉터리는 파일을 쓰기 전에 Error로 거절한다.
+ *
+ * @param {object} options - 저장소·식별자·실행 종류 입력
+ * @param {string} options.repoRoot - 저장소 루트 절대 경로
+ * @param {string} options.blueprintDir - `.bouncer/context/epics/...` 아래 blueprint 상대 경로
+ * @param {string} options.taskId - zero-padded task 번호
+ * @param {string} options.timestamp - 생성 시각
+ * @param {string} [options.scale] - light | full. 생략하면 blueprint가 선언한 값을 따른다
+ * @param {unknown} [options.executionKind] - commit | verification. 기본 commit
+ * @param {unknown} [options.dependsOn] - verification 선행 TASKS-NNN 배열
+ * @param {unknown} [options.verify] - verification 단일 실행 명령
+ * @param {readonly string[]} [options.verifyAllowlist] - 테스트용 allowlist. 생략하면 config에서 읽는다
+ * @returns {string[]} 생성한 문서의 저장소 상대 경로 (tasks.md, verification.md[, review.md])
  */
 function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale, executionKind = 'commit', dependsOn, verify, verifyAllowlist, }) {
     if (!isCanonicalBlueprintDir(blueprintDir)) {
@@ -233,7 +249,10 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale, execut
         parallel_safe: DEFAULT_PARALLEL_SAFE,
         dependency_gate: DEFAULT_DEPENDENCY_GATE,
         affected_paths: [],
-    }), body(tasksBase)));
+    }), 
+    // verification은 commit 본문의 백틱 경로 Touch 표를 물려받으면 G20에 걸린다.
+    // light에는 `-light` 사본이 없어 templateNameFor가 같은 본문으로 떨어진다.
+    body(isVerification ? 'verification-tasks.md' : tasksBase)));
     created.push(writeRel(repoRoot, verifyRel, bouncerDoc('bouncer.verification', `${taskId} verification`, `Verification for ${taskId}`, verifyRel, ['bouncer', 'verification'], timestamp, { id: ids.verification, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }), body(verifyBase)));
     if (!isVerification) {
         created.push(writeRel(repoRoot, reviewRel, bouncerDoc('bouncer.review', `${taskId} review`, `Review for ${taskId}`, reviewRel, ['bouncer', 'review'], timestamp, {

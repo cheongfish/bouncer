@@ -15,6 +15,7 @@ const {
   EXECUTE_SMALL_MAX_FILES,
   EXECUTE_SMALL_MAX_LINES,
 } = require('../scripts/lib/review-dispatch');
+const { validateBlueprint } = require('../scripts/lib/validate');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
@@ -79,13 +80,19 @@ Keep scope tight.
 `;
 }
 
+// plan dispatch가 draft 검사(G11)를 돌리므로 affected_paths는 Touch가 정당화해야 한다.
+// 기본값을 Touch 백틱 경로에서 뽑아 Touch 본문(=cluster touch_paths·digest)은 그대로 둔다.
+function touchBacktickPaths(touchText) {
+  return [...touchText.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+}
+
 function writeCommitTask(repo, number, {
   interfaceText = '- `sharedFn`\n',
   touchText = '- `src/a.ts`\n',
   reviewRisk,
   status = 'ready',
   dependsOn = [],
-  affectedPaths = [`src/t${number}.ts`],
+  affectedPaths = touchBacktickPaths(touchText),
 } = {}) {
   const dir = `${BP_REL}/tasks/${number}`;
   const bouncer = {
@@ -134,7 +141,30 @@ function writeCommitTask(repo, number, {
   });
 }
 
-function writeVerificationTask(repo, number, { dependsOn = ['TASKS-001'] } = {}) {
+function verificationBody(touchText) {
+  return `# Verification node
+
+## Goal & intent
+Record CI evidence.
+
+## Interface
+None.
+
+## Touch
+${touchText}
+
+## Do not touch
+- \`other/keep.ts\`
+
+## Checklist
+- [ ] run verify
+`;
+}
+
+function writeVerificationTask(repo, number, {
+  dependsOn = ['TASKS-001'],
+  touchText = '- Source changes: none; record CI evidence only.\n',
+} = {}) {
   const dir = `${BP_REL}/tasks/${number}`;
   writeDoc(repo, `${dir}/tasks.md`, {
     type: 'bouncer.tasks',
@@ -155,7 +185,7 @@ function writeVerificationTask(repo, number, { dependsOn = ['TASKS-001'] } = {})
       dependency_gate: 'integrated',
       verify: 'node --test',
     },
-  }, '# Verification node\n');
+  }, verificationBody(touchText));
   writeDoc(repo, `${dir}/verification.md`, {
     type: 'bouncer.verification',
     title: 'v',
@@ -203,7 +233,6 @@ function writePlanTree(repo, { scale = 'full', tasks = ['001'] } = {}) {
       touchText: number === '002'
         ? '- `src/shared.ts`\n- `src/b.ts`\n'
         : '- `src/shared.ts`\n- `src/a.ts`\n',
-      affectedPaths: [`src/t${number}.ts`],
     });
   }
 }
@@ -347,6 +376,67 @@ test('plan empty Interface rejects without perspectives', () => {
   const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
   assert.strictEqual(result.ok, false);
   assert.ok(!('perspectives' in result) || result.perspectives === undefined);
+});
+
+test('plan draft validation rejects a verification Touch command before reviewers (G20)', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  writeVerificationTask(repo, '002', { touchText: '- `npm run ci`\n' });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'plan draft validation failed');
+  assert.ok(result.failures.some((f) => f.code === 'G20'), JSON.stringify(result.failures));
+  assert.ok(!('perspectives' in result) || result.perspectives === undefined);
+});
+
+test('plan draft validation rejects a depends_on self-edge before reviewers (G19)', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  writeCommitTask(repo, '001', {
+    dependsOn: ['TASKS-001'],
+    touchText: '- `src/shared.ts`\n- `src/a.ts`\n',
+  });
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'plan draft validation failed');
+  assert.ok(result.failures.some((f) => f.code === 'G19'), JSON.stringify(result.failures));
+});
+
+// G20 draft 실패가 이미 있는 tree에 review_risk 문자열(구조 실패)을 더한다.
+// 먼저 draft 실패만 있는 상태를 단언해 두어야, 뒤의 "S만 남음"이 draft 검사
+// 건너뛰기 덕분이지 draft 실패가 원래 없어서가 아님이 드러난다.
+function writeStructuralAndDraftFailureTree(repo) {
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  writeVerificationTask(repo, '002', { touchText: '- `npm run ci`\n' });
+  const draftOnly = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, planDraft: true });
+  assert.ok(draftOnly.failures.some((f) => f.code === 'G20'), JSON.stringify(draftOnly.failures));
+  writeCommitTask(repo, '001', {
+    reviewRisk: 'public_interface',
+    touchText: '- `src/shared.ts`\n- `src/a.ts`\n',
+  });
+}
+
+const DRAFT_CODES = ['G5', 'G10', 'G11', 'G12', 'G19', 'G20'];
+
+test('plan structural failure wins over draft failure and classifies as structural', () => {
+  const repo = makeRepo();
+  writeStructuralAndDraftFailureTree(repo);
+  const result = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.error, 'structural validation failed');
+  assert.ok(result.failures.length > 0);
+  assert.ok(result.failures.every((f) => f.code.startsWith('S')), JSON.stringify(result.failures));
+  assert.ok(!('perspectives' in result) || result.perspectives === undefined);
+});
+
+test('validateBlueprint planDraft skips draft checks when structural failures exist', () => {
+  const repo = makeRepo();
+  writeStructuralAndDraftFailureTree(repo);
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, planDraft: true });
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.failures.length > 0);
+  assert.ok(result.failures.every((f) => f.code.startsWith('S')), JSON.stringify(result.failures));
+  assert.ok(!result.failures.some((f) => DRAFT_CODES.includes(f.code)), JSON.stringify(result.failures));
 });
 
 test('execute small diff returns single combined', () => {
