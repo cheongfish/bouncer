@@ -333,6 +333,135 @@ Ship login validation.
   assert.match(g19.message, /TASKS-999|missing|unknown/i);
 });
 
+// G18 신선도는 실제 파일 트리의 snapshot digest를 입력으로 쓴다. 본문 변경은 stale,
+// frontmatter 변경(affected_paths·status 전이)은 digest가 같으므로 통과해야 한다.
+test('validate --gate plan rejects a stale context review digest from the real tree', () => {
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const { computePlanSnapshot } = require('../scripts/lib/plan-snapshot');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const tasksBody = `# Tasks
+
+## Goal & intent
+Ship login validation.
+
+## Interface
+\`validateLogin(input) -> Result\`
+
+## Touch
+- \`src/auth/\`
+
+## Do not touch
+- \`src/payments/\`
+
+## Checklist
+- [ ] implement validateLogin
+`;
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth epic', description: 'auth epic',
+    resource: '.bouncer/context/epics/001-auth/index.md',
+    tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login blueprint', description: '001',
+    resource: `${BP_REL}/index.md`,
+    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', blueprint_id: '001', status: 'approved' },
+  });
+  const tasksRel = `${BP_REL}/tasks/001/tasks.md`;
+  const tasksAbs = path.join(repo, tasksRel);
+  const tasksData = {
+    type: 'bouncer.tasks', title: 'Login tasks', description: 'Tasks for 001',
+    resource: tasksRel, tags: ['bouncer', 'tasks'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready',
+      graph: { suggested_paths: ['src/'], basis: 'manual: src/' },
+      affected_paths: ['src/auth/login.js'],
+    },
+  };
+  const writeTasks = (data, body) => {
+    fs.mkdirSync(path.dirname(tasksAbs), { recursive: true });
+    fs.writeFileSync(tasksAbs, `---\n${yaml.dump(data)}---\n${body}`);
+  };
+  writeTasks(tasksData, tasksBody);
+  writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
+    type: 'bouncer.verification', title: 'Verify 001', description: 'v',
+    resource: `${BP_REL}/tasks/001/verification.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'pending' },
+  });
+  writeDoc(repo, `${BP_REL}/tasks/001/review.md`, {
+    type: 'bouncer.review', title: 'Review 001', description: 'r',
+    resource: `${BP_REL}/tasks/001/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'pending' },
+  });
+  const indexAbs = path.join(repo, '.bouncer/context/index.md');
+  fs.mkdirSync(path.dirname(indexAbs), { recursive: true });
+  fs.writeFileSync(
+    indexAbs,
+    '---\nokf_version: "0.1"\n---\n# Epics\n\n'
+    + '* [001 auth](epics/001-auth/index.md) - auth epic\n',
+  );
+
+  const snapshot = computePlanSnapshot({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(snapshot.ok, true, JSON.stringify(snapshot));
+  const crRel = `${BP_REL}/context-review.md`;
+  writeDoc(repo, crRel, {
+    type: 'bouncer.context_review', title: 'Context review', description: 'cr',
+    resource: crRel,
+    tags: ['bouncer', 'context_review'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      context_review: {
+        findings: [],
+        rounds: [{
+          round: 1,
+          mode: 'discovery',
+          target: { digest: snapshot.digest },
+          perspectives: [{ name: 'combined', target_digest: snapshot.digest }],
+          severity_changes: [],
+        }],
+      },
+    },
+  });
+  const crAbs = path.join(repo, crRel);
+  fs.writeFileSync(
+    crAbs,
+    fs.readFileSync(crAbs, 'utf8').replace('# x\n', '# Context review\n\n## Findings\n(none)\n'),
+  );
+  const plan = () => validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+  const staleOf = (result) => result.failures.filter(
+    (f) => f.code === 'G18' && /context review is stale/.test(f.message),
+  );
+
+  const fresh = plan();
+  assert.strictEqual(fresh.ok, true, JSON.stringify(fresh.failures));
+
+  writeTasks(tasksData, tasksBody.replace('Ship login validation.', 'Ship login validation fast.'));
+  const stale = plan();
+  assert.strictEqual(stale.ok, false);
+  const staleG18 = staleOf(stale);
+  assert.strictEqual(staleG18.length, 1, JSON.stringify(stale.failures));
+  assert.strictEqual(staleG18[0].file, crRel);
+  assert.ok(staleG18[0].message.includes(snapshot.digest));
+
+  const widened = {
+    ...tasksData,
+    bouncer: { ...tasksData.bouncer, affected_paths: ['src/auth/login.js', 'src/auth/'] },
+  };
+  writeTasks(widened, tasksBody);
+  const frontmatterOnly = plan();
+  assert.strictEqual(frontmatterOnly.ok, true, JSON.stringify(frontmatterOnly.failures));
+
+  // draft는 G3로 막히지만 digest는 같으므로 stale은 없어야 한다. ready로 되돌리면 통과한다.
+  writeTasks({ ...widened, bouncer: { ...widened.bouncer, status: 'draft' } }, tasksBody);
+  assert.deepStrictEqual(staleOf(plan()), []);
+  writeTasks(widened, tasksBody);
+  const readyAgain = plan();
+  assert.strictEqual(readyAgain.ok, true, JSON.stringify(readyAgain.failures));
+});
+
 // --- coordinator mode -------------------------------------------------------
 
 const { execFileSync } = require('node:child_process');

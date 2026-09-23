@@ -16,6 +16,9 @@ const validateSections = require("./validate-sections");
 const { VERIFY_SECTION_DEFS, TODO_RE, parseSections, parseTasksSections, parseExplainSections, extractPathCandidates, pathsOverlap, pathJustifiedByTouch, collectFindingFailures, CONTEXT_REVIEW_STATUS, EXECUTE_REVIEW_STATUS, } = validateSections;
 const schema = require("./schema");
 const { executionKindOf } = schema;
+// plan-snapshot은 validate·validate-gates를 require하지 않으므로 순환이 없다.
+const planSnapshotLib = require("./plan-snapshot");
+const { computePlanSnapshot } = planSnapshotLib;
 /**
  * partial close의 네 증적을 한 경계에서 판정한다. 일반 finalize와 섞지 않아
  * 실패한 drive가 `closed` 성공 조건을 빌려 통과하지 못하게 한다.
@@ -466,6 +469,13 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
                 })) {
                     add('G18', message, 'contextReview');
                 }
+                // 신선도 실패는 형식 판정 뒤에 덧붙인다 — 기존 G18 메시지 순서를 바꾸지 않는다.
+                // pending 등 미승인 문서는 status 메시지 하나로 충분하므로 대조하지 않는다.
+                if (statusOf(docs.contextReview) === 'accepted') {
+                    const stale = contextReviewFreshnessFailure(crMeta && crMeta.rounds, planTasksOf(docs), { repoRoot, blueprintDir, deps });
+                    if (stale)
+                        add('G18', stale, 'contextReview');
+                }
             }
         }
         const tasksList = planTasksOf(docs);
@@ -753,6 +763,73 @@ function planTasksOf(docs) {
     return Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
         ? docs.tasksDocs
         : (docs.tasks ? [docs.tasks] : []);
+}
+// 대조는 실행 전 blueprint에만 건다. drive 중 repair가 tasks/<NNN>을 추가하면
+// snapshot 문서 집합이 바뀌는데, 이때 current --set이 stale로 막히면 안 된다.
+const FRESHNESS_TASK_STATUSES = ['draft', 'ready'];
+/**
+ * accepted context-review의 마지막 round `target.digest`를 현재 계획 snapshot digest와
+ * 대조해 G18 신선도 실패 메시지를 만든다. digest 자동 갱신이나 round 추가는 하지 않는다.
+ * 대조 생략(null 반환): rounds가 배열이 아니거나 비었을 때, task 하나라도 status가
+ * draft·ready 밖일 때, `target.digest`가 문자열인 round가 하나도 없을 때(형식 오류는
+ * collectFindingFailures가 이미 보고), round가 양의 정수인 항목이 없을 때, 주입 없이
+ * ctx 경로가 문자열이 아닐 때. 문자열 digest가 하나라도 있으면 마지막 round의 값이
+ * 문자열이 아니어도 그 값을 기록값으로 대조한다(불일치 → stale).
+ *
+ * @param {unknown} rounds - context_review.rounds 원본 값
+ * @param {DocLeaf[]} tasksList - blueprint의 plan 대상 tasks 문서 목록
+ * @param {{ repoRoot?: string, blueprintDir?: string, deps?: GateDeps }} ctx - gate 경로와 주입 의존성
+ * @returns {string | null} stale·계산 실패 메시지, 통과하거나 대조를 생략하면 null
+ */
+function contextReviewFreshnessFailure(rounds, tasksList, { repoRoot, blueprintDir, deps }) {
+    // 1. 문서 쪽 조건: rounds 없는 구문서와 실행이 시작된 blueprint는 대조하지 않는다.
+    if (!Array.isArray(rounds) || rounds.length === 0)
+        return null;
+    if (!tasksList.every((t) => FRESHNESS_TASK_STATUSES.includes(statusOf(t))))
+        return null;
+    // 2. 마지막 round = round가 양의 정수인 항목 중 최댓값. 배열 순서는 믿지 않는다 —
+    //    순서 오류는 collectFindingFailures가 따로 보고한다.
+    //    생략은 문자열 digest를 가진 round가 하나도 없을 때뿐이다. 앞 round에만 문자열이
+    //    있으면 마지막 round 값이 문자열이 아니어도 기록값으로 대조해 stale로 거절한다 —
+    //    마지막 round만 보고 생략하면 형식이 깨진 새 round가 신선도 검사를 끄게 된다.
+    let last = null;
+    let anyStringDigest = false;
+    for (const entry of rounds) {
+        if (!entry || typeof entry !== 'object')
+            continue;
+        const target = entry.target;
+        if (target && typeof target === 'object' && typeof target.digest === 'string') {
+            anyStringDigest = true;
+        }
+        const round = entry.round;
+        if (!Number.isInteger(round) || round <= 0)
+            continue;
+        if (!last || round > last.round)
+            last = entry;
+    }
+    if (!anyStringDigest || !last)
+        return null;
+    const target = last.target && typeof last.target === 'object'
+        ? last.target
+        : null;
+    const recorded = target ? target.digest : undefined;
+    // 3. 현재 digest. 주입 함수는 테스트가 ctx 경로 없이 분기를 고정하도록 항상 부른다.
+    //    기본 구현은 경로가 둘 다 있을 때만 파일을 읽는다 — 직접 checkGate 호출 보존.
+    let current;
+    if (deps && deps.planSnapshot) {
+        current = deps.planSnapshot({ repoRoot, blueprintDir });
+    }
+    else if (typeof repoRoot === 'string' && typeof blueprintDir === 'string') {
+        current = computePlanSnapshot({ repoRoot, blueprintDir });
+    }
+    else {
+        return null;
+    }
+    if (!current.ok)
+        return `context review freshness unavailable: ${current.error}`;
+    if (current.digest === recorded)
+        return null;
+    return `context review is stale: last round digest ${recorded} != current ${current.digest}; rerun context review`;
 }
 /**
  * task 문서 하나에 status와 무관한 plan 검사(G5·G10·G11·G12)를 현재 순서대로 적용한다.
