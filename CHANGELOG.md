@@ -7,6 +7,35 @@
 
 ## [Unreleased]
 
+## [1.4.92] — 2026-09-23
+
+1.4.91 이후 규모·위험 기반 리뷰 디스패치, 검증 재사용과 coordinator
+checkpoint, 규칙 소유권 수직 이전, 계획 리뷰 반복 루프 차단을 넣는다.
+
+### Added
+
+- **적응형 리뷰 디스패치** — 문서·diff 규모와 승인된 위험 flag로 Plan·Execute
+  reviewer 수를 고르는 read-only `review-dispatch` CLI를 둔다.
+- **검증 재사용·checkpoint** — 동일 입력의 성공 검증만 내용 주소로 재사용하고,
+  coordinator 활성 응답을 완료 task summary와 원장 참조로 제한한다. 원장
+  hash가 달라진 stale checkpoint는 상태 변경을 거부한다.
+- **계획 draft 검증** — context review 전에 G19·G20·Touch 정합성을 검사해
+  frozen digest를 무효화하는 수정 루프를 줄인다.
+- **G18 리뷰 신선도** — 마지막 review target digest와 현재 계획 문서 digest를
+  대조한다.
+- **verification 전용 Touch** — verification task scaffold가 경로·백틱 없는
+  고정 Touch 문구를 쓰고, G20 메시지에 추출 후보를 붙인다.
+
+### Changed
+
+- **규칙 소유권 수직 이전** — planning·document-schema·commit-scope·coordinator
+  계약을 실제 판단 주체로 옮기고, workflow가 불필요한 공유 규칙을 읽지 않게
+  한다.
+
+### Removed
+
+- **제품 개선 로드맵 문서** — 별도 로드맵 문서를 삭제한다.
+
 ## [1.4.91] — 2026-09-21
 
 1.4.9 이후 플러그인 마스터 룰 정본을 `AGENTS.md`로 옮기고, 플러그인 루트
