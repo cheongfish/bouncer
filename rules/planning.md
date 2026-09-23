@@ -60,9 +60,9 @@ What shrinks (five things only):
    create it once with normal numbering, then keep stacking blueprints under it.
    Never close that epic.
 4. **Agent round-trips** — light implement routing (inline vs named) is owned
-   by `rules/governance.md` `## Lightweight cycle`.
-5. **Quiz size** — light quiz sizing is owned by `rules/governance.md`
-   `## Lightweight cycle`.
+   by `skills/bouncer-execute/references/agent-dispatch.md`.
+5. **Quiz size** — light quiz sizing is owned by
+   `references/explain-diff/index.md`.
 
 What stays the same:
 
@@ -79,7 +79,8 @@ means authoring the missing sections and running
 `bouncer scaffold context-review --blueprint <dir>` before the plan gate.
 If the separation between writer and named reviewer feels too thin, set
 `scale` back to `full` and return to the named-agent path for implement too —
-inline implement limits stay in `rules/governance.md` `## Lightweight cycle`.
+inline implement limits stay in
+`skills/bouncer-execute/references/agent-dispatch.md`.
 
 ## Task DAG and approved scope
 

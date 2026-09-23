@@ -375,12 +375,11 @@ test('load graph covers each workflow and keeps conditional references out of st
       `line ${row.line}: ${sourcePath} is a conditional step reference, not preload`);
   }
   const stepLoaders = graph.filter((row) => row.step.includes(sourcePath));
-  assert.ok(stepLoaders.length > 0,
-    `load graph must declare at least one step load of ${sourcePath}`);
-  for (const row of stepLoaders) {
-    assert.match(row.step, new RegExp(conditionalSource),
-      `line ${row.line}: ${row.consumer} must keep ${sourcePath} on its step load`);
-  }
+  assert.strictEqual(
+    stepLoaders.length,
+    0,
+    `BP3 complete: no workflow step should load ${sourcePath} directly`,
+  );
 
   // failure-only 참조도 표 셀에서 읽어, startup에 섞이면 실패한다.
   const execute = graph.find((row) => row.consumer === 'execute');
@@ -511,5 +510,32 @@ test('current owner preserves sizing, light, DAG, and coordinator contracts', ()
         `line ${row.line}: locator ${locator} leaked into ${other} while ${ownerPath} owns it`,
       );
     }
+  }
+});
+
+test('all BP3 rows have migrated away from governance and BP4 rows retain governance', () => {
+  const ownership = parseOwnership(read(ownershipPath));
+  const bp3Rows = ownership.filter((row) => row['migration BP'] === 'BP3');
+  const bp4Rows = ownership.filter((row) => row['migration BP'] === 'BP4');
+
+  assert.ok(bp3Rows.length > 0, 'BP3 rows must exist');
+  assert.ok(bp4Rows.length > 0, 'BP4 rows must exist');
+
+  for (const row of bp3Rows) {
+    const owner = stripTicks(row['current owner']);
+    assert.notStrictEqual(
+      owner,
+      'rules/governance.md',
+      `BP3 row ${row.unit} must not have current owner rules/governance.md`,
+    );
+  }
+
+  for (const row of bp4Rows) {
+    const owner = stripTicks(row['current owner']);
+    assert.strictEqual(
+      owner,
+      'rules/governance.md',
+      `BP4 row ${row.unit} must retain current owner rules/governance.md`,
+    );
   }
 });

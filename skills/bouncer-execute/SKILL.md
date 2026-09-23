@@ -106,7 +106,7 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    **Light branch.** When the pointer (`bouncer current`) `scale` is `light`,
    skip the shared model dispatch contract and run the `implementation` skill
    inline — a declaration-driven choice, separate from the host fallback in
-   step 4. Read `rules/governance.md` for that light inline contract and its
+   step 4. Read agent-dispatch.md for that light inline contract and its
    limit. The SSOT for `scale` is blueprint `index.md`, but this judgment uses
    only the step-1 pointer response; do not reopen `index.md`.
 

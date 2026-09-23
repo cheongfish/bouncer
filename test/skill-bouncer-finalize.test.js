@@ -198,6 +198,14 @@ test('bouncer-finalize audits DAG change, actual paths and agent provenance', ()
   assert.match(draftPr, /When the\s*\n?\s*plan and the run match, say nothing/);
 });
 
+test('bouncer-finalize explain-quiz reference maintains canonical context boundary and cites explain-diff for question count', () => {
+  const explainQuiz = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
+  );
+  assert.match(explainQuiz, /Canonical context remains the only repository-knowledge source at finalize|Canonical context remains/i);
+  assert.match(explainQuiz, /references\/explain-diff\/index\.md/);
+});
+
 test('bouncer-finalize uses the shortened context-only sequence', () => {
   const { body } = parseFrontmatter(mainMd);
   assert.doesNotMatch(body, /distill/i);

@@ -12,35 +12,17 @@ workflow별 commit 단위, task·finalize의 staging 책임과 explain stamp는
 ## Lightweight cycle
 
 Light 선언·문서 집합·G10/G18·공유 maintenance 에픽 할당은 `rules/planning.md`
-`## Lightweight cycle`이 소유한다. 아래는 실행 경로만 남긴다.
-
-4. **Agent round-trips** — when `bouncer.scale` is `light`, run the implementer
-   **inline** (same session) instead of named-agent dispatch. Keep the host
-   `named agents are unavailable` fallback wording as a separate sentence —
-   do not replace it with the light branch. Reviewer and `bouncer-debugger`
-   stay named. During a `/bouncer-run` drive the loop keeps named dispatch for
-   implement too even on `light`: the loop is an orchestrator that reads
-   subagent reports, so it must not become the implementer. See
-   `/bouncer-execute`.
-5. **Quiz size** — `explain-diff` asks **one question** when `scale: light`
-   (still within the usual 1–10 range rules otherwise). See
-   `references/explain-diff/index.md`.
-
-What stays the same:
-
-- Canonical context remains the only repository-knowledge source at finalize.
+`## Lightweight cycle`이 소유한다. light 실행·dispatch 규범은
+`skills/bouncer-execute/references/agent-dispatch.md`, quiz 크기는
+`references/explain-diff/index.md`, canonical context는
+`skills/bouncer-finalize/references/explain-quiz.md`가 소유한다. 아래는 scale
+read-site 구현 설명이다.
 
 `scripts/` reads `scale` in four places: `scaffoldBlueprint` picks the document
 set, `scaffoldTask` inherits the blueprint's declared scale for a later task,
 the plan gate picks the G10 / G18 contract, and structural validation (S20)
 checks the value against the enum. Every one of them reads the declared
 `bouncer.scale` value and nothing else; none infers size.
-
-Limit of implement inline: the writing session still authored the change a
-named reviewer will score against **its own diff** (self-review pressure on
-the writer, not a same-session review verdict). Returning to `full` and
-restoring the missing plan documents is owned by `rules/planning.md`
-`## Lightweight cycle`.
 
 ## Task DAG and approved scope
 

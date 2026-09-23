@@ -170,6 +170,13 @@ test('bouncer-execute step 3 routes implementation through bouncer-implementer',
   assert.match(body, /commit-safety|git commit/i);
 });
 
+test('bouncer-execute step 3 reads agent-dispatch reference for light inline contract without loading governance', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step3 = body.slice(body.indexOf('3. **Implement'), body.indexOf('4. **Verify/recover'));
+  assert.match(step3, /agent-dispatch\.md/);
+  assert.doesNotMatch(step3, /rules\/governance\.md/);
+});
+
 test('bouncer-execute compacts only a synchronized fresh named implementer payload', () => {
   const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
   const named = dispatch.match(/## Named implementer[\s\S]*?(?=\n## )/)?.[0] || '';

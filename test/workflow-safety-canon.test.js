@@ -167,11 +167,12 @@ test('row 5 worker report trust boundary lives in AGENTS.md hard rule 1', () => 
   assertSkillCites(['bouncer-execute', 'bouncer-run'], /hard rule 1/, 'row 5');
 });
 
-test('row 6 light inline and drive named exception live in Lightweight cycle', () => {
-  const section = h2Section(read('rules/governance.md'), '## Lightweight cycle');
-  assert.match(section, /inline/);
-  assert.match(section, /named dispatch/);
-  assertSkillCites(['bouncer-execute'], /rules\/governance\.md/, 'row 6');
+test('row 6 light inline and drive named exception live in agent-dispatch', () => {
+  const dispatch = read('skills/bouncer-execute/references/agent-dispatch.md');
+  assert.match(dispatch, /inline/i);
+  assert.match(dispatch, /named dispatch/);
+  assertSkillCites(['bouncer-execute'], /references\/agent-dispatch\.md/, 'row 6');
+  assert.doesNotMatch(read('rules/governance.md'), /named dispatch/);
 });
 
 test('row 7 debugger recovery ceiling lives in verification-recovery.md', () => {
