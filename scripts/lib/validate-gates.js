@@ -160,10 +160,12 @@ function checkTaskDependencyGraph(tasksList, failures) {
  * verification node가 구현 범위를 우회하는 중간 node가 되지 않는지 판정한다.
  * predecessor를 갖고 source Touch가 없으며, successor가 있다면 그 successor도
  * verification이어야 한다. shape와 argv 유효성은 S29가 먼저 맡는다.
+ * Touch 위반 메시지에는 경로로 추출된 후보를 `, `로 이어 붙인다 — 백틱 명령
+ * (`npm run ci`)도 후보가 되므로, 작성자가 validator를 읽지 않고 원인을 알게 한다.
  *
  * @param {DocLeaf[]} tasksList - blueprint의 모든 tasks.md
  * @param {FailureEntry[]} failures - G20 결과 누적 배열
- * @returns {void}
+ * @returns {void} 결과는 failures에 push로만 남긴다
  */
 function checkVerificationTaskGraph(tasksList, failures) {
     const dependents = new Map();
@@ -185,10 +187,11 @@ function checkVerificationTaskGraph(tasksList, failures) {
             continue;
         const id = bouncer && typeof bouncer.id === 'string' ? bouncer.id : '';
         const sections = parseTasksSections(doc.body || '');
-        if (extractPathCandidates(sections.touch || '').length > 0) {
+        const touchCandidates = extractPathCandidates(sections.touch || '');
+        if (touchCandidates.length > 0) {
             failures.push({
                 code: 'G20',
-                message: 'verification task Touch must not declare source changes',
+                message: `verification task Touch must not declare source changes: ${touchCandidates.join(', ')}`,
                 file: doc.rel,
             });
         }

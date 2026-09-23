@@ -776,6 +776,34 @@ test('scaffoldTask explicitly creates a verification node without review or scop
     )),
     JSON.stringify(validation.failures, null, 2),
   );
+  const body = readDoc(path.join(repo, entry.tasks.rel)).body;
+  const { parseTasksSections, extractPathCandidates } = require('../scripts/lib/validate-sections');
+  const sections = parseTasksSections(body);
+  assert.strictEqual(sections.touch.trim(), 'Source 변경 경로 없음.');
+  assert.deepStrictEqual(extractPathCandidates(sections.touch), []);
+  for (const key of ['goal', 'interface', 'touch', 'doNotTouch', 'checklist']) assert.ok(sections[key], key);
+  const headings = body.match(/^## .+$/gm);
+  assert.deepStrictEqual(headings, ['## Goal & intent', '## Interface', '## Touch', '## Do not touch', '## Checklist']);
+  const TODO = /TODO:/;
+  for (const key of ['interface', 'touch', 'doNotTouch']) assert.ok(!TODO.test(sections[key]), key);
+  for (const key of ['goal', 'checklist']) assert.ok(TODO.test(sections[key]), key);
+  const plan = validateBlueprint({ repoRoot: repo, blueprintDir: base, gate: 'plan' });
+  assert.ok(!plan.failures.some((f) => f.code === 'G20' && f.file === entry.tasks.rel));
+});
+
+test('a verification task on a light blueprint reuses the full verification body byte for byte', () => {
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  const bodies = {};
+  for (const scale of ['full', 'light']) {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+    scaffoldWith(repo, scale);
+    scaffoldTask({
+      repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
+      executionKind: 'verification', dependsOn: ['TASKS-001'], verify: 'node --test',
+    });
+    bodies[scale] = readDoc(path.join(repo, base, 'tasks/002/tasks.md')).body;
+  }
+  assert.strictEqual(bodies.light, bodies.full);
 });
 
 test('bouncer scaffold task exposes verification metadata through the public CLI', () => {

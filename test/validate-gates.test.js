@@ -2352,6 +2352,10 @@ test('plan gate accepts terminal verification fan-in and rejects source scope or
   ]), rels, valid);
   assert.deepStrictEqual(valid.filter((f) => ['G4', 'G5', 'G20'].includes(f.code)), []);
 
+  const commandBody = READY_BODY.replace(
+    /## Touch[\s\S]*?## Do not touch/,
+    '## Touch\n- `npm run ci` 실행\n\n## Do not touch',
+  );
   const invalid = [];
   checkGate('plan', planDocsWithTasks([
     planTaskDoc('001'),
@@ -2360,7 +2364,13 @@ test('plan gate accepts terminal verification fan-in and rejects source scope or
       parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
     }),
     planTaskDoc('003', { depends_on: ['TASKS-002'] }),
+    planTaskDoc('004', {
+      execution_kind: 'verification', affected_paths: [], scope_evidence: undefined,
+      graph: undefined, depends_on: ['TASKS-001'], parallel_safe: false,
+      dependency_gate: 'integrated', verify: 'node --test',
+    }, commandBody),
   ]), rels, invalid);
   assert.ok(invalid.some((f) => f.code === 'G20' && /Touch/.test(f.message)));
   assert.ok(invalid.some((f) => f.code === 'G20' && /commit task/.test(f.message)));
+  assert.ok(invalid.some((f) => f.code === 'G20' && f.message.endsWith(': npm run ci')));
 });
