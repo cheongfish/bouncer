@@ -46,7 +46,8 @@ the quiz, **stop** — do not continue to validate or `finalize --yes`.
    new reject reason. `complete: false` (see `openTasks`; `headVerified` is
    `false` when a verification task is not integrated) is unfinished — stop and
    hand it to the coordinator instead of recording it as done. Read
-   `rules/governance.md` for the integration-worktree boundary. When running
+   `rules/commit-scope.md` for the integration worktree boundary and how
+   remainder staging differs from a task commit. When running
    the finalize gate, showing the dry-run, or handling scope or `reason:
    'verify'` failures, read [remainder.md](./references/remainder.md). On a
    clean dry-run (or empty staged set), run this **ACQ** before `--yes`:

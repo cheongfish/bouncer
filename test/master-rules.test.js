@@ -725,20 +725,64 @@ test('plugin-root loads only the runtime contract by default', () => {
   assert.doesNotMatch(section, /normally\s+`?rules\/(?:governance|document-schema)\.md`?/i);
 });
 
-test('governance defines coordinator dynamic scope, audit and commit ownership', () => {
+test('commit-scope defines coordinator dynamic scope, audit and commit ownership', () => {
+  const commitScope = read('rules/commit-scope.md');
   const governance = read('rules/governance.md');
-  assert.match(governance, /## Coordinator mode/);
-  assert.match(governance, /initial expected scope|초기 예상/i);
-  assert.match(governance, /revision/);
-  assert.match(governance, /decision log/i);
-  assert.match(governance, /actual|staged/i);
-  assert.match(governance, /affected_paths/);
+  assert.match(commitScope, /## Approved and ledger scope/);
+  assert.match(commitScope, /initial expected scope|초기 예상/i);
+  assert.match(commitScope, /revision/);
+  assert.match(commitScope, /decision log/i);
+  assert.match(commitScope, /actual|staged/i);
+  assert.match(commitScope, /affected_paths/);
   // 코드가 실제로 강제하는 경계와 강제하지 않는 부분을 문서가 같이 말해야 한다.
-  assert.match(governance, /\.bouncer\/`? governance tree|governance tree/);
-  assert.match(governance, /no ceiling|ceiling/i);
-  // G17이 두 강제 지점보다 약하다는 사실을 명시한다.
-  assert.match(governance, /G17/);
-  assert.match(governance, /weaker/i);
+  // 어휘 등장만 보면 같은 문장을 뒤집어도(`are refused` → `are acceptable`) 통과한다.
+  // 그래서 금지 목록·감사 대상과 거절 술어를 붙여 잠근다. soft-wrap만 정규화한다.
+  const commitScopeFlat = commitScope.replace(/\s+/g, ' ');
+  assert.match(
+    commitScopeFlat,
+    /Absolute paths, paths escaping the repository, whole-tree spellings, `\.git\/`, and the `\.bouncer\/` governance tree are refused\./,
+  );
+  assert.match(commitScopeFlat, /governance tree are refused\. Inside that boundary there is no ceiling/);
+  assert.match(
+    commitScopeFlat,
+    /judges the actual staged paths against the ledger's current scope instead of the approval snapshot, and refuses a commit/,
+  );
+  assert.match(
+    commitScopeFlat,
+    /refuses a commit made in the main worktree, outside the task's assigned worktree, on a stale revision, or with the ledger missing/,
+  );
+  // G17이 두 강제 지점보다 약하다는 사실을 명시한다. 어휘(`G17`·`weaker`)만
+  // 보면 권한 문장을 뒤집어도(`not as coordinator authorization` → `as full
+  // coordinator authorization`) 통과하므로, 술어를 그 주어에 붙여 잠근다.
+  assert.match(commitScope, /G17/);
+  assert.match(commitScope, /weaker/i);
+  assert.match(
+    commitScopeFlat,
+    /treat a passing commit gate as a document-level check, not as coordinator authorization\./,
+  );
+  // 두 번째 정본을 남기지 않는다: governance는 실행 범위를 다시 서술하지 않고
+  // 새 정본을 가리키기만 한다. 두 곳이 같은 판단을 말하면 어느 쪽이 이기는지
+  // 문서로 판정할 수 없다.
+  assert.match(governance, /rules\/commit-scope\.md/);
+  assert.doesNotMatch(governance, /initial expected scope/);
+  assert.doesNotMatch(governance, /weaker of the three/);
+  assert.doesNotMatch(governance, /ledger's current scope/);
+
+  // 소비자 편집은 정본 이전의 일부다. 두 pointer가 없으면 옛 경로를 읽는 세션이
+  // 살아나므로, runtime index 항목과 planning의 새 owner 인용을 함께 고정한다.
+  assert.match(
+    read('AGENTS.md'),
+    /^- \[`rules\/commit-scope\.md`\]\(rules\/commit-scope\.md\) —/m,
+  );
+  const planningFlat = read('rules/planning.md').replace(/\s+/g, ' ');
+  assert.match(
+    planningFlat,
+    /Coordinator-owned revision of approved `affected_paths` after plan time is owned by `rules\/commit-scope\.md` `## Approved and ledger scope`/,
+  );
+  assert.doesNotMatch(
+    planningFlat,
+    /approved `affected_paths` after plan time is owned by `rules\/governance\.md`/,
+  );
 });
 
 test('current-pointer hands pointer moves to the coordinator, not the run loop', () => {
@@ -757,9 +801,17 @@ test('worker and coordinator authority have one canonical statement', () => {
   const governance = read('rules/governance.md');
   const coordinator = read('agents/bouncer-coordinator.md');
 
-  // 상한 없음(no ceiling)은 governance가 소유하고, 나머지는 그것을 가리킨다.
-  assert.strictEqual((governance.match(/there is no\s*\n?\s*ceiling/g) || []).length, 1);
-  assert.match(coordinator, /rules\/governance\.md/);
+  // 상한 없음(no ceiling)은 `rules/commit-scope.md`가 소유하고, 나머지는 그것을
+  // 가리킨다. governance에 같은 문장이 남아 있으면 정본이 둘이 된다.
+  assert.strictEqual((read('rules/commit-scope.md').match(/there is no\s*\n?\s*ceiling/g) || []).length, 1);
+  assert.strictEqual((governance.match(/there is no\s*\n?\s*ceiling/g) || []).length, 0);
+  assert.match(coordinator, /rules\/commit-scope\.md/);
+  assert.doesNotMatch(coordinator, /rules\/governance\.md/);
+  assert.doesNotMatch(governance, /workers report/);
+  assert.doesNotMatch(governance, /exactly one such recovery/);
+  assert.doesNotMatch(governance, /at most two dynamic repair/);
+  assert.doesNotMatch(governance, /partial_closed/);
+  assert.doesNotMatch(governance, /refused without a reason/);
   // hard rule 1은 예외의 범위만 말하고 절차를 다시 쓰지 않는다.
   assert.doesNotMatch(agents, /coordinate revise/);
   // scope 개정 절차의 정본은 coordinator 역할 문서 하나다.

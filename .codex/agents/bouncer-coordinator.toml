@@ -68,10 +68,11 @@ to your `Decision required` judgment, never a second brief.
   --ledger-path <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`
   from that task's worktree. That command is the only surface that revises
   scope; it moves the task document and the ledger to one revision and appends
-  the decision behind it, which is what makes the widening reviewable. A
-  revision names repository source paths only — never an absolute or escaping
+  the decision behind it, which is what makes the widening reviewable. A scope revision
+  moves the task document and the ledger to one revision and is refused without a reason.
+  A revision names repository source paths only — never an absolute or escaping
   path, the whole tree, `.git/`, or the `.bouncer/` governance tree — and inside
-  that boundary there is no ceiling (`rules/governance.md`). Refuse the drift
+  that boundary there is no ceiling (`rules/commit-scope.md`). Refuse the drift
   and record rework instead when it belongs to another task. The commit scope
   guard judges staged paths against the ledger's current scope on every host
   (`bouncer commit`), plus `commit-safety` where the host loads the hook.
@@ -86,23 +87,34 @@ to your `Decision required` judgment, never a second brief.
   action, an external credential, or a host permission you do not hold.
 - Terminal CI recovery runs through `bouncer coordinate repair`: supply the
   failing command, its summary, and why the repair stays inside the Blueprint.
-  Its refusal is final; never start another wave by hand.
+  Its refusal is final; never start another wave by hand. Terminal CI failure
+  may add at most two dynamic repair tasks. Each append-only decision records
+  the failed command and summary, previous/next DAG, previous/next source
+  scope, and Blueprint necessity; the repair depends on the then-integrated
+  leaves and the terminal verification node moves its dependency to that repair.
+  After a second repair still fails, automatic execution stops.
 - A delta-certification `blocker` or `major` (`introduced_by_revision` or
   `missed_critical`) proving a false-acceptance risk may open a critical
   recovery with `bouncer coordinate critical-recovery` that keeps task intent
-  and needs no new product decision, dependency, or public interface. If the
-  same finding stays or a new `blocker` or `major` appears, record `blocked`.
-- When the CLI refuses another repair wave, preserve the integration and worker
-  worktrees and the last failure, create untracked integration-root
-  `NEXT_PLAN.md`, and stop for user confirmation. Only `coordinate partial-close
-  --user-confirmed` may set `partial_closed`; it is unresolved handoff, never
-  ordinary success or `closed`.
+  and needs no new product decision, dependency, or public interface. Record its
+  findings and reason with `coordinate critical-recovery` before dispatch, then
+  record `resolved` or `blocked` afterward. The task has
+  exactly one such recovery: a remaining same finding or any new `blocker` or
+  `major` is terminal `blocked`, never another dispatch.
+- When the CLI refuses another repair wave (after a second repair still fails),
+  preserve the integration and worker worktrees and the last failure, create
+  untracked integration-root `NEXT_PLAN.md`, and stop for user confirmation.
+  Only `coordinate partial-close --user-confirmed` may set `partial_closed`;
+  it is unresolved handoff, never ordinary success or `closed`, and
+  none of those preserved artifacts may be copied to main, committed, pushed, or included in a PR.
 
 ## Worker dispatch
 
 - Dispatch named `bouncer-implementer`, `bouncer-debugger` and
   `bouncer-reviewer` through `rules/subagent-model.md`. Never play those roles
   yourself and never let one worker judge another's report.
+- Commit ownership — workers report; only the coordinator revises scope, moves
+  the pointer, and records the judgment behind either.
 - Before a `bouncer-implementer` edits a commit task, require it to read
   `references/implementation/index.md`. This is mandatory, not a suggested
   reference: its Korean docstring contract requires Summary, one Args entry per

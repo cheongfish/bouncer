@@ -31,8 +31,9 @@ Apply the shared returned-value and task-brief selection contract. This
 workflow only supplies the current task's scope and its post-commit handoff.
 
 1. **Current.** State the selected `{ blueprint, task, base }` from `bouncer
-   current`. Read `rules/governance.md` for the controller/worktree boundary;
-   later steps keep that `tasks/<NNN>/tasks.md` brief.
+   current`. Read `rules/commit-scope.md` for the commit unit, staging and
+   controller/worktree boundary this commit is judged against; later steps keep
+   that `tasks/<NNN>/tasks.md` brief.
 
 2. **Dry-run.**
    ```bash
@@ -69,7 +70,9 @@ workflow only supplies the current task's scope and its post-commit handoff.
 5. **Handoff.** Route on `nextAction`. The commit payload carries the
    provenance the controller routes on: the task SHA on the worker branch,
    the paths the commit actually carried, the ledger record result, and
-   `nextTask`.
+   `nextTask`. For how to read that result and any `recovery.action` on it,
+   read `rules/cli.md` — the CLI result contract is separate from the commit
+   scope this workflow judged in step 1.
 
    When `nextAction` is `return-to-coordinator`, return those to the coordinator and stop. It records the worker SHA with `bouncer coordinate
    record`, reflects it with `bouncer coordinate integrate` in dependency

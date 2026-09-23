@@ -1,7 +1,8 @@
 # Planning
 
 계획 단계(plan · spec-authoring · template)가 읽는 계약이다.
-실행·coordinator 규범은 `rules/governance.md`에 남긴다.
+실행 범위·commit 계약은 `rules/commit-scope.md`, coordinator mutation 절차는
+`rules/governance.md`에 있다.
 
 ## Blueprint sizing rule
 
@@ -59,9 +60,9 @@ What shrinks (five things only):
    create it once with normal numbering, then keep stacking blueprints under it.
    Never close that epic.
 4. **Agent round-trips** — light implement routing (inline vs named) is owned
-   by `rules/governance.md` `## Lightweight cycle`.
-5. **Quiz size** — light quiz sizing is owned by `rules/governance.md`
-   `## Lightweight cycle`.
+   by `skills/bouncer-execute/references/agent-dispatch.md`.
+5. **Quiz size** — light quiz sizing is owned by
+   `references/explain-diff/index.md`.
 
 What stays the same:
 
@@ -78,7 +79,8 @@ means authoring the missing sections and running
 `bouncer scaffold context-review --blueprint <dir>` before the plan gate.
 If the separation between writer and named reviewer feels too thin, set
 `scale` back to `full` and return to the named-agent path for implement too —
-inline implement limits stay in `rules/governance.md` `## Lightweight cycle`.
+inline implement limits stay in
+`skills/bouncer-execute/references/agent-dispatch.md`.
 
 ## Task DAG and approved scope
 
@@ -99,7 +101,8 @@ baseline for later coordinator revision; it does not freeze runtime ledger
 state.
 
 Coordinator-owned revision of approved `affected_paths` after plan time is
-owned by `rules/governance.md` `## Task DAG and approved scope`.
+owned by `rules/commit-scope.md` `## Approved and ledger scope`; the revision
+procedure itself is `rules/governance.md` `## Coordinator mode`.
 
 ## Epic naming
 

@@ -66,8 +66,8 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    holds the pointer, remaining-task presentation fields (including
    `affected_paths`), DAG, and
    reporting cadence. Follow its status and `delegable` result; read
-   `rules/current-pointer.md` for pointer return values. When nothing to delegate,
-   tell the
+   `rules/cli.md` for result handling and `rules/current-pointer.md` for
+   pointer return values. When nothing to delegate, tell the
    user to run `/bouncer-finalize` themselves and stop. Finalize's consent
    steps stay with the user on both paths: this session never runs them, and a
    delegated drive stops at the first one instead of answering it.
@@ -100,8 +100,8 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    `ok: false`, report the reason and stop — do not retry into a different path.
 
 4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` exactly once
-   per `rules/subagent-model.md`; read `rules/governance.md` for coordinator
-   authority. When named agents are unavailable, dispatch
+   per `rules/subagent-model.md`; read `agents/bouncer-coordinator.md` for
+   coordinator authority. When named agents are unavailable, dispatch
    one generic subagent with the same coordinator brief and the same worktree
    guards; either way it happens once, and never without the step 2 approval.
    From `integrationPath`, run `bouncer coordinate status` once and keep its

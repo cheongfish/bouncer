@@ -198,6 +198,14 @@ test('bouncer-finalize audits DAG change, actual paths and agent provenance', ()
   assert.match(draftPr, /When the\s*\n?\s*plan and the run match, say nothing/);
 });
 
+test('bouncer-finalize explain-quiz reference maintains canonical context boundary and cites explain-diff for question count', () => {
+  const explainQuiz = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
+  );
+  assert.match(explainQuiz, /Canonical context remains the only repository-knowledge source at finalize|Canonical context remains/i);
+  assert.match(explainQuiz, /references\/explain-diff\/index\.md/);
+});
+
 test('bouncer-finalize uses the shortened context-only sequence', () => {
   const { body } = parseFrontmatter(mainMd);
   assert.doesNotMatch(body, /distill/i);
@@ -215,6 +223,20 @@ test('bouncer-finalize uses the shortened context-only sequence', () => {
   assert.match(body, /openTasks/);
   assert.match(body, /headVerified/);
   assert.equal(fs.existsSync(path.join(root, 'skills/bouncer-finalize/references/distill-promotion.md')), false);
+});
+
+// remainder는 task commit과 다른 staging 책임을 가진다. integration worktree
+// 경계와 commit 범위 정본은 공유 문서에 있고, finalize 본문은 그 정본을 step 2에서만
+// 적재한다 — 파일 전체 대신 구간을 보는 이유는 다른 단계의 인용이 부재를 가리기 때문이다.
+test('bouncer-finalize step 2 loads the commit-scope canon for the integration boundary', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step2 = body.slice(body.indexOf('2. **Remainder.**'), body.indexOf('3. **PR'));
+  assert.match(step2, /rules\/commit-scope\.md/);
+  assert.match(step2, /integration worktree/);
+  // 옛 정본을 다시 가리키면 이전한 구절이 두 경로로 읽힌다.
+  assert.doesNotMatch(step2, /rules\/governance\.md/);
+  // remainder의 로컬 절차(게이트·dry-run·실패 처리)는 여전히 skill-local reference다.
+  assert.match(step2, /\.\/references\/remainder\.md/);
 });
 
 test('cleanup-handoff releases main plan copies before any worktree removal', () => {

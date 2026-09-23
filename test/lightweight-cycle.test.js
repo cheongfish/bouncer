@@ -26,13 +26,27 @@ test('planning defines Lightweight cycle contract', () => {
   assert.doesNotMatch(planning, /named agents are unavailable/);
 });
 
-test('governance keeps light execution contracts after planning extraction', () => {
+test('direct owners keep light execution contracts and governance retains scale read sites only', () => {
+  const dispatch = read('skills/bouncer-execute/references/agent-dispatch.md');
+  assert.match(dispatch, /inline/i);
+  assert.match(dispatch, /named dispatch/i);
+  assert.match(dispatch, /its own diff|self-review/i);
+  assert.match(dispatch, /named agents are unavailable/);
+
+  const ed = read('references/explain-diff/index.md');
+  assert.match(ed, /1문항|질문 수(를)? 1/);
+
+  const eq = read('skills/bouncer-finalize/references/explain-quiz.md');
+  assert.match(eq, /Canonical context remains the only repository-knowledge source at finalize|Canonical context remains/i);
+
   const gov = read('rules/governance.md');
   assert.match(gov, /## Lightweight cycle/);
-  assert.match(gov, /inline/i);
-  assert.match(gov, /one question|single question/i);
-  assert.match(gov, /its own diff|self-review/i);
-  assert.match(gov, /named agents are unavailable/);
+  assert.match(gov, /scaffoldBlueprint/);
+  // BP3 실행 문장은 governance에서 제거된다.
+  assert.doesNotMatch(gov, /inline/i);
+  assert.doesNotMatch(gov, /one question|single question/i);
+  assert.doesNotMatch(gov, /its own diff|self-review/i);
+  assert.doesNotMatch(gov, /named agents are unavailable/);
 });
 
 test('bouncer-plan routes light-path work to maintenance epic', () => {

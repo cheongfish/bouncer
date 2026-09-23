@@ -59,19 +59,18 @@ test('run stays non-editing and does not re-judge worker reports', () => {
   assert.doesNotMatch(role, /bouncer current --set/);
 });
 
-test('run defers coordinator procedure to the canonical agent and governance docs', () => {
+test('run defers coordinator procedure to the canonical agent doc and output contract', () => {
   const coordinator = fs.readFileSync(
     path.join(__dirname, '..', 'agents/bouncer-coordinator.md'),
     'utf8',
   );
-  const governance = fs.readFileSync(
-    path.join(__dirname, '..', 'rules/governance.md'),
-    'utf8',
-  );
   assert.match(md, /agents\/bouncer-coordinator\.md/);
-  assert.match(md, /rules\/governance\.md/);
+  assert.doesNotMatch(md, /rules\/governance\.md/);
   assert.match(coordinator, /bouncer-implementer|worker/i);
-  assert.match(governance, /Coordinator mode|coordinator/i);
+  assert.match(md, /rules\/cli\.md/);
+  assert.match(md, /rules\/current-pointer\.md/);
+  assert.match(md, /rules\/subagent-model\.md/);
+  assert.match(md, /rules\/output\.md/);
 });
 
 // finalize의 동의는 어느 경로에서도 사용자 것이다. 두 경로가 다른 주인을

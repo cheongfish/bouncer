@@ -18,6 +18,24 @@ The implementer returns **Brief revision** with the same `attempt` and
 received attempt and hash so runtime can append `stale-report`, and do not
 treat it as accepted or call `coordinate record`.
 
+## Lightweight and implement dispatch
+
+When `bouncer.scale` is `light` (from pointer `scale`), run the implementer
+**inline** (same session) instead of named-agent dispatch. Keep the host
+`named agents are unavailable` fallback wording as a separate sentence —
+do not replace it with the light branch. Reviewer and `bouncer-debugger`
+stay named.
+
+During a `/bouncer-run` drive the loop keeps named dispatch for implement too
+even on `light`: the loop is an orchestrator that reads subagent reports, so it
+must not become the implementer.
+
+Limit of implement inline: the writing session still authored the change a
+named reviewer will score against **its own diff** (self-review pressure on
+the writer, not a same-session review verdict). Returning to `full` and
+restoring the missing plan documents is owned by `rules/planning.md`
+`## Lightweight cycle`.
+
 ## Named implementer
 
 Before a **new named dispatch**, compare the temporary

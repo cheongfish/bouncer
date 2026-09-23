@@ -143,6 +143,17 @@ test('bouncer-execute step 2 prepares the worktree with one CLI command', () => 
   assert.doesNotMatch(step2, /seed-worktree/);
 });
 
+// 실행 범위 정본은 그 판단이 필요한 단계에서만 적재한다. 파일 전체 대신 step 2
+// 구간을 보는 이유는, 다른 단계의 인용이 prepare 경계의 정본 부재를 가리기 때문이다.
+test('bouncer-execute step 2 loads the commit-scope canon at the worktree boundary', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step2 = body.slice(body.indexOf('2. **Prepare.**'), body.indexOf('3. **Implement'));
+  assert.match(step2, /rules\/commit-scope\.md/);
+  assert.match(step2, /assigned worktree|already assigned/);
+  // 옛 정본을 다시 가리키면 이전한 구절이 두 경로로 읽힌다.
+  assert.doesNotMatch(step2, /rules\/governance\.md/);
+});
+
 test('bouncer-execute consumes seed config status and warns when missing', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /`copied`[\s\S]{0,80}`preserved`[\s\S]{0,80}`missing`/);
@@ -157,6 +168,13 @@ test('bouncer-execute step 3 routes implementation through bouncer-implementer',
   assert.match(dispatch, /rules\/subagent-model\.md/);
   assert.match(body, /controller/i);
   assert.match(body, /commit-safety|git commit/i);
+});
+
+test('bouncer-execute step 3 reads agent-dispatch reference for light inline contract without loading governance', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step3 = body.slice(body.indexOf('3. **Implement'), body.indexOf('4. **Verify/recover'));
+  assert.match(step3, /agent-dispatch\.md/);
+  assert.doesNotMatch(step3, /rules\/governance\.md/);
 });
 
 test('bouncer-execute compacts only a synchronized fresh named implementer payload', () => {

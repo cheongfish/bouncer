@@ -375,12 +375,11 @@ test('load graph covers each workflow and keeps conditional references out of st
       `line ${row.line}: ${sourcePath} is a conditional step reference, not preload`);
   }
   const stepLoaders = graph.filter((row) => row.step.includes(sourcePath));
-  assert.ok(stepLoaders.length > 0,
-    `load graph must declare at least one step load of ${sourcePath}`);
-  for (const row of stepLoaders) {
-    assert.match(row.step, new RegExp(conditionalSource),
-      `line ${row.line}: ${row.consumer} must keep ${sourcePath} on its step load`);
-  }
+  assert.strictEqual(
+    stepLoaders.length,
+    0,
+    `BP3 complete: no workflow step should load ${sourcePath} directly`,
+  );
 
   // failure-only 참조도 표 셀에서 읽어, startup에 섞이면 실패한다.
   const execute = graph.find((row) => row.consumer === 'execute');
@@ -488,37 +487,55 @@ test('current owner preserves sizing, light, DAG, and coordinator contracts', ()
     );
   }
 
-  // BP2 행은 planning만, BP3·BP4 행은 governance만 가리켜 이중 정본을 막는다.
+  // 이전이 진행 중인 동안 owner는 세 rule 파일에 걸쳐 있다. migration BP 열로
+  // 경로를 고정하면 같은 BP의 일부만 옮긴 중간 commit이 전부 거짓 실패한다.
+  // 대신 행이 선언한 current owner를 기준으로, 같은 구절이 다른 owner 파일에
+  // 남아 있지 않은지(= 이중 정본)만 행별로 거절한다.
+  const ownerPaths = [...new Set(ownership.map((row) => stripTicks(row['current owner'])))];
+  const normalizedOwners = new Map(
+    ownerPaths.map((ownerPath) => [ownerPath, read(ownerPath).replace(/\s+/g, ' ')]),
+  );
   for (const row of ownership) {
     const ownerPath = stripTicks(row['current owner']);
-    if (row['migration BP'] === 'BP2') {
-      assert.strictEqual(
-        ownerPath,
-        'rules/planning.md',
-        `line ${row.line}: BP2 row ${row.id} must own under rules/planning.md`,
-      );
-    } else {
-      assert.strictEqual(
-        ownerPath,
-        'rules/governance.md',
-        `line ${row.line}: ${row['migration BP']} row ${row.id} must remain under rules/governance.md`,
+    const [, locator] = row.source.split(' / ').map((part) => stripTicks(part));
+    const normalizedLocator = locator.replace(/\s+/g, ' ');
+    assert.ok(
+      normalizedOwners.get(ownerPath).includes(normalizedLocator),
+      `line ${row.line}: locator ${locator} missing from declared owner ${ownerPath}`,
+    );
+    for (const other of ownerPaths) {
+      if (other === ownerPath) continue;
+      assert.ok(
+        !normalizedOwners.get(other).includes(normalizedLocator),
+        `line ${row.line}: locator ${locator} leaked into ${other} while ${ownerPath} owns it`,
       );
     }
   }
+});
 
-  const planningText = read('rules/planning.md');
-  const governanceText = read('rules/governance.md');
-  for (const row of ownership) {
-    if (row['migration BP'] !== 'BP2') continue;
-    const [, locator] = row.source.split(' / ').map((part) => stripTicks(part));
-    // heading이 governance에 남아 있어도 BP2 구절 자체는 planning에만 있어야 한다.
-    assert.ok(
-      !governanceText.replace(/\s+/g, ' ').includes(locator.replace(/\s+/g, ' ')),
-      `BP2 locator ${locator} leaked into rules/governance.md`,
+test('all BP3 rows have migrated away from governance and BP4 rows retain governance', () => {
+  const ownership = parseOwnership(read(ownershipPath));
+  const bp3Rows = ownership.filter((row) => row['migration BP'] === 'BP3');
+  const bp4Rows = ownership.filter((row) => row['migration BP'] === 'BP4');
+
+  assert.ok(bp3Rows.length > 0, 'BP3 rows must exist');
+  assert.ok(bp4Rows.length > 0, 'BP4 rows must exist');
+
+  for (const row of bp3Rows) {
+    const owner = stripTicks(row['current owner']);
+    assert.notStrictEqual(
+      owner,
+      'rules/governance.md',
+      `BP3 row ${row.unit} must not have current owner rules/governance.md`,
     );
-    assert.ok(
-      planningText.replace(/\s+/g, ' ').includes(locator.replace(/\s+/g, ' ')),
-      `BP2 locator ${locator} missing from rules/planning.md`,
+  }
+
+  for (const row of bp4Rows) {
+    const owner = stripTicks(row['current owner']);
+    assert.strictEqual(
+      owner,
+      'rules/governance.md',
+      `BP4 row ${row.unit} must retain current owner rules/governance.md`,
     );
   }
 });

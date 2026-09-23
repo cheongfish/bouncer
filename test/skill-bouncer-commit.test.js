@@ -82,11 +82,21 @@ test('bouncer-commit stops at the worker branch and leaves fan-in to the coordin
   assert.match(body, /no worker moves it and no worker touches the\s*\n?\s*integration branch/);
 });
 
-// abort 규칙은 payload.recovery와 governance 정본이 들고, 본문은 그 필드를 읽는다.
-test('bouncer-commit follows recovery.action and cites governance instead of restating abort rules', () => {
+// abort 규칙은 payload.recovery와 CLI 정본이 들고, commit 범위 경계는
+// `rules/commit-scope.md`가 든다. 본문은 두 책임을 각각 가리키고 규칙을 다시 쓰지
+// 않는다 — 한 인용으로 뭉치면 CLI 결과 처리와 scope 판정이 같은 정본처럼 읽힌다.
+test('bouncer-commit splits the commit-scope boundary from the CLI result contract', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /recovery\.action/);
-  assert.match(body, /rules\/governance\.md/);
+  assert.match(body, /rules\/commit-scope\.md/);
+  assert.match(body, /rules\/cli\.md/);
+  assert.doesNotMatch(body, /rules\/governance\.md/);
+
+  // 범위 경계는 step 1, CLI 결과 계약은 step 5에서 읽는다.
+  const step1 = body.slice(body.indexOf('1. **Current.**'), body.indexOf('2. **Dry-run.**'));
+  assert.match(step1, /rules\/commit-scope\.md/);
+  const step5 = body.slice(body.indexOf('5. **Handoff.**'));
+  assert.match(step5, /rules\/cli\.md/);
 });
 
 test('bouncer-commit routes on commit payload fields instead of restating CLI behavior', () => {

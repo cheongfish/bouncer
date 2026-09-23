@@ -140,17 +140,21 @@ test('row 3 pointer confirm-then-set lives in current-pointer.md', () => {
   );
 });
 
-test('row 4 actual cwd and drive main read-only live in Coordinator mode', () => {
-  const section = h2Section(read('rules/governance.md'), '## Coordinator mode');
+test('row 4 actual cwd and drive main read-only live in commit-scope', () => {
+  const section = h2Section(read('rules/commit-scope.md'), '## Worktree and enforcement layers');
   // 줄바꿈으로 `read-only`와 `provenance`가 갈라져도 경계를 식별하게 한다.
   assert.match(section, /read-only/);
   assert.match(section, /provenance/);
   assert.match(section, /assigned worktree/);
+  // 이 경계를 직접 판단하는 소비자는 세 workflow다. run은 coordinator dispatch
+  // 단계에서 coordinator 역할 문서를 열고, 그 문서가 commit-scope 실행 범위를 가리킨다.
   assertSkillCites(
-    ['bouncer-execute', 'bouncer-commit', 'bouncer-finalize', 'bouncer-run'],
-    /rules\/governance\.md/,
+    ['bouncer-execute', 'bouncer-commit', 'bouncer-finalize'],
+    /rules\/commit-scope\.md/,
     'row 4',
   );
+  assertSkillCites(['bouncer-run'], /agents\/bouncer-coordinator\.md/, 'row 4 run');
+  assert.match(read('agents/bouncer-coordinator.md'), /rules\/commit-scope\.md/);
 });
 
 test('row 5 worker report trust boundary lives in AGENTS.md hard rule 1', () => {
@@ -163,11 +167,12 @@ test('row 5 worker report trust boundary lives in AGENTS.md hard rule 1', () => 
   assertSkillCites(['bouncer-execute', 'bouncer-run'], /hard rule 1/, 'row 5');
 });
 
-test('row 6 light inline and drive named exception live in Lightweight cycle', () => {
-  const section = h2Section(read('rules/governance.md'), '## Lightweight cycle');
-  assert.match(section, /inline/);
-  assert.match(section, /named dispatch/);
-  assertSkillCites(['bouncer-execute', 'bouncer-run'], /rules\/governance\.md/, 'row 6');
+test('row 6 light inline and drive named exception live in agent-dispatch', () => {
+  const dispatch = read('skills/bouncer-execute/references/agent-dispatch.md');
+  assert.match(dispatch, /inline/i);
+  assert.match(dispatch, /named dispatch/);
+  assertSkillCites(['bouncer-execute'], /references\/agent-dispatch\.md/, 'row 6');
+  assert.doesNotMatch(read('rules/governance.md'), /named dispatch/);
 });
 
 test('row 7 debugger recovery ceiling lives in verification-recovery.md', () => {

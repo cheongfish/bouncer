@@ -385,6 +385,8 @@ test('bouncer-coordinator records scope drift with coordinate revise', () => {
   // 계획 후퇴 문구와 옛 상한 문구는 저장소에서 사라져야 한다.
   assert.doesNotMatch(md, /[Dd]o not widen `affected_paths`/);
   assert.doesNotMatch(md, /scope ceiling/);
+  assert.match(md, /rules\/commit-scope\.md/);
+  assert.doesNotMatch(md, /rules\/governance\.md/);
   // 훅은 호스트 로드에 의존하고 CLI 가드만 모든 호스트에 있다.
   assert.match(md, /commit scope\s*\n?\s*guard/);
   assert.match(md, /`bouncer commit`\)/);
@@ -464,9 +466,13 @@ test('bouncer-coordinator keeps provenance inside the recorded decision', () => 
 test('bouncer-coordinator bounds terminal CI repair and preserves partial-close evidence', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   assert.match(md, /two repair waves/i);
+  assert.match(md, /at most two dynamic repair/);
+  assert.match(md, /refused without a reason/);
+  assert.match(md, /exactly one such recovery/);
   assert.match(md, /NEXT_PLAN\.md/);
   assert.match(md, /user confirmation/i);
   assert.match(md, /partial_closed/);
+  assert.match(md, /none of those preserved artifacts may be copied to main, committed, pushed, or\s+included in a PR/);
   const outcome = md.slice(md.indexOf('- **Outcome**'), md.indexOf('- **Completed**'));
   assert.match(outcome, /completed.*blocked.*partial_closed/i);
   assert.match(outcome, /exactly one/i);
