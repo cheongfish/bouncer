@@ -805,7 +805,13 @@ test('worker and coordinator authority have one canonical statement', () => {
   // 가리킨다. governance에 같은 문장이 남아 있으면 정본이 둘이 된다.
   assert.strictEqual((read('rules/commit-scope.md').match(/there is no\s*\n?\s*ceiling/g) || []).length, 1);
   assert.strictEqual((governance.match(/there is no\s*\n?\s*ceiling/g) || []).length, 0);
-  assert.match(coordinator, /rules\/governance\.md/);
+  assert.match(coordinator, /rules\/commit-scope\.md/);
+  assert.doesNotMatch(coordinator, /rules\/governance\.md/);
+  assert.doesNotMatch(governance, /workers report/);
+  assert.doesNotMatch(governance, /exactly one such recovery/);
+  assert.doesNotMatch(governance, /at most two dynamic repair/);
+  assert.doesNotMatch(governance, /partial_closed/);
+  assert.doesNotMatch(governance, /refused without a reason/);
   // hard rule 1은 예외의 범위만 말하고 절차를 다시 쓰지 않는다.
   assert.doesNotMatch(agents, /coordinate revise/);
   // scope 개정 절차의 정본은 coordinator 역할 문서 하나다.

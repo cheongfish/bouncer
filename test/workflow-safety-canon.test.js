@@ -147,14 +147,14 @@ test('row 4 actual cwd and drive main read-only live in commit-scope', () => {
   assert.match(section, /provenance/);
   assert.match(section, /assigned worktree/);
   // 이 경계를 직접 판단하는 소비자는 세 workflow다. run은 coordinator dispatch
-  // 단계에서 `rules/governance.md`만 열고, 그 문서가 실행 범위 정본을 가리킨다.
+  // 단계에서 coordinator 역할 문서를 열고, 그 문서가 commit-scope 실행 범위를 가리킨다.
   assertSkillCites(
     ['bouncer-execute', 'bouncer-commit', 'bouncer-finalize'],
     /rules\/commit-scope\.md/,
     'row 4',
   );
-  assertSkillCites(['bouncer-run'], /rules\/governance\.md/, 'row 4 run');
-  assert.match(read('rules/governance.md'), /rules\/commit-scope\.md/);
+  assertSkillCites(['bouncer-run'], /agents\/bouncer-coordinator\.md/, 'row 4 run');
+  assert.match(read('agents/bouncer-coordinator.md'), /rules\/commit-scope\.md/);
 });
 
 test('row 5 worker report trust boundary lives in AGENTS.md hard rule 1', () => {
@@ -171,7 +171,7 @@ test('row 6 light inline and drive named exception live in Lightweight cycle', (
   const section = h2Section(read('rules/governance.md'), '## Lightweight cycle');
   assert.match(section, /inline/);
   assert.match(section, /named dispatch/);
-  assertSkillCites(['bouncer-execute', 'bouncer-run'], /rules\/governance\.md/, 'row 6');
+  assertSkillCites(['bouncer-execute'], /rules\/governance\.md/, 'row 6');
 });
 
 test('row 7 debugger recovery ceiling lives in verification-recovery.md', () => {
