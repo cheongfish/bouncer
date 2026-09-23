@@ -577,14 +577,7 @@ function runCheckGate(
     } else if (bpStatus !== 'approved') {
       add('G2', 'blueprint.status != approved', 'blueprintIndex');
     }
-    // 축약 계약의 유일한 발동 신호는 blueprint index.md의 `bouncer.scale`이다.
-    // 사용자 선언(그리고 그것을 쓰는 scaffold --scale)만이 여기 도달한다 —
-    // 게이트는 경로 수·diff 크기로 light를 추론하지 않는다.
-    const bpData = asData(docs.blueprintIndex);
-    const bpBouncer = bpData && bpData.bouncer && typeof bpData.bouncer === 'object'
-      ? bpData.bouncer as Record<string, unknown>
-      : undefined;
-    const isLight = Boolean(bpBouncer && bpBouncer.scale === 'light');
+    const { isLight, sectionKeys } = planScaleOf(docs);
 
     // G18은 blueprint 단위 — task 묶음 순회(G3–G5·G10–G12) 밖에 둔다.
     // light에는 context-review 문서가 아예 없으므로(scaffold가 만들지 않는다)
@@ -631,18 +624,7 @@ function runCheckGate(
         }
       }
     }
-    // G10 필수 절. light는 Goal & intent·Touch·Checklist 셋만 요구한다.
-    // 승인 범위 판정(G5·G11·G12)은 두 경로가 똑같이 받는다 — 줄어드는 것은
-    // 서술 분량이지 범위 증적이 아니다. G4는 결번.
-    const sectionKeys = isLight
-      ? ['goal', 'touch', 'checklist']
-      : ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
-    // plan 게이트의 task 검사는 문서마다 돌린다. file은 해당 task 경로여야
-    // 어느 문서가 미달인지 알 수 있다. tasksDocs가 없으면 단위 테스트용
-    // 단일 docs.tasks로 폴백.
-    const tasksList = Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
-      ? docs.tasksDocs
-      : (docs.tasks ? [docs.tasks] : []);
+    const tasksList = planTasksOf(docs);
     if (tasksList.length === 0) {
       add('G3', 'tasks.status != ready', 'tasks');
       add('G5', 'tasks.affected_paths missing or empty', 'tasks');
@@ -651,67 +633,15 @@ function runCheckGate(
     }
     for (const tasksDoc of tasksList) {
       const file = tasksDoc.rel || rels.tasks;
-      const addTask = (code: string, message: string) => failures.push({ code, message, file });
       // ready = plan 직후. in_progress = execute 중. verified = 같은 BP의
       // 앞 task를 이미 끝낸 뒤 next-task --set. draft만 G3.
       const taskStatus = statusOf(tasksDoc);
       if (!(['ready', 'in_progress', 'verified'] as unknown[]).includes(taskStatus)) {
-        addTask('G3', 'tasks.status != ready');
+        failures.push({ code: 'G3', message: 'tasks.status != ready', file });
       }
-      // YAML data가 null/undefined면 `.bouncer`에서 터지는 게 기존 실패 형태다.
-      // `data &&`로 막으면 G5가 missing 메시지로 fail-open 한다.
-      const taskBouncer = (tasksDoc.data as Record<string, unknown>).bouncer as
-        Record<string, unknown> | undefined;
-      const executionKind = executionKindOf(taskBouncer);
-      const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
-      if (executionKind !== 'verification' && (!Array.isArray(ap) || ap.length === 0)) {
-        addTask('G5', 'tasks.affected_paths missing or empty');
-      }
-      // 20 초과는 한-커밋 리뷰 판단을 돕는 보조 신호일 뿐 — G/S 실패로 올리지 않는다.
-      // 정당한 넓은 task(대량 리네임·이관)도 통과해야 하므로 failures에 넣지 않는다.
-      if (Array.isArray(ap) && ap.length > 20 && Array.isArray(ctx.warnings)) {
-        ctx.warnings.push({
-          // G/S 코드가 아니다. FailureEntry 형태만 맞춰 구조화 경고로 싣는다.
-          code: 'task-split',
-          message:
-            `affected_paths has ${ap.length} entries; `
-            + 'if it cannot be reviewed as one commit, split the task',
-          file,
-        });
-      }
-      const tasksBody = tasksDoc && typeof tasksDoc.body === 'string' ? tasksDoc.body : '';
-      const sections = parseTasksSections(tasksBody);
-      const missing = sectionKeys.filter((k) => !sections[k]);
-      // currentBehavior·targetBehavior는 필수 목록에 넣지 않는다(없으면 통과).
-      // 다만 절이 있으면 TODO 자리표시를 남긴 채 승인되면 미작성 브리프가
-      // 통과하므로, 존재하는 경우에만 placeholder 검사 키 뒤에 붙인다.
-      // Constraints는 계속 검사하지 않는다 — 기존 G10 계약을 유지한다.
-      const optionalPlaceholderKeys = (['currentBehavior', 'targetBehavior'] as const)
-        .filter((k) => sections[k]);
-      const unfilled = [...sectionKeys, ...optionalPlaceholderKeys]
-        .filter((k) => sections[k] && TODO_RE.test(sections[k] as string));
-      if (missing.length) {
-        addTask('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`);
-      } else if (unfilled.length) {
-        // 아래 path 검사 대신 보고: 치환되지 않은 placeholder는 G11/G12 finding이
-        // scope가 아니라 template 텍스트에 대한 잡음이 되게 함.
-        addTask('G10', `tasks sections still contain <TODO: …> placeholders: ${unfilled.join(', ')}`);
-      } else {
-        const apList = Array.isArray(ap)
-          ? ap.map((p) => toPosix(String(p)).replace(/^\.\//, ''))
-          : [];
-        const touchText = sections.touch || '';
-        const avoidText = sections.doNotTouch || '';
-        const unjustified = apList.filter((p) => !pathJustifiedByTouch(p, touchText));
-        if (unjustified.length) {
-          addTask('G11', `affected_paths not justified by Touch: ${unjustified.join(', ')}`);
-        }
-        const forbidden = extractPathCandidates(avoidText);
-        const overlap = apList.filter((p) => forbidden.some((f) => pathsOverlap(p, f)));
-        if (overlap.length) {
-          addTask('G12', `do-not-touch intersects affected_paths: ${overlap.join(', ')}`);
-        }
-      }
+      // G3 바로 뒤에 task 검사를 붙여야 실패 순서가 분리 전과 같다
+      // (task1 G3 → task1 G5/G10/G11/G12 → task2 G3 → …).
+      checkTaskScope(tasksDoc, file, sectionKeys, failures, ctx);
     }
     // G19: blueprint 안 모든 task를 한 번 모아 depends_on 참조·중복·순환을
     // 결정적으로 판정한다. shape/enum은 S28; 여기는 graph 무결성만.
@@ -955,4 +885,156 @@ function runCheckGate(
   throw new Error(`unknown gate: ${gate}`);
 }
 
-export = { checkGate, checkPartialCloseEvidence };
+/**
+ * blueprint `scale`로 plan 검사의 light 여부와 G10 필수 절 목록을 고른다.
+ * plan gate와 plan draft 검사가 같은 헬퍼를 써야 light 문서에 대한 G10 답이 갈라지지 않는다.
+ *
+ * @param {BlueprintDocs} docs - 로드된 blueprint 문서 묶음
+ * @returns {{ isLight: boolean, sectionKeys: string[] }} light면 세 절, 아니면 다섯 절
+ */
+function planScaleOf(docs: BlueprintDocs): { isLight: boolean; sectionKeys: string[] } {
+  // 축약 계약의 유일한 발동 신호는 blueprint index.md의 `bouncer.scale`이다.
+  // 사용자 선언(그리고 그것을 쓰는 scaffold --scale)만이 여기 도달한다 —
+  // 게이트는 경로 수·diff 크기로 light를 추론하지 않는다.
+  const bpData = asData(docs.blueprintIndex);
+  const bpBouncer = bpData && bpData.bouncer && typeof bpData.bouncer === 'object'
+    ? bpData.bouncer as Record<string, unknown>
+    : undefined;
+  const isLight = Boolean(bpBouncer && bpBouncer.scale === 'light');
+  // G10 필수 절. light는 Goal & intent·Touch·Checklist 셋만 요구한다.
+  // 승인 범위 판정(G5·G11·G12)은 두 경로가 똑같이 받는다 — 줄어드는 것은
+  // 서술 분량이지 범위 증적이 아니다. G4는 결번.
+  const sectionKeys = isLight
+    ? ['goal', 'touch', 'checklist']
+    : ['goal', 'interface', 'touch', 'doNotTouch', 'checklist'];
+  return { isLight, sectionKeys };
+}
+
+/**
+ * plan 검사 대상 task 문서 목록을 고른다.
+ * tasksDocs가 없으면 단위 테스트용 단일 docs.tasks로 폴백한다.
+ *
+ * @param {BlueprintDocs} docs - 로드된 blueprint 문서 묶음
+ * @returns {DocLeaf[]} 검사할 tasks.md 문서들. 하나도 없으면 빈 배열
+ */
+function planTasksOf(docs: BlueprintDocs): DocLeaf[] {
+  return Array.isArray(docs.tasksDocs) && docs.tasksDocs.length > 0
+    ? docs.tasksDocs
+    : (docs.tasks ? [docs.tasks] : []);
+}
+
+/**
+ * task 문서 하나에 status와 무관한 plan 검사(G5·G10·G11·G12)를 현재 순서대로 적용한다.
+ * plan gate는 G3 다음에, plan draft 검사는 G3 없이 이 함수를 부른다 — 두 경로가
+ * 한 구현을 공유해야 draft에서 통과한 문서가 승인 뒤 gate에서 다른 답을 받지 않는다.
+ * affected_paths가 20개를 넘으면 실패가 아니라 ctx.warnings에 task-split 경고만 싣는다.
+ *
+ * @param {DocLeaf} tasksDoc - 검사할 tasks.md 문서
+ * @param {string} file - 실패 항목에 실을 task 문서 경로
+ * @param {string[]} sectionKeys - G10 필수 절 키 목록(planScaleOf 결과)
+ * @param {FailureEntry[]} failures - 실패를 누적할 배열
+ * @param {GateContext} ctx - warnings 배열을 담은 gate 문맥
+ * @returns {void} 결과는 failures·ctx.warnings에 push로만 남긴다
+ */
+function checkTaskScope(
+  tasksDoc: DocLeaf,
+  file: string,
+  sectionKeys: string[],
+  failures: FailureEntry[],
+  ctx: GateContext,
+): void {
+  const addTask = (code: string, message: string) => failures.push({ code, message, file });
+  // YAML data가 null/undefined면 `.bouncer`에서 터지는 게 기존 실패 형태다.
+  // `data &&`로 막으면 G5가 missing 메시지로 fail-open 한다.
+  const taskBouncer = (tasksDoc.data as Record<string, unknown>).bouncer as
+    Record<string, unknown> | undefined;
+  const executionKind = executionKindOf(taskBouncer);
+  const ap = taskBouncer ? taskBouncer.affected_paths : undefined;
+  if (executionKind !== 'verification' && (!Array.isArray(ap) || ap.length === 0)) {
+    addTask('G5', 'tasks.affected_paths missing or empty');
+  }
+  // 20 초과는 한-커밋 리뷰 판단을 돕는 보조 신호일 뿐 — G/S 실패로 올리지 않는다.
+  // 정당한 넓은 task(대량 리네임·이관)도 통과해야 하므로 failures에 넣지 않는다.
+  if (Array.isArray(ap) && ap.length > 20 && Array.isArray(ctx.warnings)) {
+    ctx.warnings.push({
+      // G/S 코드가 아니다. FailureEntry 형태만 맞춰 구조화 경고로 싣는다.
+      code: 'task-split',
+      message:
+        `affected_paths has ${ap.length} entries; `
+        + 'if it cannot be reviewed as one commit, split the task',
+      file,
+    });
+  }
+  const tasksBody = tasksDoc && typeof tasksDoc.body === 'string' ? tasksDoc.body : '';
+  const sections = parseTasksSections(tasksBody);
+  const missing = sectionKeys.filter((k) => !sections[k]);
+  // currentBehavior·targetBehavior는 필수 목록에 넣지 않는다(없으면 통과).
+  // 다만 절이 있으면 TODO 자리표시를 남긴 채 승인되면 미작성 브리프가
+  // 통과하므로, 존재하는 경우에만 placeholder 검사 키 뒤에 붙인다.
+  // Constraints는 계속 검사하지 않는다 — 기존 G10 계약을 유지한다.
+  const optionalPlaceholderKeys = (['currentBehavior', 'targetBehavior'] as const)
+    .filter((k) => sections[k]);
+  const unfilled = [...sectionKeys, ...optionalPlaceholderKeys]
+    .filter((k) => sections[k] && TODO_RE.test(sections[k] as string));
+  if (missing.length) {
+    addTask('G10', `tasks missing implementation-ready sections: ${missing.join(', ')}`);
+  } else if (unfilled.length) {
+    // 아래 path 검사 대신 보고: 치환되지 않은 placeholder는 G11/G12 finding이
+    // scope가 아니라 template 텍스트에 대한 잡음이 되게 함.
+    addTask('G10', `tasks sections still contain <TODO: …> placeholders: ${unfilled.join(', ')}`);
+  } else {
+    const apList = Array.isArray(ap)
+      ? ap.map((p) => toPosix(String(p)).replace(/^\.\//, ''))
+      : [];
+    const touchText = sections.touch || '';
+    const avoidText = sections.doNotTouch || '';
+    const unjustified = apList.filter((p) => !pathJustifiedByTouch(p, touchText));
+    if (unjustified.length) {
+      addTask('G11', `affected_paths not justified by Touch: ${unjustified.join(', ')}`);
+    }
+    const forbidden = extractPathCandidates(avoidText);
+    const overlap = apList.filter((p) => forbidden.some((f) => pathsOverlap(p, f)));
+    if (overlap.length) {
+      addTask('G12', `do-not-touch intersects affected_paths: ${overlap.join(', ')}`);
+    }
+  }
+}
+
+/**
+ * context review 전 계획 draft에 status 무관 plan 검사만 돌린다.
+ * task마다 G5·G10·G11·G12를 적용한 뒤 G19·G20 graph 검사를 이어 붙인다.
+ * G1·G2·G3은 approved/ready status를 요구해 draft에서 항상 실패하고, G18은
+ * 아직 쓰지 않은 context-review를 요구하므로 넣지 않는다.
+ *
+ * @param {BlueprintDocs} docs - 로드된 blueprint 문서 묶음
+ * @param {BlueprintRels} rels - 문서 키별 상대 경로(빈 tasks 목록의 file 값)
+ * @param {FailureEntry[]} failures - 실패를 누적할 배열
+ * @param {GateContext} ctx - warnings 배열을 담은 gate 문맥
+ * @returns {void} 결과는 failures·ctx.warnings에 push로만 남긴다
+ */
+function checkPlanDraft(
+  docs: BlueprintDocs,
+  rels: BlueprintRels,
+  failures: FailureEntry[],
+  ctx: GateContext = {},
+): void {
+  const { sectionKeys } = planScaleOf(docs);
+  const tasksList = planTasksOf(docs);
+  if (tasksList.length === 0) {
+    // plan gate의 빈 목록 분기에서 status 코드(G3)만 뺀 것이다.
+    failures.push({ code: 'G5', message: 'tasks.affected_paths missing or empty', file: rels.tasks });
+    failures.push({
+      code: 'G10',
+      message: `tasks missing implementation-ready sections: ${sectionKeys.join(', ')}`,
+      file: rels.tasks,
+    });
+    return;
+  }
+  for (const tasksDoc of tasksList) {
+    checkTaskScope(tasksDoc, tasksDoc.rel || rels.tasks, sectionKeys, failures, ctx);
+  }
+  checkTaskDependencyGraph(tasksList, failures);
+  checkVerificationTaskGraph(tasksList, failures);
+}
+
+export = { checkGate, checkPartialCloseEvidence, checkPlanDraft };

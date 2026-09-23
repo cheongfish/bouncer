@@ -227,6 +227,15 @@ test('validate without --blueprint exits 2 and does not report ok:true', () => {
   assert.ok(buf.err.length > 0);
 });
 
+test('validateBlueprint rejects planDraft combined with gate', () => {
+  const { validateBlueprint } = require('../scripts/lib/validate');
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  assert.throws(
+    () => validateBlueprint({ repoRoot, blueprintDir: BP_REL, gate: 'plan', planDraft: true }),
+    /planDraft cannot be combined with gate/,
+  );
+});
+
 test('finalize without --blueprint exits 2', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const { io, buf } = capture();

@@ -2374,3 +2374,87 @@ test('plan gate accepts terminal verification fan-in and rejects source scope or
   assert.ok(invalid.some((f) => f.code === 'G20' && /commit task/.test(f.message)));
   assert.ok(invalid.some((f) => f.code === 'G20' && f.message.endsWith(': npm run ci')));
 });
+
+// --- plan draft 검사: context review 전 status 무관 task 검사 ---
+function draftPlanDocs(taskDocs, blueprintExtra = {}) {
+  return {
+    epicIndex: doc('draft'),
+    blueprintIndex: doc('draft', blueprintExtra),
+    tasksDocs: taskDocs,
+  };
+}
+
+function draftTaskDoc(nnn, extra = {}, body = READY_BODY) {
+  return planTaskDoc(nnn, { status: 'draft', ...extra }, body);
+}
+
+function draftCodes(docs) {
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const failures = [];
+  checkPlanDraft(docs, rels, failures, {});
+  return failures.map((f) => f.code);
+}
+
+function assertNoStatusCodes(codes, label) {
+  for (const code of ['G1', 'G2', 'G3', 'G18']) {
+    assert.ok(!codes.includes(code), `${label}: ${code} must not appear in ${JSON.stringify(codes)}`);
+  }
+}
+
+test('checkPlanDraft reports G5, G10, G11, G12, G19, G20 without status codes', () => {
+  const noChecklist = READY_BODY.replace(/## Checklist[\s\S]*$/, '');
+  const avoidBody = READY_BODY.replace(
+    /## Do not touch[\s\S]*?## Checklist/,
+    '## Do not touch\n- `src/auth/login.js`\n\n## Checklist',
+  );
+  const commandBody = READY_BODY.replace(
+    /## Touch[\s\S]*?## Do not touch/,
+    '## Touch\n- `npm run ci`\n\n## Do not touch',
+  );
+  const cases = [
+    { code: 'G5', tasks: [draftTaskDoc('001', { affected_paths: [] })] },
+    { code: 'G10', tasks: [draftTaskDoc('001', {}, noChecklist)] },
+    { code: 'G11', tasks: [draftTaskDoc('001', { affected_paths: ['src/unrelated/x.js'] })] },
+    { code: 'G12', tasks: [draftTaskDoc('001', { affected_paths: ['src/auth/login.js'] }, avoidBody)] },
+    { code: 'G19', tasks: [draftTaskDoc('001', { depends_on: ['TASKS-001'] })] },
+    {
+      code: 'G20',
+      tasks: [
+        draftTaskDoc('001'),
+        draftTaskDoc('002', {
+          execution_kind: 'verification', affected_paths: [], depends_on: ['TASKS-001'],
+          parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
+        }, commandBody),
+      ],
+    },
+  ];
+  for (const { code, tasks } of cases) {
+    const codes = draftCodes(draftPlanDocs(tasks));
+    assert.ok(codes.includes(code), `${code} expected in ${JSON.stringify(codes)}`);
+    assertNoStatusCodes(codes, code);
+  }
+});
+
+test('checkPlanDraft on light blueprint requires only goal, touch, checklist', () => {
+  const light = { scale: 'light' };
+  const ok = draftCodes(draftPlanDocs([draftTaskDoc('001', {}, LIGHT_READY_BODY)], light));
+  assert.ok(!ok.includes('G10'), JSON.stringify(ok));
+  assertNoStatusCodes(ok, 'light');
+
+  const noChecklist = LIGHT_READY_BODY.replace(/## Checklist[\s\S]*$/, '');
+  const missing = draftCodes(draftPlanDocs([draftTaskDoc('001', {}, noChecklist)], light));
+  assert.ok(missing.includes('G10'), JSON.stringify(missing));
+  assertNoStatusCodes(missing, 'light missing checklist');
+});
+
+test('plan gate keeps per-task failure order G3 then task checks', () => {
+  const noChecklist = READY_BODY.replace(/## Checklist[\s\S]*$/, '');
+  const docs = planDocsWithTasks([
+    planTaskDoc('001', { status: 'draft' }, noChecklist),
+    planTaskDoc('002', { status: 'draft' }, noChecklist),
+  ]);
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  const codes = failures.map((f) => f.code).filter((c) => !['G1', 'G2', 'G18'].includes(c));
+  assert.deepStrictEqual(codes, ['G3', 'G10', 'G3', 'G10']);
+});

@@ -1,10 +1,11 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { createHash } = require('node:crypto');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const validateMod = require("./validate");
 const { validateBlueprint } = validateMod;
+const planSnapshot = require("./plan-snapshot");
+const { computePlanSnapshot } = planSnapshot;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs, taskExecutionKind } = tasksDocs;
 const frontmatter = require("./frontmatter");
@@ -12,7 +13,7 @@ const { readDoc } = frontmatter;
 const validateSections = require("./validate-sections");
 const { parseTasksSections, extractPathCandidates, pathsOverlap } = validateSections;
 const paths = require("./paths");
-const { toPosix, epicDirOf } = paths;
+const { toPosix } = paths;
 const layout = require("./layout");
 const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
 const schema = require("./schema");
@@ -31,21 +32,28 @@ const REVIEW_RISK_ENUM = [
     'credential',
 ];
 /**
- * Plan·Execute 리뷰 전략을 문서·diff의 구조 신호만으로 분류한다.
+ * Plan 리뷰 전략을 문서의 구조 신호만으로 분류한다.
+ * reviewer 호출 전에 structural 검사와 plan draft 검사(G5·G10–G12·G19·G20)를
+ * 통과해야 한다 — gate가 나중에 거절할 문서로 context review snapshot을 얼리지 않기 위해서다.
  * working tree와 review 문서는 쓰지 않으며, 실패 시 perspectives를 만들지 않는다.
  *
  * @param {{ repoRoot: string, blueprintDir: string }} opts - 저장소와 blueprint 상대 경로
- * @returns {PlanDispatchResult} 성공 시 strategy·cluster·근거, 실패 시 ok:false
+ * @returns {PlanDispatchResult} 성공 시 strategy·cluster·근거. 실패 시 ok:false —
+ *   S 코드가 있으면 'structural validation failed', draft 검사 실패면
+ *   'plan draft validation failed'(failures는 plan gate와 같은 항목)
  */
 function classifyPlanReview({ repoRoot, blueprintDir }) {
-    // 1. 구조 실패를 축소 판정으로 덮지 않는다 — malformed review_risk·문서 부재는
-    //    그대로 돌려 controller가 reviewer를 호출하지 않게 한다.
-    const structural = validateBlueprint({ repoRoot, blueprintDir });
-    if (!structural.ok) {
+    // 1. 구조·draft 실패를 축소 판정으로 덮지 않는다 — malformed review_risk·문서 부재·
+    //    G19/G20 위반은 그대로 돌려 controller가 reviewer를 호출하지 않게 한다.
+    //    validateBlueprint는 S 실패가 있으면 draft 검사를 건너뛰므로 한 결과에
+    //    S와 G가 섞이지 않는다. 그래서 S 하나만 있어도 structural로 분류해도 된다.
+    const checked = validateBlueprint({ repoRoot, blueprintDir, planDraft: true });
+    if (!checked.ok) {
+        const structural = checked.failures.some((f) => f.code.startsWith('S'));
         return {
             ok: false,
-            error: 'structural validation failed',
-            failures: structural.failures,
+            error: structural ? 'structural validation failed' : 'plan draft validation failed',
+            failures: checked.failures,
         };
     }
     const bp = toPosix(blueprintDir);
@@ -226,40 +234,6 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exe
         perspectives,
         reasons,
     };
-}
-/**
- * epic·blueprint·tasks.md body를 번호 순으로 이어 sha256 digest를 만든다.
- * context-review frozen snapshot과 같은 문서 집합·순서를 유지한다.
- *
- * @param {{ repoRoot: string, blueprintDir: string }} opts
- * @returns {{ ok: true, digest: string, documents: string[] } | DispatchFail}
- */
-function computePlanSnapshot({ repoRoot, blueprintDir }) {
-    const bp = toPosix(blueprintDir);
-    const documents = [
-        `${epicDirOf(bp)}/index.md`,
-        `${bp}/index.md`,
-    ];
-    const listing = listTasksDocs({ repoRoot, blueprintDir: bp });
-    for (const entry of listing.entries) {
-        documents.push(entry.tasks.rel);
-    }
-    const hash = createHash('sha256');
-    for (const rel of documents) {
-        const abs = path.join(repoRoot, rel);
-        if (!fs.existsSync(abs)) {
-            return { ok: false, error: `snapshot document missing: ${rel}` };
-        }
-        try {
-            const { body } = readDoc(abs);
-            hash.update(body);
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            return { ok: false, error: `snapshot document unreadable: ${rel}: ${message}` };
-        }
-    }
-    return { ok: true, digest: hash.digest('hex'), documents };
 }
 /**
  * commit task만 Interface backtick·Touch 경로 신호를 모은다.

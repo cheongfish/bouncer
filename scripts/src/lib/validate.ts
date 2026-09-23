@@ -22,7 +22,7 @@ const { checkStructural } = validateStructural;
 import config = require('./config');
 const { readVerifyPolicy } = config;
 import validateGates = require('./validate-gates');
-const { checkGate } = validateGates;
+const { checkGate, checkPlanDraft } = validateGates;
 import validateSections = require('./validate-sections');
 const {
   parseTasksSections, parseSections, extractPathCandidates,
@@ -59,12 +59,36 @@ function catchMessage(error: unknown): unknown {
   return (error as { message: unknown }).message;
 }
 
-function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
+/**
+ * blueprint 문서를 로드해 structural(S) 검사와 선택한 gate 또는 plan draft 검사를 돌린다.
+ * `gate: 'execute'`는 검사 전에 verify 명령을 실행해 증적을 새로 쓴다(부작용).
+ * `planDraft: true`는 structural·S18 실패가 없을 때만 checkPlanDraft를 돌린다 —
+ * S 실패 위에 G 코드를 쌓으면 review-dispatch가 원인을 structural로 분류하지 못한다.
+ *
+ * @param {object} opts - 검증 옵션
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {string} opts.blueprintDir - `.bouncer/context/epics/...` 아래 blueprint 상대 경로
+ * @param {string} [opts.gate] - plan | execute | commit | finalize | partial-close. 없으면 S 검사만
+ * @param {boolean} [opts.planDraft] - true면 gate 대신 status 무관 plan draft 검사를 돌린다
+ * @param {GateDeps} [opts.deps] - gate 검사에 주입할 의존성(테스트용)
+ * @returns {{ ok: boolean, failures: FailureEntry[], warnings?: FailureEntry[] }}
+ *   failures가 비면 ok:true. task-split 경고가 있을 때만 warnings 키를 싣는다
+ * @throws {Error} planDraft와 gate를 함께 주면 'planDraft cannot be combined with gate'
+ */
+function validateBlueprint({
+  repoRoot, blueprintDir, gate, planDraft, deps,
+}: {
   repoRoot: string;
   blueprintDir: string;
   gate?: string;
+  planDraft?: boolean;
   deps?: NonNullable<Parameters<typeof checkGate>[4]>['deps'];
 }): { ok: boolean; failures: FailureEntry[]; warnings?: FailureEntry[] } {
+  // 둘 다 주면 어느 판정이 ok를 결정하는지 모호하다. 호출 계약 오류이므로
+  // 문서 결과로 접지 않고 파일을 읽기 전에 던진다.
+  if (planDraft && gate) {
+    throw new Error('planDraft cannot be combined with gate');
+  }
   if (!isCanonicalBlueprintDir(blueprintDir)) {
     return {
       ok: false,
@@ -240,7 +264,12 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, deps }: {
 
   // plan task 분해 경고는 failures와 분리한다. ok는 실패만 본다.
   const warnings: FailureEntry[] = [];
-  if (gate) {
+  if (planDraft) {
+    // 이 시점 failures는 S 코드뿐이다(S18은 위에서 이미 반환). S가 있으면 draft
+    // 검사를 건너뛰어 한 결과에 S와 G가 섞이지 않게 한다.
+    if (failures.length > 0) return { ok: false, failures };
+    checkPlanDraft(docs, rels, failures, { warnings });
+  } else if (gate) {
     // execute·commit 모두 포인터 task 단위만 본다(G6–G8).
     const taskUnit = (gate === 'execute' || gate === 'commit')
       ? resolveTaskUnit(docs, { repoRoot, blueprintDir })
