@@ -33,9 +33,13 @@ bouncer:
 8. BP 2가 옮긴 규범은 `rules/governance.md`와 이전 schema 경로에 중복 정본으로 남지 않는다.
 9. ownership 표와 workflow load graph가 BP 2 이후 소유자와 소비자 경로를 검증한다.
 10. `npm run ci`가 통과하고 실행 계약, CLI 상태 전이, gate code와 동결 제안서에는 의미 변경이 없다.
+11. task commit 단위, 승인 scope와 coordinator ledger scope, G17·CLI·hook의 강제력 차이가 실행 소비자가 함께 읽는 정본 하나로 이전된다.
+12. coordinator의 scope revision, worker dispatch, repair와 partial-close 절차가 역할 문서에서 자체 완결되고 `run`은 그 절차를 재구성하지 않는다.
+13. light 실행 dispatch, quiz 크기와 finalize context 규범이 각 실행 판단 소유자에게 이전되고 계획 규범과 섞이지 않는다.
+14. `run`, `execute`, `commit`, `finalize`, coordinator의 load graph가 BP 3 이후 경로를 가리키고 BP3 규범의 옛 정본과 stale reference가 남지 않는다.
+15. BP 3 종료 시 `npm run ci`가 통과하고 pointer, worktree, scope revision, repair, partial-close와 task 단위 복구의 동작이 유지된다.
 
 ## Out of scope
-- BP 3의 execution 규칙·coordinator 절차·commit scope·pointer·dispatch·output 이전을 수행하지 않는다.
 - BP 4의 Primary/Operational 공개 문서 정리, 배포 목록 변경과 `governance.md` 삭제를 수행하지 않는다.
 - 새로운 gate code, CLI 상태 전이, 문서 schema, runtime config 또는 dependency를 도입하지 않는다.
 - 동결된 `rules-reorganization-proposal.md`를 수정하거나 commit하지 않는다.
@@ -43,3 +47,4 @@ bouncer:
 ## Blueprints
 * [001 규칙 소유권 지도와 마이그레이션 안전망](blueprints/001-ownership-map-migration-safety/index.md) - 현재·목표 소유권과 workflow load graph를 기록하고 동작 보존 검사를 추가한다.
 * [002 계획 규칙과 문서 스키마 수직 이전](blueprints/002-planning-rule-vertical-migration/index.md) - 계획 계약과 문서 schema를 전용 정본으로 옮기고 plan·init·authoring·scaffold 소비자와 검사를 전환한다.
+* [003 실행 규칙 수직 이전](blueprints/003-execution-rule-vertical-migration/index.md) - commit scope, coordinator 절차와 light·finalize 실행 계약을 판단 주체별 정본으로 옮기고 실행 workflow의 참조를 전환한다.
