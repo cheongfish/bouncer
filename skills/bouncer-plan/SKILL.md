@@ -236,7 +236,10 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    and G19 task-DAG integrity (missing / self / duplicate / cycle), plus G20
    verification-node terminal/source-scope integrity.
    Fix every reported failure and re-run until it passes; surface its code,
-   cause, path, and recovery action. Then point the user at `/bouncer-run` — it
+   cause, path, and recovery action. On G18 `context review is stale`, do not
+   fix it in this loop: return to step 5 and follow the reference's stale
+   recovery, then re-run steps 7 and 8 after the step 6 re-approval.
+   Then point the user at `/bouncer-run` — it
    drives execute→commit until the blueprint's tasks run out, and
    `config.autonomy` (`auto` | `interactive`) already decides how often they are
    asked. Do not offer `/bouncer-execute` as the normal next step; mention it

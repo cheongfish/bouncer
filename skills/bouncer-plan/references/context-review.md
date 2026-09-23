@@ -16,6 +16,9 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    perspective to a `single` result. When the payload is `ok: false`, or when
    its `target.digest` / document set disagrees with the frozen snapshot,
    stop — do not call a reviewer and do not mark `context-review` accepted.
+   On `plan draft validation failed`, show the `failures` to the user and
+   return to `/bouncer-plan` step 3 **Author**; after the fix, restart from
+   step 1 freeze.
 
    On `strategy: single`, dispatch one `bouncer-context-reviewer` call with
    perspective `combined` (all four rubrics). On `strategy: clustered`,
@@ -60,6 +63,10 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    `must_fix` finding stays open after the delta, leave `context-review`
    unaccepted and bring the open finding to the user; only the user's
    accepted-risk note may record it `accepted`.
+
+When the plan gate reports `context review is stale`, the recovery is not a
+third round: replace `rounds[]` and `findings[]` with a new round 1 discovery
+on the current digest (restart from step 1), then re-approve.
 
 If named agents are unavailable, do **not** skip this step. Per call, use a
 fresh generic read-only subagent whose payload carries the entire body of

@@ -546,3 +546,10 @@ test('bouncer-plan Author step loads rules/planning.md for product-detail decisi
   assert.match(author, /rules\/document-schema\.md/);
   assert.doesNotMatch(author, /rules\/governance\.md/);
 });
+
+// G18 stale은 gate 수정 루프에서 고치지 않고 step 5 review로 되돌린다.
+test('bouncer-plan Gate step routes a stale context review back to step 5', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const gate = body.slice(body.indexOf('8. **Gate.**'));
+  assert.match(gate, /context review is stale[\s\S]{0,240}step 5/);
+});

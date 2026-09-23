@@ -76,6 +76,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
        node만 `verification`으로 쓰고, non-empty `depends_on`,
        `parallel_safe: false`, `dependency_gate: integrated`, 실행 가능한 `verify`,
        빈 `affected_paths`를 함께 둔다. Touch에는 source 변경 경로를 쓰지 않는다.
+       scaffold가 쓴 Touch 고정 문구 `Source 변경 경로 없음.`을 바꾸지 않고,
+       검증 명령은 frontmatter `verify`에만 둔다.
        public scaffold는 `bouncer scaffold task --execution-kind verification
        --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>`로 호출하며
        생성되는 두 문서는 `tasks.md`와 `verification.md`뿐이다.

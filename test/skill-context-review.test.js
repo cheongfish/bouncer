@@ -148,3 +148,14 @@ test('plan context-review controller quotes YAML-leading reserved characters in 
   // 정본은 spec-authoring — 중복 본문이 아니라 연결
   assert.match(md, /spec-authoring/);
 });
+
+// draft 검증 실패는 reviewer 호출 전 Author로 되돌리고, G18 stale은 세 번째
+// round가 아니라 새 digest의 round 1로 기록을 교체한다는 복구 경로를 잠근다.
+test('plan context-review routes draft validation failure to Author and stale review to round 1', () => {
+  const plan = fs.readFileSync(planContextReviewPath, 'utf8');
+  const discovery = plan.slice(plan.indexOf('2. **Discovery**'), plan.indexOf('3. **Merge**'));
+  assert.match(discovery, /plan draft validation failed[\s\S]{0,240}step 3 \*\*Author\*\*/);
+  assert.match(plan, /context review is stale[\s\S]{0,240}round 1/);
+  const md = readSkill('context-review');
+  assert.match(md, /G18[\s\S]{0,200}target\.digest/);
+});

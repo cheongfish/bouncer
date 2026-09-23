@@ -11,6 +11,12 @@ reinterpret a failure, bypass it, or hand-author verification success. Read
 only the section below that matches the active phase or reported code; the
 validator output remains the exact diagnostic authority.
 
+## Recurring failure codes
+
+When the same `G*` or `S*` code returns after a fix, stop editing documents.
+Before the next fix, read the validator implementation that emits that code
+and its regression tests, then correct the input against that contract.
+
 ## Phase checks
 
 | Phase | Required result |
@@ -31,11 +37,17 @@ finalize gates inspect the whole blueprint.
   required sections, Touch justification, and no overlap with Do not touch.
   Light plans reduce G10 sections only; they do not weaken scope checks.
 - `G18`: a full blueprint needs an accepted `context-review.md`; light plans
-  skip it.
+  skip it. Before execution starts, a last-round digest that differs from the
+  current plan snapshot fails with `context review is stale`. Recover by
+  replacing `rounds[]` and `findings[]` with a round 1 discovery on the new
+  digest, resetting status to `pending`, and repeating `/bouncer-plan` step 5
+  and the step 6 approval.
 - `G19`: dependencies must name existing `TASKS-NNN` nodes without duplicate,
   self, or cyclic edges.
 - `G20`: a verification task may not declare source changes in Touch and may
-  not precede a commit task. It is a terminal verification node.
+  not precede a commit task. It is a terminal verification node. Keep the
+  scaffolded Touch phrase `Source 변경 경로 없음.` and put the command only in
+  frontmatter `verify`.
 
 ## Execution, commit, and finalize rules
 
