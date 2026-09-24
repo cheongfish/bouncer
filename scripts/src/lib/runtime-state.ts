@@ -72,7 +72,14 @@ type RuntimePointer = {
   task: string | null;
 };
 
-type CoordinatorPaths = { integrationPath: string; workerPath?: string; ledgerFile: string };
+type CoordinatorPaths = {
+  integrationPath: string;
+  workerPath?: string;
+  ledgerFile: string;
+  // fan-in 임시 candidate. integration·worker와 형제를 유지해 CAS ff 전에
+  // canonical HEAD를 건드리지 않게 한다.
+  faninPath: string;
+};
 
 type BranchNames = { integration: string; standalone: string; worker?: string };
 type WorktreeBranch = { action: 'reuse' | 'create'; branch: string };
@@ -281,6 +288,11 @@ function validateCoordinatorLedger(
   }
   if (tasksForRecovery.some((task) => task.lease !== undefined && !isValidLease(task.lease))) {
     return { ok: false, reason: 'lease-invalid' };
+  }
+  // fanin은 부재(legacy)·null(비움)·shape 맞는 객체만 허용한다. 잘못된 status·
+  // tasks면 integrate 재개가 잘못된 candidate를 기준으로 삼을 수 있어 여기서 막는다.
+  if (ledger.fanin !== undefined && !validCoordinatorFanin(ledger.fanin)) {
+    return { ok: false, reason: 'fanin-invalid' };
   }
   // branch 필드는 이전 원장에는 없을 수 있지만, 있으면 이후 재개가 Git의 실제
   // checkout을 신뢰할 수 있도록 문자열이어야 한다. 여기서 느슨하게 받으면
@@ -800,6 +812,26 @@ function worktreePathFor({ repoRoot, blueprint, deps }: {
   return nested;
 }
 
+/**
+ * coordinator 원장 `fanin` 필드의 shape를 본다. null은 "진행 중 없음"이고,
+ * 객체면 base/candidate/tasks/status가 재개·CAS에 쓸 수 있는 형태여야 한다.
+ *
+ * @param {unknown} value - ledger.fanin 후보
+ * @returns {boolean} 유효하면 true
+ */
+function validCoordinatorFanin(value: unknown): boolean {
+  if (value === null) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const fanin = value as Record<string, unknown>;
+  if (!nonEmptyString(fanin.base_head)) return false;
+  if (fanin.candidate_head !== null && !nonEmptyString(fanin.candidate_head)) return false;
+  if (!Array.isArray(fanin.tasks)
+    || fanin.tasks.some((entry) => typeof entry !== 'string' || !/^\d{3}$/.test(entry))) {
+    return false;
+  }
+  return fanin.status === 'building' || fanin.status === 'verified';
+}
+
 // coordinator mode는 기존 execute worktree와 구분해 fan-in의 기준 checkout을
 // 하나로 고정한다. 기존 worktreePathFor의 평면 fallback은 건드리지 않는다.
 function coordinatorPathsFor({ repoRoot, blueprint, task, deps }: {
@@ -818,6 +850,8 @@ function coordinatorPathsFor({ repoRoot, blueprint, task, deps }: {
     // COORDINATOR_LEDGER_REL과 같은 세그먼트로 절대 경로를 만들어 fence path 비교와
     // 실제 파일이 어긋나지 않게 한다.
     ledgerFile: pathApi.join(integrationPath, ...COORDINATOR_LEDGER_REL.split('/')),
+    // candidate는 integration 형제로 두어 ff 전에 canonical HEAD를 오염시키지 않는다.
+    faninPath: pathApi.join(root, 'fanin'),
   };
   if (typeof task === 'string' && /^\d{3}$/.test(task)) result.workerPath = pathApi.join(root, 'workers', task);
   return result;

@@ -1750,3 +1750,86 @@ test('runVerification refuses a worker cwd with an unreadable ledger', () => {
       && /no active lease for worker worktree/.test(e.message),
   );
 });
+
+test('runVerification with taskId uses that task verify command and rejects unknown ids', () => {
+  const repo = setupRepo('npm test');
+  writeTasks(repo, 'npm test');
+  const dir006 = path.join(repo, BP_REL, 'tasks/006');
+  fs.mkdirSync(dir006, { recursive: true });
+  fs.writeFileSync(path.join(dir006, 'tasks.md'), `---
+type: bouncer.tasks
+title: Six
+description: Tasks for 006
+resource: ${BP_REL}/tasks/006/tasks.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: TASKS-006
+  epic_id: '001'
+  blueprint_id: '001'
+  status: ready
+  verify: npm run ci
+---
+# Tasks
+`);
+  fs.writeFileSync(path.join(dir006, 'verification.md'), `---
+type: bouncer.verification
+title: Verify 006
+description: Verification evidence
+resource: ${BP_REL}/tasks/006/verification.md
+tags:
+  - bouncer
+timestamp: 2026-07-01T00:00:00.000Z
+bouncer:
+  id: VERIFY-006
+  epic_id: '001'
+  blueprint_id: '001'
+  status: pending
+---
+# Verification
+`);
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    taskId: '006',
+    scope: { kind: 'terminal', key: 'EPIC-001/BP-001:head' },
+    deps: fixedDeps(),
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.command, 'npm run ci');
+
+  assert.throws(
+    () => runVerification({
+      repoRoot: repo,
+      blueprintDir: BP_REL,
+      taskId: '099',
+      scope: { kind: 'task', key: 'EPIC-001/BP-001/TASK-099' },
+      deps: fixedDeps(),
+      exec: () => ({ status: 0, stdout: '', stderr: '' }),
+    }),
+    (error) => error.code === 'VERIFY_IDENTITY_INVALID',
+  );
+
+  // RD-002: 세 자리가 아닌 taskId는 조용히 무시하지 않고 identity 거절.
+  for (const badId of ['6', '06', '0001', 'TASKS-006', '00a', '']) {
+    assert.throws(
+      () => __entriesForVerify(repo, BP_REL, badId),
+      (error) => error.code === 'VERIFY_IDENTITY_INVALID',
+      `taskId=${JSON.stringify(badId)}`,
+    );
+    assert.throws(
+      () => runVerification({
+        repoRoot: repo,
+        blueprintDir: BP_REL,
+        taskId: badId,
+        scope: { kind: 'terminal', key: 'EPIC-001/BP-001:head' },
+        deps: fixedDeps(),
+        exec: () => ({ status: 0, stdout: '', stderr: '' }),
+      }),
+      (error) => error.code === 'VERIFY_IDENTITY_INVALID',
+      `runVerification taskId=${JSON.stringify(badId)}`,
+    );
+  }
+});

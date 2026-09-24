@@ -222,9 +222,14 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
   for (const id of ['001', '002']) {
     const integrated = coordinate({
       command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: id,
+      deps: {
+        runVerification: () => ({
+          ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+        }),
+      },
     });
     assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
-    assert.strictEqual(integrated.task.status, 'integrated');
+    assert.deepStrictEqual(integrated.integrated, [id]);
   }
 
   // 두 worker의 결과가 하나의 integration branch로 모인다.
@@ -283,6 +288,11 @@ test('cherry-picked worker commits keep stable provenance trailers', () => {
   );
   const integrated = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
   const body = git(boot.integrationPath, ['log', '--format=%B', '-1']);
@@ -321,6 +331,11 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
   git(boot.integrationPath, ['commit', '-am', 'out of band']);
   const rejected = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
   assert.deepStrictEqual(rejected, { ok: false, reason: 'stale-integration-head' });
 
@@ -334,14 +349,24 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
   git(boot.integrationPath, ['reset', '--hard', knownHead]);
   const resumed = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
   assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
 
   // 중복 cherry-pick 방지: 이미 integrated인 task는 다시 fan-in되지 않는다.
   const again = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
-  assert.deepStrictEqual(again, { ok: false, reason: 'not-recorded' });
+  assert.deepStrictEqual(again, { ok: false, reason: 'nothing-to-integrate' });
   const subjects = git(boot.integrationPath, ['log', '--format=%s']).split('\n');
   assert.strictEqual(subjects.filter((subject) => subject === 'feat: task 001').length, 1);
 
@@ -383,6 +408,11 @@ test('a single task with no DAG frontmatter drives as one sequential wave', () =
   );
   const integrated = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
   assert.deepStrictEqual(integrated.ready, []);
@@ -454,7 +484,14 @@ test('an uncommitted-plan drive reaches the finalize gate with no open task afte
   // 대조군: integrate 전에는 integration 사본이 scaffold라 열린 task가 보인다.
   assert.strictEqual(openTasks().length, 1);
 
-  const integrated = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001' });
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
+  });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
   assert.strictEqual(loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json')).tasks[0].status,
     'integrated');
@@ -511,7 +548,14 @@ test('release after a drive finalize lets main merge the integration branch with
   const sha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
   writeTerminalEvidence(worker, blueprint, '001', sha);
   assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, worker, '001').ok, true);
-  const integrated = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001' });
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
+  });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
 
   // finalize remainder가 integration에 남기는 상태를 재현한다.

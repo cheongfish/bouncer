@@ -198,4 +198,6 @@ test('usage lists coordinate revoke and lease flags', () => {
   assert.match(r.out, /coordinate revoke/);
   assert.match(r.out, /--lease-id/);
   assert.match(r.out, /--generation/);
+  assert.match(r.out, /coordinate integrate/);
+  assert.match(r.out, /omit --task for the wave/);
 });

@@ -901,41 +901,77 @@ test('commit integrate refuses worker evidence that is not terminal or stamps an
   assert.deepStrictEqual(snapshotTree(path.join(drive.integrationPath, bundle)), integrationBundle);
 });
 
-test('a failed cherry-pick restores the copied bundle and keeps the throw path', () => {
+test('a cherry-pick CONFLICT returns fanin-conflict without touching canonical HEAD', () => {
   const blueprint = '.bouncer/context/epics/054-x/blueprints/055-y';
   const drive = recordedDrive('bouncer-coordinator-restore-', blueprint);
   writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
-  // review.md가 integration에 없던 경우도 되돌림 대상이다 — 복사로 생긴 파일은 지운다.
   const bundle = path.join(drive.integrationPath, blueprint, 'tasks/001');
-  fs.rmSync(path.join(bundle, 'review.md'));
   const bundleBefore = snapshotTree(bundle);
   const ledgerBefore = fs.readFileSync(drive.ledgerFile, 'utf8');
   const headBefore = drive.head();
+  // RD-001: fanin-conflict는 git CONFLICT만. stderr에 CONFLICT가 있어야 revoke 경로다.
   const failingCherryPick = (file, args, options) => {
-    if (args[0] === 'cherry-pick') throw new Error('injected cherry-pick failure');
+    if (args[0] === 'cherry-pick' && args[1] !== '--abort') {
+      const err = new Error('CONFLICT (content): Merge conflict in README.md');
+      err.stderr = 'error: could not apply abc\nCONFLICT (content): Merge conflict in README.md\n';
+      err.status = 1;
+      throw err;
+    }
     return execFileSync(file, args, options);
   };
 
-  assert.throws(() => coordinate({
+  const conflicted = coordinate({
     command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
-    deps: { execFileSync: failingCherryPick },
-  }), /injected cherry-pick failure/);
+    deps: {
+      execFileSync: failingCherryPick,
+      runVerification: () => ({ ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) }),
+    },
+  });
+  assert.strictEqual(conflicted.reason, 'fanin-conflict');
+  assert.strictEqual(conflicted.task, '001');
   assert.deepStrictEqual(snapshotTree(bundle), bundleBefore);
-  assert.strictEqual(fs.existsSync(path.join(bundle, 'review.md')), false);
-  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
   assert.strictEqual(drive.head(), headBefore);
+  const after = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(after.fanin, null);
+  assert.strictEqual(after.tasks.find((t) => t.id === '001').status, 'pending');
+  const { faninPath } = __coordinatorPathsFor({ repoRoot: drive.repo, blueprint });
+  assert.strictEqual(fs.existsSync(faninPath), false);
+  // 거절 경로가 원장 decision을 쓰므로 bytes는 달라도 canonical HEAD는 그대로다.
+  void ledgerBefore;
+});
 
-  // bundle 디렉터리 자체가 없던 경우 복사가 만든 `tasks/001/`까지 지워야 복사 전과 같다.
-  // 파일만 지우는 되돌림이면 빈 디렉터리가 남아 여기서 갈린다.
-  fs.rmSync(bundle, { recursive: true, force: true });
-  assert.throws(() => coordinate({
+test('a non-conflict cherry-pick failure aborts candidate without fanin-conflict revoke', () => {
+  // RD-001: bad object 등 CONFLICT가 아닌 실패는 revoke하지 않고 candidate만 정리한다.
+  const blueprint = '.bouncer/context/epics/054-x/blueprints/056-y';
+  const drive = recordedDrive('bouncer-coordinator-pick-fail-', blueprint);
+  writeBundle(drive.worker, blueprint, '001', { ...TERMINAL, commitSha: drive.sha.slice(0, 8) });
+  const headBefore = drive.head();
+  const failingCherryPick = (file, args, options) => {
+    if (args[0] === 'cherry-pick' && args[1] !== '--abort') {
+      const err = new Error('bad object deadbeef');
+      err.stderr = 'fatal: bad object deadbeef\n';
+      err.status = 128;
+      throw err;
+    }
+    return execFileSync(file, args, options);
+  };
+
+  const failed = coordinate({
     command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
-    deps: { execFileSync: failingCherryPick },
-  }), /injected cherry-pick failure/);
-  assert.strictEqual(fs.existsSync(bundle), false);
-  assert.strictEqual(fs.existsSync(path.join(drive.integrationPath, blueprint, 'tasks/002/tasks.md')), true);
-  assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+    deps: {
+      execFileSync: failingCherryPick,
+      runVerification: () => ({ ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64) }),
+    },
+  });
+  assert.strictEqual(failed.reason, 'cherry-pick-failed');
+  assert.strictEqual(failed.task, '001');
+  assert.notStrictEqual(failed.reason, 'fanin-conflict');
   assert.strictEqual(drive.head(), headBefore);
+  const after = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
+  assert.strictEqual(after.fanin, null);
+  assert.strictEqual(after.tasks.find((t) => t.id === '001').status, 'recorded');
+  const { faninPath } = __coordinatorPathsFor({ repoRoot: drive.repo, blueprint });
+  assert.strictEqual(fs.existsSync(faninPath), false);
 });
 
 test('record refuses a SHA that is not the assigned worker HEAD', () => {
@@ -1858,4 +1894,333 @@ test('overlapping fenced coordinate calls refuse with ledger-locked', () => {
   });
   assert.strictEqual(blocked.reason, 'ledger-locked');
   assert.deepStrictEqual(fs.readFileSync(ledgerFile), before);
+});
+
+/**
+ * 두 recorded commit task가 있는 wave fixture. 각 worker에 서로 다른 파일을 커밋하고
+ * terminal 증적을 남긴다. fan-in 후보·검증 주입 테스트의 공통 바탕이다.
+ */
+function twoRecordedWave(prefix, blueprint) {
+  const repo = uncommittedPlanRepo(prefix, blueprint, []);
+  for (const id of ['001', '002']) writeBundle(repo, blueprint, id, SCAFFOLD);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const workers = Object.fromEntries(prepared.tasks
+    .filter((entry) => entry.workerPath)
+    .map((entry) => [entry.id, entry.workerPath]));
+  const shas = {};
+  for (const id of ['001', '002']) {
+    const worker = workers[id];
+    fs.mkdirSync(path.join(worker, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(worker, `src/task-${id}.js`), `changed by ${id}\n`);
+    execFileSync('git', ['add', `src/task-${id}.js`], { cwd: worker });
+    execFileSync('git', [
+      '-c', 'user.name=test', '-c', 'user.email=test@example.com',
+      'commit', '-m', `feat: ${id}`,
+    ], { cwd: worker });
+    shas[id] = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+    writeBundle(worker, blueprint, id, { ...TERMINAL, commitSha: shas[id].slice(0, 8) });
+    acceptDispatchReport(repo, blueprint, worker, id);
+    const recorded = coordinate({
+      command: 'record', repoRoot: repo, blueprint, cwd: worker, task: id,
+    });
+    assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+  }
+  const { faninPath } = __coordinatorPathsFor({ repoRoot: repo, blueprint });
+  return {
+    repo,
+    blueprint,
+    workers,
+    shas,
+    integrationPath: boot.integrationPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+    faninPath,
+    head: () => execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: boot.integrationPath, encoding: 'utf8',
+    }).trim(),
+    ledger: () => JSON.parse(fs.readFileSync(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8')),
+    ledgerTasks: () => JSON.parse(fs.readFileSync(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'), 'utf8')).tasks,
+  };
+}
+
+const passVerify = () => ({
+  ok: true, command: 'npm test', exitCode: 0, evidenceId: 'a'.repeat(64),
+});
+
+test('wave integrate fails verification without advancing canonical HEAD or task status', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/001-wave';
+  const drive = twoRecordedWave('bouncer-fanin-verify-fail-', blueprint);
+  const baseHead = drive.head();
+  const failed = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: {
+      runVerification: () => ({ ok: false, command: 'npm test', exitCode: 1, evidenceId: 'b'.repeat(64) }),
+    },
+  });
+  assert.strictEqual(failed.reason, 'wave-verification-failed');
+  assert.strictEqual(drive.head(), baseHead);
+  assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['recorded', 'recorded']);
+  assert.strictEqual(drive.ledger().fanin, null);
+  assert.strictEqual(fs.existsSync(drive.faninPath), false);
+});
+
+test('wave integrate conflict revokes only the conflicting task and keeps canonical HEAD', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/002-conflict';
+  const drive = twoRecordedWave('bouncer-fanin-conflict-', blueprint);
+  const baseHead = drive.head();
+  let picks = 0;
+  const conflicted = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: {
+      execFileSync: (file, args, options) => {
+        if (args[0] === 'cherry-pick' && args[1] !== '--abort') {
+          picks += 1;
+          if (picks === 2) {
+            // RD-001: CONFLICT 표식이 있어야 fanin-conflict+revoke다.
+            const err = new Error('CONFLICT (content): Merge conflict in shared.txt');
+            err.stderr = 'CONFLICT (content): Merge conflict in shared.txt\n';
+            err.status = 1;
+            throw err;
+          }
+        }
+        return execFileSync(file, args, options);
+      },
+      runVerification: passVerify,
+    },
+  });
+  assert.strictEqual(conflicted.reason, 'fanin-conflict');
+  assert.strictEqual(drive.head(), baseHead);
+  assert.strictEqual(fs.existsSync(drive.faninPath), false);
+  const tasks = drive.ledgerTasks();
+  assert.strictEqual(tasks.find((t) => t.id === '002').status, 'pending');
+  assert.strictEqual(tasks.find((t) => t.id === '001').status, 'recorded');
+});
+
+test('resume after verified fanin finishes without cherry-pick', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/003-resume';
+  const drive = twoRecordedWave('bouncer-fanin-resume-', blueprint);
+  const first = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  const candidateHead = first.integrationHead;
+  const baseHead = first.checkpoint && drive.ledger().base
+    ? execFileSync('git', ['rev-parse', `${candidateHead}^`], {
+      cwd: drive.integrationPath, encoding: 'utf8',
+    }).trim()
+    : null;
+  // 복구 fixture: HEAD는 이미 candidate, 원장만 verified+recorded로 되감는다.
+  // (ff는 끝났지만 둘째 원장 쓰기 전에 중단된 상태)
+  void baseHead;
+  const ledger = drive.ledger();
+  const preFanin = execFileSync('git', ['merge-base', candidateHead, `${candidateHead}~2`], {
+    cwd: drive.integrationPath, encoding: 'utf8',
+  }).trim();
+  for (const task of ledger.tasks) {
+    if (task.id === '001' || task.id === '002') task.status = 'recorded';
+  }
+  ledger.integrationHead = preFanin;
+  ledger.fanin = {
+    base_head: preFanin,
+    candidate_head: candidateHead,
+    tasks: ['001', '002'],
+    status: 'verified',
+  };
+  // 결정 로그의 성공 fanin을 제거해 재실행 decision만 남긴다.
+  ledger.decisions = (ledger.decisions || []).filter((d) => d.kind !== 'fanin');
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  let cherryPickCalls = 0;
+  const resumed = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: {
+      execFileSync: (file, args, options) => {
+        if (args[0] === 'cherry-pick') cherryPickCalls += 1;
+        return execFileSync(file, args, options);
+      },
+      runVerification: passVerify,
+    },
+  });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  assert.strictEqual(cherryPickCalls, 0);
+  assert.strictEqual(drive.ledger().integrationHead, candidateHead);
+  assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['integrated', 'integrated']);
+  assert.strictEqual(drive.ledger().fanin, null);
+});
+
+
+test('legacy recorded task without lease integrates in a wave', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/004-legacy';
+  const drive = twoRecordedWave('bouncer-fanin-legacy-', blueprint);
+  const ledger = drive.ledger();
+  for (const task of ledger.tasks) {
+    delete task.lease;
+  }
+  delete ledger.leaseSeq;
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const result = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.deepStrictEqual(result.integrated, ['001', '002']);
+  assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['integrated', 'integrated']);
+});
+
+test('integrate --task with stale generation returns stale-lease and keeps HEAD', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/005-stale-lease';
+  const drive = twoRecordedWave('bouncer-fanin-stale-lease-', blueprint);
+  const baseHead = drive.head();
+  const lease = drive.ledgerTasks().find((t) => t.id === '001').lease;
+  const rejected = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    task: '001', leaseId: lease.id, generation: lease.generation + 1,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(rejected.reason, 'stale-lease');
+  assert.strictEqual(drive.head(), baseHead);
+  assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['recorded', 'recorded']);
+});
+
+test('CAS mismatch during fan-in returns stale-integration-head and clears fanin', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/006-cas';
+  const drive = twoRecordedWave('bouncer-fanin-cas-', blueprint);
+  const baseHead = drive.head();
+  const rejected = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: {
+      runVerification: () => {
+        // 검증 구간(잠금 밖)에서 integration HEAD를 옮겨 CAS를 깨뜨린다.
+        fs.writeFileSync(path.join(drive.integrationPath, 'CAS.md'), 'moved\n');
+        execFileSync('git', ['add', 'CAS.md'], { cwd: drive.integrationPath });
+        execFileSync('git', [
+          '-c', 'user.name=test', '-c', 'user.email=test@example.com',
+          'commit', '-m', 'cas move',
+        ], { cwd: drive.integrationPath });
+        return passVerify();
+      },
+    },
+  });
+  assert.strictEqual(rejected.reason, 'stale-integration-head');
+  assert.strictEqual(drive.ledger().fanin, null);
+  assert.notStrictEqual(drive.head(), baseHead);
+  assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['recorded', 'recorded']);
+});
+
+test('stale ledger checkpoint during verify leaves fanin building and retry integrates', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/007-checkpoint';
+  const drive = twoRecordedWave('bouncer-fanin-checkpoint-', blueprint);
+  const stale = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: {
+      runVerification: () => {
+        const ledger = drive.ledger();
+        ledger.revision = 'mutated-during-verify';
+        fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+        return passVerify();
+      },
+    },
+  });
+  assert.strictEqual(stale.reason, 'stale-ledger-checkpoint');
+  assert.strictEqual(drive.ledger().fanin.status, 'building');
+  assert.deepStrictEqual(drive.ledgerTasks().map((t) => t.status), ['recorded', 'recorded']);
+
+  const again = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.deepStrictEqual(again.integrated, ['001', '002']);
+});
+
+test('fanin whose HEAD matches neither base nor candidate returns stale-integration-head', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/008-orphan';
+  const drive = twoRecordedWave('bouncer-fanin-orphan-', blueprint);
+  const ledger = drive.ledger();
+  ledger.fanin = {
+    base_head: 'a'.repeat(40),
+    candidate_head: 'b'.repeat(40),
+    tasks: ['001'],
+    status: 'building',
+  };
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const rejected = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(rejected.reason, 'stale-integration-head');
+  assert.strictEqual(drive.ledger().fanin, null);
+});
+
+test('integrate with no recorded tasks returns nothing-to-integrate', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/009-empty';
+  const repo = uncommittedPlanRepo('bouncer-fanin-empty-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const empty = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(empty.reason, 'nothing-to-integrate');
+});
+
+test('ledger with bogus fanin status returns fanin-invalid', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/010-bogus';
+  const drive = twoRecordedWave('bouncer-fanin-bogus-', blueprint);
+  const ledger = drive.ledger();
+  ledger.fanin = {
+    base_head: drive.head(),
+    candidate_head: null,
+    tasks: ['001'],
+    status: 'bogus',
+  };
+  fs.writeFileSync(drive.ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const rejected = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(rejected.reason, 'fanin-invalid');
+});
+
+test('wave integrate with lease flags returns lease-flags-require-task', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/011-lease-flags';
+  const drive = twoRecordedWave('bouncer-fanin-lease-flags-', blueprint);
+  const rejected = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath,
+    leaseId: 'lease-x', generation: 1,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(rejected.reason, 'lease-flags-require-task');
+});
+
+test('verification integrate passes its own taskId to runVerification', () => {
+  const blueprint = '.bouncer/context/epics/090-fanin/blueprints/012-taskid';
+  const repo = uncommittedPlanRepo('bouncer-fanin-taskid-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  let seenTaskId = null;
+  const passed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      runVerification: (opts) => {
+        seenTaskId = opts.taskId;
+        return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'c'.repeat(64) };
+      },
+    },
+  });
+  assert.strictEqual(passed.ok, true, JSON.stringify(passed));
+  assert.strictEqual(seenTaskId, '002');
 });

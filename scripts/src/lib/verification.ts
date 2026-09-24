@@ -199,9 +199,43 @@ function isValidVerifyCommand(
   return allowlist.includes(verifyExecutableName(argv[0]));
 }
 
-function entriesForVerify(repoRoot: string, blueprintDir: string) {
+/**
+ * verify·verification.md 대상 task 문서 목록을 고른다. 명시 `taskId`가 있으면
+ * effective task보다 우선하고, 세 자리가 아니거나 목록에 없으면
+ * `VERIFY_IDENTITY_INVALID`로 거절한다(형식 오류를 조용히 무시하지 않음).
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} blueprintDir - blueprint 상대 경로
+ * @param {string} [taskId] - 세 자리 task id. 없으면 lease/pointer effective로 해석
+ * @returns {Array<{rel: string, verification?: {rel: string}}>} 대상 문서 엔트리
+ */
+function entriesForVerify(repoRoot: string, blueprintDir: string, taskId?: string) {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   if (listing.mixed) return [];
+  // 명시 taskId는 pointer/lease effective보다 우선한다. wave·terminal integrate가
+  // 포인터를 옮기지 않고도 그 task의 verify·verification.md만 고르게 한다.
+  if (typeof taskId === 'string') {
+    // Interface: 세 자리만 허용. 형식이 틀리면 effective로 폴백하지 않는다 —
+    // 잘못된 id를 조용히 무시하면 다른 task verify가 돌아 identity를 속인다(RD-002).
+    if (!/^\d{3}$/.test(taskId)) {
+      throw verificationError(
+        'VERIFY_IDENTITY_INVALID',
+        `taskId ${taskId} is not a three-digit task id`,
+      );
+    }
+    const match = listing.entries.find((entry) => {
+      const digits = TASK_DIR_RE.exec(toPosix(entry.rel));
+      return digits && digits[1] === taskId;
+    });
+    // 목록에 없으면 identity 오류 — config.verify로 폴백하면 잘못된 명령을 숨긴다.
+    if (!match) {
+      throw verificationError(
+        'VERIFY_IDENTITY_INVALID',
+        `taskId ${taskId} is not in the blueprint task listing`,
+      );
+    }
+    return [match];
+  }
   // effective task(lease 우선)가 이 blueprint를 가리키고 문서가 살아 있으면
   // 그 문서만. worker에서 lease를 못 확인하면 빈 목록 — pointer로 폴백하지
   // 않아 다른 task 선언을 끌어오지 않는다. 문서가 사라진 경우에만 미지정
@@ -224,15 +258,16 @@ function entriesForVerify(repoRoot: string, blueprintDir: string) {
  *
  * @param {string} repoRoot - 저장소 루트 절대 경로
  * @param {string} [blueprintDir] - 있으면 그 blueprint의 task 선언을 먼저 본다
+ * @param {string} [taskId] - 세 자리 task. 있으면 effective 대신 그 묶음만 본다
  * @returns {string} 실행할 단일 argv 문자열
  */
-function readVerifyCommand(repoRoot: string, blueprintDir?: string): string {
+function readVerifyCommand(repoRoot: string, blueprintDir?: string, taskId?: string): string {
   const configPath = path.join(repoRoot, '.bouncer', 'config.json');
   // blueprint 선언이 있으면 우선합니다. task 문서가 없거나 필드가 없으면
   // 기존 config.verify 경로를 유지합니다. 있지만 유효하지 않은 필드는
   // 조용히 넘어가면 안 됩니다 — plan-time S12 누락을 숨깁니다.
   if (blueprintDir) {
-    for (const entry of entriesForVerify(repoRoot, blueprintDir)) {
+    for (const entry of entriesForVerify(repoRoot, blueprintDir, taskId)) {
       try {
         const { data } = readDoc(path.join(repoRoot, entry.rel));
         // `data && data.bouncer && data.bouncer.verify`와 같다. bouncer가 null이면
@@ -268,6 +303,7 @@ function readVerifyCommand(repoRoot: string, blueprintDir?: string): string {
       } catch (error) {
         if (errorCode(error) === 'VERIFY_COMMAND_INVALID') throw error;
         if (errorCode(error) === 'VERIFY_CONFIG_INVALID') throw error;
+        if (errorCode(error) === 'VERIFY_IDENTITY_INVALID') throw error;
         if (errorCode(error) !== 'ENOENT') throw error;
       }
     }
@@ -991,10 +1027,10 @@ ${evidence}`;
   fs.writeFileSync(ledgerPaths.ledgerFile, `${JSON.stringify(record, null, 2)}\n`);
 }
 
-function resolveVerificationRel(repoRoot: string, blueprintDir: string): string {
-  // readVerifyCommand와 동일 entriesForVerify 폴백: 포인터 매칭 → 그 묶음,
-  // 아니면 번호 순 첫 묶음. listing이 비면 레거시 루트 경로.
-  const entries = entriesForVerify(repoRoot, blueprintDir);
+function resolveVerificationRel(repoRoot: string, blueprintDir: string, taskId?: string): string {
+  // readVerifyCommand와 동일 entriesForVerify 폴백: 명시 taskId → 포인터 매칭 →
+  // 번호 순 첫 묶음. listing이 비면 레거시 루트 경로.
+  const entries = entriesForVerify(repoRoot, blueprintDir, taskId);
   if (entries[0] && entries[0].verification && entries[0].verification.rel) {
     return entries[0].verification.rel;
   }
@@ -1010,6 +1046,7 @@ function resolveVerificationRel(repoRoot: string, blueprintDir: string): string 
  * @param {string} opts.repoRoot - 저장소 루트 절대 경로
  * @param {string} opts.blueprintDir - blueprint 상대 경로
  * @param {VerificationScope} [opts.scope] - 생략 시 포인터/첫 task의 stable Task ID
+ * @param {string} [opts.taskId] - 세 자리. 있으면 그 task의 verify·verification.md
  * @param {VerifyExec} [opts.exec] - 주입 실행기(테스트용)
  * @param {() => Date} [opts.now] - 시각 주입
  * @param {VerificationDeps} [opts.deps] - git/readFile/platform 주입
@@ -1019,11 +1056,12 @@ function resolveVerificationRel(repoRoot: string, blueprintDir: string): string 
  * }}
  */
 function runVerification({
-  repoRoot, blueprintDir, scope: scopeInput, exec, now = () => new Date(), deps,
+  repoRoot, blueprintDir, scope: scopeInput, taskId, exec, now = () => new Date(), deps,
 }: {
   repoRoot: string;
   blueprintDir: string;
   scope?: VerificationScope;
+  taskId?: string;
   exec?: VerifyExec;
   now?: () => Date;
   deps?: VerificationDeps;
@@ -1042,8 +1080,8 @@ function runVerification({
       'blueprintDir must be under .bouncer/context/epics',
     );
   }
-  const command = readVerifyCommand(repoRoot, blueprintDir);
-  const verificationRel = resolveVerificationRel(repoRoot, blueprintDir);
+  const command = readVerifyCommand(repoRoot, blueprintDir, taskId);
+  const verificationRel = resolveVerificationRel(repoRoot, blueprintDir, taskId);
   const verificationPath = path.join(repoRoot, verificationRel);
   if (!fs.existsSync(verificationPath)) {
     throw verificationError('VERIFY_DOCUMENT_MISSING', `verification document missing: ${verificationPath}`);

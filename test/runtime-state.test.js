@@ -176,7 +176,7 @@ test('primary checkout and linked worktree share Git-local runtime paths', () =>
   assert.deepStrictEqual(linkedPaths, primaryPaths);
 });
 
-test('coordinator paths derive integration, worker, and integration-local ledger', () => {
+test('coordinator paths derive integration, worker, fanin, and integration-local ledger', () => {
   const { primary } = linkedRepo();
   const result = coordinatorPathsFor({
     repoRoot: primary,
@@ -186,8 +186,39 @@ test('coordinator paths derive integration, worker, and integration-local ledger
   assert.deepStrictEqual(result, {
     integrationPath: path.join(primary, '.worktrees', '023', '001', 'integration'),
     workerPath: path.join(primary, '.worktrees', '023', '001', 'workers', '002'),
+    faninPath: path.join(primary, '.worktrees', '023', '001', 'fanin'),
     ledgerFile: path.join(primary, '.worktrees', '023', '001', 'integration', '.bouncer', 'runtime', 'coordinator.json'),
   });
+});
+
+test('validateCoordinatorLedger rejects invalid fanin shape', () => {
+  const base = {
+    version: 1, blueprint: 'bp', base: 'main', tasks: [], decisions: [],
+  };
+  assert.strictEqual(validateCoordinatorLedger(base).ok, true);
+  assert.strictEqual(validateCoordinatorLedger({ ...base, fanin: null }).ok, true);
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base,
+    fanin: {
+      base_head: 'abc', candidate_head: null, tasks: ['001'], status: 'building',
+    },
+  }).ok, true);
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base,
+    fanin: {
+      base_head: 'abc', candidate_head: 'def', tasks: ['001'], status: 'verified',
+    },
+  }).ok, true);
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base,
+    fanin: {
+      base_head: 'abc', candidate_head: null, tasks: ['001'], status: 'bogus',
+    },
+  }).reason, 'fanin-invalid');
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base,
+    fanin: { base_head: 'abc', tasks: ['001'], status: 'building' },
+  }).reason, 'fanin-invalid');
 });
 
 test('worktree root is under the main repository checkout', () => {
