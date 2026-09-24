@@ -16,7 +16,7 @@ const { listTasksDocs } = tasksDocs;
 // current.ts는 이 모듈군 밖이라 strict include에 넣지 않는다. 상대 require를
 // 그대로 두면 tsc가 그 파일을 편입해 다음 커밋 몫의 오류가 여기로 새어 온다.
 import current = require('./current');
-const { readCurrent } = current;
+const { resolveEffectiveTask } = current;
 import paths = require('./paths');
 const { toPosix, parsePathIds } = paths;
 import runtimeState = require('./runtime-state');
@@ -202,13 +202,15 @@ function isValidVerifyCommand(
 function entriesForVerify(repoRoot: string, blueprintDir: string) {
   const listing = listTasksDocs({ repoRoot, blueprintDir });
   if (listing.mixed) return [];
-  // 포인터 task 가 이 blueprint 를 가리키고 문서가 살아 있으면 그 문서만.
-  // 문서가 사라졌을 때만 미지정(전체 walk)으로 폴백 — 다른 task 선언을
-  // 조용히 끌어오지 않기 위함.
-  const pointer = readCurrent({ repoRoot });
+  // effective task(lease 우선)가 이 blueprint를 가리키고 문서가 살아 있으면
+  // 그 문서만. worker에서 lease를 못 확인하면 빈 목록 — pointer로 폴백하지
+  // 않아 다른 task 선언을 끌어오지 않는다. 문서가 사라진 경우에만 미지정
+  // (전체 walk)으로 폴백한다.
+  const effective = resolveEffectiveTask({ repoRoot });
+  if (effective && effective.source === null) return [];
   const bp = toPosix(blueprintDir);
-  if (isRecord(pointer) && typeof pointer.task === 'string' && toPosix(pointer.blueprint) === bp) {
-    const match = listing.entries.find((e) => e.rel === toPosix(pointer.task));
+  if (effective && typeof effective.path === 'string' && toPosix(effective.blueprint) === bp) {
+    const match = listing.entries.find((e) => e.rel === toPosix(effective.path));
     if (match) return [match];
   }
   return listing.entries;
@@ -517,23 +519,31 @@ function assertVerificationScope(scope: unknown): VerificationScope {
 }
 
 /**
- * 활성 포인터 또는 번호 순 첫 task 묶음에서 task scope를 만든다.
- * frontmatter가 있으면 stable provenance를 쓰고, epic/blueprint 누락·형식
- * 거절·문서 부재는 경로 숫자로 같은 형식의 키를 만든다. numbered entries가
- * 비면 레거시 루트 `blueprintDir/tasks.md`를 본다 — omit-scope 호출자가
- * 예전처럼 executeVerify까지 닿게 한다.
+ * 활성 effective task 또는 번호 순 첫 task 묶음에서 task scope를 만든다.
+ * worker cwd에서 lease를 확인하지 못하면 VERIFY_IDENTITY_INVALID다 —
+ * pointer로 폴백하면 다른 task의 evidence key가 섞인다. frontmatter가 있으면
+ * stable provenance를 쓰고, epic/blueprint 누락·형식 거절·문서 부재는 경로
+ * 숫자로 같은 형식의 키를 만든다. numbered entries가 비면 레거시 루트
+ * `blueprintDir/tasks.md`를 본다 — omit-scope 호출자가 예전처럼
+ * executeVerify까지 닿게 한다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} blueprintDir - blueprint 상대 경로
  * @returns {VerificationScope} `{ kind: 'task', key: 'EPIC-…/BP-…/TASK-…' }`
  */
 function resolveDefaultTaskScope(repoRoot: string, blueprintDir: string): VerificationScope {
+  const effective = resolveEffectiveTask({ repoRoot });
+  if (effective && effective.source === null) {
+    throw verificationError(
+      'VERIFY_IDENTITY_INVALID',
+      'no active lease for worker worktree',
+    );
+  }
   const entries = entriesForVerify(repoRoot, blueprintDir);
-  const pointer = readCurrent({ repoRoot });
   const bp = toPosix(blueprintDir);
   let tasksRel: string | null = null;
-  if (isRecord(pointer) && typeof pointer.task === 'string' && toPosix(pointer.blueprint) === bp) {
-    tasksRel = toPosix(pointer.task);
+  if (effective && typeof effective.path === 'string' && toPosix(effective.blueprint) === bp) {
+    tasksRel = toPosix(effective.path);
   } else if (entries[0] && entries[0].tasks && entries[0].tasks.rel) {
     tasksRel = toPosix(entries[0].tasks.rel);
   }

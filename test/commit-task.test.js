@@ -1149,3 +1149,103 @@ test('a park copy survives when restoring fails for a reason other than a taken 
   assert.strictEqual(fs.existsSync(state.parkPath), true);
   assert.strictEqual(JSON.parse(fs.readFileSync(state.parkPath, 'utf8')).token, 'other-owner');
 });
+
+test('commitTask in a worker cwd commits the leased task even when the pointer points elsewhere', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-commit-eff-'));
+  const blueprint = '.bouncer/context/epics/097-eff/blueprints/001-y';
+  initGitWithChange(repo);
+  writeDoc(repo, '.bouncer/context/epics/097-eff/index.md', {
+    type: 'bouncer.epic', title: 'e', description: 'd',
+    resource: '.bouncer/context/epics/097-eff/index.md', tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '097', epic_id: '097', status: 'approved' },
+  });
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: '097', name: 'eff', description: 'd' });
+  writeDoc(repo, `${blueprint}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${blueprint}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '097', blueprint_id: '001', status: 'approved' },
+  });
+  for (const [id, leaf] of [['001', 'a'], ['002', 'b']]) {
+    const dir = `${blueprint}/tasks/${id}`;
+    writeDoc(repo, `${dir}/tasks.md`, {
+      type: 'bouncer.tasks', title: `t${id}`, description: 'd', resource: `${dir}/tasks.md`,
+      tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `TASKS-${id}`, epic_id: '097', blueprint_id: '001', status: 'ready',
+        parallel_safe: true, affected_paths: [`src/${leaf}/`],
+      },
+    });
+    writeDoc(repo, `${dir}/verification.md`, {
+      type: 'bouncer.verification', title: `v${id}`, description: 'd',
+      resource: `${dir}/verification.md`, tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `VERIFY-${id}`, epic_id: '097', blueprint_id: '001', status: 'passed',
+      },
+    });
+    writeDoc(repo, `${dir}/review.md`, {
+      type: 'bouncer.review', title: `r${id}`, description: 'd',
+      resource: `${dir}/review.md`, tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `REVIEW-${id}`, epic_id: '097', blueprint_id: '001', status: 'accepted',
+        review: { required: false, reason: 'fixture' },
+      },
+    });
+  }
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '--quiet', '-m', 'plan'], { cwd: repo });
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  fs.mkdirSync(path.join(boot.integrationPath, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(boot.integrationPath, '.bouncer/config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 2 } }, null, 2)}\n`,
+  );
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: (() => { let n = 0; return () => `ct-lease-${++n}`; })() },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker002 = prepared.tasks.find((t) => t.id === '002').workerPath;
+  // commit gate는 verified + harness 증적을 요구한다. worker에만 status를 올린다.
+  const { recordVerificationResult } = require('../scripts/lib/verification');
+  for (const id of ['001', '002']) {
+    const srcDir = path.join(repo, blueprint, 'tasks', id);
+    const dstDir = path.join(worker002, blueprint, 'tasks', id);
+    fs.mkdirSync(dstDir, { recursive: true });
+    for (const leaf of ['tasks.md', 'verification.md', 'review.md']) {
+      fs.copyFileSync(path.join(srcDir, leaf), path.join(dstDir, leaf));
+    }
+    const tasksAbs = path.join(dstDir, 'tasks.md');
+    fs.writeFileSync(
+      tasksAbs,
+      fs.readFileSync(tasksAbs, 'utf8').replace('status: ready', 'status: verified'),
+    );
+    recordVerificationResult({
+      repoRoot: worker002,
+      verificationRel: `${blueprint}/tasks/${id}/verification.md`,
+      command: 'npm test',
+      ranAt: '2026-07-27T00:00:00.000Z',
+      exitCode: 0,
+      output: 'ok',
+    });
+  }
+  writeCurrent({
+    repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
+  });
+
+  const ok = commitTask({
+    repoRoot: worker002, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/b/x.ts'], []).api,
+  });
+  assert.strictEqual(ok.ok, true, JSON.stringify(ok));
+
+  const bad = commitTask({
+    repoRoot: worker002, blueprintDir: blueprint, yes: true,
+    git: trackingGit(['src/a/x.ts'], []).api,
+  });
+  assert.strictEqual(bad.ok, false);
+  assert.strictEqual(bad.reason, 'out-of-scope');
+});

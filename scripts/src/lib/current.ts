@@ -89,6 +89,26 @@ type SelectionLocation =
   | { kind: 'flat'; worktreeAbs: string }
   | { kind: 'base' };
 
+type WorkerSlot = { epicId: string; blueprintId: string; taskId: string };
+
+type EffectiveTask =
+  | {
+    source: 'lease';
+    blueprint: string;
+    path: string;
+    id: string;
+    lease_id: string | null;
+    generation: number | null;
+  }
+  | { source: 'pointer'; blueprint: string; path: string; id: string | null }
+  | {
+    source: null;
+    blueprint: string;
+    reason: 'no-active-lease' | 'unreadable-ledger';
+    path: null;
+    id: null;
+  };
+
 /**
  * cwd가 `.worktrees/<epic>/<bp>` 중첩인지, `.worktrees/<bp>` 평면인지,
  * 기준 checkout인지를 가른다. 키는 세 자리 id만 본다 — worktree 절대 경로를
@@ -119,6 +139,77 @@ function selectionLocation(
     return { kind: 'flat', worktreeAbs: pathApi.join(paths.worktreeRoot, parts[0]) };
   }
   return { kind: 'base' };
+}
+
+/**
+ * cwd가 coordinator worker 슬롯(`.worktrees/<epic>/<bp>/workers/<NNN>`)의
+ * 루트인지 본다. 하위 디렉터리·integration·standalone은 null — lease 우선은
+ * worker 루트에서만 적용해 pointer를 덮지 않는다.
+ *
+ * @param {string} repoRoot - 선택 기준 checkout 절대 경로
+ * @param {ReturnType<typeof runtimePaths>} paths - 같은 호출의 runtimePaths
+ * @param {string | undefined} platform - win32일 때만 win32 path API
+ * @returns {WorkerSlot | null} worker면 epic/bp/task id, 아니면 null
+ */
+function workerSlotOf(
+  repoRoot: string,
+  paths: ReturnType<typeof runtimePaths>,
+  platform: string | undefined,
+): WorkerSlot | null {
+  const pathApi = platform === 'win32' ? path.win32 : path;
+  if (paths.unavailable || !paths.worktreeRoot) return null;
+  const absRepo = pathApi.resolve(repoRoot);
+  const rel = pathApi.relative(paths.worktreeRoot, absRepo);
+  if (!rel || rel === '.' || rel.startsWith('..') || pathApi.isAbsolute(rel)) {
+    return null;
+  }
+  const parts = rel.split(/[\\/]/).filter(Boolean);
+  // 정확히 workers/<NNN> 루트만. 하위 cwd는 worker 소유로 보지 않는다.
+  if (
+    parts.length === 4
+    && /^\d{3}$/.test(parts[0])
+    && /^\d{3}$/.test(parts[1])
+    && parts[2] === 'workers'
+    && /^\d{3}$/.test(parts[3])
+  ) {
+    return { epicId: parts[0], blueprintId: parts[1], taskId: parts[3] };
+  }
+  return null;
+}
+
+function realPathOf(target: string, fsApi: typeof fs = fs): string {
+  const resolved = path.resolve(target);
+  try {
+    return fsApi.realpathSync(resolved);
+  } catch (_e) {
+    // 아직 없는 경로는 비교만 하므로 resolve 값을 쓴다.
+    return resolved;
+  }
+}
+
+/**
+ * 원장 task가 이 worker cwd의 active 배정인지 본다. active lease가 있거나,
+ * lease 없는 legacy는 prepared·recorded일 때만 동일 취급한다.
+ *
+ * @param {{ workerPath?: string, status?: string, lease?: { status?: string } }} entry - 원장 task
+ * @param {string} cwdReal - cwd realpath
+ * @param {typeof fs} fsApi - realpath용 fs
+ * @returns {boolean} 이 cwd의 유효 배정이면 true
+ */
+function isActiveWorkerAssignment(
+  entry: { workerPath?: string; status?: string; lease?: { status?: string } | null },
+  cwdReal: string,
+  fsApi: typeof fs,
+): boolean {
+  if (typeof entry.workerPath !== 'string' || !entry.workerPath) return false;
+  if (realPathOf(entry.workerPath, fsApi) !== cwdReal) return false;
+  if (entry.lease && entry.lease.status === 'active') return true;
+  // lease 부재 legacy: prepared·recorded만 active와 같다. pending·revoked 경로는
+  // pointer로 떨어지지 않고 no-active-lease로 거절해야 한다.
+  if (entry.lease == null && (entry.status === 'prepared' || entry.status === 'recorded')) {
+    return true;
+  }
+  return false;
 }
 
 function namespaceConflict(
@@ -530,16 +621,166 @@ function coordinatorSnapshot(repoRoot: string, blueprint: string) {
 }
 
 /**
+ * cwd와 원장 lease로 소비자가 쓸 effective task를 고른다. worker 슬롯에서는
+ * 공유 pointer보다 lease가 우선이고, lease를 확인하지 못하면 pointer로
+ * 떨어지지 않는다. worker가 아니면 기존 pointer.task만 본다.
+ *
+ * 원장은 읽기만 한다. `pointer`를 넘기면 readCurrent를 다시 호출하지 않는다 —
+ * presentCurrent가 --set 직후 방금 쓴 키를 보여 줄 때 base의 병렬 포인터로
+ * CURRENT_AMBIGUOUS가 나지 않게 하기 위함이다. 생략 시 readCurrent의
+ * CURRENT_AMBIGUOUS·CURRENT_INVALID는 그대로 전파한다.
+ *
+ * @param {{ repoRoot: string, deps?: RuntimeDeps, pointer?: Pointer | null }} opts
+ * @returns {EffectiveTask | null} lease·pointer 결과. pointer task가 없으면 null
+ */
+function resolveEffectiveTask({ repoRoot, deps, pointer: pointerOpt }: {
+  repoRoot: string;
+  deps?: RuntimeDeps;
+  pointer?: Pointer | null;
+}): EffectiveTask | null {
+  const d = deps || {};
+  const fsApi = d.fs || fs;
+  // pointer 인자는 presentCurrent 전용 seam. 소비자는 생략해 readCurrent를 탄다.
+  const pointer = pointerOpt !== undefined ? pointerOpt : readCurrent({ repoRoot, deps });
+  const paths = runtimePaths({
+    repoRoot,
+    execFileSync: d.execFileSync,
+    env: d.env,
+    platform: d.platform,
+  });
+  const slot = workerSlotOf(repoRoot, paths, d.platform);
+
+  if (slot) {
+    const pathApi = d.platform === 'win32' ? path.win32 : path;
+    const pointerBlueprint = pointer && typeof pointer.blueprint === 'string'
+      ? pointer.blueprint
+      : '';
+    const fail = (
+      reason: 'no-active-lease' | 'unreadable-ledger',
+      blueprint = pointerBlueprint,
+    ): EffectiveTask => ({
+      source: null, blueprint, reason, path: null, id: null,
+    });
+
+    // pointer가 없어도 worker 슬롯의 integration 원장으로 lease를 판정한다.
+    // coordinatorFixture처럼 prepare 직후·--set 전에 worker에 문서를 심는
+    // 경로가 pointer 없음을 no-active-lease로 오인하지 않게 한다.
+    let found: ReturnType<typeof readCoordinatorLedger>;
+    if (pointerBlueprint) {
+      found = readCoordinatorLedger({ repoRoot, blueprint: pointerBlueprint });
+    } else if (paths.worktreeRoot) {
+      const ledgerFile = pathApi.join(
+        paths.worktreeRoot, slot.epicId, slot.blueprintId,
+        'integration', '.bouncer', 'runtime', 'coordinator.json',
+      );
+      let raw: string;
+      try {
+        raw = fsApi.readFileSync(ledgerFile, 'utf8');
+      } catch (_e) {
+        // ENOENT 등 — 원장 부재는 lease 확인 실패와 같다.
+        return fail('no-active-lease');
+      }
+      let ledger: unknown;
+      try {
+        ledger = JSON.parse(raw);
+      } catch (_e) {
+        // JSON 손상만 unreadable. 빈 파일·절단본도 여기로 온다.
+        return fail('unreadable-ledger');
+      }
+      if (!ledger || typeof ledger !== 'object' || Array.isArray(ledger)) {
+        return fail('unreadable-ledger');
+      }
+      found = {
+        ok: true as const,
+        ledger,
+        ledgerFile,
+        integrationPath: pathApi.join(
+          paths.worktreeRoot, slot.epicId, slot.blueprintId, 'integration',
+        ),
+      };
+    } else {
+      return fail('no-active-lease');
+    }
+
+    if (!found.ok) {
+      // 원장 손상만 unreadable. 부재·경로 없음은 lease를 확인하지 못한 것과 같다.
+      if (found.reason === 'unreadable-ledger') {
+        return fail('unreadable-ledger', pointerBlueprint);
+      }
+      return fail('no-active-lease', pointerBlueprint);
+    }
+    const ledger = found.ledger as {
+      blueprint?: string;
+      tasks?: Array<{
+        id?: string;
+        status?: string;
+        workerPath?: string;
+        lease?: { id?: string; generation?: number; status?: string } | null;
+      }>;
+    };
+    const blueprint = pointerBlueprint
+      || (typeof ledger.blueprint === 'string' ? ledger.blueprint : '');
+    if (!blueprint) return fail('no-active-lease');
+
+    const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+    const entry = tasks.find((item) => item && item.id === slot.taskId);
+    const cwdReal = realPathOf(repoRoot, fsApi);
+    if (!entry || !isActiveWorkerAssignment(entry, cwdReal, fsApi)) {
+      return fail('no-active-lease', toPosix(blueprint));
+    }
+
+    const taskPath = `${toPosix(blueprint)}/tasks/${slot.taskId}/tasks.md`;
+    let id = `TASKS-${slot.taskId}`;
+    try {
+      const listing = listTasksDocs({ repoRoot, blueprintDir: blueprint });
+      const listed = listing.entries.find((e) => e.rel === taskPath);
+      if (listed && typeof listed.id === 'string') id = listed.id;
+    } catch (_e) {
+      // listing 실패 시 경로 기반 TASKS-NNN을 유지한다.
+    }
+    const lease = entry.lease;
+    return {
+      source: 'lease',
+      blueprint: toPosix(blueprint),
+      path: taskPath,
+      id,
+      lease_id: lease && typeof lease.id === 'string' ? lease.id : null,
+      generation: lease && Number.isInteger(lease.generation) ? (lease.generation as number) : null,
+    };
+  }
+
+  // non-worker: 원장 lease로 pointer를 덮지 않는다.
+  if (!pointer) return null;
+  const taskPath = typeof pointer.task === 'string' && pointer.task ? toPosix(pointer.task) : null;
+  if (!taskPath) return null;
+  let id: string | null = null;
+  try {
+    const listing = listTasksDocs({ repoRoot, blueprintDir: pointer.blueprint });
+    const entry = listing.entries.find((e) => e.rel === taskPath);
+    if (entry && typeof entry.id === 'string') id = entry.id;
+  } catch (_e) {
+    // listing 실패 시 id 없이 path만.
+  }
+  return {
+    source: 'pointer',
+    blueprint: toPosix(pointer.blueprint),
+    path: taskPath,
+    id,
+  };
+}
+
+/**
  * CLI 출력용. 포인터 파일의 task 는 rel path 문자열만 보관하고,
  * `bouncer current` 응답에는 경로와 TASKS-NNN id, 그리고 호출 시점의 `scale`
  * 파생값을 함께 실어 Interface 계약을 맞춘다.
  * 문서가 사라져 id 를 못 찾으면 path 만 남기고 id 는 null — 포인터를 지우지 않는다.
  * scale 읽기 실패도 같다: null 로 흡수하고 포인터는 유지한다.
+ * `effectiveTask`는 lease 우선 판정이며, 기존 task·base 키는 pointer 그대로다.
  *
  * @param {Pointer | null | undefined} current - 포인터 파일 내용. 없으면 null
  * @param {{ repoRoot: string }} opts - repoRoot 는 blueprint index 절대 경로 계산용
- * @returns {object | null} task 없음: `{ blueprint, base, task: null, scale }`.
- *   task 있음: `{ blueprint, base, task: { path, id }, scale }`. 포인터 없으면 null.
+ * @returns {object | null} task 없음: `{ blueprint, base, task: null, scale, effectiveTask }`.
+ *   task 있음: `{ blueprint, base, task: { path, id }, scale, effectiveTask }`. 포인터 없으면 null.
  */
 function presentCurrent(current: Pointer | null | undefined, { repoRoot }: { repoRoot: string }) {
   if (!current) return null;
@@ -547,10 +788,14 @@ function presentCurrent(current: Pointer | null | undefined, { repoRoot }: { rep
   const coordinator = coordinatorSnapshot(repoRoot, current.blueprint);
   // 원장이 없으면 키를 붙이지 않는다 — 기존 4-키 payload 계약을 그대로 둔다.
   const coordinatorField = coordinator ? { coordinator } : {};
+  // effectiveTask는 항상 붙인다. 넘긴 current를 재사용해 base 병렬 포인터에서도
+  // --set 응답이 CURRENT_AMBIGUOUS로 뒤집히지 않게 한다.
+  const effectiveTask = resolveEffectiveTask({ repoRoot, pointer: current });
   const taskPath = typeof current.task === 'string' && current.task ? current.task : null;
   if (!taskPath) {
     return {
-      blueprint: current.blueprint, base: current.base, task: null, scale, ...coordinatorField,
+      blueprint: current.blueprint, base: current.base, task: null, scale,
+      effectiveTask, ...coordinatorField,
     };
   }
   let id: string | null = null;
@@ -566,6 +811,7 @@ function presentCurrent(current: Pointer | null | undefined, { repoRoot }: { rep
     base: current.base,
     task: { path: taskPath, id },
     scale,
+    effectiveTask,
     ...coordinatorField,
   };
 }
@@ -924,5 +1170,6 @@ function nextBlueprint({ repoRoot, blueprintDir }: {
 
 export = {
   readCurrent, writeCurrent, clearCurrent, listReadyBlueprints, nextBlueprint,
-  resolvePointerTask, presentCurrent, resolveCurrent, CurrentSelectionError,
+  resolvePointerTask, presentCurrent, resolveCurrent, resolveEffectiveTask,
+  CurrentSelectionError,
 };

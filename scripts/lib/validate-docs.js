@@ -8,6 +8,8 @@ const paths = require("./paths");
 const { epicDirOf, toPosix } = paths;
 const verification = require("./verification");
 const { entriesForVerify } = verification;
+const current = require("./current");
+const { resolveEffectiveTask } = current;
 const tasksDocs = require("./tasks-docs");
 const { listTasksDocs, TASK_UNIT_BASENAMES, taskExecutionKind, } = tasksDocs;
 function errorMessage(error) {
@@ -143,11 +145,17 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }) {
 }
 /**
  * execute / finalize 가 쓸 대상 묶음.
- * entriesForVerify(019)와 같은 포인터 해석: 매칭되면 그 엔트리만, 아니면 번호 순 첫 묶음.
- * 단위 테스트처럼 repoRoot가 없으면 docs.tasks·verification·review 평탄 필드로 합성.
+ * entriesForVerify와 같은 effective-task 해석: 매칭되면 그 엔트리만, 아니면
+ * 번호 순 첫 묶음. worker에서 lease를 확인하지 못하면 null — gate가 task
+ * 문서 부재로 실패하게 한다. 단위 테스트처럼 repoRoot가 없으면
+ * docs.tasks·verification·review 평탄 필드로 합성.
  */
 function resolveTaskUnit(docs, { repoRoot, blueprintDir } = {}) {
     if (repoRoot && blueprintDir) {
+        const effective = resolveEffectiveTask({ repoRoot });
+        // worker fail-closed: 빈 entries로 flat docs에 떨어지면 G6 부재를 숨긴다.
+        if (effective && effective.source === null)
+            return null;
         const entries = entriesForVerify(repoRoot, blueprintDir);
         const entry = entries[0];
         if (entry) {

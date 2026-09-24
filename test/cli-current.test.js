@@ -225,7 +225,9 @@ test('current with a pointer omits ready', () => {
   const parsed = JSON.parse(r.out);
   assert.strictEqual(parsed.ok, true);
   // writePlanPassingBlueprint 없이 포인터만 쓰면 index.md 가 없어 scale 은 null.
-  assert.deepStrictEqual(parsed.current, { blueprint: BP_REL, base: 'develop', task: null, scale: null });
+  assert.deepStrictEqual(parsed.current, {
+    blueprint: BP_REL, base: 'develop', task: null, scale: null, effectiveTask: null,
+  });
   assert.strictEqual(parsed.ready, undefined);
 });
 
@@ -244,6 +246,12 @@ test('current --set writes pointer when plan gate passes', () => {
     base,
     task: { path: `${BP_REL}/tasks/001/tasks.md`, id: 'TASKS-001' },
     scale: null,
+    effectiveTask: {
+      source: 'pointer',
+      blueprint: BP_REL,
+      path: `${BP_REL}/tasks/001/tasks.md`,
+      id: 'TASKS-001',
+    },
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
     blueprint: BP_REL, base, task: `${BP_REL}/tasks/001/tasks.md`,
@@ -429,6 +437,12 @@ test('current --set --task 002 records that task document', () => {
     base,
     task: { path: `${BP_REL}/tasks/002/tasks.md`, id: 'TASKS-002' },
     scale: null,
+    effectiveTask: {
+      source: 'pointer',
+      blueprint: BP_REL,
+      path: `${BP_REL}/tasks/002/tasks.md`,
+      id: 'TASKS-002',
+    },
   });
   assert.deepStrictEqual(readCurrent({ repoRoot: repo }), {
     blueprint: BP_REL,

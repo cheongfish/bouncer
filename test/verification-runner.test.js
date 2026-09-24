@@ -1607,3 +1607,146 @@ bouncer:
     'EPIC-001/BP-001/TASK-001',
   );
 });
+
+// --- effective task (worker lease) ------------------------------------------
+
+const {
+  writeCurrent: __writeCurrent,
+} = require('../scripts/lib/current');
+const { entriesForVerify: __entriesForVerify } = require('../scripts/lib/verification');
+const __coordMod = require('../scripts/lib/coordinator');
+const { coordinatorPathsFor: __cpFor } = require('../scripts/lib/runtime-state');
+const __crypto2 = require('node:crypto');
+const __yaml = require('js-yaml');
+const __FENCED2 = new Set([
+  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
+]);
+function __coordFence(repoRoot, blueprint) {
+  const { ledgerFile } = __cpFor({ repoRoot, blueprint });
+  return {
+    ledgerPath: '.bouncer/runtime/coordinator.json',
+    ledgerHash: __crypto2.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
+  };
+}
+function __coordinate(opts) {
+  if (__FENCED2.has(opts.command)
+    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
+    try { opts = { ...opts, ...__coordFence(opts.repoRoot, opts.blueprint) }; }
+    catch (_e) { /* missing ledger */ }
+  }
+  return __coordMod.coordinate(opts);
+}
+function __writeFm(repo, rel, data, body = '# x\n') {
+  const abs = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, `---\n${__yaml.dump(data)}---\n${body}`);
+}
+
+function leaseVerifyFixture() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-verify-lease-'));
+  execFileSync('git', ['init', '-b', 'main', '--quiet'], { cwd: repo });
+  execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd: repo });
+  execFileSync('git', ['config', 'user.name', 't'], { cwd: repo });
+  const epic = '.bouncer/context/epics/093-eff/blueprints/001-y';
+  __writeFm(repo, '.bouncer/context/epics/093-eff/index.md', {
+    type: 'bouncer.epic', title: 'e', description: 'd',
+    resource: '.bouncer/context/epics/093-eff/index.md', tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '093', epic_id: '093', status: 'approved' },
+  });
+  __writeFm(repo, `${epic}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${epic}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '093', blueprint_id: '001', status: 'approved' },
+  });
+  for (const [id, leaf, verify] of [
+    ['001', 'a', 'node -e "process.exit(1)"'],
+    ['002', 'b', 'node -e "process.exit(0)"'],
+  ]) {
+    __writeFm(repo, `${epic}/tasks/${id}/tasks.md`, {
+      type: 'bouncer.tasks', title: `t${id}`, description: 'd',
+      resource: `${epic}/tasks/${id}/tasks.md`, tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `TASKS-${id}`, epic_id: '093', blueprint_id: '001', status: 'ready',
+        parallel_safe: true, affected_paths: [`src/${leaf}/`], verify,
+      },
+    });
+    __writeFm(repo, `${epic}/tasks/${id}/verification.md`, {
+      type: 'bouncer.verification', title: `v${id}`, description: 'd',
+      resource: `${epic}/tasks/${id}/verification.md`, tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `VERIFY-${id}`, epic_id: '093', blueprint_id: '001', status: 'pending',
+      },
+    });
+  }
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: 'npm test' }));
+  fs.writeFileSync(path.join(repo, 'README'), 'base\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '--quiet', '-m', 'plan'], { cwd: repo });
+  const boot = __coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: epic });
+  const cfgDir = path.join(boot.integrationPath, '.bouncer');
+  fs.mkdirSync(cfgDir, { recursive: true });
+  fs.writeFileSync(path.join(cfgDir, 'config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 2 } }, null, 2)}\n`);
+  const prepared = __coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: epic, cwd: boot.integrationPath,
+    deps: { makeLeaseId: (() => { let n = 0; return () => `v-lease-${++n}`; })() },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  __writeCurrent({
+    repoRoot: repo, blueprint: epic, base: 'main', task: `${epic}/tasks/001/tasks.md`,
+  });
+  return {
+    repo, epic, integration: boot.integrationPath,
+    worker002: prepared.tasks.find((t) => t.id === '002').workerPath,
+  };
+}
+
+test('entriesForVerify and readVerifyCommand follow the worker lease over the pointer', () => {
+  const { epic, worker002, integration } = leaseVerifyFixture();
+  const fromWorker = __entriesForVerify(worker002, epic);
+  assert.strictEqual(fromWorker.length, 1);
+  assert.strictEqual(fromWorker[0].id, 'TASKS-002');
+  assert.strictEqual(readVerifyCommand(worker002, epic), 'node -e "process.exit(0)"');
+  assert.strictEqual(readVerifyCommand(integration, epic), 'node -e "process.exit(1)"');
+});
+
+test('runVerification refuses a worker cwd without an active lease', () => {
+  const { epic, worker002, integration } = leaseVerifyFixture();
+  // entriesForVerify가 비면 레거시 verification.md로 떨어진 뒤 scope에서 거절한다.
+  const legacy = path.join(worker002, epic, 'verification.md');
+  fs.mkdirSync(path.dirname(legacy), { recursive: true });
+  fs.copyFileSync(path.join(worker002, epic, 'tasks/002/verification.md'), legacy);
+  const ledgerFile = path.join(integration, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((t) => t.id === '002').lease.status = 'revoked';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.throws(
+    () => runVerification({
+      repoRoot: worker002, blueprintDir: epic, deps: fixedDeps(),
+      exec: () => ({ status: 0, stdout: '', stderr: '' }),
+    }),
+    (e) => e.code === 'VERIFY_IDENTITY_INVALID'
+      && /no active lease for worker worktree/.test(e.message),
+  );
+});
+
+test('runVerification refuses a worker cwd with an unreadable ledger', () => {
+  const { epic, worker002, integration } = leaseVerifyFixture();
+  const legacy = path.join(worker002, epic, 'verification.md');
+  fs.mkdirSync(path.dirname(legacy), { recursive: true });
+  fs.copyFileSync(path.join(worker002, epic, 'tasks/002/verification.md'), legacy);
+  fs.writeFileSync(path.join(integration, '.bouncer/runtime/coordinator.json'), '{ truncated');
+  assert.throws(
+    () => runVerification({
+      repoRoot: worker002, blueprintDir: epic, deps: fixedDeps(),
+      exec: () => ({ status: 0, stdout: '', stderr: '' }),
+    }),
+    (e) => e.code === 'VERIFY_IDENTITY_INVALID'
+      && /no active lease for worker worktree/.test(e.message),
+  );
+});

@@ -5,7 +5,7 @@ const { execFileSync } = require('node:child_process');
 import commitGuard = require('./commit-guard');
 const { checkCommitSafety } = commitGuard;
 import current = require('./current');
-const { readCurrent } = current;
+const { readCurrent, resolveEffectiveTask } = current;
 import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import tasksDocs = require('./tasks-docs');
@@ -265,20 +265,22 @@ function readAffectedPaths({ repoRoot, blueprintDir }: {
   repoRoot: string;
   blueprintDir: string;
 }): string[] {
-  // 포인터 task 가 있으면 그 문서의 affected_paths 만. 없으면 전체 합집합.
+  // effective task가 있으면 그 문서의 affected_paths 만. 없으면 전체 합집합.
+  // worker에서 lease를 못 확인하면 빈 목록 — pointer로 폴백하지 않는다.
   // 가리키던 문서가 사라진 경우에만 합집합으로 폴백한다.
   try {
     const listing = listTasksDocs({ repoRoot, blueprintDir });
     if (listing.mixed || listing.entries.length === 0) return [];
 
-    const pointer = readCurrent({ repoRoot });
+    const effective = resolveEffectiveTask({ repoRoot });
+    if (effective && effective.source === null) return [];
     const bp = toPosix(blueprintDir);
     if (
-      pointer
-      && typeof pointer.task === 'string'
-      && toPosix(pointer.blueprint) === bp
+      effective
+      && typeof effective.path === 'string'
+      && toPosix(effective.blueprint) === bp
     ) {
-      const match = listing.entries.find((e) => e.rel === toPosix(pointer.task));
+      const match = listing.entries.find((e) => e.rel === toPosix(effective.path));
       if (match) return pathsFromTaskDoc(repoRoot, match.rel);
     }
 
@@ -324,6 +326,18 @@ function realMainRepoCurrent({ repoRoot, deps }: {
   return readCurrent({ repoRoot, deps });
 }
 
+/**
+ * PreToolUse 훅이 git commit 명령의 scope를 판정한다. worker cwd에서는
+ * pointer 유무보다 resolveEffectiveTask를 먼저 본다 — prepare 직후·--set 전
+ * 창에서도 lease affected_paths와 fail-closed가 적용돼야 한다.
+ *
+ * @param {{ command: unknown, repoRoot: string, deps?: CommitHookDeps | null }} opts
+ * @param {unknown} opts.command - 탐지 대상 shell 명령 문자열
+ * @param {string} opts.repoRoot - 커밋이 일어나는 checkout 절대 경로
+ * @param {CommitHookDeps | null} [opts.deps] - 테스트 seam(readCurrent·stagedFiles 등)
+ * @returns {{ block: false } | { block: true, reason: string }} allow면 block false,
+ *   worker lease 부재·원장 손상·out-of-scope면 block true와 reason
+ */
 function evaluateCommit({ command, repoRoot, deps }: {
   command: unknown;
   repoRoot: string;
@@ -340,19 +354,33 @@ function evaluateCommit({ command, repoRoot, deps }: {
   };
   const judgment = detect(command, realResolveAlias(repoRoot), 0);
   if (!judgment.commit) return { block: false };
+  // 1. pointer 조기 허용보다 effective task를 먼저 본다. worker에서
+  //    `if (!current) return {block:false}` 하면 lease fail-closed와
+  //    lease affected_paths가 통째로 건너뛴다.
+  const effective = resolveEffectiveTask({ repoRoot });
+  if (effective && effective.source === null) {
+    return { block: true, reason: effective.reason };
+  }
   const current = d.readCurrent({ repoRoot }) || d.mainRepoCurrent({ repoRoot });
-  if (!current) return { block: false };
-  const affectedPaths = d.readAffectedPaths({ repoRoot, blueprintDir: current.blueprint });
+  // lease가 blueprint를 주면 pointer 없이도 scope 판정. 둘 다 없으면
+  // standalone/no-blueprint와 같이 허용(기존 계약).
+  const blueprintDir = (effective && typeof effective.blueprint === 'string' && effective.blueprint)
+    || (current && typeof current.blueprint === 'string' ? current.blueprint : null);
+  if (!blueprintDir) return { block: false };
+  const taskForScope = effective && typeof effective.path === 'string'
+    ? effective.path
+    : (current && current.task);
+  const affectedPaths = d.readAffectedPaths({ repoRoot, blueprintDir });
   const files = judgment.all
     ? [...new Set([...d.stagedFiles({ repoRoot }), ...d.trackedModified({ repoRoot })])]
     : d.stagedFiles({ repoRoot });
   // coordinator 실행이면 ledger가 현재 scope와 worktree 경계의 정본이다.
   // 일반 execute에서는 active:false로 떨어져 예전 판정이 그대로 남는다.
   const coordinator = d.coordinatorContext({
-    repoRoot, blueprint: current.blueprint, task: current.task,
+    repoRoot, blueprint: blueprintDir, task: taskForScope,
   });
   const { allow, violations, code } = checkCommitSafety({
-    files, affectedPaths, blueprintDir: current.blueprint, coordinator,
+    files, affectedPaths, blueprintDir, coordinator,
   });
   if (allow) return { block: false };
   const detail = violations.join(', ');

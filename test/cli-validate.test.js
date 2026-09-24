@@ -441,3 +441,115 @@ test('validate --gate commit judges staged paths against the revised coordinator
   const failures = JSON.parse(inside.buf.out).failures || [];
   assert.ok(!failures.some((f) => f.code === 'G17'), inside.buf.out);
 });
+
+test('validate --gate execute judges the leased task in a worker cwd', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-val-eff-'));
+  const git = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  git(['init', '-b', 'work', '--quiet']);
+  git(['config', 'user.email', 't@example.com']);
+  git(['config', 'user.name', 't']);
+  const epic = '.bouncer/context/epics/096-eff';
+  const blueprint = `${epic}/blueprints/001-y`;
+  writeDoc(repo, `${epic}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epic}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '096', epic_id: '096', status: 'approved' },
+  });
+  writeDoc(repo, `${blueprint}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${blueprint}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '096', blueprint_id: '001', status: 'approved' },
+  });
+  for (const [id, leaf] of [['001', 'a'], ['002', 'b']]) {
+    writeDoc(repo, `${blueprint}/tasks/${id}/tasks.md`, {
+      type: 'bouncer.tasks', title: `t${id}`, description: 'd',
+      resource: `${blueprint}/tasks/${id}/tasks.md`, tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `TASKS-${id}`, epic_id: '096', blueprint_id: '001', status: 'ready',
+        parallel_safe: true, affected_paths: [`src/${leaf}/`],
+      },
+    });
+    writeDoc(repo, `${blueprint}/tasks/${id}/verification.md`, {
+      type: 'bouncer.verification', title: `v${id}`, description: 'd',
+      resource: `${blueprint}/tasks/${id}/verification.md`, tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `VERIFY-${id}`, epic_id: '096', blueprint_id: '001', status: 'pending',
+      },
+    });
+    writeDoc(repo, `${blueprint}/tasks/${id}/review.md`, {
+      type: 'bouncer.review', title: `r${id}`, description: 'd',
+      resource: `${blueprint}/tasks/${id}/review.md`, tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `REVIEW-${id}`, epic_id: '096', blueprint_id: '001', status: 'pending',
+        review: { required: false, reason: 'fixture' },
+      },
+    });
+  }
+  git(['add', '-A']);
+  git(['commit', '--quiet', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  fs.mkdirSync(path.join(boot.integrationPath, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(boot.integrationPath, '.bouncer/config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 2 } }, null, 2)}\n`,
+  );
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: (() => { let n = 0; return () => `val-lease-${++n}`; })() },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker002 = prepared.tasks.find((t) => t.id === '002').workerPath;
+  const { writeCurrent } = require('../scripts/lib/current');
+  writeCurrent({
+    repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
+  });
+
+  const withLease = capture();
+  runCli(
+    ['validate', '--repo', worker002, '--blueprint', blueprint, '--gate', 'execute'],
+    withLease.io,
+  );
+  const withLeaseOut = JSON.parse(withLease.buf.out);
+  // RD-002: lease 대상이 TASKS-002임을 증명한다. ready+pending 묶음이면
+  // execute gate가 실패하고, 실패 file이 모두 tasks/002 아래여야 한다.
+  // 약한 OR(ok===true || G6이 001에 없음)는 잘못된 task를 판정해도 통과한다.
+  assert.strictEqual(withLeaseOut.ok, false, withLease.buf.out);
+  const failures = withLeaseOut.failures || [];
+  const unitFailures = failures.filter((f) => /tasks\/00[12]\//.test(f.file || ''));
+  assert.ok(unitFailures.length >= 1, withLease.buf.out);
+  assert.ok(
+    unitFailures.every((f) => /tasks\/002\//.test(f.file || '')),
+    withLease.buf.out,
+  );
+  assert.ok(
+    !failures.some((f) => /tasks\/001\//.test(f.file || '')),
+    withLease.buf.out,
+  );
+
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((t) => t.id === '002').lease.status = 'revoked';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  const noLease = capture();
+  const noLeaseCode = runCli(
+    ['validate', '--repo', worker002, '--blueprint', blueprint, '--gate', 'execute'],
+    noLease.io,
+  );
+  assert.strictEqual(noLeaseCode, 1);
+  const noLeaseOut = JSON.parse(noLease.buf.out);
+  assert.ok(
+    (noLeaseOut.failures || []).some((f) => f.code === 'G6' || /task/i.test(f.message || '')),
+    noLease.buf.out,
+  );
+
+  fs.writeFileSync(ledgerFile, '{ truncated');
+  const unread = capture();
+  const unreadCode = runCli(
+    ['validate', '--repo', worker002, '--blueprint', blueprint, '--gate', 'execute'],
+    unread.io,
+  );
+  assert.strictEqual(unreadCode, 1);
+});

@@ -1032,7 +1032,7 @@ test('writeCurrent rejects a blueprint path without three-digit ids', () => {
 
 // --- coordinator mode -------------------------------------------------------
 
-const { presentCurrent } = require('../scripts/lib/current');
+const { presentCurrent, resolveEffectiveTask } = require('../scripts/lib/current');
 
 const __coordinatorMod = require('../scripts/lib/coordinator');
 const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
@@ -1080,7 +1080,7 @@ test('presentCurrent keeps the sequential pointer shape when no coordinator ledg
   });
   writeCurrent({ repoRoot: repo, blueprint: bpDir, base: 'main' });
   assert.deepStrictEqual(presentCurrent(readCurrent({ repoRoot: repo }), { repoRoot: repo }), {
-    blueprint: bpDir, base: 'main', task: null, scale: null,
+    blueprint: bpDir, base: 'main', task: null, scale: null, effectiveTask: null,
   });
 });
 
@@ -1178,6 +1178,60 @@ test('listTasksDocs attaches normalized executionKind to explicit and legacy-def
   );
 });
 
+
+test('resolveEffectiveTask prefers the worker lease over the shared pointer', () => {
+  const repo = committedGitRepo();
+  const bpDir = writeBp(repo, {
+    epicSlug: '092-eff', bpSlug: '001-y', epicId: '092', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready', affectedPaths: ['src/a/'],
+  });
+  writeDoc(repo, `${bpDir}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't1', description: 'd', resource: `${bpDir}/tasks/001/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '092', blueprint_id: '001', status: 'ready',
+      parallel_safe: true, affected_paths: ['src/a/'],
+    },
+  });
+  writeDoc(repo, `${bpDir}/tasks/002/tasks.md`, {
+    type: 'bouncer.tasks', title: 't2', description: 'd', resource: `${bpDir}/tasks/002/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-002', epic_id: '092', blueprint_id: '001', status: 'ready',
+      parallel_safe: true, affected_paths: ['src/b/'],
+    },
+  });
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '--quiet', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: bpDir });
+  const cfgDir = path.join(boot.integrationPath, '.bouncer');
+  fs.mkdirSync(cfgDir, { recursive: true });
+  fs.writeFileSync(path.join(cfgDir, 'config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 2 } }, null, 2)}\n`);
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint: bpDir, cwd: boot.integrationPath,
+    deps: { makeLeaseId: (() => { let n = 0; return () => `eff-lease-${++n}`; })() },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker002 = prepared.tasks.find((t) => t.id === '002').workerPath;
+  const integration = boot.integrationPath;
+  // pointer는 TASKS-001 — worker/002 는 lease로 TASKS-002 를 봐야 한다.
+  writeCurrent({
+    repoRoot: repo, blueprint: bpDir, base: 'main', task: `${bpDir}/tasks/001/tasks.md`,
+  });
+
+  const eff = resolveEffectiveTask({ repoRoot: worker002 });
+  assert.strictEqual(eff.source, 'lease');
+  assert.strictEqual(eff.id, 'TASKS-002');
+  assert.strictEqual(resolveEffectiveTask({ repoRoot: integration }).id, 'TASKS-001');
+
+  const ledgerFile = path.join(integration, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  const task002 = ledger.tasks.find((t) => t.id === '002');
+  task002.lease.status = 'revoked';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.strictEqual(resolveEffectiveTask({ repoRoot: worker002 }).reason, 'no-active-lease');
+});
 
 test('reviseTaskScope revokes the later lease on path overlap', () => {
   const repo = committedGitRepo();
