@@ -29,6 +29,8 @@ import currentMod = require('./current');
 const { readCurrent } = currentMod;
 import taskCommits = require('./task-commits');
 const { resolveTaskCommits } = taskCommits;
+import finalizePr = require('./finalize-pr');
+const { buildPrDraft } = finalizePr;
 
 type GitExecResult = { status: number; stdout: string };
 type GitExec = (args: string[]) => GitExecResult;
@@ -85,6 +87,7 @@ type FinalizeDigest = {
   unverified: Unverified[];
   out_of_scope: string[];
   coordinator: ReturnType<typeof buildCoordinatorProvenance>;
+  pr: ReturnType<typeof buildPrDraft>;
 };
 
 const OUT_OF_SCOPE_DEFS = [
@@ -387,19 +390,23 @@ function pathOutsideScope(changedPath: string, scopes: string[][]): boolean {
  * Explain·Quiz·PR에 필요한 finalize 입력을 한 JSON으로 모은다.
  * 문서·Git·원장을 쓰지 않는다. drive면 integration worktree에서 git을 읽고,
  * 깨진 원장은 기존 finalize와 같은 coordinator-ledger로 거절한다.
+ * 성공 시 `pr`는 buildPrDraft로 채운다 — agent가 제목·확인 방법을 손으로
+ * 조립하지 않게 하기 위함이다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 호출 checkout(보통 main). 원장 경로 해석 기준
  * @param {string} opts.blueprintDir - blueprint 상대 경로
  * @param {(args: string[]) => { status: number, stdout: string }} [opts.exec] - `git` 뒤 argv seam
+ * @param {Date} [opts.now] - PR 제목 날짜(KST). 기본 `new Date()`
  * @returns {FinalizeDigest | DigestFail} 성공 digest 또는 reason 코드
  */
 function prepareFinalizeDigest({
-  repoRoot, blueprintDir, exec,
+  repoRoot, blueprintDir, exec, now,
 }: {
   repoRoot: string;
   blueprintDir: string;
   exec?: GitExec;
+  now?: Date;
 }): FinalizeDigest | DigestFail {
   const bp = toPosix(blueprintDir);
   const blueprintAbs = path.join(repoRoot, bp);
@@ -698,9 +705,11 @@ function prepareFinalizeDigest({
     ? coordinator.integrationBranch
     : resolveCheckoutBranch(checkoutRoot);
 
-  return {
-    ok: true,
-    version: 1,
+  // pr는 나머지 digest 필드를 입력으로 쓴다 — 순환 참조를 피하려고 본문을
+  // 먼저 조립한 뒤 buildPrDraft에 넘긴다.
+  const body = {
+    ok: true as const,
+    version: 1 as const,
     blueprint: {
       dir: bp,
       stable_id: stableBlueprint,
@@ -725,6 +734,15 @@ function prepareFinalizeDigest({
     unverified,
     out_of_scope: outOfScope,
     coordinator,
+  };
+
+  const config = readConfig(checkoutRoot) ?? {};
+  return {
+    ...body,
+    pr: buildPrDraft(body, {
+      now: now instanceof Date ? now : new Date(),
+      config,
+    }),
   };
 }
 

@@ -185,6 +185,16 @@ test('prepareFinalizeDigest fills trailer commits, unverified, symbols, and refu
     ['finding-deferred', 'review-skipped', 'terminal-missing'],
   );
   assert.ok(d.symbols.some((s) => s.names.includes('greet')));
+  assert.ok(d.pr);
+  assert.match(d.pr.title_prefix, /^\[\d{6}\] \(→ Main\) \[Feat\]$/);
+  assert.strictEqual(d.pr.base, 'main');
+  assert.strictEqual(d.pr.head, 'work');
+  assert.strictEqual(d.pr.draft, true);
+  assert.deepStrictEqual(d.pr.sections.related, []);
+  assert.strictEqual(d.pr.sections.background, null);
+  assert.ok(d.pr.sections.verification.some((line) => /true — passed/.test(line)));
+  assert.ok(d.pr.sections.review_points.includes('payments'));
+  assert.ok(d.pr.sections.review_points.includes('follow-up later'));
   assert.strictEqual(git(repoRoot, ['status', '--porcelain']), before);
 
   // --yes 이후: tasks/ 삭제
@@ -353,6 +363,17 @@ test('prepareFinalizeDigest rejects missing blueprint and unreadable ledger', ()
   assert.strictEqual(broken.ok, false);
   assert.strictEqual(broken.reason, 'coordinator-ledger');
   assert.strictEqual(broken.code, 'UNREADABLE_LEDGER');
+});
+
+test('prepareFinalizeDigest accepts now for deterministic pr.title_prefix', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const d = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    now: new Date('2026-09-24T01:00:00Z'),
+  });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.strictEqual(d.pr.title_prefix, '[260924] (→ Main) [Feat]');
 });
 
 test('CLI finalize prepare prints digest JSON', () => {

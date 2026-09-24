@@ -6,6 +6,8 @@ import finalizeMod = require('./finalize');
 const { finalize } = finalizeMod;
 import finalizeDigestMod = require('./finalize-digest');
 const { prepareFinalizeDigest } = finalizeDigestMod;
+import finalizePrMod = require('./finalize-pr');
+const { resolveExplainLinks } = finalizePrMod;
 import commit = require('./commit');
 const { commitTask } = commit;
 import seedWorktreeMod = require('./seed-worktree');
@@ -66,6 +68,22 @@ function cmdFinalize(rest: string[], io: CliIo) {
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
+  }
+  // links는 push 뒤 Explain URL 후보만 돌려 준다. digest·task 문서를 읽지
+  // 않으므로 --yes 뒤에도 동작하고, 실패는 ok:true + reason으로만 알린다.
+  if (rest[0] === 'links') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+      io.err('finalize: --blueprint is required\n');
+      return 2;
+    }
+    const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
+    const result = resolveExplainLinks({
+      repoRoot,
+      blueprintDir: f.blueprint,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
   }
   const f = parseFlags(rest);
   // commit과 같은 2: 대상 없이 --yes를 받으면 빈 스코프로 커밋을 시도한다.
@@ -391,6 +409,8 @@ export = {
     run: cmdFinalize,
     usage: `  finalize   prepare --blueprint <dir>
              Print a read-only finalize digest JSON for Explain, Quiz, and PR.
+  finalize   links --blueprint <dir>
+             Print Explain URL candidates for a pushed GitHub head (read-only).
   finalize   --blueprint <dir> [--yes]
              Check the commit scope and, with --yes, commit the blueprint.
 `,

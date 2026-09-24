@@ -179,6 +179,7 @@ test('unknown command is still rejected after intent is public', () => {
 test('usage lists finalize prepare --blueprint', () => {
   const r = capture([]);
   assert.match(r.out, /finalize\s+prepare --blueprint <dir>/);
+  assert.match(r.out, /finalize\s+links --blueprint <dir>/);
   assert.match(r.out, /finalize\s+--blueprint <dir> \[--yes\]/);
 });
 
