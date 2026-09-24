@@ -975,6 +975,20 @@ test('S28: absent DAG fields and valid shapes pass; bad shape and enum fail', ()
   assert.ok(taskDagFailures({ parallel_safe: 1 }).length >= 1);
   assert.ok(taskDagFailures({ dependency_gate: 'done' }).length >= 1);
   assert.ok(taskDagFailures({ dependency_gate: 'Integrated' }).length >= 1);
+
+  // exclusive_resources: 부재·빈 배열·유효 id는 통과. 비배열·빈 문자열·대문자·중복은 거절.
+  assert.deepStrictEqual(taskDagFailures({ exclusive_resources: [] }), []);
+  assert.deepStrictEqual(taskDagFailures({ exclusive_resources: ['database-schema', 'lock.a'] }), []);
+  assert.ok(taskDagFailures({ exclusive_resources: 'database-schema' })
+    .some((f) => f.message === 'exclusive_resources must be an array of unique resource ids'));
+  assert.ok(taskDagFailures({ exclusive_resources: [''] })
+    .some((f) => f.message === 'exclusive_resources must be an array of unique resource ids'));
+  assert.ok(taskDagFailures({ exclusive_resources: ['Database'] })
+    .some((f) => f.message === 'exclusive_resources must be an array of unique resource ids'));
+  assert.ok(taskDagFailures({ exclusive_resources: ['a b'] })
+    .some((f) => f.message === 'exclusive_resources must be an array of unique resource ids'));
+  assert.ok(taskDagFailures({ exclusive_resources: ['database-schema', 'database-schema'] })
+    .some((f) => f.message === 'exclusive_resources must be an array of unique resource ids'));
 });
 
 test('S29: verification execution_kind requires empty scope, fan-in metadata, and executable verify', () => {

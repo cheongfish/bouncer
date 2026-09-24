@@ -9,11 +9,11 @@ const { readDoc } = frontmatter;
 const paths = require("./paths");
 const { toPosix } = paths;
 const schema = require("./schema");
-const { AUTONOMY_ENUM, DEFAULT_AUTONOMY, DEFAULT_SCALE, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE, executionKindOf, } = schema;
+const { AUTONOMY_ENUM, DEFAULT_AUTONOMY, DEFAULT_SCALE, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, executionKindOf, } = schema;
 const coordinator = require("./coordinator");
 const { readyWave } = coordinator;
 const configMod = require("./config");
-const { readConfig } = configMod;
+const { readConfig, readCoordinatorPolicy } = configMod;
 const OPEN_STATUS = ['ready', 'in_progress'];
 const TASK_ID_RE = /^TASKS-(\d{3})$/;
 const TASK_DIR_RE = /(?:^|\/)tasks\/(\d{3})\/tasks\.md$/;
@@ -128,12 +128,19 @@ function collectTasks(repoRoot, blueprintDir) {
             : DEFAULT_DEPENDENCY_GATE;
         const executionKind = executionKindOf(bouncer) || 'commit';
         const affected = bouncer ? stringList(bouncer.affected_paths) : [];
+        const exclusive = bouncer && Object.prototype.hasOwnProperty.call(bouncer, 'exclusive_resources')
+            ? stringList(bouncer.exclusive_resources)
+            : [...DEFAULT_EXCLUSIVE_RESOURCES];
         waveTasks.push({
             id,
             depends_on: ledgerDependsOn(dependsOn),
             dependency_gate: dependencyGate,
             parallel_safe: parallelSafe,
             status: ledgerStatus(status),
+            // 문서에 키가 없어도 []를 넣어 legacy(필드 부재)와 구분한다. preflight가
+            // bootstrap 스냅샷과 같은 충돌 집합을 보게 하려는 목적이다.
+            affected_paths: affected,
+            exclusive_resources: exclusive,
         });
         if (!OPEN_STATUS.includes(status))
             continue;
@@ -187,12 +194,16 @@ function runPreflight({ repoRoot, blueprintDir }) {
         reason = 'blueprint-closed';
     else if (openTasks.length === 0)
         reason = 'no-open-task';
+    // preflight는 repoRoot config를 본다. invalid면 1로 접어 ACQ 미리보기가
+    // prepare보다 넓은 wave를 약속하지 않게 한다.
+    const policy = readCoordinatorPolicy(repoRoot);
+    const maxParallel = policy.ok ? policy.maxParallel : 1;
     return {
         ok: true,
         blueprint: { dir: blueprint, status: meta.status, scale: meta.scale },
         base: pointer.base,
         openTasks,
-        readyWave: readyWave(waveTasks),
+        readyWave: readyWave(waveTasks, { maxParallel }),
         autonomy: readAutonomy(repoRoot),
         delegable: reason === null,
         reason,

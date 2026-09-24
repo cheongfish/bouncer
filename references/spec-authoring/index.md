@@ -65,13 +65,18 @@ body content only; never edits harness-owned frontmatter fields. Used from
        전용이다. 브리프 서술과 겹치면 `## Goal & intent`가 SSOT다. 각 필드는
        1–2개의 한국어 종결 문장이고 task 문서에만 둔다. 필드가 없으면 기존
        task 호환을 위해 생략하고, 형식이 틀리면 메시지 생성을 거부한다.
-     - **depends_on / parallel_safe / dependency_gate**: task 실행 순서는
-       번호가 아니라 이 세 frontmatter 필드가 결정한다. `depends_on`은
-       `TASKS-NNN` id 배열(`[]` = 의존 없음), `parallel_safe`는 boolean,
-       `dependency_gate`는 `integrated` 하나뿐이다(부재도 `integrated`). 신규
+     - **depends_on / parallel_safe / dependency_gate / exclusive_resources**:
+       task 실행 순서는 번호가 아니라 이 frontmatter 필드가 결정한다.
+       `depends_on`은 `TASKS-NNN` id 배열(`[]` = 의존 없음), `parallel_safe`는
+       boolean, `dependency_gate`는 `integrated` 하나뿐이다(부재도
+       `integrated`). `exclusive_resources`는 `^[a-z0-9][a-z0-9._-]*$` 형태의
+       고유 자원 id 배열이며 부재는 `[]`다. 같은 wave에 넣으려면
+       `parallel_safe: true`이고 경로 집합·`exclusive_resources`가 서로 겹치지
+       않아야 한다(경로 조상·정확 일치 또는 공통 자원 id면 충돌). 신규
        계획에서는 명시적으로 작성한다(scaffold 기본값 중 `depends_on`의
        `[]`와 `parallel_safe`의 `false`만 자리표시자다). 알 수 없는 id·자기
-       참조·중복·cycle은 plan gate G19가, 잘못된 shape·enum은 S28이 거절한다.
+       참조·중복·cycle은 plan gate G19가, 잘못된 shape·enum·자원 id는 S28이
+       거절한다.
      - **execution_kind**: 신규 구현 task는 `commit`을 명시한다. 전체 CI fan-in
        node만 `verification`으로 쓰고, non-empty `depends_on`,
        `parallel_safe: false`, `dependency_gate: integrated`, 실행 가능한 `verify`,

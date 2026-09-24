@@ -89,6 +89,12 @@ const DEPENDENCY_GATE_ENUM = ['integrated'];
 const DEFAULT_DEPENDS_ON: string[] = [];
 const DEFAULT_PARALLEL_SAFE = false;
 const DEFAULT_DEPENDENCY_GATE = 'integrated';
+// exclusive_resources 부재는 빈 배열과 같다. S28과 coordinator 스냅샷이
+// 같은 기본값을 써야 plan 통과 문서가 원장에서 다른 충돌 집합을 갖지 않는다.
+const DEFAULT_EXCLUSIVE_RESOURCES: string[] = [];
+// 소문자·숫자로 시작, 이후에 ._- 만. 대문자·공백은 자원 id로 쓰지 않는다 —
+// 호출처마다 trim·lower를 다르게 적용하면 같은 문자열이 충돌/비충돌로 갈라진다.
+const EXCLUSIVE_RESOURCE_ID_RE = /^[a-z0-9][a-z0-9._-]*$/;
 
 // 키 부재는 기존 task의 commit 의미를 보존한다. 잘못 쓴 문자열은 null로
 // 남겨 구조 검사가 명시적으로 거절하게 한다.
@@ -123,6 +129,26 @@ function isValidDependsOn(value: unknown): boolean {
   return value.every(
     (entry) => typeof entry === 'string' && /^TASKS-\d{3}$/.test(entry),
   );
+}
+
+/**
+ * task `bouncer.exclusive_resources` 형식만 판정한다.
+ * 부재(undefined)는 통과 — 기존 plan을 빈 배열로 읽기 위함.
+ * 항목 shape·중복만 본다. 자원 의미·교차 문서 충돌은 readyWave가 맡는다.
+ *
+ * @param {unknown} value - 프론트매터의 exclusive_resources 값. 키가 없으면 undefined
+ * @returns {boolean} 허용 형태면 true, 그 외(비배열·빈 문자열·대문자·중복)면 false
+ */
+function isValidExclusiveResources(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value)) return false;
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== 'string' || !EXCLUSIVE_RESOURCE_ID_RE.test(entry)) return false;
+    if (seen.has(entry)) return false;
+    seen.add(entry);
+  }
+  return true;
 }
 
 /**
@@ -168,6 +194,7 @@ export = {
   BOUNCER_SCHEMA_VERSION, SCALE_ENUM, DEFAULT_SCALE, DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM,
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
-  DEFAULT_DEPENDENCY_GATE, isValidDependsOn,
+  DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,
+  isValidExclusiveResources, EXCLUSIVE_RESOURCE_ID_RE,
   EXECUTION_KIND_ENUM, executionKindOf,
 };

@@ -353,3 +353,92 @@ test('execute prepare without a subcommand exits 2', () => {
   assert.strictEqual(result.code, 2);
   assert.match(result.err, /prepare/);
 });
+
+const { executePrepare } = require('../scripts/lib/execute-prepare');
+const __epCoord = require('../scripts/lib/coordinator');
+const __epCrypto = require('node:crypto');
+const __EP_FENCED = new Set([
+  'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
+]);
+function __epFence(repoRoot, blueprint) {
+  const { ledgerFile } = coordinatorPathsFor({ repoRoot, blueprint });
+  return {
+    ledgerPath: '.bouncer/runtime/coordinator.json',
+    ledgerHash: __epCrypto.createHash('sha256').update(fs.readFileSync(ledgerFile)).digest('hex'),
+  };
+}
+function __epCoordinate(opts) {
+  if (__EP_FENCED.has(opts.command)
+    && opts.ledgerPath === undefined && opts.ledgerHash === undefined) {
+    try { opts = { ...opts, ...__epFence(opts.repoRoot, opts.blueprint) }; }
+    catch (_e) { /* missing */ }
+  }
+  return __epCoord.coordinate(opts);
+}
+
+test('executePrepare reports the leased worker task even when the pointer points elsewhere', () => {
+  const repo = makeRepo();
+  const epic = '.bouncer/context/epics/095-eff';
+  const blueprint = `${epic}/blueprints/001-y`;
+  writeDoc(repo, `${epic}/index.md`, {
+    type: 'bouncer.epic', title: 'e', description: 'd', resource: `${epic}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '095', epic_id: '095', status: 'approved' },
+  });
+  writeDoc(repo, `${blueprint}/index.md`, {
+    type: 'bouncer.blueprint', title: 'b', description: 'd', resource: `${blueprint}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '095', blueprint_id: '001', status: 'approved', scale: 'full',
+    },
+  });
+  for (const [id, leaf] of [['001', 'a'], ['002', 'b']]) {
+    writeDoc(repo, `${blueprint}/tasks/${id}/tasks.md`, {
+      type: 'bouncer.tasks', title: `t${id}`, description: 'd',
+      resource: `${blueprint}/tasks/${id}/tasks.md`, tags: ['bouncer'],
+      timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `TASKS-${id}`, epic_id: '095', blueprint_id: '001', status: 'ready',
+        parallel_safe: true, affected_paths: [`src/${leaf}/`],
+      },
+    });
+  }
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-qm', 'plan']);
+  const boot = __epCoordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  fs.mkdirSync(path.join(boot.integrationPath, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(boot.integrationPath, '.bouncer/config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 2 } }, null, 2)}\n`,
+  );
+  const prepared = __epCoordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: (() => { let n = 0; return () => `ep-lease-${++n}`; })() },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker002 = prepared.tasks.find((t) => t.id === '002').workerPath;
+  setPointer(repo, { blueprint, task: `${blueprint}/tasks/001/tasks.md` });
+
+  const ok = executePrepare({ repoRoot: worker002, blueprintDir: blueprint });
+  assert.strictEqual(ok.ok, true, JSON.stringify(ok));
+  assert.strictEqual(ok.drive, true);
+  assert.strictEqual(ok.task.id, 'TASKS-002');
+  assert.strictEqual(ok.task.path, `${blueprint}/tasks/002/tasks.md`);
+  assert.strictEqual(ok.worktreePath, worker002);
+
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((t) => t.id === '002').lease.status = 'revoked';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.deepStrictEqual(
+    executePrepare({ repoRoot: worker002, blueprintDir: blueprint }),
+    { ok: false, reason: 'no-active-lease' },
+  );
+
+  fs.writeFileSync(ledgerFile, '{ truncated');
+  assert.deepStrictEqual(
+    executePrepare({ repoRoot: worker002, blueprintDir: blueprint }),
+    { ok: false, reason: 'unreadable-ledger' },
+  );
+});

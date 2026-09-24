@@ -107,8 +107,16 @@ test('the coordinator lifecycle runs end to end through the shipped CLI surface'
     base('bouncer.tasks', 'TASKS-001', 'ready', {
       affected_paths: ['src/login.js'], depends_on: [], parallel_safe: true,
       dependency_gate: 'integrated',
+      verify: 'node -e "process.exit(0)"',
     }),
     '# Tasks\n');
+  writeDoc(repo, `${BP_REL}/tasks/001/verification.md`,
+    base('bouncer.verification', 'VERIFY-001', 'pending'), '# Verification\n');
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    `${JSON.stringify({ verify: 'node -e "process.exit(0)"' }, null, 2)}\n`,
+  );
   git(repo, ['add', '-A']);
   git(repo, ['commit', '-m', 'plan']);
 
@@ -197,7 +205,7 @@ test('the coordinator lifecycle runs end to end through the shipped CLI surface'
     'coordinate', 'integrate', ...ledgerFenceArgs(),
     '--blueprint', BP_REL, '--repo', repo, '--task', '001',
   ]);
-  assert.strictEqual(integrated.task.status, 'integrated');
+  assert.deepStrictEqual(integrated.integrated, ['001']);
 
   // ready는 status 별칭이라 fence 없이 읽기만 한다. ready wave는 checkpoint에만 있다.
   const ready = cli(boot.integrationPath, ['coordinate', 'ready', '--blueprint', BP_REL, '--repo', repo]);

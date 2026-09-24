@@ -80,6 +80,8 @@ test('bouncer-commit stops at the worker branch and leaves fan-in to the coordin
   assert.match(body, /verifies the integration\s*\n?\s*head/);
   assert.match(body, /An unverified fan-in is not a completed task/);
   assert.match(body, /no worker moves it and no worker touches the\s*\n?\s*integration branch/);
+  // 병렬 drive: coordinator가 task마다 pointer를 옮긴다는 옛 서술은 없어야 한다.
+  assert.doesNotMatch(body, /moves the pointer with `bouncer current --set`/);
 });
 
 // abort 규칙은 payload.recovery와 CLI 정본이 들고, commit 범위 경계는

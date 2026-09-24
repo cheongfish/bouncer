@@ -8,7 +8,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { isGitCommit, evaluateCommit, realMainRepoCurrent } = require('../scripts/lib/commit-hook');
 const { checkCommitSafety } = require('../scripts/lib/commit-guard');
-const { writeCurrent } = require('../scripts/lib/current');
+const { writeCurrent, clearCurrent } = require('../scripts/lib/current');
 
 test('isGitCommit detects commit invocations', () => {
   assert.strictEqual(isGitCommit('git commit -m "x"'), true);
@@ -457,7 +457,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -530,8 +530,8 @@ test('an unreadable ledger names the file that is blocking every checkout', () =
     deps: { stagedFiles: () => ['src/a.ts'], trackedModified: () => [] },
   });
   assert.strictEqual(r.block, true);
-  assert.match(r.reason, /unreadable-ledger/);
-  assert.ok(r.reason.includes(ledgerFile), r.reason);
+  // worker cwd는 effective task 단계에서 원장 손상을 먼저 거절한다.
+  assert.strictEqual(r.reason, 'unreadable-ledger');
 });
 
 test('a coordinator worktree without a ledger is not silently treated as in scope', () => {
@@ -545,7 +545,8 @@ test('a coordinator worktree without a ledger is not silently treated as in scop
     deps: { stagedFiles: () => ['src/a.ts'], trackedModified: () => [] },
   });
   assert.strictEqual(r.block, true);
-  assert.match(r.reason, /missing-coordinator-ledger/);
+  // worker cwd는 원장 부재를 pointer로 폴백하지 않고 no-active-lease로 막는다.
+  assert.strictEqual(r.reason, 'no-active-lease');
 });
 
 function coordinatorDeps({ current, affected, staged, coordinator }) {
@@ -676,4 +677,155 @@ test('parallel worktrees isolate commit scope to each pointer task affected_path
     deps: { stagedFiles: () => ['src/auth/login.js'] },
   });
   assert.strictEqual(allowA.block, false);
+});
+
+test('evaluateCommit and readAffectedPaths follow the worker lease over the pointer', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-eff-'));
+  const run = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  run(['init', '-b', 'work', '--quiet']);
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  const blueprint = '.bouncer/context/epics/094-eff/blueprints/001-y';
+  const write = (rel, body) => {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), body);
+  };
+  write('.bouncer/context/epics/094-eff/index.md',
+    '---\nbouncer:\n  id: \'094\'\n  epic_id: \'094\'\n  status: approved\n---\n');
+  write(`${blueprint}/index.md`,
+    '---\nbouncer:\n  id: \'001\'\n  epic_id: \'094\'\n  blueprint_id: \'001\'\n  status: approved\n---\n');
+  for (const [id, leaf] of [['001', 'a'], ['002', 'b']]) {
+    write(`${blueprint}/tasks/${id}/tasks.md`,
+      `---\nbouncer:\n  id: TASKS-${id}\n  epic_id: '094'\n  blueprint_id: '001'\n`
+      + `  status: ready\n  parallel_safe: true\n  affected_paths:\n    - src/${leaf}/\n---\n`);
+  }
+  write('README', 'base\n');
+  run(['add', '-A']);
+  run(['commit', '-m', 'base']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  fs.mkdirSync(path.join(boot.integrationPath, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(boot.integrationPath, '.bouncer/config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 2 } }, null, 2)}\n`,
+  );
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: (() => { let n = 0; return () => `h-lease-${++n}`; })() },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker002 = prepared.tasks.find((t) => t.id === '002').workerPath;
+  writeCurrent({
+    repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
+  });
+  const { readAffectedPaths } = require('../scripts/lib/commit-hook');
+  assert.deepStrictEqual(
+    readAffectedPaths({ repoRoot: worker002, blueprintDir: blueprint }),
+    ['src/b/'],
+  );
+  const allow = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: worker002,
+    deps: { stagedFiles: () => ['src/b/x.ts'], trackedModified: () => [] },
+  });
+  assert.deepStrictEqual(allow, { block: false });
+  const deny = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: worker002,
+    deps: { stagedFiles: () => ['src/a/x.ts'], trackedModified: () => [] },
+  });
+  assert.strictEqual(deny.block, true);
+
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((t) => t.id === '002').lease.status = 'revoked';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.deepStrictEqual(
+    evaluateCommit({
+      command: 'git commit -m x',
+      repoRoot: worker002,
+      deps: { stagedFiles: () => ['src/b/x.ts'], trackedModified: () => [] },
+    }),
+    { block: true, reason: 'no-active-lease' },
+  );
+
+  fs.writeFileSync(ledgerFile, '{ truncated');
+  assert.deepStrictEqual(
+    evaluateCommit({
+      command: 'git commit -m x',
+      repoRoot: worker002,
+      deps: { stagedFiles: () => ['src/b/x.ts'], trackedModified: () => [] },
+    }),
+    { block: true, reason: 'unreadable-ledger' },
+  );
+});
+
+// RD-001: pointer가 없어도 worker lease로 scope를 적용하고, lease 부재는
+// resolveEffectiveTask 전에 {block:false}로 빠져나가지 않는다.
+test('evaluateCommit applies lease scope without a pointer and fail-closes on revoked lease', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-hook-noptr-'));
+  const run = (args, cwd = repo) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  run(['init', '-b', 'work', '--quiet']);
+  run(['config', 'user.email', 't@example.com']);
+  run(['config', 'user.name', 't']);
+  const blueprint = '.bouncer/context/epics/097-noptr/blueprints/001-y';
+  const write = (rel, body) => {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), body);
+  };
+  write('.bouncer/context/epics/097-noptr/index.md',
+    '---\nbouncer:\n  id: \'097\'\n  epic_id: \'097\'\n  status: approved\n---\n');
+  write(`${blueprint}/index.md`,
+    '---\nbouncer:\n  id: \'001\'\n  epic_id: \'097\'\n  blueprint_id: \'001\'\n  status: approved\n---\n');
+  for (const [id, leaf] of [['001', 'a'], ['002', 'b']]) {
+    write(`${blueprint}/tasks/${id}/tasks.md`,
+      `---\nbouncer:\n  id: TASKS-${id}\n  epic_id: '097'\n  blueprint_id: '001'\n`
+      + `  status: ready\n  parallel_safe: true\n  affected_paths:\n    - src/${leaf}/\n---\n`);
+  }
+  write('README', 'base\n');
+  run(['add', '-A']);
+  run(['commit', '-m', 'base']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  fs.mkdirSync(path.join(boot.integrationPath, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(boot.integrationPath, '.bouncer/config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 2 } }, null, 2)}\n`,
+  );
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: (() => { let n = 0; return () => `noptr-lease-${++n}`; })() },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker002 = prepared.tasks.find((t) => t.id === '002').workerPath;
+  // prepare 직후·--set 전 창: pointer를 지운다.
+  writeCurrent({
+    repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
+  });
+  clearCurrent({ repoRoot: repo });
+  assert.strictEqual(require('../scripts/lib/current').readCurrent({ repoRoot: worker002 }), null);
+
+  const allow = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: worker002,
+    deps: { stagedFiles: () => ['src/b/x.ts'], trackedModified: () => [] },
+  });
+  assert.deepStrictEqual(allow, { block: false });
+  const deny = evaluateCommit({
+    command: 'git commit -m x',
+    repoRoot: worker002,
+    deps: { stagedFiles: () => ['src/a/x.ts'], trackedModified: () => [] },
+  });
+  assert.strictEqual(deny.block, true);
+
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks.find((t) => t.id === '002').lease.status = 'revoked';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  assert.deepStrictEqual(
+    evaluateCommit({
+      command: 'git commit -m x',
+      repoRoot: worker002,
+      deps: { stagedFiles: () => ['src/b/x.ts'], trackedModified: () => [] },
+    }),
+    { block: true, reason: 'no-active-lease' },
+  );
 });

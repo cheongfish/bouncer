@@ -195,17 +195,17 @@ function cmdCoordinate(rest, io) {
     const f = parseFlags(rest.slice(1));
     const commands = [
         'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-        'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'release',
+        'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'release', 'revoke',
     ];
     // bootstrap·status(ready 별칭)만 원장 fence 예외. 그 외 mutation은 path/hash 쌍이
     // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
     const fencedCommands = new Set([
         'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-        'repair', 'partial-close', 'critical-recovery', 'release',
+        'repair', 'partial-close', 'critical-recovery', 'release', 'revoke',
     ]);
     if (!commands.includes(command)) {
         io.err('coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
-            + 'integrate, status, revise, repair, partial-close, critical-recovery, or release\n');
+            + 'integrate, status, revise, repair, partial-close, critical-recovery, release, or revoke\n');
         return 2;
     }
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -223,6 +223,17 @@ function cmdCoordinate(rest, io) {
             return 1;
         }
     }
+    // --generation은 양의 정수만. abc·0은 usage(2) — core의 lease-required와 구분한다.
+    let generation;
+    if (Object.prototype.hasOwnProperty.call(f, 'generation')) {
+        const raw = f.generation;
+        if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) {
+            io.err('coordinate: --generation must be a positive integer\n');
+            return 2;
+        }
+        generation = Number(raw);
+    }
+    const leaseId = typeof f['lease-id'] === 'string' ? f['lease-id'] : undefined;
     if (command === 'report') {
         // report metadata는 core가 다시 검사하지만, 필수 flag 부재는 usage(2)로
         // 돌려 argv 누락과 stale mismatch(1)를 구분한다.
@@ -240,6 +251,16 @@ function cmdCoordinate(rest, io) {
         }
         if (typeof f.summary !== 'string' || f.summary === '') {
             io.err('coordinate report: --summary is required\n');
+            return 2;
+        }
+    }
+    if (command === 'revoke') {
+        if (typeof f.task !== 'string' || f.task === '') {
+            io.err('coordinate revoke: --task is required\n');
+            return 2;
+        }
+        if (typeof f.reason !== 'string' || f.reason === '') {
+            io.err('coordinate revoke: --reason is required\n');
             return 2;
         }
     }
@@ -314,6 +335,8 @@ function cmdCoordinate(rest, io) {
             reason: typeof f.reason === 'string' ? f.reason : undefined,
             attempt: attemptNum,
             taskBriefHash: typeof f['task-brief-hash'] === 'string' ? f['task-brief-hash'] : undefined,
+            leaseId,
+            generation,
             ledgerPath,
             ledgerHash,
             userConfirmed: f['user-confirmed'] === true,
@@ -353,16 +376,24 @@ module.exports = {
     },
     coordinate: {
         run: cmdCoordinate,
-        usage: '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|integrate|status> --blueprint <dir>\n'
-            + '             [--task <ddd>] [--sha <sha>]\n'
+        usage: '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord'
+            + '|integrate|status|revoke> --blueprint <dir>\n'
+            + '             [--task <ddd>] [--sha <sha>] [--lease-id <id>] [--generation <n>]\n'
             + '             Operate the coordinator ledger and isolated integration worktrees.\n'
+            + '  coordinate integrate --blueprint <dir> [--task <ddd>]\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Fan-in recorded commit tasks via a candidate worktree (omit --task for the wave).\n'
             + '  coordinate dispatch --blueprint <dir> --task <ddd> --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             [--repo <main>]\n'
+            + '             [--repo <main>] [--lease-id <id> --generation <n>]\n'
             + '             Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.\n'
             + '  coordinate report --blueprint <dir> --task <ddd> --attempt <n>\n'
             + '             --task-brief-hash <sha256> --outcome <accepted|rework|scope_revision|task_change|blocked>\n'
             + '             --summary <text> --ledger-path <path> --ledger-hash <sha256> [--repo <main>]\n'
+            + '             [--lease-id <id> --generation <n>]\n'
             + '             Record a worker report against the active attempt, or append stale-report evidence.\n'
+            + '  coordinate revoke --blueprint <dir> --task <ddd> --reason <text>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Revoke an active lease, clear dispatch/sha, and return the task to pending.\n'
             + '  coordinate rerecord --blueprint <dir> --task <ddd> --reason <text>\n'
             + '             --ledger-path <path> --ledger-hash <sha256> [--sha <sha>]\n'
             + '             Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.\n'

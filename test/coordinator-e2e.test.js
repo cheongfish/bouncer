@@ -18,7 +18,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -41,8 +41,9 @@ const { readDoc } = require('../scripts/lib/frontmatter');
 const { renderDoc } = require('../scripts/lib/render');
 const { validateBlueprint } = require('../scripts/lib/validate');
 const { finalize } = require('../scripts/lib/finalize');
-const { readCoordinatorLedger } = require('../scripts/lib/scope');
+const { readCoordinatorLedger, reviseTaskScope } = require('../scripts/lib/scope');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
+const { writeCurrent, resolveEffectiveTask } = require('../scripts/lib/current');
 
 function git(cwd, args) {
   return execFileSync('git', args, {
@@ -57,7 +58,8 @@ function git(cwd, args) {
  * @param {string} repo - 저장소 루트
  * @param {string} blueprint - blueprint 상대 경로
  * @param {string} id - 세 자리 task id
- * @param {object|null} dag - depends_on/parallel_safe/dependency_gate 또는 null
+ * @param {object|null} dag - depends_on/parallel_safe/dependency_gate/
+ *   affected_paths/exclusive_resources 또는 null
  */
 function writeTask(repo, blueprint, id, dag) {
   const dir = path.join(repo, blueprint, 'tasks', id);
@@ -66,11 +68,35 @@ function writeTask(repo, blueprint, id, dag) {
     `  depends_on: ${JSON.stringify(dag.depends_on || [])}`,
     `  parallel_safe: ${dag.parallel_safe === true}`,
     `  dependency_gate: ${dag.dependency_gate || 'integrated'}`,
+    // 경로·자원은 병렬 wave 한도 회귀용 — 없으면 원장이 []로 읽는다.
+    ...(Array.isArray(dag.affected_paths)
+      ? [`  affected_paths: ${JSON.stringify(dag.affected_paths)}`] : []),
+    ...(Array.isArray(dag.exclusive_resources)
+      ? [`  exclusive_resources: ${JSON.stringify(dag.exclusive_resources)}`] : []),
     '',
   ].join('\n');
   fs.writeFileSync(
     path.join(dir, 'tasks.md'),
     `---\nbouncer:\n  id: TASKS-${id}\n${fields}---\n# Tasks\n\nbrief ${id}\n`,
+  );
+}
+
+/**
+ * integration worktree의 `.bouncer/config.json`에 coordinator 정책을 쓴다.
+ * prepare가 읽는 한도는 이 경로다.
+ *
+ * @param {string} repoRoot - config를 쓸 루트(대개 integrationPath)
+ * @param {object} coordinator - coordinator 블록(예: `{ max_parallel: 1 }`)
+ */
+function writeCoordinatorConfig(repoRoot, coordinator) {
+  const dir = path.join(repoRoot, '.bouncer');
+  fs.mkdirSync(dir, { recursive: true });
+  const existing = fs.existsSync(path.join(dir, 'config.json'))
+    ? JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'))
+    : {};
+  fs.writeFileSync(
+    path.join(dir, 'config.json'),
+    `${JSON.stringify({ ...existing, coordinator }, null, 2)}\n`,
   );
 }
 
@@ -222,9 +248,14 @@ test('a parallel ready wave commits in worker worktrees and fans in to one integ
   for (const id of ['001', '002']) {
     const integrated = coordinate({
       command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: id,
+      deps: {
+        runVerification: () => ({
+          ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+        }),
+      },
     });
     assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
-    assert.strictEqual(integrated.task.status, 'integrated');
+    assert.deepStrictEqual(integrated.integrated, [id]);
   }
 
   // 두 worker의 결과가 하나의 integration branch로 모인다.
@@ -283,6 +314,11 @@ test('cherry-picked worker commits keep stable provenance trailers', () => {
   );
   const integrated = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
   const body = git(boot.integrationPath, ['log', '--format=%B', '-1']);
@@ -321,6 +357,11 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
   git(boot.integrationPath, ['commit', '-am', 'out of band']);
   const rejected = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
   assert.deepStrictEqual(rejected, { ok: false, reason: 'stale-integration-head' });
 
@@ -334,14 +375,24 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
   git(boot.integrationPath, ['reset', '--hard', knownHead]);
   const resumed = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
   assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
 
   // 중복 cherry-pick 방지: 이미 integrated인 task는 다시 fan-in되지 않는다.
   const again = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
-  assert.deepStrictEqual(again, { ok: false, reason: 'not-recorded' });
+  assert.deepStrictEqual(again, { ok: false, reason: 'nothing-to-integrate' });
   const subjects = git(boot.integrationPath, ['log', '--format=%s']).split('\n');
   assert.strictEqual(subjects.filter((subject) => subject === 'feat: task 001').length, 1);
 
@@ -361,9 +412,10 @@ test('a single task with no DAG frontmatter drives as one sequential wave', () =
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
   assert.deepStrictEqual(boot.ready, ['001']);
-  // 필드 부재는 의존 없음·순차·integrated로 읽힌다 — 소급 migration이 없다.
+  // 필드 부재는 의존 없음·순차·integrated·빈 경로/자원으로 읽힌다 — 소급 migration이 없다.
   assert.deepStrictEqual(boot.tasks, [{
-    id: '001', depends_on: [], execution_kind: 'commit', dependency_gate: 'integrated', parallel_safe: false, status: 'pending',
+    id: '001', depends_on: [], execution_kind: 'commit', dependency_gate: 'integrated',
+    parallel_safe: false, affected_paths: [], exclusive_resources: [], status: 'pending',
   }]);
 
   const prepared = coordinate({
@@ -382,6 +434,11 @@ test('a single task with no DAG frontmatter drives as one sequential wave', () =
   );
   const integrated = coordinate({
     command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
   });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
   assert.deepStrictEqual(integrated.ready, []);
@@ -453,7 +510,14 @@ test('an uncommitted-plan drive reaches the finalize gate with no open task afte
   // 대조군: integrate 전에는 integration 사본이 scaffold라 열린 task가 보인다.
   assert.strictEqual(openTasks().length, 1);
 
-  const integrated = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001' });
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
+  });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
   assert.strictEqual(loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json')).tasks[0].status,
     'integrated');
@@ -510,7 +574,14 @@ test('release after a drive finalize lets main merge the integration branch with
   const sha = commitInWorker(worker, 'src/alpha.js', 'changed by 001\n', 'feat: task 001');
   writeTerminalEvidence(worker, blueprint, '001', sha);
   assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, worker, '001').ok, true);
-  const integrated = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001' });
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
+  });
   assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
 
   // finalize remainder가 integration에 남기는 상태를 재현한다.
@@ -562,4 +633,302 @@ test('record requires dispatch and an accepted report before storing worker HEAD
   const recorded = acceptDispatchAndRecord(repo, blueprint, worker, '001');
   assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
   assert.strictEqual(recorded.task.sha, sha);
+});
+
+const passVerify = () => ({
+  ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+});
+
+/**
+ * 세 disjoint parallel_safe task를 심고 bootstrap까지 끝낸 fixture.
+ * 기본 max_parallel(2)과 충돌 분리 회귀의 공통 출발점이다.
+ *
+ * @param {string} prefix - tmpdir 접두
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {{ repo: string, blueprint: string, boot: object }}
+ */
+function threeDisjointReady(prefix, blueprint) {
+  const repo = makeRepo({
+    'README.md': 'fixture\n',
+    'a/x.js': 'a\n', 'b/x.js': 'b\n', 'c/x.js': 'c\n',
+  });
+  for (const [id, leaf] of [['001', 'a/'], ['002', 'b/'], ['003', 'c/']]) {
+    writeTask(repo, blueprint, id, {
+      depends_on: [], parallel_safe: true, affected_paths: [leaf],
+    });
+  }
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  return { repo, blueprint, boot };
+}
+
+test('parallel drive: default max_parallel leases two of three ready tasks', () => {
+  const blueprint = '.bouncer/context/epics/078-e2e/blueprints/001-cap';
+  const { repo, boot } = threeDisjointReady('bouncer-e2e-cap-', blueprint);
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  // 기본 한도 2 — 세 ready 중 두 lease만.
+  assert.deepStrictEqual(prepared.ready, ['001', '002']);
+  assert.strictEqual(prepared.tasks.filter((t) => t.lease?.status === 'active').length, 2);
+});
+
+test('parallel drive: max_parallel 1 leases a single task', () => {
+  const blueprint = '.bouncer/context/epics/078-e2e/blueprints/002-one';
+  const { repo, boot } = threeDisjointReady('bouncer-e2e-one-', blueprint);
+  writeCoordinatorConfig(boot.integrationPath, { max_parallel: 1 });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.deepStrictEqual(prepared.ready, ['001']);
+  assert.strictEqual(prepared.tasks.filter((t) => t.lease?.status === 'active').length, 1);
+});
+
+test('parallel drive: path ancestor and shared exclusive_resources stay out of one wave', () => {
+  const blueprint = '.bouncer/context/epics/078-e2e/blueprints/003-conflict';
+  const repo = makeRepo({
+    'README.md': 'fixture\n',
+    'src/a.ts': 'a\n', 'other/x.js': 'o\n', 'y/x.js': 'y\n',
+  });
+  writeTask(repo, blueprint, '001', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/'],
+  });
+  writeTask(repo, blueprint, '002', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/a.ts'],
+  });
+  writeTask(repo, blueprint, '003', {
+    depends_on: [], parallel_safe: true,
+    affected_paths: ['other/'], exclusive_resources: ['database-schema'],
+  });
+  writeTask(repo, blueprint, '004', {
+    depends_on: [], parallel_safe: true,
+    affected_paths: ['y/'], exclusive_resources: ['database-schema'],
+  });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  writeCoordinatorConfig(boot.integrationPath, { max_parallel: 4 });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  // 조상 충돌로 001만, 자원 충돌로 003만 — 002·004는 같은 wave에 못 든다.
+  assert.deepStrictEqual(prepared.ready, ['001', '003']);
+});
+
+test('parallel drive: revoke rejects prior-generation report and record', () => {
+  const blueprint = '.bouncer/context/epics/078-e2e/blueprints/004-stale';
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n' });
+  writeTask(repo, blueprint, '001', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/alpha.js'],
+  });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-a' },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks[0].workerPath;
+  const lease = prepared.tasks[0].lease;
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', reason: 'requeue-for-e2e',
+  });
+  assert.strictEqual(revoked.ok, true, JSON.stringify(revoked));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const before = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks.find((t) => t.id === '001');
+
+  const lateReport = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    leaseId: lease.id, generation: lease.generation,
+    attempt: 1, taskBriefHash: 'a'.repeat(64), outcome: 'accepted', summary: 'late',
+  });
+  assert.strictEqual(lateReport.reason, 'stale-lease');
+  const lateRecord = coordinate({
+    command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    leaseId: lease.id, generation: lease.generation,
+  });
+  assert.strictEqual(lateRecord.reason, 'stale-lease');
+  const after = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks.find((t) => t.id === '001');
+  assert.strictEqual(after.status, before.status);
+  assert.deepStrictEqual(after.lease, before.lease);
+});
+
+test('parallel drive: scope conflict revokes the later lease only', () => {
+  const blueprint = '.bouncer/context/epics/078-e2e/blueprints/005-revise';
+  const repo = makeRepo({
+    'README.md': 'fixture\n', 'src/a/x.js': 'a\n', 'src/b/x.js': 'b\n',
+  });
+  writeTask(repo, blueprint, '001', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/a/'],
+  });
+  writeTask(repo, blueprint, '002', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/b/'],
+  });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  writeCoordinatorConfig(boot.integrationPath, { max_parallel: 2 });
+  let n = 0;
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: () => `L${++n}` },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const first = prepared.tasks.find((t) => t.id === '001');
+  const second = prepared.tasks.find((t) => t.id === '002');
+  assert.ok(first.lease.seq < second.lease.seq);
+  const revised = reviseTaskScope({
+    repoRoot: second.workerPath,
+    blueprint,
+    task: '002',
+    paths: ['src/a/'],
+    reason: 'overlap with earlier lease',
+  });
+  assert.strictEqual(revised.ok, true, JSON.stringify(revised));
+  assert.deepStrictEqual(revised.revoked, ['002']);
+  const ledger = loadLedger(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'));
+  assert.strictEqual(ledger.tasks.find((t) => t.id === '001').lease.status, 'active');
+  assert.strictEqual(ledger.tasks.find((t) => t.id === '002').lease.status, 'revoked');
+  assert.strictEqual(ledger.tasks.find((t) => t.id === '002').status, 'pending');
+});
+
+test('parallel drive: wave verification failure leaves canonical HEAD unchanged', () => {
+  const blueprint = '.bouncer/context/epics/078-e2e/blueprints/006-verify';
+  const repo = makeRepo({
+    'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n', 'src/beta.js': 'beta\n',
+  });
+  writeTask(repo, blueprint, '001', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/alpha.js'],
+  });
+  writeTask(repo, blueprint, '002', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/beta.js'],
+  });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  writeCoordinatorConfig(boot.integrationPath, { max_parallel: 2 });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const workers = Object.fromEntries(prepared.tasks.map((t) => [t.id, t.workerPath]));
+  const edits = { '001': 'src/alpha.js', '002': 'src/beta.js' };
+  for (const id of ['001', '002']) {
+    const sha = commitInWorker(workers[id], edits[id], `changed by ${id}\n`, `feat: task ${id}`);
+    writeTerminalEvidence(workers[id], blueprint, id, sha);
+    assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, workers[id], id).ok, true);
+  }
+  const baseHead = git(boot.integrationPath, ['rev-parse', 'HEAD']);
+  const failed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      runVerification: () => ({
+        ok: false, command: 'npm test', exitCode: 1, evidenceId: 'f'.repeat(64),
+      }),
+    },
+  });
+  assert.strictEqual(failed.reason, 'wave-verification-failed');
+  assert.strictEqual(git(boot.integrationPath, ['rev-parse', 'HEAD']), baseHead);
+  const ledger = loadLedger(path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'));
+  assert.deepStrictEqual(ledger.tasks.map((t) => t.status), ['recorded', 'recorded']);
+  assert.strictEqual(ledger.fanin, null);
+});
+
+test('parallel drive: resume after fanin.status verified finishes without duplicate cherry-pick', () => {
+  const blueprint = '.bouncer/context/epics/078-e2e/blueprints/007-resume';
+  const repo = makeRepo({
+    'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n', 'src/beta.js': 'beta\n',
+  });
+  writeTask(repo, blueprint, '001', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/alpha.js'],
+  });
+  writeTask(repo, blueprint, '002', {
+    depends_on: [], parallel_safe: true, affected_paths: ['src/beta.js'],
+  });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  writeCoordinatorConfig(boot.integrationPath, { max_parallel: 2 });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const workers = Object.fromEntries(prepared.tasks.map((t) => [t.id, t.workerPath]));
+  const edits = { '001': 'src/alpha.js', '002': 'src/beta.js' };
+  for (const id of ['001', '002']) {
+    const sha = commitInWorker(workers[id], edits[id], `changed by ${id}\n`, `feat: task ${id}`);
+    writeTerminalEvidence(workers[id], blueprint, id, sha);
+    assert.strictEqual(acceptDispatchAndRecord(repo, blueprint, workers[id], id).ok, true);
+  }
+  const first = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { runVerification: passVerify },
+  });
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  const candidateHead = first.integrationHead;
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = loadLedger(ledgerFile);
+  // ff는 끝났지만 원장 쓰기 전에 중단된 상태: HEAD는 candidate, fanin은 verified.
+  const preFanin = git(boot.integrationPath, ['merge-base', candidateHead, `${candidateHead}~2`]);
+  for (const task of ledger.tasks) {
+    if (task.id === '001' || task.id === '002') task.status = 'recorded';
+  }
+  ledger.integrationHead = preFanin;
+  ledger.fanin = {
+    base_head: preFanin,
+    candidate_head: candidateHead,
+    tasks: ['001', '002'],
+    status: 'verified',
+  };
+  ledger.decisions = (ledger.decisions || []).filter((d) => d.kind !== 'fanin');
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  let cherryPickCalls = 0;
+  const resumed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      execFileSync: (file, args, options) => {
+        if (args[0] === 'cherry-pick') cherryPickCalls += 1;
+        return require('node:child_process').execFileSync(file, args, options);
+      },
+      runVerification: passVerify,
+    },
+  });
+  assert.strictEqual(resumed.ok, true, JSON.stringify(resumed));
+  assert.strictEqual(cherryPickCalls, 0);
+  const after = loadLedger(ledgerFile);
+  assert.strictEqual(after.integrationHead, candidateHead);
+  assert.deepStrictEqual(after.tasks.map((t) => t.status), ['integrated', 'integrated']);
+  assert.strictEqual(after.fanin, null);
+  const subjects = git(boot.integrationPath, ['log', '--format=%s']).split('\n');
+  assert.strictEqual(subjects.filter((s) => s === 'feat: task 001').length, 1);
+  assert.strictEqual(subjects.filter((s) => s === 'feat: task 002').length, 1);
+});
+
+test('parallel drive: standalone checkout without a ledger keeps pointer effectiveTask', () => {
+  const blueprint = '.bouncer/context/epics/078-e2e/blueprints/008-standalone';
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha\n' });
+  writeTask(repo, blueprint, '001', {
+    depends_on: [], parallel_safe: false, affected_paths: ['src/alpha.js'],
+  });
+  writeTask(repo, blueprint, '002', {
+    depends_on: [], parallel_safe: false, affected_paths: ['src/alpha.js'],
+  });
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  // 원장 없는 standalone: pointer task가 effectiveTask다.
+  writeCurrent({
+    repoRoot: repo, blueprint, base: 'work', task: `${blueprint}/tasks/002/tasks.md`,
+  });
+  const eff = resolveEffectiveTask({ repoRoot: repo });
+  assert.strictEqual(eff.source, 'pointer');
+  assert.strictEqual(eff.id, 'TASKS-002');
 });

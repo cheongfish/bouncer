@@ -15,7 +15,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -128,7 +128,7 @@ function coordinateCli(cwd, command, extra, { fence = true } = {}) {
   try {
     const fenced = new Set([
       'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-      'repair', 'partial-close', 'critical-recovery', 'release',
+      'repair', 'partial-close', 'critical-recovery', 'release', 'revoke',
     ]);
     let args = [...extra];
     if (fence && fenced.has(command) && !args.includes('--ledger-path')) {
@@ -496,7 +496,7 @@ test('coordinate usage lists release among the allowed commands', () => {
   assert.match(buf.out, /coordinate release --blueprint <dir>/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, or release/);
+  assert.match(refused.buf.err, /release, or revoke/);
 });
 
 
@@ -588,4 +588,92 @@ test('coordinate usage advertises ledger-path and ledger-hash for mutations', ()
   runCli(['help'], io);
   assert.match(buf.out, /ledger-path/);
   assert.match(buf.out, /ledger-hash/);
+});
+
+
+test('coordinate revoke and lease flags parse; omitted flags keep legacy path', () => {
+  const drive = preparedDrive();
+  const { io, buf } = capture();
+  runCli(['help'], io);
+  assert.match(buf.out, /coordinate revoke/);
+  assert.match(buf.out, /--lease-id/);
+  assert.match(buf.out, /--generation/);
+
+  const badGen = coordinateCli(drive.worker, 'dispatch', [
+    '--repo', drive.repo, '--task', '001', '--lease-id', 'x', '--generation', 'abc',
+  ]);
+  assert.strictEqual(badGen.code, 2);
+
+  const zeroGen = coordinateCli(drive.worker, 'dispatch', [
+    '--repo', drive.repo, '--task', '001', '--lease-id', 'x', '--generation', '0',
+  ]);
+  assert.strictEqual(zeroGen.code, 2);
+
+  // 플래그 생략은 기존처럼 통과한다.
+  const dispatched = coordinateCli(drive.worker, 'dispatch', ['--repo', drive.repo, '--task', '001']);
+  assert.strictEqual(dispatched.code, 0, dispatched.buf.err + dispatched.buf.out);
+
+  const revoked = coordinateCli(drive.integration, 'revoke', [
+    '--repo', drive.repo, '--task', '001', '--reason', 'cli-revoke',
+  ]);
+  assert.strictEqual(revoked.code, 0, revoked.buf.err + revoked.buf.out);
+  const body = JSON.parse(revoked.buf.out);
+  assert.strictEqual(body.command, 'revoke');
+  assert.strictEqual(body.task.status, 'pending');
+  assert.strictEqual(body.decision.kind, 'revoke');
+});
+
+test('coordinate integrate omits --task and returns integrated array', () => {
+  const drive = preparedDrive();
+  const worker = drive.worker;
+  fs.mkdirSync(path.join(worker, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(worker, 'src/auth.js'), 'impl\n');
+  execFileSync('git', ['add', 'src/auth.js'], { cwd: worker });
+  execFileSync('git', [
+    '-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'feat: 001',
+  ], { cwd: worker });
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: worker, encoding: 'utf8' }).trim();
+  const dir = path.join(worker, BP_REL, 'tasks', '001');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'tasks.md'),
+    `---\nbouncer:\n  id: TASKS-001\n  status: verified\n  depends_on: []\n  parallel_safe: true\n  commit_sha: '${sha.slice(0, 8)}'\n---\n`);
+  fs.writeFileSync(path.join(dir, 'verification.md'),
+    '---\nbouncer:\n  id: VERIFY-001\n  status: passed\n---\n');
+  fs.writeFileSync(path.join(dir, 'review.md'),
+    '---\nbouncer:\n  id: REVIEW-001\n  status: accepted\n---\n');
+
+  const dispatched = coordinateCli(worker, 'dispatch', ['--repo', drive.repo, '--task', '001']);
+  assert.strictEqual(dispatched.code, 0, dispatched.buf.err + dispatched.buf.out);
+  const meta = JSON.parse(dispatched.buf.out).metadata;
+  const reported = coordinateCli(worker, 'report', [
+    '--repo', drive.repo, '--task', '001',
+    '--attempt', String(meta.attempt), '--task-brief-hash', meta.task_brief_hash,
+    '--outcome', 'accepted', '--summary', 'ok',
+  ]);
+  assert.strictEqual(reported.code, 0, reported.buf.err + reported.buf.out);
+  const recorded = coordinateCli(worker, 'record', [
+    '--repo', drive.repo, '--task', '001', '--sha', sha,
+  ]);
+  assert.strictEqual(recorded.code, 0, recorded.buf.err + recorded.buf.out);
+
+  // CLI는 runVerification 주입이 없어 core seam으로 --task 생략 성공 계약을 고정한다.
+  const core = coordinate({
+    command: 'integrate',
+    repoRoot: drive.repo,
+    blueprint: BP_REL,
+    cwd: drive.integration,
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'd'.repeat(64),
+      }),
+    },
+  });
+  assert.strictEqual(core.ok, true, JSON.stringify(core));
+  assert.deepStrictEqual(core.integrated, ['001']);
+
+  const help = capture();
+  runCli([], help.io);
+  assert.match(help.buf.out, /coordinate integrate/);
+  assert.match(help.buf.out, /omit --task for the wave/);
 });

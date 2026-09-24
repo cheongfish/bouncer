@@ -15,6 +15,7 @@
 | `graphify.exclude_dirs` | 저장소 상대 prefix 배열 (선택) | source 병합 뒤 제거할 경로 prefix | `["scripts/lib"]` |
 | `base_branch` | 브랜치 이름 | `/bouncer-execute` worktree 기준, `/bouncer-finalize` PR 기준 | `"main"` · `"develop"` |
 | `autonomy` | `"auto"` \| `"interactive"` | `/bouncer-run` 위임 주행의 **보고 주기** | `"auto"` (마감 보고에 모아서) · `"interactive"` (task 경계마다 진행 한 줄) |
+| `coordinator.max_parallel` | 정수 `>= 1` (선택). 부재 시 `2` | `bouncer coordinate prepare`가 한 wave에서 여는 lease 수 상한. 잘못된 값이면 prepare가 `coordinator-config-invalid`로 거절 | `2` · `1` |
 | `graphify.enabled` | `true` \| `false` | `/bouncer-init`, `graphify-runner`, SessionStart 훅 | `true` — 끄면 `affected_paths`를 수동으로 채웁니다 |
 | `graphify.bin` | 실행 파일 경로 (절대 또는 저장소 상대) | `bouncer graphify-bin` 해석 1순위 | git common dir 아래 절대 경로 · `".bouncer/.venv/bin/graphify"` |
 | `pr.draft` | `true` \| `false` | `/bouncer-finalize` | `true` |

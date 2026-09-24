@@ -191,3 +191,13 @@ test('review-dispatch without subcommand exits 2 on stderr', () => {
   assert.match(r.err, /review-dispatch/);
   assert.strictEqual(r.out, '');
 });
+
+
+test('usage lists coordinate revoke and lease flags', () => {
+  const r = capture([]);
+  assert.match(r.out, /coordinate revoke/);
+  assert.match(r.out, /--lease-id/);
+  assert.match(r.out, /--generation/);
+  assert.match(r.out, /coordinate integrate/);
+  assert.match(r.out, /omit --task for the wave/);
+});

@@ -360,15 +360,18 @@ test('bouncer-coordinator refuses main-worktree writes and nested coordinators',
   assert.match(md, /(?:do not|never)[\s\S]{0,80}another coordinator|one coordinator per drive/i);
 });
 
-// 포인터는 Git common dir에 하나뿐이라 worker마다 생기지 않는다. 누가 언제
-// --set 하는지가 문서에 없으면 위임받은 쪽은 current가 null인 worktree에서
-// execute를 시작한다.
-test('bouncer-coordinator owns the shared pointer before driving a task', () => {
+// 포인터는 Git common dir에 하나뿐이라 worker마다 생기지 않는다. coordinator는
+// task마다 --set 하지 않고 lease·effectiveTask로 식별한다 — 순차 --set 문구가
+// 남으면 병렬 drive 계약과 모순된다.
+test('bouncer-coordinator identifies tasks by lease instead of per-task pointer moves', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  assert.match(md, /bouncer\n?\s*current --set/);
   assert.match(md, /Git common directory/);
   assert.match(md, /no per-worker pointer|same one/i);
   assert.match(md, /never let a worker move it|workers never move/i);
+  assert.match(md, /does not move the pointer per task/);
+  assert.match(md, /effectiveTask/);
+  assert.doesNotMatch(md, /drive them one at a time/);
+  assert.doesNotMatch(md, /each `--set` replaces the previous/);
 });
 
 // drift는 이제 드라이브 정지가 아니라 기록이다. 기록 수단(CLI 한 표면)과
@@ -432,14 +435,19 @@ test('implementer routes Needs planning to a controller decision, not a plan ret
   assert.doesNotMatch(md, /escalates to `\/bouncer-plan` from that field/);
 });
 
-// ready wave는 여러 task를 열지만 포인터는 저장소에 하나다. 이 제약을 적지
-// 않으면 위임받은 쪽이 병렬 execute를 시도한다.
-test('bouncer-coordinator records what the shared pointer lets a wave overlap', () => {
+// ready wave는 lease로 병렬 dispatch하고, wave fan-in·revoke는 CLI 플래그로
+// 묶는다. 순차 --set 문구가 남으면 위임받은 쪽이 다시 하나씩만 몬다.
+test('bouncer-coordinator drives a ready wave under leases and wave fan-in', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  assert.match(md, /ready wave overlaps only its worktree\s*\n?\s*preparation/i);
   assert.match(md, /parallel_safe/);
-  assert.match(md, /drive them one at a time/);
-  assert.match(md, /each `--set` replaces the previous/);
+  assert.match(md, /--lease-id/);
+  assert.match(md, /--generation/);
+  assert.match(md, /coordinate revoke/);
+  assert.match(md, /bouncer coordinate integrate --ledger-path/);
+  assert.match(md, /does not move the pointer per task/);
+  assert.match(md, /effectiveTask/);
+  assert.doesNotMatch(md, /drive them one at a time/);
+  assert.doesNotMatch(md, /each `--set` replaces the previous/);
 });
 
 // finalize의 동의 단계는 사용자 것이다. coordinator가 ACQ를 못 여는데

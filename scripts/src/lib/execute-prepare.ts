@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 import current = require('./current');
-const { readCurrent, presentCurrent, CurrentSelectionError } = current;
+const { readCurrent, presentCurrent, resolveEffectiveTask, CurrentSelectionError } = current;
 import runtimeState = require('./runtime-state');
 const { worktreePathFor, coordinatorPathsFor, branchNamesFor, resolveWorktreeBranch } = runtimeState;
 import seedWorktreeMod = require('./seed-worktree');
@@ -152,18 +152,32 @@ function pointerTask(pointer: Pointer, repoRoot: string): {
   const presented = presentCurrent(pointer, { repoRoot }) as {
     task: { id: string | null; path: string } | null;
     scale: string | null;
+    effectiveTask?: {
+      source: string | null;
+      path: string | null;
+      id: string | null;
+    } | null;
   } | null;
   if (!presented) return { task: null, scale: null };
+  // drive·standalone 모두 effective task(path/id)를 보고한다. pointer.task는
+  // presentCurrent의 task 키로 남고, 소비자는 lease 우선 값을 써야 한다.
+  const eff = presented.effectiveTask;
+  if (eff && eff.source && typeof eff.path === 'string') {
+    return {
+      task: { id: eff.id, path: eff.path },
+      scale: presented.scale,
+    };
+  }
   return { task: presented.task, scale: presented.scale };
 }
 
 function assignedWorkerPath(
   repoRoot: string,
   blueprintDir: string,
-  pointer: Pointer,
+  taskRef: unknown,
   ledger: { tasks?: Array<{ id?: string; workerPath?: string }> } | null,
 ): string {
-  const taskId = taskDigits(pointer.task);
+  const taskId = taskDigits(taskRef);
   const computed = coordinatorPathsFor({
     repoRoot, blueprint: blueprintDir, task: taskId || undefined,
   });
@@ -230,7 +244,17 @@ function executePrepare({ repoRoot, blueprintDir }: PrepareArgs): PrepareResult 
     return { ok: false, reason: 'blueprint-mismatch' };
   }
 
+  // worker cwd에서 lease를 확인하지 못하면 drive·standalone 모두 거절한다.
+  // pointer로 떨어지면 다른 task의 workerPath를 보고하게 된다.
+  const effective = resolveEffectiveTask({ repoRoot });
+  if (effective && effective.source === null) {
+    return { ok: false, reason: effective.reason };
+  }
+
   const { task, scale } = pointerTask(pointer, repoRoot);
+  const taskRef = effective && typeof effective.path === 'string'
+    ? effective.path
+    : pointer.task;
   const found = readCoordinatorLedger({ repoRoot, blueprint });
   // 원장 파일이 있으면(읽을 수 없어도) drive다. 부재만 standalone이다.
   if (found.ok || found.reason === 'unreadable-ledger') {
@@ -238,7 +262,7 @@ function executePrepare({ repoRoot, blueprintDir }: PrepareArgs): PrepareResult 
     return {
       ok: true,
       drive: true,
-      worktreePath: assignedWorkerPath(repoRoot, blueprint, pointer, ledger),
+      worktreePath: assignedWorkerPath(repoRoot, blueprint, taskRef, ledger),
       created: false,
       task,
       scale,

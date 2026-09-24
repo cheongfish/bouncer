@@ -34,3 +34,4 @@ bouncer_schema: '0.1'
 * [076 verification-reuse-checkpoint-compaction](epics/076-verification-reuse-checkpoint-compaction/index.md) - Reuses successful verification evidence and compacts completed coordinator state without weakening auditability.
 * [077 rules-reorganization](epics/077-rules-reorganization/index.md) - Maps Bouncer rule ownership and preserves current workflow loading and behavior during reorganization.
 * [078 plan-review-loop-guard](epics/078-plan-review-loop-guard/index.md) - 계획 문서가 context review 전에 G19·G20과 Touch 정합성을 통과하고, 리뷰 뒤 문서 변경을 G18이 stale로 거절하게 해 plan 리뷰 반복 루프를 끊는다.
+* [078 parallel-run-finalize-digest](epics/078-parallel-run-finalize-digest/index.md) - Runs independent Bouncer tasks in parallel under coordinator leases and compresses finalize input into one CLI digest.

@@ -83,6 +83,13 @@ display and default sort order — not execution authority.
 - `bouncer.parallel_safe` is a boolean. `false` or absent means the task is
   sequential wave input; `true` means it may share a ready wave with other
   parallel-safe peers once dependencies clear.
+- `bouncer.exclusive_resources` is an optional array of unique resource ids
+  matching `^[a-z0-9][a-z0-9._-]*$` (for example `database-schema`). Absent
+  reads as `[]`. Two ready peers that share any id, or whose path sets
+  (`scope.paths` when present, otherwise `affected_paths`) overlap as
+  ancestor/descendant or exact match, cannot share a wave. Structural
+  validation (S28) rejects a non-array, empty string, uppercase/space id, or
+  duplicate.
 - `bouncer.dependency_gate` is `integrated`, the only accepted value. Absent
   reads as `integrated`: the successor opens when each predecessor reaches that
   integration state.

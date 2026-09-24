@@ -55,13 +55,14 @@ to your `Decision required` judgment, never a second brief.
   only. Do not create, reset or delete worktrees by hand.
 - Do not dispatch another coordinator — one coordinator per drive, no nesting.
 - The pointer lives in the Git common directory, so every linked worktree reads
-  the same one — there is no per-worker pointer. You own it: run `bouncer
-  current --set <blueprint> --task <NNN>` yourself before driving a task, and
-  never let a worker move it. One pointer serves the whole repository, so a
-  ready wave overlaps only its worktree preparation and other non-pointer work:
-  `bouncer coordinate prepare` may open several `parallel_safe` tasks at once,
-  but you drive them one at a time because each `--set` replaces the previous
-  pointer. Record the order you drove them in.
+  the same one — there is no per-worker pointer. Never let a worker move it.
+  Under a drive the coordinator does not move the pointer per task: pointer
+  selection is for blueprint choice and standalone task identification only.
+  Ready-wave identity comes from each task's `lease` and the worker cwd's
+  `effectiveTask`. `bouncer coordinate prepare` may open several
+  `parallel_safe` tasks at once (up to `checkpoint.ready` and
+  `coordinator.max_parallel`); you dispatch those runners concurrently rather
+  than serializing on `--set`.
 - A worker write outside the current task's `affected_paths` is drift, not the
   end of the drive: judge it, then record your judgment with `bouncer coordinate
   revise --blueprint <dir> --task <NNN> --paths <p> [--paths <p>…] --reason <r>
@@ -113,8 +114,9 @@ to your `Decision required` judgment, never a second brief.
 - Dispatch named `bouncer-implementer`, `bouncer-debugger` and
   `bouncer-reviewer` through `rules/subagent-model.md`. Never play those roles
   yourself and never let one worker judge another's report.
-- Commit ownership — workers report; only the coordinator revises scope, moves
-  the pointer, and records the judgment behind either.
+- Commit ownership — workers report; only the coordinator revises scope,
+  records lease-bound judgments, and owns wave fan-in. It does not move the
+  pointer per task.
 - Before a `bouncer-implementer` edits a commit task, require it to read
   `references/implementation/index.md`. This is mandatory, not a suggested
   reference: its Korean docstring contract requires Summary, one Args entry per
@@ -172,32 +174,42 @@ to your `Decision required` judgment, never a second brief.
    guess a hash. Resume from recorded state; never reset it.
 2. **Prepare** — `bouncer coordinate prepare --ledger-path
    <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` opens the
-   current ready wave and assigns one worktree per task. Tasks the wave did not
-   open stay closed.
-3. **Drive** — For each ready task, set the shared pointer to it with `bouncer
-   current --set <blueprint> --task <NNN>`, open `coordinate dispatch` with the
-   held `--ledger-path <checkpoint.ledger.path> --ledger-hash
-   <checkpoint.ledger.sha256>`, run the task workflow in that task's worktree
-   with the returned metadata, then judge the implementer's **Brief revision**
-   (`attempt` and `task_brief_hash`) against the active dispatch. Matching
-   values: call `coordinate report` with the same pair, the outcome, a summary,
-   and the same ledger path/hash flags; only an `accepted` report may then
+   current ready wave, assigns one worktree per task, and returns a per-task
+   `lease`. Tasks the wave did not open stay closed. Take each returned
+   `lease` as the identity for later `dispatch` / `report` / `record`.
+3. **Drive** — For every ready task from prepare, dispatch a task runner at
+   once (at most `checkpoint.ready` count, inside the configured parallel
+   ceiling). The coordinator does not move the pointer per task. Each runner
+   works in its worker cwd under that task's `effectiveTask`. Open
+   `coordinate dispatch` with `--lease-id` / `--generation` from the task's
+   lease plus the held `--ledger-path <checkpoint.ledger.path> --ledger-hash
+   <checkpoint.ledger.sha256>`, run the task workflow with the returned
+   metadata, then judge the implementer's **Brief revision** (`attempt` and
+   `task_brief_hash`) against the active dispatch. Matching values: call
+   `coordinate report` with the same lease flags, the outcome, a summary, and
+   the same ledger path/hash flags; only an `accepted` report may then
    `bouncer coordinate record` its result SHA together with a decision naming
-   the paths the task actually changed, again with the ledger path/hash pair.
-   `record` stores the SHA and that decision, so provenance the ledger must keep
-   travels inside the decision text. A missing or mismatched Brief revision is
-   stale — call `coordinate report` with the received `attempt` and
-   `task_brief_hash` so runtime can append `stale-report`; do not call
-   `accepted` or `coordinate record`, and keep the attempt open. After
-   `rework`, `scope_revision`, or `task_change`, revise only when the outcome
-   requires it, then redispatch so runtime supplies the increased `attempt` and
-   `previous_outcome`. A stale ledger hash or CLI fence refusal is not a prompt
-   to invent a new hash — re-run `coordinate status` and continue from that
-   checkpoint.
-4. **Integrate** — `bouncer coordinate integrate --ledger-path
-   <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` in
-   dependency order, then verify the integration head. A rejected fan-in is a
-   decision to record and resolve, not a retry to repeat blindly.
+   the paths the task actually changed, again with `--lease-id` /
+   `--generation` and the ledger path/hash pair. `record` stores the SHA and
+   that decision, so provenance the ledger must keep travels inside the decision
+   text. A missing or mismatched Brief revision is stale — call
+   `coordinate report` with the received `attempt` and `task_brief_hash` so
+   runtime can append `stale-report`; do not call `accepted` or
+   `coordinate record`, and keep the attempt open. After `rework`,
+   `scope_revision`, or `task_change`, revise only when the outcome requires
+   it, then redispatch so runtime supplies the increased `attempt` and
+   `previous_outcome`. A stale ledger hash or CLI fence refusal is not a
+   prompt to invent a new hash — re-run `coordinate status` and continue from
+   that checkpoint.
+4. **Integrate** — When recorded tasks for the wave are ready, run
+   `bouncer coordinate integrate --ledger-path
+   <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` with
+   task omitted so the CLI fans the whole recorded wave in. On
+   `fanin-conflict`, `wave-verification-failed`, or a scope-conflict
+   `revoked`, call `coordinate revoke` and requeue, or resolve with
+   `bouncer coordinate integrate --task <NNN>` plus the matching
+   `--lease-id` / `--generation`. A rejected fan-in is a decision to record
+   and resolve, not a retry to repeat blindly.
 5. **Judge** — Turn each report, reviewer finding, scope drift and stalled
    retry into exactly one of: accepted, scope revision (`coordinate revise`),
    rework with a named cause, task/graph change, or terminal blocked. A
