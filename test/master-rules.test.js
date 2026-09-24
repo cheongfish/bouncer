@@ -792,6 +792,9 @@ test('current-pointer hands pointer moves to the coordinator, not the run loop',
   assert.doesNotMatch(pointer, /pre-authorizes/);
   assert.doesNotMatch(pointer, /`auto`/);
   assert.match(pointer, /confirm-then-set|확인.*--set/i);
+  // 병렬 drive: coordinator는 task마다 --set 하지 않는다.
+  assert.match(pointer, /does not move the pointer per task/);
+  assert.doesNotMatch(pointer, /runs `--set` itself before driving each task/);
 });
 
 // worker/coordinator 권한 문구의 정본은 하나여야 한다. 두 곳이 각자

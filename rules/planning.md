@@ -85,14 +85,17 @@ inline implement limits stay in
 ## Task DAG and approved scope
 
 Each task bundle may declare an author-written DAG on its frontmatter:
-`depends_on` (`TASKS-NNN` ids), `parallel_safe` (boolean), and
+`depends_on` (`TASKS-NNN` ids), `parallel_safe` (boolean),
+`exclusive_resources` (unique resource ids), and
 `dependency_gate` (`integrated`, the only accepted value). Task numbers remain
 labels and the default sort key only. Execution readiness follows the DAG:
 a task enters a ready wave when every listed predecessor has reached the
-dependency-gate state, and only `parallel_safe: true` peers may share a wave.
-Absent DAG fields read as no dependencies, not parallel-safe, and
-`integrated` — legacy single-task and number-ordered plans stay valid as
-one-node sequential waves.
+dependency-gate state, and only `parallel_safe: true` peers may share a wave
+when their path sets and `exclusive_resources` do not conflict — path ancestor
+or exact overlap, or any shared resource id, keeps them out of the same wave.
+Absent DAG fields read as no dependencies, not parallel-safe, empty
+`exclusive_resources`, and `integrated` — legacy single-task and number-ordered
+plans stay valid as one-node sequential waves.
 
 The plan gate (G19) rejects unknown task ids, self-references, duplicate
 edges, and cycles before approval. Structural validation (S28) rejects bad

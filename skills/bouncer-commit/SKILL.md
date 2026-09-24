@@ -75,10 +75,11 @@ workflow only supplies the current task's scope and its post-commit handoff.
    scope this workflow judged in step 1.
 
    When `nextAction` is `return-to-coordinator`, return those to the coordinator and stop. It records the worker SHA with `bouncer coordinate
-   record`, reflects it with `bouncer coordinate integrate` in dependency
-   order, verifies the integration
-   head, and moves the pointer with `bouncer current --set` — one pointer
-   serves the whole repository, so no worker moves it and no worker touches the
+   record` (passing the task's `--lease-id` / `--generation`), fans recorded
+   tasks in with `bouncer coordinate integrate` (task omitted for the wave),
+   and verifies the integration
+   head — one pointer serves the whole repository for blueprint and standalone
+   selection, so no worker moves it and no worker touches the
    integration branch. An unverified fan-in is not a completed task.
 
    When `nextAction` is `ask-next-task` or `finalize`, report the commit through
