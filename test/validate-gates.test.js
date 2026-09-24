@@ -755,6 +755,115 @@ test('plan gate G18 keeps legacy context-review results when rounds are absent',
   );
 });
 
+// G18 신선도: ctx 경로 없이 deps.planSnapshot만 주입해 digest 대조 분기를 고정한다.
+// 호출 횟수로 생략 조건에서 snapshot 계산 자체가 일어나지 않음을 확인한다.
+function freshnessRun({
+  contextReview = { findings: [], rounds: [contextRound()] },
+  current = { ok: true, digest: 'digest-1', documents: [] },
+  mutate,
+} = {}) {
+  const docs = planDocs(READY_BODY);
+  docs.contextReview = doc('accepted', { context_review: contextReview }, CONTEXT_REVIEW_BODY_OK);
+  if (mutate) mutate(docs);
+  let calls = 0;
+  const planSnapshot = (opts) => {
+    calls += 1;
+    assert.deepStrictEqual(opts, { repoRoot: undefined, blueprintDir: undefined });
+    return current;
+  };
+  const failures = [];
+  checkGate('plan', docs, rels, failures, { deps: { planSnapshot } });
+  return { g18: failures.filter((f) => f.code === 'G18'), calls };
+}
+
+test('plan gate G18 rejects a stale context review digest', () => {
+  const { g18, calls } = freshnessRun({ current: { ok: true, digest: 'digest-2', documents: [] } });
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(g18.length, 1);
+  assert.match(g18[0].message, /context review is stale/);
+  assert.strictEqual(
+    g18[0].message,
+    'context review is stale: last round digest digest-1 != current digest-2; rerun context review',
+  );
+  assert.strictEqual(g18[0].file, rels.contextReview);
+});
+
+test('plan gate G18 passes when the last round digest matches the current snapshot', () => {
+  assert.deepStrictEqual(freshnessRun().g18, []);
+  const twoRounds = freshnessRun({
+    contextReview: {
+      findings: [],
+      rounds: [
+        contextRound(),
+        contextRound({ round: 2, mode: 'delta', target: { digest: 'digest-2' }, perspectives: [] }),
+      ],
+    },
+    current: { ok: true, digest: 'digest-2', documents: [] },
+  });
+  assert.strictEqual(twoRounds.calls, 1);
+  assert.deepStrictEqual(twoRounds.g18, []);
+});
+
+// 기록값은 마지막 round의 target.digest 하나다. 앞 round에 문자열 digest가 있으면
+// 마지막 round 값이 문자열이 아니어도 대조를 생략하지 않고 stale로 거절한다.
+test('plan gate G18 rejects a non-string last round digest when an earlier round has one', () => {
+  const { g18, calls } = freshnessRun({
+    contextReview: {
+      findings: [],
+      rounds: [
+        contextRound(),
+        contextRound({ round: 2, mode: 'delta', target: { digest: 42 }, perspectives: [] }),
+      ],
+    },
+    current: { ok: true, digest: 'digest-1', documents: [] },
+  });
+  assert.strictEqual(calls, 1);
+  const stale = g18.filter((f) => /context review is stale/.test(f.message));
+  assert.strictEqual(stale.length, 1);
+  assert.strictEqual(
+    stale[0].message,
+    'context review is stale: last round digest 42 != current digest-1; rerun context review',
+  );
+  assert.strictEqual(stale[0].file, rels.contextReview);
+});
+
+test('plan gate G18 reports unavailable freshness when the snapshot fails', () => {
+  const { g18 } = freshnessRun({ current: { ok: false, error: 'boom' } });
+  assert.strictEqual(g18.length, 1);
+  assert.match(g18[0].message, /freshness unavailable: boom/);
+  assert.strictEqual(g18[0].file, rels.contextReview);
+});
+
+test('plan gate G18 skips the freshness check outside its conditions', () => {
+  const stale = { ok: true, digest: 'digest-2', documents: [] };
+  const cases = {
+    'task in_progress': { mutate: (docs) => { docs.tasks.data.bouncer.status = 'in_progress'; } },
+    'rounds absent': { contextReview: { findings: [] } },
+    'rounds empty': { contextReview: { findings: [], rounds: [] } },
+    light: {
+      mutate: (docs) => {
+        docs.blueprintIndex = doc('approved', { scale: 'light' });
+        delete docs.contextReview;
+      },
+    },
+    pending: { mutate: (docs) => { docs.contextReview.data.bouncer.status = 'pending'; } },
+    'no string digest': {
+      contextReview: {
+        findings: [],
+        rounds: [contextRound({ target: { digest: 42 }, perspectives: [] })],
+      },
+    },
+  };
+  for (const [label, options] of Object.entries(cases)) {
+    const { g18, calls } = freshnessRun({ ...options, current: stale });
+    assert.strictEqual(calls, 0, `${label}: planSnapshot must not be called`);
+    assert.ok(!g18.some((f) => /context review is stale/.test(f.message)), `${label}: ${JSON.stringify(g18)}`);
+    if (label === 'pending') {
+      assert.deepStrictEqual(g18.map((f) => f.message), ['context-review.status != accepted']);
+    }
+  }
+});
+
 const VERIFY_BODY_OK = `# Verification
 
 ## Command
@@ -2352,6 +2461,10 @@ test('plan gate accepts terminal verification fan-in and rejects source scope or
   ]), rels, valid);
   assert.deepStrictEqual(valid.filter((f) => ['G4', 'G5', 'G20'].includes(f.code)), []);
 
+  const commandBody = READY_BODY.replace(
+    /## Touch[\s\S]*?## Do not touch/,
+    '## Touch\n- `npm run ci` 실행\n\n## Do not touch',
+  );
   const invalid = [];
   checkGate('plan', planDocsWithTasks([
     planTaskDoc('001'),
@@ -2360,7 +2473,97 @@ test('plan gate accepts terminal verification fan-in and rejects source scope or
       parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
     }),
     planTaskDoc('003', { depends_on: ['TASKS-002'] }),
+    planTaskDoc('004', {
+      execution_kind: 'verification', affected_paths: [], scope_evidence: undefined,
+      graph: undefined, depends_on: ['TASKS-001'], parallel_safe: false,
+      dependency_gate: 'integrated', verify: 'node --test',
+    }, commandBody),
   ]), rels, invalid);
   assert.ok(invalid.some((f) => f.code === 'G20' && /Touch/.test(f.message)));
   assert.ok(invalid.some((f) => f.code === 'G20' && /commit task/.test(f.message)));
+  assert.ok(invalid.some((f) => f.code === 'G20' && f.message.endsWith(': npm run ci')));
+});
+
+// --- plan draft 검사: context review 전 status 무관 task 검사 ---
+function draftPlanDocs(taskDocs, blueprintExtra = {}) {
+  return {
+    epicIndex: doc('draft'),
+    blueprintIndex: doc('draft', blueprintExtra),
+    tasksDocs: taskDocs,
+  };
+}
+
+function draftTaskDoc(nnn, extra = {}, body = READY_BODY) {
+  return planTaskDoc(nnn, { status: 'draft', ...extra }, body);
+}
+
+function draftCodes(docs) {
+  const { checkPlanDraft } = require('../scripts/lib/validate-gates');
+  const failures = [];
+  checkPlanDraft(docs, rels, failures, {});
+  return failures.map((f) => f.code);
+}
+
+function assertNoStatusCodes(codes, label) {
+  for (const code of ['G1', 'G2', 'G3', 'G18']) {
+    assert.ok(!codes.includes(code), `${label}: ${code} must not appear in ${JSON.stringify(codes)}`);
+  }
+}
+
+test('checkPlanDraft reports G5, G10, G11, G12, G19, G20 without status codes', () => {
+  const noChecklist = READY_BODY.replace(/## Checklist[\s\S]*$/, '');
+  const avoidBody = READY_BODY.replace(
+    /## Do not touch[\s\S]*?## Checklist/,
+    '## Do not touch\n- `src/auth/login.js`\n\n## Checklist',
+  );
+  const commandBody = READY_BODY.replace(
+    /## Touch[\s\S]*?## Do not touch/,
+    '## Touch\n- `npm run ci`\n\n## Do not touch',
+  );
+  const cases = [
+    { code: 'G5', tasks: [draftTaskDoc('001', { affected_paths: [] })] },
+    { code: 'G10', tasks: [draftTaskDoc('001', {}, noChecklist)] },
+    { code: 'G11', tasks: [draftTaskDoc('001', { affected_paths: ['src/unrelated/x.js'] })] },
+    { code: 'G12', tasks: [draftTaskDoc('001', { affected_paths: ['src/auth/login.js'] }, avoidBody)] },
+    { code: 'G19', tasks: [draftTaskDoc('001', { depends_on: ['TASKS-001'] })] },
+    {
+      code: 'G20',
+      tasks: [
+        draftTaskDoc('001'),
+        draftTaskDoc('002', {
+          execution_kind: 'verification', affected_paths: [], depends_on: ['TASKS-001'],
+          parallel_safe: false, dependency_gate: 'integrated', verify: 'node --test',
+        }, commandBody),
+      ],
+    },
+  ];
+  for (const { code, tasks } of cases) {
+    const codes = draftCodes(draftPlanDocs(tasks));
+    assert.ok(codes.includes(code), `${code} expected in ${JSON.stringify(codes)}`);
+    assertNoStatusCodes(codes, code);
+  }
+});
+
+test('checkPlanDraft on light blueprint requires only goal, touch, checklist', () => {
+  const light = { scale: 'light' };
+  const ok = draftCodes(draftPlanDocs([draftTaskDoc('001', {}, LIGHT_READY_BODY)], light));
+  assert.ok(!ok.includes('G10'), JSON.stringify(ok));
+  assertNoStatusCodes(ok, 'light');
+
+  const noChecklist = LIGHT_READY_BODY.replace(/## Checklist[\s\S]*$/, '');
+  const missing = draftCodes(draftPlanDocs([draftTaskDoc('001', {}, noChecklist)], light));
+  assert.ok(missing.includes('G10'), JSON.stringify(missing));
+  assertNoStatusCodes(missing, 'light missing checklist');
+});
+
+test('plan gate keeps per-task failure order G3 then task checks', () => {
+  const noChecklist = READY_BODY.replace(/## Checklist[\s\S]*$/, '');
+  const docs = planDocsWithTasks([
+    planTaskDoc('001', { status: 'draft' }, noChecklist),
+    planTaskDoc('002', { status: 'draft' }, noChecklist),
+  ]);
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  const codes = failures.map((f) => f.code).filter((c) => !['G1', 'G2', 'G18'].includes(c));
+  assert.deepStrictEqual(codes, ['G3', 'G10', 'G3', 'G10']);
 });

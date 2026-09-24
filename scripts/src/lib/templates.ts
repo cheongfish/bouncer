@@ -169,6 +169,35 @@ Blueprint: [<BP-id>](../../index.md)
      수용 기준·검증 명령을 체크 항목으로 포함하세요. -->
 - [ ] <TODO: 작업 항목>
 `,
+  // verification task(execution_kind: verification) 전용 본문. commit 본문의
+  // Touch 표는 백틱 경로 자리표시를 담아, 그대로 물려받으면 G20이 source 변경
+  // 선언으로 읽는다. 그래서 Touch·Interface·Do not touch는 경로 후보가 나오지
+  // 않는 고정 문구로 채우고, 작성자가 쓸 곳(Goal & intent·Checklist)만 TODO로 남긴다.
+  // light blueprint도 이 본문을 그대로 쓴다 — `-light` 사본을 두지 않는다(templateNameFor).
+  'verification-tasks.md': `# Tasks
+
+Blueprint: [<BP-id>](../../index.md)
+
+## Goal & intent
+<!-- 이 verification task가 선행 task 통합 뒤 무엇을 증명하는지 적는다.
+     실행 명령은 frontmatter bouncer.verify 한 줄이며 본문에 다시 적지 않는다. -->
+<TODO: 이 검증이 증명하는 종단 조건>
+
+## Interface
+- 제공: 선행 task가 모두 통합된 상태에서 verify 명령이 남기는 종단 검증 증적.
+- 거부: source 변경, review 문서, commit.
+
+## Touch
+<!-- verification task는 source를 바꾸지 않는다. 이 절에 백틱 토큰이나 경로를
+     적으면 G20이 source 변경 선언으로 보고 거절하므로 아래 문구를 그대로 둔다. -->
+Source 변경 경로 없음.
+
+## Do not touch
+- 모든 source 경로 — verification task는 증적만 남기고 파일을 바꾸지 않는다.
+
+## Checklist
+- [ ] <TODO: 검증 항목>
+`,
   'verification.md': '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n',
   // G14/G18은 findings[]와 status로 미완성을 거절한다. 본문에 허용값을
   // HTML 주석으로만 두면 stripComments 후 섹션이 비지 않고(플레이스홀더 유지),

@@ -48,7 +48,9 @@ On a light plan, approved scope rests on the user's confirmation of
    `target: { digest }`, `perspectives: [{ name, target_digest }]` with every
    `target_digest` equal to `target.digest`, and `severity_changes`. The mode
    order is `discovery` or `discovery → delta`; there is no critical recovery
-   and no `deferred` status. A document without `rounds` keeps the earlier G18
+   and no `deferred` status. On a blueprint whose execution has not started,
+   plan gate G18 compares the last round `target.digest` with the current
+   snapshot digest. A document without `rounds` keeps the earlier G18
    contract. Mark the context review accepted only when no actionable finding
    remains unresolved (every finding `resolved`, or `accepted` with a note).
 

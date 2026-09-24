@@ -203,3 +203,9 @@ test('spec-authoring cites rules/planning.md for product rules and light budget'
   assert.match(md, /rules\/planning\.md`?\s*`?## Lightweight cycle/);
   assert.doesNotMatch(md, /rules\/governance\.md/);
 });
+
+// verification task의 scaffold Touch 고정 문구를 작성 단계에서 바꾸지 않게 한다(G20 예방).
+test('spec-authoring keeps the scaffolded verification Touch phrase', () => {
+  const md = readSkill('spec-authoring');
+  assert.match(md, /Source 변경 경로 없음\./);
+});
