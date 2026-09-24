@@ -376,7 +376,8 @@ module.exports = {
     },
     coordinate: {
         run: cmdCoordinate,
-        usage: '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|integrate|status|revoke> --blueprint <dir>\n'
+        usage: '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord'
+            + '|integrate|status|revoke> --blueprint <dir>\n'
             + '             [--task <ddd>] [--sha <sha>] [--lease-id <id>] [--generation <n>]\n'
             + '             Operate the coordinator ledger and isolated integration worktrees.\n'
             + '  coordinate integrate --blueprint <dir> [--task <ddd>]\n'

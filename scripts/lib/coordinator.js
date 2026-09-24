@@ -838,7 +838,9 @@ function assertLeaseShape(ledger) {
  * @param {ReturnType<typeof checkLease> & {ok: false}} checked - 거절 결과
  * @returns {{ok: false, reason: string, expected: unknown, received: unknown}}
  */
-function rejectLeaseMismatch(ledger, item, taskId, checked) {
+function rejectLeaseMismatch(ledger, item, taskId, 
+// 호출부 checkLease 거절 결과 — expected/received 유니온이 길어 줄 분리.
+checked) {
     if (checked.reason === 'stale-lease') {
         const stale = {
             task: taskId, kind: 'stale-lease',
@@ -940,7 +942,9 @@ function ensureIntegrationCwd(repoRoot, blueprint, cwd, task) {
  * commit wave는 candidate worktree에서 cherry-pick·검증한 뒤 CAS ff만 canonical에
  * 반영한다. runVerification 동안 원장 잠금 파일이 없게 한다.
  */
-function integrateTask({ repoRoot, blueprint, cwd, task, sha, leaseId, generation, ledgerPath, ledgerHash, exec, writeLedger, deps, integration, }) {
+function integrateTask({ 
+// sha는 CLI 호환으로 타입에만 남기고 구조분해하지 않는다 — fan-in은 원장·lease로 판정.
+repoRoot, blueprint, cwd, task, leaseId, generation, ledgerPath, ledgerHash, exec, writeLedger, deps, integration, }) {
     // wave 형태에 lease 플래그가 오면 어느 task의 lease인지 모호하므로 거절한다.
     if (!task && (leaseId !== undefined || generation !== undefined)) {
         return { ok: false, reason: 'lease-flags-require-task' };
@@ -969,7 +973,9 @@ function integrateTask({ repoRoot, blueprint, cwd, task, sha, leaseId, generatio
  * verification node integrate. terminal scope·repair 한도 2를 보존하고, 명시
  * taskId로 pointer 없이도 그 task의 verify를 고른다.
  */
-function integrateVerificationTask({ repoRoot, blueprint, task, leaseId, generation, ledgerPath, ledgerHash, exec, writeLedger, deps, integration, }) {
+function integrateVerificationTask({ 
+// repoRoot는 공개 시그니처 호환용 — 검증 cwd는 integration.integrationPath만 쓴다.
+blueprint, task, leaseId, generation, ledgerPath, ledgerHash, exec, writeLedger, deps, integration, }) {
     let phase1CheckpointHash = null;
     let verificationRetry = false;
     const phase1 = withLedgerLock(integration.ledgerFile, (owns) => {
@@ -2202,7 +2208,8 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             if (item.execution_kind !== 'verification' || item.status !== 'verifying') {
                 return { ok: false, reason: 'terminal-failure-required' };
             }
-            if (typeof failureCommand !== 'string' || failureCommand === '' || typeof summary !== 'string' || summary === '') {
+            if (typeof failureCommand !== 'string' || failureCommand === ''
+                || typeof summary !== 'string' || summary === '') {
                 return { ok: false, reason: 'failure-evidence-required' };
             }
             if (typeof decision !== 'string' || decision.trim() === '') {
@@ -2229,7 +2236,9 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             const repairDecision = {
                 task: repairId, kind: 'repair', wave, reason: decision.trim(), failure,
                 previousDag, nextDag: dagSnapshot(ledger.tasks), previousScope: [],
-                nextScope: [...repairPaths], necessity: 'terminal CI failure requires a Blueprint-scoped source repair', revision,
+                nextScope: [...repairPaths],
+                necessity: 'terminal CI failure requires a Blueprint-scoped source repair',
+                revision,
             };
             repair.decisions = [repairDecision];
             ledger.decisions.push(repairDecision);
