@@ -4,6 +4,8 @@ import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
 import finalizeMod = require('./finalize');
 const { finalize } = finalizeMod;
+import finalizeDigestMod = require('./finalize-digest');
+const { prepareFinalizeDigest } = finalizeDigestMod;
 import commit = require('./commit');
 const { commitTask } = commit;
 import seedWorktreeMod = require('./seed-worktree');
@@ -48,6 +50,23 @@ function cmdCommit(rest: string[], io: CliIo) {
 }
 
 function cmdFinalize(rest: string[], io: CliIo) {
+  // prepare는 읽기 전용 digest. 기존 finalize --yes 경로와 인자를 섞지 않는다.
+  if (rest[0] === 'prepare') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+      io.err('finalize: --blueprint is required\n');
+      return 2;
+    }
+    // `--repo`(boolean true)를 경로로 쓰지 않는다. cmdImport와 같은 규칙 —
+    // truthy 비문자열이 cwd 대신 들어가면 digest가 잘못된 checkout을 읽는다.
+    const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
+    const result = prepareFinalizeDigest({
+      repoRoot,
+      blueprintDir: f.blueprint,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  }
   const f = parseFlags(rest);
   // commit과 같은 2: 대상 없이 --yes를 받으면 빈 스코프로 커밋을 시도한다.
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -370,7 +389,9 @@ export = {
   },
   finalize: {
     run: cmdFinalize,
-    usage: `  finalize   --blueprint <dir> [--yes]
+    usage: `  finalize   prepare --blueprint <dir>
+             Print a read-only finalize digest JSON for Explain, Quiz, and PR.
+  finalize   --blueprint <dir> [--yes]
              Check the commit scope and, with --yes, commit the blueprint.
 `,
   },

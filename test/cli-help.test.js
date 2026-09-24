@@ -176,6 +176,12 @@ test('unknown command is still rejected after intent is public', () => {
   assert.equal(r.out, '');
 });
 
+test('usage lists finalize prepare --blueprint', () => {
+  const r = capture([]);
+  assert.match(r.out, /finalize\s+prepare --blueprint <dir>/);
+  assert.match(r.out, /finalize\s+--blueprint <dir> \[--yes\]/);
+});
+
 test('usage lists review-dispatch plan and execute forms', () => {
   const out = capture([]).out;
   assert.match(out, /review-dispatch\s+plan --blueprint <dir>/);

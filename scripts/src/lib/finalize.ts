@@ -1108,4 +1108,6 @@ export = {
   collectTransientRels,
   buildTaskContext, collectTaskCommits, writeExplainTaskCommits, writeExplainTaskContext,
   buildCoordinatorProvenance, collectCoordinatorProvenance, writeExplainCoordinator,
+  // digest가 finalize와 같은 branch 판정을 쓰도록 공개한다.
+  resolveCheckoutBranch,
 };
