@@ -14,7 +14,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -1466,4 +1466,396 @@ test('mutation ledger fence rejects missing, absolute, escaping, wrong path, and
   assert.ok(next.checkpoint);
   assert.match(next.checkpoint.ledger.sha256, /^[a-f0-9]{64}$/);
   assert.notStrictEqual(next.checkpoint.ledger.sha256, hash);
+});
+
+test('prepare issues lease and revoke makes late report/record/dispatch stale-lease', () => {
+  const blueprint = '.bouncer/context/epics/080-lease/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-stale-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const fence = __fence(repo, blueprint);
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath, ...fence,
+    deps: { makeLeaseId: () => 'lease-a' },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.deepStrictEqual(prepared.tasks.find((t) => t.id === '001').lease,
+    { id: 'lease-a', generation: 1, seq: 1, status: 'active' });
+
+  const worker = prepared.tasks.find((t) => t.id === '001').workerPath;
+  const fence2 = __fence(repo, blueprint);
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', reason: 'scope-conflict', ...fence2,
+  });
+  assert.strictEqual(revoked.ok, true, JSON.stringify(revoked));
+  assert.strictEqual(revoked.task.status, 'pending');
+
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const taskBefore = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks.find((t) => t.id === '001');
+
+  const fence3 = __fence(repo, blueprint);
+  const late = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    leaseId: 'lease-a', generation: 1,
+    attempt: 1, taskBriefHash: 'a'.repeat(64), outcome: 'accepted', summary: 'late',
+    ...fence3,
+  });
+  assert.strictEqual(late.reason, 'stale-lease');
+  const afterReport = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks.find((t) => t.id === '001');
+  assert.deepStrictEqual(
+    { ...afterReport, decisions: taskBefore.decisions },
+    { ...taskBefore, decisions: taskBefore.decisions },
+  );
+  assert.strictEqual(afterReport.status, taskBefore.status);
+  assert.deepStrictEqual(afterReport.dispatch, taskBefore.dispatch);
+  assert.deepStrictEqual(afterReport.lease, taskBefore.lease);
+
+  const fence4 = __fence(repo, blueprint);
+  const lateRecord = coordinate({
+    command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    leaseId: 'lease-a', generation: 1, ...fence4,
+  });
+  assert.strictEqual(lateRecord.reason, 'stale-lease');
+
+  const fence5 = __fence(repo, blueprint);
+  const lateDispatch = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    leaseId: 'lease-a', generation: 1, ...fence5,
+  });
+  assert.strictEqual(lateDispatch.reason, 'stale-lease');
+  const afterAll = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks.find((t) => t.id === '001');
+  assert.strictEqual(afterAll.status, taskBefore.status);
+  assert.deepStrictEqual(afterAll.dispatch, taskBefore.dispatch);
+  assert.deepStrictEqual(afterAll.lease, taskBefore.lease);
+});
+
+test('prepare requeues a revoked task with generation 2 and a fresh integration HEAD', () => {
+  const blueprint = '.bouncer/context/epics/081-lease/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-requeue-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-a' },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks.find((t) => t.id === '001').workerPath;
+  const branch = prepared.tasks.find((t) => t.id === '001').branch;
+  fs.writeFileSync(path.join(worker, 'README.md'), 'worker commit\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'worker'], { cwd: worker });
+  const oldWorkerHead = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: worker, encoding: 'utf8',
+  }).trim();
+  const integrationHead = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: boot.integrationPath, encoding: 'utf8',
+  }).trim();
+  assert.notStrictEqual(oldWorkerHead, integrationHead);
+
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', reason: 'requeue',
+  });
+  assert.strictEqual(revoked.ok, true, JSON.stringify(revoked));
+
+  let leaseN = 0;
+  const preparedAgain = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: () => `lease-${++leaseN}` },
+  });
+  assert.strictEqual(preparedAgain.ok, true, JSON.stringify(preparedAgain));
+  const again = preparedAgain.tasks.find((t) => t.id === '001');
+  assert.strictEqual(again.lease.generation, 2);
+  assert.strictEqual(again.lease.status, 'active');
+  const newHead = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: again.workerPath, encoding: 'utf8',
+  }).trim();
+  const integrationNow = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: boot.integrationPath, encoding: 'utf8',
+  }).trim();
+  assert.strictEqual(newHead, integrationNow);
+  // 이전 worker commit이 새 branch ancestry에 없어야 한다.
+  let hasOld = true;
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', oldWorkerHead, 'HEAD'], {
+      cwd: again.workerPath, stdio: 'ignore',
+    });
+  } catch (_error) {
+    hasOld = false;
+  }
+  assert.strictEqual(hasOld, false);
+  assert.notStrictEqual(again.branch, undefined);
+  void branch;
+});
+
+test('legacy task revoke leaves lease_id and generation null', () => {
+  const blueprint = '.bouncer/context/epics/082-lease/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-legacy-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  // lease 필드 없는 legacy 원장으로 되돌린다.
+  delete ledger.tasks[0].lease;
+  delete ledger.leaseSeq;
+  ledger.tasks[0].status = 'prepared';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', reason: 'legacy-revoke',
+  });
+  assert.strictEqual(revoked.ok, true, JSON.stringify(revoked));
+  assert.strictEqual(revoked.task.status, 'pending');
+  assert.strictEqual(revoked.decision.lease_id, null);
+  assert.strictEqual(revoked.decision.generation, null);
+  assert.strictEqual(revoked.task.lease, undefined);
+});
+
+// RD-001: legacy(lease 없음) revoke 뒤 prepare도 dirty worker를 버리고
+// integration HEAD에서 다시 만든다. lease.status === 'revoked'만 보면 놓친다.
+test('prepare requeues a legacy revoked task from integration HEAD', () => {
+  const blueprint = '.bouncer/context/epics/082-lease-requeue/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-legacy-requeue-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  delete ledger.tasks[0].lease;
+  delete ledger.leaseSeq;
+  ledger.tasks[0].status = 'prepared';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  const worker = ledger.tasks[0].workerPath;
+  fs.writeFileSync(path.join(worker, 'README.md'), 'legacy dirty\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: worker });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com',
+    'commit', '-m', 'legacy-dirty'], { cwd: worker });
+  const oldWorkerHead = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: worker, encoding: 'utf8',
+  }).trim();
+
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', reason: 'legacy-requeue',
+  });
+  assert.strictEqual(revoked.ok, true, JSON.stringify(revoked));
+
+  const preparedAgain = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-legacy-2' },
+  });
+  assert.strictEqual(preparedAgain.ok, true, JSON.stringify(preparedAgain));
+  const again = preparedAgain.tasks.find((t) => t.id === '001');
+  const newHead = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: again.workerPath, encoding: 'utf8',
+  }).trim();
+  const integrationNow = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: boot.integrationPath, encoding: 'utf8',
+  }).trim();
+  assert.strictEqual(newHead, integrationNow);
+  let hasOld = true;
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', oldWorkerHead, 'HEAD'], {
+      cwd: again.workerPath, stdio: 'ignore',
+    });
+  } catch (_error) {
+    hasOld = false;
+  }
+  assert.strictEqual(hasOld, false);
+});
+
+// RD-003: --lease-id/--generation 중 하나만 주면 lease-required.
+test('dispatch/report/record reject when only one of lease-id or generation is set', () => {
+  const blueprint = '.bouncer/context/epics/086-lease-required/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-required-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-a' },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const worker = prepared.tasks.find((t) => t.id === '001').workerPath;
+  const briefHash = 'a'.repeat(64);
+
+  const onlyId = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    leaseId: 'lease-a', attempt: 1, taskBriefHash: briefHash,
+  });
+  assert.strictEqual(onlyId.reason, 'lease-required');
+
+  const onlyGen = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    generation: 1, attempt: 1, taskBriefHash: briefHash,
+  });
+  assert.strictEqual(onlyGen.reason, 'lease-required');
+
+  const reportOnlyId = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    leaseId: 'lease-a', attempt: 1, taskBriefHash: briefHash,
+    outcome: 'accepted', summary: 'x',
+  });
+  assert.strictEqual(reportOnlyId.reason, 'lease-required');
+
+  const recordOnlyGen = coordinate({
+    command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001',
+    generation: 1,
+  });
+  assert.strictEqual(recordOnlyGen.reason, 'lease-required');
+});
+
+// RD-004: revoke 뒤 이전 lease로 integrate --task → stale-lease.
+test('integrate --task with stale lease after revoke returns stale-lease', () => {
+  const blueprint = '.bouncer/context/epics/087-lease-integrate/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-integrate-stale-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: { makeLeaseId: () => 'lease-a' },
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const revoked = coordinate({
+    command: 'revoke', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', reason: 'stale-integrate',
+  });
+  assert.strictEqual(revoked.ok, true, JSON.stringify(revoked));
+
+  const late = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    task: '001', leaseId: 'lease-a', generation: 1,
+  });
+  assert.strictEqual(late.reason, 'stale-lease');
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const after = JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks.find((t) => t.id === '001');
+  assert.strictEqual(after.status, 'pending');
+  assert.strictEqual(after.lease.status, 'revoked');
+});
+
+// RD-002: 손상 lease 원장은 bootstrap도 lease-invalid로 거절한다.
+test('bootstrap refuses a ledger with malformed lease', () => {
+  const blueprint = '.bouncer/context/epics/088-lease-bootstrap/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-bootstrap-invalid-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.leaseSeq = 1;
+  ledger.tasks[0].lease = { id: 'bad', generation: 0, seq: 1, status: 'active' };
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  const again = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(again.ok, false);
+  assert.strictEqual(again.reason, 'lease-invalid');
+});
+
+test('verification integrate releases the ledger lock while runVerification runs', () => {
+  const blueprint = '.bouncer/context/epics/083-lease/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-verify-lock-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const lockFile = `${ledgerFile}.lock`;
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+
+  let sawLockDuringVerify = true;
+  const passed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      runVerification: () => {
+        sawLockDuringVerify = fs.existsSync(lockFile);
+        return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'ev-1' };
+      },
+    },
+  });
+  assert.strictEqual(passed.ok, true, JSON.stringify(passed));
+  assert.strictEqual(sawLockDuringVerify, false);
+});
+
+test('verification integrate retries after stale-ledger-checkpoint without consuming repairWaves', () => {
+  const blueprint = '.bouncer/context/epics/084-lease/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-verify-retry-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+
+  let calls = 0;
+  const stale = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      runVerification: () => {
+        calls += 1;
+        // 검증 중 원장을 바꿔 두 번째 잠금의 checkpoint가 어긋나게 한다.
+        const live = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+        live.decisions = [...(live.decisions || []), { kind: 'noise', task: '002' }];
+        fs.writeFileSync(ledgerFile, `${JSON.stringify(live, null, 2)}\n`);
+        return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'ev-stale' };
+      },
+    },
+  });
+  assert.strictEqual(stale.reason, 'stale-ledger-checkpoint');
+  assert.strictEqual(JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks[1].status, 'verifying');
+  assert.strictEqual((JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).repairWaves || []).length, 0);
+
+  const again = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      runVerification: () => {
+        calls += 1;
+        return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'ev-ok' };
+      },
+    },
+  });
+  assert.strictEqual(again.ok, true, JSON.stringify(again));
+  assert.strictEqual(again.task.status, 'integrated');
+  assert.strictEqual((JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).repairWaves || []).length, 0);
+  assert.ok(calls >= 2);
+});
+
+test('overlapping fenced coordinate calls refuse with ledger-locked', () => {
+  const blueprint = '.bouncer/context/epics/085-lease/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-lease-locked-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const lockFile = `${ledgerFile}.lock`;
+  const before = fs.readFileSync(ledgerFile);
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 1, token: 'held', at: Date.now() }));
+  const blocked = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(blocked.reason, 'ledger-locked');
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), before);
 });

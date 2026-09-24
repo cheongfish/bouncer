@@ -15,7 +15,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });
@@ -128,7 +128,7 @@ function coordinateCli(cwd, command, extra, { fence = true } = {}) {
   try {
     const fenced = new Set([
       'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-      'repair', 'partial-close', 'critical-recovery', 'release',
+      'repair', 'partial-close', 'critical-recovery', 'release', 'revoke',
     ]);
     let args = [...extra];
     if (fence && fenced.has(command) && !args.includes('--ledger-path')) {
@@ -496,7 +496,7 @@ test('coordinate usage lists release among the allowed commands', () => {
   assert.match(buf.out, /coordinate release --blueprint <dir>/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, or release/);
+  assert.match(refused.buf.err, /release, or revoke/);
 });
 
 
@@ -588,4 +588,37 @@ test('coordinate usage advertises ledger-path and ledger-hash for mutations', ()
   runCli(['help'], io);
   assert.match(buf.out, /ledger-path/);
   assert.match(buf.out, /ledger-hash/);
+});
+
+
+test('coordinate revoke and lease flags parse; omitted flags keep legacy path', () => {
+  const drive = preparedDrive();
+  const { io, buf } = capture();
+  runCli(['help'], io);
+  assert.match(buf.out, /coordinate revoke/);
+  assert.match(buf.out, /--lease-id/);
+  assert.match(buf.out, /--generation/);
+
+  const badGen = coordinateCli(drive.worker, 'dispatch', [
+    '--repo', drive.repo, '--task', '001', '--lease-id', 'x', '--generation', 'abc',
+  ]);
+  assert.strictEqual(badGen.code, 2);
+
+  const zeroGen = coordinateCli(drive.worker, 'dispatch', [
+    '--repo', drive.repo, '--task', '001', '--lease-id', 'x', '--generation', '0',
+  ]);
+  assert.strictEqual(zeroGen.code, 2);
+
+  // 플래그 생략은 기존처럼 통과한다.
+  const dispatched = coordinateCli(drive.worker, 'dispatch', ['--repo', drive.repo, '--task', '001']);
+  assert.strictEqual(dispatched.code, 0, dispatched.buf.err + dispatched.buf.out);
+
+  const revoked = coordinateCli(drive.integration, 'revoke', [
+    '--repo', drive.repo, '--task', '001', '--reason', 'cli-revoke',
+  ]);
+  assert.strictEqual(revoked.code, 0, revoked.buf.err + revoked.buf.out);
+  const body = JSON.parse(revoked.buf.out);
+  assert.strictEqual(body.command, 'revoke');
+  assert.strictEqual(body.task.status, 'pending');
+  assert.strictEqual(body.decision.kind, 'revoke');
 });

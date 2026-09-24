@@ -772,7 +772,7 @@ const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
 const __FENCED = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
 ]);
 function __fence(repoRoot, blueprint) {
   const { ledgerFile } = __coordinatorPathsFor({ repoRoot, blueprint });

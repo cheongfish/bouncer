@@ -694,3 +694,28 @@ test('validateCoordinatorCheckpoint accepts compact summary and rejects bad ledg
     ledger: { path: COORDINATOR_LEDGER_REL, sha256: 'zz', revision: 'r2' },
   }).reason, /ledger-ref|checkpoint/);
 });
+
+
+test('coordinator ledger rejects malformed lease and leaseSeq', () => {
+  const base = {
+    version: 1, blueprint: 'bp', base: 'main', leaseSeq: 1, tasks: [{
+      id: '001', status: 'prepared',
+      lease: { id: 'lease-a', generation: 1, seq: 1, status: 'active' },
+    }], decisions: [],
+  };
+  assert.strictEqual(validateCoordinatorLedger(base).ok, true);
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base,
+    tasks: [{ ...base.tasks[0], lease: { id: 'x', generation: 0, seq: 1, status: 'active' } }],
+  }).reason, 'lease-invalid');
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base,
+    tasks: [{ ...base.tasks[0], lease: { id: 'x', generation: 1, seq: 1, status: 'open' } }],
+  }).reason, 'lease-invalid');
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base, leaseSeq: -1,
+  }).reason, 'lease-invalid');
+  assert.strictEqual(validateCoordinatorLedger({
+    ...base, leaseSeq: 1.5,
+  }).reason, 'lease-invalid');
+});

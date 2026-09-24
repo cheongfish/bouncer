@@ -26,6 +26,11 @@ import validateSections = require('./validate-sections');
 const { pathsOverlap } = validateSections;
 import configMod = require('./config');
 const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = configMod;
+import scopeMod = require('./scope');
+const { withLedgerLock } = scopeMod;
+import leaseMod = require('./lease');
+const { issueLease, revokeLease, checkLease } = leaseMod;
+const { randomUUID } = require('node:crypto');
 
 // runtime-state가 정본. 여기서 다시 문자열을 쓰면 fence path와 validator가 갈라진다.
 const LEDGER_REL = COORDINATOR_LEDGER_REL;
@@ -36,7 +41,7 @@ const LEDGER_REL = COORDINATOR_LEDGER_REL;
  */
 const LEDGER_FENCED_COMMANDS = new Set([
   'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-  'repair', 'integrate', 'partial-close', 'release',
+  'repair', 'integrate', 'partial-close', 'release', 'revoke',
 ]);
 
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
@@ -60,6 +65,14 @@ type StaleReportDecision = {
   expected: { attempt: number; task_brief_hash: string };
   received: { attempt: number; task_brief_hash: string };
 };
+type StaleLeaseDecision = {
+  task: string; kind: 'stale-lease';
+  expected: { lease_id: string; generation: number } | null;
+  received: { lease_id?: string; generation?: number };
+};
+type Lease = {
+  id: string; generation: number; seq: number; status: 'active' | 'revoked';
+};
 
 type Task = {
   id: string; depends_on?: string[]; dependency_gate?: string; parallel_safe?: boolean;
@@ -68,6 +81,7 @@ type Task = {
   affected_paths?: string[]; exclusive_resources?: string[];
   criticalRecovery?: { used: 1; findings: string[]; reason: string; outcome: 'resolved' | 'blocked' | null };
   dispatch?: DispatchState;
+  lease?: Lease;
   verify_evidence_id?: string; review_evidence_id?: string; advisory?: unknown;
 };
 type Ledger = {
@@ -75,6 +89,7 @@ type Ledger = {
   seedManifest?: Array<{ path: string; sha256: string }>;
   decisions: unknown[]; repairWaves?: RepairDecision[]; terminalFailure?: FailureEvidence;
   status?: 'active' | 'awaiting_confirmation' | 'partial_closed'; userConfirmed?: boolean; revision?: string;
+  leaseSeq?: number;
 };
 type FailureEvidence = {
   task: string; command: string; summary: string; paths: string[]; exitCode: number; repairWave: number;
@@ -918,6 +933,130 @@ function registeredIntegration(exec: Exec, repoRoot: string, integrationPath: st
   } catch (_error) { return false; }
 }
 
+
+/**
+ * 원장 lease 필드만 검사한다. 전체 validateCoordinatorLedger는 partial-close
+ * 불변조건까지 보므로, 일반 mutation에서는 lease-invalid만 분리해 거절한다.
+ *
+ * @param {Ledger} ledger - 로드한 원장
+ * @returns {{ok: true} | {ok: false, reason: 'lease-invalid'}}
+ */
+function assertLeaseShape(ledger: Ledger): { ok: true } | { ok: false; reason: 'lease-invalid' } {
+  const { isValidLease, isValidLeaseSeq } = require('./lease') as typeof import('./lease');
+  if (!isValidLeaseSeq(ledger.leaseSeq)) return { ok: false, reason: 'lease-invalid' };
+  for (const task of ledger.tasks) {
+    if (task.lease !== undefined && !isValidLease(task.lease)) {
+      return { ok: false, reason: 'lease-invalid' };
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * lease 검사 실패를 decision으로만 남긴다. status·dispatch·sha는 바꾸지 않는다.
+ *
+ * @param {Ledger} ledger - 원장
+ * @param {Task} item - 대상 task
+ * @param {string} taskId - task id
+ * @param {ReturnType<typeof checkLease> & {ok: false}} checked - 거절 결과
+ * @returns {{ok: false, reason: string, expected: unknown, received: unknown}}
+ */
+function rejectLeaseMismatch(
+  ledger: Ledger,
+  item: Task,
+  taskId: string,
+  checked: { ok: false; reason: 'lease-required' | 'stale-lease'; expected: StaleLeaseDecision['expected']; received: StaleLeaseDecision['received'] },
+) {
+  if (checked.reason === 'stale-lease') {
+    const stale: StaleLeaseDecision = {
+      task: taskId, kind: 'stale-lease',
+      expected: checked.expected, received: checked.received,
+    };
+    item.decisions = [...(item.decisions || []), stale];
+    ledger.decisions.push(stale);
+  }
+  return {
+    ok: false as const,
+    reason: checked.reason,
+    expected: checked.expected,
+    received: checked.received,
+  };
+}
+
+/**
+ * revoke된 배정의 worker worktree·branch를 지운다. 다음 prepare가 integration
+ * HEAD에서 새로 만들 수 있게 등록을 비운다.
+ *
+ * @param {Exec} exec - git 실행기
+ * @param {string} integrationPath - integration checkout
+ * @param {Task} item - revoke 후 재준비 대상
+ */
+function removeRevokedWorker(exec: Exec, integrationPath: string, item: Task): void {
+  if (item.workerPath && registeredWorker(exec, integrationPath, item.workerPath)) {
+    try {
+      git(exec, integrationPath, ['worktree', 'remove', '--force', item.workerPath]);
+    } catch (_error) {
+      // worktree가 이미 없으면 아래 branch 삭제만으로 재준비가 가능하다.
+    }
+  }
+  if (typeof item.branch === 'string' && item.branch !== '') {
+    try {
+      git(exec, integrationPath, ['branch', '-D', item.branch]);
+    } catch (_error) {
+      // branch가 없으면 새 -b 생성이 이어지면 된다.
+    }
+  }
+  delete item.workerPath;
+  delete item.branch;
+}
+
+/**
+ * prepare 재배정 전에 이전 worker를 지울지 본다.
+ * lease.status === 'revoked'인 경우뿐 아니라, lease 없이 prepared/recorded에서
+ * revoke된 legacy 배정도 workerPath를 남기므로 같은 재작성 규칙에 넣는다.
+ *
+ * @param {Task} item - ready wave의 commit task
+ * @returns {boolean} removeRevokedWorker를 호출해야 하면 true
+ */
+function shouldRemoveRevokedWorker(item: Task): boolean {
+  if (item.lease?.status === 'revoked') return true;
+  // legacy: lease 필드가 없으면 status만 pending으로 돌아가므로, 마지막 revoke
+  // decision의 previous_status로 prepared/recorded 배정 잔재를 판별한다.
+  if (!item.workerPath && !(typeof item.branch === 'string' && item.branch !== '')) {
+    return false;
+  }
+  if (item.lease) return false;
+  const decisions = Array.isArray(item.decisions) ? item.decisions : [];
+  for (let i = decisions.length - 1; i >= 0; i -= 1) {
+    const entry = decisions[i];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const decision = entry as { kind?: string; previous_status?: string };
+    if (decision.kind !== 'revoke') continue;
+    return decision.previous_status === 'prepared' || decision.previous_status === 'recorded';
+  }
+  return false;
+}
+
+/**
+ * 잠금 소유를 확인한 뒤 원장을 쓴다. owns가 거짓이면 쓰지 않고 ledger-lock-lost.
+ *
+ * @param {() => boolean} owns - withLedgerLock이 넘긴 소유 확인
+ * @param {(file: string, data: unknown) => void} writeLedger - 원자적 쓰기
+ * @param {string} file - 원장 경로
+ * @param {Ledger} ledger - 기록할 원장
+ * @returns {{ok: false, reason: 'ledger-lock-lost'} | null} 실패 시 거절, 성공 시 null
+ */
+function writeOwnedLedger(
+  owns: () => boolean,
+  writeLedger: (file: string, data: unknown) => void,
+  file: string,
+  ledger: Ledger,
+): { ok: false; reason: 'ledger-lock-lost' } | null {
+  if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+  writeLedger(file, ledger);
+  return null;
+}
+
 function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, task?: string) {
   const paths = coordinatorPathsFor({ repoRoot, blueprint, task });
   const actual = fs.realpathSync(cwd);
@@ -926,19 +1065,195 @@ function ensureIntegrationCwd(repoRoot: string, blueprint: string, cwd: string, 
   return paths;
 }
 
+
+/**
+ * integrate --task. commit task는 한 잠금 안에서 fan-in하고, verification node는
+ * verifying 전이와 결과 기록을 잠금으로 나누어 runVerification 동안 잠금 파일이
+ * 없게 한다. terminalFailure 없는 verifying는 전이 없이 검증만 재실행한다.
+ */
+function integrateTask({
+  repoRoot, blueprint, cwd, task, sha, leaseId, generation,
+  ledgerPath, ledgerHash, exec, writeLedger, deps, integration,
+}: {
+  repoRoot: string; blueprint: string; cwd: string; task?: string; sha?: string;
+  leaseId?: string; generation?: number;
+  ledgerPath?: string; ledgerHash?: string;
+  exec: Exec; writeLedger: (file: string, data: unknown) => void;
+  deps: { runVerification?: VerificationRunner };
+  integration: ReturnType<typeof coordinatorPathsFor>;
+}): unknown {
+  if (!task || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
+  ensureIntegrationCwd(repoRoot, blueprint, cwd);
+
+  // --- phase 1: load → fence → (commit fan-in | verifying 전이) ---
+  let phase1CheckpointHash: string | null = null;
+  let verificationRetry = false;
+  const phase1 = withLedgerLock(integration.ledgerFile, (owns) => {
+    const loaded = loadLedgerBytes(integration.ledgerFile);
+    if (!loaded) return { ok: false, reason: 'missing-ledger' };
+    const { ledger, bytes: ledgerBytes } = loaded;
+    const leaseShape = assertLeaseShape(ledger);
+    if (!leaseShape.ok) return leaseShape;
+    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
+    if (!fenced.ok) return fenced;
+    const item = ledger.tasks.find((x) => x.id === task);
+    if (!item) return { ok: false, reason: 'task-outside-blueprint' };
+
+    if (item.execution_kind === 'verification') {
+      const status = item.status || 'pending';
+      // terminalFailure가 있는 verifying는 repair만 받는다.
+      if (status === 'verifying' && ledger.terminalFailure
+        && ledger.terminalFailure.task === task) {
+        return { ok: false, reason: 'not-ready' };
+      }
+      if (status === 'verifying' && !(ledger.terminalFailure && ledger.terminalFailure.task === task)) {
+        // 전이 없이 검증만 재실행 — repair wave를 소모하지 않는다.
+        verificationRetry = true;
+        phase1CheckpointHash = ledgerBytesHash(fs.readFileSync(integration.ledgerFile));
+        return { ok: true as const, mode: 'verification' as const, ledger };
+      }
+      if (status !== 'ready') return { ok: false, reason: 'not-ready' };
+      item.status = transition('ready', 'verifying', 'verification');
+      writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'verifying');
+      if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+      writeLedger(integration.ledgerFile, ledger);
+      phase1CheckpointHash = ledgerBytesHash(fs.readFileSync(integration.ledgerFile));
+      return { ok: true as const, mode: 'verification' as const, ledger };
+    }
+
+    // commit task integrate — lease 검사 후 기존 fan-in
+    const leaseChecked = checkLease(item, {
+      ...(leaseId !== undefined ? { lease_id: leaseId } : {}),
+      ...(generation !== undefined ? { generation } : {}),
+    });
+    if (!leaseChecked.ok) {
+      const rejected = rejectLeaseMismatch(ledger, item, task, leaseChecked);
+      if (leaseChecked.reason === 'stale-lease') {
+        if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+        writeLedger(integration.ledgerFile, ledger);
+      }
+      return rejected;
+    }
+    if (item.status !== 'recorded' || !item.sha) return { ok: false, reason: 'not-recorded' };
+    const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
+    if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)
+      || !workerOwnsSha(exec, worker, item.sha)) {
+      return { ok: false, reason: 'sha-not-owned-by-worker' };
+    }
+    if (ledger.integrationHead !== git(exec, integration.integrationPath, ['rev-parse', 'HEAD'])) {
+      return { ok: false, reason: 'stale-integration-head' };
+    }
+    const evidence = checkWorkerEvidence(worker, blueprint, task, item.sha);
+    if (!evidence.ok) return evidence;
+    const restoreBundle = copyEvidenceBundle(worker, integration.integrationPath, blueprint, task);
+    try {
+      git(exec, integration.integrationPath, ['cherry-pick', item.sha]);
+    } catch (error) {
+      restoreBundle();
+      throw error;
+    }
+    item.status = transition('recorded', 'integrated');
+    ledger.integrationHead = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
+    if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+    writeLedger(integration.ledgerFile, ledger);
+    return withCheckpoint({
+      ok: true as const, command: 'integrate', task: item,
+      ready: readyWave(ledger.tasks, {
+        maxParallel: maxParallelForRead(integration.integrationPath),
+      }), decisions: ledger.decisions,
+    }, ledger, integration.ledgerFile);
+  });
+
+  if (!phase1 || typeof phase1 !== 'object') return phase1;
+  if ((phase1 as { ok?: boolean }).ok === false) return phase1;
+  if ((phase1 as { mode?: string }).mode !== 'verification') return phase1;
+
+  // --- phase 1.5: 잠금 밖에서 검증 실행 ---
+  const runner = deps.runVerification
+    || (require('./verification').runVerification as VerificationRunner);
+  const { epicId, blueprintId } = parsePathIds(blueprint);
+  const headForKey = (() => {
+    const live = loadLedger(integration.ledgerFile);
+    if (live && typeof live.integrationHead === 'string') return live.integrationHead;
+    return git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
+  })();
+  const result = runner({
+    repoRoot: integration.integrationPath,
+    blueprintDir: blueprint,
+    scope: {
+      kind: 'terminal',
+      key: `EPIC-${epicId}/BP-${blueprintId}:${headForKey}`,
+    },
+  });
+
+  // --- phase 2: checkpoint 일치할 때만 결과 기록 ---
+  return withLedgerLock(integration.ledgerFile, (owns) => {
+    const loaded = loadLedgerBytes(integration.ledgerFile);
+    if (!loaded) return { ok: false, reason: 'missing-ledger' };
+    const { ledger, bytes: ledgerBytes } = loaded;
+    const currentHash = ledgerBytesHash(ledgerBytes);
+    if (phase1CheckpointHash !== currentHash) {
+      return { ok: false, reason: 'stale-ledger-checkpoint' };
+    }
+    const item = ledger.tasks.find((x) => x.id === task);
+    if (!item) return { ok: false, reason: 'task-outside-blueprint' };
+    if (!result.ok) {
+      const lastRepair = (ledger.repairWaves || []).at(-1);
+      const evidence: FailureEvidence = {
+        task, command: result.command, summary: `exit code ${result.exitCode}`,
+        paths: lastRepair ? [...lastRepair.nextScope] : [...(ledger.terminalFailure?.paths || [])],
+        exitCode: result.exitCode, repairWave: (ledger.repairWaves || []).length,
+      };
+      ledger.terminalFailure = evidence;
+      const exhausted = (ledger.repairWaves || []).length >= 2;
+      if (exhausted) {
+        ledger.status = 'awaiting_confirmation';
+        const nextPlan = path.join(integration.integrationPath, 'NEXT_PLAN.md');
+        const remaining = evidence.paths.length > 0 ? evidence.paths.join(', ') : 'none recorded';
+        const nextPlanBody = `# Next plan\n\n- Failed command: \`${result.command}\`\n`
+          + `- Exit code: ${result.exitCode}\n- Remaining paths: ${remaining}\n`;
+        fs.writeFileSync(nextPlan, nextPlanBody);
+      }
+      if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+      writeLedger(integration.ledgerFile, ledger);
+      return { ok: false, reason: 'verification-failed', task: item, verification: result,
+        repairWaves: (ledger.repairWaves || []).length, stopped: exhausted };
+    }
+    item.status = transition('verifying', 'integrated', 'verification');
+    if (typeof result.evidenceId === 'string' && result.evidenceId !== '') {
+      item.verify_evidence_id = result.evidenceId;
+    }
+    writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'integrated');
+    if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+    writeLedger(integration.ledgerFile, ledger);
+    void verificationRetry;
+    return withCheckpoint({ ok: true as const, command: 'integrate', task: item, verification: result,
+      ready: readyWave(ledger.tasks, {
+        maxParallel: maxParallelForRead(integration.integrationPath),
+      }), decisions: ledger.decisions },
+    ledger, integration.ledgerFile);
+  });
+}
+
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
   failureCommand, summary, paths: repairPaths, findings, outcome, reason, attempt, taskBriefHash,
+  leaseId, generation,
   ledgerPath, ledgerHash,
   userConfirmed = false, deps = {} }: {
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
   findings?: string[]; outcome?: string; reason?: string;
   attempt?: number; taskBriefHash?: string;
+  leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;
-  deps?: { execFileSync?: Exec; runVerification?: VerificationRunner; writeLedger?: typeof atomicWrite };
+  deps?: {
+    execFileSync?: Exec; runVerification?: VerificationRunner; writeLedger?: typeof atomicWrite;
+    makeLeaseId?: () => string;
+  };
 }) {
   const exec = deps.execFileSync || realExecFileSync as unknown as Exec;
   const writeLedger = deps.writeLedger || atomicWrite;
+  const makeLeaseId = deps.makeLeaseId || randomUUID;
   const main = runtimePaths({ repoRoot, execFileSync: exec });
   if (main.unavailable) return { ok: false, reason: 'non-git-root' };
   const base = git(exec, repoRoot, ['rev-parse', 'HEAD']);
@@ -983,6 +1298,11 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         tasks: taskList(paths.integrationPath, blueprint), decisions: [], status: 'active' as const, repairWaves: [],
         seedManifest: seeded.manifest,
       };
+    } else {
+      // 기존 원장을 재개할 때도 lease shape를 본다. fenced mutation과 같이
+      // 손상 lease가 bootstrap 응답·이후 명령의 기준이 되지 않게 한다.
+      const leaseShape = assertLeaseShape(ledger);
+      if (!leaseShape.ok) return leaseShape;
     }
     ledger.integrationBranch = integrationBranch;
     writeLedger(paths.ledgerFile, ledger);
@@ -1005,18 +1325,51 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   if (!registeredIntegration(exec, repoRoot, integration.integrationPath)) {
     return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: integration.integrationPath };
   }
-  const loaded = loadLedgerBytes(integration.ledgerFile);
-  if (!loaded) return { ok: false, reason: 'missing-ledger' };
-  const { ledger, bytes: ledgerBytes } = loaded;
-  // status는 읽기 전용, bootstrap은 위에서 이미 반환. 그 외 쓰기는 path/hash가
-  // 방금 로드한 원장 bytes와 같을 때만 진행해 stale checkpoint로 Git·원장이 갈라지지 않게 한다.
-  if (LEDGER_FENCED_COMMANDS.has(command)) {
+  // status는 읽기 전용 — 잠금 없이 load bytes로 checkpoint만 만든다.
+  if (command === 'status') {
+    const loaded = loadLedgerBytes(integration.ledgerFile);
+    if (!loaded) return { ok: false, reason: 'missing-ledger' };
+    const leaseShape = assertLeaseShape(loaded.ledger);
+    if (!leaseShape.ok) return leaseShape;
+    ensureIntegrationCwd(repoRoot, blueprint, cwd);
+    return {
+      ok: true as const,
+      command,
+      checkpoint: projectCheckpoint(loaded.ledger, integration.ledgerFile, loaded.bytes),
+    };
+  }
+
+  // verification integrate는 검증 실행을 잠금 밖에 두려고 두 단계로 나눈다.
+  if (command === 'integrate') {
+    return integrateTask({
+      repoRoot, blueprint, cwd, task, sha, leaseId, generation,
+      ledgerPath, ledgerHash, exec, writeLedger, deps,
+      integration,
+    });
+  }
+
+  if (!LEDGER_FENCED_COMMANDS.has(command)) {
+    return { ok: false, reason: 'unknown-coordinate-command' };
+  }
+
+  return withLedgerLock(integration.ledgerFile, (owns) => {
+    const loaded = loadLedgerBytes(integration.ledgerFile);
+    if (!loaded) return { ok: false, reason: 'missing-ledger' };
+    const { ledger, bytes: ledgerBytes } = loaded;
+    const leaseShape = assertLeaseShape(ledger);
+    if (!leaseShape.ok) return leaseShape;
+    // status는 읽기 전용, bootstrap은 위에서 이미 반환. 그 외 쓰기는 path/hash가
+    // 방금 로드한 원장 bytes와 같을 때만 진행해 stale checkpoint로 Git·원장이 갈라지지 않게 한다.
     const fenced = assertLedgerFence({
       ledgerPath, ledgerHash, ledgerBytes,
     });
     if (!fenced.ok) return fenced;
-  }
-  if (command === 'release') {
+
+    const commitWrite = (): { ok: false; reason: 'ledger-lock-lost' } | null => (
+      writeOwnedLedger(owns, writeLedger, integration.ledgerFile, ledger)
+    );
+
+    if (command === 'release') {
     // 판정은 모두 읽기뿐이고 main 쓰기는 마지막 releaseSeedManifest 하나다. 어떤 거절도
     // main 파일을 바꾸지 않는다. 멈춘 drive(확인 대기·partial close·열린 task)는 main
     // 사본까지 복구 상태이므로 건드리지 않는다.
@@ -1037,15 +1390,6 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     const checked = runtime.validateCoordinatorLedger(ledger);
     if (!checked.ok) return { ok: false, reason: checked.reason };
   }
-  if (command === 'status') {
-    ensureIntegrationCwd(repoRoot, blueprint, cwd);
-    return {
-      ok: true as const,
-      command,
-      // load bytes를 그대로 해시해 status token과 이후 fence가 같은 snapshot을 본다.
-      checkpoint: projectCheckpoint(ledger, integration.ledgerFile, ledgerBytes),
-    };
-  }
   if (command === 'partial-close') {
     ensureIntegrationCwd(repoRoot, blueprint, cwd);
     if (ledger.status !== 'awaiting_confirmation') {
@@ -1063,7 +1407,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     ledger.userConfirmed = true;
     const rollbackBlueprint = writePartialCloseBlueprint(integration.integrationPath, blueprint);
     try {
-      writeLedger(integration.ledgerFile, ledger);
+      { const lost = commitWrite(); if (lost) return lost; }
     } catch (error) {
       rollbackBlueprint();
       throw error;
@@ -1118,6 +1462,16 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     }
     const plannedWorkers = new Map<string, { worker: string; branch: string; action: 'reuse' | 'create' }>();
     try {
+      // revoke된 배정은 등록 worktree·branch를 지운 뒤 새로 만든다. reuse하면
+      // 이전 generation의 dirty HEAD가 그대로 남는다. leased-revoked와
+      // legacy(no lease) revoke를 같은 헬퍼로 덮는다.
+      for (const id of ready) {
+        const item = ledger.tasks.find((x) => x.id === id) as Task;
+        if (item.execution_kind === 'verification') continue;
+        if (shouldRemoveRevokedWorker(item)) {
+          removeRevokedWorker(exec, integration.integrationPath, item);
+        }
+      }
       // 한 wave의 branch 충돌을 모두 확인한 뒤에만 worktree를 만든다. 앞 task를
       // 먼저 만들고 뒤 task에서 멈추면 재시도 전 ledger와 Git 등록이 갈라지므로,
       // 이 단계는 Git 조회만 하고 seed·mkdir·worktree add를 절대 호출하지 않는다.
@@ -1182,14 +1536,53 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       item.status = transition(item.status, 'prepared');
       item.workerPath = planned.worker;
       item.branch = planned.branch;
+      // commit task 배정마다 lease를 발급한다. generation은 revoke 재배정에서 오른다.
+      issueLease(ledger, item, makeLeaseId);
     }
-    atomicWrite(integration.ledgerFile, ledger);
+    { const lost = commitWrite(); if (lost) return lost; }
     return withCheckpoint({ ok: true as const, command, ready, tasks: ledger.tasks, decisions: ledger.decisions },
       ledger, integration.ledgerFile);
+  }
+  if (command === 'revoke') {
+    ensureIntegrationCwd(repoRoot, blueprint, cwd);
+    if (!task || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
+    const revokeItem = ledger.tasks.find((x) => x.id === task);
+    if (!revokeItem) return { ok: false, reason: 'task-outside-blueprint' };
+    if (typeof reason !== 'string' || reason.trim() === '') {
+      return { ok: false, reason: 'decision-reason-required' };
+    }
+    const status = revokeItem.status || 'pending';
+    if (status !== 'prepared' && status !== 'recorded') {
+      return { ok: false, reason: 'illegal-transition' };
+    }
+    const previousHead = typeof revokeItem.sha === 'string' ? revokeItem.sha : null;
+    const decision = revokeLease(ledger, revokeItem, {
+      reason: reason.trim(), previousHead,
+    });
+    { const lost = commitWrite(); if (lost) return lost; }
+    return withCheckpoint({
+      ok: true as const, command, task: revokeItem, decision,
+    }, ledger, integration.ledgerFile);
   }
   if (!task || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
   const item = ledger.tasks.find((x) => x.id === task);
   if (!item) return { ok: false, reason: 'task-outside-blueprint' };
+  // lease 검사는 attempt·brief hash·상태 검사보다 앞에 둔다. revoke 뒤 늦은
+  // 플래그 호출이 illegal-transition으로 가려지지 않게 한다.
+  if (command === 'dispatch' || command === 'report' || command === 'record') {
+    const leaseChecked = checkLease(item, {
+      ...(leaseId !== undefined ? { lease_id: leaseId } : {}),
+      ...(generation !== undefined ? { generation } : {}),
+    });
+    if (!leaseChecked.ok) {
+      const rejected = rejectLeaseMismatch(ledger, item, task, leaseChecked);
+      if (leaseChecked.reason === 'stale-lease') {
+        const lost = commitWrite();
+        if (lost) return lost;
+      }
+      return rejected;
+    }
+  }
   if (command === 'critical-recovery') {
     if (typeof reason !== 'string' || reason.trim() === '') return { ok: false, reason: 'reason-required' };
     if (outcome !== undefined) {
@@ -1205,7 +1598,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       };
       item.decisions = [...(item.decisions || []), result];
       ledger.decisions.push(result);
-      atomicWrite(integration.ledgerFile, ledger);
+      { const lost = commitWrite(); if (lost) return lost; }
       return withCheckpoint({ ok: true as const, command, task: item, decision: result, decisions: ledger.decisions },
         ledger, integration.ledgerFile);
     }
@@ -1220,7 +1613,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     };
     item.decisions = [...(item.decisions || []), started];
     ledger.decisions.push(started);
-    atomicWrite(integration.ledgerFile, ledger);
+    { const lost = commitWrite(); if (lost) return lost; }
     return withCheckpoint({ ok: true as const, command, task: item, decision: started, decisions: ledger.decisions },
       ledger, integration.ledgerFile);
   }
@@ -1269,7 +1662,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     };
     item.decisions = [...(item.decisions || []), dispatchDecision];
     ledger.decisions.push(dispatchDecision);
-    atomicWrite(integration.ledgerFile, ledger);
+    { const lost = commitWrite(); if (lost) return lost; }
     const metadata: {
       attempt: number; task_brief_hash: string; base_head: string; initial_worktree_state: string;
       previous_outcome?: { outcome: string; summary: string };
@@ -1310,7 +1703,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       };
       item.decisions = [...(item.decisions || []), stale];
       ledger.decisions.push(stale);
-      atomicWrite(integration.ledgerFile, ledger);
+      { const lost = commitWrite(); if (lost) return lost; }
       return { ok: false, reason: 'stale-report', expected, received };
     }
     item.dispatch.status = 'reported';
@@ -1322,7 +1715,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     };
     item.decisions = [...(item.decisions || []), reportDecision];
     ledger.decisions.push(reportDecision);
-    atomicWrite(integration.ledgerFile, ledger);
+    { const lost = commitWrite(); if (lost) return lost; }
     return withCheckpoint({
       ok: true as const, command, attempt: attempt as number, decision: reportDecision,
       task: item, decisions: ledger.decisions,
@@ -1359,7 +1752,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       item.decisions = [...(item.decisions || []), decision];
       ledger.decisions.push({ task, decision });
     }
-    atomicWrite(integration.ledgerFile, ledger);
+    { const lost = commitWrite(); if (lost) return lost; }
     return withCheckpoint({ ok: true as const, command, task: item, decisions: ledger.decisions },
       ledger, integration.ledgerFile);
   }
@@ -1388,7 +1781,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     item.sha = workerHead;
     item.decisions = [...(item.decisions || []), rerecordDecision];
     ledger.decisions.push(rerecordDecision);
-    atomicWrite(integration.ledgerFile, ledger);
+    { const lost = commitWrite(); if (lost) return lost; }
     return withCheckpoint({
       ok: true as const, command, task: item, decision: rerecordDecision, decisions: ledger.decisions,
     }, ledger, integration.ledgerFile);
@@ -1438,7 +1831,7 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       integrationPath: integration.integrationPath, blueprint, repair, terminal: item,
     });
     try {
-      writeLedger(integration.ledgerFile, ledger);
+      { const lost = commitWrite(); if (lost) return lost; }
     } catch (error) {
       rollbackDocuments();
       throw error;
@@ -1447,102 +1840,8 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       ok: true as const, command, wave, repairTask: repair, terminalTask: item, decision: repairDecision,
     }, ledger, integration.ledgerFile);
   }
-  if (command === 'integrate') {
-    ensureIntegrationCwd(repoRoot, blueprint, cwd);
-    if (item.execution_kind === 'verification') {
-      if (item.status !== 'ready') return { ok: false, reason: 'not-ready' };
-      item.status = transition('ready', 'verifying', 'verification');
-      writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'verifying');
-      atomicWrite(integration.ledgerFile, ledger);
-      // 실패 증적도 verification.md에 남겨야 하므로 runner 결과를 먼저 기록한다.
-      // 성공한 경우에만 integrated로 올려 실패 CI가 fan-in 완료로 보이지 않게 한다.
-      // verification → current → coordinator 순환을 피하려고 실제 실행 직전에만
-      // runner를 로드한다. 테스트 주입도 같은 최소 계약을 따른다.
-      const runner = deps.runVerification
-        || (require('./verification').runVerification as VerificationRunner);
-      // terminal CI는 task/wave evidence와 분리된 scope key를 쓴다. blueprint 안정 ID와
-      // 현재 integration HEAD를 묶어야 같은 명령이어도 fan-in 전후 hit가 섞이지 않는다.
-      const { epicId, blueprintId } = parsePathIds(blueprint);
-      const integrationHead = typeof ledger.integrationHead === 'string'
-        ? ledger.integrationHead
-        : git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
-      const result = runner({
-        repoRoot: integration.integrationPath,
-        blueprintDir: blueprint,
-        scope: {
-          kind: 'terminal',
-          key: `EPIC-${epicId}/BP-${blueprintId}:${integrationHead}`,
-        },
-      });
-      if (!result.ok) {
-        const lastRepair = (ledger.repairWaves || []).at(-1);
-        const evidence: FailureEvidence = {
-          task, command: result.command, summary: `exit code ${result.exitCode}`,
-          paths: lastRepair ? [...lastRepair.nextScope] : [...(ledger.terminalFailure?.paths || [])],
-          exitCode: result.exitCode, repairWave: (ledger.repairWaves || []).length,
-        };
-        ledger.terminalFailure = evidence;
-        const exhausted = (ledger.repairWaves || []).length >= 2;
-        if (exhausted) {
-          ledger.status = 'awaiting_confirmation';
-          const nextPlan = path.join(integration.integrationPath, 'NEXT_PLAN.md');
-          const remaining = evidence.paths.length > 0 ? evidence.paths.join(', ') : 'none recorded';
-          const nextPlanBody = `# Next plan\n\n- Failed command: \`${result.command}\`\n`
-            + `- Exit code: ${result.exitCode}\n- Remaining paths: ${remaining}\n`;
-          fs.writeFileSync(nextPlan, nextPlanBody);
-        }
-        atomicWrite(integration.ledgerFile, ledger);
-        return { ok: false, reason: 'verification-failed', task: item, verification: result,
-          repairWaves: (ledger.repairWaves || []).length, stopped: exhausted };
-      }
-      item.status = transition('verifying', 'integrated', 'verification');
-      if (typeof result.evidenceId === 'string' && result.evidenceId !== '') {
-        item.verify_evidence_id = result.evidenceId;
-      }
-      writeVerificationTaskStatus(integration.integrationPath, blueprint, task, 'integrated');
-      atomicWrite(integration.ledgerFile, ledger);
-      return withCheckpoint({ ok: true as const, command, task: item, verification: result,
-        ready: readyWave(ledger.tasks, {
-          maxParallel: maxParallelForRead(integration.integrationPath),
-        }), decisions: ledger.decisions },
-      ledger, integration.ledgerFile);
-    }
-    if (item.status !== 'recorded' || !item.sha) return { ok: false, reason: 'not-recorded' };
-    const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
-    // fan-in도 worker SHA를 읽고 ledger를 갱신하는 write 경계다. record 이후의
-    // symlink/ledger 경로 치환을 여기서 막아야 외부 commit을 cherry-pick하지 않는다.
-    if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)
-      || !workerOwnsSha(exec, worker, item.sha)) {
-      return { ok: false, reason: 'sha-not-owned-by-worker' };
-    }
-    if (ledger.integrationHead !== git(exec, integration.integrationPath, ['rev-parse', 'HEAD'])) {
-      return { ok: false, reason: 'stale-integration-head' };
-    }
-    // 증적 판정은 기존 가드 뒤, 어떤 쓰기보다 앞이다. worker에만 남은 terminal
-    // 문서를 integration으로 가져오지 않으면 finalize G16이 이 task를 열린 task로
-    // 본다. 동적 repair task도 같은 commit 경로라 같은 규칙을 받는다.
-    const evidence = checkWorkerEvidence(worker, blueprint, task, item.sha);
-    if (!evidence.ok) return evidence;
-    const restoreBundle = copyEvidenceBundle(worker, integration.integrationPath, blueprint, task);
-    try {
-      git(exec, integration.integrationPath, ['cherry-pick', item.sha]);
-    } catch (error) {
-      // cherry-pick 실패는 흡수하지 않는다. 복사한 문서만 되돌리고 기존 throw 경로로
-      // 올려, 원장이 recorded로 남은 채 integration 문서만 terminal인 상태를 막는다.
-      restoreBundle();
-      throw error;
-    }
-    item.status = transition('recorded', 'integrated');
-    ledger.integrationHead = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
-    atomicWrite(integration.ledgerFile, ledger);
-    return withCheckpoint({
-      ok: true as const, command, task: item,
-      ready: readyWave(ledger.tasks, {
-        maxParallel: maxParallelForRead(integration.integrationPath),
-      }), decisions: ledger.decisions,
-    }, ledger, integration.ledgerFile);
-  }
   return { ok: false, reason: 'unknown-coordinate-command' };
+  });
 }
 
 export = {

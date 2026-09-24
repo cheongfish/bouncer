@@ -13,6 +13,10 @@ const frontmatter = require("./frontmatter");
 const { readDoc } = frontmatter;
 const render = require("./render");
 const { renderDoc } = render;
+const validateSections = require("./validate-sections");
+const { pathsOverlap } = validateSections;
+const leaseMod = require("./lease");
+const { revokeLease, isValidLease, isValidLeaseSeq } = leaseMod;
 function isUnder(file, entry) {
     const f = toPosix(file);
     const e = toPosix(entry);
@@ -585,6 +589,16 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }
         return { ok: false, reason: 'scope-path-out-of-bounds', paths: outOfBounds };
     }
     return lockedTaskWrite(repoRoot, blueprint, taskId, ({ ledger, entry, ledgerFile, owns, }) => {
+        // coordinator assertLeaseShape / validateCoordinatorLedger와 같은 규칙.
+        // revise는 CLI 우회로 coordinate 잠금 경로를 안 타므로 여기서 막는다.
+        if (!isValidLeaseSeq(ledger.leaseSeq))
+            return { ok: false, reason: 'lease-invalid' };
+        const peersForLease = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+        for (const peer of peersForLease) {
+            if (peer && peer.lease !== undefined && !isValidLease(peer.lease)) {
+                return { ok: false, reason: 'lease-invalid' };
+            }
+        }
         const docAbs = taskDocPath(repoRoot, blueprint, taskId);
         let doc;
         try {
@@ -623,10 +637,64 @@ function reviseTaskScope({ repoRoot, blueprint, task, paths: nextPaths, reason }
         // 원장 쓰기 직전에도 다시 본다. 잃었다면 이 판단은 다른 writer가 읽은 원장 위에
         // 얹히므로, 쓰지 않고 거절한다. (두 확인 사이의 창은 남는다 — 회수는 여전히
         // take-then-check다.)
+        // scope 충돌: 새 경로가 다른 prepared·recorded active lease와 겹치면
+        // seq가 큰 쪽(후발)만 같은 잠금 안에서 revoke한다. revision 기록은 유지한다.
+        const revoked = [];
+        const normalize = (raw) => {
+            let p = raw;
+            while (p.startsWith('./'))
+                p = p.slice(2);
+            if (p.length > 1 && p.endsWith('/'))
+                p = p.slice(0, -1);
+            return p;
+        };
+        const pathSetOf = (task) => {
+            if (task.scope && Array.isArray(task.scope.paths))
+                return task.scope.paths;
+            if (Array.isArray(task.affected_paths))
+                return task.affected_paths;
+            return null;
+        };
+        const overlaps = (left, right) => {
+            for (const a of left) {
+                for (const b of right) {
+                    if (pathsOverlap(normalize(a), normalize(b)))
+                        return true;
+                }
+            }
+            return false;
+        };
+        const peers = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+        for (const other of peers) {
+            if (!other || other.id === taskId)
+                continue;
+            const status = other.status || 'pending';
+            if (status !== 'prepared' && status !== 'recorded')
+                continue;
+            if (!other.lease || other.lease.status !== 'active')
+                continue;
+            const otherPaths = pathSetOf(other);
+            if (!otherPaths || !overlaps(next, otherPaths))
+                continue;
+            // 개정 대상에 active lease가 없으면 겹친 peer만 후발로 본다(seq 비교 불가 시 peer revoke).
+            const entrySeq = entry.lease && entry.lease.status === 'active' ? entry.lease.seq : -1;
+            const later = other.lease.seq > entrySeq ? other : entry;
+            if (!later.lease || later.lease.status !== 'active')
+                continue;
+            if (revoked.includes(later.id))
+                continue;
+            revokeLease(ledger, later, {
+                reason: 'scope-conflict',
+                previousHead: typeof later.sha === 'string' ? later.sha : null,
+            });
+            revoked.push(later.id);
+        }
         if (!owns())
             return { ok: false, reason: 'ledger-lock-lost' };
         writeLedger(ledgerFile, ledger);
-        return { ok: true, revision, previous, paths: next };
+        return revoked.length > 0
+            ? { ok: true, revision, previous, paths: next, revoked }
+            : { ok: true, revision, previous, paths: next };
     });
 }
 /**
@@ -660,4 +728,5 @@ module.exports = {
     coordinatorContext,
     reviseTaskScope,
     recordActualPaths,
+    withLedgerLock,
 };

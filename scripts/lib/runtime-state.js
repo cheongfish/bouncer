@@ -213,6 +213,15 @@ function validateCoordinatorLedger(value, options = {}) {
         && !validDispatch(task.dispatch))) {
         return { ok: false, reason: 'dispatch-invalid' };
     }
+    // lease·leaseSeq도 필드가 있을 때만 검사한다. 손상 lease가 재개 기준이 되면
+    // revoke·stale 판정이 갈라지므로 dispatch와 같은 엄격도로 막는다.
+    const { isValidLease, isValidLeaseSeq } = require('./lease');
+    if (!isValidLeaseSeq(ledger.leaseSeq)) {
+        return { ok: false, reason: 'lease-invalid' };
+    }
+    if (tasksForRecovery.some((task) => task.lease !== undefined && !isValidLease(task.lease))) {
+        return { ok: false, reason: 'lease-invalid' };
+    }
     // branch 필드는 이전 원장에는 없을 수 있지만, 있으면 이후 재개가 Git의 실제
     // checkout을 신뢰할 수 있도록 문자열이어야 한다. 여기서 느슨하게 받으면
     // prepare가 잘못된 값을 정상 branch 기록으로 덮어쓴 것처럼 보일 수 있다.
