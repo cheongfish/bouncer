@@ -67,7 +67,7 @@ function buildStandaloneFixture() {
   fs.writeFileSync(path.join(repoRoot, 'README'), 'base\n');
   git(repoRoot, ['add', 'README']);
   git(repoRoot, ['commit', '-m', 'base']);
-  const base = git(repoRoot, ['rev-parse', 'HEAD']);
+  // plan 커밋 전 HEAD는 rangeBase로 다시 잡는다 — 여기서 SHA를 두지 않는다.
 
   writeDoc(repoRoot, `${BP.split('/blueprints/')[0]}/index.md`, {
     type: 'bouncer.epic', title: 'Auth', description: 'd',

@@ -392,7 +392,6 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
     let bpBlueprintId = null;
     let intent = [];
     let outOfScope = [];
-    let bpBody = '';
     if (fs.existsSync(bpIndexAbs)) {
         try {
             const doc = readDoc(bpIndexAbs);
@@ -405,7 +404,8 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
             bpBlueprintId = typeof bouncer.blueprint_id === 'string'
                 ? bouncer.blueprint_id
                 : (typeof bouncer.id === 'string' ? bouncer.id : null);
-            bpBody = typeof doc.body === 'string' ? doc.body : '';
+            // 초기 '' 할당을 두지 않는다 — 이 블록에서만 읽고 바로 파싱한다.
+            const bpBody = typeof doc.body === 'string' ? doc.body : '';
             outOfScope = parseOutOfScope(bpBody);
             try {
                 intent = parseIntentBody(bpBody);
@@ -450,10 +450,11 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         if (!fs.existsSync(tasksAbs))
             continue;
         let data;
-        let body = '';
+        let body;
         try {
             const doc = readDoc(tasksAbs);
             data = doc.data;
+            // catch에서 continue하므로 초기 ''는 읽히지 않는다 — 성공 시에만 대입.
             body = typeof doc.body === 'string' ? doc.body : '';
         }
         catch (_error) {
@@ -546,7 +547,7 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         : [];
     const unified = run(['diff', '-U0', `${base}..${head}`]);
     const symbols = unified.status === 0 ? extractSymbols(unified.stdout) : [];
-    const subjectLog = run(['log', `--format=%h%x00%s`, `${base}..${head}`]);
+    const subjectLog = run(['log', '--format=%h%x00%s', `${base}..${head}`]);
     const commits = subjectLog.status === 0
         ? parseCommitSubjects(subjectLog.stdout).slice(0, COMMIT_LIST_CAP)
         : [];
