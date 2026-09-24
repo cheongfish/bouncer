@@ -729,13 +729,30 @@ function parseTaskDesign(body, taskDigits) {
     pushSection(selected, 'Constraints', parts.get('constraints'));
     return selected;
 }
+/**
+ * Explain `## Tasks` 본문을 task 번호 → 절 본문 맵으로 나눈다.
+ * 새 제목(`### EPIC-ddd/BP-ddd/TASK-ddd · \`sha8\``)과 기존 `### Task NNN`을
+ * 같은 NNN 키로 묶는다. 세 자리가 아니거나 SHA가 대문자·비-8자리면 인식하지
+ * 않는다 — 잘못된 제목을 추측해 올리면 다른 task 절이 섞인다.
+ *
+ * @param {string} tasksBody - `## Tasks` 아래 본문
+ * @returns {Map<string, string>} 키는 `001` 형태
+ */
 function splitTaskChunks(tasksBody) {
     const lines = tasksBody.split('\n');
     const starts = [];
     for (let i = 0; i < lines.length; i += 1) {
-        const match = /^###\s+Task\s+(\d{3})\s*$/i.exec(lines[i].trim());
-        if (match)
-            starts.push({ id: match[1], line: i });
+        const trimmed = lines[i].trim();
+        const legacy = /^###\s+Task\s+(\d{3})\s*$/i.exec(trimmed);
+        if (legacy) {
+            starts.push({ id: legacy[1], line: i });
+            continue;
+        }
+        // SHA는 소문자 8자리만. 대문자·짧은 hex는 Interface 거절 계약과 같다.
+        const stable = /^###\s+EPIC-\d{3}\/BP-\d{3}\/TASK-(\d{3})(?:\s+·\s+`[0-9a-f]{8}`)?\s*$/
+            .exec(trimmed);
+        if (stable)
+            starts.push({ id: stable[1], line: i });
     }
     const out = new Map();
     for (let i = 0; i < starts.length; i += 1) {
@@ -843,4 +860,5 @@ module.exports = {
     resolveIntentProvenance,
     projectSectionHashes,
     projectExplainSectionHashes,
+    splitTaskChunks,
 };

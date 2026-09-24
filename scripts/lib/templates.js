@@ -262,8 +262,12 @@ Source 변경 경로 없음.
      comprehension 프론트매터(BP 엔트리 하나)와 맞춰 적는다. -->
 
 ## Tasks
-<!-- finalize가 삭제하기 전에 task의 Goal & intent, Interface, Do not touch를
-     task별 소제목으로 보존한다. 이 절은 선택 사항이며 G16 필수 절이 아니다. -->
+<!-- finalize가 삭제하기 전에 task의 Goal & intent, Current behavior, Target behavior,
+     Interface, Touch, Constraints를 task별 소제목으로 보존한다.
+     제목은 ### EPIC-ddd/BP-ddd/TASK-ddd · \`sha8\`(trailer SHA가 있을 때) 또는
+     ### EPIC-ddd/BP-ddd/TASK-ddd(없을 때)이며, stable ID를 만들 수 없으면
+     기존 ### Task NNN이다. Do not touch는 보존하지 않는다.
+     이 절은 선택 사항이며 G16 필수 절이 아니다. -->
 `,
     // --- scale: light 전용 본문 ---
     // light는 plan 단계 네 문서(blueprint index + tasks/001 세 문서) 전체 줄 수를

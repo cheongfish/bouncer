@@ -8,7 +8,9 @@ const { toPosix } = paths;
 import validate = require('./validate');
 const { validateBlueprint, loadBlueprintDocs } = validate;
 import current = require('./current');
-const { clearCurrent, nextBlueprint } = current;
+const { clearCurrent, nextBlueprint, readCurrent } = current;
+import taskCommits = require('./task-commits');
+const { resolveTaskCommits } = taskCommits;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter, readDoc } = frontmatter;
 import render = require('./render');
@@ -46,7 +48,74 @@ type GitApi = {
 };
 
 type TaskCommitEntry = { task: string; sha: string; intent_anchor: string };
+type TrailerCommit = { sha?: string; sha8: string };
 const STABLE_TASK_RE = /^EPIC-(\d{3})\/BP-(\d{3})\/TASK-(\d{3})$/;
+
+/**
+ * tasks.md frontmatter에서 stable Task ID를 만든다.
+ * epic_id·blueprint_id·id가 정본이 아니면 null — 잘못된 값을 패딩하지 않는다.
+ *
+ * @param {unknown} data - tasks.md frontmatter 루트
+ * @returns {string | null} `EPIC-ddd/BP-ddd/TASK-ddd` 또는 불가 시 null
+ */
+function stableIdFromTaskData(data: unknown): string | null {
+  // data·bouncer 부재는 legacy `### Task NNN` 폴백이다. asRecord만 쓰면
+  // undefined.bouncer에서 throw해 retention·순수 테스트 fixture까지 깨진다.
+  if (!data || typeof data !== 'object') return null;
+  const bouncer = asRecord(asRecord(data).bouncer);
+  if (!bouncer || typeof bouncer !== 'object') return null;
+  try {
+    return buildStableProvenance({
+      epicId: bouncer.epic_id,
+      blueprintId: bouncer.blueprint_id,
+      taskId: bouncer.id,
+    }).task;
+  } catch (error) {
+    // 세 자리·TASKS-NNN 계약 위반만 흡수한다. 그 외는 호출부에서 본다.
+    if (
+      error instanceof Error
+      && /must be a three-digit id|must be TASKS-NNN/.test(error.message)
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * trailer 해석용 base를 고른다. 원장 base가 정본이고, 없으면 같은 blueprint pointer.
+ * 해석 실패는 null — finalize를 막지 않고 commit_sha 폴백으로 간다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 저장소 루트
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @param {string | null | undefined} opts.ledgerBase - 원장 base
+ * @returns {string | null}
+ */
+function resolveFinalizeTrailerBase({
+  repoRoot, blueprintDir, ledgerBase,
+}: {
+  repoRoot: string;
+  blueprintDir: string;
+  ledgerBase: string | null | undefined;
+}): string | null {
+  if (typeof ledgerBase === 'string' && ledgerBase.trim()) return ledgerBase.trim();
+  try {
+    const pointer = readCurrent({ repoRoot });
+    if (
+      pointer
+      && typeof pointer.blueprint === 'string'
+      && toPosix(pointer.blueprint) === toPosix(blueprintDir)
+      && typeof pointer.base === 'string'
+      && pointer.base.trim()
+    ) {
+      return pointer.base.trim();
+    }
+  } catch (_error) {
+    // CURRENT_AMBIGUOUS 등은 trailer 생략과 같다 — finalize를 실패시키지 않는다.
+  }
+  return null;
+}
 
 // executeVerify의 exec 칸은 execSync 계약이다. 테스트는 종료 코드만
 // { ok, exitCode, output }로 주입하므로, 그 형태를 여기서 throw로 바꾼다.
@@ -331,17 +400,20 @@ function explainParentIds({ repoRoot, blueprintDir }: {
 /**
  * tasks.md의 commit_sha와 stable Task ID를 모아 explain 보존용 task_commits를 만든다.
  * 새 행은 `{ task, sha, intent_anchor }`만 쓴다. sha가 없거나 짧은 hex가 아니면 건너뛴다.
+ * `commits`에 trailer로 찾은 SHA가 있으면 그 sha8을 쓰고, 없을 때만 commit_sha로 폴백한다.
  * stable ID가 정본이 아니거나 Explain 부모 ID를 못 읽거나 Epic·Blueprint가
  * 다르면 행을 만들지 않는다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 저장소 루트
  * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @param {Map<string, TrailerCommit>} [opts.commits] - resolveTaskCommits 결과. 있으면 trailer 우선
  * @returns {TaskCommitEntry[]} 쓸 수 있는 provenance 행. 없으면 빈 배열
  */
-function collectTaskCommits({ repoRoot, blueprintDir }: {
+function collectTaskCommits({ repoRoot, blueprintDir, commits }: {
   repoRoot: string;
   blueprintDir: string;
+  commits?: Map<string, TrailerCommit>;
 }): TaskCommitEntry[] {
   const parent = explainParentIds({ repoRoot, blueprintDir });
   // 부모 번호를 못 읽으면 행을 만들지 않는다. 경로에서 채우면 다른
@@ -360,8 +432,6 @@ function collectTaskCommits({ repoRoot, blueprintDir }: {
       continue;
     }
     const bouncer = asRecord(asRecord(data).bouncer);
-    const sha = normalizeCommitSha(bouncer.commit_sha);
-    if (!sha) continue;
     let provenance: ReturnType<typeof buildStableProvenance>;
     try {
       provenance = buildStableProvenance({
@@ -386,6 +456,13 @@ function collectTaskCommits({ repoRoot, blueprintDir }: {
     if (parts[1] !== parent.epicId || parts[2] !== parent.blueprintId) {
       continue;
     }
+    // trailer SHA가 있으면 worker worktree의 commit_sha보다 우선한다 —
+    // integration에 cherry-pick된 도달 가능 commit을 Explain이 가리키게 하기 위함.
+    const trailer = commits && commits.get(provenance.task);
+    const sha = trailer
+      ? normalizeCommitSha(trailer.sha8 || trailer.sha)
+      : normalizeCommitSha(bouncer.commit_sha);
+    if (!sha) continue;
     out.push({
       task: provenance.task,
       sha,
@@ -446,11 +523,18 @@ function writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits }: {
  * 보존한다. Do not touch·Checklist·verification·review는 실행 시점 범위
  * 통제·절차라서 여기 넣지 않는다 — Git history와 삭제된 task 원문이 정본이다.
  * Current/Target은 값이 있을 때만 넣어 legacy task에 두 절을 요구하지 않는다.
+ * 제목은 frontmatter로 stable ID를 만들 수 있으면 `### EPIC-…/BP-…/TASK-…`이고,
+ * `commits`에 그 ID의 sha8이 있으면 ` · \`sha8\``을 붙인다. 못 만들면 기존
+ * `### Task NNN`으로 폴백한다.
  *
  * @param {TaskUnitLike[] | undefined} taskUnits - Blueprint의 task 묶음
+ * @param {Map<string, TrailerCommit>} [commits] - resolveTaskCommits 결과. 선택
  * @returns {string} Explain `## Tasks` 본문. 장기 절이 없으면 빈 문자열
  */
-function buildTaskContext(taskUnits: TaskUnitLike[] | undefined): string {
+function buildTaskContext(
+  taskUnits: TaskUnitLike[] | undefined,
+  commits?: Map<string, TrailerCommit>,
+): string {
   const units = (Array.isArray(taskUnits) ? taskUnits : [])
     .filter((unit) => unit && unit.tasks && typeof unit.tasks.body === 'string')
     .slice()
@@ -470,12 +554,23 @@ function buildTaskContext(taskUnits: TaskUnitLike[] | undefined): string {
       ['Constraints', sections.constraints],
     ].filter(([, body]) => typeof body === 'string' && body.trim()) as Array<[string, string]>;
     if (!selected.length) continue;
-    const number = typeof unit.number === 'number'
-      ? String(unit.number).padStart(3, '0')
-      : 'unknown';
+    const stableId = stableIdFromTaskData(unit.tasks && unit.tasks.data);
+    let heading: string;
+    if (stableId) {
+      const hit = commits && commits.get(stableId);
+      const sha8 = hit && normalizeCommitSha(hit.sha8 || hit.sha);
+      // SHA가 있으면 통합 commit을 제목에 남긴다. 없으면 ID만 — trailer 해석
+      // 실패·미존재 시에도 제목 형식을 깨지 않기 위함.
+      heading = sha8 ? `### ${stableId} · \`${sha8}\`` : `### ${stableId}`;
+    } else {
+      const number = typeof unit.number === 'number'
+        ? String(unit.number).padStart(3, '0')
+        : 'unknown';
+      heading = `### Task ${number}`;
+    }
     rendered.push(
-      [`### Task ${number}`, ...selected.flatMap(([heading, body]) => [
-        `#### ${heading}`,
+      [heading, ...selected.flatMap(([h, body]) => [
+        `#### ${h}`,
         body,
       ])].join('\n\n'),
     );
@@ -1048,10 +1143,44 @@ function finalize({
   const explainBefore = fs.existsSync(explainAbs)
     ? fs.readFileSync(explainAbs)
     : null;
+  // trailer 맵은 collectTaskCommits·buildTaskContext가 같은 출처를 쓰도록 한 번만 푼다.
+  // base 부재·git 실패는 맵 없이 진행 — finalize를 막지 않고 commit_sha로 폴백한다.
+  let trailerCommits: Map<string, TrailerCommit> | undefined;
+  const trailerBase = resolveFinalizeTrailerBase({
+    repoRoot,
+    blueprintDir,
+    ledgerBase: coordinator ? coordinator.base : null,
+  });
+  if (trailerBase) {
+    try {
+      const head = typeof gitApi.headSha === 'function'
+        ? gitApi.headSha()
+        : execFileSync('git', ['rev-parse', 'HEAD'], {
+          cwd: repoRoot,
+          encoding: 'utf8',
+        }).trim();
+      const stableIds = (Array.isArray(docs.taskUnits) ? docs.taskUnits : [])
+        .map((unit) => stableIdFromTaskData(unit.tasks && unit.tasks.data))
+        .filter((id): id is string => Boolean(id));
+      if (head && stableIds.length > 0) {
+        trailerCommits = resolveTaskCommits({
+          repoRoot,
+          base: trailerBase,
+          head,
+          stableIds,
+        });
+      }
+    } catch (_error) {
+      // rev-parse·log 실패는 trailer만 생략한다. commit_sha 경로로 계속한다.
+      trailerCommits = undefined;
+    }
+  }
   const taskCommits = lockPath
-    ? collectTaskCommits({ repoRoot, blueprintDir })
+    ? collectTaskCommits({ repoRoot, blueprintDir, commits: trailerCommits })
     : [];
-  const taskContext = lockPath ? buildTaskContext(docs.taskUnits) : '';
+  const taskContext = lockPath
+    ? buildTaskContext(docs.taskUnits, trailerCommits)
+    : '';
 
   const restoreTransient = () => {
     for (const snap of snapshots) {

@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const { resolveIntentProvenance } = require('../scripts/lib/intent-provenance');
+const { resolveIntentProvenance, splitTaskChunks } = require('../scripts/lib/intent-provenance');
 
 const dirs = [];
 
@@ -604,6 +604,42 @@ test('intent-provenance emit is indexed when the TypeScript source exists', () =
     encoding: 'utf8',
   }).trim();
   assert.equal(indexed, emitRel);
+});
+
+test('splitTaskChunks recognizes stable and legacy Explain task headings', () => {
+  const design = [
+    '',
+    '#### Goal & intent',
+    '',
+    'design body',
+    '',
+    '#### Interface',
+    '',
+    'iface',
+    '',
+  ].join('\n');
+  const newHeadingBody = `### EPIC-078/BP-002/TASK-001 · \`a1b2c3d4\`${design}`;
+  const legacyHeadingBody = `### Task 001${design}`;
+  assert.deepStrictEqual([...splitTaskChunks(newHeadingBody).keys()], ['001']);
+  assert.deepStrictEqual([...splitTaskChunks(legacyHeadingBody).keys()], ['001']);
+  assert.match(splitTaskChunks(newHeadingBody).get('001'), /design body/);
+  assert.deepStrictEqual(
+    [...splitTaskChunks('### EPIC-078/BP-002/TASK-001\n\n#### Interface\nx\n').keys()],
+    ['001'],
+  );
+  // 세 자리·소문자 8자리 SHA만 인정 — 잘못된 제목은 chunk로 올리지 않는다.
+  assert.deepStrictEqual(
+    [...splitTaskChunks('### EPIC-078/BP-002/TASK-1\n\n#### Interface\nx\n').keys()],
+    [],
+  );
+  assert.deepStrictEqual(
+    [...splitTaskChunks('### EPIC-078/BP-002/TASK-001 · `ABCDEF12`\n\n#### Interface\nx\n').keys()],
+    [],
+  );
+  assert.deepStrictEqual(
+    [...splitTaskChunks('### EPIC-078/BP-002/TASK-001 · `1234567`\n\n#### Interface\nx\n').keys()],
+    [],
+  );
 });
 
 test('outside-repo explain paths are not adopted as link evidence', () => {

@@ -673,6 +673,41 @@ test('task context omits empty Current/Target and yields nothing without durable
   assert.strictEqual(buildTaskContext([]), '');
 });
 
+test('buildTaskContext renders stable Task ID with optional trailer sha8', () => {
+  const units = [{
+    number: 1,
+    tasks: {
+      data: {
+        bouncer: {
+          id: 'TASKS-001',
+          epic_id: '078',
+          blueprint_id: '002',
+        },
+      },
+      body: `# Tasks
+
+## Goal & intent
+stable heading
+
+## Interface
+x
+
+## Touch
+- \`src/\`
+
+## Constraints
+- keep
+`,
+    },
+  }];
+  assert.match(
+    buildTaskContext(units, new Map([['EPIC-078/BP-002/TASK-001', { sha8: 'a1b2c3d4' }]])),
+    /^### EPIC-078\/BP-002\/TASK-001 · `a1b2c3d4`$/m,
+  );
+  assert.match(buildTaskContext(units), /^### EPIC-078\/BP-002\/TASK-001$/m);
+  assert.doesNotMatch(buildTaskContext(units), /· `/);
+});
+
 test('task message is composed from intent then authored summary', () => {
   const docs = {
     blueprintIndex: { data: { title: '로그인 흐름', bouncer: { commit_type: 'feat' } } },
