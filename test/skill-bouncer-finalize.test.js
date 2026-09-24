@@ -177,7 +177,8 @@ test('bouncer-finalize cleans every drive worktree but preserves a blocked drive
   assert.match(handoff, /Cleanup is for a closed blueprint only/);
 });
 
-// explain과 PR은 계획이 아니라 실행을 기술한다.
+// explain과 PR은 계획이 아니라 실행을 기술한다. 출처는 digest coordinator
+// 필드뿐이며 원장·task 원문·verification 로그를 다시 읽지 않는다.
 test('bouncer-finalize audits DAG change, actual paths and agent provenance', () => {
   const explain = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
@@ -187,15 +188,35 @@ test('bouncer-finalize audits DAG change, actual paths and agent provenance', ()
   );
   for (const doc of [explain, draftPr]) {
     assert.match(doc, /DAG/);
-    assert.match(doc, /actual[_ ]paths/i);
-    assert.match(doc, /scope_revision/);
-    assert.match(doc, /integration head/);
+    assert.match(doc, /actualPaths|actual[_ ]paths/i);
+    assert.match(doc, /scopeRevision|scope_revision/);
+    assert.match(doc, /integrationHead|integration head/);
   }
-  assert.match(explain, /which named agent produced it/);
-  assert.match(explain, /worker branch and SHA/);
-  assert.match(explain, /ledger's decision log/);
-  assert.match(draftPr, /integration verify on the head this PR pushes/);
+  assert.match(explain, /named agent|agent name|decision/i);
+  assert.match(explain, /worker branch|branch and SHA|sha/i);
+  assert.doesNotMatch(explain, /Audit those against the ledger's decision log/);
+  assert.match(draftPr, /pr\.sections|finalize\s+--yes|verification/i);
   assert.match(draftPr, /When the\s*\n?\s*plan and the run match, say nothing/);
+});
+
+// Finalize Explain·Quiz·PR의 사실 입력은 prepare digest 하나며, Explain 링크는
+// push 뒤 finalize links가 돌려준 URL만 쓴다. 원장·task·verification 재독은 금지.
+test('bouncer-finalize skill and references switch Explain/Quiz/PR inputs to finalize digest', () => {
+  const { body: skill } = parseFrontmatter(mainMd);
+  const explainQuiz = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
+  );
+  const draftPr = fs.readFileSync(
+    path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'), 'utf8',
+  );
+  assert.match(skill, /bouncer finalize prepare --blueprint/);
+  assert.match(draftPr, /bouncer finalize links --blueprint/);
+  assert.doesNotMatch(explainQuiz, /Audit those against the ledger's decision log/);
+  assert.doesNotMatch(draftPr, /Every task `verification\.md` evidence/);
+  assert.match(draftPr, /pr\.title_prefix/);
+  assert.match(explainQuiz, /Do not re-read the coordinator ledger, task documents, or verification logs\./);
+  assert.match(skill, /bouncer\.comprehension|explain-diff/);
+  assert.match(skill, /If the user does not answer\s+the quiz, \*\*stop\*\*/);
 });
 
 test('bouncer-finalize explain-quiz reference maintains canonical context boundary and cites explain-diff for question count', () => {

@@ -35,10 +35,20 @@ ledger, integration/worker worktrees, last CI evidence, and untracked
 Apply the shared returned-value contract. This workflow owns the finalize
 outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
-1. **Explain + quiz.** When authoring or refreshing explain and running the quiz,
-read [explain-quiz.md](./references/explain-quiz.md). It directs `explain-diff`
-(`${BOUNCER_ROOT}/references/explain-diff/index.md`). If the user does not answer
-the quiz, **stop** — do not continue to validate or `finalize --yes`.
+1. **Explain + quiz.** First run the read-only digest once and keep that payload
+   through step 3 (PR) — `--yes` deletes task documents, so later stages cannot
+   rebuild facts from the tasks tree:
+   ```bash
+   bouncer finalize prepare --blueprint <pointer.blueprint>
+   ```
+   If `ok` is `false`, report the `reason` and **stop**. Do not invent Explain,
+   Quiz, or PR inputs from the coordinator ledger, task documents, or
+   verification logs. On success, that digest is the sole factual input for
+   Explain, Quiz, and PR. When authoring or refreshing explain and running the
+   quiz, read [explain-quiz.md](./references/explain-quiz.md). It directs
+   `explain-diff` (`${BOUNCER_ROOT}/references/explain-diff/index.md`) and the
+   single `bouncer.comprehension` blueprint entry. If the user does not answer
+   the quiz, **stop** — do not continue to validate or `finalize --yes`.
 
 2. **Remainder.** Dry-run, then read `integration` from that payload. `ledger:
    'absent'` is not a drive — continue. `unreadable` is the existing CLI
@@ -72,8 +82,11 @@ the quiz, **stop** — do not continue to validate or `finalize --yes`.
    On **C**, fix and re-dry-run. On **D**, stop without `--yes`.
    (Empty staged set is fine — still run the ACQ so worktree choice is explicit;
    `--yes` clears the pointer without creating an empty commit.)
+   If a later call reports `task-documents-missing` after `--yes`, treat the
+   blueprint as already closed — do not re-run prepare against a deleted tasks
+   tree.
 
-3. **PR.** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). **ACQ — PR:** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 4.
+3. **PR.** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). Use the prepare digest kept from step 1 for title prefix and body sections; do not recompute them. **ACQ — PR:** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 4.
 
 4. **Cleanup.** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
 

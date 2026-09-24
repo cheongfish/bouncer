@@ -18,7 +18,7 @@ answers and is **not an ACQ**.
 ## When this applies
 
 From `/bouncer-finalize` after scaffold explain. Authors BP `explain.md`
-sections, runs the quiz for pointer-base..HEAD, writes one
+sections, runs the quiz for digest `range.base`..`range.head`, writes one
 `bouncer.comprehension` blueprint entry with required `quiz_score`, and sets
 status published. Not a workflow entry point.
 
@@ -39,12 +39,14 @@ status published. Not a workflow entry point.
    Then apply `stop-slop` (`references/stop-slop/index.md`) (advisory) before the
    quiz — strip filler and formulaic closers from the five sections.
 
-2. **Resolve `range_from`.** Always the pointer `base` from `bouncer current`
-   (else `.bouncer/config.json` `base_branch`). Do **not** chain from a prior
-   entry's `range_to` — comprehension is one blueprint entry, not a task chain.
+2. **Resolve `range_from`.** Use the finalize prepare digest's `range.base`
+   (and `range.head` for the quiz upper bound). Do **not** re-derive the range
+   from pointer `base` or chain from a prior entry's `range_to` — comprehension
+   is one blueprint entry, not a task chain. Prefer digest `range.diff_sha` when
+   present so Explain and Quiz share the same hash the CLI already computed.
 
-3. **Quiz the user.** Adapt and run the quiz from the `range_from..HEAD` diff
-   (agent judgment — no mechanical table). The quiz is **required** — if the
+3. **Quiz the user.** Adapt and run the quiz from the `range.base..range.head`
+   diff (agent judgment — no mechanical table). The quiz is **required** — if the
    user does not answer, stop and tell `/bouncer-finalize` to abort (do not
    invent a skip path or leave `quiz_score` empty):
    1. Choose question count in **1–10** (minimum 1; never 0). State the
@@ -74,9 +76,10 @@ status published. Not a workflow entry point.
    later commits only drifted `diff_sha` / section prose, refresh the body and
    `diff_sha` (and `range_to`) — do **not** re-run the quiz.
 
-4. **Compute `diff_sha`.** Pass the entry's `range_from` as `base` to
-   `computeDiffSha`. Run from the **execute worktree root** (`cwd` = that
-   worktree):
+4. **Compute `diff_sha`.** Prefer digest `range.diff_sha` when it is a
+   non-null string. Only if the digest left it null, pass the entry's
+   `range_from` as `base` to `computeDiffSha`. Run from the **execute worktree
+   root** (`cwd` = that worktree):
 
    ```bash
    node -e 'const { computeDiffSha } = require(process.argv[1] + "/scripts/lib/comprehension");
@@ -87,15 +90,15 @@ status published. Not a workflow entry point.
    If the JSON has `ok: false`, report the `reason` and **stop** — do not invent
    a hash.
 
-5. **Write one `bouncer.comprehension` entry.** Read `range_to` as the current
-   `HEAD` sha (`git rev-parse HEAD`). Keep the list at **exactly one** blueprint
-   entry — replace the sole item if refreshing, do **not** append a second
-   entry, and do **not** set a `task` field:
+5. **Write one `bouncer.comprehension` entry.** Read `range_to` as digest
+   `range.head` (else the current `HEAD` sha). Keep the list at **exactly one**
+   blueprint entry — replace the sole item if refreshing, do **not** append a
+   second entry, and do **not** set a `task` field:
 
    ```yaml
-   - range_from: <pointer base from step 2>
-     range_to: <HEAD sha>
-     diff_sha: <sha from step 4>
+   - range_from: <digest range.base>
+     range_to: <digest range.head or HEAD sha>
+     diff_sha: <digest range.diff_sha or sha from step 4>
      quiz_score: 'N/M'
      disposition: <non-empty free-text>
      recorded_at: <ISO-8601, prefer KST offset>
@@ -110,17 +113,23 @@ status published. Not a workflow entry point.
 ## Preserved task context
 
 `/bouncer-finalize` may add an optional `## Tasks` section immediately before
-deleting task documents. It writes one `### Task NNN` subsection per task and
-copies only the authored `Goal & intent`, `Interface`, and `Do not touch`
-sections. The copied bodies retain the author's semantic line breaks; do not
-split or reflow sentences by punctuation. Verification, review, and checklist
-content are transient evidence and are not copied. The section is optional and
-its absence does not make G16 fail.
+deleting task documents. It writes one subsection per task. Headings use the
+stable Task ID form `` ### EPIC-ddd/BP-ddd/TASK-ddd · `sha8` `` when a trailer
+SHA is known, `` ### EPIC-ddd/BP-ddd/TASK-ddd `` when the ID exists without SHA,
+or legacy `### Task NNN` when a stable ID cannot be built. Each subsection
+copies the authored `Goal & intent`, `Current behavior`, `Target behavior`,
+`Interface`, `Touch`, and `Constraints` sections (Current/Target only when
+present). Do not touch is not preserved. The copied bodies retain the author's
+semantic line breaks; do not split or reflow sentences by punctuation.
+Verification, review, and checklist content are transient evidence and are not
+copied. The section is optional and its absence does not make G16 fail.
 
 ## Guardrails
 
-- No new CLI, quiz engine, or HTML UI — Node stdlib + `computeDiffSha` only.
-- Do not edit `scripts/lib/comprehension` or gate logic; call the existing API.
+- Prefer the finalize prepare digest and existing `computeDiffSha` API. Do not
+  invent a quiz engine or HTML UI.
+- Do not edit `scripts/lib/comprehension` or gate logic; call the existing API
+  (or reuse digest `range.diff_sha`).
 - Do not block finalize on score. G16 checks the record and hash match for the
   blueprint entry, not the grade. An unanswered quiz still aborts the caller.
 

@@ -326,6 +326,7 @@ test('migrateRetention promotes Explain then deletes all four transient leaves',
 
   const explainAfter = fs.readFileSync(path.join(repo, `${BP_A}/explain.md`), 'utf8');
   assert.match(explainAfter, /## Tasks/);
+  assert.match(explainAfter, new RegExp(`### EPIC-${EPIC}/BP-001/TASK-001`));
   assert.match(explainAfter, /장기 intent 를 Explain 으로 승격한다/);
   assert.match(explainAfter, /#### Interface/);
   assert.doesNotMatch(explainAfter, /DO_NOT_TOUCH_MARKER/);

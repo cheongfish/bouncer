@@ -957,7 +957,7 @@ test('--yes deletes transient docs, keeps durable evidence, and stages deletions
     { task: 'EPIC-001/BP-001/TASK-002', sha: '11223344', intent_anchor: 'task-002' },
   ]);
   const explainBody = fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8');
-  assert.match(explainBody, /## Tasks\n\n### Task 001/);
+  assert.match(explainBody, /## Tasks\n\n### EPIC-001\/BP-001\/TASK-001/);
   assert.match(explainBody, /## Goal & intent\n[\s\S]*마감은 blueprint 단위로 묶는다/);
   assert.match(explainBody, /#### Current behavior\n\n지금은 Goal과 Interface만 Explain에 남긴다/);
   assert.match(explainBody, /#### Target behavior\n\n장기 설계 절만 Explain에 남긴다/);
@@ -1612,4 +1612,90 @@ test('finalize --yes copies coordinator provenance into explain frontmatter', ()
   assert.strictEqual(recorded.integration_branch, res.coordinator.integrationBranch);
   assert.strictEqual(recorded.tasks[0].branch, res.coordinator.tasks[0].branch);
   assert.deepStrictEqual(recorded.worktrees, res.worktrees);
+});
+
+test('finalize --yes prefers trailer integration SHA over worker commit_sha', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const { writeCurrent } = require('../scripts/lib/current');
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trimEnd();
+
+  // worker commit_sha는 가짜 — trailer가 정본이어야 한다.
+  const tasksAbs = path.join(repo, `${BP_REL}/tasks/001/tasks.md`);
+  const parsed = readFm(fs.readFileSync(tasksAbs, 'utf8'));
+  parsed.data.bouncer.commit_sha = 'deadbeef';
+  fs.writeFileSync(tasksAbs, `---\n${yaml.dump(parsed.data)}---\n${parsed.body}`);
+
+  run(['add', '-A']);
+  run(['commit', '-m', 'plan']);
+  const explainAbs = path.join(repo, `${BP_REL}/explain.md`);
+  const explain = readFm(fs.readFileSync(explainAbs, 'utf8'));
+  const hashed = computeDiffSha({ repoRoot: repo, base: 'develop' });
+  explain.data.bouncer.comprehension[0].diff_sha = hashed.sha;
+  explain.data.bouncer.comprehension[0].range_to = run(['rev-parse', 'HEAD']);
+  fs.writeFileSync(explainAbs, `---\n${yaml.dump(explain.data)}---\n${explain.body}`);
+  run(['add', '-A']);
+  run(['commit', '-m', 'explain']);
+
+  const rangeBase = run(['rev-parse', 'HEAD']);
+  writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: rangeBase });
+
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const login = 1;\n');
+  run(['add', 'src/auth/login.ts']);
+  run([
+    'commit', '-m',
+    'feat: login\n\nBouncer-Task: EPIC-001/BP-001/TASK-001\nBouncer-Intent: EPIC-001/BP-001\n',
+  ]);
+  const integrationSha = run(['rev-parse', 'HEAD']).toLowerCase();
+  const sha8 = integrationSha.slice(0, 8);
+  assert.notStrictEqual(sha8, 'deadbeef');
+
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint: BP_REL });
+  run(['branch', 'feat/integ']);
+  run(['worktree', 'add', paths.integrationPath, 'feat/integ']);
+  writeIntegrationTask(paths.integrationPath, '001', 'verified');
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  const integHead = execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: paths.integrationPath,
+    encoding: 'utf8',
+  }).trim();
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+    version: 1,
+    blueprint: BP_REL,
+    base: rangeBase,
+    integrationHead: integHead,
+    integrationBranch: 'feat/integ',
+    revision: 'r1',
+    tasks: [{
+      id: '001',
+      status: 'integrated',
+      sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      actualPaths: ['src/auth/login.ts'],
+      branch: 'bouncer/001-001-001',
+      execution_kind: 'commit',
+    }],
+    decisions: [],
+  }, null, 2)}\n`);
+
+  const g = fakeGit([
+    'src/auth/login.ts',
+    ...transientRels(BP_REL, ['001']),
+  ], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(res.taskCommits[0].sha, sha8);
+  assert.notStrictEqual(res.taskCommits[0].sha, 'deadbeef');
+  const explainBody = fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8');
+  assert.match(explainBody, new RegExp(
+    `### EPIC-001/BP-001/TASK-001 · \`${sha8}\``,
+  ));
+  const explainData = yaml.load(
+    fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8').split(/^---$/m)[1],
+  );
+  assert.strictEqual(explainData.bouncer.task_commits[0].sha, sha8);
+
+  run(['worktree', 'remove', '--force', paths.integrationPath]);
 });
