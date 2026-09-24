@@ -390,3 +390,204 @@ test('CLI finalize prepare prints digest JSON', () => {
   assert.strictEqual(parsed.version, 1);
   assert.strictEqual(parsed.tasks[0].commit.source, 'trailer');
 });
+
+test('prepareFinalizeDigest uses base_branch when pr.base is absent', () => {
+  // resolvePrBase: pr.base 부재 시 root.base_branch 폴백(main 직전 분기).
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  fs.mkdirSync(path.join(repoRoot, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repoRoot, '.bouncer', 'config.json'),
+    `${JSON.stringify({ base_branch: 'develop' }, null, 2)}\n`,
+  );
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.strictEqual(d.git.pr_base, 'develop');
+  assert.strictEqual(d.pr.base, 'develop');
+});
+
+test('prepareFinalizeDigest treats CURRENT_AMBIGUOUS as no-base', () => {
+  // resolveDigestBase catch: pointer 충돌은 base 부재와 같다.
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const otherBp = '.bouncer/context/epics/002-other/blueprints/001-x';
+  writeDoc(repoRoot, `${otherBp}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Other', description: 'd',
+    resource: `${otherBp}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '002', blueprint_id: '001', status: 'approved',
+      commit_type: 'feat',
+    },
+  }, '# Blueprint\n\n## Intent\n- x\n');
+  writeCurrent({ repoRoot, blueprint: otherBp, base: git(repoRoot, ['rev-parse', 'HEAD']) });
+  // 두 pointer가 공존하면 readCurrent가 CURRENT_AMBIGUOUS를 throw한다.
+  const result = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'no-base');
+});
+
+test('prepareFinalizeDigest absorbs broken verification/review and skips broken tasks.md', () => {
+  // readVerification/readReview catch + tasks.md 파싱 실패 continue.
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  fs.writeFileSync(
+    path.join(repoRoot, blueprintDir, 'tasks/001/verification.md'),
+    '---\n: not-yaml\n---\n',
+  );
+  fs.writeFileSync(
+    path.join(repoRoot, blueprintDir, 'tasks/001/review.md'),
+    '---\n{broken\n---\n',
+  );
+  fs.writeFileSync(
+    path.join(repoRoot, blueprintDir, 'tasks/002/tasks.md'),
+    '---\n: broken-tasks\n---\n',
+  );
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  // 깨진 tasks.md(002)는 목록에서 빠지고, 001은 verification/review null.
+  assert.strictEqual(d.tasks.length, 1);
+  assert.strictEqual(d.tasks[0].id, 'TASKS-001');
+  assert.strictEqual(d.tasks[0].verification, null);
+  assert.strictEqual(d.tasks[0].review, null);
+});
+
+test('prepareFinalizeDigest records path-outside-scope and finding-accepted', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  // affected_paths(src/) 밖 변경 → path-outside-scope.
+  fs.mkdirSync(path.join(repoRoot, 'vendor'), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, 'vendor/leak.js'), 'module.exports = 1;\n');
+  git(repoRoot, ['add', 'vendor/leak.js']);
+  git(repoRoot, ['commit', '-m', 'chore: leak outside scope']);
+
+  // TASKS-002 finding을 accepted로 바꿔 finding-accepted 분기를 탄다.
+  writeDoc(repoRoot, `${blueprintDir}/tasks/002/review.md`, {
+    type: 'bouncer.review', title: 'Review', description: 'd',
+    resource: `${blueprintDir}/tasks/002/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-002', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: {
+        required: true,
+        findings: [{
+          id: 'F-1', severity: 'minor', status: 'accepted', note: 'accepted later',
+        }],
+      },
+    },
+  });
+
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.ok(d.unverified.some((u) => u.kind === 'path-outside-scope' && u.path === 'vendor/leak.js'));
+  assert.ok(d.unverified.some((u) => u.kind === 'finding-accepted' && u.detail === 'accepted later'));
+});
+
+test('prepareFinalizeDigest clears terminal-missing when a verification task passed', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  writeDoc(repoRoot, `${blueprintDir}/tasks/003/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Terminal verify', description: 'd',
+    resource: `${blueprintDir}/tasks/003/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-003', epic_id: '001', blueprint_id: '001', status: 'verified',
+      execution_kind: 'verification',
+      affected_paths: ['src/'],
+    },
+  }, taskBody());
+  writeDoc(repoRoot, `${blueprintDir}/tasks/003/verification.md`, {
+    type: 'bouncer.verification', title: 'Verified', description: 'd',
+    resource: `${blueprintDir}/tasks/003/verification.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'VERIFY-003', epic_id: '001', blueprint_id: '001', status: 'passed',
+      verification: {
+        command: 'true', exit_code: 0, evidence_id: 'e3', reused: false,
+      },
+    },
+  });
+
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.ok(d.tasks.some((t) => t.execution_kind === 'verification'));
+  assert.ok(!d.unverified.some((u) => u.kind === 'terminal-missing'));
+});
+
+test('prepareFinalizeDigest reports verification-not-passed for failed commit verify', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  writeDoc(repoRoot, `${blueprintDir}/tasks/001/verification.md`, {
+    type: 'bouncer.verification', title: 'Verified', description: 'd',
+    resource: `${blueprintDir}/tasks/001/verification.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'failed',
+      verification: {
+        command: 'false', exit_code: 1, evidence_id: 'e1', reused: false,
+      },
+    },
+  });
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.ok(d.unverified.some(
+    (u) => u.kind === 'verification-not-passed' && /TASK-001/.test(u.task),
+  ));
+});
+
+test('prepareFinalizeDigest returns no-base when exec cannot resolve HEAD or base', () => {
+  const { repoRoot, blueprintDir, base } = buildStandaloneFixture();
+  const failHead = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: (args) => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return { status: 1, stdout: '' };
+      }
+      return { status: 0, stdout: `${base}\n` };
+    },
+  });
+  assert.strictEqual(failHead.ok, false);
+  assert.strictEqual(failHead.reason, 'no-base');
+
+  const failBase = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: (args) => {
+      if (args[0] === 'rev-parse' && args[1] === '--verify') {
+        return { status: 1, stdout: '' };
+      }
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return { status: 0, stdout: `${base}\n` };
+      }
+      return { status: 0, stdout: '' };
+    },
+  });
+  assert.strictEqual(failBase.ok, false);
+  assert.strictEqual(failBase.reason, 'no-base');
+});
+
+test('prepareFinalizeDigest keeps going when blueprint index YAML is broken', () => {
+  // index 파싱 실패는 blueprint-not-found가 아니다 — 디렉터리는 있다.
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  fs.writeFileSync(path.join(repoRoot, blueprintDir, 'index.md'), '---\n: broken\n---\n');
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.strictEqual(d.blueprint.title, '');
+  assert.deepStrictEqual(d.blueprint.intent, []);
+});
+
+test('prepareFinalizeDigest falls back to bare id when stable provenance cannot be built', () => {
+  // epic_id 형식이 깨지면 buildStableProvenance throw → id만 싣는다.
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  writeDoc(repoRoot, `${blueprintDir}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 'Greet', description: 'd',
+    resource: `${blueprintDir}/tasks/001/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: 'bad', blueprint_id: '001', status: 'verified',
+      execution_kind: 'commit',
+      affected_paths: ['src/'],
+      commit_sha: 'deadbeef',
+    },
+  }, taskBody());
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  const task1 = d.tasks.find((t) => t.id === 'TASKS-001');
+  assert.ok(task1);
+  assert.strictEqual(task1.stable_id, 'TASKS-001');
+});

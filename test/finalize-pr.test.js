@@ -14,6 +14,7 @@ const {
 } = require('../scripts/lib/finalize-pr');
 const { runCli } = require('../scripts/lib/cli');
 const { writeCurrent } = require('../scripts/lib/current');
+const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
 
 const BP = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -189,12 +190,27 @@ test('buildPrDraft review_points omit Epic/Blueprint stable ids from unverified'
  * @param {boolean} [opts.explainTracked]
  * @returns {(args: string[]) => { status: number, stdout: string }}
  */
+/**
+ * remote·ref·ancestor·explain 조회를 argv로 분기하는 seam.
+ * headFail은 explain 추적 확인 뒤 rev-parse HEAD 실패 분기를 연다.
+ *
+ * @param {object} opts
+ * @param {string} [opts.remoteUrl]
+ * @param {boolean} [opts.remoteExists]
+ * @param {string | null} [opts.remoteRef] - null이면 tracking ref 부재
+ * @param {boolean} [opts.headIsAncestor]
+ * @param {string} [opts.head]
+ * @param {boolean} [opts.headFail] - true면 HEAD rev-parse 실패
+ * @param {boolean} [opts.explainTracked]
+ * @returns {(args: string[]) => { status: number, stdout: string }}
+ */
 function makeLinksExec({
   remoteUrl = 'git@github.com:acme/app.git',
   remoteExists = true,
   remoteRef = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   headIsAncestor = true,
   head = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  headFail = false,
   explainTracked = true,
 } = {}) {
   return (args) => {
@@ -214,7 +230,9 @@ function makeLinksExec({
       return { status: headIsAncestor ? 0 : 1, stdout: '' };
     }
     if (key === 'rev-parse HEAD') {
-      return { status: 0, stdout: `${head}\n` };
+      return headFail
+        ? { status: 1, stdout: '' }
+        : { status: 0, stdout: `${head}\n` };
     }
     if (args[0] === 'cat-file' && args[1] === '-e') {
       return { status: explainTracked ? 0 : 1, stdout: '' };
@@ -460,4 +478,119 @@ test('CLI finalize links works after tasks/ removed and reports checkout branch'
   // remote 없는 fixture → URL 없이 이유 코드.
   assert.strictEqual(parsed.reason, 'no-remote');
   assert.deepStrictEqual(parsed.links, []);
+});
+
+test('buildPrDraft skips empty verification commands and falls back finding.id / path', () => {
+  // buildVerificationLines: command 없는 verification은 행을 만들지 않는다.
+  // buildReviewPoints: note 없으면 finding.id, unverified.path면 kind: path.
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [
+      {
+        id: 'TASKS-001',
+        verification: { status: 'passed', command: null },
+        review: {
+          required: true,
+          findings: [{ id: 'F-NO-NOTE', status: 'accepted' }],
+        },
+      },
+      {
+        id: 'TASKS-002',
+        verification: null,
+        review: null,
+      },
+    ],
+    out_of_scope: [],
+    unverified: [
+      { kind: 'path-outside-scope', path: 'vendor/leak.js' },
+    ],
+  };
+  const draft = buildPrDraft(digest, {
+    now: new Date('2026-09-24T01:00:00Z'),
+    config: {},
+  });
+  assert.deepStrictEqual(draft.sections.verification, []);
+  assert.ok(draft.sections.review_points.includes('F-NO-NOTE'));
+  assert.ok(draft.sections.review_points.includes('path-outside-scope: vendor/leak.js'));
+});
+
+test('resolveExplainLinks prefers ledger integrationBranch over checkout', () => {
+  // resolveLinksBranch: 원장 integrationBranch가 있으면 그것이 정본이다.
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-ledger-'));
+  git(repoRoot, ['init', '-b', 'feat/checkout']);
+  git(repoRoot, ['config', 'user.email', 't@example.com']);
+  git(repoRoot, ['config', 'user.name', 't']);
+  fs.writeFileSync(path.join(repoRoot, 'README'), 'x\n');
+  git(repoRoot, ['add', 'README']);
+  git(repoRoot, ['commit', '-m', 'base']);
+  writeDoc(repoRoot, `${BP}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login', description: 'd',
+    resource: `${BP}/index.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+      commit_type: 'feat',
+    },
+  }, '# Blueprint\n\n## Intent\n- x\n');
+
+  const paths = coordinatorPathsFor({ repoRoot, blueprint: BP });
+  git(repoRoot, ['branch', 'feat/integ-links']);
+  git(repoRoot, ['worktree', 'add', paths.integrationPath, 'feat/integ-links']);
+  fs.mkdirSync(path.dirname(paths.ledgerFile), { recursive: true });
+  fs.writeFileSync(paths.ledgerFile, `${JSON.stringify({
+    version: 1,
+    blueprint: BP,
+    base: git(repoRoot, ['rev-parse', 'HEAD']),
+    integrationHead: git(paths.integrationPath, ['rev-parse', 'HEAD']),
+    integrationBranch: 'feat/integ-links',
+    revision: 'r1',
+    tasks: [],
+    decisions: [],
+  }, null, 2)}\n`);
+
+  const result = resolveExplainLinks({
+    repoRoot,
+    blueprintDir: BP,
+    exec: makeLinksExec({ remoteExists: false }),
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.branch, 'feat/integ-links');
+  assert.strictEqual(result.reason, 'no-remote');
+
+  git(repoRoot, ['worktree', 'remove', '--force', paths.integrationPath]);
+});
+
+test('resolveExplainLinks returns head-not-pushed when remote ref or HEAD rev-parse fails', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-links-ref-'));
+  git(repoRoot, ['init', '-b', 'feat/login']);
+  git(repoRoot, ['config', 'user.email', 't@example.com']);
+  git(repoRoot, ['config', 'user.name', 't']);
+  fs.writeFileSync(path.join(repoRoot, 'README'), 'x\n');
+  git(repoRoot, ['add', 'README']);
+  git(repoRoot, ['commit', '-m', 'base']);
+
+  assert.strictEqual(
+    resolveExplainLinks({
+      repoRoot,
+      blueprintDir: BP,
+      exec: makeLinksExec({ remoteRef: null }),
+    }).reason,
+    'head-not-pushed',
+  );
+
+  assert.strictEqual(
+    resolveExplainLinks({
+      repoRoot,
+      blueprintDir: BP,
+      exec: makeLinksExec({
+        headIsAncestor: true,
+        explainTracked: true,
+        headFail: true,
+      }),
+    }).reason,
+    'head-not-pushed',
+  );
 });
