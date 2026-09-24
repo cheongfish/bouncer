@@ -31,12 +31,12 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   // BP 단일 엔트리 — append 체인/task 필드 금지와 함께 존재 단언.
   assert.match(md, /one (blueprint )?entr|단일 엔트리|exactly one/i);
   assert.match(md, /do \*\*not\*\* set a `task`|task` field|task 필드를 쓰지/i);
-  assert.match(md, /range_from\.\.HEAD/);
-  // range_from은 포인터 base로 고정.
-  assert.match(md, /pointer `base`|포인터 `base`/);
-  // 해시는 스킬이 직접 부른다 — 모듈 경로와 함수명을 함께 고정.
-  assert.match(md, /scripts\/lib\/comprehension/);
-  assert.match(md, /computeDiffSha/);
+  // Quiz·diff 범위는 finalize prepare digest의 range.base..range.head다.
+  assert.match(md, /range\.base/);
+  assert.match(md, /range\.base\.\.range\.head|range_from\.\.range_to|range_from\.\.HEAD/);
+  // 해시는 digest diff_sha를 우선하고, 없을 때만 computeDiffSha로 폴백한다.
+  assert.match(md, /diff_sha/);
+  assert.match(md, /scripts\/lib\/comprehension|digest/);
   // 점수 비차단은 긍정 문구로 단언한다. 낱말 부재(doesNotMatch)로 단언하면
   // 스킬이 "임계값을 두지 않는다"를 설명하는 순간 자기모순으로 깨진다.
   assert.match(md, /기록만 하고 (마감을 )?막지 않는다/);
@@ -70,6 +70,29 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   // G15를 스킬 문구에 남기지 않는다(존재 단언: G16이 판정 주체).
   assert.match(md, /\bG16\b/);
   assert.doesNotMatch(md, /\bG15\b/);
+  // 단일 bouncer.comprehension 엔트리 계약은 유지한다.
+  assert.match(md, /bouncer\.comprehension/);
+});
+
+// Preserved task context는 실제 finalize 보존 절·stable ID 제목과 맞고,
+// digest range·CLI(finalize prepare)를 허용한다. 옛 drift 문구는 제거한다.
+test('explain-diff documents digest range, stable-id task headings, and preserved sections', () => {
+  const md = fs.readFileSync(path.join(root, 'references/explain-diff/index.md'), 'utf8');
+  assert.match(md, /range\.base/);
+  assert.match(md, /EPIC-\d{3}\/BP-\d{3}\/TASK-\d{3}|stable (Task )?ID|`sha8`/i);
+  assert.doesNotMatch(md, /No new CLI/);
+  assert.doesNotMatch(
+    md,
+    /copies only the authored `Goal & intent`, `Interface`, and `Do not touch`/,
+  );
+  assert.match(md, /Goal & intent/);
+  assert.match(md, /Current behavior/);
+  assert.match(md, /Target behavior/);
+  assert.match(md, /Interface/);
+  assert.match(md, /Touch/);
+  assert.match(md, /Constraints/);
+  assert.match(md, /bouncer\.comprehension/);
+  assert.match(md, /\bG16\b/);
 });
 
 test('explain-diff fixes the light path at one question', () => {
