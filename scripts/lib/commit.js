@@ -18,6 +18,8 @@ const scope = require("./scope");
 const { filterTaskCommitCandidates, isTaskWorkflowArtifact, coordinatorContext, recordActualPaths, } = scope;
 const coordinatorCore = require("./coordinator");
 const { readyWave } = coordinatorCore;
+const configMod = require("./config");
+const { readCoordinatorPolicy } = configMod;
 const paths = require("./paths");
 const { toPosix } = paths;
 const commitGuard = require("./commit-guard");
@@ -108,7 +110,11 @@ function stagedFinalizeRemainderDeletions(repoRoot) {
  * 지금 닫는 task는 아직 integrated가 아니므로 목록에서 뺀다.
  */
 function nextReadyTask(blueprintDir, coordinator) {
-    const ready = readyWave(coordinator.tasks).filter((id) => id !== coordinator.taskId);
+    const policyRoot = coordinator.integrationPath || '';
+    const policy = readCoordinatorPolicy(policyRoot);
+    const maxParallel = policy.ok ? policy.maxParallel : 1;
+    const ready = readyWave(coordinator.tasks, { maxParallel })
+        .filter((id) => id !== coordinator.taskId);
     if (ready.length === 0)
         return null;
     const id = ready[0];
@@ -135,13 +141,16 @@ function nextReadyTask(blueprintDir, coordinator) {
 function coordinatorProvenance(coordinator, actualPaths, taskSha, ledgerRecord) {
     if (!coordinator.active)
         return {};
+    const policyRoot = coordinator.integrationPath || '';
+    const policy = readCoordinatorPolicy(policyRoot);
+    const maxParallel = policy.ok ? policy.maxParallel : 1;
     return {
         actualPaths,
         scopeRevision: coordinator.revision,
         taskSha,
         ledgerWorkerSha: coordinator.workerSha,
         integrationHeadBefore: coordinator.integrationHead,
-        readyWave: readyWave(coordinator.tasks),
+        readyWave: readyWave(coordinator.tasks, { maxParallel }),
         ledgerRecord,
     };
 }

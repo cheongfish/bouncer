@@ -17,6 +17,8 @@ import scope = require('./scope');
 const { readCoordinatorLedger } = scope;
 import coordinatorCore = require('./coordinator');
 const { readyWave } = coordinatorCore;
+import configMod = require('./config');
+const { readCoordinatorPolicy } = configMod;
 
 const READY_TASK_STATUS = ['ready', 'in_progress'];
 
@@ -500,6 +502,13 @@ function coordinatorSnapshot(repoRoot: string, blueprint: string) {
     }>;
   };
   const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+  // integration checkout의 config가 정본이다. invalid면 1로 접어 ready 표시가
+  // prepare보다 넓은 병렬 wave를 약속하지 않게 한다.
+  const policyRoot = typeof found.integrationPath === 'string' && found.integrationPath
+    ? found.integrationPath
+    : repoRoot;
+  const policy = readCoordinatorPolicy(policyRoot);
+  const maxParallel = policy.ok ? policy.maxParallel : 1;
   return {
     status: 'ok' as const,
     ledgerFile: found.ledgerFile,
@@ -509,7 +518,7 @@ function coordinatorSnapshot(repoRoot: string, blueprint: string) {
     terminalStatus: ledger.status === 'partial_closed' || ledger.status === 'awaiting_confirmation'
       ? ledger.status : null,
     terminalFailure: ledger.terminalFailure || null,
-    ready: readyWave(tasks),
+    ready: readyWave(tasks, { maxParallel }),
     tasks: tasks.map((task) => ({
       id: task.id,
       executionKind: task.execution_kind || 'commit',

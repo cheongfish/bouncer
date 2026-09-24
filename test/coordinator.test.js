@@ -37,6 +37,18 @@ const coordinateRaw = __coordinatorMod.coordinate;
 const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
 const { writeCurrent } = require('../scripts/lib/current');
 
+function writeCoordinatorConfig(repoRoot, coordinator) {
+  const dir = path.join(repoRoot, '.bouncer');
+  fs.mkdirSync(dir, { recursive: true });
+  const existing = fs.existsSync(path.join(dir, 'config.json'))
+    ? JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'))
+    : {};
+  fs.writeFileSync(
+    path.join(dir, 'config.json'),
+    `${JSON.stringify({ ...existing, coordinator }, null, 2)}\n`,
+  );
+}
+
 /**
  * dispatch → accepted report. record 사전조건을 채운 뒤 호출부가 record를 이어서 부른다.
  */
@@ -67,19 +79,119 @@ test('readyWave returns only pending tasks with completed dependencies', () => {
 
 test('readyWave keeps a sequential task alone and waits for the integrated gate', () => {
   const tasks = [
-    { id: '001', status: 'integrated' },
-    { id: '002', depends_on: ['001'], parallel_safe: true, status: 'pending' },
-    { id: '003', depends_on: ['001'], parallel_safe: false, status: 'pending' },
+    { id: '001', status: 'integrated', affected_paths: ['a/'] },
+    { id: '002', depends_on: ['001'], parallel_safe: true, status: 'pending', affected_paths: ['b/'] },
+    { id: '003', depends_on: ['001'], parallel_safe: false, status: 'pending', affected_paths: ['c/'] },
     // 005는 아직 종단 상태에 닿지 않았다. gate 값이 integrated 하나뿐이어도
-    // 004는 선행이 그 상태가 되기 전까지 열리지 않는다.
-    { id: '004', depends_on: ['005'], dependency_gate: 'integrated', parallel_safe: true, status: 'pending' },
-    { id: '005', depends_on: [], parallel_safe: true, status: 'recorded' },
+    // 004는 선행이 그 상태가 되기 전까지 열리지 않는다. 초기 status는 pending —
+    // recorded로 두면 in-flight가 비지 않아 순차 후보(003)를 열 수 없다.
+    { id: '004', depends_on: ['005'], dependency_gate: 'integrated', parallel_safe: true, status: 'pending', affected_paths: ['d/'] },
+    { id: '005', depends_on: [], parallel_safe: true, status: 'pending', affected_paths: ['e/'] },
   ];
   assert.deepStrictEqual(readyWave(tasks), ['003']);
+  // sequential in-flight가 있으면 후보를 열지 않는다 — 예전처럼 prepared 옆의
+  // parallel 후보를 바로 열면 한도·충돌 정책과 어긋난다.
   tasks[2].status = 'prepared';
+  assert.deepStrictEqual(readyWave(tasks), []);
+  tasks[2].status = 'integrated';
+  tasks[4].status = 'recorded';
   assert.deepStrictEqual(readyWave(tasks), ['002']);
   tasks[4].status = 'integrated';
   assert.deepStrictEqual(readyWave(tasks), ['002', '004']);
+});
+
+test('readyWave caps parallel_safe tasks by maxParallel and path/resource conflicts', () => {
+  const threeDisjoint = [
+    { id: '001', status: 'pending', parallel_safe: true, affected_paths: ['a/'] },
+    { id: '002', status: 'pending', parallel_safe: true, affected_paths: ['b/'] },
+    { id: '003', status: 'pending', parallel_safe: true, affected_paths: ['c/'] },
+  ];
+  // 세 task 모두 parallel_safe·경로 분리 → 기본 한도 2
+  assert.deepStrictEqual(readyWave(threeDisjoint), ['001', '002']);
+  // in-flight 001(src/) + pending 002(src/a.ts) → 조상 충돌로 제외.
+  // Checklist/Goal은 trailing-slash 디렉터리 표기를 쓰므로, pathsOverlap 호출 전에
+  // 정규화하지 않으면 충돌을 놓친다(RD-001).
+  assert.deepStrictEqual(readyWave([
+    { id: '001', status: 'prepared', parallel_safe: true, affected_paths: ['src/'] },
+    { id: '002', status: 'pending', parallel_safe: true, affected_paths: ['src/a.ts'] },
+  ]), []);
+  // `./` prefix도 같은 경로로 취급해야 한다 — raw pathsOverlap('./src/a.ts','src/a.ts')===false.
+  assert.deepStrictEqual(readyWave([
+    { id: '001', status: 'prepared', parallel_safe: true, affected_paths: ['./src/a.ts'] },
+    { id: '002', status: 'pending', parallel_safe: true, affected_paths: ['src/a.ts'] },
+  ]), []);
+  // 같은 exclusive_resources
+  const sameResourcePair = [
+    { id: '001', status: 'pending', parallel_safe: true, affected_paths: ['a/'], exclusive_resources: ['database-schema'] },
+    { id: '002', status: 'pending', parallel_safe: true, affected_paths: ['b/'], exclusive_resources: ['database-schema'] },
+  ];
+  assert.deepStrictEqual(readyWave(sameResourcePair), ['001']);
+  assert.deepStrictEqual(readyWave(threeDisjoint, { maxParallel: 1 }), ['001']);
+  // 경로 필드가 모두 없는 legacy task는 단독
+  const legacyPair = [
+    { id: '001', status: 'pending', parallel_safe: true },
+    { id: '002', status: 'pending', parallel_safe: true },
+  ];
+  assert.deepStrictEqual(readyWave(legacyPair), ['001']);
+});
+
+test('readCoordinatorPolicy accepts integers >= 1 and rejects invalid max_parallel', () => {
+  const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = require('../scripts/lib/config');
+  assert.strictEqual(DEFAULT_MAX_PARALLEL, 2);
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coord-policy-'));
+  assert.deepStrictEqual(readCoordinatorPolicy(repo), { ok: true, maxParallel: 2 });
+  writeCoordinatorConfig(repo, {});
+  assert.deepStrictEqual(readCoordinatorPolicy(repo), { ok: true, maxParallel: 2 });
+  writeCoordinatorConfig(repo, { max_parallel: 3 });
+  assert.deepStrictEqual(readCoordinatorPolicy(repo), { ok: true, maxParallel: 3 });
+  for (const bad of [0, -1, 1.5, '2', null]) {
+    writeCoordinatorConfig(repo, { max_parallel: bad });
+    assert.deepStrictEqual(
+      readCoordinatorPolicy(repo),
+      { ok: false, reason: 'invalid' },
+      `max_parallel=${JSON.stringify(bad)}`,
+    );
+  }
+});
+
+test('prepare rejects invalid max_parallel before creating workers and honors max_parallel 1', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-coord-prepare-limit-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const blueprint = '.bouncer/context/epics/078-x/blueprints/001-y';
+  for (const [id, leaf] of [['001', 'a'], ['002', 'b'], ['003', 'c']]) {
+    fs.mkdirSync(path.join(repo, blueprint, 'tasks', id), { recursive: true });
+    fs.writeFileSync(
+      path.join(repo, blueprint, 'tasks', id, 'tasks.md'),
+      `---\nbouncer:\n  depends_on: []\n  parallel_safe: true\n  affected_paths:\n    - ${leaf}/\n---\n`,
+    );
+  }
+  fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+
+  writeCoordinatorConfig(boot.integrationPath, { max_parallel: 0 });
+  const workersRoot = path.join(boot.integrationPath, '..', 'workers');
+  const rejected = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'coordinator-config-invalid');
+  assert.strictEqual(fs.existsSync(workersRoot), false);
+
+  writeCoordinatorConfig(boot.integrationPath, { max_parallel: 1 });
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.deepStrictEqual(prepared.ready, ['001']);
+  const preparedCount = prepared.tasks.filter((task) => task.status === 'prepared').length;
+  assert.strictEqual(preparedCount, 1);
 });
 
 test('transition rejects an illegal coordinator state change', () => {
@@ -695,15 +807,16 @@ test('a failed second worker seed leaves main plan, the first worker copy, and t
 
 test('a missing verification bundle in a mixed wave is rejected before any worker worktree exists', () => {
   const blueprint = '.bouncer/context/epics/048-x/blueprints/049-y';
+  // 기본 maxParallel 2 안에서 verification이 wave에 들어가도록 commit 하나와
+  // 묶는다. 세 개를 넣으면 한도 때문에 verification이 빠져 거절 경로를 못 탄다.
   const repo = uncommittedPlanRepo('bouncer-coordinator-mixed-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
-    ['002', '  depends_on: []\n  parallel_safe: true\n'],
-    ['003', '  execution_kind: verification\n  depends_on: []\n  parallel_safe: true\n  verify: node --test\n'],
+    ['002', '  execution_kind: verification\n  depends_on: []\n  parallel_safe: true\n  verify: node --test\n'],
   ]);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
-  assert.deepStrictEqual(boot.ready, ['001', '002', '003']);
-  fs.rmSync(path.join(boot.integrationPath, blueprint, 'tasks/003'), { recursive: true, force: true });
+  assert.deepStrictEqual(boot.ready, ['001', '002']);
+  fs.rmSync(path.join(boot.integrationPath, blueprint, 'tasks/002'), { recursive: true, force: true });
   const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
   const ledgerBefore = fs.readFileSync(ledgerFile, 'utf8');
 

@@ -1118,12 +1118,49 @@ test('presentCurrent exposes the coordinator ready wave and graph revision', () 
 
   const shown = presentCurrent(readCurrent({ repoRoot: repo }), { repoRoot: repo });
   assert.strictEqual(shown.task.id, 'TASKS-001');
-  assert.deepStrictEqual(shown.coordinator.ready, ['002']);
+  // 001이 prepared(순차)인 동안 ready는 비어 있다 — invalid config의 maxParallel:1
+  // 폴백과 같은 읽기 전용 정책이 in-flight 순차를 열어 두지 않는다.
+  assert.deepStrictEqual(shown.coordinator.ready, []);
   assert.strictEqual(shown.coordinator.revision, 'r1');
   assert.strictEqual(typeof shown.coordinator.integrationHead, 'string');
   assert.deepStrictEqual(shown.coordinator.tasks[0].scope, ['src/', 'lib/']);
   assert.strictEqual(shown.coordinator.tasks[0].status, 'prepared');
   assert.strictEqual(shown.coordinator.tasks[0].executionKind, 'commit');
+});
+
+test('presentCurrent falls back to maxParallel 1 when coordinator config is invalid', () => {
+  const repo = committedGitRepo();
+  const bpDir = writeBp(repo, {
+    epicSlug: '078-x', bpSlug: '001-y', epicId: '078', bpId: '001',
+    bpStatus: 'approved', tasksStatus: 'ready', affectedPaths: ['a/'],
+  });
+  for (const [id, leaf] of [['001', 'a'], ['002', 'b'], ['003', 'c']]) {
+    writeDoc(repo, `${bpDir}/tasks/${id}/tasks.md`, {
+      type: 'bouncer.tasks', title: `t${id}`, description: 'd', resource: `${bpDir}/tasks/${id}/tasks.md`,
+      tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+      bouncer: {
+        id: `TASKS-${id}`, epic_id: '078', blueprint_id: '001', status: 'ready',
+        parallel_safe: true, affected_paths: [`${leaf}/`],
+      },
+    });
+  }
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '--quiet', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: bpDir });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  // prepare는 invalid를 거절하므로 읽기 전용 폴백만 본다. integration config를
+  // 깨뜨린 뒤 presentCurrent의 ready가 한 task만 담는지 확인한다.
+  const cfgDir = path.join(boot.integrationPath, '.bouncer');
+  fs.mkdirSync(cfgDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(cfgDir, 'config.json'),
+    `${JSON.stringify({ coordinator: { max_parallel: 0 } }, null, 2)}\n`,
+  );
+  writeCurrent({
+    repoRoot: repo, blueprint: bpDir, base: 'main', task: `${bpDir}/tasks/001/tasks.md`,
+  });
+  const shown = presentCurrent(readCurrent({ repoRoot: repo }), { repoRoot: repo });
+  assert.deepStrictEqual(shown.coordinator.ready, ['001']);
 });
 
 test('listTasksDocs attaches normalized executionKind to explicit and legacy-default tasks', () => {

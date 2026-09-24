@@ -13,6 +13,8 @@ const scope = require("./scope");
 const { readCoordinatorLedger } = scope;
 const coordinatorCore = require("./coordinator");
 const { readyWave } = coordinatorCore;
+const configMod = require("./config");
+const { readCoordinatorPolicy } = configMod;
 const READY_TASK_STATUS = ['ready', 'in_progress'];
 // epic `## Blueprints` 링크 대상(예: `blueprints/BP-001-slug/index.md`)과 매칭.
 // blueprint directory 이름만 캡처; title 텍스트와 한 줄 purpose는 무시.
@@ -415,6 +417,13 @@ function coordinatorSnapshot(repoRoot, blueprint) {
     }
     const ledger = found.ledger;
     const tasks = Array.isArray(ledger.tasks) ? ledger.tasks : [];
+    // integration checkout의 config가 정본이다. invalid면 1로 접어 ready 표시가
+    // prepare보다 넓은 병렬 wave를 약속하지 않게 한다.
+    const policyRoot = typeof found.integrationPath === 'string' && found.integrationPath
+        ? found.integrationPath
+        : repoRoot;
+    const policy = readCoordinatorPolicy(policyRoot);
+    const maxParallel = policy.ok ? policy.maxParallel : 1;
     return {
         status: 'ok',
         ledgerFile: found.ledgerFile,
@@ -424,7 +433,7 @@ function coordinatorSnapshot(repoRoot, blueprint) {
         terminalStatus: ledger.status === 'partial_closed' || ledger.status === 'awaiting_confirmation'
             ? ledger.status : null,
         terminalFailure: ledger.terminalFailure || null,
-        ready: readyWave(tasks),
+        ready: readyWave(tasks, { maxParallel }),
         tasks: tasks.map((task) => ({
             id: task.id,
             executionKind: task.execution_kind || 'commit',

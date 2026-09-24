@@ -650,7 +650,8 @@ test('reviseTaskScope refuses a task the ledger does not carry', () => {
 });
 
 test('a coordinator commit returns actual paths, provenance SHAs and the next ready wave', () => {
-  // 002는 sequential 이라 prepare가 열지 않는다 — 커밋 뒤 ready wave의 다음 항목.
+  // 002는 sequential 이라 prepare가 열지 않는다. 001이 아직 prepared(in-flight
+  // 순차)인 동안 ready wave는 비어 다음 task를 약속하지 않는다.
   const { worker, blueprint } = coordinatorFixture({ extraOpenTask: true });
   writeCurrent({
     repoRoot: worker, blueprint, base: 'work', task: `${blueprint}/tasks/001/tasks.md`,
@@ -669,8 +670,8 @@ test('a coordinator commit returns actual paths, provenance SHAs and the next re
   assert.strictEqual(typeof res.integrationHeadBefore, 'string');
   assert.strictEqual(res.ledgerWorkerSha, null);
   assert.deepStrictEqual(res.ledgerRecord, { ok: true });
-  assert.deepStrictEqual(res.readyWave, ['002']);
-  assert.strictEqual(res.nextTask.id, 'TASKS-002');
+  assert.deepStrictEqual(res.readyWave, []);
+  assert.strictEqual(res.nextTask, null);
   assert.strictEqual(res.scopeRevision, null);
 });
 

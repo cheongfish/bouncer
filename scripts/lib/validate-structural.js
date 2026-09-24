@@ -1,7 +1,7 @@
 'use strict';
 const path = require('node:path');
 const schema = require("./schema");
-const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, DEPENDENCY_GATE_ENUM, isValidDependsOn, executionKindOf, } = schema;
+const { OKF_REQUIRED, TYPES, ID_PREFIX, STATUS_ENUM, detectLegacyFormat, KIND_TO_TYPE, SCALE_ENUM, isValidSupersedes, DEPENDENCY_GATE_ENUM, isValidDependsOn, isValidExclusiveResources, executionKindOf, } = schema;
 const paths = require("./paths");
 const { parsePathIds, toPosix, isNumericContextId, } = paths;
 const verification = require("./verification");
@@ -174,8 +174,8 @@ function checkStructural(doc, failures, verifyAllowlist = DEFAULT_VERIFY_ALLOWLI
         if (bouncer.verify !== undefined && !isValidVerifyCommand(bouncer.verify, verifyAllowlist)) {
             add('S12', 'tasks.verify must be a single executable command');
         }
-        // S28: DAG 필드 shape·enum만. 부재는 빈 depends_on / false / integrated로
-        // 읽히므로 통과. 참조 무결성·cycle은 G19.
+        // S28: DAG 필드 shape·enum만. 부재는 빈 depends_on / false / integrated /
+        // 빈 exclusive_resources로 읽히므로 통과. 참조 무결성·cycle은 G19.
         if (!isValidDependsOn(bouncer.depends_on)) {
             add('S28', 'depends_on must be an array of TASKS-NNN ids');
         }
@@ -185,6 +185,9 @@ function checkStructural(doc, failures, verifyAllowlist = DEFAULT_VERIFY_ALLOWLI
         if (bouncer.dependency_gate !== undefined
             && !DEPENDENCY_GATE_ENUM.includes(bouncer.dependency_gate)) {
             add('S28', `dependency_gate "${bouncer.dependency_gate}" not in enum`);
+        }
+        if (!isValidExclusiveResources(bouncer.exclusive_resources)) {
+            add('S28', 'exclusive_resources must be an array of unique resource ids');
         }
         // verification node는 구현 범위를 갖지 않고 선행 fan-in 뒤 단일 argv만
         // 실행한다. 이 불변조건을 한 코드로 묶어 부분 선언이 commit task처럼

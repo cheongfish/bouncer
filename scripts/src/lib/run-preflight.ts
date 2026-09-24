@@ -13,12 +13,12 @@ import schema = require('./schema');
 const {
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, DEFAULT_SCALE,
   DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE, DEFAULT_DEPENDENCY_GATE,
-  executionKindOf,
+  DEFAULT_EXCLUSIVE_RESOURCES, executionKindOf,
 } = schema;
 import coordinator = require('./coordinator');
 const { readyWave } = coordinator;
 import configMod = require('./config');
-const { readConfig } = configMod;
+const { readConfig, readCoordinatorPolicy } = configMod;
 
 const OPEN_STATUS = ['ready', 'in_progress'];
 const TASK_ID_RE = /^TASKS-(\d{3})$/;
@@ -74,6 +74,8 @@ type WaveTask = {
   dependency_gate?: string;
   parallel_safe?: boolean;
   status?: string;
+  affected_paths?: string[];
+  exclusive_resources?: string[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -198,12 +200,19 @@ function collectTasks(repoRoot: string, blueprintDir: string): {
       : DEFAULT_DEPENDENCY_GATE;
     const executionKind = executionKindOf(bouncer) || 'commit';
     const affected = bouncer ? stringList(bouncer.affected_paths) : [];
+    const exclusive = bouncer && Object.prototype.hasOwnProperty.call(bouncer, 'exclusive_resources')
+      ? stringList(bouncer.exclusive_resources)
+      : [...DEFAULT_EXCLUSIVE_RESOURCES];
     waveTasks.push({
       id,
       depends_on: ledgerDependsOn(dependsOn),
       dependency_gate: dependencyGate,
       parallel_safe: parallelSafe,
       status: ledgerStatus(status),
+      // 문서에 키가 없어도 []를 넣어 legacy(필드 부재)와 구분한다. preflight가
+      // bootstrap 스냅샷과 같은 충돌 집합을 보게 하려는 목적이다.
+      affected_paths: affected,
+      exclusive_resources: exclusive,
     });
     if (!OPEN_STATUS.includes(status)) continue;
     openTasks.push({
@@ -256,12 +265,17 @@ function runPreflight({ repoRoot, blueprintDir }: {
   if (closed) reason = 'blueprint-closed';
   else if (openTasks.length === 0) reason = 'no-open-task';
 
+  // preflight는 repoRoot config를 본다. invalid면 1로 접어 ACQ 미리보기가
+  // prepare보다 넓은 wave를 약속하지 않게 한다.
+  const policy = readCoordinatorPolicy(repoRoot);
+  const maxParallel = policy.ok ? policy.maxParallel : 1;
+
   return {
     ok: true,
     blueprint: { dir: blueprint, status: meta.status, scale: meta.scale },
     base: pointer.base,
     openTasks,
-    readyWave: readyWave(waveTasks),
+    readyWave: readyWave(waveTasks, { maxParallel }),
     autonomy: readAutonomy(repoRoot),
     delegable: reason === null,
     reason,

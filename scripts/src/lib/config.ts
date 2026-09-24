@@ -14,6 +14,14 @@ type VerifyPolicy =
   | { ok: true; reason: 'missing' | 'present'; allowlist: readonly string[] }
   | { ok: false; reason: 'invalid' };
 
+type CoordinatorPolicy =
+  | { ok: true; maxParallel: number }
+  | { ok: false; reason: 'invalid' };
+
+// prepare·readyWave가 공유하는 동시 실행 기본값. config 파일·coordinator 키
+// 부재와 같은 답을 내야 모든 호출처가 같은 폭으로 열린다.
+const DEFAULT_MAX_PARALLEL = 2;
+
 // 검증 실행은 shell:false argv만 허용한다. argv0 실행 파일명이 이 목록(또는
 // 저장소 `verify_allowlist`)에 있어야 프로세스를 시작한다. 커스텀 바이너리는
 // npm script로 감싸거나 저장소 allowlist에 명시한다.
@@ -140,10 +148,49 @@ function readVerifyPolicy(repoRoot: string): VerifyPolicy {
   return { ok: true, reason: 'present', allowlist: getVerifyAllowlist(parsed.value) };
 }
 
+/**
+ * integration checkout의 coordinator 동시 실행 정책을 읽는다. 파일·키 부재는
+ * 기본 한도(2)로 통과시켜 기존 저장소가 prepare 전에 설정을 추가하지 않아도
+ * 된다. `max_parallel`이 정수 1 미만·비정수면 invalid — prepare는 worktree를
+ * 만들기 전에 거절하고, 읽기 전용 소비자는 1로 폴백해 잘못된 설정이 병렬
+ * 폭을 넓히지 않게 한다.
+ *
+ * @param {string} repoRoot - 정책을 읽을 checkout 루트(보통 integration)
+ * @returns {CoordinatorPolicy} 유효 한도 또는 invalid
+ */
+function readCoordinatorPolicy(repoRoot: string): CoordinatorPolicy {
+  const parsed = readConfigResult(repoRoot);
+  // 깨진 JSON·권한 오류도 한도를 넓히지 않는다. missing만 기본값이다.
+  if (parsed.ok === false) {
+    if (parsed.reason === 'missing') {
+      return { ok: true, maxParallel: DEFAULT_MAX_PARALLEL };
+    }
+    return { ok: false, reason: 'invalid' };
+  }
+  if (!isRecord(parsed.value)
+    || !Object.prototype.hasOwnProperty.call(parsed.value, 'coordinator')) {
+    return { ok: true, maxParallel: DEFAULT_MAX_PARALLEL };
+  }
+  const coordinator = parsed.value.coordinator;
+  if (!isRecord(coordinator)
+    || !Object.prototype.hasOwnProperty.call(coordinator, 'max_parallel')) {
+    return { ok: true, maxParallel: DEFAULT_MAX_PARALLEL };
+  }
+  const raw = coordinator.max_parallel;
+  // Number.isInteger는 문자열·null을 거절한다. 0·음수는 병렬 폭이 아니라
+  // "실행 없음"이라 prepare가 명시적으로 막아야 한다.
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 1) {
+    return { ok: false, reason: 'invalid' };
+  }
+  return { ok: true, maxParallel: raw };
+}
+
 export = {
   readConfigResult,
   readConfig,
   readVerifyPolicy,
+  readCoordinatorPolicy,
   DEFAULT_VERIFY_ALLOWLIST,
+  DEFAULT_MAX_PARALLEL,
   getVerifyAllowlist,
 };
