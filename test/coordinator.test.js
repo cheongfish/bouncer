@@ -1902,6 +1902,10 @@ test('overlapping fenced coordinate calls refuse with ledger-locked', () => {
  */
 function twoRecordedWave(prefix, blueprint) {
   const repo = uncommittedPlanRepo(prefix, blueprint, []);
+  // fan-in은 coordinator가 identity 인자 없이 cherry-pick한다. 전역 git identity가
+  // 없는 CI runner에서도 같은 결과가 나오도록 worktree가 공유하는 저장소 config에 둔다.
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
+  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
   for (const id of ['001', '002']) writeBundle(repo, blueprint, id, SCAFFOLD);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
   assert.strictEqual(boot.ok, true, JSON.stringify(boot));
