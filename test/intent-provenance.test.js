@@ -590,12 +590,12 @@ test('git repository absence is an explicit error, not unlinked', () => {
   );
 });
 
-test('intent-provenance emit is indexed when the TypeScript source exists', () => {
+test('intent-provenance emit is not indexed when the TypeScript source exists', () => {
   const root = path.join(__dirname, '..');
   const srcRel = 'scripts/src/lib/intent-provenance.ts';
   const emitRel = 'scripts/lib/intent-provenance.js';
-  // check-emit은 scripts/lib 의 untracked emit 을 거절한다. source 가 있으면
-  // tsc 생성물이 디스크뿐 아니라 git index 에도 있어야 check:emit 이 통과한다.
+  // check-emit은 생성 CommonJS 추적을 거절한다. source 가 있어도 emit 은
+  // 작업 트리에만 두고 index 에는 없어야 check:emit 이 통과한다.
   if (!fs.existsSync(path.join(root, srcRel))) {
     return;
   }
@@ -603,7 +603,7 @@ test('intent-provenance emit is indexed when the TypeScript source exists', () =
     cwd: root,
     encoding: 'utf8',
   }).trim();
-  assert.equal(indexed, emitRel);
+  assert.equal(indexed, '');
 });
 
 test('splitTaskChunks recognizes stable and legacy Explain task headings', () => {
