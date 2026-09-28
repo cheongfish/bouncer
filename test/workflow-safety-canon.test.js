@@ -172,7 +172,6 @@ test('row 6 light inline and drive named exception live in agent-dispatch', () =
   assert.match(dispatch, /inline/i);
   assert.match(dispatch, /named dispatch/);
   assertSkillCites(['bouncer-execute'], /references\/agent-dispatch\.md/, 'row 6');
-  assert.doesNotMatch(read('rules/governance.md'), /named dispatch/);
 });
 
 test('row 7 debugger recovery ceiling lives in verification-recovery.md', () => {

@@ -17,3 +17,4 @@ graphify-out/
 
 .bouncer/config.json
 .bouncer/runtime/
+scripts/lib/

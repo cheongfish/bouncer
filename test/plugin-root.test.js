@@ -4,8 +4,10 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { runBouncerRoot } = require('../scripts/lib/bouncer-root');
 const launcher = path.join(__dirname, '..', 'scripts', 'bouncer');
+const repoScripts = path.join(__dirname, '..', 'scripts');
 
 function fixture(home, host, version, marketplace = 'chunjae-tools', metadata = 'plugin.json') {
   const root = host === 'claude' || host === 'codex'
@@ -171,4 +173,57 @@ test('bouncer does not re-exec when bouncer-root selects the current installatio
   assert.strictEqual(result.status, 0);
   assert.match(result.stdout, /^usage: bouncer <command> \[options\]/);
   assert.strictEqual(result.stderr, '');
+});
+
+/**
+ * 호스트 설치본이 fixture launcher를 가로채지 못하게 env를 고정한다.
+ * PATH에서 bouncer-root를 빼고 BOUNCER_HOME을 fixture로 두면, 자기 실행
+ * 분기와 부재 안내만 검사할 수 있다.
+ *
+ * @param {string} tmp - fixture 플러그인 루트. BOUNCER_HOME으로 넘긴다
+ * @returns {NodeJS.ProcessEnv} BOUNCER_HOME과 PATH만 덮은 process.env 복사
+ */
+function isolatedLauncherEnv(tmp) {
+  // 호스트 PATH의 bouncer-root·BOUNCER_HOME이 fixture를 가로채면 자기 실행
+  // 분기에 도달하지 않거나 설치된 lib가 보여 부재 안내가 나오지 않는다.
+  return {
+    ...process.env,
+    BOUNCER_HOME: tmp,
+    PATH: path.dirname(process.execPath),
+  };
+}
+
+test('bouncer-root prints build guidance when scripts/lib is missing', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-missing-lib-root-'));
+  const scriptsDir = path.join(tmp, 'scripts');
+  fs.mkdirSync(scriptsDir, { recursive: true });
+  fs.copyFileSync(path.join(repoScripts, 'bouncer'), path.join(scriptsDir, 'bouncer'));
+  fs.copyFileSync(path.join(repoScripts, 'bouncer-root'), path.join(scriptsDir, 'bouncer-root'));
+  const res = spawnSync(process.execPath, [path.join(scriptsDir, 'bouncer-root'), '--auto'], {
+    encoding: 'utf8',
+    env: isolatedLauncherEnv(tmp),
+  });
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /scripts\/lib is missing; run `npm run build`/);
+});
+
+test('bouncer prints build guidance when lib/cli.js is missing on the self-exec path', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-missing-cli-'));
+  const scriptsDir = path.join(tmp, 'scripts');
+  fs.mkdirSync(scriptsDir, { recursive: true });
+  fs.copyFileSync(path.join(repoScripts, 'bouncer'), path.join(scriptsDir, 'bouncer'));
+  fs.copyFileSync(path.join(repoScripts, 'bouncer-root'), path.join(scriptsDir, 'bouncer-root'));
+  // bouncer-root는 lib가 있어야 --auto로 tmp를 돌려주고, 그 다음 self-exec
+  // 분기가 cli.js만 없음을 본다. lib 전체를 빼면 root 해석에서 먼저 죽는다.
+  fs.cpSync(path.join(repoScripts, 'lib'), path.join(scriptsDir, 'lib'), {
+    recursive: true,
+    filter: (src) => path.basename(src) !== 'cli.js',
+  });
+  fs.writeFileSync(path.join(tmp, 'plugin.json'), JSON.stringify({ name: 'bouncer', version: '9.9.9' }));
+  const res = spawnSync(process.execPath, [path.join(scriptsDir, 'bouncer'), '--help'], {
+    encoding: 'utf8',
+    env: isolatedLauncherEnv(tmp),
+  });
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /scripts\/lib is missing; run `npm run build`/);
 });

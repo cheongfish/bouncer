@@ -43,6 +43,16 @@ function resolveInstalledRoot() {
   return output;
 }
 
+/**
+ * 최고 우선순위 설치본의 CLI를 실행한다.
+ * 자신이 그 설치본이면 lib/cli.js 존재 확인 후 바로 실행하고, 아니면 그
+ * 설치본 launcher로 위임한다. 위임 분기는 자기 lib 부재를 보지 않는다 —
+ * 대상 설치본이 안내용 메시지를 낼지, 빌드된 트리를 갖고 있는지는 그쪽
+ * launcher의 책임이다.
+ *
+ * @param {string[]} argv - process.argv에서 node와 스크립트 경로를 뺀 나머지
+ * @returns {number} CLI 또는 자식 프로세스 종료 코드
+ */
 function runLauncher(argv) {
   const root = resolveInstalledRoot();
   if (!root) return 1;
@@ -50,6 +60,15 @@ function runLauncher(argv) {
   const target = path.join(root, 'scripts', 'bouncer');
   // 최고 우선순위 설치본이 자신이면 재실행하지 않고 현재 CLI를 바로 실행한다.
   if (realpath(target) === realpath(__filename)) {
+    const cliEntry = path.join(__dirname, 'lib', 'cli.js');
+    // 자동 빌드하지 않는다. launcher가 npm 수명주기를 가지면 설치본·hook
+    // 경로까지 빌드를 시도하고, 개발 checkout의 복구 안내는 한 줄이면 충분하다.
+    if (!fs.existsSync(cliEntry)) {
+      process.stderr.write(
+        `bouncer: scripts/lib is missing; run \`npm run build\` in ${path.dirname(__dirname)}\n`,
+      );
+      return 1;
+    }
     const { runCli } = require('./lib/cli');
     return runCli(argv);
   }

@@ -71,7 +71,6 @@ test('the package contains only the plugin runtime surface and host manifests', 
     'agents/bouncer-coordinator.md',
     'hooks/hooks.json',
     'references/implementation/index.md',
-    'rules/governance.md',
     'scripts/bouncer',
     'scripts/bouncer-root',
     'scripts/lib/cli.js',
@@ -87,6 +86,7 @@ test('the package contains only the plugin runtime surface and host manifests', 
     'plugin.json',
   ];
   for (const file of required) assert.ok(files.includes(file), `missing package file: ${file}`);
+  assert.ok(!files.includes('rules/governance.md'), 'rules/governance.md must not be packaged');
 
   const developmentOnly = [
     '.bouncer/context/',

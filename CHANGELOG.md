@@ -7,6 +7,21 @@
 
 ## [Unreleased]
 
+개발 트리는 생성 CommonJS를 추적하지 않고, 설치본은 release 브랜치에서
+빌드된 플러그인을 받는다. 개발 checkout은 `npm run build`가 선행이다.
+
+### Changed
+
+- **release 브랜치 배포** — 빌드된 플러그인 트리를 `release` 브랜치로 배포한다.
+- **생성 CommonJS 미추적** — `scripts/lib/`를 ignore하고 Git index에서 제거한다.
+  `check:emit`은 추적과 ignore 누락을 거절한다.
+- **개발 checkout 빌드 선행** — `scripts/lib`가 없으면 launcher가
+  `npm run build` 안내를 stderr에 쓰고 1로 끝난다.
+
+### Removed
+
+- **`rules/governance.md`** — 규칙 본문을 코드 주석으로 옮긴 뒤 문서를 삭제한다.
+
 ## [1.4.92] — 2026-09-23
 
 1.4.91 이후 규모·위험 기반 리뷰 디스패치, 검증 재사용과 coordinator
