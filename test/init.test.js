@@ -401,10 +401,8 @@ test('init preserves partial user-authored Bouncer state', () => {
 
 test('plugin governance materials have no Superpowers profile language', () => {
   const root = path.join(__dirname, '..');
-  const gov = fs.readFileSync(path.join(root, 'rules/governance.md'), 'utf8');
   const schema = fs.readFileSync(path.join(root, 'rules/document-schema.md'), 'utf8');
-  const all = gov + schema;
-  assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(all));
+  assert.ok(!/superpowers|methodology\.profile|profile-aware/i.test(schema));
 });
 
 test('init reports the gitignore entries a repo without .gitignore should add', () => {

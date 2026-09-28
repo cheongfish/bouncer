@@ -2,7 +2,7 @@
 
 계획 단계(plan · spec-authoring · template)가 읽는 계약이다.
 실행 범위·commit 계약은 `rules/commit-scope.md`, coordinator mutation 절차는
-`rules/governance.md`에 있다.
+`agents/bouncer-coordinator.md`에 있다.
 
 ## Blueprint sizing rule
 
@@ -18,7 +18,7 @@ node는 `tasks.md`와 `verification.md`만 scaffold하고, 선행 구현 task가
 integrated된 뒤 전체 CI를 한 번 실행해 `verification.md` 증적만 남긴다.
 source diff, reviewable commit, `review.md`와 review 단계,
 `affected_paths`를 만들지 않는다. 실패한 실행의 상태 전이는
-`rules/governance.md` `## Blueprint sizing rule`이 소유한다.
+`scripts/src/lib/coordinator.ts`가 소유한다.
 
 The plan gate emits a non-blocking `warnings` entry when a task's
 `affected_paths` count exceeds 20. That signal only advises splitting when
@@ -105,7 +105,7 @@ state.
 
 Coordinator-owned revision of approved `affected_paths` after plan time is
 owned by `rules/commit-scope.md` `## Approved and ledger scope`; the revision
-procedure itself is `rules/governance.md` `## Coordinator mode`.
+procedure itself is `agents/bouncer-coordinator.md`.
 
 ## Epic naming
 

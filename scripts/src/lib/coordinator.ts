@@ -620,6 +620,7 @@ function integratedLeaves(tasks: Task[], terminalId: string): string[] {
 function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: {
   integrationPath: string; blueprint: string; repair: Task; terminal: Task;
 }): () => void {
+  // task 문서와 ledger revision은 한 write 단위다.
   const terminalFile = path.join(integrationPath, blueprint, 'tasks', terminal.id, 'tasks.md');
   const terminalBefore = fs.readFileSync(terminalFile, 'utf8');
   const terminalDoc = readDoc(terminalFile);
@@ -790,6 +791,7 @@ function writeVerificationTaskStatus(
   taskId: string,
   status: 'verifying' | 'integrated',
 ): void {
+  // 실패한 실행은 integrated로 전이하지 않는다.
   const file = path.join(integrationPath, blueprint, 'tasks', taskId, 'tasks.md');
   const doc = readDoc(file);
   const data = doc.data as Record<string, unknown>;

@@ -353,6 +353,14 @@ function outOfBoundsScopePaths(entries) {
     });
 }
 function nextRevision(current) {
+    // ledger lock과 revision 모델: read-modify-write를 직렬화해 동시 worker가
+    // 같은 revision을 두 번 발행하거나 로그 항목을 잃지 않게 한다. lock을 제때
+    // 못 잡으면 즉시 거절하고, task 문서 쓰기 전과 ledger 쓰기 전에 소유를 다시
+    // 확인해 잃은 쪽에서 쓰지 않고 물러난다. 두 검사 사이에 lock을 잃으면 문서는
+    // 쓰고 ledger는 안 써서 문서의 scope_revision이 ledger에 없는 상태가 된다.
+    // 손수 고칠 필요는 없다 — nextRevision은 ledger revision만의 함수이고 문서
+    // scope_revision을 사전 검사하지 않아 다음 개정이 양쪽을 한 번호로 맞춘다.
+    // 그 전까지 불일치 문서는 stale이며, 읽지 못하는 ledger·ledger에 없는 pointer task와 같이 commit safety가 어느 쪽이 최신인지 추측하지 않고 거절한다.
     const match = /^r(\d+)$/.exec(typeof current === 'string' ? current : '');
     return `r${match ? Number(match[1]) + 1 : 1}`;
 }

@@ -263,6 +263,10 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale, execut
     return created;
 }
 function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, scale }) {
+    // scripts/가 scale을 읽는 네 곳: scaffoldBlueprint는 문서 집합을 고르고,
+    // scaffoldTask는 이후 task에 blueprint가 선언한 scale을 상속하며, plan gate는
+    // G10/G18 계약을, 구조 검증(S20)은 enum 값을 검사한다. 모두 선언된
+    // bouncer.scale만 읽고 크기를 추론하지 않는다.
     if (!isCanonicalEpicDir(epicDir)) {
         throw new Error(`epicDir must be under ${CONTEXT_ROOT}/epics`);
     }
@@ -292,7 +296,7 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
     }), body('blueprint.md')));
     // index.md 다음, task 묶음보다 앞. explain은 finalize 시점이라 여기 넣지 않는다.
     // light는 context-review 문서 자체를 만들지 않는다 — plan gate G18도
-    // light에서는 적용되지 않으므로 판정 대상이 없다(rules/governance.md).
+    // light에서는 적용되지 않으므로 판정 대상이 없다.
     if (!isLight) {
         created.push(...scaffoldContextReview({
             repoRoot, blueprintDir: dir, timestamp,

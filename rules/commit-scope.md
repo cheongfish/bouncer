@@ -1,11 +1,11 @@
 # Commit scope
 
 실행 경로(execute · commit · finalize)가 commit 단위와 변경 범위를 판단할 때
-직접 읽는 공유 계약이다. run과 coordinator는 `rules/governance.md`의 pointer
+직접 읽는 공유 계약이다. run과 coordinator는 `agents/bouncer-coordinator.md`의 pointer
 문장을 따라 같은 정본에 도달한다. **승인 scope**는 plan 시점에 task 문서에서 확정한
 `affected_paths`이고, **ledger scope**는 coordinator가 현재 `revision`에 기록한
 source path 집합이다. scope 개정 명령과 lock 절차, 실패 뒤의 repair 예산과 중지
-판정은 `rules/governance.md` `## Coordinator mode`가 소유하며 이 문서는 복제하지
+판정은 `agents/bouncer-coordinator.md`가 소유하며 이 문서는 복제하지
 않는다.
 
 ## Commit unit and staging

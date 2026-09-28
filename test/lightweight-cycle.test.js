@@ -26,7 +26,7 @@ test('planning defines Lightweight cycle contract', () => {
   assert.doesNotMatch(planning, /named agents are unavailable/);
 });
 
-test('direct owners keep light execution contracts and governance retains scale read sites only', () => {
+test('direct owners keep light execution contracts and code owns scale read sites', () => {
   const dispatch = read('skills/bouncer-execute/references/agent-dispatch.md');
   assert.match(dispatch, /inline/i);
   assert.match(dispatch, /named dispatch/i);
@@ -39,14 +39,8 @@ test('direct owners keep light execution contracts and governance retains scale 
   const eq = read('skills/bouncer-finalize/references/explain-quiz.md');
   assert.match(eq, /Canonical context remains the only repository-knowledge source at finalize|Canonical context remains/i);
 
-  const gov = read('rules/governance.md');
-  assert.match(gov, /## Lightweight cycle/);
-  assert.match(gov, /scaffoldBlueprint/);
-  // BP3 실행 문장은 governance에서 제거된다.
-  assert.doesNotMatch(gov, /inline/i);
-  assert.doesNotMatch(gov, /one question|single question/i);
-  assert.doesNotMatch(gov, /its own diff|self-review/i);
-  assert.doesNotMatch(gov, /named agents are unavailable/);
+  const scaffold = read('scripts/src/lib/scaffold.ts');
+  assert.match(scaffold, /scale을 읽는 네 곳/);
 });
 
 test('bouncer-plan routes light-path work to maintenance epic', () => {
@@ -144,7 +138,7 @@ test('a light blueprint still runs through the coordinator inside a drive', () =
   assert.match(run, /Even when the blueprint was declared light,\s*\n?\s*do not use execute's inline branch during a drive/);
   assert.match(exec, /`\/bouncer-run` always retains the named orchestration boundary/);
   // 위임은 blueprint 선언이 아니라 /bouncer-run 진입으로 정해진다.
-  for (const md of [run, exec, read('rules/governance.md')]) {
+  for (const md of [run, exec]) {
     assert.doesNotMatch(md, /execution_mode/);
   }
 });

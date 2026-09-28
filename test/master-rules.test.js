@@ -727,7 +727,6 @@ test('plugin-root loads only the runtime contract by default', () => {
 
 test('commit-scope defines coordinator dynamic scope, audit and commit ownership', () => {
   const commitScope = read('rules/commit-scope.md');
-  const governance = read('rules/governance.md');
   assert.match(commitScope, /## Approved and ledger scope/);
   assert.match(commitScope, /initial expected scope|초기 예상/i);
   assert.match(commitScope, /revision/);
@@ -760,13 +759,6 @@ test('commit-scope defines coordinator dynamic scope, audit and commit ownership
     commitScopeFlat,
     /treat a passing commit gate as a document-level check, not as coordinator authorization\./,
   );
-  // 두 번째 정본을 남기지 않는다: governance는 실행 범위를 다시 서술하지 않고
-  // 새 정본을 가리키기만 한다. 두 곳이 같은 판단을 말하면 어느 쪽이 이기는지
-  // 문서로 판정할 수 없다.
-  assert.match(governance, /rules\/commit-scope\.md/);
-  assert.doesNotMatch(governance, /initial expected scope/);
-  assert.doesNotMatch(governance, /weaker of the three/);
-  assert.doesNotMatch(governance, /ledger's current scope/);
 
   // 소비자 편집은 정본 이전의 일부다. 두 pointer가 없으면 옛 경로를 읽는 세션이
   // 살아나므로, runtime index 항목과 planning의 새 owner 인용을 함께 고정한다.
@@ -801,24 +793,16 @@ test('current-pointer hands pointer moves to the coordinator, not the run loop',
 // 규칙을 말하면 어느 쪽이 이기는지 문서로 판정할 수 없다.
 test('worker and coordinator authority have one canonical statement', () => {
   const agents = read('AGENTS.md');
-  const governance = read('rules/governance.md');
   const coordinator = read('agents/bouncer-coordinator.md');
 
   // 상한 없음(no ceiling)은 `rules/commit-scope.md`가 소유하고, 나머지는 그것을
-  // 가리킨다. governance에 같은 문장이 남아 있으면 정본이 둘이 된다.
+  // 가리킨다. 삭제된 governance 파일에 같은 문장이 남아 있으면 정본이 둘이 된다.
   assert.strictEqual((read('rules/commit-scope.md').match(/there is no\s*\n?\s*ceiling/g) || []).length, 1);
-  assert.strictEqual((governance.match(/there is no\s*\n?\s*ceiling/g) || []).length, 0);
   assert.match(coordinator, /rules\/commit-scope\.md/);
   assert.doesNotMatch(coordinator, /rules\/governance\.md/);
-  assert.doesNotMatch(governance, /workers report/);
-  assert.doesNotMatch(governance, /exactly one such recovery/);
-  assert.doesNotMatch(governance, /at most two dynamic repair/);
-  assert.doesNotMatch(governance, /partial_closed/);
-  assert.doesNotMatch(governance, /refused without a reason/);
   // hard rule 1은 예외의 범위만 말하고 절차를 다시 쓰지 않는다.
   assert.doesNotMatch(agents, /coordinate revise/);
   // scope 개정 절차의 정본은 coordinator 역할 문서 하나다.
-  assert.doesNotMatch(governance, /coordinate revise --blueprint/);
   for (const name of ['bouncer-implementer', 'bouncer-debugger', 'bouncer-reviewer']) {
     assert.doesNotMatch(
       read(`agents/${name}.md`),

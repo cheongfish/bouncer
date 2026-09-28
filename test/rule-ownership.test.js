@@ -1,7 +1,6 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -61,20 +60,6 @@ function parseOwnership(markdown) {
  */
 function parseLoadGraph(markdown) {
   return parseTable(markdown, 'Load graph', ['consumer', 'startup', 'step', 'failure']);
-}
-
-/**
- * ownership map의 단일 source 경로와 기준 digest를 읽는다.
- *
- * @param {string} markdown - ownership Markdown 원문
- * @returns {{ sourcePath: string, digest: string }} 현재 정본 경로와 SHA-256
- */
-function sourceMetadata(markdown) {
-  const source = markdown.match(/^- `source_path`: `([^`]+)`$/m);
-  const digest = markdown.match(/^- `source_sha256`: `([a-f0-9]{64})`$/m);
-  assert.ok(source, 'ownership map must declare source_path');
-  assert.ok(digest, 'ownership map must declare a SHA-256 source digest');
-  return { sourcePath: source[1], digest: digest[1] };
 }
 
 /**
@@ -313,10 +298,6 @@ test('load graph rejects an unknown consumer with an explicit message', () => {
 test('ownership rows have one target, known migration, unique ids, and real current locators', () => {
   const markdown = read(ownershipPath);
   const ownership = parseOwnership(markdown);
-  const { sourcePath, digest } = sourceMetadata(markdown);
-  const sourceBytes = fs.readFileSync(path.join(root, sourcePath));
-  const actualDigest = crypto.createHash('sha256').update(sourceBytes).digest('hex');
-  assert.strictEqual(actualDigest, digest, `source digest mismatch for ${sourcePath}`);
 
   const ids = new Set();
   const ownerCache = new Map();
@@ -355,7 +336,6 @@ test('ownership rows have one target, known migration, unique ids, and real curr
 test('load graph covers each workflow and keeps conditional references out of startup', () => {
   const markdown = read(ownershipPath);
   const graph = parseLoadGraph(markdown);
-  const { sourcePath } = sourceMetadata(markdown);
   const seen = new Set();
   for (const row of graph) {
     assertAllowedConsumer(row);
@@ -368,7 +348,9 @@ test('load graph covers each workflow and keeps conditional references out of st
   assert.deepStrictEqual([...seen].sort(), [...ALLOWED_CONSUMERS].sort(),
     'load graph must cover each consumer exactly once');
 
-  // 정본 경로는 테스트에 박지 않는다. map의 source_path와 step 셀 선언에서만 읽는다.
+  // 삭제된 원본은 어떤 workflow step도 적재하지 않아야 한다. map에 source_path가
+  // 없으므로 경로 상수를 그대로 쓴다.
+  const sourcePath = 'rules/governance.md';
   const conditionalSource = escapeRegExp(sourcePath);
   for (const row of graph) {
     assert.doesNotMatch(row.startup, new RegExp(conditionalSource),
@@ -487,14 +469,16 @@ test('current owner preserves sizing, light, DAG, and coordinator contracts', ()
     );
   }
 
-  // 이전이 진행 중인 동안 owner는 세 rule 파일에 걸쳐 있다. migration BP 열로
+  // 이전이 진행 중인 동안 owner는 rule 문서와 코드 파일에 걸쳐 있다. migration BP 열로
   // 경로를 고정하면 같은 BP의 일부만 옮긴 중간 commit이 전부 거짓 실패한다.
-  // 대신 행이 선언한 current owner를 기준으로, 같은 구절이 다른 owner 파일에
-  // 남아 있지 않은지(= 이중 정본)만 행별로 거절한다.
+  // 대신 행이 선언한 current owner를 기준으로 locator 존재를 확인하고, 이중 정본
+  // leak은 `.md` owner 사이에서만 거절한다. 코드 owner(`scripts/src/lib/*.ts`)는
+  // 식별자 문자열이 구현에 여러 번 나와 leak 오류가 되므로 자기 행 locator 존재만 본다.
   const ownerPaths = [...new Set(ownership.map((row) => stripTicks(row['current owner'])))];
   const normalizedOwners = new Map(
     ownerPaths.map((ownerPath) => [ownerPath, read(ownerPath).replace(/\s+/g, ' ')]),
   );
+  const mdOwners = ownerPaths.filter((ownerPath) => ownerPath.endsWith('.md'));
   for (const row of ownership) {
     const ownerPath = stripTicks(row['current owner']);
     const [, locator] = row.source.split(' / ').map((part) => stripTicks(part));
@@ -503,7 +487,7 @@ test('current owner preserves sizing, light, DAG, and coordinator contracts', ()
       normalizedOwners.get(ownerPath).includes(normalizedLocator),
       `line ${row.line}: locator ${locator} missing from declared owner ${ownerPath}`,
     );
-    for (const other of ownerPaths) {
+    for (const other of mdOwners) {
       if (other === ownerPath) continue;
       assert.ok(
         !normalizedOwners.get(other).includes(normalizedLocator),
@@ -513,29 +497,24 @@ test('current owner preserves sizing, light, DAG, and coordinator contracts', ()
   }
 });
 
-test('all BP3 rows have migrated away from governance and BP4 rows retain governance', () => {
+test('governance rule file is deleted and no ownership row keeps it as current owner', () => {
+  assert.ok(!fs.existsSync(path.join(root, 'rules/governance.md')), 'rules/governance.md must be deleted');
   const ownership = parseOwnership(read(ownershipPath));
-  const bp3Rows = ownership.filter((row) => row['migration BP'] === 'BP3');
-  const bp4Rows = ownership.filter((row) => row['migration BP'] === 'BP4');
-
-  assert.ok(bp3Rows.length > 0, 'BP3 rows must exist');
-  assert.ok(bp4Rows.length > 0, 'BP4 rows must exist');
-
-  for (const row of bp3Rows) {
+  for (const row of ownership) {
     const owner = stripTicks(row['current owner']);
     assert.notStrictEqual(
       owner,
       'rules/governance.md',
-      `BP3 row ${row.unit} must not have current owner rules/governance.md`,
+      `row ${row.id} must not have current owner rules/governance.md`,
     );
   }
-
+  const bp4Rows = ownership.filter((row) => row['migration BP'] === 'BP4');
+  assert.ok(bp4Rows.length > 0, 'BP4 rows must exist');
   for (const row of bp4Rows) {
     const owner = stripTicks(row['current owner']);
-    assert.strictEqual(
-      owner,
-      'rules/governance.md',
-      `BP4 row ${row.unit} must retain current owner rules/governance.md`,
+    assert.ok(
+      owner.startsWith('scripts/src/lib/'),
+      `BP4 row ${row.id} current owner must start with scripts/src/lib/`,
     );
   }
 });
