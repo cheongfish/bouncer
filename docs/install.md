@@ -1,10 +1,11 @@
 # 설치
 
 Claude Code · Cursor · Codex · Antigravity가 **같은 플러그인 트리**를 읽습니다.
-설치 소스는 기본 브랜치가 아니라 빌드된 `release` 브랜치입니다. 기본 브랜치
-URL을 원격 marketplace로 등록하면, 병합 뒤 설치 호스트가 빌드되지 않은 트리를
-받아 동작하지 않습니다. 검증된 설치는 `git clone -b release <url>`로 그
-브랜치를 받은 뒤 로컬 경로를 플러그인 소스로 등록하는 것입니다.
+설치 소스는 기본 브랜치가 아니라 빌드된 `release` 브랜치입니다. ref 없이
+기본 브랜치 URL을 원격 marketplace로 등록하면 설치 호스트가 빌드되지 않은
+트리를 받아 동작하지 않습니다. Claude Code는 marketplace 등록 때 `#release`
+ref를 붙이고, ref 지정 설치를 확인하지 않은 호스트는 `git clone -b release <url>`로
+그 브랜치를 받은 뒤 로컬 경로를 플러그인 소스로 등록합니다.
 
 개발 checkout을 로컬 경로로 쓰려면 먼저 `npm run build`를 실행하세요. 설치
 호스트는 clone만 하고 빌드하지 않습니다.
@@ -77,8 +78,20 @@ URL을 원격 marketplace로 등록하면, 병합 뒤 설치 호스트가 빌드
 
 ## Claude Code
 
-기본 브랜치 URL을 원격 marketplace로 등록하는 경로는 병합 뒤 동작하지 않습니다.
-`release` 브랜치를 클론한 뒤 로컬 경로로 등록하세요.
+원격 marketplace는 `release` ref를 붙여 등록합니다. `release` 트리의
+`.claude-plugin/marketplace.json`(`source: "./"`)이 빌드된 트리를 가리킵니다.
+
+```
+/plugin marketplace add cheongfish/bouncer#release
+/plugin install bouncer@chunjae-tools
+```
+
+git URL이면 `<사내-git-url>#release` 형식을 씁니다. ref를 붙여 등록한
+marketplace는 `/plugin marketplace update` 때 기본 브랜치가 아니라 `release`
+tip을 따라갑니다. ref 없이 등록해 둔 marketplace는 한 번 제거한 뒤 `#release`로
+다시 등록하세요.
+
+로컬 경로로 쓰려면 `release` 브랜치를 클론해 등록합니다.
 
 ```
 git clone -b release <사내-git-url> ./bouncer-release
