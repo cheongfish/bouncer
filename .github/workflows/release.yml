@@ -1,0 +1,67 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'bouncer--v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event_name == 'push' || github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # checkout 직후 origin/release 만 본다. 원격 브랜치가 없으면 이 실패만
+      # 허용하고 아래 publish 단계가 orphan root commit 으로 간다. checkout 이
+      # 남긴 FETCH_HEAD 를 부모로 오인하지 않도록 종료 코드로만 분기한다.
+      - name: Fetch existing release branch
+        id: fetch_release
+        run: |
+          if git fetch --no-tags origin release; then
+            echo "has_parent=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_parent=false" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm ci
+      - run: npm run ci
+      - name: Build release tree
+        run: node scripts/build-release.js --out "$RUNNER_TEMP/release-tree"
+      - name: Publish release branch
+        env:
+          HAS_PARENT: ${{ steps.fetch_release.outputs.has_parent }}
+          RELEASE_TREE: ${{ runner.temp }}/release-tree
+          RELEASE_WT: ${{ runner.temp }}/release-wt
+          # 태그 이름(bouncer--v*) 에 셸 메타문자가 있어도 run: 로 주입되지
+          # 않게 Actions 가 치환한 값을 env 로만 넘긴다.
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          short_sha="$(git rev-parse --short HEAD)"
+          message="release: ${REF_NAME} (${short_sha})"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [ "$HAS_PARENT" = "true" ]; then
+            git worktree add --detach "$RELEASE_WT" FETCH_HEAD
+          else
+            git worktree add --detach "$RELEASE_WT"
+            git -C "$RELEASE_WT" checkout --orphan release
+          fi
+
+          # 이전 release 에만 있던 파일을 지운다. add 만 하면 삭제분이 트리에 남아
+          # 산출물과 커밋이 달라진다.
+          git -C "$RELEASE_WT" rm -rf --quiet --ignore-unmatch .
+          find "$RELEASE_WT" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+
+          cp -a "$RELEASE_TREE"/. "$RELEASE_WT"/
+          git -C "$RELEASE_WT" add -A
+          git -C "$RELEASE_WT" commit -m "$message"
+          # 부모는 직전 release tip 이므로 fast-forward 이다. 강제 push 는 쓰지 않는다.
+          git -C "$RELEASE_WT" push origin HEAD:refs/heads/release

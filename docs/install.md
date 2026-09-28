@@ -1,6 +1,14 @@
 # 설치
 
-Claude Code · Cursor · Codex · Antigravity가 **같은 저장소**를 플러그인으로 읽습니다.
+Claude Code · Cursor · Codex · Antigravity가 **같은 플러그인 트리**를 읽습니다.
+설치 소스는 기본 브랜치가 아니라 빌드된 `release` 브랜치입니다. 기본 브랜치
+URL을 원격 marketplace로 등록하면, 병합 뒤 설치 호스트가 빌드되지 않은 트리를
+받아 동작하지 않습니다. 검증된 설치는 `git clone -b release <url>`로 그
+브랜치를 받은 뒤 로컬 경로를 플러그인 소스로 등록하는 것입니다.
+
+개발 checkout을 로컬 경로로 쓰려면 먼저 `npm run build`를 실행하세요. 설치
+호스트는 clone만 하고 빌드하지 않습니다.
+
 런타임에 `npm install`은 필요 없습니다. Claude Code는 플러그인을 클론만 하고
 의존성을 설치하지 않으므로, 필요한 `js-yaml`은 `scripts/vendor/`에 벤더링돼
 있습니다. 자세한 내용은 [`scripts/vendor/README.md`](../scripts/vendor/README.md)를
@@ -22,30 +30,44 @@ Claude Code · Cursor · Codex · Antigravity가 **같은 저장소**를 플러�
 
 ## 1.4.92 릴리스 검증 절차
 
-설치 smoke는 최종 브랜치나 작업 중인 커밋이 아니라 `bouncer--v1.4.92` 태그가
-가리키는 동일한 커밋을 대상으로 한다. 릴리스 운영자는 모든 task 커밋이 병합된
-최종 HEAD에서 다음 순서를 지킨다.
+설치 smoke는 최종 브랜치나 작업 중인 커밋이 아니라 `release` 브랜치의 빌드
+산출물을 대상으로 한다. 태그 실행이면 그 태그가 가리키는 커밋에서 만든
+트리이다. 릴리스 운영자는 모든 task 커밋이 병합된 최종 HEAD에서 다음 순서를
+지킨다.
 
-1. 최종 HEAD에서 `npm run ci`가 성공하는지 확인한다.
-2. `bouncer--v1.4.92`가 아직 없고 다른 커밋을 가리키는 기존 태그도 아님을
+1. `release` 브랜치가 아직 없으면 버전 bump·태그 없이 병합 직후 기본 브랜치에서
+   workflow를 수동 실행해 첫 산출 브랜치를 만든다. GitHub는 기본 브랜치에 있는
+   workflow만 `workflow_dispatch`로 실행하므로 이 단계는 병합 뒤에만 가능하다.
+
+   ```bash
+   gh workflow run release.yml --ref develop
+   ```
+
+   실행이 성공하고 `release` 브랜치가 생겼는지 확인한 뒤에만 아래 태그 절차로
+   간다.
+2. 최종 HEAD에서 `npm run ci`가 성공하는지 확인한다.
+3. `bouncer--v1.4.92`가 아직 없고 다른 커밋을 가리키는 기존 태그도 아님을
    확인한다. 충돌하면 태그를 삭제하거나 강제로 이동하지 않고 중단한다.
-3. 검증한 최종 HEAD에 annotated 태그를 만든다.
+4. 검증한 최종 HEAD에 annotated 태그를 만든다.
 
    ```bash
    git tag -a bouncer--v1.4.92 <merged-head>
    ```
 
-4. 원격 태그 push 권한과 marketplace 설치 권한에 대해 별도 동의를 받은 뒤
+5. 원격 태그 push 권한과 marketplace 설치 권한에 대해 별도 동의를 받은 뒤
    태그를 push한다.
 
    ```bash
    git push origin bouncer--v1.4.92
    ```
 
-5. push가 끝난 뒤에만 태그 기준으로 애플리케이션 저장소·모노레포·문서·설정
-   중심 저장소와 Claude Code·Cursor·Codex·Antigravity의 12개 조합을 설치
-   smoke한다. 각 조합의 결과는 같은 태그의 GitHub Release에 기록한다.
-6. smoke가 끝나면 **같은 `bouncer--v1.4.92` 태그의 GitHub Release**에 태그
+6. 태그 push가 `release.yml`을 실행한다. workflow가 `npm run ci` 후 산출 트리를
+   `release`에 push했는지 확인한다. 실패하면 smoke를 시작하지 않는다.
+7. workflow 확인이 끝난 뒤에만 `release` 브랜치 기준으로 애플리케이션
+   저장소·모노레포·문서·설정 중심 저장소와 Claude Code·Cursor·Codex·
+   Antigravity의 12개 조합을 설치 smoke한다. 각 조합의 결과는 같은 태그의
+   GitHub Release에 기록한다.
+8. smoke가 끝나면 **같은 `bouncer--v1.4.92` 태그의 GitHub Release**에 태그
    commit SHA와 12개 조합 각각의 성공 횟수·실패 횟수·사용자 개입 횟수를
    남긴다. 태그 기준 smoke 전에는 모든 조합을 `미검증`으로 유지한다.
 
@@ -55,14 +77,19 @@ Claude Code · Cursor · Codex · Antigravity가 **같은 저장소**를 플러�
 
 ## Claude Code
 
-원격 마켓플레이스:
+기본 브랜치 URL을 원격 marketplace로 등록하는 경로는 병합 뒤 동작하지 않습니다.
+`release` 브랜치를 클론한 뒤 로컬 경로로 등록하세요.
 
 ```
-/plugin marketplace add <사내-git-url>
+git clone -b release <사내-git-url> ./bouncer-release
+/plugin marketplace add ./bouncer-release
 /plugin install bouncer@chunjae-tools
 ```
 
-로컬 경로:
+개발 checkout을 쓰려면 그 트리에서 `npm run build`를 실행한 뒤 같은 로컬 경로
+설치를 합니다.
+
+이미 클론한 `release` 트리 또는 빌드한 개발 checkout:
 
 ```
 /plugin marketplace add ./path/to/bouncer
@@ -71,13 +98,17 @@ Claude Code · Cursor · Codex · Antigravity가 **같은 저장소**를 플러�
 
 ## Cursor
 
-같은 저장소가 Cursor 플러그인이기도 합니다 (`.cursor-plugin/plugin.json`).
+같은 플러그인 트리가 Cursor 플러그인이기도 합니다 (`.cursor-plugin/plugin.json`).
 단일 플러그인이라 Claude Code용 `marketplace.json`과 달리 Cursor 쪽
-marketplace 카탈로그는 두지 않습니다. Cursor 세션에서:
+marketplace 카탈로그는 두지 않습니다. 기본 브랜치 URL을 그대로 넣지 말고
+`release` 브랜치를 클론한 로컬 경로를 쓰세요. Cursor 세션에서:
 
 ```
-/add-plugin <사내-git-url>
+git clone -b release <사내-git-url> ./bouncer-release
+/add-plugin ./bouncer-release
 ```
+
+개발 checkout이면 `npm run build` 뒤에 그 경로를 `/add-plugin`합니다.
 
 호스트 관례 스캔은 공개 집합 `skills/*/SKILL.md`(워크플로 여섯)만
 잡습니다. 보조 브리프는 `references/<name>/index.md`에 두고 카탈로그에
@@ -101,9 +132,11 @@ Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하
 
 ## Codex
 
-같은 저장소가 Codex 플러그인이기도 합니다 (`.codex-plugin/`). 레포 마켓플레이스는
-`.agents/plugins/marketplace.json`입니다. Codex Plugins Directory에서 이 저장소를
-소스로 추가한 뒤 `bouncer`를 설치합니다.
+같은 플러그인 트리가 Codex 플러그인이기도 합니다 (`.codex-plugin/`). 레포
+마켓플레이스는 `.agents/plugins/marketplace.json`입니다. 기본 브랜치 URL을
+Plugins Directory에 넣지 말고 `git clone -b release <사내-git-url>`로 받은
+로컬 경로를 소스로 추가한 뒤 `bouncer`를 설치합니다. 개발 checkout이면
+`npm run build` 뒤에 그 경로를 등록합니다.
 
 - **스킬** (`skills/*/SKILL.md`)은 Codex·Claude·Cursor가 공통으로 읽는 공개
   카탈로그입니다. 워크플로 진입점(`/bouncer-init`·`/bouncer-plan`·
@@ -129,13 +162,17 @@ Cursor는 `subagents.provider: "cursor"`를 프로젝트 config에 직접 pin하
 
 ## Antigravity
 
-같은 저장소가 Antigravity 플러그인이기도 합니다. 매니페스트는 **루트
+같은 플러그인 트리가 Antigravity 플러그인이기도 합니다. 매니페스트는 **루트
 `plugin.json`**입니다. 카탈로그는 Codex와 공유하는
-`.agents/plugins/marketplace.json`입니다.
+`.agents/plugins/marketplace.json`입니다. 기본 브랜치 URL을 그대로 설치하지
+말고 `release` 브랜치를 클론한 로컬 경로를 쓰세요.
 
 ```
-agy plugin install <사내-git-url>
+git clone -b release <사내-git-url> ./bouncer-release
+agy plugin install ./bouncer-release
 ```
+
+개발 checkout이면 `npm run build` 뒤에 그 경로를 `agy plugin install`합니다.
 
 공개 스킬(`skills/*/SKILL.md`)과 named agent(`agents/*.md`)는 관례 경로로
 그대로 잡힙니다. 보조 본문은 `references/`라 호스트 카탈로그 스캔 밖입니다.
