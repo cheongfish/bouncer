@@ -7,12 +7,28 @@
 
 ## [Unreleased]
 
-개발 트리는 생성 CommonJS를 추적하지 않고, 설치본은 release 브랜치에서
+## [1.4.93] — 2026-09-28
+
+1.4.92 이후 lease 기반 병렬 task 실행, finalize digest, release 브랜치 배포를
+넣는다. 개발 트리는 생성 CommonJS를 추적하지 않고, 설치본은 release 브랜치에서
 빌드된 플러그인을 받는다. 개발 checkout은 `npm run build`가 선행이다.
+
+### Added
+
+- **pointer 독립 병렬 실행** — coordinator가 lease·generation으로 task를
+  식별하고, 경로가 겹치지 않는 ready wave를 설정 한도 안에서 동시에 돌린다.
+  fan-in은 임시 candidate에서 검증한 뒤 CAS·fast-forward로만 반영한다.
+- **finalize digest** — 읽기 전용 `bouncer finalize prepare`가 Explain·Quiz·PR
+  입력을 한 번에 묶고, `bouncer finalize links`가 push된 GitHub head의 Explain
+  링크 후보를 만든다. Explain task 제목은 stable Task ID와 통합 SHA를 쓴다.
+- **release workflow** — `bouncer--v*` 태그 push나 `develop` 수동 실행에서
+  CI 뒤 빌드 트리를 `release` 브랜치에 비강제 push한다.
 
 ### Changed
 
-- **release 브랜치 배포** — 빌드된 플러그인 트리를 `release` 브랜치로 배포한다.
+- **release 브랜치 배포** — 설치 source를 저장소 기본 브랜치에서 `release`
+  브랜치 clone 뒤 로컬 경로 설치로 바꾼다. 기본 브랜치 URL로 등록한 원격
+  marketplace는 `scripts/lib` 없는 트리를 받는다.
 - **생성 CommonJS 미추적** — `scripts/lib/`를 ignore하고 Git index에서 제거한다.
   `check:emit`은 추적과 ignore 누락을 거절한다.
 - **개발 checkout 빌드 선행** — `scripts/lib`가 없으면 launcher가
@@ -21,6 +37,11 @@
 ### Removed
 
 - **`rules/governance.md`** — 규칙 본문을 코드 주석으로 옮긴 뒤 문서를 삭제한다.
+
+### Fixed
+
+- **fan-in 테스트 git identity** — 전역 git identity가 없는 CI에서 wave
+  integrate 테스트가 `cherry-pick-failed`로 실패하던 fixture를 고친다.
 
 ## [1.4.92] — 2026-09-23
 
