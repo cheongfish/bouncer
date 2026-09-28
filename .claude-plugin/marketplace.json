@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "chunjae-tools",
+  "description": "Chunjae internal Claude Code plugins",
+  "owner": {
+    "name": "Kim Cheongwoon",
+    "email": "rlq10324@chunjae.com"
+  },
+  "plugins": [
+    {
+      "name": "bouncer",
+      "source": "./",
+      "version": "1.4.92",
+      "description": "Spec-driven development gates for Claude Code: plan, execute, verify, and finalize a blueprint in one reviewable commit.",
+      "category": "workflow",
+      "tags": ["spec-driven", "governance", "workflow", "gates"],
+      "author": {
+        "name": "Kim Cheongwoon",
+        "email": "rlq10324@chunjae.com"
+      }
+    }
+  ]
+}

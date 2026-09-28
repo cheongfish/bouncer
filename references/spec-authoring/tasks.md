@@ -1,0 +1,75 @@
+---
+type: bouncer.tasks
+title: verify.timeout_ms 기본값과 실행 상한을 추가함
+description: '`config.verify.timeout_ms`를 도입해 verify 실행에 선택적 상한을 둔다.'
+resource: .bouncer/context/epics/077-verify-timeout/blueprints/001-verify-timeout-ms/tasks/001/tasks.md
+tags:
+  - bouncer
+  - tasks
+timestamp: '2026-08-12T12:00:00.000+09:00'
+bouncer:
+  id: TASKS-001
+  epic_id: '077'
+  blueprint_id: '001'
+  status: ready
+  commit_intent:
+    - 검증이 멈추면 실행이 무한 대기하는 문제를 막음
+    - 제한 시간으로 상한을 두고 초과 시 실패 증적을 남김
+  commit_summary:
+    - 양의 제한 값에 실행 상한을 적용함
+    - 시간 초과를 실패 증적으로 기록함
+  affected_paths:
+    - config.example.json
+    - scripts/src/lib/init.ts
+    - scripts/src/lib/verification.ts
+    - test/cli-verify.test.js
+---
+# Tasks
+
+Blueprint: [001](../../index.md)
+
+## Goal & intent
+`config.verify.timeout_ms`를 도입해 verify 실행에 선택적 상한을 둔다. 기본값은 10분(600000). 키 부재·`0`은 기존 무제한 대기와 같다. 검증 명령은 `npm test`.
+
+이 예시는 설정 키 계약이라 흐름 변경이 아니며, Mermaid 차트를 넣지 않는다.
+
+## Current behavior
+- 입력: `config.verify`에 `timeout_ms` 키가 없다. 상태: `runVerify`가 자식 프로세스를 상한 없이 기다린다. 출력: hang fixture는 종료되지 않는다.
+- I/O 관찰 지점: `runVerify`의 spawn 대기는 `scripts/src/lib/verification.ts:349`이다.
+- 재현: hang fixture로 `npm test`를 돌리면 프로세스가 끝나지 않는다. 확인한 명령은 `node --test test/cli-verify.test.js`이며, 현재 스위트에는 timeout 단언이 없다.
+
+## Target behavior
+- 성공: `timeout_ms`가 양의 정수이면 해당 ms 후 자식을 종료하고 timeout 실패 증적을 남긴다. `init` 기본 config와 `config.example.json`에 `timeout_ms: 600000`이 있다.
+- 실패: 음수·NaN·문자열 `timeout_ms`는 설정 로드에서 에러로 거절한다.
+- 보존: 키 부재·`0`은 변경 전과 같이 무제한 대기한다. 하위 호환 별칭(`timeout` 등)은 두지 않는다.
+
+## Interface
+- 제공: `verify.timeout_ms`가 양의 정수이면 해당 ms 후 자식 프로세스를 종료하고 timeout 실패를 증적에 남긴다. `init` 기본 config와 `config.example.json`에 `timeout_ms: 600000`이 있다.
+- 거부 (throw): 음수·NaN·문자열 `timeout_ms`는 설정 로드에서 에러로 거절한다. 하위 호환 별칭(`timeout` 등)은 두지 않는다.
+- fallback: 키 부재·`0`은 변경 전과 같이 무제한 대기로 돌아간다.
+
+## Touch
+| 경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거 |
+| --- | --- | --- | --- | --- | --- |
+| `config.example.json` | `verify.timeout_ms` | Modify | 예시 config에 timeout 키 없음 | `timeout_ms: 600000` 추가 | 공개 설정 계약의 진입점 |
+| `scripts/src/lib/init.ts` | `defaultConfig.verify` | Modify | 기본 verify 객체에 timeout 없음 | 같은 기본값 추가 | init이 예시와 같은 기본값을 씀 |
+| `scripts/src/lib/verification.ts` | `runVerify` | Modify | spawn에 상한 없음 | 양의 정수일 때만 spawn 상한 적용 | 상태 변경·실행 진입점 |
+| `test/cli-verify.test.js` | timeout·무제한·잘못된 값 단언 | Modify | timeout 단언 없음 | 세 경로 단언 추가 | 검증 지점 |
+
+## Do not touch
+- `scripts/src/lib/validate.ts` — 게이트 계약 변경 아님
+- `skills/` — 이번 변경은 런타임 config·실행기만
+
+## Constraints
+- `timeout_ms` 부재·`0` 동작은 이번 변경 전과 같아야 한다.
+- 공개 에러 메시지는 한국어를 유지한다.
+
+## Checklist
+- [ ] `test/cli-verify.test.js`에 실패 테스트를 추가한다. 기대 red: `assert.rejects`가 `/timeout_ms/`로 거절하고, hang fixture + `timeout_ms: 50`은 non-zero exit와 `/timeout/i` 증적이다.
+  ```js
+  assert.rejects(() => loadVerifyConfig({ timeout_ms: -1 }), /timeout_ms/);
+  // hang fixture + timeout_ms: 50 → exit non-zero, evidence matches /timeout/i
+  ```
+- [ ] `node --test test/cli-verify.test.js`로 실패를 확인한다.
+- [ ] 양의 정수 `timeout_ms`일 때만 spawn 상한을 적용하고 기본값을 둔다.
+- [ ] `npm test`가 통과한다.

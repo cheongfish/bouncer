@@ -1,0 +1,243 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const schema = require("./schema");
+const { detectLegacyFormat } = schema;
+const layout = require("./layout");
+const { CONTEXT_ROOT, isCanonicalBlueprintDir } = layout;
+const paths = require("./paths");
+const { toPosix } = paths;
+const verification = require("./verification");
+const { runVerification, entriesForVerify, } = verification;
+const epicIndex = require("./epic-index");
+const { checkEpicIndexConsistency } = epicIndex;
+const validateDocs = require("./validate-docs");
+const { loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves, } = validateDocs;
+const validateStructural = require("./validate-structural");
+const { checkStructural } = validateStructural;
+const config = require("./config");
+const { readVerifyPolicy } = config;
+const validateGates = require("./validate-gates");
+const { checkGate, checkPlanDraft } = validateGates;
+const validateSections = require("./validate-sections");
+const { parseTasksSections, parseSections, extractPathCandidates, } = validateSections;
+function catchMessage(error) {
+    return error.message;
+}
+/**
+ * blueprint 문서를 로드해 structural(S) 검사와 선택한 gate 또는 plan draft 검사를 돌린다.
+ * `gate: 'execute'`는 검사 전에 verify 명령을 실행해 증적을 새로 쓴다(부작용).
+ * `planDraft: true`는 structural·S18 실패가 없을 때만 checkPlanDraft를 돌린다 —
+ * S 실패 위에 G 코드를 쌓으면 review-dispatch가 원인을 structural로 분류하지 못한다.
+ *
+ * @param {object} opts - 검증 옵션
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {string} opts.blueprintDir - `.bouncer/context/epics/...` 아래 blueprint 상대 경로
+ * @param {string} [opts.gate] - plan | execute | commit | finalize | partial-close. 없으면 S 검사만
+ * @param {boolean} [opts.planDraft] - true면 gate 대신 status 무관 plan draft 검사를 돌린다
+ * @param {GateDeps} [opts.deps] - gate 검사에 주입할 의존성(테스트용)
+ * @returns {{ ok: boolean, failures: FailureEntry[], warnings?: FailureEntry[] }}
+ *   failures가 비면 ok:true. task-split 경고가 있을 때만 warnings 키를 싣는다
+ * @throws {Error} planDraft와 gate를 함께 주면 'planDraft cannot be combined with gate'
+ */
+function validateBlueprint({ repoRoot, blueprintDir, gate, planDraft, deps, }) {
+    // 둘 다 주면 어느 판정이 ok를 결정하는지 모호하다. 호출 계약 오류이므로
+    // 문서 결과로 접지 않고 파일을 읽기 전에 던진다.
+    if (planDraft && gate) {
+        throw new Error('planDraft cannot be combined with gate');
+    }
+    if (!isCanonicalBlueprintDir(blueprintDir)) {
+        return {
+            ok: false,
+            failures: [{
+                    code: 'S10',
+                    message: `blueprintDir must be under ${CONTEXT_ROOT}/epics`,
+                    file: toPosix(blueprintDir),
+                }],
+        };
+    }
+    const legacyRepo = detectLegacyFormat({ repoRoot });
+    if (legacyRepo.legacy) {
+        return {
+            ok: false,
+            failures: [{ code: 'S2', message: legacyRepo.reason, file: '.sdd' }],
+        };
+    }
+    // blueprint 문서가 하나도 없으면 문서 문제가 아니라 잘못된 경로를 의미함.
+    // 이를 먼저 보고하면 빈 문서 집합이 만드는 gate 실패 연쇄를 쫓지 않게 하고,
+    // 존재하지 않는 경로에 대해 `execute`가 verify 명령을 실행하는 것을 막음.
+    // epic index는 의도적으로 제외: 해당 epic 아래 모든 blueprint에 존재하므로,
+    // 오타 난 blueprint 이름이 이 검사를 통과해 버릴 수 있음.
+    if (!blueprintDocsExist({ repoRoot, blueprintDir })) {
+        return {
+            ok: false,
+            failures: [{
+                    code: 'S11',
+                    message: 'blueprint documents not found — check the blueprint path',
+                    file: toPosix(blueprintDir),
+                }],
+        };
+    }
+    const executionFailures = [];
+    if (gate === 'execute') {
+        // G13 file은 포인터 대상 묶음의 verification 경로. 루트 고정 경로를 쓰면
+        // tasks/<NNN>/ 레이아웃에서 실패 위치가 엉킨다.
+        let verificationFile = `${toPosix(blueprintDir)}/verification.md`;
+        try {
+            const entries = entriesForVerify(repoRoot, blueprintDir);
+            if (entries[0] && entries[0].verification && entries[0].verification.rel) {
+                verificationFile = entries[0].verification.rel;
+            }
+            const verification = runVerification({ repoRoot, blueprintDir });
+            if (!verification.ok) {
+                executionFailures.push({
+                    code: 'G13',
+                    message: `configured verify command failed with exit code ${verification.exitCode}`,
+                    file: verificationFile,
+                });
+            }
+        }
+        catch (error) {
+            executionFailures.push({
+                code: 'G13',
+                message: catchMessage(error),
+                file: verificationFile,
+            });
+        }
+    }
+    // execute gate가 방금 기록한 증적을 읽도록 verification 이후에 로드.
+    const { docs, rels, parseErrors, tasksListing } = loadBlueprintDocs({ repoRoot, blueprintDir });
+    const failures = [...executionFailures, ...parseErrors];
+    // 한 blueprint에 레거시 tasks.md와 번호 문서가 섞이면 어느 규칙을
+    // 적용할지 모호해지므로 구조 단계에서 거절한다.
+    if (tasksListing && tasksListing.legacyFiles && tasksListing.legacyFiles.length) {
+        failures.push({
+            code: 'S15',
+            message: `legacy task layout remains: ${tasksListing.legacyFiles.join(', ')}; run bouncer migrate task-layout`,
+            file: toPosix(blueprintDir),
+        });
+    }
+    for (const name of (tasksListing && tasksListing.invalidDirs) || []) {
+        failures.push({
+            code: 'S16',
+            message: `non-canonical task directory: tasks/${name}`,
+            file: `${toPosix(blueprintDir)}/tasks/${name}`,
+        });
+    }
+    // closed는 finalize가 남긴 축약 레이아웃(task leaf 없음)을 허용하고,
+    // 열린 blueprint는 기존처럼 세 leaf를 모두 요구한다.
+    const requiredLeaves = requiredTaskLeaves(statusOf(docs.blueprintIndex));
+    for (const entry of (tasksListing && tasksListing.entries) || []) {
+        for (const leaf of requiredLeaves) {
+            const rel = entry[leaf].rel;
+            if (!fs.existsSync(path.join(repoRoot, rel))) {
+                failures.push({
+                    code: 'S17',
+                    message: `task unit ${entry.number} missing ${path.posix.basename(rel)}`,
+                    file: rel,
+                });
+            }
+        }
+    }
+    const anyLeaf = (docs.tasksDocs && docs.tasksDocs.length > 0)
+        || (docs.taskUnits && docs.taskUnits.length > 0)
+        || ['verification', 'review', 'explain'].some((k) => docs[k]);
+    if (anyLeaf && !docs.blueprintIndex) {
+        failures.push({ code: 'S8', message: 'blueprint index.md absent', file: rels.blueprintIndex });
+    }
+    if (docs.blueprintIndex && !docs.epicIndex) {
+        failures.push({ code: 'S8', message: 'epic index.md absent', file: rels.epicIndex });
+    }
+    // 구조 검사를 돌기 전에 정책을 한 번만 읽는다. 문서마다 config를 다시
+    // 열면 같은 blueprint에서 S12 답이 갈라질 수 있고, 파손된 파일을
+    // 기본 목록으로 접으면 runtime VERIFY_CONFIG_INVALID와 어긋난다.
+    const verifyPolicy = readVerifyPolicy(repoRoot);
+    if (verifyPolicy.ok === false) {
+        failures.push({
+            code: 'S12',
+            message: `verification config is invalid: ${path.join(repoRoot, '.bouncer', 'config.json')}`,
+            file: '.bouncer/config.json',
+        });
+    }
+    const verifyAllowlist = verifyPolicy.ok === true
+        ? verifyPolicy.allowlist
+        : [];
+    const hasTaskUnits = Array.isArray(docs.taskUnits) && docs.taskUnits.length > 0;
+    // 번호 tasks가 루트 verification/review를 공유하면 같은 rel을 두 번
+    // 검사하지 않는다. unit leaf에서 못 본 루트 파일은 그대로 검사한다
+    // (task-dir 레이아웃에 남은 고아 루트 증적/리뷰).
+    const unitSeenRels = new Set();
+    for (const key of Object.keys(docs)) {
+        if (key === 'taskUnits') {
+            for (const unit of docs.taskUnits || []) {
+                for (const leaf of ['tasks', 'verification', 'review']) {
+                    const leafDoc = unit[leaf];
+                    if (!leafDoc || unitSeenRels.has(leafDoc.rel))
+                        continue;
+                    unitSeenRels.add(leafDoc.rel);
+                    checkStructural(leafDoc, failures, verifyAllowlist);
+                }
+            }
+            continue;
+        }
+        if (key === 'tasksDocs') {
+            // taskUnits가 있으면 tasks leaf는 그쪽에서 이미 검사함.
+            if (hasTaskUnits)
+                continue;
+            for (const td of docs.tasksDocs || [])
+                checkStructural(td, failures, verifyAllowlist);
+            continue;
+        }
+        // tasksDocs/taskUnits가 있으면 docs.tasks는 그 첫 항목이라 중복 검사하지 않는다.
+        if (key === 'tasks' && (docs.tasksDocs || hasTaskUnits))
+            continue;
+        if ((key === 'verification' || key === 'review')
+            && docs[key]
+            && unitSeenRels.has(docs[key].rel)) {
+            continue;
+        }
+        checkStructural(docs[key], failures, verifyAllowlist);
+    }
+    failures.push(...checkEpicIndexConsistency({ repoRoot }));
+    // imported blueprint는 게이트·작업 대상이 아니다. 구조·에픽목록 검사는 유지하되
+    // checkGate를 건너뛰고 S18 하나로 거절한다 — ok:true/gateSkipped로 통과시키면
+    // cmdCurrent --set이 plan 통과로 포인터를 잡아버린다. epic-only imported는
+    // 판정하지 않는다(기준은 blueprint status). S14는 결번이므로 재사용하지 않는다.
+    if (statusOf(docs.blueprintIndex) === 'imported') {
+        failures.push({
+            code: 'S18',
+            message: 'imported document is out of gate scope',
+            file: rels.blueprintIndex,
+        });
+        return { ok: false, failures };
+    }
+    // plan task 분해 경고는 failures와 분리한다. ok는 실패만 본다.
+    const warnings = [];
+    if (planDraft) {
+        // 이 시점 failures는 S 코드뿐이다(S18은 위에서 이미 반환). S가 있으면 draft
+        // 검사를 건너뛰어 한 결과에 S와 G가 섞이지 않게 한다.
+        if (failures.length > 0)
+            return { ok: false, failures };
+        checkPlanDraft(docs, rels, failures, { warnings });
+    }
+    else if (gate) {
+        // execute·commit 모두 포인터 task 단위만 본다(G6–G8).
+        const taskUnit = (gate === 'execute' || gate === 'commit')
+            ? resolveTaskUnit(docs, { repoRoot, blueprintDir })
+            : undefined;
+        // parseErrors는 이미 failures에 합쳐졌지만, plan G18은 원본 목록으로
+        // context-review S0 여부를 본다 — failures만 보면 다른 문서 S0과 섞인다.
+        checkGate(gate, docs, rels, failures, {
+            repoRoot, blueprintDir, deps, taskUnit, parseErrors, warnings,
+        });
+    }
+    // 기존 소비자는 warnings 부재를 허용한다 — 비어 있으면 키를 넣지 않는다.
+    if (warnings.length > 0) {
+        return { ok: failures.length === 0, failures, warnings };
+    }
+    return { ok: failures.length === 0, failures };
+}
+module.exports = {
+    loadBlueprintDocs, resolveTaskUnit, checkStructural, checkGate, validateBlueprint,
+    parseTasksSections, parseSections, extractPathCandidates,
+};

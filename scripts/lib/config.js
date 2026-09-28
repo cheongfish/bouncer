@@ -1,0 +1,172 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+// prepare·readyWave가 공유하는 동시 실행 기본값. config 파일·coordinator 키
+// 부재와 같은 답을 내야 모든 호출처가 같은 폭으로 열린다.
+const DEFAULT_MAX_PARALLEL = 2;
+// 검증 실행은 shell:false argv만 허용한다. argv0 실행 파일명이 이 목록(또는
+// 저장소 `verify_allowlist`)에 있어야 프로세스를 시작한다. 커스텀 바이너리는
+// npm script로 감싸거나 저장소 allowlist에 명시한다.
+//
+// 기본 목록은 config 파일이 없을 때만 쓴다. 파손된 파일에 이 목록을 주면
+// 운영자가 막은 명령을 plan/S12와 runtime이 서로 다른 답으로 통과시킨다.
+const DEFAULT_VERIFY_ALLOWLIST = Object.freeze([
+    'npm',
+    'npx',
+    'node',
+    'pnpm',
+    'yarn',
+    'bun',
+    'deno',
+    'make',
+    'python',
+    'python3',
+    'pytest',
+    'go',
+    'cargo',
+    // /bin/true·false — 테스트 fixture와 no-op verify에 쓰는 표준 유틸.
+    // 셸 내장이 아니라 PATH 실행 파일이라 shell:false로도 동작한다.
+    'true',
+    'false',
+]);
+function isRecord(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+/**
+ * 이미 파싱된 config 객체에서 허용 목록만 고른다. 키가 없거나 배열이 아니면
+ * 기본값을 쓴다 — 잘못된 형태를 빈 목록으로 접으면 모든 verify가 거절되어
+ * 기존 저장소의 execute가 한꺼번에 멈춘다. 명시적 `[]`는 그대로 두어
+ * 운영자가 전면 차단을 의도한 경우를 구분한다. 기본 목록과 합집합을
+ * 만들지 않는다. 파일 부재·파손 판정은 `readVerifyPolicy`가 맡는다.
+ *
+ * @param {unknown} [config] - `.bouncer/config.json` 파싱 결과
+ * @returns {readonly string[]} argv0 실행 파일명 허용 목록
+ */
+function getVerifyAllowlist(config = {}) {
+    if (!isRecord(config) || !Object.prototype.hasOwnProperty.call(config, 'verify_allowlist')) {
+        return DEFAULT_VERIFY_ALLOWLIST;
+    }
+    const raw = config.verify_allowlist;
+    if (!Array.isArray(raw)) {
+        return DEFAULT_VERIFY_ALLOWLIST;
+    }
+    // 문자열만 남긴다. 숫자·객체 항목은 무시해 basename 비교가 항상 문자열끼리만
+    // 이뤄지게 한다.
+    return raw.filter((entry) => typeof entry === 'string' && entry.length > 0);
+}
+function isEnoentError(error) {
+    // catch 변수는 strict에서 unknown이다. code를 읽기 전에 객체인지 좁히지
+    // 않으면 권한 오류와 파일 부재를 같은 분기로 합치게 된다.
+    return typeof error === 'object'
+        && error !== null
+        && 'code' in error
+        && error.code === 'ENOENT';
+}
+/**
+ * `.bouncer/config.json` 단일 파서. 값의 모양은 검사하지 않는다 — cli·
+ * subagents·session-graph가 배열·원시값을 그대로 받아 왔고, 여기서 객체를
+ * 강제하면 그 세 곳의 동작이 조용히 바뀐다. 객체 여부는 init 호출 지점이 맡는다.
+ *
+ * missing은 ENOENT만: verification이 파일 없음과 깨진 JSON을 서로 다른 오류로
+ * 던지므로, 권한 오류·SyntaxError를 missing에 넣으면 VERIFY_CONFIG_MISSING으로
+ * 위장된다. graphify의 옛 readConfigSafe가 「파일 없음·깨진 JSON·권한 오류 모두
+ * config 없음과 같게」 삼키던 선택은 호출자가 readConfig() === null 로 흡수한다.
+ *
+ * {} 기본값·스키마·캐시는 넣지 않는다. 부재와 빈 설정을 같게 보려는 호출자만
+ * `readConfig(root) ?? {}` 로 받는다.
+ */
+function readConfigResult(repoRoot) {
+    const configPath = path.join(repoRoot, '.bouncer', 'config.json');
+    let raw;
+    try {
+        raw = fs.readFileSync(configPath, 'utf8');
+    }
+    catch (error) {
+        // ENOENT만 "아직 없다". EACCES 등을 missing으로 합치면 verification이
+        // 권한 문제를 파일 부재로 안내한다.
+        if (isEnoentError(error)) {
+            return { ok: false, reason: 'missing' };
+        }
+        return { ok: false, reason: 'invalid' };
+    }
+    try {
+        // JSON.parse의 선언 반환은 any라, 바로 객체로 쓰면 이후 모듈이 any를
+        // 전파한다. 형태 검사는 호출자 몫이므로 unknown으로만 고정한다.
+        const value = JSON.parse(raw);
+        return { ok: true, value };
+    }
+    catch (_e) {
+        // 파일이 있는 상태에서 깨진 것 — missing이 아니다.
+        return { ok: false, reason: 'invalid' };
+    }
+}
+function readConfig(repoRoot) {
+    const result = readConfigResult(repoRoot);
+    // 실패를 null로 접는다. {} 는 넣지 않는다 — 호출자가 부재와 빈 설정을
+    // 같게 볼지 정한다 (cli·subagents는 ?? {}, session-graph·graphify는 null).
+    return result.ok ? result.value : null;
+}
+/**
+ * `repoRoot`의 검증 정책을 한 번 읽는다. S12·`readVerifyCommand`·
+ * `executeVerify`가 이 결과만 써야 같은 명령에 다른 판정을 내지 않는다.
+ * 파일이 없을 때만 기본 목록이다. 깨진 JSON·EACCES 같은 읽기 오류는
+ * invalid이며, 기본 목록으로 넓히면 파손된 설정이 통과된다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @returns {VerifyPolicy} missing/present는 allowlist, invalid는 목록 없음
+ */
+function readVerifyPolicy(repoRoot) {
+    const parsed = readConfigResult(repoRoot);
+    if (parsed.ok === false) {
+        if (parsed.reason === 'missing') {
+            return { ok: true, reason: 'missing', allowlist: DEFAULT_VERIFY_ALLOWLIST };
+        }
+        return { ok: false, reason: 'invalid' };
+    }
+    return { ok: true, reason: 'present', allowlist: getVerifyAllowlist(parsed.value) };
+}
+/**
+ * integration checkout의 coordinator 동시 실행 정책을 읽는다. 파일·키 부재는
+ * 기본 한도(2)로 통과시켜 기존 저장소가 prepare 전에 설정을 추가하지 않아도
+ * 된다. `max_parallel`이 정수 1 미만·비정수면 invalid — prepare는 worktree를
+ * 만들기 전에 거절하고, 읽기 전용 소비자는 1로 폴백해 잘못된 설정이 병렬
+ * 폭을 넓히지 않게 한다.
+ *
+ * @param {string} repoRoot - 정책을 읽을 checkout 루트(보통 integration)
+ * @returns {CoordinatorPolicy} 유효 한도 또는 invalid
+ */
+function readCoordinatorPolicy(repoRoot) {
+    const parsed = readConfigResult(repoRoot);
+    // 깨진 JSON·권한 오류도 한도를 넓히지 않는다. missing만 기본값이다.
+    if (parsed.ok === false) {
+        if (parsed.reason === 'missing') {
+            return { ok: true, maxParallel: DEFAULT_MAX_PARALLEL };
+        }
+        return { ok: false, reason: 'invalid' };
+    }
+    if (!isRecord(parsed.value)
+        || !Object.prototype.hasOwnProperty.call(parsed.value, 'coordinator')) {
+        return { ok: true, maxParallel: DEFAULT_MAX_PARALLEL };
+    }
+    const coordinator = parsed.value.coordinator;
+    if (!isRecord(coordinator)
+        || !Object.prototype.hasOwnProperty.call(coordinator, 'max_parallel')) {
+        return { ok: true, maxParallel: DEFAULT_MAX_PARALLEL };
+    }
+    const raw = coordinator.max_parallel;
+    // Number.isInteger는 문자열·null을 거절한다. 0·음수는 병렬 폭이 아니라
+    // "실행 없음"이라 prepare가 명시적으로 막아야 한다.
+    if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 1) {
+        return { ok: false, reason: 'invalid' };
+    }
+    return { ok: true, maxParallel: raw };
+}
+module.exports = {
+    readConfigResult,
+    readConfig,
+    readVerifyPolicy,
+    readCoordinatorPolicy,
+    DEFAULT_VERIFY_ALLOWLIST,
+    DEFAULT_MAX_PARALLEL,
+    getVerifyAllowlist,
+};

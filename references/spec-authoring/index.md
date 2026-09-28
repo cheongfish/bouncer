@@ -1,0 +1,336 @@
+---
+name: spec-authoring
+description: "Use during /bouncer-plan, or when named, to write plan bodies only (never harness frontmatter)."
+---
+
+# Spec Authoring
+
+Author the **body** of planning documents (epic, blueprint, tasks).
+Epic/blueprint scaffolding already wrote
+the frontmatter and protocol block for plan docs. BP `explain.md` body, quiz,
+and comprehension recording belong to `explain-diff`
+(`references/explain-diff/index.md`) — do not author those here.
+Your job is the prose under plan docs. Canonical Bouncer documents live only under
+`.bouncer/context/`; never read, author, or migrate a root `context/` tree.
+
+## When this applies
+
+When authoring the body of planning documents (epic, blueprint, tasks). Writes
+body content only; never edits harness-owned frontmatter fields. Used from
+`/bouncer-plan`.
+
+## Steps
+
+1. Read the plugin master rules (`AGENTS.md`) and the pinned
+   materials for the document kind you are writing. Product rules live in the
+   plugin (`rules/planning.md`, `rules/document-schema.md`), not under
+   the project's `.bouncer/`.
+2. Fill the skeleton with concrete, specific content. 종류별 완성 예시는
+   필요할 때 `epic.md`, `blueprint.md`,
+   `tasks.md`, `review.md`를 읽는다 (`verification`·
+   `explain` 예시는 없다 — 각각의 워크플로와 `explain-diff` 소관).
+   - **epic**: intent, out of scope, and numbered Success criteria. Persist the
+     success criteria discovery produced — each one must be decidable true or
+     false, so blueprint acceptance and review can cite it by number. "Improve
+     X" is not a criterion. For a flow change, apply the optional Mermaid zoom
+     rule below: whole flow here, with the chart fence in this body.
+   - **blueprint**: what this unit delivers as one review / PR. Set `title`
+     (and `bouncer.commit_type` if not `feat`) for the finalize remainder
+     subject and shared standalone/integration branch (`<type>/<epic-id>-<blueprint-id>-<slug>`). Write the
+     blueprint `## Intent` as 1–2 Korean terminal sentences; finalize uses it
+     as the remainder body. Do **not** set task-only authored fields on the
+     blueprint. For a flow change, show only this PR segment of the epic
+     Mermaid chart.
+   - **tasks**: fill every implementation-ready section in each
+     `tasks/<NNN>/tasks.md` bundle before approval —
+     Goal & intent, Current behavior, Target behavior, Interface, Touch,
+     Do not touch, Constraints, Checklist.
+     Those sections are the sole brief for execution. Current behavior and
+     Target behavior are optional on the template; when absent, execution
+     passes only the sections that exist. Set `title` as the
+     **task commit subject** (`/bouncer-commit` copies it). Set
+     `bouncer.commit_intent` to 1–2 Korean terminal sentences (배경·의도) drawn
+     from Goal & intent, and optionally `bouncer.commit_summary` to 1–2 Korean
+     terminal sentences (변경 요약) — not the subject noun phrase. For a flow change, show only
+     the implementation branch already present in the parent chart.
+     Section-specific rules:
+     - **description**: epic은 사람이 저술한 frontmatter `description`만 정본으로
+       삼고, 번들 색인 행에는 저술 권한을 두지 않는다. discovery에서 확정한 한
+       문장을 epic에 쓰고, scaffold 재실행으로 파생 행을 맞춘다. blueprint·task의
+       `description`은 `## Goal & intent` 첫 문장에서 유도하고
+       같은 내용을 두 번 작성하지 않는다. 필드를 비우거나 삭제하지 않는다 —
+       OKF 필수값이고 scaffold가 소유한다. 규율은 사람이 두 번 쓰지 않는 것이지
+       값이 없어도 된다는 뜻이 아니다.
+     - **commit_intent / commit_summary**: 두 필드는 커밋 메시지 생성
+       전용이다. 브리프 서술과 겹치면 `## Goal & intent`가 SSOT다. 각 필드는
+       1–2개의 한국어 종결 문장이고 task 문서에만 둔다. 필드가 없으면 기존
+       task 호환을 위해 생략하고, 형식이 틀리면 메시지 생성을 거부한다.
+     - **depends_on / parallel_safe / dependency_gate / exclusive_resources**:
+       task 실행 순서는 번호가 아니라 이 frontmatter 필드가 결정한다.
+       `depends_on`은 `TASKS-NNN` id 배열(`[]` = 의존 없음), `parallel_safe`는
+       boolean, `dependency_gate`는 `integrated` 하나뿐이다(부재도
+       `integrated`). `exclusive_resources`는 `^[a-z0-9][a-z0-9._-]*$` 형태의
+       고유 자원 id 배열이며 부재는 `[]`다. 같은 wave에 넣으려면
+       `parallel_safe: true`이고 경로 집합·`exclusive_resources`가 서로 겹치지
+       않아야 한다(경로 조상·정확 일치 또는 공통 자원 id면 충돌). 신규
+       계획에서는 명시적으로 작성한다(scaffold 기본값 중 `depends_on`의
+       `[]`와 `parallel_safe`의 `false`만 자리표시자다). 알 수 없는 id·자기
+       참조·중복·cycle은 plan gate G19가, 잘못된 shape·enum·자원 id는 S28이
+       거절한다.
+     - **execution_kind**: 신규 구현 task는 `commit`을 명시한다. 전체 CI fan-in
+       node만 `verification`으로 쓰고, non-empty `depends_on`,
+       `parallel_safe: false`, `dependency_gate: integrated`, 실행 가능한 `verify`,
+       빈 `affected_paths`를 함께 둔다. Touch에는 source 변경 경로를 쓰지 않는다.
+       scaffold가 쓴 Touch 고정 문구 `Source 변경 경로 없음.`을 바꾸지 않고,
+       검증 명령은 frontmatter `verify`에만 둔다.
+       public scaffold는 `bouncer scaffold task --execution-kind verification
+       --depends-on TASKS-NNN[,TASKS-NNN...] --verify <command>`로 호출하며
+       생성되는 두 문서는 `tasks.md`와 `verification.md`뿐이다.
+     - **review_risk**: commit task의 선택적 frontmatter 배열이다. 허용 값은
+       `public_interface`, `authentication`, `authorization`, `credential`뿐이며
+       중복 없이 쓴다. Interface·Touch가 공개 API, authentication, authorization,
+       credential 변경을 명시하면 해당 enum을 빠짐없이 기록하고, 그 위험이
+       없으면 `[]`를 명시한다(신규 작성에서 필드를 생략하지 않는다). legacy
+       문서의 부재는 dispatch가 `[]`로 읽고, malformed 값만 `S30`으로 거절한다
+       (`rules/document-schema.md`). `review_risk`는 Execute reviewer 수를 늘리는 입력일
+       뿐이며 does not auto-approve `affected_paths`, status, or a gate.
+     - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
+       다시 열거하지 않고 절차만 담는다.
+     - **Current behavior**: record inputs, state, and outputs for the change
+       surface, plus the reproduction path (commands, fixtures, or gate runs)
+       and the tests or commands already confirmed. The implementer must be
+       able to re-run what you observed without inventing a baseline.
+     - **Current behavior** (I/O coupling): record each `direct process spawn`,
+       `file I/O`, or `module state` that decides testability as a
+       `file:line` observation point.
+     - **Target behavior**: separate success paths, failure paths, and
+       preserved behavior. Do not collapse them into one aspirational sentence.
+       When the task does not change runtime behavior, write artifact checks,
+       schema assertions, or dry-run commands as the judgment basis instead.
+     - **Interface**: state what the change provides *and* what it rejects.
+       A contract with only the positive half cannot be reviewed against.
+     - **Interface** (test seam): when Checklist asserts `call count`,
+       `absence of I/O`, or `injected error`, Interface must define each
+       `injection parameter` by name and `shape` (example:
+       `deps.runGit(args: string[]) → { stdout: string }`). Do not require a
+       seam when Checklist does not assert those probes.
+     - **Interface** (throw vs miss): write immediate `throw` input errors and
+       `cache miss` or `fallback` states as `separate lists`.
+     - **Domain terms**: define each `domain term` used in a rejection rule
+       inside the section that uses it (Interface, etc.) with one `shape` and
+       one `example`.
+     - **Touch**: write a Markdown table with columns
+       `경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거`. One row per file;
+       `변경` is `Create`, `Modify`, `Delete`, or `Rename`. List only symbols
+       tied to the entry point, state change, or verification point, and give
+       the selection reason in `근거`. When the symbol name is not yet
+       grounded, write `신규 추출 지점: <responsibility>` instead of inventing
+       a name. Internal symbol names are search hints — completion must not
+       depend on keeping that exact name. A bare directory still opens every
+       file under it, so Touch must justify every `affected_paths` entry.
+     - **Touch** (contract change): when Interface revises a shared
+       serialized shape or gate input, also list every test/fixture file that
+       *constructs or asserts* that shape, with `Modify` — even if the owning
+       production module is under Do not touch. Import absence is not absence
+       of blast radius.
+     - **Judgable prose**: ban undecidable verbs such as `개선한다` or
+       `적절히 처리한다`. Replace them with observable outcomes a gate or
+       test can accept or reject.
+     - **Unresolved design**: do not hand the implementer a design choice
+       investigation could not settle. Close it by deepening the investigation,
+       adding a prior discovery task, or confirming with the user before
+       approval.
+     - **Do not touch**: paths only; must not overlap `affected_paths`.
+     - **Constraints**: the rules that hold inside the allowed paths —
+       compatibility promises, contracts to preserve, conventions to keep.
+       Anything you cannot express as a path belongs here, not in Do not
+       touch.
+     - **Checklist**: order behavior-changing items as failing test → confirm
+       it fails → implement. Write expected assertions, constants, and
+       commands as literal code blocks; this is where implementation detail
+       deferred from the blueprint Contract lands.
+     - **Checklist** (expected red): every red step names the
+       `expected failing assertion` or failure point. Unless the brief requires
+       it, `module-load failure` is not expected red.
+     - **Checklist** (generated artifacts): when an artifact check presupposes
+       staging, write the order `npm run build` → `git add <generated path>` →
+       `npm run check:emit`. State that `git add` is allowed while
+       commit, push, and branch remain forbidden.
+     - **Checklist** (focused vs verify): focused tests and `check:emit` are
+       mid-implementation checks; the final completion command is
+       `bouncer.verify` (or `config.verify` when absent), and the
+       `execute gate` records the evidence.
+     - **Checklist** (verify vs paths): if the verify command is the full
+       suite (e.g. `npm test`), the set of files that must change for green
+       must be ⊆ Touch / `affected_paths`. If a fixture outside that set would
+       fail, widen the brief or narrow verify / defer the contract change —
+       do not leave the gap for execute to discover.
+     - **tasks on a light blueprint**: when blueprint `bouncer.scale` is
+       `light`, the required sections are **three** — Goal & intent, Touch,
+       Checklist. The scaffolded body has no Interface / Do not touch / Constraints
+       headings and you do not add them; G10 asks for the three only. Write
+       them shorter, not vaguer: Goal & intent is one or two sentences that
+       name the acceptance condition, Touch keeps the per-file table rows
+       (it still has to justify every `affected_paths` entry for G11), and the
+       Checklist keeps the failing-test-first ordering. Needing a public interface,
+       a protected path, an error contract, or state changes across multiple modules
+       is the signal to set `scale` back to `full` rather than to smuggle those
+       rules into Goal & intent — a path you must protect has nowhere to live in a
+       light task, and G12 can only judge a Do not touch section that exists.
+       The whole light plan set is budgeted at 100 lines
+       (`rules/planning.md` `## Lightweight cycle`).
+   - **verification / review**: only author these when a command sends you
+     here. When touching verification during plan or execute, set its `title`
+     as a second `~함` commit body line if it will be published.
+   - **intent evidence**: use only resolver-selected Explain sections from
+     `bouncer intent`. Skip `historical` freshness; when freshness is
+     `possibly-superseded`, treat current code as live behavior and confirm
+     whether to keep the older constraint. Missing or unresolved provenance
+     never authorizes guessed evidence.
+3. Keep bodies DRY and free of placeholders (`TODO`, `TBD`, "fill in later").
+   Match each document's length to what the work needs — cover the substance,
+   then stop. No filler sections, no summary that restates the section above it,
+   no boilerplate kept because the skeleton had a heading for it. A section with
+   nothing real to say is shorter, not padded.
+4. After editing, the calling command runs validation; if it reports a failure
+   tied to a field you touched, fix the body and re-run.
+
+## Language and prose
+
+- **Korean bodies.** Write epic / blueprint / tasks / explain body prose in
+  Korean. Keep identifiers, file paths, commands, and fenced code as-is. Do not
+  open a Korean section with an English overview sentence.
+- **Discovery fields.** For new or modified docs, `title` stays Korean as the
+  `.gitmessage` nominal commit-title source; do not translate it. Write
+  `description` and `tags` in English ASCII. Search queries also use English
+  ASCII for graph-suggest; do not propose tokenizer or Korean-search support or
+  bulk-rewrite the existing corpus.
+- **Domain tags.** Frontmatter `tags` are the domain search vocabulary that
+  people and `graph-suggest` queries use. Each item is an English ASCII
+  single token matching `[A-Za-z0-9_./-]`. Keep scaffold `bouncer` and the
+  document's own kind tag, then add 2–5 domain tags (for
+  example `worktree`, `intent`, `graph-suggest`).
+- **Stop slop.** After drafting Korean plan/explain bodies, apply the
+  `stop-slop` skill (`references/stop-slop/index.md`) — advisory, not a gate. Strip
+  filler, formulaic contrast, empty passives, and section-restating closers.
+  It applies to reader-facing prose only, not search metadata.
+
+## Optional Mermaid zoom for flow changes
+
+When an epic changes a user, business, or system flow, the epic / blueprint /
+tasks bodies may each carry a Mermaid chart in that document's body. The chart
+text is the source: people read its preview and agents read the same fence. Do
+not require a chart for every epic; configuration-key-only work normally has no
+chart. Never put a chart in `verification.md` or `review.md`, and do
+not add a Mermaid generator CLI or a gate for chart presence.
+
+Use the same flow at three zoom levels: the epic shows the whole flow, the
+blueprint shows this PR's segment, and a task shows its implementation branch.
+A child chart may select or refine its parent's boxes, but must not introduce a
+box absent from the parent chart or paste the parent's whole chart unchanged.
+Keep node ids short, labels Korean, and charts unstyled: `classDef`, colors,
+and long node ids are prohibited.
+
+Epic — whole flow:
+
+```mermaid
+flowchart LR
+  A[설정] --> B[실행]
+  B --> C[증적]
+```
+
+Blueprint — this PR segment:
+
+```mermaid
+flowchart LR
+  A[설정] --> B[실행]
+```
+
+Tasks — implementation branch:
+
+```mermaid
+flowchart LR
+  B[실행]
+```
+
+## Commit-message titles (`.gitmessage`)
+
+`/bouncer-commit` builds each **task** commit message from document
+frontmatter, not from free-form prose. `/bouncer-finalize` builds any
+**remainder** commit from the blueprint `title` /
+`commit_type` and its `## Intent` section. Follow the
+project commit convention in `.gitmessage` (한국어 Conventional Commits) when
+setting these fields:
+
+| Field | Becomes |
+| --- | --- |
+| `blueprint` `bouncer.commit_type` (default `feat`) | commit `<type>:` and shared standalone/integration branch prefix `<type>/…` (`.gitmessage`: feat, fix, docs, style, refactor, test, chore) |
+| `tasks` `title` | **task commit subject** (명사형 어미). Falls back to blueprint `title` only when the task title is empty |
+| `tasks` `bouncer.commit_intent` (1–2 strings) | task-commit 배경·의도 bullets (`- …함`) |
+| `tasks` `bouncer.commit_summary` (1–2 strings) | task-commit 변경 요약 bullets after intent |
+| `blueprint` `title` | finalize remainder subject; also the fallback when a task title is empty |
+| blueprint `## Intent` (1–2 Korean sentences) | finalize remainder body bullets; malformed or absent Intent rejects message generation |
+
+`commit_intent` and `commit_summary` must each be a YAML list of 1–2 Korean
+terminal sentences, written on the **task** document only. A missing field is
+compatible with existing tasks and contributes no bullets; a present malformed
+field rejects message generation rather than being partly omitted. Finalize
+reads only the blueprint `## Intent` section, which must contain 1–2 Korean
+terminal sentences.
+
+Leave Epic / Blueprint identifiers out of titles,
+`commit_intent`, and `commit_summary` — they belong in the blueprint docs and PR body, not the commit
+message. Keep file paths, module names, and package names out of titles too. Inside `commit_intent` and
+`commit_summary`, English identifiers, file paths, package names, and backtick
+quotes are allowed as long as the line stays one Korean terminal sentence
+(`integrationBranch 값을 재계산 없이 사용함.`). Replace
+scaffold defaults like `001 slug` / `001 tasks` before approval; otherwise
+those placeholders ship as the commit subject and body.
+
+## Author-written frontmatter scalars (YAML leading characters)
+
+When writing author-owned frontmatter strings — including task
+`commit_intent` lines and any other authored scalar you set — do **not**
+emit a plain scalar whose first character is a YAML 예약 지시자 (reserved
+indicator) such as a leading 백틱 (`` ` ``). A value that starts with
+`` ` `` after `- ` is parsed as a tag/alias marker, not text.
+
+Quote those values with a 작은따옴표 (single-quoted) scalar or a block
+scalar (`>-` / `|`). Inside a single-quoted scalar, a literal `'` is
+written as `''` (두 번).
+
+Safe forms:
+
+```yaml
+commit_intent:
+  - '`HEAD`가 범위를 벗어나지 않게 함'
+  - 'it''s scoped to Touch'
+note: >-
+  `context-review.md`가 존재하지만 파싱되지 않음.
+```
+
+This rule applies only to the **leading** character of an author-written
+YAML scalar. It does **not** ban a 백틱 in the 중간 of a string, and it
+does **not** ban backticks in Markdown 본문 — those are 금지하지 않는다.
+
+## Guardrails
+
+- **Never** hand-edit harness-owned frontmatter fields such as `type`,
+  `resource`, `id`, or parent ids — the harness derives and validates them from
+  the path.
+- **Status** transitions are owned by the calling workflow, not by this skill.
+  Do not flip status while authoring a body.
+- **Do** rewrite scaffold default `title` values (and optional
+  `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent` /
+  `bouncer.commit_summary`).
+  They are authored content, not harness ids — `/bouncer-commit` copies task
+  fields into the task message, while `/bouncer-finalize` copies the blueprint
+  `## Intent` section into the remainder message.
+- The other exception is content the calling command explicitly tells you to
+  write into the protocol block (for example graph suggestions or confirmed
+  `affected_paths`). Otherwise, bodies only.
+
+## Return
+
+Report which documents you authored and confirm no frontmatter-owned field was
+changed.

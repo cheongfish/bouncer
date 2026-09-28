@@ -1,0 +1,430 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const schema = require("./schema");
+const { detectLegacyFormat } = schema;
+const codexAgents = require("./codex-agents");
+const { ensureCodexAgents, shouldEnsureCodexAgents } = codexAgents;
+const graphify = require("./graphify");
+const { setupGraphify, upgradeGraphify, readGraphifyLock, loadCompatManifest, } = graphify;
+const config = require("./config");
+const { readConfig, DEFAULT_VERIFY_ALLOWLIST, } = config;
+// default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
+// 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
+// import하는 test와 동기 유지. test/tests는 구현 그래프 seed가 되지 않게
+// TEST_DIR_CANDIDATES로 분리한다.
+const SOURCE_DIR_CANDIDATES = ['src', 'lib', 'app', 'packages', 'scripts'];
+const TEST_DIR_CANDIDATES = ['test', 'tests'];
+function detectSourceDirs(repoRoot) {
+    return SOURCE_DIR_CANDIDATES.filter((name) => {
+        try {
+            return fs.statSync(path.join(repoRoot, name)).isDirectory();
+        }
+        catch (_e) {
+            return false;
+        }
+    });
+}
+function detectTestDirs(repoRoot) {
+    return TEST_DIR_CANDIDATES.filter((name) => {
+        try {
+            return fs.statSync(path.join(repoRoot, name)).isDirectory();
+        }
+        catch (_e) {
+            return false;
+        }
+    });
+}
+// git 실패는 호출부에서 미해결로 수렴한다. 예외를 밖으로 던지지 않는다 —
+// detached HEAD·원격 없는 저장소·git 없는 디렉터리가 같은 경로를 탄다.
+function gitSymbolicRefShort(repoRoot, ref) {
+    try {
+        const out = execFileSync('git', ['symbolic-ref', '--short', ref], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        const name = String(out).trim();
+        return name || null;
+    }
+    catch (_e) {
+        return null;
+    }
+}
+// origin/HEAD가 있으면 그 값에서 origin/ 접두사만 뗀다. 실패하면 현재 HEAD.
+// 둘 다 실패하면 null — develop/main으로 추측하지 않는다.
+function detectDefaultBranch(repoRoot) {
+    const originHead = gitSymbolicRefShort(repoRoot, 'refs/remotes/origin/HEAD');
+    if (originHead)
+        return originHead.replace(/^origin\//, '');
+    return gitSymbolicRefShort(repoRoot, 'HEAD');
+}
+function defaultConfig(repoRoot) {
+    // base_branch와 pr.base는 같은 탐지 결과를 쓴다. 갈라지는 경로를 만들지 않는다.
+    const detected = detectDefaultBranch(repoRoot);
+    const testDirs = detectTestDirs(repoRoot);
+    return {
+        // scaffold 시점에만 감지 — ready bootstrap에서는 다시 쓰지 않음.
+        source_dirs: detectSourceDirs(repoRoot),
+        // 라이브러리 기본(install:false)은 enabled만 true — bin은 설치 성공 시에만 기록.
+        // CLI는 install:true가 기본이라 실패 시 enabled:false로 내려 soft-fail한다.
+        // 실재하는 test/tests만 test_dirs에 넣어 구현 그래프 seed와 분리한다.
+        // 없으면 키를 생략해 예전 두-scope config와 같은 형태로 유지한다.
+        graphify: {
+            enabled: true,
+            ...(testDirs.length ? { test_dirs: testDirs } : {}),
+        },
+        verify: 'npm test',
+        // 신규 저장소는 기본 허용 목록을 파일에 박아 둔다. 이후 기본값이
+        // 바뀌어도 이미 init된 저장소의 실행 경계를 조용히 넓히지 않기 위함.
+        verify_allowlist: [...DEFAULT_VERIFY_ALLOWLIST],
+        ...(detected ? { base_branch: detected } : {}),
+        autonomy: 'auto',
+        // draft는 항상 둔다. base는 탐지 성공 시에만 — 실패를 develop/main으로
+        // 채우지 않고 키를 비워 /bouncer-init이 묻게 한다.
+        // 기존 config에 남은 pr.labels는 알 수 없는 키로 읽고, create 인자로 쓰지 않는다.
+        pr: detected ? { draft: true, base: detected } : { draft: true },
+        // host별 model ID용 placeholder slot. 모든 값은 "inherit"로 시작해 init이
+        // 편집 가능한 형태를 보여 주되 model을 고정하지 않음; resolveSubagentModel은
+        // "inherit"를 parent-session fallback으로 처리.
+        // provider block은 분리 — host마다 model namespace가 다름
+        // (Claude / Cursor / Codex / Antigravity slug는 호환되지 않음).
+        // plan의 context reviewer도 같은 inherit 슬롯이 있어야 init이 편집 자리를
+        // 보여 준다. 키가 없으면 resolve는 null로 수렴해 동작은 같지만, 사용자가
+        // 모델을 고를 자리가 사라진다. 이미 init을 돌린 소비자 config는 건드리지
+        // 않는다(부모 세션 상속 = 같은 동작).
+        // run이 위임하는 coordinator도 같은 이유로 슬롯을 갖는다 — drive 전체를
+        // 끌고 가는 역할이라 worker와 다른 모델을 고르고 싶을 수 있다.
+        subagents: {
+            claude: {
+                'bouncer-reviewer': 'inherit',
+                'bouncer-implementer': 'inherit',
+                'bouncer-debugger': 'inherit',
+                'bouncer-context-reviewer': 'inherit',
+                'bouncer-coordinator': 'inherit',
+            },
+            cursor: {
+                'bouncer-reviewer': 'inherit',
+                'bouncer-implementer': 'inherit',
+                'bouncer-debugger': 'inherit',
+                'bouncer-context-reviewer': 'inherit',
+                'bouncer-coordinator': 'inherit',
+            },
+            codex: {
+                'bouncer-reviewer': 'inherit',
+                'bouncer-implementer': 'inherit',
+                'bouncer-debugger': 'inherit',
+                'bouncer-context-reviewer': 'inherit',
+                'bouncer-coordinator': 'inherit',
+            },
+            antigravity: {
+                'bouncer-reviewer': 'inherit',
+                'bouncer-implementer': 'inherit',
+                'bouncer-debugger': 'inherit',
+                'bouncer-context-reviewer': 'inherit',
+                'bouncer-coordinator': 'inherit',
+            },
+        },
+    };
+}
+// Bundle root. OKF §11은 index file 중 여기에만 frontmatter를 허용;
+// §6은 body 형태를 `* [Title](url) - description` 그룹으로 고정한다. 행의
+// description은 epic frontmatter 정본에서 scaffold가 append/replace하고,
+// S13은 정본과 행의 요약 불일치를 검사한다.
+// bouncer_schema는 번들 루트에만 둔다(문서마다 두지 않음). EMPTY_CONTEXT_INDEX와
+// 같은 frontmatter여야 ensureEpicIndexEntry가 파일을 새로 만들 때도 일치한다.
+const CONTEXT_INDEX = `---
+okf_version: "0.1"
+bouncer_schema: "0.1"
+---
+# Epics
+
+<!-- bouncer scaffold epic이 여기에 한 줄씩 추가합니다 (OKF §6).
+     validate는 S13으로 디렉터리·frontmatter description ↔ 목록 요약 일치를 검사합니다.
+     * [00x 제목](epics/00x-slug/index.md) - 한 줄 설명 -->
+`;
+function writeFile(repoRoot, rel, content, created) {
+    const abs = path.join(repoRoot, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content);
+    created.push(rel);
+}
+// advisory(+ 동의 시 마커 블록 쓰기) 목록. 신규 graphify venv는 git common
+// directory 아래라 작업 트리 gitignore가 필요 없다. `.bouncer/.venv/`는
+// 레거시 설치와 비-git 폴백만 아직 작업 트리에 남을 수 있어 제안에 둔다.
+const SUGGESTED_IGNORES = [
+    'node_modules/',
+    'graphify-out/',
+    '.worktrees/',
+    '.bouncer/.venv/',
+    // coordinator 원장(`.bouncer/runtime/coordinator.json`)은 실행 상태다.
+    // scope.ts의 RUNTIME_ARTIFACTS와 같은 항목을 유지해야 새 저장소가 처음부터
+    // 원장을 추적하지 않는다.
+    '.bouncer/runtime/',
+];
+const GITIGNORE_MARKER_START = '# bouncer';
+const GITIGNORE_MARKER_END = '# /bouncer';
+function gitignoreSuggestions({ repoRoot }) {
+    let ignored = [];
+    try {
+        ignored = fs.readFileSync(path.join(repoRoot, '.gitignore'), 'utf8')
+            .split('\n')
+            .map((line) => line.trim().replace(/\/+$/, ''))
+            .filter((line) => line && !line.startsWith('#'));
+    }
+    catch (_e) {
+        ignored = [];
+    }
+    return SUGGESTED_IGNORES.filter((entry) => !ignored.includes(entry.replace(/\/+$/, '')));
+}
+/**
+ * `# bouncer` … `# /bouncer` 마커 블록만 갱신한다.
+ * 마커 밖 사용자 줄은 읽기만 하고 바꾸지 않는다 — 동의 신호(writeGitignore)가
+ * 있을 때만 호출된다.
+ * 마커 탐지는 줄 전체가 정확히 일치할 때만(substring `indexOf` 금지) —
+ * `# bouncer note` 같은 사용자 주석을 마커로 오인하지 않기 위함.
+ */
+function writeGitignoreMarkerBlock(repoRoot) {
+    const abs = path.join(repoRoot, '.gitignore');
+    const block = `${GITIGNORE_MARKER_START}\n${SUGGESTED_IGNORES.join('\n')}\n${GITIGNORE_MARKER_END}`;
+    let content;
+    try {
+        content = fs.readFileSync(abs, 'utf8');
+    }
+    catch (_e) {
+        fs.writeFileSync(abs, `${block}\n`);
+        return true;
+    }
+    const startMatch = /^# bouncer$/m.exec(content);
+    const endMatch = /^# \/bouncer$/m.exec(content);
+    if (startMatch && endMatch && endMatch.index > startMatch.index) {
+        const before = content.slice(0, startMatch.index);
+        const after = content.slice(endMatch.index + GITIGNORE_MARKER_END.length);
+        fs.writeFileSync(abs, `${before}${block}${after}`);
+        return true;
+    }
+    const sep = content.length === 0 || content.endsWith('\n') ? '' : '\n';
+    fs.writeFileSync(abs, `${content}${sep}${block}\n`);
+    return true;
+}
+function graphifyEnabledIsTrue(config) {
+    const graphify = config && config.graphify;
+    return !!(config
+        && graphify
+        && typeof graphify === 'object'
+        && graphify.enabled === true);
+}
+function inspectBootstrap({ repoRoot }) {
+    if (detectLegacyFormat({ repoRoot }).legacy)
+        return 'legacy';
+    const bouncerAbs = path.join(repoRoot, '.bouncer');
+    if (!fs.existsSync(bouncerAbs))
+        return 'missing';
+    // 파싱은 config.ts에 맡기고 유효성만 여기서 본다. 배열/원시값을 ready로
+    // 올리면 이후 승격이 비객체에 키를 심는다. 깨진 JSON·비객체는 missing이
+    // 아니라 partial — .bouncer가 이미 있으므로 재생성하면 기존 내용을 덮는다.
+    const config = readConfig(repoRoot);
+    const rec = config
+        && typeof config === 'object'
+        && !Array.isArray(config)
+        ? config
+        : null;
+    // base_branch는 탐지 실패 시 생략한다. 키 부재를 partial로 보면 첫 init
+    // 직후 재실행이 기존 config를 덮지 못하고 partial-bouncer-state로 멈춘다.
+    const valid = rec
+        && Array.isArray(rec.source_dirs)
+        && typeof rec.verify === 'string';
+    if (valid)
+        return 'ready';
+    return 'partial';
+}
+function lockNeedsUpgrade(repoRoot) {
+    const lock = readGraphifyLock({ repoRoot });
+    const manifest = loadCompatManifest();
+    if (!lock.ok || !manifest.ok)
+        return false;
+    const expectedPkg = String(manifest.value.install_spec).split('==')[1] || '';
+    return lock.value.cli_version !== manifest.value.cli_version
+        || lock.value.graph_schema_version !== manifest.value.graph_schema_version
+        || (expectedPkg !== '' && lock.value.package_version !== expectedPkg);
+}
+function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCodexAgents, upgradeGraphify: wantUpgradeGraphify, } = {}) {
+    const bootstrap = inspectBootstrap({ repoRoot });
+    // partial/legacy는 설치·승격·gitignore 쓰기를 시도하지 않는다 — 기존 반환 유지.
+    if (bootstrap === 'legacy') {
+        const legacy = detectLegacyFormat({ repoRoot });
+        return { ok: false, created: [], skipped: true, reason: legacy.reason };
+    }
+    if (bootstrap === 'partial') {
+        return { ok: false, created: [], skipped: true, reason: 'partial-bouncer-state' };
+    }
+    // 라이브러리 기본 install:false — 테스트가 실제 pip을 타지 않게 한다.
+    // CLI cmdInit만 install:true를 기본으로 넘긴다.
+    const wantInstall = !!(graphify && graphify.install === true);
+    const setup = (graphify && typeof graphify.setup === 'function')
+        ? graphify.setup
+        : setupGraphify;
+    const upgrade = (graphify && typeof graphify.upgrade === 'function')
+        ? graphify.upgrade
+        : upgradeGraphify;
+    const wantUpgrade = wantUpgradeGraphify === true;
+    const wantPromote = promote === true;
+    const wantWriteGitignore = writeGitignore === true;
+    const wantSeedCodex = shouldEnsureCodexAgents(repoRoot, seedCodexAgents === true);
+    // 동의 시 마커 블록을 먼저 쓰고, 제안 목록은 최종 파일 기준으로 계산한다.
+    let gitignoreWritten = false;
+    if (wantWriteGitignore) {
+        writeGitignoreMarkerBlock(repoRoot);
+        gitignoreWritten = true;
+    }
+    const suggestions = gitignoreSuggestions({ repoRoot: repoRoot });
+    // timestamp는 예전 파생 memory seed 시각용이었다. seed를 끊었으므로
+    // 쓰지 않지만, session-graph 등 호출 계약은 유지한다.
+    void timestamp;
+    if (bootstrap === 'ready') {
+        // 파생 memory·config seed는 하지 않는다. 이미 있는 파일은 그대로 두고
+        // context bundle과 Graphify 상태만 다룬다.
+        const created = [];
+        if (wantSeedCodex) {
+            ensureCodexAgents({ repoRoot: repoRoot, created });
+        }
+        // 승격은 객체에만 키를 심는다. readConfig는 배열/원시값도 통과시키므로
+        // 여기서 걸러야 비객체에 graphify.enabled를 쓰다가 파일을 잘못된 형태로
+        // 덮지 않는다. null은 승격 no-op (existing이 falsy면 write 생략).
+        const raw = readConfig(repoRoot);
+        const existing = (raw && typeof raw === 'object' && !Array.isArray(raw))
+            ? raw
+            : null;
+        const alreadyEnabled = graphifyEnabledIsTrue(existing);
+        let graphifyPromotion;
+        let graphifyInstall;
+        let graphifyUpgrade;
+        let graphifyUpgradeAvailable;
+        if (wantUpgrade) {
+            // 명시적 flag만 공유 venv와 graph를 바꾼다. 일반 재실행은 lock을 보존한다.
+            graphifyUpgrade = upgrade({
+                repoRoot,
+                rebuild: graphify && graphify.rebuild,
+            });
+        }
+        else if (lockNeedsUpgrade(repoRoot)) {
+            graphifyUpgradeAvailable = true;
+        }
+        // enabled가 이미 true면 승격 경로 자체가 없다 — config를 건드리지 않는다.
+        // --upgrade-graphify는 위 분기에서 이미 처리했다.
+        if (!alreadyEnabled) {
+            if (!wantPromote) {
+                // --promote-graphify 없이 기존 config가 바뀌는 경로는 없다.
+                graphifyPromotion = 'candidate';
+            }
+            else {
+                // 승격은 graphify.enabled(+ 설치 성공 시 bin)만 바꾼다. 파일 재생성 금지.
+                if (wantInstall) {
+                    graphifyInstall = setup({ repoRoot });
+                }
+                if (existing) {
+                    // 이번 실행에서 설치를 시도했는데 실패하면 enabled를 올리지 않는다.
+                    // 승격만(install 없음)이면 기존처럼 enabled:true.
+                    const installOk = !wantInstall || !!(graphifyInstall
+                        && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
+                        && typeof graphifyInstall.bin === 'string'
+                        && graphifyInstall.bin);
+                    const nextGraphify = {
+                        ...(existing.graphify && typeof existing.graphify === 'object'
+                            ? existing.graphify
+                            : {}),
+                        enabled: installOk,
+                    };
+                    if (installOk
+                        && graphifyInstall
+                        && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
+                        && typeof graphifyInstall.bin === 'string'
+                        && graphifyInstall.bin) {
+                        nextGraphify.bin = graphifyInstall.bin;
+                    }
+                    existing.graphify = nextGraphify;
+                    fs.writeFileSync(path.join(repoRoot, '.bouncer', 'config.json'), `${JSON.stringify(existing, null, 2)}\n`);
+                }
+                graphifyPromotion = 'promoted';
+            }
+        }
+        return {
+            ok: true,
+            created,
+            skipped: created.length === 0,
+            reason: created.length ? 'codex-agents-seeded' : 'already-initialized',
+            gitignoreSuggestions: suggestions,
+            gitignoreWritten,
+            ...(graphifyPromotion ? { graphifyPromotion } : {}),
+            ...(graphifyInstall ? { graphifyInstall } : {}),
+            ...(graphifyUpgrade ? { graphifyUpgrade } : {}),
+            ...(graphifyUpgradeAvailable ? { graphifyUpgradeAvailable: true } : {}),
+        };
+    }
+    // 신규 부트스트랩
+    const created = [];
+    const config = defaultConfig(repoRoot);
+    let graphifyInstall;
+    let graphifyUpgrade;
+    if (wantUpgrade) {
+        graphifyUpgrade = upgrade({
+            repoRoot,
+            rebuild: graphify && graphify.rebuild,
+        });
+        if (graphifyUpgrade
+            && (graphifyUpgrade.status === 'upgraded' || graphifyUpgrade.status === 'installed')
+            && typeof graphifyUpgrade.bin === 'string'
+            && graphifyUpgrade.bin) {
+            config.graphify = {
+                ...config.graphify,
+                enabled: true,
+                bin: graphifyUpgrade.bin,
+            };
+        }
+        else if (graphifyUpgrade && graphifyUpgrade.status === 'failed') {
+            config.graphify = { ...config.graphify, enabled: false };
+        }
+    }
+    else if (wantInstall) {
+        graphifyInstall = setup({ repoRoot });
+        if (graphifyInstall
+            && (graphifyInstall.status === 'installed' || graphifyInstall.status === 'reused')
+            && typeof graphifyInstall.bin === 'string'
+            && graphifyInstall.bin) {
+            // bin은 설치 성공 시에만 붙인다 — defaultConfig가 넣은 test_dirs는 유지.
+            config.graphify = {
+                ...config.graphify,
+                enabled: true,
+                bin: graphifyInstall.bin,
+            };
+        }
+        else {
+            // 설치 실패는 soft-fail: ok는 유지하고 enabled만 끈다. test_dirs는 유지.
+            config.graphify = { ...config.graphify, enabled: false };
+        }
+    }
+    writeFile(repoRoot, '.bouncer/context/index.md', CONTEXT_INDEX, created);
+    writeFile(repoRoot, '.bouncer/config.json', `${JSON.stringify(config, null, 2)}\n`, created);
+    if (wantSeedCodex) {
+        ensureCodexAgents({ repoRoot: repoRoot, created });
+    }
+    // gitignoreSuggestions와 같은 advisory layer: detection이 아무것도 못 찾으면
+    // operator에게 source_dirs를 채우라고 알려 빈 graph(BP-001 missing warning)에
+    // opt-in하지 않게 함. dir을 찾았으면 생략.
+    // base_branch도 같다 — 미해결이면 키를 쓰지 않고 신호만 실어 /bouncer-init이 묻는다.
+    return {
+        ok: true, created, skipped: false, reason: 'initialized',
+        gitignoreSuggestions: suggestions,
+        gitignoreWritten,
+        ...(graphifyInstall ? { graphifyInstall } : {}),
+        ...(graphifyUpgrade ? { graphifyUpgrade } : {}),
+        ...(config.source_dirs.length === 0 ? { sourceDirsUnresolved: true } : {}),
+        ...(!Object.prototype.hasOwnProperty.call(config, 'base_branch')
+            ? { baseBranchUnresolved: true } : {}),
+    };
+}
+module.exports = {
+    init, inspectBootstrap, gitignoreSuggestions, SUGGESTED_IGNORES,
+    SOURCE_DIR_CANDIDATES, TEST_DIR_CANDIDATES,
+};
