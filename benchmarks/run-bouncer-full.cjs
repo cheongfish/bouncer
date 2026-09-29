@@ -8,6 +8,7 @@ const path = require('node:path');
 const { loadPolicy } = require('./acp/responder.cjs');
 const { sumUsage, usageTotalStatus } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
+const { archiveWorkspace } = require('./archive.cjs');
 
 const root = __dirname;
 const projectRoot = path.resolve(root, '..');
@@ -30,6 +31,11 @@ function configOf(argv) {
   for (let i = 0; i < argv.length; i += 2) {
     if (argv[i] === '--detach' && !out.detach) {
       out.detach = true;
+      i -= 1;
+      continue;
+    }
+    if (argv[i] === '--keep-workspace' && !out.keepWorkspace) {
+      out.keepWorkspace = true;
       i -= 1;
       continue;
     }
@@ -297,6 +303,13 @@ function main() {
   record.ended_at = new Date().toISOString();
   record.sample_eligibility = sampleEligibility(record);
   save(path.join(runDir, 'run.json'), record);
+  // Each workspace carries a ~200 MB Graphify venv; keep only a verified archive unless asked otherwise.
+  if (!config.keepWorkspace) {
+    record.workspace_archive = archiveWorkspace(workspace, path.join(projectRoot, '.benchmarks', 'archive'));
+    save(path.join(runDir, 'run.json'), record);
+    progress(`workspace ${record.workspace_archive.status}${record.workspace_archive.error
+      ? `: ${record.workspace_archive.error}` : ''}`);
+  }
   progress(`run ${record.status}${record.error ? `: ${record.error}` : ''}`);
   process.stdout.write(`${runDir}\n`);
   if (record.status !== 'finalized') process.exitCode = 1;

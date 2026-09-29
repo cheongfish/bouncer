@@ -6,6 +6,7 @@ const { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync, writ
 const path = require('node:path');
 const { transcriptFiles, usageCoverage, usageFromCursorLogs, usageFromCursorStream } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
+const { archiveWorkspace } = require('./archive.cjs');
 const { clearTimeout, setTimeout } = require('node:timers');
 
 const root = __dirname;
@@ -24,7 +25,8 @@ function options(argv) {
   for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i];
     const value = argv[i + 1];
-    if (!['--condition', '--model', '--key-file', '--run-id', '--timeout-minutes', '--dry-run'].includes(key)
+    if (!['--condition', '--model', '--key-file', '--run-id', '--timeout-minutes', '--dry-run',
+      '--keep-workspace'].includes(key)
       || !value || parsed[key]) fail(`unknown or duplicate option: ${key}`);
     parsed[key] = value;
   }
@@ -34,6 +36,7 @@ function options(argv) {
   if (!parsed['--model']) fail('--model is required');
   if (parsed['--model'].startsWith('-')) fail('--model must be a model name');
   if (parsed['--dry-run'] && parsed['--dry-run'] !== 'true') fail('--dry-run accepts true');
+  if (parsed['--keep-workspace'] && parsed['--keep-workspace'] !== 'true') fail('--keep-workspace accepts true');
   if (!parsed['--dry-run'] && !parsed['--key-file']) fail('--key-file is required');
   const minutes = Number(parsed['--timeout-minutes'] ?? '30');
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) fail('--timeout-minutes must be 1..240');
@@ -235,6 +238,9 @@ async function main() {
     record.judge_status = 'unjudgeable';
   }
   record.sample_eligibility = sampleEligibility(record);
+  if (!config['--keep-workspace']) {
+    record.workspace_archive = archiveWorkspace(workDir, path.join(projectRoot, '.benchmarks', 'archive'));
+  }
   saveJson(path.join(runDir, 'run.json'), record);
   process.stdout.write(`${runDir}\n`);
   if (agentResult.exitCode !== 0 || verifierResult.exitCode !== 0) process.exitCode = 1;

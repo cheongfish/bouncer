@@ -159,6 +159,14 @@ print 모드의 단계 컨테이너는 `sleep infinity`로 떠 있고 턴은 `do
 쌓이고, subagent를 print 프로세스로 띄운 경우 그 출력은 컨테이너 안에서 에이전트가 정한
 파일에 쓰인다(`docker exec <container> ps -ww -o pid,etime,args`로 실행 중인 프로세스를 본다).
 
+run이 끝나면 실행기는 `.benchmarks/work/<run-id>/`를 `.benchmarks/archive/<run-id>.tar.gz`로
+압축하고, 목록과 내용이 원본과 같은지 확인한 뒤에만 원본을 지운다. init이 설치한 Graphify venv
+(`.git/bouncer/venv`, run당 약 200MB)는 다시 만들 수 있어 제외한다. 결과는 `run.json`의
+`workspace_archive`에 남고, 검증에 실패하면 원본을 그대로 둔다. 작업 디렉터리를 그대로 두려면
+`run-bouncer-full.cjs`에 `--keep-workspace`, `run-cursor.cjs`에 `--keep-workspace true`를 준다.
+복원은 `tar -xzf .benchmarks/archive/<run-id>.tar.gz -C .benchmarks/work`이며, worktree의 `.git`
+링크는 컨테이너 경로를 가리키므로 호스트 git 호출에는 `GIT_DIR`을 지정한다.
+
 중단할 때는 `kill -TERM -- -"$(cat benchmarks/runs/<run-id>/driver.pid)"`로 실행기
 프로세스 그룹을 끝낸 뒤, 남은 `cursor-bench-print-*`(ACP 실행기는 `cursor-bench-acp-*`)
 컨테이너를 `docker rm -f`로 지운다.
