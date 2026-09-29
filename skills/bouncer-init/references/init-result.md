@@ -10,15 +10,15 @@ failure, Graphify remains disabled: report the cause and direct the user to
 install it manually, then recover later with `bouncer init --promote-graphify`.
 Do not edit Graphify config directly.
 
-When `graphifyPromotion: 'candidate'`, ask in this order:
+When `graphifyPromotion: 'candidate'`, ask gate `init.graphify_promotion` in this order:
 
 - **A)** Enable and install (recommended): `bouncer init --promote-graphify`
 - **B)** Enable only: `bouncer init --promote-graphify --no-graphify`
 - **C)** Leave as-is: write nothing.
 
 In a non-interactive environment, show these choices and stop. When
-`gitignoreSuggestions` is non-empty, list them and run `bouncer init
+`gitignoreSuggestions` is non-empty, list them in gate `init.gitignore` and run `bouncer init
 --write-gitignore` only after consent; decline leaves `.gitignore` untouched.
-When `baseBranchUnresolved: true`, ask for the default branch without guessing;
+When `baseBranchUnresolved: true`, ask gate `init.base_branch` for the default branch without guessing;
 on an answer write the same value to `base_branch` and `pr.base`, otherwise
 leave both absent.

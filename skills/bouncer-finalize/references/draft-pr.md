@@ -3,7 +3,7 @@ When the user chooses to consider a draft PR, read this reference.
 Use `rules/acq.md` for the shared ACQ display and chat fallback; this reference
 only defines the draft-PR choices and their consequences below.
 
-ACQ before push or `gh pr create`: A) draft PR (recommended when remote and `gh` work), B) local only, C) cancel outward steps but continue cleanup. Decline skips push/PR. With no remote or no `gh`, skip gracefully after local finalize without PR ACQ. On acceptance, render title and body from the prepare digest kept through `--yes`, then push and create a draft without a further confirmation; push/create failures report their reason without re-asking.
+ACQ `finalize.pr` before push or `gh pr create`: A) draft PR (recommended when remote and `gh` work), B) local only, C) cancel outward steps but continue cleanup. Decline skips push/PR. With no remote or no `gh`, skip gracefully after local finalize without PR ACQ. On acceptance, render title and body from the prepare digest kept through `--yes`, then push and create a draft without a further confirmation; push/create failures report their reason without re-asking.
 
 Use `.bouncer/config.json` `pr.draft` / `pr.base` (and `base_branch`) with
 `scripts/lib/templates.js` (`pr.md`). Do not pass `pr.labels` or any `--label`

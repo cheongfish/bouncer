@@ -58,4 +58,4 @@ Document skeletons, product rules, and master rules live in the plugin
 Use `rules/acq.md` for the shared ACQ display and chat fallback.
 
 **Index:**
-- Step 2 — Promotion ACQ · Gitignore ACQ · Branch ACQ
+- Step 2 — `init.graphify_promotion` Promotion · `init.gitignore` Gitignore · `init.base_branch` Branch
