@@ -1,0 +1,37 @@
+diff --git a/src/format.js b/src/format.js
+index 6c81898..b326a6d 100644
+--- a/src/format.js
++++ b/src/format.js
+@@ -1,3 +1,10 @@
+ export function formatRow(values) {
+   return values.join('\t');
+ }
++
++// Formats integer cents as a decimal amount, e.g. 1234 -> "12.34".
++export function formatCents(cents) {
++  const sign = cents < 0 ? '-' : '';
++  const abs = Math.abs(cents);
++  return `${sign}${Math.floor(abs / 100)}.${abs % 100}`;
++}
+diff --git a/test/format.test.js b/test/format.test.js
+index fd92bde..4828b59 100644
+--- a/test/format.test.js
++++ b/test/format.test.js
+@@ -1,7 +1,16 @@
+ import assert from 'node:assert/strict';
+ import test from 'node:test';
+-import { formatRow } from '../src/format.js';
++import { formatCents, formatRow } from '../src/format.js';
+ 
+ test('formatRow joins values with tabs', () => {
+   assert.equal(formatRow(['food', 2, 300]), 'food\t2\t300');
+ });
++
++test('formatCents formats whole and fractional amounts', () => {
++  assert.equal(formatCents(1234), '12.34');
++  assert.equal(formatCents(-250), '-2.50');
++});
++
++test('formatCents pads single-digit cents', () => {
++  assert.equal(formatCents(1005), '10.05');
++});

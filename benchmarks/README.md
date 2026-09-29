@@ -8,10 +8,16 @@
 benchmarks/
   README.md
   fixtures/ledger-cli.bundle
+  fixtures/ledger-cli-v2.bundle
+  fixtures/ledger-003.wip.patch
+  fixtures/ledger-003.test-report.txt
   fixtures/README.md
   schemas/task-card.schema.json
   tasks/task-card.template.yaml
   tasks/ledger-001.prd.md
+  tasks/ledger-v2-pilot.md
+  tasks/ledger-00{2,3,4}.prd.md
+  tasks/ledger-00{2,3,4}.yaml
   rubrics/ledger-001.md
   rubrics/ledger-001/entries.json
   rubrics/ledger-001/month-boundary.json
