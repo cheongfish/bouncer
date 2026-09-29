@@ -113,7 +113,10 @@ to your `Decision required` judgment, never a second brief.
 
 - Dispatch named `bouncer-implementer`, `bouncer-debugger` and
   `bouncer-reviewer` through `rules/subagent-model.md`. Never play those roles
-  yourself and never let one worker judge another's report.
+  yourself and never let one worker judge another's report. Under that rule's
+  item 7 opt-in (Cursor `subagents.dispatch: "print"`), every worker is a
+  foreground `agent --print` process per `rules/cursor-print-dispatch.md`,
+  never a Task subagent or an ad hoc shell launch.
 - Commit ownership — workers report; only the coordinator revises scope,
   records lease-bound judgments, and owns wave fan-in. It does not move the
   pointer per task.

@@ -575,6 +575,37 @@ test('subagent model contract is centralized and named dispatch consumers cite i
   assert.match(model, /named agents are unavailable/i);
   assert.match(model, /non-string|비문자열/i);
   assert.match(model, /Codex/i);
+  // background로 뜬 dispatch를 결과로 착각하고 turn을 끝내지 않는다.
+  assert.match(model, /runs in the foreground/);
+  assert.match(model, /Never request a background/);
+  assert.match(model, /is not a report/);
+  assert.match(model, /must not end its turn while a dispatched subagent still runs/);
+  // Cursor print dispatch는 opt-in일 때만 별도 규칙을 읽는다 — 기본 사용자에게는 몇 줄만 남긴다.
+  const item7 = model.slice(model.indexOf('7. On Cursor'), model.indexOf('\nNo workflow may add'));
+  assert.match(model, /Only the item 7 opt-in replaces it/);
+  assert.match(item7, /`subagents\.dispatch: "print"`[\s\S]{0,60}explicit opt-in/);
+  assert.match(item7, /read `rules\/cursor-print-dispatch\.md` before the first\s+dispatch and follow it in place of items 2-4 for every dispatch, including\s+named ones\. Otherwise ignore this item/);
+  assert.ok(item7.split('\n').length <= 6, 'item 7 stays a short pointer');
+  // 규칙을 분리한 뒤 root가 설정을 확인하지 않고 named Task로 리뷰어를 띄운 회귀(1790665728914).
+  assert.match(model, /\*\*Check first\.\*\* Before every dispatch, read `subagents\.provider` and\s+`subagents\.dispatch`/);
+  assert.ok(model.indexOf('**Check first.**') < model.indexOf('1. Resolve'), 'the opt-in check precedes item 1');
+
+  const cursor = fs.readFileSync(path.join(root, 'rules/cursor-print-dispatch.md'), 'utf8');
+  assert.match(cursor, /`subagents\.provider` to `"cursor"` and `subagents\.dispatch` to `"print"`/);
+  assert.match(cursor, /coordinator of item 5 and every worker/);
+  assert.match(cursor, /never a Task\s+subagent/);
+  assert.match(cursor, /never fall back to a\s+Task subagent silently/);
+  assert.match(cursor, /always carries the\s+item 4 fallback payload/);
+  // print로 띄운 역할이 같은 역할을 named Task로 다시 띄우던 회귀.
+  assert.match(cursor, /itself\. Do\s+this role's work directly and never dispatch any Bouncer agent/);
+  assert.match(cursor, /bouncer-coordinator itself\. Dispatch\s+only your workers/);
+  // payload가 frontmatter `---`로 시작해 CLI 옵션으로 읽히던 회귀.
+  assert.match(cursor, /\[--model <slug>\] -- "\$\(cat <prompt-file>\)"/);
+  assert.match(cursor, /--output-format stream-json/);
+  assert.match(cursor, /<\/dev\/null/);
+  assert.match(cursor, /Never pipe the process through `tee`/);
+  assert.match(cursor, /`wait`s for all of them/);
+  assert.match(cursor, /missing `result` event is a dispatch failure/);
 
   for (const rel of [
     'skills/bouncer-plan/references/context-review.md',
