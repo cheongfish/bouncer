@@ -6,9 +6,10 @@ const tseslint = require('typescript-eslint');
 // The rules below encode the style the codebase already uses, so the linter
 // enforces what reviewers were checking by hand. Vendored third-party code is
 // not ours to restyle. `scripts/lib/**` is tsc emit (4-space printer); style is
-// enforced on hand-written JS elsewhere. TypeScript lint covers the full
-// `scripts/src/lib/**/*.ts` glob; recommended stays on, with the CJS require
-// overrides below.
+// enforced on hand-written JS elsewhere. `benchmarks/**` is a measurement
+// harness outside the release tree, and its runs hold agent-written sample
+// code. TypeScript lint covers the full `scripts/src/lib/**/*.ts` glob;
+// recommended stays on, with the CJS require overrides below.
 const STRICT_TS_FILES = [
   'scripts/src/lib/**/*.ts',
 ];
@@ -21,6 +22,7 @@ module.exports = [
       'node_modules/**',
       'graphify-out/**',
       '.benchmarks/**',
+      'benchmarks/**',
       'docs/**',
     ],
   },
