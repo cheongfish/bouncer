@@ -5,7 +5,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { deniedShellReason } = require('../shell-policy.cjs');
 
-const bouncerCli = path.resolve(__dirname, '..', '..', 'scripts', 'bouncer');
+const pluginRoot = path.resolve(__dirname, '..', '..');
+const bouncerCli = path.join(pluginRoot, 'scripts', 'bouncer');
 
 // Stage worktrees keep container gitdir links (/workspace/...); host-side calls map them through the
 // environment, the way run-bouncer-full.cjs does, instead of rewriting the link the container still uses.
@@ -19,9 +20,10 @@ function gitEnv(workDir) {
   return { ...process.env, GIT_DIR: path.join(workspace, link.slice('/workspace/'.length)), GIT_WORK_TREE: workDir };
 }
 
+// The CLI is this checkout's, so its plugin root is too; an installed plugin may be another version or absent (CI).
 function bouncerJson(workDir, args) {
   const result = spawnSync(process.execPath, [bouncerCli, ...args], {
-    cwd: workDir, env: gitEnv(workDir), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024,
+    cwd: workDir, env: { ...gitEnv(workDir), BOUNCER_HOME: pluginRoot }, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024,
   });
   if (result.status !== 0 || result.error) return null;
   try { return JSON.parse(result.stdout); } catch { return null; }
