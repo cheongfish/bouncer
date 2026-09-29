@@ -1,0 +1,422 @@
+'use strict';
+
+const { existsSync, readFileSync, readdirSync } = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { deniedShellReason } = require('../shell-policy.cjs');
+
+const bouncerCli = path.resolve(__dirname, '..', '..', 'scripts', 'bouncer');
+
+// Stage worktrees keep container gitdir links (/workspace/...); host-side calls map them through the
+// environment, the way run-bouncer-full.cjs does, instead of rewriting the link the container still uses.
+function gitEnv(workDir) {
+  const link = (() => {
+    try { return readFileSync(path.join(workDir, '.git'), 'utf8').match(/^gitdir:\s*(.+)$/m)?.[1]?.trim(); }
+    catch { return null; }
+  })();
+  const workspace = workDir.split(`${path.sep}.worktrees${path.sep}`)[0];
+  if (!link?.startsWith('/workspace/') || workspace === workDir) return process.env;
+  return { ...process.env, GIT_DIR: path.join(workspace, link.slice('/workspace/'.length)), GIT_WORK_TREE: workDir };
+}
+
+function bouncerJson(workDir, args) {
+  const result = spawnSync(process.execPath, [bouncerCli, ...args], {
+    cwd: workDir, env: gitEnv(workDir), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024,
+  });
+  if (result.status !== 0 || result.error) return null;
+  try { return JSON.parse(result.stdout); } catch { return null; }
+}
+
+function currentBlueprint(workDir) {
+  const blueprint = bouncerJson(workDir, ['current'])?.current?.blueprint;
+  return typeof blueprint === 'string' && blueprint ? blueprint : null;
+}
+
+// An integration worktree carries no current pointer; there the sole blueprint on disk is the drive's.
+function soleBlueprint(workDir) {
+  const epics = path.join(workDir, '.bouncer', 'context', 'epics');
+  if (!existsSync(epics)) return null;
+  const found = readdirSync(epics).flatMap((epic) => {
+    const dir = path.join(epics, epic, 'blueprints');
+    return existsSync(dir) ? readdirSync(dir).filter((name) => existsSync(path.join(dir, name, 'index.md')))
+      .map((name) => ['.bouncer', 'context', 'epics', epic, 'blueprints', name].join('/')) : [];
+  });
+  return found.length === 1 ? found[0] : null;
+}
+
+// `finalize prepare` is a read-only digest: its coordinator section carries the drive ledger state.
+function finalizeReady(prepare, dryRun) {
+  const tasks = Array.isArray(prepare?.coordinator?.tasks) ? prepare.coordinator.tasks : [];
+  return prepare?.ok === true && prepare.coordinator?.status === 'ok' && tasks.length > 0
+    && tasks.every((task) => task.status === 'integrated') && dryRun?.ok === true && dryRun.dryRun === true;
+}
+
+function finalizeEvidence(workDir) {
+  if (!workDir) return false;
+  const blueprint = currentBlueprint(workDir) ?? soleBlueprint(workDir);
+  if (!blueprint) return false;
+  return finalizeReady(bouncerJson(workDir, ['finalize', 'prepare', '--blueprint', blueprint]),
+    bouncerJson(workDir, ['finalize', '--blueprint', blueprint]));
+}
+
+function planGateEvidence(workDir) {
+  if (!workDir) return false;
+  const blueprint = currentBlueprint(workDir);
+  if (!blueprint) return false;
+  return bouncerJson(workDir, ['validate', '--blueprint', blueprint, '--gate', 'plan'])?.ok === true;
+}
+
+function loadPolicy(file) {
+  const policy = JSON.parse(readFileSync(file, 'utf8'));
+  if (policy.policy_version !== 2 || policy.task_id !== 'ledger-001') throw new Error('unsupported evaluator policy');
+  if (policy.approval_state !== 'approved') {
+    throw new Error('evaluator policy is proposed; explicit user approval is required before sending gate answers');
+  }
+  if (policy.benchmark_choices?.plan_approval !== 'select_recommended_approve_without_quality_preselection'
+    || policy.benchmark_choices?.finalize_quiz !== 'first_option_for_each_presented_question') {
+    throw new Error('unsupported benchmark decision policy');
+  }
+  return policy;
+}
+
+// rules/acq.md fixes the ACQ shape, not its wording: the single `(Recommended)` proceed option comes
+// first, revise options follow, and cancel is last. Option roles are therefore read from that shape.
+const RECOMMENDED = /\((?:recommended|권장|추천)\)/i;
+const REVISE = /\b(?:revise|revision|override|edit)\b|\bbut\s+change|수정|재확인|다른\s*(?:id|값|명령|경로|slug)|직접\s*지정/i;
+const CANCEL = /\b(?:cancel|abort|stop)\b|취소|중단|결정하지\s*않/i;
+
+function recommendedProceed(options, { require, deny } = {}) {
+  const marked = options.filter((option) => RECOMMENDED.test(option.label));
+  if (marked.length !== 1 || marked[0] !== options[0]) return null;
+  const { label } = marked[0];
+  if (REVISE.test(label) || CANCEL.test(label) || deny?.test(label)) return null;
+  return !require || require.test(label) ? marked[0] : null;
+}
+
+function labelMatch(options, pattern, deny) {
+  const matches = options.filter((option) => pattern.test(option.label) && !deny?.test(option.label));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function chooseProceed(options, { require, deny, legacy, legacyDeny }) {
+  const recommended = recommendedProceed(options, { require, deny });
+  if (recommended) return { option: recommended, basis: 'recommended' };
+  const matched = legacy && labelMatch(options, legacy,
+    { test: (label) => Boolean(deny?.test(label) || legacyDeny?.test(label)) });
+  return matched ? { option: matched, basis: 'label' } : null;
+}
+
+function packageTestScript(workDir) {
+  try {
+    return JSON.parse(readFileSync(path.join(workDir, 'package.json'), 'utf8')).scripts?.test;
+  } catch {
+    return null;
+  }
+}
+
+const APPROVAL_CUE = /plan approval|계획.{0,3}승인|approve.*(?:plan|blueprint)|(?:ACQ|AskUserQuestion)\s*[—–-]?\s*approval/i;
+
+// Agents often list proposed paths in a section just above the question and write "the paths above".
+function lastSection(text) {
+  const sections = text.split(/^(?:#{1,6}\s|-{3,}\s*$)/m).filter((section) => section.trim());
+  return sections.at(-1) ?? '';
+}
+
+// A proposal is the list items (numbered, bulleted, or YAML) or the bare lines of a code block whose first
+// token is a path; prose such as "README/`data/entries.json` stay out" is not part of it. Trailing text
+// keeps the item, so "- `README.md` (docs)" is still read as a proposed path.
+function proposedPaths(text) {
+  const items = [...text.matchAll(/^\s*(?:\d+[.)]|[-*])\s+`?([^`\s]+)`?/gm)].map((match) => match[1]);
+  const fenced = [...text.matchAll(/^\s*```[^\n]*\n([\s\S]*?)^\s*```/gm)]
+    .flatMap((match) => [...match[1].matchAll(/^\s*`?([^`\s-][^`\s]*)`?/gm)].map((line) => line[1]));
+  return [...new Set([...items, ...fenced]
+    .filter((token) => /^[\w.@/*-]+$/.test(token) && (token.includes('/') || /\.[a-z]{1,5}$/i.test(token))))];
+}
+
+const gates = [
+  { gate: 'init.gitignore', phase: 'bouncer-init', cue: /gitignore/i,
+    decide({ policy, prompt, options, workDir }) {
+      const expected = policy.task_facts.expected_gitignore_suggestions;
+      const proposed = [...new Set([...prompt.matchAll(/`([^`]+\/)`/g)].map((match) => match[1]))];
+      if (!Array.isArray(expected) || proposed.length !== expected.length
+        || !proposed.every((entry) => expected.includes(entry))
+        || !workDir || existsSync(path.join(workDir, '.gitignore'))) return null;
+      return chooseProceed(options, { deny: /\bleave\b|untouched|\bskip\b|그대로|두기|건너/i,
+        legacy: /write suggested.*gitignore|add suggested.*gitignore|--write-gitignore/i });
+    },
+    reason: 'all expected entries present' },
+  { gate: 'plan.discovery', phase: 'bouncer-plan', cue: /discover(?:y)?|핸드오프|handoff/i,
+    decide({ prompt, context, options }) {
+      const facts = `${context} ${prompt}`;
+      const required = ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1',
+        'list', 'total', 'cli.js'];
+      if (!required.every((term) => facts.includes(term))
+        || /\b(?:deploy|database migration|git push|pull request)\b/i.test(facts)) return null;
+      return chooseProceed(options, {
+        legacy: /confirm discovery|discovery.*confirm|confirm framing|초안.*확정|framing 승인|프레이밍.*승인|프레이밍으로 진행/i,
+        legacyDeny: /revise|revision|but change|수정|변경|cancel|stop/i });
+    },
+    reason: 'public PRD facts are present' },
+  { gate: 'plan.id_allocation', phase: 'bouncer-plan', cue: /\bID allocation\b|ID 할당|suggested.*epic|권장.*ID|^IDs?$/im,
+    decide({ options, workDir }) {
+      if (!workDir) return null;
+      const epicRoot = path.join(workDir, '.bouncer', 'context', 'epics');
+      const existing = existsSync(epicRoot) ? readdirSync(epicRoot) : [];
+      if (existing.length === 0) {
+        return chooseProceed(options, { require: /\b001\b|suggested|권장|제안/i, deny: /\b(?!001\b)\d{3}\b/,
+          legacy: /001|suggested|권장/i, legacyDeny: /revise|override|change|수정|다른\s*id/i });
+      }
+      const reuse = path.join(epicRoot, '001-monthly-summary', 'blueprints', '001-summary-command', 'index.md');
+      if (existing.length !== 1 || existing[0] !== '001-monthly-summary' || !existsSync(reuse)) return null;
+      const option = labelMatch(options, /(?=.*(?:reuse|재사용))(?=.*001-monthly-summary)(?=.*001-summary-command)/i);
+      return option ? { option, basis: 'content', reason: 'reuse the sole existing benchmark draft' } : null;
+    },
+    reason: 'first IDs free' },
+  { gate: 'plan.light_scope', phase: 'bouncer-plan', cue: /light scope|light path|경량|light.*full/i,
+    decide({ options }) {
+      const option = labelMatch(options, /\bfull\b|\bnormal\b|일반|전체/i, /\blight\b|경량|--scale light/i);
+      return option ? { option, basis: 'content' } : null;
+    },
+    reason: 'public CLI contract' },
+  { gate: 'plan.verify_command', phase: 'bouncer-plan', cue: /verify command|검증 명령|bouncer.verify/i,
+    decide({ options, workDir }) {
+      if (packageTestScript(workDir) !== 'node --test') return null;
+      return chooseProceed(options, { require: /npm test/, deny: /unset|\bleave\b|different|다른|않/i,
+        legacy: /set\s+`?bouncer\.verify:\s*npm test`?/i, legacyDeny: /leave unset|different|다른/i });
+    },
+    reason: 'package test script' },
+  { gate: 'plan.affected_paths', phase: 'bouncer-plan',
+    cue: { test: (text) => /affected_paths|affected paths|영향 경로/i.test(text) && !APPROVAL_CUE.test(text) },
+    decide({ policy, prompt, context, options }) {
+      const choice = chooseProceed(options, { legacy: /confirm|approve|확정|승인/i, legacyDeny: /revise|edit|수정/i });
+      if (!choice) return null;
+      const inQuestion = proposedPaths(prompt);
+      const proposed = inQuestion.length ? inQuestion : proposedPaths(lastSection(context));
+      const allowed = policy.task_facts.product_paths ?? [];
+      const outside = proposed.filter((entry) => !allowed.includes(entry));
+      return { ...choice, reason: `confirmed as proposed without filtering: ${proposed.join(', ') || '(none parsed)'}`
+        + (outside.length ? `; outside product_paths: ${outside.join(', ')}` : '') };
+    } },
+  { gate: 'plan.activate_pointer', phase: 'bouncer-plan',
+    cue: /activate pointer|current pointer|포인터|pointer.{0,20}(?:\bset\b|설정|활성)|(?:\bset\b|설정).{0,20}pointer/i,
+    decide({ prompt, options, workDir }) {
+      const state = workDir ? bouncerJson(workDir, ['current']) : null;
+      const ready = state?.ok === true && state.current === null && Array.isArray(state.ready) ? state.ready : [];
+      if (ready.length !== 1) return null;
+      const target = ready[0].blueprint;
+      if (!prompt.includes(target) && !prompt.includes(path.posix.basename(target))) return null;
+      const otherTarget = (label) => /다른|\bother\b|another/i.test(label)
+        || (/\.bouncer\/context\/epics\//.test(label) && !label.includes(target));
+      return chooseProceed(options, { deny: { test: otherTarget },
+        legacy: /current --set|set.*pointer|포인터.*설정/i, legacyDeny: { test: otherTarget } });
+    },
+    reason: 'sole ready blueprint; --set runs the plan gate' },
+  { gate: 'plan.approval', phase: 'bouncer-plan', cue: APPROVAL_CUE,
+    decide({ options }) {
+      return chooseProceed(options, { legacy: /approve|승인/i, legacyDeny: /revise|수정|cancel|취소/i });
+    },
+    reason: 'benchmark policy approves the presented plan; quality is measured by gates and tests' },
+  { gate: 'run.start_drive', phase: 'bouncer-run',
+    cue: /start drive|delegate.*(?:drive|coordinator)|hand.*coordinator|드라이브|coordinator.{0,20}(?:위임|맡)|(?:위임|맡).{0,20}coordinator/i,
+    decide({ options, workDir }) {
+      const choice = chooseProceed(options, { legacy: /start drive|start|시작/i, legacyDeny: /revise|수정/i });
+      return choice && planGateEvidence(workDir) ? choice : null;
+    },
+    reason: 'plan gate passed' },
+  { gate: 'finalize.remainder', phase: 'bouncer-finalize', cue: /remainder|남은.*커밋|commit.*worktree|finalize --yes/i,
+    decide({ options, workDir }) {
+      if (!finalizeEvidence(workDir)) return null;
+      const option = labelMatch(options, /commit only|keep worktree|worktree.*keep|작업.*유지|커밋만|worktree\s*유지/i);
+      return option ? { option, basis: 'content' } : null;
+    },
+    reason: 'prepare and dry-run passed' },
+  { gate: 'finalize.pr', phase: 'bouncer-finalize', cue: /pull request|\bPR\b|푸시/i,
+    decide({ options }) {
+      const option = labelMatch(options, /local only|no pr|do not create|skip pr|로컬만|생성하지/i);
+      return option ? { option, basis: 'content' } : null;
+    },
+    reason: 'external push and PR denied' },
+  { gate: 'finalize.next_blueprint', phase: 'bouncer-finalize', cue: /next blueprint|다음 블루프린트|pointer|포인터/i,
+    decide({ options }) {
+      const option = labelMatch(options, /leave.*cleared|do not advance|skip|no next|유지|넘기지/i);
+      return option ? { option, basis: 'content' } : null;
+    },
+    reason: 'experiment ends here' },
+];
+
+// rules/acq.md puts the gate ID in every display heading (`**AskUserQuestion — plan.discovery**`) and in a
+// host question's title. An ID is authoritative: it selects the gate without cue matching.
+const GATE_ID = /(?:AskUserQuestion\s*[—:-]\s*|^\s*)`?((?:init|plan|execute|commit|run|finalize)\.[a-z_]+)`?(?![\w.])/;
+
+function gateIdOf(text) {
+  return GATE_ID.exec(String(text ?? ''))?.[1] ?? null;
+}
+
+function classifyGate(phase, cueText) {
+  return gates.find((candidate) => candidate.phase === phase && candidate.cue.test(cueText)) ?? null;
+}
+
+// A question belongs to the first gate whose cue matches; a gate that cannot decide stops for a human
+// instead of letting a later gate claim the question.
+function decideQuestion(policy, phase, question, workDir) {
+  const options = question.options ?? [];
+  const prompt = `${question.prompt ?? ''} ${options.map((o) => o.label).join(' ')}`;
+  if (phase === 'bouncer-finalize' && /quiz|퀴즈|\bQ\s*\d+\b|문항\s*\d+/i.test(prompt) && options.length === 3
+    && !/remainder|finalize --yes|pull request|next blueprint|다음 블루프린트/i.test(prompt)) {
+    return { gate: 'finalize.quiz', optionId: options[0].id,
+      synthetic: true, reason: 'first option selected for benchmark quiz' };
+  }
+  const id = gateIdOf(question.heading ?? question.title ?? question.header);
+  if (id) {
+    // A named gate this stage has no policy for stops for a human; it never falls back to cue guessing.
+    const named = gates.find((candidate) => candidate.gate === id && candidate.phase === phase);
+    return named ? decideWith(named, 'gate_id') : null;
+  }
+  // Legacy displays without an ID: a heading that names a gate wins over a Re-ground line that previews the
+  // next step, and a bare `**AskUserQuestion:**` falls back to the section it closes.
+  const gate = (question.heading && classifyGate(phase, question.heading))
+    ?? classifyGate(phase, question.cue ?? prompt)
+    ?? (question.section ? classifyGate(phase, question.section) : null);
+  return gate ? decideWith(gate, 'cue') : null;
+
+  function decideWith(chosen, identifiedBy) {
+    const choice = chosen.decide({ policy, prompt, context: question.context ?? '', options, workDir });
+    if (!choice) return null;
+    return { gate: chosen.gate, identified_by: identifiedBy, optionId: choice.option.id, basis: choice.basis,
+      reason: choice.reason ?? chosen.reason };
+  }
+}
+
+function answerAskQuestion(policy, phase, params, workDir) {
+  if (!Array.isArray(params?.questions) || params.questions.length === 0) return null;
+  const quizCue = `${params.title ?? ''} ${params.prompt ?? ''} ${params.questions
+    .map((question) => question.prompt ?? '').join(' ')}`;
+  if (phase === 'bouncer-finalize'
+    && policy.benchmark_choices?.finalize_quiz === 'first_option_for_each_presented_question'
+    && /\bquiz\b|퀴즈|\bQ\s*\d+\b|문항\s*\d+/i.test(quizCue)) {
+    if (params.questions.length > 10 || params.questions.some((question) => question.options?.length !== 3)) {
+      return null;
+    }
+    return {
+      outcome: { outcome: 'answered', answers: params.questions.map((question) => ({
+        questionId: question.id, selectedOptionIds: [question.options[0].id],
+      })) },
+      decisions: params.questions.map((question, index) => ({ gate: 'finalize.quiz', synthetic: true,
+        question_number: index + 1, question_count: params.questions.length,
+        optionId: question.options[0].id, reason: 'first option selected for benchmark quiz' })),
+    };
+  }
+  const decisions = params.questions.map((question) => ({
+    question, decision: decideQuestion(policy, phase, question, workDir),
+  }));
+  if (decisions.some(({ decision }) => !decision)) return null;
+  return {
+    outcome: {
+      outcome: 'answered',
+      answers: decisions.map(({ question, decision }) => ({
+        questionId: question.id, selectedOptionIds: [decision.optionId],
+      })),
+    },
+    decisions: decisions.map(({ decision }) => decision),
+  };
+}
+
+// A quiz request lists numbered questions; a closing summary that only mentions the quiz score does not.
+function looksLikeQuizRequest(text) {
+  return /\bquiz\b|퀴즈/i.test(text) && /^[\s#>*-]*(?:\*\*)?(?:Q\s*\d+|문항\s*\d+)\b/im.test(text)
+    && /답(?:변|해|을)|응답|선택|answer(?:s)?\s*[:：]|answer\s+(?:all|the|these|each|every)\b|(?:please\s+)?(?:reply|respond|provide)\s+(?:with\s+)?(?:(?:your|all)\s+)?answers?/i.test(text);
+}
+
+function answerQuizText(policy, phase, text) {
+  if (phase !== 'bouncer-finalize'
+    || policy.benchmark_choices?.finalize_quiz !== 'first_option_for_each_presented_question'
+    || !looksLikeQuizRequest(text)) return null;
+  const questions = [];
+  let current = null;
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.replace(/\*\*/g, '').trim();
+    const question = line.match(/^(?:#{1,6}\s*)?(?:(?:Q(?:uestion)?|문항)\s*)?(\d{1,2})\s*[).:]\s*(.+)$/i);
+    if (question) {
+      if (current) questions.push(current);
+      current = { number: Number(question[1]), options: [] };
+      continue;
+    }
+    const option = line.match(/^(?:[-*]\s*)?([A-C])\s*[).:]\s*\S/i);
+    if (option && current) current.options.push(option[1].toUpperCase());
+  }
+  if (current) questions.push(current);
+  if (questions.length < 1 || questions.length > 10
+    || questions.some((question, index) => question.number !== index + 1
+      || question.options.join(',') !== 'A,B,C')) return null;
+  return {
+    gate: 'finalize.quiz', synthetic: true, question_count: questions.length,
+    choices: questions.map((question) => ({ question_number: question.number, option: 'A' })),
+    reply: questions.map((question) => `${question.number}: A`).join('\n'),
+    reason: 'first option selected for each presented benchmark quiz question',
+  };
+}
+
+function optionsOf(block) {
+  return [...block.matchAll(/^\s*[-*]\s*(?:\*\*)?([A-Z])\)(?:\*\*)?\s*(.+)$/gm)]
+    .map((match) => ({ id: match[1], label: match[2].replace(/\*\*/g, '').trim() }));
+}
+
+// Bold title lines (`**IDs**`) that each head their own A) B) C) list.
+function optionGroups(block) {
+  const titles = [...block.matchAll(/^\s*\*\*([^*\n]+)\*\*\s*$/gm)];
+  const groups = titles.map((match, index) => {
+    const body = block.slice(match.index, titles[index + 1]?.index ?? block.length);
+    return { title: match[1].trim(), body, options: optionsOf(body) };
+  });
+  return groups.filter((group) => group.options.length >= 2);
+}
+
+function answerTextQuestion(policy, phase, text, workDir) {
+  const markers = [...text.matchAll(/\*\*AskUserQuestion[^*]*\*\*/g)];
+  if (!markers.length) return null;
+  const decisions = [];
+  for (let index = 0; index < markers.length; index++) {
+    const start = markers[index].index;
+    const end = markers[index + 1]?.index ?? text.length;
+    const block = text.slice(start, end);
+    const reground = block.match(/\*\*Re-ground\*\*\s*[:：]?\s*(.+)/i)?.[1];
+    const context = text.slice(0, start);
+    const section = [...context.matchAll(/^#{1,6}\s+(.+)$/gm)].pop()?.[1];
+    const groups = optionGroups(block);
+    if (groups.length > 1) {
+      // One block may bundle several questions as bold-titled option groups; each title names its gate.
+      for (const group of groups) {
+        const decision = decideQuestion(policy, phase, { prompt: group.body, heading: group.title,
+          cue: reground ? `${group.title} ${reground}` : group.title, context, options: group.options }, workDir);
+        if (!decision) return null;
+        decisions.push(decision);
+      }
+      continue;
+    }
+    const options = optionsOf(block);
+    if (options.length < 2) return null;
+    const cue = reground ? `${markers[index][0]} ${reground}` : undefined;
+    const decision = decideQuestion(policy, phase,
+      { prompt: block, heading: markers[index][0], cue, section, context, options }, workDir);
+    if (!decision) return null;
+    decisions.push(decision);
+  }
+  return {
+    gate: decisions.map((decision) => decision.gate).join(','),
+    choices: decisions,
+    question: text,
+    reply: decisions.map((decision) => decision.optionId).join(' / '),
+  };
+}
+
+function answerPermission(params) {
+  const call = params?.toolCall;
+  const allow = params?.options?.filter((option) => option.kind === 'allow_once');
+  if (!call || allow?.length !== 1) return null;
+  const input = `${call.title ?? ''}\n${JSON.stringify(call.rawInput ?? {})}`;
+  if (deniedShellReason(input)) return null;
+  return { outcome: { outcome: 'selected', optionId: allow[0].optionId }, reason: 'local tool call' };
+}
+
+module.exports = { finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
+  looksLikeQuizRequest, answerPermission };

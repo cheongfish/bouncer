@@ -46,6 +46,9 @@ const LEGACY_ALLOWLIST = new Set([
  * assertions (absence / unsupported-command checks). Not an allowlist for
  * positive Superpowers integration.
  */
+// 벤치마크 계획서는 비교 조건으로 이름을 든다. 제품 통합 참조가 아니다.
+const SUPERPOWERS_COMPARISON_DOCS = new Set(['benchmark-plan.md']);
+
 const SUPERPOWERS_NEGATIVE_TESTS = new Set([
   'test/cli-validate.test.js',
   'test/skill-bouncer-commit.test.js',
@@ -103,7 +106,7 @@ test('active surfaces contain no Superpowers integration reference', () => {
     if (file === 'test/public-name-regression.test.js') continue;
     const text = read(file);
     if (!SUPERPOWERS_RE.test(text)) continue;
-    if (SUPERPOWERS_NEGATIVE_TESTS.has(file)) continue;
+    if (SUPERPOWERS_NEGATIVE_TESTS.has(file) || SUPERPOWERS_COMPARISON_DOCS.has(file)) continue;
     offenders.push(file);
   }
   assert.deepStrictEqual(offenders, [], `Superpowers references in:\n${offenders.join('\n')}`);

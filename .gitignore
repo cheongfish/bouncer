@@ -18,3 +18,7 @@ graphify-out/
 .bouncer/config.json
 .bouncer/runtime/
 scripts/lib/
+
+# 벤치마크 실행 원본은 transcript 원문과 대용량 로그라 커밋하지 않는다.
+benchmarks/runs/*
+!benchmarks/runs/README.md

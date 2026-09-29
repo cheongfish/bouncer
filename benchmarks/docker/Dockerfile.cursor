@@ -1,0 +1,49 @@
+FROM node:24-bookworm-slim AS cursor-base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash ca-certificates curl git openssh-client python3 python3-venv python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+ARG BENCH_UID=1000
+RUN if [ "$(id -u node)" != "$BENCH_UID" ]; then usermod -u "$BENCH_UID" node; fi \
+    && chown -R node /home/node
+USER node
+ENV HOME=/home/node PATH=/home/node/.local/bin:/usr/local/bin:/usr/bin:/bin
+RUN curl -fsSL https://cursor.com/install -o /tmp/install-cursor.sh \
+    && bash /tmp/install-cursor.sh \
+    && rm /tmp/install-cursor.sh \
+    && cursor-agent --version
+WORKDIR /workspace
+COPY --chmod=755 benchmarks/docker/agent-entrypoint.sh /usr/local/bin/benchmark-agent
+# Print-mode runs use --force; the evaluator's shell policy is enforced by this user-level hook instead.
+COPY benchmarks/shell-policy.cjs /opt/benchmark/shell-policy.cjs
+COPY --chmod=755 benchmarks/docker/shell-guard.cjs /usr/local/bin/benchmark-shell-guard
+COPY --chown=node:node benchmarks/docker/cursor-hooks.json /home/node/.cursor/hooks.json
+ENTRYPOINT ["/usr/local/bin/benchmark-agent"]
+
+FROM cursor-base AS vanilla
+
+FROM node:24-bookworm-slim AS plugin-build
+WORKDIR /opt/bouncer
+COPY package.json package-lock.json tsconfig.json ./
+COPY scripts/ ./scripts/
+RUN npm ci && npm run build
+
+FROM cursor-base AS bouncer
+ENV BOUNCER_HOME=/home/node/.cursor/plugins/local/bouncer
+COPY --from=plugin-build --chown=node:node /opt/bouncer/scripts/ /home/node/.cursor/plugins/local/bouncer/scripts/
+COPY --chown=node:node package.json plugin.json AGENTS.md /home/node/.cursor/plugins/local/bouncer/
+COPY --chown=node:node .cursor-plugin/ /home/node/.cursor/plugins/local/bouncer/.cursor-plugin/
+COPY --chown=node:node agents/ /home/node/.cursor/plugins/local/bouncer/agents/
+COPY --chown=node:node hooks/ /home/node/.cursor/plugins/local/bouncer/hooks/
+COPY --chown=node:node references/ /home/node/.cursor/plugins/local/bouncer/references/
+COPY --chown=node:node resources/ /home/node/.cursor/plugins/local/bouncer/resources/
+COPY --chown=node:node rules/ /home/node/.cursor/plugins/local/bouncer/rules/
+COPY --chown=node:node skills/ /home/node/.cursor/plugins/local/bouncer/skills/
+ENV PATH=/home/node/.cursor/plugins/local/bouncer/scripts:/home/node/.local/bin:/usr/local/bin:/usr/bin:/bin
+RUN bouncer-root --auto && test -f "$BOUNCER_HOME/skills/bouncer-init/SKILL.md"
+
+FROM node:24-bookworm-slim AS verifier
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /benchmark
+ENTRYPOINT ["node", "/benchmark/verifiers/ledger-001.cjs"]

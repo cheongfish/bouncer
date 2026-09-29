@@ -1,0 +1,56 @@
+name: bouncer-cursor-benchmark
+
+x-agent: &agent
+  working_dir: /workspace
+  init: true
+  volumes:
+    - ${BENCH_WORKSPACE:?set BENCH_WORKSPACE}:/workspace
+    - ${BENCH_PROMPT:?set BENCH_PROMPT}:/run/benchmark/prompt.txt:ro
+    - ${BENCH_CURSOR_DATA:?set BENCH_CURSOR_DATA}:/home/node/.cursor/projects
+    # cursor-agent session logs carry the per-turn token usage; keep them after the container exits.
+    - ${BENCH_CURSOR_LOGS:?set BENCH_CURSOR_LOGS}:/tmp/cursor-agent-logs-${BENCH_UID:-1000}
+  secrets:
+    - cursor_api_key
+
+services:
+  vanilla:
+    <<: *agent
+    build:
+      context: ../..
+      dockerfile: benchmarks/docker/Dockerfile.cursor
+      target: vanilla
+      args:
+        BENCH_UID: ${BENCH_UID:-1000}
+    image: bouncer-benchmark-cursor-vanilla:local
+    command: ["${BENCH_MODEL:?set BENCH_MODEL}", "/run/benchmark/prompt.txt"]
+
+  bouncer:
+    <<: *agent
+    build:
+      context: ../..
+      dockerfile: benchmarks/docker/Dockerfile.cursor
+      target: bouncer
+      args:
+        BENCH_UID: ${BENCH_UID:-1000}
+    image: bouncer-benchmark-cursor-bouncer:local
+    command: ["${BENCH_MODEL:?set BENCH_MODEL}", "/run/benchmark/prompt.txt"]
+
+  verifier:
+    build:
+      context: ../..
+      dockerfile: benchmarks/docker/Dockerfile.cursor
+      target: verifier
+    image: bouncer-benchmark-ledger-verifier:local
+    user: ${BENCH_UID:-1000}:${BENCH_GID:-1000}
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - ../:/benchmark:ro
+      - ${BENCH_RESULT_DIR:?set BENCH_RESULT_DIR}:/result
+    command: ["--patch", "/result/diff.patch", "--work-dir", "/result/verify-work", "--output", "/result/verifier.json"]
+
+secrets:
+  cursor_api_key:
+    file: ${CURSOR_API_KEY_FILE:?set CURSOR_API_KEY_FILE}

@@ -1,0 +1,14 @@
+.git
+.benchmarks
+.bouncer
+.claude
+.codex
+.cursor
+node_modules
+benchmarks/aggregate
+benchmarks/configs
+benchmarks/fixtures
+benchmarks/rubrics
+benchmarks/runs
+benchmarks/tasks
+benchmarks/verifiers

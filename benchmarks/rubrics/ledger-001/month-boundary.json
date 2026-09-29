@@ -1,0 +1,4 @@
+[
+  { "id": "jan", "date": "2026-01-31", "category": "food", "amount_cents": 10 },
+  { "id": "feb", "date": "2026-02-01", "category": "travel", "amount_cents": 7 }
+]
