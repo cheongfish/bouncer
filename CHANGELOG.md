@@ -7,6 +7,32 @@
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-09-29
+
+1.4.93 이후 ACQ gate ID, Cursor print dispatch opt-in을 넣고 intent provenance가
+커밋되지 않은 줄에서 실패하던 문제를 고친다. Claude Code는 `#release` ref로
+marketplace를 등록한다.
+
+### Added
+
+- **ACQ gate ID** — 모든 gate에 `<workflow>.<gate>` ID를 붙여 skill 색인과 실행
+  단계에 적는다. 표시 제목에 ID를 넣고 한 표시에는 gate 하나만 담는다.
+- **Cursor print dispatch** — `subagents.dispatch: "print"` opt-in 시 모든
+  Bouncer agent를 `agent --print` 프로세스로 띄운다(`rules/cursor-print-dispatch.md`).
+
+### Changed
+
+- **dispatch foreground 대기** — 모든 dispatch를 foreground로 기다려 background
+  dispatch를 결과로 착각해 drive가 중간에 끝나지 않게 한다.
+- **Claude Code 설치 안내** — clone 뒤 로컬 경로 등록 대신 `#release` ref로
+  marketplace를 등록한다. ref 미확인 호스트는 로컬 경로 안내를 유지한다.
+
+### Fixed
+
+- **intent provenance null SHA** — worktree에서 커밋되지 않은 줄의 blame null
+  SHA로 `git log`를 불러 intent bundle 전체가 실패하던 문제를 고친다. 수정 중이거나
+  새로 만든 함수는 `unlinked`로 처리한다.
+
 ## [1.4.93] — 2026-09-28
 
 1.4.92 이후 lease 기반 병렬 task 실행, finalize digest, release 브랜치 배포를
