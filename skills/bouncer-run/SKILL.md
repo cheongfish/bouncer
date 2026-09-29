@@ -77,7 +77,7 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    to delegate the drive. Option order: recommended proceed → revise → cancel.
    This is the only gate.
 
-   **AskUserQuestion — Start drive**
+   **AskUserQuestion — run.start_drive**
    1. **Re-ground**: Whether to hand the remaining tasks to one coordinator.
    2. **Recommend-why**: Given the task list, the DAG, and `affected_paths`,
       delegating now closes the blueprint in one flow. This approval covers the
@@ -154,4 +154,4 @@ Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 it, coordinator mode asks no per-task scope or plan ACQ.
 
 **Index:**
-- Step 2 — Start drive
+- Step 2 — `run.start_drive` Start drive

@@ -12,7 +12,7 @@ Re-entrant planning: create a new epic, or add a blueprint to an existing epic.
 Follow this sequence exactly.
 
 If the user supplied a description with this invocation, treat it as the request;
-otherwise run **ACQ — Request** before scaffolding (ask for the request).
+otherwise run **ACQ — Request (`plan.request`)** before scaffolding (ask for the request).
 
 **Preflight.** If `.bouncer/` is missing, stop and tell the user to run
 `/bouncer-init` first. `bouncer plan inspect` reports that as
@@ -70,7 +70,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    `Overlap`. When discovery surfaces ordering or fan-in among units of work,
    capture them as candidate task dependencies (`depends_on`) and parallel
    readiness (`parallel_safe`) — task numbers alone do not decide execution
-   order. **ACQ — Discover:** confirm Goal / Scope / Non-goals / Success
+   order. **ACQ — Discover (`plan.discovery`):** confirm Goal / Scope / Non-goals / Success
    criteria / Edge cases & failure modes / Overlap with the user before
    scaffolding.
    Map handoff into authored docs in step 3: `Edge cases & failure modes` →
@@ -84,10 +84,10 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    `epic.nextBlueprintId`. These are suggestions only; the user may override
    them. If adding to an existing epic and preflight omitted `--epic-dir`,
    re-run `bouncer plan inspect --epic-dir <dir>` for `nextBlueprintId`.
-   **ACQ — ID allocation:** show the suggested
+   **ACQ — ID allocation (`plan.id_allocation`):** show the suggested
    epic/blueprint id and let the user override it.
    Reject `EPIC-001` / `1` / `01` — scaffold accepts `\d{3}` only.
-   **Light path.** **ACQ — Light scope:** ask whether the work is narrow-scope —
+   **Light path.** **ACQ — Light scope (`plan.light_scope`):** ask whether the work is narrow-scope —
    do not auto-judge. On a light declaration, create no new epic; allocate only a
    blueprint id under the epic whose slug is `maintenance` (`maintenanceEpic`
    from inspect), creating that epic once with the next free `\d{3}` id if
@@ -176,7 +176,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    `Taskfile.yml` (existence only — never parse contents), or a `package.json`
    carrying a `scripts` key (`package.json#scripts`, key presence only). On at
    least one signal, run
-   **ACQ — Verify command:** ask whether to set `tasks.bouncer.verify` for this
+   **ACQ — Verify command (`plan.verify_command`):** ask whether to set `tasks.bouncer.verify` for this
    blueprint. On accept, write a **single** executable argv string into each
    `tasks/<NNN>/tasks.md` frontmatter `bouncer.verify` (e.g. `npm run test:e2e`,
    `make test`); with no signal or on refusal leave it unset so execute keeps
@@ -190,7 +190,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    When generating Graphify suggestions, read this reference: [graphify-suggestions.md](./references/graphify-suggestions.md). Compose `--query` and `--seed`, and decide whether to run `--debug` or a shrink retry, only by following the Rank step in `graphify-runner` (`${BOUNCER_ROOT}/references/graphify-runner/index.md`). Do not duplicate those limits here. After authoring, when a source graph is available, show `graph-suggest` stdout (via that runner) before step 4 confirmation. Suggestions are advisory only — do not write them into frontmatter. Do not write intent or Explain results into frontmatter either, and step 4 remains the only place that writes user-confirmed `affected_paths`.
 
 4. **Scope confirm.** Write `affected_paths` only after the user confirms them
-   — never from `suggested_paths`, `candidates`, or inspect output. When confirming affected_paths, read this reference: [scope-confirm.md](./references/scope-confirm.md). Then run **ACQ — affected_paths:** propose `bouncer.affected_paths` for the user
+   — never from `suggested_paths`, `candidates`, or inspect output. When confirming affected_paths, read this reference: [scope-confirm.md](./references/scope-confirm.md). Then run **ACQ — affected_paths (`plan.affected_paths`):** propose `bouncer.affected_paths` for the user
    to confirm or edit. Each
    confirmed list must be non-empty (gate G5). Write
    only the user's confirmed value into that task document's frontmatter. Before
@@ -215,7 +215,7 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    `dependency_gate`, `execution_kind`, plus any shared-contract conflicts (for example
    overlapping `affected_paths` among `parallel_safe: true` peers, or edges
    that would create a cycle). Fix conflicts in authoring; do not ask for
-   approval on an invalid graph. **ACQ — Approval:** ask the user to approve the
+   approval on an invalid graph. **ACQ — Approval (`plan.approval`):** ask the user to approve the
    plan. On approval, transition
    `bouncer.status`: epic `draft → approved`, blueprint `draft → approved`, tasks
    `draft → ready`. Never approve silently.
@@ -250,9 +250,9 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
 Use `rules/acq.md` for the shared ACQ display and chat fallback.
 
 **Index:**
-- Before step 1 — Request (when invocation had no description)
-- Step 1 — Discover confirm
-- Step 2 — ID allocation · Light scope
-- Step 3 — Verify command
-- Step 4 — affected_paths
-- Step 6 — Approval
+- Before step 1 — `plan.request` Request (when invocation had no description)
+- Step 1 — `plan.discovery` Discover confirm
+- Step 2 — `plan.id_allocation` ID allocation · `plan.light_scope` Light scope
+- Step 3 — `plan.verify_command` Verify command
+- Step 4 — `plan.affected_paths` affected_paths
+- Step 6 — `plan.approval` Approval

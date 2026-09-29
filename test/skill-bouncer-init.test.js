@@ -31,7 +31,7 @@ test('init loads result handling after bootstrap and keeps ACQ consent', () => {
   assert.doesNotMatch(preamble, /\.\/references\/init-result\.md/);
   assert.ok(skill.indexOf('bouncer init') < skill.indexOf('./references/init-result.md'));
   assert.match(skill, /rules\/acq\.md/);
-  assert.match(skill, /Step 2 — Promotion ACQ · Gitignore ACQ · Branch ACQ/);
+  assert.match(skill, /Step 2 — `init\.graphify_promotion` Promotion · `init\.gitignore` Gitignore · `init\.base_branch` Branch/);
 });
 
 test('init Master rules omit plan-only product rules', () => {
