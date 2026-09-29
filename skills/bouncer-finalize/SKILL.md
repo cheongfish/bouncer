@@ -62,7 +62,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    'verify'` failures, read [remainder.md](./references/remainder.md). On a
    clean dry-run (or empty staged set), run this **ACQ** before `--yes`:
 
-   **AskUserQuestion — Remainder commit + worktree**
+   **AskUserQuestion — finalize.remainder**
    1. **Re-ground**: Commit the context-document remainder via
       `finalize --yes` and whether to clean up the execute worktree.
    2. **Recommend-why**: Task commits already finished on `/bouncer-commit`;
@@ -86,11 +86,11 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    blueprint as already closed — do not re-run prepare against a deleted tasks
    tree.
 
-3. **PR.** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). Use the prepare digest kept from step 1 for title prefix and body sections; do not recompute them. **ACQ — PR:** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 4.
+3. **PR.** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). Use the prepare digest kept from step 1 for title prefix and body sections; do not recompute them. **ACQ — PR (`finalize.pr`):** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 4.
 
 4. **Cleanup.** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
 
-5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) reference handles next-blueprint only after cleanup and only from the finalize payload. **ACQ — Next blueprint:** run that reference's AskUserQuestion before `current --set`; advancement remains confirm-then-`current --set`, never automatic.
+5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) reference handles next-blueprint only after cleanup and only from the finalize payload. **ACQ — Next blueprint (`finalize.next_blueprint`):** run that reference's AskUserQuestion before `current --set`; advancement remains confirm-then-`current --set`, never automatic.
    Read `rules/current-pointer.md` for that pointer change.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
    work plans a sibling Blueprint in the same Epic or a new Epic via
@@ -109,6 +109,6 @@ Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 advance.
 
 **Index:**
-- Step 2 — Remainder commit + worktree
-- Step 3 — PR
-- Step 5 — Next blueprint
+- Step 2 — `finalize.remainder` Remainder commit + worktree
+- Step 3 — `finalize.pr` PR
+- Step 5 — `finalize.next_blueprint` Next blueprint

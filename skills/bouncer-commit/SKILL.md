@@ -87,7 +87,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
    non-null `nextTask`, show its id and path (`tasks/<NNN>/tasks.md`), then
    run this **ACQ**:
 
-   **AskUserQuestion — Next task**
+   **AskUserQuestion — commit.next_task**
    1. **Re-ground**: Whether to move the pointer to the next open task on this blueprint.
    2. **Recommend-why**: Another commit unit remains in the same PR, so continuing keeps the flow short.
    3. **Options**:
@@ -104,7 +104,7 @@ Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 `/bouncer-commit` is not consent for a pointer advance.
 
 **Index:**
-- Step 5 — Next task (outside a drive only)
+- Step 5 — `commit.next_task` Next task (outside a drive only)
 
 Invoking this skill is the consent for the one task commit it makes, so step 4
 asks nothing. Under a drive the coordinator owns the pointer and step 5 asks

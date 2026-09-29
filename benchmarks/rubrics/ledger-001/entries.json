@@ -1,0 +1,8 @@
+[
+  { "id": "jan-travel", "date": "2026-01-12", "category": "travel", "amount_cents": 800 },
+  { "id": "feb-food", "date": "2026-02-03", "category": "food", "amount_cents": 900 },
+  { "id": "jan-food-1", "date": "2026-01-01", "category": "food", "amount_cents": 1200 },
+  { "id": "jan-books", "date": "2026-01-25", "category": "books", "amount_cents": 0 },
+  { "id": "jan-food-2", "date": "2026-01-30", "category": "food", "amount_cents": 350 },
+  { "id": "mar-food", "date": "2026-03-01", "category": "food", "amount_cents": 50 }
+]

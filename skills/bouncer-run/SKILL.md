@@ -77,7 +77,7 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    to delegate the drive. Option order: recommended proceed → revise → cancel.
    This is the only gate.
 
-   **AskUserQuestion — Start drive**
+   **AskUserQuestion — run.start_drive**
    1. **Re-ground**: Whether to hand the remaining tasks to one coordinator.
    2. **Recommend-why**: Given the task list, the DAG, and `affected_paths`,
       delegating now closes the blueprint in one flow. This approval covers the
@@ -103,7 +103,9 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
    per `rules/subagent-model.md`; read `agents/bouncer-coordinator.md` for
    coordinator authority. When named agents are unavailable, dispatch
    one generic subagent with the same coordinator brief and the same worktree
-   guards; either way it happens once, and never without the step 2 approval.
+   guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
+   "print"`), the coordinator is an `agent --print` process per
+   `rules/cursor-print-dispatch.md` instead; either way it happens once, and never without the step 2 approval.
    From `integrationPath`, run `bouncer coordinate status` once and keep its
    `checkpoint` (including `ledger: { path, sha256, revision }`) for the
    payload. The payload is:
@@ -126,8 +128,11 @@ worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
      `interactive` returns a progress line per task boundary, `auto` batches
      them — so the coordinator opens no per-task ACQ under either value
 
-   Then wait. Do not edit files, move the pointer, or dispatch a worker
-   yourself while the coordinator holds the drive.
+   Then wait in the foreground per `rules/subagent-model.md` item 6 until the
+   coordinator returns its terminal outcome. A background handle or a "drive
+   started" status is not that outcome: never end the turn or render step 5
+   while the coordinator still runs. Do not edit files, move the pointer, or
+   dispatch a worker yourself while the coordinator holds the drive.
 
 5. **Report.** Render the coordinator's progress lines and its terminal
    outcome through `rules/output.md`: `completed` with the integration head,
@@ -149,4 +154,4 @@ Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
 it, coordinator mode asks no per-task scope or plan ACQ.
 
 **Index:**
-- Step 2 — Start drive
+- Step 2 — `run.start_drive` Start drive

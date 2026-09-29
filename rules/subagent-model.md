@@ -5,6 +5,10 @@ only model selection and host fallback; each calling workflow keeps ownership
 of the agent role, its inputs and outputs, read-only permissions, and retry
 limits.
 
+**Check first.** Before every dispatch, read `subagents.provider` and
+`subagents.dispatch` from `.bouncer/config.json`. When they are `cursor` and
+`print`, item 7 applies and the dispatch is never a Task subagent.
+
 1. Resolve the named agent's model with `resolveSubagentModel`. Its return is
    an object: extract and pass only `result.model` to the named dispatch, never
    the complete result (which also carries provider metadata). When
@@ -13,6 +17,7 @@ limits.
    configured value have that inheritance meaning; they are not a request to
    select a replacement model.
 2. Attempt the named dispatch. Do not skip it because the host is Codex.
+   Only the item 7 opt-in replaces it.
 3. Only on a rejected model slug, retry that same named dispatch once with
    `inherit`, and tell the user that the slug was refused.
    A dispatch failure for another reason does not authorize this retry.
@@ -41,7 +46,18 @@ limits.
    worktree write boundary — plus the `/bouncer-run` dispatch payload exactly as
    `skills/bouncer-run/SKILL.md` step 4 defines it; this rule does not restate
    that list. It is never a shortened brief.
+6. Every dispatch, named or fallback, runs in the foreground: the dispatcher
+   blocks until the subagent returns its report. Never request a background,
+   async, or detached run. When the host still returns a background handle
+   instead of a report, keep waiting on that handle before any next step. A
+   handle, a "started" or "running" status, or a task id is not a report, and
+   the dispatcher must not end its turn while a dispatched subagent still runs.
+7. On Cursor, `subagents.dispatch: "print"` in `.bouncer/config.json` is an
+   explicit opt-in. Only when `subagents.provider` is `cursor` and that value is
+   exactly `print`, read `rules/cursor-print-dispatch.md` before the first
+   dispatch and follow it in place of items 2-4 for every dispatch, including
+   named ones. Otherwise ignore this item.
 
-No workflow may add a provider setting or a subagent helper while applying this
+No workflow may add another provider setting or a subagent helper while applying this
 contract. Light and `/bouncer-run` exceptions remain with the execute workflow,
 not with this shared model rule.

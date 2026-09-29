@@ -1,0 +1,37 @@
+# Cursor print dispatch
+
+This rule applies only when `.bouncer/config.json` sets both
+`subagents.provider` to `"cursor"` and `subagents.dispatch` to `"print"`
+(`rules/subagent-model.md` item 7). Any other value or provider leaves that
+rule's items 2-4 unchanged, and this document does not apply.
+
+1. **Every dispatch is a print process.** Every Bouncer-agent dispatch — the
+   named dispatch and the fallback of `rules/subagent-model.md` items 2 and 4,
+   including the `/bouncer-run` coordinator of item 5 and every worker a
+   coordinator dispatches — is a fresh `agent --print` process, never a Task
+   subagent. Cursor records no token usage for Task subagents; each print
+   process is its own logged session.
+2. **Prerequisite.** The `agent` CLI is on PATH and `agent status` reports a
+   login. Otherwise report that and stop the dispatch; never fall back to a
+   Task subagent silently.
+3. **Payload.** A print process loads no named agent, so it always carries the
+   item 4 fallback payload. Write the payload to a file whose first line is
+   the identity line below, before the role body:
+   - worker or reviewer: `You are the dispatched bouncer-<role> itself. Do
+     this role's work directly and never dispatch any Bouncer agent.`
+   - coordinator: `You are the dispatched bouncer-coordinator itself. Dispatch
+     only your workers, each under rules/cursor-print-dispatch.md.`
+4. **Command.** From the actual cwd, run
+   `agent --print --force --trust --output-format stream-json --workspace
+   <actual cwd> [--model <slug>] -- "$(cat <prompt-file>)"
+   </dev/null >"<out>.jsonl" 2>"<err>.log"`. Pass `--model` only when
+   `result.model` is not `null`. The `--` keeps a payload that starts with `-`
+   from being read as an option. Never pipe the process through `tee` or any
+   other reader: a helper it leaves behind holds the pipe open after it exits.
+5. **Wait.** Run it in the foreground with a wait budget covering the whole
+   run, per item 6. A ready wave may start its runners from one command that
+   backgrounds each process and then `wait`s for all of them; that command
+   returns only after every process exits.
+6. **Report.** The report is the final `result` event of the stdout file. A
+   non-zero exit or a missing `result` event is a dispatch failure, not a
+   report.

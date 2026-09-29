@@ -9,6 +9,15 @@ render the **same options** in chat and wait for an explicit A/B/… reply. A
 bare `/bouncer-*` workflow command is never consent for a gate's state-changing
 action.
 
+**Gate ID.** Every gate has a stable ID of the form `<workflow>.<gate>` (for
+example `plan.discovery`), listed in the owning skill's
+`## ACQ (AskUserQuestion) gates` index. Ask only gates that index lists, and
+put the gate ID in the heading of every display — `**AskUserQuestion —
+<gate-id>**` in chat, and the question title in the host UI. One display holds
+exactly one gate: when a step asks two gates, render two displays, each with
+its own heading and its own options, and number them `(1/2)`, `(2/2)` after the
+ID. Write each option on one line as `- X) label`.
+
 Put the recommended proceed option first, then revise, then any alternative,
 and cancel/stop last. Mark one clear recommendation with `(Recommended)` and
 give a one- or two-sentence `Recommend-why` ending in `~함` or `~임` when the
@@ -17,7 +26,7 @@ Use this display skeleton, extending the lettered options only when the
 workflow's own consequence needs it:
 
 ```markdown
-**AskUserQuestion:**
+**AskUserQuestion — <gate-id>**
 
 1. **Re-ground**: {one line — what is being decided}
 2. **Recommend-why**: {why option 1 is recommended}

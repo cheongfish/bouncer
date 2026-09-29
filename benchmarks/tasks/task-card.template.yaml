@@ -1,0 +1,23 @@
+# 이 파일을 <task-id>.yaml로 복사하고 플레이스홀더를 교체한다.
+# user_request만 에이전트에게 전달한다.
+id: bug-001
+set: general # general | boundary
+benchmark_version: v1
+base_commit: "<40-character git SHA>"
+user_request: >-
+  사용자가 실제로 요청하는 작업 내용을 적는다.
+allowed_paths:
+  - src/example/**
+  - test/example/**
+forbidden_paths:
+  - .git/**
+failure_opportunities: []
+external_verifiers:
+  - id: requested-behavior
+    argv: [npm, test, --, example.spec.ts]
+    timeout_ms: 120000
+success_checklist:
+  - 요청한 동작이 외부에서 관측된다.
+  - 허용 범위 밖의 변경이 없다.
+manual_rubric: task-outcome-v1
+evaluator_facts: {}

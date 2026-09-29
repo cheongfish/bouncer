@@ -37,7 +37,7 @@ test('bouncer-commit does not invent CLI or a second consent step', () => {
   assert.match(body, /start ACQ already covers every task it\s*\n?\s*drives/);
   // 포인터 전진은 drive 밖에서 여전히 confirm-then-set이다 —
   // rules/current-pointer.md가 그렇게 말하고 이 스킬이 그 규칙을 인용한다.
-  assert.match(body, /\*\*AskUserQuestion — Next task\*\*/);
+  assert.match(body, /\*\*AskUserQuestion — commit\.next_task\*\*/);
   assert.match(body, /\*\*Options\*\*:/);
   assert.match(body, /not consent for a pointer advance/);
 });
@@ -116,7 +116,7 @@ test('bouncer-commit keeps five numbered steps and indexes only the pointer ACQ'
   });
   const { body } = parseFrontmatter(md);
   const index = body.slice(body.indexOf('\n## ACQ (AskUserQuestion) gates\n'));
-  assert.match(index, /Step 5 — Next task/);
+  assert.match(index, /Step 5 — `commit\.next_task` Next task/);
   assert.doesNotMatch(index, /Step 4 — Commit/);
   assert.match(body, /rules\/acq\.md/);
 });

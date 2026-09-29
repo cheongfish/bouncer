@@ -22,6 +22,7 @@
 | `pr.base` | 브랜치 이름 | `/bouncer-finalize` | `"main"` |
 | `subagents.provider` | `"claude"` \| `"cursor"` \| `"codex"` \| `"antigravity"` | 호스트 판별 — Cursor·Antigravity는 **직접 지정 필수** | `"cursor"` |
 | `subagents.<provider>.<agent>` | `"inherit"` \| 호스트 모델 slug | `/bouncer-execute`·`/bouncer-plan`·`/bouncer-run`의 named 서브에이전트 디스패치 | `"inherit"` (부모 세션 모델 상속) |
+| `subagents.dispatch` | `"print"` \| 없음 | Cursor 전용 opt-in — 모든 서브에이전트를 `agent --print` 프로세스로 띄움 | 없음 (호스트 Task 서브에이전트) |
 
 `<agent>`는 `bouncer-implementer` · `bouncer-reviewer` · `bouncer-debugger` ·
 `bouncer-context-reviewer` · `bouncer-coordinator` 다섯입니다.
@@ -122,6 +123,14 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 - **Cursor와 Antigravity는 자동 판별되지 않습니다.** `subagents.provider`를 직접
   적으세요. `BOUNCER_HOME`은 플러그인 루트 오버라이드일 뿐 프로바이더 신호가
   아닙니다.
+- **`subagents.dispatch: "print"` (Cursor 전용, 선택).** Cursor는 Task
+  서브에이전트의 토큰 사용량을 어디에도 남기지 않습니다. 이 값을 켜면 coordinator와
+  모든 worker·reviewer를 Task 대신 각각 별도의 `agent --print` 프로세스로 띄워,
+  에이전트마다 세션 로그에 사용량이 남습니다. `agent` CLI가 설치되어 있고
+  `agent status`가 로그인 상태여야 합니다. 대신 IDE의 서브에이전트 화면에는
+  나타나지 않고, 각 프로세스의 출력은 파일로만 남습니다. `provider`가 `cursor`가
+  아니면 무시됩니다. 자세한 실행 방식은
+  [`rules/cursor-print-dispatch.md`](../rules/cursor-print-dispatch.md)에 있습니다.
 - 이미 `bouncer init`을 돌린 저장소는 `antigravity` 블록과
   `bouncer-coordinator` 키를 직접 추가해야 합니다. 없어도 부모 모델을
   상속하므로 깨지지는 않습니다.
