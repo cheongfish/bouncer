@@ -581,6 +581,32 @@ test('an unlinked later edit keeps the earlier linked commit related', () => {
   assert.ok(result.candidates[0].relation === 'blame' || result.candidates[0].relation === 'follow');
 });
 
+// worker worktree에서 구현 뒤 bundle을 만들면 blame이 커밋 안 된 줄에 null SHA를 준다.
+// 그 SHA로 git log를 부르면 bad object로 bundle 전체가 실패했다.
+test('uncommitted edits and new functions resolve without the blame null SHA', () => {
+  const repo = tmpRepo();
+  initRepo(repo);
+  writeFile(repo, 'src/app.ts', targetSource(1));
+  const baseSha = commit(repo, 'feat: targetFn\n', '2026-05-02T00:00:00 +0900');
+
+  writeFile(repo, 'src/app.ts', targetSource(2));
+  const edited = resolveIntentProvenance({ repoRoot: repo, symbol: 'targetFn' });
+  assert.equal(edited.status, 'unlinked');
+  assert.equal(edited.symbol_ref.path, 'src/app.ts');
+
+  writeFile(repo, 'src/app.ts', [
+    targetSource(1),
+    'export function freshFn() {',
+    '  return 3;',
+    '}',
+    '',
+  ].join('\n'));
+  const fresh = resolveIntentProvenance({ repoRoot: repo, symbol: 'freshFn' });
+  assert.equal(fresh.status, 'unlinked');
+  assert.deepEqual(fresh.candidates, []);
+  assert.equal(git(repo, ['rev-parse', 'HEAD']).trim(), baseSha);
+});
+
 test('git repository absence is an explicit error, not unlinked', () => {
   const repo = tmpRepo();
   writeFile(repo, 'src/app.ts', targetSource(1));

@@ -374,11 +374,21 @@ function collectCommitMetas(repoRoot: string, symbolRef: SymbolRef, symbol: stri
   return [...bySha.values()];
 }
 
+/**
+ * blame porcelain에서 줄을 소유한 commit SHA를 모은다.
+ *
+ * 커밋되지 않은 줄은 git이 null SHA(`0` 40개)로 표시한다. 실제 commit이 아니므로
+ * provenance 후보에서 빼야 `git log`가 bad object로 실패하지 않고, 수정 중이거나
+ * 새로 만든 함수가 bundle 전체를 깨뜨리지 않는다.
+ *
+ * @param {string} stdout - `git blame --line-porcelain` 원문
+ * @returns {Set<string>} 커밋된 줄의 SHA 집합
+ */
 function parseBlameShas(stdout: string): Set<string> {
   const shas = new Set<string>();
   for (const line of stdout.split('\n')) {
     const match = /^([0-9a-f]{40}) \d+ \d+/.exec(line);
-    if (match) shas.add(match[1]);
+    if (match && !/^0{40}$/.test(match[1])) shas.add(match[1]);
   }
   return shas;
 }
