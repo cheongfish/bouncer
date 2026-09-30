@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **discovery의 열린 결정과 프로젝트 규칙** — 요청과 코드가 정하지 않은 결정을 추정으로 메우지 않고
+  Discover 확인 전에 사용자에게 묻는다. `CONTRIBUTING.md`·CI 등 프로젝트 기여 규칙을 읽어 성공 기준과
+  task 제약에 넣고, 프로젝트가 병합 전에 돌리는 명령을 검증 명령으로 권장한다.
+
 ### Fixed
 
 - **release 산출물의 마스터 룰 누락** — 모든 skill이 시작할 때 읽는 `AGENTS.md`가 패키지 목록에

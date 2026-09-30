@@ -30,6 +30,18 @@ test('discovery names the handoff contract it passes to planning', () => {
   assert.match(md, /missing|absent|없으면|does not exist/i);
 });
 
+// 요청이 비운 결정을 추정으로 메우거나 저장소 기여 규칙을 놓치면 계획이 틀린 전제 위에 선다.
+test('discovery asks open decisions and hands off project rules', () => {
+  const md = readSkill('discovery');
+  assert.match(md, /\*\*Open decisions\*\*[\s\S]{0,700}ask the user/);
+  assert.match(md, /Do not settle an open\s+decision/);
+  assert.match(md, /\*\*Project rules\*\*/);
+  assert.match(md, /CONTRIBUTING\.md/);
+  const handoff = md.slice(md.indexOf('## Return'));
+  assert.match(handoff, /`Open decisions`/);
+  assert.match(handoff, /`Project rules`/);
+});
+
 test('generic skills omit legacy protocol and methodology assumptions', () => {
   assert.doesNotMatch(readAllGenericSkills(), /superpowers/i);
 });
