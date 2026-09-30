@@ -77,7 +77,7 @@ test('usage coverage flags Task subagents that leave a transcript but no logged 
     transcript('workspace', 'root', ['Shell', 'Read']);
     transcript('workspace-worktrees-001', 'worker', ['Shell']);
     assert.deepEqual(usageCoverage(dir, logs), { complete: true, metered_conversations: 2, transcripts: 2,
-      unmetered_transcripts: [], task_calls: 0 });
+      unmetered_transcripts: [], task_calls: 0, denied_task_calls: 0 });
 
     transcript('workspace', 'coordinator', ['Shell']);
     const gap = usageCoverage(dir, logs);
@@ -92,6 +92,8 @@ test('usage coverage flags Task subagents that leave a transcript but no logged 
     rmSync(path.join(dir, 'workspace', 'agent-transcripts', 'coordinator'), { recursive: true });
     assert.equal(usageCoverage(dir, logs, [stream]).task_calls, 1);
     assert.equal(usageCoverage(dir, logs, [stream]).complete, false);
+    // A Task call the subagent guard refused starts no subagent, so it leaves the stage complete.
+    assert.equal(usageCoverage(dir, logs, [stream], { deniedTaskCalls: 1 }).complete, true);
     transcript('workspace', 'root', ['Task']);
     assert.equal(usageCoverage(dir, logs).task_calls, 1);
     const folder = path.join(dir, 'workspace', 'agent-transcripts', 'root');

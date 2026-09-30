@@ -80,6 +80,14 @@ run은 `awaiting_user_decision`으로 판정한다. `run.json`의 `usage`는 Cur
   외부 push·PR 생성·API 키 접근을 거부한다. 모든 판정은
   `cursor-projects/benchmark-shell-guard.jsonl`에 남고 `decisions.json`의 `shell_guard`로
   옮겨진다.
+- **Task subagent 차단 (bouncer 이미지만):** 벤치마크의 Bouncer 설정은 `subagents.dispatch: print`이고
+  `rules/cursor-print-dispatch.md`는 이때 Task subagent를 금지한다. Cursor는 Task subagent의 사용량을
+  기록하지 않으므로, bouncer 이미지의 `preToolUse`(`Task`, `CallDynamicTool`로 부른 Task)와
+  `subagentStart` hook(`docker/subagent-guard.cjs`)이 이를 거부하고 `agent --print` dispatch를
+  안내한다. 판정은 `cursor-projects/benchmark-subagent-guard.jsonl`에 남고 `decisions.json`의
+  `subagent_guard`, 단계 `run.json`의 `subagent_denied`, bouncer-full `run.json`의 단계별
+  `subagent_denied`로 옮겨진다. 거부된 Task 호출은 subagent를 만들지 않으므로 `usage_coverage`의
+  `denied_task_calls`로 빼고 계산한다. 규칙이 없는 vanilla 이미지에는 이 hook을 넣지 않는다.
 
 ## ACP 질문 응답 시험
 

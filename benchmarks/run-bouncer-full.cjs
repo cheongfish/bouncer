@@ -285,6 +285,8 @@ function main() {
       progress(`${name} returned`);
       record.stages.push(name);
       record.stage_usage[name] = stageRecord.usage;
+      // Task subagent attempts the guard refused: rule violations of rules/cursor-print-dispatch.md.
+      record.subagent_denied = { ...record.subagent_denied, [name]: stageRecord.subagent_denied ?? 0 };
       record.usage_total = sumUsage(Object.values(record.stage_usage));
       record.usage_total_status = usageTotalStatus(record.stage_usage);
       if (name === '01-init') bootstrapCommit(workspace, policy, setupStatus);

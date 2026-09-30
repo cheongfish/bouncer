@@ -41,6 +41,10 @@ COPY --chown=node:node rules/ /home/node/.cursor/plugins/local/bouncer/rules/
 COPY --chown=node:node skills/ /home/node/.cursor/plugins/local/bouncer/skills/
 ENV PATH=/home/node/.cursor/plugins/local/bouncer/scripts:/home/node/.local/bin:/usr/local/bin:/usr/bin:/bin
 RUN bouncer-root --auto && test -f "$BOUNCER_HOME/skills/bouncer-init/SKILL.md"
+# The Bouncer config sets subagents.dispatch to "print"; this hook enforces that dispatch so no agent runs as an
+# unmetered Task subagent. Vanilla keeps the base hooks, since it has no such rule.
+COPY --chmod=755 benchmarks/docker/subagent-guard.cjs /usr/local/bin/benchmark-subagent-guard
+COPY --chown=node:node benchmarks/docker/cursor-hooks.bouncer.json /home/node/.cursor/hooks.json
 
 FROM node:24-bookworm-slim AS verifier
 RUN apt-get update && apt-get install -y --no-install-recommends git \

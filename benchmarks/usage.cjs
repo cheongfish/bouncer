@@ -143,7 +143,9 @@ function taskCallsInStream(jsonl) {
   return count;
 }
 
-function usageCoverage(projectsDir, logUsage, streams = []) {
+// `deniedTaskCalls` counts Task calls the benchmark subagent guard refused: they start no subagent, so
+// they leave no unmetered transcript and do not make the stage incomplete.
+function usageCoverage(projectsDir, logUsage, streams = [], { deniedTaskCalls = 0 } = {}) {
   const metered = new Set((logUsage?.conversations ?? []).map((entry) => entry.conversation_id).filter(Boolean));
   const transcripts = transcriptFiles(projectsDir).map((file) => ({
     file, conversation_id: path.basename(file, '.jsonl'),
@@ -153,8 +155,9 @@ function usageCoverage(projectsDir, logUsage, streams = []) {
     .map((entry) => entry.file);
   const taskCalls = Math.max(transcripts.reduce((sum, entry) => sum + entry.task_calls, 0),
     streams.reduce((sum, stream) => sum + taskCallsInStream(stream), 0));
-  return { complete: !unmetered.length && !taskCalls, metered_conversations: metered.size,
-    transcripts: transcripts.length, unmetered_transcripts: unmetered, task_calls: taskCalls };
+  return { complete: !unmetered.length && taskCalls <= deniedTaskCalls, metered_conversations: metered.size,
+    transcripts: transcripts.length, unmetered_transcripts: unmetered, task_calls: taskCalls,
+    denied_task_calls: deniedTaskCalls };
 }
 
 function sumUsage(usages) {
