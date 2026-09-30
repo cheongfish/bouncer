@@ -1,0 +1,93 @@
+diff --git a/docs/commands.md b/docs/commands.md
+index 25ee06c..8ba8021 100644
+--- a/docs/commands.md
++++ b/docs/commands.md
+@@ -33,3 +33,13 @@ node src/cli.js summary --file <path> --month <YYYY-MM>
+ Prints `<category>\t<count>\t<amount_cents>` for each category with entries in the
+ month, sorted by category, then `TOTAL\t<count>\t<amount_cents>`. A month without
+ entries prints only `TOTAL\t0\t0`. `--month` must be a real month such as `2026-01`.
++
++## budget
++
++```sh
++node src/cli.js budget --file <path> --budgets <path> --month <YYYY-MM>
++```
++
++Compares each category's spending in the month with the budget file (a JSON object of
++category to cents). Columns: category, spent, budget, remaining, status (`OK`, `OVER`,
++`NO_BUDGET`). The exit status is 2 if any category is over budget.
+diff --git a/src/commands/budget.js b/src/commands/budget.js
+new file mode 100644
+index 0000000..267096d
+--- /dev/null
++++ b/src/commands/budget.js
+@@ -0,0 +1,34 @@
++import { parseOptions } from '../args.js';
++import { formatRow } from '../format.js';
++import { isInMonth, parseMonth } from '../month.js';
++import { loadEntries, loadJson } from '../storage.js';
++
++const OPTIONS = { file: { required: true }, budgets: { required: true }, month: { required: true } };
++
++function checkBudgets(budgets) {
++  const valid = budgets !== null && typeof budgets === 'object' && !Array.isArray(budgets)
++    && Object.entries(budgets).every(([name, cents]) => name !== '' && Number.isInteger(cents) && cents >= 0);
++  if (!valid) throw new Error('invalid budgets file');
++  return budgets;
++}
++
++export async function run(argv) {
++  const options = parseOptions(argv, OPTIONS);
++  const month = parseMonth(options.month);
++  const entries = await loadEntries(options.file);
++  const budgets = checkBudgets(await loadJson(options.budgets));
++  const spent = {};
++  for (const entry of entries) {
++    if (isInMonth(entry, month)) spent[entry.category] = (spent[entry.category] ?? 0) + entry.amount_cents;
++  }
++  const names = Object.keys({ ...budgets, ...spent }).sort();
++  let over = false;
++  const lines = names.map((name) => {
++    const amount = spent[name] ?? 0;
++    if (!Object.hasOwn(budgets, name)) return formatRow([name, amount, '-', '-', 'NO_BUDGET']);
++    over ||= amount > budgets[name];
++    return formatRow([name, amount, budgets[name], budgets[name] - amount, amount > budgets[name] ? 'OVER' : 'OK']);
++  });
++  if (over) process.exitCode = 2;
++  return lines;
++}
+diff --git a/src/commands/index.js b/src/commands/index.js
+index 05db697..da7948d 100644
+--- a/src/commands/index.js
++++ b/src/commands/index.js
+@@ -1,5 +1,6 @@
++import * as budget from './budget.js';
+ import * as list from './list.js';
+ import * as summary from './summary.js';
+ import * as total from './total.js';
+ 
+-export const commands = { list, total, summary };
++export const commands = { list, total, summary, budget };
+diff --git a/test/cli.test.js b/test/cli.test.js
+index 91edc08..1524b39 100644
+--- a/test/cli.test.js
++++ b/test/cli.test.js
+@@ -1,6 +1,6 @@
+ import assert from 'node:assert/strict';
+ import test from 'node:test';
+-import { fixturePath, runCli } from './helpers.js';
++import { fixturePath, runCli, writeTempJson } from './helpers.js';
+ 
+ const file = fixturePath('entries.json');
+ 
+@@ -46,3 +46,10 @@ test('errors go to stderr with exit code 1 and no stdout', async () => {
+     assert.notEqual(result.stderr, '');
+   }
+ });
++
++test('budget reports over-budget categories with exit code 2', async () => {
++  const budgets = await writeTempJson({ food: 1000, travel: 900 });
++  const result = await runCli(['budget', '--month', '2026-01', '--file', file, '--budgets', budgets]);
++  assert.equal(result.code, 2);
++  assert.match(result.stdout, /^food\t1550\t1000\t-550\tOVER$/m);
++});

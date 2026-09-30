@@ -1,0 +1,11 @@
+[
+  { "id": "b1", "date": "2026-01-02", "category": "food", "amount_cents": 700 },
+  { "id": "b2", "date": "2026-01-31", "category": "food", "amount_cents": 600 },
+  { "id": "b3", "date": "2026-01-10", "category": "travel", "amount_cents": 500 },
+  { "id": "b4", "date": "2026-01-01", "category": "rent", "amount_cents": 90000 },
+  { "id": "b5", "date": "2026-01-20", "category": "fun", "amount_cents": 250 },
+  { "id": "b6", "date": "2026-01-05", "category": "Gifts", "amount_cents": 300 },
+  { "id": "b7", "date": "2026-02-01", "category": "food", "amount_cents": 400 },
+  { "id": "b8", "date": "2025-12-31", "category": "food", "amount_cents": 99999 },
+  { "id": "b9", "date": "2026-03-03", "category": "travel", "amount_cents": 1000 }
+]

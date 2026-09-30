@@ -1,4 +1,4 @@
-# 초안: 루브릭·검증기가 생기면 argv를 확정한다. 기준: fixtures/ledger-cli-v2.bundle
+# 루브릭: rubrics/ledger-002.md (v1-draft), 검증기: verifiers/ledger-002.cjs
 id: ledger-002
 set: general
 benchmark_version: ledger-v2-pilot-draft
