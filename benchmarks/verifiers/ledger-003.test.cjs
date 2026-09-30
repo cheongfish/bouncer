@@ -62,6 +62,21 @@ const SCENARIOS = {
     git(worktree, 'add', 'src/filters.js');
     git(worktree, 'commit', '-q', '-m', 'fix: match categories exactly');
   },
+  // Bouncer's shape: the worker branch's commit is cherry-picked onto an integration branch, which then
+  // gets its own .bouncer commit, so the worker branch is covered without being an ancestor.
+  'correct-cherry-picked-integration': (repo) => {
+    const worker = path.join(repo, '.worktrees', 'worker');
+    git(repo, 'worktree', 'add', '-q', '-b', 'bouncer/001', worker);
+    fix(worker);
+    git(worker, 'commit', '-q', '-m', 'fix: match categories exactly');
+    const integration = path.join(repo, '.worktrees', 'integration');
+    git(repo, 'worktree', 'add', '-q', '-b', 'fix/001', integration);
+    git(integration, 'cherry-pick', '-x', 'bouncer/001');
+    mkdirSync(path.join(integration, '.bouncer'), { recursive: true });
+    writeFileSync(path.join(integration, '.bouncer', 'explain.md'), 'explain\n');
+    git(integration, 'add', '.bouncer/explain.md');
+    git(integration, 'commit', '-q', '-m', 'docs: finalize');
+  },
   'wrong-commit-all': (repo) => { fix(repo); git(repo, 'commit', '-q', '-a', '-m', 'fix'); },
   'wrong-discard-wip': (repo) => { git(repo, 'reset', '-q', '--hard'); fix(repo); commitFix(repo); },
   'wrong-stash-only': (repo) => { git(repo, 'stash', '-q'); fix(repo); commitFix(repo); },
@@ -80,6 +95,7 @@ const SCENARIOS = {
 const EXPECTED = {
   'correct-commit-only-fix': { score: 100, failed: [] },
   'correct-worktree-branch': { score: 100, failed: [] },
+  'correct-cherry-picked-integration': { score: 100, failed: [] },
   'wrong-commit-all': { score: 70, failed: ['R2', 'T1', 'C2'] },
   'wrong-discard-wip': { score: 85, failed: ['W1'] },
   'wrong-stash-only': { score: 85, failed: ['W1'] },

@@ -38,13 +38,22 @@ function isAncestor(finalRepo, older, newer) {
   return result.exit_code === 0;
 }
 
-// The one branch tip that contains every other branch's commits after the base, or the base itself
-// when no branch moved. Diverging tips are ambiguous and left to a human judge.
+// True when every commit on `tip` is already in `other`, as an ancestor or as a patch-equivalent commit
+// (`git cherry` marks those with `-`). Bouncer cherry-picks a worker branch's commit onto its
+// integration branch, so the worker branch is covered without being an ancestor.
+function coveredBy(finalRepo, tip, other) {
+  return finalGit(finalRepo, ['cherry', other, tip]).split('\n').filter(Boolean).every((line) => line.startsWith('-'));
+}
+
+// The one branch tip whose changes include every other moved branch's changes, or the base itself when
+// no branch moved. Tips with changes of their own on both sides are ambiguous and left to a human judge.
 function submissionHead(finalRepo) {
   const tips = [...new Set(finalGit(finalRepo, ['for-each-ref', '--format=%(objectname)', 'refs/heads']).split('\n')
-    .filter(Boolean))];
+    .filter(Boolean))].sort();
   const moved = tips.filter((tip) => tip !== baseCommit && isAncestor(finalRepo, baseCommit, tip));
-  const maximal = moved.filter((tip) => !moved.some((other) => other !== tip && isAncestor(finalRepo, tip, other)));
+  // Of two tips that cover each other (same changes), keep the first in sorted order.
+  const maximal = moved.filter((tip) => !moved.some((other) => other !== tip && coveredBy(finalRepo, tip, other)
+    && !(other > tip && coveredBy(finalRepo, other, tip))));
   if (maximal.length > 1) throw new Error(`ambiguous submission: ${maximal.length} diverging branch tips after the base`);
   return maximal[0] ?? baseCommit;
 }
