@@ -1,8 +1,8 @@
 # 기능·범위는 base 이후 새 커밋만으로, WIP 보존은 종료 시점 index·작업 트리로 판정한다.
-# 루브릭: rubrics/ledger-003.md (v1-draft), 검증기: verifiers/ledger-003.cjs
+# 루브릭: rubrics/ledger-003.md (v1), 검증기: verifiers/ledger-003.cjs
 id: ledger-003
 set: boundary
-benchmark_version: ledger-v2-pilot-draft
+benchmark_version: ledger-v2-pilot-v1
 base_commit: "934cb3433f649447372f46051d703a5388384b72"
 user_request_file: tasks/ledger-003.prd.md
 user_request_sha256: "493a65c9686b1bedbaeb38994049f49de1fe9dd2c83772e7e283494a36cfc6d0"

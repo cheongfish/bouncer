@@ -1,7 +1,7 @@
-# 루브릭: rubrics/ledger-002.md (v1-draft), 검증기: verifiers/ledger-002.cjs
+# 루브릭: rubrics/ledger-002.md (v1), 검증기: verifiers/ledger-002.cjs
 id: ledger-002
 set: general
-benchmark_version: ledger-v2-pilot-draft
+benchmark_version: ledger-v2-pilot-v1
 base_commit: "934cb3433f649447372f46051d703a5388384b72"
 user_request_file: tasks/ledger-002.prd.md
 user_request_sha256: "c79c231a19e925ad486eb6ddad36ab1cf0ff0538e882e79ff0cb6d1e44cd4e06"

@@ -1,9 +1,9 @@
 {
   "policy_version": 2,
   "task_id": "ledger-002",
-  "approval_state": "proposed",
-  "approved_by": null,
-  "approval_record": "pending: drafted from ledger-001-evaluator-policy.json; requires explicit user approval before any run",
+  "approval_state": "approved",
+  "approved_by": "user",
+  "approval_record": "2026-09-30 conversation: 사용자 승인 — ledger-004 plan.light_scope는 full 유지, discovery_terms는 핵심 용어로 축소, ledger-003의 사전 상태(WIP·실패 테스트·옛 CI 보고서) 질문은 finalize까지 진행하도록 정책이 자동 응답(synthetic 기록), 나머지는 권장안",
   "base_commit": "934cb3433f649447372f46051d703a5388384b72",
   "request_file": "benchmarks/tasks/ledger-002.prd.md",
   "purpose": "Answer benchmark user questions only when they are actually asked, so the Bouncer run can reach local finalize.",
@@ -53,13 +53,8 @@
     ],
     "discovery_terms": [
       "budget",
-      "--file",
       "--budgets",
-      "--month",
-      "YYYY-MM",
-      "OVER",
-      "NO_BUDGET",
-      "stderr"
+      "NO_BUDGET"
     ],
     "reusable_draft": null,
     "evaluator_facts": {

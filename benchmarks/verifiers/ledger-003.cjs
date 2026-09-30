@@ -154,7 +154,7 @@ function grade({ finalRepo, workDir }) {
 
 runVerifier({
   taskId: 'ledger-003',
-  rubricVersion: 'v1-draft',
+  rubricVersion: 'v1',
   baseCommit,
   usage: 'usage: node verifiers/ledger-003.cjs --final-repo <dir> --work-dir <new-dir> [--output <file>]',
   flags: ['--final-repo', '--work-dir', '--output'],

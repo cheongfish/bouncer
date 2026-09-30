@@ -11,9 +11,9 @@
 평가자 정책은 과제마다 `<task-id>-evaluator-policy.json`으로 두며, bouncer-full 실행기는
 `--task`에 해당하는 정책이 없으면 시작하지 않는다. 정책의 `task_id`와 `base_commit`은
 과제 카드와 같아야 한다.
-`ledger-002`–`ledger-004` 정책은 `ledger-001` 정책에서 공통 규칙을 가져오고 과제 사실만 바꾼 초안이다.
-`approval_state: proposed`인 동안 응답기가 거부하므로 실행되지 않는다. 사용자가 명시적으로 승인하면
-`approval_state`, `approved_by`, `approval_record`를 그 승인 기록으로 바꾼다. `ledger-001` 이후 정책은
+`ledger-002`–`ledger-004` 정책은 `ledger-001` 정책에서 공통 규칙을 가져오고 과제 사실만 바꿨으며,
+2026-09-30에 승인됐다(`approval_record`). 과제의 사전 상태에 관한 질문은 `task_facts.task_questions`
+(질문 cue, 선호·배제 선택지 패턴)가 있을 때만 자동 응답하고, 그 답은 synthetic으로 기록한다. `ledger-001` 이후 정책은
 discovery 확인에 쓸 `task_facts.discovery_terms`와 재사용할 초안(`task_facts.reusable_draft`, 없으면
 `null`)을 반드시 적는다. `ledger-001` 정책은 이 필드가 생기기 전에 승인됐으므로 응답기가 그 값을
 코드에 보존한다.

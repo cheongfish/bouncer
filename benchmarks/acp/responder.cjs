@@ -279,9 +279,29 @@ function classifyGate(phase, cueText) {
   return gates.find((candidate) => candidate.phase === phase && candidate.cue.test(cueText)) ?? null;
 }
 
+// A task policy may answer questions about its pre-task state (ledger-003's staged user WIP) so the run
+// can reach finalize. Only questions matching `cue` are answered: the one option matching `prefer` and
+// not `deny`, otherwise the first option. Every such answer is marked synthetic in the decision record.
+function decideTaskQuestion(policy, question) {
+  const rule = policy.task_facts?.task_questions;
+  const options = question.options ?? [];
+  // Only the question itself: earlier turn text may mention the WIP without this question being about it.
+  const text = `${question.heading ?? ''} ${question.prompt ?? ''}`;
+  if (!rule || options.length < 2 || !new RegExp(rule.cue, 'i').test(text)) return null;
+  const preferred = labelMatch(options, new RegExp(rule.prefer, 'i'), new RegExp(rule.deny, 'i'));
+  const option = preferred ?? options[0];
+  return { gate: 'task.pre_task_state', identified_by: 'task_cue', optionId: option.id, synthetic: true,
+    basis: preferred ? 'prefer' : 'first_option',
+    reason: `pre-task state question answered by policy (${preferred ? 'keeps the user work' : 'first option'})` };
+}
+
+function decideQuestion(policy, phase, question, workDir) {
+  return decideGateQuestion(policy, phase, question, workDir) ?? decideTaskQuestion(policy, question);
+}
+
 // A question belongs to the first gate whose cue matches; a gate that cannot decide stops for a human
 // instead of letting a later gate claim the question.
-function decideQuestion(policy, phase, question, workDir) {
+function decideGateQuestion(policy, phase, question, workDir) {
   const options = question.options ?? [];
   const prompt = `${question.prompt ?? ''} ${options.map((o) => o.label).join(' ')}`;
   if (phase === 'bouncer-finalize' && /quiz|퀴즈|\bQ\s*\d+\b|문항\s*\d+/i.test(prompt) && options.length === 3

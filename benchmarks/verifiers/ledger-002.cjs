@@ -130,7 +130,7 @@ function grade(workDir) {
 
 runVerifier({
   taskId: 'ledger-002',
-  rubricVersion: 'v1-draft',
+  rubricVersion: 'v1',
   baseCommit,
   usage: 'usage: node verifiers/ledger-002.cjs --patch <file> --work-dir <new-dir> [--output <file>]',
   flags: ['--patch', '--work-dir', '--output'],

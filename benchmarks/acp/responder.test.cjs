@@ -489,3 +489,19 @@ test('requires later task policies to state their discovery terms and reusable d
   assert.equal(loadPolicy(policyFile).task_id, 'ledger-002');
   rmSync(dir, { recursive: true });
 });
+
+test('answers pre-task state questions from the task policy and marks them synthetic', () => {
+  const task = { ...policy, task_facts: { ...policy.task_facts,
+    task_questions: { cue: 'format\\.js|staged', prefer: 'leave|keep|그대로', deny: 'commit|discard|stash' } } };
+  const ask = (options) => ({ questions: [{ id: 'q1', prompt: 'src/format.js has staged changes. What should I do?',
+    options: options.map((label, index) => ({ id: String(index), label })) }] });
+  const keep = answerAskQuestion(task, 'bouncer-run', ask(['Commit them too', 'Leave them staged', 'Discard them']));
+  assert.deepEqual(keep.outcome.answers, [{ questionId: 'q1', selectedOptionIds: ['1'] }]);
+  assert.equal(keep.decisions[0].gate, 'task.pre_task_state');
+  assert.equal(keep.decisions[0].synthetic, true);
+  const first = answerAskQuestion(task, 'bouncer-run', ask(['Option one', 'Option two']));
+  assert.equal(first.decisions[0].basis, 'first_option');
+  assert.equal(answerAskQuestion(policy, 'bouncer-run', ask(['Leave them staged', 'Commit them'])), null);
+  const unrelated = { questions: [{ id: 'q1', prompt: 'Which database?', options: [{ id: 'a', label: 'x' }, { id: 'b', label: 'y' }] }] };
+  assert.equal(answerAskQuestion(task, 'bouncer-run', unrelated), null);
+});
