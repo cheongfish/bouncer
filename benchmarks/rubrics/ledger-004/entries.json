@@ -1,0 +1,6 @@
+[
+  { "id": "e1", "date": "2026-01-03", "category": "rent", "amount_cents": 50000 },
+  { "id": "e2", "date": "2026-01-15", "category": "food", "amount_cents": 1234 },
+  { "id": "e3", "date": "2026-02-02", "category": "food", "amount_cents": 566 },
+  { "id": "e4", "date": "2026-01-28", "category": "books", "amount_cents": 999 }
+]

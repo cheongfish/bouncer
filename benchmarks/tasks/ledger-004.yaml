@@ -1,4 +1,5 @@
-# 초안: 검증할 것이 적은 작업의 절차 비용 기준선. 성공률이 높아도 본 실험에 유지한다.
+# 검증할 것이 적은 작업의 절차 비용 기준선. 성공률이 높아도 본 실험에 유지한다.
+# 루브릭: rubrics/ledger-004.md (v1-draft), 검증기: verifiers/ledger-004.cjs
 id: ledger-004
 set: general
 benchmark_version: ledger-v2-pilot-draft
