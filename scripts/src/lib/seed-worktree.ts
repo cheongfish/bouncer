@@ -265,10 +265,15 @@ function seedWorktree({
   return { ok: true, moved, restored, config };
 }
 
-// coordinator worker는 base 계획 문서를 소비하면 안 된다. execute용 seedWorktree와
-// 달리 이 함수는 복원·삭제 단계 없이 계획과 config를 worker에 복사만 한다.
-function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath }: {
-  repoRoot: string; blueprintDir: unknown; worktreePath: string;
+/**
+ * coordinator worker·fan-in candidate에 계획 문서와 검증용 의존성을 심는다.
+ * execute용 seedWorktree와 달리 base를 복원·삭제하지 않는다.
+ *
+ * @param {{ repoRoot: string, blueprintDir: unknown, worktreePath: string, deps?: SeedDeps }} opts
+ * @returns {{ ok: true, config: ConfigSeedStatus, seeded: string[] } | { ok: false, reason: string, [k: string]: unknown }}
+ */
+function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps }: {
+  repoRoot: string; blueprintDir: unknown; worktreePath: string; deps?: SeedDeps;
 }) {
   if (!fs.existsSync(worktreePath) || !fs.statSync(worktreePath).isDirectory()) {
     return { ok: false, reason: 'missing-worktree', worktreePath };
@@ -277,6 +282,8 @@ function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath }: {
   if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) {
     return { ok: false, reason: 'missing-blueprint', blueprintDir };
   }
+  const prepared = prepareDependencies(worktreePath, deps || {});
+  if (!prepared.ok) return prepared;
   try {
     const config = seedConfig(repoRoot, worktreePath, realGit(repoRoot));
     // cpSync는 target tree만 쓰며, base plan은 읽기만 한다. 여러 worker가 같은

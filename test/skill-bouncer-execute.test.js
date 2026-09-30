@@ -181,7 +181,7 @@ test('bouncer-execute compacts only a synchronized fresh named implementer paylo
   const dispatch = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/agent-dispatch.md'), 'utf8');
   const named = dispatch.match(/## Named implementer[\s\S]*?(?=\n## )/)?.[0] || '';
 
-  assert.match(named, /mdToCodexToml\(\)/);
+  assert.match(named, /bouncer codex-agents check/);
   assert.match(named, /# bouncer-generated/);
   assert.match(named, /byte-for-byte|exact match/i);
   assert.match(named, /new named dispatch|fresh named dispatch/i);

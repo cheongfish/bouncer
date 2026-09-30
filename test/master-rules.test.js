@@ -566,9 +566,9 @@ test('current-pointer contract is centralized and pointer consumers cite it', ()
 
 test('subagent model contract is centralized and named dispatch consumers cite it', () => {
   const model = read('rules/subagent-model.md');
-  assert.match(model, /resolveSubagentModel/);
-  assert.match(model, /result\.model/);
-  assert.match(model, /result\.model` is `null`, omit the model argument/i);
+  assert.match(model, /bouncer subagent-model/);
+  assert.match(model, /inherit/);
+  assert.match(model, /output is `inherit`,\s+omit the model argument/i);
   assert.match(model, /parent-session inheritance/i);
   assert.match(model, /named dispatch/i);
   assert.match(model, /rejected.*slug[\s\S]{0,120}inherit/i);

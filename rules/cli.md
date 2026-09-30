@@ -65,6 +65,8 @@ bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <
 bouncer graphify-bin
 bouncer graph-sync
 bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
+bouncer subagent-model --agent <name> [--provider <name>]
+bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir>
 bouncer review-dispatch execute --blueprint <dir> --task <ddd> --base <sha> --head <sha>
 ```
@@ -72,6 +74,14 @@ bouncer review-dispatch execute --blueprint <dir> --task <ddd> --base <sha> --he
 Use `project-root` to locate the consuming repository from linked worktrees.
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
+
+`subagent-model` prints one model slug, or `inherit`. Pass only that line into
+named dispatch; omit the model argument when the line is `inherit`. Do not
+parse it as `{ model, provider }` JSON. `codex-agents check` is read-only: it
+prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
+`next: "bouncer init --seed-codex-agents"` (exit 1). Compact a named
+implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
+other than `check` is exit 2.
 
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
 clustered`) or Execute (`single | parallel`, with `security` when

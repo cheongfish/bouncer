@@ -8,7 +8,7 @@ description: "Use from /bouncer-execute, or when named, to judge the worktree di
 **Plugin-root shell contract.** See `rules/plugin-root.md`. Apply the shared
 model and host-fallback order in [`rules/subagent-model.md`](../../rules/subagent-model.md).
 
-The shared rule owns the `resolveSubagentModel` invocation; workflow CLI calls
+The shared rule owns the `bouncer subagent-model` invocation; workflow CLI calls
 use the installed `bouncer` launcher directly.
 
 Produce the review **deliverable contract**. Gates judge the result; this skill

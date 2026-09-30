@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { seedWorktree, realGit, seedIntegration, releaseSeedManifest } = require('../scripts/lib/seed-worktree');
+const { seedWorktree, realGit, seedIntegration, seedCoordinatorWorker, releaseSeedManifest } = require('../scripts/lib/seed-worktree');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
@@ -612,3 +612,54 @@ test('a plan conflict still reports config status and does not move the base fil
   assert.strictEqual(read(repo, CONFIG_REL), CONFIG_HEAD);
   assert.strictEqual(read(repo, `${BP_REL}/tasks.md`), 'brief\n');
 });
+
+test('seedCoordinatorWorker installs locked development dependencies on a fresh fan-in worktree', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
+  write(wt, 'package-lock.json', '{}\n');
+  const calls = [];
+
+  const res = seedCoordinatorWorker({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    worktreePath: wt,
+    deps: {
+      execFileSync(command, args, options) {
+        calls.push({ command, args, options });
+      },
+    },
+  });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(read(wt, `${BP_REL}/tasks/001/tasks.md`), 'brief\n');
+  assert.deepStrictEqual(calls, [{
+    command: 'npm',
+    args: ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
+    options: { cwd: wt, stdio: 'inherit' },
+  }]);
+});
+
+test('seedCoordinatorWorker skips npm ci when the lock marker is already present', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
+  write(wt, 'package-lock.json', '{}\n');
+  write(wt, 'node_modules/.package-lock.json', '{}\n');
+  const calls = [];
+
+  const res = seedCoordinatorWorker({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    worktreePath: wt,
+    deps: {
+      execFileSync(command, args, options) {
+        calls.push({ command, args, options });
+      },
+    },
+  });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.deepStrictEqual(calls, []);
+});
+
