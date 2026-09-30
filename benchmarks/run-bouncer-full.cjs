@@ -9,12 +9,10 @@ const { loadPolicy } = require('./acp/responder.cjs');
 const { sumUsage, usageTotalStatus } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
+const { applyWorkspaceSetup, loadRunnableCard, taskRecord } = require('./task-card.cjs');
 
 const root = __dirname;
 const projectRoot = path.resolve(root, '..');
-const bundle = path.join(root, 'fixtures', 'ledger-cli.bundle');
-const baseCommit = 'a75fd4165864f1459221695012894d6333382bf7';
-const policyFile = path.join(root, 'configs', 'ledger-001-evaluator-policy.json');
 const driverFiles = ['driver.log', 'driver.pid'];
 const containerWorkspace = '/workspace';
 
@@ -39,11 +37,12 @@ function configOf(argv) {
       i -= 1;
       continue;
     }
-    if (!['--model', '--key-file', '--run-id', '--timeout-minutes'].includes(argv[i])
+    if (!['--task', '--model', '--key-file', '--run-id', '--timeout-minutes'].includes(argv[i])
       || !argv[i + 1] || out[argv[i]]) throw new Error(`invalid option: ${argv[i]}`);
     out[argv[i]] = argv[i + 1];
   }
   if (!out['--model'] || !out['--key-file']) throw new Error('--model and --key-file are required');
+  out.taskId = out['--task'] ?? 'ledger-001';
   out.runId = out['--run-id'] ?? `${Date.now()}-bouncer-full`;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,80}$/.test(out.runId)) throw new Error('invalid run id');
   out.keyFile = path.resolve(out['--key-file']);
@@ -90,11 +89,11 @@ function detach(argv, config) {
   process.stdout.write(`pid ${child.pid}; log ${path.join(runDir, 'driver.log')}\n`);
 }
 
-function stage(config, name, workspace, runDir, sessionCwd = workspace) {
+function stage(config, policyFile, name, workspace, runDir, sessionCwd = workspace) {
   const stageDir = path.join(runDir, name);
   const args = [path.join(root, 'run-print-stage.cjs'), '--stage', `bouncer-${name.split('-')[1]}`,
     '--work-dir', workspace, '--session-cwd', sessionCwd, '--run-dir', stageDir,
-    '--model', config['--model'], '--key-file', config.keyFile, '--policy', policyFile,
+    '--task', config.taskId, '--model', config['--model'], '--key-file', config.keyFile, '--policy', policyFile,
     '--timeout-minutes', String(config.timeoutMinutes)];
   const result = spawnSync(process.execPath, args, {
     cwd: projectRoot, env: process.env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
@@ -109,9 +108,14 @@ function stage(config, name, workspace, runDir, sessionCwd = workspace) {
   return record;
 }
 
-function bootstrapCommit(workspace, policy) {
-  const changed = command('git', ['status', '--porcelain', '--untracked-files=all'], workspace)
-    .split('\n').filter(Boolean).map((line) => line.slice(3));
+function statusLines(workspace) {
+  return command('git', ['status', '--porcelain', '--untracked-files=all'], workspace).split('\n').filter(Boolean);
+}
+
+// `before` is the status after workspace_setup, so a task's pre-staged user work is neither judged as
+// init output nor swept into the bootstrap commit.
+function bootstrapCommit(workspace, policy, before) {
+  const changed = statusLines(workspace).filter((line) => !before.includes(line)).map((line) => line.slice(3));
   if (!changed.length || changed.some((file) => !file.startsWith('.bouncer/') && file !== '.gitignore')) {
     throw new Error(`unexpected bootstrap files: ${changed.join(', ')}`);
   }
@@ -133,11 +137,12 @@ function bootstrapCommit(workspace, policy) {
   const paths = ['.bouncer'];
   if (existsSync(path.join(workspace, '.gitignore'))) paths.push('.gitignore');
   command('git', ['add', '--', ...paths], workspace);
-  const staged = command('git', ['diff', '--cached', '--name-only'], workspace).split('\n').filter(Boolean);
-  if (staged.some((file) => !file.startsWith('.bouncer/') && file !== '.gitignore')) {
-    throw new Error('bootstrap staging escaped policy scope');
+  // --only commits just these paths and leaves any other staged change staged.
+  command('git', ['commit', '--only', '-m', 'chore: bootstrap bouncer', '--', ...paths], workspace);
+  const committed = command('git', ['show', '--name-only', '--format=', 'HEAD'], workspace).split('\n').filter(Boolean);
+  if (committed.some((file) => !file.startsWith('.bouncer/') && file !== '.gitignore')) {
+    throw new Error('bootstrap commit escaped policy scope');
   }
-  command('git', ['commit', '-m', 'chore: bootstrap bouncer'], workspace);
 }
 
 // Stages run in a container that mounts the workspace at /workspace, so git records the worktrees they
@@ -210,7 +215,7 @@ function closedBlueprint(integration) {
   return file;
 }
 
-function verifyPatch(config, workspace, runDir, record) {
+function verifyPatch(config, task, workspace, runDir, record) {
   const env = { ...process.env,
     BENCH_WORKSPACE: workspace,
     BENCH_PROMPT: path.join(runDir, '01-init', 'prompt.txt'),
@@ -224,8 +229,8 @@ function verifyPatch(config, workspace, runDir, record) {
   };
   const compose = path.join(root, 'docker', 'compose.cursor.yaml');
   command('docker', ['compose', '-f', compose, 'build', 'verifier'], projectRoot, env);
-  const result = spawnSync('docker', ['compose', '-f', compose, 'run', '--rm', '--no-deps', 'verifier'], {
-    cwd: projectRoot, env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+  const result = spawnSync('docker', ['compose', '-f', compose, 'run', '--rm', '--no-deps', ...task.verifier.composeArgs], {
+    cwd: projectRoot, env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: task.verifier.timeoutMs,
   });
   writeFileSync(path.join(runDir, 'verifier.stdout.json'), result.stdout ?? '');
   writeFileSync(path.join(runDir, 'verifier.stderr.log'), result.stderr ?? '');
@@ -242,7 +247,13 @@ function verifyPatch(config, workspace, runDir, record) {
 function main() {
   const argv = process.argv.slice(2);
   const config = configOf(argv);
+  const task = loadRunnableCard(config.taskId);
+  const baseCommit = task.card.base_commit;
+  // Evaluator policies record the user's approved answers for one task; none is generated here.
+  const policyFile = path.join(root, 'configs', `${task.card.id}-evaluator-policy.json`);
+  if (!existsSync(policyFile)) throw new Error(`no approved evaluator policy for ${task.card.id}: ${path.relative(projectRoot, policyFile)}`);
   const policy = loadPolicy(policyFile);
+  if (policy.task_id !== task.card.id) throw new Error('policy task id mismatch');
   if (policy.base_commit !== baseCommit) throw new Error('policy base commit mismatch');
   if (config.detach) {
     detach(argv, config);
@@ -253,28 +264,30 @@ function main() {
     && existsSync(runDir) && readdirSync(runDir).every((file) => driverFiles.includes(file));
   if (existsSync(workspace) || (existsSync(runDir) && !detachedChild)) throw new Error('run id already exists');
   mkdirSync(runDir, { recursive: true });
-  const record = { run_id: config.runId, condition: 'bouncer-full', model: config['--model'],
-    base_commit: baseCommit, ...sourceProvenance(projectRoot), workspace, status: 'running', stages: [],
+  const record = { run_id: config.runId, ...taskRecord(task), condition: 'bouncer-full', model: config['--model'],
+    ...sourceProvenance(projectRoot), workspace, status: 'running', stages: [],
     stage_usage: {},
     evaluator_policy_version: policy.policy_version,
     evaluator_policy_sha256: createHash('sha256').update(readFileSync(policyFile)).digest('hex'),
     started_at: new Date().toISOString() };
   save(path.join(runDir, 'run.json'), record);
   try {
-    command('git', ['clone', '--quiet', bundle, workspace], projectRoot);
+    command('git', ['clone', '--quiet', task.bundle, workspace], projectRoot);
     if (command('git', ['rev-parse', 'HEAD'], workspace) !== baseCommit) throw new Error('baseline mismatch');
     command('git', ['config', 'user.name', 'Benchmark Agent'], workspace);
     command('git', ['config', 'user.email', 'benchmark@local.invalid'], workspace);
+    record.workspace_setup = applyWorkspaceSetup(workspace, task.card);
+    const setupStatus = statusLines(workspace);
     for (const name of ['01-init', '02-plan', '03-run', '04-finalize']) {
       const cwd = name === '04-finalize' ? integrationWorktree(workspace) : workspace;
       progress(`${name} started`);
-      const stageRecord = stage(config, name, workspace, runDir, cwd);
+      const stageRecord = stage(config, policyFile, name, workspace, runDir, cwd);
       progress(`${name} returned`);
       record.stages.push(name);
       record.stage_usage[name] = stageRecord.usage;
       record.usage_total = sumUsage(Object.values(record.stage_usage));
       record.usage_total_status = usageTotalStatus(record.stage_usage);
-      if (name === '01-init') bootstrapCommit(workspace, policy);
+      if (name === '01-init') bootstrapCommit(workspace, policy, setupStatus);
       if (name === '02-plan') record.blueprint = checkPlanGate(workspace);
       if (name === '03-run') record.integration = checkIntegration(workspace, integrationWorktree(workspace));
       save(path.join(runDir, 'run.json'), record);
@@ -289,7 +302,7 @@ function main() {
     });
     if (patch.status !== 0 || patch.error) throw new Error(`could not collect integration patch: ${patch.stderr}`);
     writeFileSync(path.join(runDir, 'diff.patch'), patch.stdout);
-    verifyPatch(config, workspace, runDir, record);
+    verifyPatch(config, task, workspace, runDir, record);
     record.status = 'finalized';
   } catch (error) {
     record.status = 'stopped';

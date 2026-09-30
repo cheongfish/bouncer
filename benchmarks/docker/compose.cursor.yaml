@@ -49,6 +49,8 @@ services:
     volumes:
       - ../:/benchmark:ro
       - ${BENCH_RESULT_DIR:?set BENCH_RESULT_DIR}:/result
+      # The final agent repository, for verifiers that judge commits and index state ({final_repo}).
+      - ${BENCH_WORKSPACE:?set BENCH_WORKSPACE}:/workspace:ro
     command: ["--patch", "/result/diff.patch", "--work-dir", "/result/verify-work", "--output", "/result/verifier.json"]
 
 secrets:

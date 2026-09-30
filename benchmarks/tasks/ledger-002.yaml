@@ -1,73 +1,10 @@
 # 초안: 루브릭·검증기가 생기면 argv를 확정한다. 기준: fixtures/ledger-cli-v2.bundle
-# user_request는 ledger-002.prd.md 본문과 같아야 한다.
 id: ledger-002
 set: general
 benchmark_version: ledger-v2-pilot-draft
-base_commit: 934cb3433f649447372f46051d703a5388384b72
-user_request: |
-  # 월 예산 초과 확인 명령
-
-  ## 배경
-
-  `summary` 명령으로 월별 분류 합계는 볼 수 있지만, 분류마다 정해 둔 예산을
-  넘었는지는 직접 비교해야 합니다. 예산 파일을 읽어 지정한 달의 분류별 지출과
-  예산을 비교하는 `budget` 명령을 추가해 주세요. 금액 단위는 기존 데이터와 같은
-  정수 센트입니다.
-
-  ## 예산 파일
-
-  예산 파일은 분류명을 키로, 월 예산(정수 센트)을 값으로 가지는 JSON 객체입니다.
-
-  ```json
-  { "food": 1000, "travel": 1000, "books": 500 }
-  ```
-
-  - 키는 비어 있지 않은 문자열이어야 합니다.
-  - 값은 0 이상의 정수여야 합니다.
-  - 객체가 아니거나 위 조건을 어기는 항목이 있으면 오류입니다.
-
-  ## 요구사항
-
-  - `node src/cli.js budget --file <entries> --budgets <budgets> --month <YYYY-MM>` 형식으로
-    실행합니다. 세 옵션은 모두 필수이며 순서는 상관없습니다.
-  - 출력 대상 분류는 **예산 파일에 있는 분류와 해당 월에 지출이 있는 분류의 합집합**입니다.
-    분류명 오름차순(JavaScript 기본 문자열 비교 순서)으로 한 줄씩 출력합니다.
-  - 각 줄의 형식은 `<category>\t<spent>\t<budget>\t<remaining>\t<status>`입니다.
-    - `spent`: 해당 월의 그 분류 지출 합계입니다. 지출이 없으면 `0`입니다.
-    - 예산이 있는 분류: `budget`은 예산, `remaining`은 `budget - spent`(음수 가능)이고,
-      `spent`가 `budget` 이하이면 `OK`, 초과하면 `OVER`입니다.
-    - 예산이 없는 분류: `budget`과 `remaining`은 `-`, `status`는 `NO_BUDGET`입니다.
-  - 출력 대상 분류가 하나도 없으면 아무것도 출력하지 않습니다.
-  - 종료 코드: `OVER`인 분류가 하나라도 있으면 `2`, 그렇지 않으면 `0`입니다. 두 경우 모두
-    stdout에 전체 결과를 출력하고 stderr는 비워 둡니다.
-  - `--month`는 `summary`와 같은 규칙으로 검증합니다.
-  - 잘못된 옵션, 누락된 값, 유효하지 않은 월, 읽을 수 없거나 형식이 잘못된 지출·예산 파일은
-    오류 메시지를 stderr에 출력하고 종료 코드 1로 끝내며, stdout에는 아무것도 남기지 않습니다.
-  - 기존 `list`, `total`, `summary` 명령의 입력·출력 동작을 유지합니다.
-  - `docs/commands.md`에 `budget` 사용법을 추가하고, 기존 테스트 스타일로 테스트를 추가해 주세요.
-
-  ## 사용 예
-
-  위 예산 파일을 `budgets.json`으로 저장하고 저장소의 `data/entries.json`에 대해 실행하면:
-
-  ```sh
-  node src/cli.js budget --file data/entries.json --budgets budgets.json --month 2026-01
-  ```
-
-  stdout은 다음과 같고 종료 코드는 2입니다. 열 사이에는 탭 한 개가 들어갑니다.
-
-  ```text
-  books	0	500	500	OK
-  food	1200	1000	-200	OVER
-  travel	800	1000	200	OK
-  ```
-
-  예산 파일이 `{ "food": 2000 }`이면 stdout은 다음과 같고 종료 코드는 0입니다.
-
-  ```text
-  food	1200	2000	800	OK
-  travel	800	-	-	NO_BUDGET
-  ```
+base_commit: "934cb3433f649447372f46051d703a5388384b72"
+user_request_file: tasks/ledger-002.prd.md
+user_request_sha256: "c79c231a19e925ad486eb6ddad36ab1cf0ff0538e882e79ff0cb6d1e44cd4e06"
 allowed_paths:
   - src/**
   - test/**
@@ -83,7 +20,7 @@ forbidden_paths:
 failure_opportunities: []
 external_verifiers:
   - id: budget-behavior
-    argv: [node, benchmarks/verifiers/ledger-002.cjs, --patch, "{submission_patch}", --work-dir, "{eval_dir}", --output, "{result_json}"]
+    argv: [node, verifiers/ledger-002.cjs, --patch, "{submission_patch}", --work-dir, "{eval_dir}", --output, "{result_json}"]
     timeout_ms: 180000
 success_checklist:
   - 루브릭의 기능 검사를 모두 통과한다 (100점).

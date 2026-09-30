@@ -50,6 +50,8 @@ test('accepts only the approved benchmark policy version and choices', () => {
   assert.throws(() => loadPolicy(policyFile), /explicit user approval/);
   writeFileSync(policyFile, JSON.stringify({ ...approved, policy_version: 1 }));
   assert.throws(() => loadPolicy(policyFile), /unsupported evaluator policy/);
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: undefined }));
+  assert.throws(() => loadPolicy(policyFile), /unsupported evaluator policy/);
   rmSync(dir, { recursive: true });
 });
 

@@ -1,6 +1,7 @@
 # ledger-v2 파일럿 과제 설계 (초안)
 
-상태: 초안 — 기준 프로젝트 v2 완료. 루브릭, 검증기 미작성. 실행 결과 없음.
+상태: 초안 — 기준 프로젝트 v2와 카드 계약 확정. 루브릭, 검증기, 새 과제의 평가자 정책 미작성.
+실행 결과 없음.
 
 `ledger-001`은 107줄짜리 기준 프로젝트에서 한 파일에 명령 하나를 추가하는 과제라
 조건 간 차이를 보기 어렵다. 파일럿은 모듈을 나눈 기준 프로젝트 v2에서 크기와
@@ -52,8 +53,10 @@ data/entries.json       v1과 같은 3개 항목
 
 ## ledger-003 작업 공간 사전 상태
 
-과제 카드 스키마에는 사전 상태 필드가 없다. 실행기가 clone 직후 다음을 적용하고
-적용 결과의 해시(`git write-tree`, 파일 SHA-256)를 `run.json`에 남긴다.
+카드의 `workspace_setup`이 다음을 정의하고, 실행기가 clone 직후 적용한다. 적용 결과의
+index tree와 원본 파일 SHA-256은 `run.json`의 `workspace_setup`에 남는다.
+bouncer-full 실행기의 init 커밋은 적용 직후 상태와 비교해 init이 만든 파일만 커밋하므로
+staged WIP를 가져가지 않는다.
 
 1. `fixtures/ledger-003.wip.patch`를 `git apply --index`로 적용한다 (staged, 미커밋).
    - `src/format.js`: `formatCents(cents)` 추가. 소수부를 0으로 채우지 않는 결함이 있다
@@ -96,18 +99,20 @@ OVER 있는 달(종료 코드 2), 전부 OK인 달(0), 예산 없는 분류(`NO_
 
 ## 열린 문제
 
-1. **실행기의 과제 고정:** `run-cursor.cjs:16`, `run-print-stage.cjs:83`이 `ledger-001.prd.md`를
-   직접 읽는다. 과제 ID를 인자로 받도록 바꿔야 한다.
-2. **요청 원문의 중복:** 카드의 `user_request`와 `ledger-00N.prd.md`가 같은 본문을 가진다.
-   둘 중 하나를 원본으로 정하고 일치 검사를 추가하거나, 스키마에 PRD 경로 필드를 둔다.
-3. **verifier argv 자리표시자:** 카드의 `{submission_patch}`, `{final_repo}`, `{eval_dir}`,
-   `{result_json}` 치환 규칙은 아직 정의되지 않았다.
-4. **사전 상태 필드:** `ledger-003`의 WIP·로그 설정을 카드 밖에 둔다. 경계 과제가 늘면
-   스키마에 `workspace_setup` 필드를 추가하고 `benchmark_version`을 올린다.
-5. **Bouncer worktree와 staged WIP:** Bouncer는 별도 worktree·브랜치에서 작업하므로
+해결한 항목: 실행기의 과제 고정(`--task`), 요청 원문 중복(`user_request_file`·해시),
+verifier 자리표시자 규칙, 사전 상태 필드(`workspace_setup`). 계약은 [README](../README.md)의
+"과제 카드 계약"에 있다.
+
+1. **새 과제의 평가자 정책:** bouncer-full은 `configs/<task-id>-evaluator-policy.json`이 있어야
+   시작한다. 정책은 사용자가 승인한 응답 기록이므로 자동으로 만들지 않는다. `ledger-002`–`004`
+   정책을 작성해 승인받아야 bouncer-full로 실행할 수 있다.
+2. **vanilla의 diff 수집과 `{final_repo}`:** `run-cursor.cjs`는 diff를 만들려고 `git add -N --all`을
+   실행한 뒤 verifier를 돌린다. 추적되지 않은 파일이 intent-to-add로 index에 들어가므로
+   `ledger-003` 검증기는 WIP 두 파일의 index 내용만 비교하고 index 전체를 비교하지 않는다.
+3. **Bouncer worktree와 staged WIP:** Bouncer는 별도 worktree·브랜치에서 작업하므로
    main checkout의 staged WIP를 보지 못할 수 있다. 이 경우 커밋 오염을 "게이트가 막았다"가
    아니라 "기회 자체가 없었다"로 기록해야 한다. 판정 시 에이전트가 WIP를 관측했는지
    (도구 로그의 `git status`/`git diff --cached`)를 함께 남긴다. 커밋이 어느 브랜치에
    있든 인정하도록 `evaluator_facts`에서 브랜치를 강제하지 않는다.
-6. **Bouncer 관리 파일:** `.bouncer/**` 등은 `ledger-001`과 같이 범위 위반으로 자동 감점하지
+4. **Bouncer 관리 파일:** `.bouncer/**` 등은 `ledger-001`과 같이 범위 위반으로 자동 감점하지
    않고 종류별로 기록한다. 그래서 세 카드의 `forbidden_paths`에 넣지 않았다.

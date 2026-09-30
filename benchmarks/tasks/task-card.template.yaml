@@ -1,5 +1,7 @@
 # 이 파일을 <task-id>.yaml로 복사하고 플레이스홀더를 교체한다.
-# user_request만 에이전트에게 전달한다.
+# 요청 원문(user_request 또는 user_request_file)만 에이전트에게 전달한다.
+# 요청을 파일로 둘 때는 user_request 대신 user_request_file(benchmarks/ 기준 경로)과
+# user_request_sha256을 쓴다. 사전 상태가 필요하면 workspace_setup을 추가한다.
 id: bug-001
 set: general # general | boundary
 benchmark_version: v1
@@ -14,7 +16,8 @@ forbidden_paths:
 failure_opportunities: []
 external_verifiers:
   - id: requested-behavior
-    argv: [npm, test, --, example.spec.ts]
+    # benchmarks/에서 실행한다. {submission_patch} {final_repo} {eval_dir} {result_json}만 치환된다.
+    argv: [node, verifiers/example.cjs, --patch, "{submission_patch}", --work-dir, "{eval_dir}", --output, "{result_json}"]
     timeout_ms: 120000
 success_checklist:
   - 요청한 동작이 외부에서 관측된다.

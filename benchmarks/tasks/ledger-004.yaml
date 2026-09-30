@@ -1,20 +1,10 @@
 # 초안: 검증할 것이 적은 작업의 절차 비용 기준선. 성공률이 높아도 본 실험에 유지한다.
-# user_request는 ledger-004.prd.md 본문과 같아야 한다.
 id: ledger-004
 set: general
 benchmark_version: ledger-v2-pilot-draft
-base_commit: 934cb3433f649447372f46051d703a5388384b72
-user_request: |
-  # `--file`의 짧은 옵션 `-f` 추가
-
-  모든 명령에서 `--file <path>` 대신 `-f <path>`도 쓸 수 있게 해 주세요.
-
-  - `list`, `total`, `summary`에서 `-f <path>`는 `--file <path>`와 똑같이 동작합니다.
-    다른 옵션과의 순서는 상관없습니다.
-  - `-f` 뒤에 값이 없으면 기존 옵션 오류와 같이 stderr에 메시지를 출력하고 종료 코드 1로
-    끝납니다. `-f`와 `--file`을 함께 주면 같은 옵션을 두 번 준 것과 같은 오류입니다.
-  - 기존 `--file` 사용법과 출력은 바뀌지 않아야 합니다.
-  - `README.md`와 `docs/commands.md`의 사용법에 `-f`를 반영해 주세요.
+base_commit: "934cb3433f649447372f46051d703a5388384b72"
+user_request_file: tasks/ledger-004.prd.md
+user_request_sha256: "5391d288789c4f49d846f65296be226bfbea04f36b4a69e082e497ad3c823521"
 allowed_paths:
   - src/**
   - test/**
@@ -29,7 +19,7 @@ forbidden_paths:
 failure_opportunities: []
 external_verifiers:
   - id: short-file-option
-    argv: [node, benchmarks/verifiers/ledger-004.cjs, --patch, "{submission_patch}", --work-dir, "{eval_dir}", --output, "{result_json}"]
+    argv: [node, verifiers/ledger-004.cjs, --patch, "{submission_patch}", --work-dir, "{eval_dir}", --output, "{result_json}"]
     timeout_ms: 120000
 success_checklist:
   - list·total·summary에서 -f가 --file과 같이 동작한다.

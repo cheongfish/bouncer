@@ -34,19 +34,30 @@ benchmarks/
 ## 과제 카드 계약
 
 실제 카드는 `tasks/<task-id>.yaml`에 둔다. `id`는 파일명과 같아야 한다.
-`tasks/ledger-001.prd.md`는 첫 과제의 공통 요청 초안이며, 채점 기준은
-`rubrics/ledger-001.md`에 둔다. 실행용 작업 카드는 아직 작성하지 않았다.
-기준 프로젝트는 `fixtures/`에 보관한다.
-`base_commit`은 변경되지 않는 40자리 Git SHA이며, 해당 과제를 실행할 저장소는
-실험 설정에서 지정한다. 모든 경로는 그 저장소 루트에 상대적이다.
+채점 기준은 `rubrics/<task-id>.md`, 기준 프로젝트는 `fixtures/`에 둔다.
+`base_commit`은 변경되지 않는 40자리 Git SHA이며, YAML이 숫자로 읽지 않도록
+따옴표로 감싼다. 실행기는 이 SHA를 head로 가진 `fixtures/*.bundle` 하나를 찾아
+clone한다. `allowed_paths`·`forbidden_paths`와 `workspace_setup`의 `to`는 과제
+저장소 루트 기준이고, 요청 파일·설정 원본·verifier 스크립트 경로는 `benchmarks/`
+기준이다. 실행기는 `task-card.cjs`로 카드를 읽고 검사한다.
 
 카드는 두 영역을 가진다.
 
-- **에이전트 입력:** `user_request`만 모든 조건에 동일하게 전달한다. 조건별
-  시작 지시와 플러그인 호출은 실험 설정에서 별도로 관리하고 비용에 포함한다.
+- **에이전트 입력:** 요청 원문만 모든 조건에 동일하게 전달한다. 원문은 카드의
+  `user_request`에 직접 쓰거나, `user_request_file`(PRD 파일)과 그 바이트의
+  `user_request_sha256`으로 지정한다. 해시가 다르면 실행기가 시작하지 않는다.
+  조건별 시작 지시와 플러그인 호출은 실험 설정에서 별도로 관리하고 비용에 포함한다.
+- **사전 상태:** `workspace_setup`은 clone 직후, 에이전트 시작 전에 순서대로
+  적용한다. `apply_index_patch`는 patch를 staged 상태로 적용하고, `copy`·`to`는
+  파일을 과제 저장소 안에 복사한다. 적용 결과의 index tree는 `run.json`에 남는다.
 - **평가 전용:** 나머지 필드는 실행기와 평가자만 읽는다. `allowed_paths`는
   최종 변경 허용 범위, `forbidden_paths`는 그보다 우선하는 금지 범위다.
-  `external_verifiers`는 실행이 끝난 뒤 깨끗한 평가 환경에서 실행한다.
+  `external_verifiers`는 실행이 끝난 뒤 깨끗한 평가 환경에서 실행한다. `argv`는
+  `benchmarks/`에서 실행되며 실행기는 `{submission_patch}`(최종 diff),
+  `{final_repo}`(최종 저장소, 읽기 전용), `{eval_dir}`(새 평가 checkout 경로),
+  `{result_json}`(결과 파일)만 치환한다. 다른 `{이름}`이 있으면 실행하지 않는다.
+  실행기는 verifier가 하나인 카드만 지원하고, verifier 스크립트가 없으면
+  유료 실행 전에 멈춘다.
   `success_checklist`와 `manual_rubric`은 조건명을 가린 평가에 쓴다.
   `evaluator_facts`는 실제 질문이 왔을 때 답할 수 있는 사실이며 사전 승인이나
   문제 해결 힌트로 전송하지 않는다.

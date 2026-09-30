@@ -23,7 +23,8 @@ node benchmarks/run-cursor.cjs \
   --key-file /absolute/path/to/cursor-api-key
 ```
 
-`--run-id`와 `--timeout-minutes`를 지정할 수 있다. 키 없이 작업 공간과 프롬프트만
+`--task <task-id>`로 `tasks/<task-id>.yaml` 카드를 고른다(기본값 `ledger-001`).
+`run-bouncer-full.cjs`도 같은 옵션을 받는다. `--run-id`와 `--timeout-minutes`를 지정할 수 있다. 키 없이 작업 공간과 프롬프트만
 확인하려면 `--dry-run true`를 사용한다. Compose 이미지 빌드에는 인터넷 연결이
 필요하며, Cursor CLI는 빌드 시 공식 설치 스크립트로 설치된다. 실행 기록의
 `cursor_version`과 `image_id`를 비교해 버전이 달라진 실행을 합치지 않는다.

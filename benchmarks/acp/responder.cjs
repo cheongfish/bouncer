@@ -70,7 +70,10 @@ function planGateEvidence(workDir) {
 
 function loadPolicy(file) {
   const policy = JSON.parse(readFileSync(file, 'utf8'));
-  if (policy.policy_version !== 2 || policy.task_id !== 'ledger-001') throw new Error('unsupported evaluator policy');
+  // Each task has its own approved policy; runners match task_id against the task card they run.
+  if (policy.policy_version !== 2 || !/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(policy.task_id ?? '')) {
+    throw new Error('unsupported evaluator policy');
+  }
   if (policy.approval_state !== 'approved') {
     throw new Error('evaluator policy is proposed; explicit user approval is required before sending gate answers');
   }
