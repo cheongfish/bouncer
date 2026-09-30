@@ -1,0 +1,8 @@
+[
+  { "id": "c1", "date": "2026-03-01", "category": "food", "amount_cents": 500 },
+  { "id": "c2", "date": "2026-03-02", "category": "foodtruck", "amount_cents": 700 },
+  { "id": "c3", "date": "2026-03-03", "category": "Food", "amount_cents": 250 },
+  { "id": "c4", "date": "2026-03-04", "category": "travel", "amount_cents": 300 },
+  { "id": "c5", "date": "2026-03-05", "category": "food", "amount_cents": 125 },
+  { "id": "c6", "date": "2026-03-06", "category": "fo", "amount_cents": 40 }
+]

@@ -37,3 +37,8 @@ node benchmarks/verifiers/ledger-001.cjs \
 
 검증기는 채점 대상 프로젝트의 `npm test`를 실행할 때 `NODE_TEST_CONTEXT`를 넘기지 않는다.
 상위 `node --test` 안에서 실행해도 대상 테스트가 독립적으로 종료 코드를 내게 하기 위해서다.
+
+`ledger-003.cjs`는 patch 대신 최종 저장소를 받는다(`--final-repo <dir> --work-dir <new-dir>
+[--output <file>]`). 저장소는 읽기 전용으로 마운트되므로 plumbing 명령으로만 읽고, 제출 커밋은
+새 checkout으로 가져와 판정한다. 제출 커밋 선택 규칙과 WIP 판정은
+[루브릭](../rubrics/ledger-003.md)에 있다.
