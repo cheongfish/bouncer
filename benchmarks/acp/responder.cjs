@@ -414,8 +414,22 @@ function optionGroups(block) {
   return groups.filter((group) => group.options.length >= 2);
 }
 
+// rules/acq.md asks for a bold `**AskUserQuestion — <gate-id>**` line; agents sometimes write it as a
+// Markdown heading (`### AskUserQuestion — \`finalize.remainder\``) instead. Both open a question.
+const ACQ_MARKER = /\*\*AskUserQuestion[^*\n]*\*\*|^#{1,6}[ \t]+AskUserQuestion\b[^\n]*$/gm;
+
+function acqMarkers(text) {
+  return [...text.matchAll(ACQ_MARKER)];
+}
+
+// Text that names AskUserQuestion but has no marker the responder can read must stop for a human
+// rather than end the stage as if nothing was asked.
+function unreadQuestion(text) {
+  return /AskUserQuestion/.test(text) && acqMarkers(text).length === 0;
+}
+
 function answerTextQuestion(policy, phase, text, workDir) {
-  const markers = [...text.matchAll(/\*\*AskUserQuestion[^*]*\*\*/g)];
+  const markers = acqMarkers(text);
   if (!markers.length) return null;
   const decisions = [];
   for (let index = 0; index < markers.length; index++) {
@@ -461,5 +475,5 @@ function answerPermission(params) {
   return { outcome: { outcome: 'selected', optionId: allow[0].optionId }, reason: 'local tool call' };
 }
 
-module.exports = { finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
+module.exports = { acqMarkers, unreadQuestion, finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
   looksLikeQuizRequest, answerPermission };

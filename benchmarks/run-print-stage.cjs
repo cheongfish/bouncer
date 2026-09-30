@@ -10,7 +10,8 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = r
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest } = require('./acp/responder.cjs');
+const { acqMarkers, loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest, unreadQuestion,
+} = require('./acp/responder.cjs');
 const { normalizeUsage, sumUsage, transcriptFiles, usageCoverage, usageFromCursorLogs } = require('./usage.cjs');
 const { argsOf, stages } = require('./stage-args.cjs');
 const { loadCard } = require('./task-card.cjs');
@@ -128,8 +129,12 @@ async function main() {
         break;
       }
       sessionId = result.session_id ?? sessionId;
-      const acq = /\*\*AskUserQuestion[^*]*\*\*/.test(text);
+      const acq = acqMarkers(text).length > 0;
       const quiz = stage === 'bouncer-finalize' && !acq && looksLikeQuizRequest(text);
+      if (!acq && !quiz && unreadQuestion(text)) {
+        unanswered.push({ at: new Date().toISOString(), method: 'text/unread-question', text: text });
+        break;
+      }
       if (!acq && !quiz) break;
       const decision = acq ? answerTextQuestion(policy, stage, text, args.sessionCwd)
         : answerQuizText(policy, stage, text);

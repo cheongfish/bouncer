@@ -505,3 +505,21 @@ test('answers pre-task state questions from the task policy and marks them synth
   const unrelated = { questions: [{ id: 'q1', prompt: 'Which database?', options: [{ id: 'a', label: 'x' }, { id: 'b', label: 'y' }] }] };
   assert.equal(answerAskQuestion(task, 'bouncer-run', unrelated), null);
 });
+
+test('reads a heading-form AskUserQuestion and flags one it cannot read', () => {
+  const { acqMarkers, unreadQuestion } = require('./responder.cjs');
+  const heading = [
+    '퀴즈 **0/3** 기록·publish 완료. Finalize dry-run은 통과했습니다.',
+    '### AskUserQuestion — `finalize.remainder`',
+    '- **A)** `finalize --yes` 커밋 + worktree 제거 (Recommended)',
+    '- **B)** `finalize --yes` 커밋만 — worktree 유지',
+    '- **C)** 메시지/스테이징 수정 후 재확인',
+    '- **D)** 취소 — `--yes` 실행 안 함',
+  ].join('\n');
+  assert.equal(acqMarkers(heading).length, 1);
+  assert.equal(gateIdOf(acqMarkers(heading)[0][0]), 'finalize.remainder');
+  assert.equal(unreadQuestion(heading), false);
+  assert.equal(acqMarkers('**AskUserQuestion — plan.approval**\n- A) Approve').length, 1);
+  assert.equal(unreadQuestion('Please answer the AskUserQuestion above: A or B?'), true);
+  assert.equal(unreadQuestion('Done. No questions.'), false);
+});
