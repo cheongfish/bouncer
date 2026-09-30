@@ -192,6 +192,16 @@ test('bouncer-plan step 1 cites the named discovery handoff outputs', () => {
   assert.match(body, /실패 모드|failure mode/i);
 });
 
+test('bouncer-plan asks open decisions before the Discover ACQ and carries project rules into the plan', () => {
+  const { body } = parseFrontmatter(md);
+  const step1 = body.slice(body.indexOf('1. **Discover.**'), body.indexOf('2. **Scaffold.**'));
+  assert.match(step1, /`Open decisions`, and `Project rules`/);
+  assert.match(step1, /ask the user every open\s+decision[\s\S]{0,120}before the Discover\s+ACQ/);
+  assert.match(step1, /`config\.autonomy` never skips them/);
+  assert.match(step1, /`Project rules` →[\s\S]{0,200}success criterion/);
+  assert.match(body, /plan\.verify_command[\s\S]{0,260}recommend that command/);
+});
+
 test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /Korean/);

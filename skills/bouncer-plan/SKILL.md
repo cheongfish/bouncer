@@ -66,8 +66,13 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    never set or widen `affected_paths`, and do not write them into frontmatter.
    Then clarify the request.
    Expect these named handoff outputs: `Goal`, `Scope`,
-   `Non-goals`, `Success criteria`, `Edge cases & failure modes`, and
-   `Overlap`. When discovery surfaces ordering or fan-in among units of work,
+   `Non-goals`, `Success criteria`, `Edge cases & failure modes`,
+   `Overlap`, `Open decisions`, and `Project rules`. An open decision is a
+   behavior neither the request nor the code settles; ask the user every open
+   decision in one chat message and wait for the answers before the Discover
+   ACQ. These are discovery's clarifying questions, not an ACQ gate, and
+   `config.autonomy` never skips them. Do not write an assumed answer into the
+   framing. When discovery surfaces ordering or fan-in among units of work,
    capture them as candidate task dependencies (`depends_on`) and parallel
    readiness (`parallel_safe`) — task numbers alone do not decide execution
    order. **ACQ — Discover (`plan.discovery`):** confirm Goal / Scope / Non-goals / Success
@@ -75,7 +80,10 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    scaffolding.
    Map handoff into authored docs in step 3: `Edge cases & failure modes` →
    blueprint Contract 「실패 모드·엣지 케이스」; `Overlap` → epic Out of scope
-   (or reuse an existing blueprint when overlap says so). The success criteria
+   (or reuse an existing blueprint when overlap says so); answered
+   `Open decisions` → the task Target behavior they decide; `Project rules` →
+   a numbered epic success criterion for each rule the change triggers, and the
+   Constraints and Checklist of the task that must follow it. The success criteria
    are not scratch work: they become the numbered `## Success criteria` list
    in the epic body in step 3.
 
@@ -177,7 +185,8 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    carrying a `scripts` key (`package.json#scripts`, key presence only). On at
    least one signal, run
    **ACQ — Verify command (`plan.verify_command`):** ask whether to set `tasks.bouncer.verify` for this
-   blueprint. On accept, write a **single** executable argv string into each
+   blueprint. When `Project rules` names one command the project runs before
+   merge (for example the script its CI runs), recommend that command. On accept, write a **single** executable argv string into each
    `tasks/<NNN>/tasks.md` frontmatter `bouncer.verify` (e.g. `npm run test:e2e`,
    `make test`); with no signal or on refusal leave it unset so execute keeps
    the global `config.verify`. Never write `bouncer.verify` from detection
