@@ -367,7 +367,7 @@ function answerAskQuestion(policy, phase, params, workDir) {
 // A quiz request lists numbered questions; a closing summary that only mentions the quiz score does not.
 function looksLikeQuizRequest(text) {
   return /\bquiz\b|퀴즈/i.test(text) && /^[\s#>*-]*(?:\*\*)?(?:Q\s*\d+|문항\s*\d+)\b/im.test(text)
-    && /답(?:변|해|을)|응답|선택|answer(?:s)?\s*[:：]|answer\s+(?:all|the|these|each|every)\b|(?:please\s+)?(?:reply|respond|provide)\s+(?:with\s+)?(?:(?:your|all)\s+)?answers?/i.test(text);
+    && /답(?:변|해|을)|응답|선택|answer(?:s)?\s*[:：]|answer\s+(?:all|the|these|each|every)\b|(?:please\s+)?(?:reply|respond|provide)\s+(?:with\s+)?(?:(?:your|all|both|the)\s+)?answers?/i.test(text);
 }
 
 function answerQuizText(policy, phase, text) {
@@ -418,8 +418,41 @@ function optionGroups(block) {
 // Markdown heading (`### AskUserQuestion — \`finalize.remainder\``) instead. Both open a question.
 const ACQ_MARKER = /\*\*AskUserQuestion[^*\n]*\*\*|^#{1,6}[ \t]+AskUserQuestion\b[^\n]*$/gm;
 
+// Option lines such as `- **A)** ...`, `A) ...`, or `- A) ...`.
+const OPTION_LINE = /^\s*(?:[-*]\s*)?(?:\*\*)?[A-Z]\)(?:\*\*)?\s*\S/;
+const REPLY_CUE = /reply with|answer with|choose|select|pick|답(?:해|변)|선택|골라/i;
+
+const TITLE_LINE = /^\s*(?:#{1,6}\s+\S.*|\*\*[^*\n]+\*\*\s*)$/;
+
+// Agents also end a turn with a lettered choice under some other title (`**Decision — remainder ...**`).
+// Without an AskUserQuestion marker, the last run of two or more option lines followed only by a reply
+// instruction counts as one question. Its marker is the nearest bold or heading title within the five
+// non-empty lines above the options, else the nearest non-empty line. Quiz requests keep their own path.
+function trailingQuestion(text) {
+  if (looksLikeQuizRequest(text)) return null;
+  const lines = text.split('\n');
+  let last = lines.length - 1;
+  while (last >= 0 && (!lines[last].trim() || (REPLY_CUE.test(lines[last]) && !OPTION_LINE.test(lines[last])))) last--;
+  let first = last;
+  while (first >= 0 && (OPTION_LINE.test(lines[first]) || !lines[first].trim())) first--;
+  const options = lines.slice(first + 1, last + 1).filter((line) => OPTION_LINE.test(line));
+  const after = lines.slice(last + 1).join('\n');
+  if (options.length < 2 || !REPLY_CUE.test(after) || first < 0) return null;
+  let marker = first;
+  for (let line = first, seen = 0; line >= 0 && seen < 5; line--) {
+    if (!lines[line].trim()) continue;
+    seen++;
+    if (TITLE_LINE.test(lines[line])) { marker = line; break; }
+  }
+  const index = lines.slice(0, marker).reduce((sum, line) => sum + line.length + 1, 0);
+  return Object.assign([lines[marker]], { index });
+}
+
 function acqMarkers(text) {
-  return [...text.matchAll(ACQ_MARKER)];
+  const markers = [...text.matchAll(ACQ_MARKER)];
+  if (markers.length) return markers;
+  const trailing = trailingQuestion(text);
+  return trailing ? [trailing] : [];
 }
 
 // Text that names AskUserQuestion but has no marker the responder can read must stop for a human

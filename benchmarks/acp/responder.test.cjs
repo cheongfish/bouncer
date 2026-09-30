@@ -523,3 +523,31 @@ test('reads a heading-form AskUserQuestion and flags one it cannot read', () => 
   assert.equal(unreadQuestion('Please answer the AskUserQuestion above: A or B?'), true);
   assert.equal(unreadQuestion('Done. No questions.'), false);
 });
+
+test('reads a trailing lettered choice without an AskUserQuestion marker as one question', () => {
+  const { acqMarkers } = require('./responder.cjs');
+  const text = [
+    '**Remainder dry-run** — clean. Integration complete (`openTasks: []`).',
+    '---',
+    '**Decision — remainder commit + worktree**',
+    '',
+    'Task commits are done; after close the execute/integration checkouts are usually unnecessary.',
+    '',
+    '- **A)** `finalize --yes` commit + remove worktrees *(Recommended)*',
+    '- **B)** `finalize --yes` commit only — keep worktrees',
+    '- **C)** Fix message/staging and re-check',
+    '- **D)** Cancel — do not run `--yes`',
+    '',
+    'Reply with **A**, **B**, **C**, or **D**.',
+  ].join('\n');
+  const markers = acqMarkers(text);
+  assert.equal(markers.length, 1);
+  assert.equal(markers[0][0], '**Decision — remainder commit + worktree**');
+  assert.equal(classifyGate('bouncer-finalize', markers[0][0]).gate, 'finalize.remainder');
+  // Options in the middle of a report, or with no reply instruction, are not a question.
+  assert.equal(acqMarkers(`${text}\n\nDone; nothing else to decide.`).length, 0);
+  assert.equal(acqMarkers('Plan:\n- A) parse\n- B) print').length, 0);
+  // A quiz keeps its own path.
+  const quiz = '**Quiz:** 2 questions.\n**Q1.** Why?\nA) x\nB) y\nC) z\n**Q2.** What?\nA) x\nB) y\nC) z\nReply with both answers (Q1: A, Q2: B).';
+  assert.equal(acqMarkers(quiz).length, 0);
+});
