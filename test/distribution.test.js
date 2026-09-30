@@ -78,6 +78,7 @@ test('the package contains only the plugin runtime surface and host manifests', 
     'scripts/lib/scope.js',
     'scripts/vendor/js-yaml.js',
     'skills/bouncer-run/SKILL.md',
+    'AGENTS.md',
     '.agents/plugins/marketplace.json',
     '.claude-plugin/marketplace.json',
     '.claude-plugin/plugin.json',
@@ -95,7 +96,6 @@ test('the package contains only the plugin runtime surface and host manifests', 
     'docs/',
     'scripts/src/',
     'CHANGELOG.md',
-    'AGENTS.md',
     'eslint.config.js',
     'tsconfig.json',
   ];
@@ -103,6 +103,18 @@ test('the package contains only the plugin runtime surface and host manifests', 
     (prefix) => prefix.endsWith('/') ? file.startsWith(prefix) : file === prefix,
   ));
   assert.deepStrictEqual(leaked, [], `development files leaked into package:\n${leaked.join('\n')}`);
+});
+
+// 모든 스킬은 번호 단계 전에 `${BOUNCER_ROOT}/AGENTS.md`를 읽는다. 마스터 룰이나 그것이
+// 가리키는 규칙 파일이 빠지면 설치본의 워크플로가 계약 없이 돈다.
+test('the package ships the master rules and every file they link to', () => {
+  const files = packageFiles();
+  assert.ok(files.includes('AGENTS.md'), 'missing master rules: AGENTS.md');
+  const links = [...fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8').matchAll(/\]\(([^)#\s]+)/g)]
+    .map((match) => match[1]).filter((href) => !/^[a-z]+:/i.test(href));
+  assert.ok(links.length > 0, 'AGENTS.md links no rule files');
+  const missing = links.filter((href) => !files.includes(path.posix.normalize(href)));
+  assert.deepStrictEqual(missing, [], `AGENTS.md links files outside the package:\n${missing.join('\n')}`);
 });
 
 // coordinator mode는 배포된 JS와 named agent만으로 돌아야 한다. 런타임이

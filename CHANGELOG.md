@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **release 산출물의 마스터 룰 누락** — 모든 skill이 시작할 때 읽는 `AGENTS.md`가 패키지 목록에
+  없어 release 브랜치 설치본에 빠지던 문제를 고친다.
+
 ## [1.5.0] — 2026-09-29
 
 1.4.93 이후 ACQ gate ID, Cursor print dispatch opt-in을 넣고 intent provenance가
