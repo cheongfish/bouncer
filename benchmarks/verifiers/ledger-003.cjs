@@ -92,7 +92,12 @@ function checkoutAt(finalRepo, head, dir) {
 function grade({ finalRepo, workDir }) {
   const commands = [];
   const head = submissionHead(finalRepo);
-  const expected = wipBlobs(path.join(workDir, 'wip'));
+  const wipScratch = path.join(workDir, 'wip');
+  const expected = wipBlobs(wipScratch);
+  // Scratch checkouts hold tests that fail on purpose (the WIP's formatCents test, the submitted tests on
+  // the base source). Their results are in the result JSON; removing them keeps a repository-wide
+  // `node --test` from picking them up inside benchmarks/runs/.
+  rmSync(wipScratch, { recursive: true, force: true });
   const wip = wipState(finalRepo, expected);
   const committed = head === baseCommit ? []
     : finalGit(finalRepo, ['diff', '--name-only', '--no-renames', baseCommit, head]).split('\n').filter(Boolean);
@@ -120,6 +125,7 @@ function grade({ finalRepo, workDir }) {
   requireGit(['-C', mutated, 'checkout', baseCommit, '--', 'src'], process.cwd());
   const mutatedTest = execute('npm', ['test'], mutated, 120000);
   commands.push({ id: 'npm-test-on-base-source', ...mutatedTest });
+  rmSync(mutated, { recursive: true, force: true });
 
   const hasCommit = head !== baseCommit;
   // The base code already returns only `Food` for `--category Food` and nothing for an unknown name, so
