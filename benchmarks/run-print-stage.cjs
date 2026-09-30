@@ -10,9 +10,11 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = r
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest } = require('./acp/responder.cjs');
+const { acqMarkers, loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest, unreadQuestion,
+} = require('./acp/responder.cjs');
 const { normalizeUsage, sumUsage, transcriptFiles, usageCoverage, usageFromCursorLogs } = require('./usage.cjs');
 const { argsOf, stages } = require('./stage-args.cjs');
+const { loadCard } = require('./task-card.cjs');
 
 const root = __dirname;
 const compose = path.join(root, 'docker', 'compose.cursor.yaml');
@@ -71,6 +73,8 @@ function readJsonLines(file) {
 async function main() {
   const args = argsOf(process.argv.slice(2));
   const policy = loadPolicy(args['--policy']); // Fail before build or any paid request.
+  const task = loadCard(args.taskId);
+  if (policy.task_id !== task.card.id) throw new Error('policy task id mismatch');
   const policySha256 = createHash('sha256').update(readFileSync(args['--policy'])).digest('hex');
   const stage = args['--stage'];
   const runDir = args['--run-dir'];
@@ -80,8 +84,7 @@ async function main() {
   const turnsDir = path.join(runDir, 'cursor-turns');
   for (const dir of [cursorData, cursorLogs, turnsDir]) mkdirSync(dir);
   const promptFile = path.join(runDir, 'prompt.txt');
-  const prd = readFileSync(path.join(root, 'tasks', 'ledger-001.prd.md'), 'utf8');
-  writeFileSync(promptFile, `${stages.get(stage)}\n\n${prd}`);
+  writeFileSync(promptFile, `${stages.get(stage)}\n\n${task.requestText}`);
   const env = {
     ...process.env,
     BENCH_WORKSPACE: args['--work-dir'], BENCH_PROMPT: promptFile, BENCH_RESULT_DIR: runDir,
@@ -126,8 +129,12 @@ async function main() {
         break;
       }
       sessionId = result.session_id ?? sessionId;
-      const acq = /\*\*AskUserQuestion[^*]*\*\*/.test(text);
+      const acq = acqMarkers(text).length > 0;
       const quiz = stage === 'bouncer-finalize' && !acq && looksLikeQuizRequest(text);
+      if (!acq && !quiz && unreadQuestion(text)) {
+        unanswered.push({ at: new Date().toISOString(), method: 'text/unread-question', text: text });
+        break;
+      }
       if (!acq && !quiz) break;
       const decision = acq ? answerTextQuestion(policy, stage, text, args.sessionCwd)
         : answerQuizText(policy, stage, text);
@@ -150,19 +157,25 @@ async function main() {
   else if (error) status = 'agent_failed';
   else if (unanswered.length) status = 'awaiting_user_decision';
   const shellGuard = readJsonLines(path.join(cursorData, 'benchmark-shell-guard.jsonl'));
+  // Written only by the bouncer image's preToolUse/subagentStart hook (docker/subagent-guard.cjs).
+  const subagentGuard = readJsonLines(path.join(cursorData, 'benchmark-subagent-guard.jsonl'));
+  const subagentDenied = subagentGuard.filter((entry) => entry.permission === 'deny');
   const cliTokens = sumUsage(turns.map((turn) => ({ tokens: turn.usage })));
   const cliUsage = cliTokens ? { status: 'reported', source: 'cursor-cli-result', tokens: cliTokens }
     : { status: 'unavailable', source: 'cursor-cli-result', tokens: null };
   // Session logs also cover nested `agent --print` runs; Task subagents appear in neither source, so a stage
   // that used one is recorded as incomplete instead of an undercounted total.
   const logUsage = usageFromCursorLogs(cursorLogs);
-  const coverage = usageCoverage(cursorData, logUsage, streams);
+  // A denied Task call may be reported by both hooks; count it once, by its preToolUse decision when present.
+  const deniedTaskCalls = subagentDenied.filter((entry) => entry.event === 'preToolUse').length
+    || subagentDenied.length;
+  const coverage = usageCoverage(cursorData, logUsage, streams, { deniedTaskCalls });
   const measured = logUsage.status === 'reported' ? logUsage : cliUsage;
   const usage = coverage.complete || measured.status !== 'reported' ? measured
     : { ...measured, status: 'incomplete', measured_status: measured.status };
   writeFileSync(path.join(runDir, 'final-answer.txt'), messageText);
   writeFileSync(path.join(runDir, 'decisions.json'), JSON.stringify({
-    decisions, unanswered, shell_guard: shellGuard,
+    decisions, unanswered, shell_guard: shellGuard, subagent_guard: subagentGuard,
   }, null, 2) + '\n');
   writeFileSync(path.join(runDir, 'run.json'), JSON.stringify({
     stage, mode: 'print', status, session_id: sessionId, error,
@@ -170,6 +183,7 @@ async function main() {
     started_at: startedAt, ended_at: new Date().toISOString(),
     turns,
     shell_denied: shellGuard.filter((entry) => entry.permission === 'deny').length,
+    subagent_denied: deniedTaskCalls,
     usage,
     usage_coverage: coverage,
     usage_cli_result: cliUsage,

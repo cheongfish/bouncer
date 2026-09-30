@@ -8,6 +8,15 @@
 상태를 점검한다. `vanilla`와 `bouncer-full`의 공통 작업 요청은 카드의
 `user_request`를 그대로 사용하고, 조건별 시작 지시를 별도 필드로 기록한다.
 
+평가자 정책은 과제마다 `<task-id>-evaluator-policy.json`으로 두며, bouncer-full 실행기는
+`--task`에 해당하는 정책이 없으면 시작하지 않는다. 정책의 `task_id`와 `base_commit`은
+과제 카드와 같아야 한다.
+`ledger-002`–`ledger-004` 정책은 `ledger-001` 정책에서 공통 규칙을 가져오고 과제 사실만 바꿨으며,
+2026-09-30에 승인됐다(`approval_record`). 과제의 사전 상태에 관한 질문은 `task_facts.task_questions`
+(질문 cue, 선호·배제 선택지 패턴)가 있을 때만 자동 응답하고, 그 답은 synthetic으로 기록한다. `ledger-001` 이후 정책은
+discovery 확인에 쓸 `task_facts.discovery_terms`와 재사용할 초안(`task_facts.reusable_draft`, 없으면
+`null`)을 반드시 적는다. `ledger-001` 정책은 이 필드가 생기기 전에 승인됐으므로 응답기가 그 값을
+코드에 보존한다.
 `ledger-001-evaluator-policy.json`은 첫 과제의 승인된 질문 응답 정책이다.
 질문이 실제로 도착했을 때만 해당 규칙을 평가하고, 조건이 맞지 않거나 규칙이
 없으면 실험을 중단한다. 승인 기록은 정책의 `approval_record`에 있다. 특히

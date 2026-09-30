@@ -19,7 +19,7 @@ const stages = new Map([
 function argsOf(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i += 2) {
-    const allowed = ['--stage', '--work-dir', '--session-cwd', '--run-dir', '--model', '--key-file', '--policy',
+    const allowed = ['--task', '--stage', '--work-dir', '--session-cwd', '--run-dir', '--model', '--key-file', '--policy',
       '--timeout-minutes'];
     if (!allowed.includes(argv[i])
       || !argv[i + 1] || out[argv[i]]) throw new Error(`invalid option: ${argv[i]}`);
@@ -29,6 +29,7 @@ function argsOf(argv) {
     if (!out[required]) throw new Error(`${required} is required`);
   }
   if (!stages.has(out['--stage'])) throw new Error('unknown stage');
+  out.taskId = out['--task'] ?? 'ledger-001';
   const minutes = Number(out['--timeout-minutes'] ?? 30);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) throw new Error('invalid timeout');
   out.timeoutMs = minutes * 60_000;

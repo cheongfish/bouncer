@@ -1,0 +1,38 @@
+diff --git a/README.md b/README.md
+index 7ce81cd..c7bad41 100644
+--- a/README.md
++++ b/README.md
+@@ -11,6 +11,8 @@ node src/cli.js summary --file data/entries.json --month 2026-01
+ npm test
+ ```
+ 
++`-f <path>` is a short form of `--file <path>`.
++
+ See [docs/commands.md](docs/commands.md) for every command and option.
+ 
+ ## Layout
+diff --git a/docs/commands.md b/docs/commands.md
+index 25ee06c..dc6afb8 100644
+--- a/docs/commands.md
++++ b/docs/commands.md
+@@ -1,6 +1,6 @@
+ # Commands
+ 
+-All commands read a JSON ledger given with `--file`. Options take one value each
++All commands read a JSON ledger given with `--file` (or its short form `-f`). Options take one value each
+ and may appear in any order. Unknown, duplicate, or valueless options are errors.
+ On any error the command prints a message to stderr, prints nothing to stdout, and
+ exits with status 1.
+diff --git a/src/commands/list.js b/src/commands/list.js
+index 574969d..b99683f 100644
+--- a/src/commands/list.js
++++ b/src/commands/list.js
+@@ -5,7 +5,7 @@ import { loadEntries } from '../storage.js';
+ const OPTIONS = { file: { required: true }, category: { required: false } };
+ 
+ export async function run(argv) {
+-  const options = parseOptions(argv, OPTIONS);
++  const options = parseOptions(argv.map((token) => (token === '-f' ? '--file' : token)), OPTIONS);
+   let entries = await loadEntries(options.file);
+   if (options.category !== undefined) {
+     entries = entries.filter((entry) => entry.category.startsWith(options.category));

@@ -1,0 +1,155 @@
+# CI test report — ledger-cli main — 2026-09-01T03:12:44Z
+$ npm test
+
+> ledger-cli-benchmark-fixture@0.2.0 test
+> node --test
+
+TAP version 13
+# Subtest: totalCents sums integer cents
+ok 1 - totalCents sums integer cents
+  ---
+  type: 'test'
+  ...
+# Subtest: summarizeByCategory groups and sorts by category
+ok 2 - summarizeByCategory groups and sorts by category
+  ---
+  type: 'test'
+  ...
+# Subtest: parseOptions reads options in any order
+ok 3 - parseOptions reads options in any order
+  ---
+  type: 'test'
+  ...
+# Subtest: parseOptions leaves optional options undefined
+ok 4 - parseOptions leaves optional options undefined
+  ---
+  type: 'test'
+  ...
+# Subtest: parseOptions rejects unknown options
+ok 5 - parseOptions rejects unknown options
+  ---
+  type: 'test'
+  ...
+# Subtest: parseOptions rejects duplicate options
+ok 6 - parseOptions rejects duplicate options
+  ---
+  type: 'test'
+  ...
+# Subtest: parseOptions rejects a missing value
+ok 7 - parseOptions rejects a missing value
+  ---
+  type: 'test'
+  ...
+# Subtest: parseOptions rejects a missing required option
+ok 8 - parseOptions rejects a missing required option
+  ---
+  type: 'test'
+  ...
+# Subtest: parseOptions rejects positional arguments
+ok 9 - parseOptions rejects positional arguments
+  ---
+  type: 'test'
+  ...
+# Subtest: list prints entries in input order
+ok 10 - list prints entries in input order
+  ---
+  type: 'test'
+  ...
+# Subtest: list filters by category
+ok 11 - list filters by category
+  ---
+  type: 'test'
+  ...
+# Subtest: total prints the sum in cents
+ok 12 - total prints the sum in cents
+  ---
+  type: 'test'
+  ...
+# Subtest: summary prints category rows and a total for one month
+ok 13 - summary prints category rows and a total for one month
+  ---
+  type: 'test'
+  ...
+# Subtest: summary prints a zero total for an empty month
+ok 14 - summary prints a zero total for an empty month
+  ---
+  type: 'test'
+  ...
+# Subtest: errors go to stderr with exit code 1 and no stdout
+ok 15 - errors go to stderr with exit code 1 and no stdout
+  ---
+  type: 'test'
+  ...
+# Subtest: formatRow joins values with tabs
+ok 16 - formatRow joins values with tabs
+  ---
+  type: 'test'
+  ...
+# Subtest: test/helpers.js
+ok 5 - test/helpers.js
+  ---
+  type: 'test'
+  ...
+# Subtest: parseMonth accepts real months
+ok 18 - parseMonth accepts real months
+  ---
+  type: 'test'
+  ...
+# Subtest: parseMonth rejects invalid months
+ok 19 - parseMonth rejects invalid months
+  ---
+  type: 'test'
+  ...
+# Subtest: isInMonth matches only the given month
+ok 20 - isInMonth matches only the given month
+  ---
+  type: 'test'
+  ...
+# Subtest: validateEntries accepts valid entries
+ok 21 - validateEntries accepts valid entries
+  ---
+  type: 'test'
+  ...
+# Subtest: validateEntries rejects a non-array ledger
+ok 22 - validateEntries rejects a non-array ledger
+  ---
+  type: 'test'
+  ...
+# Subtest: validateEntries rejects negative amounts
+ok 23 - validateEntries rejects negative amounts
+  ---
+  type: 'test'
+  ...
+# Subtest: validateEntries rejects fractional amounts
+ok 24 - validateEntries rejects fractional amounts
+  ---
+  type: 'test'
+  ...
+# Subtest: validateEntries rejects malformed dates
+ok 25 - validateEntries rejects malformed dates
+  ---
+  type: 'test'
+  ...
+# Subtest: validateEntries rejects empty categories
+ok 26 - validateEntries rejects empty categories
+  ---
+  type: 'test'
+  ...
+# Subtest: loadEntries reads a ledger file
+ok 27 - loadEntries reads a ledger file
+  ---
+  type: 'test'
+  ...
+# Subtest: loadJson reports unreadable files and invalid JSON
+ok 28 - loadJson reports unreadable files and invalid JSON
+  ---
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0

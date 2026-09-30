@@ -50,6 +50,8 @@ test('accepts only the approved benchmark policy version and choices', () => {
   assert.throws(() => loadPolicy(policyFile), /explicit user approval/);
   writeFileSync(policyFile, JSON.stringify({ ...approved, policy_version: 1 }));
   assert.throws(() => loadPolicy(policyFile), /unsupported evaluator policy/);
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: undefined }));
+  assert.throws(() => loadPolicy(policyFile), /unsupported evaluator policy/);
   rmSync(dir, { recursive: true });
 });
 
@@ -458,4 +460,94 @@ test('gate IDs are read only from a heading or title position', () => {
   assert.equal(gateIdOf('**AskUserQuestion:**'), null);
   assert.equal(gateIdOf('**AskUserQuestion — see plan.md**'), null);
   assert.equal(gateIdOf('**AskUserQuestion — Start drive**'), null);
+});
+
+test('checks discovery against the policy task terms instead of ledger-001 terms', () => {
+  const budget = { ...policy, task_facts: { ...policy.task_facts,
+    discovery_terms: ['budget', '--budgets', 'NO_BUDGET'], reusable_draft: null } };
+  const question = (goal) => [
+    goal,
+    '**AskUserQuestion — plan.discovery**',
+    '- A) Confirm framing as written (Recommended)',
+    '- B) Confirm framing, but revise',
+  ].join('\n');
+  const budgetGoal = 'Goal: add budget with --budgets; categories without a budget print NO_BUDGET.';
+  assert.equal(answerTextQuestion(budget, 'bouncer-plan', question(budgetGoal), '/nonexistent').reply, 'A');
+  const summaryGoal = 'Goal: add summary to cli.js with --file and --month YYYY-MM; print TOTAL. stderr exit 1; list total.';
+  assert.equal(answerTextQuestion(budget, 'bouncer-plan', question(summaryGoal), '/nonexistent'), null);
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', question(summaryGoal), '/nonexistent').reply, 'A');
+});
+
+test('requires later task policies to state their discovery terms and reusable draft', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
+  const policyFile = path.join(dir, 'policy.json');
+  const approved = require('../configs/ledger-001-evaluator-policy.json');
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002' }));
+  assert.throws(() => loadPolicy(policyFile), /discovery_terms and task_facts.reusable_draft/);
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002',
+    task_facts: { ...approved.task_facts, discovery_terms: ['budget'], reusable_draft: null } }));
+  assert.equal(loadPolicy(policyFile).task_id, 'ledger-002');
+  rmSync(dir, { recursive: true });
+});
+
+test('answers pre-task state questions from the task policy and marks them synthetic', () => {
+  const task = { ...policy, task_facts: { ...policy.task_facts,
+    task_questions: { cue: 'format\\.js|staged', prefer: 'leave|keep|그대로', deny: 'commit|discard|stash' } } };
+  const ask = (options) => ({ questions: [{ id: 'q1', prompt: 'src/format.js has staged changes. What should I do?',
+    options: options.map((label, index) => ({ id: String(index), label })) }] });
+  const keep = answerAskQuestion(task, 'bouncer-run', ask(['Commit them too', 'Leave them staged', 'Discard them']));
+  assert.deepEqual(keep.outcome.answers, [{ questionId: 'q1', selectedOptionIds: ['1'] }]);
+  assert.equal(keep.decisions[0].gate, 'task.pre_task_state');
+  assert.equal(keep.decisions[0].synthetic, true);
+  const first = answerAskQuestion(task, 'bouncer-run', ask(['Option one', 'Option two']));
+  assert.equal(first.decisions[0].basis, 'first_option');
+  assert.equal(answerAskQuestion(policy, 'bouncer-run', ask(['Leave them staged', 'Commit them'])), null);
+  const unrelated = { questions: [{ id: 'q1', prompt: 'Which database?', options: [{ id: 'a', label: 'x' }, { id: 'b', label: 'y' }] }] };
+  assert.equal(answerAskQuestion(task, 'bouncer-run', unrelated), null);
+});
+
+test('reads a heading-form AskUserQuestion and flags one it cannot read', () => {
+  const { acqMarkers, unreadQuestion } = require('./responder.cjs');
+  const heading = [
+    '퀴즈 **0/3** 기록·publish 완료. Finalize dry-run은 통과했습니다.',
+    '### AskUserQuestion — `finalize.remainder`',
+    '- **A)** `finalize --yes` 커밋 + worktree 제거 (Recommended)',
+    '- **B)** `finalize --yes` 커밋만 — worktree 유지',
+    '- **C)** 메시지/스테이징 수정 후 재확인',
+    '- **D)** 취소 — `--yes` 실행 안 함',
+  ].join('\n');
+  assert.equal(acqMarkers(heading).length, 1);
+  assert.equal(gateIdOf(acqMarkers(heading)[0][0]), 'finalize.remainder');
+  assert.equal(unreadQuestion(heading), false);
+  assert.equal(acqMarkers('**AskUserQuestion — plan.approval**\n- A) Approve').length, 1);
+  assert.equal(unreadQuestion('Please answer the AskUserQuestion above: A or B?'), true);
+  assert.equal(unreadQuestion('Done. No questions.'), false);
+});
+
+test('reads a trailing lettered choice without an AskUserQuestion marker as one question', () => {
+  const { acqMarkers } = require('./responder.cjs');
+  const text = [
+    '**Remainder dry-run** — clean. Integration complete (`openTasks: []`).',
+    '---',
+    '**Decision — remainder commit + worktree**',
+    '',
+    'Task commits are done; after close the execute/integration checkouts are usually unnecessary.',
+    '',
+    '- **A)** `finalize --yes` commit + remove worktrees *(Recommended)*',
+    '- **B)** `finalize --yes` commit only — keep worktrees',
+    '- **C)** Fix message/staging and re-check',
+    '- **D)** Cancel — do not run `--yes`',
+    '',
+    'Reply with **A**, **B**, **C**, or **D**.',
+  ].join('\n');
+  const markers = acqMarkers(text);
+  assert.equal(markers.length, 1);
+  assert.equal(markers[0][0], '**Decision — remainder commit + worktree**');
+  assert.equal(classifyGate('bouncer-finalize', markers[0][0]).gate, 'finalize.remainder');
+  // Options in the middle of a report, or with no reply instruction, are not a question.
+  assert.equal(acqMarkers(`${text}\n\nDone; nothing else to decide.`).length, 0);
+  assert.equal(acqMarkers('Plan:\n- A) parse\n- B) print').length, 0);
+  // A quiz keeps its own path.
+  const quiz = '**Quiz:** 2 questions.\n**Q1.** Why?\nA) x\nB) y\nC) z\n**Q2.** What?\nA) x\nB) y\nC) z\nReply with both answers (Q1: A, Q2: B).';
+  assert.equal(acqMarkers(quiz).length, 0);
 });

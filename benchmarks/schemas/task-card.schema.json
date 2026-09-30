@@ -5,7 +5,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "id", "set", "benchmark_version", "base_commit", "user_request",
+    "id", "set", "benchmark_version", "base_commit",
     "allowed_paths", "forbidden_paths", "failure_opportunities",
     "external_verifiers", "success_checklist", "manual_rubric", "evaluator_facts"
   ],
@@ -15,6 +15,11 @@
     "benchmark_version": { "type": "string", "minLength": 1 },
     "base_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "user_request": { "type": "string", "minLength": 1 },
+    "user_request_file": {
+      "description": "Request file relative to benchmarks/; its bytes are sent to the agent.",
+      "type": "string", "minLength": 1
+    },
+    "user_request_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "allowed_paths": { "$ref": "#/$defs/pathListNonempty" },
     "forbidden_paths": { "$ref": "#/$defs/pathList" },
     "failure_opportunities": {
@@ -30,6 +35,25 @@
         }
       }
     },
+    "workspace_setup": {
+      "description": "Pre-task state applied after clone, in order. Sources are relative to benchmarks/, targets to the task repository root.",
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object", "additionalProperties": false, "required": ["apply_index_patch"],
+            "properties": { "apply_index_patch": { "type": "string", "minLength": 1 } }
+          },
+          {
+            "type": "object", "additionalProperties": false, "required": ["copy", "to"],
+            "properties": {
+              "copy": { "type": "string", "minLength": 1 },
+              "to": { "type": "string", "minLength": 1 }
+            }
+          }
+        ]
+      }
+    },
     "external_verifiers": {
       "type": "array",
       "items": {
@@ -39,6 +63,7 @@
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "argv": {
+            "description": "Runs with benchmarks/ as the working directory. The runner replaces {submission_patch}, {final_repo}, {eval_dir}, and {result_json}; any other {name} stops the run.",
             "type": "array", "minItems": 1,
             "items": { "type": "string", "minLength": 1 }
           },
@@ -57,6 +82,15 @@
     }
   },
   "allOf": [
+    {
+      "oneOf": [
+        {
+          "required": ["user_request"],
+          "not": { "anyOf": [{ "required": ["user_request_file"] }, { "required": ["user_request_sha256"] }] }
+        },
+        { "required": ["user_request_file", "user_request_sha256"], "not": { "required": ["user_request"] } }
+      ]
+    },
     {
       "if": { "properties": { "set": { "const": "general" } } },
       "then": { "properties": { "failure_opportunities": { "maxItems": 0 } } }

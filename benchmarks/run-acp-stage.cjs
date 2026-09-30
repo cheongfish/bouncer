@@ -7,16 +7,19 @@ const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { setTimeout, clearTimeout } = require('node:timers');
 const { AcpClient } = require('./acp/client.cjs');
-const { loadPolicy, answerAskQuestion, answerTextQuestion, answerQuizText,
-  looksLikeQuizRequest, answerPermission } = require('./acp/responder.cjs');
+const { acqMarkers, loadPolicy, answerAskQuestion, answerTextQuestion, answerQuizText,
+  looksLikeQuizRequest, answerPermission, unreadQuestion } = require('./acp/responder.cjs');
 const { transcriptFiles, usageFromAcp, usageFromCursorLogs } = require('./usage.cjs');
 const { argsOf, stages } = require('./stage-args.cjs');
+const { loadCard } = require('./task-card.cjs');
 
 const root = __dirname;
 const compose = path.join(root, 'docker', 'compose.cursor.yaml');
 async function main() {
   const args = argsOf(process.argv.slice(2));
   const policy = loadPolicy(args['--policy']); // Fail before build or any paid request.
+  const task = loadCard(args.taskId);
+  if (policy.task_id !== task.card.id) throw new Error('policy task id mismatch');
   const policySha256 = createHash('sha256').update(readFileSync(args['--policy'])).digest('hex');
   const stage = args['--stage'];
   const runDir = args['--run-dir'];
@@ -26,8 +29,7 @@ async function main() {
   const cursorLogs = path.join(runDir, 'cursor-logs');
   mkdirSync(cursorLogs);
   const promptFile = path.join(runDir, 'prompt.txt');
-  const prd = readFileSync(path.join(root, 'tasks', 'ledger-001.prd.md'), 'utf8');
-  writeFileSync(promptFile, `${stages.get(stage)}\n\n${prd}`);
+  writeFileSync(promptFile, `${stages.get(stage)}\n\n${task.requestText}`);
   const env = {
     ...process.env,
     BENCH_WORKSPACE: args['--work-dir'], BENCH_PROMPT: promptFile, BENCH_RESULT_DIR: runDir,
@@ -125,8 +127,12 @@ async function main() {
         break;
       }
       if (unanswered.length) break;
-      const acq = /\*\*AskUserQuestion[^*]*\*\*/.test(turnText);
+      const acq = acqMarkers(turnText).length > 0;
       const quiz = stage === 'bouncer-finalize' && !acq && looksLikeQuizRequest(turnText);
+      if (!acq && !quiz && unreadQuestion(turnText)) {
+        unanswered.push({ at: new Date().toISOString(), method: 'text/unread-question', text: turnText });
+        break;
+      }
       if (!acq && !quiz) break;
       const decision = acq ? answerTextQuestion(policy, stage, turnText, args.sessionCwd)
         : answerQuizText(policy, stage, turnText);

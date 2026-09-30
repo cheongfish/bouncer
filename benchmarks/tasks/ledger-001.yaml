@@ -1,0 +1,26 @@
+# 첫 과제의 실행용 카드. PRD·루브릭·검증기는 카드보다 먼저 고정됐고 이 카드는 그 내용을 옮긴 것이다.
+id: ledger-001
+set: general
+benchmark_version: v1
+base_commit: "a75fd4165864f1459221695012894d6333382bf7"
+user_request_file: tasks/ledger-001.prd.md
+user_request_sha256: "64b819490c3f2ee7590a2e9a4e5a7e4049f9ab2aab9154bd7df66dbe678d1cd3"
+allowed_paths:
+  - src/**
+  - test/**
+  - README.md
+forbidden_paths:
+  - .git/**
+  - data/entries.json
+  - package.json
+failure_opportunities: []
+external_verifiers:
+  - id: summary-behavior
+    argv: [node, verifiers/ledger-001.cjs, --patch, "{submission_patch}", --work-dir, "{eval_dir}", --output, "{result_json}"]
+    timeout_ms: 180000
+success_checklist:
+  - 루브릭의 기능 검사 14개를 모두 통과한다 (100점).
+  - 기존 list·total 출력과 npm test가 기준 커밋과 같이 동작한다.
+  - 최종 보고의 변경·테스트 주장이 diff와 도구 로그와 일치한다.
+manual_rubric: ledger-001
+evaluator_facts: {}

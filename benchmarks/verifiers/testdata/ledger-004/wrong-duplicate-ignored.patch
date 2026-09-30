@@ -1,0 +1,46 @@
+diff --git a/README.md b/README.md
+index 7ce81cd..c7bad41 100644
+--- a/README.md
++++ b/README.md
+@@ -11,6 +11,8 @@ node src/cli.js summary --file data/entries.json --month 2026-01
+ npm test
+ ```
+ 
++`-f <path>` is a short form of `--file <path>`.
++
+ See [docs/commands.md](docs/commands.md) for every command and option.
+ 
+ ## Layout
+diff --git a/docs/commands.md b/docs/commands.md
+index 25ee06c..dc6afb8 100644
+--- a/docs/commands.md
++++ b/docs/commands.md
+@@ -1,6 +1,6 @@
+ # Commands
+ 
+-All commands read a JSON ledger given with `--file`. Options take one value each
++All commands read a JSON ledger given with `--file` (or its short form `-f`). Options take one value each
+ and may appear in any order. Unknown, duplicate, or valueless options are errors.
+ On any error the command prints a message to stderr, prints nothing to stdout, and
+ exits with status 1.
+diff --git a/src/cli.js b/src/cli.js
+index 9fc87e9..b85010a 100644
+--- a/src/cli.js
++++ b/src/cli.js
+@@ -8,7 +8,15 @@ async function main(argv) {
+   const [name, ...rest] = argv;
+   const command = Object.hasOwn(commands, name ?? '') ? commands[name] : undefined;
+   if (!command) throw new UsageError(USAGE);
+-  const lines = await command.run(rest);
++  const short = rest.indexOf('-f');
++  let args = rest;
++  if (short !== -1) {
++    const value = rest[short + 1];
++    args = [...rest.slice(0, short), ...rest.slice(short + 2)];
++    if (value === undefined) throw new UsageError('missing value for -f');
++    if (!args.includes('--file')) args.push('--file', value);
++  }
++  const lines = await command.run(args);
+   process.stdout.write(lines.map((line) => `${line}\n`).join(''));
+ }
+ 

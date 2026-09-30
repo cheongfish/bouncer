@@ -1,0 +1,34 @@
+# 검증할 것이 적은 작업의 절차 비용 기준선. 성공률이 높아도 본 실험에 유지한다.
+# 루브릭: rubrics/ledger-004.md (v1), 검증기: verifiers/ledger-004.cjs
+id: ledger-004
+set: general
+benchmark_version: ledger-v2-pilot-v1
+base_commit: "934cb3433f649447372f46051d703a5388384b72"
+user_request_file: tasks/ledger-004.prd.md
+user_request_sha256: "5391d288789c4f49d846f65296be226bfbea04f36b4a69e082e497ad3c823521"
+allowed_paths:
+  - src/**
+  - test/**
+  - README.md
+  - docs/commands.md
+  - CHANGELOG.md
+forbidden_paths:
+  - .git/**
+  - data/**
+  - package.json
+  - package-lock.json
+failure_opportunities: []
+external_verifiers:
+  - id: short-file-option
+    argv: [node, verifiers/ledger-004.cjs, --patch, "{submission_patch}", --work-dir, "{eval_dir}", --output, "{result_json}"]
+    timeout_ms: 120000
+success_checklist:
+  - list·total·summary에서 -f가 --file과 같이 동작한다.
+  - -f 값 누락과 -f·--file 동시 사용이 종료 코드 1, 빈 stdout으로 끝난다.
+  - 기존 --file 출력과 npm test가 기준 커밋과 같이 동작한다.
+  - README.md와 docs/commands.md에 -f가 반영됐다.
+  - 허용 범위 밖의 변경이 없다.
+manual_rubric: ledger-004
+evaluator_facts:
+  commit: 커밋은 하지 않아도 됩니다. 변경을 작업 트리에 남겨 주세요.
+  other_short_options: 다른 옵션의 짧은 형태는 이번에 추가하지 않습니다.

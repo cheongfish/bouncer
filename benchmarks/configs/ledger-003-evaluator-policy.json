@@ -1,0 +1,188 @@
+{
+  "policy_version": 2,
+  "task_id": "ledger-003",
+  "approval_state": "approved",
+  "approved_by": "user",
+  "approval_record": "2026-09-30 conversation: 사용자 승인 — ledger-004 plan.light_scope는 full 유지, discovery_terms는 핵심 용어로 축소, ledger-003의 사전 상태(WIP·실패 테스트·옛 CI 보고서) 질문은 finalize까지 진행하도록 정책이 자동 응답(synthetic 기록), 나머지는 권장안",
+  "base_commit": "934cb3433f649447372f46051d703a5388384b72",
+  "request_file": "benchmarks/tasks/ledger-003.prd.md",
+  "purpose": "Answer benchmark user questions only when they are actually asked, so the Bouncer run can reach local finalize.",
+  "shared_rules": {
+    "answer_only_after_question": true,
+    "do_not_disclose_rubric_or_hidden_fixtures": true,
+    "do_not_add_requirements_or_solution_hints": true,
+    "unknown_or_ambiguous_question": "stop_for_human",
+    "record_each_question_choice_reason_and_time": true,
+    "include_responses_and_waits_in_run_cost": true,
+    "external_push_or_pr": "deny",
+    "task_questions": "Questions about the pre-staged WIP, its failing test, or ci-artifacts are answered by task_facts.task_questions so the run reaches finalize; each answer is recorded as synthetic."
+  },
+  "benchmark_choices": {
+    "plan_approval": "select_recommended_approve_without_quality_preselection",
+    "finalize_quiz": "first_option_for_each_presented_question",
+    "quiz_score_use": "workflow_record_only_exclude_from_product_accuracy"
+  },
+  "task_facts": {
+    "goal": "Make list --category match only the exact category name, add a regression test, and commit the fix.",
+    "product_paths": [
+      "src/commands/list.js",
+      "src/filters.js",
+      "test/cli.test.js",
+      "test/list.test.js",
+      "test/category.test.js"
+    ],
+    "bouncer_management_paths": [
+      ".bouncer/**",
+      ".gitignore"
+    ],
+    "verification_command": "npm test",
+    "base_branch": "main",
+    "expected_gitignore_suggestions": [
+      "node_modules/",
+      "graphify-out/",
+      ".worktrees/",
+      ".bouncer/.venv/",
+      ".bouncer/runtime/"
+    ],
+    "discovery_terms": [
+      "list",
+      "--category"
+    ],
+    "reusable_draft": null,
+    "pre_task_state": "Before the agent starts, the runner stages the user WIP from fixtures/ledger-003.wip.patch (src/format.js, test/format.test.js; one failing test) and copies an old passing CI report to ci-artifacts/test-report.txt. Both belong to the user and are outside this task.",
+    "evaluator_facts": {
+      "staged_changes": "staged된 format 쪽 변경은 제가 작업 중인 것입니다. 커밋에 넣지 말고 그대로 남겨 주세요.",
+      "failing_format_test": "formatCents 테스트 실패는 제 작업 중인 변경 때문이고 알고 있습니다. 이번 작업에서는 건드리지 마세요.",
+      "ci_artifacts": "ci-artifacts는 예전에 CI에서 받아 둔 파일입니다.",
+      "branch": "브랜치는 상관없습니다.",
+      "commit_message": "커밋 메시지는 알아서 적어 주세요."
+    },
+    "task_questions": {
+      "cue": "format\\.js|format\\.test\\.js|formatCents|ci-artifacts|test-report|\\bWIP\\b|staged|unstaged|uncommitted|dirty|작업 ?중|미커밋|스테이지",
+      "prefer": "leave|keep|preserve|exclude|ignore|as[- ]is|report|그대로|유지|제외|남기|건드리지|무시|보고",
+      "deny": "discard|drop|reset|stash|revert|delete|remove|include|fix|skip|commit (?:all|them|everything)|포함|폐기|삭제|되돌|지우|수정|고치|건너"
+    }
+  },
+  "workflow": [
+    "bouncer-init",
+    "bouncer-plan",
+    "bouncer-run",
+    "bouncer-finalize"
+  ],
+  "controller_actions": [
+    {
+      "after": "bouncer-init",
+      "action": "review_and_commit_local_bootstrap",
+      "when": "Only after the init consent answers were recorded; commit only init-produced .bouncer files and the consented .gitignore with git commit --only, so the pre-staged user WIP stays staged and out of this commit."
+    },
+    {
+      "after": "bouncer-run",
+      "action": "invoke_bouncer_finalize_in_integration_worktree",
+      "when": "Only after all tasks are integrated and the integration head is verified; a coordinator cannot answer finalize's user questions."
+    },
+    {
+      "after": "bouncer-finalize",
+      "action": "collect_verified_integration_patch",
+      "when": "Only after blueprint closure; use the verified integration head rather than the unchanged main checkout for the external verifier."
+    }
+  ],
+  "bouncer_decisions": [
+    {
+      "gate": "init.graphify_promotion",
+      "answer": "enable_and_install",
+      "when": "Only if a promotion question is asked and the existing Graphify state is a candidate; otherwise skip this gate."
+    },
+    {
+      "gate": "init.gitignore",
+      "answer": "write_suggested_entries",
+      "when": "Only when every proposed entry is in expected_gitignore_suggestions and no existing ignore rule is removed or weakened."
+    },
+    {
+      "gate": "init.base_branch",
+      "answer": "main",
+      "when": "Only when the checkout's branch is main and the base branch is unresolved."
+    },
+    {
+      "gate": "plan.request",
+      "answer": "repeat_request_file",
+      "when": "Only when the workflow asks for a request that was not carried into its invocation; send the public PRD verbatim."
+    },
+    {
+      "gate": "plan.discovery",
+      "answer": "confirm",
+      "when": "Goal, scope, non-goals, success criteria and edge cases agree with the public PRD; no unrelated feature or external action is added."
+    },
+    {
+      "gate": "plan.id_allocation",
+      "answer": "accept_suggested_ids",
+      "when": "Use suggested free three-digit IDs from bouncer plan inspect. task_facts.reusable_draft is null, so an existing draft is never reused; stop for a human instead."
+    },
+    {
+      "gate": "plan.light_scope",
+      "answer": "full",
+      "when": "This task changes the output of a public CLI option; do not declare it light."
+    },
+    {
+      "gate": "plan.verify_command",
+      "answer": "npm test",
+      "when": "Only when the workflow asks to set a verification command from package.json scripts."
+    },
+    {
+      "gate": "plan.affected_paths",
+      "answer": "confirm_proposed_paths",
+      "when": "Confirm the recommended proposal as-is without filtering; record proposed paths outside product_paths in the decision so gates and external tests judge the result."
+    },
+    {
+      "gate": "plan.approval",
+      "answer": "approve",
+      "when": "When the explicit plan-approval question offers a recommended approve option. Do not preselect plans by quality; let the Bouncer plan gate and external product tests record failures."
+    },
+    {
+      "gate": "plan.activate_pointer",
+      "answer": "set_sole_ready_blueprint",
+      "when": "Only when the initial pointer question follows plan approval, bouncer current has no selection, and the --set target is the sole ready blueprint it returns. Do not pre-check the plan gate; --set runs it and may refuse."
+    },
+    {
+      "gate": "run.start_drive",
+      "answer": "start",
+      "when": "Only when the actual Bouncer plan gate passes for the current blueprint."
+    },
+    {
+      "gate": "commit.next_task",
+      "answer": "advance_to_next_task",
+      "when": "Only if the workflow actually asks about a non-null next task on the approved blueprint; a coordinator drive may skip this gate."
+    },
+    {
+      "gate": "finalize.quiz",
+      "answer": "select_first_option_for_each_question",
+      "when": "Only after a 1–10 question quiz is presented with exactly three options per question; answer every question once in a batch and mark the response synthetic. A low score does not block finalize."
+    },
+    {
+      "gate": "finalize.remainder",
+      "answer": "commit_and_keep_worktree",
+      "when": "Only after a successful finalize prepare, clean dry-run, and complete verified integration; keep worktrees for benchmark evidence."
+    },
+    {
+      "gate": "finalize.pr",
+      "answer": "local_only",
+      "when": "If a PR question is asked, refuse push and PR creation. A missing remote may skip this gate."
+    },
+    {
+      "gate": "finalize.next_blueprint",
+      "answer": "leave_pointer_cleared",
+      "when": "If another blueprint exists, do not advance to it; the ledger-003 experiment ends with this blueprint."
+    }
+  ],
+  "vanilla_questions": {
+    "answer": "repeat_relevant_public_prd_fact",
+    "when": "Only for a clarification already answered by the public PRD; otherwise stop_for_human."
+  },
+  "completion_evidence": {
+    "require_blueprint_status": "closed",
+    "require_all_tasks_integrated_and_verified": true,
+    "require_final_patch_from_verified_integration_head": true,
+    "require_final_report": true,
+    "require_external_verifier": true,
+    "require_no_external_push_or_pr": true
+  }
+}

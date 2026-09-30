@@ -68,9 +68,27 @@ function planGateEvidence(workDir) {
   return bouncerJson(workDir, ['validate', '--blueprint', blueprint, '--gate', 'plan'])?.ok === true;
 }
 
+// ledger-001's approved policy predates `discovery_terms` and `reusable_draft`; these are its values.
+// Every later task's policy must state its own (loadPolicy enforces it).
+const LEDGER_001_FACTS = {
+  discovery_terms: ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1', 'list', 'total', 'cli.js'],
+  reusable_draft: { epic: '001-monthly-summary', blueprint: '001-summary-command' },
+};
+
+function taskFact(policy, name) {
+  return Object.hasOwn(policy.task_facts ?? {}, name) ? policy.task_facts[name] : LEDGER_001_FACTS[name];
+}
+
 function loadPolicy(file) {
   const policy = JSON.parse(readFileSync(file, 'utf8'));
-  if (policy.policy_version !== 2 || policy.task_id !== 'ledger-001') throw new Error('unsupported evaluator policy');
+  // Each task has its own approved policy; runners match task_id against the task card they run.
+  if (policy.policy_version !== 2 || !/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(policy.task_id ?? '')) {
+    throw new Error('unsupported evaluator policy');
+  }
+  if (policy.task_id !== 'ledger-001' && (!Array.isArray(policy.task_facts?.discovery_terms)
+    || !policy.task_facts.discovery_terms.length || !Object.hasOwn(policy.task_facts, 'reusable_draft'))) {
+    throw new Error('evaluator policy must state task_facts.discovery_terms and task_facts.reusable_draft');
+  }
   if (policy.approval_state !== 'approved') {
     throw new Error('evaluator policy is proposed; explicit user approval is required before sending gate answers');
   }
@@ -148,11 +166,9 @@ const gates = [
     },
     reason: 'all expected entries present' },
   { gate: 'plan.discovery', phase: 'bouncer-plan', cue: /discover(?:y)?|핸드오프|handoff/i,
-    decide({ prompt, context, options }) {
+    decide({ policy, prompt, context, options }) {
       const facts = `${context} ${prompt}`;
-      const required = ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1',
-        'list', 'total', 'cli.js'];
-      if (!required.every((term) => facts.includes(term))
+      if (!taskFact(policy, 'discovery_terms').every((term) => facts.includes(term))
         || /\b(?:deploy|database migration|git push|pull request)\b/i.test(facts)) return null;
       return chooseProceed(options, {
         legacy: /confirm discovery|discovery.*confirm|confirm framing|초안.*확정|framing 승인|프레이밍.*승인|프레이밍으로 진행/i,
@@ -160,7 +176,7 @@ const gates = [
     },
     reason: 'public PRD facts are present' },
   { gate: 'plan.id_allocation', phase: 'bouncer-plan', cue: /\bID allocation\b|ID 할당|suggested.*epic|권장.*ID|^IDs?$/im,
-    decide({ options, workDir }) {
+    decide({ policy, options, workDir }) {
       if (!workDir) return null;
       const epicRoot = path.join(workDir, '.bouncer', 'context', 'epics');
       const existing = existsSync(epicRoot) ? readdirSync(epicRoot) : [];
@@ -168,9 +184,14 @@ const gates = [
         return chooseProceed(options, { require: /\b001\b|suggested|권장|제안/i, deny: /\b(?!001\b)\d{3}\b/,
           legacy: /001|suggested|권장/i, legacyDeny: /revise|override|change|수정|다른\s*id/i });
       }
-      const reuse = path.join(epicRoot, '001-monthly-summary', 'blueprints', '001-summary-command', 'index.md');
-      if (existing.length !== 1 || existing[0] !== '001-monthly-summary' || !existsSync(reuse)) return null;
-      const option = labelMatch(options, /(?=.*(?:reuse|재사용))(?=.*001-monthly-summary)(?=.*001-summary-command)/i);
+      // A retried plan stage may find the draft an earlier attempt left; reuse only that known draft.
+      const draft = taskFact(policy, 'reusable_draft');
+      if (!draft) return null;
+      const reuse = path.join(epicRoot, draft.epic, 'blueprints', draft.blueprint, 'index.md');
+      if (existing.length !== 1 || existing[0] !== draft.epic || !existsSync(reuse)) return null;
+      const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const option = labelMatch(options,
+        new RegExp(`(?=.*(?:reuse|재사용))(?=.*${escape(draft.epic)})(?=.*${escape(draft.blueprint)})`, 'i'));
       return option ? { option, basis: 'content', reason: 'reuse the sole existing benchmark draft' } : null;
     },
     reason: 'first IDs free' },
@@ -258,9 +279,29 @@ function classifyGate(phase, cueText) {
   return gates.find((candidate) => candidate.phase === phase && candidate.cue.test(cueText)) ?? null;
 }
 
+// A task policy may answer questions about its pre-task state (ledger-003's staged user WIP) so the run
+// can reach finalize. Only questions matching `cue` are answered: the one option matching `prefer` and
+// not `deny`, otherwise the first option. Every such answer is marked synthetic in the decision record.
+function decideTaskQuestion(policy, question) {
+  const rule = policy.task_facts?.task_questions;
+  const options = question.options ?? [];
+  // Only the question itself: earlier turn text may mention the WIP without this question being about it.
+  const text = `${question.heading ?? ''} ${question.prompt ?? ''}`;
+  if (!rule || options.length < 2 || !new RegExp(rule.cue, 'i').test(text)) return null;
+  const preferred = labelMatch(options, new RegExp(rule.prefer, 'i'), new RegExp(rule.deny, 'i'));
+  const option = preferred ?? options[0];
+  return { gate: 'task.pre_task_state', identified_by: 'task_cue', optionId: option.id, synthetic: true,
+    basis: preferred ? 'prefer' : 'first_option',
+    reason: `pre-task state question answered by policy (${preferred ? 'keeps the user work' : 'first option'})` };
+}
+
+function decideQuestion(policy, phase, question, workDir) {
+  return decideGateQuestion(policy, phase, question, workDir) ?? decideTaskQuestion(policy, question);
+}
+
 // A question belongs to the first gate whose cue matches; a gate that cannot decide stops for a human
 // instead of letting a later gate claim the question.
-function decideQuestion(policy, phase, question, workDir) {
+function decideGateQuestion(policy, phase, question, workDir) {
   const options = question.options ?? [];
   const prompt = `${question.prompt ?? ''} ${options.map((o) => o.label).join(' ')}`;
   if (phase === 'bouncer-finalize' && /quiz|퀴즈|\bQ\s*\d+\b|문항\s*\d+/i.test(prompt) && options.length === 3
@@ -326,7 +367,7 @@ function answerAskQuestion(policy, phase, params, workDir) {
 // A quiz request lists numbered questions; a closing summary that only mentions the quiz score does not.
 function looksLikeQuizRequest(text) {
   return /\bquiz\b|퀴즈/i.test(text) && /^[\s#>*-]*(?:\*\*)?(?:Q\s*\d+|문항\s*\d+)\b/im.test(text)
-    && /답(?:변|해|을)|응답|선택|answer(?:s)?\s*[:：]|answer\s+(?:all|the|these|each|every)\b|(?:please\s+)?(?:reply|respond|provide)\s+(?:with\s+)?(?:(?:your|all)\s+)?answers?/i.test(text);
+    && /답(?:변|해|을)|응답|선택|answer(?:s)?\s*[:：]|answer\s+(?:all|the|these|each|every)\b|(?:please\s+)?(?:reply|respond|provide)\s+(?:with\s+)?(?:(?:your|all|both|the)\s+)?answers?/i.test(text);
 }
 
 function answerQuizText(policy, phase, text) {
@@ -373,8 +414,55 @@ function optionGroups(block) {
   return groups.filter((group) => group.options.length >= 2);
 }
 
+// rules/acq.md asks for a bold `**AskUserQuestion — <gate-id>**` line; agents sometimes write it as a
+// Markdown heading (`### AskUserQuestion — \`finalize.remainder\``) instead. Both open a question.
+const ACQ_MARKER = /\*\*AskUserQuestion[^*\n]*\*\*|^#{1,6}[ \t]+AskUserQuestion\b[^\n]*$/gm;
+
+// Option lines such as `- **A)** ...`, `A) ...`, or `- A) ...`.
+const OPTION_LINE = /^\s*(?:[-*]\s*)?(?:\*\*)?[A-Z]\)(?:\*\*)?\s*\S/;
+const REPLY_CUE = /reply with|answer with|choose|select|pick|답(?:해|변)|선택|골라/i;
+
+const TITLE_LINE = /^\s*(?:#{1,6}\s+\S.*|\*\*[^*\n]+\*\*\s*)$/;
+
+// Agents also end a turn with a lettered choice under some other title (`**Decision — remainder ...**`).
+// Without an AskUserQuestion marker, the last run of two or more option lines followed only by a reply
+// instruction counts as one question. Its marker is the nearest bold or heading title within the five
+// non-empty lines above the options, else the nearest non-empty line. Quiz requests keep their own path.
+function trailingQuestion(text) {
+  if (looksLikeQuizRequest(text)) return null;
+  const lines = text.split('\n');
+  let last = lines.length - 1;
+  while (last >= 0 && (!lines[last].trim() || (REPLY_CUE.test(lines[last]) && !OPTION_LINE.test(lines[last])))) last--;
+  let first = last;
+  while (first >= 0 && (OPTION_LINE.test(lines[first]) || !lines[first].trim())) first--;
+  const options = lines.slice(first + 1, last + 1).filter((line) => OPTION_LINE.test(line));
+  const after = lines.slice(last + 1).join('\n');
+  if (options.length < 2 || !REPLY_CUE.test(after) || first < 0) return null;
+  let marker = first;
+  for (let line = first, seen = 0; line >= 0 && seen < 5; line--) {
+    if (!lines[line].trim()) continue;
+    seen++;
+    if (TITLE_LINE.test(lines[line])) { marker = line; break; }
+  }
+  const index = lines.slice(0, marker).reduce((sum, line) => sum + line.length + 1, 0);
+  return Object.assign([lines[marker]], { index });
+}
+
+function acqMarkers(text) {
+  const markers = [...text.matchAll(ACQ_MARKER)];
+  if (markers.length) return markers;
+  const trailing = trailingQuestion(text);
+  return trailing ? [trailing] : [];
+}
+
+// Text that names AskUserQuestion but has no marker the responder can read must stop for a human
+// rather than end the stage as if nothing was asked.
+function unreadQuestion(text) {
+  return /AskUserQuestion/.test(text) && acqMarkers(text).length === 0;
+}
+
 function answerTextQuestion(policy, phase, text, workDir) {
-  const markers = [...text.matchAll(/\*\*AskUserQuestion[^*]*\*\*/g)];
+  const markers = acqMarkers(text);
   if (!markers.length) return null;
   const decisions = [];
   for (let index = 0; index < markers.length; index++) {
@@ -420,5 +508,5 @@ function answerPermission(params) {
   return { outcome: { outcome: 'selected', optionId: allow[0].optionId }, reason: 'local tool call' };
 }
 
-module.exports = { finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
+module.exports = { acqMarkers, unreadQuestion, finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
   looksLikeQuizRequest, answerPermission };

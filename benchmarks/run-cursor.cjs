@@ -7,14 +7,12 @@ const path = require('node:path');
 const { transcriptFiles, usageCoverage, usageFromCursorLogs, usageFromCursorStream } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
+const { applyWorkspaceSetup, loadRunnableCard, taskRecord } = require('./task-card.cjs');
 const { clearTimeout, setTimeout } = require('node:timers');
 
 const root = __dirname;
 const projectRoot = path.resolve(root, '..');
 const composeFile = path.join(root, 'docker', 'compose.cursor.yaml');
-const bundle = path.join(root, 'fixtures', 'ledger-cli.bundle');
-const prd = path.join(root, 'tasks', 'ledger-001.prd.md');
-const baseCommit = 'a75fd4165864f1459221695012894d6333382bf7';
 
 function fail(message) {
   throw new Error(message);
@@ -25,7 +23,7 @@ function options(argv) {
   for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i];
     const value = argv[i + 1];
-    if (!['--condition', '--model', '--key-file', '--run-id', '--timeout-minutes', '--dry-run',
+    if (!['--task', '--condition', '--model', '--key-file', '--run-id', '--timeout-minutes', '--dry-run',
       '--keep-workspace'].includes(key)
       || !value || parsed[key]) fail(`unknown or duplicate option: ${key}`);
     parsed[key] = value;
@@ -41,6 +39,7 @@ function options(argv) {
   const minutes = Number(parsed['--timeout-minutes'] ?? '30');
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) fail('--timeout-minutes must be 1..240');
   parsed.timeoutMs = minutes * 60_000;
+  parsed.taskId = parsed['--task'] ?? 'ledger-001';
   parsed.runId = parsed['--run-id'] ?? `${Date.now()}-${parsed['--condition']}`;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,80}$/.test(parsed.runId)) fail('invalid --run-id');
   if (parsed['--key-file']) {
@@ -110,6 +109,8 @@ function parseCursorStream(jsonl) {
 
 async function main() {
   const config = options(process.argv.slice(2));
+  const task = loadRunnableCard(config.taskId);
+  const baseCommit = task.card.base_commit;
   const runDir = path.join(root, 'runs', config.runId);
   const workDir = path.join(projectRoot, '.benchmarks', 'work', config.runId);
   if (existsSync(runDir) || existsSync(workDir)) fail(`run already exists: ${config.runId}`);
@@ -118,13 +119,14 @@ async function main() {
   mkdirSync(cursorData);
   const cursorLogs = path.join(runDir, 'cursor-logs');
   mkdirSync(cursorLogs);
-  command('git', ['clone', '--quiet', bundle, workDir]);
+  command('git', ['clone', '--quiet', task.bundle, workDir]);
   if (command('git', ['-C', workDir, 'rev-parse', 'HEAD']).trim() !== baseCommit) fail('baseline commit mismatch');
   command('git', ['-C', workDir, 'config', 'user.name', 'Benchmark Agent']);
   command('git', ['-C', workDir, 'config', 'user.email', 'benchmark@local.invalid']);
+  const workspaceSetup = applyWorkspaceSetup(workDir, task.card);
 
   const condition = config['--condition'];
-  const commonRequest = readFileSync(prd, 'utf8').trim();
+  const commonRequest = task.requestText.trim();
   const service = condition === 'bouncer-full' ? 'bouncer' : 'vanilla';
   const prompt = condition === 'bouncer-full'
     ? [
@@ -155,14 +157,14 @@ async function main() {
   };
   const record = {
     run_id: config.runId,
-    task_id: 'ledger-001',
+    ...taskRecord(task),
     condition,
     plugin_version: condition === 'bouncer-full'
       ? JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).version
       : null,
     model: config['--model'],
-    base_commit: baseCommit,
     ...sourceProvenance(projectRoot),
+    workspace_setup: workspaceSetup,
     workspace: workDir,
     prepared_at: new Date().toISOString(),
     started_at: null,
@@ -224,8 +226,8 @@ async function main() {
   saveJson(path.join(runDir, 'run.json'), record);
 
   const verifierResult = await streamCompose(
-    ['run', '--rm', '--no-deps', '--name', `cursor-bench-${config.runId}-verify`, 'verifier'], env,
-    path.join(runDir, 'verifier.stdout.json'), path.join(runDir, 'verifier.stderr.log'), 180_000,
+    ['run', '--rm', '--no-deps', '--name', `cursor-bench-${config.runId}-verify`, ...task.verifier.composeArgs], env,
+    path.join(runDir, 'verifier.stdout.json'), path.join(runDir, 'verifier.stderr.log'), task.verifier.timeoutMs,
     `cursor-bench-${config.runId}-verify`,
   );
   record.verifier = verifierResult;

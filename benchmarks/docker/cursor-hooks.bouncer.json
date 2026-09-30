@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [{ "command": "/usr/local/bin/benchmark-shell-guard" }],
+    "preToolUse": [{ "command": "/usr/local/bin/benchmark-subagent-guard", "matcher": "^([Tt]ask|CallDynamicTool)$" }],
+    "subagentStart": [{ "command": "/usr/local/bin/benchmark-subagent-guard" }]
+  }
+}
