@@ -1,7 +1,7 @@
 # ledger-v2 파일럿 과제 설계 (초안)
 
-상태: 초안 — 기준 프로젝트 v2, 카드 계약, 세 과제의 루브릭·검증기 완료. 새 과제의 평가자 정책
-미작성. 실행 결과 없음.
+상태: 초안 — 기준 프로젝트 v2, 카드 계약, 세 과제의 루브릭·검증기 완료. 새 과제의 평가자 정책은
+초안(`proposed`)이며 사용자 승인 전이다. 실행 결과 없음.
 실행 결과 없음.
 
 `ledger-001`은 107줄짜리 기준 프로젝트에서 한 파일에 명령 하나를 추가하는 과제라
@@ -102,9 +102,10 @@ staged WIP를 가져가지 않는다.
 verifier 자리표시자 규칙, 사전 상태 필드(`workspace_setup`). 계약은 [README](../README.md)의
 "과제 카드 계약"에 있다.
 
-1. **새 과제의 평가자 정책:** bouncer-full은 `configs/<task-id>-evaluator-policy.json`이 있어야
-   시작한다. 정책은 사용자가 승인한 응답 기록이므로 자동으로 만들지 않는다. `ledger-002`–`004`
-   정책을 작성해 승인받아야 bouncer-full로 실행할 수 있다.
+1. **새 과제의 평가자 정책:** `configs/ledger-00{2,3,4}-evaluator-policy.json` 초안이 있다.
+   `proposed` 상태라 응답기가 거부하며, 사용자가 승인해야 bouncer-full로 실행할 수 있다.
+   `ledger-003`에서 WIP·실패 테스트·옛 CI 보고서에 관한 질문은 자동 응답하지 않고 사람이
+   카드의 `evaluator_facts`로만 답한다.
 2. **vanilla의 diff 수집과 `{final_repo}`:** `run-cursor.cjs`는 diff를 만들려고 `git add -N --all`을
    실행한 뒤 verifier를 돌린다. 추적되지 않은 파일이 intent-to-add로 index에 들어가므로
    `ledger-003` 검증기는 WIP 두 파일의 index 내용만 비교하고 index 전체를 비교하지 않는다.

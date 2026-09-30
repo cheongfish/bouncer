@@ -68,11 +68,26 @@ function planGateEvidence(workDir) {
   return bouncerJson(workDir, ['validate', '--blueprint', blueprint, '--gate', 'plan'])?.ok === true;
 }
 
+// ledger-001's approved policy predates `discovery_terms` and `reusable_draft`; these are its values.
+// Every later task's policy must state its own (loadPolicy enforces it).
+const LEDGER_001_FACTS = {
+  discovery_terms: ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1', 'list', 'total', 'cli.js'],
+  reusable_draft: { epic: '001-monthly-summary', blueprint: '001-summary-command' },
+};
+
+function taskFact(policy, name) {
+  return Object.hasOwn(policy.task_facts ?? {}, name) ? policy.task_facts[name] : LEDGER_001_FACTS[name];
+}
+
 function loadPolicy(file) {
   const policy = JSON.parse(readFileSync(file, 'utf8'));
   // Each task has its own approved policy; runners match task_id against the task card they run.
   if (policy.policy_version !== 2 || !/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(policy.task_id ?? '')) {
     throw new Error('unsupported evaluator policy');
+  }
+  if (policy.task_id !== 'ledger-001' && (!Array.isArray(policy.task_facts?.discovery_terms)
+    || !policy.task_facts.discovery_terms.length || !Object.hasOwn(policy.task_facts, 'reusable_draft'))) {
+    throw new Error('evaluator policy must state task_facts.discovery_terms and task_facts.reusable_draft');
   }
   if (policy.approval_state !== 'approved') {
     throw new Error('evaluator policy is proposed; explicit user approval is required before sending gate answers');
@@ -151,11 +166,9 @@ const gates = [
     },
     reason: 'all expected entries present' },
   { gate: 'plan.discovery', phase: 'bouncer-plan', cue: /discover(?:y)?|핸드오프|handoff/i,
-    decide({ prompt, context, options }) {
+    decide({ policy, prompt, context, options }) {
       const facts = `${context} ${prompt}`;
-      const required = ['summary', '--file', '--month', 'YYYY-MM', 'TOTAL', 'stderr', 'exit 1',
-        'list', 'total', 'cli.js'];
-      if (!required.every((term) => facts.includes(term))
+      if (!taskFact(policy, 'discovery_terms').every((term) => facts.includes(term))
         || /\b(?:deploy|database migration|git push|pull request)\b/i.test(facts)) return null;
       return chooseProceed(options, {
         legacy: /confirm discovery|discovery.*confirm|confirm framing|초안.*확정|framing 승인|프레이밍.*승인|프레이밍으로 진행/i,
@@ -163,7 +176,7 @@ const gates = [
     },
     reason: 'public PRD facts are present' },
   { gate: 'plan.id_allocation', phase: 'bouncer-plan', cue: /\bID allocation\b|ID 할당|suggested.*epic|권장.*ID|^IDs?$/im,
-    decide({ options, workDir }) {
+    decide({ policy, options, workDir }) {
       if (!workDir) return null;
       const epicRoot = path.join(workDir, '.bouncer', 'context', 'epics');
       const existing = existsSync(epicRoot) ? readdirSync(epicRoot) : [];
@@ -171,9 +184,14 @@ const gates = [
         return chooseProceed(options, { require: /\b001\b|suggested|권장|제안/i, deny: /\b(?!001\b)\d{3}\b/,
           legacy: /001|suggested|권장/i, legacyDeny: /revise|override|change|수정|다른\s*id/i });
       }
-      const reuse = path.join(epicRoot, '001-monthly-summary', 'blueprints', '001-summary-command', 'index.md');
-      if (existing.length !== 1 || existing[0] !== '001-monthly-summary' || !existsSync(reuse)) return null;
-      const option = labelMatch(options, /(?=.*(?:reuse|재사용))(?=.*001-monthly-summary)(?=.*001-summary-command)/i);
+      // A retried plan stage may find the draft an earlier attempt left; reuse only that known draft.
+      const draft = taskFact(policy, 'reusable_draft');
+      if (!draft) return null;
+      const reuse = path.join(epicRoot, draft.epic, 'blueprints', draft.blueprint, 'index.md');
+      if (existing.length !== 1 || existing[0] !== draft.epic || !existsSync(reuse)) return null;
+      const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const option = labelMatch(options,
+        new RegExp(`(?=.*(?:reuse|재사용))(?=.*${escape(draft.epic)})(?=.*${escape(draft.blueprint)})`, 'i'));
       return option ? { option, basis: 'content', reason: 'reuse the sole existing benchmark draft' } : null;
     },
     reason: 'first IDs free' },

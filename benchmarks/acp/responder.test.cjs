@@ -461,3 +461,31 @@ test('gate IDs are read only from a heading or title position', () => {
   assert.equal(gateIdOf('**AskUserQuestion — see plan.md**'), null);
   assert.equal(gateIdOf('**AskUserQuestion — Start drive**'), null);
 });
+
+test('checks discovery against the policy task terms instead of ledger-001 terms', () => {
+  const budget = { ...policy, task_facts: { ...policy.task_facts,
+    discovery_terms: ['budget', '--budgets', 'NO_BUDGET'], reusable_draft: null } };
+  const question = (goal) => [
+    goal,
+    '**AskUserQuestion — plan.discovery**',
+    '- A) Confirm framing as written (Recommended)',
+    '- B) Confirm framing, but revise',
+  ].join('\n');
+  const budgetGoal = 'Goal: add budget with --budgets; categories without a budget print NO_BUDGET.';
+  assert.equal(answerTextQuestion(budget, 'bouncer-plan', question(budgetGoal), '/nonexistent').reply, 'A');
+  const summaryGoal = 'Goal: add summary to cli.js with --file and --month YYYY-MM; print TOTAL. stderr exit 1; list total.';
+  assert.equal(answerTextQuestion(budget, 'bouncer-plan', question(summaryGoal), '/nonexistent'), null);
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', question(summaryGoal), '/nonexistent').reply, 'A');
+});
+
+test('requires later task policies to state their discovery terms and reusable draft', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'acp-policy-'));
+  const policyFile = path.join(dir, 'policy.json');
+  const approved = require('../configs/ledger-001-evaluator-policy.json');
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002' }));
+  assert.throws(() => loadPolicy(policyFile), /discovery_terms and task_facts.reusable_draft/);
+  writeFileSync(policyFile, JSON.stringify({ ...approved, task_id: 'ledger-002',
+    task_facts: { ...approved.task_facts, discovery_terms: ['budget'], reusable_draft: null } }));
+  assert.equal(loadPolicy(policyFile).task_id, 'ledger-002');
+  rmSync(dir, { recursive: true });
+});
