@@ -205,11 +205,14 @@ to your `Decision required` judgment, never a second brief.
    guess a hash. Resume from recorded state; never reset it.
 2. **Prepare** — `bouncer coordinate prepare --ledger-path
    <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` opens the
-   current ready wave, assigns one worktree per task, and returns a per-task
-   `lease`. Tasks the wave did not open stay closed. Take each returned
-   `lease` as the identity for later `dispatch` / `report` / `record`.
-3. **Drive** — For every ready task from prepare, dispatch a task runner at
-   once (at most `checkpoint.ready` count, inside the configured parallel
+   current ready wave, assigns one worktree per task, and returns per-task
+   `lease` and `workerPath` on `opened[]`. Tasks the wave did not open stay
+   closed. Take each returned `lease` as the identity for later `dispatch` /
+   `report` / `record`.
+3. **Drive** — Drive `opened[]` commit tasks (not only `ready`): dispatch
+   `prepared` items and resume later-status items from the recorded next
+   action. Dispatch a task runner at once (at most `checkpoint.ready` count,
+   inside the configured parallel
    ceiling). When a `coordinate` response is `ok: false`, execute its `next`
    and do not read plugin sources to recover. The coordinator does not move
    the pointer per task. Each runner

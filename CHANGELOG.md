@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **coordinate stdout 축소** — `bouncer coordinate` 성공 응답에서 원장 전체
+  `tasks`·`decisions` 사본을 빼고, prepare는 lease 대상만 `opened[]`로 내며,
+  모든 coordinate stdout을 한 줄 JSON으로 출력한다.
+
 ## [1.5.3] — 2026-10-01
 
 1.5.2 패치. `intent sections`가 비정규 task 경로를 exit 1로 거절하고, finalize가 explain에 coordinator
