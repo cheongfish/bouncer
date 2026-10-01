@@ -15,23 +15,30 @@ rule's items 2-4 unchanged, and this document does not apply.
    login. Otherwise report that and stop the dispatch; never fall back to a
    Task subagent silently.
 3. **Payload.** A print process loads no named agent, so it always carries the
-   item 4 fallback payload. Write the payload to a file whose first line is
+   item 4 fallback payload. Write only the controller input file. Then run
+   `bouncer dispatch print`, which writes the prompt file whose first line is
    the identity line below, before the role body:
    - worker or reviewer: `You are the dispatched bouncer-<role> itself. Do
      this role's work directly and never dispatch any Bouncer agent.`
    - coordinator: `You are the dispatched bouncer-coordinator itself. Dispatch
      only your workers, each under rules/cursor-print-dispatch.md.`
+   The command then appends the role body and the controller input. Do not
+   assemble those pieces in the session.
 4. **Command.** From the actual cwd, run
+   `bouncer dispatch print --role <role> --cwd <actual cwd> --input <file>
+   --out <dir>` in the foreground. The command guarantees argv
    `agent --print --force --trust --output-format stream-json --workspace
-   <actual cwd> [--model <slug>] -- "$(cat <prompt-file>)"
-   </dev/null >"<out>.jsonl" 2>"<err>.log"`. Pass `--model` only when
-   `result.model` is not `null`. The `--` keeps a payload that starts with `-`
-   from being read as an option. Never pipe the process through `tee` or any
-   other reader: a helper it leaves behind holds the pipe open after it exits.
+   <actual cwd> [--model <slug>] -- <prompt>` with empty stdin and
+   stdout/stderr on file descriptors — never `$(cat …)`, a shell string, or
+   `tee`. Pass `--model` only when `result.model` is not `null`. The `--`
+   keeps a payload that starts with `-` from being read as an option. Never
+   pipe the process through `tee` or any other reader: a helper it leaves
+   behind holds the pipe open after it exits.
 5. **Wait.** Run it in the foreground with a wait budget covering the whole
-   run, per item 6. A ready wave may start its runners from one command that
-   backgrounds each process and then `wait`s for all of them; that command
-   returns only after every process exits.
-6. **Report.** The report is the final `result` event of the stdout file. A
-   non-zero exit or a missing `result` event is a dispatch failure, not a
-   report.
+   run, per item 6. The command itself does not time out. A ready wave may
+   start its runners from one command that backgrounds each process and then
+   `wait`s for all of them; that command returns only after every process
+   exits.
+6. **Report.** The report is the JSON `report` field from `dispatch print`.
+   On `{ ok: false }`, follow `next`. A non-zero exit or a missing `result` event is a dispatch failure, not a report. Never fall back to a Task
+   subagent.

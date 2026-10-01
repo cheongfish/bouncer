@@ -4,9 +4,10 @@ Apply [`rules/subagent-model.md`](../../../rules/subagent-model.md).
 Every named and fallback payload for implementer, debugger, and reviewer carries
 the same `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`
 from the controller's single preflight `bouncer intent bundle` resolve, plus a
-role-specific `intent_sections` projection. Named and fallback receive identical
-identifiers and the same role section set. Do not pass the full Explain body,
-another task's bundle, or another role's report.
+role-specific `intent_sections` projection from
+`bouncer intent sections --task <current.task.path> --role <role>`. Named and
+fallback receive identical identifiers and the same role section set. Do not
+pass the full Explain body, another task's bundle, or another role's report.
 
 Under a coordinator drive, every implementer dispatch — named or fallback —
 also carries the same five `coordinate dispatch` metadata fields: `attempt`,
@@ -50,7 +51,8 @@ worktree cwd and only the current task's Goal & intent, Current behavior,
 Target behavior, Interface, Touch, Do not touch, Constraints, and Checklist
 (omit any of those two behavior sections that the brief does not carry), plus
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and the
-implementer's `intent_sections` projection. Under a coordinator drive also pass
+implementer's `intent_sections` projection from
+`bouncer intent sections --task <current.task.path> --role implementer`. Under a coordinator drive also pass
 `attempt`, `base_head`, `initial_worktree_state`, and when present
 `previous_outcome` from `coordinate dispatch` — the same five metadata fields
 as the fallback path — and require **Brief revision** in the report. The
@@ -78,7 +80,8 @@ arrive — plus the actual worktree cwd and the eight current-task sections
 (Goal & intent, Current behavior, Target behavior, Interface, Touch,
 Do not touch, Constraints, Checklist — omit absent behavior sections), with the
 same `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
-`intent_sections` as the named path, and under a coordinator drive the same
+`intent_sections` as the named path (from
+`bouncer intent sections --task <current.task.path> --role implementer`), and under a coordinator drive the same
 five dispatch metadata fields (`attempt`, `task_brief_hash`, `base_head`,
 `initial_worktree_state`, and conditional `previous_outcome`) so **Brief revision**
 stays comparable. Or run `implementation` inline: the inline
@@ -108,7 +111,8 @@ risk → `combined`; small risk → `combined` then `security`; `parallel`
 without risk → the three non-security perspectives; large risk → those three
 then `security`). Named, generic fallback, and inline paths all walk that same
 `perspectives` sequence — never a different fan-out per host. Each discovery prompt contains only its assigned perspective,
-the six brief sections, the reviewer's `intent_sections` projection, the frozen
+the six brief sections, the reviewer's `intent_sections` projection from
+`bouncer intent sections --task <current.task.path> --role reviewer`, the frozen
 target (including the shared bundle identifiers), `strategy`, and `risk_flags`,
 and never another reviewer's findings or the full Explain body. If named agents
 are unavailable, dispatch fresh generic subagents in the same `perspectives`

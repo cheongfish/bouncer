@@ -115,7 +115,7 @@ to your `Decision required` judgment, never a second brief.
   `bouncer-reviewer` through `rules/subagent-model.md`. Never play those roles
   yourself and never let one worker judge another's report. Under that rule's
   item 7 opt-in (Cursor `subagents.dispatch: "print"`), every worker is a
-  foreground `agent --print` process per `rules/cursor-print-dispatch.md`,
+  foreground `bouncer dispatch print` process per `rules/cursor-print-dispatch.md`,
   never a Task subagent or an ad hoc shell launch.
 - Commit ownership — workers report; only the coordinator revises scope,
   records lease-bound judgments, and owns wave fan-in. It does not move the
@@ -161,7 +161,9 @@ to your `Decision required` judgment, never a second brief.
   `perspectives` sequence. Give each reviewer every commit task brief (Goal &
   intent, Interface, Touch, Do not touch, Constraints, Checklist) and the
   blueprint Contract. Record `bouncer.review.findings[]` and `rounds[]` on the
-  blueprint-root `review.md`. Each round records `target` (`base`, `head`),
+  blueprint-root `review.md` with `bouncer review record --blueprint <dir>
+  --round <json-file>` (omit `--task`; add `--status` only when changing
+  document status). Do not edit that YAML by hand. Each round records `target` (`base`, `head`),
   `task_brief_hashes` (commit task id → brief hash), `intent_bundles` (commit
   task id → `{ id, revision }`), and each perspective's `target_head`. When
   must_fix remains, open one repair with `bouncer coordinate repair … 

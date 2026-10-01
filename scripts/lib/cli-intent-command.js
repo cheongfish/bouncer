@@ -1,4 +1,11 @@
 'use strict';
+const INTENT_ROLES = new Set(['implementer', 'reviewer', 'debugger']);
+const SECTIONS_FAIL_REASONS = new Set([
+    'intent-bundle-missing',
+    'intent-bundle-stale',
+    'intent-sections-drift',
+    'intent-task-invalid',
+]);
 // intent 전용 command. projectCommands는 이 모듈을 정적 import하지 않고
 // 첫 intent 실행에서만 require한다. 그 안에서도 argv 검증을 통과한 뒤에만
 // intent-provenance / intent-bundle을 적재해, 거절·help 경로가 resolver를
@@ -7,8 +14,9 @@
 // 정규식 밖 경로는 resolver를 열지 않고 exit 2로 끝낸다.
 const CANONICAL_TASK_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+\/tasks\/\d{3}\/tasks\.md$/;
 /**
- * intent argv를 query와 bundle로 분기한다. `bundle` positional만 하위 명령이고,
- * 그 외 positional·잘못된 option은 resolver를 열기 전에 거절한다.
+ * intent argv를 query·bundle·sections로 분기한다. `bundle`과 `sections`
+ * positional만 하위 명령이고, 그 외 positional·잘못된 option은 resolver를
+ * 열기 전에 거절한다.
  *
  * @param {string[]} rest - `intent` 뒤 argv
  * @returns {IntentArgs} 성공 시 mode별 필드, 실패 시 error
@@ -16,6 +24,9 @@ const CANONICAL_TASK_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/
 function parseIntentArgs(rest) {
     if (rest[0] === 'bundle') {
         return parseBundleArgs(rest.slice(1));
+    }
+    if (rest[0] === 'sections') {
+        return parseSectionsArgs(rest.slice(1));
     }
     return parseQueryArgs(rest);
 }
@@ -206,13 +217,89 @@ function parseBundleArgs(rest) {
     }
     return { mode: 'bundle', task, functions, repo };
 }
+/**
+ * intent sections 인자. --task와 --role만 받고 query·bundle 옵션이 섞이면
+ * 거절한다. 유효 argv 전에는 intent-bundle을 적재하지 않는다.
+ *
+ * @param {string[]} rest - `intent sections` 뒤 argv
+ * @returns {SectionsArgs} 성공 시 task·role·optional repo, 실패 시 error
+ */
+function parseSectionsArgs(rest) {
+    let task = null;
+    let taskSeen = false;
+    let role = null;
+    let roleSeen = false;
+    let repo;
+    let repoSeen = false;
+    const fail = (message) => ({
+        mode: 'sections',
+        error: `intent: ${message}\n`,
+        task,
+        role,
+        repo,
+    });
+    for (let i = 0; i < rest.length; i += 1) {
+        const token = rest[i];
+        if (token === '--task') {
+            if (taskSeen)
+                return fail('duplicate option: --task');
+            taskSeen = true;
+            const value = rest[++i];
+            if (value === undefined || value.startsWith('--') || value.trim().length === 0) {
+                return fail('--task requires a non-empty tasks.md path');
+            }
+            const trimmed = value.trim();
+            if (trimmed.startsWith('/')
+                || trimmed.includes('..')
+                || !CANONICAL_TASK_RE.test(trimmed)) {
+                return fail('--task must be a repo-relative canonical tasks.md path');
+            }
+            task = trimmed;
+            continue;
+        }
+        if (token === '--role') {
+            if (roleSeen)
+                return fail('duplicate option: --role');
+            roleSeen = true;
+            const value = rest[++i];
+            if (value === undefined || value.startsWith('--') || value.trim().length === 0) {
+                return fail('--role requires implementer, reviewer, or debugger');
+            }
+            if (!INTENT_ROLES.has(value)) {
+                return fail('--role must be implementer, reviewer, or debugger');
+            }
+            role = value;
+            continue;
+        }
+        if (token === '--repo') {
+            if (repoSeen)
+                return fail('duplicate option: --repo');
+            repoSeen = true;
+            const value = rest[++i];
+            if (!value || value.startsWith('--'))
+                return fail('--repo requires a directory');
+            repo = value;
+            continue;
+        }
+        if (token.startsWith('--'))
+            return fail(`unknown option: ${token}`);
+        return fail(`unexpected argument: ${token}`);
+    }
+    if (!taskSeen || task === null) {
+        return fail('--task <tasks.md> is required');
+    }
+    if (!roleSeen || role === null) {
+        return fail('--role <implementer|reviewer|debugger> is required');
+    }
+    return { mode: 'sections', task, role, repo };
+}
 function catchMessage(error) {
     // 예전 error.message 접근과 같다. extra null 가드를 두면 throw null이
     // TypeError 대신 빈 메시지가 되어 종료 코드 경로가 바뀐다.
     return error.message;
 }
 /**
- * 함수 의도 provenance를 조회하거나 task intent bundle을 만든다.
+ * 함수 의도 provenance를 조회하거나 task intent bundle·역할 절 projection을 만든다.
  * query의 resolved가 아닌 상태 JSON도 exit 0이다 — Plan이 코드 탐색을
  * 이어가려면 ambiguous/unresolved/unlinked가 사용법 오류가 아니어야 한다.
  * bundle도 ambiguous면 record를 쓰지 않고 opaque candidate만 돌려 exit 0이다.
@@ -229,6 +316,9 @@ function cmdIntent(rest, io) {
     }
     if (parsed.mode === 'bundle') {
         return cmdIntentBundle(parsed, io);
+    }
+    if (parsed.mode === 'sections') {
+        return cmdIntentSections(parsed, io);
     }
     return cmdIntentQuery(parsed, io);
 }
@@ -318,6 +408,48 @@ function cmdIntentBundle(parsed, io) {
                 io.err(`intent: ${selectionMessage}\n`);
                 return 1;
             }
+        }
+        io.err(`intent: ${message}\n`);
+        return 1;
+    }
+}
+/**
+ * 역할별 intent 절 본문 projection. 유효 argv 뒤에만 intent-bundle을 적재한다.
+ * 계약된 reason은 stdout JSON이고, 그 외 조회 실패는 bundle과 같이 stderr+1이다.
+ *
+ * @param {SectionsArgs} parsed - 검증된 sections 인자
+ * @param {CliIo} io - stdout/stderr 싱크
+ * @returns {number} 성공 JSON 0, 계약된 실패 JSON 1
+ */
+function cmdIntentSections(parsed, io) {
+    const intentBundle = require('./intent-bundle');
+    const { projectRoleIntentSections } = intentBundle;
+    const repoRoot = (parsed.repo || process.cwd());
+    try {
+        const result = projectRoleIntentSections({
+            repoRoot,
+            taskFile: parsed.task,
+            role: parsed.role,
+        });
+        io.out(`${JSON.stringify(result, null, 2)}\n`);
+        return 0;
+    }
+    catch (error) {
+        const message = catchMessage(error);
+        if (typeof message !== 'string' || message.length === 0)
+            throw error;
+        const reason = error.reason;
+        const next = error.next;
+        if (typeof reason === 'string' && SECTIONS_FAIL_REASONS.has(reason)) {
+            io.out(`${JSON.stringify({
+                ok: false,
+                reason,
+                cause: message,
+                next: typeof next === 'string'
+                    ? next
+                    : `bouncer intent bundle --task ${parsed.task} --symbol <name>...`,
+            }, null, 2)}\n`);
+            return 1;
         }
         io.err(`intent: ${message}\n`);
         return 1;

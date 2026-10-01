@@ -13,10 +13,17 @@ const { isUnder } = scope;
 // plan target이 아니라 별도 복사 단계의 경로. makeIsTarget에 넣으면
 // phase 2가 base config를 restore하거나 지운다.
 const CONFIG_REL = '.bouncer/config.json';
-// Execute worktree는 git이 추적한 파일만 받으므로 무시되는 node_modules는 항상
-// 비어 있다. npm이 만든 숨은 lock marker는 lockfile과 함께 모든 의존성이 준비된
-// checkout에만 남는다. 이 marker가 없을 때만 lockfile 기반 설치를 해 재사용 task가
-// 매번 node_modules를 지우지 않게 한다.
+/**
+ * lockfile이 있는데 npm 설치 marker가 없으면 `npm ci --include=dev`로 의존성을 채운다.
+ * git worktree는 ignored `node_modules`를 가져오지 않으므로, fan-in candidate와
+ * integration checkout이 검증 전에 같은 설치 계약을 타게 한다. marker가 있으면
+ * 재설치하지 않는다 — 재사용 worktree가 매번 지워지지 않게 하려는 한도이다.
+ *
+ * @param {string} worktreePath - 설치 cwd. package-lock.json을 이 경로에서 본다
+ * @param {SeedDeps} deps - execFileSync 주입. 테스트가 npm 호출을 가로채는 용도
+ * @returns {{ ok: true } | { ok: false, reason: string, message: unknown }}
+ *   설치 불필요·성공은 ok:true. npm ci 실패는 ok:false와 dependency-install-failed
+ */
 function prepareDependencies(worktreePath, deps) {
     if (!fs.existsSync(path.join(worktreePath, 'package-lock.json'))
         || fs.existsSync(path.join(worktreePath, 'node_modules', '.package-lock.json')))
@@ -410,4 +417,7 @@ function releaseSeedManifest({ repoRoot, blueprintDir, manifest, git }) {
     }
     return result;
 }
-module.exports = { makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker, seedIntegration, releaseSeedManifest };
+module.exports = {
+    makeIsTarget, realGit, seedWorktree, seedCoordinatorWorker, seedIntegration,
+    releaseSeedManifest, prepareDependencies,
+};

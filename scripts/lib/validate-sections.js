@@ -388,4 +388,5 @@ module.exports = {
     pathJustifiedByTouch,
     findingFingerprint,
     collectFindingFailures,
+    EXECUTE_ROUND_CONTRACT,
 };
