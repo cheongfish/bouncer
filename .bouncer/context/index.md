@@ -38,3 +38,4 @@ bouncer_schema: '0.1'
 * [079 roadmap-closeout](epics/079-roadmap-closeout/index.md) - Closes the remaining roadmap items by shipping built CommonJS through a release branch and removing the leftover governance rule file.
 * [080 execution-token-cost](epics/080-execution-token-cost/index.md) - Close execution-contract gaps and run review once at final verification to cut drive token cost
 * [081 cli-deterministic-procedures](epics/081-cli-deterministic-procedures/index.md) - Move intent_sections projection, Cursor print dispatch, and review round recording from hand-assembled steps into CLI commands
+* [082 explain-index-intent-exit](epics/082-explain-index-intent-exit/index.md) - Shrink the coordinator block finalize writes into explain frontmatter to a task index, and make intent sections reject a non-canonical --task with exit 1 intent-task-invalid per contract
