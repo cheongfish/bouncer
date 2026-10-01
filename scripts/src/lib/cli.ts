@@ -7,6 +7,7 @@ import gitCommands = require('./cli-git-commands');
 import projectCommands = require('./cli-project-commands');
 import currentCommand = require('./cli-current-command');
 import reviewDispatchCommand = require('./cli-review-dispatch-command');
+import dispatchCommand = require('./cli-dispatch-command');
 
 // 핸들러 IO 타입은 각 명령 파일에 복제한다. ESM default import/export는
 // __esModule·__importDefault를 방출해 공개 require 표면이 바뀌므로 쓰지 않고,
@@ -51,6 +52,9 @@ const COMMANDS: Record<string, CliCommand> = {
   // read-only 분류기. Plan/Execute controller가 reviewer 수를 같은 JSON으로
   // 고르도록 registry에만 등록하고, 구현은 cli-review-dispatch-command에 둔다.
   'review-dispatch': reviewDispatchCommand,
+  // Cursor print 실행. 역할 본문·argv 조립은 모듈이 맡고, 여기 레지스트리는
+  // help 목록과 키 조회만 담당한다.
+  dispatch: dispatchCommand,
 };
 
 const USAGE_HEADER = `usage: bouncer <command> [options]

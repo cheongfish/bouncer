@@ -21,6 +21,7 @@ const SUBCOMMANDS = [
   'run',
   'import',
   'review-dispatch',
+  'dispatch',
 ];
 
 function capture(argv) {
@@ -205,6 +206,14 @@ test('review-dispatch without subcommand exits 2 on stderr', () => {
   assert.strictEqual(r.code, 2);
   assert.match(r.err, /review-dispatch/);
   assert.strictEqual(r.out, '');
+});
+
+test('usage lists dispatch print form', () => {
+  const out = capture([]).out;
+  assert.match(
+    out,
+    /dispatch print --role <implementer\|reviewer\|debugger\|coordinator> --cwd <dir> --input <file> --out <dir>/,
+  );
 });
 
 

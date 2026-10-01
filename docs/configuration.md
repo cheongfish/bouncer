@@ -126,7 +126,8 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 - **`subagents.dispatch: "print"` (Cursor 전용, 선택).** Cursor는 Task
   서브에이전트의 토큰 사용량을 어디에도 남기지 않습니다. 이 값을 켜면 coordinator와
   모든 worker·reviewer를 Task 대신 각각 별도의 `agent --print` 프로세스로 띄워,
-  에이전트마다 세션 로그에 사용량이 남습니다. `agent` CLI가 설치되어 있고
+  에이전트마다 세션 로그에 사용량이 남습니다. 디스패치는
+  `bouncer dispatch print`가 맡습니다. `agent` CLI가 설치되어 있고
   `agent status`가 로그인 상태여야 합니다. 대신 IDE의 서브에이전트 화면에는
   나타나지 않고, 각 프로세스의 출력은 파일로만 남습니다. `provider`가 `cursor`가
   아니면 무시됩니다. 자세한 실행 방식은

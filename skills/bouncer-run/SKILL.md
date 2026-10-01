@@ -109,8 +109,8 @@ stay on the execute round.
    coordinator authority. When named agents are unavailable, dispatch
    one generic subagent with the same coordinator brief and the same worktree
    guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
-   "print"`), the coordinator is an `agent --print` process per
-   `rules/cursor-print-dispatch.md` instead; either way it happens once, and never without the step 2 approval.
+   "print"`), the coordinator is a `bouncer dispatch print --role coordinator`
+   process per `rules/cursor-print-dispatch.md` instead; either way it happens once, and never without the step 2 approval.
    From `integrationPath`, run `bouncer coordinate status` once and keep its
    `checkpoint` (including `ledger: { path, sha256, revision }`) for the
    payload. The payload is:

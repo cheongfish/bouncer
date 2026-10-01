@@ -77,6 +77,8 @@ bouncer subagent-model --agent <name> [--provider <name>]
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir>
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
+bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
+  --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 
 Use `project-root` to locate the consuming repository from linked worktrees.
@@ -106,6 +108,20 @@ is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
 `failures` (G5, G10–G12, G19, G20) when the draft fails. Invalid argv is exit 2.
+`dispatch print` runs one Cursor print process. It returns JSON for success
+(`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
+`reason` is `print-dispatch-disabled`, `agent-unavailable`,
+`agent-exit-nonzero`, `result-missing`, `result-error`,
+`dispatch-input-invalid`, or `role-document-invalid`. Follow `next`; do not
+assemble the identity line, role body, or `agent --print` argv in the
+session. Invalid argv (`print` missing, unknown `--role`, duplicate or
+missing `--role`/`--cwd`/`--input`/`--out`) is exit 2.
+
+```sh
+bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
+  --cwd <dir> --input <file> --out <dir> [--repo <dir>]
+```
+
 Do not invent a strategy when the command fails. `coordinate repair` takes
 either `--failure-command` (terminal CI) or repeated `--review-finding`
 (final-review must_fix), never both. Omit `--task` on the review-finding form

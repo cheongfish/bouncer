@@ -23,6 +23,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * 플러그인 루트의 `agents/` 절대 경로를 돌려준다. print 디스패치와 Codex
+ * 시드가 같은 기준을 써야 역할 문서와 TOML 소스가 갈라지지 않는다.
+ *
+ * @returns {string} `scripts/lib`에서 두 단계 위의 `agents/`
+ */
 function pluginAgentsDir(): string {
   return path.join(__dirname, '..', '..', 'agents');
 }
@@ -188,6 +194,7 @@ export = {
   NAMED_AGENTS,
   GENERATED_MARKER,
   CODEX_AGENTS_DIR,
+  pluginAgentsDir,
   mdToCodexToml,
   checkCodexAgent,
   ensureCodexAgents,
