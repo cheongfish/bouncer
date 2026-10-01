@@ -7,6 +7,31 @@
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-10-01
+
+1.5.1 패치. controller가 손으로 조립하던 역할별 projection, Cursor print 디스패치, 리뷰 라운드
+기록을 CLI 명령 하나씩으로 바꾸고, terminal 검증 전에 integration checkout 의존성을 설치한다.
+
+### Added
+
+- **intent sections** — `bouncer intent sections --task <tasks.md> --role <role>`가 캐시된 intent
+  bundle에서 역할별 Explain 절 본문을 낸다.
+- **dispatch print** — `bouncer dispatch print`가 payload 조립부터 Cursor agent print 실행과
+  result 이벤트 추출까지 맡는다.
+- **review record** — `bouncer review record --blueprint <dir> --round <json-file>`가 라운드와
+  findings를 JSON으로 받아 gate 검사를 통과할 때만 `review.md`에 쓴다.
+
+### Changed
+
+- **실행 지침** — execute·run·coordinator 지침과 print 디스패치 규칙이 손 조립 절차 대신 위 명령을 쓴다.
+
+### Fixed
+
+- **terminal 검증 의존성 누락** — integration worktree에 `node_modules`가 없어 verification task의
+  terminal CI가 실패하던 문제를 고친다. 검증 전에 `npm ci`를 돌리고, 실패하면
+  `dependency-install-failed`로 알린다.
+- **fan-in fixture git identity** — CI의 cherry-pick 테스트가 git identity 없이 실패하지 않게 한다.
+
 ## [1.5.1] — 2026-10-01
 
 1.5.0 패치. coordinator가 내부 함수 이름 대신 CLI만 쓰게 하고, task마다 열던 리뷰를
