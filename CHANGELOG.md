@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+## [1.5.3] — 2026-10-01
+
+1.5.2 패치. `intent sections`가 비정규 task 경로를 exit 1로 거절하고, finalize가 explain에 coordinator
+원장 전체 대신 task 인덱스만 기록한다.
+
 ### Fixed
 
 - **intent sections 비정규 --task** — `intent sections`가 비정규 `--task`를
