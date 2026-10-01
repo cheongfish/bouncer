@@ -21,6 +21,7 @@ const SUBCOMMANDS = [
   'run',
   'import',
   'review-dispatch',
+  'review',
   'dispatch',
 ];
 
@@ -199,6 +200,35 @@ test('usage lists review-dispatch plan and execute forms', () => {
     out,
     /review-dispatch\s+execute --blueprint <dir> \[--task <ddd>\] --base <sha> --head <sha>/,
   );
+});
+
+test('usage lists review record form', () => {
+  const out = capture([]).out;
+  assert.match(
+    out,
+    /review record --blueprint <dir> \[--task <ddd>\] --round <json-file> \[--status <requested\|addressed\|accepted>\]/,
+  );
+});
+
+test('review record rejects --status pending, non-ddd --task, and missing --round', () => {
+  const pending = capture([
+    'review', 'record', '--blueprint', 'bp', '--round', 'x.json', '--status', 'pending',
+  ]);
+  assert.strictEqual(pending.code, 2);
+  assert.match(pending.err, /status/i);
+  assert.strictEqual(pending.out, '');
+
+  const task = capture([
+    'review', 'record', '--blueprint', 'bp', '--task', '1', '--round', 'x.json',
+  ]);
+  assert.strictEqual(task.code, 2);
+  assert.match(task.err, /task/i);
+  assert.strictEqual(task.out, '');
+
+  const missingRound = capture(['review', 'record', '--blueprint', 'bp']);
+  assert.strictEqual(missingRound.code, 2);
+  assert.match(missingRound.err, /round/i);
+  assert.strictEqual(missingRound.out, '');
 });
 
 test('review-dispatch without subcommand exits 2 on stderr', () => {

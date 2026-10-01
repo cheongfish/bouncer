@@ -299,6 +299,7 @@ test('bouncer-execute step 5 keeps only review entry conditions and ceilings', (
   assert.match(step5, /review_scope/);
   assert.match(step5, /last commit task|마지막 commit task/i);
   assert.match(step5, /Other commit tasks skip review/);
+  assert.match(step5, /bouncer review record/);
   // F-SS-001: skip 뒤에 남은 Otherwise가 검토 스킬로 다시 들어가면 안 된다.
   assert.doesNotMatch(
     step5,
@@ -352,6 +353,7 @@ test('bouncer-execute records each review round ledger in review.md', () => {
   assert.match(round, /intent_bundles/);
   assert.match(round, /review_scope/);
   assert.match(round, /git merge-base/);
+  assert.match(round, /bouncer review record/);
   // F-SS-003: 단독 delta의 대상 diff는 repair hunk가 아니라 worktree 전체다.
   // freeze의 discovery 문장만으로는 통과하지 않게 certify 쪽 delta를 고정한다.
   assert.match(

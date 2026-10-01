@@ -103,10 +103,12 @@ unresolved. Used from `/bouncer-execute`.
    the whole-worktree diff after the fix (`git diff <base>` plus untracked),
    not only the repair hunks — delta does
    not receive a discovery perspective.    The controller (not the subagent)
-   updates existing `review.md` `## Findings`,
-   `bouncer.review.findings[]`, and `bouncer.review.rounds[]` (blueprint-root
-   `review.md` when `review_scope` is `blueprint`, otherwise the pointer task
-   directory). An advisory is
+   records `## Findings`, `bouncer.review.findings[]`, and
+   `bouncer.review.rounds[]` with `bouncer review record --blueprint <dir>
+   [--task <ddd>] --round <json-file> [--status <requested|addressed|accepted>]`
+   (blueprint-root `review.md` when `review_scope` is `blueprint`, otherwise
+   the pointer task directory; omit `--task` in blueprint mode). Do not edit
+   that YAML by hand. An advisory is
    recorded once as accepted or deferred with a note, not fixed.
 4. **Assert** — Confirm `## Findings` is present and every finding has an
    actionable disposition. Never leave a false acceptance while an actionable

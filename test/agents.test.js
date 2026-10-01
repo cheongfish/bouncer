@@ -247,6 +247,7 @@ test('bouncer-coordinator dispatches reviewers from exact review-dispatch execut
   assert.match(md, /repair-wave-limit/);
   assert.match(md, /task_brief_hashes/);
   assert.match(md, /intent_bundles/);
+  assert.match(md, /bouncer review record/);
   // F-SS-002: blueprint 최종 리뷰 fail-closed는 포인터 task review_risk가 아니라
   // commit-task review_risk 합집합과 risk_flags를 비교한다.
   assert.match(

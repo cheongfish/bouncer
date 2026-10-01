@@ -206,7 +206,11 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    `risk_flags` disagree with the current task's `review_risk` (absent
    `review_scope`) or the union of commit-task `review_risk` (blueprint review
    mode), stop without
-   calling reviewers or recording accepted (fail closed). The ceiling is one frozen parallel discovery wave, one fix batch, and one delta
+   calling reviewers or recording accepted (fail closed). Status transitions
+   (`requested` / `addressed` / `accepted`) and each round ledger write go
+   through `bouncer review record --blueprint <dir> [--task <ddd>] --round
+   <json-file> [--status <requested|addressed|accepted>]` — do not edit
+   `review.md` YAML by hand. The ceiling is one frozen parallel discovery wave, one fix batch, and one delta
    certification; a drive alone may add one critical recovery.
 
 6. **Gate.** Run `validate --gate execute`:

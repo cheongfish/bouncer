@@ -118,6 +118,22 @@ session. Invalid argv (`print` missing, unknown `--role`, duplicate or
 missing `--role`/`--cwd`/`--input`/`--out`) is exit 2.
 
 ```sh
+bouncer review record --blueprint <dir> [--task <ddd>] --round <json-file> [--status <requested|addressed|accepted>]
+```
+
+`review record` writes one round and finding updates into `review.md`
+frontmatter only after the same finding/round checks as G21 and G14 pass.
+Success is `{ ok: true, path, round, status, findings }` (exit 0). Failure is
+`{ ok: false, reason, cause, next }` (exit 1) and leaves the file unchanged.
+`reason` is `review-target-missing`, `review-task-required`,
+`review-task-not-allowed`, `review-input-invalid`,
+`review-round-out-of-sequence`, or `review-ledger-invalid`. Follow `next`; do
+not edit YAML by hand or read validator sources to invent a passing
+frontmatter. Invalid argv (`record` missing, `--blueprint`/`--round` missing,
+duplicate options, `--task` not three digits, `--status` outside
+`requested|addressed|accepted` including `pending`) is exit 2.
+
+```sh
 bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```

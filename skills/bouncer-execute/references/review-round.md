@@ -91,10 +91,13 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 ## Round ledger contract
 
 완결된 `rounds[]` 예제는 `references/spec-authoring/review-rounds.md`를 본다.
-The controller records every state transition in `review.md` under
-`bouncer.review.rounds[]`. In blueprint review mode that file is the
-blueprint-root `review.md`; when `review_scope` is absent it is
-`<pointer task directory>/review.md`. Every round records its frozen `target`
+Do not edit `review.md` YAML by hand. Record every state transition with
+`bouncer review record --blueprint <dir> [--task <ddd>] --round <json-file>
+[--status <requested|addressed|accepted>]` into `bouncer.review.rounds[]` and
+`bouncer.review.findings[]`. In blueprint review mode that file
+is the blueprint-root `review.md` (omit `--task`); when `review_scope` is
+absent pass `--task <NNN>` for `<pointer task directory>/review.md`. Every
+round JSON records its frozen `target`
 (`base` and `head`), `task_brief_hash` or `task_brief_hashes`,
 `intent_bundle_id` / `intent_bundle_revision` or `intent_bundles`,
 `intent_sections` from
@@ -104,6 +107,9 @@ counts, revision, and latest verify result. Each reviewer perspective records
 the same `target_head` as that round's target and the same bundle identifiers.
 Findings record a stable fingerprint, `severity_changes`, `actionability`,
 disposition, origin, and the first and last round where they were seen.
+The command fills a missing `fingerprint` and writes only when the gate
+checks pass. On `{ ok: false }`, follow `reason` / `next`; do not recover by
+editing frontmatter or reading validator sources.
 
 - `mode: discovery` is the first, parallel evidence-collection round. Findings
   first seen here use `origin: discovery`.
