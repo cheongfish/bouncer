@@ -33,6 +33,7 @@ function coordinate(opts) {
   return __coordinatorMod.coordinate(opts);
 }
 const coordinateRaw = __coordinatorMod.coordinate;
+const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
 
 const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
 const { writeCurrent } = require('../scripts/lib/current');
@@ -67,6 +68,12 @@ function acceptDispatchReport(repo, blueprint, worker, task = '001') {
   assert.strictEqual(reported.ok, true, JSON.stringify(reported));
   return dispatched;
 }
+
+test('COORDINATE_FAILURE_HINTS covers every coordinator reason literal', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../scripts/src/lib/coordinator.ts'), 'utf8');
+  const reasons = new Set([...source.matchAll(/reason: '([a-z-]+)'/g)].map((m) => m[1]));
+  for (const reason of reasons) assert.ok(COORDINATE_FAILURE_HINTS[reason], reason);
+});
 
 test('readyWave returns only pending tasks with completed dependencies', () => {
   const tasks = [
@@ -615,7 +622,11 @@ test('bootstrap rejects a symlink substituted for its registered integration che
 
   const result = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
 
-  assert.deepStrictEqual(result, { ok: false, reason: 'unassigned-integration-worktree', integrationPath: boot.integrationPath });
+  assert.deepStrictEqual(result, {
+    ok: false, reason: 'unassigned-integration-worktree', integrationPath: boot.integrationPath,
+    cause: COORDINATE_FAILURE_HINTS['unassigned-integration-worktree'].cause,
+    next: COORDINATE_FAILURE_HINTS['unassigned-integration-worktree'].next,
+  });
   assert.strictEqual(fs.existsSync(path.join(outside, '.bouncer', 'runtime', 'coordinator.json')), false);
 });
 
@@ -706,6 +717,8 @@ test('prepare rejects a missing integration blueprint before creating any worker
   const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   assert.deepStrictEqual(result, {
     ok: false, reason: 'missing-blueprint', blueprintDir: blueprint, integrationPath: boot.integrationPath,
+    cause: COORDINATE_FAILURE_HINTS['missing-blueprint'].cause,
+    next: COORDINATE_FAILURE_HINTS['missing-blueprint'].next,
   });
   const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8' });
   assert.doesNotMatch(listed, /workers/);
@@ -987,7 +1000,11 @@ test('record refuses a SHA that is not the assigned worker HEAD', () => {
   const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   acceptDispatchReport(repo, blueprint, prepared.tasks[0].workerPath, '001');
   const result = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: prepared.tasks[0].workerPath, task: '001', sha: 'deadbeef' });
-  assert.deepStrictEqual(result, { ok: false, reason: 'sha-not-worker-head' });
+  assert.deepStrictEqual(result, {
+    ok: false, reason: 'sha-not-worker-head',
+    cause: COORDINATE_FAILURE_HINTS['sha-not-worker-head'].cause,
+    next: COORDINATE_FAILURE_HINTS['sha-not-worker-head'].next,
+  });
 });
 
 test('record rejects a prepared worker path replaced by an external symlink', () => {
@@ -1010,7 +1027,11 @@ test('record rejects a prepared worker path replaced by an external symlink', ()
 
   const result = coordinate({ command: 'record', repoRoot: repo, blueprint, cwd: worker, task: '001' });
 
-  assert.deepStrictEqual(result, { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker });
+  assert.deepStrictEqual(result, {
+    ok: false, reason: 'unassigned-worker-worktree', workerPath: worker,
+    cause: COORDINATE_FAILURE_HINTS['unassigned-worker-worktree'].cause,
+    next: COORDINATE_FAILURE_HINTS['unassigned-worker-worktree'].next,
+  });
 });
 
 test('integrate rejects a recorded worker path replaced by a symlink to main', () => {
@@ -1032,7 +1053,11 @@ test('integrate rejects a recorded worker path replaced by a symlink to main', (
 
   const result = coordinate({ command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001' });
 
-  assert.deepStrictEqual(result, { ok: false, reason: 'sha-not-owned-by-worker' });
+  assert.deepStrictEqual(result, {
+    ok: false, reason: 'sha-not-owned-by-worker',
+    cause: COORDINATE_FAILURE_HINTS['sha-not-owned-by-worker'].cause,
+    next: COORDINATE_FAILURE_HINTS['sha-not-owned-by-worker'].next,
+  });
 });
 
 test('prepare refuses an ordinary directory at an assigned worker path', () => {
@@ -1048,7 +1073,11 @@ test('prepare refuses an ordinary directory at an assigned worker path', () => {
   const worker = path.join(repo, '.worktrees', '006', '007', 'workers', '001');
   fs.mkdirSync(worker, { recursive: true });
   const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
-  assert.deepStrictEqual(result, { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker });
+  assert.deepStrictEqual(result, {
+    ok: false, reason: 'unassigned-worker-worktree', workerPath: worker,
+    cause: COORDINATE_FAILURE_HINTS['unassigned-worker-worktree'].cause,
+    next: COORDINATE_FAILURE_HINTS['unassigned-worker-worktree'].next,
+  });
   assert.strictEqual(fs.existsSync(path.join(worker, blueprint)), false);
 });
 
@@ -1067,7 +1096,11 @@ test('prepare refuses a symlink at an assigned worker path before seeding', () =
   fs.mkdirSync(path.dirname(worker), { recursive: true });
   fs.symlinkSync(outside, worker, 'dir');
   const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
-  assert.deepStrictEqual(result, { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker });
+  assert.deepStrictEqual(result, {
+    ok: false, reason: 'unassigned-worker-worktree', workerPath: worker,
+    cause: COORDINATE_FAILURE_HINTS['unassigned-worker-worktree'].cause,
+    next: COORDINATE_FAILURE_HINTS['unassigned-worker-worktree'].next,
+  });
   assert.strictEqual(fs.existsSync(path.join(outside, blueprint)), false);
 });
 
@@ -1250,6 +1283,10 @@ test('record rejects after brief bytes change following an accepted report', () 
   });
   assert.strictEqual(rejected.ok, false);
   assert.strictEqual(rejected.reason, 'stale-worker-report');
+  assert.strictEqual(typeof rejected.cause, 'string');
+  assert.notStrictEqual(rejected.cause, '');
+  assert.strictEqual(typeof rejected.next, 'string');
+  assert.notStrictEqual(rejected.next, '');
   const ledger = JSON.parse(fs.readFileSync(drive.ledgerFile, 'utf8'));
   assert.strictEqual(ledger.tasks[0].status, 'prepared');
   assert.strictEqual(ledger.tasks[0].sha, undefined);

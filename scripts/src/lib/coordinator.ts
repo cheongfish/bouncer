@@ -2376,7 +2376,301 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
   });
 }
 
+const FALLBACK_COORDINATE_NEXT =
+  'Run `bouncer coordinate status` and continue from its checkpoint.';
+
+// 힌트는 여기 한 표만 본다. 개별 return { ok: false }에 cause/next를 흩어 쓰면
+// 새 reason이 표 없이 새어 나가고 coordinator가 다시 coordinator.ts를 읽게 된다.
+const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
+  'accepted-report-required': {
+    cause: 'Record requires an accepted dispatch report for this task, and none is stored.',
+    next: 'Call `bouncer coordinate report` with outcome accepted, then retry `bouncer coordinate record`.',
+  },
+  'blueprint-not-closed': {
+    cause: 'Release requires the blueprint index status to be closed.',
+    next: 'Finish remaining tasks, close the blueprint, then retry `bouncer coordinate release` from the main checkout.',
+  },
+  'bootstrap-requires-main-checkout': {
+    cause: 'Bootstrap must run from the main checkout, not an integration or worker worktree.',
+    next: 'Change cwd to the main checkout and rerun `bouncer coordinate bootstrap`.',
+  },
+  'cherry-pick-failed': {
+    cause: 'Cherry-pick of the recorded worker commit into the fan-in candidate failed.',
+    next: 'Inspect the named task, then `bouncer coordinate revoke` it or retry `bouncer coordinate integrate` after fixing the commit.',
+  },
+  'coordinator-config-invalid': {
+    cause: '`.bouncer/config.json` coordinator policy is missing or invalid.',
+    next: 'Fix coordinator config in the integration worktree, then rerun `bouncer coordinate prepare`.',
+  },
+  'critical-recovery-closed': {
+    cause: 'This task already has a closed critical-recovery outcome.',
+    next: 'Do not retry `bouncer coordinate critical-recovery`; continue from `bouncer coordinate status`.',
+  },
+  'critical-recovery-exhausted': {
+    cause: 'This task already used its one critical-recovery attempt.',
+    next: 'Report the block to the user; do not retry `bouncer coordinate critical-recovery`.',
+  },
+  'critical-recovery-not-started': {
+    cause: 'No open critical-recovery record exists on this task to close.',
+    next: 'Start recovery with `bouncer coordinate critical-recovery` and findings before sending an outcome.',
+  },
+  'critical-recovery-outcome-invalid': {
+    cause: 'Critical-recovery outcome must be resolved or blocked.',
+    next: 'Retry `bouncer coordinate critical-recovery` with outcome resolved or blocked.',
+  },
+  'decision-reason-required': {
+    cause: 'This mutation requires a non-empty decision reason.',
+    next: 'Retry the same `bouncer coordinate` command with a reason that names why the change is required.',
+  },
+  'dispatch-already-active': {
+    cause: 'This task already has an active dispatch, so a second dispatch is refused.',
+    next: 'Call `bouncer coordinate report` for the open attempt, or `bouncer coordinate status` to see it.',
+  },
+  'dispatch-commit-task-required': {
+    cause: 'Dispatch applies only to commit tasks, not verification tasks.',
+    next: 'Run `bouncer coordinate status` and dispatch a commit task id instead.',
+  },
+  'dispatch-git-read-failed': {
+    cause: 'Git could not read the worker HEAD or worktree state needed to open dispatch.',
+    next: 'Repair the assigned worker worktree, then retry `bouncer coordinate dispatch`.',
+  },
+  'drive-not-closed': {
+    cause: 'Release requires the coordinator drive status to be closed.',
+    next: 'Finish integration and close the drive, then retry `bouncer coordinate release`.',
+  },
+  'failure-evidence-required': {
+    cause: 'Repair needs terminal failure evidence (command, summary, and paths).',
+    next: 'Pass failure evidence into `bouncer coordinate repair` from the failed verification.',
+  },
+  'fanin-conflict': {
+    cause: 'Fan-in hit a conflict while applying a recorded worker commit.',
+    next: 'Call `bouncer coordinate revoke` for the conflicting task, then retry `bouncer coordinate integrate`.',
+  },
+  'findings-required': {
+    cause: 'Starting critical recovery requires a non-empty findings list.',
+    next: 'Retry `bouncer coordinate critical-recovery` with at least one finding id.',
+  },
+  'illegal-transition': {
+    cause: 'The task is not in a status that allows this coordinate command.',
+    next: 'Run `bouncer coordinate status` and issue the command that matches the task status.',
+  },
+  'invalid-attempt': {
+    cause: 'The report attempt number does not match the active dispatch.',
+    next: 'Call `bouncer coordinate report` with the attempt from the last `bouncer coordinate dispatch`.',
+  },
+  'invalid-report-outcome': {
+    cause: 'The report outcome is not one of the accepted dispatch outcomes.',
+    next: 'Retry `bouncer coordinate report` with accepted, rework, scope_revision, task_change, or blocked.',
+  },
+  'invalid-task-brief-hash': {
+    cause: 'The report task_brief_hash does not match the active dispatch.',
+    next: 'Call `bouncer coordinate report` with the task_brief_hash from the last `bouncer coordinate dispatch`.',
+  },
+  'lease-flags-require-task': {
+    cause: 'Lease flags were supplied without a task id to bind them to.',
+    next: 'Retry the same `bouncer coordinate` command with `--task` plus the lease flags.',
+  },
+  'lease-invalid': {
+    cause: 'The ledger lease shape or leaseSeq is invalid.',
+    next: 'Run `bouncer coordinate status`; if the ledger is corrupt, report it to the user and do not invent a lease.',
+  },
+  'lease-required': {
+    cause: 'This mutation requires the task lease id and generation.',
+    next: 'Retry with `--lease-id` and `--generation` from the last `bouncer coordinate prepare` or status checkpoint.',
+  },
+  'ledger-checkpoint-invalid': {
+    cause: 'The ledger path/hash fence is missing or not a valid integration-relative checkpoint.',
+    next: 'Run `bouncer coordinate status` and pass its checkpoint.ledger path and sha256.',
+  },
+  'ledger-lock-lost': {
+    cause: 'The process lost the ledger lock before it could write.',
+    next: 'Run `bouncer coordinate status` and retry the same command from that checkpoint; do not write the ledger by hand.',
+  },
+  'main-source-mutated': {
+    cause: 'Bootstrap changed tracked files in the main checkout, which is forbidden.',
+    next: 'Restore the main checkout, then retry `bouncer coordinate bootstrap`.',
+  },
+  'missing-blueprint': {
+    cause: 'The integration worktree has no blueprint directory for this drive.',
+    next: 'Restore the blueprint on the integration worktree, then retry `bouncer coordinate prepare`.',
+  },
+  'missing-ledger': {
+    cause: 'The coordinator ledger file is missing for this blueprint.',
+    next: 'Run `bouncer coordinate bootstrap` from the main checkout, then continue from `bouncer coordinate status`.',
+  },
+  'missing-seed-manifest': {
+    cause: 'Release requires a seed manifest recorded at bootstrap.',
+    next: 'Report the missing manifest to the user; do not invent files, and rerun `bouncer coordinate status`.',
+  },
+  'missing-verification-bundle': {
+    cause: 'The worker is missing the verification task bundle required for fan-in.',
+    next: 'Restore the task bundle on the worker, then retry `bouncer coordinate integrate`.',
+  },
+  'next-plan-must-be-regular-file': {
+    cause: 'NEXT_PLAN.md exists but is not a regular file.',
+    next: 'Replace it with a regular NEXT_PLAN.md on the integration worktree, then retry `bouncer coordinate partial-close`.',
+  },
+  'next-plan-must-be-untracked': {
+    cause: 'NEXT_PLAN.md is tracked, but partial-close requires it untracked.',
+    next: 'Untrack NEXT_PLAN.md without deleting the plan, then retry `bouncer coordinate partial-close`.',
+  },
+  'next-plan-required': {
+    cause: 'Partial-close in awaiting_confirmation requires NEXT_PLAN.md.',
+    next: 'Write NEXT_PLAN.md on the integration worktree, then retry `bouncer coordinate partial-close`.',
+  },
+  'no-active-dispatch': {
+    cause: 'Report was called with no active dispatch for this task.',
+    next: 'Open `bouncer coordinate dispatch` first, then call `bouncer coordinate report`.',
+  },
+  'non-git-root': {
+    cause: 'The repo root is not an available git checkout.',
+    next: 'Run `bouncer coordinate` from a git repository root that Bouncer can resolve.',
+  },
+  'not-ready': {
+    cause: 'The task is not in the ready wave for this command.',
+    next: 'Run `bouncer coordinate status` and act on a task listed in checkpoint.ready.',
+  },
+  'not-recorded': {
+    cause: 'Rerecord requires a recorded task with a stored SHA.',
+    next: 'Call `bouncer coordinate record` first, or pick a recorded task from `bouncer coordinate status`.',
+  },
+  'nothing-to-integrate': {
+    cause: 'No recorded commit tasks remain to fan in.',
+    next: 'Run `bouncer coordinate status` and record remaining commit tasks before `bouncer coordinate integrate`.',
+  },
+  'partial-close-awaiting-confirmation-required': {
+    cause: 'Partial-close is allowed only while the drive is awaiting confirmation.',
+    next: 'Run `bouncer coordinate status` and wait for awaiting_confirmation before `bouncer coordinate partial-close`.',
+  },
+  'reason-required': {
+    cause: 'Critical recovery requires a non-empty reason string.',
+    next: 'Retry `bouncer coordinate critical-recovery` with a reason.',
+  },
+  'release-requires-main-checkout': {
+    cause: 'Release must run from the main checkout, not the integration worktree.',
+    next: 'Change cwd to the main checkout and rerun `bouncer coordinate release`.',
+  },
+  'repair-scope-out-of-bounds': {
+    cause: 'Repair paths are outside the blueprint-scoped source bound.',
+    next: 'Retry `bouncer coordinate repair` with paths inside the blueprint source scope.',
+  },
+  'repair-wave-limit': {
+    cause: 'This drive already used the maximum of two repair waves.',
+    next: 'Report the terminal failure to the user; do not retry `bouncer coordinate repair`.',
+  },
+  'sha-not-direct-integration-child': {
+    cause: 'The new worker SHA is not a direct child of the recorded integration-base commit.',
+    next: 'Reset the worker onto the recorded SHA, then retry `bouncer coordinate rerecord`.',
+  },
+  'sha-not-owned-by-worker': {
+    cause: 'The recorded SHA is not owned by the assigned worker worktree.',
+    next: 'Restore the assigned worker worktree, then retry `bouncer coordinate integrate`.',
+  },
+  'sha-not-worker-head': {
+    cause: 'The supplied SHA is not the assigned worker HEAD.',
+    next: 'Omit sha or pass the worker HEAD, then retry `bouncer coordinate record`.',
+  },
+  'sha-unchanged': {
+    cause: 'Rerecord requires a worker HEAD that differs from the stored SHA.',
+    next: 'Commit the new worker work, then retry `bouncer coordinate rerecord`.',
+  },
+  'stale-integration-head': {
+    cause: 'The integration worktree HEAD does not match the ledger integrationHead.',
+    next: 'Reset the integration worktree to the ledger head from `bouncer coordinate status`, then retry.',
+  },
+  'stale-ledger-checkpoint': {
+    cause: 'The supplied ledger hash does not match the bytes loaded for this mutation.',
+    next: 'Run `bouncer coordinate status` and retry with the new checkpoint.ledger sha256.',
+  },
+  'stale-lease': {
+    cause: 'The supplied lease id or generation does not match the task lease.',
+    next: 'Run `bouncer coordinate status` and retry with the current `--lease-id` and `--generation`.',
+  },
+  'stale-report': {
+    cause: 'The report attempt or task_brief_hash does not match the active dispatch.',
+    next: 'Keep the attempt open and call `bouncer coordinate report` with the received attempt and task_brief_hash; do not call record.',
+  },
+  'stale-worker-report': {
+    cause: 'The task brief changed after the accepted report, so the report no longer matches the brief.',
+    next: 'Open a new `bouncer coordinate dispatch` for this task and rerun the implementer; do not retry record.',
+  },
+  'summary-required': {
+    cause: 'Report requires a non-empty summary.',
+    next: 'Retry `bouncer coordinate report` with a summary of the worker outcome.',
+  },
+  'task-outside-blueprint': {
+    cause: 'The task id is not a commit task on this blueprint ledger.',
+    next: 'Run `bouncer coordinate status` and use a task id listed on this blueprint.',
+  },
+  'task-required': {
+    cause: 'This command requires a three-digit task id.',
+    next: 'Retry the same `bouncer coordinate` command with `--task NNN`.',
+  },
+  'terminal-failure-required': {
+    cause: 'Repair requires a stored terminal verification failure.',
+    next: 'Run `bouncer coordinate status` and issue `bouncer coordinate repair` only after a terminal verification failure.',
+  },
+  'unassigned-integration-worktree': {
+    cause: 'The integration path exists but is not a git worktree registered for this drive.',
+    next: 'Remove or replace the stray path, then retry `bouncer coordinate bootstrap`.',
+  },
+  'unassigned-worker-worktree': {
+    cause: 'The worker path is not the git worktree assigned to this task.',
+    next: 'Do not seed into that path; run `bouncer coordinate prepare` from the integration worktree so it can assign workers.',
+  },
+  'unknown-coordinate-command': {
+    cause: 'The coordinate command is not a supported subcommand.',
+    next: 'Run `bouncer coordinate status` or a documented subcommand from `bouncer help`.',
+  },
+  'verification-failed': {
+    cause: 'The verification task command failed on the integration worktree.',
+    next: 'Inspect the verification payload, then `bouncer coordinate repair` or report the failure to the user.',
+  },
+  'wave-verification-failed': {
+    cause: 'Wave verification failed after fan-in applied the recorded commits.',
+    next: 'Call `bouncer coordinate revoke` or `bouncer coordinate repair` from the failure evidence, then retry integrate.',
+  },
+  'worker-evidence-not-terminal': {
+    cause: 'Worker verification or review evidence files are still open, so fan-in is refused.',
+    next: 'Close those evidence files on the worker, then retry `bouncer coordinate integrate`.',
+  },
+  'worker-evidence-sha-mismatch': {
+    cause: 'Worker task-brief bytes do not match the SHA recorded for fan-in.',
+    next: 'Restore the recorded brief on the worker, then retry `bouncer coordinate integrate`.',
+  },
+};
+
+/**
+ * coordinate 본문이 돌려준 실패 객체에 cause/next를 붙인다.
+ * 개별 return 지점을 고치지 않기 위해 공개 경계에서만 병합한다.
+ *
+ * @param {unknown} result - coordinate 본문 반환값
+ * @returns {unknown} 실패면 cause·next가 붙은 사본, 아니면 원본
+ */
+function withCoordinateFailureHints(result: unknown): unknown {
+  if (!result || typeof result !== 'object') return result;
+  const body = result as { ok?: boolean; reason?: unknown };
+  if (body.ok === false && typeof body.reason === 'string') {
+    const hint = COORDINATE_FAILURE_HINTS[body.reason] || {
+      cause: body.reason,
+      next: FALLBACK_COORDINATE_NEXT,
+    };
+    return { ...body, cause: hint.cause, next: hint.next };
+  }
+  return result;
+}
+
+/**
+ * 공개 coordinate 진입점. 본문 실패에 힌트를 붙인 뒤에만 호출자에게 돌려준다.
+ *
+ * @param {Parameters<typeof coordinate>[0]} opts - `coordinate`와 동일한 인자 객체
+ * @returns {ReturnType<typeof withCoordinateFailureHints>} 힌트가 병합된 coordinate 결과
+ */
+function coordinateWithHints(opts: Parameters<typeof coordinate>[0]) {
+  return withCoordinateFailureHints(coordinate(opts));
+}
+
 export = {
-  readyWave, transition, coordinate, loadLedger, loadLedgerBytes, readBouncerBlock,
-  projectCheckpoint, assertLedgerFence, LEDGER_REL,
+  readyWave, transition, coordinate: coordinateWithHints, loadLedger, loadLedgerBytes, readBouncerBlock,
+  projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS,
 };

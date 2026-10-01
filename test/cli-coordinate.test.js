@@ -10,6 +10,7 @@ const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 
 const __coordinatorMod = require('../scripts/lib/coordinator');
+const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
 const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
 const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
@@ -468,7 +469,11 @@ test('coordinate release prints its payload from main and a JSON refusal elsewhe
 
   const open = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(open.code, 1);
-  assert.deepStrictEqual(JSON.parse(open.buf.out), { ok: false, reason: 'blueprint-not-closed' });
+  assert.deepStrictEqual(JSON.parse(open.buf.out), {
+    ok: false, reason: 'blueprint-not-closed',
+    cause: COORDINATE_FAILURE_HINTS['blueprint-not-closed'].cause,
+    next: COORDINATE_FAILURE_HINTS['blueprint-not-closed'].next,
+  });
 
   writeDoc(drive.integration, `${BP_REL}/index.md`, {
     type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${BP_REL}/index.md`,
@@ -477,7 +482,11 @@ test('coordinate release prints its payload from main and a JSON refusal elsewhe
   });
   const misplaced = coordinateCli(drive.integration, 'release', ['--repo', drive.repo]);
   assert.strictEqual(misplaced.code, 1);
-  assert.deepStrictEqual(JSON.parse(misplaced.buf.out), { ok: false, reason: 'release-requires-main-checkout' });
+  assert.deepStrictEqual(JSON.parse(misplaced.buf.out), {
+    ok: false, reason: 'release-requires-main-checkout',
+    cause: COORDINATE_FAILURE_HINTS['release-requires-main-checkout'].cause,
+    next: COORDINATE_FAILURE_HINTS['release-requires-main-checkout'].next,
+  });
 
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 0, buf.err);

@@ -182,7 +182,9 @@ to your `Decision required` judgment, never a second brief.
    `lease` as the identity for later `dispatch` / `report` / `record`.
 3. **Drive** — For every ready task from prepare, dispatch a task runner at
    once (at most `checkpoint.ready` count, inside the configured parallel
-   ceiling). The coordinator does not move the pointer per task. Each runner
+   ceiling). When a `coordinate` response is `ok: false`, execute its `next`
+   and do not read plugin sources to recover. The coordinator does not move
+   the pointer per task. Each runner
    works in its worker cwd under that task's `effectiveTask`. Open
    `coordinate dispatch` with `--lease-id` / `--generation` from the task's
    lease plus the held `--ledger-path <checkpoint.ledger.path> --ledger-hash
