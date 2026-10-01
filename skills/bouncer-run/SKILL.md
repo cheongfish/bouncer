@@ -105,8 +105,7 @@ stay on the execute round.
    `ok: false`, report the reason and stop — do not retry into a different path.
 
 4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` exactly once
-   per `rules/subagent-model.md`; read `agents/bouncer-coordinator.md` for
-   coordinator authority. When named agents are unavailable, dispatch
+   per `rules/subagent-model.md`. When named agents are unavailable, dispatch
    one generic subagent with the same coordinator brief and the same worktree
    guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
    "print"`), the coordinator is a `bouncer dispatch print --role coordinator`

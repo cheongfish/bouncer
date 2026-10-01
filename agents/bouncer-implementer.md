@@ -58,6 +58,10 @@ read code/tests/repo context needed to implement.
 - Write only inside the worktree the controller gave you as cwd. A coordinator
   drive assigns one worktree per task; another task's worktree, the integration
   worktree, and the main checkout are never yours to edit.
+- Do not Read this role document again when it is already in your context
+  (named load, generic-fallback payload, or print prompt), and do not Read a
+  dispatch-payload document whose body is already in your prompt (the task
+  brief and similar). Never re-read those copies.
 
 ## Scope
 

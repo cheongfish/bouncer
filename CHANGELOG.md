@@ -9,6 +9,10 @@
 
 ### Changed
 
+- **drive 재읽기 축소** — coordinator Drive가 execute 참조 세 경로를 가리키고
+  `bouncer-execute/SKILL.md`는 세션당 한 번만 읽으며, drive 역할 문서 네 개는
+  이미 문맥에 있는 역할·payload 문서를 다시 Read하지 않는다. run 스킬 4단계는
+  coordinator 역할 문서를 읽으라고 시키지 않는다.
 - **coordinate stdout 축소** — `bouncer coordinate` 성공 응답에서 원장 전체
   `tasks`·`decisions` 사본을 빼고, prepare는 lease 대상만 `opened[]`로 내며,
   모든 coordinate stdout을 한 줄 JSON으로 출력한다.

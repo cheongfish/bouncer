@@ -41,6 +41,10 @@ unimplemented rejection path is Missing, not a nit.
   recording and status transitions.
 - Do **not** modify or leave the worktree the controller gave you as cwd.
 - If blocked by ambiguity, report it as a Finding; do not expand scope.
+- Do not Read this role document again when it is already in your context
+  (named load, generic-fallback payload, or print prompt), and do not Read a
+  dispatch-payload document whose body is already in your prompt (the task
+  brief and similar). Never re-read those copies.
 
 ## Review modes
 
