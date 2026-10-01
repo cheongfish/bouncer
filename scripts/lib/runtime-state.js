@@ -161,6 +161,13 @@ function validDispatch(value) {
  * partial close가 신뢰하는 canonical repair 항목의 전체 shape를 검사한다.
  * task/wave 식별자만 맞춘 복사본은 scope·DAG·실패 근거를 바꿔치기할 수 있으므로,
  * 원장 사본 비교 전에 각 필드와 실제 실패 경로를 먼저 고정한다.
+ * `failure.findings`는 리뷰 원인 repair만 갖는다. 키가 없으면 CI 증적으로
+ * 읽고, 있으면 비어 있지 않은 문자열 배열이어야 한다 — 문자열 하나로는
+ * 반복 `--review-finding` 순서를 보존할 수 없다.
+ *
+ * @param {unknown} value - repair 결정 후보
+ * @param {number} expectedWave - 1부터 세는 기대 wave
+ * @returns {boolean} canonical repair 결정이면 true
  */
 function validRepairDecision(value, expectedWave) {
     if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -170,6 +177,8 @@ function validRepairDecision(value, expectedWave) {
     if (!failure || typeof failure !== 'object' || Array.isArray(failure))
         return false;
     const evidence = failure;
+    if (evidence.findings !== undefined && !stringList(evidence.findings, true))
+        return false;
     return decision.kind === 'repair' && decision.wave === expectedWave
         && nonEmptyString(decision.task) && nonEmptyString(decision.reason)
         && nonEmptyString(evidence.task) && nonEmptyString(evidence.command)

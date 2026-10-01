@@ -1,5 +1,7 @@
 'use strict';
 const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const paths = require("./paths");
 const { toPosix } = paths;
@@ -9,7 +11,7 @@ const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = comp
 const scope = require("./scope");
 const { makeAllowed, isRuntimeArtifact } = scope;
 const validateDocs = require("./validate-docs");
-const { defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf, } = validateDocs;
+const { defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf, isBlueprintReviewMode, } = validateDocs;
 const runtimeState = require("./runtime-state");
 const { verifyLedgerPathFor } = runtimeState;
 const validateSections = require("./validate-sections");
@@ -49,6 +51,170 @@ function asData(doc) {
     // 호출부가 `doc.data.bouncer`로 바로 들어가던 곳은 그대로 두기 위해
     // 여기서 data를 빈 객체로 바꾸지 않는다. null data는 예전처럼 접근 시 터진다.
     return doc.data;
+}
+/**
+ * checkout의 coordinator 원장에서 blueprint 경로만 읽는다. 파일이 없거나
+ * blueprint 문자열이 없으면 drive가 아니다. JSON 파손도 drive로 보지 않아
+ * stale git을 돌리지 않는다.
+ *
+ * @param {{ repoRoot: string }} opts - gate를 실행한 checkout 루트
+ * @returns {{ blueprint: string } | null} 원장 blueprint 또는 null
+ */
+function defaultReadCoordinatorLedger({ repoRoot }) {
+    const file = path.join(repoRoot, '.bouncer', 'runtime', 'coordinator.json');
+    let raw;
+    try {
+        raw = fs.readFileSync(file, 'utf8');
+    }
+    catch (error) {
+        // 원장 부재(ENOENT)만 흡수한다. 권한 오류를 "drive 아님"으로 접으면
+        // stale 검사를 건너뛰어 잘못된 마감을 통과시킬 수 있다.
+        if (error.code === 'ENOENT')
+            return null;
+        throw error;
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.blueprint !== 'string' || parsed.blueprint === '')
+            return null;
+        return { blueprint: parsed.blueprint };
+    }
+    catch (error) {
+        // JSON SyntaxError만 흡수한다. 원장을 읽을 수 없으면 drive 판정을
+        // 할 수 없고, 그 상태를 stale git 실패로 바꾸면 원인 코드가 갈라진다.
+        if (error instanceof SyntaxError)
+            return null;
+        throw error;
+    }
+}
+/**
+ * 주입된 git exec가 없으면 repoRoot에 바인딩한 spawnSync를 쓴다.
+ * merge-base --is-ancestor는 status 1이 정상 실패라 execFileSync를 쓰면 안 된다.
+ *
+ * @param {string} repoRoot - git cwd
+ * @param {string[]} args - `git` 뒤 argv
+ * @param {GateDeps['exec']} [injected] - 테스트 seam
+ * @returns {{ status: number, stdout: string, stderr: string }} git 결과
+ */
+function gitExec(repoRoot, args, injected) {
+    if (typeof injected === 'function')
+        return injected(args);
+    const r = spawnSync('git', args, {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+    return {
+        status: typeof r.status === 'number' ? r.status : 1,
+        stdout: r.stdout || '',
+        stderr: r.stderr || '',
+    };
+}
+/**
+ * 마지막 라운드의 `target.head`. 없거나 빈 값이면 라운드 계약이 없다.
+ *
+ * @param {unknown} rounds - `bouncer.review.rounds`
+ * @returns {string | null} head 또는 null
+ */
+function lastReviewHead(rounds) {
+    if (!Array.isArray(rounds) || rounds.length === 0)
+        return null;
+    const last = rounds[rounds.length - 1];
+    if (!last || typeof last !== 'object')
+        return null;
+    const target = last.target;
+    if (!target || typeof target !== 'object')
+        return null;
+    const head = target.head;
+    return typeof head === 'string' && head.trim() !== '' ? head : null;
+}
+/**
+ * git stderr에서 첫 줄을 골라 G21 메시지에 붙인다. 여러 줄 전체를 넣으면
+ * gate 실패 문구가 한 줄 계약을 넘는다.
+ *
+ * @param {string} stderr - exec 결과 stderr
+ * @returns {string} 첫 줄(trim). 비어 있으면 빈 문자열
+ */
+function firstStderrLine(stderr) {
+    const line = String(stderr).split(/\r?\n/)[0] || '';
+    return line.trim();
+}
+/**
+ * finalize G21 — blueprint 루트 review.md만 판정한다. task 묶음 review는
+ * 읽지 않는다. 폐기된 G4/G9/G15를 재사용하지 않는다.
+ *
+ * @param {BlueprintDocs} docs - 로드된 문서
+ * @param {BlueprintRels} rels - 실패 file 경로
+ * @param {FailureEntry[]} failures - G21을 누적할 배열
+ * @param {GateContext} ctx - repoRoot·deps
+ * @returns {void}
+ */
+function checkG21(docs, rels, failures, ctx) {
+    const add = (message) => failures.push({
+        code: 'G21', message, file: rels.review,
+    });
+    const reviewDoc = docs.review;
+    if (!reviewDoc) {
+        add('blueprint review missing');
+        return;
+    }
+    const reviewBouncer = reviewDoc.data
+        && reviewDoc.data.bouncer;
+    const reviewMeta = reviewBouncer
+        ? reviewBouncer.review
+        : undefined;
+    // 루트 리뷰는 review.required: false로 면제하지 않는다. task G8과 달리
+    // blueprint 마감의 유일한 리뷰 증적이기 때문이다.
+    if (statusOf(reviewDoc) !== 'accepted') {
+        add('blueprint review not accepted');
+    }
+    const head = lastReviewHead(reviewMeta && reviewMeta.rounds);
+    if (!head) {
+        add('blueprint review has no rounds');
+    }
+    for (const message of collectFindingFailures({
+        body: reviewDoc.body,
+        findings: reviewMeta && reviewMeta.findings,
+        rounds: reviewMeta && reviewMeta.rounds,
+        sectionLabel: 'review.md',
+        findingLabel: 'review',
+        allowedStatuses: EXECUTE_REVIEW_STATUS,
+        reviewStatus: statusOf(reviewDoc),
+    })) {
+        add(message);
+    }
+    if (!head)
+        return;
+    const repoRoot = ctx.repoRoot;
+    const deps = ctx.deps;
+    const readLedger = (deps && deps.readCoordinatorLedger) || defaultReadCoordinatorLedger;
+    if (typeof repoRoot !== 'string')
+        return;
+    const ledger = readLedger({ repoRoot });
+    if (!ledger)
+        return;
+    // 원장의 blueprint가 이 gate 대상과 같을 때만 drive다. 다른 drive의
+    // 원장이 checkout에 남아 있어도 stale git을 돌리지 않는다.
+    if (toPosix(ledger.blueprint) !== toPosix(ctx.blueprintDir || ''))
+        return;
+    const ancestor = gitExec(repoRoot, ['merge-base', '--is-ancestor', head, 'HEAD'], deps && deps.exec);
+    if (ancestor.status !== 0 && ancestor.status !== 1) {
+        add(`blueprint review stale check failed (${firstStderrLine(ancestor.stderr)})`);
+        return;
+    }
+    if (ancestor.status === 1) {
+        add('blueprint review is stale');
+        return;
+    }
+    const diff = gitExec(repoRoot, ['diff', '--name-only', head, 'HEAD'], deps && deps.exec);
+    if (diff.status !== 0) {
+        add(`blueprint review stale check failed (${firstStderrLine(diff.stderr)})`);
+        return;
+    }
+    const dirty = String(diff.stdout).split('\n').filter(Boolean)
+        .some((rel) => !toPosix(rel).startsWith('.bouncer/'));
+    if (dirty)
+        add('blueprint review is stale');
 }
 /**
  * plan 게이트 G19 — task `depends_on` graph의 참조 무결성과 순환을 판정한다.
@@ -530,7 +696,10 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             : undefined;
         const review = reviewBouncer ? reviewBouncer.review : undefined;
         const reviewOk = statusOf(reviewDoc) === 'accepted' || (review && review.required === false);
-        if (!isVerificationTask && !reviewOk) {
+        const blueprintReviewMode = isBlueprintReviewMode(docs.blueprintIndex);
+        // 모드에서는 루트 리뷰만 본다. 남은 task review.md를 읽으면 G8/G14가
+        // 마감과 다른 문서를 근거로 실패한다.
+        if (!blueprintReviewMode && !isVerificationTask && !reviewOk) {
             addUnit('G8', 'review not accepted and review.required != false', 'review');
         }
         checkG13(verificationDoc, addUnit, ctx);
@@ -545,7 +714,7 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
         // G18은 CONTEXT_REVIEW_STATUS와 context namespace를 넘긴다 — 같은 헬퍼라도
         // 계획 문서에는 deferred를 열지 않고, round 원장은 digest target 계약으로만 연다.
         // G8의 accepted/required 판정은 그대로 둔다.
-        if (!isVerificationTask && reviewDoc && !reviewSkipped) {
+        if (!blueprintReviewMode && !isVerificationTask && reviewDoc && !reviewSkipped) {
             for (const message of collectFindingFailures({
                 body: reviewDoc.body,
                 findings: reviewMeta && reviewMeta.findings,
@@ -599,6 +768,11 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
                 file: (openDoc && openDoc.rel) || rels.tasks,
             });
             return;
+        }
+        // G16 open-tasks 다음, Explain 앞. 모드가 아니면 루트 review.md가 있어도
+        // 구형 fixture의 G16 판정을 바꾸지 않는다.
+        if (isBlueprintReviewMode(docs.blueprintIndex)) {
+            checkG21(docs, rels, failures, ctx);
         }
         if (!docs.explain) {
             add('G16', 'explain.md missing', 'explain');
@@ -680,7 +854,7 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             ? commitReviewBouncer.review
             : undefined;
         const reviewOk = statusOf(reviewDoc) === 'accepted' || (review && review.required === false);
-        if (!reviewOk) {
+        if (!isBlueprintReviewMode(docs.blueprintIndex) && !reviewOk) {
             addUnit('G8', 'review not accepted and review.required != false', 'review');
         }
         checkG13(verificationDoc, addUnit, ctx);

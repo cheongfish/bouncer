@@ -98,7 +98,7 @@ Epic: [<EPIC-id>](../../index.md)
 ## Documents
 * [Tasks](tasks/001/tasks.md) - 구현 브리프
 * [Verification](tasks/001/verification.md) - 검증 명령과 증적
-* [Review](tasks/001/review.md) - 리뷰 발견사항
+* [Review](review.md) - 리뷰 발견사항
 * [Context review](context-review.md) - 계획 문서 정합성 판정
 <!-- explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다. -->
 `,
@@ -215,7 +215,7 @@ Source 변경 경로 없음.
      accepted note: 권한 있는 위험 수용 근거
      deferred note: 현재 task와 독립인 후속 planning 항목 근거
      optional bouncer.review.rounds[]: round (양의 정수), mode (discovery | delta | critical_recovery),
-     target (base·head),
+     target (blueprint 범위 base·head — task 묶음이 아니라 이 루트 review.md 하나),
      perspectives (combined | spec_scope | correctness_tests | minimality_maintainability | security,
      target_head는 target.head와 동일), previous_finding_ids (문자열 배열), new · resolved · regressed
      (0 이상 정수). mode 없는 구문서는 기존 계약으로 통과한다. -->
@@ -270,7 +270,7 @@ Source 변경 경로 없음.
      이 절은 선택 사항이며 G16 필수 절이 아니다. -->
 `,
     // --- scale: light 전용 본문 ---
-    // light는 plan 단계 네 문서(blueprint index + tasks/001 세 문서) 전체 줄 수를
+    // light는 plan 단계 네 문서(index + 루트 review + tasks/001 두 문서) 전체 줄 수를
     // 100줄 이하로 묶는 계약이다(rules/planning.md). 그래서 full 템플릿의 작성
     // 가이드 주석을 옮겨오지 않는다 — 가이드는 skills/spec-authoring이 갖고,
     // 본문에는 게이트가 요구하는 제목과 <TODO:> 자리만 남긴다.

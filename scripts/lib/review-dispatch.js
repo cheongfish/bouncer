@@ -133,12 +133,16 @@ function classifyPlanReview({ repoRoot, blueprintDir }) {
 /**
  * frozen base/head의 numstat과 승인된 review_risk로 Execute 리뷰 전략을 고른다.
  * 경로명·diff 본문 키워드로 위험을 추측하지 않는다.
+ * `taskId`가 없으면 같은 numstat을 blueprint 전체로 보고, commit task의
+ * `review_risk` 합집합을 쓴다 — 최종 리뷰가 한 task 문서에 묶이면 빠진 위험을
+ * 보안 관점에서 닫아버리기 때문이다.
  *
  * @param {{
- *   repoRoot: string, blueprintDir: string, taskId: string,
+ *   repoRoot: string, blueprintDir: string, taskId?: string,
  *   base: string, head: string, exec?: ExecFileSyncFn
  * }} opts
- * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험, 실패 시 ok:false
+ * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험, 실패 시 ok:false.
+ *   blueprint 범위 성공의 `target.task`는 null. S30 위반이면 perspectives 없음.
  */
 function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exec = realExecFileSync, }) {
     // 1. Plan과 같은 S10 경계: isCanonicalBlueprintDir을 거치지 않으면
@@ -156,31 +160,42 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exe
                 }],
         };
     }
-    const digits = normalizeTaskDigits(taskId);
-    if (!digits) {
-        return { ok: false, error: `invalid task id: ${taskId}` };
-    }
     const bp = toPosix(blueprintDir);
-    const tasksRel = `${bp}/tasks/${digits}/tasks.md`;
-    const tasksAbs = path.join(repoRoot, tasksRel);
-    if (!fs.existsSync(tasksAbs)) {
-        return { ok: false, error: `unknown task: ${digits}` };
+    let targetTask = null;
+    let risk;
+    if (taskId == null || taskId === '') {
+        // 최종 리뷰는 한 commit task의 필드만 보면 다른 task의 credential 위험을
+        // 놓친다. 합집합을 여기서 만들고, 한 문서라도 S30이면 축소 성공으로
+        // 위장하지 않는다.
+        risk = unionCommitReviewRisk({ repoRoot, blueprintDir: bp });
     }
-    let taskData;
-    try {
-        taskData = readDoc(tasksAbs).data;
+    else {
+        const digits = normalizeTaskDigits(taskId);
+        if (!digits) {
+            return { ok: false, error: `invalid task id: ${taskId}` };
+        }
+        const tasksRel = `${bp}/tasks/${digits}/tasks.md`;
+        const tasksAbs = path.join(repoRoot, tasksRel);
+        if (!fs.existsSync(tasksAbs)) {
+            return { ok: false, error: `unknown task: ${digits}` };
+        }
+        let taskData;
+        try {
+            taskData = readDoc(tasksAbs).data;
+        }
+        catch (error) {
+            // YAML/IO 실패를 missing task로 접으면 controller가 존재하지 않는 id로
+            // 재시도한다. 파싱 오류는 그대로 드러낸다.
+            const message = error instanceof Error ? error.message : String(error);
+            return { ok: false, error: `task unreadable: ${message}` };
+        }
+        const kind = taskExecutionKind(taskData);
+        if (kind !== 'commit') {
+            return { ok: false, error: `task ${digits} is not a commit task` };
+        }
+        risk = readReviewRisk(taskData.bouncer);
+        targetTask = digits;
     }
-    catch (error) {
-        // YAML/IO 실패를 missing task로 접으면 controller가 존재하지 않는 id로
-        // 재시도한다. 파싱 오류는 그대로 드러낸다.
-        const message = error instanceof Error ? error.message : String(error);
-        return { ok: false, error: `task unreadable: ${message}` };
-    }
-    const kind = taskExecutionKind(taskData);
-    if (kind !== 'commit') {
-        return { ok: false, error: `task ${digits} is not a commit task` };
-    }
-    const risk = readReviewRisk(taskData.bouncer);
     if (!risk.ok)
         return risk;
     let resolvedBase;
@@ -226,7 +241,7 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exe
     return {
         ok: true,
         phase: 'execute',
-        target: { base: resolvedBase, head: resolvedHead, task: digits },
+        target: { base: resolvedBase, head: resolvedHead, task: targetTask },
         strategy,
         changed_files: stats.changed_files,
         changed_lines: stats.changed_lines,
@@ -234,6 +249,47 @@ function classifyExecuteReview({ repoRoot, blueprintDir, taskId, base, head, exe
         perspectives,
         reasons,
     };
+}
+/**
+ * commit task의 `review_risk`를 번호 순으로 합친다.
+ * 한 문서의 S30 위반을 다른 문서의 정상 값으로 덮으면 최종 리뷰가 깨진
+ * 필드를 보안 관점 없이 통과하므로, 첫 실패에서 멈춘다.
+ *
+ * @param {{ repoRoot: string, blueprintDir: string }} opts - 저장소와 blueprint 상대 경로
+ * @returns {{ ok: true, flags: string[] } | DispatchFail} 중복 없는 합집합, 또는 S30/읽기 실패
+ */
+function unionCommitReviewRisk({ repoRoot, blueprintDir }) {
+    const listing = listTasksDocs({ repoRoot, blueprintDir });
+    const flags = [];
+    const seen = new Set();
+    for (const entry of listing.entries) {
+        if (entry.executionKind === 'verification')
+            continue;
+        if (entry.executionKind !== 'commit' && entry.executionKind !== null) {
+            return { ok: false, error: `task ${entry.id} has invalid execution_kind` };
+        }
+        let data;
+        try {
+            data = readDoc(path.join(repoRoot, entry.tasks.rel)).data;
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return { ok: false, error: `task unreadable: ${entry.tasks.rel}: ${message}` };
+        }
+        if (executionKindOf(data.bouncer) === 'verification') {
+            continue;
+        }
+        const risk = readReviewRisk(data.bouncer);
+        if (!risk.ok)
+            return risk;
+        for (const flag of risk.flags) {
+            if (seen.has(flag))
+                continue;
+            seen.add(flag);
+            flags.push(flag);
+        }
+    }
+    return { ok: true, flags };
 }
 /**
  * commit task만 Interface backtick·Touch 경로 신호를 모은다.

@@ -14,8 +14,8 @@ directs. The controller also supplies the actual read-only cwd. This call slot
 never grants a reviewer write, status, pointer, or scope authority.
 
 Fill every applicable placeholder, then hand this prompt to the dispatched
-reviewer. This is a read-only pass: do not modify files, commit, or change the
-pointer task directory's `review.md` status / frontmatter — Findings only.
+reviewer. This is a read-only pass: do not modify files, commit, or change
+`review.md` status / frontmatter — Findings only.
 
 ## Placeholders
 
@@ -27,16 +27,20 @@ pointer task directory's `review.md` status / frontmatter — Findings only.
   (`single` | `parallel`); leave empty for delta
 - `{{RISK_FLAGS}}` — CLI `risk_flags` array (may be empty); leave empty for
   delta
-- `{{TARGET}}` — frozen target: base, head, brief revision, `task_brief_hash`,
-  `intent_bundle_id`, `intent_bundle_revision`, and latest verify result
-- `{{BRIEF}}` — task brief (`tasks/<NNN>/tasks.md`) Goal & intent, Interface,
-  Touch, Do not touch, Constraints, Checklist
+- `{{TARGET}}` — frozen target: base, head, brief revision, `task_brief_hash`
+  or `task_brief_hashes`, `intent_bundle_id` / `intent_bundles`,
+  `intent_bundle_revision`, and latest verify result
+- `{{BRIEF}}` — when `review_scope` is `blueprint`, every commit task brief
+  (Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist)
+  plus the blueprint Contract; when `review_scope` is absent, the pointer
+  task brief (`tasks/<NNN>/tasks.md`) those same sections only
 - `{{INTENT_SECTIONS}}` — role `intent_sections` projection from the shared
   intent bundle; do not paste the full Explain body here
-- `{{TASK_BRIEF_HASH}}` — frozen `task_brief_hash`
-- `{{INTENT_BUNDLE_ID}}` — frozen `intent_bundle_id`
+- `{{TASK_BRIEF_HASH}}` — frozen `task_brief_hash` (absent-`review_scope` path)
+  or the `task_brief_hashes` map
+- `{{INTENT_BUNDLE_ID}}` — frozen `intent_bundle_id` or the `intent_bundles` map
 - `{{INTENT_BUNDLE_REVISION}}` — frozen `intent_bundle_revision`
-- `{{CONSTRAINTS}}` — the task brief `## Constraints` list verbatim, plus Do
+- `{{CONSTRAINTS}}` — each supplied brief `## Constraints` list verbatim, plus Do
   not touch paths, `affected_paths`, and repo norms. Paste the rules; do not
   summarize them, or the reviewer cannot tell a breach from a judgement call.
 - `{{PREVIOUS_FINDINGS}}` — delta only: stable IDs and fields from earlier
@@ -105,7 +109,10 @@ perspective.
 ### Delta rules
 
 When mode is `delta`, certify previous-finding resolution and regressions in
-`{{REVISION_DIFF}}`; do not reopen the target as a new discovery pass and do
+`{{REVISION_DIFF}}`. In blueprint review mode the standalone last-commit
+delta still judges the whole-worktree diff (`git diff <base>` plus untracked
+after the fix), not only the repair hunks; `{{REVISION_DIFF}}` remains origin
+evidence for new findings. Do not reopen the target as a new discovery pass and do
 not receive a discovery perspective. Do not report a new `minor` or `nit` in
 unchanged code. A new finding must be either:
 
@@ -138,4 +145,4 @@ Return **only** a Findings list. For each finding include:
 
 Add one **Scope/task impact** line — `none`, or the paths and tasks the
 findings reach beyond the current `affected_paths`. Do **not** set review
-status. Do **not** edit the pointer task directory's `review.md`.
+status. Do **not** edit `review.md` (pointer task directory or blueprint root).

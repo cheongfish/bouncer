@@ -9,13 +9,13 @@ limits.
 `subagents.dispatch` from `.bouncer/config.json`. When they are `cursor` and
 `print`, item 7 applies and the dispatch is never a Task subagent.
 
-1. Resolve the named agent's model with `resolveSubagentModel`. Its return is
-   an object: extract and pass only `result.model` to the named dispatch, never
-   the complete result (which also carries provider metadata). When
-   `result.model` is `null`, omit the model argument so the named dispatch keeps
-   parent-session inheritance. `inherit`, `null`, and every non-string
-   configured value have that inheritance meaning; they are not a request to
-   select a replacement model.
+1. Resolve the named agent's model with `bouncer subagent-model --agent <name>`.
+   It prints one slug line, or `inherit` when the slot is missing or configured
+   as `inherit`. Pass only that printed line to the named dispatch; never treat
+   the command as returning provider metadata. When the output is `inherit`,
+   omit the model argument so the named dispatch keeps parent-session inheritance.
+   `inherit`, `null`, and every non-string configured value have that inheritance
+   meaning; they are not a request to select a replacement model.
 2. Attempt the named dispatch. Do not skip it because the host is Codex.
    Only the item 7 opt-in replaces it.
 3. Only on a rejected model slug, retry that same named dispatch once with

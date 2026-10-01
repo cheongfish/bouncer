@@ -22,9 +22,9 @@ and its regression tests, then correct the input against that contract.
 | Phase | Required result |
 | --- | --- |
 | `plan` | approved epic and blueprint; every task is implementation-ready; scope is justified; the task DAG is valid |
-| `execute` | the current task is verified, harness verification passed, and review is accepted or explicitly not required |
-| `commit` | execute evidence remains valid and staged paths are within the current task scope |
-| `finalize` | every commit task is `verified`, every verification task is `integrated`, and the published Explain has valid comprehension and diff evidence |
+| `execute` | the current task is verified, harness verification passed, and review is accepted or explicitly not required. When `bouncer.review_scope` is `blueprint`, G8 and G14 are not applied to the task bundle |
+| `commit` | execute evidence remains valid and staged paths are within the current task scope. Blueprint review mode also skips G8 on the task bundle |
+| `finalize` | every commit task is `verified`, every verification task is `integrated`, and the published Explain has valid comprehension and diff evidence. Blueprint review mode also requires G21 on the root `review.md` |
 
 The execute and commit gates inspect only the active pointer task. The plan and
 finalize gates inspect the whole blueprint.
@@ -52,29 +52,40 @@ finalize gates inspect the whole blueprint.
 ## Execution, commit, and finalize rules
 
 - `G6`–`G8`: task, verification, and review status must agree. Do not mark
-  them successful by editing frontmatter alone.
+  them successful by editing frontmatter alone. When blueprint `index.md`
+  sets `review_scope: blueprint`, G8 does not inspect `tasks/<NNN>/review.md`.
 - `G13`: run `bouncer verify`; its Git-common-directory ledger must match the
   generated `verification.md`. A new clone or CI checkout must run verification
   again for the active task.
 - `G14`: review findings require valid severity and disposition. Accepted or
   deferred findings need a non-empty note; an accepted review cannot retain an
-  open must-fix finding.
+  open must-fix finding. Blueprint review mode does not apply G14 to a leftover
+  task `review.md`.
 - `G17`: the document-level staged-path check is weaker than coordinator scope
   enforcement. In a drive, `bouncer commit` and commit safety also require the
   assigned worker worktree and current ledger revision.
 - `G16`: finalize only after all task states and Explain evidence satisfy the
-  validator. Do not reopen a closed blueprint; plan a sibling instead.
+  validator. Do not reopen a closed blueprint; plan a sibling instead. G16
+  still runs before G21.
+- `G21`: after open-task G16 and before Explain, the root `review.md` must be
+  `accepted`, have a last round `target.head`, pass execute-contract
+  `collectFindingFailures`, and (on a matching coordinator drive) not be stale
+  versus `HEAD`. `review.required: false` does not waive G21. Codes: missing,
+  not accepted, has no rounds, finding messages, stale, stale check failed.
 
 ## Structural constraints that affect agent actions
 
 - `S12`: `bouncer.verify` is one allowed executable argv; no shell chaining,
   redirection, or `cd` prefix.
-- `S15`–`S17`: a commit task uses
-  `tasks/<NNN>/{tasks,verification,review}.md`. Do not create legacy root task
-  files or non-canonical task directories.
+- `S15`–`S17`: a commit task uses `tasks/<NNN>/{tasks,verification,review}.md`
+  unless blueprint `review_scope` is `blueprint`, in which case the bundle is
+  `tasks/<NNN>/{tasks,verification}.md` and review lives at the blueprint-root
+  `review.md`. Do not create legacy root task files or non-canonical task
+  directories.
 - `S18`: imported blueprints are not gate targets.
 - `S19`, `S20`, `S27`, `S28`: preserve the expected document type, declared
-  scale, supersedes shape, and DAG field shapes.
+  scale, supersedes shape, and DAG field shapes. Root `review.md` is
+  `bouncer.review` with id `REVIEW-<blueprint id>`.
 - `S29`: `execution_kind` is `commit` or `verification`. A verification task
   has empty `affected_paths`, non-empty `depends_on`, `parallel_safe: false`,
   `dependency_gate: integrated`, and one valid `verify` command. It has only
@@ -83,5 +94,7 @@ finalize gates inspect the whole blueprint.
   `public_interface | authentication | authorization | credential`. Absent is
   legacy-compatible (read as `[]`). Fix shape, unknown values, or duplicates
   in the task frontmatter before running `review-dispatch`.
+- `S31`: if `bouncer.review_scope` is present on a blueprint, the only allowed
+  value is `blueprint`.
 
 Retired codes (`G4`, `G9`, `G15`, `S14`, and `S21`–`S26`) are never reused.

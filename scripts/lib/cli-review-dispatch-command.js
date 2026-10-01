@@ -5,7 +5,7 @@ const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
 
   review-dispatch plan --blueprint <dir>
              Classify plan context-review strategy (read-only JSON).
-  review-dispatch execute --blueprint <dir> --task <ddd> --base <sha> --head <sha>
+  review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
              Classify execute review strategy from frozen diff (read-only JSON).
 `;
 /**
@@ -50,7 +50,10 @@ function parsePlanArgs(rest) {
     };
 }
 /**
- * execute 하위 명령 인자. frozen base/head·task가 빠지면 분류를 시작하지 않는다.
+ * execute 하위 명령 인자. frozen base/head가 빠지면 분류를 시작하지 않는다.
+ * `--task`는 한 commit task 범위일 때만 필수이고, 생략하면 blueprint 전체
+ * numstat·위험 합집합으로 간다 — 최종 리뷰가 task 하나를 강제하면 CLI가
+ * 분류기보다 좁아진다.
  *
  * @param {string[]} rest - `execute` 뒤 argv
  * @returns {ParsedExecute} 성공 필드 또는 error
@@ -68,7 +71,8 @@ function parseExecuteArgs(rest) {
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
         return fail('--blueprint is required');
     }
-    if (typeof f.task !== 'string' || f.task === '') {
+    if (Object.prototype.hasOwnProperty.call(f, 'task')
+        && (typeof f.task !== 'string' || f.task === '')) {
         return fail('--task <ddd> is required');
     }
     if (typeof f.base !== 'string' || f.base === '') {
@@ -83,7 +87,7 @@ function parseExecuteArgs(rest) {
     return {
         mode: 'execute',
         blueprint: f.blueprint,
-        task: f.task,
+        task: typeof f.task === 'string' ? f.task : null,
         base: f.base,
         head: f.head,
         repo: typeof f.repo === 'string' ? f.repo : undefined,
@@ -117,7 +121,7 @@ function cmdReviewDispatch(rest, io) {
     const result = reviewDispatch.classifyExecuteReview({
         repoRoot,
         blueprintDir: parsed.blueprint,
-        taskId: parsed.task,
+        ...(parsed.task ? { taskId: parsed.task } : {}),
         base: parsed.base,
         head: parsed.head,
     });
@@ -128,7 +132,7 @@ module.exports = {
     run: cmdReviewDispatch,
     usage: `  review-dispatch plan --blueprint <dir>
              Classify plan context-review strategy (read-only JSON).
-  review-dispatch execute --blueprint <dir> --task <ddd> --base <sha> --head <sha>
+  review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
              Classify execute review strategy from frozen diff (read-only JSON).
 `,
 };

@@ -28,6 +28,8 @@ const COMMANDS = {
     intent: projectCommands.intent,
     'graphify-bin': projectCommands['graphify-bin'],
     'project-root': projectCommands['project-root'],
+    'subagent-model': projectCommands['subagent-model'],
+    'codex-agents': projectCommands['codex-agents'],
     current: currentCommand.current,
     migrate: projectCommands.migrate,
     import: gitCommands.import,

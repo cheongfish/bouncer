@@ -185,14 +185,24 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    task change, or terminal blocked), not a return to `/bouncer-plan`.
 
 5. **Review.** If `bouncer.review.required === false`, skip (G8 already satisfied).
-   Otherwise, only after the latest verification passes, enter the controller-owned
-   review state procedure in the [`review` skill](`${BOUNCER_ROOT}/references/review/index.md`).
+   When the blueprint `index.md` `bouncer.review_scope` is `blueprint`, skip this
+   step unless this is the **last commit task** (every other commit task is
+   already `verified`) and the latest verification passed; then run the final
+   review. Other commit tasks skip review and do not enter the review skill.
+   When `review_scope` is absent, keep the existing per-task review after the
+   latest verification passes. Only a path that actually runs a review — that
+   last-commit final review, or the absent-`review_scope` per-task review —
+   enters the controller-owned review state procedure in the [`review` skill](`${BOUNCER_ROOT}/references/review/index.md`).
    When a review round may start or stop, read [review-round.md](./references/review-round.md).
    Freeze the target, then run `bouncer review-dispatch execute --blueprint <dir>
-   --task <NNN> --base <sha> --head <sha>`; that CLI strategy (`single` |
+   --task <NNN> --base <sha> --head <sha>` when `review_scope` is absent, or
+   `--blueprint <dir> --base <sha> --head <sha>` (no `--task`) for the last-commit
+   final review; that CLI strategy (`single` |
    `parallel`) and `perspectives` order are the only discovery dispatch choice —
    do not override them. On `ok: false`, a target mismatch, or when
-   `risk_flags` disagree with the current task's `review_risk`, stop without
+   `risk_flags` disagree with the current task's `review_risk` (absent
+   `review_scope`) or the union of commit-task `review_risk` (blueprint review
+   mode), stop without
    calling reviewers or recording accepted (fail closed). The ceiling is one frozen parallel discovery wave, one fix batch, and one delta
    certification; a drive alone may add one critical recovery.
 

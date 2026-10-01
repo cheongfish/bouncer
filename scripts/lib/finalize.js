@@ -232,6 +232,17 @@ function writeClosedLock(repoRoot, target) {
  * @param {string} opts.blueprintDir - blueprint 상대 경로
  * @returns {string[]} 존재하는 일회성 문서의 posix 상대 경로
  */
+/**
+ * closed 전이에 지울 일회성 문서 경로를 모은다.
+ * task leaf와 context-review는 항상 대상이다. 루트 review.md는
+ * `review_scope: blueprint`일 때만 넣는다 — 구형 blueprint의 루트
+ * 파일은 사람이 둔 증적이라 마감이 지우면 안 된다.
+ *
+ * @param {object} opts - 저장소와 blueprint 경로
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @returns {string[]} 존재하는 일회성 문서의 상대 경로
+ */
 function collectTransientRels({ repoRoot, blueprintDir }) {
     const listing = listTasksDocs({ repoRoot, blueprintDir });
     const rels = [];
@@ -248,11 +259,44 @@ function collectTransientRels({ repoRoot, blueprintDir }) {
                 rels.push(rel);
         }
     }
-    const contextReviewRel = `${toPosix(blueprintDir)}/context-review.md`;
+    const bp = toPosix(blueprintDir);
+    const contextReviewRel = `${bp}/context-review.md`;
     if (fs.existsSync(path.join(repoRoot, contextReviewRel))) {
         rels.push(contextReviewRel);
     }
+    if (isBlueprintReviewScopeAt(repoRoot, bp)) {
+        const rootReviewRel = `${bp}/review.md`;
+        if (fs.existsSync(path.join(repoRoot, rootReviewRel))) {
+            rels.push(rootReviewRel);
+        }
+    }
     return rels;
+}
+/**
+ * blueprint index의 `review_scope === 'blueprint'`만 모드로 본다.
+ * 파일 부재·파싱 실패는 구형 계약(지우지 않음)으로 접는다 — 모드로
+ * 오인하면 남겨야 할 루트 리뷰를 지운다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} blueprintDir - blueprint 상대 경로
+ * @returns {boolean} 모드이면 true
+ */
+function isBlueprintReviewScopeAt(repoRoot, blueprintDir) {
+    const abs = path.join(repoRoot, `${toPosix(blueprintDir)}/index.md`);
+    if (!fs.existsSync(abs))
+        return false;
+    try {
+        const { data } = readDoc(abs);
+        const bouncer = asRecord(asRecord(data).bouncer);
+        return bouncer.review_scope === 'blueprint';
+    }
+    catch (error) {
+        // YAML/frontmatter 파싱 실패만 흡수한다. 권한 오류는 숨기지 않는다.
+        if (error instanceof Error && (error.name === 'YAMLException' || /frontmatter|YAML/i.test(error.message))) {
+            return false;
+        }
+        throw error;
+    }
 }
 /**
  * staged 목록에 경로를 중복 없이 덧붙인다. 삭제 대상이 git 변경에 이미

@@ -42,4 +42,4 @@ Epic: [077](../../index.md)
 ## Documents
 * [Tasks](tasks/001/tasks.md) - 구현 브리프
 * [Verification](tasks/001/verification.md) - 검증 명령과 증적
-* [Review](tasks/001/review.md) - 리뷰 발견사항
+* [Review](review.md) - 리뷰 발견사항

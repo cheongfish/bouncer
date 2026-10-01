@@ -237,6 +237,9 @@ module.exports = {
              explain --blueprint <dir>
              context-review --blueprint <dir>
              Create a document set with correct frontmatter.
+             blueprint writes index.md, review.md, and (full) context-review.md;
+             a new task writes tasks.md and verification.md (legacy blueprints
+             without review_scope still get task review.md).
              (explain is for finalize; epic/blueprint scaffold omit it.)
 `,
     },

@@ -71,6 +71,20 @@ function isClosedBlueprint(repoRoot, blueprintDirRel) {
     return Boolean(bouncer && bouncer.status === 'closed');
 }
 /**
+ * blueprint가 루트 리뷰 모드인지 본다.
+ * `review_scope === 'blueprint'`일 때만 true다. 필드 부재·읽기 실패는
+ * 구형 계약이므로 false — 여기서 true로 접으면 기존 blueprint에
+ * task `review.md`를 안 만들어 G8/S17이 풀린다.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {string} blueprintDirRel - blueprint 상대 경로
+ * @returns {boolean} 루트 리뷰 모드이면 true
+ */
+function isBlueprintReviewScope(repoRoot, blueprintDirRel) {
+    const bouncer = readBlueprintBouncer(repoRoot, blueprintDirRel);
+    return Boolean(bouncer && bouncer.review_scope === 'blueprint');
+}
+/**
  * blueprint가 선언한 scale을 돌려준다. 선언은 사람이 쓴 index.md의
  * `bouncer.scale`뿐이다 — 경로 수·diff 크기로 추론하지 않는다.
  * 알 수 없는 값이나 읽기 실패는 기본값(full)으로 떨어뜨린다: 문서 세트를
@@ -158,9 +172,11 @@ function scaffoldEpic({ repoRoot, epicId, name, timestamp, description }) {
     return created;
 }
 /**
- * 기존 blueprint 에 tasks/<NNN>/ 묶음을 추가한다. commit task는 세 문서,
- * verification task는 review.md 없이 두 문서를 쓰고 tasks.md 본문도
+ * 기존 blueprint 에 tasks/<NNN>/ 묶음을 추가한다. commit task는 기본적으로
+ * 세 문서, verification task는 review.md 없이 두 문서를 쓰고 tasks.md 본문도
  * 경로 없는 Touch를 가진 `verification-tasks.md`에서 가져온다.
+ * blueprint `index.md`의 `bouncer.review_scope`가 `blueprint`이면 commit
+ * 묶음도 루트 리뷰가 판정 근거이므로 task `review.md`를 쓰지 않는다.
  * 거절 조건을 모두 검사한 뒤에만 파일을 쓴다 — 일부만 생성된 상태를 남기지 않기 위함.
  * closed blueprint, 잘못된 id·scale·executionKind, verification의 빈 dependsOn·
  * 무효 verify, 이미 있는 task 디렉터리는 파일을 쓰기 전에 Error로 거절한다.
@@ -254,7 +270,9 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale, execut
     // light에는 `-light` 사본이 없어 templateNameFor가 같은 본문으로 떨어진다.
     body(isVerification ? 'verification-tasks.md' : tasksBase)));
     created.push(writeRel(repoRoot, verifyRel, bouncerDoc('bouncer.verification', `${taskId} verification`, `Verification for ${taskId}`, verifyRel, ['bouncer', 'verification'], timestamp, { id: ids.verification, epic_id: epicId, blueprint_id: blueprintId, status: 'pending' }), body(verifyBase)));
-    if (!isVerification) {
+    // 루트 리뷰 모드에서는 task 묶음에 리뷰 leaf를 두면 게이트가 루트와
+    // task를 동시에 읽게 된다. 필드 부재(구형)만 세 문서를 유지한다.
+    if (!isVerification && !isBlueprintReviewScope(repoRoot, bp)) {
         created.push(writeRel(repoRoot, reviewRel, bouncerDoc('bouncer.review', `${taskId} review`, `Review for ${taskId}`, reviewRel, ['bouncer', 'review'], timestamp, {
             id: ids.review, epic_id: epicId, blueprint_id: blueprintId, status: 'pending',
             review: { required: true },
@@ -262,6 +280,21 @@ function scaffoldTask({ repoRoot, blueprintDir, taskId, timestamp, scale, execut
     }
     return created;
 }
+/**
+ * 새 blueprint 문서 세트를 만든다. full·light 모두 `review_scope: blueprint`와
+ * 루트 `review.md` 하나를 쓰고, 첫 task 묶음은 tasks.md·verification.md만
+ * 갖는다. 이미 있는 루트 `review.md`는 덮어쓰지 않는다.
+ * 알 수 없는 scale은 첫 파일도 쓰기 전에 거절한다.
+ *
+ * @param {object} options - 저장소·식별자·scale 입력
+ * @param {string} options.repoRoot - 저장소 루트 절대 경로
+ * @param {string} options.epicDir - canonical epic 상대 경로
+ * @param {string} options.blueprintId - zero-padded blueprint 번호
+ * @param {string} options.name - blueprint slug
+ * @param {string} options.timestamp - 생성 시각
+ * @param {string} [options.scale] - light | full. 생략은 full
+ * @returns {string[]} 생성한 문서의 저장소 상대 경로
+ */
 function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, scale }) {
     // scripts/가 scale을 읽는 네 곳: scaffoldBlueprint는 문서 집합을 고르고,
     // scaffoldTask는 이후 task에 blueprint가 선언한 scale을 상속하며, plan gate는
@@ -292,6 +325,9 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
         status: 'draft',
         commit_type: DEFAULT_COMMIT_TYPE,
         scale: bpScale,
+        // 새 blueprint는 task별 리뷰 대신 루트 review.md 하나다.
+        // 기존 문서의 필드 부재는 구형 계약으로 남긴다(여기서 소급하지 않음).
+        review_scope: 'blueprint',
         supersedes: [],
     }), body('blueprint.md')));
     // index.md 다음, task 묶음보다 앞. explain은 finalize 시점이라 여기 넣지 않는다.
@@ -302,8 +338,20 @@ function scaffoldBlueprint({ repoRoot, epicDir, blueprintId, name, timestamp, sc
             repoRoot, blueprintDir: dir, timestamp,
         }));
     }
+    const reviewRel = `${dir}/review.md`;
+    // 이미 있는 루트 리뷰는 사람이 쓴 findings를 지울 수 있어 재작성하지 않는다.
+    if (!fs.existsSync(path.join(repoRoot, reviewRel))) {
+        created.push(writeRel(repoRoot, reviewRel, bouncerDoc('bouncer.review', `${blueprintId} review`, `Review for ${blueprintId}`, reviewRel, ['bouncer', 'review'], timestamp, {
+            id: `REVIEW-${blueprintId}`,
+            epic_id: epicId,
+            blueprint_id: blueprintId,
+            status: 'pending',
+            review: { required: true },
+        }), body('review.md')));
+    }
     // 새 blueprint 는 tasks/001/ 묶음부터 시작한다. 루트 tasks-001.md 는 더 이상 만들지 않는다.
     // (기존 문서 인식은 listTasksDocs 가 유지 — 거절은 004.)
+    // index에 review_scope를 먼저 썼으므로 아래 scaffoldTask는 task review.md를 생략한다.
     const taskCreated = scaffoldTask({
         repoRoot, blueprintDir: dir, taskId: '001', timestamp, scale: bpScale,
     });

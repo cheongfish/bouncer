@@ -168,14 +168,41 @@ function buildVerificationLines(tasks) {
     return lines;
 }
 /**
+ * accepted/deferred finding만 리뷰 포인트로 접는다.
+ * task.review와 blueprint_review가 같은 규칙을 쓰게 한 헬퍼 —
+ * 한쪽만 note 폴백을 바꾸면 PR 본문이 갈라진다.
+ *
+ * @param {string[]} points - 누적 배열
+ * @param {unknown} rawFindings - findings 원본
+ * @returns {void}
+ */
+function pushFindingPoints(points, rawFindings) {
+    const findings = Array.isArray(rawFindings) ? rawFindings : [];
+    for (const raw of findings) {
+        const finding = asRecord(raw);
+        if (finding.status !== 'accepted' && finding.status !== 'deferred')
+            continue;
+        if (typeof finding.note === 'string' && finding.note) {
+            points.push(finding.note);
+        }
+        else if (typeof finding.id === 'string' && finding.id) {
+            // F3 accepted: note 없을 때 finding.id 폴백은 digest 진단값이라 유지한다.
+            points.push(finding.id);
+        }
+    }
+}
+/**
  * out_of_scope·accepted/deferred finding note·unverified를 리뷰 포인트 문자열로
  * 모은다. Epic/Quiz/원문 로그는 넣지 않는다 — Constraints의 PR 본문 금지 목록.
  * unverified.task는 digest stable_id(EPIC-…/BP-…/TASK-…)라 본문에 넣지 않는다.
+ * blueprint_review.findings는 루트 리뷰 경로이며 task.review와 같은 규칙으로
+ * accepted/deferred note를 싣는다.
  *
  * @param {object} digest
  * @param {string[]} digest.out_of_scope
  * @param {unknown[]} digest.tasks
  * @param {unknown[]} digest.unverified
+ * @param {{ findings?: unknown } | null} [digest.blueprint_review]
  * @returns {string[]}
  */
 function buildReviewPoints(digest) {
@@ -188,20 +215,9 @@ function buildReviewPoints(digest) {
     const tasks = Array.isArray(digest.tasks) ? digest.tasks : [];
     for (const entry of tasks) {
         const review = asRecord(asRecord(entry).review);
-        const findings = Array.isArray(review.findings) ? review.findings : [];
-        for (const raw of findings) {
-            const finding = asRecord(raw);
-            if (finding.status !== 'accepted' && finding.status !== 'deferred')
-                continue;
-            if (typeof finding.note === 'string' && finding.note) {
-                points.push(finding.note);
-            }
-            else if (typeof finding.id === 'string' && finding.id) {
-                // F3 accepted: note 없을 때 finding.id 폴백은 digest 진단값이라 유지한다.
-                points.push(finding.id);
-            }
-        }
+        pushFindingPoints(points, review.findings);
     }
+    pushFindingPoints(points, asRecord(digest.blueprint_review).findings);
     const unverified = Array.isArray(digest.unverified) ? digest.unverified : [];
     for (const raw of unverified) {
         const row = asRecord(raw);
@@ -261,6 +277,8 @@ function buildPrDraft(digest, opts) {
                 out_of_scope: d.out_of_scope,
                 tasks: d.tasks,
                 unverified: d.unverified,
+                // 루트 리뷰 finding은 task.review에 없어서 같이 넘기지 않으면 PR에서 빠진다.
+                blueprint_review: d.blueprint_review,
             }),
             verification: buildVerificationLines(Array.isArray(d.tasks) ? d.tasks : []),
         },

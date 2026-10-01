@@ -5,23 +5,42 @@ The controller owns `review.md` records and status transitions; reviewers
 return findings only. Do not give a discovery reviewer another reviewer's
 findings.
 
+Blueprint review mode is `bouncer.review_scope: blueprint` on blueprint
+`index.md`. When `review_scope` is absent, keep the existing per-task
+procedure (pointer-task `review.md`, `--task <NNN>`).
+
 ```text
-1 freeze    Pin base, HEAD, task-brief revision, task_brief_hash,
-            intent_bundle_id, intent_bundle_revision, intent_sections, and
-            latest verify result. Do not modify implementation until discovery
-            completes. Do not mix different brief hash or bundle revision
-            values in one round, and do not pass the full Explain body into
-            discovery or delta payloads.
-2 discover  Run `bouncer review-dispatch execute --blueprint <dir> --task <NNN>
-            --base <frozen-base> --head <frozen-head>`. That CLI result is the
+1 freeze    Pin base, HEAD, task-brief revision(s), latest verify, and
+            either the single-task identifiers (task_brief_hash,
+            intent_bundle_id, intent_bundle_revision, intent_sections) or,
+            in blueprint review mode, task_brief_hashes (commit task id →
+            brief hash) and intent_bundles (commit task id → { id, revision }).
+            Do not modify implementation until discovery completes. Do not
+            mix different brief hash or bundle revision values in one round,
+            and do not pass the full Explain body into discovery or delta
+            payloads.
+
+            Standalone last-commit final review (blueprint review mode):
+            base is `git merge-base <bouncer current base> HEAD`; head is
+            HEAD; the reviewed diff is `git diff <base>` plus untracked
+            files for the whole worktree. A coordinator final review uses
+            the drive payload base SHA and the integration HEAD.
+
+2 discover  When `review_scope` is absent, run
+            `bouncer review-dispatch execute --blueprint <dir> --task <NNN>
+            --base <frozen-base> --head <frozen-head>`. In blueprint review
+            mode run `--blueprint <dir> --base <frozen-base> --head
+            <frozen-head>` with no `--task`. That CLI result is the
             only discovery dispatch authority: do not recompute file/line
             stats, guess risk from path names or diff bodies, merge or split
             perspectives, or override `strategy` / `perspectives` /
             `risk_flags`. When the payload is `ok: false`, or when its
-            `target.base` / `target.head` / `target.task` disagree with the
-            frozen values, or when `risk_flags` disagree with the current
-            task's `review_risk`, stop — do not open a review round and do not
-            mark the review accepted.
+            `target.base` / `target.head` (and `target.task` on the
+            per-task path) disagree with the frozen values, or when
+            `risk_flags` disagree with the current task's `review_risk`
+            (per-task path) or the union of commit-task `review_risk`
+            (blueprint review mode), stop — do not open a review round and
+            do not mark the review accepted.
 
             Dispatch discovery reviewers by walking the CLI `perspectives`
             array in order — that list is the only fan-out. Do not also branch
@@ -32,31 +51,49 @@ findings.
             `spec_scope`, `correctness_tests`, `minimality_maintainability`;
             large risk → those three then `security`). Record round 1
             perspectives in that CLI order. Each discovery call receives the
-            same frozen target, task_brief_hash, intent bundle identifiers,
+            same frozen target, brief hash / bundle identifiers,
             intent_sections, and latest verify — never another reviewer's
-            findings.
+            findings. In blueprint review mode the payload also carries every
+            commit task brief and the blueprint Contract.
 3 aggregate Verify evidence, merge duplicate fingerprints, record
             severity_changes and origin, then decide must_fix or advisory from
             the brief, evidence, and changed range — never a reviewer vote.
-4 fix       Under a coordinator drive: judge the prior implementer report
+4 fix       Under a coordinator drive in blueprint review mode: open one
+            `bouncer coordinate repair … --review-finding <id>` task that
+            fixes every must_fix together. Do not use that repair for a
+            finding that needs a new product decision, dependency, or public
+            interface — those stay blocked. Under a coordinator drive on the
+            per-task path: judge the prior implementer report
             (`coordinate report`), revise only when the outcome requires it,
             then open a new `coordinate dispatch` so the fix implementer
             receives the increased attempt, task_brief_hash, base_head,
             initial_worktree_state, and previous_outcome. Outside a drive,
             dispatch one implementer once with a repair brief containing every
-            must_fix finding.
-5 verify    Re-run latest verify.
+            must_fix finding; stay inside the pointer task's `affected_paths`.
+            A must_fix that needs any other path stays open: report it to the
+            user and send them to `/bouncer-plan`.
+5 verify    Re-run latest verify (standalone) or the terminal verification
+            (coordinator final review).
 6 certify   Dispatch one delta reviewer with previous findings, resolution,
-            and revision diff only — never a discovery perspective and never a
-            second strategy-shaped fan-out.
+            and revision-origin evidence — never a discovery perspective and never a
+            second strategy-shaped fan-out. Delta keeps the frozen base and
+            pins head to HEAD after the fix (standalone) or the post-repair
+            integration HEAD (drive). Standalone blueprint-mode delta reviews
+            the whole worktree (`git diff <base>` plus untracked after the
+            fix), not only the repair hunks. Fail-closed compares against that
+            round's frozen target.
 7 outcome   All must_fix resolved and verify passed: accepted.
 ```
 
 ## Round ledger contract
 
+완결된 `rounds[]` 예제는 `references/spec-authoring/review-rounds.md`를 본다.
 The controller records every state transition in `review.md` under
-`bouncer.review.rounds[]`. Every round records its frozen `target` (`base` and
-`head`), `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`,
+`bouncer.review.rounds[]`. In blueprint review mode that file is the
+blueprint-root `review.md`; when `review_scope` is absent it is
+`<pointer task directory>/review.md`. Every round records its frozen `target`
+(`base` and `head`), `task_brief_hash` or `task_brief_hashes`,
+`intent_bundle_id` / `intent_bundle_revision` or `intent_bundles`,
 `intent_sections`, `previous_finding_ids`, `new` / `resolved` / `regressed`
 counts, revision, and latest verify result. Each reviewer perspective records
 the same `target_head` as that round's target and the same bundle identifiers.

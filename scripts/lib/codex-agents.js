@@ -66,6 +66,41 @@ function shouldRefresh(existing, next) {
     return existing !== next;
 }
 /**
+ * 로컬 `.codex/agents/<name>.toml`이 플러그인 md 생성본과 바이트 일치하는지
+ * 읽기만으로 판정한다. 파일을 만들지 않고, 마커 없는 사용자 파일은
+ * mismatch가 아니라 not-generated로 돌려 seed가 덮을 대상이 아님을 드러낸다.
+ *
+ * @param {{ repoRoot: string, agentName: string, agentsDir?: string }} opts
+ * @param {string} opts.repoRoot - 소비 저장소 루트
+ * @param {string} opts.agentName - `.toml` 파일 stem (예: bouncer-implementer)
+ * @param {string} [opts.agentsDir] - md 소스 디렉터리. 생략 시 플러그인 agents/
+ * @returns {CodexAgentCheckOk | CodexAgentCheckFail} ok면 in_sync·path, 아니면 reason·path
+ */
+function checkCodexAgent({ repoRoot, agentName, agentsDir, }) {
+    // 1. 상대 posix 경로를 JSON 계약의 path로 고정한다. OS 구분자로 바꾸면
+    //    에이전트가 `.codex/agents/<name>.toml` 리터럴을 찾지 못한다.
+    const rel = `${CODEX_AGENTS_DIR}/${agentName}.toml`;
+    const dest = path.join(repoRoot, rel);
+    if (!fs.existsSync(dest)) {
+        return { ok: false, in_sync: false, reason: 'missing', path: rel };
+    }
+    const existing = fs.readFileSync(dest, 'utf8');
+    // 2. 첫 줄만 본다. shouldRefresh와 같이 마커 없는 파일은 사용자 소유라
+    //    생성본과 비교하지 않는다 — 내용이 같아도 seed 대상이 아니다.
+    const first = existing.split(/\r?\n/, 1)[0];
+    if (first !== GENERATED_MARKER) {
+        return { ok: false, in_sync: false, reason: 'not-generated', path: rel };
+    }
+    // 3. 생성 기준은 ensureCodexAgents와 같은 mdToCodexToml이다. 변환을
+    //    여기서 다시 구현하면 seed와 check가 다른 바이트를 정본으로 삼는다.
+    const srcDir = agentsDir ?? pluginAgentsDir();
+    const next = mdToCodexToml(fs.readFileSync(path.join(srcDir, `${agentName}.md`), 'utf8'));
+    if (existing !== next) {
+        return { ok: false, in_sync: false, reason: 'mismatch', path: rel };
+    }
+    return { ok: true, in_sync: true, path: rel };
+}
+/**
  * init이 `.codex/agents/*.toml`을 심을지. 호스트 이름·환경 변수는 신호가
  * 아니다 — Claude-only 저장소에 빈 `.codex/`가 생기는 일을 막기 위해
  * 디렉터리 존재 또는 명시적 opt-in만 본다.
@@ -122,6 +157,7 @@ module.exports = {
     GENERATED_MARKER,
     CODEX_AGENTS_DIR,
     mdToCodexToml,
+    checkCodexAgent,
     ensureCodexAgents,
     shouldEnsureCodexAgents,
 };
