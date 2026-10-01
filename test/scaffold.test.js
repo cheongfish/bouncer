@@ -114,6 +114,64 @@ test('scaffoldEpic refuses a number another epic slug already uses', () => {
   assert.doesNotMatch(bundle, /024-light-path/);
 });
 
+test('full scaffold created includes blueprint-root review.md and review_scope', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  const created = scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS,
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  assert.ok(created.includes(`${base}/review.md`));
+  const bp = readDoc(path.join(repo, `${base}/index.md`)).data;
+  assert.strictEqual(bp.bouncer.review_scope, 'blueprint');
+});
+
+test('light scaffold created includes blueprint-root review.md and review_scope', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
+  const created = scaffoldBlueprint({
+    repoRoot: repo, epicDir: '.bouncer/context/epics/001-auth',
+    blueprintId: '001', name: 'login', timestamp: TS, scale: 'light',
+  });
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  assert.ok(created.includes(`${base}/review.md`));
+  const bp = readDoc(path.join(repo, `${base}/index.md`)).data;
+  assert.strictEqual(bp.bouncer.review_scope, 'blueprint');
+});
+
+test('scaffoldTask on a blueprint without review_scope still writes three task docs', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  fs.mkdirSync(path.join(repo, base), { recursive: true });
+  fs.writeFileSync(path.join(repo, `${base}/index.md`), `---
+type: bouncer.blueprint
+title: Login
+description: d
+resource: ${base}/index.md
+tags:
+  - bouncer
+timestamp: '${TS}'
+bouncer:
+  id: '001'
+  epic_id: '001'
+  blueprint_id: '001'
+  status: draft
+  commit_type: feat
+  scale: full
+---
+# Login
+`);
+  const created = scaffoldTask({
+    repoRoot: repo, blueprintDir: base, taskId: '001', timestamp: TS,
+  });
+  assert.deepStrictEqual(created, [
+    `${base}/tasks/001/tasks.md`,
+    `${base}/tasks/001/verification.md`,
+    `${base}/tasks/001/review.md`,
+  ]);
+});
+
 test('scaffoldBlueprint writes five plan docs (no explain) with numeric child ids', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   scaffoldEpic({ repoRoot: repo, epicId: '001', name: 'auth', timestamp: TS });
@@ -126,11 +184,12 @@ test('scaffoldBlueprint writes five plan docs (no explain) with numeric child id
   assert.deepStrictEqual(created, [
     `${base}/index.md`,
     `${base}/context-review.md`,
+    `${base}/review.md`,
     `${base}/tasks/001/tasks.md`,
     `${base}/tasks/001/verification.md`,
-    `${base}/tasks/001/review.md`,
   ]);
   assert.ok(!fs.existsSync(path.join(repo, `${base}/explain.md`)));
+  assert.ok(!fs.existsSync(path.join(repo, `${base}/tasks/001/review.md`)));
   const ctxReview = readDoc(path.join(repo, `${base}/context-review.md`)).data;
   assert.strictEqual(ctxReview.type, 'bouncer.context_review');
   assert.strictEqual(ctxReview.bouncer.id, 'CTXREVIEW-001');
@@ -145,14 +204,17 @@ test('scaffoldBlueprint writes five plan docs (no explain) with numeric child id
   assert.deepStrictEqual(tasks.bouncer.affected_paths, []);
   assert.strictEqual(tasks.bouncer.scope_evidence, undefined);
   assert.strictEqual(tasks.bouncer.graph, undefined);
-  const review = readDoc(path.join(repo, `${base}/tasks/001/review.md`)).data;
+  const review = readDoc(path.join(repo, `${base}/review.md`)).data;
+  assert.strictEqual(review.type, 'bouncer.review');
   assert.strictEqual(review.bouncer.id, 'REVIEW-001');
+  assert.strictEqual(review.bouncer.status, 'pending');
   assert.strictEqual(review.bouncer.review.required, true);
   const verify = readDoc(path.join(repo, `${base}/tasks/001/verification.md`)).data;
   assert.strictEqual(verify.bouncer.id, 'VERIFY-001');
   assert.strictEqual(verify.bouncer.status, 'pending');
   const bp = readDoc(path.join(repo, `${base}/index.md`)).data;
   assert.strictEqual(bp.bouncer.id, '001');
+  assert.strictEqual(bp.bouncer.review_scope, 'blueprint');
   // commit_type·scale은 blueprint 전용 — scaffold 기본값이며 task·epic 문서에는 없다.
   assert.strictEqual(bp.bouncer.commit_type, 'feat');
   assert.strictEqual(bp.bouncer.scale, 'full');
@@ -183,7 +245,6 @@ test('scaffoldTask adds a numbered unit and refuses overwrite', () => {
   assert.deepStrictEqual(created, [
     `${base}/tasks/002/tasks.md`,
     `${base}/tasks/002/verification.md`,
-    `${base}/tasks/002/review.md`,
   ]);
   const tasksPath = path.join(repo, `${base}/tasks/002/tasks.md`);
   const before = fs.readFileSync(tasksPath);
@@ -254,7 +315,6 @@ test('scaffoldTask still succeeds on draft / approved / superseded blueprints', 
     assert.deepStrictEqual(created, [
       `${base}/tasks/002/tasks.md`,
       `${base}/tasks/002/verification.md`,
-      `${base}/tasks/002/review.md`,
     ], `expected ${status} blueprint to accept a new task unit`);
   }
 });
@@ -531,7 +591,7 @@ test('full scaffold bodies stay byte-identical to the shipped templates', () => 
     'context-review.md': templateBody('context-review.md', { epicId: '001', blueprintId: '001', name: '001' }),
     'tasks/001/tasks.md': templateBody('tasks.md', { epicId: '001', blueprintId: '001', name: '001' }),
     'tasks/001/verification.md': templateBody('verification.md', { epicId: '001', blueprintId: '001', name: '001' }),
-    'tasks/001/review.md': templateBody('review.md', { epicId: '001', blueprintId: '001', name: '001' }),
+    'review.md': templateBody('review.md', { epicId: '001', blueprintId: '001', name: 'login' }),
   };
   for (const [rel, body] of Object.entries(expected)) {
     assert.strictEqual(readDoc(path.join(repo, base, rel)).body, body, rel);
@@ -562,9 +622,9 @@ test('scale light writes four plan docs and no context-review', () => {
   const base = '.bouncer/context/epics/001-auth/blueprints/001-login';
   assert.deepStrictEqual(created, [
     `${base}/index.md`,
+    `${base}/review.md`,
     `${base}/tasks/001/tasks.md`,
     `${base}/tasks/001/verification.md`,
-    `${base}/tasks/001/review.md`,
   ]);
   assert.strictEqual(fs.existsSync(path.join(repo, base, 'context-review.md')), false);
   assert.strictEqual(fs.existsSync(path.join(repo, base, 'explain.md')), false);

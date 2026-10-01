@@ -65,7 +65,7 @@ type TaskDigest = {
   constraints: string | null;
 };
 
-type Unverified = { kind: string; task?: string; path?: string; detail?: string };
+type Unverified = { kind: string; task?: string | null; path?: string; detail?: string };
 
 type FinalizeDigest = {
   ok: true;
@@ -87,6 +87,7 @@ type FinalizeDigest = {
   unverified: Unverified[];
   out_of_scope: string[];
   coordinator: ReturnType<typeof buildCoordinatorProvenance>;
+  blueprint_review: { findings: Finding[] } | null;
   pr: ReturnType<typeof buildPrDraft>;
 };
 
@@ -391,7 +392,8 @@ function pathOutsideScope(changedPath: string, scopes: string[][]): boolean {
  * 문서·Git·원장을 쓰지 않는다. drive면 integration worktree에서 git을 읽고,
  * 깨진 원장은 기존 finalize와 같은 coordinator-ledger로 거절한다.
  * 성공 시 `pr`는 buildPrDraft로 채운다 — agent가 제목·확인 방법을 손으로
- * 조립하지 않게 하기 위함이다.
+ * 조립하지 않게 하기 위함이다. `review_scope: blueprint`이면 루트 리뷰
+ * finding을 `blueprint_review`로 싣고, 아니면 그 필드는 null이다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 호출 checkout(보통 main). 원장 경로 해석 기준
@@ -474,6 +476,7 @@ function prepareFinalizeDigest({
   let bpBlueprintId: string | null = null;
   let intent: string[] = [];
   let outOfScope: string[] = [];
+  let blueprintReviewMode = false;
   if (fs.existsSync(bpIndexAbs)) {
     try {
       const doc = readDoc(bpIndexAbs);
@@ -486,6 +489,9 @@ function prepareFinalizeDigest({
       bpBlueprintId = typeof bouncer.blueprint_id === 'string'
         ? bouncer.blueprint_id
         : (typeof bouncer.id === 'string' ? bouncer.id : null);
+      // 필드 부재는 구형 계약. 잘못된 값은 S31이 거절하므로 여기서는
+      // 정확히 'blueprint'일 때만 루트 리뷰를 읽는다.
+      blueprintReviewMode = bouncer.review_scope === 'blueprint';
       // 초기 '' 할당을 두지 않는다 — 이 블록에서만 읽고 바로 파싱한다.
       const bpBody = typeof doc.body === 'string' ? doc.body : '';
       outOfScope = parseOutOfScope(bpBody);
@@ -670,7 +676,7 @@ function prepareFinalizeDigest({
         unverified.push({ kind: 'verification-not-passed', task: task.stable_id });
       }
     }
-    if (task.review && task.review.required === false) {
+    if (!blueprintReviewMode && task.review && task.review.required === false) {
       unverified.push({ kind: 'review-skipped', task: task.stable_id });
     }
     if (task.review) {
@@ -688,6 +694,27 @@ function prepareFinalizeDigest({
             detail: finding.note || finding.id,
           });
         }
+      }
+    }
+  }
+  let blueprintReview: { findings: Finding[] } | null = null;
+  if (blueprintReviewMode) {
+    // 모드인데 루트 파일이 없으면 빈 findings다. null은 "모드가 아니다".
+    const rootReview = readReview(path.join(checkoutRoot, `${bp}/review.md`));
+    blueprintReview = { findings: rootReview ? rootReview.findings : [] };
+    for (const finding of blueprintReview.findings) {
+      if (finding.status === 'deferred') {
+        unverified.push({
+          kind: 'finding-deferred',
+          task: null,
+          detail: finding.note || finding.id,
+        });
+      } else if (finding.status === 'accepted') {
+        unverified.push({
+          kind: 'finding-accepted',
+          task: null,
+          detail: finding.note || finding.id,
+        });
       }
     }
   }
@@ -735,6 +762,7 @@ function prepareFinalizeDigest({
     unverified,
     out_of_scope: outOfScope,
     coordinator,
+    blueprint_review: blueprintReview,
   };
 
   const config = readConfig(checkoutRoot) ?? {};
