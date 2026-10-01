@@ -743,9 +743,10 @@ function buildCoordinatorProvenance(
     terminalFailure: ledger.terminalFailure || null,
     userConfirmed: ledger.userConfirmed === true,
     // cleanup 목록: integration이 먼저고, 할당된 worker worktree가 뒤따른다.
-    // payload의 top-level `worktrees`는 이 목록의 별칭이다 — 정리 계약(SKILL
-    // step 5, cleanup-handoff.md)이 읽는 안정된 자리이고, 여기 중첩된 값은
-    // explain frontmatter에 남는 기록이다. 한쪽을 옮기면 다른 쪽도 옮긴다.
+    // payload의 top-level `worktrees`는 정리 계약(SKILL step 5,
+    // cleanup-handoff.md)이 읽는 안정된 자리이다. explain frontmatter에는
+    // 남기지 않는다 — 머신 경로는 원장이 사라진 뒤 재현할 수 없고, 인덱스에
+    // 넣을 값이 아니다.
     worktrees: [
       ...(integrationPath ? [integrationPath] : []),
       ...tasks.map((task) => task.worktree).filter((p): p is string => Boolean(p)),
@@ -933,8 +934,17 @@ function readTaskStatus(file: string): string | null {
 }
 
 /**
- * explain.md frontmatter에 drive provenance를 남긴다. task_commits와 같은
- * 이유로 삭제 직전에 쓴다 — 원장이 사라진 뒤 PR과 리뷰가 읽을 유일한 출처다.
+ * explain.md frontmatter에 drive의 task 인덱스만 남긴다.
+ * 원장·digest·finalize 반환값은 그대로 두고, 원장이 사라진 뒤에도
+ * task→브랜치·실제 변경 파일 엣지를 읽을 수 있게 한다. SHA·예상 scope·
+ * 결정 로그·머신 경로는 task_commits와 겹치거나 재현 불가라 쓰지 않는다.
+ * provenance가 없거나 explain.md가 없으면 false이고 파일을 쓰지 않는다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @param {CoordinatorProvenance} opts.provenance - drive provenance. null이면 쓰지 않는다
+ * @returns {boolean} 썼으면 true, 건너뛰면 false
  */
 function writeExplainCoordinator({ repoRoot, blueprintDir, provenance }: {
   repoRoot: string; blueprintDir: string; provenance: CoordinatorProvenance;
@@ -945,24 +955,18 @@ function writeExplainCoordinator({ repoRoot, blueprintDir, provenance }: {
   const { data, body } = readDoc(abs);
   if (!data || typeof data !== 'object') return false;
   const bouncer = asRecord(asRecord(data).bouncer);
-  // frontmatter는 snake_case 정본이다. payload의 camelCase를 그대로 쓰면
-  // 같은 문서 안에서 두 표기가 섞인다.
+  // 1. snake_case 정본. payload camelCase를 그대로 쓰면 같은 문서에서 표기가 섞인다.
+  // 2. 키 순서는 스키마 계약: integration_branch, tasks[].
+  //    base·integration_head·revision·worktrees·decisions와
+  //    tasks[].status·sha·paths는 거부 — digest/반환값 자리가 따로 있다.
   bouncer.coordinator = {
-    base: provenance.base,
-    integration_head: provenance.integrationHead,
     integration_branch: provenance.integrationBranch,
-    revision: provenance.revision,
-    worktrees: provenance.worktrees,
     tasks: provenance.tasks.map((task) => ({
       id: task.id,
-      status: task.status,
-      sha: task.sha,
       branch: task.branch,
       scope_revision: task.scopeRevision,
-      paths: task.paths,
       actual_paths: task.actualPaths,
     })),
-    decisions: provenance.decisions,
   };
   fs.writeFileSync(abs, renderDoc(data, body));
   return true;

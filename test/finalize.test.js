@@ -1607,11 +1607,26 @@ test('finalize --yes copies coordinator provenance into explain frontmatter', ()
   const { data } = readFm(fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8'));
   const recorded = data.bouncer.coordinator;
   assert.ok(recorded, 'explain must keep the drive provenance after the documents are deleted');
-  assert.strictEqual(recorded.tasks[0].id, '001');
-  assert.strictEqual(recorded.integration_head, res.coordinator.integrationHead);
+  assert.deepStrictEqual(Object.keys(recorded), ['integration_branch', 'tasks']);
   assert.strictEqual(recorded.integration_branch, res.coordinator.integrationBranch);
+  assert.deepStrictEqual(Object.keys(recorded.tasks[0]), ['id', 'branch', 'scope_revision', 'actual_paths']);
+  assert.strictEqual(recorded.tasks[0].id, '001');
   assert.strictEqual(recorded.tasks[0].branch, res.coordinator.tasks[0].branch);
-  assert.deepStrictEqual(recorded.worktrees, res.worktrees);
+  assert.deepStrictEqual(recorded.tasks[0].actual_paths, res.coordinator.tasks[0].actualPaths);
+  assert.ok(Array.isArray(data.bouncer.task_commits));
+});
+
+test('finalize --yes without a coordinator ledger writes no coordinator into explain', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  const g = fakeGit(['src/auth/login.ts'], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  const { data } = readFm(fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8'));
+  assert.strictEqual(data.bouncer.coordinator, undefined);
+  assert.ok(Array.isArray(data.bouncer.task_commits));
 });
 
 test('finalize --yes prefers trailer integration SHA over worker commit_sha', () => {
