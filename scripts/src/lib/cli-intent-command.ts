@@ -477,8 +477,11 @@ function cmdIntentSections(parsed: SectionsArgs, io: CliIo): number {
       // core의 intent-task-invalid next는 같은 비정규 경로로 bundle을 다시
       // 만들라고 한다. 따르면 parseBundleArgs가 exit 2로 끝나므로, 이
       // reason만 canonical tasks.md 형식의 sections 재실행으로 바꾼다.
+      // max-len: 한 줄 템플릿은 145자라 eslint가 거절한다. 값을 바꾸지 않고
+      // 이어 붙여 줄만 자른다 — sections exit 1 next 계약은 그대로다.
       const nextHint = reason === 'intent-task-invalid'
-        ? `bouncer intent sections --task .bouncer/context/epics/<ddd>-<slug>/blueprints/<ddd>-<slug>/tasks/<ddd>/tasks.md --role ${parsed.role}`
+        ? 'bouncer intent sections --task .bouncer/context/epics/<ddd>-<slug>/'
+          + `blueprints/<ddd>-<slug>/tasks/<ddd>/tasks.md --role ${parsed.role}`
         : typeof next === 'string'
           ? next
           : `bouncer intent bundle --task ${parsed.task} --symbol <name>...`;
