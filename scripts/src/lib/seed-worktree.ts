@@ -270,7 +270,8 @@ function seedWorktree({
  * execute용 seedWorktree와 달리 base를 복원·삭제하지 않는다.
  *
  * @param {{ repoRoot: string, blueprintDir: unknown, worktreePath: string, deps?: SeedDeps }} opts
- * @returns {{ ok: true, config: ConfigSeedStatus, seeded: string[] } | { ok: false, reason: string, [k: string]: unknown }}
+ * @returns {{ ok: true, config: ConfigSeedStatus, seeded: string[] }
+ *   | { ok: false, reason: string, [k: string]: unknown }}
  */
 function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps }: {
   repoRoot: string; blueprintDir: unknown; worktreePath: string; deps?: SeedDeps;

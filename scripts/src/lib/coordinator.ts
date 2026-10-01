@@ -2572,7 +2572,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'blueprint-not-closed': {
     cause: 'Release requires the blueprint index status to be closed.',
-    next: 'Finish remaining tasks, close the blueprint, then retry `bouncer coordinate release` from the main checkout.',
+    next: 'Finish remaining tasks, close the blueprint, then retry '
+      + '`bouncer coordinate release` from the main checkout.',
   },
   'bootstrap-requires-main-checkout': {
     cause: 'Bootstrap must run from the main checkout, not an integration or worker worktree.',
@@ -2580,7 +2581,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'cherry-pick-failed': {
     cause: 'Cherry-pick of the recorded worker commit into the fan-in candidate failed.',
-    next: 'Inspect the named task, then `bouncer coordinate revoke` it or retry `bouncer coordinate integrate` after fixing the commit.',
+    next: 'Inspect the named task, then `bouncer coordinate revoke` it or retry '
+      + '`bouncer coordinate integrate` after fixing the commit.',
   },
   'coordinator-config-invalid': {
     cause: '`.bouncer/config.json` coordinator policy is missing or invalid.',
@@ -2668,7 +2670,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'ledger-lock-lost': {
     cause: 'The process lost the ledger lock before it could write.',
-    next: 'Run `bouncer coordinate status` and retry the same command from that checkpoint; do not write the ledger by hand.',
+    next: 'Run `bouncer coordinate status` and retry the same command from that '
+      + 'checkpoint; do not write the ledger by hand.',
   },
   'main-source-mutated': {
     cause: 'Bootstrap changed tracked files in the main checkout, which is forbidden.',
@@ -2692,7 +2695,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'next-plan-must-be-regular-file': {
     cause: 'NEXT_PLAN.md exists but is not a regular file.',
-    next: 'Replace it with a regular NEXT_PLAN.md on the integration worktree, then retry `bouncer coordinate partial-close`.',
+    next: 'Replace it with a regular NEXT_PLAN.md on the integration worktree, then '
+      + 'retry `bouncer coordinate partial-close`.',
   },
   'next-plan-must-be-untracked': {
     cause: 'NEXT_PLAN.md is tracked, but partial-close requires it untracked.',
@@ -2724,7 +2728,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'partial-close-awaiting-confirmation-required': {
     cause: 'Partial-close is allowed only while the drive is awaiting confirmation.',
-    next: 'Run `bouncer coordinate status` and wait for awaiting_confirmation before `bouncer coordinate partial-close`.',
+    next: 'Run `bouncer coordinate status` and wait for awaiting_confirmation before '
+      + '`bouncer coordinate partial-close`.',
   },
   'reason-required': {
     cause: 'Critical recovery requires a non-empty reason string.',
@@ -2780,7 +2785,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'stale-report': {
     cause: 'The report attempt or task_brief_hash does not match the active dispatch.',
-    next: 'Keep the attempt open and call `bouncer coordinate report` with the received attempt and task_brief_hash; do not call record.',
+    next: 'Keep the attempt open and call `bouncer coordinate report` with the received '
+      + 'attempt and task_brief_hash; do not call record.',
   },
   'stale-worker-report': {
     cause: 'The task brief changed after the accepted report, so the report no longer matches the brief.',
@@ -2800,7 +2806,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'terminal-failure-required': {
     cause: 'Repair requires a stored terminal verification failure.',
-    next: 'Run `bouncer coordinate status` and issue `bouncer coordinate repair` only after a terminal verification failure.',
+    next: 'Run `bouncer coordinate status` and issue `bouncer coordinate repair` only '
+      + 'after a terminal verification failure.',
   },
   'unassigned-integration-worktree': {
     cause: 'The integration path exists but is not a git worktree registered for this drive.',
@@ -2808,7 +2815,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'unassigned-worker-worktree': {
     cause: 'The worker path is not the git worktree assigned to this task.',
-    next: 'Do not seed into that path; run `bouncer coordinate prepare` from the integration worktree so it can assign workers.',
+    next: 'Do not seed into that path; run `bouncer coordinate prepare` from the '
+      + 'integration worktree so it can assign workers.',
   },
   'unknown-coordinate-command': {
     cause: 'The coordinate command is not a supported subcommand.',
@@ -2820,7 +2828,8 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   },
   'wave-verification-failed': {
     cause: 'Wave verification failed after fan-in applied the recorded commits.',
-    next: 'Call `bouncer coordinate revoke` or `bouncer coordinate repair` from the failure evidence, then retry integrate.',
+    next: 'Call `bouncer coordinate revoke` or `bouncer coordinate repair` from the '
+      + 'failure evidence, then retry integrate.',
   },
   'worker-evidence-not-terminal': {
     cause: 'Worker verification or review evidence files are still open, so fan-in is refused.',
