@@ -64,9 +64,16 @@ function isEnoentError(error: unknown): boolean {
  */
 function identityLine(role: string): string {
   if (role === 'coordinator') {
-    return 'You are the dispatched bouncer-coordinator itself. Dispatch only your workers, each under rules/cursor-print-dispatch.md.';
+    // 식별 문구는 cursor-print-dispatch 3항과 바이트가 같아야 하므로 이어 붙인다.
+    return (
+      'You are the dispatched bouncer-coordinator itself. '
+      + 'Dispatch only your workers, each under rules/cursor-print-dispatch.md.'
+    );
   }
-  return `You are the dispatched bouncer-${role} itself. Do this role's work directly and never dispatch any Bouncer agent.`;
+  return (
+    `You are the dispatched bouncer-${role} itself. `
+    + 'Do this role\'s work directly and never dispatch any Bouncer agent.'
+  );
 }
 
 /**
@@ -158,7 +165,10 @@ function lastResultEvent(raw: string): Record<string, unknown> | null {
  * subagent로는 절대 내려가지 않는다. cursor·print가 아니면 prompt 파일도
  * 만들지 않는다.
  *
- * @param {{ repoRoot: string, role: string, cwd: string, inputFile: string, outDir: string, deps?: PrintDispatchDeps }} opts
+ * @param {{
+ *   repoRoot: string, role: string, cwd: string, inputFile: string,
+ *   outDir: string, deps?: PrintDispatchDeps
+ * }} opts
  * @param {string} opts.repoRoot - `.bouncer/config.json`을 읽는 루트
  * @param {string} opts.role - 짧은 역할 이름
  * @param {string} opts.cwd - agent `--workspace`이자 spawn cwd

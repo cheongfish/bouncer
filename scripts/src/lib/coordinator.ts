@@ -2632,8 +2632,12 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     next: 'Retry the same `bouncer coordinate` command with a reason that names why the change is required.',
   },
   'dependency-install-failed': {
-    cause: 'Integration checkout could not install locked development dependencies before terminal verification.',
-    next: 'Inspect npm ci on the integration worktree, then retry `bouncer coordinate integrate` for the verification task.',
+    cause:
+      'Integration checkout could not install locked development dependencies '
+      + 'before terminal verification.',
+    next:
+      'Inspect npm ci on the integration worktree, then retry `bouncer coordinate integrate` '
+      + 'for the verification task.',
   },
   'dispatch-already-active': {
     cause: 'This task already has an active dispatch, so a second dispatch is refused.',
