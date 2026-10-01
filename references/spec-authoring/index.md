@@ -27,7 +27,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
    the project's `.bouncer/`.
 2. Fill the skeleton with concrete, specific content. 종류별 완성 예시는
    필요할 때 `epic.md`, `blueprint.md`,
-   `tasks.md`, `review.md`를 읽는다 (`verification`·
+   `tasks.md`, `review.md`, `review-rounds.md`를 읽는다 (`verification`·
    `explain` 예시는 없다 — 각각의 워크플로와 `explain-diff` 소관).
    - **epic**: intent, out of scope, and numbered Success criteria. Persist the
      success criteria discovery produced — each one must be decidable true or

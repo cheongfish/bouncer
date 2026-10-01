@@ -87,6 +87,7 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 
 ## Round ledger contract
 
+완결된 `rounds[]` 예제는 `references/spec-authoring/review-rounds.md`를 본다.
 The controller records every state transition in `review.md` under
 `bouncer.review.rounds[]`. In blueprint review mode that file is the
 blueprint-root `review.md`; when `review_scope` is absent it is
