@@ -169,6 +169,11 @@ test('bouncer-reviewer separates discovery perspectives from delta certification
   for (const placeholder of ['{{MODE}}', '{{PERSPECTIVE}}', '{{TARGET}}']) {
     assert.ok(prompt.includes(placeholder), `reviewer prompt must include ${placeholder}`);
   }
+  // blueprint 리뷰 모드는 포인터 task 하나가 아니라 모든 commit brief와 Contract를 본다.
+  assert.match(md, /review_scope/);
+  assert.match(md, /Contract/);
+  assert.match(prompt, /review_scope/);
+  assert.match(prompt, /Contract/);
   for (const perspective of [
     'combined',
     'spec_scope',
@@ -235,6 +240,19 @@ test('bouncer-coordinator dispatches reviewers from exact review-dispatch execut
     /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
   );
   assert.match(md, /ok:\s*false|`ok`:\s*`false`|target[\s\S]{0,80}mismatch/i);
+  // blueprint 리뷰 모드의 최종 리뷰 must_fix는 repair 원인 플래그로만 연다.
+  // 이 단언이 실패하는 이유는 아직 Worker dispatch가 task별 --task 발견만 말하기 때문이다.
+  assert.match(md, /--review-finding/);
+  assert.match(md, /review_scope/);
+  assert.match(md, /repair-wave-limit/);
+  assert.match(md, /task_brief_hashes/);
+  assert.match(md, /intent_bundles/);
+  // F-SS-002: blueprint 최종 리뷰 fail-closed는 포인터 task review_risk가 아니라
+  // commit-task review_risk 합집합과 risk_flags를 비교한다.
+  assert.match(
+    md,
+    /risk_flags[\s\S]{0,280}union of commit-task[\s\S]{0,40}`review_risk`/i,
+  );
   const tomlPath = path.join(root, '.codex/agents/bouncer-coordinator.toml');
   assert.strictEqual(fs.readFileSync(tomlPath, 'utf8'), mdToCodexToml(md));
 });

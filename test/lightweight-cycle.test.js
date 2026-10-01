@@ -110,6 +110,9 @@ test('planning defines the light plan document set and gate branch', () => {
   assert.match(planning, /\bG11\b/);
   assert.match(planning, /\bG12\b/);
   assert.match(planning, /exit code 2/);
+  // light 네 문서는 index + task 묶음(tasks/verification) + 루트 review.md다.
+  assert.match(planning, /review_scope/);
+  assert.match(planning, /tasks\/001\/\{tasks,verification\}\.md/);
 });
 
 test('spec-authoring documents the three light task sections', () => {

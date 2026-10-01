@@ -729,6 +729,11 @@ test('plan and planning lock the approved task DAG contract', () => {
   assert.match(plan, /parallel_safe/);
   assert.match(plan, /dependency_gate/);
   assert.match(plan, /G19|DAG/);
+  // 묶음 정의: blueprint 리뷰 모드에서는 review.md가 task 디렉터리에 없다.
+  assert.match(schema, /review_scope/);
+  assert.match(schema, /tasks\/<NNN>\/\{tasks,verification\}\.md/);
+  assert.match(planning, /review_scope/);
+  assert.match(planning, /tasks\/<NNN>\/\{tasks,verification\}\.md/);
 });
 
 test('hard rule 1 keeps worker reports inside the trust boundary', () => {

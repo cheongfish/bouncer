@@ -58,6 +58,11 @@ checkout에 terminal `tasks.md`/`verification.md`와 config가 있는지 준비�
 worktree를 보존한다. `coordinate partial-close --user-confirmed` 전에는
 `partial_closed`로 전이하지 않으며, 확인 뒤에도 성공이나 `closed`로 표시하지 않는다.
 
+When `review_scope` is `blueprint`, the coordinator owns the one final review
+after that verification node (and every commit task) is `integrated`; this
+root session does not open it. When `review_scope` is absent, per-task reviews
+stay on the execute round.
+
 1. **Preflight.** Load runtime state from the CLI only:
    ```bash
    bouncer run preflight --blueprint <dir>

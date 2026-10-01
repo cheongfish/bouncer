@@ -269,6 +269,10 @@ test('bouncer-execute reviewer fallback carries the whole reviewer role and the 
     }
     assert.doesNotMatch(text, /same prompt/i, label);
   }
+  // F-SS-004: review skill fallback만 단언한다. agent-dispatch.md는 이 task
+  // Do not touch / 재작업 범위 밖이라 같은 루프에 넣지 않는다.
+  assert.match(step3, /task_brief_hashes/);
+  assert.match(step3, /intent_bundles/);
   // call slot 자체도 두 운반 경로의 차이를 적는다.
   assert.match(prompt, /named[\s\S]{0,200}only\s+this\s+(?:filled\s+)?call\s+slot/i);
   assert.match(prompt, /entire\s+body\s+of\s+`agents\/bouncer-reviewer\.md`/);
@@ -291,12 +295,23 @@ test('bouncer-execute step 5 keeps only review entry conditions and ceilings', (
   assert.match(step5, /\$\{BOUNCER_ROOT\}\/references\/review\/index\.md/);
   assert.match(step5, /\.\/references\/review-round\.md/);
   assert.match(step5, /required\s*===\s*false|required === false/i);
+  // 단독 경로는 마지막 commit task만 최종 리뷰한다. 그 외는 건너뛴다.
+  assert.match(step5, /review_scope/);
+  assert.match(step5, /last commit task|마지막 commit task/i);
+  assert.match(step5, /Other commit tasks skip review/);
+  // F-SS-001: skip 뒤에 남은 Otherwise가 검토 스킬로 다시 들어가면 안 된다.
+  assert.doesNotMatch(
+    step5,
+    /Otherwise,\s+only after the latest verification passes,\s+enter/,
+  );
   assert.match(step5, /one frozen parallel discovery wave[\s\S]*one fix batch[\s\S]*one delta\s*\n?\s*certification/i);
   assert.match(step5, /drive alone may add one\s*\n?\s*critical recovery/i);
-  // SEC-001: stop conditions must name risk_flags ↔ task review_risk (fail closed).
+  // F-CT-001 / F-SS-002: fail-closed는 포인터 task 하나가 아니라 commit-task
+  // review_risk 합집합과 risk_flags를 비교한다. 기존 SEC-001 창(120자)은
+  // "current task's review_risk"만 있어도 통과해서 잘못된 문장을 고정했다.
   assert.match(
     step5,
-    /risk_flags[\s\S]{0,120}review_risk|review_risk[\s\S]{0,120}risk_flags/i,
+    /risk_flags[\s\S]{0,280}union of commit-task[\s\S]{0,40}`review_risk`/i,
   );
   assert.match(step5, /fail closed|disagree|mismatch/i);
   assert.doesNotMatch(step5, /reviewer-prompt|bouncer-reviewer|fresh generic|## Findings|bouncer\.review\.findings|review\s*→\s*accepted/i);
@@ -333,6 +348,16 @@ test('bouncer-execute records each review round ledger in review.md', () => {
   assert.match(round, /actionability/);
   assert.match(round, /origin/);
   assert.match(round, /review\.md/);
+  assert.match(round, /task_brief_hashes/);
+  assert.match(round, /intent_bundles/);
+  assert.match(round, /review_scope/);
+  assert.match(round, /git merge-base/);
+  // F-SS-003: 단독 delta의 대상 diff는 repair hunk가 아니라 worktree 전체다.
+  // freeze의 discovery 문장만으로는 통과하지 않게 certify 쪽 delta를 고정한다.
+  assert.match(
+    round,
+    /(?:^|\n)\s*6 certify[\s\S]{0,900}standalone[\s\S]{0,280}whole worktree/i,
+  );
 });
 
 test('bouncer-execute records the drive-only critical recovery convergence sequence', () => {

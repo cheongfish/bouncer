@@ -113,9 +113,10 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    ```
    **Light scaffold.** When this step received a light declaration, add
    `--scale light` to the blueprint command. That creates only four documents:
-   blueprint `index.md` and `tasks/001/{tasks,verification,review}.md` — no
-   `context-review.md` (100 lines or fewer total). Omit the flag or use
-   `--scale full` and all five documents are created as described below. Values
+   blueprint `index.md`, `tasks/001/{tasks,verification}.md`, and root
+   `review.md` — no `context-review.md` (100 lines or fewer total). Omit the
+   flag or use `--scale full` and all five documents are created as described
+   below. Values
    outside `light`/`full` create no documents and exit with code 2. Do not attach
    `--scale light` by guess when there was no declaration.
    The epic and blueprint outputs must both remain under
@@ -128,9 +129,11 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    directories, frontmatter descriptions, and that list.
    (Skip `scaffold epic` when adding a blueprint to an existing epic.) Scaffold
    defaults: epic/blueprint `draft`, tasks `draft`, verification `pending`,
-   review `pending`. `scaffold blueprint` creates `tasks/001/{tasks,verification,review}.md`
-   (ids `TASKS-001`, `VERIFY-001`, `REVIEW-001`); add later tasks with
-   `bouncer scaffold task --blueprint <dir> --id <NNN>`. Root `tasks.md` /
+   review `pending`. New `scaffold blueprint` writes `review_scope: blueprint`,
+   `tasks/001/{tasks,verification}.md` (ids `TASKS-001`, `VERIFY-001`), and
+   blueprint-root `review.md` (`REVIEW-<blueprint id>`). Add later commit tasks
+   with `bouncer scaffold task --blueprint <dir> --id <NNN>` (tasks and
+   verification only). When `review_scope` is absent, keep `tasks/<NNN>/{tasks,verification,review}.md`. Root `tasks.md` /
    `tasks-<NNN>.md` are input only to `bouncer migrate task-layout`. Do **not**
    create BP `explain.md` here — `/bouncer-commit` scaffolds it with
    `bouncer scaffold explain`.
