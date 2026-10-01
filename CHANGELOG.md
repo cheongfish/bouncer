@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **intent sections 비정규 --task** — `intent sections`가 비정규 `--task`를
+  exit 1 `intent-task-invalid`로 거절한다.
+
 ### Changed
 
 - **explain coordinator 인덱스** — finalize가 explain frontmatter `coordinator`에

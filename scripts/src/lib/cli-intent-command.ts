@@ -50,8 +50,8 @@ const SECTIONS_FAIL_REASONS = new Set([
 // intent-provenance / intent-bundle을 적재해, 거절·help 경로가 resolver를
 // require.cache에 남기지 않는다.
 
-// loadExecutionTask와 같은 canonical layout만 CLI에서 먼저 거절한다.
-// 정규식 밖 경로는 resolver를 열지 않고 exit 2로 끝낸다.
+// bundle argv만 이 정규식으로 거절한다. sections의 비정규 --task는
+// loadExecutionTask가 exit 1 intent-task-invalid로 내야 하므로 파서가 막지 않는다.
 const CANONICAL_TASK_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+\/tasks\/\d{3}\/tasks\.md$/;
 
 /**
@@ -260,6 +260,8 @@ function parseBundleArgs(rest: string[]): BundleArgs {
 /**
  * intent sections 인자. --task와 --role만 받고 query·bundle 옵션이 섞이면
  * 거절한다. 유효 argv 전에는 intent-bundle을 적재하지 않는다.
+ * --task가 비어 있지 않으면 파서가 받고, canonical 판정은 `loadExecutionTask`가
+ * 하고 exit 1 `intent-task-invalid`로 낸다.
  *
  * @param {string[]} rest - `intent sections` 뒤 argv
  * @returns {SectionsArgs} 성공 시 task·role·optional repo, 실패 시 error
@@ -288,15 +290,9 @@ function parseSectionsArgs(rest: string[]): SectionsArgs {
       if (value === undefined || value.startsWith('--') || value.trim().length === 0) {
         return fail('--task requires a non-empty tasks.md path');
       }
-      const trimmed = value.trim();
-      if (
-        trimmed.startsWith('/')
-        || trimmed.includes('..')
-        || !CANONICAL_TASK_RE.test(trimmed)
-      ) {
-        return fail('--task must be a repo-relative canonical tasks.md path');
-      }
-      task = trimmed;
+      // 비어 있지 않은 값만 확인한다. 절대경로·`..`·비정규 layout은
+      // loadExecutionTask가 던지고 cmdIntentSections가 exit 1 JSON으로 낸다.
+      task = value.trim();
       continue;
     }
     if (token === '--role') {
@@ -478,13 +474,19 @@ function cmdIntentSections(parsed: SectionsArgs, io: CliIo): number {
     const reason = (error as { reason?: string }).reason;
     const next = (error as { next?: string }).next;
     if (typeof reason === 'string' && SECTIONS_FAIL_REASONS.has(reason)) {
+      // core의 intent-task-invalid next는 같은 비정규 경로로 bundle을 다시
+      // 만들라고 한다. 따르면 parseBundleArgs가 exit 2로 끝나므로, 이
+      // reason만 canonical tasks.md 형식의 sections 재실행으로 바꾼다.
+      const nextHint = reason === 'intent-task-invalid'
+        ? `bouncer intent sections --task .bouncer/context/epics/<ddd>-<slug>/blueprints/<ddd>-<slug>/tasks/<ddd>/tasks.md --role ${parsed.role}`
+        : typeof next === 'string'
+          ? next
+          : `bouncer intent bundle --task ${parsed.task} --symbol <name>...`;
       io.out(`${JSON.stringify({
         ok: false,
         reason,
         cause: message,
-        next: typeof next === 'string'
-          ? next
-          : `bouncer intent bundle --task ${parsed.task} --symbol <name>...`,
+        next: nextHint,
       }, null, 2)}\n`);
       return 1;
     }

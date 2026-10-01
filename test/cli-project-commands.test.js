@@ -522,12 +522,34 @@ test('intent sections rejects malformed argv with exit 2', () => {
     ['sections', '--task', task, '--role', 'writer'],
     ['sections', '--task', task],
     ['sections', '--task', task, '--role', 'debugger', '--symbol', 'targetFn'],
+    ['sections', '--role', 'implementer'],
+    ['sections', '--task', task, '--task', task, '--role', 'implementer'],
   ]) {
     const result = capture(['intent', ...args]);
     assert.equal(result.code, 2, args.join(' '));
     assert.equal(result.out, '');
     assert.match(result.err, /^intent:/);
   }
+});
+
+test('intent sections rejects a non-canonical --task with exit 1 intent-task-invalid', () => {
+  for (const task of ['/abs/tasks.md', '.bouncer/context/epics/073-epic/../x/tasks.md', 'tasks.md']) {
+    const result = capture(['intent', 'sections', '--task', task, '--role', 'implementer']);
+    assert.equal(result.code, 1, task);
+    assert.equal(result.err, '');
+    const payload = JSON.parse(result.out);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.reason, 'intent-task-invalid');
+    assert.equal(typeof payload.cause, 'string');
+    assert.equal(payload.next, 'bouncer intent sections --task .bouncer/context/epics/<ddd>-<slug>/blueprints/<ddd>-<slug>/tasks/<ddd>/tasks.md --role implementer');
+  }
+});
+
+test('intent bundle keeps exit 2 for a non-canonical --task', () => {
+  const result = capture(['intent', 'bundle', '--task', 'tasks.md', '--symbol', 'targetFn']);
+  assert.equal(result.code, 2);
+  assert.equal(result.out, '');
+  assert.match(result.err, /^intent:/);
 });
 
 test('intent sections prints role JSON after a bundle exists', () => {

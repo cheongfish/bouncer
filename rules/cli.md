@@ -87,10 +87,12 @@ Graph absence is a reported state, not permission to invent graph results.
 
 `intent bundle` creates or reuses the task intent cache. `intent sections` is
 read-only: it projects role-specific section bodies from that cache. On
-`{ ok: false }`, `reason` is `intent-bundle-missing`, `intent-bundle-stale`, or
-`intent-sections-drift` (exit 1). Follow `next` and run
-`bouncer intent bundle --task <path> --symbol <name>...` to rebuild, then retry
-sections. Do not assemble `intent_sections` by reading bundle sources.
+`{ ok: false }`, `reason` is `intent-bundle-missing`, `intent-bundle-stale`,
+`intent-sections-drift`, or `intent-task-invalid` (exit 1). For the first three,
+follow `next` and run `bouncer intent bundle --task <path> --symbol <name>...`
+to rebuild, then retry sections. For `intent-task-invalid`, do not rebuild the
+bundle; correct `--task` to the canonical `tasks.md` path shown in `next` and
+retry sections. Do not assemble `intent_sections` by reading bundle sources.
 
 `subagent-model` prints one model slug, or `inherit`. Pass only that line into
 named dispatch; omit the model argument when the line is `inherit`. Do not
