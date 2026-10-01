@@ -472,6 +472,8 @@ export = {
              Print function intent provenance JSON (read-only).
   intent     bundle --task <tasks.md> --symbol <name> [--candidate <qualified-ref>]...
              Create or reuse a task intent bundle JSON (read/write cache).
+  intent     sections --task <tasks.md> --role <implementer|reviewer|debugger>
+             Print role-specific intent section bodies JSON (read-only).
 `,
   },
   'graphify-bin': {

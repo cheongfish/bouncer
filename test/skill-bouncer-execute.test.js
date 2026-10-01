@@ -639,6 +639,7 @@ test('bouncer-execute resolves one intent bundle before role dispatch and shares
   const reviewFallback = fallbackOf(dispatch.slice(dispatch.indexOf('For review,')));
 
   assert.match(body, /\bbouncer intent bundle\b/);
+  assert.match(body, /bouncer intent sections --task[\s\S]{0,80}--role/);
   assert.match(body, /task_brief_hash/);
   assert.match(body, /intent_bundle_id/);
   assert.match(body, /intent_bundle_revision/);

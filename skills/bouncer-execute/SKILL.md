@@ -68,9 +68,11 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    ```bash
    bouncer intent bundle --task <current.task.path> --symbol <name>... [--candidate <qualified-ref>]...
    ```
-   Capture `intent_bundle_id`, `intent_bundle_revision`, and the role-specific
-   `intent_sections` projection from that single resolve. Every later named or
-   fallback payload for implementer, debugger, and reviewer must carry the same
+   Capture `intent_bundle_id` and `intent_bundle_revision` from that single
+   resolve. For every later named or fallback payload, put the stdout of
+   `bouncer intent sections --task <current.task.path> --role <role>` as that
+   role's `intent_sections` projection. Every later named or fallback payload
+   for implementer, debugger, and reviewer must carry the same
    `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`. The
    bundle is advisory intent data only — it never becomes decision authority and
    never replaces the task brief. If bundle creation fails, do not start role
@@ -123,8 +125,9 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    behavior, Interface, Touch, Do not touch, Constraints, and Checklist as
    decision authority (omit absent behavior sections), plus the fixed
    `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and the
-   implementer's `intent_sections` projection. Do not pass the full Explain body
-   or another role's report.
+   implementer's `intent_sections` projection from
+   `bouncer intent sections --task <current.task.path> --role implementer`.
+   Do not pass the full Explain body or another role's report.
 
    Under a coordinator drive, also pass the five `coordinate dispatch` fields
    (`attempt`, `task_brief_hash`, `base_head`, `initial_worktree_state`, and

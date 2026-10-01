@@ -7,7 +7,14 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const { resolveIntentProvenance, splitTaskChunks } = require('../scripts/lib/intent-provenance');
+const { createHash } = require('node:crypto');
+
+const {
+  resolveIntentProvenance,
+  splitTaskChunks,
+  projectExplainSectionHashes,
+  projectExplainSectionBodies,
+} = require('../scripts/lib/intent-provenance');
 
 const dirs = [];
 
@@ -697,4 +704,65 @@ test('outside-repo explain paths are not adopted as link evidence', () => {
 
   const result = resolveIntentProvenance({ repoRoot: repo, symbol: 'targetFn' });
   assert.equal(result.status, 'unlinked');
+});
+
+test('projectExplainSectionBodies keeps hash projection names and body hashes', () => {
+  const repo = tmpRepo();
+  const rel = explainRel('071', '002');
+  writeExplain(repo, {
+    rows: [{
+      task: 'EPIC-071/BP-002/TASK-001',
+      sha: 'aaaaaaaa',
+      intent_anchor: 'task-001',
+    }],
+    taskSections: [
+      '## Tasks',
+      '',
+      '### Task 001',
+      '',
+      '#### Goal & intent',
+      '',
+      'first design of targetFn',
+      '',
+      '#### Current behavior',
+      '',
+      'returns 1',
+      '',
+      '#### Target behavior',
+      '',
+      'returns rewritten value',
+      '',
+      '#### Interface',
+      '',
+      'targetFn(): number',
+      '',
+      '#### Touch',
+      '',
+      '- `src/app.ts`',
+      '',
+      '#### Constraints',
+      '',
+      '- keep return type',
+      '',
+    ].join('\n'),
+  });
+  const hashes = projectExplainSectionHashes({
+    repoRoot: repo,
+    explainRel: rel,
+    task: 'EPIC-071/BP-002/TASK-001',
+  });
+  const bodies = projectExplainSectionBodies({
+    repoRoot: repo,
+    explainRel: rel,
+    task: 'EPIC-071/BP-002/TASK-001',
+  });
+  assert.ok(Array.isArray(hashes));
+  assert.ok(Array.isArray(bodies));
+  assert.deepEqual(bodies.map((part) => part.name), hashes.map((part) => part.name));
+  for (let i = 0; i < hashes.length; i += 1) {
+    assert.equal(
+      createHash('sha256').update(bodies[i].body, 'utf8').digest('hex'),
+      hashes[i].hash,
+    );
+  }
 });

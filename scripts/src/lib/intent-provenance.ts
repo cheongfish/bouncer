@@ -757,21 +757,18 @@ function projectSectionHashes(sections: SelectedSection[]): SectionHash[] {
 }
 
 /**
- * 저장소 안 canonical Explain 실경로만 읽어 selectSections → projectSectionHashes를 적용한다.
- * cache가 임의 상대경로를 읽기 대상으로 넘기면 allowlist에서 거절하고, symlink가
- * 루트 밖으로 나가거나 파일이 없으면 null — cache hit로 승격하지 않는다.
+ * hash·본문 projection이 같은 canonical 경로·symlink 경계를 쓰게 한다.
+ * 검사가 갈라지면 bundle drift 판정과 역할 본문이 다른 파일을 보게 된다.
  *
  * @param {object} input - 조회 입력
  * @param {string} input.repoRoot - 저장소 루트
  * @param {string} input.explainRel - repo-relative Explain 경로
- * @param {string} input.task - `EPIC-ddd/BP-ddd/TASK-ddd` stable Task ID
- * @returns {SectionHash[] | null} 절 hash 목록 또는 검증 실패 시 null
+ * @returns {ExplainDoc | null} 검증된 Explain 또는 거절 시 null
  */
-function projectExplainSectionHashes(input: {
+function loadCanonicalExplainDoc(input: {
   repoRoot: string;
   explainRel: string;
-  task: string;
-}): SectionHash[] | null {
+}): ExplainDoc | null {
   if (typeof input.explainRel !== 'string' || input.explainRel.length === 0) return null;
   const explainRel = toPosix(input.explainRel);
   // cache body가 지시하는 경로는 live walkExplain과 같은 canonical만 연다.
@@ -794,10 +791,48 @@ function projectExplainSectionHashes(input: {
     throw error;
   }
   if (!isInsideRepo(real, repoReal)) return null;
-  const doc = parseExplainDoc(abs, repoReal);
+  return parseExplainDoc(abs, repoReal);
+}
+
+/**
+ * 저장소 안 canonical Explain 실경로만 읽어 selectSections → projectSectionHashes를 적용한다.
+ * cache가 임의 상대경로를 읽기 대상으로 넘기면 allowlist에서 거절하고, symlink가
+ * 루트 밖으로 나가거나 파일이 없으면 null — cache hit로 승격하지 않는다.
+ *
+ * @param {object} input - 조회 입력
+ * @param {string} input.repoRoot - 저장소 루트
+ * @param {string} input.explainRel - repo-relative Explain 경로
+ * @param {string} input.task - `EPIC-ddd/BP-ddd/TASK-ddd` stable Task ID
+ * @returns {SectionHash[] | null} 절 hash 목록 또는 검증 실패 시 null
+ */
+function projectExplainSectionHashes(input: {
+  repoRoot: string;
+  explainRel: string;
+  task: string;
+}): SectionHash[] | null {
+  const doc = loadCanonicalExplainDoc(input);
   if (!doc) return null;
-  const taskDigits = taskDigitsOf(input.task);
-  return projectSectionHashes(selectSections(doc, taskDigits));
+  return projectSectionHashes(selectSections(doc, taskDigitsOf(input.task)));
+}
+
+/**
+ * projectExplainSectionHashes와 같은 경로 검사·selectSections allowlist로 절 본문을 돌려준다.
+ * hash와 본문이 다른 파일을 읽으면 drift 대조가 의미를 잃는다.
+ *
+ * @param {object} input - 조회 입력
+ * @param {string} input.repoRoot - 저장소 루트
+ * @param {string} input.explainRel - repo-relative Explain 경로
+ * @param {string} input.task - `EPIC-ddd/BP-ddd/TASK-ddd` stable Task ID
+ * @returns {SelectedSection[] | null} 허용된 절 본문 또는 검증 실패 시 null
+ */
+function projectExplainSectionBodies(input: {
+  repoRoot: string;
+  explainRel: string;
+  task: string;
+}): SelectedSection[] | null {
+  const doc = loadCanonicalExplainDoc(input);
+  if (!doc) return null;
+  return selectSections(doc, taskDigitsOf(input.task));
 }
 
 /**
@@ -956,5 +991,6 @@ export = {
   resolveIntentProvenance,
   projectSectionHashes,
   projectExplainSectionHashes,
+  projectExplainSectionBodies,
   splitTaskChunks,
 };

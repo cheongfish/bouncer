@@ -8,7 +8,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 
-const { resolveTaskIntentBundle } = require('../scripts/lib/intent-bundle');
+const { resolveTaskIntentBundle, projectRoleIntentSections } = require('../scripts/lib/intent-bundle');
 const { intentBundlePathFor } = require('../scripts/lib/runtime-state');
 const { resolveIntentProvenance } = require('../scripts/lib/intent-provenance');
 
@@ -100,6 +100,39 @@ function writeTaskBrief(repo, {
   return rel;
 }
 
+function durableTaskSections(taskDigits = '001') {
+  return [
+    '## Tasks',
+    '',
+    `### Task ${taskDigits}`,
+    '',
+    '#### Goal & intent',
+    '',
+    'first design of targetFn',
+    '',
+    '#### Current behavior',
+    '',
+    'returns 1',
+    '',
+    '#### Target behavior',
+    '',
+    'returns rewritten value',
+    '',
+    '#### Interface',
+    '',
+    'targetFn(): number',
+    '',
+    '#### Touch',
+    '',
+    '- `src/app.ts`',
+    '',
+    '#### Constraints',
+    '',
+    '- keep return type',
+    '',
+  ].join('\n');
+}
+
 function writeExplain(repo, {
   epic = '071',
   bp = '002',
@@ -107,6 +140,7 @@ function writeExplain(repo, {
   background = 'approved function intent',
   intuition = 'stable task id is the join key',
   code = 'src/app.ts targetFn',
+  taskSections = '',
 } = {}) {
   const rel = explainRel(epic, bp);
   const body = [
@@ -128,6 +162,7 @@ function writeExplain(repo, {
     '',
     '1. secret quiz prompt that must not leak',
     '',
+    taskSections,
   ].join('\n');
   writeFile(repo, rel, [
     '---',
@@ -173,7 +208,7 @@ function otherSource(bodyLine) {
   ].join('\n');
 }
 
-function seedResolvedRepo(bodyLine = 1) {
+function seedResolvedRepo(bodyLine = 1, { taskSections = '' } = {}) {
   const repo = tmpRepo();
   initRepo(repo);
   writeFile(repo, 'src/app.ts', targetSource(bodyLine));
@@ -188,6 +223,7 @@ function seedResolvedRepo(bodyLine = 1) {
       sha: sha.slice(0, 8),
       intent_anchor: 'task-001',
     }],
+    taskSections,
   });
   const taskFile = writeTaskBrief(repo);
   return { repo, sha, taskFile };
@@ -587,4 +623,142 @@ test('non-canonical cache explain and intent symlink escape are rejected', () =>
     functions: [{ symbol: 'targetFn' }],
     deps,
   }), /escapes the Git common directory/);
+});
+
+test('role projection keeps role section sets and omits missing Explain headings', () => {
+  const { repo, taskFile } = seedResolvedRepo(1, { taskSections: durableTaskSections() });
+  const deps = { execFileSync };
+  resolveTaskIntentBundle({
+    repoRoot: repo,
+    taskFile,
+    functions: [{ symbol: 'targetFn' }],
+    deps,
+  });
+  const implementer = projectRoleIntentSections({
+    repoRoot: repo,
+    taskFile,
+    role: 'implementer',
+    deps,
+  });
+  const reviewer = projectRoleIntentSections({
+    repoRoot: repo,
+    taskFile,
+    role: 'reviewer',
+    deps,
+  });
+  assert.equal(implementer.ok, true);
+  assert.equal(implementer.role, 'implementer');
+  assert.deepStrictEqual(
+    implementer.functions[0].sections.map((s) => s.name),
+    ['Goal & intent', 'Current behavior', 'Target behavior', 'Interface', 'Touch', 'Constraints'],
+  );
+  assert.deepStrictEqual(
+    reviewer.functions[0].sections.map((s) => s.name),
+    ['Goal & intent', 'Interface', 'Touch', 'Constraints'],
+  );
+
+  const explain = explainRel('071', '002');
+  const dropped = fs.readFileSync(path.join(repo, explain), 'utf8')
+    .replace(/\n#### Current behavior\n\nreturns 1\n/, '\n');
+  fs.writeFileSync(path.join(repo, explain), dropped);
+  resolveTaskIntentBundle({
+    repoRoot: repo,
+    taskFile,
+    functions: [{ symbol: 'targetFn' }],
+    deps,
+  });
+  const afterDrop = projectRoleIntentSections({
+    repoRoot: repo,
+    taskFile,
+    role: 'implementer',
+    deps,
+  });
+  assert.deepStrictEqual(
+    afterDrop.functions[0].sections.map((s) => s.name),
+    ['Goal & intent', 'Target behavior', 'Interface', 'Touch', 'Constraints'],
+  );
+});
+
+test('role projection omits historical functions and maps missing stale drift', () => {
+  const { repo, taskFile, sha } = seedResolvedRepo(1, { taskSections: durableTaskSections() });
+  const explain = explainRel('071', '002');
+  const deps = { execFileSync };
+  const historicalDeps = {
+    execFileSync,
+    resolveIntentProvenance(input) {
+      const live = resolveIntentProvenance(input);
+      if (live.status !== 'resolved') return live;
+      return {
+        ...live,
+        candidates: [{
+          ...live.candidates[0],
+          freshness: 'historical',
+          sections: [],
+          body: '',
+          explain,
+          commit: sha,
+          task: 'EPIC-071/BP-002/TASK-001',
+          relation: 'follow',
+        }],
+      };
+    },
+  };
+  resolveTaskIntentBundle({
+    repoRoot: repo,
+    taskFile,
+    functions: [{ symbol: 'targetFn' }],
+    deps: historicalDeps,
+  });
+  const historical = projectRoleIntentSections({
+    repoRoot: repo,
+    taskFile,
+    role: 'debugger',
+    deps,
+  });
+  assert.equal(historical.ok, true);
+  assert.deepEqual(historical.functions, []);
+
+  const located = intentBundlePathFor({
+    repoRoot: repo,
+    taskRel: taskFile,
+    deps: { execFileSync },
+  });
+  fs.rmSync(located.intentFile, { force: true });
+  assert.throws(() => projectRoleIntentSections({
+    repoRoot: repo,
+    taskFile,
+    role: 'implementer',
+    deps,
+  }), (error) => error.reason === 'intent-bundle-missing');
+
+  resolveTaskIntentBundle({
+    repoRoot: repo,
+    taskFile,
+    functions: [{ symbol: 'targetFn' }],
+    deps,
+  });
+  writeTaskBrief(repo, { body: 'rewritten brief bytes for stale hash.\n' });
+  assert.throws(() => projectRoleIntentSections({
+    repoRoot: repo,
+    taskFile,
+    role: 'implementer',
+    deps,
+  }), (error) => error.reason === 'intent-bundle-stale');
+
+  writeTaskBrief(repo);
+  resolveTaskIntentBundle({
+    repoRoot: repo,
+    taskFile,
+    functions: [{ symbol: 'targetFn' }],
+    deps,
+  });
+  const drifted = fs.readFileSync(path.join(repo, explain), 'utf8')
+    .replace('first design of targetFn', 'rewritten goal for drift');
+  fs.writeFileSync(path.join(repo, explain), drifted);
+  assert.throws(() => projectRoleIntentSections({
+    repoRoot: repo,
+    taskFile,
+    role: 'implementer',
+    deps,
+  }), (error) => error.reason === 'intent-sections-drift');
 });

@@ -20,7 +20,9 @@ The controller supplies the frozen target, task brief(s), mode, perspective, and
 read-only cwd; named and fallback reviewers return the same Findings schema.
 The frozen target also pins `task_brief_hash` / `task_brief_hashes` and
 `intent_bundle_id` / `intent_bundles`. Pass only the reviewer's `intent_sections`
-projection — do not copy the full Explain body into the review payload.
+projection from
+`bouncer intent sections --task <current.task.path> --role reviewer`
+— do not copy the full Explain body into the review payload.
 
 ## When this applies
 
@@ -40,7 +42,9 @@ unresolved. Used from `/bouncer-execute`.
    Contract in blueprint review mode, or that same section list from the
    pointer task when `review_scope` is absent, together with the frozen
    `task_brief_hash` / `task_brief_hashes`, `intent_bundle_id` /
-   `intent_bundles`, and `intent_sections`. Do not load the full Explain body
+   `intent_bundles`, and `intent_sections` from
+   `bouncer intent sections --task <current.task.path> --role reviewer`.
+   Do not load the full Explain body
    as review authority.
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:

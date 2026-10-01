@@ -68,6 +68,8 @@ user confirmation and is unresolved handoff, not ordinary completion.
 ```sh
 bouncer project-root
 bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>]
+bouncer intent bundle --task <tasks.md> --symbol <name>... [--candidate <qualified-ref>]...
+bouncer intent sections --task <tasks.md> --role <implementer|reviewer|debugger>
 bouncer graphify-bin
 bouncer graph-sync
 bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
@@ -80,6 +82,13 @@ bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --
 Use `project-root` to locate the consuming repository from linked worktrees.
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
+
+`intent bundle` creates or reuses the task intent cache. `intent sections` is
+read-only: it projects role-specific section bodies from that cache. On
+`{ ok: false }`, `reason` is `intent-bundle-missing`, `intent-bundle-stale`, or
+`intent-sections-drift` (exit 1). Follow `next` and run
+`bouncer intent bundle --task <path> --symbol <name>...` to rebuild, then retry
+sections. Do not assemble `intent_sections` by reading bundle sources.
 
 `subagent-model` prints one model slug, or `inherit`. Pass only that line into
 named dispatch; omit the model argument when the line is `inherit`. Do not

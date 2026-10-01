@@ -513,6 +513,37 @@ test('intent help names both query and bundle forms', () => {
   assert.strictEqual(result.code, 0);
   assert.match(result.out, /intent\s+--symbol/);
   assert.match(result.out, /intent\s+bundle --task/);
+  assert.match(result.out, /intent\s+sections --task <tasks\.md> --role/);
+});
+
+test('intent sections rejects malformed argv with exit 2', () => {
+  const task = intentBundleTaskRel();
+  for (const args of [
+    ['sections', '--task', task, '--role', 'writer'],
+    ['sections', '--task', task],
+    ['sections', '--task', task, '--role', 'debugger', '--symbol', 'targetFn'],
+  ]) {
+    const result = capture(['intent', ...args]);
+    assert.equal(result.code, 2, args.join(' '));
+    assert.equal(result.out, '');
+    assert.match(result.err, /^intent:/);
+  }
+});
+
+test('intent sections prints role JSON after a bundle exists', () => {
+  const { repo, taskFile } = seedIntentBundleRepo();
+  const created = capture([
+    'intent', 'bundle', '--repo', repo, '--task', taskFile, '--symbol', 'targetFn',
+  ]);
+  assert.equal(created.code, 0);
+  const result = capture([
+    'intent', 'sections', '--repo', repo, '--task', taskFile, '--role', 'debugger',
+  ]);
+  assert.equal(result.code, 0);
+  assert.equal(result.err, '');
+  const payload = JSON.parse(result.out);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.role, 'debugger');
 });
 
 test('intent bundle creates then reuses the same bundle_id and revision', () => {

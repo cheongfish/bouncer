@@ -18,6 +18,7 @@ import intentProvenance = require('./intent-provenance');
 const {
   resolveIntentProvenance: defaultResolveIntentProvenance,
   projectExplainSectionHashes,
+  projectExplainSectionBodies,
 } = intentProvenance;
 
 const CANONICAL_TASK_RE = /^\.bouncer\/context\/epics\/\d{3}-[^/]+\/blueprints\/\d{3}-[^/]+\/tasks\/\d{3}\/tasks\.md$/;
@@ -120,6 +121,65 @@ type BundleDeps = {
   resolveIntentProvenance?: typeof defaultResolveIntentProvenance;
   resolveSymbol?: typeof resolveSymbol;
   platform?: string;
+};
+
+type IntentRole = 'implementer' | 'reviewer' | 'debugger';
+
+type IntentSectionsReason =
+  | 'intent-bundle-missing'
+  | 'intent-bundle-stale'
+  | 'intent-sections-drift'
+  | 'intent-task-invalid';
+
+type IntentSectionsError = Error & {
+  reason: IntentSectionsReason;
+  next: string;
+};
+
+type RoleSectionProjection = {
+  name: string;
+  body: string;
+};
+
+type RoleFunctionProjection = {
+  symbol: string;
+  function_ref: string;
+  explain: string;
+  freshness: string;
+  sections: RoleSectionProjection[];
+};
+
+type RoleIntentSectionsResult = {
+  ok: true;
+  role: IntentRole;
+  bundle_id: string;
+  revision: number;
+  task_brief_hash: string;
+  functions: RoleFunctionProjection[];
+};
+
+// 역할 집합은 CLI와 같은 상수다. Explain Background·Intuition·Code는 여기 없으므로
+// selectSections 결과에서 자동으로 빠진다.
+const IMPLEMENTER_SECTION_NAMES = [
+  'Goal & intent',
+  'Current behavior',
+  'Target behavior',
+  'Interface',
+  'Touch',
+  'Constraints',
+] as const;
+
+const REVIEWER_DEBUGGER_SECTION_NAMES = [
+  'Goal & intent',
+  'Interface',
+  'Touch',
+  'Constraints',
+] as const;
+
+const ROLE_SECTION_NAMES: Record<IntentRole, readonly string[]> = {
+  implementer: IMPLEMENTER_SECTION_NAMES,
+  reviewer: REVIEWER_DEBUGGER_SECTION_NAMES,
+  debugger: REVIEWER_DEBUGGER_SECTION_NAMES,
 };
 
 /**
@@ -874,4 +934,171 @@ function isSkippableFsError(error: unknown): boolean {
     || isFsCode(error, 'ENOTDIR');
 }
 
-export = { resolveTaskIntentBundle };
+/**
+ * 역할 projection 실패를 reason·next가 붙은 Error로 올린다.
+ * CLI는 이 세 필드로 stdout JSON을 만들고, Git resolver를 열지 않는다.
+ *
+ * @param {IntentSectionsReason} reason - 기계가 읽는 실패 코드
+ * @param {string} cause - 사람이 읽는 원인
+ * @param {string} next - bundle을 다시 만드는 명령
+ * @returns {never} 항상 throw
+ */
+function failIntentSections(
+  reason: IntentSectionsReason,
+  cause: string,
+  next: string,
+): never {
+  const error = new Error(cause) as IntentSectionsError;
+  error.reason = reason;
+  error.next = next;
+  throw error;
+}
+
+/**
+ * 실패 JSON의 next는 호출자가 같은 task에 bundle을 다시 만들게 한다.
+ * sections CLI는 --symbol을 받지 않으므로 placeholder를 남긴다.
+ *
+ * @param {string} taskFile - repo-relative canonical tasks.md
+ * @returns {string} `bouncer intent bundle` 복구 명령
+ */
+function intentBundleNext(taskFile: string): string {
+  return `bouncer intent bundle --task ${taskFile} --symbol <name>...`;
+}
+
+function isIntentRole(value: string): value is IntentRole {
+  return value === 'implementer' || value === 'reviewer' || value === 'debugger';
+}
+
+/**
+ * 캐시된 intent bundle에서 역할 allowlist에 속한 task 절 본문만 골라 JSON 객체를 만든다.
+ * Git provenance resolver와 cache write는 타지 않는다 — 판정은 record, 현재 brief
+ * 바이트, 현재 Explain 파일뿐이다. historical·unlinked·unresolved·ambiguous는
+ * functions에서 빠지고, 역할 절이 없는 resolved 함수는 sections: []로 남는다.
+ *
+ * @param {object} input - 조회 입력
+ * @param {string} input.repoRoot - 저장소 루트
+ * @param {string} input.taskFile - repo-relative canonical tasks.md
+ * @param {IntentRole} input.role - implementer | reviewer | debugger
+ * @param {BundleDeps} [input.deps] - fs·Git common-dir 주입(테스트용). resolver는 쓰지 않는다
+ * @returns {RoleIntentSectionsResult} ok: true 역할 projection
+ */
+function projectRoleIntentSections(input: {
+  repoRoot: string;
+  taskFile: string;
+  role: IntentRole;
+  deps?: BundleDeps | null;
+}): RoleIntentSectionsResult {
+  const next = intentBundleNext(input.taskFile);
+  if (!isIntentRole(input.role)) {
+    throw new Error('role must be implementer, reviewer, or debugger');
+  }
+  const deps = input.deps || {};
+  const io = { ...fs, ...(deps.fs || {}) } as InjectedFs;
+  const execFileSync = deps.execFileSync || (realExecFileSync as ExecFileSyncFn);
+
+  // 1. 현재 brief 바이트와 stable Task ID. Git blame은 치지 않는다.
+  let loaded: ReturnType<typeof loadExecutionTask>;
+  try {
+    loaded = loadExecutionTask({
+      repoRoot: input.repoRoot,
+      taskFile: input.taskFile,
+      fs: io,
+    });
+  } catch (error) {
+    const message = (error as { message: string }).message;
+    if (typeof message !== 'string' || message.length === 0) throw error;
+    failIntentSections('intent-task-invalid', message, next);
+  }
+
+  const located = intentBundlePathFor({
+    repoRoot: loaded.repoReal,
+    taskRel: loaded.taskRel,
+    deps: { execFileSync, platform: deps.platform },
+  });
+  if (located.unavailable || !located.intentFile || !located.commonGitDir) {
+    failIntentSections(
+      'intent-bundle-missing',
+      located.reason || 'Git common directory unavailable',
+      next,
+    );
+  }
+  try {
+    assertIntentPathInCommonDir(
+      located.intentFile,
+      located.commonGitDir,
+      io,
+      { createDir: false },
+    );
+  } catch (error) {
+    const message = (error as { message: string }).message;
+    if (typeof message !== 'string' || message.length === 0) throw error;
+    failIntentSections('intent-bundle-missing', message, next);
+  }
+
+  // 2. record만 읽는다. 손상·부재는 miss로 재생성하지 않고 호출자에게 맡긴다.
+  const record = readValidBundleRecord({
+    intentFile: located.intentFile,
+    expectedTask: loaded.stableTask,
+    fs: io,
+  });
+  if (!record) {
+    failIntentSections(
+      'intent-bundle-missing',
+      'intent bundle cache is missing or invalid',
+      next,
+    );
+  }
+  if (record.task_brief_hash !== loaded.taskBriefHash) {
+    failIntentSections(
+      'intent-bundle-stale',
+      'task brief hash does not match the cached intent bundle',
+      next,
+    );
+  }
+
+  const allow = new Set(ROLE_SECTION_NAMES[input.role]);
+  const functions: RoleFunctionProjection[] = [];
+  for (const entry of record.functions) {
+    if (entry.status !== 'resolved') continue;
+    if (entry.provenance.freshness === 'historical') continue;
+    if (!sectionHashesMatch(entry.provenance, loaded.repoReal, io)) {
+      failIntentSections(
+        'intent-sections-drift',
+        `Explain section hashes drifted for ${entry.symbol}`,
+        next,
+      );
+    }
+    const bodies = projectExplainSectionBodies({
+      repoRoot: loaded.repoReal,
+      explainRel: entry.provenance.explain,
+      task: entry.provenance.task,
+    });
+    if (!bodies) {
+      failIntentSections(
+        'intent-sections-drift',
+        `Explain sections are unreadable for ${entry.symbol}`,
+        next,
+      );
+    }
+    functions.push({
+      symbol: entry.symbol,
+      function_ref: entry.function_ref,
+      explain: entry.provenance.explain,
+      freshness: entry.provenance.freshness,
+      sections: bodies
+        .filter((part) => allow.has(part.name))
+        .map((part) => ({ name: part.name, body: part.body })),
+    });
+  }
+
+  return {
+    ok: true,
+    role: input.role,
+    bundle_id: record.bundle_id,
+    revision: record.revision,
+    task_brief_hash: loaded.taskBriefHash,
+    functions,
+  };
+}
+
+export = { resolveTaskIntentBundle, projectRoleIntentSections };

@@ -12,7 +12,8 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 ```text
 1 freeze    Pin base, HEAD, task-brief revision(s), latest verify, and
             either the single-task identifiers (task_brief_hash,
-            intent_bundle_id, intent_bundle_revision, intent_sections) or,
+            intent_bundle_id, intent_bundle_revision, and intent_sections from
+            `bouncer intent sections --task <current.task.path> --role reviewer`) or,
             in blueprint review mode, task_brief_hashes (commit task id →
             brief hash) and intent_bundles (commit task id → { id, revision }).
             Do not modify implementation until discovery completes. Do not
@@ -52,7 +53,9 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
             large risk → those three then `security`). Record round 1
             perspectives in that CLI order. Each discovery call receives the
             same frozen target, brief hash / bundle identifiers,
-            intent_sections, and latest verify — never another reviewer's
+            intent_sections from
+            `bouncer intent sections --task <current.task.path> --role reviewer`,
+            and latest verify — never another reviewer's
             findings. In blueprint review mode the payload also carries every
             commit task brief and the blueprint Contract.
 3 aggregate Verify evidence, merge duplicate fingerprints, record
@@ -94,7 +97,9 @@ blueprint-root `review.md`; when `review_scope` is absent it is
 `<pointer task directory>/review.md`. Every round records its frozen `target`
 (`base` and `head`), `task_brief_hash` or `task_brief_hashes`,
 `intent_bundle_id` / `intent_bundle_revision` or `intent_bundles`,
-`intent_sections`, `previous_finding_ids`, `new` / `resolved` / `regressed`
+`intent_sections` from
+`bouncer intent sections --task <current.task.path> --role reviewer`,
+`previous_finding_ids`, `new` / `resolved` / `regressed`
 counts, revision, and latest verify result. Each reviewer perspective records
 the same `target_head` as that round's target and the same bundle identifiers.
 Findings record a stable fingerprint, `severity_changes`, `actionability`,

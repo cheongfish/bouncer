@@ -5,7 +5,9 @@ Dispatch named `bouncer-debugger` (plugin `agents/bouncer-debugger.md`) with
 the failing verify evidence, only the pointer task brief's Goal & intent,
 Interface, Touch, Do not touch, Constraints, and Checklist, the shared
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, the debugger's
-`intent_sections` projection, and the assigned read-only cwd. Do not pass the
+`intent_sections` projection from
+`bouncer intent sections --task <current.task.path> --role debugger`,
+and the assigned read-only cwd. Do not pass the
 full Explain body or another role's report. The `debugging` skill remains its
 behavioral brief. When named agents are unavailable, use a fresh generic
 read-only subagent whose payload carries the entire body of
@@ -13,7 +15,9 @@ read-only subagent whose payload carries the entire body of
 contract, verbatim — plus the failing verify evidence, the task brief's Goal & intent,
 Interface, Touch, Do not touch, Constraints, and Checklist, the same
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
-`intent_sections`, and the assigned read-only cwd; or run `debugging` inline,
+`intent_sections` from
+`bouncer intent sections --task <current.task.path> --role debugger`,
+and the assigned read-only cwd; or run `debugging` inline,
 where the inline pass first reads `agents/bouncer-debugger.md` and follows
 every section with those same inputs before it diagnoses. Even on the light
 path, debugger dispatch remains named.
