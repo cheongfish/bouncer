@@ -723,6 +723,52 @@ test('CLI review-dispatch plan and execute emit JSON exit contracts', () => {
   assert.match(bad.err, /--task|--base|--head/);
 });
 
+test('execute without taskId classifies the whole blueprint diff and unions review_risk', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001', '002'] });
+  writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
+  writeCommitTask(repo, '002', {
+    reviewRisk: ['authentication'],
+    dependsOn: ['TASKS-001'],
+    interfaceText: '- `sharedFn`\n- `classifyPlanReview`\n',
+    touchText: '- `src/shared.ts`\n- `src/b.ts`\n',
+  });
+  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  git(repo, ['add', 'src/a.ts']);
+  git(repo, ['commit', '-qm', 'blueprint-wide']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const result = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, base, head,
+  });
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.target, { base, head, task: null });
+  assert.deepStrictEqual(result.risk_flags, ['public_interface', 'authentication']);
+  assert.strictEqual(result.perspectives.at(-1), 'security');
+});
+
+test('blueprint-wide execute rejects invalid review_risk without perspectives', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { tasks: ['001'] });
+  writeCommitTask(repo, '001', { reviewRisk: ['bogus'] });
+  const result = classifyExecuteReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    base: 'HEAD',
+    head: 'HEAD',
+    exec: (file, args) => {
+      assert.strictEqual(file, 'git');
+      if (args[0] === 'rev-parse') return 'abc\n';
+      if (args[0] === 'diff') return '1\t1\tsrc/a.ts\n';
+      throw new Error(`unexpected git ${args.join(' ')}`);
+    },
+  });
+  assert.strictEqual(result.ok, false);
+  assert.match(result.error, /S30 review_risk value invalid/);
+  assert.ok(!('perspectives' in result) || result.perspectives === undefined);
+});
+
 test('CLI plan structural failure exits 1 without reviewer list', () => {
   const repo = makeRepo();
   writeBundleIndex(repo);

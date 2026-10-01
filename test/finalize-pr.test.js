@@ -594,3 +594,23 @@ test('resolveExplainLinks returns head-not-pushed when remote ref or HEAD rev-pa
     'head-not-pushed',
   );
 });
+
+test('buildPrDraft review_points include blueprint_review finding notes', () => {
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: 'main' },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [],
+    out_of_scope: [],
+    unverified: [],
+    blueprint_review: {
+      findings: [{ id: 'F-ROOT', status: 'accepted', note: 'root finding note' }],
+    },
+  };
+  const draft = buildPrDraft(digest, {
+    now: new Date('2026-09-24T01:00:00Z'),
+    config: {},
+  });
+  assert.ok(draft.sections.review_points.includes('root finding note'));
+});

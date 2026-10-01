@@ -47,12 +47,18 @@ Do not scaffold tasks into a closed blueprint.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|record|rerecord|integrate|status|revise|repair|partial-close|critical-recovery|release> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|release> --blueprint <dir> ...
+bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
+  --summary <text> --paths <p> --decision <reason>
+bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
+  [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>
 ```
 
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
 pointer moves, scope revisions, result recording, fan-in, repair, and release.
+When a `coordinate` JSON response has `ok: false`, follow its `next` and do
+not recover by reading plugin sources.
 Use `coordinate revise` only from the assigned worker worktree with a reason
 and explicit source paths. A `partial-close` requires the workflow's explicit
 user confirmation and is unresolved handoff, not ordinary completion.
@@ -65,21 +71,36 @@ bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <
 bouncer graphify-bin
 bouncer graph-sync
 bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
+bouncer subagent-model --agent <name> [--provider <name>]
+bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir>
-bouncer review-dispatch execute --blueprint <dir> --task <ddd> --base <sha> --head <sha>
+bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
 ```
 
 Use `project-root` to locate the consuming repository from linked worktrees.
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
 
+`subagent-model` prints one model slug, or `inherit`. Pass only that line into
+named dispatch; omit the model argument when the line is `inherit`. Do not
+parse it as `{ model, provider }` JSON. `codex-agents check` is read-only: it
+prints `{ ok, agent, in_sync, path }` and, on drift, `reason` plus
+`next: "bouncer init --seed-codex-agents"` (exit 1). Compact a named
+implementer payload only when `in_sync` is true. Invalid `--agent` or a verb
+other than `check` is exit 2.
+
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
 clustered`) or Execute (`single | parallel`, with `security` when
-`review_risk` is non-empty). On structural or input failure it prints
+`review_risk` is non-empty). Omit `--task` on execute to classify the whole
+`base..head` diff and the union of commit-task `review_risk` (`target.task`
+is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
 `failures` (G5, G10–G12, G19, G20) when the draft fails. Invalid argv is exit 2.
-Do not invent a strategy when the command fails.
+Do not invent a strategy when the command fails. `coordinate repair` takes
+either `--failure-command` (terminal CI) or repeated `--review-finding`
+(final-review must_fix), never both. Omit `--task` on the review-finding form
+when the blueprint has no terminal verification task.
 
 ## Controlled migrations
 

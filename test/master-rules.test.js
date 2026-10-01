@@ -566,9 +566,9 @@ test('current-pointer contract is centralized and pointer consumers cite it', ()
 
 test('subagent model contract is centralized and named dispatch consumers cite it', () => {
   const model = read('rules/subagent-model.md');
-  assert.match(model, /resolveSubagentModel/);
-  assert.match(model, /result\.model/);
-  assert.match(model, /result\.model` is `null`, omit the model argument/i);
+  assert.match(model, /bouncer subagent-model/);
+  assert.match(model, /inherit/);
+  assert.match(model, /output is `inherit`,\s+omit the model argument/i);
   assert.match(model, /parent-session inheritance/i);
   assert.match(model, /named dispatch/i);
   assert.match(model, /rejected.*slug[\s\S]{0,120}inherit/i);
@@ -729,6 +729,11 @@ test('plan and planning lock the approved task DAG contract', () => {
   assert.match(plan, /parallel_safe/);
   assert.match(plan, /dependency_gate/);
   assert.match(plan, /G19|DAG/);
+  // 묶음 정의: blueprint 리뷰 모드에서는 review.md가 task 디렉터리에 없다.
+  assert.match(schema, /review_scope/);
+  assert.match(schema, /tasks\/<NNN>\/\{tasks,verification\}\.md/);
+  assert.match(planning, /review_scope/);
+  assert.match(planning, /tasks\/<NNN>\/\{tasks,verification\}\.md/);
 });
 
 test('hard rule 1 keeps worker reports inside the trust boundary', () => {

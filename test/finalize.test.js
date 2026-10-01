@@ -1699,3 +1699,74 @@ test('finalize --yes prefers trailer integration SHA over worker commit_sha', ()
 
   run(['worktree', 'remove', '--force', paths.integrationPath]);
 });
+
+function writeAcceptedRootReview(repo, blueprintDir = BP_REL) {
+  writeDoc(repo, `${blueprintDir}/review.md`, {
+    type: 'bouncer.review', title: 'Review', description: 'd',
+    resource: `${blueprintDir}/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: {
+        required: true,
+        findings: [],
+        rounds: [{
+          round: 1,
+          previous_finding_ids: [],
+          new: 0,
+          resolved: 0,
+          regressed: 0,
+          target: { head: 'deadbeef' },
+        }],
+      },
+    },
+  }, '# Review\n\n## Findings\n(none)\n');
+}
+
+function setBlueprintReviewScope(repo, blueprintDir = BP_REL) {
+  const abs = path.join(repo, `${blueprintDir}/index.md`);
+  const parts = fs.readFileSync(abs, 'utf8').split(/^---\n/);
+  const rest = parts.slice(1).join('---\n');
+  const end = rest.indexOf('\n---');
+  const data = yaml.load(rest.slice(0, end));
+  data.bouncer.review_scope = 'blueprint';
+  const body = rest.slice(end + '\n---'.length);
+  fs.writeFileSync(abs, `---\n${yaml.dump(data)}---${body}`);
+}
+
+test('blueprint review mode deletes root review.md on closed transition', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  setBlueprintReviewScope(repo);
+  writeAcceptedRootReview(repo);
+  const g = fakeGit([
+    'src/auth/login.ts',
+    ...transientRels(),
+    `${BP_REL}/context-review.md`,
+    `${BP_REL}/review.md`,
+  ], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(fs.existsSync(path.join(repo, `${BP_REL}/review.md`)), false);
+});
+
+test('without review_scope, root review.md survives closed transition', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeContextReview(repo);
+  writeAcceptedRootReview(repo);
+  const g = fakeGit([
+    'src/auth/login.ts',
+    ...transientRels(),
+    `${BP_REL}/context-review.md`,
+    `${BP_REL}/review.md`,
+  ], []);
+  const res = finalize({
+    repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api, verifyExec: passVerify,
+  });
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(fs.existsSync(path.join(repo, `${BP_REL}/review.md`)), true);
+});

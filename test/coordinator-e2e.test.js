@@ -12,7 +12,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const __coordinatorMod = require('../scripts/lib/coordinator');
-const { loadLedger } = __coordinatorMod;
+const { loadLedger, COORDINATE_FAILURE_HINTS } = __coordinatorMod;
 const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
 const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
@@ -363,7 +363,11 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
       }),
     },
   });
-  assert.deepStrictEqual(rejected, { ok: false, reason: 'stale-integration-head' });
+  assert.deepStrictEqual(rejected, {
+    ok: false, reason: 'stale-integration-head',
+    cause: COORDINATE_FAILURE_HINTS['stale-integration-head'].cause,
+    next: COORDINATE_FAILURE_HINTS['stale-integration-head'].next,
+  });
 
   // 거절이 원장을 갈아엎지 않아야 재개 지점이 남는다.
   const preserved = loadLedger(ledgerFile);
@@ -392,7 +396,11 @@ test('a rejected fan-in preserves the ledger and resumes without a duplicate che
       }),
     },
   });
-  assert.deepStrictEqual(again, { ok: false, reason: 'nothing-to-integrate' });
+  assert.deepStrictEqual(again, {
+    ok: false, reason: 'nothing-to-integrate',
+    cause: COORDINATE_FAILURE_HINTS['nothing-to-integrate'].cause,
+    next: COORDINATE_FAILURE_HINTS['nothing-to-integrate'].next,
+  });
   const subjects = git(boot.integrationPath, ['log', '--format=%s']).split('\n');
   assert.strictEqual(subjects.filter((subject) => subject === 'feat: task 001').length, 1);
 

@@ -57,6 +57,9 @@ test('run stays non-editing and does not re-judge worker reports', () => {
   assert.doesNotMatch(role, /stop that task/);
   assert.doesNotMatch(md, /do not widen\s*\n?\s*`affected_paths`/);
   assert.doesNotMatch(role, /bouncer current --set/);
+  // 최종 리뷰 시점은 coordinator가 연다. verification node 예외와 같은 Role 절에 둔다.
+  assert.match(role, /review_scope/);
+  assert.match(role, /final review|최종 리뷰/i);
 });
 
 test('run defers coordinator procedure to the canonical agent doc and output contract', () => {

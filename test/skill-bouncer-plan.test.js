@@ -89,6 +89,9 @@ test('bouncer-plan wires scaffold, skills, affected_paths, pointer, and plan gat
   assert.match(body, /affected_paths/);
   assert.match(body, /\bbouncer\s+current\s+--set\b/);
   assert.match(body, /approv/i);
+  // 새 scaffold는 commit 묶음에 review.md를 두지 않고 루트 리뷰와 review_scope를 쓴다.
+  assert.match(body, /review_scope/);
+  assert.match(body, /tasks\/001\/\{tasks,verification\}\.md/);
   assert.doesNotMatch(md, /superpowers|profile-aware|--from-superpowers|import-superpowers|okf-authoring/i);
 });
 

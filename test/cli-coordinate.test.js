@@ -10,6 +10,7 @@ const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
 
 const __coordinatorMod = require('../scripts/lib/coordinator');
+const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
 const { coordinatorPathsFor: __coordinatorPathsFor } = require('../scripts/lib/runtime-state');
 const __crypto = require('node:crypto');
 const __LEDGER_REL = '.bouncer/runtime/coordinator.json';
@@ -468,7 +469,11 @@ test('coordinate release prints its payload from main and a JSON refusal elsewhe
 
   const open = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(open.code, 1);
-  assert.deepStrictEqual(JSON.parse(open.buf.out), { ok: false, reason: 'blueprint-not-closed' });
+  assert.deepStrictEqual(JSON.parse(open.buf.out), {
+    ok: false, reason: 'blueprint-not-closed',
+    cause: COORDINATE_FAILURE_HINTS['blueprint-not-closed'].cause,
+    next: COORDINATE_FAILURE_HINTS['blueprint-not-closed'].next,
+  });
 
   writeDoc(drive.integration, `${BP_REL}/index.md`, {
     type: 'bouncer.blueprint', title: 'Login', description: 'd', resource: `${BP_REL}/index.md`,
@@ -477,7 +482,11 @@ test('coordinate release prints its payload from main and a JSON refusal elsewhe
   });
   const misplaced = coordinateCli(drive.integration, 'release', ['--repo', drive.repo]);
   assert.strictEqual(misplaced.code, 1);
-  assert.deepStrictEqual(JSON.parse(misplaced.buf.out), { ok: false, reason: 'release-requires-main-checkout' });
+  assert.deepStrictEqual(JSON.parse(misplaced.buf.out), {
+    ok: false, reason: 'release-requires-main-checkout',
+    cause: COORDINATE_FAILURE_HINTS['release-requires-main-checkout'].cause,
+    next: COORDINATE_FAILURE_HINTS['release-requires-main-checkout'].next,
+  });
 
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 0, buf.err);
@@ -676,4 +685,53 @@ test('coordinate integrate omits --task and returns integrated array', () => {
   runCli([], help.io);
   assert.match(help.buf.out, /coordinate integrate/);
   assert.match(help.buf.out, /omit --task for the wave/);
+});
+
+test('CLI coordinate repair collects repeated --review-finding into ledger findings', () => {
+  const drive = preparedDrive();
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+  const { code, buf } = coordinateCli(drive.integration, 'repair', [
+    '--repo', drive.repo,
+    '--review-finding', 'F1', '--review-finding', 'F2',
+    '--summary', 'must_fix', '--paths', 'src/auth/', '--decision', 'repair findings',
+  ]);
+  assert.strictEqual(code, 0, buf.err + buf.out);
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  assert.deepStrictEqual(ledger.repairWaves[0].failure.findings, ['F1', 'F2']);
+});
+
+test('CLI coordinate repair rejects an empty --review-finding', () => {
+  const drive = preparedDrive();
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+  const { code, buf } = coordinateCli(drive.integration, 'repair', [
+    '--repo', drive.repo,
+    '--review-finding', '',
+    '--summary', 'must_fix', '--paths', 'src/auth/', '--decision', 'repair findings',
+  ]);
+  assert.strictEqual(code, 1);
+  assert.strictEqual(JSON.parse(buf.out).reason, 'failure-evidence-required');
+});
+
+test('CLI review-dispatch execute without --task exits 0', () => {
+  const drive = preparedDrive();
+  const run = (args) => execFileSync('git', args, { cwd: drive.repo, encoding: 'utf8' }).trim();
+  const base = run(['rev-parse', 'HEAD']);
+  fs.writeFileSync(path.join(drive.repo, 'README'), 'changed\n');
+  run(['add', 'README']);
+  run(['commit', '-m', 'change']);
+  const head = run(['rev-parse', 'HEAD']);
+  const { io, buf } = capture();
+  const code = runCli([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--base', base, '--head', head, '--repo', drive.repo,
+  ], io);
+  assert.strictEqual(code, 0, buf.err + buf.out);
 });

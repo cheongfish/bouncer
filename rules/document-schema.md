@@ -124,12 +124,14 @@ plan, rerun the designated step, or return to planning.
 
 ## Task bundle and commit records
 
-A task unit is the three-document bundle
-`tasks/<NNN>/{tasks,verification,review}.md`; each file has its own OKF
-frontmatter and `resource` path. Root task layouts are input only to
+A task unit is the commit-task bundle
+`tasks/<NNN>/{tasks,verification}.md` when `review_scope` is `blueprint`, with
+review at blueprint-root `review.md`; when `review_scope` is absent, the bundle is `tasks/<NNN>/{tasks,verification,review}.md`. Each file has its own
+OKF frontmatter and `resource` path. Root task layouts are input only to
 `bouncer migrate task-layout`. Blueprint-root documents sit beside that
-bundle: `explain.md` (written at finalize) and `context-review.md` (plan
-document consistency). After finalize deletes task leaves, `explain.md`
+bundle: `explain.md` (written at finalize), `context-review.md` (plan
+document consistency), and `review.md` (final review in blueprint review
+mode). After finalize deletes task leaves, `explain.md`
 `bouncer.task_commits` writes `{ task, sha, intent_anchor }` rows:
 `task` is `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`,
 and `sha` stays 8-char hex. Existing explain documents are not rewritten until

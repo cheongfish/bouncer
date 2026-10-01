@@ -143,6 +143,32 @@ test('partial-close repair decisions require complete canonical task and global 
   assert.strictEqual(validateCoordinatorLedger(valid).ok, true);
 });
 
+test('repair failure findings must be a non-empty string array when present', () => {
+  const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
+  const wave1 = repairDecision('003', 1, 'r1', ['src/a.js']);
+  const wave2 = repairDecision('004', 2, 'r2', ['src/b.js']);
+  const valid = {
+    status: 'partial_closed', repairWaves: [wave1, wave2], decisions: copy([wave1, wave2]),
+    terminalFailure: {
+      task: '002', command: 'npm test', summary: 'still failing', paths: ['src/b.js'],
+      exitCode: 1, repairWave: 2,
+    },
+    userConfirmed: true,
+    tasks: [{ id: '002', execution_kind: 'verification', status: 'verifying' },
+      { id: '003', status: 'integrated', decisions: [copy(wave1)] },
+      { id: '004', status: 'integrated', decisions: [copy(wave2)] }],
+  };
+  const accepted = copy(valid);
+  accepted.repairWaves[0].failure.findings = ['F1', 'F2'];
+  accepted.decisions[0].failure.findings = ['F1', 'F2'];
+  accepted.tasks[1].decisions[0].failure.findings = ['F1', 'F2'];
+  assert.strictEqual(validateCoordinatorLedger(accepted).ok, true);
+  valid.repairWaves[0].failure.findings = 'F1';
+  valid.decisions[0].failure.findings = 'F1';
+  valid.tasks[1].decisions[0].failure.findings = 'F1';
+  assert.match(validateCoordinatorLedger(valid).reason, /repair-decision/);
+});
+
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' });
 }

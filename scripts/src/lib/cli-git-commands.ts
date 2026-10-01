@@ -214,6 +214,33 @@ function collectFindingValues(rest: string[]): string[] {
   return out;
 }
 
+/**
+ * 반복 `--review-finding`을 순서대로 모은다.
+ * parseFlags는 마지막 값만 남겨 두 번째 finding이 사라지므로 rest를 직접 훑는다.
+ * 플래그가 한 번도 없으면 undefined를 돌려 CI 원인 repair와 구분한다. 값이 빈
+ * 문자열이거나 빠진 occurrence는 ''로 남겨 coordinator가
+ * `failure-evidence-required`로 원자 거절하게 한다.
+ *
+ * @param {string[]} rest - coordinate 서브커맨드 뒤 argv
+ * @returns {string[] | undefined} 등장 순서의 finding id, 없으면 undefined
+ */
+function collectReviewFindingValues(rest: string[]): string[] | undefined {
+  const out: string[] = [];
+  let seen = false;
+  for (let i = 0; i < rest.length; i += 1) {
+    if (rest[i] !== '--review-finding') continue;
+    seen = true;
+    const value = rest[i + 1];
+    if (value === undefined || (value.startsWith('--') && value !== '')) {
+      out.push('');
+      continue;
+    }
+    out.push(value);
+    i += 1;
+  }
+  return seen ? out : undefined;
+}
+
 function cmdExecute(rest: string[], io: CliIo) {
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
@@ -383,6 +410,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       summary: typeof f.summary === 'string' ? f.summary : undefined,
       paths: collectPathValues(rest.slice(1)),
       findings: collectFindingValues(rest.slice(1)),
+      reviewFindings: collectReviewFindingValues(rest.slice(1)),
       outcome: typeof f.outcome === 'string' ? f.outcome : undefined,
       reason: typeof f.reason === 'string' ? f.reason : undefined,
       attempt: attemptNum,
@@ -454,6 +482,11 @@ export = {
       + '             --summary <text> --paths <p> --decision <reason>\n'
       + '             --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Add one audited repair task and move the terminal CI dependency.\n'
+      + '  coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>\n'
+      + '             [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>\n'
+      + '             --ledger-path <path> --ledger-hash <sha256>\n'
+      + '             Open a repair task from final-review must_fix findings (omit --task\n'
+      + '             when the blueprint has no terminal verification).\n'
       + '  coordinate partial-close --blueprint <dir> --user-confirmed\n'
       + '             --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Preserve the failed drive and mark it partial_closed after two repair waves.\n'

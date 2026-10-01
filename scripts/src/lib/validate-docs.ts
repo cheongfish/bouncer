@@ -177,10 +177,12 @@ function loadBlueprintDocs({ repoRoot, blueprintDir }: {
   // validate.ts의 공통 S17 순회는 모든 종류에 존재하는 tasks/verification만
   // 맡는다. commit 전용 review 누락은 execution kind를 아는 이 loader에서
   // 추가해, verification entry에 가짜 review 경로를 싣지 않아도 기존 완전성
-  // 검사가 유지되게 한다.
+  // 검사가 유지되게 한다. blueprint 리뷰 모드는 task review leaf를 요구하지
+  // 않는다 — 판정 근거는 루트 review.md 하나다.
   const blueprintStatus = statusOf(docs.blueprintIndex);
+  const reviewMode = isBlueprintReviewMode(docs.blueprintIndex);
   for (const entry of tasksListing.entries) {
-    for (const leaf of requiredTaskLeaves(blueprintStatus, entry.executionKind)) {
+    for (const leaf of requiredTaskLeaves(blueprintStatus, entry.executionKind, reviewMode)) {
       if (leaf !== 'review') continue;
       const rel = entry.review?.rel;
       if (rel && !fs.existsSync(path.join(repoRoot, rel))) {
@@ -259,23 +261,45 @@ function unitLeafRel(unit: TaskUnit | null | undefined, leaf: string, fallbackRe
 
 
 /**
+ * blueprint index가 blueprint 리뷰 모드인지 판정한다.
+ * 모드는 `bouncer.review_scope === 'blueprint'`일 때만 켠다. 필드 부재는
+ * 구형 계약(task별 리뷰)을 유지해야 하므로 모드가 아니다. 잘못된 값은
+ * 여기서 true로 접지 않는다 — 구조 층이 S31로 거절한다.
+ *
+ * @param {DocLeaf | undefined} blueprintIndex - blueprint `index.md` 문서. 없으면 모드가 아니다
+ * @returns {boolean} 모드이면 true, 아니면 false
+ */
+function isBlueprintReviewMode(blueprintIndex: DocLeaf | undefined): boolean {
+  if (!blueprintIndex) return false;
+  const data = blueprintIndex.data as Record<string, unknown> | undefined;
+  const bouncer = data && data.bouncer as Record<string, unknown> | undefined;
+  return Boolean(bouncer && bouncer.review_scope === 'blueprint');
+}
+
+/**
  * blueprint 상태에 따라 task 묶음에서 필수인 leaf를 돌려준다.
  * closed는 finalize가 task leaf 전체를 지운 축약 레이아웃(필수 leaf 없음)을
  * 허용한다. 실행 종류가 주어지지 않은 호출은 공통 leaf만 받고, commit
  * 묶음만 review를 추가한다. verification 묶음에는 review leaf가 없다.
+ * blueprint 리뷰 모드에서는 commit 묶음도 review leaf를 요구하지 않는다.
  *
  * @param {unknown} status - blueprint index의 bouncer.status
  * @param {'commit'|'verification'|null} [executionKind] task 실행 종류
+ * @param {boolean} [reviewMode] blueprint 리뷰 모드. true면 review leaf를 빼 준다
  * @returns {Array<'tasks'|'verification'|'review'>} 필수 leaf 이름
  */
 function requiredTaskLeaves(
   status: unknown,
   executionKind?: 'commit' | 'verification' | null,
+  reviewMode?: boolean,
 ): Array<'tasks' | 'verification' | 'review'> {
   // closed는 finalize가 일회성·검증 문서를 지운 뒤의 단말 상태다.
   // 재개·task 추가가 없으므로 task leaf 부재를 구조 실패로 보지 않는다.
   if (status === 'closed') return [];
   const common: Array<'tasks' | 'verification' | 'review'> = ['tasks', 'verification'];
+  // 모드에서는 루트 review.md가 유일한 판정 근거다. task 묶음에 파일이
+  // 남아 있어도 S17로 요구하지 않는다.
+  if (reviewMode) return common;
   return executionKind === undefined || executionKind === 'verification'
     ? common
     : [...common, 'review'];
@@ -317,4 +341,5 @@ export = {
   blueprintDocsExist,
   statusOf,
   requiredTaskLeaves,
+  isBlueprintReviewMode,
 };

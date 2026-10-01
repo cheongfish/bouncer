@@ -1275,3 +1275,140 @@ migrateRetention
   assert.strictEqual(nonBlueprint.code, 1);
   assert.strictEqual(JSON.parse(nonBlueprint.out).code, 'INVALID_PATH');
 });
+
+function writeSubagentConfig(repo, config) {
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify(config));
+}
+
+test('subagent-model prints the pinned slug and exits 0', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-subagent-model-'));
+  writeSubagentConfig(repo, {
+    subagents: {
+      provider: 'claude',
+      claude: { 'bouncer-reviewer': 'claude-opus-4-6' },
+    },
+  });
+  const result = capture([
+    'subagent-model', '--agent', 'bouncer-reviewer', '--repo', repo,
+  ]);
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(result.out, 'claude-opus-4-6\n');
+  assert.strictEqual(result.err, '');
+  assert.doesNotMatch(result.out, /provider/);
+});
+
+test('subagent-model prints inherit when the slot is missing or inherit', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-subagent-inherit-'));
+  writeSubagentConfig(repo, {
+    subagents: {
+      provider: 'claude',
+      claude: { 'bouncer-implementer': 'inherit' },
+    },
+  });
+  const inherit = capture([
+    'subagent-model', '--agent', 'bouncer-implementer', '--repo', repo,
+  ]);
+  assert.strictEqual(inherit.code, 0);
+  assert.strictEqual(inherit.out, 'inherit\n');
+  const missing = capture([
+    'subagent-model', '--agent', 'bouncer-reviewer', '--repo', repo,
+  ]);
+  assert.strictEqual(missing.code, 0);
+  assert.strictEqual(missing.out, 'inherit\n');
+});
+
+test('subagent-model --provider overrides the pinned provider', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-subagent-provider-'));
+  writeSubagentConfig(repo, {
+    subagents: {
+      provider: 'claude',
+      claude: { 'bouncer-reviewer': 'claude-opus-4-6' },
+      cursor: { 'bouncer-reviewer': 'composer-2.5-fast' },
+    },
+  });
+  const result = capture([
+    'subagent-model', '--agent', 'bouncer-reviewer', '--provider', 'cursor', '--repo', repo,
+  ]);
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(result.out, 'composer-2.5-fast\n');
+});
+
+test('subagent-model without --agent or with an unknown name exits 2', () => {
+  const missing = capture(['subagent-model']);
+  assert.strictEqual(missing.code, 2);
+  assert.match(missing.err, /bouncer-reviewer/);
+  assert.match(missing.err, /bouncer-implementer/);
+  assert.strictEqual(missing.out, '');
+  const unknown = capture(['subagent-model', '--agent', 'not-an-agent']);
+  assert.strictEqual(unknown.code, 2);
+  assert.match(unknown.err, /bouncer-debugger/);
+  assert.strictEqual(unknown.out, '');
+});
+
+test('codex-agents check reports in_sync JSON and does not write', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-check-'));
+  assert.strictEqual(
+    capture(['init', '--repo', repo, '--no-graphify', '--seed-codex-agents']).code,
+    0,
+  );
+  const rel = '.codex/agents/bouncer-implementer.toml';
+  const before = fs.readFileSync(path.join(repo, rel));
+  const result = capture([
+    'codex-agents', 'check', '--agent', 'bouncer-implementer', '--repo', repo,
+  ]);
+  assert.strictEqual(result.code, 0);
+  assert.deepStrictEqual(JSON.parse(result.out), {
+    ok: true,
+    agent: 'bouncer-implementer',
+    in_sync: true,
+    path: rel,
+  });
+  assert.deepStrictEqual(fs.readFileSync(path.join(repo, rel)), before);
+});
+
+test('codex-agents check reports missing not-generated and mismatch with next', () => {
+  const repo = fs.mkdtempSync(path.join(tmpRoot(), 'bouncer-cli-codex-fail-'));
+  const rel = '.codex/agents/bouncer-implementer.toml';
+  const missing = capture([
+    'codex-agents', 'check', '--agent', 'bouncer-implementer', '--repo', repo,
+  ]);
+  assert.strictEqual(missing.code, 1);
+  assert.deepStrictEqual(JSON.parse(missing.out), {
+    ok: false,
+    agent: 'bouncer-implementer',
+    in_sync: false,
+    reason: 'missing',
+    next: 'bouncer init --seed-codex-agents',
+    path: rel,
+  });
+
+  fs.mkdirSync(path.join(repo, '.codex/agents'), { recursive: true });
+  fs.writeFileSync(path.join(repo, rel), 'name = "user-owned"\n');
+  const owned = capture([
+    'codex-agents', 'check', '--agent', 'bouncer-implementer', '--repo', repo,
+  ]);
+  assert.strictEqual(owned.code, 1);
+  assert.strictEqual(JSON.parse(owned.out).reason, 'not-generated');
+
+  // 마커가 있으면 seed가 덮을 대상이다. 사용자 소유 파일에 append하면
+  // not-generated가 남아 mismatch 분기를 못 닫는다.
+  fs.writeFileSync(path.join(repo, rel), '# bouncer-generated\n# drifted\n');
+  const mismatch = capture([
+    'codex-agents', 'check', '--agent', 'bouncer-implementer', '--repo', repo,
+  ]);
+  assert.strictEqual(mismatch.code, 1);
+  assert.strictEqual(JSON.parse(mismatch.out).reason, 'mismatch');
+  assert.strictEqual(JSON.parse(mismatch.out).next, 'bouncer init --seed-codex-agents');
+});
+
+test('codex-agents rejects a non-check verb and an unknown agent with exit 2', () => {
+  const verb = capture(['codex-agents', 'seed']);
+  assert.strictEqual(verb.code, 2);
+  assert.match(verb.err, /check/);
+  assert.strictEqual(verb.out, '');
+  const agent = capture(['codex-agents', 'check']);
+  assert.strictEqual(agent.code, 2);
+  assert.match(agent.err, /bouncer-implementer/);
+  assert.strictEqual(agent.out, '');
+});

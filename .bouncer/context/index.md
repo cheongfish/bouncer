@@ -36,3 +36,4 @@ bouncer_schema: '0.1'
 * [078 plan-review-loop-guard](epics/078-plan-review-loop-guard/index.md) - 계획 문서가 context review 전에 G19·G20과 Touch 정합성을 통과하고, 리뷰 뒤 문서 변경을 G18이 stale로 거절하게 해 plan 리뷰 반복 루프를 끊는다.
 * [078 parallel-run-finalize-digest](epics/078-parallel-run-finalize-digest/index.md) - Runs independent Bouncer tasks in parallel under coordinator leases and compresses finalize input into one CLI digest.
 * [079 roadmap-closeout](epics/079-roadmap-closeout/index.md) - Closes the remaining roadmap items by shipping built CommonJS through a release branch and removing the leftover governance rule file.
+* [080 execution-token-cost](epics/080-execution-token-cost/index.md) - Close execution-contract gaps and run review once at final verification to cut drive token cost

@@ -209,3 +209,18 @@ test('spec-authoring keeps the scaffolded verification Touch phrase', () => {
   const md = readSkill('spec-authoring');
   assert.match(md, /Source 변경 경로 없음\./);
 });
+
+// rounds 예제는 validator 소스가 아니라 이 파일이 고정점이다. 스키마가 바뀌면
+// 예제가 먼저 깨지게 해서 작성자가 형식을 역산하지 않게 한다.
+test('spec-authoring review-rounds example passes collectFindingFailures', () => {
+  const { collectFindingFailures } = require('../scripts/lib/validate-sections');
+  const { parseFrontmatter } = require('../scripts/lib/frontmatter');
+  const md = fs.readFileSync(refPath('review-rounds.md'), 'utf8');
+  const { data, body } = parseFrontmatter(md);
+  const review = data.bouncer.review;
+  assert.deepStrictEqual(collectFindingFailures({
+    body, findings: review.findings, rounds: review.rounds,
+    sectionLabel: 'review.md', findingLabel: 'review',
+    allowedStatuses: ['resolved', 'accepted', 'deferred'], reviewStatus: 'accepted',
+  }), []);
+});

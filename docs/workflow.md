@@ -120,7 +120,9 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   `/bouncer-plan`으로 후퇴하지 않습니다. `blocked`로 끝나면 원장·worktree·
   포인터를 그대로 두므로, 원인을 고친 뒤 `/bouncer-run`을 다시 걸어 그 지점부터
   재개합니다.
-- **리뷰는 기본 두 번, 조건부 세 번째 round 한 번입니다.** 세 번째는 기존
+- **리뷰는 기본 두 번, 조건부 세 번째 round 한 번입니다.** `review_scope`가
+  `blueprint`이면 그 라운드는 blueprint 마지막 검증 시점의 최종 리뷰 한 번에
+  열립니다. `review_scope`가 없으면 task마다 같은 상한을 씁니다. 세 번째는 기존
   blocker·major가 해결되고 verify가 통과했으며 신규 actionable finding이
   Goal, Interface, Constraints, `affected_paths` 안에 있을 때만 허용합니다.
   세 번째 뒤 잔존·재발·새 설계가 필요하면 네 번째 round는 없습니다.
@@ -133,11 +135,12 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
   [`rules/planning.md`](../rules/planning.md) `## Lightweight cycle`에
   있습니다.
 - **경량 계획은 문서 넷·100줄입니다.** 선언을 받으면 plan이
-  `bouncer scaffold blueprint --scale light`로 blueprint `index.md`와
-  `tasks/001/{tasks,verification,review}.md`만 만듭니다. `context-review.md`가
+  `bouncer scaffold blueprint --scale light`로 blueprint `index.md`,
+  `tasks/001/{tasks,verification}.md`, 루트 `review.md`만 만듭니다.
+  `context-review.md`가
   없으니 계획 문서 판정 단계도, plan 게이트의 G18도 없습니다. task 본문은
   Goal & intent·Touch·Checklist 셋만 쓰면 G10을 통과하고, `affected_paths`
-  확정과 G5·G11·G12는 일반 경로와 똑같이 받습니다.
+  확정과 G5·G11·G12는 일반 경로와 똑같이 받습니다. `review_scope`가 없으면 기존처럼 `tasks/<NNN>/{tasks,verification,review}.md`를 씁니다.
 - **full로 돌아가려면** blueprint `index.md`의 `bouncer.scale`을 `full`로
   되돌리고, `bouncer scaffold context-review --blueprint <dir>`로 판정 문서를
   만든 뒤 task에 Interface·Do not touch 절을 채웁니다. 그 다음 plan 게이트를

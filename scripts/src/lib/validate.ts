@@ -16,6 +16,7 @@ const { checkEpicIndexConsistency } = epicIndex;
 import validateDocs = require('./validate-docs');
 const {
   loadBlueprintDocs, resolveTaskUnit, blueprintDocsExist, statusOf, requiredTaskLeaves,
+  isBlueprintReviewMode,
 } = validateDocs;
 import validateStructural = require('./validate-structural');
 const { checkStructural } = validateStructural;
@@ -172,8 +173,13 @@ function validateBlueprint({
     });
   }
   // closed는 finalize가 남긴 축약 레이아웃(task leaf 없음)을 허용하고,
-  // 열린 blueprint는 기존처럼 세 leaf를 모두 요구한다.
-  const requiredLeaves = requiredTaskLeaves(statusOf(docs.blueprintIndex));
+  // 열린 blueprint는 기존처럼 세 leaf를 모두 요구한다. 모드에서는 review
+  // leaf를 빼므로 구형 루트 review.md 존재만으로 S17이 바뀌지 않는다.
+  const requiredLeaves = requiredTaskLeaves(
+    statusOf(docs.blueprintIndex),
+    undefined,
+    isBlueprintReviewMode(docs.blueprintIndex),
+  );
   for (const entry of (tasksListing && tasksListing.entries) || []) {
     for (const leaf of requiredLeaves) {
       const rel = (entry[leaf] as { rel: string }).rel;

@@ -101,6 +101,7 @@ type FaninState = {
 };
 type FailureEvidence = {
   task: string; command: string; summary: string; paths: string[]; exitCode: number; repairWave: number;
+  findings?: string[];
 };
 type RepairDecision = {
   task: string; kind: 'repair'; wave: number; reason: string; failure: FailureEvidence;
@@ -610,24 +611,34 @@ function integratedLeaves(tasks: Task[], terminalId: string): string[] {
 }
 
 /**
- * repair task 문서와 terminal edge를 한 revision으로 쓴다. 두 rename 중 하나가
- * 실패하면 원래 terminal 문서를 복구하고 새 task를 지워, ledger만 다음 graph를
- * 가리키는 반쪽 상태가 생기지 않게 한다.
+ * repair task 문서와 (있으면) terminal edge를 한 revision으로 쓴다. 두 write
+ * 중 하나가 실패하면 원래 terminal 문서를 복구하고 새 task를 지워, ledger만
+ * 다음 graph를 가리키는 반쪽 상태가 생기지 않게 한다. 종단 verification이
+ * 없는 blueprint는 terminal을 생략한다 — 없는 tasks.md를 만들어 의존 그래프를
+ * 꾸며내지 않기 위해서다.
  *
- * @param {object} opts - integration 경로, blueprint, 두 task와 scope
- * @returns {void}
+ * @param {{ integrationPath: string, blueprint: string, repair: Task, terminal?: Task }} opts
+ *   integration 경로, blueprint, repair task, 선택적 종단 verification
+ * @returns {() => void} ledger write 실패 시 호출할 문서 롤백
  */
 function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: {
-  integrationPath: string; blueprint: string; repair: Task; terminal: Task;
+  integrationPath: string; blueprint: string; repair: Task; terminal?: Task;
 }): () => void {
   // task 문서와 ledger revision은 한 write 단위다.
-  const terminalFile = path.join(integrationPath, blueprint, 'tasks', terminal.id, 'tasks.md');
-  const terminalBefore = fs.readFileSync(terminalFile, 'utf8');
-  const terminalDoc = readDoc(terminalFile);
-  const terminalData = terminalDoc.data as Record<string, unknown>;
-  const terminalBouncer = terminalData.bouncer as Record<string, unknown>;
-  terminalBouncer.depends_on = (terminal.depends_on || []).map((id) => `TASKS-${id}`);
-  terminalBouncer.status = 'ready';
+  const terminalFile = terminal
+    ? path.join(integrationPath, blueprint, 'tasks', terminal.id, 'tasks.md')
+    : null;
+  const terminalBefore = terminalFile ? fs.readFileSync(terminalFile, 'utf8') : null;
+  let terminalData: Record<string, unknown> | null = null;
+  let terminalBody = '';
+  if (terminalFile && terminal) {
+    const terminalDoc = readDoc(terminalFile);
+    terminalData = terminalDoc.data as Record<string, unknown>;
+    terminalBody = terminalDoc.body;
+    const terminalBouncer = terminalData.bouncer as Record<string, unknown>;
+    terminalBouncer.depends_on = (terminal.depends_on || []).map((id) => `TASKS-${id}`);
+    terminalBouncer.status = 'ready';
+  }
   const repairFile = path.join(integrationPath, blueprint, 'tasks', repair.id, 'tasks.md');
   const idMatch = /(?:^|\/)epics\/(\d{3})[^/]*\/blueprints\/(\d{3})[^/]*$/.exec(blueprint.replaceAll('\\', '/'));
   const epicId = idMatch ? idMatch[1] : '';
@@ -644,7 +655,6 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: 
   };
   const timestamp = (repairData as { timestamp: string }).timestamp;
   const verificationFile = path.join(path.dirname(repairFile), 'verification.md');
-  const reviewFile = path.join(path.dirname(repairFile), 'review.md');
   const repairRel = path.relative(integrationPath, path.dirname(repairFile)).replaceAll('\\', '/');
   const verificationData = {
     type: 'bouncer.verification', title: `TASKS-${repair.id} verification`,
@@ -652,6 +662,9 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: 
     tags: ['bouncer', 'verification'], timestamp,
     bouncer: { id: `VERIFY-${repair.id}`, epic_id: epicId, blueprint_id: bpId, status: 'pending' },
   };
+  // 모드 worker에는 task 리뷰가 없다. 구형 계약만 review.md를 같이 심는다.
+  const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
+  const reviewFile = path.join(path.dirname(repairFile), 'review.md');
   const reviewData = {
     type: 'bouncer.review', title: `TASKS-${repair.id} review`, description: `Review for TASKS-${repair.id}`,
     resource: `${repairRel}/review.md`, tags: ['bouncer', 'review'], timestamp,
@@ -694,15 +707,19 @@ ${touch}
     fs.writeFileSync(repairFile, renderDoc(repairData, repairBody));
     const verificationBody = '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n';
     fs.writeFileSync(verificationFile, renderDoc(verificationData, verificationBody));
-    fs.writeFileSync(reviewFile, renderDoc(reviewData, '# Review\n\n## Findings\n- <finding>\n'));
-    fs.writeFileSync(terminalFile, renderDoc(terminalData, terminalDoc.body));
+    if (!reviewMode) {
+      fs.writeFileSync(reviewFile, renderDoc(reviewData, '# Review\n\n## Findings\n- <finding>\n'));
+    }
+    if (terminalFile && terminalData && terminalBefore !== null) {
+      fs.writeFileSync(terminalFile, renderDoc(terminalData, terminalBody));
+    }
   } catch (error) {
-    fs.writeFileSync(terminalFile, terminalBefore);
+    if (terminalFile && terminalBefore !== null) fs.writeFileSync(terminalFile, terminalBefore);
     fs.rmSync(path.dirname(repairFile), { recursive: true, force: true });
     throw error;
   }
   return () => {
-    fs.writeFileSync(terminalFile, terminalBefore);
+    if (terminalFile && terminalBefore !== null) fs.writeFileSync(terminalFile, terminalBefore);
     fs.rmSync(path.dirname(repairFile), { recursive: true, force: true });
   };
 }
@@ -801,10 +818,50 @@ function writeVerificationTaskStatus(
 }
 
 // commit task가 fan-in될 수 있는 worker 증적. 문서마다 execute gate와 review가
-// 남기는 terminal 상태 하나만 받는다.
+// 남기는 terminal 상태 하나만 받는다. 모드에서는 루트 리뷰가 있으므로 task
+// review.md를 요구하지 않는다.
 const EVIDENCE_FILES: ReadonlyArray<readonly [string, string]> = [
   ['tasks.md', 'verified'], ['verification.md', 'passed'], ['review.md', 'accepted'],
 ];
+
+/**
+ * fan-in이 요구하는 worker 증적 파일과 terminal 상태 쌍을 고른다.
+ * 모드면 루트 리뷰가 finalize 몫이므로 task `review.md`를 뺀다.
+ *
+ * @param {boolean} reviewMode - integration blueprint index의 리뷰 모드
+ * @returns {ReadonlyArray<readonly [string, string]>} 파일명과 기대 status
+ */
+function evidenceFiles(reviewMode: boolean): ReadonlyArray<readonly [string, string]> {
+  return reviewMode
+    ? EVIDENCE_FILES.filter(([name]) => name !== 'review.md')
+    : EVIDENCE_FILES;
+}
+
+/**
+ * checkout의 blueprint index가 리뷰 모드인지 읽는다. 인덱스가 없거나 YAML이
+ * 깨지면 구형 계약(task 리뷰 요구)을 유지한다.
+ *
+ * @param {string} root - 문서를 읽을 checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {boolean} 모드이면 true
+ */
+function isBlueprintReviewModeAt(root: string, blueprint: string): boolean {
+  const abs = path.join(root, blueprint, 'index.md');
+  try {
+    const { data } = readDoc(abs);
+    const rec = data as Record<string, unknown> | undefined;
+    const bouncer = rec && rec.bouncer as Record<string, unknown> | undefined;
+    // validate-docs.isBlueprintReviewMode와 같은 조건식이다. coordinator가
+    // validate-docs를 require하면 current→coordinator 순환이 생긴다.
+    return Boolean(bouncer && bouncer.review_scope === 'blueprint');
+  } catch (error) {
+    // 인덱스 부재와 YAML 파싱 실패만 흡수한다. 모드가 아닌 쪽으로 접어야
+    // 구형 drive의 증적 요구가 풀리지 않는다.
+    if ((error as { code?: string }).code === 'ENOENT') return false;
+    if ((error as Error).name === 'YAMLException') return false;
+    throw error;
+  }
+}
 
 // frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
 // 앞부분과 같다. 이 검사를 통과한 문서는 parseFrontmatter가 블록 부재로 throw할 수
@@ -848,21 +905,26 @@ function readBouncerBlock(file: string): Record<string, unknown> | null {
 
 /**
  * commit task의 worker bundle이 fan-in할 terminal 증적인지 판정한다. 읽기만 한다.
- * 상태가 모자라면 그 문서들을, 상태는 맞는데 `commit_sha`가 기록된 SHA의 앞
- * 8자리(`bouncer commit`이 찍는 길이)와 다르면 tasks.md를 `files`로 돌려준다.
+ * 요구 파일 목록은 integration index의 리뷰 모드로 고른다. 상태가 모자라면 그
+ * 문서들을, 상태는 맞는데 `commit_sha`가 기록된 SHA의 앞 8자리(`bouncer commit`이
+ * 찍는 길이)와 다르면 tasks.md를 `files`로 돌려준다.
  *
  * @param {string} workerPath - 배정된 worker worktree
+ * @param {string} integrationPath - 모드 판정의 정본인 integration checkout
  * @param {string} blueprint - blueprint 상대 경로
  * @param {string} taskId - 세 자리 task 번호
  * @param {string} sha - 원장에 기록된 worker SHA
  * @returns {{ ok: true } | { ok: false; reason: string; files: string[] }} 판정
  */
-function checkWorkerEvidence(workerPath: string, blueprint: string, taskId: string, sha: string):
-  { ok: true } | { ok: false; reason: string; files: string[] } {
+function checkWorkerEvidence(
+  workerPath: string, integrationPath: string, blueprint: string, taskId: string, sha: string,
+): { ok: true } | { ok: false; reason: string; files: string[] } {
   const relOf = (name: string) => `${blueprint.replaceAll('\\', '/')}/tasks/${taskId}/${name}`;
   const open: string[] = [];
   let stamped: unknown;
-  for (const [name, terminal] of EVIDENCE_FILES) {
+  // worker index를 믿으면 워커가 review_scope를 심어 task 리뷰를 건너뛸 수 있다.
+  const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
+  for (const [name, terminal] of evidenceFiles(reviewMode)) {
     const bouncer = readBouncerBlock(path.join(workerPath, blueprint, 'tasks', taskId, name));
     if (!bouncer || bouncer.status !== terminal) open.push(relOf(name));
     if (name === 'tasks.md' && bouncer) stamped = bouncer.commit_sha;
@@ -876,12 +938,15 @@ function checkWorkerEvidence(workerPath: string, blueprint: string, taskId: stri
 }
 
 /**
- * worker의 task bundle 세 문서를 integration의 같은 경로로 복사한다. 다른 task
- * bundle·blueprint index·source는 건드리지 않는다. 돌려주는 함수는 복사 전 바이트로
- * 되돌리며, 복사 전에 없던 파일은 지우고 복사가 새로 만든 `tasks/<NNN>/`도 지운다.
+ * worker의 task 증적 문서를 integration의 같은 경로로 복사한다. 구형 계약은
+ * tasks·verification·review 세 파일이고, blueprint 리뷰 모드에서는
+ * tasks·verification 두 파일만 복사한다. 모드는 integration index에서만 읽는다.
+ * 다른 task bundle·blueprint index·source는 건드리지 않는다. 돌려주는 함수는 복사
+ * 전 바이트로 되돌리며, 복사 전에 없던 파일은 지우고 복사가 새로 만든
+ * `tasks/<NNN>/`도 지운다.
  *
  * @param {string} workerPath - 배정된 worker worktree
- * @param {string} integrationPath - integration checkout
+ * @param {string} integrationPath - integration checkout. 모드 판정의 정본
  * @param {string} blueprint - blueprint 상대 경로
  * @param {string} taskId - 세 자리 task 번호
  * @returns {() => void} 복사 되돌림
@@ -893,7 +958,8 @@ function copyEvidenceBundle(
   // 복사 전에 bundle 디렉터리가 없었다면 그 안의 파일은 모두 이 복사가 만든 것이다.
   // 파일만 지우면 빈 `tasks/<NNN>/`이 남아 integration 사본이 복사 전과 달라진다.
   const dirExisted = fs.existsSync(targetDir);
-  const entries = EVIDENCE_FILES.map(([name]) => {
+  const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
+  const entries = evidenceFiles(reviewMode).map(([name]) => {
     const target = path.join(targetDir, name);
     return {
       source: path.join(workerPath, blueprint, 'tasks', taskId, name), target,
@@ -1504,7 +1570,9 @@ function integrateCommitWave({
         || !workerOwnsSha(exec, worker, item.sha as string)) {
         return { ok: false, reason: 'sha-not-owned-by-worker' };
       }
-      const evidence = checkWorkerEvidence(worker, blueprint, id, item.sha as string);
+      const evidence = checkWorkerEvidence(
+        worker, integration.integrationPath, blueprint, id, item.sha as string,
+      );
       if (!evidence.ok) return evidence;
     }
 
@@ -1764,14 +1832,45 @@ function finishFaninAfterFf({
   });
 }
 
+/**
+ * coordinator 원장 명령을 실행한다. 실패는 `ok: false`와 reason만 내고,
+ * 공개 경계(`coordinateWithHints`)가 cause·next를 붙인다.
+ * `repair`는 `--failure-command`(CI)와 `reviewFindings`(최종 리뷰)를 한
+ * 결정에 섞지 않는다 — 원장 `failure.command`가 원인을 하나만 갖게 하기 위해서다.
+ *
+ * @param {object} opts - coordinate 명령 인자
+ * @param {string} opts.command - bootstrap·prepare·repair 등 서브커맨드
+ * @param {string} opts.repoRoot - 저장소 루트
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {string} [opts.cwd] - 실제 write cwd. 기본은 repoRoot
+ * @param {string} [opts.task] - 세 자리 task id. review repair는 생략 가능
+ * @param {string} [opts.sha] - record/rerecord worker SHA
+ * @param {unknown} [opts.decision] - repair·rerecord 결정 사유 또는 record 부가 결정
+ * @param {string} [opts.failureCommand] - CI repair 실패 명령
+ * @param {string} [opts.summary] - 실패·report 요약
+ * @param {string[]} [opts.paths] - repair/revise 경로
+ * @param {string[]} [opts.findings] - critical-recovery finding id
+ * @param {string[]} [opts.reviewFindings] - 최종 리뷰 must_fix id. 없으면 CI 원인
+ * @param {string} [opts.outcome] - report 또는 critical-recovery 결과
+ * @param {string} [opts.reason] - revoke·critical-recovery 사유
+ * @param {number} [opts.attempt] - dispatch report attempt
+ * @param {string} [opts.taskBriefHash] - dispatch report brief hash
+ * @param {string} [opts.leaseId] - task lease id
+ * @param {number} [opts.generation] - task lease generation
+ * @param {string} [opts.ledgerPath] - fence 원장 상대 경로
+ * @param {string} [opts.ledgerHash] - fence sha256
+ * @param {boolean} [opts.userConfirmed] - partial-close 사용자 확인
+ * @param {object} [opts.deps] - exec·verify·원장 쓰기 주입
+ * @returns {object} 성공 시 ok:true와 명령별 필드, 실패 시 ok:false와 reason
+ */
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision,
-  failureCommand, summary, paths: repairPaths, findings, outcome, reason, attempt, taskBriefHash,
+  failureCommand, summary, paths: repairPaths, findings, reviewFindings, outcome, reason, attempt, taskBriefHash,
   leaseId, generation,
   ledgerPath, ledgerHash,
   userConfirmed = false, deps = {} }: {
   command: string; repoRoot: string; blueprint: string; cwd?: string; task?: string; sha?: string; decision?: unknown;
   failureCommand?: string; summary?: string; paths?: string[]; userConfirmed?: boolean;
-  findings?: string[]; outcome?: string; reason?: string;
+  findings?: string[]; reviewFindings?: string[]; outcome?: string; reason?: string;
   attempt?: number; taskBriefHash?: string;
   leaseId?: string; generation?: number;
   ledgerPath?: string; ledgerHash?: string;
@@ -2093,6 +2192,148 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         ok: true as const, command, task: revokeItem, decision,
       }, ledger, integration.ledgerFile);
     }
+    if (command === 'repair') {
+      ensureIntegrationCwd(repoRoot, blueprint, cwd);
+      const waves = ledger.repairWaves || [];
+      if (waves.length >= 2) return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
+      const hasReviewCause = Array.isArray(reviewFindings);
+      const hasCiCause = typeof failureCommand === 'string';
+      // 두 원인을 한 결정에 넣으면 failure.command가 review와 CI 중 무엇이었는지
+      // 원장이 답할 수 없다. 빈 문자열도 플래그가 온 것으로 본다.
+      if (hasReviewCause && hasCiCause) {
+        return { ok: false, reason: 'repair-cause-ambiguous' };
+      }
+      if (hasReviewCause) {
+        if (reviewFindings.length === 0
+          || reviewFindings.some((entry) => typeof entry !== 'string' || entry === '')
+          || typeof summary !== 'string' || summary === '') {
+          return { ok: false, reason: 'failure-evidence-required' };
+        }
+        if (typeof decision !== 'string' || decision.trim() === '') {
+          return { ok: false, reason: 'decision-reason-required' };
+        }
+        if (!sourceRepairPaths(repairPaths)) return { ok: false, reason: 'repair-scope-out-of-bounds' };
+        // 최종 리뷰 수정은 in-flight 작업과 같은 경로를 고칠 수 있다. 모두
+        // integrated일 때만 열어, 미통합 worker HEAD를 리뷰 범위로 착각하지 않게 한다.
+        if (ledger.tasks.some((entry) => (entry.status || 'pending') !== 'integrated')) {
+          return { ok: false, reason: 'review-repair-requires-integrated' };
+        }
+        let terminal: Task | undefined;
+        if (task !== undefined && task !== '') {
+          if (!/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
+          const found = ledger.tasks.find((x) => x.id === task);
+          if (!found) return { ok: false, reason: 'task-outside-blueprint' };
+          if (found.execution_kind !== 'verification') {
+            return { ok: false, reason: 'terminal-failure-required' };
+          }
+          terminal = found;
+        }
+        const previousDag = dagSnapshot(ledger.tasks);
+        const leaves = integratedLeaves(ledger.tasks, terminal ? terminal.id : '');
+        const repairId = String(Math.max(...ledger.tasks.map((entry) => Number(entry.id)), 0) + 1).padStart(3, '0');
+        const wave = waves.length + 1;
+        const revision = nextLedgerRevision(ledger.revision);
+        const failure: FailureEvidence = {
+          task: terminal ? terminal.id : repairId,
+          command: 'review',
+          summary,
+          paths: [...repairPaths],
+          exitCode: 1,
+          repairWave: waves.length,
+          findings: [...reviewFindings],
+        };
+        const repair: Task = {
+          id: repairId, depends_on: leaves, dependency_gate: 'integrated', parallel_safe: false,
+          execution_kind: 'commit', status: 'pending', dynamic: true,
+          scope: { revision, paths: [...repairPaths] },
+        };
+        if (terminal) {
+          terminal.depends_on = [repairId];
+          terminal.status = 'pending';
+        }
+        ledger.tasks.push(repair);
+        const repairDecision: RepairDecision = {
+          task: repairId, kind: 'repair', wave, reason: decision.trim(), failure,
+          previousDag, nextDag: dagSnapshot(ledger.tasks), previousScope: [],
+          nextScope: [...repairPaths],
+          necessity: 'final review finding requires a Blueprint-scoped source repair',
+          revision,
+        };
+        repair.decisions = [repairDecision];
+        ledger.decisions.push(repairDecision);
+        ledger.repairWaves = [...waves, repairDecision];
+        ledger.revision = revision;
+        ledger.terminalFailure = failure;
+        ledger.status = 'active';
+        const rollbackDocuments = writeRepairDocuments({
+          integrationPath: integration.integrationPath, blueprint, repair, terminal,
+        });
+        try {
+          { const lost = commitWrite(); if (lost) return lost; }
+        } catch (error) {
+          rollbackDocuments();
+          throw error;
+        }
+        return withCheckpoint({
+          ok: true as const, command, wave, repairTask: repair, terminalTask: terminal, decision: repairDecision,
+        }, ledger, integration.ledgerFile);
+      }
+      if (!task || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
+      const item = ledger.tasks.find((x) => x.id === task);
+      if (!item) return { ok: false, reason: 'task-outside-blueprint' };
+      if (item.execution_kind !== 'verification' || item.status !== 'verifying') {
+        return { ok: false, reason: 'terminal-failure-required' };
+      }
+      if (typeof failureCommand !== 'string' || failureCommand === ''
+        || typeof summary !== 'string' || summary === '') {
+        return { ok: false, reason: 'failure-evidence-required' };
+      }
+      if (typeof decision !== 'string' || decision.trim() === '') {
+        return { ok: false, reason: 'decision-reason-required' };
+      }
+      if (!sourceRepairPaths(repairPaths)) return { ok: false, reason: 'repair-scope-out-of-bounds' };
+      const previousDag = dagSnapshot(ledger.tasks);
+      const leaves = integratedLeaves(ledger.tasks, task);
+      const repairId = String(Math.max(...ledger.tasks.map((entry) => Number(entry.id)), 0) + 1).padStart(3, '0');
+      const wave = waves.length + 1;
+      const revision = nextLedgerRevision(ledger.revision);
+      const failure: FailureEvidence = {
+        task, command: failureCommand, summary, paths: [...repairPaths], exitCode: 1, repairWave: waves.length,
+      };
+      const repair: Task = {
+        id: repairId, depends_on: leaves, dependency_gate: 'integrated', parallel_safe: false,
+        execution_kind: 'commit', status: 'pending', dynamic: true,
+        scope: { revision, paths: [...repairPaths] },
+      };
+      item.depends_on = [repairId];
+      item.status = 'pending';
+      ledger.tasks.push(repair);
+      const repairDecision: RepairDecision = {
+        task: repairId, kind: 'repair', wave, reason: decision.trim(), failure,
+        previousDag, nextDag: dagSnapshot(ledger.tasks), previousScope: [],
+        nextScope: [...repairPaths],
+        necessity: 'terminal CI failure requires a Blueprint-scoped source repair',
+        revision,
+      };
+      repair.decisions = [repairDecision];
+      ledger.decisions.push(repairDecision);
+      ledger.repairWaves = [...waves, repairDecision];
+      ledger.revision = revision;
+      ledger.terminalFailure = failure;
+      ledger.status = 'active';
+      const rollbackDocuments = writeRepairDocuments({
+        integrationPath: integration.integrationPath, blueprint, repair, terminal: item,
+      });
+      try {
+        { const lost = commitWrite(); if (lost) return lost; }
+      } catch (error) {
+        rollbackDocuments();
+        throw error;
+      }
+      return withCheckpoint({
+        ok: true as const, command, wave, repairTask: repair, terminalTask: item, decision: repairDecision,
+      }, ledger, integration.ledgerFile);
+    }
     if (!task || !/^\d{3}$/.test(task)) return { ok: false, reason: 'task-required' };
     const item = ledger.tasks.find((x) => x.id === task);
     if (!item) return { ok: false, reason: 'task-outside-blueprint' };
@@ -2315,68 +2556,322 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         ok: true as const, command, task: item, decision: rerecordDecision, decisions: ledger.decisions,
       }, ledger, integration.ledgerFile);
     }
-    if (command === 'repair') {
-      ensureIntegrationCwd(repoRoot, blueprint, cwd);
-      const waves = ledger.repairWaves || [];
-      if (waves.length >= 2) return { ok: false, reason: 'repair-wave-limit', status: 'awaiting_confirmation' };
-      if (item.execution_kind !== 'verification' || item.status !== 'verifying') {
-        return { ok: false, reason: 'terminal-failure-required' };
-      }
-      if (typeof failureCommand !== 'string' || failureCommand === ''
-        || typeof summary !== 'string' || summary === '') {
-        return { ok: false, reason: 'failure-evidence-required' };
-      }
-      if (typeof decision !== 'string' || decision.trim() === '') {
-        return { ok: false, reason: 'decision-reason-required' };
-      }
-      if (!sourceRepairPaths(repairPaths)) return { ok: false, reason: 'repair-scope-out-of-bounds' };
-      const previousDag = dagSnapshot(ledger.tasks);
-      const leaves = integratedLeaves(ledger.tasks, task);
-      const repairId = String(Math.max(...ledger.tasks.map((entry) => Number(entry.id)), 0) + 1).padStart(3, '0');
-      const wave = waves.length + 1;
-      const revision = nextLedgerRevision(ledger.revision);
-      const failure: FailureEvidence = {
-        task, command: failureCommand, summary, paths: [...repairPaths], exitCode: 1, repairWave: waves.length,
-      };
-      const repair: Task = {
-        id: repairId, depends_on: leaves, dependency_gate: 'integrated', parallel_safe: false,
-        execution_kind: 'commit', status: 'pending', dynamic: true,
-        scope: { revision, paths: [...repairPaths] },
-      };
-      item.depends_on = [repairId];
-      item.status = 'pending';
-      ledger.tasks.push(repair);
-      const repairDecision: RepairDecision = {
-        task: repairId, kind: 'repair', wave, reason: decision.trim(), failure,
-        previousDag, nextDag: dagSnapshot(ledger.tasks), previousScope: [],
-        nextScope: [...repairPaths],
-        necessity: 'terminal CI failure requires a Blueprint-scoped source repair',
-        revision,
-      };
-      repair.decisions = [repairDecision];
-      ledger.decisions.push(repairDecision);
-      ledger.repairWaves = [...waves, repairDecision];
-      ledger.revision = revision;
-      ledger.terminalFailure = failure;
-      ledger.status = 'active';
-      const rollbackDocuments = writeRepairDocuments({
-        integrationPath: integration.integrationPath, blueprint, repair, terminal: item,
-      });
-      try {
-        { const lost = commitWrite(); if (lost) return lost; }
-      } catch (error) {
-        rollbackDocuments();
-        throw error;
-      }
-      return withCheckpoint({
-        ok: true as const, command, wave, repairTask: repair, terminalTask: item, decision: repairDecision,
-      }, ledger, integration.ledgerFile);
-    }
     return { ok: false, reason: 'unknown-coordinate-command' };
   });
 }
 
+const FALLBACK_COORDINATE_NEXT =
+  'Run `bouncer coordinate status` and continue from its checkpoint.';
+
+// 힌트는 여기 한 표만 본다. 개별 return { ok: false }에 cause/next를 흩어 쓰면
+// 새 reason이 표 없이 새어 나가고 coordinator가 다시 coordinator.ts를 읽게 된다.
+const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
+  'accepted-report-required': {
+    cause: 'Record requires an accepted dispatch report for this task, and none is stored.',
+    next: 'Call `bouncer coordinate report` with outcome accepted, then retry `bouncer coordinate record`.',
+  },
+  'blueprint-not-closed': {
+    cause: 'Release requires the blueprint index status to be closed.',
+    next: 'Finish remaining tasks, close the blueprint, then retry '
+      + '`bouncer coordinate release` from the main checkout.',
+  },
+  'bootstrap-requires-main-checkout': {
+    cause: 'Bootstrap must run from the main checkout, not an integration or worker worktree.',
+    next: 'Change cwd to the main checkout and rerun `bouncer coordinate bootstrap`.',
+  },
+  'cherry-pick-failed': {
+    cause: 'Cherry-pick of the recorded worker commit into the fan-in candidate failed.',
+    next: 'Inspect the named task, then `bouncer coordinate revoke` it or retry '
+      + '`bouncer coordinate integrate` after fixing the commit.',
+  },
+  'coordinator-config-invalid': {
+    cause: '`.bouncer/config.json` coordinator policy is missing or invalid.',
+    next: 'Fix coordinator config in the integration worktree, then rerun `bouncer coordinate prepare`.',
+  },
+  'critical-recovery-closed': {
+    cause: 'This task already has a closed critical-recovery outcome.',
+    next: 'Do not retry `bouncer coordinate critical-recovery`; continue from `bouncer coordinate status`.',
+  },
+  'critical-recovery-exhausted': {
+    cause: 'This task already used its one critical-recovery attempt.',
+    next: 'Report the block to the user; do not retry `bouncer coordinate critical-recovery`.',
+  },
+  'critical-recovery-not-started': {
+    cause: 'No open critical-recovery record exists on this task to close.',
+    next: 'Start recovery with `bouncer coordinate critical-recovery` and findings before sending an outcome.',
+  },
+  'critical-recovery-outcome-invalid': {
+    cause: 'Critical-recovery outcome must be resolved or blocked.',
+    next: 'Retry `bouncer coordinate critical-recovery` with outcome resolved or blocked.',
+  },
+  'decision-reason-required': {
+    cause: 'This mutation requires a non-empty decision reason.',
+    next: 'Retry the same `bouncer coordinate` command with a reason that names why the change is required.',
+  },
+  'dispatch-already-active': {
+    cause: 'This task already has an active dispatch, so a second dispatch is refused.',
+    next: 'Call `bouncer coordinate report` for the open attempt, or `bouncer coordinate status` to see it.',
+  },
+  'dispatch-commit-task-required': {
+    cause: 'Dispatch applies only to commit tasks, not verification tasks.',
+    next: 'Run `bouncer coordinate status` and dispatch a commit task id instead.',
+  },
+  'dispatch-git-read-failed': {
+    cause: 'Git could not read the worker HEAD or worktree state needed to open dispatch.',
+    next: 'Repair the assigned worker worktree, then retry `bouncer coordinate dispatch`.',
+  },
+  'drive-not-closed': {
+    cause: 'Release requires the coordinator drive status to be closed.',
+    next: 'Finish integration and close the drive, then retry `bouncer coordinate release`.',
+  },
+  'failure-evidence-required': {
+    cause: 'Repair needs terminal failure evidence (command, summary, and paths).',
+    next: 'Pass failure evidence into `bouncer coordinate repair` from the failed verification.',
+  },
+  'fanin-conflict': {
+    cause: 'Fan-in hit a conflict while applying a recorded worker commit.',
+    next: 'Call `bouncer coordinate revoke` for the conflicting task, then retry `bouncer coordinate integrate`.',
+  },
+  'findings-required': {
+    cause: 'Starting critical recovery requires a non-empty findings list.',
+    next: 'Retry `bouncer coordinate critical-recovery` with at least one finding id.',
+  },
+  'illegal-transition': {
+    cause: 'The task is not in a status that allows this coordinate command.',
+    next: 'Run `bouncer coordinate status` and issue the command that matches the task status.',
+  },
+  'invalid-attempt': {
+    cause: 'The report attempt number does not match the active dispatch.',
+    next: 'Call `bouncer coordinate report` with the attempt from the last `bouncer coordinate dispatch`.',
+  },
+  'invalid-report-outcome': {
+    cause: 'The report outcome is not one of the accepted dispatch outcomes.',
+    next: 'Retry `bouncer coordinate report` with accepted, rework, scope_revision, task_change, or blocked.',
+  },
+  'invalid-task-brief-hash': {
+    cause: 'The report task_brief_hash does not match the active dispatch.',
+    next: 'Call `bouncer coordinate report` with the task_brief_hash from the last `bouncer coordinate dispatch`.',
+  },
+  'lease-flags-require-task': {
+    cause: 'Lease flags were supplied without a task id to bind them to.',
+    next: 'Retry the same `bouncer coordinate` command with `--task` plus the lease flags.',
+  },
+  'lease-invalid': {
+    cause: 'The ledger lease shape or leaseSeq is invalid.',
+    next: 'Run `bouncer coordinate status`; if the ledger is corrupt, report it to the user and do not invent a lease.',
+  },
+  'lease-required': {
+    cause: 'This mutation requires the task lease id and generation.',
+    next: 'Retry with `--lease-id` and `--generation` from the last `bouncer coordinate prepare` or status checkpoint.',
+  },
+  'ledger-checkpoint-invalid': {
+    cause: 'The ledger path/hash fence is missing or not a valid integration-relative checkpoint.',
+    next: 'Run `bouncer coordinate status` and pass its checkpoint.ledger path and sha256.',
+  },
+  'ledger-lock-lost': {
+    cause: 'The process lost the ledger lock before it could write.',
+    next: 'Run `bouncer coordinate status` and retry the same command from that '
+      + 'checkpoint; do not write the ledger by hand.',
+  },
+  'main-source-mutated': {
+    cause: 'Bootstrap changed tracked files in the main checkout, which is forbidden.',
+    next: 'Restore the main checkout, then retry `bouncer coordinate bootstrap`.',
+  },
+  'missing-blueprint': {
+    cause: 'The integration worktree has no blueprint directory for this drive.',
+    next: 'Restore the blueprint on the integration worktree, then retry `bouncer coordinate prepare`.',
+  },
+  'missing-ledger': {
+    cause: 'The coordinator ledger file is missing for this blueprint.',
+    next: 'Run `bouncer coordinate bootstrap` from the main checkout, then continue from `bouncer coordinate status`.',
+  },
+  'missing-seed-manifest': {
+    cause: 'Release requires a seed manifest recorded at bootstrap.',
+    next: 'Report the missing manifest to the user; do not invent files, and rerun `bouncer coordinate status`.',
+  },
+  'missing-verification-bundle': {
+    cause: 'The worker is missing the verification task bundle required for fan-in.',
+    next: 'Restore the task bundle on the worker, then retry `bouncer coordinate integrate`.',
+  },
+  'next-plan-must-be-regular-file': {
+    cause: 'NEXT_PLAN.md exists but is not a regular file.',
+    next: 'Replace it with a regular NEXT_PLAN.md on the integration worktree, then '
+      + 'retry `bouncer coordinate partial-close`.',
+  },
+  'next-plan-must-be-untracked': {
+    cause: 'NEXT_PLAN.md is tracked, but partial-close requires it untracked.',
+    next: 'Untrack NEXT_PLAN.md without deleting the plan, then retry `bouncer coordinate partial-close`.',
+  },
+  'next-plan-required': {
+    cause: 'Partial-close in awaiting_confirmation requires NEXT_PLAN.md.',
+    next: 'Write NEXT_PLAN.md on the integration worktree, then retry `bouncer coordinate partial-close`.',
+  },
+  'no-active-dispatch': {
+    cause: 'Report was called with no active dispatch for this task.',
+    next: 'Open `bouncer coordinate dispatch` first, then call `bouncer coordinate report`.',
+  },
+  'non-git-root': {
+    cause: 'The repo root is not an available git checkout.',
+    next: 'Run `bouncer coordinate` from a git repository root that Bouncer can resolve.',
+  },
+  'not-ready': {
+    cause: 'The task is not in the ready wave for this command.',
+    next: 'Run `bouncer coordinate status` and act on a task listed in checkpoint.ready.',
+  },
+  'not-recorded': {
+    cause: 'Rerecord requires a recorded task with a stored SHA.',
+    next: 'Call `bouncer coordinate record` first, or pick a recorded task from `bouncer coordinate status`.',
+  },
+  'nothing-to-integrate': {
+    cause: 'No recorded commit tasks remain to fan in.',
+    next: 'Run `bouncer coordinate status` and record remaining commit tasks before `bouncer coordinate integrate`.',
+  },
+  'partial-close-awaiting-confirmation-required': {
+    cause: 'Partial-close is allowed only while the drive is awaiting confirmation.',
+    next: 'Run `bouncer coordinate status` and wait for awaiting_confirmation before '
+      + '`bouncer coordinate partial-close`.',
+  },
+  'reason-required': {
+    cause: 'Critical recovery requires a non-empty reason string.',
+    next: 'Retry `bouncer coordinate critical-recovery` with a reason.',
+  },
+  'release-requires-main-checkout': {
+    cause: 'Release must run from the main checkout, not the integration worktree.',
+    next: 'Change cwd to the main checkout and rerun `bouncer coordinate release`.',
+  },
+  'repair-cause-ambiguous': {
+    cause: 'Repair cannot take both a review finding and a verification failure command.',
+    next: 'Retry `bouncer coordinate repair` with either `--review-finding` or `--failure-command`, not both.',
+  },
+  'repair-scope-out-of-bounds': {
+    cause: 'Repair paths are outside the blueprint-scoped source bound.',
+    next: 'Retry `bouncer coordinate repair` with paths inside the blueprint source scope.',
+  },
+  'repair-wave-limit': {
+    cause: 'This drive already used the maximum of two repair waves.',
+    next: 'Report the terminal failure to the user; do not retry `bouncer coordinate repair`.',
+  },
+  'review-repair-requires-integrated': {
+    cause: 'A final-review repair can open only after every task on the blueprint is integrated.',
+    next: 'Finish remaining tasks, then retry `bouncer coordinate repair` with `--review-finding`.',
+  },
+  'sha-not-direct-integration-child': {
+    cause: 'The new worker SHA is not a direct child of the recorded integration-base commit.',
+    next: 'Reset the worker onto the recorded SHA, then retry `bouncer coordinate rerecord`.',
+  },
+  'sha-not-owned-by-worker': {
+    cause: 'The recorded SHA is not owned by the assigned worker worktree.',
+    next: 'Restore the assigned worker worktree, then retry `bouncer coordinate integrate`.',
+  },
+  'sha-not-worker-head': {
+    cause: 'The supplied SHA is not the assigned worker HEAD.',
+    next: 'Omit sha or pass the worker HEAD, then retry `bouncer coordinate record`.',
+  },
+  'sha-unchanged': {
+    cause: 'Rerecord requires a worker HEAD that differs from the stored SHA.',
+    next: 'Commit the new worker work, then retry `bouncer coordinate rerecord`.',
+  },
+  'stale-integration-head': {
+    cause: 'The integration worktree HEAD does not match the ledger integrationHead.',
+    next: 'Reset the integration worktree to the ledger head from `bouncer coordinate status`, then retry.',
+  },
+  'stale-ledger-checkpoint': {
+    cause: 'The supplied ledger hash does not match the bytes loaded for this mutation.',
+    next: 'Run `bouncer coordinate status` and retry with the new checkpoint.ledger sha256.',
+  },
+  'stale-lease': {
+    cause: 'The supplied lease id or generation does not match the task lease.',
+    next: 'Run `bouncer coordinate status` and retry with the current `--lease-id` and `--generation`.',
+  },
+  'stale-report': {
+    cause: 'The report attempt or task_brief_hash does not match the active dispatch.',
+    next: 'Keep the attempt open and call `bouncer coordinate report` with the received '
+      + 'attempt and task_brief_hash; do not call record.',
+  },
+  'stale-worker-report': {
+    cause: 'The task brief changed after the accepted report, so the report no longer matches the brief.',
+    next: 'Open a new `bouncer coordinate dispatch` for this task and rerun the implementer; do not retry record.',
+  },
+  'summary-required': {
+    cause: 'Report requires a non-empty summary.',
+    next: 'Retry `bouncer coordinate report` with a summary of the worker outcome.',
+  },
+  'task-outside-blueprint': {
+    cause: 'The task id is not a commit task on this blueprint ledger.',
+    next: 'Run `bouncer coordinate status` and use a task id listed on this blueprint.',
+  },
+  'task-required': {
+    cause: 'This command requires a three-digit task id.',
+    next: 'Retry the same `bouncer coordinate` command with `--task NNN`.',
+  },
+  'terminal-failure-required': {
+    cause: 'Repair requires a stored terminal verification failure.',
+    next: 'Run `bouncer coordinate status` and issue `bouncer coordinate repair` only '
+      + 'after a terminal verification failure.',
+  },
+  'unassigned-integration-worktree': {
+    cause: 'The integration path exists but is not a git worktree registered for this drive.',
+    next: 'Remove or replace the stray path, then retry `bouncer coordinate bootstrap`.',
+  },
+  'unassigned-worker-worktree': {
+    cause: 'The worker path is not the git worktree assigned to this task.',
+    next: 'Do not seed into that path; run `bouncer coordinate prepare` from the '
+      + 'integration worktree so it can assign workers.',
+  },
+  'unknown-coordinate-command': {
+    cause: 'The coordinate command is not a supported subcommand.',
+    next: 'Run `bouncer coordinate status` or a documented subcommand from `bouncer help`.',
+  },
+  'verification-failed': {
+    cause: 'The verification task command failed on the integration worktree.',
+    next: 'Inspect the verification payload, then `bouncer coordinate repair` or report the failure to the user.',
+  },
+  'wave-verification-failed': {
+    cause: 'Wave verification failed after fan-in applied the recorded commits.',
+    next: 'Call `bouncer coordinate revoke` or `bouncer coordinate repair` from the '
+      + 'failure evidence, then retry integrate.',
+  },
+  'worker-evidence-not-terminal': {
+    cause: 'Worker verification or review evidence files are still open, so fan-in is refused.',
+    next: 'Close those evidence files on the worker, then retry `bouncer coordinate integrate`.',
+  },
+  'worker-evidence-sha-mismatch': {
+    cause: 'Worker task-brief bytes do not match the SHA recorded for fan-in.',
+    next: 'Restore the recorded brief on the worker, then retry `bouncer coordinate integrate`.',
+  },
+};
+
+/**
+ * coordinate 본문이 돌려준 실패 객체에 cause/next를 붙인다.
+ * 개별 return 지점을 고치지 않기 위해 공개 경계에서만 병합한다.
+ *
+ * @param {unknown} result - coordinate 본문 반환값
+ * @returns {unknown} 실패면 cause·next가 붙은 사본, 아니면 원본
+ */
+function withCoordinateFailureHints(result: unknown): unknown {
+  if (!result || typeof result !== 'object') return result;
+  const body = result as { ok?: boolean; reason?: unknown };
+  if (body.ok === false && typeof body.reason === 'string') {
+    const hint = COORDINATE_FAILURE_HINTS[body.reason] || {
+      cause: body.reason,
+      next: FALLBACK_COORDINATE_NEXT,
+    };
+    return { ...body, cause: hint.cause, next: hint.next };
+  }
+  return result;
+}
+
+/**
+ * 공개 coordinate 진입점. 본문 실패에 힌트를 붙인 뒤에만 호출자에게 돌려준다.
+ *
+ * @param {Parameters<typeof coordinate>[0]} opts - `coordinate`와 동일한 인자 객체
+ * @returns {ReturnType<typeof withCoordinateFailureHints>} 힌트가 병합된 coordinate 결과
+ */
+function coordinateWithHints(opts: Parameters<typeof coordinate>[0]) {
+  return withCoordinateFailureHints(coordinate(opts));
+}
+
 export = {
-  readyWave, transition, coordinate, loadLedger, loadLedgerBytes, readBouncerBlock,
-  projectCheckpoint, assertLedgerFence, LEDGER_REL,
+  readyWave, transition, coordinate: coordinateWithHints, loadLedger, loadLedgerBytes, readBouncerBlock,
+  projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS,
 };

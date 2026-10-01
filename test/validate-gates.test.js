@@ -2567,3 +2567,272 @@ test('plan gate keeps per-task failure order G3 then task checks', () => {
   const codes = failures.map((f) => f.code).filter((c) => !['G1', 'G2', 'G18'].includes(c));
   assert.deepStrictEqual(codes, ['G3', 'G10', 'G3', 'G10']);
 });
+
+function blueprintReviewIndex() {
+  return {
+    data: { bouncer: { status: 'approved', review_scope: 'blueprint' } },
+    rel: rels.blueprintIndex,
+    body: '',
+  };
+}
+
+const G21_FINDINGS_BODY = `# Review
+
+## Findings
+(none)
+`;
+
+function g21ReviewDoc(status, review = {}, body = G21_FINDINGS_BODY) {
+  return {
+    data: { bouncer: { status, review } },
+    rel: rels.review,
+    body,
+  };
+}
+
+function g21ValidRounds() {
+  return [roundEntry({ target: { head: 'deadbeef' } })];
+}
+
+function finalizeG21(docs, extraDeps = {}) {
+  const failures = [];
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()]),
+    blueprintIndex: blueprintReviewIndex(),
+    ...docs,
+  }, rels, failures, {
+    ...G16_CTX,
+    deps: { ...G16_CTX.deps, ...extraDeps },
+  });
+  return failures;
+}
+
+test('finalize G21: blueprint review missing', () => {
+  const failures = finalizeG21({});
+  assert.ok(failures.some((f) => (
+    f.code === 'G21' && f.message === 'blueprint review missing' && f.file === rels.review
+  )), JSON.stringify(failures));
+});
+
+test('finalize G21: pending is not accepted', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('pending', { rounds: g21ValidRounds() }),
+  });
+  assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review not accepted'));
+});
+
+test('finalize G21: review.required false still not accepted', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('pending', { required: false, rounds: g21ValidRounds() }),
+  });
+  assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review not accepted'));
+});
+
+test('finalize G21: accepted without rounds', () => {
+  const failures = finalizeG21({ review: g21ReviewDoc('accepted', {}) });
+  assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review has no rounds'));
+});
+
+test('finalize G21: accepted with empty rounds', () => {
+  const failures = finalizeG21({ review: g21ReviewDoc('accepted', { rounds: [] }) });
+  assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review has no rounds'));
+});
+
+test('finalize G21: last round missing target.head', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: [roundEntry({ target: { base: 'abc' } })] }),
+  });
+  assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review has no rounds'));
+});
+
+test('finalize G21: accepted with valid rounds has no G21', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
+  });
+  assert.ok(!failures.some((f) => f.code === 'G21'), JSON.stringify(failures));
+});
+
+test('finalize G21 stale: no ledger skips git and G21', () => {
+  let execCalls = 0;
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
+  }, {
+    readCoordinatorLedger: () => null,
+    exec: () => {
+      execCalls += 1;
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.strictEqual(execCalls, 0);
+  assert.ok(!failures.some((f) => f.code === 'G21'), JSON.stringify(failures));
+});
+
+test('finalize G21 stale: merge-base status 1', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
+  }, {
+    readCoordinatorLedger: () => ({ blueprint: G16_CTX.blueprintDir }),
+    exec: (args) => {
+      if (args[0] === 'merge-base') return { status: 1, stdout: '', stderr: '' };
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review is stale'));
+});
+
+test('finalize G21 stale: non-governance diff', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
+  }, {
+    readCoordinatorLedger: () => ({ blueprint: G16_CTX.blueprintDir }),
+    exec: (args) => {
+      if (args[0] === 'merge-base') return { status: 0, stdout: '', stderr: '' };
+      if (args[0] === 'diff') return { status: 0, stdout: 'src/a.ts\n', stderr: '' };
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.ok(failures.some((f) => f.code === 'G21' && f.message === 'blueprint review is stale'));
+});
+
+test('finalize G21 stale: only .bouncer/ diff is fresh', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
+  }, {
+    readCoordinatorLedger: () => ({ blueprint: G16_CTX.blueprintDir }),
+    exec: (args) => {
+      if (args[0] === 'merge-base') return { status: 0, stdout: '', stderr: '' };
+      if (args[0] === 'diff') return { status: 0, stdout: '.bouncer/x.md\n', stderr: '' };
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.ok(!failures.some((f) => f.code === 'G21'), JSON.stringify(failures));
+});
+
+test('finalize G21 stale: merge-base failure reports stderr', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', { rounds: g21ValidRounds() }),
+  }, {
+    readCoordinatorLedger: () => ({ blueprint: G16_CTX.blueprintDir }),
+    exec: (args) => {
+      if (args[0] === 'merge-base') {
+        return { status: 128, stdout: '', stderr: 'fatal: bad object\n' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  assert.ok(failures.some((f) => (
+    f.code === 'G21'
+    && f.message === 'blueprint review stale check failed (fatal: bad object)'
+  )), JSON.stringify(failures));
+});
+
+const leftoverReviewFinding = {
+  id: 'F2', severity: 'major', status: 'accepted',
+};
+
+test('blueprint review mode execute/commit skip G8 when task review.md is absent', () => {
+  const verification = passingVerificationDoc();
+  const docs = {
+    blueprintIndex: blueprintReviewIndex(),
+    tasks: doc('verified'),
+    verification,
+  };
+  const executeFailures = [];
+  checkGate('execute', docs, rels, executeFailures, { deps: ledgerDeps(verification) });
+  assert.ok(!executeFailures.some((f) => f.code === 'G8'), JSON.stringify(executeFailures));
+
+  const noReviewUnit = {
+    number: 1,
+    dir: '.bouncer/context/epics/001-auth/blueprints/001-login/tasks/001',
+    tasks: doc('verified', { affected_paths: ['src/auth/'] }),
+    verification,
+  };
+  const commitFailures = [];
+  checkGate('commit', docs, rels, commitFailures, {
+    ...commitCtx(),
+    taskUnit: noReviewUnit,
+    deps: {
+      ...commitCtx().deps,
+      readVerifyLedger: () => matchingLedger(verification),
+    },
+  });
+  assert.ok(!commitFailures.some((f) => f.code === 'G8'), JSON.stringify(commitFailures));
+});
+
+test('blueprint review mode execute/commit ignore leftover task review.md for G8 and G14', () => {
+  const verification = passingVerificationDoc();
+  const docs = {
+    blueprintIndex: blueprintReviewIndex(),
+    tasks: doc('verified'),
+    verification,
+    review: doc('pending', {
+      review: { findings: [leftoverReviewFinding] },
+    }, REVIEW_BODY_OK),
+  };
+  const executeFailures = [];
+  checkGate('execute', docs, rels, executeFailures, { deps: ledgerDeps(verification) });
+  assert.ok(!executeFailures.some((f) => f.code === 'G8' || f.code === 'G14'), JSON.stringify(executeFailures));
+
+  const commitFailures = [];
+  checkGate('commit', docs, rels, commitFailures, {
+    ...commitCtx(),
+    taskUnit: {
+      ...commitReadyUnit(),
+      review: docs.review,
+    },
+  });
+  assert.ok(!commitFailures.some((f) => f.code === 'G8' || f.code === 'G14'), JSON.stringify(commitFailures));
+});
+
+test('without review_scope, missing task review.md is still S17 even with root review.md', () => {
+  const repo = mkRepo();
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', epicDoc());
+  writeDoc(repo, `${BP_REL}/index.md`, blueprintDoc());
+  writeDoc(repo, `${BP_REL}/review.md`, {
+    type: 'bouncer.review',
+    title: 'Root review',
+    description: 'legacy root',
+    resource: `${BP_REL}/review.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'pending' },
+  });
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, planReadyTasks(), planReadyTasksBody());
+  writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
+    type: 'bouncer.verification',
+    title: 'v',
+    description: 'v',
+    resource: `${BP_REL}/tasks/001/verification.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'pending' },
+  });
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.ok(res.failures.some((f) => f.code === 'S17' && /review\.md/.test(f.message)), JSON.stringify(res.failures));
+});
+
+test('without review_scope, pending task review is still G8', () => {
+  const docs = {
+    tasks: doc('verified'),
+    verification: passingVerificationDoc(),
+    review: doc('pending'),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures, { deps: ledgerDeps(docs.verification) });
+  assert.ok(failures.some((f) => f.code === 'G8'));
+});
+
+test('without review_scope, accepted finding without note is still G14', () => {
+  const docs = {
+    tasks: doc('verified'),
+    verification: passingVerificationDoc(),
+    review: doc('accepted', {
+      review: { findings: [leftoverReviewFinding] },
+    }, REVIEW_BODY_OK),
+  };
+  const failures = [];
+  checkGate('execute', docs, rels, failures, { deps: ledgerDeps(docs.verification) });
+  assert.ok(failures.some((f) => f.code === 'G14'));
+});
+

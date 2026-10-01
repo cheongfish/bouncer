@@ -10,6 +10,8 @@ const SUBCOMMANDS = [
   'intent',
   'graphify-bin',
   'project-root',
+  'subagent-model',
+  'codex-agents',
   'current',
   'migrate',
   'commit',
@@ -183,12 +185,18 @@ test('usage lists finalize prepare --blueprint', () => {
   assert.match(r.out, /finalize\s+--blueprint <dir> \[--yes\]/);
 });
 
+test('usage lists subagent-model and codex-agents check', () => {
+  const out = capture([]).out;
+  assert.match(out, /subagent-model --agent <name> \[--provider <name>\]/);
+  assert.match(out, /codex-agents check --agent <name>/);
+});
+
 test('usage lists review-dispatch plan and execute forms', () => {
   const out = capture([]).out;
   assert.match(out, /review-dispatch\s+plan --blueprint <dir>/);
   assert.match(
     out,
-    /review-dispatch\s+execute --blueprint <dir> --task <ddd> --base <sha> --head <sha>/,
+    /review-dispatch\s+execute --blueprint <dir> \[--task <ddd>\] --base <sha> --head <sha>/,
   );
 });
 
@@ -207,4 +215,20 @@ test('usage lists coordinate revoke and lease flags', () => {
   assert.match(r.out, /--generation/);
   assert.match(r.out, /coordinate integrate/);
   assert.match(r.out, /omit --task for the wave/);
+});
+
+test('usage lists coordinate repair review-finding and required-task CI forms', () => {
+  const out = capture([]).out;
+  // CI 형태는 종단 verification이 필수. 선택 [--task]로 적으면 리뷰 형태와
+  // 같은 생략 규칙을 암시해 coordinator의 task-required와 어긋난다.
+  assert.match(
+    out,
+    /coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>/,
+  );
+  assert.doesNotMatch(out, /\[--task <ddd>\] --failure-command/);
+  assert.match(
+    out,
+    /coordinate repair --blueprint <dir> \[--task <ddd>\] --review-finding <id>/,
+  );
+  assert.match(out, /\[--review-finding <id>\]\.\.\./);
 });

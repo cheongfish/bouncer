@@ -591,3 +591,34 @@ test('prepareFinalizeDigest falls back to bare id when stable provenance cannot 
   assert.ok(task1);
   assert.strictEqual(task1.stable_id, 'TASKS-001');
 });
+
+test('blueprint review mode digest carries root findings and unverified task null', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  const indexAbs = path.join(repoRoot, `${blueprintDir}/index.md`);
+  const parts = fs.readFileSync(indexAbs, 'utf8').split(/^---\n/);
+  const rest = parts.slice(1).join('---\n');
+  const end = rest.indexOf('\n---');
+  const data = yaml.load(rest.slice(0, end));
+  data.bouncer.review_scope = 'blueprint';
+  fs.writeFileSync(indexAbs, `---\n${yaml.dump(data)}---${rest.slice(end + '\n---'.length)}`);
+  writeDoc(repoRoot, `${blueprintDir}/review.md`, {
+    type: 'bouncer.review', title: 'Review', description: 'd',
+    resource: `${blueprintDir}/review.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      review: {
+        required: true,
+        findings: [{
+          id: 'F-ROOT', severity: 'minor', status: 'accepted', note: 'root accepted',
+        }],
+      },
+    },
+  });
+  const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.strictEqual(d.blueprint_review.findings.length, 1);
+  assert.ok(d.unverified.some((u) => (
+    u.kind === 'finding-accepted' && u.task === null
+  )));
+});

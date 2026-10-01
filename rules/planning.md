@@ -6,18 +6,21 @@
 
 ## Blueprint sizing rule
 
-Each **task bundle** (`tasks/<NNN>/{tasks,verification,review}.md`) is sized
-for **one reviewable commit**. A blueprint may hold several task bundles and
-remains the review / PR unit. Root `tasks.md` and `tasks-NNN.md` documents are
-input only to `bouncer migrate task-layout`. If a task feels too large for one commit, split it
-into more task bundles (or more blueprints). Do **not** invent a further
-subtask layer beneath a task bundle.
+Each **task bundle** is sized for **one reviewable commit**. When
+`review_scope` is `blueprint`, that bundle is
+`tasks/<NNN>/{tasks,verification}.md` and review lives at blueprint-root
+`review.md`. When `review_scope` is absent, the bundle is `tasks/<NNN>/{tasks,verification,review}.md`. A blueprint may hold several
+task bundles and remains the review / PR unit. Root `tasks.md` and
+`tasks-NNN.md` documents are input only to `bouncer migrate task-layout`. If a
+task feels too large for one commit, split it into more task bundles (or more
+blueprints). Do **not** invent a further subtask layer beneath a task bundle.
 
 예외는 `bouncer.execution_kind: verification`인 종단 fan-in node다. 이
 node는 `tasks.md`와 `verification.md`만 scaffold하고, 선행 구현 task가 모두
 integrated된 뒤 전체 CI를 한 번 실행해 `verification.md` 증적만 남긴다.
-source diff, reviewable commit, `review.md`와 review 단계,
-`affected_paths`를 만들지 않는다. 실패한 실행의 상태 전이는
+source diff, reviewable commit, task `review.md`와 task별 review 단계,
+`affected_paths`를 만들지 않는다. `review_scope`가 `blueprint`이면 최종
+리뷰는 이 node가 `integrated`된 뒤에 한 번 열린다. 실패한 실행의 상태 전이는
 `scripts/src/lib/coordinator.ts`가 소유한다.
 
 The plan gate emits a non-blocking `warnings` entry when a task's
@@ -43,10 +46,10 @@ refused with exit code 2 before a single file is written.
 What shrinks (five things only):
 
 1. **Plan documents** — `--scale light` writes four documents: blueprint
-   `index.md` plus `tasks/001/{tasks,verification,review}.md`. It creates no
-   `context-review.md`, so `/bouncer-plan` runs no context review on a light
-   blueprint and the plan gate applies no **G18** there. The four scaffolded
-   documents total **100 lines or fewer**.
+   `index.md`, `tasks/001/{tasks,verification}.md`, and root `review.md`. It
+   creates no `context-review.md`, so `/bouncer-plan` runs no context review on
+   a light blueprint and the plan gate applies no **G18** there. The four
+   scaffolded documents total **100 lines or fewer**.
 2. **Gated task sections** — **G10** requires only `Goal & intent`, `Touch`,
    and `Checklist` on a light blueprint. `Interface` and `Do not touch` are
    neither templated nor demanded. Approved scope is untouched: **G3–G5**
@@ -66,8 +69,7 @@ What shrinks (five things only):
 
 What stays the same:
 
-- Task document set: `tasks/<NNN>/{tasks,verification,review}.md` and
-  `explain.md` are still authored and gated.
+- Task document set: when `review_scope` is `blueprint`, `tasks/<NNN>/{tasks,verification}.md` plus root `review.md` and `explain.md` are still authored and gated; when `review_scope` is absent, `tasks/<NNN>/{tasks,verification,review}.md` and `explain.md` are still authored and gated.
 - Ordinary commit-task gate judgments **G1–G8** and **G11–G17** are unchanged in the light path
   (G16 comprehension at finalize; G17 staged scope at commit).
   G4 and G15 are retired. Only **G18** (not applied) and the **G10** section list
