@@ -20,7 +20,9 @@ The controller supplies the frozen target, task brief(s), mode, perspective, and
 read-only cwd; named and fallback reviewers return the same Findings schema.
 The frozen target also pins `task_brief_hash` / `task_brief_hashes` and
 `intent_bundle_id` / `intent_bundles`. Pass only the reviewer's `intent_sections`
-projection — do not copy the full Explain body into the review payload.
+projection from
+`bouncer intent sections --task <current.task.path> --role reviewer`
+— do not copy the full Explain body into the review payload.
 
 ## When this applies
 
@@ -40,7 +42,9 @@ unresolved. Used from `/bouncer-execute`.
    Contract in blueprint review mode, or that same section list from the
    pointer task when `review_scope` is absent, together with the frozen
    `task_brief_hash` / `task_brief_hashes`, `intent_bundle_id` /
-   `intent_bundles`, and `intent_sections`. Do not load the full Explain body
+   `intent_bundles`, and `intent_sections` from
+   `bouncer intent sections --task <current.task.path> --role reviewer`.
+   Do not load the full Explain body
    as review authority.
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:
@@ -99,10 +103,12 @@ unresolved. Used from `/bouncer-execute`.
    the whole-worktree diff after the fix (`git diff <base>` plus untracked),
    not only the repair hunks — delta does
    not receive a discovery perspective.    The controller (not the subagent)
-   updates existing `review.md` `## Findings`,
-   `bouncer.review.findings[]`, and `bouncer.review.rounds[]` (blueprint-root
-   `review.md` when `review_scope` is `blueprint`, otherwise the pointer task
-   directory). An advisory is
+   records `## Findings`, `bouncer.review.findings[]`, and
+   `bouncer.review.rounds[]` with `bouncer review record --blueprint <dir>
+   [--task <ddd>] --round <json-file> [--status <requested|addressed|accepted>]`
+   (blueprint-root `review.md` when `review_scope` is `blueprint`, otherwise
+   the pointer task directory; omit `--task` in blueprint mode). Do not edit
+   that YAML by hand. An advisory is
    recorded once as accepted or deferred with a note, not fixed.
 4. **Assert** — Confirm `## Findings` is present and every finding has an
    actionable disposition. Never leave a false acceptance while an actionable

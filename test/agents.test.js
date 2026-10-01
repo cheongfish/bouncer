@@ -247,6 +247,7 @@ test('bouncer-coordinator dispatches reviewers from exact review-dispatch execut
   assert.match(md, /repair-wave-limit/);
   assert.match(md, /task_brief_hashes/);
   assert.match(md, /intent_bundles/);
+  assert.match(md, /bouncer review record/);
   // F-SS-002: blueprint 최종 리뷰 fail-closed는 포인터 task review_risk가 아니라
   // commit-task review_risk 합집합과 risk_flags를 비교한다.
   assert.match(
@@ -366,7 +367,7 @@ test('bouncer-coordinator owns delegated drive authority and worker dispatch', (
   }
   assert.match(md, /rules\/subagent-model\.md/);
   // Cursor opt-in에서 worker는 Task나 임의 셸 호출이 아니라 규칙 7항의 foreground print 프로세스다.
-  assert.match(md, /item 7 opt-in \(Cursor `subagents\.dispatch: "print"`\), every worker is a\s+foreground `agent --print` process per `rules\/cursor-print-dispatch\.md`,\s+never a Task subagent/);
+  assert.match(md, /item 7 opt-in \(Cursor `subagents\.dispatch: "print"`\), every worker is a\s+foreground `bouncer dispatch print` process per `rules\/cursor-print-dispatch\.md`,\s+never a Task subagent/);
   // worker 보고는 판정 입력이지 두 번째 브리프가 아니다.
   assert.match(md, /never a second brief|not a second brief/i);
 });

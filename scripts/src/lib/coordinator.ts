@@ -9,7 +9,7 @@ const {
   COORDINATOR_LEDGER_REL,
 } = runtime;
 import seed = require('./seed-worktree');
-const { seedCoordinatorWorker, seedIntegration, releaseSeedManifest } = seed;
+const { seedCoordinatorWorker, seedIntegration, releaseSeedManifest, prepareDependencies } = seed;
 import frontmatter = require('./frontmatter');
 const { parseFrontmatter, readDoc } = frontmatter;
 import render = require('./render');
@@ -1202,7 +1202,22 @@ function integrateTask({
 
 /**
  * verification node integrate. terminal scope·repair 한도 2를 보존하고, 명시
- * taskId로 pointer 없이도 그 task의 verify를 고른다.
+ * taskId로 pointer 없이도 그 task의 verify를 고른다. 잠금 해제 뒤·runVerification
+ * 앞에서 integration checkout에 prepareDependencies를 돌려, fan-in candidate만
+ * npm ci 된 채로 terminal CI가 도는 불일치를 막는다.
+ *
+ * @param {object} opts - integrateVerificationTask 인자
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {string} opts.task - verification task id
+ * @param {string} [opts.leaseId] - 공개 시그니처 호환. 이 경로에서는 쓰지 않는다
+ * @param {number} [opts.generation] - 공개 시그니처 호환. 이 경로에서는 쓰지 않는다
+ * @param {string} [opts.ledgerPath] - fence 원장 상대 경로
+ * @param {string} [opts.ledgerHash] - fence sha256
+ * @param {Exec} opts.exec - git·npm 주입 execFileSync
+ * @param {Function} opts.writeLedger - 원장 원자 쓰기
+ * @param {{ runVerification?: VerificationRunner }} opts.deps - 검증 러너 주입
+ * @param {object} opts.integration - coordinatorPathsFor 결과. integrationPath가 검증 cwd
+ * @returns {unknown} 성공 시 ok:true와 task·verification. 실패 시 ok:false와 reason
  */
 function integrateVerificationTask({
   // repoRoot는 공개 시그니처 호환용 — 검증 cwd는 integration.integrationPath만 쓴다.
@@ -1253,7 +1268,15 @@ function integrateVerificationTask({
   if (!phase1 || typeof phase1 !== 'object') return phase1;
   if ((phase1 as { ok?: boolean }).ok === false) return phase1;
 
-  // --- 잠금 밖에서 검증 실행 ---
+  // --- 잠금 밖에서 의존성 준비 후 검증 실행 ---
+  // seedCoordinatorWorker는 candidate에 npm ci를 하지만 integration worktree는
+  // git이 추적한 파일만 받아 node_modules가 비어 있다. 잠금을 잡은 채 설치하면
+  // 원장이 오래 막히므로, 이미 푼 검증 phase에서만 같은 계약을 적용한다.
+  const prepared = prepareDependencies(integration.integrationPath, { execFileSync: exec });
+  if (!prepared.ok) {
+    return { ok: false, reason: 'dependency-install-failed', message: prepared.message };
+  }
+
   const runner = deps.runVerification
     || (require('./verification').runVerification as VerificationRunner);
   const { epicId, blueprintId } = parsePathIds(blueprint);
@@ -2607,6 +2630,14 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'decision-reason-required': {
     cause: 'This mutation requires a non-empty decision reason.',
     next: 'Retry the same `bouncer coordinate` command with a reason that names why the change is required.',
+  },
+  'dependency-install-failed': {
+    cause:
+      'Integration checkout could not install locked development dependencies '
+      + 'before terminal verification.',
+    next:
+      'Inspect npm ci on the integration worktree, then retry `bouncer coordinate integrate` '
+      + 'for the verification task.',
   },
   'dispatch-already-active': {
     cause: 'This task already has an active dispatch, so a second dispatch is refused.',

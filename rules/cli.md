@@ -68,6 +68,8 @@ user confirmation and is unresolved handoff, not ordinary completion.
 ```sh
 bouncer project-root
 bouncer intent --symbol <function-name> [--candidate <qualified-ref>] [--limit <1..5>]
+bouncer intent bundle --task <tasks.md> --symbol <name>... [--candidate <qualified-ref>]...
+bouncer intent sections --task <tasks.md> --role <implementer|reviewer|debugger>
 bouncer graphify-bin
 bouncer graph-sync
 bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
@@ -75,11 +77,20 @@ bouncer subagent-model --agent <name> [--provider <name>]
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir>
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
+bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
+  --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 
 Use `project-root` to locate the consuming repository from linked worktrees.
 Resolve Graphify through `graphify-bin`; never invoke a bare guessed binary.
 Graph absence is a reported state, not permission to invent graph results.
+
+`intent bundle` creates or reuses the task intent cache. `intent sections` is
+read-only: it projects role-specific section bodies from that cache. On
+`{ ok: false }`, `reason` is `intent-bundle-missing`, `intent-bundle-stale`, or
+`intent-sections-drift` (exit 1). Follow `next` and run
+`bouncer intent bundle --task <path> --symbol <name>...` to rebuild, then retry
+sections. Do not assemble `intent_sections` by reading bundle sources.
 
 `subagent-model` prints one model slug, or `inherit`. Pass only that line into
 named dispatch; omit the model argument when the line is `inherit`. Do not
@@ -97,6 +108,36 @@ is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
 `failures` (G5, G10–G12, G19, G20) when the draft fails. Invalid argv is exit 2.
+`dispatch print` runs one Cursor print process. It returns JSON for success
+(`ok: true` with `report`) or `{ ok: false, reason, cause, next }` (exit 1).
+`reason` is `print-dispatch-disabled`, `agent-unavailable`,
+`agent-exit-nonzero`, `result-missing`, `result-error`,
+`dispatch-input-invalid`, or `role-document-invalid`. Follow `next`; do not
+assemble the identity line, role body, or `agent --print` argv in the
+session. Invalid argv (`print` missing, unknown `--role`, duplicate or
+missing `--role`/`--cwd`/`--input`/`--out`) is exit 2.
+
+```sh
+bouncer review record --blueprint <dir> [--task <ddd>] --round <json-file> [--status <requested|addressed|accepted>]
+```
+
+`review record` writes one round and finding updates into `review.md`
+frontmatter only after the same finding/round checks as G21 and G14 pass.
+Success is `{ ok: true, path, round, status, findings }` (exit 0). Failure is
+`{ ok: false, reason, cause, next }` (exit 1) and leaves the file unchanged.
+`reason` is `review-target-missing`, `review-task-required`,
+`review-task-not-allowed`, `review-input-invalid`,
+`review-round-out-of-sequence`, or `review-ledger-invalid`. Follow `next`; do
+not edit YAML by hand or read validator sources to invent a passing
+frontmatter. Invalid argv (`record` missing, `--blueprint`/`--round` missing,
+duplicate options, `--task` not three digits, `--status` outside
+`requested|addressed|accepted` including `pending`) is exit 2.
+
+```sh
+bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
+  --cwd <dir> --input <file> --out <dir> [--repo <dir>]
+```
+
 Do not invent a strategy when the command fails. `coordinate repair` takes
 either `--failure-command` (terminal CI) or repeated `--review-finding`
 (final-review must_fix), never both. Omit `--task` on the review-finding form

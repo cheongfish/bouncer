@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { seedWorktree, realGit, seedIntegration, seedCoordinatorWorker, releaseSeedManifest } = require('../scripts/lib/seed-worktree');
+const { seedWorktree, realGit, seedIntegration, seedCoordinatorWorker, releaseSeedManifest, prepareDependencies } = require('../scripts/lib/seed-worktree');
 
 const EPIC_REL = '.bouncer/context/epics/001-auth';
 const BP_REL = `${EPIC_REL}/blueprints/001-login`;
@@ -656,6 +656,41 @@ test('seedCoordinatorWorker skips npm ci when the lock marker is already present
       execFileSync(command, args, options) {
         calls.push({ command, args, options });
       },
+    },
+  });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.deepStrictEqual(calls, []);
+});
+
+test('prepareDependencies runs npm ci --include=dev when lockfile exists without the installer marker', () => {
+  const repo = makeRepo();
+  write(repo, 'package-lock.json', '{}\n');
+  const calls = [];
+
+  const res = prepareDependencies(repo, {
+    execFileSync(command, args, options) {
+      calls.push({ command, args, options });
+    },
+  });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.deepStrictEqual(calls, [{
+    command: 'npm',
+    args: ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
+    options: { cwd: repo, stdio: 'inherit' },
+  }]);
+});
+
+test('prepareDependencies skips npm ci when the lock marker is already present', () => {
+  const repo = makeRepo();
+  write(repo, 'package-lock.json', '{}\n');
+  write(repo, 'node_modules/.package-lock.json', '{}\n');
+  const calls = [];
+
+  const res = prepareDependencies(repo, {
+    execFileSync(command, args, options) {
+      calls.push({ command, args, options });
     },
   });
 

@@ -599,13 +599,15 @@ test('subagent model contract is centralized and named dispatch consumers cite i
   // print로 띄운 역할이 같은 역할을 named Task로 다시 띄우던 회귀.
   assert.match(cursor, /itself\. Do\s+this role's work directly and never dispatch any Bouncer agent/);
   assert.match(cursor, /bouncer-coordinator itself\. Dispatch\s+only your workers/);
-  // payload가 frontmatter `---`로 시작해 CLI 옵션으로 읽히던 회귀.
-  assert.match(cursor, /\[--model <slug>\] -- "\$\(cat <prompt-file>\)"/);
+  assert.match(cursor, /bouncer dispatch print --role/);
+  // payload가 `-`로 시작해도 옵션으로 읽히지 않게 명령이 `--`를 보장한다.
+  assert.match(cursor, /\[--model <slug>\] -- <prompt>/);
   assert.match(cursor, /--output-format stream-json/);
-  assert.match(cursor, /<\/dev\/null/);
-  assert.match(cursor, /Never pipe the process through `tee`/);
+  assert.match(cursor, /never `\$\(cat/);
+  assert.match(cursor, /Never\s+pipe the process through `tee`/);
   assert.match(cursor, /`wait`s for all of them/);
   assert.match(cursor, /missing `result` event is a dispatch failure/);
+  assert.match(cursor, /JSON `report` field/);
 
   for (const rel of [
     'skills/bouncer-plan/references/context-review.md',

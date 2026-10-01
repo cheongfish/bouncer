@@ -34,8 +34,9 @@ reviewer. This is a read-only pass: do not modify files, commit, or change
   (Goal & intent, Interface, Touch, Do not touch, Constraints, Checklist)
   plus the blueprint Contract; when `review_scope` is absent, the pointer
   task brief (`tasks/<NNN>/tasks.md`) those same sections only
-- `{{INTENT_SECTIONS}}` — role `intent_sections` projection from the shared
-  intent bundle; do not paste the full Explain body here
+- `{{INTENT_SECTIONS}}` — role `intent_sections` projection from
+  `bouncer intent sections --task <current.task.path> --role reviewer`;
+  do not paste the full Explain body here
 - `{{TASK_BRIEF_HASH}}` — frozen `task_brief_hash` (absent-`review_scope` path)
   or the `task_brief_hashes` map
 - `{{INTENT_BUNDLE_ID}}` — frozen `intent_bundle_id` or the `intent_bundles` map
