@@ -2265,3 +2265,97 @@ test('verification integrate passes its own taskId to runVerification', () => {
   assert.strictEqual(passed.ok, true, JSON.stringify(passed));
   assert.strictEqual(seenTaskId, '002');
 });
+
+function writeReviewScope(root, blueprint) {
+  fs.writeFileSync(
+    path.join(root, blueprint, 'index.md'),
+    '---\nbouncer:\n  status: approved\n  review_scope: blueprint\n---\n# Blueprint\n',
+  );
+}
+
+test('blueprint review mode integrate succeeds without task review.md and repair omits it', () => {
+  const blueprint = '.bouncer/context/epics/080-review/blueprints/001-mode';
+  const drive = recordedDrive('bouncer-bp-review-mode-', blueprint);
+  writeReviewScope(drive.repo, blueprint);
+  writeReviewScope(drive.integrationPath, blueprint);
+  writeReviewScope(drive.worker, blueprint);
+  writeBundle(drive.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+    commitSha: drive.sha.slice(0, 8),
+  });
+  fs.rmSync(path.join(drive.worker, blueprint, 'tasks/001/review.md'), { force: true });
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'a'.repeat(64),
+      }),
+    },
+  });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+
+  const repairBlueprint = '.bouncer/context/epics/080-review/blueprints/002-repair';
+  const repo = uncommittedPlanRepo('bouncer-bp-review-repair-', repairBlueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  writeReviewScope(repo, repairBlueprint);
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: repairBlueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint: repairBlueprint, cwd: boot.integrationPath });
+  const failed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint: repairBlueprint, cwd: boot.integrationPath, task: '002',
+    deps: { runVerification: () => ({ ok: false, command: 'node --test', exitCode: 1 }) },
+  });
+  assert.strictEqual(failed.reason, 'verification-failed', JSON.stringify(failed));
+  const repaired = coordinate({
+    command: 'repair', repoRoot: repo, blueprint: repairBlueprint, cwd: boot.integrationPath, task: '002',
+    failureCommand: 'node --test', summary: 'one failed', paths: ['src/fix.js'],
+    decision: 'repair the failing source path',
+  });
+  assert.strictEqual(repaired.ok, true, JSON.stringify(repaired));
+  assert.strictEqual(
+    fs.existsSync(path.join(boot.integrationPath, repairBlueprint, 'tasks', repaired.repairTask.id, 'review.md')),
+    false,
+  );
+});
+
+test('blueprint review mode is judged from integration index not worker index', () => {
+  const blueprint = '.bouncer/context/epics/080-review/blueprints/003-scope-source';
+  const drive = recordedDrive('bouncer-bp-review-scope-src-', blueprint);
+
+  writeReviewScope(drive.integrationPath, blueprint);
+  writeBundle(drive.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+    commitSha: drive.sha.slice(0, 8),
+  });
+  fs.rmSync(path.join(drive.worker, blueprint, 'tasks/001/review.md'), { force: true });
+  const fromIntegration = coordinate({
+    command: 'integrate', repoRoot: drive.repo, blueprint, cwd: drive.integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'a'.repeat(64),
+      }),
+    },
+  });
+  assert.strictEqual(fromIntegration.ok, true, JSON.stringify(fromIntegration));
+
+  const forged = recordedDrive('bouncer-bp-review-scope-forge-', blueprint);
+  writeReviewScope(forged.worker, blueprint);
+  writeBundle(forged.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+    commitSha: forged.sha.slice(0, 8),
+  });
+  fs.rmSync(path.join(forged.worker, blueprint, 'tasks/001/review.md'), { force: true });
+  const fromWorker = coordinate({
+    command: 'integrate', repoRoot: forged.repo, blueprint, cwd: forged.integrationPath, task: '001',
+  });
+  assert.strictEqual(fromWorker.ok, false, JSON.stringify(fromWorker));
+  assert.strictEqual(fromWorker.reason, 'worker-evidence-not-terminal', JSON.stringify(fromWorker));
+  assert.deepStrictEqual(fromWorker.files, [`${blueprint}/tasks/001/review.md`]);
+});

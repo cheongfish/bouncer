@@ -691,3 +691,41 @@ test('validate --gate execute judges the leased task in a worker cwd', () => {
   );
   assert.strictEqual(unreadCode, 1);
 });
+
+test('blueprint review mode does not emit S17 for missing task review.md', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  writeDoc(repo, '.bouncer/context/epics/001-auth/index.md', {
+    type: 'bouncer.epic', title: 'Auth epic', description: 'auth epic',
+    resource: '.bouncer/context/epics/001-auth/index.md',
+    tags: ['bouncer', 'epic'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: '001', epic_id: '001', status: 'approved' },
+  });
+  writeDoc(repo, `${BP_REL}/index.md`, {
+    type: 'bouncer.blueprint', title: 'Login blueprint', description: '001',
+    resource: `${BP_REL}/index.md`,
+    tags: ['bouncer', 'blueprint'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: '001', epic_id: '001', blueprint_id: '001', status: 'approved',
+      review_scope: 'blueprint',
+    },
+  });
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, {
+    type: 'bouncer.tasks', title: 't', description: 'd',
+    resource: `${BP_REL}/tasks/001/tasks.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'TASKS-001', epic_id: '001', blueprint_id: '001', status: 'ready',
+      affected_paths: ['src/auth/'],
+    },
+  });
+  writeDoc(repo, `${BP_REL}/tasks/001/verification.md`, {
+    type: 'bouncer.verification', title: 'v', description: 'd',
+    resource: `${BP_REL}/tasks/001/verification.md`,
+    tags: ['bouncer'], timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: { id: 'VERIFY-001', epic_id: '001', blueprint_id: '001', status: 'pending' },
+  });
+  const { io, buf } = capture();
+  runCli(['validate', '--repo', repo, '--blueprint', BP_REL], io);
+  const parsed = JSON.parse(buf.out);
+  assert.ok(!parsed.failures.some((f) => f.code === 'S17'), JSON.stringify(parsed.failures));
+});

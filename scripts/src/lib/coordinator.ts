@@ -644,7 +644,6 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: 
   };
   const timestamp = (repairData as { timestamp: string }).timestamp;
   const verificationFile = path.join(path.dirname(repairFile), 'verification.md');
-  const reviewFile = path.join(path.dirname(repairFile), 'review.md');
   const repairRel = path.relative(integrationPath, path.dirname(repairFile)).replaceAll('\\', '/');
   const verificationData = {
     type: 'bouncer.verification', title: `TASKS-${repair.id} verification`,
@@ -652,6 +651,9 @@ function writeRepairDocuments({ integrationPath, blueprint, repair, terminal }: 
     tags: ['bouncer', 'verification'], timestamp,
     bouncer: { id: `VERIFY-${repair.id}`, epic_id: epicId, blueprint_id: bpId, status: 'pending' },
   };
+  // 모드 worker에는 task 리뷰가 없다. 구형 계약만 review.md를 같이 심는다.
+  const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
+  const reviewFile = path.join(path.dirname(repairFile), 'review.md');
   const reviewData = {
     type: 'bouncer.review', title: `TASKS-${repair.id} review`, description: `Review for TASKS-${repair.id}`,
     resource: `${repairRel}/review.md`, tags: ['bouncer', 'review'], timestamp,
@@ -694,7 +696,9 @@ ${touch}
     fs.writeFileSync(repairFile, renderDoc(repairData, repairBody));
     const verificationBody = '# Verification\n\n## Command\n<command>\n\n## Evidence\n<result>\n';
     fs.writeFileSync(verificationFile, renderDoc(verificationData, verificationBody));
-    fs.writeFileSync(reviewFile, renderDoc(reviewData, '# Review\n\n## Findings\n- <finding>\n'));
+    if (!reviewMode) {
+      fs.writeFileSync(reviewFile, renderDoc(reviewData, '# Review\n\n## Findings\n- <finding>\n'));
+    }
     fs.writeFileSync(terminalFile, renderDoc(terminalData, terminalDoc.body));
   } catch (error) {
     fs.writeFileSync(terminalFile, terminalBefore);
@@ -801,10 +805,50 @@ function writeVerificationTaskStatus(
 }
 
 // commit task가 fan-in될 수 있는 worker 증적. 문서마다 execute gate와 review가
-// 남기는 terminal 상태 하나만 받는다.
+// 남기는 terminal 상태 하나만 받는다. 모드에서는 루트 리뷰가 있으므로 task
+// review.md를 요구하지 않는다.
 const EVIDENCE_FILES: ReadonlyArray<readonly [string, string]> = [
   ['tasks.md', 'verified'], ['verification.md', 'passed'], ['review.md', 'accepted'],
 ];
+
+/**
+ * fan-in이 요구하는 worker 증적 파일과 terminal 상태 쌍을 고른다.
+ * 모드면 루트 리뷰가 finalize 몫이므로 task `review.md`를 뺀다.
+ *
+ * @param {boolean} reviewMode - integration blueprint index의 리뷰 모드
+ * @returns {ReadonlyArray<readonly [string, string]>} 파일명과 기대 status
+ */
+function evidenceFiles(reviewMode: boolean): ReadonlyArray<readonly [string, string]> {
+  return reviewMode
+    ? EVIDENCE_FILES.filter(([name]) => name !== 'review.md')
+    : EVIDENCE_FILES;
+}
+
+/**
+ * checkout의 blueprint index가 리뷰 모드인지 읽는다. 인덱스가 없거나 YAML이
+ * 깨지면 구형 계약(task 리뷰 요구)을 유지한다.
+ *
+ * @param {string} root - 문서를 읽을 checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {boolean} 모드이면 true
+ */
+function isBlueprintReviewModeAt(root: string, blueprint: string): boolean {
+  const abs = path.join(root, blueprint, 'index.md');
+  try {
+    const { data } = readDoc(abs);
+    const rec = data as Record<string, unknown> | undefined;
+    const bouncer = rec && rec.bouncer as Record<string, unknown> | undefined;
+    // validate-docs.isBlueprintReviewMode와 같은 조건식이다. coordinator가
+    // validate-docs를 require하면 current→coordinator 순환이 생긴다.
+    return Boolean(bouncer && bouncer.review_scope === 'blueprint');
+  } catch (error) {
+    // 인덱스 부재와 YAML 파싱 실패만 흡수한다. 모드가 아닌 쪽으로 접어야
+    // 구형 drive의 증적 요구가 풀리지 않는다.
+    if ((error as { code?: string }).code === 'ENOENT') return false;
+    if ((error as Error).name === 'YAMLException') return false;
+    throw error;
+  }
+}
 
 // frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
 // 앞부분과 같다. 이 검사를 통과한 문서는 parseFrontmatter가 블록 부재로 throw할 수
@@ -848,21 +892,26 @@ function readBouncerBlock(file: string): Record<string, unknown> | null {
 
 /**
  * commit task의 worker bundle이 fan-in할 terminal 증적인지 판정한다. 읽기만 한다.
- * 상태가 모자라면 그 문서들을, 상태는 맞는데 `commit_sha`가 기록된 SHA의 앞
- * 8자리(`bouncer commit`이 찍는 길이)와 다르면 tasks.md를 `files`로 돌려준다.
+ * 요구 파일 목록은 integration index의 리뷰 모드로 고른다. 상태가 모자라면 그
+ * 문서들을, 상태는 맞는데 `commit_sha`가 기록된 SHA의 앞 8자리(`bouncer commit`이
+ * 찍는 길이)와 다르면 tasks.md를 `files`로 돌려준다.
  *
  * @param {string} workerPath - 배정된 worker worktree
+ * @param {string} integrationPath - 모드 판정의 정본인 integration checkout
  * @param {string} blueprint - blueprint 상대 경로
  * @param {string} taskId - 세 자리 task 번호
  * @param {string} sha - 원장에 기록된 worker SHA
  * @returns {{ ok: true } | { ok: false; reason: string; files: string[] }} 판정
  */
-function checkWorkerEvidence(workerPath: string, blueprint: string, taskId: string, sha: string):
-  { ok: true } | { ok: false; reason: string; files: string[] } {
+function checkWorkerEvidence(
+  workerPath: string, integrationPath: string, blueprint: string, taskId: string, sha: string,
+): { ok: true } | { ok: false; reason: string; files: string[] } {
   const relOf = (name: string) => `${blueprint.replaceAll('\\', '/')}/tasks/${taskId}/${name}`;
   const open: string[] = [];
   let stamped: unknown;
-  for (const [name, terminal] of EVIDENCE_FILES) {
+  // worker index를 믿으면 워커가 review_scope를 심어 task 리뷰를 건너뛸 수 있다.
+  const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
+  for (const [name, terminal] of evidenceFiles(reviewMode)) {
     const bouncer = readBouncerBlock(path.join(workerPath, blueprint, 'tasks', taskId, name));
     if (!bouncer || bouncer.status !== terminal) open.push(relOf(name));
     if (name === 'tasks.md' && bouncer) stamped = bouncer.commit_sha;
@@ -876,12 +925,15 @@ function checkWorkerEvidence(workerPath: string, blueprint: string, taskId: stri
 }
 
 /**
- * worker의 task bundle 세 문서를 integration의 같은 경로로 복사한다. 다른 task
- * bundle·blueprint index·source는 건드리지 않는다. 돌려주는 함수는 복사 전 바이트로
- * 되돌리며, 복사 전에 없던 파일은 지우고 복사가 새로 만든 `tasks/<NNN>/`도 지운다.
+ * worker의 task 증적 문서를 integration의 같은 경로로 복사한다. 구형 계약은
+ * tasks·verification·review 세 파일이고, blueprint 리뷰 모드에서는
+ * tasks·verification 두 파일만 복사한다. 모드는 integration index에서만 읽는다.
+ * 다른 task bundle·blueprint index·source는 건드리지 않는다. 돌려주는 함수는 복사
+ * 전 바이트로 되돌리며, 복사 전에 없던 파일은 지우고 복사가 새로 만든
+ * `tasks/<NNN>/`도 지운다.
  *
  * @param {string} workerPath - 배정된 worker worktree
- * @param {string} integrationPath - integration checkout
+ * @param {string} integrationPath - integration checkout. 모드 판정의 정본
  * @param {string} blueprint - blueprint 상대 경로
  * @param {string} taskId - 세 자리 task 번호
  * @returns {() => void} 복사 되돌림
@@ -893,7 +945,8 @@ function copyEvidenceBundle(
   // 복사 전에 bundle 디렉터리가 없었다면 그 안의 파일은 모두 이 복사가 만든 것이다.
   // 파일만 지우면 빈 `tasks/<NNN>/`이 남아 integration 사본이 복사 전과 달라진다.
   const dirExisted = fs.existsSync(targetDir);
-  const entries = EVIDENCE_FILES.map(([name]) => {
+  const reviewMode = isBlueprintReviewModeAt(integrationPath, blueprint);
+  const entries = evidenceFiles(reviewMode).map(([name]) => {
     const target = path.join(targetDir, name);
     return {
       source: path.join(workerPath, blueprint, 'tasks', taskId, name), target,
@@ -1504,7 +1557,9 @@ function integrateCommitWave({
         || !workerOwnsSha(exec, worker, item.sha as string)) {
         return { ok: false, reason: 'sha-not-owned-by-worker' };
       }
-      const evidence = checkWorkerEvidence(worker, blueprint, id, item.sha as string);
+      const evidence = checkWorkerEvidence(
+        worker, integration.integrationPath, blueprint, id, item.sha as string,
+      );
       if (!evidence.ok) return evidence;
     }
 

@@ -72,6 +72,12 @@ function expectedTypeForPath(rel: unknown): string | null {
   if (parsed.blueprintId && parsed.kind === 'context_review') {
     return KIND_TO_TYPE.context_review;
   }
+  // 루트 review.md는 tasks/<NNN>/ 매핑 밖에 있다. 위치 규칙을 주지 않으면
+  // 모드 문서가 S19를 건너뛰고 임의의 type으로 남을 수 있다. unit 경로는
+  // 위에서 이미 반환했다.
+  if (parsed.blueprintId && parsed.kind === 'review') {
+    return KIND_TO_TYPE.review;
+  }
 
   return null;
 }
@@ -185,6 +191,16 @@ function checkStructural(
     && !(SCALE_ENUM as unknown[]).includes(bouncer.scale)
   ) {
     add('S20', `scale "${bouncer.scale}" not in enum for ${docType}`);
+  }
+
+  // S31: review_scope는 켜져 있으면 값 'blueprint'만 받는다. 부재는 구형
+  // task별 리뷰 계약이므로 통과한다. 파일 존재·scale로 모드를 추론하지 않는다.
+  if (
+    docType === 'bouncer.blueprint'
+    && bouncer.review_scope !== undefined
+    && bouncer.review_scope !== 'blueprint'
+  ) {
+    add('S31', 'review_scope must be blueprint');
   }
 
   // S27: epic·blueprint만. 부재는 통과(소급 없음). 형식만 schema.isValidSupersedes —

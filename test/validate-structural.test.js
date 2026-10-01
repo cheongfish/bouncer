@@ -1032,3 +1032,56 @@ test('S30: review_risk must be a unique enum array; absent is legacy-compatible'
     review_risk: ['public_interface', 'public_interface'],
   }).some((f) => /duplicate/.test(f.message)));
 });
+
+function rootReviewDoc(overrides = {}) {
+  return {
+    type: 'bouncer.review',
+    title: 'Blueprint review',
+    description: 'root review',
+    resource: `${BP_REL}/review.md`,
+    tags: ['bouncer'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'REVIEW-001',
+      epic_id: '001',
+      blueprint_id: '001',
+      status: 'pending',
+    },
+    ...overrides,
+  };
+}
+
+test('root review.md expects bouncer.review and REVIEW-<blueprint id>', () => {
+  const ok = [];
+  checkStructural({ data: rootReviewDoc(), rel: `${BP_REL}/review.md` }, ok);
+  assert.ok(!ok.some((f) => f.code === 'S19' || f.code === 'S5'), JSON.stringify(ok));
+
+  const wrongType = [];
+  checkStructural({
+    data: { ...rootReviewDoc(), type: 'bouncer.explain' },
+    rel: `${BP_REL}/review.md`,
+  }, wrongType);
+  assert.ok(wrongType.some((f) => f.code === 'S19'), JSON.stringify(wrongType));
+
+  const wrongId = [];
+  checkStructural({
+    data: {
+      ...rootReviewDoc(),
+      bouncer: { ...rootReviewDoc().bouncer, id: 'REVIEW-002' },
+    },
+    rel: `${BP_REL}/review.md`,
+  }, wrongId);
+  assert.ok(wrongId.some((f) => f.code === 'S5'), JSON.stringify(wrongId));
+});
+
+test('S31: review_scope other than blueprint is rejected', () => {
+  const failures = [];
+  const data = {
+    ...blueprintDoc(),
+    bouncer: { ...blueprintDoc().bouncer, review_scope: 'task' },
+  };
+  checkStructural({ data, rel: `${BP_REL}/index.md` }, failures);
+  assert.ok(failures.some((f) => (
+    f.code === 'S31' && f.message === 'review_scope must be blueprint'
+  )), JSON.stringify(failures));
+});
