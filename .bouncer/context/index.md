@@ -37,3 +37,4 @@ bouncer_schema: '0.1'
 * [078 parallel-run-finalize-digest](epics/078-parallel-run-finalize-digest/index.md) - Runs independent Bouncer tasks in parallel under coordinator leases and compresses finalize input into one CLI digest.
 * [079 roadmap-closeout](epics/079-roadmap-closeout/index.md) - Closes the remaining roadmap items by shipping built CommonJS through a release branch and removing the leftover governance rule file.
 * [080 execution-token-cost](epics/080-execution-token-cost/index.md) - Close execution-contract gaps and run review once at final verification to cut drive token cost
+* [081 cli-deterministic-procedures](epics/081-cli-deterministic-procedures/index.md) - Move intent_sections projection, Cursor print dispatch, and review round recording from hand-assembled steps into CLI commands
