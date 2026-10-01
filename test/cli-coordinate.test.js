@@ -53,10 +53,10 @@ function capture() {
 }
 
 /**
- * bootstrap + prepare까지 끝난 coordinator 픽스처.
- * revise는 할당된 worker worktree에서만 통과하므로 세 경로를 모두 돌려준다.
+ * 계획 문서만 커밋된 저장소. CLI bootstrap/prepare 계약 테스트가 lib
+ * coordinate()를 거치지 않고 같은 fixture를 쓰도록 분리한다.
  */
-function preparedDrive() {
+function planCommittedRepo() {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const run = (args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
   run(['init', '-b', 'work']);
@@ -82,6 +82,15 @@ function preparedDrive() {
   });
   run(['add', '-A']);
   run(['commit', '-m', 'plan']);
+  return repo;
+}
+
+/**
+ * bootstrap + prepare까지 끝난 coordinator 픽스처.
+ * revise는 할당된 worker worktree에서만 통과하므로 세 경로를 모두 돌려준다.
+ */
+function preparedDrive() {
+  const repo = planCommittedRepo();
 
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
   assert.strictEqual(boot.ok, true);
@@ -734,4 +743,75 @@ test('CLI review-dispatch execute without --task exits 0', () => {
     '--blueprint', BP_REL, '--base', base, '--head', head, '--repo', drive.repo,
   ], io);
   assert.strictEqual(code, 0, buf.err + buf.out);
+});
+
+test('coordinate CLI stdout is one-line JSON without ledger copies', () => {
+  const repo = planCommittedRepo();
+  const bootCli = coordinateCli(repo, 'bootstrap', ['--repo', repo]);
+  assert.strictEqual(bootCli.code, 0, bootCli.buf.err);
+  const boot = JSON.parse(bootCli.buf.out);
+  assert.strictEqual(bootCli.buf.out, `${JSON.stringify(boot)}\n`);
+  assert.strictEqual(boot.tasks, undefined);
+  assert.strictEqual(boot.decisions, undefined);
+  assert.ok(boot.checkpoint && boot.integrationPath);
+
+  const preparedCli = coordinateCli(boot.integrationPath, 'prepare', ['--repo', repo]);
+  assert.strictEqual(preparedCli.code, 0, preparedCli.buf.err);
+  const prepared = JSON.parse(preparedCli.buf.out);
+  assert.strictEqual(prepared.tasks, undefined);
+  assert.strictEqual(prepared.decisions, undefined);
+  assert.deepStrictEqual(prepared.opened.map((t) => t.id), prepared.ready);
+  assert.ok(prepared.opened[0].workerPath && prepared.opened[0].branch && prepared.opened[0].lease);
+
+  const resumeCli = coordinateCli(boot.integrationPath, 'prepare', ['--repo', repo]);
+  assert.strictEqual(resumeCli.code, 0, resumeCli.buf.err);
+  const resumed = JSON.parse(resumeCli.buf.out);
+  assert.strictEqual(resumeCli.buf.out, `${JSON.stringify(resumed)}\n`);
+  const resumedOpened = resumed.opened.find((t) => t.id === '001');
+  assert.ok(resumedOpened);
+  assert.strictEqual(resumedOpened.lease.id, prepared.opened[0].lease.id);
+
+  const dispatched = coordinateCli(prepared.opened[0].workerPath, 'dispatch', [
+    '--repo', repo, '--task', '001',
+  ]);
+  assert.strictEqual(dispatched.code, 0, dispatched.buf.err + dispatched.buf.out);
+  const dispatchBody = JSON.parse(dispatched.buf.out);
+  assert.strictEqual(dispatchBody.decisions, undefined);
+  assert.ok(dispatchBody.metadata && dispatchBody.task && dispatchBody.checkpoint);
+
+  const refused = coordinateCli(boot.integrationPath, 'dispatch', ['--task', '001'], { fence: false });
+  assert.strictEqual(refused.buf.out.trimEnd().includes('\n'), false);
+});
+
+test('coordinate revise stdout is one-line JSON on success and fence refusals', () => {
+  const drive = preparedDrive();
+  const success = revise(drive.worker, [
+    '--task', '001', '--paths', 'src/auth/', '--reason', 'session token shares the login guard',
+  ], [], drive.repo);
+  assert.strictEqual(success.code, 0, success.buf.err);
+  assert.strictEqual(success.buf.out, `${JSON.stringify(JSON.parse(success.buf.out))}\n`);
+
+  const emptyCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-revise-empty-'));
+  execFileSync('git', ['init', '-b', 'work'], { cwd: emptyCwd, encoding: 'utf8' });
+  const missingLedger = revise(emptyCwd, [
+    '--task', '001', '--paths', 'src/auth/', '--reason', 'r',
+  ], [
+    '--ledger-path', '.bouncer/runtime/coordinator.json',
+    '--ledger-hash', '0'.repeat(64),
+  ]);
+  assert.strictEqual(missingLedger.code, 1);
+  assert.strictEqual(
+    missingLedger.buf.out,
+    `${JSON.stringify(JSON.parse(missingLedger.buf.out))}\n`,
+  );
+  assert.strictEqual(JSON.parse(missingLedger.buf.out).reason, 'ledger-checkpoint-invalid');
+
+  const badHash = revise(drive.worker, [
+    '--task', '001', '--paths', 'src/session/token.ts', '--reason', 'wrong fence',
+  ], [
+    '--ledger-path', '.bouncer/runtime/coordinator.json',
+    '--ledger-hash', '0'.repeat(64),
+  ]);
+  assert.strictEqual(badHash.code, 1);
+  assert.strictEqual(badHash.buf.out, `${JSON.stringify(JSON.parse(badHash.buf.out))}\n`);
 });

@@ -57,6 +57,9 @@ bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
 pointer moves, scope revisions, result recording, fan-in, repair, and release.
+`coordinate` stdout is one-line JSON; a success response carries `checkpoint`
+(and prepare also `opened[]`) instead of ledger copies of `tasks` or
+`decisions`.
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
 not recover by reading plugin sources.
 Use `coordinate revise` only from the assigned worker worktree with a reason

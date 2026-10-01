@@ -159,7 +159,7 @@ test('the coordinator lifecycle runs end to end through the shipped CLI surface'
     'coordinate', 'prepare', ...ledgerFenceArgs(),
     '--blueprint', BP_REL, '--repo', repo,
   ]);
-  const worker = prepared.tasks[0].workerPath;
+  const worker = prepared.opened[0].workerPath;
 
   fs.writeFileSync(path.join(worker, 'src/login.js'), 'implemented\n');
   git(worker, ['add', 'src/login.js']);

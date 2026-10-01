@@ -20,6 +20,8 @@ import scopeMod = require('./scope');
 const { reviseTaskScope } = scopeMod;
 import executePrepareMod = require('./execute-prepare');
 const { executePrepare } = executePrepareMod;
+import coordinateOutputMod = require('./coordinate-output');
+const { compactCoordinateOutput } = coordinateOutputMod;
 
 type CliIo = {
   out: (s: string) => void;
@@ -298,7 +300,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     // argv 문법 오류와 stale/invalid fence를 같은 채널로 모아 자동화 클라이언트가 파싱한다.
     if (ledgerPath === undefined || ledgerPath === ''
       || ledgerHash === undefined || ledgerHash === '') {
-      io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' }, null, 2)}\n`);
+      io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' })}\n`);
       return 1;
     }
   }
@@ -362,14 +364,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     // hash와 변조 대상이 어긋나지 않게 한 snapshot만 검사한다.
     const loaded = loadLedgerBytes(paths.ledgerFile);
     if (!loaded) {
-      io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' }, null, 2)}\n`);
+      io.out(`${JSON.stringify({ ok: false, reason: 'ledger-checkpoint-invalid' })}\n`);
       return 1;
     }
     const fenced = assertLedgerFence({
       ledgerPath, ledgerHash, ledgerBytes: loaded.bytes,
     });
     if (!fenced.ok) {
-      io.out(`${JSON.stringify(fenced, null, 2)}\n`);
+      io.out(`${JSON.stringify(fenced)}\n`);
       return 1;
     }
     const result = reviseTaskScope({
@@ -389,7 +391,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     const payload = after
       ? { ...result, checkpoint: projectCheckpoint(after.ledger, paths.ledgerFile, after.bytes) }
       : result;
-    io.out(`${JSON.stringify(payload, null, 2)}\n`);
+    io.out(`${JSON.stringify(payload)}\n`);
     return 0;
   }
   try {
@@ -421,7 +423,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       ledgerHash,
       userConfirmed: f['user-confirmed'] === true,
     }) as { ok: boolean };
-    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    io.out(`${JSON.stringify(compactCoordinateOutput(command, result as Record<string, unknown>))}\n`);
     return result.ok ? 0 : 1;
   } catch (error) { io.err(`coordinate: ${catchMessage(error)}\n`); return 1; }
 }
