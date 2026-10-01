@@ -2359,3 +2359,89 @@ test('blueprint review mode is judged from integration index not worker index', 
   assert.strictEqual(fromWorker.reason, 'worker-evidence-not-terminal', JSON.stringify(fromWorker));
   assert.deepStrictEqual(fromWorker.files, [`${blueprint}/tasks/001/review.md`]);
 });
+
+test('coordinate repair from review findings reopens an integrated terminal verification', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-review-repair-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  const blueprint = '.bouncer/context/epics/081-x/blueprints/001-y';
+  for (const [id, metadata] of [
+    ['001', 'depends_on: []\n'],
+    ['002', 'execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]) {
+    fs.mkdirSync(path.join(repo, blueprint, 'tasks', id), { recursive: true });
+    fs.writeFileSync(path.join(repo, blueprint, 'tasks', id, 'tasks.md'), `---\nbouncer:\n  ${metadata}---\n`);
+  }
+  fs.mkdirSync(path.join(repo, blueprint), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+
+  const result = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    reviewFindings: ['F1'], summary: 'must_fix from final review', paths: ['src/fix.js'],
+    decision: 'repair the reviewed source',
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(result.decision.failure.command, 'review');
+  assert.deepStrictEqual(result.decision.failure.findings, ['F1']);
+  assert.strictEqual(result.decision.failure.task, '002');
+  assert.strictEqual(result.decision.necessity, 'final review finding requires a Blueprint-scoped source repair');
+  assert.strictEqual(result.terminalTask.status, 'pending');
+  assert.deepStrictEqual(result.terminalTask.depends_on, [result.repairTask.id]);
+});
+
+test('coordinate repair from review findings without a terminal uses the repair task id', () => {
+  const blueprint = '.bouncer/context/epics/082-x/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-review-repair-leaf-', blueprint, [
+    ['001', '  depends_on: []\n'],
+  ]);
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: repo, blueprint }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+
+  const result = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    reviewFindings: ['F9'], summary: 'must_fix without terminal', paths: ['src/fix.js'],
+    decision: 'repair from final review',
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(result.decision.failure.task, result.repairTask.id);
+  assert.deepStrictEqual(result.repairTask.depends_on, ['001']);
+});
+
+test('coordinate repair rejects mixed causes and non-integrated review repairs', () => {
+  const blueprint = '.bouncer/context/epics/083-x/blueprints/001-y';
+  const repo = uncommittedPlanRepo('bouncer-review-repair-reject-', blueprint, [
+    ['001', '  depends_on: []\n'],
+  ]);
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const mixed = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    reviewFindings: ['F1'], failureCommand: 'npm test', summary: 'both', paths: ['src/fix.js'],
+    decision: 'ambiguous',
+  });
+  assert.strictEqual(mixed.reason, 'repair-cause-ambiguous');
+
+  const leftover = coordinate({
+    command: 'repair', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    reviewFindings: ['F1'], summary: 'not integrated', paths: ['src/fix.js'],
+    decision: 'too early',
+  });
+  assert.strictEqual(leftover.reason, 'review-repair-requires-integrated');
+});

@@ -686,3 +686,52 @@ test('coordinate integrate omits --task and returns integrated array', () => {
   assert.match(help.buf.out, /coordinate integrate/);
   assert.match(help.buf.out, /omit --task for the wave/);
 });
+
+test('CLI coordinate repair collects repeated --review-finding into ledger findings', () => {
+  const drive = preparedDrive();
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+  const { code, buf } = coordinateCli(drive.integration, 'repair', [
+    '--repo', drive.repo,
+    '--review-finding', 'F1', '--review-finding', 'F2',
+    '--summary', 'must_fix', '--paths', 'src/auth/', '--decision', 'repair findings',
+  ]);
+  assert.strictEqual(code, 0, buf.err + buf.out);
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  assert.deepStrictEqual(ledger.repairWaves[0].failure.findings, ['F1', 'F2']);
+});
+
+test('CLI coordinate repair rejects an empty --review-finding', () => {
+  const drive = preparedDrive();
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const ledgerFile = coordinatorPathsFor({ repoRoot: drive.repo, blueprint: BP_REL }).ledgerFile;
+  const seeded = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  for (const entry of seeded.tasks) entry.status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(seeded, null, 2)}\n`);
+  const { code, buf } = coordinateCli(drive.integration, 'repair', [
+    '--repo', drive.repo,
+    '--review-finding', '',
+    '--summary', 'must_fix', '--paths', 'src/auth/', '--decision', 'repair findings',
+  ]);
+  assert.strictEqual(code, 1);
+  assert.strictEqual(JSON.parse(buf.out).reason, 'failure-evidence-required');
+});
+
+test('CLI review-dispatch execute without --task exits 0', () => {
+  const drive = preparedDrive();
+  const run = (args) => execFileSync('git', args, { cwd: drive.repo, encoding: 'utf8' }).trim();
+  const base = run(['rev-parse', 'HEAD']);
+  fs.writeFileSync(path.join(drive.repo, 'README'), 'changed\n');
+  run(['add', 'README']);
+  run(['commit', '-m', 'change']);
+  const head = run(['rev-parse', 'HEAD']);
+  const { io, buf } = capture();
+  const code = runCli([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--base', base, '--head', head, '--repo', drive.repo,
+  ], io);
+  assert.strictEqual(code, 0, buf.err + buf.out);
+});
