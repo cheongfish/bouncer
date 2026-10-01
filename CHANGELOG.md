@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **explain coordinator 인덱스** — finalize가 explain frontmatter `coordinator`에
+  원장 전체가 아니라 task 인덱스(`integration_branch`, `tasks[]`의 id·branch·
+  scope_revision·actual_paths)만 쓴다.
+
 ## [1.5.2] — 2026-10-01
 
 1.5.1 패치. controller가 손으로 조립하던 역할별 projection, Cursor print 디스패치, 리뷰 라운드
