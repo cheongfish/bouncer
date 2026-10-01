@@ -7,8 +7,26 @@
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-10-01
+
+1.5.0 패치. coordinator가 내부 함수 이름 대신 CLI만 쓰게 하고, task마다 열던 리뷰를
+blueprint 종단 검증 한 번으로 줄인다. 계획의 열린 결정은 추정으로 메우지 않는다.
+
+### Added
+
+- **subagent-model · codex-agents CLI** — `bouncer subagent-model`과
+  `bouncer codex-agents check`로 모델 슬롯과 생성 TOML 일치를 조회한다.
+- **coordinate 실패 힌트** — 실패 JSON에 `cause`와 `next`를 붙인다.
+- **G21** — blueprint 루트 리뷰 문서를 인식하는 finalize gate.
+- **blueprint 루트 review.md** — scaffold가 task별 리뷰 파일 대신 루트 문서 하나를 만든다.
+- **리뷰 수정 repair** — `coordinate repair --review-finding`으로 must_fix를 한 태스크에서 고친다.
+  CI repair의 `--task`는 계속 required다.
+
 ### Changed
 
+- **최종 리뷰 1회** — coordinator·execute·plan·run 지침이 리뷰를 종단 검증 시점에 한 번만 연다.
+- **fan-in worker seed** — `seedCoordinatorWorker`가 후보 worktree에서 `npm ci`를 돌려
+  `node_modules` 없이 fan-in `npm test`가 실패하지 않게 한다.
 - **discovery의 열린 결정과 프로젝트 규칙** — 요청과 코드가 정하지 않은 결정을 추정으로 메우지 않고
   Discover 확인 전에 사용자에게 묻는다. `CONTRIBUTING.md`·CI 등 프로젝트 기여 규칙을 읽어 성공 기준과
   task 제약에 넣고, 프로젝트가 병합 전에 돌리는 명령을 검증 명령으로 권장한다.
