@@ -2256,6 +2256,83 @@ test('wave integrate with lease flags returns lease-flags-require-task', () => {
   assert.strictEqual(rejected.reason, 'lease-flags-require-task');
 });
 
+test('verification integrate prepares integration dependencies before runVerification', () => {
+  const blueprint = '.bouncer/context/epics/091-prepare/blueprints/001-order';
+  const repo = uncommittedPlanRepo('bouncer-verify-prepare-order-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  // integration worktree는 git이 추적한 파일만 받으므로 node_modules marker가 없다.
+  // lockfile만 있으면 prepareDependencies가 npm ci --include=dev를 돌려야 한다.
+  fs.writeFileSync(path.join(boot.integrationPath, 'package-lock.json'), '{}\n');
+  const order = [];
+  const npmCalls = [];
+  const passed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'npm') {
+          order.push('prepare');
+          npmCalls.push({ command, args, options });
+          return Buffer.from('');
+        }
+        return execFileSync(command, args, options);
+      },
+      runVerification: () => {
+        order.push('verify');
+        return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'd'.repeat(64) };
+      },
+    },
+  });
+  assert.strictEqual(passed.ok, true, JSON.stringify(passed));
+  assert.deepStrictEqual(order, ['prepare', 'verify']);
+  assert.deepStrictEqual(npmCalls, [{
+    command: 'npm',
+    args: ['ci', '--include=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
+    options: { cwd: boot.integrationPath, stdio: 'inherit' },
+  }]);
+});
+
+test('verification integrate does not run verification when dependency install fails', () => {
+  const blueprint = '.bouncer/context/epics/091-prepare/blueprints/002-fail';
+  const repo = uncommittedPlanRepo('bouncer-verify-prepare-fail-', blueprint, [
+    ['001', '  depends_on: []\n'],
+    ['002', '  execution_kind: verification\n  depends_on: [TASKS-001]\n  parallel_safe: false\n  dependency_gate: integrated\n  verify: node --test\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  ledger.tasks[0].status = 'integrated';
+  fs.writeFileSync(ledgerFile, `${JSON.stringify(ledger, null, 2)}\n`);
+  coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  fs.writeFileSync(path.join(boot.integrationPath, 'package-lock.json'), '{}\n');
+  let verified = false;
+  const failed = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '002',
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'npm') {
+          throw new Error('npm ci failed');
+        }
+        return execFileSync(command, args, options);
+      },
+      runVerification: () => {
+        verified = true;
+        return { ok: true, command: 'node --test', exitCode: 0, evidenceId: 'e'.repeat(64) };
+      },
+    },
+  });
+  assert.strictEqual(failed.ok, false, JSON.stringify(failed));
+  assert.strictEqual(failed.reason, 'dependency-install-failed');
+  assert.strictEqual(verified, false);
+});
+
 test('verification integrate passes its own taskId to runVerification', () => {
   const blueprint = '.bouncer/context/epics/090-fanin/blueprints/012-taskid';
   const repo = uncommittedPlanRepo('bouncer-fanin-taskid-', blueprint, [
