@@ -658,6 +658,10 @@ test('prepare seeds each assigned worker and record accepts the worker boundary'
 function uncommittedPlanRepo(prefix, blueprint, tasks) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  // fan-in은 coordinator가 identity 인자 없이 cherry-pick한다. 전역 git identity가
+  // 없는 CI runner에서도 같은 결과가 나오도록 worktree가 공유하는 저장소 config에 둔다.
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
+  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
   fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
   execFileSync('git', ['add', 'README.md'], { cwd: repo });
   execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
@@ -671,6 +675,18 @@ function uncommittedPlanRepo(prefix, blueprint, tasks) {
   }
   return repo;
 }
+
+test('plan fixture repos set local git identity for identity-less cherry-pick', () => {
+  const repo = uncommittedPlanRepo(
+    'bouncer-coord-identity-',
+    '.bouncer/context/epics/080-id/blueprints/001-x',
+    [],
+  );
+  const email = execFileSync('git', ['config', '--local', 'user.email'], { cwd: repo, encoding: 'utf8' }).trim();
+  const name = execFileSync('git', ['config', '--local', 'user.name'], { cwd: repo, encoding: 'utf8' }).trim();
+  assert.strictEqual(email, 'test@example.com');
+  assert.strictEqual(name, 'test');
+});
 
 test('prepare seeds workers from the integration plan after the main plan is removed', () => {
   const blueprint = '.bouncer/context/epics/040-x/blueprints/041-y';
