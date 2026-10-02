@@ -52,7 +52,9 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
   {
     code: 'G18',
     match: /context review is stale/,
-    next: 'Replace `rounds[]` and `findings[]` with round 1 discovery for the current digest, set status to `pending`, then redo `/bouncer-plan` step 5 and step 6 approvals.',
+    // 한 줄이면 eslint max-len(120)을 넘는다. 문장 의미는 같고 줄만 나눈다.
+    next: 'Replace `rounds[]` and `findings[]` with round 1 discovery for the current digest, '
+      + 'set status to `pending`, then redo `/bouncer-plan` step 5 and step 6 approvals.',
   },
   {
     code: 'G20',
