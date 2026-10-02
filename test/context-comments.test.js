@@ -6,7 +6,11 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { TEMPLATES, SCAFFOLD_COMMENT_BODIES } = require('../scripts/lib/templates');
+const {
+  TEMPLATES,
+  LEGACY_SCAFFOLD_COMMENT_BODIES,
+  findLegacyScaffoldComments,
+} = require('../scripts/lib/templates');
 
 const root = path.join(__dirname, '..');
 const checker = path.join(root, 'scripts', 'check-context-comments.js');
@@ -80,11 +84,23 @@ function seededTaskRepo() {
 }
 
 test('templates expose normalized scaffold comment bodies', () => {
-  assert.ok(Array.isArray(SCAFFOLD_COMMENT_BODIES));
-  assert.ok(SCAFFOLD_COMMENT_BODIES.length > 0);
-  assert.ok(SCAFFOLD_COMMENT_BODIES.every((body) => body === body.trim()));
-  assert.ok(SCAFFOLD_COMMENT_BODIES.some((body) => body.includes('왜 지금 이 에픽인가')));
-  assert.match(TEMPLATES['epic.md'], /<!-- 왜 지금 이 에픽인가/);
+  const open = '<!' + '--'; const close = '--' + '>';
+  assert.ok(LEGACY_SCAFFOLD_COMMENT_BODIES.some((b) => b.includes('왜 지금 이 에픽인가')));
+  assert.ok(Object.isFrozen(LEGACY_SCAFFOLD_COMMENT_BODIES));
+  assert.strictEqual(LEGACY_SCAFFOLD_COMMENT_BODIES.length, 27);   // 첫 단계 추출값의 길이
+  for (const marker of ['finding: id, severity, status. mode를', 'finding: id, severity, status. accepted이면',
+    'verification task는 source를 바꾸지 않는다', 'Contract-First', '이 변경이 생긴 배경', 'DAG frontmatter']) {
+    assert.ok(LEGACY_SCAFFOLD_COMMENT_BODIES.some((b) => b.startsWith(marker)), marker);
+  }
+  for (const [name, body] of Object.entries(TEMPLATES)) assert.ok(!body.includes(open), name);
+  const legacy = `${open} 왜 지금 이 에픽인가. 두 문장 이내. ${close}`;
+  assert.deepStrictEqual(findLegacyScaffoldComments(legacy), ['왜 지금 이 에픽인가. 두 문장 이내.']);
+  assert.deepStrictEqual(findLegacyScaffoldComments(`${open}\r\n   왜 지금 이 에픽인가. 두 문장 이내.  \r\n${close}`),
+    ['왜 지금 이 에픽인가. 두 문장 이내.']);                       // 줄 끝·들여쓰기 정규화
+  assert.deepStrictEqual(findLegacyScaffoldComments(`${open} 저자 메모 ${close}\n${legacy}`),
+    ['왜 지금 이 에픽인가. 두 문장 이내.']);                       // 저자 주석 제외, 등장 순서
+  assert.deepStrictEqual(findLegacyScaffoldComments(''), []);
+  assert.throws(() => findLegacyScaffoldComments(null), TypeError);
 });
 
 test('explicit changed context document rejects scaffold comment and TODO', () => {

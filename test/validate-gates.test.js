@@ -1418,6 +1418,16 @@ function commitCtx(stagedFiles) {
   };
 }
 
+test('finalize gate G16 rejects the shipped explain template as unwritten', () => {
+  const failures = [];
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()], TEMPLATES['explain.md']),
+  }, rels, failures, G16_CTX);
+  assert.ok(failures.some((f) => f.code === 'G16'));
+  assert.ok(!failures.some((f) => f.code === 'G15'));
+});
+
 test('finalize gate G16 fails when explain sections are unwritten', () => {
   const failures = [];
   const emptySections = `# Explain

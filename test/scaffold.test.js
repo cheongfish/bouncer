@@ -728,32 +728,16 @@ test('bouncer scaffold blueprint --scale light exits 0 with four created paths',
   assert.strictEqual(JSON.parse(r.out).created.length, 4);
 });
 
-// context review는 rounds 기록만 연다. deferred는 계속 계획 문서에 없다.
+// 허용값 안내는 reference가 정본이다. 템플릿은 finding 자리표시와 주석 부재만 남긴다.
 test('review templates document rounds; only execute review documents deferred', () => {
   const { TEMPLATES } = require('../scripts/lib/templates');
-  assert.match(TEMPLATES['review.md'], /status: resolved \| accepted \| deferred/);
-  assert.match(TEMPLATES['review.md'], /rounds\[\]/);
-  assert.match(TEMPLATES['review.md'], /previous_finding_ids/);
-  assert.match(TEMPLATES['review.md'], /fingerprint/);
-  assert.match(TEMPLATES['review.md'], /actionability: must_fix \| advisory/);
-  assert.match(TEMPLATES['review.md'], /mode \(discovery \| delta \| critical_recovery\)/);
-  assert.match(TEMPLATES['context-review.md'], /status: resolved \| accepted/);
+  const open = '<' + '!--';
+  assert.match(TEMPLATES['review.md'], /^- <finding>$/m);
+  assert.match(TEMPLATES['context-review.md'], /^- <finding>$/m);
+  assert.ok(!TEMPLATES['review.md'].includes(open));
+  assert.ok(!TEMPLATES['context-review.md'].includes(open));
   assert.doesNotMatch(TEMPLATES['context-review.md'], /deferred/);
-  assert.match(TEMPLATES['context-review.md'], /bouncer\.context_review\.rounds\[\]/);
-  assert.match(TEMPLATES['context-review.md'], /mode \(discovery \| delta\)/);
-  assert.match(TEMPLATES['context-review.md'], /fingerprint: context:<category>:<brief_clause>:<file>#<symbol>/);
-  assert.match(TEMPLATES['context-review.md'], /target_digest/);
-  // context에는 critical recovery가 없다.
   assert.doesNotMatch(TEMPLATES['context-review.md'], /critical_recovery/);
-  // adaptive dispatch 이름과 legacy 관점을 template이 함께 안내해야 validator와 어긋나지 않는다.
-  assert.match(
-    TEMPLATES['review.md'],
-    /combined \| spec_scope \| correctness_tests \| minimality_maintainability \| security/,
-  );
-  assert.match(
-    TEMPLATES['context-review.md'],
-    /combined \| local \| global \| cross_document \| scope \| korean_quality \| success_criteria/,
-  );
 });
 
 test('scaffoldTask writes compatible DAG defaults and templates expose the fields', () => {
@@ -782,16 +766,6 @@ test('scaffoldTask writes compatible DAG defaults and templates expose the field
   assert.strictEqual(tasks002.bouncer.execution_kind, 'commit');
   assert.strictEqual(tasks002.bouncer.scope_evidence, undefined);
   assert.doesNotMatch(rawTasks002, /scope_evidence/);
-
-  const { TEMPLATES } = require('../scripts/lib/templates');
-  assert.match(TEMPLATES['tasks.md'], /depends_on/);
-  assert.match(TEMPLATES['tasks.md'], /parallel_safe/);
-  assert.match(TEMPLATES['tasks.md'], /dependency_gate/);
-  assert.match(TEMPLATES['tasks.md'], /execution_kind/);
-  // 템플릿 주석도 gate 값이 하나뿐임을 말해야 한다.
-  assert.match(TEMPLATES['tasks.md'], /dependency_gate[\s\S]{0,10}integrated/);
-  // scaffold 템플릿이 거절된 gate 값을 제공하면 실패한다.
-  assert.doesNotMatch(TEMPLATES['tasks.md'], /integration-verified/);
 });
 
 test('scaffoldTask explicitly creates a verification node without review or scope', () => {
