@@ -233,34 +233,71 @@ function extractCommentBodies(body: string): string[] {
 
 // 템플릿에서 주석을 지운 뒤에도 lint가 옛 초안을 잡으려면 목록이 생성되면 안 된다.
 // 템플릿을 고쳐도 이 배열은 그대로여야 옛 시드 사본이 계속 걸린다.
+// 긴 본문은 + 로만 나눈다. 값을 바꾸면 findLegacyScaffoldComments가 옛 시드를 놓친다.
 const LEGACY_SCAFFOLD_COMMENT_BODIES: readonly string[] = Object.freeze([
-  "왜 지금 이 에픽인가. 두 문장 이내.",
-  "discovery가 정리한 성공 조건이 남는 자리. 판정 가능한 것만 번호를 붙여 적고,\nblueprint의 수용 기준과 리뷰가 이 번호를 참조합니다.\n\"개선한다\" \"정리한다\" 처럼 참·거짓을 가릴 수 없는 문장은 조건이 아닙니다.",
-  "여기 적은 항목이 blueprint의 Do not touch로 이어집니다.",
-  "OKF §6 인덱스 형식. 새 blueprint를 만드는 기준은 하나 — 한 커밋으로\n리뷰 가능한 단위인가. 더 크면 blueprint를 쪼갠다. 하위 태스크 계층은\n만들지 않는다 (rules/planning.md).\n한 줄 목적에는 무엇이 바뀌는지(what)와 어디를 건드리는지(where)를\n함께 적는다. 기존 라인은 소급 수정하지 않는다.",
-  "Contract-First: 계약만. 구현 코드 금지.\n시그니처·타입·의사코드는 블록당 20줄 이하.\n길어지면 구현 상세가 새는 신호이니 tasks.md로 넘기거나 blueprint를 쪼갭니다.\n금지: 계약 클래스·메서드 본문, As-Is/To-Be 코드 덤프, 단계별 구현 시퀀스,\n실행 가능한 테스트 본문 → tasks.md로 이연.\n본문 분량 예산 ~250줄. 초과는 구현 상세 누출 신호 — 쪼개거나 이연.",
-  "rules/planning.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.\n이 칸을 못 채우겠으면 blueprint를 쪼갤 신호입니다.",
-  "explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다.",
-  "구현자가 다른 문서 없이 시작할 수 있게.\n수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다.",
-  "bouncer.commit_intent와 bouncer.commit_summary는 각각 1~2개의 한국어\n종결 문장으로 작성한다. 두 필드의 합계는 커밋 본문 네 줄을 넘지 않는다.",
-  "DAG frontmatter (author-written):\nexecution_kind: commit | verification. 부재 = commit.\nverification은 source 변경·review.md·commit 없이 종단 CI 증적만 남긴다.\ndepends_on: TASKS-NNN id 배열. 부재·[] = 의존 없음.\nparallel_safe: boolean. false/부재 = 순차 wave 입력.\ndependency_gate: integrated. 부재 = integrated.\n실행 순서는 task 번호가 아니라 이 세 필드가 결정한다.",
-  "지금 코드·게이트가 하는 일. 재현 경로·관측 결과를 적어 구현자가\n목표를 추론하지 않게 합니다. 절이 있으면 G10이 TODO 자리표시를 거부합니다.",
-  "이 task가 끝나면 관측 가능해야 하는 성공·실패·보존 동작.\nCurrent behavior와 같이 선택 절이지만, 쓰면 자리표시를 비워 두면 안 됩니다.",
-  "계약이 리뷰에서 검증 가능하도록 제공하는 것과 거부하는 것을 함께 적습니다.",
-  "frontmatter bouncer.affected_paths의 모든 경로가 여기서 정당화되어야 합니다 (G11).\n파일 단위 행으로 적습니다. 디렉터리 하나로 뭉치면 그 안 모든 파일이 열려\nG11이 사실상 통과만 합니다. 경로·심볼은 백틱으로 감쌉니다.\n열: 경로 | 심볼(함수·상수·절 키) | 변경(Create/Modify/Delete/Rename) |\n현재 책임 | 계획한 변경 | 근거(왜 이 심볼인가).",
-  "여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.\nepic / blueprint의 Out of scope에서 이어받습니다.",
-  "경로로 표현되지 않는, 작업 전체에 걸리는 규칙. 허용된 파일 안에서도 지켜야 합니다.\n예: 하위 호환 별칭을 남기지 않는다 / 기존 게이트 번호와 본문 계약을 유지한다 /\n공개 문자열은 한국어를 유지한다.\n막을 대상이 경로뿐이면 Do not touch에 적습니다.",
-  "각 항목은 구현자가 순서대로 실행 가능해야 합니다.\n행위를 바꾸는 항목은 실패 테스트 → 실패 확인 → 구현 순서로 적습니다.\n기대하는 assertion·상수·명령은 코드블록으로 그대로 적어 해석 여지를 없앱니다.\nblueprint Contract에서 이연된 테스트 본문·구현 시퀀스가 들어올 자리입니다.\n수용 기준·검증 명령을 체크 항목으로 포함하세요.",
-  "이 verification task가 선행 task 통합 뒤 무엇을 증명하는지 적는다.\n실행 명령은 frontmatter bouncer.verify 한 줄이며 본문에 다시 적지 않는다.",
-  "verification task는 source를 바꾸지 않는다. 이 절에 백틱 토큰이나 경로를\n적으면 G20이 source 변경 선언으로 보고 거절하므로 아래 문구를 그대로 둔다.",
-  "finding: id, severity, status. mode를 쓰는 rounds[]면 category, brief_clause, file,\nsymbol, fingerprint, actionability, origin, first_seen_round, last_seen_round도 필수.\nseverity: blocker | major | minor | nit\nstatus: resolved | accepted | deferred\nactionability: must_fix | advisory\norigin: discovery | introduced_by_revision | missed_critical\nfingerprint: <category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ 제거)\naccepted note: 권한 있는 위험 수용 근거\ndeferred note: 현재 task와 독립인 후속 planning 항목 근거\noptional bouncer.review.rounds[]: round (양의 정수), mode (discovery | delta | critical_recovery),\ntarget (blueprint 범위 base·head — task 묶음이 아니라 이 루트 review.md 하나),\nperspectives (combined | spec_scope | correctness_tests | minimality_maintainability | security,\ntarget_head는 target.head와 동일), previous_finding_ids (문자열 배열), new · resolved · regressed\n(0 이상 정수). mode 없는 구문서는 기존 계약으로 통과한다.",
-  "finding: id, severity, status. accepted이면 note 필수.\nseverity: blocker | major | minor | nit\nstatus: resolved | accepted\nmode를 쓰는 rounds[]면 category, brief_clause, file, symbol, fingerprint, actionability,\norigin, first_seen_round, last_seen_round도 필수.\ncategory: cross_document | scope | korean_quality | success_criteria\nbrief_clause: finding이 걸린 문서 절 (예: tasks/002 Interface)\nfile: 계획 문서의 저장소 상대 경로, symbol: 절 제목 slug (절이 없으면 -)\nfingerprint: context:<category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ 제거)\nactionability: must_fix | advisory\norigin: discovery | introduced_by_revision | missed_critical\noptional bouncer.context_review.rounds[]: round (양의 정수), mode (discovery | delta),\ntarget (digest),\nperspectives (combined | local | global | cross_document | scope | korean_quality | success_criteria,\ntarget_digest는 target.digest와 동일), severity_changes. rounds 없는 구문서는 기존 계약으로 통과한다.",
-  "이 변경이 생긴 배경. 무엇을 고치려 했는가.",
-  "한 줄로 말하면 무엇인가. 비유·그림이 있으면 여기.",
-  "핵심 경로와 읽어야 할 파일. 긴 덤프 금지.",
-  "이해 확인 질문. 채점·기록 절차는 explain-diff 스킬이 안내한다.",
-  "퀴즈 결과와 disposition을 task별 소제목 없이 단일 블록으로.\ncomprehension 프론트매터(BP 엔트리 하나)와 맞춰 적는다.",
-  "finalize가 삭제하기 전에 task의 Goal & intent, Current behavior, Target behavior,\nInterface, Touch, Constraints를 task별 소제목으로 보존한다.\n제목은 ### EPIC-ddd/BP-ddd/TASK-ddd · `sha8`(trailer SHA가 있을 때) 또는\n### EPIC-ddd/BP-ddd/TASK-ddd(없을 때)이며, stable ID를 만들 수 없으면\n기존 ### Task NNN이다. Do not touch는 보존하지 않는다.\n이 절은 선택 사항이며 G16 필수 절이 아니다.",
+  '왜 지금 이 에픽인가. 두 문장 이내.',
+  'discovery가 정리한 성공 조건이 남는 자리. 판정 가능한 것만 번호를 붙여 적고,\nblueprint의 수용 기준과 리뷰가 이 번호를 참조합니다.\n' +
+    '"개선한다" "정리한다" 처럼 참·거짓을 가릴 수 없는 문장은 조건이 아닙니다.',
+  '여기 적은 항목이 blueprint의 Do not touch로 이어집니다.',
+  'OKF §6 인덱스 형식. 새 blueprint를 만드는 기준은 하나 — 한 커밋으로\n리뷰 가능한 단위인가. 더 크면 blueprint를 쪼갠다. 하위 태스크 계층은\n' +
+    '만들지 않는다 (rules/planning.md).\n한 줄 목적에는 무엇이 바뀌는지(what)와 어디를 건드리는지(where)를\n함께 적는다. 기존 라인은 소급 수정하지 않는다.',
+  'Contract-First: 계약만. 구현 코드 금지.\n시그니처·타입·의사코드는 블록당 20줄 이하.\n길어지면 구현 상세가 새는 신호이니 tasks.md로 넘기거나 blueprint를 쪼갭니다.\n' +
+    '금지: 계약 클래스·메서드 본문, As-Is/To-Be 코드 덤프, 단계별 구현 시퀀스,\n실행 가능한 테스트 본문 → tasks.md로 이연.\n' +
+    '본문 분량 예산 ~250줄. 초과는 구현 상세 누출 신호 — 쪼개거나 이연.',
+  'rules/planning.md: blueprint는 한 번에 리뷰 가능한 커밋 하나에 맞춘다.\n이 칸을 못 채우겠으면 blueprint를 쪼갤 신호입니다.',
+  'explain.md는 plan scaffold에 포함되지 않습니다. /bouncer-finalize가 작성합니다.',
+  '구현자가 다른 문서 없이 시작할 수 있게.\n수용 기준과 검증 명령도 여기에 적거나 Checklist에 명시한다.',
+  'bouncer.commit_intent와 bouncer.commit_summary는 각각 1~2개의 한국어\n종결 문장으로 작성한다. 두 필드의 합계는 커밋 본문 네 줄을 넘지 않는다.',
+  'DAG frontmatter (author-written):\nexecution_kind: commit | verification. 부재 = commit.\n' +
+    'verification은 source 변경·review.md·commit 없이 종단 CI 증적만 남긴다.\ndepends_on: TASKS-NNN id 배열. 부재·[] = 의존 없음.\n' +
+    'parallel_safe: boolean. false/부재 = 순차 wave 입력.\ndependency_gate: integrated. 부재 = integrated.\n' +
+    '실행 순서는 task 번호가 아니라 이 세 필드가 결정한다.',
+  '지금 코드·게이트가 하는 일. 재현 경로·관측 결과를 적어 구현자가\n목표를 추론하지 않게 합니다. 절이 있으면 G10이 TODO 자리표시를 거부합니다.',
+  '이 task가 끝나면 관측 가능해야 하는 성공·실패·보존 동작.\nCurrent behavior와 같이 선택 절이지만, 쓰면 자리표시를 비워 두면 안 됩니다.',
+  '계약이 리뷰에서 검증 가능하도록 제공하는 것과 거부하는 것을 함께 적습니다.',
+  'frontmatter bouncer.affected_paths의 모든 경로가 여기서 정당화되어야 합니다 (G11).\n파일 단위 행으로 적습니다. 디렉터리 하나로 뭉치면 그 안 모든 파일이 열려\n' +
+    'G11이 사실상 통과만 합니다. 경로·심볼은 백틱으로 감쌉니다.\n열: 경로 | 심볼(함수·상수·절 키) | 변경(Create/Modify/Delete/Rename) |\n' +
+    '현재 책임 | 계획한 변경 | 근거(왜 이 심볼인가).',
+  '여기 적은 경로가 affected_paths와 겹치면 G12가 막습니다.\nepic / blueprint의 Out of scope에서 이어받습니다.',
+  '경로로 표현되지 않는, 작업 전체에 걸리는 규칙. 허용된 파일 안에서도 지켜야 합니다.\n예: 하위 호환 별칭을 남기지 않는다 / 기존 게이트 번호와 본문 계약을 유지한다 /\n' +
+    '공개 문자열은 한국어를 유지한다.\n막을 대상이 경로뿐이면 Do not touch에 적습니다.',
+  '각 항목은 구현자가 순서대로 실행 가능해야 합니다.\n행위를 바꾸는 항목은 실패 테스트 → 실패 확인 → 구현 순서로 적습니다.\n' +
+    '기대하는 assertion·상수·명령은 코드블록으로 그대로 적어 해석 여지를 없앱니다.\nblueprint Contract에서 이연된 테스트 본문·구현 시퀀스가 들어올 자리입니다.\n' +
+    '수용 기준·검증 명령을 체크 항목으로 포함하세요.',
+  '이 verification task가 선행 task 통합 뒤 무엇을 증명하는지 적는다.\n실행 명령은 frontmatter bouncer.verify 한 줄이며 본문에 다시 적지 않는다.',
+  'verification task는 source를 바꾸지 않는다. 이 절에 백틱 토큰이나 경로를\n적으면 G20이 source 변경 선언으로 보고 거절하므로 아래 문구를 그대로 둔다.',
+  'finding: id, severity, status. mode를 쓰는 rounds[]면 category, brief_clause, file,\n' +
+    'symbol, fingerprint, actionability, origin, first_seen_round, last_seen_round도 필수.\n' +
+    'severity: blocker | major | minor | nit\nstatus: resolved | accepted | deferred\n' +
+    'actionability: must_fix | advisory\norigin: discovery | introduced_by_revision | missed_critical\n' +
+    'fingerprint: <category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ 제거)\n' +
+    'accepted note: 권한 있는 위험 수용 근거\ndeferred note: 현재 task와 독립인 후속 planning 항목 근거\n' +
+    'optional bouncer.review.rounds[]: round (양의 정수), mode (discovery | delta | critical_recovery),\n' +
+    'target (blueprint 범위 base·head — task 묶음이 아니라 이 루트 review.md 하나),\n' +
+    'perspectives (combined | spec_scope | correctness_tests | minimality_maintainability | security,\n' +
+    'target_head는 target.head와 동일), previous_finding_ids (문자열 배열), new · resolved · regressed\n' +
+    '(0 이상 정수). mode 없는 구문서는 기존 계약으로 통과한다.',
+  'finding: id, severity, status. accepted이면 note 필수.\nseverity: blocker | major | minor | nit\n' +
+    'status: resolved | accepted\n' +
+    'mode를 쓰는 rounds[]면 category, brief_clause, file, symbol, fingerprint, actionability,\n' +
+    'origin, first_seen_round, last_seen_round도 필수.\n' +
+    'category: cross_document | scope | korean_quality | success_criteria\n' +
+    'brief_clause: finding이 걸린 문서 절 (예: tasks/002 Interface)\nfile: 계획 문서의 저장소 상대 경로, symbol: 절 제목 slug (절이 없으면 -)\n' +
+    'fingerprint: context:<category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ ' +
+    '제거)\nactionability: must_fix | advisory\norigin: discovery | introduced_by_revision | missed_critical\n' +
+    'optional bouncer.context_review.rounds[]: round (양의 정수), mode (discovery | delta),\ntarget (digest),\n' +
+    'perspectives (combined | local | global | cross_document | scope | korean_quality | success_criteria,\n' +
+    'target_digest는 target.digest와 동일), severity_changes. rounds 없는 구문서는 기존 계약으로 통과한다.',
+  '이 변경이 생긴 배경. 무엇을 고치려 했는가.',
+  '한 줄로 말하면 무엇인가. 비유·그림이 있으면 여기.',
+  '핵심 경로와 읽어야 할 파일. 긴 덤프 금지.',
+  '이해 확인 질문. 채점·기록 절차는 explain-diff 스킬이 안내한다.',
+  '퀴즈 결과와 disposition을 task별 소제목 없이 단일 블록으로.\ncomprehension 프론트매터(BP 엔트리 하나)와 맞춰 적는다.',
+  'finalize가 삭제하기 전에 task의 Goal & intent, Current behavior, Target behavior,\n' +
+    'Interface, Touch, Constraints를 task별 소제목으로 보존한다.\n' +
+    '제목은 ### EPIC-ddd/BP-ddd/TASK-ddd · `sha8`(trailer SHA가 있을 때) 또는\n' +
+    '### EPIC-ddd/BP-ddd/TASK-ddd(없을 때)이며, stable ID를 만들 수 없으면\n기존 ### Task NNN이다. Do not touch는 보존하지 않는다.\n' +
+    '이 절은 선택 사항이며 G16 필수 절이 아니다.',
 ]);
 
 /**
