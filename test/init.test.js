@@ -302,12 +302,11 @@ test('built-in epic template records numbered success criteria', () => {
 
 test('built-in blueprint template carries Contract-First authoring guardrails', () => {
   const blueprint = TEMPLATES['blueprint.md'];
-  assert.match(blueprint, /Contract-First/);
-  assert.match(blueprint, /금지:/);
-  assert.match(blueprint, /~250줄/);
+  const open = '<' + '!--';
   assert.match(blueprint, /수용 기준:/);
   assert.match(blueprint, /검증 명령:/);
   assert.match(blueprint, /실패 모드·엣지 케이스:/);
+  assert.ok(!blueprint.includes(open));
 });
 
 // OKF §11 permits frontmatter in the bundle-root index.md and nowhere else

@@ -9,6 +9,10 @@
 
 ### Added
 
+- **G22·bootstrap 스캐폴드 주석 거절** — 템플릿 안내 주석을 문서에서 빼고
+  규칙·스킬로 옮긴 뒤, 옛 주석이 남은 epic index·blueprint `.md`를 plan gate
+  G22와 `coordinate bootstrap`(`scaffold-comment-remaining`)이 작업 트리를
+  만들기 전에 거절한다.
 - **finalize release-main** — 메인 checkout에서 닫힌 blueprint의 계획 문서
   사본을 정리하고, 같은 에픽의 다음 blueprint를 `next`로 돌려준다.
 

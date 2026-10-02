@@ -97,7 +97,7 @@ coordinator의 `rules/commit-scope.md` 인용은 Hard guards의 scope revision �
 | `rules/planning.md:107-108` | 없음 | 없음. 승인 scope 이전분은 `rules/commit-scope.md`, 개정 절차는 `agents/bouncer-coordinator.md`를 가리킨다 |
 | `rules/plugin-root.md:37` | 없음 | 없음. 조건부 product rule의 예시 열거이며 적재가 아니다 |
 | `references/spec-authoring/index.md:26` | plan | step 3. spec-authoring step 1이 제품 규칙 위치를 `rules/planning.md`로 가리킨다 |
-| `references/spec-authoring/index.md:174` | plan | step 3. light task 분기에서 `rules/planning.md` `## Lightweight cycle`을 가리킨다 |
+| `references/spec-authoring/index.md:190` | plan | step 3. light task 분기에서 `rules/planning.md` `## Lightweight cycle`을 가리킨다 |
 | `docs/workflow.md:133` | plan | 없음. 사용자 문서가 `rules/planning.md` `## Lightweight cycle`을 가리킨다. GOV-LIGHT-DOC-SET, GOV-LIGHT-G10, GOV-LIGHT-RETURN-FULL의 소비자이다 |
 | `AGENTS.md:23` | 없음 | 없음. runtime index의 planning 링크이다. startup에서 이 링크를 따라 열지 않는다 |
 | `AGENTS.md:24` | 없음 | 없음. runtime index의 commit-scope 링크이다. startup에서 이 링크를 따라 열지 않는다 |

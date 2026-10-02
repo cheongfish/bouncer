@@ -48,6 +48,10 @@ finalize gates inspect the whole blueprint.
   not precede a commit task. It is a terminal verification node. Keep the
   scaffolded Touch phrase `Source 변경 경로 없음.` and put the command only in
   frontmatter `verify`.
+- `G22`: leftover scaffold guidance comments in the epic `index.md` or any
+  `.md` under the blueprint directory fail plan. The message lists sorted
+  repo-relative POSIX paths. Author comments that are not in the frozen
+  legacy set pass. Missing epic index or blueprint directory is not G22.
 
 ## Execution, commit, and finalize rules
 

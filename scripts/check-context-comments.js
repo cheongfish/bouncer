@@ -3,15 +3,13 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { SCAFFOLD_COMMENT_BODIES, normalizeCommentBody } = require('./lib/templates');
+const { findLegacyScaffoldComments } = require('./lib/templates');
 const { readCurrent } = require('./lib/current');
 const { parseFrontmatter } = require('./lib/frontmatter');
 const { listTasksDocs } = require('./lib/tasks-docs');
 
 const CONTEXT_ROOT = '.bouncer/context';
-const COMMENT_RE = /<!--[\s\S]*?-->/g;
 const TODO_RE = /<TODO:/;
-const SCAFFOLD_COMMENTS = new Set(SCAFFOLD_COMMENT_BODIES);
 
 function runGit(repoRoot, args) {
   // ref와 경로는 사용자·CI 입력이므로 spawnSync의 argv 칸으로만 전달한다.
@@ -156,12 +154,19 @@ function explicitContextFiles(repoRoot, files) {
   return [...new Set(normalized)].filter((relative) => fs.existsSync(path.join(repoRoot, relative)));
 }
 
+/**
+ * 본문에서 lint가 거절할 표식을 모은다. CLI 메시지 문자열은 바꾸지 않는다.
+ *
+ * @param {string} body - 검사할 Markdown 본문
+ * @returns {string[]} 남은 표식 이름. TODO와 옛 안내 주석을 각각 한 건씩
+ */
 function violationsFor(body) {
   const violations = [];
   if (TODO_RE.test(body)) violations.push('<TODO: 플레이스홀더');
-  for (const comment of body.matchAll(COMMENT_RE)) {
-    const normalized = normalizeCommentBody(comment[0].slice(4, -3));
-    if (SCAFFOLD_COMMENTS.has(normalized)) violations.push('스캐폴드 안내 주석');
+  // 메시지·개수는 주석 하나당 한 건으로 유지한다. 판정만 동결 목록으로 옮긴다.
+  const leftover = findLegacyScaffoldComments(body);
+  for (let i = 0; i < leftover.length; i += 1) {
+    violations.push('스캐폴드 안내 주석');
   }
   return violations;
 }

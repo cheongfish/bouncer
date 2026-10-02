@@ -41,7 +41,11 @@ On a light plan, approved scope rests on the user's confirmation of
    - `accepted` findings **require** a note (the accepted-risk rationale).
    When `bouncer.context_review.rounds[]` carries `mode`, every finding also
    needs `category` (the perspective name), `brief_clause`, `file`, `symbol`,
-   `fingerprint` (`context:<category>:<brief_clause>:<file>#<symbol>`),
+   `fingerprint` (`context:<category>:<brief_clause>:<file>#<symbol>`).
+   Normalize each part with trim; lowercase category and brief_clause; use `/`
+   as the file separator; strip a leading `./`. Example:
+   `fingerprint: correctness_tests:tasks/001 interface:scripts/lib/example.js#runExample`.
+   Also record
    `actionability` (`must_fix | advisory`), `origin` (`discovery |
    introduced_by_revision | missed_critical`), `first_seen_round`, and
    `last_seen_round`. Each round records `round`, `mode` (`discovery | delta`),
