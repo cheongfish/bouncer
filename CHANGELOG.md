@@ -26,6 +26,9 @@
 
 ### Changed
 
+- **coordinator Task round** — drive 세션에서 coordinator는 execute 스킬을
+  읽지 않고 `## Task round`의 intent bundle·scope 재검증·execute gate 계약만으로
+  한 task 회차를 진행한다.
 - **finalize 퀴즈 출처** — 퀴즈는 바뀐 제품 동작만 묻고, 정답·응답·점수는
   파일에 쓰지 않으며 채팅에서만 공개한다.
 - **finalize 마감 정리** — `finalize --yes` 뒤 worktree를 `git worktree remove
