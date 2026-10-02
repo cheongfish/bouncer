@@ -435,3 +435,153 @@ test('CLI finalize release-main reports usage, success, and JSON rejection', () 
     process.chdir(rejectPrev);
   }
 });
+
+test('tracked files deleted from the worktree are restored from HEAD', () => {
+  const fx = makeFixture();
+  const tracked = `${BP}/tracked.md`;
+  fs.writeFileSync(path.join(fx.main, tracked), 'head bytes\n');
+  git(fx.main, ['add', '--', tracked]);
+  git(fx.main, ['commit', '-qm', 'tracked under bp']);
+  fs.rmSync(path.join(fx.main, tracked));
+  const res = runRelease(fx);
+  assert.equal(res.ok, true);
+  assert.ok(res.restored.includes(tracked), JSON.stringify(res.restored));
+  assert.equal(fs.readFileSync(path.join(fx.main, tracked), 'utf8'), 'head bytes\n');
+});
+
+test('HEAD vs worktree byte identity does not UTF-8 recode', () => {
+  const fx = makeFixture();
+  const tracked = `${BP}/tracked.bin`;
+  const headBytes = Buffer.from([0xff, 0xfe, 0x00, 0x80, 0x81]);
+  fs.writeFileSync(path.join(fx.main, tracked), headBytes);
+  git(fx.main, ['add', '--', tracked]);
+  git(fx.main, ['commit', '-qm', 'binary tracked under bp']);
+  const res = runRelease(fx);
+  assert.equal(res.ok, true);
+  assert.ok(!res.restored.includes(tracked), JSON.stringify(res.restored));
+  assert.deepEqual(fs.readFileSync(path.join(fx.main, tracked)), headBytes);
+});
+
+test('unexpected git errors do not treat tracked files as missing', () => {
+  const fx = makeFixture();
+  const tracked = `${BP}/tracked.md`;
+  fs.writeFileSync(path.join(fx.main, tracked), 'head bytes\n');
+  git(fx.main, ['add', '--', tracked]);
+  git(fx.main, ['commit', '-qm', 'tracked under bp']);
+  const res = runRelease(fx, {
+    deps: {
+      git: (args) => {
+        if (args[0] === 'cat-file' && args[1] === '-e') {
+          const error = new Error('Permission denied');
+          error.status = 128;
+          error.stderr = 'fatal: unable to read tree';
+          throw error;
+        }
+        return execFileSync('git', args, {
+          cwd: fx.main, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      },
+    },
+  });
+  assert.equal(res.ok, false);
+  assert.ok(res.reason === 'blueprint-not-closed' || res.reason === 'coordinator-ledger');
+  assert.equal(fs.readFileSync(path.join(fx.main, tracked), 'utf8'), 'head bytes\n');
+});
+
+test('unreadable closed-index reads become JSON reasons instead of throws', () => {
+  const fx = makeFixture();
+  const indexAbs = path.join(fx.integration, `${BP}/index.md`);
+  fs.chmodSync(indexAbs, 0);
+  let res;
+  try {
+    assert.doesNotThrow(() => {
+      res = runRelease(fx);
+    });
+  } finally {
+    fs.chmodSync(indexAbs, 0o644);
+  }
+  assert.equal(res.ok, false);
+  assert.ok(res.reason === 'blueprint-not-closed' || res.reason === 'coordinator-ledger');
+});
+
+test('CLI --repo string and boolean true use cwd for the latter', () => {
+  const stringFx = makeFixture();
+  const stringPrev = process.cwd();
+  try {
+    process.chdir(stringFx.main);
+    const io = { out: '', err: '' };
+    const code = runCli([
+      'finalize', 'release-main', '--blueprint', BP, '--repo', stringFx.main,
+    ], {
+      out: (s) => { io.out += s; },
+      err: (s) => { io.err += s; },
+    });
+    assert.equal(code, 0, io.err || io.out);
+    assert.equal(JSON.parse(io.out).ok, true);
+  } finally {
+    process.chdir(stringPrev);
+  }
+
+  const boolFx = makeFixture();
+  const boolPrev = process.cwd();
+  try {
+    process.chdir(boolFx.main);
+    const io = { out: '', err: '' };
+    const code = runCli([
+      'finalize', 'release-main', '--blueprint', BP, '--repo',
+    ], {
+      out: (s) => { io.out += s; },
+      err: (s) => { io.err += s; },
+    });
+    assert.equal(code, 0, io.err || io.out);
+    assert.equal(JSON.parse(io.out).ok, true);
+  } finally {
+    process.chdir(boolPrev);
+  }
+});
+
+test('nextBlueprint remaining supplies the same-epic fallback', () => {
+  const fx = makeFixture();
+  const res = runRelease(fx, {
+    deps: {
+      nextBlueprint: () => ({
+        next: { blueprint: '.bouncer/context/epics/099-other/blueprints/001-x', sameEpic: false },
+        remaining: [
+          { blueprint: '.bouncer/context/epics/099-other/blueprints/002-y', sameEpic: false },
+          { blueprint: fx.sibling, sameEpic: true },
+        ],
+      }),
+    },
+  });
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.next, { blueprint: fx.sibling });
+});
+
+test('no-git and no-coordinator-paths ledger misses still clean as no ledger', () => {
+  for (const reason of ['no-git', 'no-coordinator-paths']) {
+    const fx = makeFixture();
+    fs.rmSync(fx.ledgerFile, { force: true });
+    const solo = worktreePathFor({ repoRoot: fx.main, blueprint: BP });
+    writeDoc(solo, `${BP}/index.md`, 'bouncer.blueprint', {
+      id: '001', epic_id: '084', blueprint_id: '001', status: 'closed', commit_type: 'feat',
+    }, '# Blueprint\n');
+    const res = runRelease(fx, {
+      deps: {
+        readCoordinatorLedger: () => ({ ok: false, reason }),
+      },
+    });
+    assert.equal(res.ok, true, reason);
+    assert.equal(fs.existsSync(path.join(fx.main, `${BP}/index.md`)), false, reason);
+  }
+});
+
+test('walkFiles does not follow directory symlinks out of the blueprint tree', () => {
+  const fx = makeFixture();
+  const escape = path.join(fx.main, BP, 'escape');
+  fs.symlinkSync(path.join(fx.main, fx.sibling), escape, 'dir');
+  const siblingBefore = snapshot(fx.main, fx.sibling);
+  const res = runRelease(fx);
+  assert.equal(res.ok, true);
+  assert.deepEqual(snapshot(fx.main, fx.sibling), siblingBefore);
+  assert.equal(fs.existsSync(path.join(fx.main, 'README.md')), true);
+});

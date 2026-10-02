@@ -79,10 +79,10 @@ function readBouncerStatus(abs: string): string | null {
   let source: string;
   try {
     source = fs.readFileSync(abs, 'utf8');
-  } catch (error) {
-    // 아직 없는 사본은 닫힘 근거가 아니다. 권한 오류는 그대로 올려 숨기지 않는다.
-    if ((error as { code?: string }).code === 'ENOENT') return null;
-    throw error;
+  } catch {
+    // ENOENT뿐 아니라 EACCES·EISDIR도 닫힘 근거가 아니다. throw하면
+    // releaseMain이 JSON reason 대신 프로세스를 죽인다.
+    return null;
   }
   try {
     const data = parseFrontmatter(source).data;
@@ -91,13 +91,39 @@ function readBouncerStatus(abs: string): string | null {
     if (!bouncer || typeof bouncer !== 'object') return null;
     const status = (bouncer as Record<string, unknown>).status;
     return typeof status === 'string' ? status : null;
-  } catch (error) {
-    // 닫힘 판정은 status: closed만 인정한다. 깨진 문서를 throw하면 거절 JSON이
-    // 아니라 프로세스 실패가 되어 CLI 계약을 깬다.
-    if ((error as Error).message === 'missing frontmatter block') return null;
-    if ((error as Error).name === 'YAMLException') return null;
-    throw error;
+  } catch {
+    // YAML·frontmatter 부재·기타 파서 실패는 closed가 아니다. 같은 이유로
+    // 프로세스 실패로 올리지 않고 거절 분기에 맡긴다.
+    return null;
   }
+}
+
+/**
+ * git cat-file이 "HEAD에 그 경로 없음"으로 실패한 경우만 가린다.
+ * 권한·저장소 손상까지 같은 분기로 접으면 tracked를 지운다.
+ *
+ * @param {unknown} error - execFileSync가 던진 값
+ * @returns {boolean} 경로가 HEAD에 없다는 메시지일 때만 true
+ */
+function isExpectedGitMiss(error: unknown): boolean {
+  const err = error as { stderr?: Buffer | string; message?: string };
+  const text = Buffer.isBuffer(err.stderr)
+    ? err.stderr.toString('utf8')
+    : typeof err.stderr === 'string' ? err.stderr : String(err.message || '');
+  return /Not a valid object name|exists on disk, but not in/.test(text);
+}
+
+/**
+ * child가 parent 디렉터리 트리 안에 있는지 본다. `..`로 올라가면 심볼릭
+ * 링크가 blueprint 밖으로 나간 것이다.
+ *
+ * @param {string} childAbs - 검사할 절대 경로(가능하면 realpath)
+ * @param {string} parentAbs - 상한 디렉터리 realpath
+ * @returns {boolean} parent 자신이거나 그 아래이면 true
+ */
+function isInsideDir(childAbs: string, parentAbs: string): boolean {
+  const rel = path.relative(parentAbs, childAbs);
+  return rel === '' || (!rel.startsWith(`..${path.sep}`) && rel !== '..' && !path.isAbsolute(rel));
 }
 
 /**
@@ -144,6 +170,8 @@ function sweepEmptyDirs(repoRoot: string, relDir: string, stopRel: string): void
 
 /**
  * 디렉터리 아래 파일의 저장소 상대 POSIX 경로를 모은다.
+ * lstat으로만 내려가고, 실제 디렉터리의 realpath가 blueprint 밖이면 멈춘다.
+ * 디렉터리 심볼릭 링크를 따라가면 sibling·소스를 지울 수 있다.
  *
  * @param {string} repoRoot - 저장소 루트
  * @param {string} relDir - 시작 상대 경로
@@ -153,12 +181,43 @@ function walkFiles(repoRoot: string, relDir: string): string[] {
   const abs = path.join(repoRoot, relDir);
   const out: string[] = [];
   if (!fs.existsSync(abs)) return out;
+  let bpReal: string;
+  try {
+    bpReal = fs.realpathSync(abs);
+  } catch (_error) {
+    return out;
+  }
   const visit = (dirRel: string) => {
     const dirAbs = path.join(repoRoot, dirRel);
+    let dirLstat;
+    try {
+      dirLstat = fs.lstatSync(dirAbs);
+    } catch (_error) {
+      return;
+    }
+    if (dirLstat.isSymbolicLink() || !dirLstat.isDirectory()) return;
+    let dirReal: string;
+    try {
+      dirReal = fs.realpathSync(dirAbs);
+    } catch (_error) {
+      return;
+    }
+    if (!isInsideDir(dirReal, bpReal)) return;
     for (const name of fs.readdirSync(dirAbs)) {
       const childRel = toPosix(path.posix.join(dirRel, name));
       const childAbs = path.join(repoRoot, childRel);
-      if (fs.statSync(childAbs).isDirectory()) visit(childRel);
+      let childLstat;
+      try {
+        childLstat = fs.lstatSync(childAbs);
+      } catch (_error) {
+        continue;
+      }
+      if (childLstat.isSymbolicLink()) {
+        // 링크 노드만 목록에 넣고 대상 디렉터리로는 들어가지 않는다.
+        out.push(childRel);
+        continue;
+      }
+      if (childLstat.isDirectory()) visit(childRel);
       else out.push(childRel);
     }
   };
@@ -245,26 +304,48 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps }: {
     try {
       git(['cat-file', '-e', `HEAD:${rel}`]);
       return true;
-    } catch (_error) {
-      // HEAD에 없는 경로는 새 계획 사본에서 흔하다. 그 밖의 git 실패도
-      // "추적 파일 아님"으로 접으면 tracked를 지울 수 있어, cat-file -e만 본다.
-      return false;
+    } catch (error) {
+      // HEAD에 경로가 없는 경우만 false. 그 밖의 throw를 접으면 tracked를 지운다.
+      if (isExpectedGitMiss(error)) return false;
+      throw error;
     }
   };
 
   const readHead = (rel: string): Buffer | null => {
     try {
-      return Buffer.from(git(['cat-file', '--filters', `HEAD:${rel}`]), 'utf8');
-    } catch (_error) {
-      return null;
+      // utf8로 디코드하면 비UTF-8 blob이 U+FFFD로 바뀌어 HEAD와 작업 트리
+      // 바이트가 같아도 dirty로 오인한다. seed-worktree realGit.readHead와 같이
+      // encoding 없이 Buffer를 받는다. deps.git seam은 문자열만 돌려주므로
+      // 기본 git일 때만 이 경로를 쓴다.
+      if (d.git !== gitDefault) {
+        return Buffer.from(git(['cat-file', '--filters', `HEAD:${rel}`]), 'utf8');
+      }
+      return execFileSync('git', ['cat-file', '--filters', `HEAD:${rel}`], {
+        cwd: root,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }) as Buffer;
+    } catch (error) {
+      if (isExpectedGitMiss(error)) return null;
+      throw error;
     }
   };
 
   const inIndex = (rel: string): boolean => {
     try {
       return git(['ls-files', '--', rel]).split('\n').filter(Boolean).length > 0;
-    } catch (_error) {
-      return false;
+    } catch (error) {
+      if (isExpectedGitMiss(error)) return false;
+      throw error;
+    }
+  };
+
+  const headTrackedUnderBp = (): string[] => {
+    try {
+      return git(['ls-tree', '-r', '--name-only', 'HEAD', '--', bp])
+        .split('\n').filter(Boolean).map((line) => toPosix(line.trim()));
+    } catch (error) {
+      if (isExpectedGitMiss(error)) return [];
+      throw error;
     }
   };
 
@@ -323,24 +404,65 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps }: {
   }
   if (!closed) return { ok: false, reason: 'blueprint-not-closed' };
 
-  // 5. 이 지점부터만 메인 쓰기다. 위 거절은 파일·index·원장을 바꾸지 않는다.
+  // 5. 판정을 먼저 모은 뒤에만 메인 쓰기다. git 예외를 지우는 쪽으로
+  // 접으면 tracked가 사라지고, 쓰던 중에 throw하면 반만 지워진다.
   const removed: string[] = [];
   const restored: string[] = [];
   const preserved: string[] = [];
   const stopRel = path.posix.dirname(bp);
-  for (const rel of walkFiles(root, bp)) {
-    if (existsInHead(rel)) {
-      const current = fs.readFileSync(path.join(root, rel));
-      const head = readHead(rel);
-      if (head && current.equals(head)) continue;
-      git(['checkout', 'HEAD', '--', rel]);
-      restored.push(rel);
-    } else {
-      if (inIndex(rel)) git(['rm', '--cached', '--quiet', '--', rel]);
-      fs.rmSync(path.join(root, rel), { force: true });
-      pruneEmptyDirs(root, rel, stopRel);
-      removed.push(rel);
+  type FileAction =
+    | { kind: 'skip' }
+    | { kind: 'restore'; rel: string }
+    | { kind: 'remove'; rel: string; unstage: boolean };
+  let actions: FileAction[];
+  try {
+    const seen = new Set<string>();
+    actions = [];
+    for (const rel of walkFiles(root, bp)) {
+      seen.add(rel);
+      if (existsInHead(rel)) {
+        const current = fs.readFileSync(path.join(root, rel));
+        const head = readHead(rel);
+        if (head && current.equals(head)) actions.push({ kind: 'skip' });
+        else actions.push({ kind: 'restore', rel });
+      } else {
+        actions.push({ kind: 'remove', rel, unstage: inIndex(rel) });
+      }
     }
+    for (const rel of headTrackedUnderBp()) {
+      if (seen.has(rel)) continue;
+      // 작업 트리에서 지워진 tracked는 walkFiles에 없다. HEAD로 되돌린다.
+      actions.push({ kind: 'restore', rel });
+    }
+  } catch (_error) {
+    // 예상 miss가 아닌 git·읽기 실패. 파일을 바꾸지 않고 JSON으로만 거절한다.
+    return { ok: false, reason: 'blueprint-not-closed' };
+  }
+  for (const action of actions) {
+    if (action.kind === 'skip') continue;
+    if (action.kind === 'restore') {
+      git(['checkout', 'HEAD', '--', action.rel]);
+      restored.push(action.rel);
+      continue;
+    }
+    if (action.unstage) git(['rm', '--cached', '--quiet', '--', action.rel]);
+    const abs = path.join(root, action.rel);
+    let st;
+    try {
+      st = fs.lstatSync(abs);
+    } catch (error) {
+      if ((error as { code?: string }).code === 'ENOENT') {
+        removed.push(action.rel);
+        continue;
+      }
+      throw error;
+    }
+    // recursive rm은 디렉터리 심볼릭 링크 너머 sibling을 지운다. 링크면
+    // unlink만 해서 노드만 없앤다.
+    if (st.isSymbolicLink()) fs.unlinkSync(abs);
+    else if (!st.isDirectory()) fs.rmSync(abs, { force: true });
+    pruneEmptyDirs(root, action.rel, stopRel);
+    removed.push(action.rel);
   }
   sweepEmptyDirs(root, bp, stopRel);
 
