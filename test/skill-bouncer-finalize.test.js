@@ -102,52 +102,26 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
   assert.match(gitlabTpl, /<!--[\s\S]*Explain[\s\S]*-->/);
 });
 
-test('bouncer-finalize offers next-blueprint handoff via current --set after confirm', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /current --set/);
-  assert.match(body, /next/);
-  assert.match(body, /ask|confirm|승낙/i);
-});
-
-test('bouncer-finalize delegates pointer clear and next-blueprint set invariants', () => {
-  const { body } = parseFrontmatter(mainMd);
+test('bouncer-finalize cleanup runs release-main then force-removes and auto-sets next', () => {
   const handoff = fs.readFileSync(path.join(root, 'skills', 'bouncer-finalize', 'references', 'cleanup-handoff.md'), 'utf8');
-  assert.match(body, /rules\/current-pointer\.md/);
-  assert.match(handoff, /rules\/current-pointer\.md/);
-  assert.match(handoff, /next\.next/);
-});
-
-test('bouncer-finalize next handoff is next blueprint only (task advance lives on commit)', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /current --set/);
-  assert.match(body, /Next blueprint|다음.?blueprint/i);
-  assert.match(body, /never automatic|자동.*없|자동 전진은 없/i);
-  assert.doesNotMatch(body, /AskUserQuestion — Next task|Next task ACQ/i);
-});
-
-test('bouncer-finalize splits sameEpicPending into --set vs /bouncer-plan', () => {
-  const { body } = parseFrontmatter(md);
-  assert.match(body, /sameEpicPending/);
-  assert.match(
-    body,
-    /Do not propose `--set` on draft siblings|draft.*형제[\s\S]{0,80}--set.*(?:propose|제안)/i,
-  );
-  assert.match(body, /\/bouncer-plan/);
-  assert.match(body, /ready: false/);
-});
-
-test('bouncer-finalize gates overlap and leftover-worktree warnings on next.next', () => {
-  const { body } = parseFrontmatter(md);
-  // sharedPaths / leftover-worktree는 next.next가 있을 때만 — draft-only
-  // 잔여에서 null 접근이나 가짜 "다음 blueprint" 경고가 나면 안 됨.
-  assert.match(
-    body,
-    /If `next\.next` is non-null[\s\S]+?next\.next\.sharedPaths[\s\S]+?If `next\.next` is `null` but `sameEpicPending`/,
-  );
-  assert.match(
-    body,
-    /If `next\.next` is non-null[\s\S]+?\*new\*[\s\S]+?affected_paths[\s\S]+?If `next\.next` is `null` but `sameEpicPending`/,
-  );
+  const pointer = fs.readFileSync(path.join(root, 'rules', 'current-pointer.md'), 'utf8');
+  const workflowDoc = fs.readFileSync(path.join(root, 'docs', 'workflow.md'), 'utf8');
+  const release = handoff.indexOf('bouncer finalize release-main --blueprint <pointer.blueprint>');
+  assert.ok(release > -1 && release < handoff.indexOf('git worktree remove --force'));
+  for (const doc of [md, handoff]) {
+    assert.doesNotMatch(doc, /coordinate release|keep worktree|commit only|finalize\.next_blueprint|dirty-tree warning ACQ/);
+  }
+  assert.match(mainMd, /- A\) `finalize --yes`[^\n]*\n\s*- C\)[^\n]*\n\s*- D\)/);
+  assert.match(handoff, /remove the worker worktrees first, then the integration one/);
+  assert.match(handoff, /from the main worktree[\s\S]{0,200}bouncer current --set <next\.blueprint>/);
+  assert.match(handoff, /without asking/);
+  assert.match(handoff, /plan gate[\s\S]{0,120}leave the pointer cleared/);
+  assert.match(handoff, /`next` is `null`[\s\S]{0,160}\/bouncer-plan/);
+  assert.match(handoff, /leave the worktrees and the ledger/);
+  assert.match(pointer, /without asking[\s\S]{0,200}finalize release-main/);
+  assert.match(pointer, /confirm-then-set/);
+  assert.doesNotMatch(pointer, /every next-blueprint handoff require[\s\S]{0,80}never automatic/);
+  assert.match(workflowDoc, /finalize release-main/);
 });
 
 test('bouncer-finalize documents sibling follow-up after G16 and cites remainder for retention', () => {
@@ -264,24 +238,22 @@ test('cleanup-handoff releases main plan copies before any worktree removal', ()
   const handoff = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'cleanup-handoff.md'), 'utf8',
   );
-  const release = handoff.indexOf('bouncer coordinate release');
-  assert.ok(release > -1, 'cleanup-handoff must name coordinate release');
-  assert.ok(release < handoff.indexOf('git worktree remove'), 'release must come before git worktree remove');
-  assert.match(handoff, /`integration\.ledger` is `ok`/);
-  assert.match(handoff, /whether the worktrees are removed or kept/);
-  assert.match(handoff, /main worktree/);
-  assert.match(handoff, /`preserved`/);
-  // finalize 뒤에는 포인터가 비므로, placeholder 출처와 main 경로를 명령에 적는다.
-  assert.match(handoff, /bouncer coordinate release --blueprint <pointer\.blueprint> --repo <main>/);
-  assert.match(handoff, /`finalize --yes`/);
-  // preserved는 고친 사본과 판정하지 않은 항목을 모두 담는다.
-  assert.match(handoff, /edited during the drive/);
-  assert.match(handoff, /did not judge/);
-  // 잘못된 manifest 항목은 경로가 아니라 JSON 텍스트로 preserved에 들어오므로, 경로로 오해하지 않고 그대로 보고하게 한다.
-  assert.match(handoff, /malformed manifest entry/);
-  assert.match(handoff, /JSON text/);
-  assert.match(handoff, /report it as-is/);
-  // 기존 순서와 보존 규칙은 그대로다.
+  const pointer = fs.readFileSync(path.join(root, 'rules', 'current-pointer.md'), 'utf8');
+  const workflowDoc = fs.readFileSync(path.join(root, 'docs', 'workflow.md'), 'utf8');
+  const release = handoff.indexOf('bouncer finalize release-main --blueprint <pointer.blueprint>');
+  assert.ok(release > -1 && release < handoff.indexOf('git worktree remove --force'));
+  for (const doc of [md, handoff]) {
+    assert.doesNotMatch(doc, /coordinate release|keep worktree|commit only|finalize\.next_blueprint|dirty-tree warning ACQ/);
+  }
+  assert.match(mainMd, /- A\) `finalize --yes`[^\n]*\n\s*- C\)[^\n]*\n\s*- D\)/);
   assert.match(handoff, /remove the worker worktrees first, then the integration one/);
-  assert.match(handoff, /Preserve the whole inventory/);
+  assert.match(handoff, /from the main worktree[\s\S]{0,200}bouncer current --set <next\.blueprint>/);
+  assert.match(handoff, /without asking/);
+  assert.match(handoff, /plan gate[\s\S]{0,120}leave the pointer cleared/);
+  assert.match(handoff, /`next` is `null`[\s\S]{0,160}\/bouncer-plan/);
+  assert.match(handoff, /leave the worktrees and the ledger/);
+  assert.match(pointer, /without asking[\s\S]{0,200}finalize release-main/);
+  assert.match(pointer, /confirm-then-set/);
+  assert.doesNotMatch(pointer, /every next-blueprint handoff require[\s\S]{0,80}never automatic/);
+  assert.match(workflowDoc, /finalize release-main/);
 });

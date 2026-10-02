@@ -17,7 +17,7 @@ const CATALOG = {
   'bouncer-execute': [],
   'bouncer-commit': ['commit.next_task'],
   'bouncer-run': ['run.start_drive'],
-  'bouncer-finalize': ['finalize.remainder', 'finalize.pr', 'finalize.next_blueprint'],
+  'bouncer-finalize': ['finalize.remainder', 'finalize.pr'],
 };
 
 function skillFiles(skill) {
@@ -62,7 +62,7 @@ test('the benchmark evaluator policy answers only catalogued gate IDs', () => {
   if (!fs.existsSync(policyFile)) return;
   const known = new Set(Object.values(CATALOG).flat());
   // 제품이 정의하지 않은 포인터 활성화 질문은 과거 run 호환용으로만 남는다.
-  const legacy = new Set(['plan.activate_pointer', 'finalize.quiz']);
+  const legacy = new Set(['plan.activate_pointer', 'finalize.quiz', 'finalize.next_blueprint']);
   for (const decision of JSON.parse(fs.readFileSync(policyFile, 'utf8')).bouncer_decisions) {
     assert.ok(known.has(decision.gate) || legacy.has(decision.gate), `unknown policy gate ${decision.gate}`);
   }

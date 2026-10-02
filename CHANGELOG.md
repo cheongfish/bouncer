@@ -7,8 +7,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- **finalize release-main** — 메인 checkout에서 닫힌 blueprint의 계획 문서
+  사본을 정리하고, 같은 에픽의 다음 blueprint를 `next`로 돌려준다.
+
+### Removed
+
+- **coordinate release** — 메인 사본 정리는 `finalize release-main`이 맡으므로
+  이 명령을 제거한다.
+
 ### Changed
 
+- **finalize 마감 정리** — `finalize --yes` 뒤 worktree를 `git worktree remove
+  --force`로 지우고, `release-main`의 `next`로 질문 없이 `bouncer current
+  --set`을 실행한다. `finalize.remainder`에서 worktree 유지 선택지를 없앤다.
 - **drive 재읽기 축소** — coordinator Drive가 execute 참조 세 경로를 가리키고
   `bouncer-execute/SKILL.md`는 세션당 한 번만 읽으며, drive 역할 문서 네 개는
   이미 문맥에 있는 역할·payload 문서를 다시 Read하지 않는다. run 스킬 4단계는

@@ -19,8 +19,8 @@ exists, run inside it; under a `bouncer-coordinator` drive that checkout is the
 integration worktree, and its verified HEAD — every task integrated and the
 integration verify passed — is the only thing this workflow closes. Never stage
 main-worktree source: the main checkout stays read-only provenance. Only step 4
-worktree removal runs from the main worktree — do not remove
-from inside a checkout you are removing.
+`finalize release-main` and worktree removal run from the main worktree — do
+not remove from inside a checkout you are removing.
 
 **Preflight.** Load the active blueprint:
 ```bash
@@ -64,39 +64,34 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 
    **AskUserQuestion — finalize.remainder**
    1. **Re-ground**: Commit the context-document remainder via
-      `finalize --yes` and whether to clean up the execute worktree.
-   2. **Recommend-why**: Task commits already finished on `/bouncer-commit`;
-      after closing, the execute checkout is usually unnecessary, so removing
-      the worktree with the commit gets you back to the main tree faster.
+      `finalize --yes`. Cleanup always force-removes the execute worktree.
+   2. **Recommend-why**: Task commits already finished on `/bouncer-commit`.
    3. **Options**:
       - A) `finalize --yes` commit + remove execute worktree (Recommended)
-      - B) `finalize --yes` commit only — keep worktree
       - C) Fix message/staging and re-check
       - D) Cancel — do not run `--yes`
 
-   On **A** or **B**, commit:
+   On **A**, commit:
    ```bash
    bouncer finalize --blueprint <pointer.blueprint> --yes
    ```
-   Remember the worktree choice for step 4 (`remove` on A, `keep` on B).
    On **C**, fix and re-dry-run. On **D**, stop without `--yes`.
-   (Empty staged set is fine — still run the ACQ so worktree choice is explicit;
-   `--yes` clears the pointer without creating an empty commit.)
+   (Empty staged set is fine — still run the ACQ so the remainder commit is
+   explicit; `--yes` clears the pointer without creating an empty commit.)
    If a later call reports `task-documents-missing` after `--yes`, treat the
    blueprint as already closed — do not re-run prepare against a deleted tasks
    tree.
 
 3. **PR.** When the user chooses to consider a draft PR, read this reference: [draft-pr.md](./references/draft-pr.md). Use the prepare digest kept from step 1 for title prefix and body sections; do not recompute them. **ACQ — PR (`finalize.pr`):** run that reference's AskUserQuestion before any outward push or draft-PR create. A missing remote or `gh` skips this branch gracefully (no PR ACQ); any accepted PR attempt returns to step 4.
 
-4. **Cleanup.** After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference: [cleanup-handoff.md](./references/cleanup-handoff.md). Apply the remembered choice without re-asking. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
+4. **Cleanup.** After `--yes`, read [cleanup-handoff.md](./references/cleanup-handoff.md): from the main worktree run `finalize release-main`, then `git worktree remove --force`. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
 
-5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) reference handles next-blueprint only after cleanup and only from the finalize payload. **ACQ — Next blueprint (`finalize.next_blueprint`):** run that reference's AskUserQuestion before `current --set`; advancement remains confirm-then-`current --set`, never automatic.
+5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) runs `--set` from `release-main` `next` without asking.
    Read `rules/current-pointer.md` for that pointer change.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
    work plans a sibling Blueprint in the same Epic or a new Epic via
    `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
-   by the finalize payload and the cleanup-handoff contract above — do not
-   arbitrarily `--set` an open sibling.
+   by the cleanup-handoff contract — do not arbitrarily `--set` an open sibling.
    Render through `rules/output.md`: explain/quiz outcome, remainder commit and
    resulting `closed` state, `integration` (`complete`, `openTasks`,
    `headVerified`), PR URL or skip/decline, worktree result, pointer result, and
@@ -105,10 +100,8 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 ## ACQ (AskUserQuestion) gates
 
 Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
-`/bouncer-finalize` is not consent for remainder commit, PR, or pointer
-advance.
+`/bouncer-finalize` is not consent for remainder commit or PR.
 
 **Index:**
 - Step 2 — `finalize.remainder` Remainder commit + worktree
 - Step 3 — `finalize.pr` PR
-- Step 5 — `finalize.next_blueprint` Next blueprint
