@@ -510,6 +510,10 @@ test('bouncer-coordinator bounds terminal CI repair and preserves partial-close 
   assert.match(integrate, /active_tasks[\s\S]{0,200}`continue`|`continue`[\s\S]{0,200}active_tasks/);
   // 일부만 integrated면 continue하지 않고, active_tasks가 비면 Close로 간다.
   assert.match(integrate, /(?:some|part|only part)[\s\S]{0,160}(?:do not|never) return `continue`|(?:do not|never) return `continue`[\s\S]{0,160}(?:some|part)/i);
+  // F4: 이번 세션 wave가 일부만 끝나면 continue/Close가 아니라 Drive/Judge에 남는다.
+  assert.match(integrate, /do not Close/);
+  assert.match(integrate, /stay in Drive\/Judge/);
+  assert.match(integrate, /revoke\/requeue\/fan-in/);
   assert.match(integrate, /active_tasks[\s\S]{0,40}empty[\s\S]{0,120}Close/i);
   assert.match(integrate, /`continue`[\s\S]{0,200}(?:do not|never)[\s\S]{0,40}prepare/i);
   const cont = md.slice(md.indexOf('- **Continue**'));

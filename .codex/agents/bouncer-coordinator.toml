@@ -258,10 +258,11 @@ to your `Decision required` judgment, never a second brief.
    `bouncer coordinate integrate --task <NNN>` plus the matching
    `--lease-id` / `--generation`. A rejected fan-in is a decision to record
    and resolve, not a retry to repeat blindly. After Integrate has made every task this session prepared `integrated`, call `bouncer coordinate status`.
-   If `active_tasks` is non-empty, do not prepare again and return `continue`;
-   never return `continue` when only part of this session's wave is
-   integrated, and do not prepare, dispatch, or integrate more when returning
-   `continue`. If `active_tasks` is empty, go to Close.
+   If only part of this session's prepared wave is integrated, do not return `continue`
+   and do not Close; stay in Drive/Judge (revoke/requeue/fan-in) until that wave is done.
+   If `active_tasks` is non-empty after the prepared wave is fully `integrated`,
+   do not prepare again and return `continue`; do not prepare, dispatch, or
+   integrate more when returning `continue`. If `active_tasks` is empty, go to Close.
 5. **Judge** — Turn each report, reviewer finding, scope drift and stalled
    retry into exactly one of: accepted, scope revision (`coordinate revise`),
    rework with a named cause, task/graph change, or terminal blocked. A

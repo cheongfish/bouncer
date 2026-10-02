@@ -119,8 +119,7 @@ stay on the execute round.
    - write cwd: `integrationPath` — the coordinator and its workers mutate only
      there and in the task worktrees it assigns. Never pass the main worktree as
      a write cwd; `${PROJECT_ROOT}` goes in as read-only provenance for the
-     base SHA only. Plan documents come from the integration copy that
-     bootstrap seeded, never from the main checkout.
+     base SHA only.
    - blueprint directory, base SHA, and that status `checkpoint` — hand
      `checkpoint.ledger.path` / `checkpoint.ledger.sha256` as the fencing ref
      only; never attach the raw ledger body, completed task documents, prior
@@ -135,19 +134,22 @@ stay on the execute round.
      `interactive` returns a progress line per task boundary, `auto` batches
      them — so the coordinator opens no per-task ACQ under either value
 
+   Take `completed_tasks.length` immediately before this dispatch as the
+   baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
    Then wait in the foreground per `rules/subagent-model.md` item 6 until the
-   coordinator returns its outcome. A background handle or a "drive
-   started" status is not that outcome: never end the turn or render step 5
-   while the coordinator still runs. Do not edit files, move the pointer, or
-   dispatch a worker yourself while the coordinator holds the drive.
+   coordinator returns its outcome. A background handle or a "drive started" status is not that outcome:
+   never end the turn or render step 5 while the coordinator still runs.
    On `continue`, do not go to step 5. `interactive` emits the
    `rules/output.md` continue line; remaining `N` is re-fetched
    `active_tasks.length`. Call `coordinate status` again — do not read or
-   edit the ledger. If `completed_tasks.length` grew, dispatch a new
-   coordinator with the same payload plus that checkpoint (no ACQ). If it
-   did not grow, stop with `blocked` cause `no-progress` and preserve
-   ledger, worktrees, and pointer. Do not re-dispatch on `completed`,
-   `blocked`, or `partial_closed`; those stop.
+   edit the ledger. If `completed_tasks.length` grew, dispatch a new coordinator
+   with the same payload plus that checkpoint (no ACQ). Wait in the foreground
+   for that new coordinator and apply the same continue / no-progress / terminal-stop rules again (a loop, one at a time).
+   Do not go to step 5 while a coordinator runs. If it did not grow, stop here
+   (not step 5) with `blocked` cause `no-progress`, emit
+   `중단: <blueprint> · no-progress · …`, and preserve ledger, worktrees,
+   and pointer. Do not re-dispatch on `completed`, `blocked`, or
+   `partial_closed`; those stop.
 
 5. **Report.** `continue` is not terminal. Render progress lines and a
    terminal outcome through `rules/output.md`: `completed` with the
