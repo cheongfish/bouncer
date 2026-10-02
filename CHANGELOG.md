@@ -9,6 +9,8 @@
 
 ### Added
 
+- **validate 실패 next** — G13 ledger mismatch, G18 stale, G20 Touch source
+  changes, G22 scaffold 주석 실패 항목에 복구 한 문장 `next`를 붙인다.
 - **G22·bootstrap 스캐폴드 주석 거절** — 템플릿 안내 주석을 문서에서 빼고
   규칙·스킬로 옮긴 뒤, 옛 주석이 남은 epic index·blueprint `.md`를 plan gate
   G22와 `coordinate bootstrap`(`scaffold-comment-remaining`)이 작업 트리를
