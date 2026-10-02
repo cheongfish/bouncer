@@ -24,8 +24,7 @@ Render in this order. Drop a section entirely when it has nothing to say —
 leave no empty heading or orphan bullet. Never invent issues, risks, passes, or
 Mermaid nodes without evidence. Fill PR body from explain.md sections in the
 table and from digest `pr.sections` for the deterministic facts; do not rewrite
-Explain or invent a parallel narrative. Never copy Quiz, `## 이해 상태`,
-comprehension scores, or `quiz_score` (do not move `## 이해 상태` into the PR).
+Explain or invent a parallel narrative. Never copy Quiz or quiz results into the PR.
 Never emit Epic/Blueprint ids, a Bouncer meta section, or Features/Fixes
 checkboxes.
 
@@ -33,23 +32,10 @@ checkboxes.
 | --- | --- |
 | `관련 이슈` | Linked tracker issues with real evidence; plus one Explain Markdown link from `finalize links` (below). No issue → no issue bullet. Prefer `pr.sections.related` when it already lists facts. |
 | `배경 · 변경 의도` | Explain `## Background` and `## Intuition`, tightened against the diff. |
-| `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for concrete files/behaviors. |
+| `주요 변경 내용` | Explain `## Code`, plus branch diff and commits for changed files, behavior, and interfaces only. Do not write task DAG, task split/order, repair wave, scope revision, worker·agent, branch·sha, integration head, or 작업 과정. |
 | `로직 흐름` | Conditional Mermaid only (rules below). Omit the heading when skipped. |
 | `리뷰 포인트` | Digest `pr.sections.review_points` first, then Explain `## Code` + diff hot paths only where the digest left a gap. No guessed risk. |
 | `확인 방법` | Digest `pr.sections.verification` in task-number order, then the successful final `finalize --yes` verify as the most recent result. Summarize as `command — result`; do not paste long stdout. Deduplicate same commands by keeping per-task outcomes visible. Do not re-open task `verification.md` files. |
-
-### Plan versus execution (drive only)
-
-When the prepare digest carries `coordinator`, the PR must show where the run
-departed from the approved plan — that difference is what a reviewer cannot
-reconstruct from the diff. Fold it into `주요 변경 내용` and `리뷰 포인트`
-rather than adding a heading. Take facts only from digest `coordinator`:
-`repairWaves[].previousDag` / `nextDag` for DAG change; each task's
-`actualPaths` beside `paths` with `scopeRevision` and matching `decisions`;
-`integrationHead` plus worker `branch` / `sha`. Name an agent only when that
-name already appears in a decision body. Do not re-read the ledger — the
-ledger's worktree is gone by now. When the plan and the run match, say nothing;
-do not invent a difference to fill the space.
 
 ### Explain link
 

@@ -17,13 +17,13 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   assert.match(String(data.description), /bouncer-finalize|\/bouncer-finalize/i);
   assert.doesNotMatch(String(data.description), /bouncer-commit|\/bouncer-commit/i);
 
-  // 다섯 섹션 — 교대(|)가 아니라 개별 단언. EXPLAIN_SECTION_DEFS와 1:1.
-  for (const h of ['Background', 'Intuition', 'Code', 'Quiz', '이해 상태']) {
+  // 네 섹션 — 교대(|)가 아니라 개별 단언. EXPLAIN_SECTION_DEFS와 1:1.
+  for (const h of ['Background', 'Intuition', 'Code', 'Quiz']) {
     assert.ok(md.includes(h), `missing section: ${h}`);
   }
   // 엔트리 필드 — range_from/range_to 포함. task 필드는 쓰지 않는다.
   for (const f of [
-    'diff_sha', 'quiz_score', 'disposition', 'recorded_at',
+    'diff_sha', 'recorded_at',
     'range_from', 'range_to',
   ]) {
     assert.ok(md.includes(f), `missing field: ${f}`);
@@ -37,33 +37,31 @@ test('explain-diff skill identity, sections, comprehension fields, and non-block
   // 해시는 digest diff_sha를 우선하고, 없을 때만 computeDiffSha로 폴백한다.
   assert.match(md, /diff_sha/);
   assert.match(md, /scripts\/lib\/comprehension|digest/);
-  // 점수 비차단은 긍정 문구로 단언한다. 낱말 부재(doesNotMatch)로 단언하면
+  // 오답 비차단은 긍정 문구로 단언한다. 낱말 부재(doesNotMatch)로 단언하면
   // 스킬이 "임계값을 두지 않는다"를 설명하는 순간 자기모순으로 깨진다.
-  assert.match(md, /기록만 하고 (마감을 )?막지 않는다/);
+  assert.match(md, /오답은 마감을 막지 않는다/);
   assert.match(md, /scaffold explain|대체하지/);
   assert.match(md, /Korean/);
   assert.match(md, /stop-slop/);
   assert.match(md, /references\/stop-slop\/index\.md/);
 
-  // quiz_score 필수 + 퀴즈 스킵 경로 없음(부재만으로 단언하지 않음).
-  assert.match(md, /quiz_score` is \*\*required\*\*|quiz_score`는 \*\*required\*\*|quiz_score.*필수/i);
+  // 퀴즈는 필수이되 점수·정답·응답은 파일에 쓰지 않는다. 스킵 경로는 없다.
   assert.match(md, /required|필수/);
   assert.match(md, /do not invent a skip|스킵|abort|중단/i);
-
-  // ## 이해 상태 단일 블록 (task별 소제목 없음).
-  assert.match(md, /단일 블록|single block/i);
-  assert.match(md, /no per-task|per-task subhead|task별 소제목/i);
+  assert.match(md, /바뀐 제품 동작|changed product behavior/);
+  assert.match(md, /repair wave/);
+  assert.match(md, /scope revision/);
+  assert.match(md, /integration head/);
+  assert.match(md, /정답[\s\S]{0,80}(채팅|chat)/);
+  assert.doesNotMatch(md, /quiz_score|disposition|## 이해 상태/);
+  assert.doesNotMatch(md, /five (Korean )?sections/i);
 
   // 적응형 퀴즈 — 문항 수·3지선다·정답 슬롯 분산을 개별 단언으로 고정.
   assert.match(md, /1[–~-]10/);
   assert.match(md, /three (answer )?options|3지선다/);
   assert.match(md, /vary the correct-answer position|한 위치에 몰지/);
-  // ## Quiz는 문항+보기만, 정답·응답·정오는 ## 이해 상태 — 섹션 이름을 문장 단위로.
+  // ## Quiz는 문항+보기만. 정답은 채팅에서만 공개한다.
   assert.match(md, /`## Quiz`[^\n]*(questions?|options|문항|보기)/i);
-  assert.match(
-    md,
-    /`## 이해 상태`[^\n]*(correct answers?|responses?|right\/wrong|정답|응답|정오|one block|단일)/i,
-  );
   // 문항마다 ACQ를 돌리지 않고 한 번에 제시·한 번에 응답.
   assert.match(md, /all (questions? )?at once|한 번에 (제시|응답)/i);
 

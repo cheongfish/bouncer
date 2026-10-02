@@ -19,25 +19,24 @@ answers and is **not an ACQ**.
 
 From `/bouncer-finalize` after scaffold explain. Authors BP `explain.md`
 sections, runs the quiz for digest `range.base`..`range.head`, writes one
-`bouncer.comprehension` blueprint entry with required `quiz_score`, and sets
+`bouncer.comprehension` blueprint entry, and sets
 status published. Not a workflow entry point.
 
 ## Steps
 
-1. **Author the five sections.** Fill the body under these headings in
+1. **Author the four sections.** Fill the body under these headings in
    **Korean** (paths, ids, and code fences stay as-is; scaffold leaves
    comment-only stubs — replace with real prose). Cover the whole blueprint
    branch (all committed tasks), not a single task:
-   - `## Background` — why this change exists
+   - `## Background` — why this change exists from a product and domain view.
+     Do not write drive execution records (task split, worker branch, or run
+     chronology).
    - `## Intuition` — one-line picture / analogy
    - `## Code` — key paths and files to read (no long dumps)
    - `## Quiz` — questions and three answer options each (no correct
      answers, no user responses)
-   - `## 이해 상태` — **one block** (no per-task subheadings): correct
-     answers, user responses, right/wrong, and disposition (keep in sync with
-     the single comprehension entry below)
    Then apply `stop-slop` (`references/stop-slop/index.md`) (advisory) before the
-   quiz — strip filler and formulaic closers from the five sections.
+   quiz — strip filler and formulaic closers from the four sections.
 
 2. **Resolve `range_from`.** Use the finalize prepare digest's `range.base`
    (and `range.head` for the quiz upper bound). Do **not** re-derive the range
@@ -48,27 +47,35 @@ status published. Not a workflow entry point.
 3. **Quiz the user.** Adapt and run the quiz from the `range.base..range.head`
    diff (agent judgment — no mechanical table). The quiz is **required** — if the
    user does not answer, stop and tell `/bouncer-finalize` to abort (do not
-   invent a skip path or leave `quiz_score` empty):
+   invent a skip path):
    1. Choose question count in **1–10** (minimum 1; never 0). State the
       count and a one-line rationale (diff scale) before asking.
       **경량 예외.** blueprint `index.md`의 `bouncer.scale`이 `light`면 질문 수를
-      1로 고정한다(1문항) — 1–10 판단을 건너뛴다. 이 경우 `quiz_score`는
-      `N/1`이 된다.
+      1로 고정한다(1문항) — 1–10 판단을 건너뛴다.
    2. Each question has **three answer options**. Vary the correct-answer
       position across questions — do not park every key on the same slot
       (한 위치에 몰지 않는다). No RNG required.
    3. Present **all questions at once** (한 번에 제시). Collect **all
       responses at once** (한 번에 응답). Do not run ACQ per question.
-   4. Score answers. `quiz_score` is `N/M` where **M is the number of
-      questions actually asked** and unanswered items are excluded from the
-      denominator (e.g. asked 5, answered 4 with 3 correct → `3/4`; light path
-      → `N/1`). `quiz_score` is **required** and must stay non-empty.
-   5. Write correct answers, responses, and right/wrong under
-      `## 이해 상태` only — never into `## Quiz`. Keep that section a
-      **single block** (단일 블록) — no `### task NNN` or similar per-task
-      headings.
+   4. After answers arrive, show per-question 정답 and a one-line explanation
+      in chat. Do not write answers, responses, or scores into any file.
 
-   A low score is fine: **기록만 하고 마감을 막지 않는다.** Do not invent a
+   **Quiz source.** Questions cover only **바뀐 제품 동작** (changed product
+   behavior) from this change. Domain rules, inputs and outputs, boundary
+   conditions, and error handling count. If the changed feature is itself a
+   product capability such as DAG, gate, or coordinator, you may still ask
+   about that behavior.
+
+   **Forbidden topics:** this blueprint's task split, order, or dependencies;
+   `affected_paths` and scope revision; repair wave and critical recovery;
+   worker, agent, branch, sha, integration head; how commits, reviews, or
+   verification were carried out.
+
+   If there is no product-behavior change, ask one question about a user-visible
+   behavior or output change. If even that is absent, ask about the effect of
+   the changed rule.
+
+   Wrong answers are fine: **오답은 마감을 막지 않는다.** Do not invent a
    pass threshold or force a re-take. Unanswered quiz (user refused) **does**
    block finalize — that is the abort path above, not a recorded skip.
 
@@ -99,12 +106,8 @@ status published. Not a workflow entry point.
    - range_from: <digest range.base>
      range_to: <digest range.head or HEAD sha>
      diff_sha: <digest range.diff_sha or sha from step 4>
-     quiz_score: 'N/M'
-     disposition: <non-empty free-text>
      recorded_at: <ISO-8601, prefer KST offset>
    ```
-
-   Mirror the outcome under `## 이해 상태` so the body matches the record.
 
 6. **Publish.** Set `bouncer.status → published` on `explain.md` if it is not
    already. The published explain remains canonical context and requires no
@@ -130,11 +133,11 @@ copied. The section is optional and its absence does not make G16 fail.
   invent a quiz engine or HTML UI.
 - Do not edit `scripts/lib/comprehension` or gate logic; call the existing API
   (or reuse digest `range.diff_sha`).
-- Do not block finalize on score. G16 checks the record and hash match for the
-  blueprint entry, not the grade. An unanswered quiz still aborts the caller.
+- Do not block finalize on a wrong answer. G16 checks the record and hash match
+  for the blueprint entry, not the grade. An unanswered quiz still aborts the
+  caller.
 
 ## Return
 
-Report that `explain.md` sections were authored, the quiz outcome
-(`quiz_score`), and the single comprehension entry / published status. Do not
-invent a skip path or empty `quiz_score`.
+Report that `explain.md` sections were authored and the single comprehension
+entry / published status. Do not invent a skip path.

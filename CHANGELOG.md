@@ -20,9 +20,14 @@
 
 - **coordinate release** — 메인 사본 정리는 `finalize release-main`이 맡으므로
   이 명령을 제거한다.
+- **explain 퀴즈 기록과 drive 실행 기록** — `## 이해 상태`, `quiz_score`,
+  `disposition`, explain `bouncer.coordinator`, digest `coordinator`·
+  `tasks[].actual_paths`, PR Plan versus execution 절을 지침에서 뺀다.
 
 ### Changed
 
+- **finalize 퀴즈 출처** — 퀴즈는 바뀐 제품 동작만 묻고, 정답·응답·점수는
+  파일에 쓰지 않으며 채팅에서만 공개한다.
 - **finalize 마감 정리** — `finalize --yes` 뒤 worktree를 `git worktree remove
   --force`로 지우고, `release-main`의 `next`로 질문 없이 `bouncer current
   --set`을 실행한다. `finalize.remainder`에서 worktree 유지 선택지를 없앤다.

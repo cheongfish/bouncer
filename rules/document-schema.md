@@ -134,14 +134,9 @@ document consistency), and `review.md` (final review in blueprint review
 mode). After finalize deletes task leaves, `explain.md`
 `bouncer.task_commits` writes `{ task, sha, intent_anchor }` rows:
 `task` is `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`,
-and `sha` stays 8-char hex. On a coordinator drive, finalize also writes
-`explain.md` `bouncer.coordinator` as `{ integration_branch, tasks: [{ id,
-branch, scope_revision, actual_paths }] }` so task→branch and actual-path
-edges survive after the ledger is gone. That block is an index, not a copy of
-the ledger or the finalize digest (`base`, `integration_head`, `revision`,
-`worktrees`, `decisions`, `tasks[].status`, `tasks[].sha`, `tasks[].paths`
-stay out). Existing explain documents are not rewritten until
-finalize writes them again.
+and `sha` stays 8-char hex. Leftover `bouncer.coordinator`, `## 이해 상태`,
+`quiz_score`, and `disposition` on older explain documents are ignored when
+reading.
 
 Task commit staging excludes the task bundle and context documents even when
 shared scope authorization allows those workflow paths. Finalize owns their
