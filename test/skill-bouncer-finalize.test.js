@@ -29,7 +29,6 @@ test('bouncer-finalize remainder.md is the canon for gate, dry-run, scope, and v
 
 
 test('draft PR body follows review-flow sections and omits legacy meta', () => {
-  const { body } = parseFrontmatter(md);
   const draftPr = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'),
     'utf8',
