@@ -1596,7 +1596,7 @@ test('finalize refuses an unreadable coordinator ledger instead of closing as a 
   assert.strictEqual(yes.integration.ledger, 'unreadable');
 });
 
-test('finalize --yes copies coordinator provenance into explain frontmatter', () => {
+test('finalize --yes on a drive writes no coordinator into explain', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   drivenBlueprint(repo);
   const g = fakeGit(['src/auth/login.ts'], []);
@@ -1605,15 +1605,11 @@ test('finalize --yes copies coordinator provenance into explain frontmatter', ()
   });
   assert.strictEqual(res.ok, true, JSON.stringify(res));
   const { data } = readFm(fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8'));
-  const recorded = data.bouncer.coordinator;
-  assert.ok(recorded, 'explain must keep the drive provenance after the documents are deleted');
-  assert.deepStrictEqual(Object.keys(recorded), ['integration_branch', 'tasks']);
-  assert.strictEqual(recorded.integration_branch, res.coordinator.integrationBranch);
-  assert.deepStrictEqual(Object.keys(recorded.tasks[0]), ['id', 'branch', 'scope_revision', 'actual_paths']);
-  assert.strictEqual(recorded.tasks[0].id, '001');
-  assert.strictEqual(recorded.tasks[0].branch, res.coordinator.tasks[0].branch);
-  assert.deepStrictEqual(recorded.tasks[0].actual_paths, res.coordinator.tasks[0].actualPaths);
+  // drive 기록은 실행 중에만 쓰이므로 explain 인덱스에 남기지 않는다.
+  // cleanup은 반환 payload의 coordinator를 읽는다.
+  assert.strictEqual(data.bouncer.coordinator, undefined);
   assert.ok(Array.isArray(data.bouncer.task_commits));
+  assert.ok(res.coordinator, 'finalize payload keeps coordinator for cleanup');
 });
 
 test('finalize --yes without a coordinator ledger writes no coordinator into explain', () => {

@@ -251,12 +251,14 @@ test('prepareFinalizeDigest drive fixture prefers trailer integration SHA over w
 
   const d = prepareFinalizeDigest({ repoRoot, blueprintDir });
   assert.strictEqual(d.ok, true, JSON.stringify(d));
-  assert.ok(d.coordinator);
-  assert.strictEqual(d.coordinator.integrationBranch, 'feat/integ');
+  // digest는 PR 입력이다. drive 원장 색인·task별 actual_paths는 실행 기록이라
+  // 싣지 않는다. git.branch만 원장 integrationBranch로 유지한다.
+  assert.strictEqual('coordinator' in d, false);
+  assert.strictEqual(d.git.branch, 'feat/integ');
   assert.strictEqual(d.tasks[0].commit.source, 'trailer');
   assert.strictEqual(d.tasks[0].commit.sha, task1Sha.toLowerCase());
   assert.notStrictEqual(d.tasks[0].commit.sha, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-  assert.deepStrictEqual(d.tasks[0].actual_paths, ['src/greet.js']);
+  assert.strictEqual('actual_paths' in d.tasks[0], false);
 
   assert.strictEqual(git(repoRoot, ['status', '--porcelain']), beforePorcelain);
   assert.deepStrictEqual(fs.readFileSync(paths.ledgerFile), beforeLedger);
