@@ -22,6 +22,8 @@ import executePrepareMod = require('./execute-prepare');
 const { executePrepare } = executePrepareMod;
 import coordinateOutputMod = require('./coordinate-output');
 const { compactCoordinateOutput } = coordinateOutputMod;
+import releaseMainMod = require('./finalize-release-main');
+const { releaseMain } = releaseMainMod;
 
 type CliIo = {
   out: (s: string) => void;
@@ -53,6 +55,14 @@ function cmdCommit(rest: string[], io: CliIo) {
   return result.ok ? 0 : 1;
 }
 
+/**
+ * finalize 서브커맨드를 분기한다. release-main은 메인 정리라 --yes 커밋 경로와
+ * 인자를 공유하면 닫힌 사본을 커밋 스코프로 오인하므로 앞 토큰으로만 가른다.
+ *
+ * @param {string[]} rest - `finalize` 다음 argv
+ * @param {CliIo} io - stdout/stderr 콜백
+ * @returns {number} 0 성공, 1 실행 거절, 2 사용법(`--blueprint` 누락)
+ */
 function cmdFinalize(rest: string[], io: CliIo) {
   // prepare는 읽기 전용 digest. 기존 finalize --yes 경로와 인자를 섞지 않는다.
   if (rest[0] === 'prepare') {
@@ -66,6 +76,25 @@ function cmdFinalize(rest: string[], io: CliIo) {
     const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
     const result = prepareFinalizeDigest({
       repoRoot,
+      blueprintDir: f.blueprint,
+    });
+    io.out(`${JSON.stringify(result, null, 2)}\n`);
+    return result.ok ? 0 : 1;
+  }
+  // release-main은 메인 checkout 전용 정리. finalize --yes(integration 커밋)와
+  // 섞이면 닫힌 사본을 커밋 대상으로 오인하므로, prepare/links와 같이 앞 토큰으로 가른다.
+  if (rest[0] === 'release-main') {
+    const f = parseFlags(rest.slice(1));
+    if (typeof f.blueprint !== 'string' || f.blueprint === '') {
+      io.err('finalize: --blueprint is required\n');
+      return 2;
+    }
+    // `--repo`(boolean true)를 경로로 쓰지 않는다. prepare와 같은 규칙 —
+    // truthy 비문자열이 cwd 대신 들어가면 메인 판정이 잘못된 checkout을 본다.
+    const repoRoot = typeof f.repo === 'string' && f.repo ? f.repo : process.cwd();
+    const result = releaseMain({
+      repoRoot,
+      cwd: process.cwd(),
       blueprintDir: f.blueprint,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
@@ -441,6 +470,8 @@ export = {
              Print a read-only finalize digest JSON for Explain, Quiz, and PR.
   finalize   links --blueprint <dir>
              Print Explain URL candidates for a pushed GitHub head (read-only).
+  finalize   release-main --blueprint <dir>
+             Run from the main checkout after finalize --yes; removes the closed blueprint's main plan copies.
   finalize   --blueprint <dir> [--yes]
              Check the commit scope and, with --yes, commit the blueprint.
 `,
