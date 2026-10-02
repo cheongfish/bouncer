@@ -221,12 +221,19 @@ function normalizeCommentBody(body: string): string {
 /**
  * HTML 주석 본문을 정규화해 등장 순서대로 돌려준다.
  * findLegacyScaffoldComments가 동결 목록과 같은 정규화를 쓰게 한 경로다.
+ * TASKS 체크리스트가 동결 주석을 인라인 코드로만 인용하면 leftover가 아니므로
+ * 단일 백틱 스팬 안의 일치만 빼고, 본문에 남은 실제 주석은 그대로 반환한다.
  *
  * @param {string} body - HTML 주석이 들어 있을 수 있는 Markdown 본문
  * @returns {string[]} 정규화된 주석 본문. 주석이 없으면 []
  */
 function extractCommentBodies(body: string): string[] {
-  return Array.from(body.matchAll(/<!--[\s\S]*?-->/g), (match) => normalizeCommentBody(match[0].slice(4, -3)));
+  // 1. 단일 백틱 스팬만 공백으로 가린다. 길이를 유지해야 인접 텍스트가
+  // `<!--`/`-->`로 이어 붙지 않는다. ``` 펜스는 열지 않는다 — 계약이
+  // 인라인 코드 인용만 제외하기 때문이다.
+  const withoutInlineCode = body.replace(/`[^`\n]*`/g, (span) => ' '.repeat(span.length));
+  // 2. 가린 본문에서만 주석을 모아, 백틱 안 예시는 동결 목록과 맞춰도 빠진다.
+  return Array.from(withoutInlineCode.matchAll(/<!--[\s\S]*?-->/g), (match) => normalizeCommentBody(match[0].slice(4, -3)));
 }
 
 // 템플릿에서 주석을 지운 뒤에도 lint가 옛 초안을 잡으려면 목록이 생성되면 안 된다.
