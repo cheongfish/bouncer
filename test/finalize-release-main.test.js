@@ -166,8 +166,8 @@ test('releaseMain removes the untracked closed blueprint and reports the same-ep
 
 test('rejection reasons leave the main tree and porcelain unchanged', () => {
   const cases = [
-    [(fx) => {}, { cwd: (fx) => fx.integration }, 'release-main-requires-main-checkout'],
-    [(fx) => {}, {
+    [() => {}, { cwd: (fx) => fx.integration }, 'release-main-requires-main-checkout'],
+    [() => {}, {
       repoRoot: (fx) => fx.integration, cwd: (fx) => fx.integration,
     }, 'release-main-requires-main-checkout'],
     [(fx) => {
@@ -192,7 +192,7 @@ test('rejection reasons leave the main tree and porcelain unchanged', () => {
     [(fx) => {
       fs.writeFileSync(fx.ledgerFile, '{');
     }, {}, 'coordinator-ledger'],
-    [(fx) => {}, {
+    [() => {}, {
       blueprintDir: () => '.bouncer/context/epics/084-drive-plan-copy-hygiene/blueprints/../001-x',
     }, 'invalid-blueprint-path'],
     [(fx) => {

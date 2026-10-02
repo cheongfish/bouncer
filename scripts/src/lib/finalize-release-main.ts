@@ -294,7 +294,8 @@ function releaseMain({ repoRoot, cwd, blueprintDir, deps }: {
   if (hasLedger) {
     closed = readBouncerStatus(path.join(ledgerRead.integrationPath, bp, 'index.md')) === 'closed';
   } else {
-    let soloStatus: string | null = null;
+    // 초기 null은 항상 try/catch에서 덮이므로 선언만 한다(no-useless-assignment).
+    let soloStatus: string | null;
     try {
       const solo = d.worktreePathFor({ repoRoot: root, blueprint: bp });
       soloStatus = readBouncerStatus(path.join(solo, bp, 'index.md'));
