@@ -151,7 +151,6 @@ execute의 구현·리뷰·디버그는 named 서브에이전트 `bouncer-implem
 
 ## 더 보기
 
-게이트와 실패 코드는 [`rules/gates.md`](../rules/gates.md), CLI 계약은
-[`rules/cli.md`](../rules/cli.md), 설정은 [configuration.md](configuration.md)에
-있습니다. PreToolUse 커밋 가드는 실수 방지용이며 악의적 우회를 막지 않습니다.
+게이트와 실패 코드·CLI 계약은 [`rules/cli.md`](../rules/cli.md), 설정은
+[configuration.md](configuration.md)에 있습니다. PreToolUse 커밋 가드는 실수 방지용이며 악의적 우회를 막지 않습니다.
 주행 상한과 중단 규칙의 정본은 `skills/bouncer-run/SKILL.md`입니다.

@@ -20,6 +20,9 @@
 
 ### Removed
 
+- **rules/gates.md와 AGENTS.md Runtime rule index** — 복구 안내는 validate
+  `next` hint가 맡고, 작성 제약은 schema·spec-authoring이 맡으므로 세션마다
+  읽히던 gate 규칙 문서와 rule 목록을 제거한다.
 - **coordinate release** — 메인 사본 정리는 `finalize release-main`이 맡으므로
   이 명령을 제거한다.
 - **explain 퀴즈 기록과 drive 실행 기록** — `## 이해 상태`, `quiz_score`,

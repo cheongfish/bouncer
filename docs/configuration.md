@@ -143,5 +143,5 @@ Graphify 설치와 오프라인 폴백은 [install.md](install.md#선택-graphif
 
 프로젝트 설정은 `.bouncer/config.json`에 둡니다. blueprint 크기·OKF 정렬 같은 제품
 규칙은 플러그인의 [`rules/`](../rules/)에 있고 프로젝트로 복사되지 않습니다. 제품
-게이트와 CLI 사용 규칙은 각각
-[`rules/gates.md`](../rules/gates.md), [`rules/cli.md`](../rules/cli.md)에 있습니다.
+게이트와 CLI 사용 규칙은
+[`rules/cli.md`](../rules/cli.md)에 있습니다.
