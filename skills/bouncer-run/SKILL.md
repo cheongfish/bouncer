@@ -23,7 +23,8 @@ scope, or ACQ.
 
 The drive has one controller, and after the start ACQ it is the coordinator, not
 this session. This session resolves the pointer, bootstraps the integration
-worktree, dispatches `bouncer-coordinator` once, and renders what comes back. It
+worktree, dispatches one `bouncer-coordinator` at a time, and on `continue`
+re-dispatches. It
 does not read and fix code directly, does not run `implementation`, `review`, or
 `debugging` inline, and does not reconstruct a worker's judgment from the diff —
 the coordinator already judged it. Even when the blueprint was declared light,
@@ -83,11 +84,12 @@ stay on the execute round.
    This is the only gate.
 
    **AskUserQuestion — run.start_drive**
-   1. **Re-ground**: Whether to hand the remaining tasks to one coordinator.
+   1. **Re-ground**: Whether to hand the remaining tasks to a coordinator drive.
    2. **Recommend-why**: Given the task list, the DAG, and `affected_paths`,
-      delegating now closes the blueprint in one flow. This approval covers the
-      whole drive: neither autonomy value asks again per task, and `interactive`
-      now only means progress is reported at each task boundary.
+      delegating now covers each ready wave until the blueprint is done. This
+      approval covers the whole drive: neither autonomy value asks again per
+      task, and `interactive` now only means progress is reported at each task
+      boundary.
    3. **Options**:
       - A) Start drive (Recommended)
       - B) Revise list/scope and reconfirm
@@ -104,20 +106,20 @@ stay on the execute round.
    writes no source there. Keep `integrationPath` from the JSON result. On
    `ok: false`, report the reason and stop — do not retry into a different path.
 
-4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` exactly once
+4. **Coordinator dispatch.** Dispatch named `bouncer-coordinator` one at a time
    per `rules/subagent-model.md`. When named agents are unavailable, dispatch
    one generic subagent with the same coordinator brief and the same worktree
    guards. Under that rule's item 7 opt-in (Cursor `subagents.dispatch:
    "print"`), the coordinator is a `bouncer dispatch print --role coordinator`
-   process per `rules/cursor-print-dispatch.md` instead; either way it happens once, and never without the step 2 approval.
+   process per `rules/cursor-print-dispatch.md` instead; never without the
+   step 2 approval.
    From `integrationPath`, run `bouncer coordinate status` once and keep its
    `checkpoint` (including `ledger: { path, sha256, revision }`) for the
    payload. The payload is:
    - write cwd: `integrationPath` — the coordinator and its workers mutate only
      there and in the task worktrees it assigns. Never pass the main worktree as
      a write cwd; `${PROJECT_ROOT}` goes in as read-only provenance for the
-     base SHA only. Plan documents come from the integration copy that
-     bootstrap seeded, never from the main checkout.
+     base SHA only.
    - blueprint directory, base SHA, and that status `checkpoint` — hand
      `checkpoint.ledger.path` / `checkpoint.ledger.sha256` as the fencing ref
      only; never attach the raw ledger body, completed task documents, prior
@@ -132,15 +134,26 @@ stay on the execute round.
      `interactive` returns a progress line per task boundary, `auto` batches
      them — so the coordinator opens no per-task ACQ under either value
 
+   Take `completed_tasks.length` immediately before this dispatch as the
+   baseline; update the baseline each session. Do not compare later continues only against the first payload snapshot.
    Then wait in the foreground per `rules/subagent-model.md` item 6 until the
-   coordinator returns its terminal outcome. A background handle or a "drive
-   started" status is not that outcome: never end the turn or render step 5
-   while the coordinator still runs. Do not edit files, move the pointer, or
-   dispatch a worker yourself while the coordinator holds the drive.
+   coordinator returns its outcome. A background handle or a "drive started" status is not that outcome:
+   never end the turn or render step 5 while the coordinator still runs.
+   On `continue`, do not go to step 5. `interactive` emits the
+   `rules/output.md` continue line; remaining `N` is re-fetched
+   `active_tasks.length`. Call `coordinate status` again — do not read or
+   edit the ledger. If `completed_tasks.length` grew, dispatch a new coordinator
+   with the same payload plus that checkpoint (no ACQ). Wait in the foreground
+   for that new coordinator and apply the same continue / no-progress / terminal-stop rules again (a loop, one at a time).
+   Do not go to step 5 while a coordinator runs. If it did not grow, stop here
+   (not step 5) with `blocked` cause `no-progress`, emit
+   `중단: <blueprint> · no-progress · …`, and preserve ledger, worktrees,
+   and pointer. Do not re-dispatch on `completed`, `blocked`, or
+   `partial_closed`; those stop.
 
-5. **Report.** Render the coordinator's progress lines and its terminal
-   outcome through `rules/output.md`: `completed` with the integration head,
-   verification result, how far the closing action ran, and the consent step it
+5. **Report.** `continue` is not terminal. Render progress lines and a
+   terminal outcome through `rules/output.md`: `completed` with the
+   the integration head, verification result, how far the closing action ran, and the consent step it
    stopped at — name that step and tell the user to run `/bouncer-finalize` to
    finish it, including any draft PR; `blocked` with the failing
    task, cause, and recovery action. On `blocked`, preserve the ledger, the

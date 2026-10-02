@@ -18,11 +18,10 @@ test('run shows the blueprint DAG before the start ACQ', () => {
   assert.match(acq, /Stop unless A/);
 });
 
-// 위임은 정확히 한 번이다. 루프가 남아 있으면 root run이 다시 controller가 된다.
-test('run dispatches exactly one coordinator after start approval', () => {
-  const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'));
+// 한 세션에 coordinator 하나. continue면 진전을 확인한 뒤 새 세션을 띄운다.
+test('run dispatches one coordinator at a time after start approval', () => {
+  const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'), md.indexOf('5. **Report.**'));
   assert.match(delegation, /named `bouncer-coordinator`/);
-  assert.match(delegation, /exactly once/);
   assert.match(delegation, /rules\/subagent-model\.md/);
   // named 디스패치가 역할 문서를 이미 로드한다. step 4가 다시 Read하라고
   // 시키면 coordinator가 같은 본문을 세션에 한 번 더 넣는다.
@@ -31,6 +30,27 @@ test('run dispatches exactly one coordinator after start approval', () => {
   assert.match(delegation, /named agents are unavailable/i);
   assert.match(delegation, /same[\s\S]{0,80}(?:role brief|coordinator brief)/i);
   assert.doesNotMatch(md, /repeat `\/bouncer-execute` then `\/bouncer-commit` until/);
+  assert.match(delegation, /one (?:coordinator )?at a time/i);
+  assert.match(delegation, /`continue`[\s\S]{0,300}coordinate status/);
+  assert.match(delegation, /completed_tasks[\s\S]{0,200}(?:grew|increased|did not grow|unchanged)/i);
+  assert.match(delegation, /(?:did not grow|unchanged)[\s\S]{0,200}no-progress|no-progress[\s\S]{0,200}(?:did not grow|unchanged)/i);
+  assert.match(delegation, /`completed`[\s\S]{0,80}`blocked`[\s\S]{0,80}`partial_closed`[\s\S]{0,200}stop/i);
+  assert.doesNotMatch(md, /exactly once|happens once|in one flow/);
+  // F1: continue 재디스패치도 새 coordinator를 foreground에서 기다리고,
+  // 같은 continue / no-progress / terminal-stop 규칙을 한 번에 하나 루프로 적용한다.
+  assert.match(delegation, /dispatch a new coordinator[\s\S]{0,400}[Ww]ait in the foreground/);
+  assert.match(
+    delegation,
+    /same continue \/ no-progress \/ terminal-stop rules again \(a\s+loop, one at a time\)/,
+  );
+  assert.match(delegation, /Do not go to step 5 while a coordinator runs/);
+  // F2: 비교 기준은 첫 payload snapshot이 아니라 이번 디스패치 직전 값이다.
+  assert.match(delegation, /immediately before this dispatch/);
+  assert.match(delegation, /baseline each session/i);
+  assert.match(delegation, /Do not compare later continues only against the first payload snapshot/);
+  // F3: no-progress 중단은 5단계가 아니라 4단계에서 output.md blueprint 줄을 낸다.
+  assert.match(delegation, /not step 5/);
+  assert.match(delegation, /중단: <blueprint> · no-progress/);
 });
 
 test('run bootstraps integration before delegating and never hands over the main worktree', () => {

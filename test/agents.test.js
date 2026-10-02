@@ -378,7 +378,7 @@ test('bouncer-coordinator refuses main-worktree writes and nested coordinators',
   assert.match(md, /task worktree/i);
   assert.match(md, /main worktree[\s\S]{0,120}(?:refuse|reject)|(?:refuse|reject)[\s\S]{0,120}main worktree/i);
   assert.match(md, /read-only provenance/i);
-  assert.match(md, /(?:do not|never)[\s\S]{0,80}another coordinator|one coordinator per drive/i);
+  assert.match(md, /(?:do not|never)[\s\S]{0,80}another coordinator/i);
 });
 
 // 포인터는 Git common dir에 하나뿐이라 worker마다 생기지 않는다. coordinator는
@@ -503,8 +503,25 @@ test('bouncer-coordinator bounds terminal CI repair and preserves partial-close 
   assert.match(md, /partial_closed/);
   assert.match(md, /none of those preserved artifacts may be copied to main, committed, pushed, or\s+included in a PR/);
   const outcome = md.slice(md.indexOf('- **Outcome**'), md.indexOf('- **Completed**'));
-  assert.match(outcome, /completed.*blocked.*partial_closed/i);
+  assert.match(outcome, /continue.*completed.*blocked.*partial_closed/i);
   assert.match(outcome, /exactly one/i);
+  const integrate = md.slice(md.indexOf('4. **Integrate**'), md.indexOf('5. **Judge**'));
+  assert.match(integrate, /every task[\s\S]{0,120}(?:prepared|opened)[\s\S]{0,120}integrated/i);
+  assert.match(integrate, /active_tasks[\s\S]{0,200}`continue`|`continue`[\s\S]{0,200}active_tasks/);
+  // 일부만 integrated면 continue하지 않고, active_tasks가 비면 Close로 간다.
+  assert.match(integrate, /(?:some|part|only part)[\s\S]{0,160}(?:do not|never) return `continue`|(?:do not|never) return `continue`[\s\S]{0,160}(?:some|part)/i);
+  // F4: 이번 세션 wave가 일부만 끝나면 continue/Close가 아니라 Drive/Judge에 남는다.
+  assert.match(integrate, /do not Close/);
+  assert.match(integrate, /stay in Drive\/Judge/);
+  assert.match(integrate, /revoke\/requeue\/fan-in/);
+  assert.match(integrate, /active_tasks[\s\S]{0,40}empty[\s\S]{0,120}Close/i);
+  assert.match(integrate, /`continue`[\s\S]{0,200}(?:do not|never)[\s\S]{0,40}prepare/i);
+  const cont = md.slice(md.indexOf('- **Continue**'));
+  assert.match(cont, /Progress/);
+  assert.match(cont, /integrated/);
+  assert.match(cont, /checkpoint\.ledger/);
+  assert.match(md, /6\. \*\*Close\*\*/);
+  assert.doesNotMatch(md, /single terminal outcome/);
 });
 
 test('bouncer-coordinator names its closing action', () => {
