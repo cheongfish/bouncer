@@ -298,23 +298,32 @@ function cmdExecute(rest: string[], io: CliIo) {
   }
 }
 
+/**
+ * coordinate 서브커맨드를 CLI 경계에서 해석한다.
+ * 허용 목록 밖의 이름은 core에 넘기지 않고 usage(2)로 끝낸다 — JSON 거절은
+ * 알려진 명령의 런타임 실패에만 쓴다.
+ *
+ * @param {string[]} rest - `coordinate` 뒤 argv
+ * @param {CliIo} io - stdout/stderr
+ * @returns {number} 성공 0, 런타임 거절 1, usage 오류 2
+ */
 function cmdCoordinate(rest: string[], io: CliIo) {
   const command = rest[0];
   const f = parseFlags(rest.slice(1));
   const commands = [
     'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-    'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'release', 'revoke',
+    'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke',
   ];
   // bootstrap·status(ready 별칭)만 원장 fence 예외. 그 외 mutation은 path/hash 쌍이
   // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
   const fencedCommands = new Set([
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-    'repair', 'partial-close', 'critical-recovery', 'release', 'revoke',
+    'repair', 'partial-close', 'critical-recovery', 'revoke',
   ]);
   if (!commands.includes(command)) {
     io.err(
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
-      + 'integrate, status, revise, repair, partial-close, critical-recovery, release, or revoke\n',
+      + 'integrate, status, revise, repair, partial-close, critical-recovery, or revoke\n',
     );
     return 2;
   }
@@ -530,10 +539,6 @@ export = {
       + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --outcome <resolved|blocked>\n'
       + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Record the outcome without permitting another recovery.\n'
-      + '  coordinate release --blueprint <dir> --ledger-path <path> --ledger-hash <sha256>\n'
-      + '             [--repo <main>]\n'
-      + '             After finalize closes the drive, restore or remove main plan copies\n'
-      + '             that still match the bootstrap manifest. Run it from the main checkout.\n'
       + '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
       + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
       + '             Record one scope decision in the task document and ledger.\n'
