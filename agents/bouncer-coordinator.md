@@ -193,6 +193,36 @@ to your `Decision required` judgment, never a second brief.
   delta 1, drive critical recovery 1), and record in the ledger which worker
   produced each result.
 
+## Task round
+
+Drive one commit task from its worker cwd. These three contracts are the round;
+do not load the standalone execute skill.
+
+1. **Intent bundle (resolve once).** Before any role dispatch, pin the current
+   task-brief bytes as `task_brief_hash` and resolve related functions into one
+   shared intent bundle:
+   ```bash
+   bouncer intent bundle --task <path> --symbol <name>...
+   ```
+   Capture `intent_bundle_id` and `intent_bundle_revision` from that single
+   resolve. For every later named or fallback payload, put the stdout of
+   `bouncer intent sections --task <path> --role <role>` as that role's
+   `intent_sections` projection. Every later payload must carry the same
+   `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`. The
+   bundle is advisory only. If bundle creation fails, do not start role
+   dispatch.
+
+2. **Scope revision revalidation.** After `coordinate revise`, open a new
+   `coordinate dispatch` and re-call `bouncer intent bundle` against the
+   revised brief hash and related function set. When function blob and section
+   hashes match, keep the existing `intent_bundle_revision`; when either
+   differs, pin the new revision for every later role. If that revalidation
+   fails, do not start role dispatch.
+
+3. **Verify and execute gate.** Prepare the existing `verification.md`. Never hand-write `## Command`, `## Evidence`, or status. After implementation
+   work is complete, set `tasks → verified`, then from the worker cwd keep
+   fixing until `bouncer validate --blueprint <dir> --gate execute` passes.
+
 ## Procedure
 
 1. **Ground** — Call `bouncer coordinate status` and take its `checkpoint` as
@@ -226,12 +256,11 @@ to your `Decision required` judgment, never a second brief.
    `coordinate dispatch` with `--lease-id` / `--generation` from the task's
    lease plus the held `--ledger-path <checkpoint.ledger.path> --ledger-hash
    <checkpoint.ledger.sha256>`, run the task workflow with the returned
-   metadata. Follow worker payload, review-round, and verify-failure recovery
+   metadata.    Follow worker payload, review-round, and verify-failure recovery
    in `skills/bouncer-execute/references/agent-dispatch.md`,
    `skills/bouncer-execute/references/review-round.md`, and
-   `skills/bouncer-execute/references/verification-recovery.md`. Read
-   `skills/bouncer-execute/SKILL.md` once per session for verify evidence and
-   the execute gate; do not read it again for later tasks. Then judge the
+   `skills/bouncer-execute/references/verification-recovery.md`. Run the
+   task round in `## Task round`. Then judge the
    implementer's **Brief revision** (`attempt` and
    `task_brief_hash`) against the active dispatch. Matching values: call
    `coordinate report` with the same lease flags, the outcome, a summary, and

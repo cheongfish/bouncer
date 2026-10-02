@@ -586,6 +586,12 @@ test('bouncer-execute runs the implement/debug/review round under the coordinato
   assert.match(role, /does not re-read the diff/);
 });
 
+// drive 회차 정본은 execute 스킬이 아니라 coordinator ## Task round다.
+test('bouncer-execute Controller points drive rounds at coordinator Task round', () => {
+  const exec = fs.readFileSync(path.join(root, 'skills/bouncer-execute/SKILL.md'), 'utf8');
+  assert.match(exec, /does not load this skill[\s\S]{0,80}## Task round/);
+});
+
 // worktree는 coordinator가 배정한다. execute가 또 하나 만들면 커밋 안전
 // 경계 밖에서 라운드가 돈다.
 test('bouncer-execute does not create a worktree during a coordinator drive', () => {

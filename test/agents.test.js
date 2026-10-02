@@ -836,17 +836,31 @@ test('bouncer-implementer Output contract returns Brief revision attempt and tas
   assert.match(contract, /task_brief_hash/);
 });
 
-// Drive는 execute SKILL 전체가 아니라 세 참조 경로를 가리키고, SKILL은
-// verify·gate 때문에 세션당 한 번만 연다. 무조건 SKILL을 열지 말라는
-// 문장은 두지 않는다 — 그 단계의 유일한 출처다.
-test('bouncer-coordinator Drive points at execute references and reads SKILL once', () => {
+// Drive 회차 정본은 Worker dispatch와 Procedure 사이의 ## Task round다.
+// coordinator 문서가 execute SKILL 경로를 남기면 세션마다 그 문서를 다시 연다.
+test('bouncer-coordinator Task round is the drive round contract', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  assert.match(md, /^## Task round$/m);
+  assert.doesNotMatch(md, /skills\/bouncer-execute\/SKILL\.md/);
+  const round = md.slice(md.indexOf('## Task round'), md.indexOf('## Procedure'));
+  assert.match(round, /bouncer intent bundle/);
+  assert.match(round, /bouncer intent sections/);
+  assert.match(round, /task_brief_hash/);
+  assert.match(round, /intent_bundle_revision/);
+  assert.match(round, /--gate execute/);
+  assert.match(round, /never hand-write|do not write `## Command`/i);
+  assert.match(round, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
+});
+
+// Drive는 execute SKILL 전체가 아니라 세 참조 경로와 ## Task round를 가리킨다.
+test('bouncer-coordinator Drive points at execute references and Task round', () => {
   const coord = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   const drive = coord.slice(coord.indexOf('3. **Drive**'), coord.indexOf('4. **Integrate**'));
   for (const ref of ['agent-dispatch', 'review-round', 'verification-recovery']) {
     assert.match(drive, new RegExp(`skills/bouncer-execute/references/${ref}\\.md`));
   }
-  assert.match(drive, /skills\/bouncer-execute\/SKILL\.md[^.]{0,160}once|once[^.]{0,160}skills\/bouncer-execute\/SKILL\.md/i);
-  assert.doesNotMatch(coord, /(?:do not|never) (?:Read|open)[^.]{0,40}skills\/bouncer-execute\/SKILL\.md(?![^.]*(?:again|later|re-read|more than once))/i);
+  assert.match(drive, /## Task round/);
+  assert.doesNotMatch(coord, /skills\/bouncer-execute\/SKILL\.md/);
 });
 
 // 재읽기 금지는 이미 문맥에 있는 역할·payload 문서만 막는다. 역할 문서를
