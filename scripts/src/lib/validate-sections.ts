@@ -110,6 +110,7 @@ const EXPLAIN_SECTION_HEADINGS: SectionDef[] = [
   { key: 'intuition', re: /^##\s+Intuition\s*$/i },
   { key: 'code', re: /^##\s+Code\s*$/i },
   { key: 'quiz', re: /^##\s+Quiz\s*$/i },
+  // 옛 explain의 ## 이해 상태를 따로 떼는 비필수 키. 정규식을 지우면 본문이 quiz에 흡수된다.
   { key: 'understanding', re: /^##\s+이해\s*상태\s*$/i },
   // task 맥락은 finalize가 선택적으로 채우며 G16 필수 목록과 분리한다.
   { key: 'tasks', re: /^##\s+Tasks\s*$/i },

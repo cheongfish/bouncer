@@ -16,7 +16,6 @@ const EXPLAIN_SECTION_DEFS = [
   'intuition',
   'code',
   'quiz',
-  'understanding',
 ];
 
 type GitExecResult = { status: number; stdout: string; stderr: string };
@@ -100,9 +99,11 @@ function computeDiffSha({ repoRoot, base, exec }: {
  * explain.md `bouncer.comprehension`에서 BP 단일 엔트리(배열의 마지막).
  * 0.7의 task별 다중 엔트리는 마이그레이션하지 않고 마지막만 본다 — 읽기 호환
  * 규칙이 변환 함수를 대신한다. 구 단일 객체는 자동 변환하지 않는다.
+ * `quiz_score`·`disposition`은 옛 필드이므로 없어도 incomplete가 아니다.
  * 절대 throw하지 않는다.
  *
- * @returns {{ ok: true, entry: object }
+ * @param {unknown} comprehension - explain frontmatter의 `bouncer.comprehension` 값
+ * @returns {{ ok: true, entry: { range_from: string, diff_sha: string } & Record<string, unknown> }
  *   | { ok: false, reason: 'not-a-list' | 'missing' | 'incomplete' }}
  */
 function resolveComprehensionEntry(comprehension: unknown):
@@ -111,9 +112,7 @@ function resolveComprehensionEntry(comprehension: unknown):
     entry: {
       range_from: string;
       diff_sha: string;
-      disposition: string;
-      quiz_score: string;
-    };
+    } & Record<string, unknown>;
   }
   | { ok: false; reason: 'not-a-list' | 'missing' | 'incomplete' } {
   try {
@@ -133,23 +132,19 @@ function resolveComprehensionEntry(comprehension: unknown):
     const rec = entry as Record<string, unknown>;
     const rangeFrom = typeof rec.range_from === 'string' ? rec.range_from : '';
     const diffSha = typeof rec.diff_sha === 'string' ? rec.diff_sha : '';
-    const disposition = typeof rec.disposition === 'string' ? rec.disposition : '';
-    const quizScore = typeof rec.quiz_score === 'string' ? rec.quiz_score : '';
-    // 빈 필수 필드는 scaffold 잔여·퀴즈 스킵과 같다 — hash mismatch가 아니라 기록 없음.
-    // quiz_score '0/0'은 값이 있으므로 통과; 막는 것은 빈 문자열뿐이다.
-    if (!rangeFrom.trim() || !diffSha.trim() || !disposition.trim() || !quizScore.trim()) {
+    // 빈 range_from·diff_sha는 scaffold 잔여와 같다 — hash mismatch가 아니라 기록 없음.
+    // 옛 quiz_score·disposition은 읽기만 하고 필수로 보지 않는다.
+    if (!rangeFrom.trim() || !diffSha.trim()) {
       return { ok: false, reason: 'incomplete' };
     }
     // 원본 entry 객체를 그대로 돌려 추가 필드(task 등)를 보존한다.
-    // range_from/diff_sha 등은 위에서 문자열임을 확인했으므로 반환 타입만 좁힌다.
+    // range_from/diff_sha는 위에서 문자열임을 확인했으므로 반환 타입만 좁힌다.
     return {
       ok: true,
       entry: entry as {
         range_from: string;
         diff_sha: string;
-        disposition: string;
-        quiz_score: string;
-      },
+      } & Record<string, unknown>,
     };
   } catch (_e) {
     return { ok: false, reason: 'not-a-list' };

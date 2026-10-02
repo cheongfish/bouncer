@@ -58,10 +58,7 @@ function okEntry(overrides = {}) {
 
 test('DIFF_EXCLUDED_PREFIXES and EXPLAIN_SECTION_DEFS are named constants', () => {
   assert.deepStrictEqual(DIFF_EXCLUDED_PREFIXES, ['.bouncer/context/']);
-  assert.deepStrictEqual(
-    EXPLAIN_SECTION_DEFS,
-    ['background', 'intuition', 'code', 'quiz', 'understanding'],
-  );
+  assert.deepStrictEqual(EXPLAIN_SECTION_DEFS, ['background', 'intuition', 'code', 'quiz']);
 });
 
 test('computeDiffSha ignores .bouncer/context/ paths when hashing', () => {
@@ -117,18 +114,20 @@ test('resolveComprehensionEntry rejects non-list and empty list', () => {
 });
 
 test('resolveComprehensionEntry rejects incomplete required fields', () => {
-  for (const incomplete of [
-    { range_from: '' },
-    { diff_sha: '' },
-    { disposition: '' },
-    { quiz_score: '' },
-    { range_from: '   ' },
-  ]) {
-    assert.deepStrictEqual(
-      resolveComprehensionEntry([okEntry(incomplete)]),
-      { ok: false, reason: 'incomplete' },
-      `expected incomplete for ${JSON.stringify(incomplete)}`,
-    );
+  const fresh = {
+    range_from: 'base-sha',
+    range_to: 'head-sha',
+    diff_sha: 'digest',
+    recorded_at: '2026-10-02T00:00:00+09:00',
+  };
+  assert.deepStrictEqual(resolveComprehensionEntry([fresh]), { ok: true, entry: fresh });
+  const legacy = { ...fresh, quiz_score: '', disposition: '' };
+  assert.deepStrictEqual(resolveComprehensionEntry([legacy]), { ok: true, entry: legacy });
+  for (const incomplete of [{ range_from: '' }, { diff_sha: '' }, { range_from: '   ' }]) {
+    assert.deepStrictEqual(resolveComprehensionEntry([{ ...fresh, ...incomplete }]), {
+      ok: false,
+      reason: 'incomplete',
+    });
   }
 });
 
@@ -145,9 +144,11 @@ test('resolveComprehensionEntry returns the last complete entry', () => {
     resolveComprehensionEntry([{ task: '001', ...ok }, { task: '002', ...ok2 }]).entry.task,
     '002',
   );
-  assert.strictEqual(
-    resolveComprehensionEntry([{ ...ok, quiz_score: '' }]).reason,
-    'incomplete',
+  // 옛 엔트리의 빈 quiz_score·disposition은 필수 필드가 아니므로 원본 그대로 ok.
+  const emptyScore = { ...ok, quiz_score: '' };
+  assert.deepStrictEqual(
+    resolveComprehensionEntry([emptyScore]),
+    { ok: true, entry: emptyScore },
   );
   assert.deepStrictEqual(
     resolveComprehensionEntry([ok2]),
