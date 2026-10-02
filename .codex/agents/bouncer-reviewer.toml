@@ -169,7 +169,11 @@ Return **only** a Findings list. For each finding include:
 - relation to previous findings: `new | resolved | regressed`
 - `severity`: `blocker | major | minor | nit`
 - `category`, `brief_clause`, `file`, and `symbol` — the components of the
-  TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`). On a
+  TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`).
+  Normalize each part with trim; lowercase category and brief_clause; use `/`
+  as the file separator; strip a leading `./`. Example:
+  `fingerprint: correctness_tests:tasks/001 interface:scripts/lib/example.js#runExample`.
+  On a
   `combined` discovery call, `category` is the actual sub-rubric
   (`spec_scope` | `correctness_tests` | `minimality_maintainability`), not
   `combined`.

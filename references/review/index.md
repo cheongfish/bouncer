@@ -50,6 +50,10 @@ unresolved. Used from `/bouncer-execute`.
    each finding with:
    - `severity`: one of `blocker | major | minor | nit`;
    - `status`: `resolved`, `accepted`, or `deferred`;
+   - `fingerprint`: `<category>:<brief_clause>:<file>#<symbol>`. Normalize each
+     part with trim; lowercase category and brief_clause; use `/` as the file
+     separator; strip a leading `./`. Example:
+     `fingerprint: correctness_tests:tasks/001 interface:scripts/lib/example.js#runExample`;
    - `accepted` findings **require** a note (authorized risk-acceptance rationale);
    - `deferred` findings **require** a note (independent follow-up planning item).
      Do not classify a finding that affects current-task accuracy as `deferred`.
