@@ -818,3 +818,30 @@ test('bouncer-implementer Output contract returns Brief revision attempt and tas
   assert.match(contract, /\battempt\b/);
   assert.match(contract, /task_brief_hash/);
 });
+
+// Drive는 execute SKILL 전체가 아니라 세 참조 경로를 가리키고, SKILL은
+// verify·gate 때문에 세션당 한 번만 연다. 무조건 SKILL을 열지 말라는
+// 문장은 두지 않는다 — 그 단계의 유일한 출처다.
+test('bouncer-coordinator Drive points at execute references and reads SKILL once', () => {
+  const coord = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const drive = coord.slice(coord.indexOf('3. **Drive**'), coord.indexOf('4. **Integrate**'));
+  for (const ref of ['agent-dispatch', 'review-round', 'verification-recovery']) {
+    assert.match(drive, new RegExp(`skills/bouncer-execute/references/${ref}\\.md`));
+  }
+  assert.match(drive, /skills\/bouncer-execute\/SKILL\.md[^.]{0,160}once|once[^.]{0,160}skills\/bouncer-execute\/SKILL\.md/i);
+  assert.doesNotMatch(coord, /(?:do not|never) (?:Read|open)[^.]{0,40}skills\/bouncer-execute\/SKILL\.md(?![^.]*(?:again|later|re-read|more than once))/i);
+});
+
+// 재읽기 금지는 이미 문맥에 있는 역할·payload 문서만 막는다. 역할 문서를
+// 무조건 읽지 말라는 문장은 inline fallback의 첫 Read를 깨뜨린다.
+test('drive role Hard guards forbid re-reading documents already in context', () => {
+  for (const role of ['coordinator', 'implementer', 'reviewer', 'debugger']) {
+    const md = fs.readFileSync(path.join(agentsDir, `bouncer-${role}.md`), 'utf8');
+    const start = md.search(/^## Hard guards/m);
+    const guards = md.slice(start, md.indexOf('\n## ', start + 1));
+    const item = guards.split(/\n- /).find((b) => /already in your (?:context|prompt)/i.test(b)) || '';
+    assert.match(item, /do not Read|never re-read/i);
+    assert.match(item, /payload[\s\S]{0,160}(?:brief|body)/i);
+    assert.doesNotMatch(md, /(?:do not|never) (?:Read|open) (?:this|your) role document\b(?![^.]*already)/i);
+  }
+});

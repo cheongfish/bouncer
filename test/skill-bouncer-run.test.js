@@ -24,6 +24,9 @@ test('run dispatches exactly one coordinator after start approval', () => {
   assert.match(delegation, /named `bouncer-coordinator`/);
   assert.match(delegation, /exactly once/);
   assert.match(delegation, /rules\/subagent-model\.md/);
+  // named 디스패치가 역할 문서를 이미 로드한다. step 4가 다시 Read하라고
+  // 시키면 coordinator가 같은 본문을 세션에 한 번 더 넣는다.
+  assert.doesNotMatch(md, /read `agents\/bouncer-coordinator\.md`/i);
   // named agent가 없는 host의 generic fallback도 같은 brief와 worktree guard를 받는다.
   assert.match(delegation, /named agents are unavailable/i);
   assert.match(delegation, /same[\s\S]{0,80}(?:role brief|coordinator brief)/i);

@@ -108,6 +108,10 @@ to your `Decision required` judgment, never a second brief.
   Only `coordinate partial-close --user-confirmed` may set `partial_closed`;
   it is unresolved handoff, never ordinary success or `closed`, and
   none of those preserved artifacts may be copied to main, committed, pushed, or included in a PR.
+- Do not Read this role document again when it is already in your context
+  (named load, generic-fallback payload, or print prompt), and do not Read a
+  dispatch-payload document whose body is already in your prompt (the task
+  brief and similar). Never re-read those copies.
 
 ## Worker dispatch
 
@@ -220,7 +224,13 @@ to your `Decision required` judgment, never a second brief.
    `coordinate dispatch` with `--lease-id` / `--generation` from the task's
    lease plus the held `--ledger-path <checkpoint.ledger.path> --ledger-hash
    <checkpoint.ledger.sha256>`, run the task workflow with the returned
-   metadata, then judge the implementer's **Brief revision** (`attempt` and
+   metadata. Follow worker payload, review-round, and verify-failure recovery
+   in `skills/bouncer-execute/references/agent-dispatch.md`,
+   `skills/bouncer-execute/references/review-round.md`, and
+   `skills/bouncer-execute/references/verification-recovery.md`. Read
+   `skills/bouncer-execute/SKILL.md` once per session for verify evidence and
+   the execute gate; do not read it again for later tasks. Then judge the
+   implementer's **Brief revision** (`attempt` and
    `task_brief_hash`) against the active dispatch. Matching values: call
    `coordinate report` with the same lease flags, the outcome, a summary, and
    the same ledger path/hash flags; only an `accepted` report may then

@@ -37,6 +37,10 @@ full Explain body.
   Scope/task impact; never widen scope yourself.
 - If blocked by ambiguity, report it in the Output contract; do not expand
   scope.
+- Do not Read this role document again when it is already in your context
+  (named load, generic-fallback payload, or print prompt), and do not Read a
+  dispatch-payload document whose body is already in your prompt (the task
+  brief and similar). Never re-read those copies.
 
 ## Procedure
 
