@@ -65,4 +65,7 @@ test('output contract renders coordinator progress and one terminal outcome', ()
   const example = output.match(/### compact coordinator 예시\n\n`([^`]+)`/);
   assert.ok(example, 'compact coordinator example is required');
   assert.doesNotMatch(example[1], /\{|stdout/i);
+  assert.match(output, /계속: <blueprint> · 통합 [^\n]+ · 남은 task <N>/);
+  assert.match(output, /중단: <blueprint> · no-progress/);
+  assert.match(output, /`continue`[^\n]{0,80}(?:terminal이 아니|non-terminal)/);
 });

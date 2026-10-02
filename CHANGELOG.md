@@ -13,6 +13,10 @@
   `bouncer-execute/SKILL.md`는 세션당 한 번만 읽으며, drive 역할 문서 네 개는
   이미 문맥에 있는 역할·payload 문서를 다시 Read하지 않는다. run 스킬 4단계는
   coordinator 역할 문서를 읽으라고 시키지 않는다.
+- **wave 세션 경계** — coordinator는 연 ready wave를 모두 통합한 뒤 남은
+  task가 있으면 `continue`로 돌아오고, `/bouncer-run`은 완료 task 수 증가를
+  확인한 뒤 새 checkpoint로 다음 coordinator를 띄운다. 진전이 없으면
+  `no-progress`로 멈춘다.
 - **coordinate stdout 축소** — `bouncer coordinate` 성공 응답에서 원장 전체
   `tasks`·`decisions` 사본을 빼고, prepare는 lease 대상만 `opened[]`로 내며,
   모든 coordinate stdout을 한 줄 JSON으로 출력한다.

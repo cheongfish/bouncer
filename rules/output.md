@@ -29,9 +29,14 @@
 
 - 진행: `진행: <task id> · <상태> · <worker> · <결정>` 한 줄. `interactive`는
   task 경계마다, `auto`는 마감 보고에 모아 낸다.
+- 계속: `계속: <blueprint> · 통합 <이번 세션 task id 목록> · 남은 task <N>`
+  (`N`은 run이 다시 받은 checkpoint의 `active_tasks.length`). `continue`는 terminal이 아니다.
 - 완료: `완료: <blueprint> · integration <head> · 검증: <결과> · 결정 N건 · 다음: <멈춘 동의 단계>`
 - 중단: `중단: <task id> · <원인> · 보존: <ledger·worktree 경로> · 복구: <행동>`
-- terminal outcome은 `completed`, `blocked`, `partial_closed` 중 하나만 표시한다. 둘 다 없거나
+- no-progress 중단은 기존 중단 줄의 `<task id>` 자리에 blueprint를 쓴다:
+  `중단: <blueprint> · no-progress · 보존: <ledger·worktree 경로> · 복구: <행동>`
+- terminal outcome은 `completed`, `blocked`, `partial_closed` 중 하나만 표시한다.
+  `continue`는 terminal outcome이 아니다. 둘 다 없거나
   둘 다 있는 보고는 렌더링하지 않고 원인을 먼저 밝힌다.
 - 결정 로그, scope 개정의 이전·다음 경로, 미해결 reviewer finding에는 8개
   목록 제한을 적용하지 않는다.
