@@ -29,7 +29,6 @@ test('bouncer-finalize remainder.md is the canon for gate, dry-run, scope, and v
 
 
 test('draft PR body follows review-flow sections and omits legacy meta', () => {
-  const { body } = parseFrontmatter(md);
   const draftPr = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'),
     'utf8',
@@ -72,9 +71,8 @@ test('draft PR body follows review-flow sections and omits legacy meta', () => {
   assert.match(draftPr, /Bouncer meta|Bouncer 메타|Features\/Fixes/i);
   assert.match(draftPr, /Never emit|넣지 않|출력하지/i);
 
-  // Comprehension fields excluded by instruction only; create command has no --label.
-  assert.match(body, /do not move `## 이해 상태`\s*into the PR|이해 상태는 PR에\s*옮기지 않는다/);
-  assert.match(draftPr, /Quiz|이해 상태|comprehension|quiz_score/i);
+  // Quiz and quiz results stay out of the PR; create command has no --label.
+  assert.match(draftPr, /Never copy Quiz|퀴즈[^\n]*PR/);
   assert.match(draftPr, /Never copy|옮기지 않|넣지 않|제외/i);
   const createBlock = (draftPr.match(/```bash\n([\s\S]*?)```/) || [])[1] || '';
   assert.match(createBlock, /git push -u origin <finalize payload branch>/);
@@ -151,26 +149,18 @@ test('bouncer-finalize cleans every drive worktree but preserves a blocked drive
   assert.match(handoff, /Cleanup is for a closed blueprint only/);
 });
 
-// explain과 PR은 계획이 아니라 실행을 기술한다. 출처는 digest coordinator
-// 필드뿐이며 원장·task 원문·verification 로그를 다시 읽지 않는다.
-test('bouncer-finalize audits DAG change, actual paths and agent provenance', () => {
-  const explain = fs.readFileSync(
+// explain과 PR은 drive 실행 기록(DAG·actualPaths·scopeRevision)을 쓰지 않는다.
+test('bouncer-finalize explain and PR omit drive execution records', () => {
+  const explainQuiz = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'explain-quiz.md'), 'utf8',
   );
   const draftPr = fs.readFileSync(
     path.join(root, 'skills', 'bouncer-finalize', 'references', 'draft-pr.md'), 'utf8',
   );
-  for (const doc of [explain, draftPr]) {
-    assert.match(doc, /DAG/);
-    assert.match(doc, /actualPaths|actual[_ ]paths/i);
-    assert.match(doc, /scopeRevision|scope_revision/);
-    assert.match(doc, /integrationHead|integration head/);
-  }
-  assert.match(explain, /named agent|agent name|decision/i);
-  assert.match(explain, /worker branch|branch and SHA|sha/i);
-  assert.doesNotMatch(explain, /Audit those against the ledger's decision log/);
-  assert.match(draftPr, /pr\.sections|finalize\s+--yes|verification/i);
-  assert.match(draftPr, /When the\s*\n?\s*plan and the run match, say nothing/);
+  assert.doesNotMatch(explainQuiz, /actualPaths|scopeRevision|integrationHead|previousDag/);
+  assert.doesNotMatch(explainQuiz, /five Korean sections|quiz_score/);
+  assert.doesNotMatch(draftPr, /Plan versus execution|actualPaths|scopeRevision|previousDag/);
+  assert.match(draftPr, /`주요 변경 내용`[^\n]*(DAG|작업 과정)/);
 });
 
 // Finalize Explain·Quiz·PR의 사실 입력은 prepare digest 하나며, Explain 링크는

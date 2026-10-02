@@ -934,44 +934,22 @@ function readTaskStatus(file: string): string | null {
 }
 
 /**
- * explain.md frontmatter에 drive의 task 인덱스만 남긴다.
- * 원장·digest·finalize 반환값은 그대로 두고, 원장이 사라진 뒤에도
- * task→브랜치·실제 변경 파일 엣지를 읽을 수 있게 한다. SHA·예상 scope·
- * 결정 로그·머신 경로는 task_commits와 겹치거나 재현 불가라 쓰지 않는다.
- * provenance가 없거나 explain.md가 없으면 false이고 파일을 쓰지 않는다.
+ * blueprint를 닫는다. dry-run은 계획만 보고, `--yes`는 검증·잠금·커밋까지 간다.
+ * drive면 원장 provenance를 반환 payload의 `coordinator`·`worktrees`에 싣고
+ * cleanup이 읽게 한다. explain frontmatter에는 쓰지 않는다 — drive 실행
+ * 기록은 원장이 살아있는 동안에만 의미가 있고, 이미 있는 옛
+ * `bouncer.coordinator`는 마이그레이션하지 않는다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 저장소 루트 절대 경로
  * @param {string} opts.blueprintDir - blueprint 상대 경로
- * @param {CoordinatorProvenance} opts.provenance - drive provenance. null이면 쓰지 않는다
- * @returns {boolean} 썼으면 true, 건너뛰면 false
+ * @param {boolean} [opts.yes=false] - true면 잠금·커밋을 수행한다
+ * @param {GitApi} [opts.git] - git seam. 없으면 `realGit(repoRoot)`
+ * @param {(opts: { repoRoot: string }) => boolean} [opts.clearPointer] - pointer 삭제 seam
+ * @param {(opts: { repoRoot: string, blueprintDir: unknown }) => unknown} [opts.next] - next 후보 seam
+ * @param {VerifyExec} [opts.verifyExec] - 검증 실행 seam
+ * @returns {object} 성공이면 `ok: true`와 coordinator·worktrees·branch, 실패면 reason
  */
-function writeExplainCoordinator({ repoRoot, blueprintDir, provenance }: {
-  repoRoot: string; blueprintDir: string; provenance: CoordinatorProvenance;
-}): boolean {
-  if (!provenance) return false;
-  const abs = path.join(repoRoot, `${toPosix(blueprintDir)}/explain.md`);
-  if (!fs.existsSync(abs)) return false;
-  const { data, body } = readDoc(abs);
-  if (!data || typeof data !== 'object') return false;
-  const bouncer = asRecord(asRecord(data).bouncer);
-  // 1. snake_case 정본. payload camelCase를 그대로 쓰면 같은 문서에서 표기가 섞인다.
-  // 2. 키 순서는 스키마 계약: integration_branch, tasks[].
-  //    base·integration_head·revision·worktrees·decisions와
-  //    tasks[].status·sha·paths는 거부 — digest/반환값 자리가 따로 있다.
-  bouncer.coordinator = {
-    integration_branch: provenance.integrationBranch,
-    tasks: provenance.tasks.map((task) => ({
-      id: task.id,
-      branch: task.branch,
-      scope_revision: task.scopeRevision,
-      actual_paths: task.actualPaths,
-    })),
-  };
-  fs.writeFileSync(abs, renderDoc(data, body));
-  return true;
-}
-
 function finalize({
   repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent,
   next = nextBlueprint, verifyExec,
@@ -1248,7 +1226,8 @@ function finalize({
     if (lockPath && explainBefore) {
       writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits });
       writeExplainTaskContext({ repoRoot, blueprintDir, taskContext });
-      writeExplainCoordinator({ repoRoot, blueprintDir, provenance: coordinator });
+      // coordinator는 payload에만 남긴다. explain은 제품 동작 기록이고
+      // drive 원장 색인을 싣으면 검색·PR 입력이 실행 기록을 재사용한다.
     }
     for (const snap of snapshots) fs.unlinkSync(snap.abs);
     // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
@@ -1285,7 +1264,7 @@ export = {
   // 재사용하도록 공개한다. finalize 내부 스냅샷과 목록이 갈라지면 복구 경계가 깨진다.
   collectTransientRels,
   buildTaskContext, collectTaskCommits, writeExplainTaskCommits, writeExplainTaskContext,
-  buildCoordinatorProvenance, collectCoordinatorProvenance, writeExplainCoordinator,
+  buildCoordinatorProvenance, collectCoordinatorProvenance,
   // digest가 finalize와 같은 branch 판정을 쓰도록 공개한다.
   resolveCheckoutBranch,
 };

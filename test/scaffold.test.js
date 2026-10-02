@@ -415,10 +415,11 @@ test('scaffoldExplain creates explain.md once for finalize with empty comprehens
   // G16은 BP 단일 엔트리 배열을 본다. 빈 배열은 hash 불일치가 아니라 기록 없음.
   assert.deepStrictEqual(data.bouncer.comprehension, []);
   for (const heading of [
-    '## Background', '## Intuition', '## Code', '## Quiz', '## 이해 상태',
+    '## Background', '## Intuition', '## Code', '## Quiz', '## Tasks',
   ]) {
     assert.ok(body.includes(heading), `explain.md missing ${heading}`);
   }
+  assert.ok(!body.includes('## 이해 상태'));
   assert.deepStrictEqual(
     scaffoldExplain({ repoRoot: repo, blueprintDir: bp, timestamp: TS }),
     [],

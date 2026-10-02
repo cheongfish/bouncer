@@ -2101,13 +2101,40 @@ test('finalize G16 fails when an open task remains (TASKS-002 ready)', () => {
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
 });
 
-test('finalize G16 fails when comprehension entry is incomplete (empty quiz_score)', () => {
-  // BP 단일 엔트리 계약: task 번호 커버가 아니라 엔트리 완전성·해시가 판정 주체.
-  // 빈 quiz_score는 incomplete → 기록 없음.
+test('finalize G16 passes when comprehension entry has no quiz_score or disposition', () => {
+  // 점수·처분은 더 이상 G16 필수가 아니다. 키 자체를 지운 새 엔트리도 통과해야 한다.
+  const withoutScore = {
+    task: '001',
+    range_from: 'develop',
+    range_to: 'deadbeef',
+    diff_sha: 'abc123',
+    recorded_at: 't',
+  };
   const repo = mkRepo();
   writeFinalizeG16Fixture(repo, {
     task2Status: 'verified',
-    entries: [compEntry({ task: '001', disposition: 'ok', quiz_score: '' })],
+    entries: [withoutScore],
+  });
+
+  const res = validateBlueprint({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    gate: 'finalize',
+    deps: {
+      computeDiffSha: () => ({ ok: true, sha: 'abc123' }),
+    },
+  });
+  assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
+  assert.ok(!res.failures.some((f) => f.code === 'G16'));
+  assert.ok(!res.failures.some((f) => f.code === 'G15'));
+});
+
+test('finalize G16 fails when comprehension entry is incomplete (empty range_from)', () => {
+  // BP 단일 엔트리 계약: task 번호 커버가 아니라 엔트리 완전성·해시가 판정 주체.
+  const repo = mkRepo();
+  writeFinalizeG16Fixture(repo, {
+    task2Status: 'verified',
+    entries: [compEntry({ task: '001', range_from: '' })],
   });
 
   const res = validateBlueprint({
@@ -2121,6 +2148,32 @@ test('finalize G16 fails when comprehension entry is incomplete (empty quiz_scor
   assert.equal(res.ok, false);
   assert.ok(res.failures.some((f) => f.code === 'G16' && /comprehension/.test(f.message)));
   assert.ok(!res.failures.some((f) => f.code === 'G15'));
+});
+
+test('finalize G16 passes when legacy understanding section is empty', () => {
+  // 옛 ## 이해 상태는 파싱만 하고 G16 필수에서 빠진다. 빈 절이 quiz에 흡수되면 안 된다.
+  const emptyUnderstanding = `# Explain
+
+## Background
+Why we changed auth.
+
+## Intuition
+Validate at the edge.
+
+## Code
+See src/auth/login.ts.
+
+## Quiz
+Q1: where is validation?
+
+## 이해 상태
+`;
+  const failures = [];
+  checkGate('finalize', {
+    tasksDocs: g16VerifiedTasks(['001']),
+    explain: explainDoc([compEntry()], emptyUnderstanding),
+  }, rels, failures, G16_CTX);
+  assert.deepStrictEqual(failures, []);
 });
 
 test('finalize G16 does not require Distill files or promotion metadata', () => {

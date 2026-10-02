@@ -41,3 +41,4 @@ bouncer_schema: '0.1'
 * [082 explain-index-intent-exit](epics/082-explain-index-intent-exit/index.md) - Shrink the coordinator block finalize writes into explain frontmatter to a task index, and make intent sections reject a non-canonical --task with exit 1 intent-task-invalid per contract
 * [083 drive-context-reduction](epics/083-drive-context-reduction/index.md) - Cut coordinator drive context by compacting coordinate output, narrowing instruction reads, and splitting the drive into per-wave coordinator sessions
 * [084 drive-plan-copy-hygiene](epics/084-drive-plan-copy-hygiene/index.md) - Keep main free of closed blueprint plan copies after a drive and move scaffold authoring guidance out of templates into skills.
+* [085 finalize-runtime-slimming](epics/085-finalize-runtime-slimming/index.md) - Finalize quiz, explain, and PR stop carrying drive execution records, and coordinator and gate recovery stop loading runtime rules they do not need.
