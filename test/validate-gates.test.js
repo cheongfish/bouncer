@@ -2846,3 +2846,38 @@ test('without review_scope, accepted finding without note is still G14', () => {
   assert.ok(failures.some((f) => f.code === 'G14'));
 });
 
+const G22_LEGACY = '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
+const G22_AUTHOR = '<!-- 저자 메모 -->\n';
+
+function writeG22Rel(repoRoot, rel, body) {
+  const abs = path.join(repoRoot, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, body);
+}
+
+test('plan gate G22 reports leftover scaffold comments and skips without ctx', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g22-'));
+  const bp = '.bouncer/context/epics/001-auth/blueprints/001-login';
+  writeG22Rel(repoRoot, `${bp}/index.md`, G22_LEGACY);
+  writeG22Rel(repoRoot, `${bp}/review.md`, G22_LEGACY);
+  const failures = [];
+  checkGate('plan', planDocs(READY_BODY), rels, failures, { repoRoot, blueprintDir: bp });
+  assert.ok(failures.some((f) => f.code === 'G22'
+    && f.message === `scaffold guidance comments remain: ${bp}/index.md, ${bp}/review.md`));
+
+  const cleanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-g22-clean-'));
+  writeG22Rel(cleanRoot, `${bp}/index.md`, G22_AUTHOR);
+  writeG22Rel(cleanRoot, `${bp}/review.md`, G22_AUTHOR);
+  const cleanFailures = [];
+  checkGate('plan', planDocs(READY_BODY), rels, cleanFailures, { repoRoot: cleanRoot, blueprintDir: bp });
+  assert.ok(!cleanFailures.some((f) => f.code === 'G22'));              // 옛 주석 없음·저자 주석만
+
+  const lightFailures = [];
+  checkGate('plan', lightPlanDocs(LIGHT_READY_BODY), rels, lightFailures, { repoRoot, blueprintDir: bp });
+  assert.ok(lightFailures.some((f) => f.code === 'G22'));               // light blueprint도 같은 판정
+
+  const noCtxFailures = [];
+  checkGate('plan', planDocs(READY_BODY), rels, noCtxFailures);
+  assert.ok(!noCtxFailures.some((f) => f.code === 'G22'));              // ctx 없는 checkGate 호출
+});
+

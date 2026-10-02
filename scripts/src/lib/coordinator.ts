@@ -22,6 +22,8 @@ import commitShaMod = require('./commit-sha');
 const { normalizeCommitSha } = commitShaMod;
 import pathsMod = require('./paths');
 const { parsePathIds } = pathsMod;
+import legacyComments = require('./legacy-comments');
+const { scanLegacyScaffoldComments } = legacyComments;
 import validateSections = require('./validate-sections');
 const { pathsOverlap } = validateSections;
 import configMod = require('./config');
@@ -1917,6 +1919,15 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     if (fs.existsSync(paths.integrationPath) && !registeredIntegration(exec, repoRoot, paths.integrationPath)) {
       return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: paths.integrationPath };
     }
+    // 원장이 없는 신규 seed만 검사한다. 재개 bootstrap은 integration 사본이 정본이라
+    // 메인에 남은 옛 주석으로 worktree를 만들지 못한 채 멈추면 안 된다.
+    // worktree add·main-source-mutated보다 앞에 두어 거절 시 메인을 바꾸지 않는다.
+    if (!fs.existsSync(paths.ledgerFile)) {
+      const leftover = scanLegacyScaffoldComments({ repoRoot, blueprintDir: blueprint });
+      if (leftover.length > 0) {
+        return { ok: false, reason: 'scaffold-comment-remaining', paths: leftover };
+      }
+    }
     let integrationBranch: string;
     try {
       const names = branchNamesFor({ repoRoot, blueprint });
@@ -2743,6 +2754,10 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
   'review-repair-requires-integrated': {
     cause: 'A final-review repair can open only after every task on the blueprint is integrated.',
     next: 'Finish remaining tasks, then retry `bouncer coordinate repair` with `--review-finding`.',
+  },
+  'scaffold-comment-remaining': {
+    cause: '계획 문서에 옛 스캐폴드 안내 주석이 남음',
+    next: '주석을 지우고 plan gate를 다시 통과한 뒤 bootstrap',
   },
   'sha-not-direct-integration-child': {
     cause: 'The new worker SHA is not a direct child of the recorded integration-base commit.',

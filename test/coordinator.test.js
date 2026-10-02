@@ -2538,3 +2538,60 @@ test('coordinate repair rejects mixed causes and non-integrated review repairs',
   });
   assert.strictEqual(leftover.reason, 'review-repair-requires-integrated');
 });
+
+test('bootstrap refuses leftover scaffold comments before creating a worktree', () => {
+  const { coordinatorPathsFor, branchNamesFor } = require('../scripts/lib/runtime-state');
+  const git = (repo, args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+  const blueprint = '.bouncer/context/epics/084-x/blueprints/002-y';
+  const bp = blueprint;
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-scaffold-boot-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  fs.mkdirSync(path.join(repo, bp, 'tasks', '001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, bp, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  fs.writeFileSync(path.join(repo, bp, 'review.md'), '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n');
+  fs.writeFileSync(
+    path.join(repo, bp, 'tasks', '001', 'tasks.md'),
+    '---\nbouncer:\n  depends_on: []\n---\n<!-- 저자 메모 -->\n',
+  );
+  const paths = coordinatorPathsFor({ repoRoot: repo, blueprint });
+  const integrationPath = paths.integrationPath;
+  const integrationBranch = branchNamesFor({ repoRoot: repo, blueprint }).integration;
+  const statusBefore = git(repo, ['status', '--porcelain']);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.reason, 'scaffold-comment-remaining');
+  assert.deepStrictEqual(boot.paths, [`${bp}/review.md`]);
+  assert.strictEqual(fs.existsSync(integrationPath), false);
+  assert.strictEqual(git(repo, ['branch', '--list', integrationBranch]).trim(), '');   // branch 없음
+  assert.strictEqual(git(repo, ['status', '--porcelain']), statusBefore);              // 메인 상태 그대로
+
+  fs.mkdirSync(integrationPath, { recursive: true });
+  fs.writeFileSync(path.join(integrationPath, 'stray'), 'not a worktree\n');
+  const unassigned = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(unassigned.reason, 'unassigned-integration-worktree');            // 미등록 디렉터리가 먼저 판정됨
+});
+
+test('resumed bootstrap skips the scaffold comment scan when the ledger exists', () => {
+  const blueprint = '.bouncer/context/epics/084-x/blueprints/003-z';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-scaffold-resume-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'fixture'], { cwd: repo });
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks', '001'), { recursive: true });
+  fs.writeFileSync(path.join(repo, blueprint, 'index.md'), '---\nbouncer:\n  status: approved\n---\n# Blueprint\n');
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'tasks', '001', 'tasks.md'),
+    '---\nbouncer:\n  depends_on: []\n---\nbrief\n',
+  );
+  const first = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(first.ok, true, JSON.stringify(first));
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'review.md'),
+    '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n',
+  );
+  const resumed = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(resumed.ok, true);                                 // 원장 있는 재개 bootstrap은 검사 안 함
+});

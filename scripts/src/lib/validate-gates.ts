@@ -28,6 +28,8 @@ const { executionKindOf } = schema;
 // plan-snapshot은 validate·validate-gates를 require하지 않으므로 순환이 없다.
 import planSnapshotLib = require('./plan-snapshot');
 const { computePlanSnapshot } = planSnapshotLib;
+import legacyComments = require('./legacy-comments');
+const { scanLegacyScaffoldComments } = legacyComments;
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
 // 않는다. 승인 범위는 G5·G11·G12가 판정한다(G4는 결번). validate.ts를
@@ -756,6 +758,20 @@ function runCheckGate(
       add('G2', 'blueprint.status != approved', 'blueprintIndex');
     }
     const { isLight, sectionKeys } = planScaleOf(docs);
+
+    // G22는 문서 본문이 아니라 디스크를 본다. stripComments 뒤 판정이라
+    // 옛 스캐폴드 주석이 어떤 G 코드로도 안 걸리던 구멍을 막는다.
+    // ctx 경로가 없으면 단위 테스트 fixture가 파일을 갖지 않으므로 건너뛴다.
+    if (typeof repoRoot === 'string' && typeof blueprintDir === 'string') {
+      const leftover = scanLegacyScaffoldComments({ repoRoot, blueprintDir });
+      if (leftover.length > 0) {
+        add(
+          'G22',
+          `scaffold guidance comments remain: ${leftover.join(', ')}`,
+          'blueprintIndex',
+        );
+      }
+    }
 
     // G18은 blueprint 단위 — task 묶음 순회(G3–G5·G10–G12) 밖에 둔다.
     // light에는 context-review 문서가 아예 없으므로(scaffold가 만들지 않는다)
