@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { scanLegacyScaffoldComments } = require('../scripts/lib/legacy-comments');
+const { findLegacyScaffoldComments } = require('../scripts/lib/templates');
 
 const LEGACY = '<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
 const AUTHOR = '<!-- 저자 메모 -->\n';
@@ -31,6 +32,27 @@ test('scanLegacyScaffoldComments targets epic index and blueprint markdown', () 
   writeRel(repoRoot, `${bp}/index.md`, LEGACY);
   // 두 파일에 옛 주석 → 정렬된 두 경로
   assert.deepStrictEqual(scanLegacyScaffoldComments({ repoRoot, blueprintDir: bp }), [`${bp}/index.md`, `${bp}/review.md`]);
+});
+
+test('findLegacyScaffoldComments ignores HTML comments only inside markdown inline code spans', () => {
+  const quoted = '예: `<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->`를 더한 뒤';
+  assert.deepStrictEqual(findLegacyScaffoldComments(quoted), []);
+});
+
+test('findLegacyScaffoldComments still reports leftover comments outside inline code', () => {
+  const mixed = '예: `<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->`\n<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->\n';
+  assert.deepStrictEqual(findLegacyScaffoldComments(mixed), ['왜 지금 이 에픽인가. 두 문장 이내.']);
+});
+
+test('scanLegacyScaffoldComments ignores a TASKS checklist example quoted in inline backticks', () => {
+  const repoRoot = tmpRepo();
+  const bp = '.bouncer/context/epics/085-x/blueprints/003-y';
+  writeRel(
+    repoRoot,
+    `${bp}/tasks/001/tasks.md`,
+    '- 주석 하나(예: `<!-- 왜 지금 이 에픽인가. 두 문장 이내. -->`)를 더한 뒤\n',
+  );
+  assert.deepStrictEqual(scanLegacyScaffoldComments({ repoRoot, blueprintDir: bp }), []);
 });
 
 test('scanLegacyScaffoldComments throws when a present path is unreadable', () => {

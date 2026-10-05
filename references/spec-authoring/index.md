@@ -200,7 +200,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
    Match each document's length to what the work needs — cover the substance,
    then stop. No filler sections, no summary that restates the section above it,
    no boilerplate kept because the skeleton had a heading for it. A section with
-   nothing real to say is shorter, not padded.
+   nothing real to say is shorter, not padded. Do not leave leftover scaffold
+   guidance HTML comments in plan documents (G22).
 4. After editing, the calling command runs validation; if it reports a failure
    tied to a field you touched, fix the body and re-run.
 

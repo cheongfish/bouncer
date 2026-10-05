@@ -9,6 +9,8 @@
 
 ### Added
 
+- **validate 실패 next** — G13 ledger mismatch, G18 stale, G20 Touch source
+  changes, G22 scaffold 주석 실패 항목에 복구 한 문장 `next`를 붙인다.
 - **G22·bootstrap 스캐폴드 주석 거절** — 템플릿 안내 주석을 문서에서 빼고
   규칙·스킬로 옮긴 뒤, 옛 주석이 남은 epic index·blueprint `.md`를 plan gate
   G22와 `coordinate bootstrap`(`scaffold-comment-remaining`)이 작업 트리를
@@ -18,6 +20,9 @@
 
 ### Removed
 
+- **rules/gates.md와 AGENTS.md Runtime rule index** — 복구 안내는 validate
+  `next` hint가 맡고, 작성 제약은 schema·spec-authoring이 맡으므로 세션마다
+  읽히던 gate 규칙 문서와 rule 목록을 제거한다.
 - **coordinate release** — 메인 사본 정리는 `finalize release-main`이 맡으므로
   이 명령을 제거한다.
 - **explain 퀴즈 기록과 drive 실행 기록** — `## 이해 상태`, `quiz_score`,

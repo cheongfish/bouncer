@@ -54,6 +54,8 @@ Korean-search support or a bulk rewrite of the existing corpus.
 **Plan fields.** `bouncer.affected_paths` is the minimum approved set of
 repository-relative paths that may change. Every entry must be justified by a
 file-level `Touch` item; it is not a search-result dump or a future-work list.
+When present, `bouncer.review_scope` may only be `blueprint`; any other value
+is S31.
 When `bouncer.verify` is present, it is one executable command that proves the
 task's acceptance criteria, not prose such as "run tests." Blueprint
 `bouncer.commit_type` describes the intended commit category and

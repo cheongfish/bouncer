@@ -169,5 +169,7 @@ Inspect dry-run output before any write. Retention's default is an audit;
 
 Exit code `0` means the command completed, `1` is an operational or gate
 failure, and `2` is invalid usage. Consume structured stdout where a command
-returns JSON. Do not infer success from prose, partial output, or a command
-that returned a non-zero exit code.
+returns JSON. When a `validate` failure item includes `next`, that sentence is
+the recovery action — follow it instead of reading validator sources. Do not
+infer success from prose, partial output, or a command that returned a
+non-zero exit code.

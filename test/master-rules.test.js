@@ -798,12 +798,7 @@ test('commit-scope defines coordinator dynamic scope, audit and commit ownership
     /treat a passing commit gate as a document-level check, not as coordinator authorization\./,
   );
 
-  // 소비자 편집은 정본 이전의 일부다. 두 pointer가 없으면 옛 경로를 읽는 세션이
-  // 살아나므로, runtime index 항목과 planning의 새 owner 인용을 함께 고정한다.
-  assert.match(
-    read('AGENTS.md'),
-    /^- \[`rules\/commit-scope\.md`\]\(rules\/commit-scope\.md\) —/m,
-  );
+  // runtime rule index는 두지 않는다. commit-scope 소유권은 planning 인용이 고정한다.
   const planningFlat = read('rules/planning.md').replace(/\s+/g, ' ');
   assert.match(
     planningFlat,
@@ -862,11 +857,16 @@ test('master and workflow rules use context-only repository memory', () => {
   assert.match(read('skills/bouncer-finalize/SKILL.md'), /Explain \+ quiz/);
 });
 
-// gate/CLI 규칙 문서가 draft 검증 실패, G18 신선도, 재발 코드 규범을 안내하는지 본다.
-test('gate and CLI rules document draft validation, G18 freshness, and recurring codes', () => {
-  const gates = read('rules/gates.md');
-  assert.match(gates, /^## Recurring failure codes$/m);
-  assert.match(gates, /context review is stale/);
-  assert.match(gates, /Source 변경 경로 없음\./);
+// gates.md는 복구 정본이 아니므로 부재를 잠그고, 작성 제약·링크는 남은 문서에 둔다.
+test('gate recovery lives in validate hints; authoring constraints stay in schema and spec-authoring', () => {
+  assert.strictEqual(fs.existsSync(path.join(root, 'rules/gates.md')), false);
+  const agents = read('AGENTS.md');
+  assert.doesNotMatch(agents, /^## Runtime rule index$/m);
+  assert.match(agents, /same code returns after a fix[\s\S]{0,120}`next`/);
+  assert.match(read('rules/document-schema.md'), /review_scope[\s\S]{0,120}S31/);
+  assert.match(read('references/spec-authoring/index.md'), /G22/);
+  for (const rel of ['README.md', 'docs/README.md', 'docs/configuration.md', 'docs/workflow.md']) {
+    assert.doesNotMatch(read(rel), /rules\/gates\.md/, rel);
+  }
   assert.match(read('rules/cli.md'), /plan draft validation failed/);
 });
