@@ -44,7 +44,7 @@ test('bouncer-plan places discovery/ID/verify/scope/approval ACQ in numbered ste
       order: true,
       acq: [1, 2, 3, 4, 6],
       links: {
-        3: ['./references/graphify-suggestions.md'],
+        3: ['./references/evidence-dispatch.md', './references/graphify-suggestions.md'],
         4: ['./references/scope-confirm.md'],
         5: ['./references/context-review.md'],
       },
@@ -565,4 +565,29 @@ test('bouncer-plan Gate step routes a stale context review back to step 5', () =
   const { body } = parseFrontmatter(mainMd);
   const gate = body.slice(body.indexOf('8. **Gate.**'));
   assert.match(gate, /context review is stale[\s\S]{0,240}step 5/);
+});
+
+test('bouncer-plan dispatches read-only task evidence for full commit tasks', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const refPath = path.join(root, 'skills/bouncer-plan/references/evidence-dispatch.md');
+  assert.ok(fs.existsSync(refPath), 'evidence-dispatch.md must exist');
+  const ref = fs.readFileSync(refPath, 'utf8');
+  assert.match(ref, /^When collecting task evidence for a `scale: full` blueprint, read this reference\./);
+  assert.match(ref, /`execution_kind: commit`/);
+  assert.match(ref, /Skip a light blueprint and every `execution_kind: verification` task\./);
+  assert.match(ref, /Input allowlist: task id, task skeleton, discovery `Goal` and `Scope`, candidate paths, and the read-only cwd\./);
+  assert.match(ref, /The subagent writes no file and runs no `bouncer` command that changes frontmatter, status, or the pointer\./);
+  assert.match(ref, /one generic read-only subagent per[\s\S]{0,80}task/i);
+  assert.match(ref, /in one message/i);
+  assert.match(ref, /fork_turns: "none"/);
+  for (const field of ['observations', 'io_coupling', 'tests', 'unresolved']) {
+    assert.match(ref, new RegExp('`' + field + '`'));
+  }
+  assert.match(ref, /hard rule 1/);
+  assert.match(ref, /never[\s\S]{0,80}`affected_paths`/i);
+  assert.match(ref, /subagents\.dispatch: "print"/);
+  assert.match(ref, /the dispatch fails, or all four fields come back empty/);
+  assert.match(ref, /collects the same four fields inline for that task and does not dispatch it again/);
+  const step3 = body.slice(body.indexOf('3. **Author.**'), body.indexOf('4. **Scope confirm.**'));
+  assert.match(step3, /`scale: full`[\s\S]{0,240}\[evidence-dispatch\.md\]\(\.\/references\/evidence-dispatch\.md\)/);
 });

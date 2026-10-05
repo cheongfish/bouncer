@@ -142,9 +142,12 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    tasks bodies in **Korean** (paths, ids, and code fences stay as-is). For every
    `tasks/<NNN>/tasks.md` under the blueprint, fill every implementation-ready
    section before approval — Goal & intent, Current behavior, Target behavior,
-   Interface, Touch, Do not touch, Constraints, Checklist. Those sections are
-   the sole brief for `/bouncer-execute`. Author each named section, including
-   Touch, per `${BOUNCER_ROOT}/references/spec-authoring/index.md`.
+   Interface, Touch, Do not touch, Constraints, Checklist.    Those sections are
+   the sole brief for `/bouncer-execute`. When collecting task evidence for a
+   `scale: full` blueprint, after the task bundle is scaffolded and before
+   writing Current behavior and Touch, read
+   [evidence-dispatch.md](./references/evidence-dispatch.md). Author each named
+   section, including Touch, per `${BOUNCER_ROOT}/references/spec-authoring/index.md`.
    For every task, author the DAG frontmatter execution reads:
    `bouncer.depends_on` (array of `TASKS-NNN` ids; `[]` when none),
    `bouncer.parallel_safe` (boolean), and `bouncer.dependency_gate`

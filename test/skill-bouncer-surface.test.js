@@ -200,7 +200,7 @@ const CONDITIONAL_HELPERS = {
   'bouncer-init': { root: [], local: ['init-result.md'] },
   'bouncer-plan': {
     root: ['minimality/index.md', 'context-review/index.md'],
-    local: ['graphify-suggestions.md', 'context-review.md', 'scope-confirm.md'],
+    local: ['graphify-suggestions.md', 'context-review.md', 'scope-confirm.md', 'evidence-dispatch.md'],
   },
   'bouncer-execute': {
     root: ['minimality/index.md', 'debugging/index.md'],
@@ -293,6 +293,7 @@ const SKILL_LOCAL_REFS = {
     'graphify-suggestions.md',
     'context-review.md',
     'scope-confirm.md',
+    'evidence-dispatch.md',
   ],
   'bouncer-execute': [
     'agent-dispatch.md',
