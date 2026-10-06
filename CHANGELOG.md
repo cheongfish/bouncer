@@ -29,8 +29,9 @@
 - **coordinate release** — 메인 사본 정리는 `finalize release-main`이 맡으므로
   이 명령을 제거한다.
 - **explain 퀴즈 기록과 drive 실행 기록** — `## 이해 상태`, `quiz_score`,
-  `disposition`, explain `bouncer.coordinator`, digest `coordinator`·
-  `tasks[].actual_paths`, PR Plan versus execution 절을 지침에서 뺀다.
+  `disposition`, explain `bouncer.coordinator`, finalize 결과 `coordinator`,
+  digest `coordinator`·`tasks[].actual_paths`, PR Plan versus execution 절을
+  지침에서 뺀다.
 
 ### Changed
 
