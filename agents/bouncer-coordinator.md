@@ -250,7 +250,7 @@ do not load the standalone execute skill.
    action. Dispatch a task runner at once (at most `checkpoint.ready` count,
    inside the configured parallel
    ceiling). When a `coordinate` response is `ok: false`, execute its `next`
-   and do not read plugin sources to recover. The coordinator does not move
+   and do not read plugin sources to recover. Check a command's flags, allowed values, and input format with `bouncer <command> <sub> --help`; do not read plugin sources for them. The coordinator does not move
    the pointer per task. Each runner
    works in its worker cwd under that task's `effectiveTask`. Open
    `coordinate dispatch` with `--lease-id` / `--generation` from the task's

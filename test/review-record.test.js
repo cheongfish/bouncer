@@ -304,3 +304,14 @@ test('CLI review record writes JSON on success', () => {
   assert.equal(parsed.status, 'addressed');
   assert.equal(parsed.findings, 1);
 });
+
+test('review record --help example round records on a fresh blueprint', () => {
+  const help = capture(['review', 'record', '--help']);
+  const fenced = help.out.match(/```json\n([\s\S]*?)\n```/);
+  assert.ok(fenced, 'help must wrap the example in one ```json fence');
+  const example = JSON.parse(fenced[1]);
+  const { repo } = makeBlueprintRepo();
+  const roundFile = writeJson(repo, 'help-round.json', example);
+  const r = recordCli(repo, { round: roundFile });
+  assert.equal(r.code, 0, r.err + r.out);
+});
