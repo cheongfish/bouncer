@@ -22,6 +22,11 @@
 - **위협 모델** — `docs/threat-model.md`가 강제력이 막는 실수와 막지 않는
   의도적 우회를 구분한다.
 
+### Fixed
+
+- **prepare 잠금 구간** — `coordinate prepare`가 worker worktree 생성과 seed를
+  원장 잠금 밖에서 실행하고, 실패하면 이번 호출이 만든 worker를 되돌린다.
+
 ## [1.5.4] — 2026-10-06
 
 1.5.3 패치. finalize가 메인 checkout 정리(`release-main`)와 PR base 탐지를 맡고, coordinator 출력·지침
