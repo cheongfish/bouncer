@@ -10,6 +10,8 @@ import frontmatter = require('./frontmatter');
 const { readDoc } = frontmatter;
 import schema = require('./schema');
 const { DEFAULT_COMMIT_TYPE, COMMIT_TYPE_ENUM } = schema;
+import time = require('./time');
+const { nowIsoKst } = time;
 
 const GIT_REQUIRED = 'Bouncer requires a Git repository for an active blueprint';
 
@@ -47,6 +49,7 @@ type RuntimePaths = {
   commonGitDir?: string;
   currentFile?: string;
   pointersRoot?: string;
+  approvalsRoot?: string;
   worktreeRoot?: string;
   projectRoot?: string;
   ledgerFile?: string;
@@ -500,6 +503,9 @@ function runtimePaths({
     // 조합하고, 여기서는 경로만 계산한다 — 두 저장소를 한 경로로 합치면
     // 이관 실패 시 어느 쪽이 남았는지 호출부가 구분하지 못한다.
     pointersRoot: pathApi.join(bouncerDir, 'pointers'),
+    // pointers와 형제로 둔다. 승인 파일을 포인터 JSON에 섞으면
+    // parsePointerBody가 모르는 키를 버려 재승인 증적이 사라진다.
+    approvalsRoot: pathApi.join(bouncerDir, 'approvals'),
     worktreeRoot: pathApi.join(mainRoot, '.worktrees'),
     projectRoot: mainRoot,
   };
@@ -762,6 +768,190 @@ function writeRuntimeCurrent({
   return target;
 }
 
+type ApprovalSnapshotBody = {
+  version: 1;
+  blueprint: string;
+  digest: string;
+  parts: Record<string, string>;
+  recorded_at: string;
+};
+
+type ApprovalRead =
+  | { ok: true; snapshot: { digest: string; parts: Record<string, string> } }
+  | { ok: false; path: string }
+  | null;
+
+function isEnoentError(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code: unknown }).code === 'ENOENT';
+}
+
+function approvalSnapshotPath(
+  approvalsRoot: string,
+  epicId: string,
+  blueprintId: string,
+  pathApi: { join: (...parts: string[]) => string; dirname: (p: string) => string },
+): string {
+  return pathApi.join(approvalsRoot, epicId, `${blueprintId}.json`);
+}
+
+/**
+ * 같은 디렉터리 tmp→rename으로 파일을 교체한다.
+ * OS tmp를 쓰면 볼륨이 다를 때 rename이 copy+unlink가 되어 부분 파일이 남는다.
+ *
+ * @param {{ fs: InjectedFs }} d - 주입 가능 fs
+ * @param {{ join: (...parts: string[]) => string, dirname: (p: string) => string }} pathApi - 플랫폼 path
+ * @param {string} target - 최종 파일 절대 경로
+ * @param {string} payload - 쓸 문자열
+ * @param {string} tmpName - 같은 디렉터리에 만들 tmp 파일명
+ * @returns {void}
+ */
+function atomicWriteFile(
+  d: { fs: InjectedFs },
+  pathApi: { join: (...parts: string[]) => string; dirname: (p: string) => string },
+  target: string,
+  payload: string,
+  tmpName: string,
+): void {
+  d.fs.mkdirSync(pathApi.dirname(target), { recursive: true });
+  const tmp = pathApi.join(pathApi.dirname(target), tmpName);
+  d.fs.writeFileSync(tmp, payload);
+  try {
+    d.fs.renameSync(tmp, target);
+  } catch (error) {
+    try {
+      d.fs.rmSync(tmp);
+    } catch (_cleanup) {
+      // tmp 정리는 best-effort. rename 실패 원인을 가리면 호출부가 재시도 지점을 잃는다.
+    }
+    throw error;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && Array.isArray(value) === false;
+}
+
+function isApprovalParts(value: unknown): value is Record<string, string> {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every((entry) => typeof entry === 'string');
+}
+
+/**
+ * 승인 스냅샷 파일 경로를 계산한다. Git common dir 아래에 두어 linked worktree가
+ * 같은 승인 파일을 보고, `.git/` 안이라 staging에 실리지 않게 한다.
+ *
+ * @param {{ repoRoot: string, blueprintDir: unknown, deps?: RuntimeDeps | null }} opts
+ *   - `blueprintDir`은 저장소 상대 blueprint 경로
+ * @returns {{ unavailable: true, reason?: string } | { path: string }} 비-Git이면 unavailable, 아니면 절대 경로
+ */
+function approvalSnapshotPathFor({ repoRoot, blueprintDir, deps }: {
+  repoRoot: string;
+  blueprintDir: unknown;
+  deps?: RuntimeDeps | null;
+}): { unavailable: true; reason?: string } | { path: string } {
+  const d = { fs, ...(deps || {}) };
+  const paths = resolvedPaths({ repoRoot, deps: d });
+  if (paths.unavailable || !paths.approvalsRoot) {
+    return { unavailable: true, reason: paths.reason };
+  }
+  const { epicId, blueprintId } = pointerKeyFromBlueprint(blueprintDir);
+  const pathApi = pathApiFor(d.platform);
+  return { path: approvalSnapshotPath(paths.approvalsRoot, epicId, blueprintId, pathApi) };
+}
+
+/**
+ * 승인 스냅샷을 읽는다. 파일이 없으면 null — 이 변경 전에 활성화된 blueprint는
+ * G24 대조를 건너뛴다. JSON이 깨졌거나 version이 1이 아니면 경로를 담아
+ * 호출부가 G24 unreadable로 거절하게 한다. 권한 오류를 부재로 접지 않는다.
+ *
+ * @param {{ repoRoot: string, blueprintDir: unknown, deps?: RuntimeDeps | null }} opts
+ * @returns {ApprovalRead} 없음 null, 파손 `{ ok: false, path }`, 유효 `{ ok: true, snapshot }`
+ */
+function readApprovalSnapshot({ repoRoot, blueprintDir, deps }: {
+  repoRoot: string;
+  blueprintDir: unknown;
+  deps?: RuntimeDeps | null;
+}): ApprovalRead {
+  const d = { fs, ...(deps || {}) };
+  const located = approvalSnapshotPathFor({ repoRoot, blueprintDir, deps: d });
+  if (!('path' in located)) return null;
+  const target = located.path;
+  if (!d.fs.existsSync(target)) return null;
+  let raw: string;
+  try {
+    raw = d.fs.readFileSync(target, 'utf8');
+  } catch (error) {
+    // ENOENT는 existsSync 이후 삭제 경합만. 그 외 읽기 오류는 부재가 아니다 —
+    // G24 skip으로 접으면 권한 문제가 승인 없음으로 통과한다.
+    if (isEnoentError(error)) return null;
+    return { ok: false, path: target };
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw.trim());
+    if (!isRecord(parsed) || parsed.version !== 1) {
+      return { ok: false, path: target };
+    }
+    if (typeof parsed.digest !== 'string' || !isApprovalParts(parsed.parts)) {
+      return { ok: false, path: target };
+    }
+    return { ok: true, snapshot: { digest: parsed.digest, parts: parsed.parts } };
+  } catch (error) {
+    // SyntaxError만 흡수한다. 그 외 throw를 unreadable로 접으면 호출부가
+    // 파일 손상을 디스크 실패와 구분하지 못한다.
+    if (error instanceof SyntaxError) return { ok: false, path: target };
+    throw error;
+  }
+}
+
+/**
+ * 승인 스냅샷을 원자적으로 쓴다. pointer 파일과 같은 디렉터리 rename을 써서
+ * 다른 볼륨 tmp의 copy+unlink 구멍을 피한다. `--clear`/`--replace`는 이 파일을
+ * 지우지 않는다 — 다음 최초 `--set`이 덮어쓴다.
+ *
+ * @param {{
+ *   repoRoot: string,
+ *   blueprintDir: unknown,
+ *   digest: string,
+ *   parts: Record<string, string>,
+ *   deps?: RuntimeDeps | null,
+ * }} opts
+ * @returns {string} 쓴 승인 파일 절대 경로
+ */
+function writeApprovalSnapshot({
+  repoRoot, blueprintDir, digest, parts, deps,
+}: {
+  repoRoot: string;
+  blueprintDir: unknown;
+  digest: string;
+  parts: Record<string, string>;
+  deps?: RuntimeDeps | null;
+}): string {
+  const d = { fs, ...(deps || {}) };
+  const located = approvalSnapshotPathFor({ repoRoot, blueprintDir, deps: d });
+  if (!('path' in located)) throw new Error(GIT_REQUIRED);
+  const { blueprintId } = pointerKeyFromBlueprint(blueprintDir);
+  const pathApi = pathApiFor(d.platform);
+  const body: ApprovalSnapshotBody = {
+    version: 1,
+    blueprint: toPosix(blueprintDir),
+    digest,
+    parts,
+    recorded_at: nowIsoKst(),
+  };
+  const payload = `${JSON.stringify(body, null, 2)}\n`;
+  atomicWriteFile(
+    d,
+    pathApi,
+    located.path,
+    payload,
+    `.${blueprintId}.${process.pid}.${Date.now()}.tmp`,
+  );
+  return located.path;
+}
+
 /**
  * namespace 키 파일을 지운다. 파일이 없으면 false — 호출자는 이미 없음을 성공으로 본다.
  *
@@ -958,6 +1148,7 @@ export = {
   clearRuntimeCurrent, worktreePathFor, coordinatorPathsFor, verifyLedgerPathFor,
   intentBundlePathFor, isWorktreeDirty,
   pointerKeyFromBlueprint, listNamespacePointers, removeNamespacePointer,
+  readApprovalSnapshot, writeApprovalSnapshot, approvalSnapshotPathFor,
   validateCoordinatorLedger,
   validateCoordinatorCheckpoint,
   branchNamesFor, resolveWorktreeBranch,

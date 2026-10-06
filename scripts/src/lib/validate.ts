@@ -71,6 +71,12 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     match: /verification evidence is stale/,
     next: 'Rerun this checkout\'s active-task `bouncer verify --blueprint <dir>`, then rerun the commit gate.',
   },
+  {
+    code: 'G24',
+    match: /approved scope changed after activation/,
+    next: 'If the change is intended, get the user\'s explicit approval, then run '
+      + '`bouncer current --set <dir> --reapprove` and rerun the gate.',
+  },
 ]);
 
 /**

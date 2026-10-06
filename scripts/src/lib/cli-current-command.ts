@@ -12,6 +12,12 @@ const {
 } = current;
 import config = require('./config');
 const { readConfig } = config;
+import runtimeState = require('./runtime-state');
+const {
+  listNamespacePointers, pointerKeyFromBlueprint, writeApprovalSnapshot,
+} = runtimeState;
+import approvalSnapshot = require('./approval-snapshot');
+const { computeApprovalDigest } = approvalSnapshot;
 
 type CliIo = {
   out: (s: string) => void;
@@ -109,6 +115,9 @@ function emitResolutionFailure(
  * namespace 전환 뒤 기본 `--set`은 대상 키만 추가·갱신하고 다른 키를 보존한다.
  * `--replace`는 현재 위치에서 유일하게 선택된 키를 지운 뒤 대상을 쓰며,
  * 다중 후보에서는 대상을 추측하지 않고 종료 코드 1이다.
+ * 대상 namespace 포인터가 없을 때와 `--reapprove`일 때만 승인 파일을 기록한다.
+ * 이미 있는 포인터에 task만 전진하면 승인 파일을 건드리지 않아 `/bouncer-commit`의
+ * `--set --task`가 매번 재승인되지 않게 한다.
  *
  * @param {string[]} rest - `current` 다음 CLI 인자
  * @param {CliIo} io - stdout/stderr 싱크
@@ -122,6 +131,7 @@ function cmdCurrent(rest: string[], io: CliIo) {
   const wantsClear = f.clear === true;
   const wantsTask = Object.prototype.hasOwnProperty.call(f, 'task');
   const wantsReplace = Object.prototype.hasOwnProperty.call(f, 'replace');
+  const wantsReapprove = Object.prototype.hasOwnProperty.call(f, 'reapprove');
 
   // 모순을 값 검증보다 먼저: 어느 값을 고쳐야 하는지 알 수 없는 채
   // "--set requires a blueprint directory"로 떨어지지 않게 한다.
@@ -143,6 +153,10 @@ function cmdCurrent(rest: string[], io: CliIo) {
   }
   if (wantsReplace && !wantsSet) {
     io.err('current: --replace requires --set\n');
+    return 2;
+  }
+  if (wantsReapprove && !wantsSet) {
+    io.err('current: --reapprove requires --set\n');
     return 2;
   }
   if (wantsSet && (typeof f.set !== 'string' || f.set === '')) {
@@ -243,6 +257,15 @@ function cmdCurrent(rest: string[], io: CliIo) {
       io.err('current: cannot resolve base (no config.base_branch and HEAD is not a branch)\n');
       return 1;
     }
+    const pointerKey = pointerKeyFromBlueprint(blueprintDir).key;
+    const pointerExisted = listNamespacePointers({ repoRoot })
+      .some((entry) => entry.key === pointerKey);
+    // 포인터가 이미 있으면 task 전진만으로 승인 파일을 덮지 않는다.
+    // `--reapprove`만 사용자가 명시한 재승인이다 (AGENTS.md hard rule 3).
+    const recordApproval = wantsReapprove || !pointerExisted;
+    const computed = recordApproval
+      ? computeApprovalDigest({ repoRoot, blueprintDir })
+      : null;
     try {
       writeCurrent({
         repoRoot,
@@ -256,6 +279,16 @@ function cmdCurrent(rest: string[], io: CliIo) {
       if (isSelectionError(error)) return emitSelectionFailure(io, error);
       throw error;
     }
+    let approval: 'recorded' | 'unchanged' = 'unchanged';
+    if (computed) {
+      writeApprovalSnapshot({
+        repoRoot,
+        blueprintDir,
+        digest: computed.digest,
+        parts: computed.parts,
+      });
+      approval = 'recorded';
+    }
     // 방금 쓴 키를 보여 준다. 위치 기반 재해석은 병렬 추가 뒤 base에서
     // CURRENT_AMBIGUOUS가 되어 성공한 --set을 실패로 뒤집는다.
     const stored = {
@@ -266,9 +299,9 @@ function cmdCurrent(rest: string[], io: CliIo) {
     const current = presentCurrent(stored, { repoRoot });
     if (previous) {
       emitPrevious(io, previous);
-      io.out(`${JSON.stringify({ ok: true, current, previous }, null, 2)}\n`);
+      io.out(`${JSON.stringify({ ok: true, current, previous, approval }, null, 2)}\n`);
     } else {
-      io.out(`${JSON.stringify({ ok: true, current }, null, 2)}\n`);
+      io.out(`${JSON.stringify({ ok: true, current, approval }, null, 2)}\n`);
     }
     return 0;
   }
@@ -293,12 +326,13 @@ function cmdCurrent(rest: string[], io: CliIo) {
 export = {
   current: {
     run: cmdCurrent,
-    usage: `  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]]
+    usage: `  current    [--set <blueprint dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace] [--reapprove]]
              [--clear]
              Show the active blueprint pointer, or set / clear it.
              --task picks a task doc; without it, first ready/in_progress wins.
              --replace deletes the uniquely selected key then writes the target; omitted,
              --set adds a parallel key. --replace at a multi-pointer base exits 1 with CURRENT_AMBIGUOUS.
+             --reapprove rewrites the approval snapshot after the user explicitly approves a scope change.
 `,
   },
 };
