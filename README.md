@@ -79,7 +79,8 @@ git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap
 
 게이트와 CLI 계약은 [`rules/cli.md`](rules/cli.md)에 있습니다. PreToolUse 커밋 가드는 실수 방지용이며
 악의적 우회를 막지 않습니다. 신뢰 경계는
-[`AGENTS.md`](AGENTS.md) hard rule 1이 정본입니다.
+[`AGENTS.md`](AGENTS.md) hard rule 1이 정본입니다. 막는 것과 막지 않는 것은
+[`docs/threat-model.md`](docs/threat-model.md)입니다.
 
 ## Contributing · License
 

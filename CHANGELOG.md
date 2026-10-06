@@ -7,6 +7,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- **G23 검증 신선도** — commit 게이트가 verify 원장의 `source_digest`와
+  `identity.head`를 현재 checkout과 대조하고, verify 뒤 소스·HEAD가 바뀌면
+  거절한다.
+- **G24 승인 범위 고정** — execute·commit 게이트가 활성화 시점 승인 digest와
+  현재 digest를 대조한다. 의도한 변경은 사용자 승인 뒤
+  `bouncer current --set --reapprove`로 스냅샷을 다시 쓴다. coordinator
+  원장이 있으면 `scope_revision`이 정본이라 이 대조를 건너뛴다.
+- **commit-guard와 init pre-commit hook** — `bouncer commit-guard --staged`가
+  스테이징 경로를 승인 범위와 대조하고, `bouncer init --pre-commit-hook`이
+  동의한 저장소에 git pre-commit hook을 설치한다.
+- **위협 모델** — `docs/threat-model.md`가 강제력이 막는 실수와 막지 않는
+  의도적 우회를 구분한다.
+
 ## [1.5.4] — 2026-10-06
 
 1.5.3 패치. finalize가 메인 checkout 정리(`release-main`)와 PR base 탐지를 맡고, coordinator 출력·지침
