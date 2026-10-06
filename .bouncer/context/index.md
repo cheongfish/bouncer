@@ -42,3 +42,4 @@ bouncer_schema: '0.1'
 * [083 drive-context-reduction](epics/083-drive-context-reduction/index.md) - Cut coordinator drive context by compacting coordinate output, narrowing instruction reads, and splitting the drive into per-wave coordinator sessions
 * [084 drive-plan-copy-hygiene](epics/084-drive-plan-copy-hygiene/index.md) - Keep main free of closed blueprint plan copies after a drive and move scaffold authoring guidance out of templates into skills.
 * [085 finalize-runtime-slimming](epics/085-finalize-runtime-slimming/index.md) - Finalize quiz, explain, and PR stop carrying drive execution records, and coordinator and gate recovery stop loading runtime rules they do not need.
+* [086 finalize-output-cleanup](epics/086-finalize-output-cleanup/index.md) - Finalize resolves the PR base from the repository default branch, and finalize result JSON stops carrying coordinator drive records.
