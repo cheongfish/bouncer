@@ -803,7 +803,7 @@ function snapshotTree(root) {
   return files;
 }
 
-test('a failed second worker seed leaves main plan, the first worker copy, and the ledger unchanged', () => {
+test('prepare copy-failed on a second worker removes the created first worker and keeps a reused second', () => {
   const blueprint = '.bouncer/context/epics/046-x/blueprints/047-y';
   const repo = uncommittedPlanRepo('bouncer-coordinator-seedfail-', blueprint, [
     ['001', '  depends_on: []\n  parallel_safe: true\n'],
@@ -828,10 +828,247 @@ test('a failed second worker seed leaves main plan, the first worker copy, and t
   const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
   assert.strictEqual(result.reason, 'copy-failed', JSON.stringify(result));
   assert.deepStrictEqual(snapshotTree(path.join(repo, '.bouncer')), mainBefore);
-  // 001 사본은 002 실패 전에 integration에서 받은 바이트 그대로다.
-  assert.deepStrictEqual(snapshotTree(path.join(worker1, blueprint)), integrationPlan);
   assert.deepStrictEqual(snapshotTree(path.join(boot.integrationPath, blueprint)), integrationPlan);
+  assert.strictEqual(fs.existsSync(worker1), false);
+  assert.strictEqual(
+    execFileSync('git', ['branch', '--list', 'bouncer/046-047-001'], { cwd: repo, encoding: 'utf8' }).trim(),
+    '',
+  );
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8' });
+  assert.match(listed, new RegExp(`^worktree ${worker2.replace(/\\/g, '\\\\')}$`, 'm'));
+  assert.doesNotMatch(listed, new RegExp(`^worktree ${worker1.replace(/\\/g, '\\\\')}$`, 'm'));
   assert.strictEqual(fs.readFileSync(ledgerFile, 'utf8'), ledgerBefore);
+});
+
+/**
+ * worker worktree가 `npm ci`를 타려면 lockfile이 HEAD에 있어야 한다. 작업 트리에만
+ * 두면 `git worktree add`가 가져오지 않아 mock이 npm을 보지 못한다.
+ *
+ * @param {string} integrationPath - integration checkout
+ */
+function commitIntegrationPackageLock(integrationPath) {
+  fs.writeFileSync(path.join(integrationPath, 'package-lock.json'), '{}\n');
+  execFileSync('git', ['add', 'package-lock.json'], { cwd: integrationPath });
+  execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '-m', 'lock'], {
+    cwd: integrationPath,
+  });
+}
+
+function gitBranchList(repo, branch) {
+  return execFileSync('git', ['branch', '--list', branch], { cwd: repo, encoding: 'utf8' }).trim();
+}
+
+test('prepare holds no ledger lock during worktree add and npm', () => {
+  const blueprint = '.bouncer/context/epics/087-lock/blueprints/001-absent';
+  const repo = uncommittedPlanRepo('bouncer-prepare-lock-absent-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const lockFile = `${ledgerFile}.lock`;
+  let worktreeAdds = 0;
+  let npmCalls = 0;
+  const result = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'git' && Array.isArray(args) && args[0] === 'worktree' && args[1] === 'add') {
+          assert.strictEqual(fs.existsSync(lockFile), false);
+          worktreeAdds += 1;
+        }
+        if (command === 'npm') {
+          assert.strictEqual(fs.existsSync(lockFile), false);
+          npmCalls += 1;
+          return Buffer.from('');
+        }
+        return execFileSync(command, args, options);
+      },
+    },
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.ok(worktreeAdds >= 1, `worktree add count ${worktreeAdds}`);
+  assert.ok(npmCalls >= 1, `npm count ${npmCalls}`);
+});
+
+test('prepare returns stale-ledger-checkpoint and removes the created worker when the ledger changes during seed', () => {
+  const blueprint = '.bouncer/context/epics/087-lock/blueprints/002-stale';
+  const repo = uncommittedPlanRepo('bouncer-prepare-ledger-stale-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const worker = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  let mutated;
+  const result = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'npm') {
+          fs.appendFileSync(ledgerFile, '\n');
+          mutated = fs.readFileSync(ledgerFile);
+          return Buffer.from('');
+        }
+        return execFileSync(command, args, options);
+      },
+    },
+  });
+  assert.strictEqual(result.reason, 'stale-ledger-checkpoint', JSON.stringify(result));
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), mutated);
+  assert.strictEqual(fs.existsSync(worker), false);
+  assert.strictEqual(gitBranchList(repo, 'bouncer/087-002-001'), '');
+});
+
+test('prepare npm failure returns dependency-install-failed and removes the created worker', () => {
+  const blueprint = '.bouncer/context/epics/087-lock/blueprints/003-npm';
+  const repo = uncommittedPlanRepo('bouncer-prepare-npm-fail-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const worker = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledgerBefore = fs.readFileSync(ledgerFile);
+  const result = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'npm') throw new Error('npm ci failed');
+        return execFileSync(command, args, options);
+      },
+    },
+  });
+  assert.strictEqual(result.reason, 'dependency-install-failed', JSON.stringify(result));
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), ledgerBefore);
+  assert.strictEqual(fs.existsSync(worker), false);
+  assert.strictEqual(gitBranchList(repo, 'bouncer/087-003-001'), '');
+});
+
+test('prepare succeeds when a stale ledger lock appears during seed', () => {
+  const blueprint = '.bouncer/context/epics/087-lock/blueprints/004-stale-lock';
+  const repo = uncommittedPlanRepo('bouncer-prepare-stale-lock-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const result = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'npm') {
+          fs.writeFileSync(`${ledgerFile}.lock`, JSON.stringify({
+            pid: 1, token: 'stale', at: Date.now() - 60000,
+          }));
+          return Buffer.from('');
+        }
+        return execFileSync(command, args, options);
+      },
+    },
+  });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  const workerPath = result.tasks[0].workerPath;
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8' });
+  assert.match(listed, new RegExp(`^worktree ${workerPath.replace(/\\/g, '\\\\')}$`, 'm'));
+});
+
+test('prepare returns unassigned-worker-worktree when the created worker vanishes during seed', () => {
+  const blueprint = '.bouncer/context/epics/087-lock/blueprints/005-lost';
+  const repo = uncommittedPlanRepo('bouncer-prepare-worker-lost-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const worker = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  const ledgerBefore = fs.readFileSync(ledgerFile);
+  const result = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'npm') {
+          execFileSync('git', ['worktree', 'remove', '--force', worker], { cwd: boot.integrationPath });
+          return Buffer.from('');
+        }
+        return execFileSync(command, args, options);
+      },
+    },
+  });
+  assert.strictEqual(result.reason, 'unassigned-worker-worktree', JSON.stringify(result));
+  assert.deepStrictEqual(fs.readFileSync(ledgerFile), ledgerBefore);
+});
+
+test('prepare reuses a registered worker after an interrupted create and records a single worktree', () => {
+  const blueprint = '.bouncer/context/epics/087-lock/blueprints/006-reuse';
+  const repo = uncommittedPlanRepo('bouncer-prepare-reuse-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const { coordinatorPathsFor } = require('../scripts/lib/runtime-state');
+  const worker = coordinatorPathsFor({ repoRoot: repo, blueprint, task: '001' }).workerPath;
+  fs.mkdirSync(path.dirname(worker), { recursive: true });
+  execFileSync('git', ['worktree', 'add', '-b', 'bouncer/087-006-001', worker, 'HEAD'], {
+    cwd: boot.integrationPath,
+  });
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  assert.strictEqual(JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).tasks[0].status, 'pending');
+  const result = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(result.ok, true, JSON.stringify(result));
+  assert.strictEqual(result.tasks[0].status, 'prepared');
+  assert.strictEqual(result.tasks[0].workerPath, worker);
+  const listed = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8' });
+  const workerLines = listed.split('\n').filter((line) => line.startsWith('worktree ') && line.includes(`${path.sep}workers${path.sep}`));
+  assert.strictEqual(workerLines.length, 1);
+  assert.strictEqual(workerLines[0], `worktree ${worker}`);
+});
+
+test('prepare overlapping the same fence lets the nested call win and the outer see stale-ledger-checkpoint', () => {
+  const blueprint = '.bouncer/context/epics/087-lock/blueprints/007-overlap';
+  const repo = uncommittedPlanRepo('bouncer-prepare-overlap-', blueprint, [
+    ['001', '  depends_on: []\n  parallel_safe: true\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  commitIntegrationPackageLock(boot.integrationPath);
+  const ledgerFile = path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json');
+  let nested = null;
+  let reentered = false;
+  const first = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+    deps: {
+      execFileSync(command, args, options) {
+        if (command === 'npm') {
+          if (reentered) return Buffer.from('');
+          reentered = true;
+          nested = coordinate({
+            command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+            deps: {
+              execFileSync(innerCommand, innerArgs, innerOptions) {
+                if (innerCommand === 'npm') return Buffer.from('');
+                return execFileSync(innerCommand, innerArgs, innerOptions);
+              },
+            },
+          });
+          return Buffer.from('');
+        }
+        return execFileSync(command, args, options);
+      },
+    },
+  });
+  assert.strictEqual(nested.ok, true, JSON.stringify(nested));
+  assert.strictEqual(first.reason, 'stale-ledger-checkpoint', JSON.stringify(first));
+  const after = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
+  assert.ok(fs.existsSync(after.tasks[0].workerPath));
 });
 
 test('a missing verification bundle in a mixed wave is rejected before any worker worktree exists', () => {
