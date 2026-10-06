@@ -29,11 +29,16 @@
 - **coordinate release** — 메인 사본 정리는 `finalize release-main`이 맡으므로
   이 명령을 제거한다.
 - **explain 퀴즈 기록과 drive 실행 기록** — `## 이해 상태`, `quiz_score`,
-  `disposition`, explain `bouncer.coordinator`, digest `coordinator`·
-  `tasks[].actual_paths`, PR Plan versus execution 절을 지침에서 뺀다.
+  `disposition`, explain `bouncer.coordinator`, finalize 결과 `coordinator`,
+  digest `coordinator`·`tasks[].actual_paths`, PR Plan versus execution 절을
+  지침에서 뺀다.
 
 ### Changed
 
+- **finalize PR base** — digest가 `pr.base` → `base_branch` → `origin/HEAD` 순으로
+  대상 브랜치를 정하고, 없으면 `main`을 추측하지 않고 `null`과
+  `{base}` 자리의 `title_prefix_template`을 넘긴다. draft-pr은 `gh pr create
+  --base <pr.base>`를 쓰고, base가 없으면 A 선택 뒤에 사용자에게 묻는다.
 - **coordinator Task round** — drive 세션에서 coordinator는 execute 스킬을
   읽지 않고 `## Task round`의 intent bundle·scope 재검증·execute gate 계약만으로
   한 task 회차를 진행한다.

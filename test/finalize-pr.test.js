@@ -144,6 +144,33 @@ test('buildPrDraft keeps type order Feat/Fix from commit subjects', () => {
   assert.strictEqual(draft.title_prefix, '[260924] (→ Develop) [Feat/Fix]');
 });
 
+test('buildPrDraft leaves base and title_prefix null when pr_base is missing', () => {
+  const digest = {
+    ok: true,
+    blueprint: { commit_type: 'feat' },
+    git: { branch: 'work', pr_base: null },
+    commits: [{ sha8: 'abc12345', subject: 'feat: x' }],
+    tasks: [],
+    out_of_scope: [],
+    unverified: [],
+  };
+  const draft = buildPrDraft(digest, {
+    now: new Date('2026-09-24T01:00:00Z'),
+    config: {},
+  });
+  assert.strictEqual(draft.base, null);
+  assert.strictEqual(draft.title_prefix, null);
+  assert.strictEqual(draft.title_prefix_template, '[260924] (→ {base}) [Feat]');
+
+  const missing = buildPrDraft(
+    { ...digest, git: { branch: 'work' } },
+    { now: new Date('2026-09-24T01:00:00Z'), config: {} },
+  );
+  assert.strictEqual(missing.base, null);
+  assert.strictEqual(missing.title_prefix, null);
+  assert.strictEqual(missing.title_prefix_template, '[260924] (→ {base}) [Feat]');
+});
+
 test('buildPrDraft review_points omit Epic/Blueprint stable ids from unverified', () => {
   // F1/F2: Constraints — PR 본문에 Epic/Blueprint id·stable_id를 넣지 않는다.
   // unverified.task는 EPIC-…/BP-…/TASK-… 형태이므로 kind·detail만 남긴다.

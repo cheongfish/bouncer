@@ -649,25 +649,14 @@ function writeExplainTaskContext({ repoRoot, blueprintDir, taskContext }: {
 }
 
 type LedgerTaskLike = {
-  id?: unknown; status?: unknown; sha?: unknown; workerPath?: unknown;
-  branch?: unknown;
-  execution_kind?: unknown;
-  scope?: { revision?: unknown; paths?: unknown } | null;
-  actualPaths?: unknown; decisions?: unknown;
+  workerPath?: unknown;
 };
 type CoordinatorLedgerLike = {
-  base?: unknown; integrationHead?: unknown; integrationBranch?: unknown; revision?: unknown;
-  tasks?: unknown; decisions?: unknown; status?: unknown; repairWaves?: unknown;
-  terminalFailure?: unknown; userConfirmed?: unknown;
+  base?: unknown; integrationBranch?: unknown; tasks?: unknown;
 };
 
 function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null;
-}
-
-function stringList(value: unknown): string[] {
-  return (Array.isArray(value) ? value : [])
-    .filter((entry): entry is string => typeof entry === 'string' && entry !== '');
 }
 
 /**
@@ -694,13 +683,22 @@ function resolveCheckoutBranch(worktreePath: string | null): string | null {
 }
 
 /**
- * coordinator 원장을 explain 기록과 cleanup 목록이 함께 쓰는 한 장으로 접는다.
+ * 원장에서 finalize·digest가 실제로 읽는 여섯 필드만 접는다.
+ * task SHA·decisions·repair wave는 마감 JSON에 실리면 모델이 drive 실행
+ * 기록을 재사용하므로 여기서 버린다. worker별 `git symbolic-ref`도 같은
+ * 이유로 호출하지 않는다 — 소비처는 integration branch와 worktree 경로뿐이다.
+ * 원장이 없으면 위임 실행이 아니므로 null. 빈 객체를 주면 호출부가
+ * "drive인데 기록이 비었다"와 구분하지 못한다.
  *
- * 원장은 삭제되는 integration worktree 안에 있어 blueprint가 닫히면 사라진다.
- * 그래서 finalize가 남길 값(어느 worker가 어떤 SHA로 무엇을 실제로 바꿨는지,
- * scope가 몇 번 개정됐는지)과 정리 대상 worktree 목록을 여기서 한 번에 뽑는다.
- * 원장이 없으면 위임 실행이 아니므로 null — 빈 객체를 돌려주면 호출부가
- * "coordinator 실행인데 기록이 비었다"와 구분하지 못한다.
+ * @param {CoordinatorLedgerLike | null | undefined} ledger - coordinator 원장. 없으면 null
+ * @param {object} [paths] - integration·원장 경로. 생략 시 둘 다 null
+ * @param {string | null} [paths.integrationPath] - integration worktree 절대 경로
+ * @param {string | null} [paths.ledgerFile] - 원장 파일 절대 경로
+ * @returns {{
+ *   status: 'ok', ledgerFile: string | null, base: string | null,
+ *   integrationBranch: string | null, integrationPath: string | null,
+ *   worktrees: string[]
+ * } | null} 원장 없으면 null
  */
 function buildCoordinatorProvenance(
   ledger: CoordinatorLedgerLike | null | undefined,
@@ -708,22 +706,11 @@ function buildCoordinatorProvenance(
     { integrationPath?: string | null; ledgerFile?: string | null } = {},
 ) {
   if (!ledger) return null;
-  const tasks = (Array.isArray(ledger.tasks) ? ledger.tasks : [])
+  // 빈 workerPath는 정리 대상이 아니다. 순서는 원장 task 순서를 유지한다.
+  const workerPaths = (Array.isArray(ledger.tasks) ? ledger.tasks : [])
     .filter((entry): entry is LedgerTaskLike => Boolean(entry) && typeof entry === 'object')
-    .map((entry) => ({
-      // id도 이웃 필드와 같은 정규화를 거친다. String()으로 감싸면 id가 없는
-      // 항목이 문자열 "undefined"가 되어 explain frontmatter에 그대로 박히고,
-      // 원장이 사라진 뒤 draft-pr이 그것을 실재하는 task id로 읽는다.
-      id: stringOrNull(entry.id),
-      status: typeof entry.status === 'string' ? entry.status : 'pending',
-      sha: stringOrNull(entry.sha),
-      worktree: stringOrNull(entry.workerPath),
-      branch: stringOrNull(entry.branch) || resolveCheckoutBranch(stringOrNull(entry.workerPath)),
-      scopeRevision: entry.scope ? stringOrNull(entry.scope.revision) : null,
-      paths: entry.scope ? stringList(entry.scope.paths) : [],
-      actualPaths: stringList(entry.actualPaths),
-      decisions: Array.isArray(entry.decisions) ? entry.decisions : [],
-    }));
+    .map((entry) => stringOrNull(entry.workerPath))
+    .filter((p): p is string => Boolean(p));
   return {
     status: 'ok' as const,
     // 성공 경로도 원장 경로를 싣는다. unreadable 분기에만 채우면 소비자가
@@ -731,25 +718,15 @@ function buildCoordinatorProvenance(
     // 구분하지 못한다.
     ledgerFile,
     base: stringOrNull(ledger.base),
-    integrationHead: stringOrNull(ledger.integrationHead),
     integrationBranch: stringOrNull(ledger.integrationBranch)
       || resolveCheckoutBranch(integrationPath),
-    revision: stringOrNull(ledger.revision),
     integrationPath,
-    tasks,
-    decisions: Array.isArray(ledger.decisions) ? ledger.decisions : [],
-    lifecycleStatus: typeof ledger.status === 'string' ? ledger.status : 'active',
-    repairWaves: Array.isArray(ledger.repairWaves) ? ledger.repairWaves : [],
-    terminalFailure: ledger.terminalFailure || null,
-    userConfirmed: ledger.userConfirmed === true,
     // cleanup 목록: integration이 먼저고, 할당된 worker worktree가 뒤따른다.
     // payload의 top-level `worktrees`는 정리 계약(SKILL step 5,
-    // cleanup-handoff.md)이 읽는 안정된 자리이다. explain frontmatter에는
-    // 남기지 않는다 — 머신 경로는 원장이 사라진 뒤 재현할 수 없고, 인덱스에
-    // 넣을 값이 아니다.
+    // cleanup-handoff.md)이 읽는 안정된 자리이다.
     worktrees: [
       ...(integrationPath ? [integrationPath] : []),
-      ...tasks.map((task) => task.worktree).filter((p): p is string => Boolean(p)),
+      ...workerPaths,
     ],
   };
 }
@@ -757,9 +734,7 @@ function buildCoordinatorProvenance(
 type CoordinatorProvenance = ReturnType<typeof buildCoordinatorProvenance>;
 type UnreadableProvenance = {
   status: 'unreadable'; ledgerFile: string | null; integrationPath: string | null;
-  base: null; integrationHead: null; revision: null;
-  integrationBranch: null;
-  tasks: never[]; decisions: never[]; worktrees: never[];
+  base: null; integrationBranch: null; worktrees: never[];
 };
 
 /**
@@ -767,11 +742,11 @@ type UnreadableProvenance = {
  * finalize는 같은 읽기로 `integration`도 만들어 두 필드가 서로 다른 원장을
  * 가리키지 않게 한다. 공개 API는 아래 `collectCoordinatorProvenance`다.
  *
- * @param {object} read - `readCoordinatorLedger` 결과
- * @returns {CoordinatorProvenance | UnreadableProvenance} 원장 없음은 null
+ * @param {ReturnType<typeof readCoordinatorLedger>} read - `readCoordinatorLedger` 결과
+ * @returns {CoordinatorProvenance | UnreadableProvenance | null} 원장 없음은 null, 깨진 원장은 unreadable
  */
 function provenanceFromLedgerRead(read: ReturnType<typeof readCoordinatorLedger>):
-  CoordinatorProvenance | UnreadableProvenance {
+  CoordinatorProvenance | UnreadableProvenance | null {
   if (!read.ok) {
     if (read.reason !== 'unreadable-ledger') return null;
     return {
@@ -779,11 +754,7 @@ function provenanceFromLedgerRead(read: ReturnType<typeof readCoordinatorLedger>
       ledgerFile: read.ledgerFile || null,
       integrationPath: read.integrationPath || null,
       base: null,
-      integrationHead: null,
       integrationBranch: null,
-      revision: null,
-      tasks: [],
-      decisions: [],
       worktrees: [],
     };
   }
@@ -797,14 +768,18 @@ function provenanceFromLedgerRead(read: ReturnType<typeof readCoordinatorLedger>
  * 저장소에서 원장을 찾아 provenance로 접는다.
  *
  * 원장이 아예 없으면 위임 실행이 아니므로 null이다. 읽을 수는 있으나 깨진
- * 원장은 null이 아니다 — null로 접으면 `coordinator: null`, `worktrees: []`가
- * 되어 비-drive finalize와 구분되지 않고, 검증되지 않은 fan-in이 완료로
- * 기록된다. current의 `coordinatorSnapshot`과 같은 모양으로 `status`와 고칠
- * 파일 경로를 실어 호출부가 멈출 수 있게 한다.
+ * 원장은 null이 아니다 — null로 접으면 top-level `worktrees: []`만 남아
+ * 비-drive finalize와 구분되지 않고, 검증되지 않은 fan-in이 완료로
+ * 기록된다. `status`와 고칠 파일 경로를 실어 호출부가 멈출 수 있게 한다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 저장소 루트 절대 경로
+ * @param {string} opts.blueprintDir - blueprint 상대 경로
+ * @returns {CoordinatorProvenance | UnreadableProvenance | null} 원장 없음은 null
  */
 function collectCoordinatorProvenance({ repoRoot, blueprintDir }: {
   repoRoot: string; blueprintDir: string;
-}): CoordinatorProvenance | UnreadableProvenance {
+}): CoordinatorProvenance | UnreadableProvenance | null {
   return provenanceFromLedgerRead(readCoordinatorLedger({ repoRoot, blueprint: blueprintDir }));
 }
 
@@ -935,10 +910,10 @@ function readTaskStatus(file: string): string | null {
 
 /**
  * blueprint를 닫는다. dry-run은 계획만 보고, `--yes`는 검증·잠금·커밋까지 간다.
- * drive면 원장 provenance를 반환 payload의 `coordinator`·`worktrees`에 싣고
- * cleanup이 읽게 한다. explain frontmatter에는 쓰지 않는다 — drive 실행
- * 기록은 원장이 살아있는 동안에만 의미가 있고, 이미 있는 옛
- * `bouncer.coordinator`는 마이그레이션하지 않는다.
+ * drive면 원장에서 읽은 정리 목록을 top-level `worktrees`에 싣고 cleanup이
+ * 읽게 한다. explain frontmatter에는 쓰지 않는다 — drive 실행 기록은 원장이
+ * 살아있는 동안에만 의미가 있고, 이미 있는 옛 `bouncer.coordinator`는
+ * 마이그레이션하지 않는다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 저장소 루트 절대 경로
@@ -948,7 +923,7 @@ function readTaskStatus(file: string): string | null {
  * @param {(opts: { repoRoot: string }) => boolean} [opts.clearPointer] - pointer 삭제 seam
  * @param {(opts: { repoRoot: string, blueprintDir: unknown }) => unknown} [opts.next] - next 후보 seam
  * @param {VerifyExec} [opts.verifyExec] - 검증 실행 seam
- * @returns {object} 성공이면 `ok: true`와 coordinator·worktrees·branch, 실패면 reason
+ * @returns {object} 성공이면 `ok: true`와 worktrees·branch, 실패면 reason
  */
 function finalize({
   repoRoot, blueprintDir, yes = false, git, clearPointer = clearCurrent,
@@ -968,11 +943,11 @@ function finalize({
   const preflightBouncer = preflightTarget.data && typeof preflightTarget.data === 'object'
     ? asRecord(asRecord(preflightTarget.data).bouncer) : {};
   if (preflightBouncer.status === 'partial_closed') {
-    const coordinator = collectCoordinatorProvenance({ repoRoot, blueprintDir });
+    const collected = collectCoordinatorProvenance({ repoRoot, blueprintDir });
     const nextPlan = path.join(repoRoot, 'NEXT_PLAN.md');
     return {
-      ok: false, reason: 'partial-closed', status: 'partial_closed', coordinator,
-      worktrees: coordinator ? coordinator.worktrees : [],
+      ok: false, reason: 'partial-closed', status: 'partial_closed',
+      worktrees: collected ? collected.worktrees : [],
       nextPlan: fs.existsSync(nextPlan) ? nextPlan : null,
       preserved: true,
       message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.',
@@ -1029,14 +1004,12 @@ function finalize({
       code: 'UNREADABLE_LEDGER',
       ledgerFile: collected.ledgerFile,
       integrationPath: collected.integrationPath,
-      coordinator: collected,
       integration,
     };
   }
-  const coordinator = collected;
-  const branch = coordinator ? coordinator.integrationBranch : resolveCheckoutBranch(repoRoot);
+  const branch = collected ? collected.integrationBranch : resolveCheckoutBranch(repoRoot);
   // top-level `worktrees`는 cleanup이 읽는 안정된 자리다(위 buildCoordinatorProvenance 주석).
-  const worktrees = coordinator ? coordinator.worktrees : [];
+  const worktrees = collected ? collected.worktrees : [];
   // next 후보 계산이 finalize를 깨면 안 됨: next()가 throw하면 빈 handoff
   // 형태로 뭉개 ok/exit는 commit 작업에만 묶임.
   const computeNext = () => {
@@ -1096,7 +1069,6 @@ function finalize({
       commitMessage,
       next: computeNext(),
       closed: lockPath,
-      coordinator,
       branch,
       worktrees,
       integration,
@@ -1116,7 +1088,6 @@ function finalize({
       pointerCleared,
       next: computeNext(),
       closed: lockPath,
-      coordinator,
       branch,
       worktrees,
       integration,
@@ -1176,7 +1147,7 @@ function finalize({
   const trailerBase = resolveFinalizeTrailerBase({
     repoRoot,
     blueprintDir,
-    ledgerBase: coordinator ? coordinator.base : null,
+    ledgerBase: collected ? collected.base : null,
   });
   if (trailerBase) {
     try {
@@ -1226,8 +1197,8 @@ function finalize({
     if (lockPath && explainBefore) {
       writeExplainTaskCommits({ repoRoot, blueprintDir, taskCommits });
       writeExplainTaskContext({ repoRoot, blueprintDir, taskContext });
-      // coordinator는 payload에만 남긴다. explain은 제품 동작 기록이고
-      // drive 원장 색인을 싣으면 검색·PR 입력이 실행 기록을 재사용한다.
+      // explain은 제품 동작 기록이다. drive 원장 색인을 싣으면 검색·PR 입력이
+      // 실행 기록을 재사용한다.
     }
     for (const snap of snapshots) fs.unlinkSync(snap.abs);
     // 이미 closed면 lockPath가 null이라 여기서 아무것도 쓰지 않는다.
@@ -1251,7 +1222,6 @@ function finalize({
     next: computeNext(),
     closed: lockPath,
     taskCommits,
-    coordinator,
     branch,
     worktrees,
     integration,

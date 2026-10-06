@@ -620,6 +620,7 @@ test('re-running --yes on an already-closed blueprint does not rewrite status an
   assert.strictEqual(res.closed, null);
   assert.strictEqual(res.committed, false);
   assert.strictEqual(g.calls.committed, null);
+  assert.strictEqual('coordinator' in res, false);
 });
 
 test('finalize dry-run and commit both carry injected next payload', () => {
@@ -1375,19 +1376,8 @@ test('finalize dry-run projects the coordinator ledger and its worktree inventor
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   const drive = drivenBlueprint(repo);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
-  assert.ok(res.coordinator, 'finalize payload must carry coordinator provenance');
-  assert.strictEqual(res.coordinator.tasks[0].id, '001');
-  assert.strictEqual(res.coordinator.tasks[0].status, 'prepared');
-  assert.strictEqual(res.coordinator.tasks[0].worktree, drive.worker);
-  assert.strictEqual(res.branch, res.coordinator.integrationBranch);
-  assert.strictEqual(res.coordinator.tasks[0].branch, 'bouncer/001-001-001');
-  assert.strictEqual(typeof res.coordinator.integrationHead, 'string');
-  // 성공 경로도 원장 경로를 실어야 한다. unreadable 분기에만 채우면 이 필드가
-  // 정상 드라이브에서는 항상 null이라 아무것도 알려주지 못한다.
-  assert.strictEqual(
-    res.coordinator.ledgerFile,
-    path.join(drive.integration, '.bouncer/runtime/coordinator.json'),
-  );
+  assert.strictEqual('coordinator' in res, false);
+  assert.strictEqual(res.branch, 'feat/001-001-login');
   // cleanup은 이 목록으로 정리 대상을 센다 — integration과 worker가 모두 있어야 한다.
   assert.deepStrictEqual(res.worktrees, [drive.integration, drive.worker]);
 });
@@ -1396,7 +1386,7 @@ test('finalize without a coordinator ledger reports no provenance and no worktre
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
-  assert.strictEqual(res.coordinator, null);
+  assert.strictEqual('coordinator' in res, false);
   assert.strictEqual(res.branch, 'work');
   assert.deepStrictEqual(res.worktrees, []);
 });
@@ -1414,10 +1404,12 @@ test('finalize resolves legacy ledger branch fields from worktrees and leaves ve
 
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
 
-  assert.strictEqual(res.coordinator.integrationBranch, 'feat/001-001-login');
-  assert.strictEqual(res.coordinator.tasks[0].branch, 'bouncer/001-001-001');
-  assert.strictEqual(res.coordinator.tasks[1].branch, null);
-  assert.strictEqual(res.branch, res.coordinator.integrationBranch);
+  const integrationCheckout = execFileSync(
+    'git', ['symbolic-ref', '--quiet', '--short', 'HEAD'],
+    { cwd: drive.integration, encoding: 'utf8' },
+  ).trim();
+  assert.strictEqual(res.branch, integrationCheckout);
+  assert.strictEqual('coordinator' in res, false);
 });
 
 function writeCoordinatorLedger(repo, tasks) {
@@ -1561,6 +1553,7 @@ test('finalize preserves a partial-closed drive and refuses ordinary cleanup', (
   assert.strictEqual(res.nextPlan, path.join(repo, 'NEXT_PLAN.md'));
   assert.match(res.message, /NEXT_PLAN\.md를 확인하고/);
   assert.deepStrictEqual(g.calls, { staged: null, committed: null });
+  assert.strictEqual('coordinator' in res, false);
 });
 
 // 읽히지 않는 원장을 null로 접으면 비-drive finalize와 구분되지 않는다.
@@ -1574,9 +1567,8 @@ test('finalize refuses an unreadable coordinator ledger instead of closing as a 
   const res = finalize({ repoRoot: repo, blueprintDir: BP_REL, git: fakeGit([], []).api });
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'coordinator-ledger');
-  assert.strictEqual(res.coordinator.status, 'unreadable');
+  assert.strictEqual('coordinator' in res, false);
   // 고칠 파일을 이름으로 돌려줘야 운영자가 어느 원장인지 찾을 수 있다.
-  assert.strictEqual(res.coordinator.ledgerFile, ledgerFile);
   assert.strictEqual(res.ledgerFile, ledgerFile);
   assert.strictEqual(res.integrationPath, drive.integration);
   assert.deepStrictEqual(res.integration, {
@@ -1594,6 +1586,7 @@ test('finalize refuses an unreadable coordinator ledger instead of closing as a 
   assert.strictEqual(yes.ok, false);
   assert.strictEqual(yes.reason, 'coordinator-ledger');
   assert.strictEqual(yes.integration.ledger, 'unreadable');
+  assert.strictEqual('coordinator' in yes, false);
 });
 
 test('finalize --yes on a drive writes no coordinator into explain', () => {
@@ -1606,10 +1599,9 @@ test('finalize --yes on a drive writes no coordinator into explain', () => {
   assert.strictEqual(res.ok, true, JSON.stringify(res));
   const { data } = readFm(fs.readFileSync(path.join(repo, `${BP_REL}/explain.md`), 'utf8'));
   // drive 기록은 실행 중에만 쓰이므로 explain 인덱스에 남기지 않는다.
-  // cleanup은 반환 payload의 coordinator를 읽는다.
   assert.strictEqual(data.bouncer.coordinator, undefined);
   assert.ok(Array.isArray(data.bouncer.task_commits));
-  assert.ok(res.coordinator, 'finalize payload keeps coordinator for cleanup');
+  assert.strictEqual('coordinator' in res, false);
 });
 
 test('finalize --yes without a coordinator ledger writes no coordinator into explain', () => {

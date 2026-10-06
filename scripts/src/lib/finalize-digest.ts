@@ -78,7 +78,7 @@ type FinalizeDigest = {
     scale: string | null;
   };
   range: { base: string; head: string; diff_sha: string | null };
-  git: { branch: string | null; pr_base: string };
+  git: { branch: string | null; pr_base: string | null };
   tasks: TaskDigest[];
   changed_paths: string[];
   symbols: Array<{ path: string; names: string[] }>;
@@ -132,21 +132,34 @@ function stringList(value: unknown): string[] {
 }
 
 /**
- * config에서 PR 대상 브랜치를 고른다. `pr.base` → `base_branch` → `main`.
- * 키가 깨져 있어도 digest 전체를 실패시키지 않기 위해 마지막에 main으로 닫는다.
+ * PR 대상 브랜치를 config 다음 origin/HEAD에서 고른다.
+ * `main`/`develop`/현재 HEAD로 추측하지 않는다 — 기본 브랜치가 다른 저장소에서
+ * draft PR이 잘못된 base로 열리기 때문이다. 후보가 없으면 digest는 ok를 유지하고
+ * null을 넘겨 draft-pr이 사용자에게 묻게 한다.
  *
  * @param {string} repoRoot - config를 읽을 checkout
- * @returns {string} PR base 브랜치 이름
+ * @param {(args: string[]) => { status: number, stdout: string }} run - prepare가
+ *   만든 git seam. 탐지 호출이 이 함수를 거쳐야 exec stub가 가로챌 수 있다
+ * @returns {string | null} 비어 있지 않은 브랜치 이름, 없으면 null
  */
-function resolvePrBase(repoRoot: string): string {
+function resolvePrBase(repoRoot: string, run: GitExec): string | null {
   const config = readConfig(repoRoot);
   const root = asRecord(config);
   const pr = asRecord(root.pr);
+  // 1. 명시 설정이 있으면 git을 보지 않는다. 빈 문자열·공백·비문자열은 다음 후보.
   if (typeof pr.base === 'string' && pr.base.trim()) return pr.base.trim();
   if (typeof root.base_branch === 'string' && root.base_branch.trim()) {
     return root.base_branch.trim();
   }
-  return 'main';
+
+  // 2. origin/HEAD는 worktree끼리 refs/remotes를 공유하므로 linked checkout에서도
+  //    같은 답이 나온다. status·접두사 검사는 throw 없이 null로 접는다.
+  const result = run(['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']);
+  if (result.status !== 0) return null;
+  const ref = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+  if (!ref.startsWith('origin/')) return null;
+  const name = ref.slice('origin/'.length);
+  return name || null;
 }
 
 /**
@@ -736,7 +749,7 @@ function prepareFinalizeDigest({
     },
     git: {
       branch,
-      pr_base: resolvePrBase(checkoutRoot),
+      pr_base: resolvePrBase(checkoutRoot, run),
     },
     tasks: built.map((item) => item.digest),
     changed_paths: changedPaths,
