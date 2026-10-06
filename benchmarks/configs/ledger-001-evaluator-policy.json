@@ -3,7 +3,7 @@
   "task_id": "ledger-001",
   "approval_state": "approved",
   "approved_by": "user",
-  "approval_record": "2026-09-29 conversation: 승인; benchmark plan approval and synthetic quiz response explicitly requested; 2026-09-29 conversation: product_paths adds test/cli.test.js and README.md, affected_paths confirmed without filtering; 2026-09-29 conversation: plan.activate_pointer added",
+  "approval_record": "2026-09-29 conversation: 승인; benchmark plan approval and synthetic quiz response explicitly requested; 2026-09-29 conversation: product_paths adds test/cli.test.js and README.md, affected_paths confirmed without filtering; 2026-09-29 conversation: plan.activate_pointer added; 2026-10-06 conversation: 사용자 승인 — plan.open_decisions(1.5.4 discovery 전 미정 동작 질문)는 판단을 에이전트 권장안에 위임하는 중립 응답 한 줄로 synthetic 응답(요구사항 추가 없음)",
   "base_commit": "a75fd4165864f1459221695012894d6333382bf7",
   "request_file": "benchmarks/tasks/ledger-001.prd.md",
   "purpose": "Answer benchmark user questions only when they are actually asked, so the Bouncer run can reach local finalize.",
@@ -19,7 +19,8 @@
   "benchmark_choices": {
     "plan_approval": "select_recommended_approve_without_quality_preselection",
     "finalize_quiz": "first_option_for_each_presented_question",
-    "quiz_score_use": "workflow_record_only_exclude_from_product_accuracy"
+    "quiz_score_use": "workflow_record_only_exclude_from_product_accuracy",
+    "open_decisions": "delegate_to_agent_recommendation"
   },
   "task_facts": {
     "goal": "Add the summary command described in the request file while preserving list and total.",
