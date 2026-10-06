@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const yaml = require('js-yaml');
 const { prepareFinalizeDigest } = require('../scripts/lib/finalize-digest');
 const { writeCurrent, clearCurrent } = require('../scripts/lib/current');
@@ -186,8 +186,10 @@ test('prepareFinalizeDigest fills trailer commits, unverified, symbols, and refu
   );
   assert.ok(d.symbols.some((s) => s.names.includes('greet')));
   assert.ok(d.pr);
-  assert.match(d.pr.title_prefix, /^\[\d{6}\] \(→ Main\) \[Feat\]$/);
-  assert.strictEqual(d.pr.base, 'main');
+  assert.strictEqual(d.git.pr_base, null);
+  assert.strictEqual(d.pr.base, null);
+  assert.strictEqual(d.pr.title_prefix, null);
+  assert.match(d.pr.title_prefix_template, /^\[\d{6}\] \(→ \{base\}\) \[Feat\]$/);
   assert.strictEqual(d.pr.head, 'work');
   assert.strictEqual(d.pr.draft, true);
   assert.deepStrictEqual(d.pr.sections.related, []);
@@ -375,7 +377,8 @@ test('prepareFinalizeDigest accepts now for deterministic pr.title_prefix', () =
     now: new Date('2026-09-24T01:00:00Z'),
   });
   assert.strictEqual(d.ok, true, JSON.stringify(d));
-  assert.strictEqual(d.pr.title_prefix, '[260924] (→ Main) [Feat]');
+  assert.strictEqual(d.pr.title_prefix, null);
+  assert.strictEqual(d.pr.title_prefix_template, '[260924] (→ {base}) [Feat]');
 });
 
 test('CLI finalize prepare prints digest JSON', () => {
@@ -391,6 +394,72 @@ test('CLI finalize prepare prints digest JSON', () => {
   assert.strictEqual(parsed.ok, true);
   assert.strictEqual(parsed.version, 1);
   assert.strictEqual(parsed.tasks[0].commit.source, 'trailer');
+});
+
+test('prepareFinalizeDigest uses origin/HEAD when config has no PR base', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+  git(repoRoot, ['remote', 'add', 'origin', 'https://example.invalid/r.git']);
+  git(repoRoot, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/trunk']);
+  const d = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    now: new Date('2026-09-24T01:00:00Z'),
+  });
+  assert.strictEqual(d.ok, true, JSON.stringify(d));
+  assert.strictEqual(d.pr.base, 'trunk');
+  assert.strictEqual(d.git.pr_base, 'trunk');
+  assert.strictEqual(d.pr.title_prefix, '[260924] (→ Trunk) [Feat]');
+});
+
+/**
+ * symbolic-ref만 가로채고 나머지 argv는 실제 git으로 넘긴다.
+ * 탐지가 run seam을 타지 않으면 이 stub이 안 걸려 기대값이 갈라진다.
+ *
+ * @param {string} repoRoot - fixture cwd
+ * @param {{ status: number, stdout: string }} symbolicRef - symbolic-ref 응답
+ * @returns {(args: string[]) => { status: number, stdout: string }}
+ */
+function execWithSymbolicRefStub(repoRoot, symbolicRef) {
+  return (args) => {
+    if (args[0] === 'symbolic-ref') return symbolicRef;
+    const r = spawnSync('git', args, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+    return {
+      status: typeof r.status === 'number' ? r.status : 1,
+      stdout: r.stdout || '',
+    };
+  };
+}
+
+test('prepareFinalizeDigest folds origin/HEAD through exec stub without guessing HEAD', () => {
+  const { repoRoot, blueprintDir } = buildStandaloneFixture();
+
+  const failed = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: execWithSymbolicRefStub(repoRoot, { status: 1, stdout: '' }),
+  });
+  assert.strictEqual(failed.ok, true, JSON.stringify(failed));
+  assert.strictEqual(failed.pr.base, null);
+
+  const noPrefix = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: execWithSymbolicRefStub(repoRoot, { status: 0, stdout: 'develop\n' }),
+  });
+  assert.strictEqual(noPrefix.ok, true, JSON.stringify(noPrefix));
+  assert.strictEqual(noPrefix.pr.base, null);
+
+  const fromOrigin = prepareFinalizeDigest({
+    repoRoot,
+    blueprintDir,
+    exec: execWithSymbolicRefStub(repoRoot, { status: 0, stdout: 'origin/develop\n' }),
+  });
+  assert.strictEqual(fromOrigin.ok, true, JSON.stringify(fromOrigin));
+  assert.strictEqual(fromOrigin.pr.base, 'develop');
 });
 
 test('prepareFinalizeDigest uses base_branch when pr.base is absent', () => {

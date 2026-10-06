@@ -5,18 +5,20 @@ only defines the draft-PR choices and their consequences below.
 
 ACQ `finalize.pr` before push or `gh pr create`: A) draft PR (recommended when remote and `gh` work), B) local only, C) cancel outward steps but continue cleanup. Decline skips push/PR. With no remote or no `gh`, skip gracefully after local finalize without PR ACQ. On acceptance, render title and body from the prepare digest kept through `--yes`, then push and create a draft without a further confirmation; push/create failures report their reason without re-asking.
 
-Use `.bouncer/config.json` `pr.draft` / `pr.base` (and `base_branch`) with
-`scripts/lib/templates.js` (`pr.md`). Do not pass `pr.labels` or any `--label`
-flag — leftover `pr.labels` in an existing config is ignored without error and
-never attached. Title and push order stay the same; body follows the section
-contract below.
+Use `.bouncer/config.json` `pr.draft` with `scripts/lib/templates.js` (`pr.md`).
+PR base comes from the prepare digest (`pr.base`), not from re-reading config.
+Do not pass `pr.labels` or any `--label` flag — leftover `pr.labels` in an
+existing config is ignored without error and never attached. Title and push
+order stay the same; body follows the section contract below.
 
 ### Title (unchanged)
 
 Use digest `pr.title_prefix` plus one space and a Korean summary:
 `<pr.title_prefix> <한국어 요약>`. Do not recompute the YYMMDD / MergeTarget /
 Type prefix from commits or config — the digest already did. Do not put commit
-subjects or ids in the title.
+subjects or ids in the title. When `pr.title_prefix` is `null`, fill
+`pr.title_prefix_template` as described below instead of inventing a date or
+type set.
 
 ### Body sections (fill then drop empties)
 
@@ -63,7 +65,14 @@ finalize/cleanup path. Do not reconstruct a branch name from blueprint data.
 ```bash
 git push -u origin <finalize payload branch>
 bouncer finalize links --blueprint <pointer.blueprint>
-gh pr create --draft --base <config.base_branch> --title "<pr.title_prefix> <한국어 요약>" --body-file <rendered pr body>
+gh pr create --draft --base <pr.base> --title "<pr.title_prefix> <한국어 요약>" --body-file <rendered pr body>
 ```
+
+`pr.base` is `null` when config and `origin/HEAD` did not yield a branch. After
+the user picks A, ask for the base branch name as a follow-up — do not change
+the A/B/C choices. If they give a name, capitalize its first letter and
+substitute that for `{base}` in `pr.title_prefix_template` to form the title
+prefix; pass the given name unchanged to `--base`. If they give no answer,
+treat the choice as B (local only) and continue cleanup.
 
 No `--label` arguments. `pr.labels` is not part of the create contract.

@@ -178,6 +178,10 @@ test('bouncer-finalize skill and references switch Explain/Quiz/PR inputs to fin
   assert.doesNotMatch(explainQuiz, /Audit those against the ledger's decision log/);
   assert.doesNotMatch(draftPr, /Every task `verification\.md` evidence/);
   assert.match(draftPr, /pr\.title_prefix/);
+  assert.doesNotMatch(draftPr, /--base <config\.base_branch>/);
+  assert.match(draftPr, /--base <pr\.base>/);
+  assert.match(draftPr, /title_prefix_template/);
+  assert.match(draftPr, /`pr\.base` is `null`/);
   assert.match(explainQuiz, /Do not re-read the coordinator ledger, task documents, or verification logs\./);
   assert.match(skill, /bouncer\.comprehension|explain-diff/);
   assert.match(skill, /If the user does not answer\s+the quiz, \*\*stop\*\*/);
