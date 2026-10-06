@@ -37,6 +37,9 @@ const { COORDINATE_FAILURE_HINTS } = __coordinatorMod;
 
 const { validateCoordinatorLedger } = require('../scripts/lib/runtime-state');
 const { writeCurrent } = require('../scripts/lib/current');
+const { readDoc } = require('../scripts/lib/frontmatter');
+const { renderDoc } = require('../scripts/lib/render');
+const { taskBriefHash } = require('../scripts/lib/task-brief-hash');
 
 function writeCoordinatorConfig(repoRoot, coordinator) {
   const dir = path.join(repoRoot, '.bouncer');
@@ -1383,9 +1386,7 @@ function preparedCommitDrive(prefix, blueprint) {
 }
 
 function briefHash(worker, blueprint, task) {
-  return crypto.createHash('sha256')
-    .update(fs.readFileSync(path.join(worker, blueprint, 'tasks', task, 'tasks.md')))
-    .digest('hex');
+  return taskBriefHash(fs.readFileSync(path.join(worker, blueprint, 'tasks', task, 'tasks.md'), 'utf8'));
 }
 
 // drive false acceptance 방지: CLI 전략 실패·frozen target 불일치에서는
@@ -1544,6 +1545,50 @@ test('record rejects after brief bytes change following an accepted report', () 
   assert.strictEqual(ledger.tasks[0].status, 'prepared');
   assert.strictEqual(ledger.tasks[0].sha, undefined);
   assert.strictEqual(fs.readFileSync(drive.ledgerFile, 'utf8'), ledgerBefore);
+});
+
+test('record accepts after commit stamps commit_sha and status following an accepted report', () => {
+  const blueprint = '.bouncer/context/epics/088-a/blueprints/001-y';
+  const drive = preparedCommitDrive('bouncer-record-commit-sha-', blueprint);
+  acceptDispatchReport(drive.repo, blueprint, drive.worker);
+  const file = path.join(drive.worker, blueprint, 'tasks/001/tasks.md');
+  const doc = readDoc(file);
+  doc.data.bouncer.status = 'verified';
+  doc.data.bouncer.commit_sha = 'abcd1234';
+  fs.writeFileSync(file, renderDoc(doc.data, doc.body));
+  const recorded = coordinate({
+    command: 'record', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+});
+
+test('record rejects after affected_paths change following an accepted report', () => {
+  const blueprint = '.bouncer/context/epics/088-b/blueprints/001-y';
+  const drive = preparedCommitDrive('bouncer-record-affected-paths-', blueprint);
+  acceptDispatchReport(drive.repo, blueprint, drive.worker);
+  const file = path.join(drive.worker, blueprint, 'tasks/001/tasks.md');
+  const doc = readDoc(file);
+  doc.data.bouncer.affected_paths = ['other.ts'];
+  fs.writeFileSync(file, renderDoc(doc.data, doc.body));
+  const rejected = coordinate({
+    command: 'record', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(rejected.ok, false);
+  assert.strictEqual(rejected.reason, 'stale-worker-report');
+});
+
+test('dispatch on a brief without frontmatter throws and leaves the ledger bytes unchanged', () => {
+  const blueprint = '.bouncer/context/epics/088-c/blueprints/001-y';
+  const drive = preparedCommitDrive('bouncer-dispatch-no-frontmatter-', blueprint);
+  fs.writeFileSync(path.join(drive.worker, blueprint, 'tasks/001/tasks.md'), 'brief only\n');
+  const ledgerBefore = fs.readFileSync(drive.ledgerFile);
+  assert.throws(
+    () => coordinate({
+      command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    }),
+    /missing frontmatter block/,
+  );
+  assert.deepStrictEqual(fs.readFileSync(drive.ledgerFile), ledgerBefore);
 });
 
 test('record rejects a non-accepted report without storing worker SHA', () => {

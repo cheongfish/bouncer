@@ -5,10 +5,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createHash } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 
 const { resolveTaskIntentBundle, projectRoleIntentSections } = require('../scripts/lib/intent-bundle');
+const { taskBriefHash } = require('../scripts/lib/task-brief-hash');
 const { intentBundlePathFor } = require('../scripts/lib/runtime-state');
 const { resolveIntentProvenance } = require('../scripts/lib/intent-provenance');
 
@@ -450,9 +450,7 @@ test('task_brief_hash is the sha256 of the current task brief bytes', () => {
     functions: [{ symbol: 'targetFn' }],
     deps: { execFileSync },
   });
-  const expected = createHash('sha256')
-    .update(fs.readFileSync(path.join(repo, taskFile)))
-    .digest('hex');
+  const expected = taskBriefHash(fs.readFileSync(path.join(repo, taskFile), 'utf8'));
   assert.equal(result.task_brief_hash, expected);
 });
 
