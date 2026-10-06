@@ -54,6 +54,26 @@ function initGitWithChange(repo) {
   run(['commit', '-m', 'change']);
 }
 
+/**
+ * 하네스 verify 원장을 현재 작업 트리 기준으로 다시 기록한다.
+ * writeTaskUnit이 남긴 source_digest는 extra 소스 파일 쓰기 이전 값이라,
+ * 그 뒤에 트리를 바꾸면 commit 게이트 G23이 범위 검사보다 먼저 실패한다.
+ *
+ * @param {string} repo - 픽스처 저장소 루트
+ * @param {string} [verificationRel] - verification.md 상대 경로. 생략 시 활성 001
+ * @returns {void}
+ */
+function recordHarnessVerify(repo, verificationRel = `${BP_REL}/tasks/001/verification.md`) {
+  recordVerificationResult({
+    repoRoot: repo,
+    verificationRel,
+    command: 'npm test',
+    ranAt: '2026-07-27T00:00:00.000Z',
+    exitCode: 0,
+    output: 'ok',
+  });
+}
+
 function writeTaskUnit(repo, blueprintDir, number, {
   tasksStatus = 'verified',
   affectedPaths = ['src/auth/'],
@@ -88,14 +108,7 @@ function writeTaskUnit(repo, blueprintDir, number, {
   });
   // 포인터 묶음의 G13은 status: passed만으로는 통과하지 않는다. writeTaskUnit이
   // extraOpenTask에도 쓰이므로, Git이 있는 픽스처에서만 하네스 원장을 남긴다.
-  recordVerificationResult({
-    repoRoot: repo,
-    verificationRel: `${dir}/verification.md`,
-    command: 'npm test',
-    ranAt: '2026-07-27T00:00:00.000Z',
-    exitCode: 0,
-    output: 'ok',
-  });
+  recordHarnessVerify(repo, `${dir}/verification.md`);
   writeDoc(repo, `${dir}/review.md`, {
     type: 'bouncer.review',
     title: 'Review',
@@ -329,6 +342,8 @@ test('untracked out-of-scope hard-aborts without staging', () => {
   fullBlueprint(repo);
   fs.mkdirSync(path.join(repo, 'src/payments'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/payments/charge.ts'), 'export {}\n');
+  // extra 소스를 쓴 뒤 digest를 다시 남겨 G23이 out-of-scope보다 먼저 뜨지 않게 한다.
+  recordHarnessVerify(repo);
   const g = trackingGit(['src/auth/login.ts'], ['src/payments/charge.ts']);
   const res = commitTask({
     repoRoot: repo, blueprintDir: BP_REL, yes: true, git: g.api,
@@ -363,6 +378,8 @@ test('in-scope changed and untracked pass the same guard as checkCommitSafety', 
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   fs.writeFileSync(path.join(repo, 'src/auth/session.ts'), 'export {}\n');
+  // extra 소스를 쓴 뒤 digest를 다시 남겨 G23이 ok:true보다 먼저 뜨지 않게 한다.
+  recordHarnessVerify(repo);
   const files = ['src/auth/login.ts', 'src/auth/session.ts'];
   const guard = checkCommitSafety({
     files,

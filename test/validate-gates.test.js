@@ -2297,6 +2297,45 @@ test('commit gate G13 ledger missing, ran_at mismatch, and matching record', () 
   assert.ok(!ok.failures.some((f) => f.code === 'G13'));
 });
 
+const RECORDED_SOURCE_DIGEST = 'a'.repeat(64);
+
+function g23CommitCtx({ sourceDigest, head = 'abc123', ledgerOverrides = {} } = {}) {
+  const ctx = commitCtx([]);
+  ctx.deps.readVerifyLedger = () => matchingLedger(ctx.taskUnit.verification, {
+    source_digest: RECORDED_SOURCE_DIGEST,
+    ...ledgerOverrides,
+  });
+  ctx.deps.sourceDigest = sourceDigest || (() => RECORDED_SOURCE_DIGEST);
+  ctx.deps.exec = (args) => {
+    if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+      return { status: 0, stdout: `${head}\n`, stderr: '' };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  return ctx;
+}
+
+test('commit gate G23 fails when sources or HEAD change after verify', () => {
+  const sourcesChanged = [];
+  checkGate('commit', {}, rels, sourcesChanged, g23CommitCtx({
+    sourceDigest: () => 'b'.repeat(64),
+  }));
+  assert.ok(sourcesChanged.some((f) => f.code === 'G23' && /sources changed after verify/.test(f.message)));
+
+  const headMoved = [];
+  checkGate('commit', {}, rels, headMoved, g23CommitCtx({ head: 'def456moved' }));
+  assert.ok(headMoved.some((f) => f.code === 'G23' && /HEAD moved after verify/.test(f.message)));
+
+  // .bouncer/만 바뀐 경우와 source_digest 없는 레코드는 G23 없음
+  const bouncerOnly = [];
+  checkGate('commit', {}, rels, bouncerOnly, g23CommitCtx());
+  assert.ok(!bouncerOnly.some((f) => f.code === 'G23'));
+
+  const legacy = [];
+  checkGate('commit', {}, rels, legacy, commitCtx([]));
+  assert.ok(!legacy.some((f) => f.code === 'G23'));
+});
+
 test('unknown gate still throws', () => {
   assert.throws(
     () => checkGate('nope', {}, rels, [], commitCtx([])),

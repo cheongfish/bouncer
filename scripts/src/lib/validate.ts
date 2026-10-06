@@ -66,6 +66,11 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     match: /scaffold guidance comments remain/,
     next: 'Remove the listed leftover scaffold guidance comments and rerun the plan gate.',
   },
+  {
+    code: 'G23',
+    match: /verification evidence is stale/,
+    next: 'Rerun this checkout\'s active-task `bouncer verify --blueprint <dir>`, then rerun the commit gate.',
+  },
 ]);
 
 /**

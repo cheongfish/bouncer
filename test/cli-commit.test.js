@@ -53,6 +53,17 @@ function initGitWithChange(repo) {
   run(['commit', '-m', 'change']);
 }
 
+function recordHarnessVerify(repo) {
+  recordVerificationResult({
+    repoRoot: repo,
+    verificationRel: `${BP_REL}/tasks/001/verification.md`,
+    command: 'npm test',
+    ranAt: '2026-07-27T00:00:00.000Z',
+    exitCode: 0,
+    output: 'ok',
+  });
+}
+
 function fullBlueprint(repo, { tasksStatus = 'verified' } = {}) {
   initGitWithChange(repo);
   const epicDir = '.bouncer/context/epics/001-auth';
@@ -87,14 +98,7 @@ function fullBlueprint(repo, { tasksStatus = 'verified' } = {}) {
   // commit 게이트 G13은 status: passed 손기록을 믿지 않는다. 하네스가 문서를
   // YAML 왕복한 뒤 같은 command/ran_at/exit_code/output_sha로 원장에 남긴
   // 경로와 맞춰야 dry-run/--yes 픽스처가 열린다.
-  recordVerificationResult({
-    repoRoot: repo,
-    verificationRel: `${BP_REL}/tasks/001/verification.md`,
-    command: 'npm test',
-    ranAt: '2026-07-27T00:00:00.000Z',
-    exitCode: 0,
-    output: 'ok',
-  });
+  recordHarnessVerify(repo);
   writeDoc(repo, `${BP_REL}/tasks/001/review.md`, {
     type: 'bouncer.review', title: 'Review', description: 'd',
     resource: `${BP_REL}/tasks/001/review.md`,
@@ -124,6 +128,22 @@ function capture() {
     buf,
   };
 }
+
+test('commit --yes rejects source edits after verify with G23', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  const { io, buf } = capture();
+  const code = runCli(
+    ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
+    io,
+  );
+  assert.notStrictEqual(code, 0);
+  const parsed = JSON.parse(buf.out);
+  assert.strictEqual(parsed.ok, false);
+  assert.strictEqual(parsed.reason, 'validate');
+  assert.ok(parsed.failures.some((f) => f.code === 'G23' && /sources changed after verify/.test(f.message)));
+});
 
 test('commit without --blueprint exits 2 and keeps stdout pipe-clean of ok:true', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
@@ -173,6 +193,7 @@ test('commit --yes writes stable provenance trailers to the real git message', (
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
   const { io, buf } = capture();
   const code = runCli(
     ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
@@ -195,6 +216,7 @@ test('commit --yes stages in-scope change and returns committed:true', () => {
   fullBlueprint(repo);
   // HEAD 위에 범위 안 변경을 남겨 realGit 경로의 커밋을 검증한다.
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
   const { io, buf } = capture();
   const code = runCli(
     ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
@@ -227,6 +249,7 @@ test('commit --yes commits an in-scope tracked deletion already staged by the ta
   // index에서 pathspec이 사라진다. commit이 같은 경로를 다시 add하지 않아야 한다.
   fs.rmSync(path.join(repo, 'src/auth/login.ts'));
   execFileSync('git', ['add', '-A', '--', 'src/auth/login.ts'], { cwd: repo });
+  recordHarnessVerify(repo);
   const { io, buf } = capture();
   const code = runCli(
     ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
@@ -248,6 +271,7 @@ test('commit --yes stages an in-scope tracked deletion from a clean index', () =
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
   fullBlueprint(repo);
   fs.rmSync(path.join(repo, 'src/auth/login.ts'));
+  recordHarnessVerify(repo);
   // 실패했던 경로는 이전 시도의 staged deletion을 물려받았다. 여기서는 index가
   // 비어 있음을 먼저 고정해, commit이 삭제 자체를 stage하는지 검증한다.
   assert.strictEqual(execFileSync('git', ['diff', '--cached', '--name-only'], {
@@ -277,6 +301,7 @@ test('commit --yes stages both existing index and later worktree changes to one 
   fs.writeFileSync(login, 'export const first = 1;\n');
   execFileSync('git', ['add', '--', 'src/auth/login.ts'], { cwd: repo });
   fs.writeFileSync(login, 'export const first = 1;\nexport const second = 2;\n');
+  recordHarnessVerify(repo);
 
   const { io, buf } = capture();
   const code = runCli(
@@ -301,6 +326,7 @@ test('commit --yes rejects out-of-scope change before staging without a host hoo
   fs.mkdirSync(path.join(repo, 'src/payments'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'src/payments/charge.ts'), 'export {}\n');
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
   const { io, buf } = capture();
   const code = runCli(
     ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'],
@@ -346,6 +372,7 @@ test('commit --yes leaves tracked finalization remainder while committing task s
   execFileSync('git', ['add', '-A', '--', retainedIndex, retainedShard], { cwd: repo });
   fs.appendFileSync(path.join(repo, context), '<!-- changed finalize context -->\n');
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
 
   const { io, buf } = capture();
   const code = runCli(
@@ -397,6 +424,7 @@ test('commit still rejects modified or untracked finalization remainder and othe
   fs.mkdirSync(path.dirname(path.join(repo, untrackedRemainder)), { recursive: true });
   fs.writeFileSync(path.join(repo, untrackedRemainder), '# not remainder\n');
   fs.writeFileSync(path.join(repo, 'README.md'), 'out of scope\n');
+  recordHarnessVerify(repo);
   const { io, buf } = capture();
   const code = runCli(
     ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'], io,
@@ -457,6 +485,7 @@ test('commit JSON reports actual paths and coordinator provenance', () => {
     repoRoot: worker, epicId: '001', name: 'auth', description: 'd',
   });
   fs.writeFileSync(path.join(worker, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(worker);
 
   const { io, buf } = capture();
   const code = runCli(
@@ -480,6 +509,7 @@ test('commit from the main worktree is refused while a coordinator ledger is liv
   fullBlueprint(repo);
   coordinate({ command: 'bootstrap', repoRoot: repo, blueprint: BP_REL });
   fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  recordHarnessVerify(repo);
   const { io, buf } = capture();
   const code = runCli(
     ['commit', '--repo', repo, '--blueprint', BP_REL, '--yes'], io,

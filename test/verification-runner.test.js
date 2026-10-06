@@ -9,7 +9,7 @@ const { createHash } = require('node:crypto');
 const { readDoc } = require('../scripts/lib/frontmatter');
 const {
   executeVerify, readVerifyCommand, runVerification, recordVerificationResult,
-  parseVerifyArgv, isValidVerifyCommand,
+  parseVerifyArgv, isValidVerifyCommand, computeSourceDigest,
 } = require('../scripts/lib/verification');
 const { DEFAULT_VERIFY_ALLOWLIST } = require('../scripts/lib/config');
 const { verifyLedgerPathFor } = require('../scripts/lib/runtime-state');
@@ -177,6 +177,39 @@ test('runVerification writes a verify ledger record matching the re-read output_
   assert.strictEqual(record.output_sha, outputSha);
   assert.strictEqual(record.evidence_id, verification.data.bouncer.verification.evidence_id);
   assert.strictEqual(record.reused, false);
+  assert.match(record.source_digest, /^[0-9a-f]{64}$/);
+  assert.strictEqual(
+    verification.data.bouncer.verification.source_digest,
+    record.source_digest,
+  );
+});
+
+test('computeSourceDigest ignores .bouncer, XY, runtime artifacts, and hashes new-directory files', () => {
+  const repo = setupRepo();
+  fs.writeFileSync(path.join(repo, 'app.js'), 'one\n');
+  const first = computeSourceDigest(repo);
+  assert.match(first, /^[0-9a-f]{64}$/);
+
+  // .bouncer/ 파일만 바꾼 뒤 computeSourceDigest 값이 같음
+  fs.writeFileSync(path.join(repo, '.bouncer/config.json'), JSON.stringify({ verify: 'npm test', extra: 1 }));
+  assert.strictEqual(computeSourceDigest(repo), first);
+
+  // 같은 내용을 git add만 한 뒤 값이 같음
+  execFileSync('git', ['add', 'app.js'], { cwd: repo });
+  assert.strictEqual(computeSourceDigest(repo), first);
+
+  fs.mkdirSync(path.join(repo, 'node_modules/pkg'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'node_modules/pkg/index.js'), 'ignored\n');
+  assert.strictEqual(computeSourceDigest(repo), first);
+
+  // 새 디렉터리 안 파일 내용을 바꾸면 값이 달라짐
+  const nested = path.join(repo, 'brand-new', 'inner.js');
+  fs.mkdirSync(path.dirname(nested), { recursive: true });
+  fs.writeFileSync(nested, 'alpha\n');
+  const withNew = computeSourceDigest(repo);
+  assert.notStrictEqual(withNew, first);
+  fs.writeFileSync(nested, 'beta\n');
+  assert.notStrictEqual(computeSourceDigest(repo), withNew);
 });
 
 test('failed verification still writes a ledger record that does not pass G13', () => {
