@@ -26,7 +26,10 @@ function capture() {
 
 test('GATE_FAILURE_HINTS attaches next only when code and match agree', () => {
   assert.ok(Array.isArray(GATE_FAILURE_HINTS));
-  assert.deepStrictEqual(GATE_FAILURE_HINTS.map((h) => h.code).sort(), ['G13', 'G18', 'G20', 'G22']);
+  assert.deepStrictEqual(
+    GATE_FAILURE_HINTS.map((h) => h.code).sort(),
+    ['G13', 'G18', 'G20', 'G22', 'G23', 'G24'],
+  );
   const f = (code, message) => ({ code, message, file: 'x.md' });
   const out = withGateFailureHints({ ok: false, failures: [
     f('G18', 'context review is stale: last round digest a != current b; rerun context review'),

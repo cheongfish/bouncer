@@ -7,6 +7,7 @@ const path = require('node:path');
 const { runCli } = require('../scripts/lib/cli');
 const { SUGGESTED_IGNORES } = require('../scripts/lib/init');
 const { RUNTIME_ARTIFACTS } = require('../scripts/lib/scope');
+const { execFileSync } = require('node:child_process');
 
 function capture() {
   const buf = { out: '', err: '' };
@@ -103,4 +104,23 @@ test('cli init --promote-graphify promotes enabled on a ready repo', () => {
   assert.strictEqual(body.graphifyPromotion, 'promoted');
   const next = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
   assert.strictEqual(next.graphify.enabled, true);
+});
+
+test('cli init --pre-commit-hook writes the hook and result field', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-cli-init-'));
+  execFileSync('git', ['init', '-b', 'main'], {
+    cwd: repo,
+    encoding: 'utf8',
+    env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' },
+  });
+  const { io, buf } = capture();
+  const code = runCli(['init', '--repo', repo, '--no-graphify', '--pre-commit-hook'], io);
+  assert.strictEqual(code, 0);
+  const body = parseOut(buf);
+  assert.strictEqual(body.preCommitHook, 'installed');
+  const common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: repo, encoding: 'utf8',
+  }).trim();
+  const hook = path.join(path.resolve(repo, common), 'hooks', 'pre-commit');
+  assert.match(fs.readFileSync(hook, 'utf8'), /^#!\/bin\/sh\n# bouncer-pre-commit v1\n/);
 });

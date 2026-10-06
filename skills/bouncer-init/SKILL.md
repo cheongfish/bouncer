@@ -25,7 +25,8 @@ Bootstrap this project for Bouncer.
    it never precedes bootstrap and config promotion remains CLI-only.
    Root `context/` is legacy/non-canonical and is never input.
    Consent gates (ACQ). Apply the conditional choices in `init-result.md`;
-   never write config or `.gitignore` without agreement.
+   never write config or `.gitignore` without agreement, and never pass
+   `--pre-commit-hook` until `init.pre_commit_hook` is answered with install.
    Render the bootstrap outcome and next `/bouncer-plan` action through
    `rules/output.md`.
 3. **Bootstrap commit.** Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
@@ -58,4 +59,4 @@ Document skeletons, product rules, and master rules live in the plugin
 Use `rules/acq.md` for the shared ACQ display and chat fallback.
 
 **Index:**
-- Step 2 — `init.graphify_promotion` Promotion · `init.gitignore` Gitignore · `init.base_branch` Branch
+- Step 2 — `init.graphify_promotion` Promotion · `init.gitignore` Gitignore · `init.base_branch` Branch · `init.pre_commit_hook` Pre-commit hook

@@ -27,6 +27,8 @@ const { listTasksDocs } = tasksDocs;
 import validateSections = require('./validate-sections');
 const { parseTasksSections } = validateSections;
 import templates = require('./templates');
+import preCommitHook = require('./pre-commit-hook');
+const { internalCommitEnv } = preCommitHook;
 // finalize → current → coordinator 경로가 이미 있으므로 직접 import해도 새 순환은
 // 없다(coordinator의 import 닫힘에는 finalize가 없다).
 import coordinatorLib = require('./coordinator');
@@ -404,7 +406,14 @@ function realGit(repoRoot: string): GitApi {
     untrackedFiles: () => lines(run(['ls-files', '--others', '--exclude-standard'])),
     trackedFiles: () => lines(run(['ls-files', '--cached'])),
     stage: (files: string[]) => { if (files.length) run(['add', '--', ...files]); },
-    commit: (msg: string) => { run(['commit', '-m', msg]); },
+    commit: (msg: string) => {
+      // remainder 커밋도 G17 이후라 hook이 인덱스를 다시 보면 순환 차단한다.
+      execFileSync('git', ['commit', '-m', msg], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: internalCommitEnv(),
+      });
+    },
     headSha: () => run(['rev-parse', 'HEAD']).trim(),
   };
 }

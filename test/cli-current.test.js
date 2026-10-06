@@ -855,3 +855,23 @@ test('current reports an unreadable coordinator ledger instead of dropping the k
   assert.strictEqual(parsed.current.coordinator.ledgerFile, ledgerFile);
   assert.deepStrictEqual(parsed.current.coordinator.ready, []);
 });
+
+test('current --set records approval on first pointer and --reapprove, not on task advance', () => {
+  const repo = tmpGitRepo();
+  writeNumberedPlanBlueprint(repo);
+  const first = JSON.parse(capture(['current', '--repo', repo, '--set', BP_REL]).out);
+  assert.equal(first.approval, 'recorded');
+  const advance = JSON.parse(capture([
+    'current', '--repo', repo, '--set', BP_REL, '--task', '002',
+  ]).out);
+  assert.equal(advance.approval, 'unchanged');
+  const again = JSON.parse(capture([
+    'current', '--repo', repo, '--set', BP_REL, '--reapprove',
+  ]).out);
+  assert.equal(again.approval, 'recorded');
+});
+
+test('current --reapprove without --set exits 2', () => {
+  const r = capture(['current', '--reapprove']);
+  assert.strictEqual(r.code, 2);
+});

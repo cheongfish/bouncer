@@ -9,13 +9,13 @@ import comprehension = require('./comprehension');
 const { computeDiffSha, EXPLAIN_SECTION_DEFS, resolveComprehensionEntry } = comprehension;
 // finalize가 validate를 require하므로 scope 헬퍼는 finalize를 거치지 않는다.
 import scope = require('./scope');
-const { makeAllowed, isRuntimeArtifact } = scope;
+const { makeAllowed, isRuntimeArtifact, readCoordinatorLedger } = scope;
 import validateDocs = require('./validate-docs');
 const {
   defaultStagedFiles, resolveTaskUnit, unitLeafRel, statusOf, isBlueprintReviewMode,
 } = validateDocs;
 import runtimeState = require('./runtime-state');
-const { verifyLedgerPathFor } = runtimeState;
+const { verifyLedgerPathFor, readApprovalSnapshot } = runtimeState;
 import validateSections = require('./validate-sections');
 const {
   VERIFY_SECTION_DEFS, TODO_RE,
@@ -30,6 +30,10 @@ import planSnapshotLib = require('./plan-snapshot');
 const { computePlanSnapshot } = planSnapshotLib;
 import legacyComments = require('./legacy-comments');
 const { scanLegacyScaffoldComments } = legacyComments;
+import verification = require('./verification');
+const { computeSourceDigest } = verification;
+import approvalSnapshot = require('./approval-snapshot');
+const { computeApprovalDigest, diffApprovalParts } = approvalSnapshot;
 
 // 게이트별 G 코드 층. 문서 로드(docs)·문서 하나 구조(S)·본문 파싱은 여기 두지
 // 않는다. 승인 범위는 G5·G11·G12가 판정한다(G4는 결번). validate.ts를
@@ -78,6 +82,7 @@ type VerifyLedgerRecord = {
   scope?: unknown;
   reused?: unknown;
   reused_from?: unknown;
+  source_digest?: unknown;
 };
 
 type GateDeps = {
@@ -107,7 +112,24 @@ type GateDeps = {
   planSnapshot?: (opts: { repoRoot?: string; blueprintDir?: string }) => PlanSnapshotResult;
   // finalize G21 stale 검사용. 원장이 없으면 null — drive가 아니므로 git을 부르지 않는다.
   readCoordinatorLedger?: (opts: { repoRoot: string }) => { blueprint: string } | null;
+  // commit G23: verify 시점 source_digest와 현재 checkout을 대조한다.
+  sourceDigest?: (repoRoot: string) => string;
+  // G24: 승인 파일. null은 파일 없음(대조 skip), ok:false는 unreadable 실패.
+  readApprovalSnapshot?: (opts: {
+    repoRoot: string;
+    blueprintDir: string;
+  }) => ApprovalRead;
+  // G24: common dir coordinator 원장. 객체가 있으면 대조 skip.
+  // G21의 checkout 원장 seam `readCoordinatorLedger`와 별개다.
+  coordinatorLedgerFor?: (opts: {
+    repoRoot: string;
+    blueprint: string;
+  }) => object | null;
 };
+type ApprovalRead =
+  | { ok: true; snapshot: { digest: string; parts: Record<string, string> } }
+  | { ok: false; path: string }
+  | null;
 type PlanSnapshotResult =
   | { ok: true; digest: string; documents: string[] }
   | { ok: false; error: string };
@@ -685,6 +707,141 @@ function checkG13(
   }
 }
 
+/**
+ * commit G23 — G13이 통과한 원장의 source_digest·identity.head를 현재
+ * checkout과 대조한다. 필드가 없는 구 원장과 repoRoot 비문자열은 건너뛰어
+ * 이 변경 전 증거가 execute 경로를 막지 않게 한다.
+ *
+ * @param {DocLeaf | undefined | null} verificationDoc - verification.md 문서
+ * @param {(code: string, message: string, leaf: string) => void} addUnit - 실패 누적
+ * @param {GateContext} ctx - repoRoot·deps
+ * @param {FailureEntry[]} failures - G13이 이미 있으면 대조하지 않는다
+ * @returns {void}
+ */
+function checkG23(
+  verificationDoc: DocLeaf | undefined | null,
+  addUnit: (code: string, message: string, leaf: string) => void,
+  ctx: GateContext,
+  failures: FailureEntry[],
+): void {
+  if (!verificationDoc) return;
+  if (failures.some((entry) => entry.code === 'G13')) return;
+  const repoRoot = ctx && ctx.repoRoot;
+  if (typeof repoRoot !== 'string') return;
+  const deps = ctx && ctx.deps;
+  const reader = (deps && deps.readVerifyLedger) || defaultReadVerifyLedger;
+  const vBouncer = (verificationDoc.data as Record<string, unknown>).bouncer as Record<string, unknown> | undefined;
+  const evidence = vBouncer && vBouncer.verification as Record<string, unknown> | undefined;
+  const record = reader({
+    repoRoot,
+    verificationRel: verificationDoc.rel,
+    evidenceId: evidence && typeof evidence.evidence_id === 'string' ? evidence.evidence_id : undefined,
+    deps,
+  });
+  if (!record || record.unavailable) return;
+  if (typeof record.source_digest !== 'string') return;
+
+  const identity = isRecord(record.identity) ? record.identity : undefined;
+  const recordedHead = identity && typeof identity.head === 'string' ? identity.head : '';
+  try {
+    const headResult = gitExec(repoRoot, ['rev-parse', 'HEAD'], deps && deps.exec);
+    if (headResult.status !== 0) {
+      addUnit(
+        'G23',
+        `verification freshness check failed (${firstStderrLine(headResult.stderr) || 'git rev-parse HEAD failed'})`,
+        'verification',
+      );
+    } else if (headResult.stdout.trim() !== recordedHead) {
+      addUnit('G23', 'verification evidence is stale: HEAD moved after verify', 'verification');
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    addUnit(
+      'G23',
+      `verification freshness check failed (${message.split(/\r?\n/)[0] || 'HEAD check failed'})`,
+      'verification',
+    );
+  }
+
+  try {
+    const digestFn = (deps && typeof deps.sourceDigest === 'function')
+      ? deps.sourceDigest
+      : computeSourceDigest;
+    const currentDigest = digestFn(repoRoot);
+    if (currentDigest !== record.source_digest) {
+      addUnit('G23', 'verification evidence is stale: sources changed after verify', 'verification');
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    addUnit(
+      'G23',
+      `verification freshness check failed (${message.split(/\r?\n/)[0] || 'source digest failed'})`,
+      'verification',
+    );
+  }
+}
+
+function defaultReadApprovalSnapshot({ repoRoot, blueprintDir }: {
+  repoRoot: string;
+  blueprintDir: string;
+}): ApprovalRead {
+  return readApprovalSnapshot({ repoRoot, blueprintDir });
+}
+
+function defaultCoordinatorLedgerFor({ repoRoot, blueprint }: {
+  repoRoot: string;
+  blueprint: string;
+}): object | null {
+  const result = readCoordinatorLedger({ repoRoot, blueprint });
+  if (result && result.ok === true) return result.ledger as object;
+  return null;
+}
+
+/**
+ * execute·commit G24 — 활성화 시점 승인 digest와 현재 digest를 대조한다.
+ * 승인 파일이 없거나 coordinator 원장이 있으면 건너뛴다. 이 변경 전 활성화와
+ * coordinator가 `reviseTaskScope`로 범위를 고치는 경로를 G24로 막지 않기 위함이다.
+ *
+ * @param {FailureEntry[]} failures - G24를 누적할 배열
+ * @param {GateContext} ctx - repoRoot·blueprintDir·deps
+ * @param {BlueprintRels} rels - 실패 file 경로 (blueprint 단위라 blueprintIndex)
+ * @returns {void}
+ */
+function checkG24(
+  failures: FailureEntry[],
+  ctx: GateContext,
+  rels: BlueprintRels,
+): void {
+  const repoRoot = ctx && ctx.repoRoot;
+  if (typeof repoRoot !== 'string') return;
+  const blueprintDir = ctx && ctx.blueprintDir;
+  if (typeof blueprintDir !== 'string') return;
+  const deps = ctx && ctx.deps;
+  const ledgerFn = (deps && deps.coordinatorLedgerFor) || defaultCoordinatorLedgerFor;
+  const ledger = ledgerFn({ repoRoot, blueprint: blueprintDir });
+  if (ledger && typeof ledger === 'object') return;
+  const reader = (deps && deps.readApprovalSnapshot) || defaultReadApprovalSnapshot;
+  const approval = reader({ repoRoot, blueprintDir });
+  if (approval == null) return;
+  const file = rels.blueprintIndex;
+  if (approval.ok === false) {
+    failures.push({
+      code: 'G24',
+      message: `approval snapshot is unreadable (${approval.path})`,
+      file,
+    });
+    return;
+  }
+  const current = computeApprovalDigest({ repoRoot, blueprintDir });
+  if (current.digest === approval.snapshot.digest) return;
+  const names = diffApprovalParts(approval.snapshot.parts, current.parts);
+  failures.push({
+    code: 'G24',
+    message: `approved scope changed after activation: ${names.join(', ')}`,
+    file,
+  });
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -912,6 +1069,7 @@ function runCheckGate(
         addUnit('G14', message, 'review');
       }
     }
+    checkG24(failures, ctx, rels);
     return;
   }
   // G16: blueprint 마감. 모든 task verified + explain 본문·comprehension(BP 단일
@@ -1052,6 +1210,8 @@ function runCheckGate(
       addUnit('G8', 'review not accepted and review.required != false', 'review');
     }
     checkG13(verificationDoc, addUnit, ctx);
+    checkG23(verificationDoc, addUnit, ctx, failures);
+    checkG24(failures, ctx, rels);
 
     // G17은 이미 스테이징된 경로만 본다. working-tree 변경의 out-of-scope는
     // bouncer commit이 따로 막으며, 빈 스테이징은 통과(빈 커밋 방지는 명령 몫).

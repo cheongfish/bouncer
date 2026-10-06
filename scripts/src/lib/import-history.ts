@@ -29,6 +29,8 @@ const {
   renderBlueprintBody,
   writeImportDoc,
 } = importRender;
+import preCommitHook = require('./pre-commit-hook');
+const { internalCommitEnv } = preCommitHook;
 
 // 계획·거절·적용 + 공개 배럴. git 파싱과 문서 렌더는 형제가 담당한다.
 // CLI 는 이 파일의 planImport / applyImport 만 본다.
@@ -382,10 +384,12 @@ function applyImport({
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   // 커밋 메시지는 --message 인자 그대로. .gitmessage/문서 필드에서 조립하지 않는다.
+  // 내부 커밋이라 hook의 commit-guard만 건너뛴다. 사용자 hook은 그대로 돈다.
   execFileSync('git', ['commit', '-m', message as string], {
     cwd: repoRoot,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: internalCommitEnv(),
   });
 
   return {

@@ -2297,6 +2297,45 @@ test('commit gate G13 ledger missing, ran_at mismatch, and matching record', () 
   assert.ok(!ok.failures.some((f) => f.code === 'G13'));
 });
 
+const RECORDED_SOURCE_DIGEST = 'a'.repeat(64);
+
+function g23CommitCtx({ sourceDigest, head = 'abc123', ledgerOverrides = {} } = {}) {
+  const ctx = commitCtx([]);
+  ctx.deps.readVerifyLedger = () => matchingLedger(ctx.taskUnit.verification, {
+    source_digest: RECORDED_SOURCE_DIGEST,
+    ...ledgerOverrides,
+  });
+  ctx.deps.sourceDigest = sourceDigest || (() => RECORDED_SOURCE_DIGEST);
+  ctx.deps.exec = (args) => {
+    if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+      return { status: 0, stdout: `${head}\n`, stderr: '' };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  return ctx;
+}
+
+test('commit gate G23 fails when sources or HEAD change after verify', () => {
+  const sourcesChanged = [];
+  checkGate('commit', {}, rels, sourcesChanged, g23CommitCtx({
+    sourceDigest: () => 'b'.repeat(64),
+  }));
+  assert.ok(sourcesChanged.some((f) => f.code === 'G23' && /sources changed after verify/.test(f.message)));
+
+  const headMoved = [];
+  checkGate('commit', {}, rels, headMoved, g23CommitCtx({ head: 'def456moved' }));
+  assert.ok(headMoved.some((f) => f.code === 'G23' && /HEAD moved after verify/.test(f.message)));
+
+  // .bouncer/만 바뀐 경우와 source_digest 없는 레코드는 G23 없음
+  const bouncerOnly = [];
+  checkGate('commit', {}, rels, bouncerOnly, g23CommitCtx());
+  assert.ok(!bouncerOnly.some((f) => f.code === 'G23'));
+
+  const legacy = [];
+  checkGate('commit', {}, rels, legacy, commitCtx([]));
+  assert.ok(!legacy.some((f) => f.code === 'G23'));
+});
+
 test('unknown gate still throws', () => {
   assert.throws(
     () => checkGate('nope', {}, rels, [], commitCtx([])),
@@ -2932,5 +2971,109 @@ test('plan gate G22 reports leftover scaffold comments and skips without ctx', (
   const noCtxFailures = [];
   checkGate('plan', planDocs(READY_BODY), rels, noCtxFailures);
   assert.ok(!noCtxFailures.some((f) => f.code === 'G22'));              // ctx 없는 checkGate 호출
+});
+
+function g24TaskFixture(repo) {
+  writeDoc(repo, `${BP_REL}/tasks/001/tasks.md`, unitTasksData(
+    '001', 'verified', `${BP_REL}/tasks/001/tasks.md`,
+  ), planReadyTasksBody());
+}
+
+function g24ExecuteCtx({ readApprovalSnapshot, coordinatorLedgerFor = () => null, repoRoot }) {
+  const docs = executeDocs();
+  return {
+    docs,
+    ctx: {
+      repoRoot,
+      blueprintDir: BP_REL,
+      deps: {
+        ...ledgerDeps(docs.verification),
+        readApprovalSnapshot,
+        coordinatorLedgerFor,
+      },
+    },
+  };
+}
+
+test('execute and commit G24 detect changed parts, unreadable snapshots, and skips', () => {
+  const changedRepo = mkRepo();
+  g24TaskFixture(changedRepo);
+  const stale = {
+    ok: true,
+    snapshot: {
+      digest: 'stale',
+      parts: { 'TASKS-001.affected_paths': 'old' },
+    },
+  };
+  const executeChanged = [];
+  const { docs: executeDocsForG24, ctx: executeChangedCtx } = g24ExecuteCtx({
+    repoRoot: changedRepo,
+    readApprovalSnapshot: () => stale,
+  });
+  checkGate('execute', executeDocsForG24, rels, executeChanged, executeChangedCtx);
+  assert.ok(executeChanged.some(
+    (f) => f.code === 'G24' && /approved scope changed after activation/.test(f.message)
+      && /TASKS-001\.affected_paths/.test(f.message),
+  ));
+
+  const commitChanged = [];
+  const commitChangedCtx = commitCtx([]);
+  commitChangedCtx.repoRoot = changedRepo;
+  commitChangedCtx.deps.readApprovalSnapshot = () => stale;
+  commitChangedCtx.deps.coordinatorLedgerFor = () => null;
+  checkGate('commit', {}, rels, commitChanged, commitChangedCtx);
+  assert.ok(commitChanged.some(
+    (f) => f.code === 'G24' && /approved scope changed after activation/.test(f.message)
+      && /TASKS-001\.affected_paths/.test(f.message),
+  ));
+
+  const unreadablePath = '/tmp/bouncer-approvals/001/001.json';
+  const executeUnreadable = [];
+  const { docs: executeUnreadableDocs, ctx: executeUnreadableCtx } = g24ExecuteCtx({
+    repoRoot: mkRepo(),
+    readApprovalSnapshot: () => ({ ok: false, path: unreadablePath }),
+  });
+  checkGate('execute', executeUnreadableDocs, rels, executeUnreadable, executeUnreadableCtx);
+  assert.ok(executeUnreadable.some(
+    (f) => f.code === 'G24' && /approval snapshot is unreadable/.test(f.message)
+      && f.message.includes(unreadablePath),
+  ));
+  const commitUnreadable = [];
+  const commitUnreadableCtx = commitCtx([]);
+  commitUnreadableCtx.deps.readApprovalSnapshot = () => ({ ok: false, path: unreadablePath });
+  commitUnreadableCtx.deps.coordinatorLedgerFor = () => null;
+  checkGate('commit', {}, rels, commitUnreadable, commitUnreadableCtx);
+  assert.ok(commitUnreadable.some(
+    (f) => f.code === 'G24' && /approval snapshot is unreadable/.test(f.message)
+      && f.message.includes(unreadablePath),
+  ));
+
+  const executeSkipFile = [];
+  const { docs: executeSkipDocs, ctx: executeSkipCtx } = g24ExecuteCtx({
+    repoRoot: mkRepo(),
+    readApprovalSnapshot: () => null,
+  });
+  checkGate('execute', executeSkipDocs, rels, executeSkipFile, executeSkipCtx);
+  assert.ok(!executeSkipFile.some((f) => f.code === 'G24'));
+  const commitSkipFile = [];
+  const commitSkipFileCtx = commitCtx([]);
+  commitSkipFileCtx.deps.readApprovalSnapshot = () => null;
+  checkGate('commit', {}, rels, commitSkipFile, commitSkipFileCtx);
+  assert.ok(!commitSkipFile.some((f) => f.code === 'G24'));
+
+  const executeSkipCoord = [];
+  const { docs: executeCoordDocs, ctx: executeCoordCtx } = g24ExecuteCtx({
+    repoRoot: changedRepo,
+    readApprovalSnapshot: () => stale,
+    coordinatorLedgerFor: () => ({ blueprint: BP_REL }),
+  });
+  checkGate('execute', executeCoordDocs, rels, executeSkipCoord, executeCoordCtx);
+  assert.ok(!executeSkipCoord.some((f) => f.code === 'G24'));
+  const commitSkipCoord = [];
+  const commitSkipCoordCtx = commitCtx([]);
+  commitSkipCoordCtx.deps.readApprovalSnapshot = () => stale;
+  commitSkipCoordCtx.deps.coordinatorLedgerFor = () => ({ blueprint: BP_REL });
+  checkGate('commit', {}, rels, commitSkipCoord, commitSkipCoordCtx);
+  assert.ok(!commitSkipCoord.some((f) => f.code === 'G24'));
 });
 

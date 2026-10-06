@@ -22,3 +22,18 @@ In a non-interactive environment, show these choices and stop. When
 When `baseBranchUnresolved: true`, ask gate `init.base_branch` for the default branch without guessing;
 on an answer write the same value to `base_branch` and `pr.base`, otherwise
 leave both absent.
+
+When the result has no `preCommitHook` field, ask gate `init.pre_commit_hook`
+before writing a hook. Do not pass `--pre-commit-hook` without that answer.
+
+- **A)** Install the git pre-commit hook (recommended): `bouncer init --pre-commit-hook`
+- **B)** Do not install: leave hooks unchanged.
+
+When `preCommitHook` is `installed`, `chained`, or `already-installed`, report
+that the hook is in Git's default `hooks/pre-commit`. `chained` means a previous
+user hook was moved to `pre-commit.bouncer-prev` and still runs first.
+When `preCommitHook` is `skipped-hooks-path`, show `preCommitHookWarning` and do
+not write a hook — `core.hooksPath` already redirects Git away from `hooks/`.
+When `preCommitHook` is `skipped-no-git`, say the directory is not a Git
+repository so the hook was not installed.
+
