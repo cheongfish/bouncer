@@ -43,3 +43,4 @@ bouncer_schema: '0.1'
 * [084 drive-plan-copy-hygiene](epics/084-drive-plan-copy-hygiene/index.md) - Keep main free of closed blueprint plan copies after a drive and move scaffold authoring guidance out of templates into skills.
 * [085 finalize-runtime-slimming](epics/085-finalize-runtime-slimming/index.md) - Finalize quiz, explain, and PR stop carrying drive execution records, and coordinator and gate recovery stop loading runtime rules they do not need.
 * [086 finalize-output-cleanup](epics/086-finalize-output-cleanup/index.md) - Finalize resolves the PR base from the repository default branch, and finalize result JSON stops carrying coordinator drive records.
+* [087 v153-evaluation-remediation](epics/087-v153-evaluation-remediation/index.md) - Works through the v1.5.3 evaluation's improvement tasks under a mistake-prevention threat model, starting with enforcement, operations, and release alignment.
