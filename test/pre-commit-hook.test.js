@@ -183,6 +183,26 @@ test('rewriting a marked hook returns already-installed', () => {
   );
 });
 
+test('second install refuses to overwrite an existing pre-commit.bouncer-prev', () => {
+  const repoRoot = tmpRepo();
+  const hook = hookPath(repoRoot);
+  fs.mkdirSync(path.dirname(hook), { recursive: true });
+  const prev = `${hook}.bouncer-prev`;
+  const savedPrev = '#!/bin/sh\necho saved-user-hook\n';
+  const replacement = '#!/bin/sh\necho replacement-non-bouncer\n';
+  fs.writeFileSync(prev, savedPrev, { mode: 0o755 });
+  fs.writeFileSync(hook, replacement, { mode: 0o755 });
+  assert.throws(
+    () => installPreCommitHook({ repoRoot, launcherPath: LAUNCHER }),
+    (err) => {
+      assert.match(String(err && err.message), /bouncer-prev|overwrite/i);
+      return true;
+    },
+  );
+  assert.equal(fs.readFileSync(prev, 'utf8'), savedPrev);
+  assert.equal(fs.readFileSync(hook, 'utf8'), replacement);
+});
+
 test('not a git directory returns skipped-no-git', () => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-pre-commit-nogit-'));
   const result = installPreCommitHook({ repoRoot, launcherPath: LAUNCHER });

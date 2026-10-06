@@ -117,6 +117,9 @@ function internalCommitEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.Proces
  * Git common dir의 hooks/pre-commit에 Bouncer hook을 설치한다.
  * core.hooksPath가 있으면 git이 그 디렉터리만 보므로 기본 hooks/에 쓰면
  * 죽은 파일이 되고, 사용자 hook을 옮기지도 못한 채 검사가 빠진다.
+ * 이미 `pre-commit.bouncer-prev`가 있고 현재 파일이 비-Bouncer면 throw한다.
+ * Linux `renameSync`는 대상을 덮어쓰므로, 막지 않으면 첫 설치가 저장한
+ * 사용자 hook이 사라진다. 공개 반환 상태를 늘리지 않기 위해 새 값을 두지 않는다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 대상 저장소 루트
@@ -126,6 +129,7 @@ function internalCommitEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.Proces
  *   installed: 새 파일. chained: 기존 hook을 pre-commit.bouncer-prev로 옮김.
  *   already-installed: 마커가 있어 본문만 갱신. skipped-hooks-path: core.hooksPath.
  *   skipped-no-git: git common dir을 못 찾음.
+ *   prev가 이미 있으면 throw하므로 이 객체는 반환되지 않는다.
  */
 function installPreCommitHook({
   repoRoot,
@@ -192,6 +196,13 @@ function installPreCommitHook({
       state = 'already-installed';
     } else {
       // 사용자 hook을 지우지 않는다. 새 본문이 이 파일을 먼저 실행한다.
+      // prev가 있으면 renameSync가 그 내용을 덮어쓴다(POSIX). 첫 설치가
+      // 맡긴 원본을 지키기 위해 거부하고, 현재 hook도 쓰지 않는다.
+      if (io.existsSync(prevFile)) {
+        throw new Error(
+          `pre-commit.bouncer-prev already exists at ${prevFile}; refusing to overwrite the saved user hook`,
+        );
+      }
       io.renameSync(hookFile, prevFile);
       state = 'chained';
     }
