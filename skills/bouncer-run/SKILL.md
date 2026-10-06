@@ -74,9 +74,9 @@ stay on the execute round.
    reporting cadence. Follow its status and `delegable` result; read
    `rules/cli.md` for result handling and `rules/current-pointer.md` for
    pointer return values. When nothing to delegate, tell the
-   user to run `/bouncer-finalize` themselves and stop. Finalize's consent
-   steps stay with the user on both paths: this session never runs them, and a
-   delegated drive stops at the first one instead of answering it.
+   user to run `/bouncer-finalize` themselves and stop. Finalize consent stays
+   with the user; this session and the coordinator never run `/bouncer-finalize`
+   or any part of it.
 
 2. **Start ACQ.** Show the blueprint, the remaining tasks with their
    `affected_paths`, and the DAG those `depends_on` edges form, then ask whether
@@ -124,12 +124,6 @@ stay on the execute round.
      `checkpoint.ledger.path` / `checkpoint.ledger.sha256` as the fencing ref
      only; never attach the raw ledger body, completed task documents, prior
      worker report bodies, or past conversation
-   - the closing action: after every task is integrated and verified, run
-     `/bouncer-finalize` from `integrationPath`, carrying it only as far as it
-     goes without user consent. Its consent steps — explain quiz, remainder
-     commit and worktree, PR, next blueprint — belong to the
-     user, so the coordinator stops at the first one it reaches and names it
-     instead of asking. This session stays out of finalize either way.
    - `autonomy` as a reporting cadence only —
      `interactive` returns a progress line per task boundary, `auto` batches
      them — so the coordinator opens no per-task ACQ under either value
@@ -153,9 +147,7 @@ stay on the execute round.
 
 5. **Report.** `continue` is not terminal. Render progress lines and a
    terminal outcome through `rules/output.md`: `completed` with the
-   the integration head, verification result, how far the closing action ran, and the consent step it
-   stopped at — name that step and tell the user to run `/bouncer-finalize` to
-   finish it, including any draft PR; `blocked` with the failing
+   integration head and verification result, then tell the user to run `/bouncer-finalize` from `integrationPath`, including any draft PR; `blocked` with the failing
    task, cause, and recovery action. On `blocked`, preserve the ledger, the
    worktrees, and the pointer as they are, then stop so the user can resume.
    Report the coordinator's recorded decisions and actual paths as its findings,

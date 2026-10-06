@@ -29,7 +29,7 @@ These are your decision inputs, in this order:
   their checkpoint summaries, and keep the detailed file at
   `.bouncer/runtime/coordinator.json` for audit recovery only
 - the dispatch payload `/bouncer-run` handed you: blueprint directory, base
-  SHA, the integration worktree to write in, the closing action, selected
+  SHA, the integration worktree to write in, selected
   canonical context candidates, the user's start selection, the initial
   `checkpoint` / ledger ref when provided, and `autonomy` — which sets your
   reporting cadence only: `interactive` returns a progress line at every task
@@ -301,16 +301,11 @@ do not load the standalone execute skill.
    no-progress rule.
 6. **Close** — In blueprint review mode, after Integrate has made every commit
    task and the terminal verification task (when present) `integrated`, run the
-   Worker dispatch final-review procedure once before the closing action. Do
+   Worker dispatch final-review procedure once. Do
    not Close while that root `review.md` is not `accepted`. When `review_scope`
    is absent, skip that extra step: per-task reviews already ran during Drive.
-   When every task is integrated and verified, run the closing
-   action the payload named — `/bouncer-finalize` from the integration
-   worktree — and carry it only as far as it goes without user consent. Its
-   consent steps (explain quiz, remainder commit and worktree, PR, next
-   blueprint) belong to the user: stop at the first one you
-   reach, name it, and return `continue` (non-terminal) or one terminal
-   outcome so the root run can hand the rest back. Do not answer, skip, or pre-empt those steps.
+   When every task is integrated and verified, return `completed`; the coordinator
+   does not run `/bouncer-finalize` or any part of it (`finalize prepare`, explain drafts).
 
 ## Output contract
 
@@ -322,8 +317,7 @@ your diffs, so return these fields and nothing else actionable:
 - **Continue** — Progress lines, this session's integrated task ids, and
   `checkpoint.ledger` ref (path, sha256, revision).
 - **Completed** — integration head, verification result, every task with its
-  final state, how far the closing action ran, and the consent step it stopped
-  at with what the user still owns there.
+  final state, and the integration worktree path.
 - **Blocked** — the failing task, the cause, the preserved ledger and worktree
   paths, and the recovery action a human can take.
 - **Decisions** — each recorded judgment with its cause and next action.

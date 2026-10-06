@@ -99,28 +99,33 @@ test('run defers coordinator procedure to the canonical agent doc and output con
   assert.match(md, /rules\/output\.md/);
 });
 
-// finalize의 동의는 어느 경로에서도 사용자 것이다. 두 경로가 다른 주인을
-// 말하면 위임받은 쪽이 사용자 대신 동의를 처리한다.
+// finalize의 동의는 어느 경로에서도 사용자 것이다. run과 coordinator가
+// finalize를 실행하면 사용자가 integration worktree에서 다시 도는 중복이 생긴다.
 test('run keeps finalize consent with the user on both paths', () => {
   const preflight = md.slice(md.indexOf('1. **Preflight.**'), md.indexOf('2. **Start ACQ.**'));
   assert.match(preflight, /nothing to delegate/);
   assert.match(preflight, /run `\/bouncer-finalize` themselves/);
-  assert.match(preflight, /consent\s*\n?\s*steps stay with the user on both paths/);
+  assert.doesNotMatch(md, /closing action/);
   const report = md.slice(md.indexOf('5. **Report.**'));
-  assert.match(report, /consent step it\s*\n?\s*stopped at/);
   assert.match(report, /tell the user to run `\/bouncer-finalize`/);
+  assert.match(report, /`\/bouncer-finalize`[^.]*`integrationPath`/);
 });
 
-test('run payload names the closing action and autonomy effect', () => {
+test('run payload names the autonomy effect', () => {
   const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'));
-  assert.match(delegation, /closing action[\s\S]{0,160}\/bouncer-finalize/);
-  assert.match(delegation, /only as far as it\s*\n?\s*goes without user consent/);
-  assert.match(delegation, /stops at the first one it reaches/);
   assert.match(delegation, /reporting cadence/);
   assert.match(delegation, /`interactive` returns a progress line/);
   // start ACQ는 interactive가 이제 무엇을 뜻하는지 사용자에게 말해야 한다.
   const acq = md.slice(md.indexOf('2. **Start ACQ.**'), md.indexOf('3. **Integration bootstrap.**'));
   assert.match(acq, /`interactive`[\s\S]{0,120}progress is reported/);
+});
+
+// 완료 줄의 다음은 멈춘 동의 단계가 아니라 사용자가 실행할 finalize다.
+test('run completion line points at /bouncer-finalize in the integration worktree', () => {
+  assert.match(
+    fs.readFileSync(path.join(__dirname, '..', 'rules/output.md'), 'utf8'),
+    /다음: \/bouncer-finalize \(<integrationPath>\)/,
+  );
 });
 
 // coordinator 진입 payload는 compact checkpoint·ledger ref만 싣는다. 완료 task
