@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+## [1.5.4] — 2026-10-06
+
+1.5.3 패치. finalize가 메인 checkout 정리(`release-main`)와 PR base 탐지를 맡고, coordinator 출력·지침
+재읽기를 줄이며, plan task 근거를 읽기 전용 subagent로 병렬 수집한다.
+
 ### Added
 
 - **plan task 근거 수집** — full blueprint의 commit task마다 읽기 전용
