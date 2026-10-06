@@ -40,6 +40,14 @@ COPY --chown=node:node resources/ /home/node/.cursor/plugins/local/bouncer/resou
 COPY --chown=node:node rules/ /home/node/.cursor/plugins/local/bouncer/rules/
 COPY --chown=node:node skills/ /home/node/.cursor/plugins/local/bouncer/skills/
 ENV PATH=/home/node/.cursor/plugins/local/bouncer/scripts:/home/node/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Debian 로그인 셸은 /etc/profile이 ENV PATH를 /usr/bin 계열로 덮어쓴 뒤
+# profile.d만 읽는다. 에이전트 셸이 로그인/비로그인/대화형이어도 bouncer를
+# 찾게 플러그인 scripts를 양쪽 프로파일에 넣는다. $PATH는 빌드 셸이 펼치지
+# 않도록 작은따옴표로 둔다. root는 profile.d 한 줄만 쓰고 바로 node로 돌아간다.
+USER root
+RUN printf '%s\n' 'export PATH="/home/node/.cursor/plugins/local/bouncer/scripts:/home/node/.local/bin:$PATH"' > /etc/profile.d/bouncer-path.sh
+USER node
+RUN printf '%s\n' 'export PATH="/home/node/.cursor/plugins/local/bouncer/scripts:/home/node/.local/bin:$PATH"' >> /home/node/.bashrc
 RUN bouncer-root --auto && test -f "$BOUNCER_HOME/skills/bouncer-init/SKILL.md"
 # The Bouncer config sets subagents.dispatch to "print"; this hook enforces that dispatch so no agent runs as an
 # unmetered Task subagent. Vanilla keeps the base hooks, since it has no such rule.
