@@ -9,6 +9,9 @@
 
 ### Added
 
+- **plan task 근거 수집** — full blueprint의 commit task마다 읽기 전용
+  subagent가 관찰점·I/O coupling·테스트 근거를 모으고, 계약은
+  `skills/bouncer-plan/references/evidence-dispatch.md`에 둔다.
 - **validate 실패 next** — G13 ledger mismatch, G18 stale, G20 Touch source
   changes, G22 scaffold 주석 실패 항목에 복구 한 문장 `next`를 붙인다.
 - **G22·bootstrap 스캐폴드 주석 거절** — 템플릿 안내 주석을 문서에서 빼고
