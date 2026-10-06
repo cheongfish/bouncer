@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { loadPolicy, classifyGate, answerAskQuestion, answerTextQuestion, answerQuizText, looksLikeQuizRequest,
+const { acqMarkers: acqMarkersOf, delegateOpenDecisions, driveState, loadPolicy, classifyGate, answerAskQuestion, answerTextQuestion, answerQuizText, looksLikeQuizRequest,
   answerPermission, finalizeReady, gateIdOf, gitEnv } = require('./responder.cjs');
 
 const policy = { benchmark_choices: { finalize_quiz: 'first_option_for_each_presented_question' },
@@ -265,6 +265,25 @@ test('selects the recommended proceed option however it is worded', () => {
     const text = `${prdFacts}\n${acq('Discovery 핸드오프를 확정할지', [label, '수정 요청', '중단'])}`;
     assert.equal(answerTextQuestion(policy, 'bouncer-plan', text, '/nonexistent')?.reply, 'A', label);
   }
+});
+
+test('reads ignore entries only up to the rule that closes the question', () => {
+  const init = workdirWith();
+  const list = policy.task_facts.expected_gitignore_suggestions.map((entry) => `- \`${entry}\``).join('\n');
+  const options = '3. **Options** (recommended-first):\n'
+    + '   - A) Write suggested entries via `bouncer init --write-gitignore` (Recommended)\n'
+    + '   - B) Leave `.gitignore` untouched\n';
+  const after = '\n---\n\nCommit the bootstrap yourself.`bouncer init` finished: `.bouncer/` is scaffolded.';
+  const inReground = `**AskUserQuestion — init.gitignore**\n\n1. **Re-ground**: \`.gitignore\`가 없음.\n${list}\n`
+    + `2. **Recommend-why**: keep artifacts out.\n${options}${after}`;
+  const afterOptions = `**AskUserQuestion — init.gitignore**\n\n1. **Re-ground**: Suggested ignore entries\n`
+    + `2. **Recommend-why**: keep artifacts out.\n${options}\nSuggested entries:\n${list}\n\nReply **A** or **B**.${after}`;
+  for (const text of [inReground, afterOptions]) {
+    assert.equal(answerTextQuestion(policy, 'bouncer-init', text, init)?.reply, 'A');
+  }
+  const extraBeforeRule = afterOptions.replace('Reply **A**', '- `secrets/`\n\nReply **A**');
+  assert.equal(answerTextQuestion(policy, 'bouncer-init', extraBeforeRule, init), null);
+  rmSync(init, { recursive: true });
 });
 
 test('stops when the recommended option is not an unambiguous proceed', () => {
@@ -550,4 +569,69 @@ test('reads a trailing lettered choice without an AskUserQuestion marker as one 
   // A quiz keeps its own path.
   const quiz = '**Quiz:** 2 questions.\n**Q1.** Why?\nA) x\nB) y\nC) z\n**Q2.** What?\nA) x\nB) y\nC) z\nReply with both answers (Q1: A, Q2: B).';
   assert.equal(acqMarkers(quiz).length, 0);
+});
+
+
+const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,
+  open_decisions: 'delegate_to_agent_recommendation' } };
+
+// 1.5.4 discovery open decisions recorded in v154-ledger-00{1,4}-bouncer-full-{2,3}: four formats, two of them
+// with no recommendation marker. Each is handed back to the agent with one neutral line.
+for (const file of ['plan-open-decisions-ko-numbered.md', 'plan-open-decisions-gate-id.md',
+  'plan-open-decisions-en-reply-hint.md', 'plan-open-decisions-bold-options.md',
+  // v154-ledger-004-bouncer-full-5: `- **1A)**` options and a preview marker ending the sentence with `.`.
+  'plan-open-decisions-numbered-options.md']) {
+  test(`delegates recorded open decisions ${file}`, () => {
+    const text = readFileSync(path.join(fixtureDir, file), 'utf8');
+    const result = delegateOpenDecisions(delegating, 'bouncer-plan', text);
+    assert.equal(result?.gate, 'plan.open_decisions');
+    assert.equal(result.choices[0].synthetic, true);
+    assert.match(result.reply, /판단을 맡깁니다/);
+    assert.doesNotMatch(result.reply, /\b[A-C]\b/);
+    assert.equal(delegateOpenDecisions(policy, 'bouncer-plan', text), null);
+    assert.equal(delegateOpenDecisions(delegating, 'bouncer-run', text), null);
+  });
+}
+
+test('does not delegate a gate question that only mentions open decisions', () => {
+  const discovery = '**Open decisions**: none (request settles every behavior)\n\n---\n\n'
+    + '**AskUserQuestion — plan.approval**\n1. **Re-ground**: approve the plan\n'
+    + '- A) Approve (Recommended)\n- B) Revise\n- C) Cancel';
+  assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', discovery), null);
+  // v154-ledger-004-bouncer-full-4: the Discover confirm lists the answered open decisions; delegating it
+  // made the agent take every later gate, plan approval included, as delegated.
+  const confirm = '---\n\n**AskUserQuestion — plan.discovery**\n\n1. **Re-ground**: Goal / Scope 확인\n'
+    + '3. **Options** (recommended-first):\n   - A) Confirm this discovery framing (Recommended)\n'
+    + '   - B) Revise (reply with what to change)\n   - C) Cancel planning\n\n### Open decisions\n'
+    + '1. Unknown shorts → **A**\n\nReply **A**, **B** (+ revisions), or **C**.';
+  assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', confirm), null);
+});
+
+test('ignores an AskUserQuestion marker that only previews the next question inside a sentence', () => {
+  assert.deepEqual(acqMarkersOf('**AskUserQuestion — plan.open_decisions**\n- A) one\n- B) two\n\n'
+    + '답 받은 뒤 **AskUserQuestion — plan.discovery**로 확정하겠습니다.').map((m) => m[0]),
+  ['**AskUserQuestion — plan.open_decisions**']);
+  // A streamed turn may glue a real marker to the previous sentence; it still opens a question.
+  assert.equal(acqMarkersOf('Next are the Step 2 decisions.**AskUserQuestion (1/2) — ID allocation**\n').length, 1);
+});
+
+test('reads the drive state from the integration ledger once finalize prepare stops mirroring it', () => {
+  const { mkdirSync } = require('node:fs');
+  const checkout = mkdtempSync(path.join(tmpdir(), 'acp-ledger-'));
+  const prepare = { ok: true, blueprint: {}, tasks: [] };
+  const dryRun = { ok: true, dryRun: true };
+  assert.equal(driveState(prepare, checkout), null);
+  assert.equal(finalizeReady(prepare, dryRun, driveState(prepare, checkout)), false);
+  mkdirSync(path.join(checkout, '.bouncer', 'runtime'), { recursive: true });
+  const ledger = { version: 1, integrationHead: 'abc', integrationBranch: 'feat/x',
+    tasks: [{ id: 'TASKS-001', status: 'integrated', sha: 'abc' }] };
+  writeFileSync(path.join(checkout, '.bouncer', 'runtime', 'coordinator.json'), JSON.stringify(ledger));
+  assert.equal(driveState(prepare, checkout).integrationHead, 'abc');
+  assert.equal(finalizeReady(prepare, dryRun, driveState(prepare, checkout)), true);
+  ledger.tasks.push({ id: 'TASKS-002', status: 'verified' });
+  writeFileSync(path.join(checkout, '.bouncer', 'runtime', 'coordinator.json'), JSON.stringify(ledger));
+  assert.equal(finalizeReady(prepare, dryRun, driveState(prepare, checkout)), false);
+  // A digest that still mirrors the ledger wins over the file.
+  assert.equal(driveState({ ok: true, coordinator: { status: 'ok', tasks: [] } }, checkout).tasks.length, 0);
+  rmSync(checkout, { recursive: true });
 });

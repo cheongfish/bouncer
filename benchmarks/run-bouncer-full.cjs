@@ -5,7 +5,7 @@ const { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, s
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const path = require('node:path');
-const { loadPolicy } = require('./acp/responder.cjs');
+const { driveState, loadPolicy } = require('./acp/responder.cjs');
 const { sumUsage, usageTotalStatus } = require('./usage.cjs');
 const { sampleEligibility, sourceProvenance } = require('./provenance.cjs');
 const { archiveWorkspace } = require('./archive.cjs');
@@ -196,9 +196,9 @@ function checkIntegration(workspace, integration) {
   const blueprint = blueprintRelative(integration);
   const output = command(process.execPath, [path.join(projectRoot, 'scripts', 'bouncer'),
     'finalize', 'prepare', '--blueprint', blueprint], integration, integrationGitEnv(workspace, integration));
-  // `finalize prepare` is the read-only digest; its coordinator section carries the drive ledger state.
+  // `finalize prepare` is the read-only digest; the drive state comes from it or, since 1.5.4, the ledger.
   const result = JSON.parse(output);
-  const coordinator = result.coordinator;
+  const coordinator = driveState(result, integration);
   const tasks = Array.isArray(coordinator?.tasks) ? coordinator.tasks : [];
   const open = tasks.filter((task) => task.status !== 'integrated').map((task) => `${task.id}:${task.status}`);
   if (!result.ok || coordinator?.status !== 'ok' || !tasks.length || open.length) {

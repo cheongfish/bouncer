@@ -10,7 +10,7 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = r
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { acqMarkers, loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest, unreadQuestion,
+const { acqMarkers, delegateOpenDecisions, loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest, unreadQuestion,
 } = require('./acp/responder.cjs');
 const { normalizeUsage, sumUsage, transcriptFiles, usageCoverage, usageFromCursorLogs } = require('./usage.cjs');
 const { argsOf, stages } = require('./stage-args.cjs');
@@ -129,6 +129,14 @@ async function main() {
         break;
       }
       sessionId = result.session_id ?? sessionId;
+      // Discovery open decisions come in no fixed format, often without an AskUserQuestion marker.
+      const delegated = delegateOpenDecisions(policy, stage, text);
+      if (delegated) {
+        decisions.push({ at: new Date().toISOString(), method: 'text/OpenDecisions', decision: delegated });
+        nextPrompt = delegated.reply;
+        if (turn === maxTurns - 1) unanswered.push({ at: new Date().toISOString(), method: 'turn-limit' });
+        continue;
+      }
       const acq = acqMarkers(text).length > 0;
       const quiz = stage === 'bouncer-finalize' && !acq && looksLikeQuizRequest(text);
       if (!acq && !quiz && unreadQuestion(text)) {

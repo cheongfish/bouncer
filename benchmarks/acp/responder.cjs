@@ -46,10 +46,24 @@ function soleBlueprint(workDir) {
   return found.length === 1 ? found[0] : null;
 }
 
-// `finalize prepare` is a read-only digest: its coordinator section carries the drive ledger state.
-function finalizeReady(prepare, dryRun) {
-  const tasks = Array.isArray(prepare?.coordinator?.tasks) ? prepare.coordinator.tasks : [];
-  return prepare?.ok === true && prepare.coordinator?.status === 'ok' && tasks.length > 0
+// Drive state: `finalize prepare` mirrored the coordinator ledger as `coordinator` until 1.5.4 (87cca19f)
+// dropped it from the result; from then on the ledger file in the integration worktree is read directly.
+function driveState(prepare, checkout) {
+  if (prepare?.coordinator) return prepare.coordinator;
+  let ledger;
+  try {
+    ledger = JSON.parse(readFileSync(path.join(checkout, '.bouncer', 'runtime', 'coordinator.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+  return { status: 'ok', integrationHead: ledger.integrationHead ?? null, integrationBranch: ledger.integrationBranch ?? null,
+    tasks: (Array.isArray(ledger.tasks) ? ledger.tasks : []).map((task) => ({ id: task.id, status: task.status, sha: task.sha })) };
+}
+
+// `finalize prepare` is a read-only digest; the drive state says every task is integrated.
+function finalizeReady(prepare, dryRun, drive = prepare?.coordinator) {
+  const tasks = Array.isArray(drive?.tasks) ? drive.tasks : [];
+  return prepare?.ok === true && drive?.status === 'ok' && tasks.length > 0
     && tasks.every((task) => task.status === 'integrated') && dryRun?.ok === true && dryRun.dryRun === true;
 }
 
@@ -57,8 +71,8 @@ function finalizeEvidence(workDir) {
   if (!workDir) return false;
   const blueprint = currentBlueprint(workDir) ?? soleBlueprint(workDir);
   if (!blueprint) return false;
-  return finalizeReady(bouncerJson(workDir, ['finalize', 'prepare', '--blueprint', blueprint]),
-    bouncerJson(workDir, ['finalize', '--blueprint', blueprint]));
+  const prepare = bouncerJson(workDir, ['finalize', 'prepare', '--blueprint', blueprint]);
+  return finalizeReady(prepare, bouncerJson(workDir, ['finalize', '--blueprint', blueprint]), driveState(prepare, workDir));
 }
 
 function planGateEvidence(workDir) {
@@ -157,7 +171,10 @@ const gates = [
   { gate: 'init.gitignore', phase: 'bouncer-init', cue: /gitignore/i,
     decide({ policy, prompt, options, workDir }) {
       const expected = policy.task_facts.expected_gitignore_suggestions;
-      const proposed = [...new Set([...prompt.matchAll(/`([^`]+\/)`/g)].map((match) => match[1]))];
+      // A text question block runs to the end of the reply; a `---` rule closes the question, so prose after
+      // it (e.g. "`.bouncer/` is scaffolded") is not a proposed entry.
+      const question = prompt.split(/^\s*-{3,}\s*$/m)[0];
+      const proposed = [...new Set([...question.matchAll(/`([^`]+\/)`/g)].map((match) => match[1]))];
       if (!Array.isArray(expected) || proposed.length !== expected.length
         || !proposed.every((entry) => expected.includes(entry))
         || !workDir || existsSync(path.join(workDir, '.gitignore'))) return null;
@@ -449,7 +466,11 @@ function trailingQuestion(text) {
 }
 
 function acqMarkers(text) {
-  const markers = [...text.matchAll(ACQ_MARKER)];
+  // A marker that a word or sentence end runs straight into ("... 뒤 **AskUserQuestion — plan.discovery**로
+  // 확정하겠습니다", "... for **AskUserQuestion — plan.discovery**.") only previews a later question. Streamed turns can glue a real marker to the
+  // previous sentence, so only what follows the marker decides.
+  const markers = [...text.matchAll(ACQ_MARKER)]
+    .filter((match) => !/^[\p{L}\p{N}]|^[.,;](?:\s|$)/u.test(text.slice(match.index + match[0].length)));
   if (markers.length) return markers;
   const trailing = trailingQuestion(text);
   return trailing ? [trailing] : [];
@@ -459,6 +480,36 @@ function acqMarkers(text) {
 // rather than end the stage as if nothing was asked.
 function unreadQuestion(text) {
   return /AskUserQuestion/.test(text) && acqMarkers(text).length === 0;
+}
+
+// Discovery's open decisions (skills/bouncer-plan: "not an ACQ gate") ask about behavior the request leaves
+// open, in no fixed format and often without a recommendation. A policy that opts in answers the whole
+// message with one neutral line handing each decision back to the agent: it adds no requirement, so the
+// agent decides as it would without Bouncer. The answer is synthetic.
+const OPEN_DECISIONS_CUE = /\bopen decisions?\b|plan\.open_decisions|열린\s*결정|미정\s*(?:동작|결정)/i;
+// Scoped to these open decisions: v154-ledger-004-bouncer-full-4 read an unscoped "decide and proceed" as
+// leave to settle every later gate, plan approval included.
+const OPEN_DECISIONS_REPLY = '이번 Open decisions 항목에 한해 판단을 맡깁니다(PRD에 정해지지 않은 세부 사항). '
+  + '항목마다 권장안을 골라 근거와 함께 Open decisions에 기록하세요. 이후 게이트 결정은 평소처럼 따로 물어 주세요.';
+
+function delegateOpenDecisions(policy, phase, text) {
+  if (phase !== 'bouncer-plan' || policy.benchmark_choices?.open_decisions !== 'delegate_to_agent_recommendation') {
+    return null;
+  }
+  // The question is the last `---` section; earlier sections are discovery grounding.
+  const rules = [...text.matchAll(/^\s*-{3,}\s*$/gm)];
+  const question = rules.length ? text.slice(rules[rules.length - 1].index) : text;
+  // Any real question header for another gate (the Discover confirm also lists `Open decisions`) is that
+  // gate's question; only an inline preview of the next gate (acqMarkers drops it) may sit beside these.
+  const otherGate = acqMarkers(question)
+    .some((marker) => /AskUserQuestion/.test(marker[0]) && gateIdOf(marker[0]) !== 'plan.open_decisions');
+  // Open-decision options may carry their question number (`- **1A)** ...`).
+  const optionLines = question.split('\n').filter((line) => /^\s*(?:[-*]\s*)?(?:\*\*)?\d*[A-Z]\)(?:\*\*)?\s*\S/.test(line));
+  if (!OPEN_DECISIONS_CUE.test(question) || optionLines.length < 2
+    || APPROVAL_CUE.test(question) || otherGate) return null;
+  return { gate: 'plan.open_decisions', choices: [{ gate: 'plan.open_decisions', identified_by: 'cue', synthetic: true,
+    basis: 'delegated', reason: 'open decisions handed back to the agent; no requirement added' }],
+  question: text, reply: OPEN_DECISIONS_REPLY };
 }
 
 function answerTextQuestion(policy, phase, text, workDir) {
@@ -508,5 +559,5 @@ function answerPermission(params) {
   return { outcome: { outcome: 'selected', optionId: allow[0].optionId }, reason: 'local tool call' };
 }
 
-module.exports = { acqMarkers, unreadQuestion, finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
+module.exports = { acqMarkers, unreadQuestion, delegateOpenDecisions, driveState, finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
   looksLikeQuizRequest, answerPermission };
