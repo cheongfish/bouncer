@@ -11,7 +11,7 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 // ACQ gate ID 정본. 응답자(사람·평가 harness)는 표시 제목의 ID로 질문을 식별하므로,
 // ID가 바뀌거나 빠지면 문구 추측으로 되돌아간다.
 const CATALOG = {
-  'bouncer-init': ['init.graphify_promotion', 'init.gitignore', 'init.base_branch'],
+  'bouncer-init': ['init.graphify_promotion', 'init.gitignore', 'init.base_branch', 'init.pre_commit_hook'],
   'bouncer-plan': ['plan.request', 'plan.discovery', 'plan.id_allocation', 'plan.light_scope',
     'plan.verify_command', 'plan.affected_paths', 'plan.approval'],
   'bouncer-execute': [],

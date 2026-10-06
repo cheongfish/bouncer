@@ -921,3 +921,20 @@ test('ready init does not recreate .codex/ after it is removed', () => {
   assert.ok(!exists(repo, '.codex'));
   assert.notEqual(again.reason, 'codex-agents-seeded');
 });
+
+test('init omits preCommitHook unless the option is set', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z' });
+  assert.strictEqual(res.preCommitHook, undefined);
+});
+
+test('init preCommitHook installs a marked hook on a git repo', () => {
+  const repo = tmpRepo();
+  git(repo, ['init', '-b', 'main']);
+  const res = init({ repoRoot: repo, timestamp: '2026-07-01T00:00:00.000Z', preCommitHook: true });
+  assert.strictEqual(res.preCommitHook, 'installed');
+  const common = git(repo, ['rev-parse', '--git-common-dir']).trim();
+  const hook = path.join(path.resolve(repo, common), 'hooks', 'pre-commit');
+  assert.match(fs.readFileSync(hook, 'utf8'), /^#!\/bin\/sh\n# bouncer-pre-commit v1\n/);
+});

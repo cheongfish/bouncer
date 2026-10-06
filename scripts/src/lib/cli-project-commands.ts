@@ -52,6 +52,7 @@ function cmdInit(rest: string[], io: CliIo) {
     upgradeGraphify: f['upgrade-graphify'] === true,
     writeGitignore: f['write-gitignore'] === true,
     seedCodexAgents: f['seed-codex-agents'] === true,
+    preCommitHook: f['pre-commit-hook'] === true,
   });
   io.out(`${JSON.stringify(Object.assign({ ok: true }, result), null, 2)}\n`);
   // created/skipped와 무관하게 result.ok만 본다. 부분 성공을 0으로 위장하지 않음.
@@ -452,7 +453,8 @@ function cmdMigrate(rest: string[], io: CliIo) {
 export = {
   init: {
     run: cmdInit,
-    usage: `  init       [--upgrade-graphify] Bootstrap .bouncer/ for this project. Never overwrites.
+    usage: `  init       [--upgrade-graphify] [--pre-commit-hook]
+             Bootstrap .bouncer/ for this project. Never overwrites.
 `,
   },
   'graph-sync': {

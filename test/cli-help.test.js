@@ -15,6 +15,7 @@ const SUBCOMMANDS = [
   'current',
   'migrate',
   'commit',
+  'commit-guard',
   'coordinate',
   'execute',
   'plan',

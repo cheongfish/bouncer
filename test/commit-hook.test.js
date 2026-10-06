@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { isGitCommit, evaluateCommit, realMainRepoCurrent } = require('../scripts/lib/commit-hook');
+const { isGitCommit, evaluateCommit, evaluateStaged, realMainRepoCurrent } = require('../scripts/lib/commit-hook');
 const { checkCommitSafety } = require('../scripts/lib/commit-guard');
 const { writeCurrent, clearCurrent } = require('../scripts/lib/current');
 
@@ -46,6 +46,29 @@ test('no active blueprint → do not interfere', () => {
     deps: deps({ current: null, affected: [], staged: ['src/a.js'] }),
   });
   assert.deepStrictEqual(r, { block: false });
+});
+
+test('evaluateStaged matches evaluateCommit for git commit without -a', () => {
+  const fixtures = [
+    { current: null, affected: [], staged: ['src/a.js'] },
+    {
+      current: { blueprint: BP, base: 'develop' },
+      affected: ['src/feature'],
+      staged: ['src/feature/a.js', `${BP}/tasks/001/tasks.md`],
+    },
+    {
+      current: { blueprint: BP, base: 'develop' },
+      affected: ['src/feature'],
+      staged: ['src/feature/a.js', 'src/other/b.js'],
+    },
+  ];
+  for (const fixture of fixtures) {
+    const injected = deps(fixture);
+    assert.deepStrictEqual(
+      evaluateStaged({ repoRoot: '/r', deps: injected }),
+      evaluateCommit({ command: 'git commit', repoRoot: '/r', deps: injected }),
+    );
+  }
 });
 
 test('in-scope commit is allowed', () => {

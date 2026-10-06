@@ -9,6 +9,7 @@ import currentCommand = require('./cli-current-command');
 import reviewDispatchCommand = require('./cli-review-dispatch-command');
 import reviewCommand = require('./cli-review-command');
 import dispatchCommand = require('./cli-dispatch-command');
+import commitGuardCommand = require('./cli-commit-guard-command');
 
 // 핸들러 IO 타입은 각 명령 파일에 복제한다. ESM default import/export는
 // __esModule·__importDefault를 방출해 공개 require 표면이 바뀌므로 쓰지 않고,
@@ -31,6 +32,9 @@ const COMMANDS: Record<string, CliCommand> = {
   verify: docCommands.verify,
   scaffold: docCommands.scaffold,
   commit: gitCommands.commit,
+  // git pre-commit이 호출하는 staged 검사. PreToolUse와 같은 판정부라
+  // 레지스트리에서 commit 옆에 둔다 — 도움말 조립이 키 나열 순서를 쓴다.
+  'commit-guard': commitGuardCommand,
   finalize: gitCommands.finalize,
   'seed-worktree': gitCommands['seed-worktree'],
   execute: gitCommands.execute,

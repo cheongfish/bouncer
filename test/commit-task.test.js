@@ -12,6 +12,7 @@ const { checkCommitSafety } = require('../scripts/lib/commit-guard');
 const { ensureEpicIndexEntry } = require('../scripts/lib/epic-index');
 const { readCurrent, writeCurrent } = require('../scripts/lib/current');
 const { recordVerificationResult } = require('../scripts/lib/verification');
+const { installPreCommitHook } = require('../scripts/lib/pre-commit-hook');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -1265,4 +1266,26 @@ test('commitTask in a worker cwd commits the leased task even when the pointer p
   });
   assert.strictEqual(bad.ok, false);
   assert.strictEqual(bad.reason, 'out-of-scope');
+});
+
+test('commitTask succeeds after a Bouncer pre-commit hook is installed', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-'));
+  fullBlueprint(repo);
+  writeCurrent({
+    repoRoot: repo, blueprint: BP_REL, base: 'work', task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  fs.writeFileSync(path.join(repo, 'src/auth/login.ts'), 'export const x = 1;\n');
+  // writeTaskUnit이 남긴 source_digest는 이 쓰기 이전 값이라, 그대로 두면
+  // hook 검증보다 G23이 먼저 실패한다.
+  recordHarnessVerify(repo);
+  assert.equal(
+    installPreCommitHook({
+      repoRoot: repo,
+      launcherPath: path.resolve(__dirname, '..', 'scripts', 'bouncer'),
+    }).preCommitHook,
+    'installed',
+  );
+  const res = commitTask({ repoRoot: repo, blueprintDir: BP_REL, yes: true });
+  assert.strictEqual(res.ok, true, JSON.stringify(res.failures || res));
+  assert.strictEqual(res.committed, true);
 });
