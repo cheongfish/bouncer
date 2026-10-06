@@ -694,7 +694,11 @@ function resolveCheckoutBranch(worktreePath: string | null): string | null {
  * @param {object} [paths] - integration·원장 경로. 생략 시 둘 다 null
  * @param {string | null} [paths.integrationPath] - integration worktree 절대 경로
  * @param {string | null} [paths.ledgerFile] - 원장 파일 절대 경로
- * @returns {{ status: 'ok', ledgerFile: string | null, base: string | null, integrationBranch: string | null, integrationPath: string | null, worktrees: string[] } | null} 원장 없으면 null
+ * @returns {{
+ *   status: 'ok', ledgerFile: string | null, base: string | null,
+ *   integrationBranch: string | null, integrationPath: string | null,
+ *   worktrees: string[]
+ * } | null} 원장 없으면 null
  */
 function buildCoordinatorProvenance(
   ledger: CoordinatorLedgerLike | null | undefined,
