@@ -29,7 +29,14 @@ benchmarks/
   docker/compose.cursor.yaml
   docker/Dockerfile.cursor
   run-cursor.cjs
+  upstream/README.md
+  upstream/fastify-001.json
+  build-upstream-task.cjs
+  verifiers/upstream-tests.cjs
 ```
+
+공개 저장소의 실제 커밋을 과제로 쓰는 상류 과제(`fastify-001` 등)는 [`upstream/README.md`](upstream/README.md)에
+만드는 법과 채점 방식을 적었다.
 
 ## 과제 카드 계약
 

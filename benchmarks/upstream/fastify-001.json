@@ -1,0 +1,93 @@
+{
+  "task_id": "fastify-001",
+  "rubric_version": "v1",
+  "repo": "https://github.com/fastify/fastify.git",
+  "upstream_parent": "c970ed48d3e436f392d08d9e379f632409472743",
+  "upstream_commit": "f376f6082b5ddfe5ea96fdd3d98a66377b6bb4c2",
+  "upstream_reference": "fastify/fastify#6521 feat: First-class support for handler-level timeouts",
+  "snapshot": {
+    "branch": "main",
+    "author": "Benchmark Fixture <fixture@bouncer.invalid>",
+    "date": "2026-01-01T00:00:00Z",
+    "message": "fastify snapshot for benchmark task fastify-001",
+    "commit": "42fe25fd2a151def098ef6b59dee18ec8ccac632"
+  },
+  "hidden_tests": [
+    "test/handler-timeout.test.js",
+    "test/internals/errors.test.js",
+    "test/internals/initial-config.test.js",
+    "test/types/fastify.test-d.ts",
+    "test/types/request.test-d.ts"
+  ],
+  "criteria": [
+    {
+      "id": "F1",
+      "points": 50,
+      "kind": "cases",
+      "file": "test/handler-timeout.test.js",
+      "expected_cases": 18,
+      "skip_pattern": "timer is cleaned up after fast response",
+      "timeout_ms": 120000,
+      "description": "Behavior of handlerTimeout and request.signal. The one case that reads internal symbols is skipped."
+    },
+    {
+      "id": "F2",
+      "points": 10,
+      "kind": "file",
+      "file": "test/internals/errors.test.js",
+      "timeout_ms": 60000,
+      "description": "The two new error codes are registered with the documented messages."
+    },
+    {
+      "id": "F3",
+      "points": 10,
+      "kind": "file",
+      "file": "test/internals/initial-config.test.js",
+      "timeout_ms": 60000,
+      "description": "handlerTimeout is a server option with default 0 in initialConfig (needs the regenerated config validator)."
+    },
+    {
+      "id": "T1",
+      "points": 10,
+      "kind": "commands",
+      "timeout_ms": 300000,
+      "commands": [
+        [
+          "node_modules/.bin/tsc",
+          "test/types/import.ts",
+          "--target",
+          "es2022",
+          "--moduleResolution",
+          "node16",
+          "--module",
+          "node16",
+          "--noEmit"
+        ],
+        [
+          "node_modules/.bin/tsd"
+        ]
+      ],
+      "description": "Type definitions accept the option, the route option, and request.signal."
+    },
+    {
+      "id": "R1",
+      "points": 20,
+      "kind": "regression",
+      "description": "Test files that pass on the snapshot still pass."
+    }
+  ],
+  "regression": {
+    "roots": [
+      "test"
+    ],
+    "suffixes": [
+      ".test.js",
+      ".test.mjs"
+    ],
+    "concurrency": 4,
+    "timeout_ms": 120000
+  },
+  "dependencies": {
+    "lockfile": "upstream/fastify-001.package-lock.json"
+  }
+}

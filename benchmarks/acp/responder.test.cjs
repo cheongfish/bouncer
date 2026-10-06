@@ -300,7 +300,9 @@ test('stops when the recommended option is not an unambiguous proceed', () => {
   for (const options of stops) {
     assert.equal(answerTextQuestion(policy, 'bouncer-init', acq(reground, options), init), null, options[0]);
   }
-  const existing = workdirWith({ gitignore: 'dist/\n' });
+  // An existing .gitignore that already ignores some expected entry: proposing that entry again is not the
+  // init proposal, so it stops (the append case is covered in its own test).
+  const existing = workdirWith({ gitignore: 'node_modules/\n' });
   assert.equal(answerTextQuestion(policy, 'bouncer-init',
     acq(reground, ['Write entries (Recommended)', 'Leave', 'Cancel']), existing), null);
   const extra = acq(`.gitignore에 ${entries}, \`secrets/\`를 추가할지`, ['Write entries (Recommended)', 'Leave', 'Cancel']);
@@ -634,4 +636,27 @@ test('reads the drive state from the integration ledger once finalize prepare st
   // A digest that still mirrors the ledger wins over the file.
   assert.equal(driveState({ ok: true, coordinator: { status: 'ok', tasks: [] } }, checkout).tasks.length, 0);
   rmSync(checkout, { recursive: true });
+});
+
+test('appends the missing ignore entries to an existing .gitignore', () => {
+  const repo = workdirWith({ gitignore: 'coverage\nnode_modules/\n' });
+  const missing = policy.task_facts.expected_gitignore_suggestions.filter((entry) => entry !== 'node_modules/');
+  const ask = (entries) => acq(`.gitignore에 ${entries.map((entry) => `\`${entry}\``).join(', ')}를 추가할지`,
+    ['Write entries (Recommended)', 'Leave', 'Cancel']);
+  assert.equal(answerTextQuestion(policy, 'bouncer-init', ask(missing), repo)?.reply, 'A');
+  // Leaving out an expected entry the file lacks, or adding an unexpected one, still stops.
+  assert.equal(answerTextQuestion(policy, 'bouncer-init', ask(missing.slice(1)), repo), null);
+  assert.equal(answerTextQuestion(policy, 'bouncer-init', ask([...missing, 'secrets/']), repo), null);
+  rmSync(repo, { recursive: true });
+});
+
+test('sets a verify command named by the project scripts when the test script is not node --test', () => {
+  const repo = workdirWith({ packageTest: 'npm run lint && npm run unit' });
+  writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'npm run lint && npm run unit', unit: 'borp' } }));
+  const ask = (options) => acq('`bouncer.verify` 검증 명령을 정할지', options, '**AskUserQuestion — plan.verify_command**');
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', ask(['Set `npm run unit` (Recommended)', 'Leave unset', 'Cancel']), repo)?.reply, 'A');
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', ask(['Set `npm test` (Recommended)', 'Leave unset', 'Cancel']), repo)?.reply, 'A');
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', ask(['Set `npm run e2e` (Recommended)', 'Leave unset', 'Cancel']), repo), null);
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', ask(['Set `make check` (Recommended)', 'Leave unset', 'Cancel']), repo), null);
+  rmSync(repo, { recursive: true });
 });

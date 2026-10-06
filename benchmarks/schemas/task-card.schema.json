@@ -50,6 +50,11 @@
               "copy": { "type": "string", "minLength": 1 },
               "to": { "type": "string", "minLength": 1 }
             }
+          },
+          {
+            "description": "Copies the pinned node_modules of an upstream task (benchmarks/upstream/<task>.json) into the checkout.",
+            "type": "object", "additionalProperties": false, "required": ["install_dependencies"],
+            "properties": { "install_dependencies": { "type": "string", "pattern": "^[a-z][a-z0-9-]*-[0-9]{3}$" } }
           }
         ]
       }

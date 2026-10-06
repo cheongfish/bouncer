@@ -13,6 +13,8 @@ function workspaceIn(root) {
   mkdirSync(path.join(workspace, '.git', 'bouncer', 'venv', 'bin'), { recursive: true });
   mkdirSync(path.join(workspace, '.worktrees', '001', 'integration'), { recursive: true });
   mkdirSync(path.join(workspace, 'empty'), { recursive: true });
+  mkdirSync(path.join(workspace, 'node_modules', 'dep'), { recursive: true });
+  writeFileSync(path.join(workspace, 'node_modules', 'dep', 'index.js'), 'module.exports = 1;\n');
   writeFileSync(path.join(workspace, 'src.js'), 'export const a = 1;\n');
   writeFileSync(path.join(workspace, '.worktrees', '001', 'integration', '.git'), 'gitdir: /workspace/.git/worktrees/integration\n');
   writeFileSync(path.join(workspace, '.git', 'bouncer', 'venv', 'bin', 'python'), 'x'.repeat(4096));
@@ -20,18 +22,19 @@ function workspaceIn(root) {
   return workspace;
 }
 
-test('a finished workspace is archived without the Graphify venv and removed only after verification', () => {
+test('a finished workspace is archived without the Graphify venv or node_modules and removed only after verification', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'bench-archive-'));
   try {
     const workspace = workspaceIn(root);
     const archiveDir = path.join(root, 'archive');
     const result = archiveWorkspace(workspace, archiveDir);
     assert.equal(result.status, 'archived', result.error);
-    assert.deepEqual(result.excluded, ['.git/bouncer/venv']);
+    assert.deepEqual(result.excluded, ['.git/bouncer/venv', 'node_modules']);
     assert.equal(existsSync(workspace), false);
     const listing = execFileSync('tar', ['-tzf', result.path], { encoding: 'utf8' });
     assert.match(listing, /run-1\/empty\//);
     assert.doesNotMatch(listing, /venv/);
+    assert.doesNotMatch(listing, /node_modules/);
     const restored = path.join(root, 'restored');
     mkdirSync(restored);
     execFileSync('tar', ['-xzf', result.path, '-C', restored]);
