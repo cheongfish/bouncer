@@ -16,6 +16,7 @@ bouncer verify --blueprint <dir>
 bouncer execute prepare --blueprint <dir>
 bouncer commit --blueprint <dir> [--yes]
 bouncer finalize --blueprint <dir> [--yes]
+bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
 ```
 
@@ -24,6 +25,8 @@ bouncer run preflight --blueprint <dir>
 coordinator drive it reports the assigned worker instead. `commit --yes` is
 the only normal task-commit command. `finalize --yes` may close the blueprint,
 so obtain the workflow-required user consent before calling it.
+`finalize release-main --blueprint <dir>` is main-checkout-only: it cleans
+main plan copies after a closed drive.
 
 ## Context and task creation
 
@@ -47,7 +50,7 @@ Do not scaffold tasks into a closed blueprint.
 ```sh
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
-bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery|release> --blueprint <dir> ...
+bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery> --blueprint <dir> ...
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
@@ -56,7 +59,10 @@ bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>
 
 Do not assemble worktree paths or edit the pointer/ledger directly. In a
 drive, workers report only from their assigned worktree; the coordinator owns
-pointer moves, scope revisions, result recording, fan-in, repair, and release.
+pointer moves, scope revisions, result recording, fan-in, and repair.
+`coordinate` stdout is one-line JSON; a success response carries `checkpoint`
+(and prepare also `opened[]`) instead of ledger copies of `tasks` or
+`decisions`.
 When a `coordinate` JSON response has `ok: false`, follow its `next` and do
 not recover by reading plugin sources.
 Use `coordinate revise` only from the assigned worker worktree with a reason
@@ -163,5 +169,7 @@ Inspect dry-run output before any write. Retention's default is an audit;
 
 Exit code `0` means the command completed, `1` is an operational or gate
 failure, and `2` is invalid usage. Consume structured stdout where a command
-returns JSON. Do not infer success from prose, partial output, or a command
-that returned a non-zero exit code.
+returns JSON. When a `validate` failure item includes `next`, that sentence is
+the recovery action — follow it instead of reading validator sources. Do not
+infer success from prose, partial output, or a command that returned a
+non-zero exit code.

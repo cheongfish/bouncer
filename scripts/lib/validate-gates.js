@@ -21,6 +21,8 @@ const { executionKindOf } = schema;
 // plan-snapshot은 validate·validate-gates를 require하지 않으므로 순환이 없다.
 const planSnapshotLib = require("./plan-snapshot");
 const { computePlanSnapshot } = planSnapshotLib;
+const legacyComments = require("./legacy-comments");
+const { scanLegacyScaffoldComments } = legacyComments;
 /**
  * partial close의 네 증적을 한 경계에서 판정한다. 일반 finalize와 섞지 않아
  * 실패한 drive가 `closed` 성공 조건을 빌려 통과하지 못하게 한다.
@@ -597,6 +599,15 @@ function runCheckGate(gate, docs, rels, failures, ctx) {
             add('G2', 'blueprint.status != approved', 'blueprintIndex');
         }
         const { isLight, sectionKeys } = planScaleOf(docs);
+        // G22는 문서 본문이 아니라 디스크를 본다. stripComments 뒤 판정이라
+        // 옛 스캐폴드 주석이 어떤 G 코드로도 안 걸리던 구멍을 막는다.
+        // ctx 경로가 없으면 단위 테스트 fixture가 파일을 갖지 않으므로 건너뛴다.
+        if (typeof repoRoot === 'string' && typeof blueprintDir === 'string') {
+            const leftover = scanLegacyScaffoldComments({ repoRoot, blueprintDir });
+            if (leftover.length > 0) {
+                add('G22', `scaffold guidance comments remain: ${leftover.join(', ')}`, 'blueprintIndex');
+            }
+        }
         // G18은 blueprint 단위 — task 묶음 순회(G3–G5·G10–G12) 밖에 둔다.
         // light에는 context-review 문서가 아예 없으므로(scaffold가 만들지 않는다)
         // 판정 대상이 없다. 이 면제는 LLM 판단이 아니라 문서 세트의 결과다:

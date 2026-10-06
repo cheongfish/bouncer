@@ -168,7 +168,10 @@ Return **only** a Findings list. For each finding include:
 - `file` — repository-relative path of the plan document
 - `symbol` — slug of the clause heading, or `-` when the clause has no heading.
   These four fields compose the context fingerprint
-  `context:<category>:<brief_clause>:<file>#<symbol>`
+  `context:<category>:<brief_clause>:<file>#<symbol>`.
+  Normalize each part with trim; lowercase category and brief_clause; use `/`
+  as the file separator; strip a leading `./`. Example:
+  `fingerprint: correctness_tests:tasks/001 interface:scripts/lib/example.js#runExample`.
 - summary
 - evidence (document path and a concrete quote or heading)
 - `origin`: `discovery`, `introduced_by_revision`, or `missed_critical`; new

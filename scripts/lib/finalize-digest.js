@@ -68,22 +68,36 @@ function stringList(value) {
         .filter((entry) => typeof entry === 'string' && entry !== '');
 }
 /**
- * config에서 PR 대상 브랜치를 고른다. `pr.base` → `base_branch` → `main`.
- * 키가 깨져 있어도 digest 전체를 실패시키지 않기 위해 마지막에 main으로 닫는다.
+ * PR 대상 브랜치를 config 다음 origin/HEAD에서 고른다.
+ * `main`/`develop`/현재 HEAD로 추측하지 않는다 — 기본 브랜치가 다른 저장소에서
+ * draft PR이 잘못된 base로 열리기 때문이다. 후보가 없으면 digest는 ok를 유지하고
+ * null을 넘겨 draft-pr이 사용자에게 묻게 한다.
  *
  * @param {string} repoRoot - config를 읽을 checkout
- * @returns {string} PR base 브랜치 이름
+ * @param {(args: string[]) => { status: number, stdout: string }} run - prepare가
+ *   만든 git seam. 탐지 호출이 이 함수를 거쳐야 exec stub가 가로챌 수 있다
+ * @returns {string | null} 비어 있지 않은 브랜치 이름, 없으면 null
  */
-function resolvePrBase(repoRoot) {
+function resolvePrBase(repoRoot, run) {
     const config = readConfig(repoRoot);
     const root = asRecord(config);
     const pr = asRecord(root.pr);
+    // 1. 명시 설정이 있으면 git을 보지 않는다. 빈 문자열·공백·비문자열은 다음 후보.
     if (typeof pr.base === 'string' && pr.base.trim())
         return pr.base.trim();
     if (typeof root.base_branch === 'string' && root.base_branch.trim()) {
         return root.base_branch.trim();
     }
-    return 'main';
+    // 2. origin/HEAD는 worktree끼리 refs/remotes를 공유하므로 linked checkout에서도
+    //    같은 답이 나온다. status·접두사 검사는 throw 없이 null로 접는다.
+    const result = run(['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']);
+    if (result.status !== 0)
+        return null;
+    const ref = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+    if (!ref.startsWith('origin/'))
+        return null;
+    const name = ref.slice('origin/'.length);
+    return name || null;
 }
 /**
  * blueprint `## Out of scope` bullet만 뽑아 digest에 싣는다.
@@ -323,9 +337,12 @@ function pathOutsideScope(changedPath, scopes) {
  * Explain·Quiz·PR에 필요한 finalize 입력을 한 JSON으로 모은다.
  * 문서·Git·원장을 쓰지 않는다. drive면 integration worktree에서 git을 읽고,
  * 깨진 원장은 기존 finalize와 같은 coordinator-ledger로 거절한다.
- * 성공 시 `pr`는 buildPrDraft로 채운다 — agent가 제목·확인 방법을 손으로
- * 조립하지 않게 하기 위함이다. `review_scope: blueprint`이면 루트 리뷰
- * finding을 `blueprint_review`로 싣고, 아니면 그 필드는 null이다.
+ * 성공 결과에는 최상위 `coordinator`와 `tasks[].actual_paths`를 싣지 않는다 —
+ * 둘 다 drive 실행 기록이고 PR 초안은 읽지 않는다. `git.branch`만 원장
+ * `integrationBranch`(없으면 checkout)로 정한다. 성공 시 `pr`는
+ * buildPrDraft로 채운다 — agent가 제목·확인 방법을 손으로 조립하지 않게
+ * 하기 위함이다. `review_scope: blueprint`이면 루트 리뷰 finding을
+ * `blueprint_review`로 싣고, 아니면 그 필드는 null이다.
  *
  * @param {object} opts
  * @param {string} opts.repoRoot - 호출 checkout(보통 main). 원장 경로 해석 기준
@@ -430,24 +447,12 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
     if (bpEpicId && bpBlueprintId) {
         stableBlueprint = `EPIC-${bpEpicId}/BP-${bpBlueprintId}`;
     }
+    // provenance는 git.branch 결정에만 쓴다. 결과 JSON에 싣지 않는 이유:
+    // 원장 색인은 cleanup·finalize payload 자리이고, digest는 PR 입력이다.
     const coordinator = buildCoordinatorProvenance(ledger, {
         integrationPath: ledgerRead.ok ? ledgerRead.integrationPath : null,
         ledgerFile: ledgerRead.ok ? ledgerRead.ledgerFile : null,
     });
-    const ledgerTaskRows = ledger && Array.isArray(ledger.tasks)
-        ? ledger.tasks
-        : [];
-    const actualPathsById = new Map();
-    for (const entry of ledgerTaskRows) {
-        const row = asRecord(entry);
-        const id = typeof row.id === 'string' ? row.id : '';
-        if (!id)
-            continue;
-        const digits = /^(?:TASKS-)?(\d{1,3})$/.exec(id);
-        const key = digits ? digits[1].padStart(3, '0') : id;
-        // standalone은 actual_paths null. 원장에 키가 있으면 배열(빈 배열 포함).
-        actualPathsById.set(key, stringList(row.actualPaths));
-    }
     const built = [];
     const stableIds = [];
     for (const entry of listing.entries) {
@@ -489,12 +494,6 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         const constraints = typeof sections.constraints === 'string' && sections.constraints.trim()
             ? sections.constraints
             : null;
-        const digits = /^(?:TASKS-)?(\d{1,3})$/.exec(id);
-        const three = digits ? digits[1].padStart(3, '0') : String(entry.number).padStart(3, '0');
-        const hasLedger = actualPathsById.has(three) || actualPathsById.has(id);
-        const actualPaths = hasLedger
-            ? (actualPathsById.get(three) || actualPathsById.get(id) || [])
-            : null;
         const verification = readVerification(path.join(checkoutRoot, entry.verification.rel));
         const reviewRel = entry.review ? entry.review.rel : null;
         const review = kind === 'verification'
@@ -518,7 +517,6 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
                     }
                     : null,
                 affected_paths: affected,
-                actual_paths: actualPaths,
                 verification,
                 review,
                 constraints,
@@ -631,6 +629,8 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
             unverified.push({ kind: 'path-outside-scope', path: changed });
         }
     }
+    // drive면 원장 integrationBranch가 checkout 이름보다 우선한다.
+    // 결과 JSON에 coordinator를 싣지 않으므로 여기서만 지역 변수를 읽는다.
     const branch = coordinator && coordinator.integrationBranch
         ? coordinator.integrationBranch
         : resolveCheckoutBranch(checkoutRoot);
@@ -654,7 +654,7 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         },
         git: {
             branch,
-            pr_base: resolvePrBase(checkoutRoot),
+            pr_base: resolvePrBase(checkoutRoot, run),
         },
         tasks: built.map((item) => item.digest),
         changed_paths: changedPaths,
@@ -662,7 +662,6 @@ function prepareFinalizeDigest({ repoRoot, blueprintDir, exec, now, }) {
         commits,
         unverified,
         out_of_scope: outOfScope,
-        coordinator,
         blueprint_review: blueprintReview,
     };
     const config = readConfig(checkoutRoot) ?? {};

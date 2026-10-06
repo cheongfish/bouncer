@@ -12,9 +12,9 @@ Implement the active blueprint's current task. Follow this sequence. Do **not**
 run `git commit` or `bouncer commit` here — after the execute gate passes, point
 the user at `/bouncer-commit`.
 
-**Controller.** Outside a drive this session is the controller; under a
-`bouncer-coordinator` drive the coordinator is, and this skill is the round it
-runs per task in the worktree it assigned: named `bouncer-implementer` → verify
+**Controller.** Outside a drive this session is the controller. Under a drive
+the coordinator does not load this skill; it follows `agents/bouncer-coordinator.md`
+`## Task round`. Named `bouncer-implementer` → verify
 → named `bouncer-debugger` → named `bouncer-implementer` again → named
 `bouncer-reviewer`, every result returned to the coordinator. It
 never plays those roles itself and dispositions what they return — findings,

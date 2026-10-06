@@ -21,6 +21,52 @@ const validateGates = require("./validate-gates");
 const { checkGate, checkPlanDraft } = validateGates;
 const validateSections = require("./validate-sections");
 const { parseTasksSections, parseSections, extractPathCandidates, } = validateSections;
+// 복구가 메시지에 없는 코드만 여기를 본다. 같은 G 코드라도 이미 다음 행동을
+// 말하는 메시지(G13 body sections, G18 status != accepted 등)에는 next를 붙이지
+// 않아야 에이전트가 표 밖의 경로를 발명하지 않는다. match는 메시지 문자열을
+// 바꾸지 않고 고르는 필터다.
+const GATE_FAILURE_HINTS = Object.freeze([
+    {
+        code: 'G13',
+        match: /missing harness verify ledger record|does not match verify ledger/,
+        next: 'Rerun this checkout\'s active-task `bouncer verify --blueprint <dir>`, then rerun the gate.',
+    },
+    {
+        code: 'G18',
+        match: /context review is stale/,
+        // 한 줄이면 eslint max-len(120)을 넘는다. 문장 의미는 같고 줄만 나눈다.
+        next: 'Replace `rounds[]` and `findings[]` with round 1 discovery for the current digest, '
+            + 'set status to `pending`, then redo `/bouncer-plan` step 5 and step 6 approvals.',
+    },
+    {
+        code: 'G20',
+        match: /Touch must not declare source changes/,
+        next: 'Set Touch to `Source 변경 경로 없음.` and keep the command only in frontmatter `verify`.',
+    },
+    {
+        code: 'G22',
+        match: /scaffold guidance comments remain/,
+        next: 'Remove the listed leftover scaffold guidance comments and rerun the plan gate.',
+    },
+]);
+/**
+ * validate 실패 항목에 hint 표의 next를 붙인 사본을 만든다.
+ * 판정(ok·순서·warnings)은 바꾸지 않고, match가 맞는 항목에만 next 키를 넣는다.
+ *
+ * @param {ValidateResult} result - validateBlueprint가 만들 원본 결과
+ * @returns {ValidateResult} failures에 next가 병합된 사본. 맞는 hint가 없으면 그 항목은 그대로다
+ */
+function withGateFailureHints(result) {
+    return {
+        ...result,
+        failures: result.failures.map((entry) => {
+            const hint = GATE_FAILURE_HINTS.find((row) => (row.code === entry.code && (!row.match || row.match.test(entry.message))));
+            if (!hint)
+                return entry;
+            return { ...entry, next: hint.next };
+        }),
+    };
+}
 function catchMessage(error) {
     return error.message;
 }
@@ -47,21 +93,21 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, planDraft, deps, }) {
         throw new Error('planDraft cannot be combined with gate');
     }
     if (!isCanonicalBlueprintDir(blueprintDir)) {
-        return {
+        return withGateFailureHints({
             ok: false,
             failures: [{
                     code: 'S10',
                     message: `blueprintDir must be under ${CONTEXT_ROOT}/epics`,
                     file: toPosix(blueprintDir),
                 }],
-        };
+        });
     }
     const legacyRepo = detectLegacyFormat({ repoRoot });
     if (legacyRepo.legacy) {
-        return {
+        return withGateFailureHints({
             ok: false,
             failures: [{ code: 'S2', message: legacyRepo.reason, file: '.sdd' }],
-        };
+        });
     }
     // blueprint 문서가 하나도 없으면 문서 문제가 아니라 잘못된 경로를 의미함.
     // 이를 먼저 보고하면 빈 문서 집합이 만드는 gate 실패 연쇄를 쫓지 않게 하고,
@@ -69,14 +115,14 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, planDraft, deps, }) {
     // epic index는 의도적으로 제외: 해당 epic 아래 모든 blueprint에 존재하므로,
     // 오타 난 blueprint 이름이 이 검사를 통과해 버릴 수 있음.
     if (!blueprintDocsExist({ repoRoot, blueprintDir })) {
-        return {
+        return withGateFailureHints({
             ok: false,
             failures: [{
                     code: 'S11',
                     message: 'blueprint documents not found — check the blueprint path',
                     file: toPosix(blueprintDir),
                 }],
-        };
+        });
     }
     const executionFailures = [];
     if (gate === 'execute') {
@@ -210,7 +256,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, planDraft, deps, }) {
             message: 'imported document is out of gate scope',
             file: rels.blueprintIndex,
         });
-        return { ok: false, failures };
+        return withGateFailureHints({ ok: false, failures });
     }
     // plan task 분해 경고는 failures와 분리한다. ok는 실패만 본다.
     const warnings = [];
@@ -218,7 +264,7 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, planDraft, deps, }) {
         // 이 시점 failures는 S 코드뿐이다(S18은 위에서 이미 반환). S가 있으면 draft
         // 검사를 건너뛰어 한 결과에 S와 G가 섞이지 않게 한다.
         if (failures.length > 0)
-            return { ok: false, failures };
+            return withGateFailureHints({ ok: false, failures });
         checkPlanDraft(docs, rels, failures, { warnings });
     }
     else if (gate) {
@@ -234,11 +280,12 @@ function validateBlueprint({ repoRoot, blueprintDir, gate, planDraft, deps, }) {
     }
     // 기존 소비자는 warnings 부재를 허용한다 — 비어 있으면 키를 넣지 않는다.
     if (warnings.length > 0) {
-        return { ok: failures.length === 0, failures, warnings };
+        return withGateFailureHints({ ok: failures.length === 0, failures, warnings });
     }
-    return { ok: failures.length === 0, failures };
+    return withGateFailureHints({ ok: failures.length === 0, failures });
 }
 module.exports = {
     loadBlueprintDocs, resolveTaskUnit, checkStructural, checkGate, validateBlueprint,
     parseTasksSections, parseSections, extractPathCandidates,
+    GATE_FAILURE_HINTS, withGateFailureHints,
 };

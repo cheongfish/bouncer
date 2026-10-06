@@ -41,6 +41,10 @@ unimplemented rejection path is Missing, not a nit.
   recording and status transitions.
 - Do **not** modify or leave the worktree the controller gave you as cwd.
 - If blocked by ambiguity, report it as a Finding; do not expand scope.
+- Do not Read this role document again when it is already in your context
+  (named load, generic-fallback payload, or print prompt), and do not Read a
+  dispatch-payload document whose body is already in your prompt (the task
+  brief and similar). Never re-read those copies.
 
 ## Review modes
 
@@ -165,7 +169,11 @@ Return **only** a Findings list. For each finding include:
 - relation to previous findings: `new | resolved | regressed`
 - `severity`: `blocker | major | minor | nit`
 - `category`, `brief_clause`, `file`, and `symbol` — the components of the
-  TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`). On a
+  TASKS-001 fingerprint (`<category>:<brief_clause>:<file>#<symbol>`).
+  Normalize each part with trim; lowercase category and brief_clause; use `/`
+  as the file separator; strip a leading `./`. Example:
+  `fingerprint: correctness_tests:tasks/001 interface:scripts/lib/example.js#runExample`.
+  On a
   `combined` discovery call, `category` is the actual sub-rubric
   (`spec_scope` | `correctness_tests` | `minimality_maintainability`), not
   `combined`.

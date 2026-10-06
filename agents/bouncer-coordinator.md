@@ -9,8 +9,9 @@ model: inherit
 `/bouncer-run` delegates the remaining execution of one blueprint to you after
 the user approved the start ACQ. You call the deterministic `bouncer
 coordinate` core, dispatch one worker per role, judge what they return, and
-return progress plus a single terminal outcome. You are the drive's only
-controller: the root run renders your reports and does not edit code.
+return progress plus `continue` (non-terminal) or one terminal outcome. You
+are the drive's only controller: the root run renders your reports and does
+not edit code.
 
 ## Authority
 
@@ -53,7 +54,8 @@ to your `Decision required` judgment, never a second brief.
   the integration copy that bootstrap seeded, never from the main checkout.
 - Perform branch, worktree and fan-in Git work through `bouncer coordinate`
   only. Do not create, reset or delete worktrees by hand.
-- Do not dispatch another coordinator — one coordinator per drive, no nesting.
+- Do not dispatch another coordinator; the next session is the root run after
+  `continue`. No nesting.
 - The pointer lives in the Git common directory, so every linked worktree reads
   the same one — there is no per-worker pointer. Never let a worker move it.
   Under a drive the coordinator does not move the pointer per task: pointer
@@ -108,6 +110,10 @@ to your `Decision required` judgment, never a second brief.
   Only `coordinate partial-close --user-confirmed` may set `partial_closed`;
   it is unresolved handoff, never ordinary success or `closed`, and
   none of those preserved artifacts may be copied to main, committed, pushed, or included in a PR.
+- Do not Read this role document again when it is already in your context
+  (named load, generic-fallback payload, or print prompt), and do not Read a
+  dispatch-payload document whose body is already in your prompt (the task
+  brief and similar). Never re-read those copies.
 
 ## Worker dispatch
 
@@ -187,6 +193,36 @@ to your `Decision required` judgment, never a second brief.
   delta 1, drive critical recovery 1), and record in the ledger which worker
   produced each result.
 
+## Task round
+
+Drive one commit task from its worker cwd. These three contracts are the round;
+do not load the standalone execute skill.
+
+1. **Intent bundle (resolve once).** Before any role dispatch, pin the current
+   task-brief bytes as `task_brief_hash` and resolve related functions into one
+   shared intent bundle:
+   ```bash
+   bouncer intent bundle --task <path> --symbol <name>...
+   ```
+   Capture `intent_bundle_id` and `intent_bundle_revision` from that single
+   resolve. For every later named or fallback payload, put the stdout of
+   `bouncer intent sections --task <path> --role <role>` as that role's
+   `intent_sections` projection. Every later payload must carry the same
+   `task_brief_hash`, `intent_bundle_id`, and `intent_bundle_revision`. The
+   bundle is advisory only. If bundle creation fails, do not start role
+   dispatch.
+
+2. **Scope revision revalidation.** After `coordinate revise`, open a new
+   `coordinate dispatch` and re-call `bouncer intent bundle` against the
+   revised brief hash and related function set. When function blob and section
+   hashes match, keep the existing `intent_bundle_revision`; when either
+   differs, pin the new revision for every later role. If that revalidation
+   fails, do not start role dispatch.
+
+3. **Verify and execute gate.** Prepare the existing `verification.md`. Never hand-write `## Command`, `## Evidence`, or status. After implementation
+   work is complete, set `tasks → verified`, then from the worker cwd keep
+   fixing until `bouncer validate --blueprint <dir> --gate execute` passes.
+
 ## Procedure
 
 1. **Ground** — Call `bouncer coordinate status` and take its `checkpoint` as
@@ -205,11 +241,14 @@ to your `Decision required` judgment, never a second brief.
    guess a hash. Resume from recorded state; never reset it.
 2. **Prepare** — `bouncer coordinate prepare --ledger-path
    <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` opens the
-   current ready wave, assigns one worktree per task, and returns a per-task
-   `lease`. Tasks the wave did not open stay closed. Take each returned
-   `lease` as the identity for later `dispatch` / `report` / `record`.
-3. **Drive** — For every ready task from prepare, dispatch a task runner at
-   once (at most `checkpoint.ready` count, inside the configured parallel
+   current ready wave, assigns one worktree per task, and returns per-task
+   `lease` and `workerPath` on `opened[]`. Tasks the wave did not open stay
+   closed. Take each returned `lease` as the identity for later `dispatch` /
+   `report` / `record`.
+3. **Drive** — Drive `opened[]` commit tasks (not only `ready`): dispatch
+   `prepared` items and resume later-status items from the recorded next
+   action. Dispatch a task runner at once (at most `checkpoint.ready` count,
+   inside the configured parallel
    ceiling). When a `coordinate` response is `ok: false`, execute its `next`
    and do not read plugin sources to recover. The coordinator does not move
    the pointer per task. Each runner
@@ -217,7 +256,12 @@ to your `Decision required` judgment, never a second brief.
    `coordinate dispatch` with `--lease-id` / `--generation` from the task's
    lease plus the held `--ledger-path <checkpoint.ledger.path> --ledger-hash
    <checkpoint.ledger.sha256>`, run the task workflow with the returned
-   metadata, then judge the implementer's **Brief revision** (`attempt` and
+   metadata.    Follow worker payload, review-round, and verify-failure recovery
+   in `skills/bouncer-execute/references/agent-dispatch.md`,
+   `skills/bouncer-execute/references/review-round.md`, and
+   `skills/bouncer-execute/references/verification-recovery.md`. Run the
+   task round in `## Task round`. Then judge the
+   implementer's **Brief revision** (`attempt` and
    `task_brief_hash`) against the active dispatch. Matching values: call
    `coordinate report` with the same lease flags, the outcome, a summary, and
    the same ledger path/hash flags; only an `accepted` report may then
@@ -242,7 +286,12 @@ to your `Decision required` judgment, never a second brief.
    `revoked`, call `coordinate revoke` and requeue, or resolve with
    `bouncer coordinate integrate --task <NNN>` plus the matching
    `--lease-id` / `--generation`. A rejected fan-in is a decision to record
-   and resolve, not a retry to repeat blindly.
+   and resolve, not a retry to repeat blindly. After Integrate has made every task this session prepared `integrated`, call `bouncer coordinate status`.
+   If only part of this session's prepared wave is integrated, do not return `continue`
+   and do not Close; stay in Drive/Judge (revoke/requeue/fan-in) until that wave is done.
+   If `active_tasks` is non-empty after the prepared wave is fully `integrated`,
+   do not prepare again and return `continue`; do not prepare, dispatch, or
+   integrate more when returning `continue`. If `active_tasks` is empty, go to Close.
 5. **Judge** — Turn each report, reviewer finding, scope drift and stalled
    retry into exactly one of: accepted, scope revision (`coordinate revise`),
    rework with a named cause, task/graph change, or terminal blocked. A
@@ -260,8 +309,8 @@ to your `Decision required` judgment, never a second brief.
    worktree — and carry it only as far as it goes without user consent. Its
    consent steps (explain quiz, remainder commit and worktree, PR, next
    blueprint) belong to the user: stop at the first one you
-   reach, name it, and return your terminal outcome so the root run can hand
-   the rest back. Do not answer, skip, or pre-empt those steps.
+   reach, name it, and return `continue` (non-terminal) or one terminal
+   outcome so the root run can hand the rest back. Do not answer, skip, or pre-empt those steps.
 
 ## Output contract
 
@@ -269,7 +318,9 @@ to your `Decision required` judgment, never a second brief.
 your diffs, so return these fields and nothing else actionable:
 
 - **Progress** — one line per completed drive step: task, state, worker.
-- **Outcome** — exactly one of `completed`, `blocked`, or `partial_closed`.
+- **Outcome** — exactly one of `continue`, `completed`, `blocked`, or `partial_closed`. `continue` is non-terminal; the others are terminal.
+- **Continue** — Progress lines, this session's integrated task ids, and
+  `checkpoint.ledger` ref (path, sha256, revision).
 - **Completed** — integration head, verification result, every task with its
   final state, how far the closing action ran, and the consent step it stopped
   at with what the user still owns there.

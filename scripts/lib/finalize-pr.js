@@ -240,7 +240,9 @@ function buildReviewPoints(digest) {
 /**
  * finalize digest에서 PR 제목 접두·base/head·결정적 본문 절을 만든다.
  * background/changes/flow는 Explain 작성 전이므로 null로 두고, related는
- * push 뒤 links가 채우도록 빈 배열로 둔다.
+ * push 뒤 links가 채우도록 빈 배열로 둔다. git.pr_base가 비어 있으면 base와
+ * title_prefix를 null로 두고 template만 채운다 — `main`으로 닫으면 origin/HEAD가
+ * 없는 저장소에서 잘못된 draft PR이 열린다.
  *
  * @param {object} digest - prepareFinalizeDigest 성공 payload(또는 동형 fixture)
  * @param {object} opts
@@ -254,17 +256,23 @@ function buildPrDraft(digest, opts) {
     const blueprint = asRecord(d.blueprint);
     const config = asRecord(opts.config);
     const prCfg = asRecord(config.pr);
-    const prBase = typeof git.pr_base === 'string' && git.pr_base ? git.pr_base : 'main';
+    const prBase = typeof git.pr_base === 'string' && git.pr_base.trim()
+        ? git.pr_base.trim()
+        : null;
     const head = typeof git.branch === 'string' ? git.branch : null;
     const commitType = typeof blueprint.commit_type === 'string' ? blueprint.commit_type : 'feat';
     const commits = Array.isArray(d.commits) ? d.commits : [];
     const types = collectCommitTypes(commits, commitType)
         .map((t) => capitalizeFirst(t))
         .join('/');
+    const titlePrefixTemplate = `[${yymmddKst(opts.now)}] (→ {base}) [${types}]`;
     // draft 기본 true — 키가 없거나 비불리언이면 skill이 실수로 공개 PR을 만들지 않게.
     const draft = typeof prCfg.draft === 'boolean' ? prCfg.draft : true;
     return {
-        title_prefix: `[${yymmddKst(opts.now)}] (→ ${capitalizeFirst(prBase)}) [${types}]`,
+        title_prefix: prBase
+            ? titlePrefixTemplate.replace('{base}', capitalizeFirst(prBase))
+            : null,
+        title_prefix_template: titlePrefixTemplate,
         base: prBase,
         head,
         draft,

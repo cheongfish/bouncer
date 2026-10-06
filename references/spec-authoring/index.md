@@ -32,14 +32,19 @@ body content only; never edits harness-owned frontmatter fields. Used from
    - **epic**: intent, out of scope, and numbered Success criteria. Persist the
      success criteria discovery produced — each one must be decidable true or
      false, so blueprint acceptance and review can cite it by number. "Improve
-     X" is not a criterion. For a flow change, apply the optional Mermaid zoom
+     X" is not a criterion. Write Intent in two sentences. Each Blueprints
+     index line names what changes and where; do not rewrite existing index lines. For a flow change, apply the optional Mermaid zoom
      rule below: whole flow here, with the chart fence in this body.
    - **blueprint**: what this unit delivers as one review / PR. Set `title`
      (and `bouncer.commit_type` if not `feat`) for the finalize remainder
      subject and shared standalone/integration branch (`<type>/<epic-id>-<blueprint-id>-<slug>`). Write the
      blueprint `## Intent` as 1–2 Korean terminal sentences; finalize uses it
      as the remainder body. Do **not** set task-only authored fields on the
-     blueprint. For a flow change, show only this PR segment of the epic
+     blueprint. The Contract is contract only — no implementation code.
+     Signatures, types, and pseudocode stay within 20 lines per block. Ban
+     Contract class or method bodies, As-Is/To-Be dumps, stepwise sequences,
+     and executable tests (defer those to tasks.md). Keep the body near ~250 lines. If One-commit justification cannot be filled, split the blueprint.
+     For a flow change, show only this PR segment of the epic
      Mermaid chart.
    - **tasks**: fill every implementation-ready section in each
      `tasks/<NNN>/tasks.md` bundle before approval —
@@ -96,6 +101,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
        뿐이며 does not auto-approve `affected_paths`, status, or a gate.
      - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
        다시 열거하지 않고 절차만 담는다.
+     - **Goal & intent**: write the acceptance criteria and the verify command
+       here, or name them on the Checklist.
      - **Current behavior**: record inputs, state, and outputs for the change
        surface, plus the reproduction path (commands, fixtures, or gate runs)
        and the tests or commands already confirmed. The implementer must be
@@ -121,7 +128,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
        one `example`.
      - **Touch**: write a Markdown table with columns
        `경로 | 심볼 | 변경 | 현재 책임 | 계획한 변경 | 근거`. One row per file;
-       `변경` is `Create`, `Modify`, `Delete`, or `Rename`. List only symbols
+       `변경` is `Create`, `Modify`, `Delete`, or `Rename`. Wrap path and
+       symbol cells in backticks. List only symbols
        tied to the entry point, state change, or verification point, and give
        the selection reason in `근거`. When the symbol name is not yet
        grounded, write `신규 추출 지점: <responsibility>` instead of inventing
@@ -141,6 +149,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        adding a prior discovery task, or confirming with the user before
        approval.
      - **Do not touch**: paths only; must not overlap `affected_paths`.
+       Carry epic and blueprint Out of scope into this list.
      - **Constraints**: the rules that hold inside the allowed paths —
        compatibility promises, contracts to preserve, conventions to keep.
        Anything you cannot express as a path belongs here, not in Do not
@@ -148,7 +157,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
      - **Checklist**: order behavior-changing items as failing test → confirm
        it fails → implement. Write expected assertions, constants, and
        commands as literal code blocks; this is where implementation detail
-       deferred from the blueprint Contract lands.
+       deferred from the blueprint Contract lands. Name the acceptance criteria and the verify command.
      - **Checklist** (expected red): every red step names the
        `expected failing assertion` or failure point. Unless the brief requires
        it, `module-load failure` is not expected red.
@@ -191,7 +200,8 @@ body content only; never edits harness-owned frontmatter fields. Used from
    Match each document's length to what the work needs — cover the substance,
    then stop. No filler sections, no summary that restates the section above it,
    no boilerplate kept because the skeleton had a heading for it. A section with
-   nothing real to say is shorter, not padded.
+   nothing real to say is shorter, not padded. Do not leave leftover scaffold
+   guidance HTML comments in plan documents (G22).
 4. After editing, the calling command runs validation; if it reports a failure
    tied to a field you touched, fix the body and re-run.
 

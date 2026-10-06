@@ -6,7 +6,7 @@ const { execFileSync: realExecFileSync } = require('node:child_process');
 const runtime = require("./runtime-state");
 const { coordinatorPathsFor, runtimePaths, branchNamesFor, resolveWorktreeBranch, COORDINATOR_LEDGER_REL, } = runtime;
 const seed = require("./seed-worktree");
-const { seedCoordinatorWorker, seedIntegration, releaseSeedManifest, prepareDependencies } = seed;
+const { seedCoordinatorWorker, seedIntegration, prepareDependencies } = seed;
 const frontmatter = require("./frontmatter");
 const { parseFrontmatter, readDoc } = frontmatter;
 const render = require("./render");
@@ -19,6 +19,8 @@ const commitShaMod = require("./commit-sha");
 const { normalizeCommitSha } = commitShaMod;
 const pathsMod = require("./paths");
 const { parsePathIds } = pathsMod;
+const legacyComments = require("./legacy-comments");
+const { scanLegacyScaffoldComments } = legacyComments;
 const validateSections = require("./validate-sections");
 const { pathsOverlap } = validateSections;
 const configMod = require("./config");
@@ -36,7 +38,7 @@ const LEDGER_REL = COORDINATOR_LEDGER_REL;
  */
 const LEDGER_FENCED_COMMANDS = new Set([
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'critical-recovery',
-    'repair', 'integrate', 'partial-close', 'release', 'revoke',
+    'repair', 'integrate', 'partial-close', 'revoke',
 ]);
 /** report outcome 열거. CLI·ledger 검증과 같은 집합을 써야 stale/accepted 판정이 갈라지지 않는다. */
 const REPORT_OUTCOMES = ['accepted', 'rework', 'scope_revision', 'task_change', 'blocked'];
@@ -1729,6 +1731,15 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         if (fs.existsSync(paths.integrationPath) && !registeredIntegration(exec, repoRoot, paths.integrationPath)) {
             return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: paths.integrationPath };
         }
+        // 원장이 없는 신규 seed만 검사한다. 재개 bootstrap은 integration 사본이 정본이라
+        // 메인에 남은 옛 주석으로 worktree를 만들지 못한 채 멈추면 안 된다.
+        // worktree add·main-source-mutated보다 앞에 두어 거절 시 메인을 바꾸지 않는다.
+        if (!fs.existsSync(paths.ledgerFile)) {
+            const leftover = scanLegacyScaffoldComments({ repoRoot, blueprintDir: blueprint });
+            if (leftover.length > 0) {
+                return { ok: false, reason: 'scaffold-comment-remaining', paths: leftover };
+            }
+        }
         let integrationBranch;
         try {
             const names = branchNamesFor({ repoRoot, blueprint });
@@ -1781,15 +1792,6 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             tasks: ledger.tasks, decisions: ledger.decisions, integrationBranch,
         }, ledger, paths.ledgerFile);
     }
-    if (command === 'release') {
-        // release는 main의 계획 사본을 쓰는 유일한 명령이다. --repo와 실제 cwd가 모두 main
-        // 루트여야 한다 — 어느 하나라도 integration·worker면 그 checkout의 파일을 main
-        // 사본으로 오인해 되돌리게 된다. 원장보다 먼저 판정해 자리가 틀린 호출은 원장을 읽지 않는다.
-        const mainRoot = fs.realpathSync(main.projectRoot);
-        if (fs.realpathSync(repoRoot) !== mainRoot || fs.realpathSync(cwd) !== mainRoot) {
-            return { ok: false, reason: 'release-requires-main-checkout' };
-        }
-    }
     const integration = coordinatorPathsFor({ repoRoot, blueprint });
     if (!registeredIntegration(exec, repoRoot, integration.integrationPath)) {
         return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: integration.integrationPath };
@@ -1836,24 +1838,6 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
         if (!fenced.ok)
             return fenced;
         const commitWrite = () => (writeOwnedLedger(owns, writeLedger, integration.ledgerFile, ledger));
-        if (command === 'release') {
-            // 판정은 모두 읽기뿐이고 main 쓰기는 마지막 releaseSeedManifest 하나다. 어떤 거절도
-            // main 파일을 바꾸지 않는다. 멈춘 drive(확인 대기·partial close·열린 task)는 main
-            // 사본까지 복구 상태이므로 건드리지 않는다.
-            if (!Array.isArray(ledger.seedManifest))
-                return { ok: false, reason: 'missing-seed-manifest' };
-            if (ledger.status === 'awaiting_confirmation' || ledger.status === 'partial_closed'
-                || ledger.tasks.some((entry) => entry.status !== 'integrated')) {
-                return { ok: false, reason: 'drive-not-closed' };
-            }
-            // 원장이 끝났어도 finalize가 integration blueprint를 닫기 전이면 main 사본이 아직
-            // 병합으로 돌아올 정본이 없다. closed는 integration 사본에서만 읽는다.
-            const index = readBouncerBlock(path.join(integration.integrationPath, blueprint, 'index.md'));
-            if (!index || index.status !== 'closed')
-                return { ok: false, reason: 'blueprint-not-closed' };
-            const released = releaseSeedManifest({ repoRoot, blueprintDir: blueprint, manifest: ledger.seedManifest });
-            return withCheckpoint({ ok: true, command, ...released }, ledger, integration.ledgerFile);
-        }
         if (command === 'critical-recovery') {
             ensureIntegrationCwd(repoRoot, blueprint, cwd);
             const checked = runtime.validateCoordinatorLedger(ledger);
@@ -2492,11 +2476,6 @@ const COORDINATE_FAILURE_HINTS = {
         cause: 'Record requires an accepted dispatch report for this task, and none is stored.',
         next: 'Call `bouncer coordinate report` with outcome accepted, then retry `bouncer coordinate record`.',
     },
-    'blueprint-not-closed': {
-        cause: 'Release requires the blueprint index status to be closed.',
-        next: 'Finish remaining tasks, close the blueprint, then retry '
-            + '`bouncer coordinate release` from the main checkout.',
-    },
     'bootstrap-requires-main-checkout': {
         cause: 'Bootstrap must run from the main checkout, not an integration or worker worktree.',
         next: 'Change cwd to the main checkout and rerun `bouncer coordinate bootstrap`.',
@@ -2547,10 +2526,6 @@ const COORDINATE_FAILURE_HINTS = {
     'dispatch-git-read-failed': {
         cause: 'Git could not read the worker HEAD or worktree state needed to open dispatch.',
         next: 'Repair the assigned worker worktree, then retry `bouncer coordinate dispatch`.',
-    },
-    'drive-not-closed': {
-        cause: 'Release requires the coordinator drive status to be closed.',
-        next: 'Finish integration and close the drive, then retry `bouncer coordinate release`.',
     },
     'failure-evidence-required': {
         cause: 'Repair needs terminal failure evidence (command, summary, and paths).',
@@ -2613,10 +2588,6 @@ const COORDINATE_FAILURE_HINTS = {
         cause: 'The coordinator ledger file is missing for this blueprint.',
         next: 'Run `bouncer coordinate bootstrap` from the main checkout, then continue from `bouncer coordinate status`.',
     },
-    'missing-seed-manifest': {
-        cause: 'Release requires a seed manifest recorded at bootstrap.',
-        next: 'Report the missing manifest to the user; do not invent files, and rerun `bouncer coordinate status`.',
-    },
     'missing-verification-bundle': {
         cause: 'The worker is missing the verification task bundle required for fan-in.',
         next: 'Restore the task bundle on the worker, then retry `bouncer coordinate integrate`.',
@@ -2663,10 +2634,6 @@ const COORDINATE_FAILURE_HINTS = {
         cause: 'Critical recovery requires a non-empty reason string.',
         next: 'Retry `bouncer coordinate critical-recovery` with a reason.',
     },
-    'release-requires-main-checkout': {
-        cause: 'Release must run from the main checkout, not the integration worktree.',
-        next: 'Change cwd to the main checkout and rerun `bouncer coordinate release`.',
-    },
     'repair-cause-ambiguous': {
         cause: 'Repair cannot take both a review finding and a verification failure command.',
         next: 'Retry `bouncer coordinate repair` with either `--review-finding` or `--failure-command`, not both.',
@@ -2682,6 +2649,10 @@ const COORDINATE_FAILURE_HINTS = {
     'review-repair-requires-integrated': {
         cause: 'A final-review repair can open only after every task on the blueprint is integrated.',
         next: 'Finish remaining tasks, then retry `bouncer coordinate repair` with `--review-finding`.',
+    },
+    'scaffold-comment-remaining': {
+        cause: '계획 문서에 옛 스캐폴드 안내 주석이 남음',
+        next: '주석을 지우고 plan gate를 다시 통과한 뒤 bootstrap',
     },
     'sha-not-direct-integration-child': {
         cause: 'The new worker SHA is not a direct child of the recorded integration-base commit.',

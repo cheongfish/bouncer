@@ -54,6 +54,8 @@ Korean-search support or a bulk rewrite of the existing corpus.
 **Plan fields.** `bouncer.affected_paths` is the minimum approved set of
 repository-relative paths that may change. Every entry must be justified by a
 file-level `Touch` item; it is not a search-result dump or a future-work list.
+When present, `bouncer.review_scope` may only be `blueprint`; any other value
+is S31.
 When `bouncer.verify` is present, it is one executable command that proves the
 task's acceptance criteria, not prose such as "run tests." Blueprint
 `bouncer.commit_type` describes the intended commit category and
@@ -134,14 +136,9 @@ document consistency), and `review.md` (final review in blueprint review
 mode). After finalize deletes task leaves, `explain.md`
 `bouncer.task_commits` writes `{ task, sha, intent_anchor }` rows:
 `task` is `EPIC-<ddd>/BP-<ddd>/TASK-<ddd>`, `intent_anchor` is `task-<ddd>`,
-and `sha` stays 8-char hex. On a coordinator drive, finalize also writes
-`explain.md` `bouncer.coordinator` as `{ integration_branch, tasks: [{ id,
-branch, scope_revision, actual_paths }] }` so task→branch and actual-path
-edges survive after the ledger is gone. That block is an index, not a copy of
-the ledger or the finalize digest (`base`, `integration_head`, `revision`,
-`worktrees`, `decisions`, `tasks[].status`, `tasks[].sha`, `tasks[].paths`
-stay out). Existing explain documents are not rewritten until
-finalize writes them again.
+and `sha` stays 8-char hex. Leftover `bouncer.coordinator`, `## 이해 상태`,
+`quiz_score`, and `disposition` on older explain documents are ignored when
+reading.
 
 Task commit staging excludes the task bundle and context documents even when
 shared scope authorization allows those workflow paths. Finalize owns their

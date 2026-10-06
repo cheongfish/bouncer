@@ -46,8 +46,8 @@ namespace key and leaves other keys in place. `--replace` deletes the uniquely
 selected key, then writes the target; at a multi-pointer base it returns
 `CURRENT_AMBIGUOUS` and changes nothing. `--set` runs the plan gate and must be
 allowed to refuse the move; never bypass that gate. Initial blueprint setup
-after plan approval and every next-blueprint handoff require their own user
-confirmation before `--set`; they are never automatic.
+after plan approval requires confirmation; the finalize next-blueprint handoff
+follows the exception below.
 
 `--clear` (owned by `bouncer finalize --yes`) removes only the currently
 selected key. Workflows do not write a replacement empty pointer, and they do
@@ -63,4 +63,7 @@ hands pointer ownership to `bouncer-coordinator`, but the coordinator does not m
 standalone task identification, while each worker reads the `effectiveTask` the
 CLI returns for its lease and never moves the pointer. In that mode the next
 candidates are the ready set in `current.coordinator`, not the next task
-number. These exceptions never authorize a next-blueprint move.
+number. These coordinator exceptions never authorize a next-blueprint move.
+The finalize next-blueprint handoff runs `--set` without asking, only for the
+same-epic `next` returned by `bouncer finalize release-main`; a plan-gate
+refusal leaves the pointer cleared and is reported.
