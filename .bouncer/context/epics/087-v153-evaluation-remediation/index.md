@@ -39,3 +39,4 @@ bouncer:
 
 ## Blueprints
 * [001 커밋 강제력 보강](blueprints/001-commit-enforcement/index.md) - 위협 모델 문서, commit 게이트 증거 최신성, git pre-commit hook, 승인 범위 스냅샷을 `docs/`·`scripts/src/lib`에 추가
+* [002 prepare 원장 잠금 구간 분리](blueprints/002-prepare-lock-split/index.md) - `scripts/src/lib/coordinator.ts` prepare의 worktree 생성·seed를 원장 잠금 밖으로 옮기고 실패 시 생성 worker를 되돌림
