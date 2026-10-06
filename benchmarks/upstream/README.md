@@ -42,4 +42,11 @@ node benchmarks/build-upstream-task.cjs fastify-001 --check-solution
 
 | 과제 | 상류 | 규모 | 설명 |
 |---|---|---|---|
-| `fastify-001` | fastify/fastify#6521 (`f376f608`) | 24개 파일, +906/−305 | 핸들러 단위 타임아웃과 `request.signal` |
+| `fastify-001` | fastify/fastify#6521 (`f376f608`) | 24개 파일, +906/−305 | 핸들러 단위 타임아웃과 `request.signal`. 실행 계획: [`tasks/fastify-001-pilot.md`](../tasks/fastify-001-pilot.md) |
+
+## 채점 뒤 도구
+
+- `node benchmarks/score-archived-run.cjs <run-id>`: `finalize.remainder`에서 멈춘 bouncer-full 실행을
+  작업 공간 아카이브의 integration HEAD로 채점한다.
+- `python3 benchmarks/aggregate/workflow-breakdown.py <run-id> ...`: 실행별 점수·처리량과 세션·도구
+  호출 분류.
