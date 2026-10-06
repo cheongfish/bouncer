@@ -22,3 +22,6 @@ scripts/lib/
 # 벤치마크 실행 원본은 transcript 원문과 대용량 로그라 커밋하지 않는다.
 benchmarks/runs/*
 !benchmarks/runs/README.md
+
+# 상류 저장소 과제의 스냅샷 bundle·숨은 테스트·node_modules는 build-upstream-task.cjs가 만든다.
+benchmarks/fixtures/upstream/

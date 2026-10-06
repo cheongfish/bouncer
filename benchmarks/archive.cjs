@@ -5,7 +5,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 // Bouncer init installs Graphify into this venv: ~200 MB per run, rebuildable, no evidence value.
-const EXCLUDED = ['.git/bouncer/venv'];
+// Upstream tasks copy pinned dependencies into node_modules (task-card install_dependencies): same reason.
+const EXCLUDED = ['.git/bouncer/venv', 'node_modules'];
 
 function relativeEntries(root, name) {
   const skip = new Set(EXCLUDED.map((rel) => path.join(name, rel)));

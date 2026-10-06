@@ -1,0 +1,41 @@
+# 상류 저장소 실제 커밋 과제: fastify/fastify#6521(f376f608)의 부모 트리를 스냅샷으로 쓴다.
+# 스냅샷·숨은 테스트·의존성은 build-upstream-task.cjs가 만든다. 채점 설정: upstream/fastify-001.json
+# 루브릭: rubrics/fastify-001.md (v1), 검증기: verifiers/upstream-tests.cjs
+id: fastify-001
+set: general
+benchmark_version: upstream-v1
+base_commit: "42fe25fd2a151def098ef6b59dee18ec8ccac632"
+user_request_file: tasks/fastify-001.prd.md
+user_request_sha256: "bfd62bb3a3be828141519b4a70431a8ac87655ce95e7c195b4afc5b26672f976"
+allowed_paths:
+  - lib/**
+  - types/**
+  - docs/**
+  - test/**
+  - build/**
+  - fastify.js
+  - fastify.d.ts
+forbidden_paths:
+  - .git/**
+  - .github/**
+  - node_modules/**
+  - package.json
+  - package-lock.json
+workspace_setup:
+  - install_dependencies: fastify-001
+failure_opportunities: []
+external_verifiers:
+  - id: upstream-tests
+    argv: [node, verifiers/upstream-tests.cjs, --config, upstream/fastify-001.json, --patch, "{submission_patch}", --work-dir, "{eval_dir}", --output, "{result_json}"]
+    timeout_ms: 600000
+success_checklist:
+  - 서버·라우트 handlerTimeout이 PRD대로 503 FST_ERR_HANDLER_TIMEOUT을 보내고 request.signal을 abort한다.
+  - 라우트 옵션 검증과 두 오류 코드가 등록된다.
+  - initialConfig에 handlerTimeout 기본값 0이 보인다(설정 검증기 재생성 포함).
+  - 타입 정의와 문서가 새 옵션·request.signal을 반영한다.
+  - 기준 스냅샷에서 통과하던 테스트 파일이 그대로 통과한다.
+manual_rubric: fastify-001
+evaluator_facts:
+  commit: 커밋은 하지 않아도 됩니다. 변경을 작업 트리에 남겨 주세요.
+  dependencies: 의존성은 설치돼 있습니다. package.json을 바꾸거나 새 의존성을 추가하지 않습니다.
+  scope: PRD에 적은 동작만 구현합니다. 404 핸들러에는 적용하지 않습니다.

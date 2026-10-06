@@ -140,6 +140,14 @@ function chooseProceed(options, { require, deny, legacy, legacyDeny }) {
   return matched ? { option: matched, basis: 'label' } : null;
 }
 
+function packageScripts(workDir) {
+  try {
+    return JSON.parse(readFileSync(path.join(workDir, 'package.json'), 'utf8')).scripts ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function packageTestScript(workDir) {
   try {
     return JSON.parse(readFileSync(path.join(workDir, 'package.json'), 'utf8')).scripts?.test;
@@ -175,9 +183,16 @@ const gates = [
       // it (e.g. "`.bouncer/` is scaffolded") is not a proposed entry.
       const question = prompt.split(/^\s*-{3,}\s*$/m)[0];
       const proposed = [...new Set([...question.matchAll(/`([^`]+\/)`/g)].map((match) => match[1]))];
-      if (!Array.isArray(expected) || proposed.length !== expected.length
-        || !proposed.every((entry) => expected.includes(entry))
-        || !workDir || existsSync(path.join(workDir, '.gitignore'))) return null;
+      if (!Array.isArray(expected) || !proposed.length || !proposed.every((entry) => expected.includes(entry))
+        || !workDir) return null;
+      // A repository that already has a .gitignore (upstream tasks) gets only the entries it lacks, written
+      // as Bouncer's appended marker block. Every expected entry must be either proposed or already ignored,
+      // and nothing proposed may already be there.
+      const ignored = existsSync(path.join(workDir, '.gitignore'))
+        ? readFileSync(path.join(workDir, '.gitignore'), 'utf8').split('\n').map((line) => line.trim().replace(/\/+$/, ''))
+        : [];
+      const present = (entry) => ignored.includes(entry.replace(/\/+$/, ''));
+      if (proposed.some(present) || !expected.every((entry) => proposed.includes(entry) || present(entry))) return null;
       return chooseProceed(options, { deny: /\bleave\b|untouched|\bskip\b|그대로|두기|건너/i,
         legacy: /write suggested.*gitignore|add suggested.*gitignore|--write-gitignore/i });
     },
@@ -220,9 +235,20 @@ const gates = [
     reason: 'public CLI contract' },
   { gate: 'plan.verify_command', phase: 'bouncer-plan', cue: /verify command|검증 명령|bouncer.verify/i,
     decide({ options, workDir }) {
-      if (packageTestScript(workDir) !== 'node --test') return null;
-      return chooseProceed(options, { require: /npm test/, deny: /unset|\bleave\b|different|다른|않/i,
-        legacy: /set\s+`?bouncer\.verify:\s*npm test`?/i, legacyDeny: /leave unset|different|다른/i });
+      if (packageTestScript(workDir) === 'node --test') {
+        return chooseProceed(options, { require: /npm test/, deny: /unset|\bleave\b|different|다른|않/i,
+          legacy: /set\s+`?bouncer\.verify:\s*npm test`?/i, legacyDeny: /leave unset|different|다른/i });
+      }
+      // Other projects (upstream tasks): the recommended option must name one of the repository's own
+      // package.json scripts, as `npm test` or `npm run <script>`.
+      const scripts = packageScripts(workDir);
+      if (!scripts) return null;
+      const named = { test: (label) => {
+        const match = label.match(/npm (?:run )?([\w:-]+)/);
+        return Boolean(match && (match[1] === 'test' ? scripts.test : match[0].startsWith('npm run') && scripts[match[1]]));
+      } };
+      const choice = chooseProceed(options, { require: named, deny: /unset|\bleave\b|different|다른|않/i });
+      return choice && choice.basis === 'recommended' ? choice : null;
     },
     reason: 'package test script' },
   { gate: 'plan.affected_paths', phase: 'bouncer-plan',

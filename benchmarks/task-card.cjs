@@ -2,9 +2,10 @@
 
 const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } = require('node:fs');
+const { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync } = require('node:fs');
 const path = require('node:path');
 const yaml = require('js-yaml');
+const { fixturePaths } = require('./verifiers/upstream-lib.cjs');
 
 // Benchmark-side paths in a card (request file, setup sources, verifier scripts) are relative to this
 // directory, which the verifier container mounts as its working directory.
@@ -80,6 +81,10 @@ function setupStep(step, taskId) {
   const keys = Object.keys(step ?? {}).sort().join(',');
   if (keys === 'apply_index_patch') return { kind: 'apply_index_patch', source: step.apply_index_patch };
   if (keys === 'copy,to') return { kind: 'copy', source: step.copy, target: step.to };
+  if (keys === 'install_dependencies') {
+    if (!/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(step.install_dependencies ?? '')) fail(`${taskId}: install_dependencies names an upstream task`);
+    return { kind: 'install_dependencies', source: step.install_dependencies };
+  }
   return fail(`${taskId}: unsupported workspace_setup step {${keys}}`);
 }
 
@@ -93,14 +98,16 @@ function renderArgv(argv, values) {
   }));
 }
 
-// The fixture bundle whose recorded heads include the card's base commit.
+// The fixture bundle whose recorded heads include the card's base commit. Upstream-commit tasks keep
+// their generated bundles in fixtures/upstream/ (build-upstream-task.cjs).
 function bundleFor(baseCommit) {
-  const fixtures = path.join(benchmarkRoot, 'fixtures');
-  const matches = readdirSync(fixtures).filter((name) => name.endsWith('.bundle'))
-    .filter((name) => git(['bundle', 'list-heads', path.join(fixtures, name)], benchmarkRoot)
+  const dirs = [path.join(benchmarkRoot, 'fixtures'), path.join(benchmarkRoot, 'fixtures', 'upstream')];
+  const matches = dirs.filter((dir) => existsSync(dir))
+    .flatMap((dir) => readdirSync(dir).filter((name) => name.endsWith('.bundle')).map((name) => path.join(dir, name)))
+    .filter((file) => git(['bundle', 'list-heads', file], benchmarkRoot)
       .split('\n').some((line) => line.split(' ')[0] === baseCommit));
   if (matches.length !== 1) fail(`expected one fixture bundle with head ${baseCommit}, found ${matches.length}`);
-  return path.join(fixtures, matches[0]);
+  return matches[0];
 }
 
 function loadCard(taskId, tasksDir = path.join(benchmarkRoot, 'tasks')) {
@@ -130,6 +137,10 @@ function loadCard(taskId, tasksDir = path.join(benchmarkRoot, 'tasks')) {
 function applyWorkspaceSetup(workDir, card) {
   const applied = [];
   for (const step of (card.workspace_setup ?? []).map((raw) => setupStep(raw, card.id))) {
+    if (step.kind === 'install_dependencies') {
+      applied.push(installDependencies(workDir, step.source));
+      continue;
+    }
     const source = insidePath(benchmarkRoot, step.source, 'workspace_setup source');
     if (!existsSync(source)) fail(`workspace_setup source missing: ${step.source}`);
     if (step.kind === 'apply_index_patch') {
@@ -142,6 +153,18 @@ function applyWorkspaceSetup(workDir, card) {
     applied.push({ ...step, source_sha256: sha256(readFileSync(source)) });
   }
   return applied.length ? { steps: applied, index_tree: git(['write-tree'], workDir) } : null;
+}
+
+// Copies the upstream task's pinned node_modules (built by build-upstream-task.cjs) into the checkout, so
+// both conditions start with the same installed dependencies and no network install. The project's own
+// .gitignore keeps the copy out of the index and the submission diff.
+function installDependencies(workDir, upstreamTask) {
+  const { nodeModules } = fixturePaths(upstreamTask, benchmarkRoot);
+  if (!existsSync(nodeModules)) fail(`dependencies not built for ${upstreamTask}: run build-upstream-task.cjs`);
+  if (git(['check-ignore', 'node_modules/'], workDir) !== 'node_modules/') fail('node_modules is not ignored by the task repository');
+  cpSync(nodeModules, path.join(workDir, 'node_modules'), { recursive: true, verbatimSymlinks: true });
+  const lockfile = path.join(benchmarkRoot, 'upstream', `${upstreamTask}.package-lock.json`);
+  return { kind: 'install_dependencies', source: upstreamTask, source_sha256: sha256(readFileSync(lockfile)) };
 }
 
 // Verifier script paths referenced by argv must exist before any paid agent run starts.
