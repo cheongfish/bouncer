@@ -132,7 +132,11 @@ test('the package ships the coordinator runtime and agent without its developmen
 
   // 배포되는 coordinator 런타임은 node_modules 없이 로드돼야 한다.
   const coordinator = require('../scripts/lib/coordinator');
-  for (const name of ['coordinate', 'readyWave', 'transition', 'loadLedger']) {
+  for (const name of [
+    'coordinate', 'readyWave', 'transition', 'loadLedger',
+    'registeredIntegration', 'registeredWorker', 'ensureIntegrationCwd', 'assertLeaseShape',
+    'isBlueprintReviewModeAt', 'initialWorktreeState', 'taskBriefHashOf', 'normalizeCommitSha',
+  ]) {
     assert.strictEqual(typeof coordinator[name], 'function', `coordinator.${name} is not shipped`);
   }
 });

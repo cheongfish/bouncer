@@ -464,7 +464,9 @@ test('bouncer-coordinator drives a ready wave under leases and wave fan-in', () 
   assert.match(md, /--lease-id/);
   assert.match(md, /--generation/);
   assert.match(md, /coordinate revoke/);
-  assert.match(md, /bouncer coordinate integrate --ledger-path/);
+  // F-SS-002: fan-in argv는 next가 채운다. integrate 명령을 문맥 fence로
+  // 조립하라는 문구는 Interface 거절이다.
+  assert.doesNotMatch(md, /bouncer coordinate integrate --ledger-path/);
   assert.match(md, /does not move the pointer per task/);
   assert.match(md, /effectiveTask/);
   assert.doesNotMatch(md, /drive them one at a time/);
@@ -506,6 +508,12 @@ test('bouncer-coordinator bounds terminal CI repair and preserves partial-close 
   assert.match(outcome, /continue.*completed.*blocked.*partial_closed/i);
   assert.match(outcome, /exactly one/i);
   const integrate = md.slice(md.indexOf('4. **Integrate**'), md.indexOf('5. **Judge**'));
+  // F-SS-002: Integrate는 next가 준 argv만 실행한다. fence·lease를 문맥에서
+  // 조립하면 TASKS-002 Interface 거절을 다시 연다.
+  assert.match(integrate, /execute[\s\S]{0,80}argv/i);
+  assert.doesNotMatch(integrate, /--lease-id/);
+  assert.doesNotMatch(integrate, /--generation/);
+  assert.doesNotMatch(integrate, /--ledger-path <checkpoint\.ledger\.path>/);
   assert.match(integrate, /every task[\s\S]{0,120}(?:prepared|opened)[\s\S]{0,120}integrated/i);
   assert.match(integrate, /active_tasks[\s\S]{0,200}`continue`|`continue`[\s\S]{0,200}active_tasks/);
   // 일부만 integrated면 continue하지 않고, active_tasks가 비면 Close로 간다.
@@ -843,6 +851,17 @@ test('bouncer-coordinator Task round is the drive round contract', () => {
   assert.match(round, /--gate execute/);
   assert.match(round, /never hand-write|do not write `## Command`/i);
   assert.match(round, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
+});
+
+// Procedure는 next가 준 argv만 실행하고 judge만 판단한다. fence를 문맥에서
+// 조립하던 옛 단계는 여기서 막아서 coordinator가 다시 원장 값을 옮기지 않게 한다.
+test('bouncer-coordinator Procedure loops on coordinate next and names the commit step', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const procedure = md.match(/## Procedure\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  assert.match(procedure, /coordinate next --blueprint/);
+  assert.match(procedure, /coordinate next --task/);
+  assert.match(procedure, /`judge`/);
+  assert.match(procedure, /bouncer commit --blueprint <dir> --yes/);
 });
 
 // Drive는 execute SKILL 전체가 아니라 세 참조 경로와 ## Task round를 가리킨다.

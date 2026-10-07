@@ -300,7 +300,7 @@ function cmdExecute(rest: string[], io: CliIo) {
 
 const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke',
+  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -474,12 +474,23 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   Revoke an active lease, clear dispatch/sha, and return the task to pending.
 `,
   },
+  next: {
+    registry: '  coordinate next --blueprint <dir> [--task <ddd>] [--repo <dir>]\n'
+      + '             Print the next coordinator action and filled argv without mutating the ledger.\n',
+    help: `usage: bouncer coordinate next
+  --blueprint <dir> [--task <ddd>] [--repo <dir>]
+  Read-only. Ignores --ledger-path and --ledger-hash if given (not ledger-fenced).
+  Blueprint actions: prepare, drive_tasks, integrate, verification_node, final_review, done, blocked
+  Task actions: dispatch, implement, verify, review, commit, report, record, revise, none, blocked
+  Response fields: action, cwd, argv, judge, task_ids, payload, checkpoint
+`,
+  },
 };
 
 // 전역 help 조립 순서. 키를 빼거나 재정렬하면 전역 usage 바이트가 바뀐다.
 const COORDINATE_REGISTRY_ORDER: CoordinateCommand[] = [
   'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
-  'partial-close', 'critical-recovery', 'revise',
+  'partial-close', 'critical-recovery', 'revise', 'next',
 ];
 
 /**
@@ -536,7 +547,7 @@ function failCoordinateUsage(io: CliIo, message: string, command?: string): 2 {
  * coordinate 서브커맨드를 CLI 경계에서 해석한다.
  * `--help`/`-h`는 인자·fence·core보다 먼저 stdout으로 끝내고, 허용 목록 밖
  * 이름은 core에 넘기지 않고 usage(2)로 끝낸다 — JSON 거절은 알려진 명령의
- * 런타임 실패에만 쓴다.
+ * 런타임 실패에만 쓴다. `next`의 값 없는 `--task`는 생략이 아니라 usage(2)다.
  *
  * @param {string[]} rest - `coordinate` 뒤 argv
  * @param {CliIo} io - stdout/stderr
@@ -567,7 +578,7 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     return failCoordinateUsage(
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
-      + 'integrate, status, revise, repair, partial-close, critical-recovery, or revoke\n',
+      + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, or next\n',
     );
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -666,6 +677,32 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       : result;
     io.out(`${JSON.stringify(payload)}\n`);
     return 0;
+  }
+  if (command === 'next') {
+    // next는 status처럼 읽기만 한다. fence 플래그가 와도 요구·검증하지 않아
+    // mutation 집합과 혼동되지 않게 한다.
+    // parseFlags는 값 없는 --task를 boolean true로 둔다. 그걸 undefined로
+    // 접으면 blueprint next가 열려 잘못된 task 범위가 된다.
+    if (Object.prototype.hasOwnProperty.call(f, 'task')
+      && (typeof f.task !== 'string' || f.task === '')) {
+      return failCoordinateUsage(
+        io, 'coordinate next: --task requires a ddd value\n', command,
+      );
+    }
+    const { coordinateNext } = require('./coordinate-next') as typeof import('./coordinate-next');
+    try {
+      const result = coordinateNext({
+        repoRoot: (f.repo || process.cwd()) as string,
+        blueprint: f.blueprint,
+        cwd: process.cwd(),
+        task: typeof f.task === 'string' ? f.task : undefined,
+      }) as { ok: boolean };
+      io.out(`${JSON.stringify(compactCoordinateOutput(command, result as Record<string, unknown>))}\n`);
+      return result.ok ? 0 : 1;
+    } catch (error) {
+      io.err(`coordinate: ${catchMessage(error)}\n`);
+      return 1;
+    }
   }
   try {
     // --repo는 main checkout을 가리키고 cwd는 실제 write boundary 검증에 쓴다.

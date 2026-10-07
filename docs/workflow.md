@@ -23,7 +23,8 @@ run 세션 자체는 코드를 고치지 않고 coordinator가 돌려주는 보�
 | **integration worktree** | coordinator의 작업 자리. 원장(ledger)과 fan-in 대상 branch가 있습니다 |
 | **worker worktree** | ready wave의 commit task마다 하나. 구현·검증·리뷰·task 커밋이 여기서 일어납니다 |
 
-coordinator는 원장을 읽어 ready wave를 엽니다(`prepare`). commit task는 worker
+coordinator는 각 단계에서 `bouncer coordinate next`로 다음에 실행할 행동과
+채워진 `argv`를 받습니다. coordinator는 원장을 읽어 ready wave를 엽니다(`prepare`). commit task는 worker
 worktree에서 `/bouncer-execute` → `/bouncer-commit`을 돌리고, verification task는
 integration worktree에서 종단 검증만 실행합니다. commit task의 **actual paths**를
 원장에 남기고, coordinator는 결과 SHA를 기록한 뒤(`record`) integration branch로

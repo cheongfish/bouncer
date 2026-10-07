@@ -3067,4 +3067,6 @@ function coordinateWithHints(opts: Parameters<typeof coordinate>[0]) {
 export = {
   readyWave, transition, coordinate: coordinateWithHints, loadLedger, loadLedgerBytes, readBouncerBlock,
   projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS,
+  registeredIntegration, registeredWorker, ensureIntegrationCwd, assertLeaseShape,
+  isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
 };

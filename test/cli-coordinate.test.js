@@ -472,12 +472,12 @@ test('coordinate release is no longer a command', () => {
   const drive = preparedDrive();   // 기존 :472 테스트의 fixture
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 2);
-  assert.match(buf.err, /partial-close, critical-recovery, or revoke/);
+  assert.match(buf.err, /partial-close, critical-recovery, revoke, or next/);
   const help = capture(); runCli(['help'], help.io);
   assert.doesNotMatch(help.buf.out, /coordinate release/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, or revoke/);
+  assert.match(refused.buf.err, /critical-recovery, revoke, or next/);
 });
 
 
@@ -777,4 +777,40 @@ test('coordinate revise stdout is one-line JSON on success and fence refusals', 
   ]);
   assert.strictEqual(badHash.code, 1);
   assert.strictEqual(badHash.buf.out, `${JSON.stringify(JSON.parse(badHash.buf.out))}\n`);
+});
+
+test('coordinate next is not ledger-fenced and prints the next action', () => {
+  const drive = preparedDrive();
+  const withFence = coordinateCli(drive.integration, 'next', [
+    '--repo', drive.repo,
+    '--ledger-path', '.bouncer/runtime/coordinator.json',
+    '--ledger-hash', '0'.repeat(64),
+  ], { fence: false });
+  assert.strictEqual(withFence.code, 0, withFence.buf.err + withFence.buf.out);
+  const body = JSON.parse(withFence.buf.out);
+  assert.strictEqual(body.ok, true);
+  assert.strictEqual(body.action, 'drive_tasks');
+  assert.ok(!('tasks' in body));
+  assert.ok(!('decisions' in body));
+
+  const missingBp = capture();
+  assert.strictEqual(runCli(['coordinate', 'next'], missingBp.io), 2);
+  assert.match(missingBp.buf.err, /--blueprint is required/);
+});
+
+// F-SEC-001: 값 없는 --task 는 생략이 아니다. blueprint next(drive_tasks)로
+// 떨어지면 잘못된 task 범위가 열린다.
+test('coordinate next rejects a valueless --task', () => {
+  const drive = preparedDrive();
+  const missingValue = coordinateCli(drive.integration, 'next', [
+    '--repo', drive.repo, '--task',
+  ], { fence: false });
+  assert.notStrictEqual(missingValue.code, 0, missingValue.buf.out);
+  if (missingValue.code === 2) {
+    assert.match(missingValue.buf.err, /--task/);
+  } else {
+    const body = JSON.parse(missingValue.buf.out);
+    assert.strictEqual(body.ok, false);
+  }
+  assert.doesNotMatch(missingValue.buf.out, /"action":"drive_tasks"/);
 });

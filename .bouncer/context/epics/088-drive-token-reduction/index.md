@@ -29,11 +29,15 @@ bouncer:
 4. `/bouncer-run`과 coordinator는 모든 task를 통합·검증한 뒤 멈추고, `/bouncer-finalize`를 직접 진행하지 않는다.
 5. Cursor 벤치마크 `bouncer` 이미지가 로그인 셸 프로필(`/etc/profile.d`)과 `node`의 `.bashrc`에 플러그인 `scripts` 경로를 넣는다. 정적 테스트가 Dockerfile을 판정하고, 컨테이너의 `bash -lc`·`bash -c` 확인 결과는 작업 보고에 남긴다.
 6. 각 blueprint는 `npm run ci`를 통과하고 CHANGELOG `[Unreleased]`에 항목을 남긴다.
+7. `bouncer coordinate next --blueprint <dir> [--task <NNN>]`는 원장 bytes와 worktree를 바꾸지 않고, 지금 실행할 행동 하나와 fence·lease를 채운 `argv`를 돌려준다.
+8. 정상 경로 fixture 두 개(commit task 2개와 verification node의 per-task review 모드, blueprint review 모드)에서 `coordinate next`의 `argv` 실행과 worker 단계 흉내만 반복하면 `done`에 도달한다.
+9. coordinator 지침의 Procedure는 `coordinate next` 호출, `argv` 실행, `judge` 항목 판단의 반복이고, commit 단계를 명시한다.
 
 ## Out of scope
 - 재측정 실행 자체와 그 결과 해석. 이 epic은 측정 대상 코드와 하네스만 바꾼다.
 - vanilla 대비 품질 이득을 재는 새 벤치마크 과제 추가(`workflow-token-analysis.md` 6.1절).
-- 2단계, 5장 문제(plan 승인 추론, open decisions의 ACQ 전환, print dispatch의 context-reviewer 지원), 하네스 finalize 정책 변경, Graphify 용도 전환은 Success criteria에 아직 넣지 않는다. 진행할 때 이 epic에 blueprint와 기준을 함께 추가한다.
+- 2단계 중 단계별 계약 카드와 과제 크기별 절차, 5장 문제(plan 승인 추론, open decisions의 ACQ 전환, print dispatch의 context-reviewer 지원), 하네스 finalize 정책 변경, Graphify 용도 전환은 Success criteria에 아직 넣지 않는다. 진행할 때 이 epic에 blueprint와 기준을 함께 추가한다.
 
 ## Blueprints
 * [001 coordinator 복구 루프 제거](blueprints/001-coordinator-recovery-fixes/index.md) - `coordinator.ts`·`intent-bundle.ts` brief 해시, `seed-worktree.ts` worker seed, `coordinate`·`review record`·`dispatch print` 도움말, run·coordinator 지침의 finalize 진입, `Dockerfile.cursor` PATH를 고침
+* [002 coordinator 다음 행동 CLI](blueprints/002-coordinator-next-action/index.md) - `coordinate-next.ts` 읽기 전용 행동 판정과 `coordinate next` 서브커맨드, `agents/bouncer-coordinator.md` Procedure를 `next` 루프로 바꿈
