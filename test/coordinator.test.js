@@ -1394,7 +1394,11 @@ function briefHash(worker, blueprint, task) {
 // Worker dispatch 계약이 막는다 — ledger에 새 상태를 추가하지 않는다.
 test('coordinator agent refuses review recording on strategy failure or target mismatch', () => {
   const root = path.join(__dirname, '..');
-  const md = fs.readFileSync(path.join(root, 'agents/bouncer-coordinator.md'), 'utf8');
+  const cardsDir = path.join(root, 'references/coordinator-cards');
+  const md = [
+    fs.readFileSync(path.join(cardsDir, 'review.md'), 'utf8'),
+    fs.readFileSync(path.join(cardsDir, 'final_review.md'), 'utf8'),
+  ].join('\n');
   assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
   assert.match(md, /ok:\s*false|`ok`:\s*`false`/);
   assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i);

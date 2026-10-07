@@ -51,6 +51,10 @@
 
 ### Changed
 
+- **coordinator 지침 축소** — `agents/bouncer-coordinator.md`의 Worker
+  dispatch·Task round·Procedure에서 행동별 drive 세부를 걷어 내고, 그 규칙은
+  `coordinate next` 응답의 계약 카드가 맡는다. execute reference 세 경로를
+  읽으라는 지시는 없다.
 - **coordinator 지침 `next` 루프** — Procedure 각 단계가 `coordinate next`를
   부르고 돌려받은 `argv`를 실행하며 `judge` 항목만 판단하고, commit 단계를
   명시한다.

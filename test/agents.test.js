@@ -8,6 +8,8 @@ const { parseFrontmatter } = require('../scripts/lib/frontmatter');
 
 const root = path.join(__dirname, '..');
 const agentsDir = path.join(root, 'agents');
+const coordinatorCard = (id) =>
+  fs.readFileSync(path.join(root, 'references/coordinator-cards', `${id}.md`), 'utf8');
 
 // 네 named agent — 골격·frontmatter 단언이 공유하는 이름 목록.
 const AGENTS = [
@@ -230,28 +232,28 @@ test('bouncer-reviewer judges combined and separate security without mixing rubr
 // coordinator drive도 Execute와 같은 CLI perspectives 순서를 쓰고, 결과를 덮지 않는다.
 test('bouncer-coordinator dispatches reviewers from exact review-dispatch execute result', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const cards = `${coordinatorCard('review')}\n${coordinatorCard('final_review')}`;
   const { mdToCodexToml } = require('../scripts/lib/codex-agents');
-  assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
-  assert.match(md, /perspectives/);
-  assert.match(md, /`combined`|combined/);
-  assert.match(md, /`security`|security/);
+  assert.match(cards, /bouncer review-dispatch execute|review-dispatch execute/);
+  assert.match(cards, /perspectives/);
+  assert.match(cards, /`combined`|combined/);
+  assert.match(cards, /`security`|security/);
   assert.match(
-    md,
+    cards,
     /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
   );
-  assert.match(md, /ok:\s*false|`ok`:\s*`false`|target[\s\S]{0,80}mismatch/i);
+  assert.match(cards, /ok:\s*false|`ok`:\s*`false`|target[\s\S]{0,80}mismatch/i);
   // blueprint 리뷰 모드의 최종 리뷰 must_fix는 repair 원인 플래그로만 연다.
-  // 이 단언이 실패하는 이유는 아직 Worker dispatch가 task별 --task 발견만 말하기 때문이다.
-  assert.match(md, /--review-finding/);
-  assert.match(md, /review_scope/);
-  assert.match(md, /repair-wave-limit/);
-  assert.match(md, /task_brief_hashes/);
-  assert.match(md, /intent_bundles/);
-  assert.match(md, /bouncer review record/);
+  assert.match(cards, /--review-finding/);
+  assert.match(cards, /review_scope/);
+  assert.match(cards, /repair-wave-limit/);
+  assert.match(cards, /task_brief_hashes/);
+  assert.match(cards, /intent_bundles/);
+  assert.match(cards, /bouncer review record/);
   // F-SS-002: blueprint 최종 리뷰 fail-closed는 포인터 task review_risk가 아니라
   // commit-task review_risk 합집합과 risk_flags를 비교한다.
   assert.match(
-    md,
+    cards,
     /risk_flags[\s\S]{0,280}union of commit-task[\s\S]{0,40}`review_risk`/i,
   );
   const tomlPath = path.join(root, '.codex/agents/bouncer-coordinator.toml');
@@ -489,9 +491,9 @@ test('bouncer-coordinator stops after integration and leaves finalize to the use
 // record는 sha와 decision만 저장한다. ledger가 경로를 따로 받는 것처럼 쓰면
 // 문서가 CLI 계약보다 앞서간다.
 test('bouncer-coordinator keeps provenance inside the recorded decision', () => {
-  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  assert.match(md, /provenance[\s\S]{0,120}inside[\s\S]{0,20}the decision/i);
-  assert.doesNotMatch(md, /`bouncer coordinate record` its result SHA, actual paths/);
+  const record = coordinatorCard('record');
+  assert.match(record, /provenance[\s\S]{0,120}inside[\s\S]{0,20}the decision/i);
+  assert.doesNotMatch(record, /`bouncer coordinate record` its result SHA, actual paths/);
 });
 
 test('bouncer-coordinator bounds terminal CI repair and preserves partial-close evidence', () => {
@@ -769,10 +771,12 @@ test('an unmarked implementer TOML remains user-owned and requires the full fall
 // 보고를 판정할 때까지 brief를 동결한다. Brief revision mismatch는 accepted/record
 // 로 넘기지 않고 stale로만 남긴다.
 test('bouncer-coordinator dispatches attempt metadata and rejects stale Brief revision', () => {
-  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  const worker = md.match(/## Worker dispatch\n([\s\S]*?)(?=\n## )/)?.[1] || '';
-  const procedure = md.match(/## Procedure\n([\s\S]*?)(?=\n## )/)?.[1] || '';
-  const body = `${worker}\n${procedure}`;
+  const body = [
+    coordinatorCard('implement'),
+    coordinatorCard('dispatch'),
+    coordinatorCard('report'),
+    coordinatorCard('record'),
+  ].join('\n');
 
   assert.match(body, /coordinate dispatch/);
   assert.match(body, /\battempt\b/);
@@ -843,14 +847,15 @@ test('bouncer-coordinator Task round is the drive round contract', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   assert.match(md, /^## Task round$/m);
   assert.doesNotMatch(md, /skills\/bouncer-execute\/SKILL\.md/);
-  const round = md.slice(md.indexOf('## Task round'), md.indexOf('## Procedure'));
-  assert.match(round, /bouncer intent bundle/);
-  assert.match(round, /bouncer intent sections/);
-  assert.match(round, /task_brief_hash/);
-  assert.match(round, /intent_bundle_revision/);
-  assert.match(round, /--gate execute/);
-  assert.match(round, /never hand-write|do not write `## Command`/i);
-  assert.match(round, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
+  const dispatch = coordinatorCard('dispatch');
+  const verify = coordinatorCard('verify');
+  assert.match(dispatch, /bouncer intent bundle/);
+  assert.match(dispatch, /bouncer intent sections/);
+  assert.match(dispatch, /task_brief_hash/);
+  assert.match(dispatch, /intent_bundle_revision/);
+  assert.match(verify, /--gate execute/);
+  assert.match(verify, /never hand-write|do not write `## Command`/i);
+  assert.match(dispatch, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
 });
 
 // Procedure는 next가 준 argv만 실행하고 judge만 판단한다. fence를 문맥에서
@@ -864,15 +869,24 @@ test('bouncer-coordinator Procedure loops on coordinate next and names the commi
   assert.match(procedure, /bouncer commit --blueprint <dir> --yes/);
 });
 
-// Drive는 execute SKILL 전체가 아니라 세 참조 경로와 ## Task round를 가리킨다.
-test('bouncer-coordinator Drive points at execute references and Task round', () => {
+// Drive는 execute reference를 가리키지 않는다. 그 규칙은 계약 카드가 맡는다.
+test('bouncer-coordinator Drive does not point at execute references', () => {
   const coord = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  const drive = coord.slice(coord.indexOf('3. **Drive**'), coord.indexOf('4. **Integrate**'));
+  const toml = fs.readFileSync(path.join(root, '.codex/agents/bouncer-coordinator.toml'), 'utf8');
   for (const ref of ['agent-dispatch', 'review-round', 'verification-recovery']) {
-    assert.match(drive, new RegExp(`skills/bouncer-execute/references/${ref}\\.md`));
+    const re = new RegExp(`skills/bouncer-execute/references/${ref}\\.md`);
+    assert.doesNotMatch(coord, re);
+    assert.doesNotMatch(toml, re);
   }
-  assert.match(drive, /## Task round/);
   assert.doesNotMatch(coord, /skills\/bouncer-execute\/SKILL\.md/);
+});
+
+// Worker dispatch는 카드로 넘긴 뒤 짧은 안내만 남긴다.
+test('bouncer-coordinator Worker dispatch body stays at most 20 lines', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const worker = md.match(/## Worker dispatch\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  const lines = worker.split('\n');
+  assert.ok(lines.length <= 20, `Worker dispatch is ${lines.length} lines`);
 });
 
 // 재읽기 금지는 이미 문맥에 있는 역할·payload 문서만 막는다. 역할 문서를
