@@ -35,6 +35,10 @@ bouncer:
 10. `coordinate next` 응답은 `judge`가 있거나 worker를 띄우는 행동과 `blocked`에만 해당 계약 카드 본문을 `card`로 싣고, 그 밖의 행동에는 `card` 키가 없다.
 11. coordinator 지침과 생성 TOML에 `skills/bouncer-execute/references/` 세 문서의 경로와 그것을 읽으라는 지시가 없고, Worker dispatch·Task round의 drive 세부 규칙은 `references/coordinator-cards/`에 있다.
 12. 카드와 execute reference 양쪽에 걸리는 규칙(리뷰 상한 discovery·fix·delta 각 1회, debugger 1회, stale Brief revision 처리, CLI `perspectives` 순서 권위)이 테스트로 일치한다.
+13. execute 게이트와 `bouncer verify`는 verify가 통과하면 lease·pointer가 가리키는 `ready` commit task의 `tasks.md`를 `verified`로 바꾼다. verify 실패, lease·pointer 없이 listing에서 고른 task, `execution_kind: verification` task, `ready`가 아닌 상태, integration worktree의 terminal verification은 상태를 바꾸지 않는다.
+14. verify 카드와 `skills/bouncer-execute/SKILL.md`에 task 상태를 손으로 바꾸라는 지시가 없다.
+15. implement·review·final_review 카드는 print dispatch `--input` 텍스트 템플릿(항목과 순서)을 싣고, `bouncer dispatch print`가 역할 본문을 붙이므로 역할 문서를 읽지 않는다고 적는다. 테스트가 섹션 존재, 역할 문서를 읽지 않는다는 문장, 템플릿 항목 순서를 확인한다.
+16. `bouncer review record --help`의 round 예시가 blueprint 리뷰 모드의 `task_brief_hashes`와 `intent_bundles`를 보여준다.
 
 ## Out of scope
 - 재측정 실행 자체와 그 결과 해석. 이 epic은 측정 대상 코드와 하네스만 바꾼다.
@@ -45,3 +49,4 @@ bouncer:
 * [001 coordinator 복구 루프 제거](blueprints/001-coordinator-recovery-fixes/index.md) - `coordinator.ts`·`intent-bundle.ts` brief 해시, `seed-worktree.ts` worker seed, `coordinate`·`review record`·`dispatch print` 도움말, run·coordinator 지침의 finalize 진입, `Dockerfile.cursor` PATH를 고침
 * [002 coordinator 다음 행동 CLI](blueprints/002-coordinator-next-action/index.md) - `coordinate-next.ts` 읽기 전용 행동 판정과 `coordinate next` 서브커맨드, `agents/bouncer-coordinator.md` Procedure를 `next` 루프로 바꿈
 * [003 coordinator 계약 카드](blueprints/003-coordinator-contract-cards/index.md) - `references/coordinator-cards/` 행동별 drive 계약과 `coordinate-next.ts`의 `card` 첨부, `agents/bouncer-coordinator.md`에서 execute reference 읽기를 걷어냄
+* [004 coordinator 지침 탐색 제거](blueprints/004-coordinator-lookup-removal/index.md) - `verification.ts` verify 통과 시 commit task `verified` 전환, implement·review·final_review 카드의 print dispatch 입력 템플릿, `review record --help` round 예시
