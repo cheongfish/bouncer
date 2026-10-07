@@ -1866,3 +1866,155 @@ bouncer:
     );
   }
 });
+
+function taskBouncer(repo, rel) {
+  return readDoc(path.join(repo, rel)).data.bouncer;
+}
+
+function pointerOn(repo, nnn) {
+  const { writeCurrent } = require('../scripts/lib/current');
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/${nnn}/tasks.md`,
+  });
+}
+
+test('runVerification markTaskVerified promotes a ready pointer commit task', () => {
+  const repo = setupRepo('node -e "process.exit(0)"');
+  writeUnitTasks(repo, '001');
+  pointerOn(repo, '001');
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    markTaskVerified: true,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'verified');
+});
+
+test('runVerification markTaskVerified promotes a ready leased commit task', () => {
+  const { epic, worker002 } = leaseVerifyFixture();
+  const result = runVerification({
+    repoRoot: worker002,
+    blueprintDir: epic,
+    markTaskVerified: true,
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(
+    taskBouncer(worker002, `${epic}/tasks/002/tasks.md`).status,
+    'verified',
+  );
+  assert.strictEqual(
+    taskBouncer(worker002, `${epic}/tasks/001/tasks.md`).status,
+    'ready',
+  );
+});
+
+test('runVerification markTaskVerified leaves status on failure, verified, verification kind, and default', () => {
+  const repo = setupRepo('node -e "process.exit(1)"');
+  writeUnitTasks(repo, '001');
+  pointerOn(repo, '001');
+  const failed = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    markTaskVerified: true,
+    exec: () => ({ status: 1, stdout: '', stderr: 'nope\n' }),
+  });
+  assert.strictEqual(failed.ok, false);
+  assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'ready');
+
+  const already = setupRepo('node -e "process.exit(0)"');
+  const verifiedRel = writeUnitTasks(already, '001');
+  fs.writeFileSync(path.join(already, verifiedRel), fs.readFileSync(path.join(already, verifiedRel), 'utf8')
+    .replace('status: ready', 'status: verified'));
+  pointerOn(already, '001');
+  const alreadyResult = runVerification({
+    repoRoot: already,
+    blueprintDir: BP_REL,
+    markTaskVerified: true,
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(alreadyResult.ok, true);
+  assert.strictEqual(taskBouncer(already, verifiedRel).status, 'verified');
+
+  const kindRepo = setupRepo('node -e "process.exit(0)"');
+  const kindRel = writeUnitTasks(kindRepo, '001');
+  fs.writeFileSync(path.join(kindRepo, kindRel), fs.readFileSync(path.join(kindRepo, kindRel), 'utf8')
+    .replace('status: ready', 'status: ready\n  execution_kind: verification'));
+  pointerOn(kindRepo, '001');
+  const kindResult = runVerification({
+    repoRoot: kindRepo,
+    blueprintDir: BP_REL,
+    markTaskVerified: true,
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(kindResult.ok, true);
+  assert.strictEqual(taskBouncer(kindRepo, kindRel).status, 'ready');
+  assert.strictEqual(taskBouncer(kindRepo, kindRel).execution_kind, 'verification');
+
+  const omitted = setupRepo('node -e "process.exit(0)"');
+  writeUnitTasks(omitted, '001');
+  pointerOn(omitted, '001');
+  const omittedResult = runVerification({
+    repoRoot: omitted,
+    blueprintDir: BP_REL,
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(omittedResult.ok, true);
+  assert.strictEqual(taskBouncer(omitted, `${BP_REL}/tasks/001/tasks.md`).status, 'ready');
+});
+
+test('runVerification markTaskVerified does not promote a listing-fallback single task', () => {
+  const repo = setupRepo('node -e "process.exit(0)"');
+  writeUnitTasks(repo, '001');
+  const result = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    markTaskVerified: true,
+    exec: () => ({ status: 0, stdout: 'ok\n', stderr: '' }),
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'ready');
+});
+
+test('runVerification reuse hit with markTaskVerified still promotes a ready pointer task', () => {
+  const repo = setupRepo();
+  writeUnitTasks(repo, '001');
+  pointerOn(repo, '001');
+  const deps = fixedDeps();
+  const scope = { kind: 'task', key: 'EPIC-001/BP-001/TASK-001' };
+  let calls = 0;
+  const exec = () => {
+    calls += 1;
+    return { status: 0, stdout: 'ok\n', stderr: '' };
+  };
+  const first = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    scope,
+    deps,
+    now: () => new Date('2026-07-27T00:00:00.000Z'),
+    exec,
+  });
+  assert.strictEqual(first.ok, true);
+  assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'ready');
+
+  const second = runVerification({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    scope,
+    deps,
+    markTaskVerified: true,
+    now: () => new Date('2026-07-28T00:00:00.000Z'),
+    exec,
+  });
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(second.reused, true);
+  assert.strictEqual(second.ok, true);
+  assert.strictEqual(taskBouncer(repo, `${BP_REL}/tasks/001/tasks.md`).status, 'verified');
+});

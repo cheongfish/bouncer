@@ -106,6 +106,27 @@ test('verify executes the configured command and records evidence', () => {
   assert.strictEqual(record.reused, false);
 });
 
+test('execute gate promotes a ready pointer commit task and passes once', () => {
+  const { writeCurrent } = require('../scripts/lib/current');
+  const repo = setupRepo();
+  const tasksPath = path.join(repo, `${BP_REL}/tasks/001/tasks.md`);
+  fs.writeFileSync(
+    tasksPath,
+    fs.readFileSync(tasksPath, 'utf8').replace("status: verified", 'status: ready'),
+  );
+  writeCurrent({
+    repoRoot: repo,
+    blueprint: BP_REL,
+    base: 'develop',
+    task: `${BP_REL}/tasks/001/tasks.md`,
+  });
+  const { io, buf } = capture();
+  const code = runCli(['validate', '--repo', repo, '--blueprint', BP_REL, '--gate', 'execute'], io);
+  assert.strictEqual(code, 0, buf.out);
+  assert.strictEqual(JSON.parse(buf.out).ok, true);
+  assert.strictEqual(readDoc(tasksPath).data.bouncer.status, 'verified');
+});
+
 test('execute gate reruns verification before evaluating gates', () => {
   const repo = setupRepo();
   const { io, buf } = capture();

@@ -14,6 +14,7 @@ const {
 const { parseExplainSections } = require('../scripts/lib/validate-sections');
 const { findingFingerprint } = require('../scripts/lib/validate-sections');
 const { TEMPLATES } = require('../scripts/lib/templates');
+const { readDoc } = require('../scripts/lib/frontmatter');
 
 /**
  * verification/G13과 같은 키 정렬 canonical JSON.
@@ -1976,6 +1977,18 @@ function setPointerTask(repo, taskRel) {
   ], { cwd: repo });
   writeCurrent({ repoRoot: repo, blueprint: BP_REL, base: 'develop', task: taskRel });
 }
+
+test('execute gate promotes ready pointer commit task so G6 does not fire', () => {
+  const repo = mkRepo();
+  const { u1 } = writeTaskDirExecuteFixture(repo);
+  writeDoc(repo, `${u1}/tasks.md`, unitTasksData('001', 'ready', `${u1}/tasks.md`), planReadyTasksBody());
+  setPointerTask(repo, `${u1}/tasks.md`);
+
+  const res = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'execute' });
+  assert.equal(res.ok, true, JSON.stringify(res.failures, null, 2));
+  assert.ok(!res.failures.some((f) => f.code === 'G6'));
+  assert.strictEqual(readDoc(path.join(repo, `${u1}/tasks.md`)).data.bouncer.status, 'verified');
+});
 
 test('execute gate passes when pointer targets a complete tasks/001 unit despite draft sibling', () => {
   const repo = mkRepo();

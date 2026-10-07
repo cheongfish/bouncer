@@ -864,6 +864,7 @@ test('gate recovery lives in validate hints; authoring constraints stay in schem
   assert.doesNotMatch(agents, /^## Runtime rule index$/m);
   assert.match(agents, /same code returns after a fix[\s\S]{0,120}`next`/);
   assert.match(read('rules/document-schema.md'), /review_scope[\s\S]{0,120}S31/);
+  assert.match(read('rules/document-schema.md'), /commit_intent[\s\S]{0,200}S32/);
   assert.match(read('references/spec-authoring/index.md'), /G22/);
   for (const rel of ['README.md', 'docs/README.md', 'docs/configuration.md', 'docs/workflow.md']) {
     assert.doesNotMatch(read(rel), /rules\/gates\.md/, rel);

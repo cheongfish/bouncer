@@ -159,6 +159,22 @@ function isValidExclusiveResources(value: unknown): boolean {
  * @param {unknown} value - 프론트매터의 supersedes 값. 키가 없으면 undefined
  * @returns {boolean} 허용 형태면 true, 그 외(null·비배열·공백/비문자열 원소)면 false
  */
+/**
+ * task `bouncer.commit_intent`·`commit_summary` 형식만 판정한다.
+ * 부재는 통과 — 옛 tasks.md를 소급하지 않기 위함. 값은 YAML 리스트여야 한다.
+ * 스칼라 문자열은 js-yaml이 `commit_intent: 문장`으로 읽어 커밋 직전에야
+ * 거절되던 구멍을 여기서 막는다. 줄 수 0–2·원소가 문자열인지만 본다.
+ * 한국어 종결형은 `normalizeAuthoredLines`가 커밋 때 판정한다.
+ *
+ * @param {unknown} value - 프론트매터 값. 키가 없으면 undefined
+ * @returns {boolean} 허용 형태면 true, 스칼라·3개 초과·비문자열 원소면 false
+ */
+function isValidAuthoredLineList(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value) || value.length > 2) return false;
+  return value.every((entry) => typeof entry === 'string');
+}
+
 function isValidSupersedes(value: unknown): boolean {
   // 키 부재만 허용. null은 "명시적으로 잘못된 값"이라 거절한다(scale 부재 계약과 구분).
   if (value === undefined) return true;
@@ -195,6 +211,6 @@ export = {
   AUTONOMY_ENUM, DEFAULT_AUTONOMY, isValidSupersedes,
   DEPENDENCY_GATE_ENUM, DEFAULT_DEPENDS_ON, DEFAULT_PARALLEL_SAFE,
   DEFAULT_DEPENDENCY_GATE, DEFAULT_EXCLUSIVE_RESOURCES, isValidDependsOn,
-  isValidExclusiveResources, EXCLUSIVE_RESOURCE_ID_RE,
+  isValidExclusiveResources, EXCLUSIVE_RESOURCE_ID_RE, isValidAuthoredLineList,
   EXECUTION_KIND_ENUM, executionKindOf,
 };

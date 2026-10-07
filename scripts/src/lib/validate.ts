@@ -77,6 +77,12 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     next: 'If the change is intended, get the user\'s explicit approval, then run '
       + '`bouncer current --set <dir> --reapprove` and rerun the gate.',
   },
+  {
+    code: 'S32',
+    match: /must be a YAML list/,
+    next: 'Rewrite the field as a YAML list of 1-2 Korean terminal sentences '
+      + '(each item on its own `- ` line), then rerun the plan gate.',
+  },
 ]);
 
 /**
@@ -125,7 +131,8 @@ function catchMessage(error: unknown): unknown {
 
 /**
  * blueprint 문서를 로드해 structural(S) 검사와 선택한 gate 또는 plan draft 검사를 돌린다.
- * `gate: 'execute'`는 검사 전에 verify 명령을 실행해 증적을 새로 쓴다(부작용).
+ * `gate: 'execute'`는 검사 전에 verify 명령을 실행해 증적을 새로 쓰고,
+ * 통과하면 lease·pointer commit task를 `ready`에서 `verified`로 올린다(부작용).
  * `planDraft: true`는 structural·S18 실패가 없을 때만 checkPlanDraft를 돌린다 —
  * S 실패 위에 G 코드를 쌓으면 review-dispatch가 원인을 structural로 분류하지 못한다.
  *
@@ -198,7 +205,9 @@ function validateBlueprint({
       if (entries[0] && entries[0].verification && entries[0].verification.rel) {
         verificationFile = entries[0].verification.rel;
       }
-      const verification = runVerification({ repoRoot, blueprintDir });
+      const verification = runVerification({
+        repoRoot, blueprintDir, markTaskVerified: true,
+      });
       if (!verification.ok) {
         executionFailures.push({
           code: 'G13',

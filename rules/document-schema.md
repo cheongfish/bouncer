@@ -107,7 +107,9 @@ display and default sort order — not execution authority.
   `affected_paths`, document status, or a gate.
 
 Task `bouncer.commit_intent` and `bouncer.commit_summary` are optional authored
-lists of 1–2 Korean terminal sentences. `/bouncer-commit` renders present
+YAML lists of 1–2 Korean terminal sentences (each item a `- ` line). A scalar
+string such as `commit_intent: 문장함` fails structural validation as `S32`.
+Absent or `[]` keeps drafts and older tasks readable. `/bouncer-commit` renders present
 fields in that order and rejects malformed values without partial omission;
 missing fields keep older task documents readable. `/bouncer-finalize` renders
 1–2 Korean terminal sentences parsed from the blueprint `## Intent` section and

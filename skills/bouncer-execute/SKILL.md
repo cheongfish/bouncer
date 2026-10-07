@@ -171,8 +171,8 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    prepare the existing `<pointer task directory>/verification.md`. Do not hand-write success evidence
    or set `verification → passed`: the execute gate runs the configured verify
    command and the harness records `## Command`, `## Evidence`, exit status,
-   and run metadata. Set `tasks → verified` only after the implementation work
-   is complete.
+   and run metadata. When the execute gate passes, the CLI sets `tasks` from
+   `ready` to `verified`. Do not set task status by hand.
 
    **On verify failure**, when recovering through debugger then implementer,
    apply [`rules/subagent-model.md`](../../rules/subagent-model.md) and read

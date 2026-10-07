@@ -160,7 +160,8 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    optional and their source is each document body.
    Also replace scaffold default frontmatter `title` values (and set
    `bouncer.commit_type` on the blueprint, plus task `bouncer.commit_intent` /
-   `bouncer.commit_summary`, when needed): `/bouncer-commit` turns each task
+   `bouncer.commit_summary`, when needed): write those two task fields as YAML
+   lists (`- ` items), not a single scalar. `/bouncer-commit` turns each task
    `title` into that task's commit subject (falls back to blueprint `title`),
    uses that task's `commit_intent` then `commit_summary` (each 1–2 Korean
    terminal sentences; no verification-title fallback), following

@@ -325,6 +325,10 @@ function scaffoldTask({
         parallel_safe: DEFAULT_PARALLEL_SAFE,
         dependency_gate: DEFAULT_DEPENDENCY_GATE,
         affected_paths: [],
+        // 빈 YAML 리스트로 자리를 잡아 `commit_intent: 문장` 스칼라를 쓰지 않게 한다.
+        // 승인 전에 `- ` 항목 1–2개를 채운다. 커밋은 한국어 종결형을 그때 검사한다.
+        commit_intent: [],
+        commit_summary: [],
       }),
     // verification은 commit 본문의 백틱 경로 Touch 표를 물려받으면 G20에 걸린다.
     // light에는 `-light` 사본이 없어 templateNameFor가 같은 본문으로 떨어진다.

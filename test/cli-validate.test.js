@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const yaml = require('js-yaml');
 const { runCli } = require('../scripts/lib/cli');
+const { readDoc } = require('../scripts/lib/frontmatter');
 
 const BP_REL = '.bouncer/context/epics/001-auth/blueprints/001-login';
 
@@ -626,6 +627,11 @@ test('validate --gate execute judges the leased task in a worker cwd', () => {
       },
     });
   }
+  fs.mkdirSync(path.join(repo, '.bouncer'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, '.bouncer/config.json'),
+    JSON.stringify({ verify: 'node -e "process.exit(0)"' }),
+  );
   git(['add', '-A']);
   git(['commit', '--quiet', '-m', 'plan']);
   const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
@@ -651,13 +657,19 @@ test('validate --gate execute judges the leased task in a worker cwd', () => {
     withLease.io,
   );
   const withLeaseOut = JSON.parse(withLease.buf.out);
-  // RD-002: lease 대상이 TASKS-002임을 증명한다. ready+pending 묶음이면
-  // execute gate가 실패하고, 실패 file이 모두 tasks/002 아래여야 한다.
-  // 약한 OR(ok===true || G6이 001에 없음)는 잘못된 task를 판정해도 통과한다.
+  // RD-002: lease 대상이 TASKS-002임을 증명한다. verify 통과 시 002만
+  // ready→verified로 바뀌고 001은 그대로다. 미완 문서 실패 file도 002만.
+  assert.strictEqual(
+    readDoc(path.join(worker002, `${blueprint}/tasks/002/tasks.md`)).data.bouncer.status,
+    'verified',
+  );
+  assert.strictEqual(
+    readDoc(path.join(worker002, `${blueprint}/tasks/001/tasks.md`)).data.bouncer.status,
+    'ready',
+  );
   assert.strictEqual(withLeaseOut.ok, false, withLease.buf.out);
   const failures = withLeaseOut.failures || [];
   const unitFailures = failures.filter((f) => /tasks\/00[12]\//.test(f.file || ''));
-  assert.ok(unitFailures.length >= 1, withLease.buf.out);
   assert.ok(
     unitFailures.every((f) => /tasks\/002\//.test(f.file || '')),
     withLease.buf.out,
