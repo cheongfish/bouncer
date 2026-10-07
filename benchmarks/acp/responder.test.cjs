@@ -582,7 +582,9 @@ const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices
 for (const file of ['plan-open-decisions-ko-numbered.md', 'plan-open-decisions-gate-id.md',
   'plan-open-decisions-en-reply-hint.md', 'plan-open-decisions-bold-options.md',
   // v154-ledger-004-bouncer-full-5: `- **1A)**` options and a preview marker ending the sentence with `.`.
-  'plan-open-decisions-numbered-options.md']) {
+  'plan-open-decisions-numbered-options.md',
+  // v088004-ledger-004-bouncer-full-2: header names open decisions and the next gate, not its own gate ID.
+  'plan-open-decisions-header-before-gate.md']) {
   test(`delegates recorded open decisions ${file}`, () => {
     const text = readFileSync(path.join(fixtureDir, file), 'utf8');
     const result = delegateOpenDecisions(delegating, 'bouncer-plan', text);

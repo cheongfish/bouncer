@@ -537,8 +537,11 @@ function delegateOpenDecisions(policy, phase, text) {
   const question = rules.length ? text.slice(rules[rules.length - 1].index) : text;
   // Any real question header for another gate (the Discover confirm also lists `Open decisions`) is that
   // gate's question; only an inline preview of the next gate (acqMarkers drops it) may sit beside these.
+  // A header that names open decisions without the gate ID (v088004-ledger-004-bouncer-full-2:
+  // "open decisions (before `plan.discovery`)") is still this question.
   const otherGate = acqMarkers(question)
-    .some((marker) => /AskUserQuestion/.test(marker[0]) && gateIdOf(marker[0]) !== 'plan.open_decisions');
+    .some((marker) => /AskUserQuestion/.test(marker[0]) && gateIdOf(marker[0]) !== 'plan.open_decisions'
+      && (gateIdOf(marker[0]) || !OPEN_DECISIONS_CUE.test(marker[0])));
   // Open-decision options may carry their question number (`- **1A)** ...`) or be numbered alone (`- **1)** ...`).
   const optionLines = question.split('\n')
     .filter((line) => /^\s*(?:[-*]\s*)?(?:\*\*)?(?:\d*[A-Z]|\d+)\)(?:\*\*)?\s*\S/.test(line));
