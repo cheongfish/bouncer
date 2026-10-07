@@ -73,7 +73,8 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
     next: 'Report the block to the user; do not dispatch or record this attempt.',
   },
   'commit-evidence-mismatch': {
-    cause: 'Worker HEAD, commit_sha, or porcelain does not match a commit that only dirtied this task tasks.md.',
+    cause: 'Worker HEAD, commit_sha, or porcelain does not match a commit that, beyond the paths already dirty '
+      + 'at dispatch, only dirtied this task tasks.md.',
     next: 'Restore the worker to the recorded commit evidence, or redo commit so only that tasks.md is dirty.',
   },
   'verification-task-uses-blueprint-next': {
@@ -622,7 +623,9 @@ function taskNext(ctx: {
   }
   const shortHead = workerHead.slice(0, 8).toLowerCase();
   const shortStamp = normalizeCommitSha(stamped);
-  const extras = dirtyPaths(porcelainText);
+  // dispatch 때 이미 dirty였던 경로(커밋 전 plan 문서의 seed)는 이 attempt가 만든 변경이 아니다.
+  const baseline = new Set(dirtyPaths(item.dispatch.initial_worktree_state));
+  const extras = dirtyPaths(porcelainText).filter((rel) => !baseline.has(rel));
   if (shortStamp === shortHead && onlyTaskBriefDirty(extras, blueprint, task)) {
     return ok({
       scope: 'task', action: 'report', cwd,

@@ -649,6 +649,33 @@ test('task next: dirty files besides tasks.md is commit-evidence-mismatch', () =
   assert.strictEqual(r.reason, 'commit-evidence-mismatch');
 });
 
+// /bouncer-plan leaves plan documents uncommitted until finalize, and seed copies them into the worker,
+// so the worker is already dirty when the attempt opens. v088 ledger-004 runs 1 and 2 both blocked here.
+test('task next: seeded plan documents left dirty from dispatch still allow report', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/040-seed';
+  const repo = uncommittedPlanRepo('bouncer-next-seed-', blueprint, [
+    ['001', '  status: ready\n  depends_on: []\n  parallel_safe: true\n  dependency_gate: integrated\n'],
+  ]);
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  const drive = { repo, blueprint, worker: prepared.tasks[0].workerPath, integrationPath: boot.integrationPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json') };
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.notStrictEqual(dispatched.metadata.initial_worktree_state, '');
+  commitInWorker(drive.worker, 'src/a.js', 'a\n', 'feat: a');
+  writeBundle(drive.worker, blueprint, '001', {
+    tasks: 'verified', verification: 'passed', review: 'accepted',
+  });
+  const head = git(drive.worker, ['rev-parse', 'HEAD']);
+  setDocStatus(drive.worker, blueprint, '001', 'tasks.md', 'verified', { commit_sha: head.slice(0, 8) });
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'report', JSON.stringify({ r, porcelain: porcelain(drive.worker) }));
+});
+
 test('verification --task is refused', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/025-vtask';
   const repo = uncommittedPlanRepo('bouncer-next-vtask-', blueprint, [
