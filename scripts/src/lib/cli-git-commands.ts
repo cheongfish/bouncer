@@ -482,7 +482,8 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   Read-only. Ignores --ledger-path and --ledger-hash if given (not ledger-fenced).
   Blueprint actions: prepare, drive_tasks, integrate, verification_node, final_review, done, blocked
   Task actions: dispatch, implement, verify, review, commit, report, record, revise, none, blocked
-  Response fields: action, cwd, argv, judge, task_ids, payload, checkpoint
+  Response fields: action, cwd, argv, judge, task_ids, payload, card, checkpoint
+  card { id, body } only on: dispatch, implement, verify, review, report, revise, record, final_review, blocked
 `,
   },
 };

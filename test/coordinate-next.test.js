@@ -178,6 +178,30 @@ function capture() {
   };
 }
 
+// 계약 카드를 싣는 action 9개. 판단·worker 행동만 카드를 받고, argv만 실행하는
+// 기계적 action(prepare·drive_tasks·integrate·verification_node·commit·done·none)은
+// 카드 키 자체가 없어야 응답이 불필요하게 커지지 않는다.
+const CARD_ACTIONS = [
+  'dispatch', 'implement', 'verify', 'review', 'report', 'revise', 'record', 'final_review', 'blocked',
+];
+const CARD_DIR = path.join(__dirname, '..', 'references', 'coordinator-cards');
+
+function assertCardFor(r) {
+  if (r.ok === true && CARD_ACTIONS.includes(r.action)) {
+    assert.ok(r.card, `${r.action} must carry card`);
+    assert.strictEqual(r.card.id, r.action);
+    assert.strictEqual(typeof r.card.body, 'string');
+    assert.ok(r.card.body.trim().length > 0, `${r.action} card body is empty`);
+    assert.strictEqual(r.card.body, fs.readFileSync(path.join(CARD_DIR, `${r.action}.md`), 'utf8'));
+    return;
+  }
+  assert.ok(!('card' in r), `${r.action} must not carry card`);
+}
+
+function cardBodies() {
+  return CARD_ACTIONS.map((id) => fs.readFileSync(path.join(CARD_DIR, `${id}.md`), 'utf8'));
+}
+
 function runArgv(cwd, argv) {
   const rest = argv[0] === 'bouncer' ? argv.slice(1) : argv;
   const { io, buf } = capture();
@@ -196,7 +220,7 @@ test('NEXT_FAILURE_HINTS covers the new next reasons only', () => {
   const keys = [
     'partial-closed', 'terminal-verification-failed', 'no-ready-task',
     'critical-recovery-open', 'task-reported-blocked', 'commit-evidence-mismatch',
-    'verification-task-uses-blueprint-next',
+    'verification-task-uses-blueprint-next', 'coordinator-card-missing',
   ];
   assert.deepStrictEqual(Object.keys(NEXT_FAILURE_HINTS).sort(), [...keys].sort());
   for (const key of keys) {
@@ -215,6 +239,7 @@ test('blueprint next: partial_closed is blocked', () => {
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.action, 'blocked');
+  assertCardFor(r);
   assert.strictEqual(r.reason, 'partial-closed');
   assert.strictEqual(r.cause, NEXT_FAILURE_HINTS['partial-closed'].cause);
   assert.strictEqual(r.next, NEXT_FAILURE_HINTS['partial-closed'].next);
@@ -230,6 +255,7 @@ test('blueprint next: awaiting_confirmation uses repair-wave-limit', () => {
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.action, 'blocked');
+  assertCardFor(r);
   assert.strictEqual(r.reason, 'repair-wave-limit');
   assert.strictEqual(r.cause, __coordinatorMod.COORDINATE_FAILURE_HINTS['repair-wave-limit'].cause);
 });
@@ -257,6 +283,7 @@ test('blueprint next: terminalFailure while verifying is blocked', () => {
   const drive = { repo, blueprint, integrationPath: boot.integrationPath, ledgerFile };
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'blocked');
+  assertCardFor(r);
   assert.strictEqual(r.reason, 'terminal-verification-failed');
   assert.match(r.next, /coordinate repair/);
 });
@@ -271,6 +298,7 @@ test('blueprint next: non-null fanin is integrate', () => {
   writeLedger(drive.ledgerFile, ledger);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'integrate');
+  assertCardFor(r);
   assert.ok(r.argv.includes('integrate'));
   assert.ok(r.argv.includes('--blueprint'));
   assert.ok(r.argv.includes('--ledger-path'));
@@ -282,6 +310,7 @@ test('blueprint next: prepared commit tasks are drive_tasks', () => {
   const drive = preparedCommitDrive('bouncer-next-drive-', blueprint);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'drive_tasks');
+  assertCardFor(r);
   assert.deepStrictEqual(r.task_ids, ['001']);
   assert.strictEqual(r.scope, 'blueprint');
 });
@@ -295,6 +324,7 @@ test('blueprint next: recorded without prepared is integrate', () => {
   writeLedger(drive.ledgerFile, ledger);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'integrate');
+  assertCardFor(r);
 });
 
 test('blueprint next: bootstrap with pending tasks is prepare', () => {
@@ -310,6 +340,7 @@ test('blueprint next: bootstrap with pending tasks is prepare', () => {
   };
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'prepare');
+  assertCardFor(r);
   assert.ok(r.argv.includes('prepare'));
 });
 
@@ -329,6 +360,7 @@ test('blueprint next: ready verification task is verification_node', () => {
   };
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'verification_node');
+  assertCardFor(r);
   assert.ok(r.argv.includes('integrate'));
   assert.ok(r.argv.includes('001'));
   assert.strictEqual(r.cwd, boot.integrationPath);
@@ -343,6 +375,7 @@ test('blueprint next: all integrated in review mode without accepted root review
   writeLedger(drive.ledgerFile, ledger);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'final_review');
+  assertCardFor(r);
   assert.ok(r.argv.includes('review-dispatch'));
   assert.strictEqual(r.judge.kind, 'review-round');
 });
@@ -355,6 +388,7 @@ test('blueprint next: all integrated is done', () => {
   writeLedger(drive.ledgerFile, ledger);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'done');
+  assertCardFor(r);
   assert.strictEqual(r.argv, undefined);
 });
 
@@ -367,6 +401,7 @@ test('blueprint next: no ready wave is no-ready-task', () => {
   writeLedger(drive.ledgerFile, ledger);
   const r = assertNoWrite(drive, () => nextOf(drive));
   assert.strictEqual(r.action, 'blocked');
+  assertCardFor(r);
   assert.strictEqual(r.reason, 'no-ready-task');
 });
 
@@ -380,6 +415,7 @@ test('task next: recorded/integrated/pending/ready return none', () => {
     const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
     assert.strictEqual(r.ok, true, status);
     assert.strictEqual(r.action, 'none', status);
+    assertCardFor(r);
     assert.strictEqual(r.reason, status);
   }
 });
@@ -394,6 +430,7 @@ test('task next: open critical recovery is blocked', () => {
   assert.strictEqual(started.ok, true, JSON.stringify(started));
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'blocked');
+  assertCardFor(r);
   assert.strictEqual(r.reason, 'critical-recovery-open');
 });
 
@@ -402,6 +439,7 @@ test('task next: no dispatch is dispatch', () => {
   const drive = preparedCommitDrive('bouncer-next-disp-', blueprint);
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'dispatch');
+  assertCardFor(r);
   assert.strictEqual(r.cwd, drive.worker);
   assert.ok(r.argv.includes('dispatch'));
   assert.ok(r.argv.includes('--lease-id'));
@@ -414,6 +452,7 @@ test('task next: accepted report is record', () => {
   acceptDispatchReport(drive.repo, blueprint, drive.worker, '001');
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'record');
+  assertCardFor(r);
   assert.strictEqual(r.judge.kind, 'record-decision');
   assert.ok(r.judge.fields.includes('--decision'));
 });
@@ -432,6 +471,7 @@ test('task next: scope_revision with unchanged brief is revise', () => {
   assert.strictEqual(reported.ok, true, JSON.stringify(reported));
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'revise');
+  assertCardFor(r);
   assert.strictEqual(r.judge.kind, 'scope-revision');
 });
 
@@ -453,6 +493,7 @@ test('task next: scope_revision with changed brief is dispatch', () => {
   fs.appendFileSync(brief, 'revised paths\n');
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'dispatch');
+  assertCardFor(r);
   assert.strictEqual(r.reason, undefined);
   assert.notStrictEqual(r.action, 'blocked');
   assert.strictEqual(r.judge.kind, 'intent-symbols');
@@ -471,6 +512,7 @@ test('task next: reported blocked is blocked', () => {
   });
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'blocked');
+  assertCardFor(r);
   assert.strictEqual(r.reason, 'task-reported-blocked');
 });
 
@@ -487,6 +529,7 @@ test('task next: other reported outcomes re-dispatch', () => {
   });
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'dispatch');
+  assertCardFor(r);
   assert.strictEqual(r.judge.kind, 'intent-symbols');
 });
 
@@ -499,6 +542,7 @@ test('task next: active dispatch at baseline is implement', () => {
   assert.strictEqual(dispatched.ok, true);
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'implement');
+  assertCardFor(r);
   assert.strictEqual(r.argv, undefined);
   assert.strictEqual(r.payload.attempt, 1);
   assert.strictEqual(r.payload.task_brief_hash, dispatched.metadata.task_brief_hash);
@@ -515,6 +559,7 @@ test('task next: dirty worker without verified docs is verify', () => {
   commitInWorker(drive.worker, 'src/a.js', 'a\n', 'feat: a');
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'verify');
+  assertCardFor(r);
   assert.deepStrictEqual(r.argv.slice(0, 2), ['bouncer', 'validate']);
   assert.ok(r.argv.includes('--gate'));
 });
@@ -532,6 +577,7 @@ test('task next: per-task review after verify evidence is review', () => {
   void sha;
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'review');
+  assertCardFor(r);
   assert.ok(r.argv.includes('review-dispatch'));
   assert.strictEqual(r.judge.kind, 'review-round');
 });
@@ -549,6 +595,7 @@ test('task next: missing commit_sha is commit', () => {
   void sha;
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'commit');
+  assertCardFor(r);
   assert.ok(r.argv.includes('commit'));
   assert.ok(r.argv.includes('--yes'));
 });
@@ -572,6 +619,7 @@ test('task next: matching commit_sha with only tasks.md dirty is report', () => 
   void sha;
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'report');
+  assertCardFor(r);
   assert.strictEqual(r.judge.kind, 'report-outcome');
   assert.ok(r.argv.includes('--attempt'));
   assert.ok(r.argv.includes('--task-brief-hash'));
@@ -597,6 +645,7 @@ test('task next: dirty files besides tasks.md is commit-evidence-mismatch', () =
   fs.writeFileSync(path.join(drive.worker, 'src/extra.js'), 'extra\n');
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.action, 'blocked');
+  assertCardFor(r);
   assert.strictEqual(r.reason, 'commit-evidence-mismatch');
 });
 
@@ -617,6 +666,7 @@ test('verification --task is refused', () => {
   const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.reason, 'verification-task-uses-blueprint-next');
+  assert.ok(!('card' in r));
 });
 
 test('bad --task format is task-required', () => {
@@ -764,4 +814,169 @@ test('fixture tour: blueprint review mode reaches done', () => {
   const drive = mixedPreparedDrive('bouncer-next-tour-b-', blueprint, { reviewMode: true });
   const done = runFixtureToDone(drive);
   assert.strictEqual(done.action, 'done');
+});
+
+test('card: readCard failure is coordinator-card-missing with no checkpoint or action', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/030-card-miss';
+  const drive = preparedCommitDrive('bouncer-next-card-miss-', blueprint);
+  const asked = [];
+  const r = assertNoWrite(drive, () => nextOf(drive, {
+    task: '001',
+    deps: {
+      readCard: (id) => {
+        asked.push(id);
+        const error = new Error(`ENOENT: ${id}`);
+        error.code = 'ENOENT';
+        throw error;
+      },
+    },
+  }));
+  assert.deepStrictEqual(asked, ['dispatch']);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'coordinator-card-missing');
+  assert.strictEqual(r.cause, NEXT_FAILURE_HINTS['coordinator-card-missing'].cause);
+  assert.strictEqual(r.next, NEXT_FAILURE_HINTS['coordinator-card-missing'].next);
+  assert.ok(!('checkpoint' in r) && !('action' in r) && !('card' in r));
+});
+
+test('card: readCard is not called for actions without a card', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/031-card-skip';
+  const drive = preparedCommitDrive('bouncer-next-card-skip-', blueprint);
+  const r = nextOf(drive, {
+    deps: { readCard: (id) => assert.fail(`readCard called for ${id}`) },
+  });
+  assert.strictEqual(r.action, 'drive_tasks');
+  assert.ok(!('card' in r));
+});
+
+test('card: injected readCard body is returned verbatim', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/032-card-seam';
+  const drive = preparedCommitDrive('bouncer-next-card-seam-', blueprint);
+  const r = nextOf(drive, { task: '001', deps: { readCard: (id) => `card ${id}\n` } });
+  assert.strictEqual(r.action, 'dispatch');
+  assert.deepStrictEqual(r.card, { id: 'dispatch', body: 'card dispatch\n' });
+});
+
+test('card: CLI prints card and exits 1 on missing card', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/033-card-cli';
+  const drive = preparedCommitDrive('bouncer-next-card-cli-', blueprint);
+  const ran = runArgv(drive.integrationPath, [
+    'bouncer', 'coordinate', 'next', '--blueprint', blueprint, '--task', '001',
+  ]);
+  assert.strictEqual(ran.code, 0, ran.buf.err);
+  const out = JSON.parse(ran.buf.out);
+  assert.strictEqual(out.card.id, 'dispatch');
+  assert.ok(out.card.body.length > 0);
+});
+
+test('card: directory holds exactly the nine cards and no index.md', () => {
+  const files = fs.readdirSync(CARD_DIR).sort();
+  assert.deepStrictEqual(files, CARD_ACTIONS.map((id) => `${id}.md`).sort());
+});
+
+// 공통 규칙은 카드와 execute reference가 같은 정규식으로 맞아야 한다. 한쪽만
+// 바뀌면 coordinator drive와 standalone execute가 다른 상한을 따르게 된다.
+const EXEC_REF = (name) => fs.readFileSync(
+  path.join(__dirname, '..', 'skills', 'bouncer-execute', 'references', `${name}.md`), 'utf8',
+);
+const cardOf = (id) => fs.readFileSync(path.join(CARD_DIR, `${id}.md`), 'utf8');
+const SHARED_RULES = [
+  {
+    label: 'review ceilings discovery/fix/delta once each',
+    re: /discovery[\s\S]{0,20}1[\s\S]{0,30}fix[\s\S]{0,20}1[\s\S]{0,30}delta[\s\S]{0,30}1/i,
+    cards: ['review'], refs: ['review-round'],
+  },
+  {
+    label: 'debugger cycle runs once',
+    re: /re-verify\s+fails\s+again,\s+the\s+cycle\s+is\s+over[\s\S]{0,120}do\s+not\s+start\s+a\s+third\s+round/,
+    cards: ['verify'], refs: ['verification-recovery'],
+  },
+  {
+    label: 'stale Brief revision reports but never records',
+    re: /stale[\s\S]{0,40}call\s+`coordinate report`\s+with\s+the\s+received[\s\S]{0,120}`stale-report`[\s\S]{0,40}(?:do not|never)[\s\S]{0,60}`coordinate record`/,
+    cards: ['report', 'implement'], refs: ['agent-dispatch'],
+  },
+  {
+    label: 'CLI perspectives order is the only fan-out',
+    re: /walk(?:ing)?\s+the\s+CLI\s+`perspectives`\s+array\s+in\s+order/i,
+    cards: ['review', 'final_review'], refs: ['agent-dispatch', 'review-round'],
+  },
+];
+
+test('card: shared rules match both the card and the execute reference', () => {
+  for (const rule of SHARED_RULES) {
+    for (const id of rule.cards) assert.match(cardOf(id), rule.re, `${rule.label} card ${id}`);
+    for (const ref of rule.refs) assert.match(EXEC_REF(ref), rule.re, `${rule.label} ref ${ref}`);
+  }
+});
+
+// 기존 coordinator 문서 규칙 정규식(test/agents.test.js, test/coordinator.test.js)을
+// 그대로 복사했다. 카드가 그 문단의 문장을 옮겼다면 아홉 카드 합본에서도 모두 맞는다.
+test('card: concatenated cards satisfy the coordinator document rule regexes', () => {
+  const md = cardBodies().join('\n');
+  // test/agents.test.js — review-dispatch execute result
+  assert.match(md, /bouncer review-dispatch execute|review-dispatch execute/);
+  assert.match(md, /perspectives/);
+  assert.match(md, /`combined`|combined/);
+  assert.match(md, /`security`|security/);
+  assert.match(
+    md,
+    /(?:do not|never|without)[\s\S]{0,140}(?:override|recompute|guess|덮어|재계산|추측)|(?:override|recompute|guess)[\s\S]{0,80}(?:do not|never)/i,
+  );
+  assert.match(md, /ok:\s*false|`ok`:\s*`false`|target[\s\S]{0,80}mismatch/i);
+  assert.match(md, /--review-finding/);
+  assert.match(md, /review_scope/);
+  assert.match(md, /repair-wave-limit/);
+  assert.match(md, /task_brief_hashes/);
+  assert.match(md, /intent_bundles/);
+  assert.match(md, /bouncer review record/);
+  assert.match(md, /risk_flags[\s\S]{0,280}union of commit-task[\s\S]{0,40}`review_risk`/i);
+  // test/agents.test.js — provenance inside the recorded decision
+  assert.match(md, /provenance[\s\S]{0,120}inside[\s\S]{0,20}the decision/i);
+  assert.doesNotMatch(md, /`bouncer coordinate record` its result SHA, actual paths/);
+  // test/agents.test.js — attempt metadata and stale Brief revision
+  assert.match(md, /coordinate dispatch/);
+  assert.match(md, /\battempt\b/);
+  assert.match(md, /task_brief_hash/);
+  assert.match(md, /base_head/);
+  assert.match(md, /initial_worktree_state/);
+  assert.match(md, /previous_outcome/);
+  assert.match(md, /previous_outcome[\s\S]{0,80}\{\s*outcome\s*,\s*summary\s*\}/);
+  assert.match(
+    md,
+    /(?:before|immediately before)[\s\S]{0,120}(?:implementer|bouncer-implementer)|(?:implementer|bouncer-implementer)[\s\S]{0,80}(?:before|after)[\s\S]{0,40}dispatch|dispatch[\s\S]{0,120}(?:before|then)[\s\S]{0,80}(?:implementer|bouncer-implementer)/i,
+  );
+  assert.match(
+    md,
+    /(?:do not|never|freeze|frozen)[\s\S]{0,120}(?:revise|brief)|(?:revise|brief)[\s\S]{0,120}(?:after|until)[\s\S]{0,80}(?:report|outcome)/i,
+  );
+  assert.match(md, /coordinate report/);
+  assert.match(md, /Brief revision/);
+  assert.match(
+    md,
+    /(?:stale|mismatch)[\s\S]{0,240}coordinate report[\s\S]{0,160}(?:received|attempt|task_brief_hash)|coordinate report[\s\S]{0,160}(?:received|stale|mismatch)[\s\S]{0,120}(?:attempt|task_brief_hash|stale-report)/i,
+  );
+  assert.match(
+    md,
+    /(?:stale|mismatch)[\s\S]{0,200}(?:accepted|coordinate record)|(?:do not|never)[\s\S]{0,80}(?:accepted|coordinate record)[\s\S]{0,120}(?:stale|mismatch|Brief revision)/i,
+  );
+  assert.match(
+    md,
+    /(?:rework|scope_revision|task_change)[\s\S]{0,200}(?:previous_outcome|redispatch|re-?dispatch)/i,
+  );
+  // test/agents.test.js — Task round (heading assertion excluded)
+  assert.doesNotMatch(md, /skills\/bouncer-execute\/SKILL\.md/);
+  assert.match(md, /bouncer intent bundle/);
+  assert.match(md, /bouncer intent sections/);
+  assert.match(md, /intent_bundle_revision/);
+  assert.match(md, /--gate execute/);
+  assert.match(md, /never hand-write|do not write `## Command`/i);
+  assert.match(md, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
+  // test/coordinator.test.js — refuse review recording on strategy failure or target mismatch
+  assert.match(md, /target[\s\S]{0,100}mismatch|mismatch[\s\S]{0,100}target|frozen[\s\S]{0,80}(?:base|head)/i);
+  assert.match(
+    md,
+    /(?:do not|never|stop|halt|abort)[\s\S]{0,160}(?:accepted|review round|record)|(?:accepted|review round)[\s\S]{0,100}(?:do not|never|stop|halt|abort)/i,
+  );
+  assert.match(md, /risk_flags|perspectives/);
 });
