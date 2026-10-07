@@ -898,7 +898,7 @@ test('ready init --upgrade-graphify calls upgrade and does not keep a stale lock
           package: 'graphifyy',
           package_version: '0.9.56',
           cli_version: '0.9.56',
-          bouncer_version: '1.5.4',
+          bouncer_version: '1.5.5',
           graph_schema_version: '1',
           installed_at: '2026-09-10T00:00:00.000+09:00',
         }, null, 2)}\n`);

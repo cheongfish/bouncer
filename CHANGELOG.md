@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+## [1.5.5] — 2026-10-07
+
+1.5.4 패치. coordinator drive를 `coordinate next` 상태 기계와 행동별 계약 카드로 옮기고, 복구 루프를
+만들던 brief 해시·worker seed 문제와 커밋 강제력을 보강한다.
+
 ### Added
 
 - **`coordinate next`** — 원장과 worker 문서를 읽기만 해서 다음에 실행할
@@ -37,6 +42,13 @@
 
 ### Fixed
 
+- **commit 증거 기준 상태** — `coordinate next`가 commit 뒤 worker porcelain을
+  판정할 때 dispatch 시점에 이미 dirty였던 경로(finalize 전까지 커밋되지 않은
+  plan 문서의 seed)를 빼고 본다. 정상 커밋이 `commit-evidence-mismatch`로
+  막히지 않는다.
+- **벤치마크 응답기** — `init.pre_commit_hook`을 정책이 `install`로 답할 때만
+  응답하고, 번호(`1)`)로 쓴 open decision 선택지도 읽는다. blueprint 없이 끝난
+  plan은 명시적 오류로 멈춘다.
 - **brief 해시 lifecycle 키 제외** — `task_brief_hash`가 `bouncer.status`와
   `bouncer.commit_sha`를 빼서, commit이 SHA를 쓴 뒤 record가
   `stale-worker-report`로 거절하지 않는다.
