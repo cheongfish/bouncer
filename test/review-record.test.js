@@ -310,8 +310,28 @@ test('review record --help example round records on a fresh blueprint', () => {
   const fenced = help.out.match(/```json\n([\s\S]*?)\n```/);
   assert.ok(fenced, 'help must wrap the example in one ```json fence');
   const example = JSON.parse(fenced[1]);
-  const { repo } = makeBlueprintRepo();
+  const hashes = example.round.task_brief_hashes;
+  const bundles = example.round.intent_bundles;
+  assert.equal(example.round.target.task_brief_hashes, undefined);
+  assert.equal(example.round.target.intent_bundles, undefined);
+  assert.equal(typeof hashes, 'object');
+  assert.ok(hashes && !Array.isArray(hashes));
+  assert.equal(typeof bundles, 'object');
+  assert.ok(bundles && !Array.isArray(bundles));
+  const taskIds = Object.keys(hashes);
+  assert.ok(taskIds.some((id) => /^TASKS-\d+$/.test(id)));
+  for (const id of taskIds) {
+    assert.equal(typeof hashes[id], 'string');
+    assert.equal(typeof bundles[id], 'object');
+    assert.equal(typeof bundles[id].id, 'string');
+    assert.equal(typeof bundles[id].revision, 'number');
+  }
+  const { repo, reviewPath } = makeBlueprintRepo();
   const roundFile = writeJson(repo, 'help-round.json', example);
   const r = recordCli(repo, { round: roundFile });
   assert.equal(r.code, 0, r.err + r.out);
+  const { data } = parseFrontmatter(fs.readFileSync(reviewPath, 'utf8'));
+  const recorded = data.bouncer.review.rounds[0];
+  assert.deepEqual(recorded.task_brief_hashes, hashes);
+  assert.deepEqual(recorded.intent_bundles, bundles);
 });

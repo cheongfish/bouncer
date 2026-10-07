@@ -939,6 +939,45 @@ test('card: shared rules match both the card and the execute reference', () => {
 
 // 기존 coordinator 문서 규칙 정규식(test/agents.test.js, test/coordinator.test.js)을
 // 그대로 복사했다. 카드가 그 문단의 문장을 옮겼다면 아홉 카드 합본에서도 모두 맞는다.
+// 카드 앞부분에도 attempt·Brief 같은 키가 이미 있어, 템플릿 순서는
+// Print dispatch 섹션만 잘라서 잰다. 전체를 재면 기존 문단 순서가 실패한다.
+function printDispatchSection(id) {
+  const md = cardOf(id);
+  const start = md.indexOf('## Print dispatch input');
+  assert.ok(start >= 0, `${id} missing ## Print dispatch input`);
+  const rest = md.slice(start);
+  const next = rest.search(/\n## /);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+function assertIndexOrder(haystack, labels, id) {
+  let prev = -1;
+  for (const label of labels) {
+    const at = haystack.indexOf(label);
+    assert.ok(at >= 0, `${id} Print dispatch input missing ${label}`);
+    assert.ok(at > prev, `${id} expected ${label} after prior template key`);
+    prev = at;
+  }
+}
+
+test('card: print dispatch input templates for implement, review, final_review', () => {
+  for (const id of ['implement', 'review', 'final_review']) {
+    const section = printDispatchSection(id);
+    assert.match(section, /bouncer dispatch print/);
+    assert.match(section, /--input/);
+    assert.match(section, /do not read[^\n]*agents\//i);
+  }
+  assertIndexOrder(printDispatchSection('implement'), [
+    'attempt', 'intent_bundle_id', 'intent_sections', 'Goal & intent', 'Brief revision',
+  ], 'implement');
+  for (const id of ['review', 'final_review']) {
+    assertIndexOrder(printDispatchSection(id), [
+      'Mode', 'Perspective', 'Target', 'Brief', 'Intent sections',
+    ], id);
+  }
+  assert.match(printDispatchSection('final_review'), /Contract/);
+});
+
 test('card: concatenated cards satisfy the coordinator document rule regexes', () => {
   const md = cardBodies().join('\n');
   // test/agents.test.js — review-dispatch execute result

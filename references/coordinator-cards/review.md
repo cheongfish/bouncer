@@ -41,6 +41,17 @@ dispatch and the execute agent-dispatch and review-round references.
   risk_flags, latest verify, and for delta the previous findings and revision
   diff, with the read-only cwd.
 
+## Print dispatch input
+
+When `.bouncer/config.json` has `subagents.provider: "cursor"` and
+`subagents.dispatch: "print"`, write only a `--input` text file. Pass cwd
+as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
+Do not read `agents/*.md`, `reviewer-prompt.md`, or `review-rounds.md`.
+
+`--input` file, in this order: Mode, Perspective, Strategy, Risk flags,
+Target, Brief, Intent sections, Constraints, then delta inputs (previous
+findings, resolution, revision diff) when mode is delta.
+
 ## Round
 
 - The normal ceiling is **discovery wave 1회, fix batch 1회, delta

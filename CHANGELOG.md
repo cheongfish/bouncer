@@ -9,6 +9,10 @@
 
 ### Changed
 
+- **print dispatch 입력 템플릿** — `implement`·`review`·`final_review` 계약
+  카드에 Cursor print `--input` 항목 순서를 적고, `review record --help`
+  예시에 blueprint 모드 `task_brief_hashes`·`intent_bundles`를 보여 coordinator가
+  역할 문서와 CLI 소스를 읽지 않게 한다.
 - **verify 통과 시 commit task 상태 전환** — execute 게이트와 `bouncer verify`가
   lease·pointer가 가리키는 commit task의 `tasks.md`를 `ready`에서 `verified`로
   바꾼다. coordinator와 standalone execute는 상태를 손으로 고치지 않는다.

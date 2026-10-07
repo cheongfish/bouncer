@@ -79,3 +79,21 @@ from the coordinator Worker dispatch and the execute agent-dispatch reference.
   a coordinator drive the same five dispatch metadata fields (`attempt`,
   `task_brief_hash`, `base_head`, `initial_worktree_state`, and conditional
   `previous_outcome`) so **Brief revision** stays comparable.
+
+## Print dispatch input
+
+When `.bouncer/config.json` has `subagents.provider: "cursor"` and
+`subagents.dispatch: "print"`, write only a `--input` text file. Pass cwd
+as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
+Do not read `agents/*.md`.
+
+`--input` file, in this order:
+
+- Drive metadata: `attempt`, `task_brief_hash`, `base_head`,
+  `initial_worktree_state`, and `previous_outcome` when present
+- Bundle: `intent_bundle_id`, `intent_bundle_revision`
+- `intent_sections`
+- Brief: Goal & intent, Current behavior, Target behavior, Interface,
+  Touch, Do not touch, Constraints, Checklist (omit missing behavior
+  sections)
+- Report **Brief revision** echoing `attempt` and `task_brief_hash`
