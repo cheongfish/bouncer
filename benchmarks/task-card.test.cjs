@@ -26,6 +26,8 @@ test('every task card loads and matches its request file hash', () => {
     const task = loadCard(id);
     assert.equal(task.card.id, id);
     assert.ok(task.requestText.length > 0);
+    // 상류 과제 bundle은 build-upstream-task.cjs가 Git 무시 경로에 만들므로 CI checkout에는 없다.
+    if (existsSync(path.join(__dirname, 'upstream', `${id}.json`))) continue;
     assert.ok(existsSync(bundleFor(task.card.base_commit)));
   }
 });

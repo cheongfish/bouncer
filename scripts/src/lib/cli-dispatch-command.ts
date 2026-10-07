@@ -10,9 +10,9 @@ type CliIo = {
   err: (s: string) => void;
 };
 
-const USAGE_BLOCK = `  dispatch print --role <implementer|reviewer|debugger|coordinator> --cwd <dir> --input <file> --out <dir>
-             Run one Cursor print dispatch (JSON).
-`;
+const USAGE_BLOCK = '  dispatch print --role <implementer|reviewer|debugger|coordinator>'
+  + ' --cwd <dir> --input <file> --out <dir>\n'
+  + '             Run one Cursor print dispatch (JSON).\n';
 
 const USAGE = `usage: bouncer dispatch print --role <role> --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 

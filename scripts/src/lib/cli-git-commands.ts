@@ -317,7 +317,8 @@ const COORDINATE_USAGE_OVERVIEW = '  coordinate <bootstrap|prepare|ready|dispatc
   + '             [--task <ddd>] [--sha <sha>] [--lease-id <id>] [--generation <n>]\n'
   + '             Operate the coordinator ledger and isolated integration worktrees.\n';
 
-const COORDINATE_USAGE_MUTATIONS = '  Mutations (except bootstrap/status) require --ledger-path and --ledger-hash from\n'
+const COORDINATE_USAGE_MUTATIONS =
+  '  Mutations (except bootstrap/status) require --ledger-path and --ledger-hash from\n'
   + '  the latest status checkpoint so stale ledger writes are rejected before mutation.\n';
 
 // fence 값은 status checkpoint.ledger다. usage에 path/hash를 반복해

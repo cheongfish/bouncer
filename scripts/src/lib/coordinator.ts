@@ -1243,7 +1243,7 @@ function prepareCoordinator({
   integration: ReturnType<typeof coordinatorPathsFor>;
 }): unknown {
   // 1. 잠금 안: 판정·revoke 정리만 하고 원장은 쓰지 않는다. 대조 기준은 이 bytes hash다.
-  const phase1 = withLedgerLock(integration.ledgerFile, (_owns) => {
+  const phase1 = withLedgerLock(integration.ledgerFile, () => {
     const loaded = loadLedgerBytes(integration.ledgerFile);
     if (!loaded) return { ok: false as const, reason: 'missing-ledger' };
     const { ledger, bytes: ledgerBytes } = loaded;
