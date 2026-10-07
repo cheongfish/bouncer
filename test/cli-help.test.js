@@ -277,7 +277,7 @@ test('usage lists coordinate repair review-finding and required-task CI forms', 
 
 const COORDINATE_SUBCOMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke',
+  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next',
 ];
 
 test('coordinate <sub> --help and -h print that subcommand usage on stdout', () => {
@@ -292,6 +292,28 @@ test('coordinate <sub> --help and -h print that subcommand usage on stdout', () 
       );
     }
   }
+});
+
+test('coordinate next --help lists flags, actions, and response fields', () => {
+  const r = capture(['coordinate', 'next', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(r.err, '');
+  assert.match(r.out, /--blueprint <dir>/);
+  assert.match(r.out, /\[--task <ddd>\]/);
+  assert.match(r.out, /\[--repo <dir>\]/);
+  assert.match(r.out, /prepare/);
+  assert.match(r.out, /drive_tasks/);
+  assert.match(r.out, /verification_node/);
+  assert.match(r.out, /final_review/);
+  assert.match(r.out, /dispatch/);
+  assert.match(r.out, /implement/);
+  assert.match(r.out, /action/);
+  assert.match(r.out, /cwd/);
+  assert.match(r.out, /argv/);
+  assert.match(r.out, /judge/);
+  assert.match(r.out, /task_ids/);
+  assert.match(r.out, /payload/);
+  assert.match(r.out, /checkpoint/);
 });
 
 test('coordinate report --help lists report outcome enum', () => {
