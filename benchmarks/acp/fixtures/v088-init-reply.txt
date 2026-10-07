@@ -1,0 +1,39 @@
+I'll bootstrap Bouncer for this project: load the plugin rules, run `bouncer init`, then apply your config overrides and ask for every required decision.Running `bouncer init` now, then I'll apply your subagent settings and surface every consent gate.Setting `subagents.provider` and `subagents.dispatch` as requested, then asking the required consent gates.**완료: bouncer init** · 생성: `.bouncer/config.json`, `.bouncer/context/index.md` · Graphify: installed (`/workspace/.git/bouncer/venv/bin/graphify`) · 설정: `subagents.provider=cursor`, `subagents.dispatch=print`
+
+PRD(`-f` short option)는 여기서 작성하지 않습니다. `/bouncer-plan`에서 사용하세요.
+
+---
+
+**AskUserQuestion — init.gitignore** (1/2)
+
+1. **Re-ground**: Suggested ignore entries를 `.gitignore`에 쓸지 결정합니다 (`node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`, `.bouncer/runtime/`).
+2. **Recommend-why**: Bouncer worktree·runtime·venv 경로를 커밋에서 빼 두는 편이 안전합니다.
+3. **Options**:
+   - A) Write suggested entries to `.gitignore` (Recommended)
+   - B) Leave `.gitignore` untouched
+
+---
+
+**AskUserQuestion — init.pre_commit_hook** (2/2)
+
+1. **Re-ground**: Git `hooks/pre-commit`에 Bouncer pre-commit hook을 설치할지 결정합니다.
+2. **Recommend-why**: commit gate 위반을 로컬에서 미리 잡을 수 있습니다.
+3. **Options**:
+   - A) Install the git pre-commit hook (Recommended)
+   - B) Do not install
+
+Reply with both choices, e.g. `A, A` or `1A 2B`.
+
+---
+
+After those answers, commit bootstrap yourself before `/bouncer-plan`:
+
+```bash
+git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
+```
+
+(`.codex/agents`는 없어서 제외.)
+
+이유: `.bouncer/config.json`은 blueprint commit 범위 밖이라 미커밋이면 첫 `/bouncer-finalize`가 out-of-scope로 중단되고, `/bouncer-plan` 이후에는 `affected_paths` 밖 파일이 막힙니다.
+
+다음: 위 ACQ에 답한 뒤, 필요하면 `.bouncer/config.json`(`source_dirs`, `verify`, `base_branch`, `pr`)을 조정하고 `/bouncer-plan`으로 진행하세요.

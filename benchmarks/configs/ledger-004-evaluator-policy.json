@@ -3,7 +3,7 @@
   "task_id": "ledger-004",
   "approval_state": "approved",
   "approved_by": "user",
-  "approval_record": "2026-09-30 conversation: 사용자 승인 — ledger-004 plan.light_scope는 full 유지, discovery_terms는 핵심 용어로 축소, ledger-003의 사전 상태(WIP·실패 테스트·옛 CI 보고서) 질문은 finalize까지 진행하도록 정책이 자동 응답(synthetic 기록), 나머지는 권장안; 2026-10-06 conversation: 사용자 승인 — plan.open_decisions(1.5.4 discovery 전 미정 동작 질문)는 판단을 에이전트 권장안에 위임하는 중립 응답 한 줄로 synthetic 응답(요구사항 추가 없음)",
+  "approval_record": "2026-09-30 conversation: 사용자 승인 — ledger-004 plan.light_scope는 full 유지, discovery_terms는 핵심 용어로 축소, ledger-003의 사전 상태(WIP·실패 테스트·옛 CI 보고서) 질문은 finalize까지 진행하도록 정책이 자동 응답(synthetic 기록), 나머지는 권장안; 2026-10-06 conversation: 사용자 승인 — plan.open_decisions(1.5.4 discovery 전 미정 동작 질문)는 판단을 에이전트 권장안에 위임하는 중립 응답 한 줄로 synthetic 응답(요구사항 추가 없음); 2026-10-07 conversation: 사용자 승인 — 087에서 생긴 init.pre_commit_hook은 install로 응답",
   "base_commit": "934cb3433f649447372f46051d703a5388384b72",
   "request_file": "benchmarks/tasks/ledger-004.prd.md",
   "purpose": "Answer benchmark user questions only when they are actually asked, so the Bouncer run can reach local finalize.",
@@ -92,6 +92,11 @@
       "gate": "init.gitignore",
       "answer": "write_suggested_entries",
       "when": "Only when every proposed entry is in expected_gitignore_suggestions and no existing ignore rule is removed or weakened."
+    },
+    {
+      "gate": "init.pre_commit_hook",
+      "answer": "install",
+      "when": "Only when init asks whether to install the Bouncer git pre-commit hook."
     },
     {
       "gate": "init.base_branch",

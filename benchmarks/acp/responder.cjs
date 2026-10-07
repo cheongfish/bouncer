@@ -197,6 +197,15 @@ const gates = [
         legacy: /write suggested.*gitignore|add suggested.*gitignore|--write-gitignore/i });
     },
     reason: 'all expected entries present' },
+  // Added by 087 after the 1.5.4 policies were approved, so only a policy that states an answer opts in.
+  { gate: 'init.pre_commit_hook', phase: 'bouncer-init', cue: /pre-commit hook|pre_commit_hook|커밋 훅/i,
+    decide({ policy, options }) {
+      const answer = policy.bouncer_decisions?.find((decision) => decision.gate === 'init.pre_commit_hook')?.answer;
+      if (answer !== 'install') return null;
+      return chooseProceed(options, { require: /install|설치/i, deny: /\bnot\b|don't|않|skip|건너/i,
+        legacy: /install.*pre-commit|--pre-commit-hook/i, legacyDeny: /\bnot\b|don't|않|skip|건너/i });
+    },
+    reason: 'policy installs the git pre-commit hook' },
   { gate: 'plan.discovery', phase: 'bouncer-plan', cue: /discover(?:y)?|핸드오프|handoff/i,
     decide({ policy, prompt, context, options }) {
       const facts = `${context} ${prompt}`;
@@ -462,7 +471,8 @@ function optionGroups(block) {
 const ACQ_MARKER = /\*\*AskUserQuestion[^*\n]*\*\*|^#{1,6}[ \t]+AskUserQuestion\b[^\n]*$/gm;
 
 // Option lines such as `- **A)** ...`, `A) ...`, or `- A) ...`.
-const OPTION_LINE = /^\s*(?:[-*]\s*)?(?:\*\*)?[A-Z]\)(?:\*\*)?\s*\S/;
+// Numbered options (`1)`) are read too, so an unrecognised numbered question stops for a human.
+const OPTION_LINE = /^\s*(?:[-*]\s*)?(?:\*\*)?(?:[A-Z]|\d+)\)(?:\*\*)?\s*\S/;
 const REPLY_CUE = /reply with|answer with|choose|select|pick|답(?:해|변)|선택|골라/i;
 
 const TITLE_LINE = /^\s*(?:#{1,6}\s+\S.*|\*\*[^*\n]+\*\*\s*)$/;
@@ -529,8 +539,9 @@ function delegateOpenDecisions(policy, phase, text) {
   // gate's question; only an inline preview of the next gate (acqMarkers drops it) may sit beside these.
   const otherGate = acqMarkers(question)
     .some((marker) => /AskUserQuestion/.test(marker[0]) && gateIdOf(marker[0]) !== 'plan.open_decisions');
-  // Open-decision options may carry their question number (`- **1A)** ...`).
-  const optionLines = question.split('\n').filter((line) => /^\s*(?:[-*]\s*)?(?:\*\*)?\d*[A-Z]\)(?:\*\*)?\s*\S/.test(line));
+  // Open-decision options may carry their question number (`- **1A)** ...`) or be numbered alone (`- **1)** ...`).
+  const optionLines = question.split('\n')
+    .filter((line) => /^\s*(?:[-*]\s*)?(?:\*\*)?(?:\d*[A-Z]|\d+)\)(?:\*\*)?\s*\S/.test(line));
   if (!OPEN_DECISIONS_CUE.test(question) || optionLines.length < 2
     || APPROVAL_CUE.test(question) || otherGate) return null;
   return { gate: 'plan.open_decisions', choices: [{ gate: 'plan.open_decisions', identified_by: 'cue', synthetic: true,

@@ -1,0 +1,16 @@
+Starting `/bouncer-plan` for the `-f` short option PRD. Loading Bouncer rules and running preflight.Preflight is clean: no selection, `nextEpicId` is `001`. Locating plugin root and discovery references next.Grounding discovery in the codebase: locating `--file` handling and project rules.Preflight: no selection; `nextEpicId` is `001`. Discovery is grounded in `src/args.js` (`parseOptions`), the three commands, and docs. `parseOptions` intent is `unlinked` (no provenance).
+
+One open behavior decision before Discover confirm:
+
+**Open decision — usage string in `src/cli.js`**
+
+On a missing/unknown command, stderr currently prints:
+
+`usage: node src/cli.js <list|total|summary> --file <path> [options]`
+
+The PRD requires updating `README.md` and `docs/commands.md`, and says existing `--file` usage/output must not change. It does not say whether this usage line should mention `-f`.
+
+- **1)** Keep the usage line as `--file <path>` only (docs still document `-f`)
+- **2)** Extend it to show both forms (e.g. `--file|-f <path>`)
+
+Reply with `1` or `2` (or your own wording). After that I’ll present the Discover framing for confirmation.

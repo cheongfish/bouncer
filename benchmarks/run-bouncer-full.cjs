@@ -171,6 +171,7 @@ function integrationGitEnv(workspace, integration) {
 
 function blueprintFile(checkout) {
   const epics = path.join(checkout, '.bouncer', 'context', 'epics');
+  if (!existsSync(epics)) throw new Error('expected one blueprint, found 0 (no .bouncer/context/epics)');
   const blueprints = readdirSync(epics).flatMap((epic) => {
     const dir = path.join(epics, epic, 'blueprints');
     return existsSync(dir) ? readdirSync(dir).map((blueprint) => path.join(dir, blueprint, 'index.md')) : [];

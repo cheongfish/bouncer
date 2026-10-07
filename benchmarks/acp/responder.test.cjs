@@ -660,3 +660,24 @@ test('sets a verify command named by the project scripts when the test script is
   assert.equal(answerTextQuestion(policy, 'bouncer-plan', ask(['Set `make check` (Recommended)', 'Leave unset', 'Cancel']), repo), null);
   rmSync(repo, { recursive: true });
 });
+
+test('installs the pre-commit hook only when the policy states install', () => {
+  const text = readFileSync(path.join(__dirname, 'fixtures', 'v088-init-reply.txt'), 'utf8');
+  assert.equal(answerTextQuestion(policy, 'bouncer-init', text, mkdtempSync(path.join(tmpdir(), 'acp-responder-'))), null);
+  const withHook = { ...policy, bouncer_decisions: [{ gate: 'init.pre_commit_hook', answer: 'install' }] };
+  const answer = answerTextQuestion(withHook, 'bouncer-init', text, mkdtempSync(path.join(tmpdir(), 'acp-responder-')));
+  assert.equal(answer.gate, 'init.gitignore,init.pre_commit_hook');
+  assert.equal(answer.reply, 'A / A');
+  const declined = { ...policy, bouncer_decisions: [{ gate: 'init.pre_commit_hook', answer: 'do_not_install' }] };
+  assert.equal(answerTextQuestion(declined, 'bouncer-init', text, mkdtempSync(path.join(tmpdir(), 'acp-responder-'))), null);
+});
+
+test('delegates a single open decision with numbered options', () => {
+  const text = readFileSync(path.join(__dirname, 'fixtures', 'v088-plan-open-decision.txt'), 'utf8');
+  const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,
+    open_decisions: 'delegate_to_agent_recommendation' } };
+  assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', text).gate, 'plan.open_decisions');
+  // Without the delegation the numbered question still stops for a human instead of ending the stage.
+  assert.equal(acqMarkersOf(text).length, 1);
+  assert.equal(answerTextQuestion(policy, 'bouncer-plan', text, null), null);
+});
