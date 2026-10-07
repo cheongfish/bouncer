@@ -9,6 +9,10 @@
 
 ### Added
 
+- **서브커맨드 `--help`** — `coordinate` 서브커맨드와 `review record`,
+  `dispatch print`가 `--help`에서 플래그·허용값·입력 형식을 출력하고, 필수
+  플래그 누락 오류에도 같은 usage를 붙여 coordinator가 CLI 형식을 소스에서
+  역산하지 않게 한다.
 - **G23 검증 신선도** — commit 게이트가 verify 원장의 `source_digest`와
   `identity.head`를 현재 checkout과 대조하고, verify 뒤 소스·HEAD가 바뀌면
   거절한다.
@@ -24,8 +28,24 @@
 
 ### Fixed
 
+- **brief 해시 lifecycle 키 제외** — `task_brief_hash`가 `bouncer.status`와
+  `bouncer.commit_sha`를 빼서, commit이 SHA를 쓴 뒤 record가
+  `stale-worker-report`로 거절하지 않는다.
+- **worker seed index** — `seedCoordinatorWorker`가 epic `index.md`와
+  `.bouncer/context/index.md`를 함께 넣어, worker에서 execute 게이트가 그
+  파일을 손으로 복사하지 않아도 통과한다.
+- **벤치마크 PATH** — Cursor 벤치마크 `bouncer` 이미지가 `/etc/profile.d`와
+  node 사용자 `.bashrc`에 플러그인 `scripts`를 PATH로 넣어, 에이전트 셸이
+  `bouncer`를 바로 찾는다.
 - **prepare 잠금 구간** — `coordinate prepare`가 worker worktree 생성과 seed를
   원장 잠금 밖에서 실행하고, 실패하면 이번 호출이 만든 worker를 되돌린다.
+
+### Changed
+
+- **run 단계 경계** — `/bouncer-run`과 coordinator는 모든 task가
+  integrated·verified이면 `completed`로 멈추고 `/bouncer-finalize`를 실행하지
+  않는다. 완료 보고는 사용자에게 integration worktree에서 `/bouncer-finalize`를
+  실행하라고 안내한다.
 
 ## [1.5.4] — 2026-10-06
 

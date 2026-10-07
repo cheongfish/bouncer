@@ -28,6 +28,8 @@ import validateSections = require('./validate-sections');
 const { pathsOverlap } = validateSections;
 import configMod = require('./config');
 const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = configMod;
+import taskBriefHashMod = require('./task-brief-hash');
+const { taskBriefHash } = taskBriefHashMod;
 import scopeMod = require('./scope');
 const { withLedgerLock } = scopeMod;
 import leaseMod = require('./lease');
@@ -519,8 +521,8 @@ function git(exec: Exec, cwd: string, args: string[]): string {
 }
 
 /**
- * canonical tasks.md 전체 bytes의 SHA-256. trim·재직렬화 없이 읽어 dispatch·record가
- * 같은 정의를 쓰게 한다 — intent-bundle의 task_brief_hash와 바이트 계약을 맞춘다.
+ * canonical tasks.md의 SHA-256. 파일을 읽은 뒤 taskBriefHash에 맡겨 dispatch·record가
+ * 같은 정규형 계약을 쓰게 한다 — intent-bundle의 task_brief_hash와 맞춘다.
  *
  * @param {string} workerRoot - 할당된 worker worktree
  * @param {string} blueprint - blueprint 상대 경로
@@ -528,8 +530,11 @@ function git(exec: Exec, cwd: string, args: string[]): string {
  * @returns {string} 64자리 소문자 hex
  */
 function taskBriefHashOf(workerRoot: string, blueprint: string, taskId: string): string {
-  const bytes = fs.readFileSync(path.join(workerRoot, blueprint, 'tasks', taskId, 'tasks.md'));
-  return createHash('sha256').update(bytes).digest('hex');
+  const markdown = fs.readFileSync(
+    path.join(workerRoot, blueprint, 'tasks', taskId, 'tasks.md'),
+    'utf8',
+  );
+  return taskBriefHash(markdown);
 }
 
 /**

@@ -12,12 +12,85 @@ type CliIo = {
 
 const ALLOWED_STATUS = ['requested', 'addressed', 'accepted'] as const;
 
+const USAGE_BLOCK = '  review record --blueprint <dir> [--task <ddd>] --round <json-file> '
+  + '[--status <requested|addressed|accepted>]\n'
+  + '             Record one review round and finding updates (JSON).\n';
+
 const USAGE = 'usage: bouncer review record --blueprint <dir> [--task <ddd>] '
   + '--round <json-file> [--status <requested|addressed|accepted>] [--repo <dir>]\n'
   + '\n'
-  + '  review record --blueprint <dir> [--task <ddd>] --round <json-file> '
-  + '[--status <requested|addressed|accepted>]\n'
-  + '             Record one review round and finding updates (JSON).\n';
+  + USAGE_BLOCK;
+
+// 도움말 예시는 검증기를 통과하는 discovery round 1이어야 한다. 펜스를 하나만
+// 써서 `review record --help` stdout에서 JSON을 잘라 바로 기록할 수 있게 한다.
+const HELP_ROUND_EXAMPLE = `{
+  "round": {
+    "round": 1,
+    "mode": "discovery",
+    "target": { "base": "aaa", "head": "bbb" },
+    "perspectives": [{ "name": "combined", "target_head": "bbb" }],
+    "previous_finding_ids": [],
+    "new": 1,
+    "resolved": 0,
+    "regressed": 0
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "status": "resolved",
+      "category": "correctness",
+      "brief_clause": "tasks/001 Interface",
+      "file": "scripts/lib/x.js",
+      "symbol": "f",
+      "fingerprint": "correctness:tasks/001 interface:scripts/lib/x.js#f",
+      "actionability": "must_fix",
+      "origin": "discovery",
+      "first_seen_round": 1,
+      "last_seen_round": 1
+    }
+  ]
+}`;
+
+const HELP = `${USAGE}
+--round file format: a JSON object { "round": object, "findings": array }.
+
+\`\`\`json
+${HELP_ROUND_EXAMPLE}
+\`\`\`
+
+Enums:
+  severity: blocker|major|minor|nit
+  finding status: resolved|accepted|deferred (accepted and deferred require note)
+  actionability: must_fix|advisory
+  origin: discovery|introduced_by_revision|missed_critical
+  round mode: discovery|delta|critical_recovery
+  perspective name: combined|spec_scope|correctness_tests|minimality_maintainability|security
+  --status: requested|addressed|accepted
+
+fingerprint formula: lower(category):lower(brief_clause):posix(file)#symbol
+
+Full ledger example: references/spec-authoring/review-rounds.md
+`;
+
+/**
+ * 서브커맨드 도움말 여부. parseFlags는 `--help` 뒤 값을 먹고 `-h`를 무시하므로
+ * 원시 토큰을 본다. `--flag -h`의 `-h`는 값으로 남긴다.
+ *
+ * @param {string[]} tokens - `review` 뒤 원시 argv
+ * @returns {boolean} 도움말을 내면 true
+ */
+function argvRequestsHelp(tokens: string[]): boolean {
+  for (let i = 0; i < tokens.length; i += 1) {
+    const tok = tokens[i];
+    if (tok === '--help') return true;
+    if (tok === '-h') {
+      const prev = i > 0 ? tokens[i - 1] : undefined;
+      if (prev === undefined || !prev.startsWith('--')) return true;
+    }
+  }
+  return false;
+}
 
 type ParsedRecord = {
   error?: string;
@@ -98,13 +171,19 @@ function parseReviewRecordArgs(rest: string[]): ParsedRecord {
 }
 
 /**
- * 공개 `review` 핸들러. argv 검증과 원장 기록·JSON·exit만 연결한다.
+ * 공개 `review` 핸들러. `--help`는 기록 모듈을 열기 전에 stdout으로 끝내고,
+ * 그 외는 argv 검증과 원장 기록·JSON·exit만 연결한다.
  *
  * @param {string[]} rest - `record`와 플래그
  * @param {CliIo} io - stdout/stderr 싱크
  * @returns {number} 성공 0, 원장 거절 1, 사용법 2
  */
 function cmdReview(rest: string[], io: CliIo): number {
+  // 도움말은 argv 검사·lazy require보다 먼저. 형식은 여기 stdout에만 적는다.
+  if (argvRequestsHelp(rest)) {
+    io.out(HELP);
+    return 0;
+  }
   const parsed = parseReviewRecordArgs(rest);
   if (parsed.error) {
     io.err(parsed.error);
@@ -126,7 +205,5 @@ function cmdReview(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdReview,
-  usage: '  review record --blueprint <dir> [--task <ddd>] --round <json-file> '
-    + '[--status <requested|addressed|accepted>]\n'
-    + '             Record one review round and finding updates (JSON).\n',
+  usage: USAGE_BLOCK,
 };

@@ -14,6 +14,8 @@ import paths = require('./paths');
 const { toPosix, parsePathIds } = paths;
 import symbolIndex = require('./symbol-index');
 const { resolveSymbol } = symbolIndex;
+import taskBriefHashMod = require('./task-brief-hash');
+const { taskBriefHash } = taskBriefHashMod;
 import intentProvenance = require('./intent-provenance');
 const {
   resolveIntentProvenance: defaultResolveIntentProvenance,
@@ -329,6 +331,8 @@ function normalizeFunctionRequests(functions: unknown): FunctionRequest[] {
 /**
  * canonical tasks.md만 받고 stable Task ID와 brief hash를 만든다.
  * symlink가 저장소 밖으로 나가면 거절한다 — cache 경로를 외부 파일에 묶지 않는다.
+ * brief hash는 원본 바이트가 아니라 taskBriefHash(UTF-8)다. dispatch·record와 같은
+ * 정규형이어야 intent-bundle-stale 판정이 lifecycle 키만으로 갈라지지 않는다.
  *
  * @param {object} input - 경로와 fs
  * @returns {{ repoReal: string, taskRel: string, taskAbs: string, stableTask: string, taskBriefHash: string }}
@@ -390,13 +394,13 @@ function loadExecutionTask(input: {
     taskId: block.id,
   });
   const raw = input.fs.readFileSync(taskAbs);
-  const bytes = typeof raw === 'string' ? Buffer.from(raw, 'utf8') : raw;
+  const markdown = typeof raw === 'string' ? raw : raw.toString('utf8');
   return {
     repoReal,
     taskRel,
     taskAbs,
     stableTask: stable.task,
-    taskBriefHash: createHash('sha256').update(bytes).digest('hex'),
+    taskBriefHash: taskBriefHash(markdown),
   };
 }
 

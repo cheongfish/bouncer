@@ -76,7 +76,7 @@ flowchart TD
 
     BI --> P1
     P2 --> R1
-    R5 -- "모든 task integrated" --> F1
+    R5 -- "모든 task integrated → 사용자가 /bouncer-finalize" --> F1
 ```
 
 ## 단계별 스킬

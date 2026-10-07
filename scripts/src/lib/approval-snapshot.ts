@@ -155,4 +155,4 @@ function diffApprovalParts(
   return changed;
 }
 
-export = { computeApprovalDigest, diffApprovalParts };
+export = { computeApprovalDigest, diffApprovalParts, sha256Canonical };

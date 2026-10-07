@@ -509,7 +509,7 @@ const FALLBACK_SITES = [
     inline: false,
     // payload 정의의 정본은 run step 4다. rule 5는 그것을 가리키기만 한다.
     inputs: ['`/bouncer-run` dispatch payload', '`skills/bouncer-run/SKILL.md` step 4'],
-    copies: ['closing action', 'start selection', 'autonomy', 'base SHA'],
+    copies: ['start selection', 'autonomy', 'base SHA'],
   },
 ];
 

@@ -471,17 +471,17 @@ test('bouncer-coordinator drives a ready wave under leases and wave fan-in', () 
   assert.doesNotMatch(md, /each `--set` replaces the previous/);
 });
 
-// finalize의 동의 단계는 사용자 것이다. coordinator가 ACQ를 못 여는데
-// finalize를 끝까지 돌리라고 하면 두 문서가 서로를 부정한다.
-test('bouncer-coordinator stops the closing action at the first consent step', () => {
+// run 단계는 통합·검증에서 끝난다. Close가 finalize를 일부라도 진행하면
+// 사용자가 integration worktree에서 `/bouncer-finalize`를 다시 도는 중복이 생긴다.
+test('bouncer-coordinator stops after integration and leaves finalize to the user', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
   const close = md.match(/6\. \*\*Close\*\*[\s\S]*?(?=\n\n)/)?.[0] || '';
-  assert.match(close, /without user consent/);
-  assert.match(close, /stop at the first one you\s*\n?\s*reach/);
-  assert.match(close, /Do not answer, skip, or pre-empt/);
+  assert.doesNotMatch(md, /closing action/);
   assert.match(md, /Never answer another workflow's consent step/);
-  const contract = md.slice(md.indexOf('## Output contract'));
-  assert.match(contract, /consent step it stopped/);
+  assert.match(close, /`completed`/);
+  assert.match(close, /does not run `\/bouncer-finalize`/);
+  const completed = md.slice(md.indexOf('- **Completed**'), md.indexOf('- **Blocked**'));
+  assert.match(completed, /integration worktree path/);
 });
 
 // record는 sha와 decision만 저장한다. ledger가 경로를 따로 받는 것처럼 쓰면
@@ -522,13 +522,6 @@ test('bouncer-coordinator bounds terminal CI repair and preserves partial-close 
   assert.match(cont, /checkpoint\.ledger/);
   assert.match(md, /6\. \*\*Close\*\*/);
   assert.doesNotMatch(md, /single terminal outcome/);
-});
-
-test('bouncer-coordinator names its closing action', () => {
-  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
-  const close = md.match(/6\. \*\*Close\*\*[\s\S]*?(?=\n\n)/)?.[0] || '';
-  assert.match(close, /\/bouncer-finalize/);
-  assert.match(close, /integration\s*\n?\s*worktree/i);
 });
 
 // autonomy를 payload에 넣고 효과가 없다고 쓰면 interactive가 조용히 사라진다.

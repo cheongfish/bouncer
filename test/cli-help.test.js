@@ -2,6 +2,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
 const { runCli } = require('../scripts/lib/cli');
 
 const SUBCOMMANDS = [
@@ -272,4 +273,94 @@ test('usage lists coordinate repair review-finding and required-task CI forms', 
     /coordinate repair --blueprint <dir> \[--task <ddd>\] --review-finding <id>/,
   );
   assert.match(out, /\[--review-finding <id>\]\.\.\./);
+});
+
+const COORDINATE_SUBCOMMANDS = [
+  'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
+  'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke',
+];
+
+test('coordinate <sub> --help and -h print that subcommand usage on stdout', () => {
+  for (const sub of COORDINATE_SUBCOMMANDS) {
+    for (const flag of ['--help', '-h']) {
+      const r = capture(['coordinate', sub, flag]);
+      assert.strictEqual(r.code, 0, `${sub} ${flag} exit`);
+      assert.strictEqual(r.err, '', `${sub} ${flag} stderr`);
+      assert.ok(
+        r.out.startsWith(`usage: bouncer coordinate ${sub}`),
+        `${sub} ${flag} stdout prefix: ${r.out.slice(0, 80)}`,
+      );
+    }
+  }
+});
+
+test('coordinate report --help lists report outcome enum', () => {
+  const r = capture(['coordinate', 'report', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /accepted\|rework\|scope_revision\|task_change\|blocked/);
+});
+
+test('coordinate --help prints the coordinate registry usage on stdout', () => {
+  const { coordinate } = require('../scripts/lib/cli-git-commands.js');
+  const r = capture(['coordinate', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(r.err, '');
+  assert.strictEqual(r.out, coordinate.usage);
+});
+
+test('coordinate dispatch --help wins over a missing ledger fence', () => {
+  const r = capture(['coordinate', 'dispatch', '--blueprint', 'x', '--task', '001', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(r.err, '');
+  assert.ok(r.out.startsWith('usage: bouncer coordinate dispatch'));
+  assert.doesNotMatch(r.out, /ledger-checkpoint-invalid/);
+  assert.doesNotMatch(r.err, /ledger-checkpoint-invalid/);
+});
+
+test('coordinate revoke --reason -h is a flag value, not help', () => {
+  const r = capture([
+    'coordinate', 'revoke', '--blueprint', 'x', '--task', '001', '--reason', '-h',
+    '--ledger-path', 'p', '--ledger-hash', 'h',
+  ]);
+  assert.ok(!r.out.startsWith('usage:'));
+});
+
+test('coordinate report missing required flag appends that subcommand usage', () => {
+  const r = capture([
+    'coordinate', 'report', '--blueprint', 'x',
+    '--ledger-path', 'p', '--ledger-hash', 'h', '--attempt', '1',
+  ]);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /--task-brief-hash is required/);
+  assert.match(r.err, /usage: bouncer coordinate report/);
+  assert.strictEqual(r.out, '');
+});
+
+test('coordinate unknown subcommand appends the full coordinate usage', () => {
+  const { coordinate } = require('../scripts/lib/cli-git-commands.js');
+  const r = capture(['coordinate', 'nope', '--blueprint', 'x']);
+  assert.strictEqual(r.code, 2);
+  assert.match(r.err, /command must be/);
+  assert.ok(r.err.includes(coordinate.usage));
+  assert.strictEqual(r.out, '');
+});
+
+test('review record and dispatch print --help/-h print on stdout', () => {
+  for (const argv of [
+    ['review', 'record', '--help'],
+    ['review', 'record', '-h'],
+    ['dispatch', 'print', '--help'],
+    ['dispatch', 'print', '-h'],
+  ]) {
+    const r = capture(argv);
+    assert.strictEqual(r.code, 0, `${argv.join(' ')} exit`);
+    assert.strictEqual(r.err, '', `${argv.join(' ')} stderr`);
+  }
+  const dispatchHelp = capture(['dispatch', 'print', '--help']);
+  assert.match(dispatchHelp.out, /not JSON/);
+});
+
+test('coordinator procedure points at subcommand --help instead of plugin sources', () => {
+  const md = fs.readFileSync('agents/bouncer-coordinator.md', 'utf8');
+  assert.match(md, /--help`; do not read plugin sources for them/);
 });

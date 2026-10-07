@@ -698,3 +698,30 @@ test('prepareDependencies skips npm ci when the lock marker is already present',
   assert.deepStrictEqual(calls, []);
 });
 
+test('seedCoordinatorWorker copies the epic and context index into the worker', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
+  write(repo, `${EPIC_REL}/index.md`, 'epic\n');
+  write(repo, INDEX_REL, '# Epics\nseeded\n');
+
+  const res = seedCoordinatorWorker({ repoRoot: repo, blueprintDir: BP_REL, worktreePath: wt });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(read(wt, `${EPIC_REL}/index.md`), 'epic\n');
+  assert.strictEqual(read(wt, INDEX_REL), '# Epics\nseeded\n');
+  assert.deepStrictEqual(res.seeded, [BP_REL, `${EPIC_REL}/index.md`, INDEX_REL]);
+});
+
+test('seedCoordinatorWorker skips an index absent on base', () => {
+  const repo = makeRepo();
+  const wt = makeWorktree(repo);
+  write(repo, `${BP_REL}/tasks/001/tasks.md`, 'brief\n');
+
+  const res = seedCoordinatorWorker({ repoRoot: repo, blueprintDir: BP_REL, worktreePath: wt });
+
+  assert.strictEqual(res.ok, true, JSON.stringify(res));
+  assert.strictEqual(fs.existsSync(path.join(wt, `${EPIC_REL}/index.md`)), false);
+  assert.ok(!res.seeded.includes(`${EPIC_REL}/index.md`));
+});
+

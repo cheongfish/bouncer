@@ -31,7 +31,7 @@
   task 경계마다, `auto`는 마감 보고에 모아 낸다.
 - 계속: `계속: <blueprint> · 통합 <이번 세션 task id 목록> · 남은 task <N>`
   (`N`은 run이 다시 받은 checkpoint의 `active_tasks.length`). `continue`는 terminal이 아니다.
-- 완료: `완료: <blueprint> · integration <head> · 검증: <결과> · 결정 N건 · 다음: <멈춘 동의 단계>`
+- 완료: `완료: <blueprint> · integration <head> · 검증: <결과> · 결정 N건 · 다음: /bouncer-finalize (<integrationPath>)`
 - 중단: `중단: <task id> · <원인> · 보존: <ledger·worktree 경로> · 복구: <행동>`
 - no-progress 중단은 기존 중단 줄의 `<task id>` 자리에 blueprint를 쓴다:
   `중단: <blueprint> · no-progress · 보존: <ledger·worktree 경로> · 복구: <행동>`
@@ -45,7 +45,7 @@
 
 `진행: 003 · integrated · bouncer-implementer · scope r2 개정(src/session/ 추가)`
 
-`완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: explain 퀴즈`
+`완료: 001-login · integration a1b2c3d · 검증: npm run ci 통과 · 결정 4건 · 다음: /bouncer-finalize (.worktrees/001/001/integration)`
 
 `부분 종결: 001-login · 마지막 검증: npm run ci 실패 · 보존: ledger·integration·worker·NEXT_PLAN.md · 다음: NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.`
 
