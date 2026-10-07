@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **verify 통과 시 commit task 상태 전환** — execute 게이트와 `bouncer verify`가
+  lease·pointer가 가리키는 commit task의 `tasks.md`를 `ready`에서 `verified`로
+  바꾼다. coordinator와 standalone execute는 상태를 손으로 고치지 않는다.
+
 ## [1.5.5] — 2026-10-07
 
 1.5.4 패치. coordinator drive를 `coordinate next` 상태 기계와 행동별 계약 카드로 옮기고, 복구 루프를

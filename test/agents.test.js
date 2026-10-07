@@ -855,6 +855,7 @@ test('bouncer-coordinator Task round is the drive round contract', () => {
   assert.match(dispatch, /intent_bundle_revision/);
   assert.match(verify, /--gate execute/);
   assert.match(verify, /never hand-write|do not write `## Command`/i);
+  assert.doesNotMatch(verify, /set `tasks → verified`/i);
   assert.match(dispatch, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
 });
 

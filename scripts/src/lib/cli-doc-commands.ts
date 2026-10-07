@@ -54,6 +54,14 @@ function cmdValidate(rest: string[], io: CliIo) {
   return result.ok ? 0 : 1;
 }
 
+/**
+ * `--blueprint` 대상의 verify 명령을 실행하고 증적을 기록한다.
+ * 통과하면 lease·pointer commit task를 `ready`에서 `verified`로 올린다.
+ *
+ * @param {string[]} rest - CLI 나머지 인자(`--blueprint`, `--repo`)
+ * @param {CliIo} io - stdout/stderr 기록기
+ * @returns {number} 성공 0, 실행 실패 1, 플래그 누락 2
+ */
 function cmdVerify(rest: string[], io: CliIo) {
   const f = parseFlags(rest);
   // validate와 같은 2: 대상 없이 돌리면 게이트 실패로 위장된다.
@@ -65,6 +73,7 @@ function cmdVerify(rest: string[], io: CliIo) {
     const result = runVerification({
       repoRoot: (f.repo || process.cwd()) as string,
       blueprintDir: f.blueprint,
+      markTaskVerified: true,
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;

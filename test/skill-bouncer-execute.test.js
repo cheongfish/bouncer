@@ -207,6 +207,16 @@ test('bouncer-execute keeps full implementer guards for every compact-payload fa
   assert.match(fallback, /status[\s\S]{0,80}commit|commit[\s\S]{0,80}status/i);
 });
 
+test('bouncer-execute step 4 does not instruct setting tasks → verified by hand', () => {
+  const { body } = parseFrontmatter(mainMd);
+  const step4 = body.slice(
+    body.indexOf('4. **Verify/recover.**'),
+    body.indexOf('5. **Review.**'),
+  );
+  assert.doesNotMatch(step4, /Set `tasks → verified`|tasks → verified/);
+  assert.match(step4, /execute gate/i);
+});
+
 test('bouncer-execute step 4 dispatches bouncer-debugger on verify failure', () => {
   const { body } = parseFrontmatter(md);
   const recovery = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/verification-recovery.md'), 'utf8');

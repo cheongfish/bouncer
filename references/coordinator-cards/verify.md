@@ -3,11 +3,11 @@
 Contract card for the `coordinate next` action `verify`. Rules are copied from
 the coordinator Task round and the execute verification-recovery reference.
 
-- **Verify and execute gate.** Prepare the existing `verification.md`.
-  Never hand-write `## Command`, `## Evidence`, or status. After
-  implementation work is complete, set `tasks → verified`, then from the
-  worker cwd keep fixing until
-  `bouncer validate --blueprint <dir> --gate execute` passes.
+- **Verify and execute gate.** From the worker cwd run `next`'s `argv`
+  (`bouncer validate --blueprint <dir> --gate execute`). That run executes
+  verify, records evidence, and transitions `ready` → `verified`. Do not
+  hand-edit task status or `verification.md`. Never hand-write `## Command`,
+  `## Evidence`, or status. Keep fixing until the gate passes.
 
 ## Verify failure
 
