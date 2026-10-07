@@ -435,6 +435,29 @@ test('task next: scope_revision with unchanged brief is revise', () => {
   assert.strictEqual(r.judge.kind, 'scope-revision');
 });
 
+// F-SS-001: 보고 뒤 brief가 바뀌면 개정이 끝난 상태다. mismatch blocked가 아니라
+// 표의 "reported, 그 밖" 재디스패치로 간다.
+test('task next: scope_revision with changed brief is dispatch', () => {
+  const blueprint = '.bouncer/context/epics/088-n/blueprints/016-rev2';
+  const drive = preparedCommitDrive('bouncer-next-rev2-', blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  const reported = coordinate({
+    command: 'report', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+    attempt: dispatched.metadata.attempt, taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'scope_revision', summary: 'need paths',
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  const brief = path.join(drive.worker, blueprint, 'tasks/001/tasks.md');
+  fs.appendFileSync(brief, 'revised paths\n');
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'dispatch');
+  assert.strictEqual(r.reason, undefined);
+  assert.notStrictEqual(r.action, 'blocked');
+  assert.strictEqual(r.judge.kind, 'intent-symbols');
+});
+
 test('task next: reported blocked is blocked', () => {
   const blueprint = '.bouncer/context/epics/088-n/blueprints/017-blk';
   const drive = preparedCommitDrive('bouncer-next-blk-', blueprint);

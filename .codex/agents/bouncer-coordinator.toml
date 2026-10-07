@@ -293,14 +293,11 @@ format with `bouncer <command> <sub> --help`; do not read plugin sources for the
    call `next` again; on mismatch re-run `coordinate status` and continue from
    that checkpoint.
 4. **Integrate** — When `next` returns `integrate` or `verification_node`,
-   execute that action's `argv`. Wave fan-in is
-   `bouncer coordinate integrate --ledger-path
-   <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` with
-   task omitted so the CLI fans the whole recorded wave in. On
-   `fanin-conflict`, `wave-verification-failed`, or a scope-conflict
-   `revoked`, call `coordinate revoke` and requeue, or resolve with
-   `bouncer coordinate integrate --task <NNN>` plus the matching
-   `--lease-id` / `--generation`. A rejected fan-in is a decision to record
+   execute that action's `argv` in the returned `cwd`. Do not assemble fence
+   or lease flags; wave fan-in already omits `--task` on the returned `argv`.
+   On `fanin-conflict`, `wave-verification-failed`, or a scope-conflict
+   `revoked`, execute the returned `coordinate revoke` or per-task
+   `integrate` `argv` and requeue. A rejected fan-in is a decision to record
    and resolve, not a retry to repeat blindly. After Integrate has made every task this session prepared `integrated`, call `bouncer coordinate next --blueprint <dir>` (the `checkpoint` matches `coordinate status`).
    If only part of this session's prepared wave is integrated, do not return `continue`
    and do not Close; stay in Drive/Judge (revoke/requeue/fan-in) until that wave is done.

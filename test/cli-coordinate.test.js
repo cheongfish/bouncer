@@ -797,3 +797,20 @@ test('coordinate next is not ledger-fenced and prints the next action', () => {
   assert.strictEqual(runCli(['coordinate', 'next'], missingBp.io), 2);
   assert.match(missingBp.buf.err, /--blueprint is required/);
 });
+
+// F-SEC-001: 값 없는 --task 는 생략이 아니다. blueprint next(drive_tasks)로
+// 떨어지면 잘못된 task 범위가 열린다.
+test('coordinate next rejects a valueless --task', () => {
+  const drive = preparedDrive();
+  const missingValue = coordinateCli(drive.integration, 'next', [
+    '--repo', drive.repo, '--task',
+  ], { fence: false });
+  assert.notStrictEqual(missingValue.code, 0, missingValue.buf.out);
+  if (missingValue.code === 2) {
+    assert.match(missingValue.buf.err, /--task/);
+  } else {
+    const body = JSON.parse(missingValue.buf.out);
+    assert.strictEqual(body.ok, false);
+  }
+  assert.doesNotMatch(missingValue.buf.out, /"action":"drive_tasks"/);
+});

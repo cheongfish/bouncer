@@ -389,6 +389,8 @@ function blueprintNext(ctx: {
 
 /**
  * task 범위. verification --task는 즉시 거절하고, prepared가 아닌 상태는 none이다.
+ * reported `scope_revision`은 brief hash가 보고 때와 같으면 revise, 다르면
+ * 개정이 반영된 것으로 보고 재디스패치한다.
  *
  * @param {object} ctx - 읽기 스냅샷
  * @param {string} ctx.repoRoot - 메인 루트
@@ -462,9 +464,9 @@ function taskNext(ctx: {
         judge: { kind: 'scope-revision', fields: ['--paths', '--reason'] },
       });
     }
-    return ok({
-      scope: 'task', action: 'blocked', reason: 'commit-evidence-mismatch', cwd,
-    });
+    // hash가 보고 때와 다르면 이미 개정이 반영된 상태다. 표의 말단
+    // commit-evidence-mismatch로 접으면 재디스패치가 막히므로 아래 reported
+    // 분기로 떨어뜨린다.
   }
   if (item.dispatch.status === 'reported' && item.dispatch.outcome === 'blocked') {
     return ok({

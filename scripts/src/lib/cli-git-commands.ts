@@ -547,7 +547,7 @@ function failCoordinateUsage(io: CliIo, message: string, command?: string): 2 {
  * coordinate 서브커맨드를 CLI 경계에서 해석한다.
  * `--help`/`-h`는 인자·fence·core보다 먼저 stdout으로 끝내고, 허용 목록 밖
  * 이름은 core에 넘기지 않고 usage(2)로 끝낸다 — JSON 거절은 알려진 명령의
- * 런타임 실패에만 쓴다.
+ * 런타임 실패에만 쓴다. `next`의 값 없는 `--task`는 생략이 아니라 usage(2)다.
  *
  * @param {string[]} rest - `coordinate` 뒤 argv
  * @param {CliIo} io - stdout/stderr
@@ -681,6 +681,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   if (command === 'next') {
     // next는 status처럼 읽기만 한다. fence 플래그가 와도 요구·검증하지 않아
     // mutation 집합과 혼동되지 않게 한다.
+    // parseFlags는 값 없는 --task를 boolean true로 둔다. 그걸 undefined로
+    // 접으면 blueprint next가 열려 잘못된 task 범위가 된다.
+    if (Object.prototype.hasOwnProperty.call(f, 'task')
+      && (typeof f.task !== 'string' || f.task === '')) {
+      return failCoordinateUsage(
+        io, 'coordinate next: --task requires a ddd value\n', command,
+      );
+    }
     const { coordinateNext } = require('./coordinate-next') as typeof import('./coordinate-next');
     try {
       const result = coordinateNext({
