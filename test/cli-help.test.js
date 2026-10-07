@@ -314,6 +314,11 @@ test('coordinate next --help lists flags, actions, and response fields', () => {
   assert.match(r.out, /task_ids/);
   assert.match(r.out, /payload/);
   assert.match(r.out, /checkpoint/);
+  // card 필드와 카드를 싣는 action 9개가 한 줄에 함께 나와야 호출자가 --help만으로 첨부 규칙을 안다.
+  assert.match(
+    r.out,
+    /^.*\bcard\b.*\bdispatch, implement, verify, review, report, revise, record, final_review, blocked\b.*$/m,
+  );
 });
 
 test('coordinate report --help lists report outcome enum', () => {

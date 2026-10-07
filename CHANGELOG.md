@@ -12,6 +12,12 @@
 - **`coordinate next`** — 원장과 worker 문서를 읽기만 해서 다음에 실행할
   coordinator 행동 하나와 fence·lease를 채운 `argv`를 돌려 준다. 원장
   bytes와 worktree는 바꾸지 않는다.
+- **coordinator 계약 카드** — `references/coordinator-cards/`에 drive 행동별
+  카드 9개를 두고, `coordinate next`가 `dispatch`·`implement`·`verify`·
+  `review`·`report`·`revise`·`record`·`final_review`·`blocked` 응답에
+  `card: { id, body }`를 함께 싣는다. coordinator가 drive 규칙을 얻으려고
+  execute reference를 따로 읽지 않아도 된다. 카드를 읽지 못하면
+  `coordinator-card-missing`으로 거절한다.
 - **서브커맨드 `--help`** — `coordinate` 서브커맨드와 `review record`,
   `dispatch print`가 `--help`에서 플래그·허용값·입력 형식을 출력하고, 필수
   플래그 누락 오류에도 같은 usage를 붙여 coordinator가 CLI 형식을 소스에서

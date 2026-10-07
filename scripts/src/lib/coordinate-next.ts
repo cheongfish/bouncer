@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 import coordinator = require('./coordinator');
@@ -33,10 +34,19 @@ type Ledger = {
 };
 type LedgerRef = { path: string; sha256: string; revision: string | null };
 type Judge = { kind: string; fields: string[]; allowed?: string[] };
+// 계약 카드를 싣는 action. 판단(judge)이나 worker 위임이 필요한 행동만 카드를 받는다.
+// argv만 실행하면 끝나는 prepare·drive_tasks·integrate·verification_node·commit·done·none은
+// 카드가 없다 — 응답을 키우지 않고, 그 행동의 규칙은 argv 자체가 담는다.
+const CARD_IDS = [
+  'dispatch', 'implement', 'verify', 'review', 'report', 'revise', 'record', 'final_review', 'blocked',
+] as const;
+type CardId = typeof CARD_IDS[number];
+type Card = { id: CardId; body: string };
 type NextOk = {
   ok: true; scope: 'blueprint' | 'task'; action: string; task?: string;
   cwd: string; argv?: string[]; judge?: Judge; task_ids?: string[];
   payload?: Record<string, unknown>; reason?: string; cause?: string; next?: string;
+  card?: Card;
   checkpoint: { ledger: LedgerRef };
 };
 type NextErr = { ok: false; reason: string; cause: string; next: string };
@@ -70,6 +80,10 @@ const NEXT_FAILURE_HINTS: Record<string, { cause: string; next: string }> = {
     cause: 'Verification tasks are driven with blueprint-scope next, not --task.',
     next: 'Omit --task and run `bouncer coordinate next --blueprint <dir>` so verification_node can be selected.',
   },
+  'coordinator-card-missing': {
+    cause: 'The contract card for this action is missing or unreadable in plugin references/coordinator-cards/.',
+    next: 'Reinstall the Bouncer plugin so references/coordinator-cards/ ships every card, then call next again.',
+  },
 };
 
 /**
@@ -96,6 +110,49 @@ function hintFor(reason: string): { cause: string; next: string } {
 function fail(reason: string): NextErr {
   const hint = hintFor(reason);
   return { ok: false, reason, cause: hint.cause, next: hint.next };
+}
+
+/**
+ * 플러그인 루트의 계약 카드 한 장을 UTF-8 그대로 읽는다. 빌드 출력은
+ * `scripts/lib`이므로 두 단계 위가 플러그인 루트다(`graphify.ts`의
+ * `pluginRootFromLib`와 같은 기준). cwd·`--repo`·소비 저장소는 보지 않는다 —
+ * 카드는 플러그인이 배포하는 계약이지 사용자 저장소 문서가 아니다.
+ * 파일이 없거나 읽기에 실패하면 fs 오류를 그대로 던진다.
+ *
+ * @param {CardId} id - 카드 id. 호출부가 CARD_IDS 안의 값만 넘긴다
+ * @returns {string} 카드 파일 본문
+ */
+function readPluginCard(id: CardId): string {
+  return fs.readFileSync(
+    path.join(__dirname, '..', '..', 'references', 'coordinator-cards', `${id}.md`),
+    'utf8',
+  );
+}
+
+/**
+ * 성공 응답의 action이 카드 대상이면 `card: { id, body }`를 붙인다.
+ * 카드를 못 읽으면 카드 없는 성공 응답으로 내보내지 않고
+ * `coordinator-card-missing`으로 거절한다 — 규칙 없이 행동만 받은 coordinator가
+ * 예전처럼 reference를 뒤지거나 규칙을 추측하지 않게 하려는 것이다.
+ *
+ * @param {NextOk | NextErr} result - blueprintNext/taskNext 판정
+ * @param {(id: CardId) => string} readCard - 카드 읽기. 기본은 readPluginCard
+ * @returns {NextOk | NextErr} 카드를 붙인 성공 응답, 비대상 응답 그대로, 또는 거절
+ */
+function attachCard(result: NextOk | NextErr, readCard: (id: CardId) => string): NextOk | NextErr {
+  if (!result.ok) return result;
+  const id = CARD_IDS.find((candidate) => candidate === result.action);
+  if (id === undefined) return result;
+  let body: string;
+  try {
+    body = readCard(id);
+  } catch (_error) {
+    // 카드 읽기의 모든 실패(ENOENT·EACCES·EISDIR, 주입 seam의 throw)를 같은 거절로 흡수한다.
+    // 어느 경우든 이 action의 계약을 줄 수 없다는 결과는 같고, 원장·worktree는 이
+    // 함수가 건드리지 않으므로 흡수해도 상태가 어긋나지 않는다. 안내는 hint가 맡는다.
+    return fail('coordinator-card-missing');
+  }
+  return { ...result, card: { id, body } };
 }
 
 /**
@@ -234,9 +291,28 @@ function succeed(body: Built, cwd: string, ledgerRef: LedgerRef): NextOk {
 /**
  * 원장과 worker 문서를 읽어 다음에 실행할 행동 하나와 채운 argv를 돌려준다.
  * 잠금·원장 쓰기·worktree 쓰기는 하지 않는다. status와 같이 integration cwd에서
- * 읽고, 응답 cwd만 worker일 수 있다.
+ * 읽고, 응답 cwd만 worker일 수 있다. 판단·worker action이면 플러그인 계약 카드를 `card`로 함께 싣는다.
  *
  * @param {object} opts - 판정 입력
+ * @param {string} opts.repoRoot - 메인 체크아웃
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {string} opts.cwd - 호출 cwd. integration worktree여야 한다
+ * @param {string} [opts.task] - 있으면 task 범위
+ * @param {{ execFileSync?: Exec, readCard?: (id: CardId) => string }} [opts.deps] - git·카드 읽기 주입(테스트 seam)
+ * @returns {NextOk | NextErr} 결정(카드 대상이면 card 포함) 또는 즉시 거절
+ */
+function coordinateNext(opts: {
+  repoRoot: string; blueprint: string; cwd: string; task?: string;
+  deps?: { execFileSync?: Exec; readCard?: (id: CardId) => string };
+}): NextOk | NextErr {
+  const readCard = (opts.deps && opts.deps.readCard) || readPluginCard;
+  return attachCard(decideNext(opts), readCard);
+}
+
+/**
+ * 원장과 worker 문서를 읽어 다음 행동 하나를 정한다. 카드 첨부 전 단계다.
+ *
+ * @param {object} opts - coordinateNext와 같은 입력
  * @param {string} opts.repoRoot - 메인 체크아웃
  * @param {string} opts.blueprint - blueprint 상대 경로
  * @param {string} opts.cwd - 호출 cwd. integration worktree여야 한다
@@ -244,7 +320,7 @@ function succeed(body: Built, cwd: string, ledgerRef: LedgerRef): NextOk {
  * @param {{ execFileSync?: Exec }} [opts.deps] - git 주입
  * @returns {NextOk | NextErr} 결정 또는 즉시 거절
  */
-function coordinateNext(opts: {
+function decideNext(opts: {
   repoRoot: string; blueprint: string; cwd: string; task?: string;
   deps?: { execFileSync?: Exec };
 }): NextOk | NextErr {
