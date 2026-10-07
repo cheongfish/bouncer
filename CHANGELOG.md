@@ -45,6 +45,9 @@
 
 ### Changed
 
+- **coordinator 지침 `next` 루프** — Procedure 각 단계가 `coordinate next`를
+  부르고 돌려받은 `argv`를 실행하며 `judge` 항목만 판단하고, commit 단계를
+  명시한다.
 - **run 단계 경계** — `/bouncer-run`과 coordinator는 모든 task가
   integrated·verified이면 `completed`로 멈추고 `/bouncer-finalize`를 실행하지
   않는다. 완료 보고는 사용자에게 integration worktree에서 `/bouncer-finalize`를

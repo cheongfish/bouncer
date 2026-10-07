@@ -845,6 +845,17 @@ test('bouncer-coordinator Task round is the drive round contract', () => {
   assert.match(round, /coordinate revise[\s\S]{0,240}bouncer intent bundle/);
 });
 
+// Procedure는 next가 준 argv만 실행하고 judge만 판단한다. fence를 문맥에서
+// 조립하던 옛 단계는 여기서 막아서 coordinator가 다시 원장 값을 옮기지 않게 한다.
+test('bouncer-coordinator Procedure loops on coordinate next and names the commit step', () => {
+  const md = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');
+  const procedure = md.match(/## Procedure\n([\s\S]*?)(?=\n## )/)?.[1] || '';
+  assert.match(procedure, /coordinate next --blueprint/);
+  assert.match(procedure, /coordinate next --task/);
+  assert.match(procedure, /`judge`/);
+  assert.match(procedure, /bouncer commit --blueprint <dir> --yes/);
+});
+
 // Drive는 execute SKILL 전체가 아니라 세 참조 경로와 ## Task round를 가리킨다.
 test('bouncer-coordinator Drive points at execute references and Task round', () => {
   const coord = fs.readFileSync(path.join(agentsDir, 'bouncer-coordinator.md'), 'utf8');

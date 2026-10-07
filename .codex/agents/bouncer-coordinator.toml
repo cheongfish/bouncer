@@ -223,62 +223,77 @@ do not load the standalone execute skill.
    work is complete, set `tasks → verified`, then from the worker cwd keep
    fixing until `bouncer validate --blueprint <dir> --gate execute` passes.
 
+4. **Commit.** After the execute gate and before report or record, from the
+   worker cwd run `bouncer commit --blueprint <dir> --yes`.
+
 ## Procedure
 
-1. **Ground** — Call `bouncer coordinate status` and take its `checkpoint` as
-   the only active state input. Read the blueprint and the open task briefs the
-   checkpoint still lists; leave completed tasks as their checkpoint summary
-   only. Hold
-   `checkpoint.ledger.path` / `checkpoint.ledger.sha256` as the fencing token
-   for every later mutation, and replace that hash with each success response's
-   new `checkpoint.ledger.sha256`. Do not load the raw ledger, completed task
-   documents, prior worker report bodies, or past conversation into the active
-   context. When a summary cannot answer an audit need (partial-close / final
-   report fields absent from the checkpoint), open only that record after
-   confirming the path is the integration worktree's
+Call `bouncer coordinate next` at each step, execute the returned `argv` in the
+returned `cwd`, and decide only the `judge` fields. Do not assemble fence,
+lease, attempt, or hash values except those `next` already filled. After `ok:
+false` or a fence refusal, call `next` again — a stale ledger hash or CLI fence
+refusal is not a prompt to invent a new hash. When `next` returns `blocked`,
+take its `reason`, `cause`, and `next` as Judge inputs; do not repeat the same
+`argv` without a judgment. Check a command's flags, allowed values, and input
+format with `bouncer <command> <sub> --help`; do not read plugin sources for them.
+
+1. **Ground** — Call `bouncer coordinate next --blueprint <dir>`. The response
+   `checkpoint.ledger` is the same fence as the `coordinate status`
+   `checkpoint`. For open-task judgment keep using that `coordinate status`
+   checkpoint's `active_tasks` and `completed_tasks` summaries: read the
+   blueprint and the open task briefs the checkpoint still lists; leave
+   completed tasks as their checkpoint summary only. Do not load the raw
+   ledger, completed task documents, prior worker report bodies, or past
+   conversation into the active context. When a summary cannot answer an audit
+   need (partial-close / final report fields absent from the checkpoint), open
+   only that record after confirming the path is the integration worktree's
    `.bouncer/runtime/coordinator.json` and the on-disk byte hash still matches;
    on path or hash mismatch, re-run `coordinate status` — never recompute or
-   guess a hash. Resume from recorded state; never reset it.
-2. **Prepare** — `bouncer coordinate prepare --ledger-path
-   <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` opens the
-   current ready wave, assigns one worktree per task, and returns per-task
-   `lease` and `workerPath` on `opened[]`. Tasks the wave did not open stay
-   closed. Take each returned `lease` as the identity for later `dispatch` /
-   `report` / `record`.
-3. **Drive** — Drive `opened[]` commit tasks (not only `ready`): dispatch
-   `prepared` items and resume later-status items from the recorded next
-   action. Dispatch a task runner at once (at most `checkpoint.ready` count,
-   inside the configured parallel
-   ceiling). When a `coordinate` response is `ok: false`, execute its `next`
-   and do not read plugin sources to recover. Check a command's flags, allowed values, and input format with `bouncer <command> <sub> --help`; do not read plugin sources for them. The coordinator does not move
-   the pointer per task. Each runner
-   works in its worker cwd under that task's `effectiveTask`. Open
-   `coordinate dispatch` with `--lease-id` / `--generation` from the task's
-   lease plus the held `--ledger-path <checkpoint.ledger.path> --ledger-hash
-   <checkpoint.ledger.sha256>`, run the task workflow with the returned
-   metadata.    Follow worker payload, review-round, and verify-failure recovery
-   in `skills/bouncer-execute/references/agent-dispatch.md`,
+   guess a hash. Resume from recorded state; never reset it. After each
+   success response, call `next` again so it can replace that hash with the new
+   `checkpoint.ledger.sha256`. Mutation `argv` already carries
+   `--ledger-path <checkpoint.ledger.path> --ledger-hash
+   <checkpoint.ledger.sha256>`.
+2. **Prepare** — When `next` returns `prepare`, execute that action's `argv` in
+   the returned `cwd`. It opens the current ready wave, assigns one worktree
+   per task, and returns per-task `lease` and `workerPath` on `opened[]`.
+   Tasks the wave did not open stay closed. Do not copy `opened[]`, lease, or
+   hash from context into a hand-built command.
+3. **Drive** — When `next` returns `drive_tasks`, repeat
+   `bouncer coordinate next --task <NNN>` for each id in `task_ids` (the `opened[]` commit tasks,
+   not only `ready`). Dispatch a task runner at once (at most
+   `checkpoint.ready` count, inside the configured parallel ceiling). The
+   coordinator does not move the pointer per task. Each runner works in its
+   worker cwd under that task's `effectiveTask`. Follow the returned `action`:
+   `implement` and `review` dispatch workers through Worker dispatch;
+   `commit` runs `bouncer commit --blueprint <dir> --yes` from the worker cwd
+   before report or record; `report`, `record`, `revise`, and `dispatch` fill
+   `judge.fields` and execute the returned `argv`. Immediately before
+   `bouncer-implementer`, `coordinate dispatch` `argv` already includes
+   `--lease-id` / `--generation` plus the held `--ledger-path
+   <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>`. Follow
+   worker payload, review-round, and verify-failure recovery in
+   `skills/bouncer-execute/references/agent-dispatch.md`,
    `skills/bouncer-execute/references/review-round.md`, and
    `skills/bouncer-execute/references/verification-recovery.md`. Run the
    task round in `## Task round`. Then judge the
    implementer's **Brief revision** (`attempt` and
-   `task_brief_hash`) against the active dispatch. Matching values: call
-   `coordinate report` with the same lease flags, the outcome, a summary, and
-   the same ledger path/hash flags; only an `accepted` report may then
-   `bouncer coordinate record` its result SHA together with a decision naming
-   the paths the task actually changed, again with `--lease-id` /
-   `--generation` and the ledger path/hash pair. `record` stores the SHA and
-   that decision, so provenance the ledger must keep travels inside the decision
-   text. A missing or mismatched Brief revision is stale — call
-   `coordinate report` with the received `attempt` and `task_brief_hash` so
-   runtime can append `stale-report`; do not call `accepted` or
-   `coordinate record`, and keep the attempt open. After `rework`,
-   `scope_revision`, or `task_change`, revise only when the outcome requires
-   it, then redispatch so runtime supplies the increased `attempt` and
-   `previous_outcome`. A stale ledger hash or CLI fence refusal is not a
-   prompt to invent a new hash — re-run `coordinate status` and continue from
+   `task_brief_hash`) against the active dispatch. Matching values: fill
+   `judge.fields` and run the `report` `argv`; only an `accepted` report may
+   then run the `record` `argv` so `bouncer coordinate record` stores its
+   result SHA together with a decision naming the paths the task actually
+   changed. `record` stores the SHA and that decision, so provenance the
+   ledger must keep travels inside the decision text. A missing or mismatched
+   Brief revision is stale — call `coordinate report` with the received
+   `attempt` and `task_brief_hash` so runtime can append `stale-report`; do
+   not call `accepted` or `coordinate record`, and keep the attempt open.
+   After `rework`, `scope_revision`, or `task_change`, revise only when the
+   outcome requires it, then redispatch so runtime supplies the increased
+   `attempt` and `previous_outcome`. After `ok: false` or a fence refusal,
+   call `next` again; on mismatch re-run `coordinate status` and continue from
    that checkpoint.
-4. **Integrate** — When recorded tasks for the wave are ready, run
+4. **Integrate** — When `next` returns `integrate` or `verification_node`,
+   execute that action's `argv`. Wave fan-in is
    `bouncer coordinate integrate --ledger-path
    <checkpoint.ledger.path> --ledger-hash <checkpoint.ledger.sha256>` with
    task omitted so the CLI fans the whole recorded wave in. On
@@ -286,25 +301,28 @@ do not load the standalone execute skill.
    `revoked`, call `coordinate revoke` and requeue, or resolve with
    `bouncer coordinate integrate --task <NNN>` plus the matching
    `--lease-id` / `--generation`. A rejected fan-in is a decision to record
-   and resolve, not a retry to repeat blindly. After Integrate has made every task this session prepared `integrated`, call `bouncer coordinate status`.
+   and resolve, not a retry to repeat blindly. After Integrate has made every task this session prepared `integrated`, call `bouncer coordinate next --blueprint <dir>` (the `checkpoint` matches `coordinate status`).
    If only part of this session's prepared wave is integrated, do not return `continue`
    and do not Close; stay in Drive/Judge (revoke/requeue/fan-in) until that wave is done.
    If `active_tasks` is non-empty after the prepared wave is fully `integrated`,
    do not prepare again and return `continue`; do not prepare, dispatch, or
    integrate more when returning `continue`. If `active_tasks` is empty, go to Close.
-5. **Judge** — Turn each report, reviewer finding, scope drift and stalled
+5. **Judge** — Turn each `judge` or `blocked` response, report, reviewer finding, scope drift and stalled
    retry into exactly one of: accepted, scope revision (`coordinate revise`),
    rework with a named cause, task/graph change, or terminal blocked. A
    qualifying delta-certification finding takes the critical recovery before
    that rework (result: `resolved` or `blocked`). Every judgment gets a ledger
    entry via the fenced mutation that records it; ordinary rework follows the
    no-progress rule.
-6. **Close** — In blueprint review mode, after Integrate has made every commit
-   task and the terminal verification task (when present) `integrated`, run the
-   Worker dispatch final-review procedure once. Do
-   not Close while that root `review.md` is not `accepted`. When `review_scope`
-   is absent, skip that extra step: per-task reviews already ran during Drive.
-   When every task is integrated and verified, return `completed`; the coordinator
+6. **Close** — When `next` returns `final_review`, run that `argv`
+   (`review-dispatch execute`) once through the Worker dispatch blueprint
+   final-review procedure, record the round from `judge` `review-round`, then
+   call `next` again. In blueprint review mode, after Integrate has made every
+   commit task and the terminal verification task (when present) `integrated`,
+   that is the extra step: do not Close while that root `review.md` is not
+   `accepted`. When `review_scope` is absent, skip that extra step: per-task
+   reviews already ran during Drive. When `next` returns `done` (every task
+   is integrated and verified), return `completed`; the coordinator
    does not run `/bouncer-finalize` or any part of it (`finalize prepare`, explain drafts).
 
 ## Output contract
