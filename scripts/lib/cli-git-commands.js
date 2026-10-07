@@ -285,22 +285,262 @@ function cmdExecute(rest, io) {
         return 1;
     }
 }
+const COORDINATE_COMMANDS = [
+    'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
+    'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next',
+];
+const COORDINATE_USAGE_OVERVIEW = '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord'
+    + '|integrate|status|revoke> --blueprint <dir>\n'
+    + '             [--task <ddd>] [--sha <sha>] [--lease-id <id>] [--generation <n>]\n'
+    + '             Operate the coordinator ledger and isolated integration worktrees.\n';
+const COORDINATE_USAGE_MUTATIONS = '  Mutations (except bootstrap/status) require --ledger-path and --ledger-hash from\n'
+    + '  the latest status checkpoint so stale ledger writes are rejected before mutation.\n';
+// fence 값은 status checkpoint.ledger다. usage에 path/hash를 반복해
+// coordinator가 plugin 소스를 열어 형식을 역산하지 않게 한다.
+const COORDINATE_FENCE = '--ledger-path <path> --ledger-hash <sha256>';
+const COORDINATE_FENCE_NOTE = `${COORDINATE_FENCE} (from coordinate status checkpoint.ledger)`;
+/**
+ * 서브커맨드 → usage 블록 맵. 핸들러 `--help`와 registry `usage`가 같은 맵을
+ * 읽어 문구가 갈라지지 않게 한다. registry 문자열은 이어 붙여 예전과 같아야
+ * 전역 help 바이트 테스트가 유지된다.
+ */
+const COORDINATE_USAGE_BLOCKS = {
+    bootstrap: {
+        help: `usage: bouncer coordinate bootstrap
+  --blueprint <dir> [--repo <dir>]
+  Seed the integration worktree and ledger. Not ledger-fenced.
+`,
+    },
+    prepare: {
+        help: `usage: bouncer coordinate prepare
+  --blueprint <dir> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Create or reuse assigned worker worktrees and refresh leases.
+`,
+    },
+    ready: {
+        help: `usage: bouncer coordinate ready
+  --blueprint <dir> [--repo <dir>]
+  Alias of coordinate status. Prints the checkpoint; not ledger-fenced.
+`,
+    },
+    dispatch: {
+        registry: '  coordinate dispatch --blueprint <dir> --task <ddd> --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             [--repo <main>] [--lease-id <id> --generation <n>]\n'
+            + '             Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.\n',
+        help: `usage: bouncer coordinate dispatch
+  --blueprint <dir> --task <ddd> ${COORDINATE_FENCE_NOTE}
+  [--repo <main>] [--lease-id <id>] [--generation <n>]
+  Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.
+`,
+    },
+    report: {
+        registry: '  coordinate report --blueprint <dir> --task <ddd> --attempt <n>\n'
+            + '             --task-brief-hash <sha256> --outcome <accepted|rework|scope_revision|task_change|blocked>\n'
+            + '             --summary <text> --ledger-path <path> --ledger-hash <sha256> [--repo <main>]\n'
+            + '             [--lease-id <id> --generation <n>]\n'
+            + '             Record a worker report against the active attempt, or append stale-report evidence.\n',
+        help: `usage: bouncer coordinate report
+  --blueprint <dir> --task <ddd> --attempt <n> --task-brief-hash <sha256>
+  --outcome <accepted|rework|scope_revision|task_change|blocked> --summary <text>
+  ${COORDINATE_FENCE_NOTE} [--repo <main>] [--lease-id <id>] [--generation <n>]
+  Record a worker report against the active attempt, or append stale-report evidence.
+`,
+    },
+    record: {
+        help: `usage: bouncer coordinate record
+  --blueprint <dir> --task <ddd> ${COORDINATE_FENCE_NOTE}
+  [--sha <sha>] [--repo <dir>] [--lease-id <id>] [--generation <n>]
+  Record the worker HEAD after an accepted report.
+`,
+    },
+    rerecord: {
+        registry: '  coordinate rerecord --blueprint <dir> --task <ddd> --reason <text>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256> [--sha <sha>]\n'
+            + '             Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.\n',
+        help: `usage: bouncer coordinate rerecord
+  --blueprint <dir> --task <ddd> --reason <text> ${COORDINATE_FENCE_NOTE} [--sha <sha>] [--repo <dir>]
+  Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.
+`,
+    },
+    integrate: {
+        registry: '  coordinate integrate --blueprint <dir> [--task <ddd>]\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Fan-in recorded commit tasks via a candidate worktree (omit --task for the wave).\n',
+        help: `usage: bouncer coordinate integrate
+  --blueprint <dir> [--task <ddd>] ${COORDINATE_FENCE_NOTE}
+  [--sha <sha>] [--repo <dir>] [--lease-id <id>] [--generation <n>]
+  Fan-in recorded commit tasks via a candidate worktree (omit --task for the wave).
+`,
+    },
+    status: {
+        help: `usage: bouncer coordinate status
+  --blueprint <dir> [--repo <dir>]
+  Print the checkpoint (including checkpoint.ledger). Not ledger-fenced.
+`,
+    },
+    revise: {
+        registry: '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
+            + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Record one scope decision in the task document and ledger.\n'
+            + '             Takes no --repo: the write boundary is the current directory, so\n'
+            + '             run it from the assigned task worktree, not the main checkout.\n',
+        help: `usage: bouncer coordinate revise
+  --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]... --reason <text>
+  ${COORDINATE_FENCE_NOTE}
+  Record one scope decision in the task document and ledger.
+  Takes no --repo: the write boundary is the current directory, so
+  run it from the assigned task worktree, not the main checkout.
+`,
+    },
+    repair: {
+        registry: '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>\n'
+            + '             --summary <text> --paths <p> --decision <reason>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Add one audited repair task and move the terminal CI dependency.\n'
+            + '  coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>\n'
+            + '             [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Open a repair task from final-review must_fix findings (omit --task\n'
+            + '             when the blueprint has no terminal verification).\n',
+        help: `usage: bouncer coordinate repair
+  --blueprint <dir> --task <ddd> --failure-command <cmd> --summary <text>
+  --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Add one audited repair task and move the terminal CI dependency.
+  --blueprint <dir> [--task <ddd>] --review-finding <id> [--review-finding <id>]...
+  --summary <text> --paths <p> --decision <reason> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Open a repair task from final-review must_fix findings (omit --task
+  when the blueprint has no terminal verification).
+`,
+    },
+    'partial-close': {
+        registry: '  coordinate partial-close --blueprint <dir> --user-confirmed\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Preserve the failed drive and mark it partial_closed after two repair waves.\n',
+        help: `usage: bouncer coordinate partial-close
+  --blueprint <dir> --user-confirmed ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Preserve the failed drive and mark it partial_closed after two repair waves.
+`,
+    },
+    'critical-recovery': {
+        registry: '  coordinate critical-recovery --blueprint <dir> --task <ddd> --findings <id>\n'
+            + '             [--findings <id>]... --reason <text>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Record the one permitted blocker or major recovery for a prepared task.\n'
+            + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --outcome <resolved|blocked>\n'
+            + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Record the outcome without permitting another recovery.\n',
+        help: `usage: bouncer coordinate critical-recovery
+  --blueprint <dir> --task <ddd> --findings <id> [--findings <id>]... --reason <text>
+  ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Record the one permitted blocker or major recovery for a prepared task.
+  --blueprint <dir> --task <ddd> --outcome <resolved|blocked> --reason <text>
+  ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Record the outcome without permitting another recovery.
+`,
+    },
+    revoke: {
+        registry: '  coordinate revoke --blueprint <dir> --task <ddd> --reason <text>\n'
+            + '             --ledger-path <path> --ledger-hash <sha256>\n'
+            + '             Revoke an active lease, clear dispatch/sha, and return the task to pending.\n',
+        help: `usage: bouncer coordinate revoke
+  --blueprint <dir> --task <ddd> --reason <text> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Revoke an active lease, clear dispatch/sha, and return the task to pending.
+`,
+    },
+    next: {
+        registry: '  coordinate next --blueprint <dir> [--task <ddd>] [--repo <dir>]\n'
+            + '             Print the next coordinator action and filled argv without mutating the ledger.\n',
+        help: `usage: bouncer coordinate next
+  --blueprint <dir> [--task <ddd>] [--repo <dir>]
+  Read-only. Ignores --ledger-path and --ledger-hash if given (not ledger-fenced).
+  Blueprint actions: prepare, drive_tasks, integrate, verification_node, final_review, done, blocked
+  Task actions: dispatch, implement, verify, review, commit, report, record, revise, none, blocked
+  Response fields: action, cwd, argv, judge, task_ids, payload, card, checkpoint
+  card { id, body } only on: dispatch, implement, verify, review, report, revise, record, final_review, blocked
+`,
+    },
+};
+// 전역 help 조립 순서. 키를 빼거나 재정렬하면 전역 usage 바이트가 바뀐다.
+const COORDINATE_REGISTRY_ORDER = [
+    'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
+    'partial-close', 'critical-recovery', 'revise', 'next',
+];
+/**
+ * 전역·`coordinate --help`에 쓰는 registry usage. 맵의 registry 조각을
+ * 예전 순서로 이어 붙여 바이트를 고정한다.
+ *
+ * @returns {string} 예전 coordinate.usage와 같은 문자열
+ */
+function coordinateRegistryUsage() {
+    return COORDINATE_USAGE_OVERVIEW
+        + COORDINATE_REGISTRY_ORDER.map((name) => COORDINATE_USAGE_BLOCKS[name].registry || '').join('')
+        + COORDINATE_USAGE_MUTATIONS;
+}
+/**
+ * 서브커맨드 도움말 여부. parseFlags는 `--help` 뒤 값을 먹고 `-h`를 무시하므로
+ * 원시 토큰을 본다. `--reason -h`처럼 직전이 `--` 플래그면 `-h`는 값이다.
+ *
+ * @param {string[]} tokens - `coordinate` 뒤 원시 argv
+ * @returns {boolean} 도움말을 내면 true
+ */
+function argvRequestsHelp(tokens) {
+    for (let i = 0; i < tokens.length; i += 1) {
+        const tok = tokens[i];
+        if (tok === '--help')
+            return true;
+        if (tok === '-h') {
+            const prev = i > 0 ? tokens[i - 1] : undefined;
+            if (prev === undefined || !prev.startsWith('--'))
+                return true;
+        }
+    }
+    return false;
+}
+/**
+ * usage(2) 한 줄 뒤에 같은 stderr로 블록을 붙인다. 알 수 없는 서브커맨드는
+ * 전체 registry usage, 알면 그 서브커맨드 `--help` 블록이다.
+ *
+ * @param {CliIo} io - stderr 싱크
+ * @param {string} message - 첫 줄(개행 포함)
+ * @param {string} [command] - 알려진 서브커맨드. 없으면 전체 usage
+ * @returns {2} usage 종료 코드
+ */
+function failCoordinateUsage(io, message, command) {
+    io.err(message);
+    if (command && Object.prototype.hasOwnProperty.call(COORDINATE_USAGE_BLOCKS, command)) {
+        io.err(COORDINATE_USAGE_BLOCKS[command].help);
+    }
+    else {
+        io.err(coordinateRegistryUsage());
+    }
+    return 2;
+}
 /**
  * coordinate 서브커맨드를 CLI 경계에서 해석한다.
- * 허용 목록 밖의 이름은 core에 넘기지 않고 usage(2)로 끝낸다 — JSON 거절은
- * 알려진 명령의 런타임 실패에만 쓴다.
+ * `--help`/`-h`는 인자·fence·core보다 먼저 stdout으로 끝내고, 허용 목록 밖
+ * 이름은 core에 넘기지 않고 usage(2)로 끝낸다 — JSON 거절은 알려진 명령의
+ * 런타임 실패에만 쓴다. `next`의 값 없는 `--task`는 생략이 아니라 usage(2)다.
  *
  * @param {string[]} rest - `coordinate` 뒤 argv
  * @param {CliIo} io - stdout/stderr
  * @returns {number} 성공 0, 런타임 거절 1, usage 오류 2
  */
 function cmdCoordinate(rest, io) {
+    // 1. 도움말은 잘못된 플래그보다 앞. 소스 역산 대신 --help를 보게 한다.
+    if (argvRequestsHelp(rest)) {
+        const helpTarget = rest[0];
+        if (typeof helpTarget === 'string'
+            && Object.prototype.hasOwnProperty.call(COORDINATE_USAGE_BLOCKS, helpTarget)) {
+            io.out(COORDINATE_USAGE_BLOCKS[helpTarget].help);
+        }
+        else {
+            io.out(coordinateRegistryUsage());
+        }
+        return 0;
+    }
     const command = rest[0];
     const f = parseFlags(rest.slice(1));
-    const commands = [
-        'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
-        'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke',
-    ];
+    const commands = COORDINATE_COMMANDS;
     // bootstrap·status(ready 별칭)만 원장 fence 예외. 그 외 mutation은 path/hash 쌍이
     // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
     const fencedCommands = new Set([
@@ -308,13 +548,11 @@ function cmdCoordinate(rest, io) {
         'repair', 'partial-close', 'critical-recovery', 'revoke',
     ]);
     if (!commands.includes(command)) {
-        io.err('coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
-            + 'integrate, status, revise, repair, partial-close, critical-recovery, or revoke\n');
-        return 2;
+        return failCoordinateUsage(io, 'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
+            + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, or next\n');
     }
     if (typeof f.blueprint !== 'string' || f.blueprint === '') {
-        io.err('coordinate: --blueprint is required\n');
-        return 2;
+        return failCoordinateUsage(io, 'coordinate: --blueprint is required\n', command);
     }
     const ledgerPath = typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined;
     const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
@@ -332,8 +570,7 @@ function cmdCoordinate(rest, io) {
     if (Object.prototype.hasOwnProperty.call(f, 'generation')) {
         const raw = f.generation;
         if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) {
-            io.err('coordinate: --generation must be a positive integer\n');
-            return 2;
+            return failCoordinateUsage(io, 'coordinate: --generation must be a positive integer\n', command);
         }
         generation = Number(raw);
     }
@@ -342,30 +579,24 @@ function cmdCoordinate(rest, io) {
         // report metadata는 core가 다시 검사하지만, 필수 flag 부재는 usage(2)로
         // 돌려 argv 누락과 stale mismatch(1)를 구분한다.
         if (typeof f.attempt !== 'string' || f.attempt === '') {
-            io.err('coordinate report: --attempt is required\n');
-            return 2;
+            return failCoordinateUsage(io, 'coordinate report: --attempt is required\n', command);
         }
         if (typeof f['task-brief-hash'] !== 'string' || f['task-brief-hash'] === '') {
-            io.err('coordinate report: --task-brief-hash is required\n');
-            return 2;
+            return failCoordinateUsage(io, 'coordinate report: --task-brief-hash is required\n', command);
         }
         if (typeof f.outcome !== 'string' || f.outcome === '') {
-            io.err('coordinate report: --outcome is required\n');
-            return 2;
+            return failCoordinateUsage(io, 'coordinate report: --outcome is required\n', command);
         }
         if (typeof f.summary !== 'string' || f.summary === '') {
-            io.err('coordinate report: --summary is required\n');
-            return 2;
+            return failCoordinateUsage(io, 'coordinate report: --summary is required\n', command);
         }
     }
     if (command === 'revoke') {
         if (typeof f.task !== 'string' || f.task === '') {
-            io.err('coordinate revoke: --task is required\n');
-            return 2;
+            return failCoordinateUsage(io, 'coordinate revoke: --task is required\n', command);
         }
         if (typeof f.reason !== 'string' || f.reason === '') {
-            io.err('coordinate revoke: --reason is required\n');
-            return 2;
+            return failCoordinateUsage(io, 'coordinate revoke: --reason is required\n', command);
         }
     }
     if (command === 'revise') {
@@ -416,6 +647,31 @@ function cmdCoordinate(rest, io) {
             : result;
         io.out(`${JSON.stringify(payload)}\n`);
         return 0;
+    }
+    if (command === 'next') {
+        // next는 status처럼 읽기만 한다. fence 플래그가 와도 요구·검증하지 않아
+        // mutation 집합과 혼동되지 않게 한다.
+        // parseFlags는 값 없는 --task를 boolean true로 둔다. 그걸 undefined로
+        // 접으면 blueprint next가 열려 잘못된 task 범위가 된다.
+        if (Object.prototype.hasOwnProperty.call(f, 'task')
+            && (typeof f.task !== 'string' || f.task === '')) {
+            return failCoordinateUsage(io, 'coordinate next: --task requires a ddd value\n', command);
+        }
+        const { coordinateNext } = require('./coordinate-next');
+        try {
+            const result = coordinateNext({
+                repoRoot: (f.repo || process.cwd()),
+                blueprint: f.blueprint,
+                cwd: process.cwd(),
+                task: typeof f.task === 'string' ? f.task : undefined,
+            });
+            io.out(`${JSON.stringify(compactCoordinateOutput(command, result))}\n`);
+            return result.ok ? 0 : 1;
+        }
+        catch (error) {
+            io.err(`coordinate: ${catchMessage(error)}\n`);
+            return 1;
+        }
     }
     try {
         // --repo는 main checkout을 가리키고 cwd는 실제 write boundary 검증에 쓴다.
@@ -487,53 +743,7 @@ module.exports = {
     },
     coordinate: {
         run: cmdCoordinate,
-        usage: '  coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord'
-            + '|integrate|status|revoke> --blueprint <dir>\n'
-            + '             [--task <ddd>] [--sha <sha>] [--lease-id <id>] [--generation <n>]\n'
-            + '             Operate the coordinator ledger and isolated integration worktrees.\n'
-            + '  coordinate integrate --blueprint <dir> [--task <ddd>]\n'
-            + '             --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             Fan-in recorded commit tasks via a candidate worktree (omit --task for the wave).\n'
-            + '  coordinate dispatch --blueprint <dir> --task <ddd> --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             [--repo <main>] [--lease-id <id> --generation <n>]\n'
-            + '             Open one dispatch attempt on the assigned worker and return brief/HEAD metadata.\n'
-            + '  coordinate report --blueprint <dir> --task <ddd> --attempt <n>\n'
-            + '             --task-brief-hash <sha256> --outcome <accepted|rework|scope_revision|task_change|blocked>\n'
-            + '             --summary <text> --ledger-path <path> --ledger-hash <sha256> [--repo <main>]\n'
-            + '             [--lease-id <id> --generation <n>]\n'
-            + '             Record a worker report against the active attempt, or append stale-report evidence.\n'
-            + '  coordinate revoke --blueprint <dir> --task <ddd> --reason <text>\n'
-            + '             --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             Revoke an active lease, clear dispatch/sha, and return the task to pending.\n'
-            + '  coordinate rerecord --blueprint <dir> --task <ddd> --reason <text>\n'
-            + '             --ledger-path <path> --ledger-hash <sha256> [--sha <sha>]\n'
-            + '             Replace a recorded worker SHA with its direct-child HEAD and preserve the decision.\n'
-            + '  coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd>\n'
-            + '             --summary <text> --paths <p> --decision <reason>\n'
-            + '             --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             Add one audited repair task and move the terminal CI dependency.\n'
-            + '  coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id>\n'
-            + '             [--review-finding <id>]... --summary <text> --paths <p> --decision <reason>\n'
-            + '             --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             Open a repair task from final-review must_fix findings (omit --task\n'
-            + '             when the blueprint has no terminal verification).\n'
-            + '  coordinate partial-close --blueprint <dir> --user-confirmed\n'
-            + '             --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             Preserve the failed drive and mark it partial_closed after two repair waves.\n'
-            + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --findings <id>\n'
-            + '             [--findings <id>]... --reason <text>\n'
-            + '             --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             Record the one permitted blocker or major recovery for a prepared task.\n'
-            + '  coordinate critical-recovery --blueprint <dir> --task <ddd> --outcome <resolved|blocked>\n'
-            + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             Record the outcome without permitting another recovery.\n'
-            + '  coordinate revise --blueprint <dir> --task <ddd> --paths <p> [--paths <p>]...\n'
-            + '             --reason <text> --ledger-path <path> --ledger-hash <sha256>\n'
-            + '             Record one scope decision in the task document and ledger.\n'
-            + '             Takes no --repo: the write boundary is the current directory, so\n'
-            + '             run it from the assigned task worktree, not the main checkout.\n'
-            + '  Mutations (except bootstrap/status) require --ledger-path and --ledger-hash from\n'
-            + '  the latest status checkpoint so stale ledger writes are rejected before mutation.\n',
+        usage: coordinateRegistryUsage(),
     },
     import: {
         run: cmdImport,

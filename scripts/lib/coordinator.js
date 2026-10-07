@@ -25,6 +25,8 @@ const validateSections = require("./validate-sections");
 const { pathsOverlap } = validateSections;
 const configMod = require("./config");
 const { readCoordinatorPolicy, DEFAULT_MAX_PARALLEL } = configMod;
+const taskBriefHashMod = require("./task-brief-hash");
+const { taskBriefHash } = taskBriefHashMod;
 const scopeMod = require("./scope");
 const { withLedgerLock } = scopeMod;
 const leaseMod = require("./lease");
@@ -396,8 +398,8 @@ function git(exec, cwd, args) {
     return String(exec('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).trim();
 }
 /**
- * canonical tasks.md 전체 bytes의 SHA-256. trim·재직렬화 없이 읽어 dispatch·record가
- * 같은 정의를 쓰게 한다 — intent-bundle의 task_brief_hash와 바이트 계약을 맞춘다.
+ * canonical tasks.md의 SHA-256. 파일을 읽은 뒤 taskBriefHash에 맡겨 dispatch·record가
+ * 같은 정규형 계약을 쓰게 한다 — intent-bundle의 task_brief_hash와 맞춘다.
  *
  * @param {string} workerRoot - 할당된 worker worktree
  * @param {string} blueprint - blueprint 상대 경로
@@ -405,8 +407,8 @@ function git(exec, cwd, args) {
  * @returns {string} 64자리 소문자 hex
  */
 function taskBriefHashOf(workerRoot, blueprint, taskId) {
-    const bytes = fs.readFileSync(path.join(workerRoot, blueprint, 'tasks', taskId, 'tasks.md'));
-    return createHash('sha256').update(bytes).digest('hex');
+    const markdown = fs.readFileSync(path.join(workerRoot, blueprint, 'tasks', taskId, 'tasks.md'), 'utf8');
+    return taskBriefHash(markdown);
 }
 /**
  * dispatch 직전 working-tree 원문. trim하지 않는다 — clean은 빈 문자열, dirty는
@@ -999,6 +1001,284 @@ function writeOwnedLedger(owns, writeLedger, file, ledger) {
         return { ok: false, reason: 'ledger-lock-lost' };
     writeLedger(file, ledger);
     return null;
+}
+/**
+ * 이번 호출이 `git worktree add`에 성공한 worker만, 지금 원장이 `workerPath`로
+ * 가리키지 않을 때 지운다. reuse는 created에 넣지 않아 겹친 prepare가 남긴
+ * 배정을 지우지 않는다. Git 등록을 먼저 풀고 디렉터리를 지운 뒤 branch를 지운다 —
+ * 빈 디렉터리가 남으면 다음 prepare의 existsSync 검사가 unassigned로 막히고,
+ * branch를 먼저 지우면 등록 worktree가 붙은 채로 `-D`가 실패한다.
+ * 이미 Git에서 빠진 worktree의 `remove`는 실패하므로 등록된 경우만 부른다.
+ *
+ * @param {Exec} exec - git 실행기
+ * @param {string} integrationPath - integration checkout
+ * @param {Ledger | null} ledger - 정리 시점 원장. 없으면 어떤 경로도 참조되지 않은 것으로 본다
+ * @param {CreatedWorker[]} created - 이번 호출이 add에 성공한 worker·branch
+ * @returns {void}
+ */
+function removeUnreferencedCreatedWorkers(exec, integrationPath, ledger, created) {
+    const referenced = new Set((ledger?.tasks || [])
+        .map((item) => item.workerPath)
+        .filter((workerPath) => typeof workerPath === 'string' && workerPath !== ''));
+    for (const { worker, branch } of created) {
+        if (referenced.has(worker))
+            continue;
+        if (registeredWorker(exec, integrationPath, worker)) {
+            git(exec, integrationPath, ['worktree', 'remove', '--force', worker]);
+        }
+        fs.rmSync(worker, { recursive: true, force: true });
+        git(exec, integrationPath, ['branch', '-D', branch]);
+    }
+}
+/**
+ * 잠금을 새로 잡아 이번 호출 worker를 정리한다. 정리 잠금을 못 잡거나 도중에
+ * 빼앗기면 Git을 건드리지 않는다 — 남은 등록은 다음 prepare가 reuse로 받는다.
+ *
+ * @param {string} ledgerFile - 원장 경로. 잠금 파일은 `${ledgerFile}.lock`
+ * @param {Exec} exec - git 실행기
+ * @param {string} integrationPath - integration checkout
+ * @param {CreatedWorker[]} created - 이번 호출이 add에 성공한 worker
+ * @returns {void}
+ */
+function cleanupCreatedWorkersUnderNewLock(ledgerFile, exec, integrationPath, created) {
+    if (created.length === 0)
+        return;
+    withLedgerLock(ledgerFile, (owns) => {
+        // 잠금 회수 실패·소유 상실은 원래 실패 reason을 바꾸지 않기 위해 여기서 흡수한다.
+        if (!owns())
+            return;
+        removeUnreferencedCreatedWorkers(exec, integrationPath, loadLedger(ledgerFile), created);
+    });
+}
+/**
+ * prepare를 원장 잠금 ①판정 / ②worktree·seed / ③재획득·쓰기 로 나눈다.
+ * seed의 npm ci가 LOCK_STALE_MS를 넘기면 다른 프로세스가 잠금을 회수하므로,
+ * 장기 I/O는 잠금 밖에서 돌리고 hash로 원장이 그대로인지 확인한 뒤에만 쓴다.
+ *
+ * @param {object} opts - coordinate prepare 인자
+ * @param {string} opts.repoRoot - 저장소 루트
+ * @param {string} opts.blueprint - blueprint 상대 경로
+ * @param {string} opts.cwd - integration cwd
+ * @param {string} [opts.ledgerPath] - fence 원장 상대 경로
+ * @param {string} [opts.ledgerHash] - fence sha256
+ * @param {Exec} opts.exec - git·npm 실행기
+ * @param {(file: string, data: unknown) => void} opts.writeLedger - 원자적 원장 쓰기
+ * @param {() => string} opts.makeLeaseId - lease id 생성
+ * @param {object} opts.integration - coordinatorPathsFor 결과
+ * @returns {unknown} 성공 시 기존 prepare 출력, 실패 시 ok:false와 reason
+ */
+function prepareCoordinator({ repoRoot, blueprint, cwd, ledgerPath, ledgerHash, exec, writeLedger, makeLeaseId, integration, }) {
+    // 1. 잠금 안: 판정·revoke 정리만 하고 원장은 쓰지 않는다. 대조 기준은 이 bytes hash다.
+    const phase1 = withLedgerLock(integration.ledgerFile, () => {
+        const loaded = loadLedgerBytes(integration.ledgerFile);
+        if (!loaded)
+            return { ok: false, reason: 'missing-ledger' };
+        const { ledger, bytes: ledgerBytes } = loaded;
+        const leaseShape = assertLeaseShape(ledger);
+        if (!leaseShape.ok)
+            return leaseShape;
+        const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
+        if (!fenced.ok)
+            return fenced;
+        ensureIntegrationCwd(repoRoot, blueprint, cwd);
+        let names;
+        try {
+            // verification-only wave는 worker branch를 만들지 않아 아래 branch 판정에서
+            // commit_type을 한 번도 읽지 않는다. task 종류를 보기 전에 blueprint 전체의
+            // commit_type을 검증해야, 잘못된 값이 verification node의 ready 전이를 원장에
+            // 남긴 뒤 다음 commit wave에서야 드러나는 일을 막는다. 등록 checkout은 실제
+            // branch를 재사용해 legacy 원장에만 provenance 필드를 보충하고 rename하지 않는다.
+            // commit_type은 integration 사본에서 읽는다. drive 동안 main은 base SHA 출처일 뿐이다.
+            names = branchNamesFor({ repoRoot: integration.integrationPath, blueprint });
+            const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath,
+                worktreePath: integration.integrationPath, branch: names.integration, execFileSync: exec });
+            if (resolved.action !== 'reuse') {
+                return { ok: false, reason: 'unassigned-integration-worktree',
+                    integrationPath: integration.integrationPath };
+            }
+            if (!ledger.integrationBranch)
+                ledger.integrationBranch = resolved.branch;
+        }
+        catch (error) {
+            const reason = error.code;
+            if (reason)
+                return { ok: false, reason };
+            throw error;
+        }
+        // prepare만 invalid config를 거절한다. worktree를 만들기 전에 막아 잘못된
+        // 한도로 worker가 생기지 않게 한다. status 등 읽기 경로는 1로 폴백한다.
+        const policy = readCoordinatorPolicy(integration.integrationPath);
+        if (!policy.ok)
+            return { ok: false, reason: 'coordinator-config-invalid' };
+        const ready = readyWave(ledger.tasks, { maxParallel: policy.maxParallel });
+        // 판정 단계의 사전 검사. worker seed 출처는 integration의 blueprint 트리뿐이므로,
+        // 그것이 없으면 worktree를 하나도 만들기 전에 멈춰야 ledger와 Git 등록이 갈라지지 않는다.
+        const integrationBlueprint = path.join(integration.integrationPath, blueprint);
+        if (!fs.existsSync(integrationBlueprint) || !fs.statSync(integrationBlueprint).isDirectory()) {
+            return { ok: false, reason: 'missing-blueprint', blueprintDir: blueprint,
+                integrationPath: integration.integrationPath };
+        }
+        // verification bundle 확인도 읽기만 하므로 같은 판정 단계에 둔다. 섞인 wave에서
+        // 아래 루프가 commit worker를 먼저 만든 뒤 이 node에서 멈추면, 원장은 쓰이지 않았는데
+        // Git에는 worker가 등록되어 재시도 전 둘이 갈라진다.
+        for (const id of ready) {
+            const item = ledger.tasks.find((x) => x.id === id);
+            if (item.execution_kind !== 'verification')
+                continue;
+            const checked = checkVerificationNode(integration.integrationPath, blueprint, id);
+            if (!checked.ok)
+                return checked;
+        }
+        const plannedWorkers = new Map();
+        try {
+            // revoke된 배정은 등록 worktree·branch를 지운 뒤 새로 만든다. reuse하면
+            // 이전 generation의 dirty HEAD가 그대로 남는다. leased-revoked와
+            // legacy(no lease) revoke를 같은 헬퍼로 덮는다.
+            for (const id of ready) {
+                const item = ledger.tasks.find((x) => x.id === id);
+                if (item.execution_kind === 'verification')
+                    continue;
+                if (shouldRemoveRevokedWorker(item)) {
+                    removeRevokedWorker(exec, integration.integrationPath, item);
+                }
+            }
+            // 한 wave의 branch 충돌을 모두 확인한 뒤에만 worktree를 만든다. 앞 task를
+            // 먼저 만들고 뒤 task에서 멈추면 재시도 전 ledger와 Git 등록이 갈라지므로,
+            // 이 단계는 Git 조회만 하고 seed·mkdir·worktree add를 절대 호출하지 않는다.
+            for (const id of ready) {
+                const item = ledger.tasks.find((x) => x.id === id);
+                if (item.execution_kind === 'verification')
+                    continue;
+                const worker = coordinatorPathsFor({ repoRoot, blueprint, task: id }).workerPath;
+                if (fs.existsSync(worker) && !registeredWorker(exec, integration.integrationPath, worker)) {
+                    return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+                }
+                const workerNames = branchNamesFor({ repoRoot: integration.integrationPath, blueprint, task: id });
+                const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath, worktreePath: worker,
+                    branch: workerNames.worker, execFileSync: exec });
+                plannedWorkers.set(id, { worker, branch: resolved.branch, action: resolved.action });
+            }
+            // 이전 원장의 prepared task는 ready wave에 없어서 별도로 실제 checkout을 읽는다.
+            // 이미 등록된 branch를 rename하지 않고 field만 채워 재개 payload의 provenance를
+            // 복원한다. prepared인데 등록이 사라진 경우에는 새 branch를 만들 수 없다.
+            for (const item of ledger.tasks) {
+                if (item.execution_kind === 'verification' || item.status !== 'prepared' || item.branch)
+                    continue;
+                const worker = coordinatorPathsFor({ repoRoot, blueprint, task: item.id }).workerPath;
+                if (!registeredWorker(exec, integration.integrationPath, worker)) {
+                    return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+                }
+                const workerNames = branchNamesFor({ repoRoot: integration.integrationPath, blueprint, task: item.id });
+                const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath, worktreePath: worker,
+                    branch: workerNames.worker, execFileSync: exec });
+                if (resolved.action !== 'reuse') {
+                    return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+                }
+                item.branch = resolved.branch;
+            }
+        }
+        catch (error) {
+            const reason = error.code;
+            if (reason)
+                return { ok: false, reason };
+            throw error;
+        }
+        return {
+            ok: true,
+            ledger,
+            ready,
+            plannedWorkers,
+            phase1Hash: ledgerBytesHash(ledgerBytes),
+        };
+    });
+    if (!phase1 || typeof phase1 !== 'object' || phase1.ok !== true) {
+        return phase1;
+    }
+    const planned = phase1;
+    const { ledger, ready, plannedWorkers, phase1Hash } = planned;
+    const created = [];
+    // 2. 잠금 밖: worktree add와 seed. 원장 .lock 파일이 없어야 다른 prepare가 기다리지 않는다.
+    try {
+        for (const id of ready) {
+            const item = ledger.tasks.find((x) => x.id === id);
+            if (item.execution_kind === 'verification')
+                continue;
+            const entry = plannedWorkers.get(id);
+            if (entry.action === 'create') {
+                fs.mkdirSync(path.dirname(entry.worker), { recursive: true });
+                git(exec, integration.integrationPath, ['worktree', 'add', '-b', entry.branch, entry.worker, 'HEAD']);
+                created.push({ worker: entry.worker, branch: entry.branch });
+            }
+            if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
+                cleanupCreatedWorkersUnderNewLock(integration.ledgerFile, exec, integration.integrationPath, created);
+                return { ok: false, reason: 'unassigned-worker-worktree', workerPath: entry.worker };
+            }
+            // 모든 worker는 integration 사본을 받는다. bootstrap 뒤 계획 문서의 정본은
+            // integration이고(동적 repair 문서는 그곳에만 있다), main은 drive 동안 base SHA
+            // 출처로만 남으므로 main 계획이 사라져도 준비가 이어진다. cpSync는 worker마다
+            // 독립 사본을 쓰므로 병렬 worker끼리 문서를 공유하지 않는다.
+            const seeded = seedCoordinatorWorker({
+                repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: entry.worker,
+                deps: { execFileSync: exec },
+            });
+            if (!seeded.ok) {
+                cleanupCreatedWorkersUnderNewLock(integration.ledgerFile, exec, integration.integrationPath, created);
+                return seeded;
+            }
+        }
+    }
+    catch (error) {
+        cleanupCreatedWorkersUnderNewLock(integration.ledgerFile, exec, integration.integrationPath, created);
+        throw error;
+    }
+    // 3. 잠금 재획득: ① bytes와 같고 계획 worker가 등록돼 있을 때만 메모리 전이를 쓴다.
+    const phase3 = withLedgerLock(integration.ledgerFile, (owns) => {
+        const loaded = loadLedgerBytes(integration.ledgerFile);
+        if (!loaded)
+            return { ok: false, reason: 'missing-ledger' };
+        const { ledger: live, bytes } = loaded;
+        if (ledgerBytesHash(bytes) !== phase1Hash) {
+            removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created);
+            return { ok: false, reason: 'stale-ledger-checkpoint' };
+        }
+        for (const id of ready) {
+            const item = ledger.tasks.find((x) => x.id === id);
+            if (item.execution_kind === 'verification')
+                continue;
+            const entry = plannedWorkers.get(id);
+            if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
+                removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created);
+                return { ok: false, reason: 'unassigned-worker-worktree', workerPath: entry.worker };
+            }
+        }
+        // 잠금을 빼앗긴 뒤에는 원장도 Git도 건드리지 않는다. 정리는 이 잠금이 끝난 뒤
+        // 전용 잠금에서 한다 — 여기서 remove하면 다른 소유자의 임계 구역과 Git이 겹친다.
+        if (!owns())
+            return { ok: false, reason: 'ledger-lock-lost' };
+        for (const id of ready) {
+            const item = ledger.tasks.find((x) => x.id === id);
+            if (item.execution_kind === 'verification') {
+                item.status = transition(item.status || 'pending', 'ready', 'verification');
+                continue;
+            }
+            const entry = plannedWorkers.get(id);
+            item.status = transition(item.status || 'pending', 'ready');
+            item.status = transition(item.status, 'prepared');
+            item.workerPath = entry.worker;
+            item.branch = entry.branch;
+            issueLease(ledger, item, makeLeaseId);
+        }
+        const lost = writeOwnedLedger(owns, writeLedger, integration.ledgerFile, ledger);
+        if (lost)
+            return lost;
+        return withCheckpoint({ ok: true, command: 'prepare', ready, tasks: ledger.tasks,
+            decisions: ledger.decisions }, ledger, integration.ledgerFile);
+    });
+    if (phase3 && typeof phase3 === 'object'
+        && phase3.reason === 'ledger-lock-lost') {
+        cleanupCreatedWorkersUnderNewLock(integration.ledgerFile, exec, integration.integrationPath, created);
+    }
+    return phase3;
 }
 function ensureIntegrationCwd(repoRoot, blueprint, cwd, task) {
     const paths = coordinatorPathsFor({ repoRoot, blueprint, task });
@@ -1713,6 +1993,8 @@ function finishFaninAfterFf({ repoRoot, blueprint, exec, writeLedger, integratio
  * @param {boolean} [opts.userConfirmed] - partial-close 사용자 확인
  * @param {object} [opts.deps] - exec·verify·원장 쓰기 주입
  * @returns {object} 성공 시 ok:true와 명령별 필드, 실패 시 ok:false와 reason
+ *   prepare는 worktree 생성·seed를 원장 잠금 밖에서 돌리고, 실패하면 이번 호출이
+ *   만든 worker만 되돌린다.
  */
 function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, decision, failureCommand, summary, paths: repairPaths, findings, reviewFindings, outcome, reason, attempt, taskBriefHash, leaseId, generation, ledgerPath, ledgerHash, userConfirmed = false, deps = {} }) {
     const exec = deps.execFileSync || realExecFileSync;
@@ -1819,6 +2101,12 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             integration,
         });
     }
+    // prepare의 seed(npm ci)는 LOCK_STALE_MS를 넘길 수 있어 공통 fenced 잠금 앞에 둔다.
+    if (command === 'prepare') {
+        return prepareCoordinator({
+            repoRoot, blueprint, cwd, ledgerPath, ledgerHash, exec, writeLedger, makeLeaseId, integration,
+        });
+    }
     if (!LEDGER_FENCED_COMMANDS.has(command)) {
         return { ok: false, reason: 'unknown-coordinate-command' };
     }
@@ -1877,146 +2165,6 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
             return withCheckpoint({ ok: true, command, status: 'partial_closed', nextPlan,
                 message: 'NEXT_PLAN.md를 확인하고 후속 계획 진행 여부를 승인해 주세요.',
                 preserved: [integration.integrationPath, ...ledger.tasks.map((entry) => entry.workerPath).filter(Boolean)] }, ledger, integration.ledgerFile);
-        }
-        if (command === 'prepare') {
-            ensureIntegrationCwd(repoRoot, blueprint, cwd);
-            let names;
-            try {
-                // verification-only wave는 worker branch를 만들지 않아 아래 branch 판정에서
-                // commit_type을 한 번도 읽지 않는다. task 종류를 보기 전에 blueprint 전체의
-                // commit_type을 검증해야, 잘못된 값이 verification node의 ready 전이를 원장에
-                // 남긴 뒤 다음 commit wave에서야 드러나는 일을 막는다. 등록 checkout은 실제
-                // branch를 재사용해 legacy 원장에만 provenance 필드를 보충하고 rename하지 않는다.
-                // commit_type은 integration 사본에서 읽는다. drive 동안 main은 base SHA 출처일 뿐이다.
-                names = branchNamesFor({ repoRoot: integration.integrationPath, blueprint });
-                const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath,
-                    worktreePath: integration.integrationPath, branch: names.integration, execFileSync: exec });
-                if (resolved.action !== 'reuse') {
-                    return { ok: false, reason: 'unassigned-integration-worktree', integrationPath: integration.integrationPath };
-                }
-                if (!ledger.integrationBranch)
-                    ledger.integrationBranch = resolved.branch;
-            }
-            catch (error) {
-                const reason = error.code;
-                if (reason)
-                    return { ok: false, reason };
-                throw error;
-            }
-            // prepare만 invalid config를 거절한다. worktree를 만들기 전에 막아 잘못된
-            // 한도로 worker가 생기지 않게 한다. status 등 읽기 경로는 1로 폴백한다.
-            const policy = readCoordinatorPolicy(integration.integrationPath);
-            if (!policy.ok)
-                return { ok: false, reason: 'coordinator-config-invalid' };
-            const ready = readyWave(ledger.tasks, { maxParallel: policy.maxParallel });
-            // 판정 단계의 사전 검사. worker seed 출처는 integration의 blueprint 트리뿐이므로,
-            // 그것이 없으면 worktree를 하나도 만들기 전에 멈춰야 ledger와 Git 등록이 갈라지지 않는다.
-            const integrationBlueprint = path.join(integration.integrationPath, blueprint);
-            if (!fs.existsSync(integrationBlueprint) || !fs.statSync(integrationBlueprint).isDirectory()) {
-                return { ok: false, reason: 'missing-blueprint', blueprintDir: blueprint,
-                    integrationPath: integration.integrationPath };
-            }
-            // verification bundle 확인도 읽기만 하므로 같은 판정 단계에 둔다. 섞인 wave에서
-            // 아래 루프가 commit worker를 먼저 만든 뒤 이 node에서 멈추면, 원장은 쓰이지 않았는데
-            // Git에는 worker가 등록되어 재시도 전 둘이 갈라진다.
-            for (const id of ready) {
-                const item = ledger.tasks.find((x) => x.id === id);
-                if (item.execution_kind !== 'verification')
-                    continue;
-                const checked = checkVerificationNode(integration.integrationPath, blueprint, id);
-                if (!checked.ok)
-                    return checked;
-            }
-            const plannedWorkers = new Map();
-            try {
-                // revoke된 배정은 등록 worktree·branch를 지운 뒤 새로 만든다. reuse하면
-                // 이전 generation의 dirty HEAD가 그대로 남는다. leased-revoked와
-                // legacy(no lease) revoke를 같은 헬퍼로 덮는다.
-                for (const id of ready) {
-                    const item = ledger.tasks.find((x) => x.id === id);
-                    if (item.execution_kind === 'verification')
-                        continue;
-                    if (shouldRemoveRevokedWorker(item)) {
-                        removeRevokedWorker(exec, integration.integrationPath, item);
-                    }
-                }
-                // 한 wave의 branch 충돌을 모두 확인한 뒤에만 worktree를 만든다. 앞 task를
-                // 먼저 만들고 뒤 task에서 멈추면 재시도 전 ledger와 Git 등록이 갈라지므로,
-                // 이 단계는 Git 조회만 하고 seed·mkdir·worktree add를 절대 호출하지 않는다.
-                for (const id of ready) {
-                    const item = ledger.tasks.find((x) => x.id === id);
-                    if (item.execution_kind === 'verification')
-                        continue;
-                    const worker = coordinatorPathsFor({ repoRoot, blueprint, task: id }).workerPath;
-                    if (fs.existsSync(worker) && !registeredWorker(exec, integration.integrationPath, worker)) {
-                        return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
-                    }
-                    const workerNames = branchNamesFor({ repoRoot: integration.integrationPath, blueprint, task: id });
-                    const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath, worktreePath: worker,
-                        branch: workerNames.worker, execFileSync: exec });
-                    plannedWorkers.set(id, { worker, branch: resolved.branch, action: resolved.action });
-                }
-                // 이전 원장의 prepared task는 ready wave에 없어서 별도로 실제 checkout을 읽는다.
-                // 이미 등록된 branch를 rename하지 않고 field만 채워 재개 payload의 provenance를
-                // 복원한다. prepared인데 등록이 사라진 경우에는 새 branch를 만들 수 없다.
-                for (const item of ledger.tasks) {
-                    if (item.execution_kind === 'verification' || item.status !== 'prepared' || item.branch)
-                        continue;
-                    const worker = coordinatorPathsFor({ repoRoot, blueprint, task: item.id }).workerPath;
-                    if (!registeredWorker(exec, integration.integrationPath, worker)) {
-                        return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
-                    }
-                    const workerNames = branchNamesFor({ repoRoot: integration.integrationPath, blueprint, task: item.id });
-                    const resolved = resolveWorktreeBranch({ repoRoot: integration.integrationPath, worktreePath: worker,
-                        branch: workerNames.worker, execFileSync: exec });
-                    if (resolved.action !== 'reuse') {
-                        return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
-                    }
-                    item.branch = resolved.branch;
-                }
-            }
-            catch (error) {
-                const reason = error.code;
-                if (reason)
-                    return { ok: false, reason };
-                throw error;
-            }
-            for (const id of ready) {
-                const item = ledger.tasks.find((x) => x.id === id);
-                if (item.execution_kind === 'verification') {
-                    item.status = transition(item.status || 'pending', 'ready', 'verification');
-                    continue;
-                }
-                const planned = plannedWorkers.get(id);
-                if (planned.action === 'create') {
-                    fs.mkdirSync(path.dirname(planned.worker), { recursive: true });
-                    git(exec, integration.integrationPath, ['worktree', 'add', '-b', planned.branch, planned.worker, 'HEAD']);
-                }
-                if (!registeredWorker(exec, integration.integrationPath, planned.worker)) {
-                    return { ok: false, reason: 'unassigned-worker-worktree', workerPath: planned.worker };
-                }
-                // 모든 worker는 integration 사본을 받는다. bootstrap 뒤 계획 문서의 정본은
-                // integration이고(동적 repair 문서는 그곳에만 있다), main은 drive 동안 base SHA
-                // 출처로만 남으므로 main 계획이 사라져도 준비가 이어진다. cpSync는 worker마다
-                // 독립 사본을 쓰므로 병렬 worker끼리 문서를 공유하지 않는다.
-                const seeded = seedCoordinatorWorker({
-                    repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: planned.worker,
-                });
-                if (!seeded.ok)
-                    return seeded;
-                item.status = transition(item.status || 'pending', 'ready');
-                item.status = transition(item.status, 'prepared');
-                item.workerPath = planned.worker;
-                item.branch = planned.branch;
-                // commit task 배정마다 lease를 발급한다. generation은 revoke 재배정에서 오른다.
-                issueLease(ledger, item, makeLeaseId);
-            }
-            {
-                const lost = commitWrite();
-                if (lost)
-                    return lost;
-            }
-            return withCheckpoint({ ok: true, command, ready, tasks: ledger.tasks, decisions: ledger.decisions }, ledger, integration.ledgerFile);
         }
         if (command === 'revoke') {
             ensureIntegrationCwd(repoRoot, blueprint, cwd);
@@ -2510,10 +2658,10 @@ const COORDINATE_FAILURE_HINTS = {
         next: 'Retry the same `bouncer coordinate` command with a reason that names why the change is required.',
     },
     'dependency-install-failed': {
-        cause: 'Integration checkout could not install locked development dependencies '
-            + 'before terminal verification.',
-        next: 'Inspect npm ci on the integration worktree, then retry `bouncer coordinate integrate` '
-            + 'for the verification task.',
+        cause: 'Locked development dependencies could not be installed in an integration '
+            + 'or worker worktree.',
+        next: 'Inspect npm ci in that worktree, then retry `bouncer coordinate prepare` '
+            + 'or `bouncer coordinate integrate` for the verification task.',
     },
     'dispatch-already-active': {
         cause: 'This task already has an active dispatch, so a second dispatch is refused.',
@@ -2771,4 +2919,6 @@ function coordinateWithHints(opts) {
 module.exports = {
     readyWave, transition, coordinate: coordinateWithHints, loadLedger, loadLedgerBytes, readBouncerBlock,
     projectCheckpoint, assertLedgerFence, LEDGER_REL, COORDINATE_FAILURE_HINTS,
+    registeredIntegration, registeredWorker, ensureIntegrationCwd, assertLeaseShape,
+    isBlueprintReviewModeAt, initialWorktreeState, taskBriefHashOf, normalizeCommitSha,
 };

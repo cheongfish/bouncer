@@ -278,20 +278,8 @@ function realTrackedModified({ repoRoot }) {
 function realMainRepoCurrent({ repoRoot, deps }) {
     return readCurrent({ repoRoot, deps });
 }
-/**
- * PreToolUse 훅이 git commit 명령의 scope를 판정한다. worker cwd에서는
- * pointer 유무보다 resolveEffectiveTask를 먼저 본다 — prepare 직후·--set 전
- * 창에서도 lease affected_paths와 fail-closed가 적용돼야 한다.
- *
- * @param {{ command: unknown, repoRoot: string, deps?: CommitHookDeps | null }} opts
- * @param {unknown} opts.command - 탐지 대상 shell 명령 문자열
- * @param {string} opts.repoRoot - 커밋이 일어나는 checkout 절대 경로
- * @param {CommitHookDeps | null} [opts.deps] - 테스트 seam(readCurrent·stagedFiles 등)
- * @returns {{ block: false } | { block: true, reason: string }} allow면 block false,
- *   worker lease 부재·원장 손상·out-of-scope면 block true와 reason
- */
-function evaluateCommit({ command, repoRoot, deps }) {
-    const d = {
+function mergeCommitHookDeps(deps) {
+    return {
         readCurrent,
         readAffectedPaths,
         stagedFiles: realStagedFiles,
@@ -300,9 +288,20 @@ function evaluateCommit({ command, repoRoot, deps }) {
         coordinatorContext,
         ...(deps || {}),
     };
-    const judgment = detect(command, realResolveAlias(repoRoot), 0);
-    if (!judgment.commit)
-        return { block: false };
+}
+/**
+ * staged(또는 -a면 tracked 수정까지) 목록을 checkCommitSafety에 넘긴다.
+ * 명령 탐지는 호출부가 끝낸 뒤라, git pre-commit과 PreToolUse가 같은
+ * 이유 문자열을 내게 여기만 공유한다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 커밋이 일어나는 checkout 절대 경로
+ * @param {CommitHookDeps | null} [opts.deps] - 테스트 seam
+ * @param {boolean} opts.all - true면 staged∪trackedModified (`git commit -a`)
+ * @returns {{ block: false } | { block: true, reason: string }}
+ */
+function evaluateIndex({ repoRoot, deps, all }) {
+    const d = mergeCommitHookDeps(deps);
     // 1. pointer 조기 허용보다 effective task를 먼저 본다. worker에서
     //    `if (!current) return {block:false}` 하면 lease fail-closed와
     //    lease affected_paths가 통째로 건너뛴다.
@@ -321,7 +320,7 @@ function evaluateCommit({ command, repoRoot, deps }) {
         ? effective.path
         : (current && current.task);
     const affectedPaths = d.readAffectedPaths({ repoRoot, blueprintDir });
-    const files = judgment.all
+    const files = all
         ? [...new Set([...d.stagedFiles({ repoRoot }), ...d.trackedModified({ repoRoot })])]
         : d.stagedFiles({ repoRoot });
     // coordinator 실행이면 ledger가 현재 scope와 worktree 경계의 정본이다.
@@ -348,7 +347,40 @@ function evaluateCommit({ command, repoRoot, deps }) {
         reason: `commit blocked: files outside affected_paths: ${detail}`,
     };
 }
+/**
+ * `-a` 없는 `git commit`과 같은 staged 목록으로 scope를 판정한다.
+ * pre-commit hook은 명령 문자열이 없으므로 여기만 호출한다.
+ *
+ * @param {{ repoRoot: string, deps?: CommitHookDeps | null }} opts
+ * @param {string} opts.repoRoot - 커밋이 일어나는 checkout 절대 경로
+ * @param {CommitHookDeps | null} [opts.deps] - 테스트 seam(readCurrent·stagedFiles 등)
+ * @returns {{ block: false } | { block: true, reason: string }} allow면 block false,
+ *   worker lease 부재·원장 손상·out-of-scope면 block true와 reason
+ */
+function evaluateStaged({ repoRoot, deps }) {
+    return evaluateIndex({ repoRoot, deps, all: false });
+}
+/**
+ * PreToolUse 훅이 git commit 명령의 scope를 판정한다. worker cwd에서는
+ * pointer 유무보다 resolveEffectiveTask를 먼저 본다 — prepare 직후·--set 전
+ * 창에서도 lease affected_paths와 fail-closed가 적용돼야 한다.
+ * 커밋으로 탐지된 뒤에는 `evaluateStaged`와 같은 판정부를 쓴다(`-a`만 목록이 다름).
+ *
+ * @param {{ command: unknown, repoRoot: string, deps?: CommitHookDeps | null }} opts
+ * @param {unknown} opts.command - 탐지 대상 shell 명령 문자열
+ * @param {string} opts.repoRoot - 커밋이 일어나는 checkout 절대 경로
+ * @param {CommitHookDeps | null} [opts.deps] - 테스트 seam(readCurrent·stagedFiles 등)
+ * @returns {{ block: false } | { block: true, reason: string }} allow면 block false,
+ *   worker lease 부재·원장 손상·out-of-scope면 block true와 reason
+ */
+function evaluateCommit({ command, repoRoot, deps }) {
+    const d = mergeCommitHookDeps(deps);
+    const judgment = detect(command, realResolveAlias(repoRoot), 0);
+    if (!judgment.commit)
+        return { block: false };
+    return evaluateIndex({ repoRoot, deps: d, all: judgment.all });
+}
 module.exports = {
-    isGitCommit, readAffectedPaths, evaluateCommit, realStagedFiles, realTrackedModified,
-    realMainRepoCurrent,
+    isGitCommit, readAffectedPaths, evaluateCommit, evaluateStaged,
+    realStagedFiles, realTrackedModified, realMainRepoCurrent,
 };

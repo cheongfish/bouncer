@@ -253,17 +253,26 @@ function seedWorktree({ repoRoot, blueprintDir, worktreePath, git, deps, }) {
 }
 /**
  * coordinator worker·fan-in candidate에 계획 문서와 검증용 의존성을 심는다.
- * execute용 seedWorktree와 달리 base를 복원·삭제하지 않는다.
+ * execute용 seedWorktree와 달리 base를 복원·삭제하지 않는다. blueprint 트리
+ * 다음에 epic·context index를 base에 있을 때만 덮어 복사해, untracked epic이
+ * worker execute 게이트에서 S8·S13으로 막히지 않게 한다.
  *
- * @param {{ repoRoot: string, blueprintDir: unknown, worktreePath: string, deps?: SeedDeps }} opts
+ * @param {object} opts - seed 대상
+ * @param {string} opts.repoRoot - 계획 문서가 있는 base(integration) checkout. 읽기만 한다
+ * @param {unknown} opts.blueprintDir - 저장소 상대 blueprint 디렉터리
+ * @param {string} opts.worktreePath - worker·fan-in worktree 절대 경로
+ * @param {SeedDeps} [opts.deps] - execFileSync 주입. 테스트가 npm 호출을 가로채는 용도
  * @returns {{ ok: true, config: ConfigSeedStatus, seeded: string[] }
  *   | { ok: false, reason: string, [k: string]: unknown }}
+ *   성공 시 seeded는 [blueprintDir, 복사한 index 경로들] 순서. 없는 index는 넣지 않는다.
+ *   복사 예외는 copy-failed.
  */
 function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps }) {
     if (!fs.existsSync(worktreePath) || !fs.statSync(worktreePath).isDirectory()) {
         return { ok: false, reason: 'missing-worktree', worktreePath };
     }
-    const source = path.join(repoRoot, toPosix(blueprintDir));
+    const bp = toPosix(blueprintDir);
+    const source = path.join(repoRoot, bp);
     if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) {
         return { ok: false, reason: 'missing-blueprint', blueprintDir };
     }
@@ -274,8 +283,20 @@ function seedCoordinatorWorker({ repoRoot, blueprintDir, worktreePath, deps }) {
         const config = seedConfig(repoRoot, worktreePath, realGit(repoRoot));
         // cpSync는 target tree만 쓰며, base plan은 읽기만 한다. 여러 worker가 같은
         // blueprint seed를 받아도 서로의 brief를 빼앗지 않는 이유다.
-        fs.cpSync(source, path.join(worktreePath, toPosix(blueprintDir)), { recursive: true, force: true });
-        return { ok: true, config, seeded: [toPosix(blueprintDir)] };
+        fs.cpSync(source, path.join(worktreePath, bp), { recursive: true, force: true });
+        const seeded = [bp];
+        // seedIntegration과 같은 경로 계산. worker는 HEAD checkout이라 untracked
+        // epic index와 dirty context index가 빠져 execute 구조 게이트가 실패한다.
+        for (const rel of [`${epicDirOf(bp)}/index.md`, `${CONTEXT_ROOT}/index.md`]) {
+            const src = path.join(repoRoot, rel);
+            if (!fs.existsSync(src))
+                continue;
+            const dst = path.join(worktreePath, rel);
+            fs.mkdirSync(path.dirname(dst), { recursive: true });
+            fs.copyFileSync(src, dst);
+            seeded.push(rel);
+        }
+        return { ok: true, config, seeded };
     }
     catch (error) {
         return { ok: false, reason: 'copy-failed', message: error.message };

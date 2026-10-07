@@ -25,6 +25,8 @@ const config = require("./config");
 const { readConfigResult, readVerifyPolicy, DEFAULT_VERIFY_ALLOWLIST, } = config;
 const commitSha = require("./commit-sha");
 const { buildStableProvenance } = commitSha;
+const scope = require("./scope");
+const { isUnder, RUNTIME_ARTIFACTS } = scope;
 // 통과한 실행은 명령이 0으로 종료되었다는 증거입니다. tail에는 명령이
 // 끝에 출력하는 요약만 담으면 됩니다. 실패한 실행은 무엇이 잘못됐는지에 대한
 // 증거이므로 훨씬 더 많이 — 그리고 리뷰어가 읽는 문서 본문에, frontmatter에만
@@ -670,6 +672,107 @@ function computeDirtyDigest(repoRoot, deps) {
     return sha256Canonical(entries);
 }
 /**
+ * porcelain 한 경로가 source_digest에서 빠지는지 본다.
+ * `.bouncer/`는 execute→commit 사이 문서 상태 변경이 증거를 무효화하지 않게
+ * 빼고, RUNTIME_ARTIFACTS는 scope와 같은 목록을 써야 두 경로가 갈라지지 않는다.
+ *
+ * @param {string} relPath - repo-relative POSIX 경로
+ * @returns {boolean} 제외하면 true
+ */
+function isExcludedFromSourceDigest(relPath) {
+    const posixRel = toPosix(relPath);
+    if (isUnder(posixRel, '.bouncer'))
+        return true;
+    return RUNTIME_ARTIFACTS.some((entry) => isUnder(posixRel, entry));
+}
+/**
+ * source_digest에 넣을 한 경로의 content 토큰을 만든다.
+ * XY는 넣지 않는다 — 같은 바이트를 stage만 해도 digest가 같아야 commit 직전
+ * `git add`가 정상 흐름을 깨지 않는다. 디렉터리는 -uall이 파일을 펼치므로
+ * 항목 자체는 건너뛴다.
+ *
+ * @param {string} repoRoot - 저장소 루트
+ * @param {string} relPath - dirty 상대경로
+ * @param {VerificationDeps} [deps] - 파일 읽기 주입
+ * @returns {{ path: string, content: string } | null} 제외·디렉터리는 null
+ */
+function sourceEntryContent(repoRoot, relPath, deps) {
+    const posixRel = toPosix(relPath);
+    if (!posixRel || isExcludedFromSourceDigest(posixRel))
+        return null;
+    const abs = path.resolve(repoRoot, posixRel);
+    const rootReal = fs.realpathSync(repoRoot);
+    let targetReal = abs;
+    try {
+        if (fs.existsSync(abs))
+            targetReal = fs.realpathSync(abs);
+    }
+    catch (_error) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', `dirty path is not readable: ${posixRel}`);
+    }
+    const relToRoot = path.relative(rootReal, targetReal);
+    if (relToRoot === '..'
+        || relToRoot.startsWith(`..${path.sep}`)
+        || path.isAbsolute(relToRoot)) {
+        throw verificationError('VERIFY_IDENTITY_INVALID', `dirty path escapes the repository: ${posixRel}`);
+    }
+    try {
+        const st = fs.lstatSync(abs);
+        if (st.isSymbolicLink()) {
+            return { path: posixRel, content: `link:${fs.readlinkSync(abs)}` };
+        }
+        if (st.isFile()) {
+            return {
+                path: posixRel,
+                content: createHash('sha256').update(readBytes(abs, deps)).digest('hex'),
+            };
+        }
+        // 디렉터리·특수 파일은 -uall이 자식 파일을 별도 항목으로 낸다.
+        return null;
+    }
+    catch (error) {
+        if (errorCode(error) === 'VERIFY_IDENTITY_INVALID')
+            throw error;
+        return { path: posixRel, content: 'deleted' };
+    }
+}
+/**
+ * `.bouncer/`와 runtime 산출물을 뺀 dirty 소스의 content digest를 계산한다.
+ * `git status --porcelain=v1 -z -uall`를 써서 새 디렉터리 안 파일 내용이
+ * 상수 `'dir'`로 접히지 않게 한다. git 실패·repo 탈출은 VERIFY_IDENTITY_INVALID.
+ *
+ * @param {string} repoRoot - 저장소 루트 절대 경로
+ * @param {VerificationDeps} [deps] - git/readFile 주입
+ * @returns {string} 경로순 `{path, content}` 배열의 SHA-256 hex
+ */
+function computeSourceDigest(repoRoot, deps) {
+    const raw = runGit(repoRoot, ['status', '--porcelain=v1', '-z', '-uall'], deps);
+    const entries = [];
+    const parts = String(raw).split('\0').filter((part) => part.length > 0);
+    for (let i = 0; i < parts.length; i += 1) {
+        const part = parts[i];
+        const xy = part.slice(0, 2);
+        const pathPart = part.slice(3);
+        const isRename = xy[0] === 'R' || xy[0] === 'C' || xy[1] === 'R' || xy[1] === 'C';
+        if (isRename && i + 1 < parts.length) {
+            const fromEntry = sourceEntryContent(repoRoot, pathPart, deps);
+            const toEntry = sourceEntryContent(repoRoot, parts[i + 1], deps);
+            i += 1;
+            if (fromEntry)
+                entries.push(fromEntry);
+            if (toEntry)
+                entries.push(toEntry);
+        }
+        else {
+            const entry = sourceEntryContent(repoRoot, pathPart, deps);
+            if (entry)
+                entries.push(entry);
+        }
+    }
+    entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    return sha256Canonical(entries);
+}
+/**
  * platform/arch/node/verify config의 environment hash를 계산한다.
  * config 부재는 고정 sentinel로 두어 빈 파일 해시와 구분한다.
  *
@@ -778,6 +881,27 @@ function readLedgerFile(ledgerFile) {
         return null;
     }
 }
+/**
+ * verification.md와 common-dir 원장에 한 번 실행(또는 reuse)의 증적을 쓴다.
+ * source_digest는 기록 시각의 checkout에서 다시 계산한다 — reuse hit여도
+ * 그 시점 값을 남겨 commit G23이 verify 이후 소스 변경을 거절할 수 있다.
+ *
+ * @param {object} opts - 기록 입력
+ * @param {string} opts.repoRoot - 저장소 루트
+ * @param {string} [opts.verificationRel] - verification.md 상대 경로
+ * @param {string} [opts.blueprintDir] - 구 호출 호환용 blueprint 상대 경로
+ * @param {string} opts.command - 실행한 검증 명령
+ * @param {string} opts.ranAt - 실행 시각(KST ISO)
+ * @param {number} opts.exitCode - 프로세스 종료 코드
+ * @param {string} opts.output - output_tail 원본
+ * @param {string} [opts.evidenceId] - 생략 시 현재 identity에서 계산
+ * @param {EvidenceIdentity} [opts.identity] - 생략 시 현재 checkout에서 계산
+ * @param {VerificationScope} [opts.scope] - 생략 시 포인터/경로에서 유도
+ * @param {boolean} [opts.reused] - reuse hit이면 true
+ * @param {string} [opts.reusedFrom] - hit의 원본 evidence_id
+ * @param {object} [opts.deps] - git/원장 경로 주입
+ * @returns {void}
+ */
 function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, command, ranAt, exitCode, output, evidenceId, identity, scope, reused = false, reusedFrom, deps, }) {
     // verificationRel이 정식 인자. blueprintDir은 구 호출 호환(루트 verification.md).
     const rel = verificationRel
@@ -821,6 +945,9 @@ function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, com
     const bouncer = (data.bouncer || {});
     data.bouncer = bouncer;
     bouncer.status = exitCode === 0 ? 'passed' : 'failed';
+    // identity와 별도로 둔다. dirty_digest는 .bouncer를 포함해 G13 재사용 키를
+    // 바꾸지 못하게 하고, 이 필드는 commit 신선도만 본다.
+    const sourceDigest = computeSourceDigest(repoRoot, deps);
     const verificationMeta = {
         command,
         ran_at: ranAt,
@@ -830,6 +957,7 @@ function recordVerificationResult({ repoRoot, verificationRel, blueprintDir, com
         identity: resolvedIdentity,
         scope: resolvedScope,
         reused,
+        source_digest: sourceDigest,
     };
     // reused_from은 hit일 때만 기록한다. false인데 키가 있으면 G13이 손기록을 통과시킨다.
     if (reused && reusedFrom) {
@@ -880,6 +1008,7 @@ ${evidence}`;
         identity: resolvedIdentity,
         scope: resolvedScope,
         reused,
+        source_digest: sourceDigest,
     };
     if (reused && reusedFrom) {
         record.reused_from = reusedFrom;
@@ -968,6 +1097,7 @@ function runVerification({ repoRoot, blueprintDir, scope: scopeInput, taskId, ex
                     scope,
                     reused: true,
                     reusedFrom: existing.evidence_id,
+                    deps,
                 });
                 return {
                     ok: true,
@@ -998,6 +1128,7 @@ function runVerification({ repoRoot, blueprintDir, scope: scopeInput, taskId, ex
         identity,
         scope,
         reused: false,
+        deps,
     });
     return {
         ok: execution.ok,
@@ -1018,4 +1149,5 @@ module.exports = {
     executeVerify,
     recordVerificationResult,
     runVerification,
+    computeSourceDigest,
 };

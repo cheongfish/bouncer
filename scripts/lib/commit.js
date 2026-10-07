@@ -14,6 +14,8 @@ const validate = require("./validate");
 const { validateBlueprint, loadBlueprintDocs, resolveTaskUnit } = validate;
 const finalize = require("./finalize");
 const { realGit, buildCommitMessage } = finalize;
+const preCommitHook = require("./pre-commit-hook");
+const { internalCommitEnv } = preCommitHook;
 const scope = require("./scope");
 const { filterTaskCommitCandidates, isTaskWorkflowArtifact, coordinatorContext, recordActualPaths, } = scope;
 const coordinatorCore = require("./coordinator");
@@ -369,6 +371,9 @@ function commitTask({ repoRoot, blueprintDir, yes = false, git, validateGate = v
         // 이 명령이 실패하면 commit을 진행하지 않아 index 경계를 조용히 무시하지 않는다.
         execFileSync('git', ['commit', '--only', '-m', commitMessage, '--', ...all], {
             cwd: repoRoot, encoding: 'utf8',
+            // G17을 이미 통과한 내부 커밋. hook이 인덱스의 다른 staged 경로를
+            // 다시 보면 자기 커밋을 막으므로 표식으로 commit-guard만 건너뛴다.
+            env: internalCommitEnv(),
         });
     }
     const taskSha = typeof gitApi.headSha === 'function' ? String(gitApi.headSha()).trim() : null;

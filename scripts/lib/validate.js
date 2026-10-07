@@ -48,6 +48,17 @@ const GATE_FAILURE_HINTS = Object.freeze([
         match: /scaffold guidance comments remain/,
         next: 'Remove the listed leftover scaffold guidance comments and rerun the plan gate.',
     },
+    {
+        code: 'G23',
+        match: /verification evidence is stale/,
+        next: 'Rerun this checkout\'s active-task `bouncer verify --blueprint <dir>`, then rerun the commit gate.',
+    },
+    {
+        code: 'G24',
+        match: /approved scope changed after activation/,
+        next: 'If the change is intended, get the user\'s explicit approval, then run '
+            + '`bouncer current --set <dir> --reapprove` and rerun the gate.',
+    },
 ]);
 /**
  * validate 실패 항목에 hint 표의 next를 붙인 사본을 만든다.

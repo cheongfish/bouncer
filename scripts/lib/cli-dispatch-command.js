@@ -2,11 +2,38 @@
 const cliFlags = require("./cli-flags");
 const { parseFlags } = cliFlags;
 const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'coordinator'];
+const USAGE_BLOCK = '  dispatch print --role <implementer|reviewer|debugger|coordinator>'
+    + ' --cwd <dir> --input <file> --out <dir>\n'
+    + '             Run one Cursor print dispatch (JSON).\n';
 const USAGE = `usage: bouncer dispatch print --role <role> --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 
-  dispatch print --role <implementer|reviewer|debugger|coordinator> --cwd <dir> --input <file> --out <dir>
-             Run one Cursor print dispatch (JSON).
+${USAGE_BLOCK}`;
+const HELP = `${USAGE}
+--input is a UTF-8 text file, not JSON. The command appends those bytes after the role body.
+Roles: implementer, reviewer, debugger, coordinator.
+--out keeps bouncer-<role>.prompt.md, bouncer-<role>.jsonl, and bouncer-<role>.log.
+Payload rules: rules/cursor-print-dispatch.md
 `;
+/**
+ * 서브커맨드 도움말 여부. parseFlags는 `--help` 뒤 값을 먹고 `-h`를 무시하므로
+ * 원시 토큰을 본다. `--flag -h`의 `-h`는 값으로 남긴다.
+ *
+ * @param {string[]} tokens - `dispatch` 뒤 원시 argv
+ * @returns {boolean} 도움말을 내면 true
+ */
+function argvRequestsHelp(tokens) {
+    for (let i = 0; i < tokens.length; i += 1) {
+        const tok = tokens[i];
+        if (tok === '--help')
+            return true;
+        if (tok === '-h') {
+            const prev = i > 0 ? tokens[i - 1] : undefined;
+            if (prev === undefined || !prev.startsWith('--'))
+                return true;
+        }
+    }
+    return false;
+}
 const REQUIRED_FLAGS = ['role', 'cwd', 'input', 'out'];
 /**
  * `--flag` 토큰 횟수. parseFlags는 마지막 값만 남겨 중복 `--role`을 조용히
@@ -74,13 +101,19 @@ function parseDispatchPrintArgs(rest) {
     };
 }
 /**
- * 공개 `dispatch` 핸들러. argv 검증과 print 실행·JSON·exit만 연결한다.
+ * 공개 `dispatch` 핸들러. `--help`는 print 모듈을 열기 전에 stdout으로 끝내고,
+ * 그 외는 argv 검증과 print 실행·JSON·exit만 연결한다.
  *
  * @param {string[]} rest - `print`와 플래그
  * @param {CliIo} io - stdout/stderr 싱크
  * @returns {number} 성공 0, 운영 거절 1, 사용법 2
  */
 function cmdDispatch(rest, io) {
+    // 도움말은 필수 플래그 검사·lazy require보다 먼저. 입력 형식은 stdout에만 적는다.
+    if (argvRequestsHelp(rest)) {
+        io.out(HELP);
+        return 0;
+    }
     const parsed = parseDispatchPrintArgs(rest);
     if (parsed.error) {
         io.err(parsed.error);
@@ -101,7 +134,5 @@ function cmdDispatch(rest, io) {
 }
 module.exports = {
     run: cmdDispatch,
-    usage: `  dispatch print --role <implementer|reviewer|debugger|coordinator> --cwd <dir> --input <file> --out <dir>
-             Run one Cursor print dispatch (JSON).
-`,
+    usage: USAGE_BLOCK,
 };

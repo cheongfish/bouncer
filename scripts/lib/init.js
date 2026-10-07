@@ -10,6 +10,8 @@ const graphify = require("./graphify");
 const { setupGraphify, upgradeGraphify, readGraphifyLock, loadCompatManifest, } = graphify;
 const config = require("./config");
 const { readConfig, DEFAULT_VERIFY_ALLOWLIST, } = config;
+const preCommitHook = require("./pre-commit-hook");
+const { installPreCommitHook } = preCommitHook;
 // default source_dirs용 고정 probe 순서. init 시점에 존재하는 directory만
 // 남기며, 이 목록 순서가 config에 쓰이는 순서. SOURCE_DIR_CANDIDATES를
 // import하는 test와 동기 유지. test/tests는 구현 그래프 seed가 되지 않게
@@ -249,7 +251,34 @@ function lockNeedsUpgrade(repoRoot) {
         || lock.value.graph_schema_version !== manifest.value.graph_schema_version
         || (expectedPkg !== '' && lock.value.package_version !== expectedPkg);
 }
-function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCodexAgents, upgradeGraphify: wantUpgradeGraphify, } = {}) {
+function defaultLauncherPath() {
+    // 빌드된 init.js 기준 scripts/bouncer. source ts의 __dirname이 아니라
+    // emit 위치라야 설치 hook이 테스트·패키지 런처와 같은 파일을 가리킨다.
+    return path.resolve(__dirname, '..', 'bouncer');
+}
+/**
+ * 동의 플래그가 있을 때만 hook을 설치하고 결과 필드를 붙인다.
+ * 플래그 없는 기존 호출은 필드 자체가 없어야 테스트 스냅샷이 깨지지 않는다.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoRoot - 대상 저장소
+ * @param {boolean} [opts.want] - true일 때만 설치
+ * @param {string} [opts.launcherPath] - 생략 시 scripts/bouncer
+ * @returns {object} `preCommitHook`과 있으면 `preCommitHookWarning`, 아니면 빈 객체
+ */
+function preCommitHookFields({ repoRoot, want, launcherPath, }) {
+    if (want !== true)
+        return {};
+    const installed = installPreCommitHook({
+        repoRoot,
+        launcherPath: launcherPath || defaultLauncherPath(),
+    });
+    return {
+        preCommitHook: installed.preCommitHook,
+        ...(installed.warning ? { preCommitHookWarning: installed.warning } : {}),
+    };
+}
+function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCodexAgents, upgradeGraphify: wantUpgradeGraphify, preCommitHook: wantPreCommitHook, launcherPath, } = {}) {
     const bootstrap = inspectBootstrap({ repoRoot });
     // partial/legacy는 설치·승격·gitignore 쓰기를 시도하지 않는다 — 기존 반환 유지.
     if (bootstrap === 'legacy') {
@@ -360,6 +389,11 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCode
             ...(graphifyInstall ? { graphifyInstall } : {}),
             ...(graphifyUpgrade ? { graphifyUpgrade } : {}),
             ...(graphifyUpgradeAvailable ? { graphifyUpgradeAvailable: true } : {}),
+            ...preCommitHookFields({
+                repoRoot: repoRoot,
+                want: wantPreCommitHook,
+                launcherPath,
+            }),
         };
     }
     // 신규 부트스트랩
@@ -422,6 +456,11 @@ function init({ repoRoot, timestamp, graphify, promote, writeGitignore, seedCode
         ...(config.source_dirs.length === 0 ? { sourceDirsUnresolved: true } : {}),
         ...(!Object.prototype.hasOwnProperty.call(config, 'base_branch')
             ? { baseBranchUnresolved: true } : {}),
+        ...preCommitHookFields({
+            repoRoot: repoRoot,
+            want: wantPreCommitHook,
+            launcherPath,
+        }),
     };
 }
 module.exports = {
