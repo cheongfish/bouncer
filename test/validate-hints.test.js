@@ -28,7 +28,7 @@ test('GATE_FAILURE_HINTS attaches next only when code and match agree', () => {
   assert.ok(Array.isArray(GATE_FAILURE_HINTS));
   assert.deepStrictEqual(
     GATE_FAILURE_HINTS.map((h) => h.code).sort(),
-    ['G13', 'G18', 'G20', 'G22', 'G23', 'G24'],
+    ['G13', 'G18', 'G20', 'G22', 'G23', 'G24', 'S32'],
   );
   const f = (code, message) => ({ code, message, file: 'x.md' });
   const out = withGateFailureHints({ ok: false, failures: [
@@ -42,12 +42,14 @@ test('GATE_FAILURE_HINTS attaches next only when code and match agree', () => {
     f('G20', 'verification task cannot precede commit task: TASKS-002'),
     f('G22', 'scaffold guidance comments remain: a/index.md'),
     f('S7', 'tasks.affected_paths missing or empty'),
+    f('S32', 'commit_intent must be a YAML list of 0-2 strings'),
   ] }).failures;
   assert.match(out[0].next, /round 1 discovery[\s\S]*pending/);
   assert.match(out[2].next, /bouncer verify/);
   assert.match(out[3].next, /bouncer verify/);
   assert.match(out[6].next, /Source 변경 경로 없음\./);
   assert.match(out[8].next, /plan gate/);
+  assert.match(out[10].next, /YAML list of 1-2/);
   for (const i of [1, 4, 5, 7, 9]) assert.strictEqual('next' in out[i], false, out[i].message);
 });
 

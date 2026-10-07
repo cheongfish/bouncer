@@ -355,6 +355,11 @@ function templateBody(templateName: string, vars: TemplateVars): string {
 // 검증한다. 기존 문서의 필드 부재(undefined)는 호환을 위해 빈 배열로 둔다.
 function normalizeAuthoredLines(raw: unknown, field: string): string[] {
   if (raw === undefined) return [];
+  // YAML `field: 한 문장`은 리스트가 아니다. 한 항목으로 접으면 잘못된
+  // 작성이 커밋에 그대로 실리므로, plan S32와 같이 리스트 형태만 받는다.
+  if (typeof raw === 'string') {
+    throw new Error(`${field} must be a YAML list of 1-2 Korean terminal sentences`);
+  }
   if (!Array.isArray(raw) || raw.length < 1 || raw.length > 2) {
     throw new Error(`${field} must contain 1-2 Korean terminal sentences`);
   }

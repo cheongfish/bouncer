@@ -77,6 +77,12 @@ const GATE_FAILURE_HINTS: ReadonlyArray<GateFailureHint> = Object.freeze([
     next: 'If the change is intended, get the user\'s explicit approval, then run '
       + '`bouncer current --set <dir> --reapprove` and rerun the gate.',
   },
+  {
+    code: 'S32',
+    match: /must be a YAML list/,
+    next: 'Rewrite the field as a YAML list of 1-2 Korean terminal sentences '
+      + '(each item on its own `- ` line), then rerun the plan gate.',
+  },
 ]);
 
 /**

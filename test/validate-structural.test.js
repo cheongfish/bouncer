@@ -1074,6 +1074,27 @@ test('root review.md expects bouncer.review and REVIEW-<blueprint id>', () => {
   assert.ok(wrongId.some((f) => f.code === 'S5'), JSON.stringify(wrongId));
 });
 
+test('S32: commit_intent and commit_summary must be YAML lists, not scalars', () => {
+  const failuresFor = (extra) => {
+    const failures = [];
+    const base = goodTasks();
+    const rel = `${BP_REL}/tasks/001/tasks.md`;
+    checkStructural({ data: { ...base, resource: rel, bouncer: { ...base.bouncer, ...extra } }, rel }, failures);
+    return failures.filter((f) => f.code === 'S32');
+  };
+  assert.deepStrictEqual(failuresFor({}), []);
+  assert.deepStrictEqual(failuresFor({ commit_intent: [] }), []);
+  assert.deepStrictEqual(failuresFor({ commit_intent: ['한 문장임'] }), []);
+  assert.deepStrictEqual(failuresFor({
+    commit_intent: ['한 문장임', '두 문장임'],
+    commit_summary: ['요약함'],
+  }), []);
+  assert.ok(failuresFor({ commit_intent: '한 문장임' }).some((f) => /commit_intent.*YAML list/.test(f.message)));
+  assert.ok(failuresFor({ commit_summary: '요약함' }).some((f) => /commit_summary.*YAML list/.test(f.message)));
+  assert.ok(failuresFor({ commit_intent: ['a', 'b', 'c'] }).length > 0);
+  assert.ok(failuresFor({ commit_intent: [1] }).length > 0);
+});
+
 test('S31: review_scope other than blueprint is rejected', () => {
   const failures = [];
   const data = {

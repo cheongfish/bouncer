@@ -754,6 +754,8 @@ test('scaffoldTask writes compatible DAG defaults and templates expose the field
   assert.strictEqual(tasks.bouncer.parallel_safe, false);
   assert.strictEqual(tasks.bouncer.dependency_gate, 'integrated');
   assert.strictEqual(tasks.bouncer.execution_kind, 'commit');
+  assert.deepStrictEqual(tasks.bouncer.commit_intent, []);
+  assert.deepStrictEqual(tasks.bouncer.commit_summary, []);
 
   scaffoldTask({
     repoRoot: repo, blueprintDir: base, taskId: '002', timestamp: TS,
@@ -765,6 +767,10 @@ test('scaffoldTask writes compatible DAG defaults and templates expose the field
   assert.strictEqual(tasks002.bouncer.parallel_safe, false);
   assert.strictEqual(tasks002.bouncer.dependency_gate, 'integrated');
   assert.strictEqual(tasks002.bouncer.execution_kind, 'commit');
+  assert.deepStrictEqual(tasks002.bouncer.commit_intent, []);
+  assert.deepStrictEqual(tasks002.bouncer.commit_summary, []);
+  assert.match(rawTasks002, /commit_intent: \[\]/);
+  assert.match(rawTasks002, /commit_summary: \[\]/);
   assert.strictEqual(tasks002.bouncer.scope_evidence, undefined);
   assert.doesNotMatch(rawTasks002, /scope_evidence/);
 });

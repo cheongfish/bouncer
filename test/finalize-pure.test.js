@@ -824,7 +824,7 @@ test('authored sentence check accepts identifiers and rejects only malformed sha
   assert.deepStrictEqual(normalizeAuthoredLines(undefined, 'commit_intent'), []);
   // 문자열이 아닌 항목도 같은 문구로 거절한다.
   assert.throws(() => normalizeAuthoredLines([1], 'commit_intent'), /Korean terminal sentences/);
-  assert.throws(() => normalizeAuthoredLines('가함.', 'commit_intent'), /Korean terminal sentences/);
+  assert.throws(() => normalizeAuthoredLines('가함.', 'commit_intent'), /YAML list/);
 });
 
 test('finalize message parses blueprint Intent and ignores task authored fields', () => {

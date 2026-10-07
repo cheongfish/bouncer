@@ -278,11 +278,14 @@ test('malformed authored task field aborts message generation', () => {
   const task = yaml.load(fs.readFileSync(path.join(repo, taskRel), 'utf8').replace(/^---\n|\n---\n[\s\S]*$/g, ''));
   task.bouncer.commit_summary = ['첫 줄임', '둘째 줄임', '셋째 줄임'];
   writeDoc(repo, taskRel, task, '# Tasks\n');
-  assert.throws(() => commitTask({
+  const res = commitTask({
     repoRoot: repo,
     blueprintDir: BP_REL,
     git: trackingGit(['src/auth/login.ts'], []).api,
-  }), /commit_summary.*1-2/);
+  });
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'validate');
+  assert.ok(res.failures.some((f) => f.code === 'S32' && /commit_summary/.test(f.message)));
 });
 
 test('task commit filters allowed workflow documents but keeps task outputs', () => {

@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`commit_intent` YAML 리스트** — commit task scaffold가 `commit_intent`·
+  `commit_summary`를 빈 YAML 리스트로 두고, 스칼라 문자열은 plan 구조 검사
+  S32가 거절한다. `bouncer commit`이 스테이징 직전에야 같은 형태를 막던
+  경로를 승인 전에 끊는다.
+
 ### Changed
 
 - **print dispatch 입력 템플릿** — `implement`·`review`·`final_review` 계약
