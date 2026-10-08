@@ -106,6 +106,9 @@ explain 퀴즈, remainder 커밋, PR, 다음 blueprint)는 어느 값에서도 �
 `bouncer init`은 네 프로바이더 × 다섯 에이전트를 모두 `"inherit"`로 채워,
 편집할 자리를 보여 줍니다.
 
+키 이름·허용값·기본값의 원본은 `bouncer config --help` 출력이고, 위 표는 테스트가
+그 출력과 맞는지 확인합니다.
+
 ```json
 {
   "subagents": {

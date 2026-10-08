@@ -8,7 +8,9 @@ Codex-agent paths from the returned fields. Root `context/` is legacy and is
 not input. For `graphifyInstall`, report the recorded binary on success. On
 failure, Graphify remains disabled: report the cause and direct the user to
 install it manually, then recover later with `bouncer init --promote-graphify`.
-Do not edit Graphify config directly.
+Do not edit Graphify config directly. To change `subagents` keys in
+`.bouncer/config.json`, run `bouncer config --help` for the key names, allowed
+values, and defaults instead of reading plugin sources.
 
 When `graphifyPromotion: 'candidate'`, ask gate `init.graphify_promotion` in this order:
 

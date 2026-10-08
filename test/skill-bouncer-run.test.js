@@ -205,3 +205,8 @@ test('run dispatches the coordinator as a print process under the Cursor opt-in'
   const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'), md.indexOf('5. **Report.**'));
   assert.match(delegation, /item 7 opt-in \(Cursor `subagents\.dispatch:\s+"print"`\), the coordinator is a `bouncer dispatch print --role coordinator`\s+process per `rules\/cursor-print-dispatch\.md`/);
 });
+
+test('run step 4 builds the coordinator payload file with coordinate status --write-input', () => {
+  const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'));
+  assert.match(delegation, /coordinate status --blueprint .* --write-input/);
+});

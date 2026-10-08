@@ -139,6 +139,13 @@ function ledgerStatus(status: string): string {
   return OPEN_STATUS.includes(status) ? 'pending' : status;
 }
 
+/**
+ * main worktree 설정에서 autonomy를 읽는다. 누락·잘못된 값은 기본값으로 접는다.
+ * coordinate status --write-input도 같은 규칙을 쓰도록 export한다.
+ *
+ * @param {string} repoRoot - `.bouncer/config.json`이 있는 main checkout
+ * @returns {Autonomy} 값과 기본값 폴백 여부
+ */
 function readAutonomy(repoRoot: string): Autonomy {
   const parsed = readConfig(repoRoot);
   if (!isRecord(parsed) || !Object.prototype.hasOwnProperty.call(parsed, 'autonomy')) {
@@ -282,4 +289,4 @@ function runPreflight({ repoRoot, blueprintDir }: {
   };
 }
 
-export = { runPreflight };
+export = { runPreflight, readAutonomy };

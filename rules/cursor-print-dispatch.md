@@ -18,12 +18,16 @@ rule's items 2-4 unchanged, and this document does not apply.
    item 4 fallback payload. Write only the controller input file. Then run
    `bouncer dispatch print`, which writes the prompt file whose first line is
    the identity line below, before the role body:
-   - worker or reviewer: `You are the dispatched bouncer-<role> itself. Do
+   - worker, reviewer, or context-reviewer: `You are the dispatched bouncer-<role> itself. Do
      this role's work directly and never dispatch any Bouncer agent.`
    - coordinator: `You are the dispatched bouncer-coordinator itself. Dispatch
      only your workers, each under rules/cursor-print-dispatch.md.`
    The command then appends the role body and the controller input. Do not
    assemble those pieces in the session.
+   `--input` is free UTF-8 text, not JSON, and is appended as-is. The
+   coordinator input file is written by `bouncer coordinate status --blueprint
+   <dir> --write-input <file>` from the integration worktree; do not hand-write
+   its format.
 4. **Command.** From the actual cwd, run
    `bouncer dispatch print --role <role> --cwd <actual cwd> --input <file>
    --out <dir>` in the foreground. The command guarantees argv

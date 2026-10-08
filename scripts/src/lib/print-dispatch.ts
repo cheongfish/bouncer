@@ -12,7 +12,7 @@ const { resolveSubagentModel } = subagents;
 import codexAgents = require('./codex-agents');
 const { pluginAgentsDir } = codexAgents;
 
-const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'coordinator'] as const;
+const PRINT_ROLES = ['implementer', 'reviewer', 'debugger', 'context-reviewer', 'coordinator'] as const;
 type PrintRole = (typeof PRINT_ROLES)[number];
 
 type PrintDispatchDeps = {
@@ -59,7 +59,7 @@ function isEnoentError(error: unknown): boolean {
  * Cursor print 식별 줄. 문구는 `rules/cursor-print-dispatch.md` 3항과 바이트가
  * 같아야 한다. 역할이 named agent를 다시 띄우지 못하게 고정한 문장이다.
  *
- * @param {string} role - implementer|reviewer|debugger|coordinator
+ * @param {string} role - implementer|reviewer|debugger|context-reviewer|coordinator
  * @returns {string} prompt 첫 줄
  */
 function identityLine(role: string): string {

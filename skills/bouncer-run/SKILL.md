@@ -113,8 +113,11 @@ stay on the execute round.
    "print"`), the coordinator is a `bouncer dispatch print --role coordinator`
    process per `rules/cursor-print-dispatch.md` instead; never without the
    step 2 approval.
-   From `integrationPath`, run `bouncer coordinate status` once and keep its
-   `checkpoint` (including `ledger: { path, sha256, revision }`) for the
+   From `integrationPath`, run
+   `bouncer coordinate status --blueprint <dir> --write-input .bouncer/runtime/print/coordinator.input.md`
+   once. It writes the payload below as one text file (with its `checkpoint`, including
+   `ledger: { path, sha256, revision }`) — do not hand-write the payload, and
+   pass that file as the print `--input` or as the Task / named dispatch
    payload. The payload is:
    - write cwd: `integrationPath` — the coordinator and its workers mutate only
      there and in the task worktrees it assigns. Never pass the main worktree as
@@ -135,7 +138,8 @@ stay on the execute round.
    never end the turn or render step 5 while the coordinator still runs.
    On `continue`, do not go to step 5. `interactive` emits the
    `rules/output.md` continue line; remaining `N` is re-fetched
-   `active_tasks.length`. Call `coordinate status` again — do not read or
+   `active_tasks.length`. Call `coordinate status --write-input` again to
+   rewrite the file with the new checkpoint — do not read or
    edit the ledger. If `completed_tasks.length` grew, dispatch a new coordinator
    with the same payload plus that checkpoint (no ACQ). Wait in the foreground
    for that new coordinator and apply the same continue / no-progress / terminal-stop rules again (a loop, one at a time).

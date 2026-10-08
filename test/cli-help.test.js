@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const { runCli } = require('../scripts/lib/cli');
+const { NAMED_AGENTS } = require('../scripts/lib/codex-agents');
 
 const SUBCOMMANDS = [
   'validate', 'scaffold', 'finalize', 'seed-worktree', 'verify', 'init', 'graph-sync',
@@ -25,6 +26,7 @@ const SUBCOMMANDS = [
   'review-dispatch',
   'review',
   'dispatch',
+  'config',
 ];
 
 function capture(argv) {
@@ -245,7 +247,7 @@ test('usage lists dispatch print form', () => {
   const out = capture([]).out;
   assert.match(
     out,
-    /dispatch print --role <implementer\|reviewer\|debugger\|coordinator> --cwd <dir> --input <file> --out <dir>/,
+    /dispatch print --role <implementer\|reviewer\|debugger\|context-reviewer\|coordinator> --cwd <dir> --input <file> --out <dir>/,
   );
 });
 
@@ -415,5 +417,29 @@ test('review-dispatch keeps rejecting invalid calls and treats a flag value -h a
     const r = capture(argv);
     assert.strictEqual(r.code, 2, `${argv.join(' ')} exit`);
     assert.strictEqual(r.out, '', `${argv.join(' ')} stdout`);
+  }
+});
+
+test('coordinate status --help lists --write-input', () => {
+  const r = capture(['coordinate', 'status', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /\[--write-input <file>\]/);
+});
+
+test('config --help/-h prints subagents keys on stdout and rejects other argv', () => {
+  for (const flag of ['--help', '-h']) {
+    const r = capture(['config', flag]);
+    assert.strictEqual(r.code, 0, `config ${flag} exit`);
+    assert.strictEqual(r.err, '');
+    for (const v of ['subagents.provider', 'subagents.dispatch', 'subagents.<provider>.<agent>',
+      'claude', 'cursor', 'codex', 'antigravity', 'print', 'inherit', ...NAMED_AGENTS]) {
+      assert.ok(r.out.includes(v), v);
+    }
+  }
+  for (const argv of [['config'], ['config', 'set'], ['config', '--provider', 'cursor']]) {
+    const r = capture(argv);
+    assert.strictEqual(r.code, 2, `${argv.join(' ')} exit`);
+    assert.match(r.err, /usage: bouncer config --help/);
+    assert.strictEqual(r.out, '');
   }
 });

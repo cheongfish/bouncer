@@ -51,6 +51,7 @@ Do not scaffold tasks into a closed blueprint.
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
 bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery> --blueprint <dir> ...
+bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \
@@ -80,10 +81,11 @@ bouncer graphify-bin
 bouncer graph-sync
 bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
 bouncer subagent-model --agent <name> [--provider <name>]
+bouncer config --help
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir>
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
-bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 
@@ -142,7 +144,7 @@ duplicate options, `--task` not three digits, `--status` outside
 `requested|addressed|accepted` including `pending`) is exit 2.
 
 ```sh
-bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 

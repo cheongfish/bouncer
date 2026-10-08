@@ -7,6 +7,22 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`bouncer config --help`** — `.bouncer/config.json`의 `subagents` 키 이름·허용값·
+  기본값을 코드 상수에서 읽기 전용으로 출력한다. `docs/`가 플러그인 배포물에 없어
+  init 세션이 `scripts/`를 읽던 틈을 메우고, 테스트가 `docs/configuration.md` 표와
+  출력의 일치를 확인하며 `init-result.md`가 이 명령을 가리킨다.
+- **`coordinate status --write-input <file>`** — integration worktree에서
+  coordinator print dispatch 입력 텍스트(write cwd, base SHA, checkpoint,
+  autonomy, read-only provenance)를 파일로 쓰고 `input_file`을 보고한다.
+  `/bouncer-run` 4단계와 print dispatch 규칙이 이 명령을 가리켜 세션이
+  형식을 찾으려 플러그인 소스를 읽지 않게 한다.
+- **print dispatch `context-reviewer` role** — `bouncer dispatch print`가
+  `--role context-reviewer`를 받고, plan context-review 지침이 호출별
+  (`r1-combined`·`r1-local-<cluster id>`·`r1-global`·`r2-delta`) print 명령과
+  `dispatch print` 실패 뒤에만 inline 검토를 허용하는 조건을 적는다.
+
 ### Fixed
 
 - **lint 오류 네 곳** — `templates.ts`·`verification.ts`의 120자 초과 줄과

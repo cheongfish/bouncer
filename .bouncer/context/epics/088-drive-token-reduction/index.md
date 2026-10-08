@@ -45,11 +45,15 @@ bouncer:
 20. review·final_review 카드는 finding status 값과 의미를 문서 `--status`와 나눠 적고, `open` must_fix가 남은 discovery round와 그 finding을 `resolved`로 바꾸는 delta round 예시 JSON을 싣는다. 테스트가 두 예시를 차례로 `review record`에 넣어 둘 다 성공하는지 확인한다.
 21. ledger-001~004·fastify-001 평가자 정책은 `policy_version` 3이고, `finalize.remainder` 답이 A(`finalize --yes` 커밋과 worktree 제거)이며, `finalize.next_blueprint` 항목이 없고, `approval_record`에 2026-10-08 사용자 승인이 있다. 응답기는 `policy_version` 3만 받고, v088004-1 finalize 질문 fixture에 finalize 증거가 있으면 A로, 없으면 답하지 않는다.
 22. `run-bouncer-full.cjs`는 finalize 뒤 integration worktree가 없어도 finalize 전에 기록한 integration 브랜치 ref에서 closed blueprint, HEAD, `diff.patch`를 모은다. 그 브랜치를 찾지 못하면 run을 `stopped`로 끝낸다.
+23. `bouncer dispatch print --role context-reviewer`는 첫 줄이 `You are the dispatched bouncer-context-reviewer itself. Do this role's work directly and never dispatch any Bouncer agent.`이고 그 뒤에 `agents/bouncer-context-reviewer.md` 본문이 오는 prompt 파일을 만든다. 목록에 없는 role은 여전히 exit 2로 거절한다.
+24. `skills/bouncer-plan/references/context-review.md`는 print opt-in일 때 실행할 `bouncer dispatch print --role context-reviewer` 명령을 호출마다 다른 `--out`과 함께 적는다. 그 경로에서 inline 검토는 dispatch가 실패했을 때만 허용하고, 그 사실을 `context-review.md` `## Findings`에 한 줄로 남기라고 적는다.
+25. `bouncer coordinate status --write-input <file>`는 write cwd, blueprint, 원장 `base`, `checkpoint.ledger.{path,sha256,revision}`, `autonomy`, 읽기 전용 provenance를 담은 텍스트 파일을 쓰고, 그 파일로 `dispatch print --role coordinator`를 돌리면 prompt 파일이 생긴다. `skills/bouncer-run/SKILL.md` 4단계는 그 명령을 가리키고, `rules/cursor-print-dispatch.md` 3항은 `--input`이 자유 텍스트이며 그대로 붙는다고 적는다.
+26. `bouncer config --help`와 `-h`는 exit 0으로 `subagents.provider`, `subagents.dispatch`, `subagents.<provider>.<agent>`의 허용값과 기본값을 출력한다. 테스트가 그 키·값 집합이 `docs/configuration.md` 표와 같은지 확인하고, `skills/bouncer-init/references/init-result.md`가 이 명령을 가리킨다.
 
 ## Out of scope
 - 재측정 실행 자체와 그 결과 해석. 이 epic은 측정 대상 코드와 하네스만 바꾼다.
 - vanilla 대비 품질 이득을 재는 새 벤치마크 과제 추가(`workflow-token-analysis.md` 6.1절).
-- 2단계 중 과제 크기별 절차, 5장 문제(plan 승인 추론, open decisions의 ACQ 전환, print dispatch의 context-reviewer 지원), Graphify 용도 전환은 Success criteria에 아직 넣지 않는다. 진행할 때 이 epic에 blueprint와 기준을 함께 추가한다.
+- 2단계 중 과제 크기별 절차, 5장 문제(plan 승인 추론, open decisions의 ACQ 전환), Graphify 용도 전환은 Success criteria에 아직 넣지 않는다. 진행할 때 이 epic에 blueprint와 기준을 함께 추가한다.
 
 ## Blueprints
 * [001 coordinator 복구 루프 제거](blueprints/001-coordinator-recovery-fixes/index.md) - `coordinator.ts`·`intent-bundle.ts` brief 해시, `seed-worktree.ts` worker seed, `coordinate`·`review record`·`dispatch print` 도움말, run·coordinator 지침의 finalize 진입, `Dockerfile.cursor` PATH를 고침
@@ -57,3 +61,4 @@ bouncer:
 * [003 coordinator 계약 카드](blueprints/003-coordinator-contract-cards/index.md) - `references/coordinator-cards/` 행동별 drive 계약과 `coordinate-next.ts`의 `card` 첨부, `agents/bouncer-coordinator.md`에서 execute reference 읽기를 걷어냄
 * [004 coordinator 지침 탐색 제거](blueprints/004-coordinator-lookup-removal/index.md) - `verification.ts` verify 통과 시 commit task `verified` 전환, implement·review·final_review 카드의 print dispatch 입력 템플릿, `review record --help` round 예시
 * [005 리뷰 기록 형식과 finalize 정책](blueprints/005-review-format-finalize-policy/index.md) - `review-dispatch plan --help` context review 예시, `review record` finding status `open`과 review·final_review 카드 예시, ledger 평가자 정책 `finalize.remainder`·응답기·`run-bouncer-full.cjs` 증거 수집을 고침
+* [006 print dispatch 계약 빈칸 채우기](blueprints/006-print-dispatch-contract-gaps/index.md) - `print-dispatch.ts`·`cli-dispatch-command.ts` context-reviewer role과 plan context-review 명령, `coordinate status --write-input`과 run 스킬 4단계, `bouncer config --help`와 init 안내
