@@ -39,6 +39,11 @@
 
 ### Changed
 
+- **print dispatch plugin root 줄** — `bouncer dispatch print` prompt가 식별 줄
+  다음에 `Plugin root: <절대 경로>. Resolve plugin-relative paths …`를 넣어,
+  역할 세션이 `references/`·`rules/`·`agents/`를 워크스페이스에서 찾지 않고
+  플러그인 루트에 붙이게 한다. `rules/cursor-print-dispatch.md` 3항이 같은
+  문구를 한 줄로 적는다.
 - **finding status `open`** — execute 리뷰 finding에 해결 전을 뜻하는 `open`을
   더한다. 리뷰 문서가 `accepted`이면 `open`이 하나라도 있을 때
   `finding <id> open in accepted review`로 `review record`·G14·G21이 거절하고,

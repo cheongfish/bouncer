@@ -17,13 +17,15 @@ rule's items 2-4 unchanged, and this document does not apply.
 3. **Payload.** A print process loads no named agent, so it always carries the
    item 4 fallback payload. Write only the controller input file. Then run
    `bouncer dispatch print`, which writes the prompt file whose first line is
-   the identity line below, before the role body:
+   the identity line below, then the plugin-root line, then the role body:
    - worker, reviewer, or context-reviewer: `You are the dispatched bouncer-<role> itself. Do
      this role's work directly and never dispatch any Bouncer agent.`
    - coordinator: `You are the dispatched bouncer-coordinator itself. Dispatch
      only your workers, each under rules/cursor-print-dispatch.md.`
+   - plugin root (one unwrapped line after the identity line): `Plugin root: <absolute path>. Resolve plugin-relative paths (rules/..., references/..., agents/...) against it.`
    The command then appends the role body and the controller input. Do not
-   assemble those pieces in the session.
+   assemble those pieces in the session. Resolve `rules/…`, `references/…`, and
+   `agents/…` against that plugin root — do not search the workspace for them.
    `--input` is free UTF-8 text, not JSON, and is appended as-is. The
    coordinator input file is written by `bouncer coordinate status --blueprint
    <dir> --write-input <file>` from the integration worktree; do not hand-write

@@ -12,7 +12,11 @@ const WORKER_IDENTITY =
   "You are the dispatched bouncer-reviewer itself. Do this role's work directly and never dispatch any Bouncer agent.";
 const COORDINATOR_IDENTITY =
   'You are the dispatched bouncer-coordinator itself. Dispatch only your workers, each under rules/cursor-print-dispatch.md.';
-
+// 코드·규칙 문서가 바이트 단위로 같은 루트 줄. 경로만 호출자가 채운다.
+const ROOT_LINE = (root) =>
+  `Plugin root: ${root}. Resolve plugin-relative paths (rules/..., references/..., agents/...) against it.`;
+const CONTEXT_REVIEWER_IDENTITY =
+  "You are the dispatched bouncer-context-reviewer itself. Do this role's work directly and never dispatch any Bouncer agent.";
 /**
  * print 디스패치 테스트용 임시 트리: repo 설정, 역할 문서, 가짜 agent, cwd/out.
  *
@@ -125,7 +129,7 @@ test('happy path assembles prompt, argv, and final result report', () => {
     assert.equal(result.report, 'REPORT');
     const promptPath = path.join(tree.outDir, 'bouncer-reviewer.prompt.md');
     const prompt = fs.readFileSync(promptPath, 'utf8');
-    assert.ok(prompt.startsWith(`${WORKER_IDENTITY}\n\n# `));
+    assert.ok(prompt.startsWith(`${WORKER_IDENTITY}\n\n${ROOT_LINE(tree.root)}\n\n# `));
     assert.ok(prompt.endsWith(tree.inputText));
     const argv = JSON.parse(fs.readFileSync(path.join(tree.cwd, 'argv.json'), 'utf8'));
     assert.deepEqual(argv.slice(0, 9), [
@@ -142,6 +146,12 @@ test('happy path assembles prompt, argv, and final result report', () => {
   } finally {
     fs.rmSync(tree.root, { recursive: true, force: true });
   }
+});
+
+test('cursor-print-dispatch rule documents the root line as one unwrapped span', () => {
+  const repoRoot = path.resolve(__dirname, '..');
+  const rule = fs.readFileSync(path.join(repoRoot, 'rules/cursor-print-dispatch.md'), 'utf8');
+  assert.ok(rule.includes(ROOT_LINE('<absolute path>')));
 });
 
 test('omits --model when the role slug is inherit/null', () => {
@@ -177,7 +187,7 @@ test('coordinator prompt starts with the coordinator identity line', () => {
       path.join(tree.outDir, 'bouncer-coordinator.prompt.md'),
       'utf8',
     );
-    assert.ok(prompt.startsWith(`${COORDINATOR_IDENTITY}\n\n# `));
+    assert.ok(prompt.startsWith(`${COORDINATOR_IDENTITY}\n\n${ROOT_LINE(tree.root)}\n\n# `));
   } finally {
     fs.rmSync(tree.root, { recursive: true, force: true });
   }
@@ -367,7 +377,7 @@ test('context-reviewer prompt uses the worker identity line, role body, and mode
     const result = runPrint(tree, { role: 'context-reviewer' });
     assert.equal(result.ok, true);
     const prompt = fs.readFileSync(path.join(tree.outDir, 'bouncer-context-reviewer.prompt.md'), 'utf8');
-    assert.ok(prompt.startsWith("You are the dispatched bouncer-context-reviewer itself. Do this role's work directly and never dispatch any Bouncer agent.\n\n"));
+    assert.ok(prompt.startsWith(`${CONTEXT_REVIEWER_IDENTITY}\n\n${ROOT_LINE(tree.root)}\n\n# `));
     assert.match(prompt, /<context-reviewer role body marker>/);
     const argv = JSON.parse(fs.readFileSync(path.join(tree.cwd, 'argv.json'), 'utf8'));
     assert.deepEqual(argv.slice(argv.indexOf('--model'), argv.indexOf('--model') + 2), ['--model', 'slug-cr']);
