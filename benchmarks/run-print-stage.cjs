@@ -10,7 +10,7 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = r
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { acqMarkers, delegateOpenDecisions, loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest, unreadQuestion,
+const { acqMarkers, delegateOpenDecisions, loadPolicy, answerTextQuestion, answerQuizText, looksLikeQuizRequest, unhandledQuestionMethod,
 } = require('./acp/responder.cjs');
 const { normalizeUsage, sumUsage, transcriptFiles, usageCoverage, usageFromCursorLogs } = require('./usage.cjs');
 const { argsOf, stages } = require('./stage-args.cjs');
@@ -139,11 +139,13 @@ async function main() {
       }
       const acq = acqMarkers(text).length > 0;
       const quiz = stage === 'bouncer-finalize' && !acq && looksLikeQuizRequest(text);
-      if (!acq && !quiz && unreadQuestion(text)) {
-        unanswered.push({ at: new Date().toISOString(), method: 'text/unread-question', text: text });
+      // unread AskUserQuestion names and unrecognized option lists both stop here; method comes from the
+      // pure helper so the harness does not invent a third quiet-exit path.
+      if (!acq && !quiz) {
+        const method = unhandledQuestionMethod(text);
+        if (method) unanswered.push({ at: new Date().toISOString(), method, text });
         break;
       }
-      if (!acq && !quiz) break;
       const decision = acq ? answerTextQuestion(policy, stage, text, args.sessionCwd)
         : answerQuizText(policy, stage, text);
       const method = acq ? 'text/AskUserQuestion' : 'text/Quiz';

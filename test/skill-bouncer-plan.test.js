@@ -242,9 +242,9 @@ test('bouncer-plan dispatches context-review before approval with named-agent fa
   // 입력을 싣는다. "same brief"만 남으면 축약된 reviewer가 판정을 통과한다.
   const fallback = dispatch.slice(dispatch.indexOf('If named agents are unavailable'));
   const paragraph = fallback.slice(0, fallback.indexOf('\n\n'));
-  assert.match(paragraph, /entire\s+body\s+of\s+`agents\/bouncer-context-reviewer\.md`/);
+  assert.match(paragraph, /entire\s+body\s+of\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-context-reviewer\.md`/);
   assert.match(paragraph, /Authority\s+through\s+Output\s+contract/);
-  assert.match(paragraph, /first\s+reads\s+`agents\/bouncer-context-reviewer\.md`/);
+  assert.match(paragraph, /first\s+reads\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-context-reviewer\.md`/);
   for (const input of [/mode/, /frozen\s+target/, /digest/, /document\s+list/, /perspective/,
     /previous\s+findings/, /read-only\s+cwd/]) {
     assert.match(paragraph, input);

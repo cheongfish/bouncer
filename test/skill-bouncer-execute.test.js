@@ -244,9 +244,9 @@ function fallbackOf(text) {
 test('bouncer-execute debugger fallback carries the whole debugger role and its inputs', () => {
   const recovery = fs.readFileSync(path.join(root, 'skills/bouncer-execute/references/verification-recovery.md'), 'utf8');
   const fallback = fallbackOf(recovery);
-  assert.match(fallback, /entire\s+body\s+of\s+`agents\/bouncer-debugger\.md`/);
+  assert.match(fallback, /entire\s+body\s+of\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-debugger\.md`/);
   assert.match(fallback, /Authority\s+through\s+Output\s+contract/);
-  assert.match(fallback, /first\s+reads\s+`agents\/bouncer-debugger\.md`/);
+  assert.match(fallback, /first\s+reads\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-debugger\.md`/);
   assert.match(fallback, /failing\s+verify\s+evidence/);
   assert.match(fallback, /read-only\s+cwd/);
   // 절 이름은 대소문자를 구분하고 단어 경계를 건다 — `Touch`가 "Do not touch"에
@@ -269,9 +269,9 @@ test('bouncer-execute reviewer fallback carries the whole reviewer role and the 
   const step3 = fallbackOf(review.slice(review.indexOf('3. **Review**')));
   const dispatchReview = fallbackOf(dispatch.slice(dispatch.indexOf('For review,')));
   for (const [label, text] of [['review step 3', step3], ['agent-dispatch review', dispatchReview]]) {
-    assert.match(text, /entire\s+body\s+of\s+`agents\/bouncer-reviewer\.md`/, label);
+    assert.match(text, /entire\s+body\s+of\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-reviewer\.md`/, label);
     assert.match(text, /reviewer-prompt/, label);
-    assert.match(text, /first\s+reads\s+`agents\/bouncer-reviewer\.md`/, label);
+    assert.match(text, /first\s+reads\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-reviewer\.md`/, label);
     for (const input of [/\bbase\b/, /\bHEAD\b/, /\btask\s+brief\s+revision\b/, /\bmode\b/,
       /\bperspective\b/, /\blatest\s+verify\b/, /\bprevious\s+findings\b/,
       /\brevision\s+diff\b/, /\bread-only\s+cwd\b/]) {
@@ -285,7 +285,7 @@ test('bouncer-execute reviewer fallback carries the whole reviewer role and the 
   assert.match(step3, /intent_bundles/);
   // call slot 자체도 두 운반 경로의 차이를 적는다.
   assert.match(prompt, /named[\s\S]{0,200}only\s+this\s+(?:filled\s+)?call\s+slot/i);
-  assert.match(prompt, /entire\s+body\s+of\s+`agents\/bouncer-reviewer\.md`/);
+  assert.match(prompt, /entire\s+body\s+of\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-reviewer\.md`/);
 });
 
 test('bouncer-execute re-dispatches implementer with the debugger report after verify failure', () => {

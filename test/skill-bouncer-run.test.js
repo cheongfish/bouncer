@@ -203,7 +203,7 @@ test('run waits in the foreground for the coordinator outcome', () => {
 // Cursor에서 coordinator를 Task로 띄우면 토큰이 남지 않는다 — opt-in 시 print 프로세스로 띄운다.
 test('run dispatches the coordinator as a print process under the Cursor opt-in', () => {
   const delegation = md.slice(md.indexOf('4. **Coordinator dispatch.**'), md.indexOf('5. **Report.**'));
-  assert.match(delegation, /item 7 opt-in \(Cursor `subagents\.dispatch:\s+"print"`\), the coordinator is a `bouncer dispatch print --role coordinator`\s+process per `rules\/cursor-print-dispatch\.md`/);
+  assert.match(delegation, /item 7 opt-in \(Cursor `subagents\.dispatch:\s+"print"`\), the coordinator is a `bouncer dispatch print --role coordinator`\s+process per `\$\{BOUNCER_ROOT\}\/rules\/cursor-print-dispatch\.md`/);
 });
 
 test('run step 4 builds the coordinator payload file with coordinate status --write-input', () => {

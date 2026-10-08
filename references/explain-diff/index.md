@@ -5,14 +5,14 @@ description: "Use from /bouncer-finalize after scaffold explain to author explai
 
 # Explain Diff
 
-**Plugin-root shell contract.** See `rules/plugin-root.md`; the CLI shell in this skill resolves independently.
+**Plugin-root shell contract.** See `${BOUNCER_ROOT}/rules/plugin-root.md`; the CLI shell in this skill resolves independently.
 
 Author and record comprehension for the active blueprint's `explain.md`.
 Called only from `/bouncer-finalize` after `scaffold explain`. This skill does
 **not** replace `scaffold explain` — if the file is missing, stop and tell the
 caller to scaffold first.
 
-`rules/acq.md` governs confirmation display, but the quiz collects one batch of
+`${BOUNCER_ROOT}/rules/acq.md` governs confirmation display, but the quiz collects one batch of
 answers and is **not an ACQ**.
 
 ## When this applies
@@ -35,7 +35,7 @@ status published. Not a workflow entry point.
    - `## Code` — key paths and files to read (no long dumps)
    - `## Quiz` — questions and three answer options each (no correct
      answers, no user responses)
-   Then apply `stop-slop` (`references/stop-slop/index.md`) (advisory) before the
+   Then apply `stop-slop` (`${BOUNCER_ROOT}/references/stop-slop/index.md`) (advisory) before the
    quiz — strip filler and formulaic closers from the four sections.
 
 2. **Resolve `range_from`.** Use the finalize prepare digest's `range.base`

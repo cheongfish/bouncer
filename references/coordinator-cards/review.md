@@ -4,7 +4,7 @@ Contract card for the `coordinate next` action `review` (per-task review,
 when `review_scope` is absent). Rules are copied from the coordinator Worker
 dispatch and the execute agent-dispatch and review-round references.
 
-- Dispatch named `bouncer-reviewer` through `rules/subagent-model.md`.
+- Dispatch named `bouncer-reviewer` through `${BOUNCER_ROOT}/rules/subagent-model.md`.
   `bouncer-reviewer` stays read-only. Never play that role yourself and never
   let one worker judge another's report.
 - When `review_scope` is absent, keep the existing per-task procedure: freeze
@@ -34,7 +34,7 @@ dispatch and the execute agent-dispatch and review-round references.
   never another reviewer's findings or the full Explain body.
 - If named agents are unavailable, dispatch fresh generic subagents in the
   same `perspectives` order, each carrying the entire body of
-  `agents/bouncer-reviewer.md` — every section from Authority through Output
+  `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` — every section from Authority through Output
   contract, verbatim — plus its filled reviewer-prompt: frozen base and HEAD,
   task brief revision, `task_brief_hash`, `intent_bundle_id`,
   `intent_bundle_revision`, `intent_sections`, mode, perspective, strategy,
@@ -46,7 +46,7 @@ dispatch and the execute agent-dispatch and review-round references.
 When `.bouncer/config.json` has `subagents.provider: "cursor"` and
 `subagents.dispatch: "print"`, write only a `--input` text file. Pass cwd
 as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
-Do not read `agents/*.md`, `reviewer-prompt.md`, or `review-rounds.md`.
+Do not read `${BOUNCER_ROOT}/agents/*.md`, `reviewer-prompt.md`, or `review-rounds.md`.
 
 `--input` file, in this order: Mode, Perspective, Strategy, Risk flags,
 Target, Brief, Intent sections, Constraints, then delta inputs (previous

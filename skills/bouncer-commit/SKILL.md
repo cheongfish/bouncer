@@ -4,7 +4,7 @@ description: "Use only when the user explicitly asks /bouncer-commit; it commits
 ---
 # /bouncer-commit
 
-**Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
+**Plugin root.** Run `BOUNCER_ROOT="$(bouncer-root --auto)"` once at session start and open every plugin document cited as `${BOUNCER_ROOT}/…` from that root; `${BOUNCER_ROOT}/rules/plugin-root.md` holds the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
 
@@ -31,7 +31,7 @@ Apply the shared returned-value and task-brief selection contract. This
 workflow only supplies the current task's scope and its post-commit handoff.
 
 1. **Current.** State the selected `{ blueprint, task, base }` from `bouncer
-   current`. Read `rules/commit-scope.md` for the commit unit, staging and
+   current`. Read `${BOUNCER_ROOT}/rules/commit-scope.md` for the commit unit, staging and
    controller/worktree boundary this commit is judged against; later steps keep
    that `tasks/<NNN>/tasks.md` brief.
 
@@ -71,7 +71,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
    provenance the controller routes on: the task SHA on the worker branch,
    the paths the commit actually carried, the ledger record result, and
    `nextTask`. For how to read that result and any `recovery.action` on it,
-   read `rules/cli.md` — the CLI result contract is separate from the commit
+   read `${BOUNCER_ROOT}/rules/cli.md` — the CLI result contract is separate from the commit
    scope this workflow judged in step 1.
 
    When `nextAction` is `return-to-coordinator`, return those to the coordinator and stop. It records the worker SHA with `bouncer coordinate
@@ -83,7 +83,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
    integration branch. An unverified fan-in is not a completed task.
 
    When `nextAction` is `ask-next-task` or `finalize`, report the commit through
-   `rules/output.md` and read `rules/current-pointer.md` for confirm-then-set. With a
+   `${BOUNCER_ROOT}/rules/output.md` and read `${BOUNCER_ROOT}/rules/current-pointer.md` for confirm-then-set. With a
    non-null `nextTask`, show its id and path (`tasks/<NNN>/tasks.md`), then
    run this **ACQ**:
 
@@ -100,7 +100,7 @@ workflow only supplies the current task's scope and its post-commit handoff.
 
 ## ACQ (AskUserQuestion) gates
 
-Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
+Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback. A bare
 `/bouncer-commit` is not consent for a pointer advance.
 
 **Index:**

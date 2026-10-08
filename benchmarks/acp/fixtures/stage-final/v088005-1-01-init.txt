@@ -1,0 +1,12 @@
+Applying both A choices: write `.gitignore` suggestions and install the pre-commit hook.완료: gitignore 기록 · pre-commit hook 설치 · `subagents.provider=cursor` / `dispatch=print` 유지 · 다음: 부트스트랩 커밋 후 `/bouncer-plan`
+
+- `.gitignore`에 `node_modules/`, `graphify-out/`, `.worktrees/`, `.bouncer/.venv/`, `.bouncer/runtime/` 추가됨
+- Git 기본 `hooks/pre-commit`에 Bouncer hook 설치됨
+
+부트스트랩을 별도 커밋으로 남겨 주세요 (제가 대신 커밋하지는 않습니다):
+
+```bash
+git add .bouncer/config.json .bouncer/context .gitignore && git commit -m "chore: bootstrap bouncer"
+```
+
+그다음 `/bouncer-plan`으로 `-f` PRD를 넘기면 됩니다. 원하면 그전에 `.bouncer/config.json`의 `source_dirs`, `verify`, `base_branch`, `pr`도 조정할 수 있습니다.

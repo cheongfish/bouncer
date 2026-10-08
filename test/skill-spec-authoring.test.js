@@ -130,7 +130,8 @@ test('spec-authoring requires review_risk enum with empty-array and grounding ru
     assert.match(schema, new RegExp(value));
   }
   // 위험 없음은 필드 생략이 아니라 빈 배열을 쓴다(신규 작성).
-  assert.match(md, /review_risk[\s\S]{0,200}\[\]|`\[\]`[\s\S]{0,80}review_risk/);
+  // `${BOUNCER_ROOT}/…` 접두가 `[]`↔`review_risk` 사이를 늘리므로 우대안 창을 100으로 둔다.
+  assert.match(md, /review_risk[\s\S]{0,200}\[\]|`\[\]`[\s\S]{0,100}review_risk/);
   // Interface·Touch가 공개 API·인증·권한·credential을 말할 때 enum을 빠짐없이 기록.
   assert.match(
     md,

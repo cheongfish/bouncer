@@ -1,11 +1,11 @@
 After the remainder choice, when cleaning up the worktree or handing off the next blueprint, read this reference.
 
-Use `rules/acq.md` for the shared ACQ display and chat fallback; this reference
+Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback; this reference
 does not open an ACQ of its own.
-Use `rules/current-pointer.md` for pointer clear and confirm-then-set
+Use `${BOUNCER_ROOT}/rules/current-pointer.md` for pointer clear and confirm-then-set
 invariants; this reference applies the finalize next-blueprint exception there.
 
-**Plugin-root shell contract.** See `rules/plugin-root.md`; the main-worktree cleanup shell below remains independent.
+**Plugin-root shell contract.** See `${BOUNCER_ROOT}/rules/plugin-root.md`; the main-worktree cleanup shell below remains independent.
 
 After `--yes`, run cleanup from the main worktree, not a checkout you are removing.
 

@@ -1,8 +1,8 @@
 # Planning
 
 계획 단계(plan · spec-authoring · template)가 읽는 계약이다.
-실행 범위·commit 계약은 `rules/commit-scope.md`, coordinator mutation 절차는
-`agents/bouncer-coordinator.md`에 있다.
+실행 범위·commit 계약은 `${BOUNCER_ROOT}/rules/commit-scope.md`, coordinator mutation 절차는
+`${BOUNCER_ROOT}/agents/bouncer-coordinator.md`에 있다.
 
 ## Blueprint sizing rule
 
@@ -65,7 +65,7 @@ What shrinks (five things only):
 4. **Agent round-trips** — light implement routing (inline vs named) is owned
    by `skills/bouncer-execute/references/agent-dispatch.md`.
 5. **Quiz size** — light quiz sizing is owned by
-   `references/explain-diff/index.md`.
+   `${BOUNCER_ROOT}/references/explain-diff/index.md`.
 
 What stays the same:
 
@@ -106,8 +106,8 @@ baseline for later coordinator revision; it does not freeze runtime ledger
 state.
 
 Coordinator-owned revision of approved `affected_paths` after plan time is
-owned by `rules/commit-scope.md` `## Approved and ledger scope`; the revision
-procedure itself is `agents/bouncer-coordinator.md`.
+owned by `${BOUNCER_ROOT}/rules/commit-scope.md` `## Approved and ledger scope`; the revision
+procedure itself is `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`.
 
 ## Epic naming
 

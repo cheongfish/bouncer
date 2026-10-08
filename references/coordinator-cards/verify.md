@@ -11,7 +11,7 @@ the coordinator Task round and the execute verification-recovery reference.
 
 ## Verify failure
 
-- Dispatch named `bouncer-debugger` (plugin `agents/bouncer-debugger.md`) with
+- Dispatch named `bouncer-debugger` (plugin `${BOUNCER_ROOT}/agents/bouncer-debugger.md`) with
   the failing verify evidence, only the pointer task brief's Goal & intent,
   Interface, Touch, Do not touch, Constraints, and Checklist, the shared
   `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, the
@@ -19,7 +19,7 @@ the coordinator Task round and the execute verification-recovery reference.
   <current.task.path> --role debugger`, and the assigned read-only cwd. Do not
   pass the full Explain body or another role's report.
 - When named agents are unavailable, use a fresh generic read-only subagent
-  whose payload carries the entire body of `agents/bouncer-debugger.md` —
+  whose payload carries the entire body of `${BOUNCER_ROOT}/agents/bouncer-debugger.md` —
   every section from Authority through Output contract, verbatim — plus the
   failing verify evidence, the task brief's Goal & intent, Interface, Touch, Do
   not touch, Constraints, and Checklist, the same `task_brief_hash`,

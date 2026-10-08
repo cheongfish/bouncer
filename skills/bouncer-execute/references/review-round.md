@@ -90,7 +90,7 @@ procedure (pointer-task `review.md`, `--task <NNN>`).
 
 ## Round ledger contract
 
-완결된 `rounds[]` 예제는 `references/spec-authoring/review-rounds.md`를 본다.
+완결된 `rounds[]` 예제는 `${BOUNCER_ROOT}/references/spec-authoring/review-rounds.md`를 본다.
 Do not edit `review.md` YAML by hand. Record every state transition with
 `bouncer review record --blueprint <dir> [--task <ddd>] --round <json-file>
 [--status <requested|addressed|accepted>]` into `bouncer.review.rounds[]` and
