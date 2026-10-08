@@ -682,6 +682,16 @@ test('installs the pre-commit hook only when the policy states install', () => {
   assert.equal(answerTextQuestion(declined, 'bouncer-init', text, mkdtempSync(path.join(tmpdir(), 'acp-responder-'))), null);
 });
 
+// v088006-ledger-004-bouncer-full-1: the open decisions sat between two `---` rules and a draft framing table
+// followed them, so the last section had no options and the stage ended without an answer.
+test('delegates open decisions followed by a draft framing section', () => {
+  const text = readFileSync(path.join(__dirname, 'fixtures', 'v088006-plan-open-decisions-trailing-framing.txt'),
+    'utf8');
+  const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,
+    open_decisions: 'delegate_to_agent_recommendation' } };
+  assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', text)?.gate, 'plan.open_decisions');
+});
+
 test('delegates a single open decision with numbered options', () => {
   const text = readFileSync(path.join(__dirname, 'fixtures', 'v088-plan-open-decision.txt'), 'utf8');
   const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,

@@ -547,18 +547,25 @@ function delegateOpenDecisions(policy, phase, text) {
   if (phase !== 'bouncer-plan' || policy.benchmark_choices?.open_decisions !== 'delegate_to_agent_recommendation') {
     return null;
   }
-  // The question is the last `---` section; earlier sections are discovery grounding.
-  const rules = [...text.matchAll(/^\s*-{3,}\s*$/gm)];
-  const question = rules.length ? text.slice(rules[rules.length - 1].index) : text;
+  // Open-decision options may carry their question number (`- **1A)** ...`) or be numbered alone (`- **1)** ...`).
+  const optionCount = (section) => section.split('\n')
+    .filter((line) => /^\s*(?:[-*]\s*)?(?:\*\*)?(?:\d*[A-Z]|\d+)\)(?:\*\*)?\s*\S/.test(line)).length;
+  // The question is the last `---` section with the cue and options; earlier sections are discovery
+  // grounding. A draft framing may follow it (v088006-ledger-004-bouncer-full-1), so the tail is kept and
+  // judged with it.
+  const bounds = [0, ...[...text.matchAll(/^\s*-{3,}\s*$/gm)].map((rule) => rule.index), text.length];
+  let start = null;
+  for (let i = bounds.length - 2; i >= 0 && start === null; i -= 1) {
+    const section = text.slice(bounds[i], bounds[i + 1]);
+    if (OPEN_DECISIONS_CUE.test(section) && optionCount(section) >= 2) start = bounds[i];
+  }
+  if (start === null) return null;
+  const question = text.slice(start);
   // Any real question header for another gate (the Discover confirm also lists `Open decisions`) is that
   // gate's question; only an inline preview of the next gate (acqMarkers drops it) may sit beside these.
   const otherGate = acqMarkers(question)
     .some((marker) => /AskUserQuestion/.test(marker[0]) && gateIdOf(marker[0]) !== 'plan.open_decisions');
-  // Open-decision options may carry their question number (`- **1A)** ...`) or be numbered alone (`- **1)** ...`).
-  const optionLines = question.split('\n')
-    .filter((line) => /^\s*(?:[-*]\s*)?(?:\*\*)?(?:\d*[A-Z]|\d+)\)(?:\*\*)?\s*\S/.test(line));
-  if (!OPEN_DECISIONS_CUE.test(question) || optionLines.length < 2
-    || APPROVAL_CUE.test(question) || otherGate) return null;
+  if (APPROVAL_CUE.test(question) || otherGate) return null;
   return { gate: 'plan.open_decisions', choices: [{ gate: 'plan.open_decisions', identified_by: 'cue', synthetic: true,
     basis: 'delegated', reason: 'open decisions handed back to the agent; no requirement added' }],
   question: text, reply: OPEN_DECISIONS_REPLY };
