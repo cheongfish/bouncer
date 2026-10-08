@@ -9,6 +9,10 @@
 
 ### Added
 
+- **`bouncer config --help`** — `.bouncer/config.json`의 `subagents` 키 이름·허용값·
+  기본값을 코드 상수에서 읽기 전용으로 출력한다. `docs/`가 플러그인 배포물에 없어
+  init 세션이 `scripts/`를 읽던 틈을 메우고, 테스트가 `docs/configuration.md` 표와
+  출력의 일치를 확인하며 `init-result.md`가 이 명령을 가리킨다.
 - **`coordinate status --write-input <file>`** — integration worktree에서
   coordinator print dispatch 입력 텍스트(write cwd, base SHA, checkpoint,
   autonomy, read-only provenance)를 파일로 쓰고 `input_file`을 보고한다.

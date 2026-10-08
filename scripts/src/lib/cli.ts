@@ -10,6 +10,7 @@ import reviewDispatchCommand = require('./cli-review-dispatch-command');
 import reviewCommand = require('./cli-review-command');
 import dispatchCommand = require('./cli-dispatch-command');
 import commitGuardCommand = require('./cli-commit-guard-command');
+import configCommand = require('./cli-config-command');
 
 // 핸들러 IO 타입은 각 명령 파일에 복제한다. ESM default import/export는
 // __esModule·__importDefault를 방출해 공개 require 표면이 바뀌므로 쓰지 않고,
@@ -63,6 +64,8 @@ const COMMANDS: Record<string, CliCommand> = {
   // Cursor print 실행. 역할 본문·argv 조립은 모듈이 맡고, 여기 레지스트리는
   // help 목록과 키 조회만 담당한다.
   dispatch: dispatchCommand,
+  // 읽기 전용 설정 키 도움말. docs/가 배포물에 없어 init 세션이 소스를 읽던 틈을 메운다.
+  config: configCommand,
 };
 
 const USAGE_HEADER = `usage: bouncer <command> [options]

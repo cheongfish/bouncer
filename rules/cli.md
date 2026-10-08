@@ -81,6 +81,7 @@ bouncer graphify-bin
 bouncer graph-sync
 bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
 bouncer subagent-model --agent <name> [--provider <name>]
+bouncer config --help
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir>
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>

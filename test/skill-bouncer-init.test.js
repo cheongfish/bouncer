@@ -17,6 +17,9 @@ test('init result choices preserve consent-only writes', () => {
   assert.match(result, /--write-gitignore/);
   assert.match(result, /write nothing|untouched/);
 });
+test('init result points subagents key changes at bouncer config --help', () => {
+  assert.match(result, /bouncer config --help/);
+});
 test('init result keeps Graphify disabled after installation failure and names recovery', () => {
   assert.match(result, /failure, Graphify remains disabled/);
   assert.match(result, /install it manually/);
