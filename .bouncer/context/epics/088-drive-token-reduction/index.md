@@ -49,6 +49,10 @@ bouncer:
 24. `skills/bouncer-plan/references/context-review.md`는 print opt-in일 때 실행할 `bouncer dispatch print --role context-reviewer` 명령을 호출마다 다른 `--out`과 함께 적는다. 그 경로에서 inline 검토는 dispatch가 실패했을 때만 허용하고, 그 사실을 `context-review.md` `## Findings`에 한 줄로 남기라고 적는다.
 25. `bouncer coordinate status --write-input <file>`는 write cwd, blueprint, 원장 `base`, `checkpoint.ledger.{path,sha256,revision}`, `autonomy`, 읽기 전용 provenance를 담은 텍스트 파일을 쓰고, 그 파일로 `dispatch print --role coordinator`를 돌리면 prompt 파일이 생긴다. `skills/bouncer-run/SKILL.md` 4단계는 그 명령을 가리키고, `rules/cursor-print-dispatch.md` 3항은 `--input`이 자유 텍스트이며 그대로 붙는다고 적는다.
 26. `bouncer config --help`와 `-h`는 exit 0으로 `subagents.provider`, `subagents.dispatch`, `subagents.<provider>.<agent>`의 허용값과 기본값을 출력한다. 테스트가 그 키·값 집합이 `docs/configuration.md` 표와 같은지 확인하고, `skills/bouncer-init/references/init-result.md`가 이 명령을 가리킨다.
+27. `bouncer dispatch print`가 쓰는 모든 역할의 prompt는 식별 줄 다음 빈 줄 뒤에 `Plugin root: <절대 경로>. Resolve plugin-relative paths (rules/..., references/..., agents/...) against it.` 한 줄을 싣고, 그 경로는 역할 문서를 읽은 `agents/` 디렉터리의 부모다. 식별 줄 바이트는 그대로다.
+28. 여섯 `skills/bouncer-*/SKILL.md`의 `**Plugin root.**` 문단은 한 문단 안에 `BOUNCER_ROOT="$(bouncer-root --auto)"`와 `${BOUNCER_ROOT}/rules/plugin-root.md`를 담는다.
+29. `skills/**/*.md`, `rules/*.md`, `references/**/*.md`에 접두 없는 플러그인 문서 인용(`rules/…`, `references/…`, `agents/…`, 플러그인 `AGENTS.md`)이 없다. 테스트가 이를 판정하고, 예외는 테스트에 이름이 적힌 위치뿐이다.
+30. 위임 정책 없이 v088006-1 plan 메시지 fixture를 넣으면 응답기 `unrecognizedQuestion`이 true이고, v088005·v088006 정상 단계의 마지막 메시지 fixture는 false다. 응답기 `unhandledQuestionMethod`는 그 fixture에 `text/unrecognized-question`을, `AskUserQuestion` 글자만 있는 텍스트에 `text/unread-question`을, 정상 fixture에 `null`을 돌려주고, `run-print-stage.cjs`는 ACQ·quiz가 처리하지 않은 턴에서 이 값을 `unanswered` method로 남긴다.
 
 ## Out of scope
 - 재측정 실행 자체와 그 결과 해석. 이 epic은 측정 대상 코드와 하네스만 바꾼다.
@@ -62,3 +66,4 @@ bouncer:
 * [004 coordinator 지침 탐색 제거](blueprints/004-coordinator-lookup-removal/index.md) - `verification.ts` verify 통과 시 commit task `verified` 전환, implement·review·final_review 카드의 print dispatch 입력 템플릿, `review record --help` round 예시
 * [005 리뷰 기록 형식과 finalize 정책](blueprints/005-review-format-finalize-policy/index.md) - `review-dispatch plan --help` context review 예시, `review record` finding status `open`과 review·final_review 카드 예시, ledger 평가자 정책 `finalize.remainder`·응답기·`run-bouncer-full.cjs` 증거 수집을 고침
 * [006 print dispatch 계약 빈칸 채우기](blueprints/006-print-dispatch-contract-gaps/index.md) - `print-dispatch.ts`·`cli-dispatch-command.ts` context-reviewer role과 plan context-review 명령, `coordinate status --write-input`과 run 스킬 4단계, `bouncer config --help`와 init 안내
+* [007 플러그인 문서 경로를 루트 기준으로 열기](blueprints/007-plugin-root-resolution/index.md) - `print-dispatch.ts` prompt 루트 줄, 여섯 SKILL.md `Plugin root` 줄, `skills/**`·`rules/`·`references/**` 인용 표기, 벤치마크 응답기·`run-print-stage.cjs` 질문 판정
