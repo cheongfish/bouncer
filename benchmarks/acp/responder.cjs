@@ -15,7 +15,9 @@ function gitEnv(workDir) {
     try { return readFileSync(path.join(workDir, '.git'), 'utf8').match(/^gitdir:\s*(.+)$/m)?.[1]?.trim(); }
     catch { return null; }
   })();
-  const workspace = workDir.split(`${path.sep}.worktrees${path.sep}`)[0];
+  // The last `.worktrees` is the stage's own; the workspace may sit under another checkout's `.worktrees`.
+  const marker = workDir.lastIndexOf(`${path.sep}.worktrees${path.sep}`);
+  const workspace = marker < 0 ? workDir : workDir.slice(0, marker);
   if (!link?.startsWith('/workspace/') || workspace === workDir) return process.env;
   return { ...process.env, GIT_DIR: path.join(workspace, link.slice('/workspace/'.length)), GIT_WORK_TREE: workDir };
 }

@@ -444,6 +444,21 @@ test('finalize readiness comes from the prepare coordinator section and a dry ru
   assert.equal(finalizeReady({ ok: true, integration: { complete: true } }, dryRun), false);
 });
 
+// v088006-ledger-004-bouncer-full-3 ran from a checkout under `.worktrees/`, so the workspace path itself
+// held `.worktrees` and the first split pointed GIT_DIR at the outer repository.
+test('host git calls map the gitdir link when the workspace sits under another .worktrees', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'responder-git-'));
+  const workspace = path.join(root, '.worktrees', 'bench-fix', '.benchmarks', 'work', 'run');
+  const integration = path.join(workspace, '.worktrees', '001', '001', 'integration');
+  require('node:fs').mkdirSync(integration, { recursive: true });
+  try {
+    writeFileSync(path.join(integration, '.git'), 'gitdir: /workspace/.git/worktrees/integration\n');
+    assert.equal(gitEnv(integration).GIT_DIR, path.join(workspace, '.git', 'worktrees', 'integration'));
+  } finally {
+    rmSync(root, { recursive: true });
+  }
+});
+
 test('host git calls map a container gitdir link inside a stage worktree', () => {
   const workspace = mkdtempSync(path.join(tmpdir(), 'responder-git-'));
   const integration = path.join(workspace, '.worktrees', '001', '001', 'integration');
