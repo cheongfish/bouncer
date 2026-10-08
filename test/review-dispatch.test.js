@@ -793,3 +793,30 @@ test('CLI plan structural failure exits 1 without reviewer list', () => {
   assert.strictEqual(payload.ok, false);
   assert.ok(!('perspectives' in payload) || payload.perspectives === undefined);
 });
+
+test('review-dispatch --help yaml example passes G18 once <target.digest> is replaced', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const help = capture(['review-dispatch', '--help']);
+  const fence = /```yaml\n([\s\S]*?)\n```/.exec(help.out);
+  assert.ok(fence, 'help carries one yaml example');
+  const plan = JSON.parse(capture([
+    'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo,
+  ]).out);
+  assert.strictEqual(plan.ok, true);
+  const contextReview = yaml.load(fence[1].split('<target.digest>').join(plan.target.digest)).context_review;
+  writeDoc(repo, `${BP_REL}/context-review.md`, {
+    type: 'bouncer.context_review',
+    title: 'Login context review',
+    description: 'd',
+    resource: `${BP_REL}/context-review.md`,
+    tags: ['bouncer', 'context_review'],
+    timestamp: '2026-07-01T00:00:00+09:00',
+    bouncer: {
+      id: 'CTXREVIEW-001', epic_id: '001', blueprint_id: '001', status: 'accepted',
+      context_review: contextReview,
+    },
+  }, '# Context review\n\n## Findings\n- CR-1 advisory, accepted with note.\n');
+  const result = validateBlueprint({ repoRoot: repo, blueprintDir: BP_REL, gate: 'plan' });
+  assert.deepStrictEqual(result.failures.filter((f) => f.code === 'G18'), []);
+});

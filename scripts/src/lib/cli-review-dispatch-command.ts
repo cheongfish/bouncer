@@ -2,6 +2,12 @@
 
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
+// validate-sections는 ./paths 계열만 정적으로 끌어오므로(intent 모듈 없음) help 문자열을
+// 검증기 상수에서 만들어도 ./review-dispatch lazy require 계약이 깨지지 않는다.
+import validateSections = require('./validate-sections');
+const {
+  CONTEXT_REVIEW_PERSPECTIVE, CONTEXT_REVIEW_STATUS, REVIEW_SEVERITY, findingFingerprint,
+} = validateSections;
 
 type CliIo = {
   out: (s: string) => void;
@@ -34,6 +40,88 @@ const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
   review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
              Classify execute review strategy from frozen diff (read-only JSON).
 `;
+
+// 예시 finding의 구성 요소. fingerprint는 아래에서 검증기와 같은 함수로 계산해
+// 손으로 쓴 값이 공식과 어긋나는 일(G18 fingerprint mismatch)을 없앤다.
+const EXAMPLE_FINDING = {
+  category: 'scope',
+  brief_clause: 'tasks/001 touch',
+  file: '.bouncer/context/epics/014-auth/blueprints/001-signup/tasks/001/tasks.md',
+  symbol: 'touch',
+};
+
+/**
+ * `review-dispatch --help`에 실리는 `bouncer.context_review` 예시. 들여쓰기는
+ * `bouncer:` 아래에 붙인 `context_review:` 블록 그대로이고, `<target.digest>` 두 곳만
+ * `review-dispatch plan` 출력 값으로 바꾸면 G18을 통과한다. fence는 하나만 둔다.
+ */
+const HELP_CONTEXT_REVIEW_EXAMPLE = `context_review:
+  rounds:
+    - round: 1
+      mode: discovery
+      target: { digest: <target.digest> }
+      perspectives:
+        - { name: combined, target_digest: <target.digest> }
+      severity_changes: []
+  findings:
+    - id: CR-1
+      severity: minor
+      status: accepted
+      note: Wording only; the clause is still unambiguous.
+      category: ${EXAMPLE_FINDING.category}
+      brief_clause: ${EXAMPLE_FINDING.brief_clause}
+      file: ${EXAMPLE_FINDING.file}
+      symbol: ${EXAMPLE_FINDING.symbol}
+      fingerprint: ${findingFingerprint(EXAMPLE_FINDING, 'context')}
+      actionability: advisory
+      origin: discovery
+      first_seen_round: 1
+      last_seen_round: 1`;
+
+/**
+ * `review-dispatch --help` stdout 본문. plan 에이전트가 검증기 소스를 열지 않고
+ * G18을 통과하는 기록을 쓰도록 형식·enum·digest 출처를 한곳에 모은다.
+ */
+const HELP = `${USAGE}
+Context review record (plan): paste this under \`bouncer:\` in context-review.md.
+
+\`\`\`yaml
+${HELP_CONTEXT_REVIEW_EXAMPLE}
+\`\`\`
+
+Enums:
+  severity: ${REVIEW_SEVERITY.join('|')}
+  finding status: ${CONTEXT_REVIEW_STATUS.join('|')} (accepted requires note)
+  actionability: must_fix|advisory
+  origin: discovery|introduced_by_revision|missed_critical
+  round mode: discovery|delta
+  perspective name (also finding category): ${CONTEXT_REVIEW_PERSPECTIVE.join('|')}
+
+fingerprint formula: context:lower(category):lower(brief_clause):posix(file)#symbol
+
+Do not compute the digest. Copy \`target.digest\` from the JSON that
+\`review-dispatch plan --blueprint <dir>\` prints into both <target.digest>
+places. When it prints \`ok: false\` there is no digest: do not call a reviewer.
+`;
+
+/**
+ * 서브커맨드 도움말 여부. parseFlags는 `--help`를 값 없는 플래그로 삼키고 `-h`를
+ * 무시하므로 원시 토큰을 본다. `--flag -h`의 `-h`는 그 플래그의 값이라 제외한다.
+ *
+ * @param {string[]} tokens - `review-dispatch` 뒤 원시 argv
+ * @returns {boolean} 도움말을 내면 true
+ */
+function argvRequestsHelp(tokens: string[]): boolean {
+  for (let i = 0; i < tokens.length; i += 1) {
+    const tok = tokens[i];
+    if (tok === '--help') return true;
+    if (tok === '-h') {
+      const prev = i > 0 ? tokens[i - 1] : undefined;
+      if (prev === undefined || !prev.startsWith('--')) return true;
+    }
+  }
+  return false;
+}
 
 /**
  * review-dispatch argv를 plan/execute로 분기한다. 잘못된 사용법은 resolver를
@@ -127,9 +215,14 @@ function parseExecuteArgs(rest: string[]): ParsedExecute {
  *
  * @param {string[]} rest - 서브커맨드와 플래그
  * @param {CliIo} io - stdout/stderr 싱크
- * @returns {number} 성공 0, 분류 거절 1, 사용법 2
+ * @returns {number} 도움말·성공 0, 분류 거절 1, 사용법 2
  */
 function cmdReviewDispatch(rest: string[], io: CliIo): number {
+  // help는 argv 해석·분류기 적재보다 앞에서 끝낸다. 도움말이 파일·git을 읽지 않게 함.
+  if (argvRequestsHelp(rest)) {
+    io.out(HELP);
+    return 0;
+  }
   const parsed = parseReviewDispatchArgs(rest);
   if (parsed.mode === 'usage' || parsed.error) {
     io.err(parsed.error || USAGE);

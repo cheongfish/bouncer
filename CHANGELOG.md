@@ -16,6 +16,11 @@
 
 ### Changed
 
+- **`review-dispatch --help`** — G18을 통과하는 `bouncer.context_review` round
+  예시와 enum(검증기 상수에서 생성), fingerprint 공식을 도움말에 싣는다. plan
+  reference는 digest를 손으로 계산하지 않고 `review-dispatch plan` 출력의
+  `target.digest`를 옮기며, 틀린 `correctness_tests:` fingerprint 예시를
+  `context:` 접두 예시로 바꾼다. plan 에이전트가 검증기 소스를 열던 경로를 끊는다.
 - **print dispatch 입력 템플릿** — `implement`·`review`·`final_review` 계약
   카드에 Cursor print `--input` 항목 순서를 적고, `review record --help`
   예시에 blueprint 모드 `task_brief_hashes`·`intent_bundles`를 보여 coordinator가
