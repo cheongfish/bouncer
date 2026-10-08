@@ -18,8 +18,8 @@ park read-only notes under `assets/`.
 
 ### Explicit reference bases
 
-Across `skills/**`, `${BOUNCER_ROOT}/rules/*.md`, and `references/**`, never write a bare
-`rules/...`, `references/...`, `agents/...`, or `${BOUNCER_ROOT}/AGENTS.md` path for plugin
+Across `skills/**`, `rules/*.md`, and `references/**`, never write a bare
+`rules/...`, `references/...`, `agents/...`, or `AGENTS.md` path for plugin
 documents. Classify every plugin-doc cite:
 
 | Base | Notation | Resolves to |

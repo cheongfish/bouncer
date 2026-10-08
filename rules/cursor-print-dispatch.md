@@ -24,12 +24,10 @@ rule's items 2-4 unchanged, and this document does not apply.
      only your workers, each under rules/cursor-print-dispatch.md.`
    - plugin root (one unwrapped line after the identity line): `Plugin root: <absolute path>. Resolve plugin-relative paths (rules/..., references/..., agents/...) against it.`
    The command then appends the role body and the controller input. Do not
-   assemble those pieces in the session. Resolve `rules/…`, `references/…`, and
-   `agents/…` against that plugin root — do not search the workspace for them.
-   `--input` is free UTF-8 text, not JSON, and is appended as-is. The
-   coordinator input file is written by `bouncer coordinate status --blueprint
-   <dir> --write-input <file>` from the integration worktree; do not hand-write
-   its format.
+   assemble those pieces in the session. `--input` is free UTF-8 text, not
+   JSON, and is appended as-is. The coordinator input file is written by
+   `bouncer coordinate status --blueprint <dir> --write-input <file>` from the
+   integration worktree; do not hand-write its format.
 4. **Command.** From the actual cwd, run
    `bouncer dispatch print --role <role> --cwd <actual cwd> --input <file>
    --out <dir>` in the foreground. The command guarantees argv

@@ -16,6 +16,9 @@ const ALLOWED = [
   { file: 'rules/cursor-print-dispatch.md', text: 'rules/cursor-print-dispatch.md' }, // coordinator 식별 줄
   { file: 'references/discovery/index.md', text: '`AGENTS.md`' }, // 소비 프로젝트 파일
   { file: 'rules/output.md', text: 'rules/output.md' }, // 출력 예시
+  // skill-shape 메타 규칙: 스코프/금지 대상을 설명하는 bare 표기(접두를 붙이면 의미가 바뀜)
+  { file: 'rules/skill-shape.md', text: 'rules/*.md' },
+  { file: 'rules/skill-shape.md', text: '`AGENTS.md`' },
 ];
 
 /**
