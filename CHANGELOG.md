@@ -9,6 +9,10 @@
 
 ### Fixed
 
+- **ledger run의 finalize 멈춤** — 평가자 정책 v3가 `finalize.remainder`를 A
+  (`finalize --yes` 커밋과 worktree 제거)로 답하고 `finalize.next_blueprint`
+  항목을 지운다. 하네스는 worktree 제거 뒤에도 integration 브랜치 ref에서
+  닫힌 blueprint·HEAD·`diff.patch`를 모아 `verifier.json`까지 만든다.
 - **`commit_intent` YAML 리스트** — commit task scaffold가 `commit_intent`·
   `commit_summary`를 빈 YAML 리스트로 두고, 스칼라 문자열은 plan 구조 검사
   S32가 거절한다. `bouncer commit`이 스테이징 직전에야 같은 형태를 막던

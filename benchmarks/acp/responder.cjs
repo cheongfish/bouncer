@@ -96,7 +96,7 @@ function taskFact(policy, name) {
 function loadPolicy(file) {
   const policy = JSON.parse(readFileSync(file, 'utf8'));
   // Each task has its own approved policy; runners match task_id against the task card they run.
-  if (policy.policy_version !== 2 || !/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(policy.task_id ?? '')) {
+  if (policy.policy_version !== 3 || !/^[a-z][a-z0-9-]*-[0-9]{3}$/.test(policy.task_id ?? '')) {
     throw new Error('unsupported evaluator policy');
   }
   if (policy.task_id !== 'ledger-001' && (!Array.isArray(policy.task_facts?.discovery_terms)
@@ -299,10 +299,11 @@ const gates = [
     },
     reason: 'plan gate passed' },
   { gate: 'finalize.remainder', phase: 'bouncer-finalize', cue: /remainder|남은.*커밋|commit.*worktree|finalize --yes/i,
-    decide({ options, workDir }) {
-      if (!finalizeEvidence(workDir)) return null;
-      const option = labelMatch(options, /commit only|keep worktree|worktree.*keep|작업.*유지|커밋만|worktree\s*유지/i);
-      return option ? { option, basis: 'content' } : null;
+    decide({ options, workDir, deps }) {
+      // 증거 판정을 주입할 수 있게 한 이유: 실제 판정은 git·drive를 띄우므로 재생 테스트가 대신 값을 넣는다.
+      if (!(deps?.finalizeEvidence ?? finalizeEvidence)(workDir)) return null;
+      // v3 정책은 finalize --yes 커밋(A)으로 답한다. 하네스가 브랜치 ref에서 증거를 모으므로 worktree 제거와 무관하다.
+      return chooseProceed(options, { require: /finalize --yes/i });
     },
     reason: 'prepare and dry-run passed' },
   { gate: 'finalize.pr', phase: 'bouncer-finalize', cue: /pull request|\bPR\b|푸시/i,
@@ -311,12 +312,6 @@ const gates = [
       return option ? { option, basis: 'content' } : null;
     },
     reason: 'external push and PR denied' },
-  { gate: 'finalize.next_blueprint', phase: 'bouncer-finalize', cue: /next blueprint|다음 블루프린트|pointer|포인터/i,
-    decide({ options }) {
-      const option = labelMatch(options, /leave.*cleared|do not advance|skip|no next|유지|넘기지/i);
-      return option ? { option, basis: 'content' } : null;
-    },
-    reason: 'experiment ends here' },
 ];
 
 // rules/acq.md puts the gate ID in every display heading (`**AskUserQuestion — plan.discovery**`) and in a
@@ -347,13 +342,33 @@ function decideTaskQuestion(policy, question) {
     reason: `pre-task state question answered by policy (${preferred ? 'keeps the user work' : 'first option'})` };
 }
 
-function decideQuestion(policy, phase, question, workDir) {
-  return decideGateQuestion(policy, phase, question, workDir) ?? decideTaskQuestion(policy, question);
+/**
+ * 질문 하나에 대해 gate 정책 답을 먼저, 없으면 task 질문 답을 고른다.
+ *
+ * @param {object} policy - loadPolicy가 돌려준 평가자 정책
+ * @param {string} phase - 현재 단계 이름(예: bouncer-finalize)
+ * @param {object} question - prompt·options·heading 등을 가진 질문
+ * @param {string} workDir - 증거 판정이 읽는 작업 디렉터리
+ * @param {{finalizeEvidence?: (workDir: string) => boolean}} [deps] - finalize 증거 판정 주입(없으면 실제 spawn 경로)
+ * @returns {object | null} 선택 결과. 답할 수 없으면 null
+ */
+function decideQuestion(policy, phase, question, workDir, deps = {}) {
+  return decideGateQuestion(policy, phase, question, workDir, deps) ?? decideTaskQuestion(policy, question);
 }
 
 // A question belongs to the first gate whose cue matches; a gate that cannot decide stops for a human
 // instead of letting a later gate claim the question.
-function decideGateQuestion(policy, phase, question, workDir) {
+/**
+ * 질문이 속한 gate를 찾아 그 gate의 decide로 선택지를 고른다.
+ *
+ * @param {object} policy - 평가자 정책
+ * @param {string} phase - 현재 단계 이름
+ * @param {object} question - 질문
+ * @param {string} workDir - 작업 디렉터리
+ * @param {{finalizeEvidence?: (workDir: string) => boolean}} [deps] - gate의 decide로 그대로 넘기는 주입점
+ * @returns {object | null} 선택 결과. gate가 없거나 판단하지 못하면 null
+ */
+function decideGateQuestion(policy, phase, question, workDir, deps = {}) {
   const options = question.options ?? [];
   const prompt = `${question.prompt ?? ''} ${options.map((o) => o.label).join(' ')}`;
   if (phase === 'bouncer-finalize' && /quiz|퀴즈|\bQ\s*\d+\b|문항\s*\d+/i.test(prompt) && options.length === 3
@@ -375,7 +390,7 @@ function decideGateQuestion(policy, phase, question, workDir) {
   return gate ? decideWith(gate, 'cue') : null;
 
   function decideWith(chosen, identifiedBy) {
-    const choice = chosen.decide({ policy, prompt, context: question.context ?? '', options, workDir });
+    const choice = chosen.decide({ policy, prompt, context: question.context ?? '', options, workDir, deps });
     if (!choice) return null;
     return { gate: chosen.gate, identified_by: identifiedBy, optionId: choice.option.id, basis: choice.basis,
       reason: choice.reason ?? chosen.reason };
@@ -549,7 +564,17 @@ function delegateOpenDecisions(policy, phase, text) {
   question: text, reply: OPEN_DECISIONS_REPLY };
 }
 
-function answerTextQuestion(policy, phase, text, workDir) {
+/**
+ * 텍스트로 나온 ACQ 질문 전체에 정책 답을 만든다. 하나라도 답하지 못하면 사람에게 넘기도록 null이다.
+ *
+ * @param {object} policy - 평가자 정책
+ * @param {string} phase - 현재 단계 이름
+ * @param {string} text - 에이전트가 낸 질문 본문
+ * @param {string} workDir - 작업 디렉터리
+ * @param {{finalizeEvidence?: (workDir: string) => boolean}} [deps] - finalize 증거 판정 주입(테스트용)
+ * @returns {{gate: string, choices: object[], question: string, reply: string} | null} 답 묶음 또는 null
+ */
+function answerTextQuestion(policy, phase, text, workDir, deps = {}) {
   const markers = acqMarkers(text);
   if (!markers.length) return null;
   const decisions = [];
@@ -565,7 +590,7 @@ function answerTextQuestion(policy, phase, text, workDir) {
       // One block may bundle several questions as bold-titled option groups; each title names its gate.
       for (const group of groups) {
         const decision = decideQuestion(policy, phase, { prompt: group.body, heading: group.title,
-          cue: reground ? `${group.title} ${reground}` : group.title, context, options: group.options }, workDir);
+          cue: reground ? `${group.title} ${reground}` : group.title, context, options: group.options }, workDir, deps);
         if (!decision) return null;
         decisions.push(decision);
       }
@@ -575,7 +600,7 @@ function answerTextQuestion(policy, phase, text, workDir) {
     if (options.length < 2) return null;
     const cue = reground ? `${markers[index][0]} ${reground}` : undefined;
     const decision = decideQuestion(policy, phase,
-      { prompt: block, heading: markers[index][0], cue, section, context, options }, workDir);
+      { prompt: block, heading: markers[index][0], cue, section, context, options }, workDir, deps);
     if (!decision) return null;
     decisions.push(decision);
   }

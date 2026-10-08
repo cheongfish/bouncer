@@ -45,7 +45,10 @@ test('accepts only the approved benchmark policy version and choices', () => {
   const policyFile = path.join(dir, 'policy.json');
   const approved = require('../configs/ledger-001-evaluator-policy.json');
   writeFileSync(policyFile, JSON.stringify(approved));
-  assert.equal(loadPolicy(policyFile).policy_version, 2);
+  assert.equal(loadPolicy(policyFile).policy_version, 3);
+  writeFileSync(policyFile, JSON.stringify({ ...approved, policy_version: 2 }));
+  assert.throws(() => loadPolicy(policyFile), /unsupported evaluator policy/);
+  writeFileSync(policyFile, JSON.stringify(approved));
   writeFileSync(policyFile, JSON.stringify({ ...approved, approval_state: 'proposed' }));
   assert.throws(() => loadPolicy(policyFile), /explicit user approval/);
   writeFileSync(policyFile, JSON.stringify({ ...approved, policy_version: 1 }));
@@ -233,13 +236,20 @@ for (const fixture of require('./fixtures/acq/cases.json')) {
   test(`replays recorded ACQ ${fixture.file}`, () => {
     const workDir = workdirWith(fixture.workdir);
     const text = readFileSync(path.join(fixtureDir, fixture.file), 'utf8');
-    const result = answerTextQuestion(policy, fixture.phase, text, workDir);
+    // finalize 증거 판정은 실제 git·drive가 필요하므로 case가 요구할 때만 참으로 주입한다.
+    const deps = fixture.finalizeEvidence ? { finalizeEvidence: () => true } : undefined;
+    const result = answerTextQuestion(policy, fixture.phase, text, workDir, deps);
     rmSync(workDir, { recursive: true });
     assert.ok(result, `${fixture.source} is unanswered`);
     assert.equal(result.reply, fixture.reply);
     assert.deepEqual(result.choices.map((choice) => choice.gate), fixture.gates);
   });
 }
+
+test('finalize.remainder is left unanswered when there is no finalize evidence', () => {
+  const text = readFileSync(path.join(fixtureDir, 'finalize-remainder-en.md'), 'utf8');
+  assert.equal(answerTextQuestion(policy, 'bouncer-finalize', text, '/nonexistent', { finalizeEvidence: () => false }), null);
+});
 
 const prdFacts = 'Goal: summary in cli.js with --file and --month YYYY-MM, ending in TOTAL. '
   + 'Invalid options write stderr and exit 1; preserve list and total.';

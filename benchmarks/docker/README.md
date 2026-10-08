@@ -144,8 +144,9 @@ finalize 퀴즈가 1~10문항, 문항별 3지선다로 제시되면 각 문항�
 `evaluator_policy_sha256`으로 정책이 다른 실행을 구별한다.
 
 `run-bouncer-full.cjs`는 새 기준 저장소에서 init → 별도 bootstrap 커밋 →
-plan → run → integration worktree의 finalize를 순서대로 실행하고, 닫힌
-blueprint와 통합 HEAD의 패치를 확인한 뒤 외부 검증기를 호출한다. 이 실행기는
+plan → run → integration worktree의 finalize를 순서대로 실행한다. finalize가
+worktree를 지우므로 integration 브랜치 ref에서 닫힌 blueprint와 통합 HEAD의
+패치를 모은 뒤 외부 검증기를 호출한다. 이 실행기는
 진행 중인 시험 단계이므로 `run.json`의 상태와 모든 게이트 증거를 확인한 뒤
 완결된 표본으로 집계한다.
 

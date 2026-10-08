@@ -57,13 +57,29 @@ for (const [skill, ids] of Object.entries(CATALOG)) {
   });
 }
 
-test('the benchmark evaluator policy answers only catalogued gate IDs', () => {
-  const policyFile = path.join(root, 'benchmarks', 'configs', 'ledger-001-evaluator-policy.json');
-  if (!fs.existsSync(policyFile)) return;
+const POLICY_NAMES = ['ledger-001', 'ledger-002', 'ledger-003', 'ledger-004', 'fastify-001'];
+
+test('the benchmark evaluator policies answer only catalogued gate IDs', () => {
   const known = new Set(Object.values(CATALOG).flat());
   // 제품이 정의하지 않은 포인터 활성화 질문은 과거 run 호환용으로만 남는다.
-  const legacy = new Set(['plan.activate_pointer', 'finalize.quiz', 'finalize.next_blueprint']);
-  for (const decision of JSON.parse(fs.readFileSync(policyFile, 'utf8')).bouncer_decisions) {
-    assert.ok(known.has(decision.gate) || legacy.has(decision.gate), `unknown policy gate ${decision.gate}`);
+  const legacy = new Set(['plan.activate_pointer', 'finalize.quiz']);
+  for (const name of POLICY_NAMES) {
+    const policy = JSON.parse(read(`benchmarks/configs/${name}-evaluator-policy.json`));
+    for (const decision of policy.bouncer_decisions) {
+      assert.ok(known.has(decision.gate) || legacy.has(decision.gate), `${name}: unknown policy gate ${decision.gate}`);
+    }
   }
+});
+
+test('the benchmark evaluator policies are v3 and answer finalize.remainder with --yes', () => {
+  for (const name of POLICY_NAMES) {
+    const policy = JSON.parse(read(`benchmarks/configs/${name}-evaluator-policy.json`));
+    assert.equal(policy.policy_version, 3, name);
+    assert.ok(!policy.bouncer_decisions.some((d) => d.gate === 'finalize.next_blueprint'), name);
+    const remainder = policy.bouncer_decisions.find((d) => d.gate === 'finalize.remainder');
+    assert.equal(remainder.answer, 'finalize_yes_and_remove_worktrees', name);
+    assert.match(policy.approval_record, /2026-10-08 conversation: 사용자 승인/, name);
+  }
+  // 승인은 finalize 항목 변경에 대한 것이라 fastify-001의 초안 상태는 유지된다.
+  assert.equal(JSON.parse(read('benchmarks/configs/fastify-001-evaluator-policy.json')).approval_state, 'proposed');
 });
