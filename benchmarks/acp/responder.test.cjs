@@ -2,11 +2,11 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
+const { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { acqMarkers: acqMarkersOf, delegateOpenDecisions, driveState, loadPolicy, classifyGate, answerAskQuestion, answerTextQuestion, answerQuizText, looksLikeQuizRequest,
-  answerPermission, finalizeReady, gateIdOf, gitEnv } = require('./responder.cjs');
+  answerPermission, finalizeReady, gateIdOf, gitEnv, unrecognizedQuestion, unhandledQuestionMethod } = require('./responder.cjs');
 
 const policy = { benchmark_choices: { finalize_quiz: 'first_option_for_each_presented_question' },
   task_facts: { expected_gitignore_suggestions: [
@@ -705,6 +705,26 @@ test('delegates open decisions followed by a draft framing section', () => {
   const delegating = { ...policy, benchmark_choices: { ...policy.benchmark_choices,
     open_decisions: 'delegate_to_agent_recommendation' } };
   assert.equal(delegateOpenDecisions(delegating, 'bouncer-plan', text)?.gate, 'plan.open_decisions');
+});
+
+// Without a delegation policy the trailing-framing incident is an unanswered option list; normal stage
+// finals that only mention "선택/답변" words must stay silent so the harness does not false-stop.
+test('flags unrecognized option-list questions and leaves normal stage finals alone', () => {
+  const incident = readFileSync(path.join(__dirname, 'fixtures', 'v088006-plan-open-decisions-trailing-framing.txt'), 'utf8');
+  assert.equal(unrecognizedQuestion(incident), true);
+  assert.equal(unhandledQuestionMethod(incident), 'text/unrecognized-question');
+  const finals = readdirSync(path.join(__dirname, 'fixtures', 'stage-final')).filter((f) => f.endsWith('.txt'));
+  assert.equal(finals.length, 8);
+  for (const file of finals) {
+    const text = readFileSync(path.join(__dirname, 'fixtures', 'stage-final', file), 'utf8');
+    assert.equal(unrecognizedQuestion(text), false, file);
+    assert.equal(unhandledQuestionMethod(text), null, file);
+  }
+  assert.equal(unrecognizedQuestion('- A) one\n- B) two\n'), false); // 요청 문구 없음
+  assert.equal(unrecognizedQuestion('선택: A\n완료.'), false); // 선택지 없음
+  assert.equal(unrecognizedQuestion('- A) one\n답해 주세요'), false); // 선택지 하나
+  assert.equal(unrecognizedQuestion('- A) one\n- B) two\n답해 주세요'), true); // 경계: 선택지 둘
+  assert.equal(unhandledQuestionMethod('AskUserQuestion above: A or B?'), 'text/unread-question'); // 기존 분기가 먼저
 });
 
 test('delegates a single open decision with numbered options', () => {

@@ -535,6 +535,73 @@ function unreadQuestion(text) {
   return /AskUserQuestion/.test(text) && acqMarkers(text).length === 0;
 }
 
+// Open-decision / unrecognized-question options may carry their question number (`- **1A)** ...`) or be
+// numbered alone (`- **1)** ...`). Broader than OPTION_LINE (trailingQuestion) so `1A)` still counts;
+// shared so delegateOpenDecisions and unrecognizedQuestion cannot drift.
+const LABELED_OPTION_LINE = /^\s*(?:[-*]\s*)?(?:\*\*)?(?:\d*[A-Z]|\d+)\)(?:\*\*)?\s*\S/;
+
+/**
+ * 구역 안 선택지 줄 개수를 센다. unrecognized와 위임이 같은 줄 정의를 쓰게 한다.
+ *
+ * @param {string} section - `---`로 나뉜 한 구역 본문
+ * @returns {number} 선택지 줄 개수
+ */
+function optionLineCount(section) {
+  return section.split('\n').filter((line) => LABELED_OPTION_LINE.test(line)).length;
+}
+
+/**
+ * `---` 수평선으로 구역 경계를 잡는다. 규칙이 없으면 본문 전체가 한 구역이다.
+ *
+ * @param {string} text - 에이전트 메시지 본문
+ * @returns {number[]} 구역 시작·끝 인덱스(끝은 text.length)
+ */
+function sectionBounds(text) {
+  return [0, ...[...text.matchAll(/^\s*-{3,}\s*$/gm)].map((rule) => rule.index), text.length];
+}
+
+/**
+ * 선택지 줄이 2개 이상인 마지막 `---` 구역의 시작 인덱스를 찾는다.
+ * framing 초안이 뒤에 붙어도(v088006-1) 질문 구역을 놓치지 않으려 뒤에서부터 본다.
+ *
+ * @param {string} text - 에이전트 메시지 본문
+ * @returns {number | null} 구역 시작 인덱스. 없으면 null
+ */
+function lastMultiOptionSectionStart(text) {
+  const bounds = sectionBounds(text);
+  for (let i = bounds.length - 2; i >= 0; i -= 1) {
+    if (optionLineCount(text.slice(bounds[i], bounds[i + 1])) >= 2) return bounds[i];
+  }
+  return null;
+}
+
+/**
+ * ACQ·quiz가 처리하지 않은 선택지 질문을 감지한다.
+ * 정상 완료 보고는 "선택/답변" 단어만 있고 선택지 줄이 없어 false다.
+ *
+ * @param {string} text - 에이전트 메시지 본문
+ * @returns {boolean} 선택지≥2인 마지막 구역~끝까지 요청 문구가 있으면 true
+ */
+function unrecognizedQuestion(text) {
+  const start = lastMultiOptionSectionStart(text);
+  if (start === null) return false;
+  // 요청 문구는 질문 구역뿐 아니라 뒤따르는 framing까지 포함해 본다(구역만 보면 놓침).
+  return /답|골라|선택|알려|reply|choose|pick/i.test(text.slice(start));
+}
+
+/**
+ * ACQ·quiz 밖 턴에서 사람에게 넘길 unanswered method를 고른다.
+ * unreadQuestion이 먼저여야 AskUserQuestion 이름만 있는 기존 분기를 보존한다.
+ *
+ * @param {string} text - 에이전트 메시지 본문
+ * @returns {'text/unread-question' | 'text/unrecognized-question' | null}
+ */
+function unhandledQuestionMethod(text) {
+  if (unreadQuestion(text)) return 'text/unread-question';
+  if (unrecognizedQuestion(text)) return 'text/unrecognized-question';
+  return null;
+}
+
 // Discovery's open decisions (skills/bouncer-plan: "not an ACQ gate") ask about behavior the request leaves
 // open, in no fixed format and often without a recommendation. A policy that opts in answers the whole
 // message with one neutral line handing each decision back to the agent: it adds no requirement, so the
@@ -549,17 +616,14 @@ function delegateOpenDecisions(policy, phase, text) {
   if (phase !== 'bouncer-plan' || policy.benchmark_choices?.open_decisions !== 'delegate_to_agent_recommendation') {
     return null;
   }
-  // Open-decision options may carry their question number (`- **1A)** ...`) or be numbered alone (`- **1)** ...`).
-  const optionCount = (section) => section.split('\n')
-    .filter((line) => /^\s*(?:[-*]\s*)?(?:\*\*)?(?:\d*[A-Z]|\d+)\)(?:\*\*)?\s*\S/.test(line)).length;
   // The question is the last `---` section with the cue and options; earlier sections are discovery
   // grounding. A draft framing may follow it (v088006-ledger-004-bouncer-full-1), so the tail is kept and
   // judged with it.
-  const bounds = [0, ...[...text.matchAll(/^\s*-{3,}\s*$/gm)].map((rule) => rule.index), text.length];
+  const bounds = sectionBounds(text);
   let start = null;
   for (let i = bounds.length - 2; i >= 0 && start === null; i -= 1) {
     const section = text.slice(bounds[i], bounds[i + 1]);
-    if (OPEN_DECISIONS_CUE.test(section) && optionCount(section) >= 2) start = bounds[i];
+    if (OPEN_DECISIONS_CUE.test(section) && optionLineCount(section) >= 2) start = bounds[i];
   }
   if (start === null) return null;
   const question = text.slice(start);
@@ -630,5 +694,5 @@ function answerPermission(params) {
   return { outcome: { outcome: 'selected', optionId: allow[0].optionId }, reason: 'local tool call' };
 }
 
-module.exports = { acqMarkers, unreadQuestion, delegateOpenDecisions, driveState, finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
+module.exports = { acqMarkers, unreadQuestion, unrecognizedQuestion, unhandledQuestionMethod, delegateOpenDecisions, driveState, finalizeReady, gateIdOf, gitEnv, loadPolicy, classifyGate, decideQuestion, answerAskQuestion, answerTextQuestion, answerQuizText,
   looksLikeQuizRequest, answerPermission };

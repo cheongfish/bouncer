@@ -1,0 +1,7 @@
+Applying both consented choices: write `.gitignore` suggestions and install the pre-commit hook.완료: init 동의 적용 · `.gitignore` 기록 · pre-commit hook `installed` · 다음: bootstrap 커밋 후 `/bouncer-plan`
+
+```bash
+git add .bouncer/config.json .bouncer/context .gitignore && git commit -m "chore: bootstrap bouncer"
+```
+
+(`.gitignore`도 이번 동의로 바뀌었으니 같은 커밋에 넣는 것이 맞습니다. 커밋은 직접 해 주세요 — 요청하시면 대신 실행합니다.)

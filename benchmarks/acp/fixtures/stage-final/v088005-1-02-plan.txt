@@ -1,0 +1,3 @@
+Approving statuses, activating the blueprint pointer, and running the plan gate.**완료:** plan gate 통과 · 변경: epic `001-file-short-option` / blueprint `001-add-f-alias` / TASKS-001 · 검증: `bouncer validate --gate plan` 통과 · 다음: `/bouncer-run`
+
+선택됨: blueprint `001-add-f-alias`, task `TASKS-001`, base `main` (Git common directory에 다른 namespace pointer가 있을 수 있음).
