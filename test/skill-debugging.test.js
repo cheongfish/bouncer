@@ -49,9 +49,9 @@ test('debugger fallback keeps the assigned read-only cwd and the whole role docu
   const fallback = paragraph.slice(0, paragraph.indexOf('\n\n'));
   assert.match(fallback, /failing\s+verify\s+evidence/);
   assert.match(fallback, /assigned\s+read-only\s+cwd/);
-  assert.match(fallback, /entire\s+body\s+of\s+`agents\/bouncer-debugger\.md`/);
+  assert.match(fallback, /entire\s+body\s+of\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-debugger\.md`/);
   assert.match(fallback, /generic\s+read-only\s+subagent/);
-  assert.match(fallback, /`debugging`\s+inline[\s\S]{0,120}first\s+reads\s+`agents\/bouncer-debugger\.md`/);
+  assert.match(fallback, /`debugging`\s+inline[\s\S]{0,120}first\s+reads\s+`\$\{BOUNCER_ROOT\}\/agents\/bouncer-debugger\.md`/);
 });
 
 test('debugging escalates after 1 unsuccessful cycle', () => {

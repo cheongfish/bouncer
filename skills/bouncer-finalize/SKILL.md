@@ -56,7 +56,7 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
    new reject reason. `complete: false` (see `openTasks`; `headVerified` is
    `false` when a verification task is not integrated) is unfinished — stop and
    hand it to the coordinator instead of recording it as done. Read
-   `rules/commit-scope.md` for the integration worktree boundary and how
+   `${BOUNCER_ROOT}/rules/commit-scope.md` for the integration worktree boundary and how
    remainder staging differs from a task commit. When running
    the finalize gate, showing the dry-run, or handling scope or `reason:
    'verify'` failures, read [remainder.md](./references/remainder.md). On a
@@ -87,19 +87,19 @@ outcome that clears the pointer and the post-cleanup next-blueprint handoff.
 4. **Cleanup.** After `--yes`, read [cleanup-handoff.md](./references/cleanup-handoff.md): from the main worktree run `finalize release-main`, then `git worktree remove --force`. A coordinator drive leaves one integration worktree plus one worker worktree per task; the finalize payload's `worktrees` inventory names them all, and cleanup covers all of them or none.
 
 5. **Handoff.** The same [cleanup-handoff.md](./references/cleanup-handoff.md) runs `--set` from `release-main` `next` without asking.
-   Read `rules/current-pointer.md` for that pointer change.
+   Read `${BOUNCER_ROOT}/rules/current-pointer.md` for that pointer change.
    A closed Blueprint is terminal — do not reopen or attach tasks. Follow-up
    work plans a sibling Blueprint in the same Epic or a new Epic via
    `/bouncer-plan`. `--set` eligibility (next-only, excluding draft) is defined
    by the cleanup-handoff contract — do not arbitrarily `--set` an open sibling.
-   Render through `rules/output.md`: explain/quiz outcome, remainder commit and
+   Render through `${BOUNCER_ROOT}/rules/output.md`: explain/quiz outcome, remainder commit and
    resulting `closed` state, `integration` (`complete`, `openTasks`,
    `headVerified`), PR URL or skip/decline, worktree result, pointer result, and
    the next sibling Blueprint or `/bouncer-plan` action.
 
 ## ACQ (AskUserQuestion) gates
 
-Use `rules/acq.md` for the shared ACQ display and chat fallback. A bare
+Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback. A bare
 `/bouncer-finalize` is not consent for remainder commit or PR.
 
 **Index:**

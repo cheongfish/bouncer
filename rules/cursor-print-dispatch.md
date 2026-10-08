@@ -2,11 +2,11 @@
 
 This rule applies only when `.bouncer/config.json` sets both
 `subagents.provider` to `"cursor"` and `subagents.dispatch` to `"print"`
-(`rules/subagent-model.md` item 7). Any other value or provider leaves that
+(`${BOUNCER_ROOT}/rules/subagent-model.md` item 7). Any other value or provider leaves that
 rule's items 2-4 unchanged, and this document does not apply.
 
 1. **Every dispatch is a print process.** Every Bouncer-agent dispatch — the
-   named dispatch and the fallback of `rules/subagent-model.md` items 2 and 4,
+   named dispatch and the fallback of `${BOUNCER_ROOT}/rules/subagent-model.md` items 2 and 4,
    including the `/bouncer-run` coordinator of item 5 and every worker a
    coordinator dispatches — is a fresh `agent --print` process, never a Task
    subagent. Cursor records no token usage for Task subagents; each print

@@ -516,13 +516,13 @@ const FALLBACK_SITES = [
 for (const site of FALLBACK_SITES) {
   test(`${site.role} fallback in ${site.rel} carries the whole role document and its controller input`, () => {
     const text = passage(site.rel, site.start, site.end, site.after);
-    assert.match(text, wrapped(`entire body of \`agents/bouncer-${site.role}.md\``));
+    assert.match(text, wrapped(`entire body of \`\${BOUNCER_ROOT}/agents/bouncer-${site.role}.md\``));
     assert.match(text, /Authority\s+through\s+Output\s+contract/);
     for (const input of site.inputs) {
       assert.match(text, wrapped(input), `${site.rel}: missing controller input ${input}`);
     }
     if (site.inline) {
-      assert.match(text, wrapped(`first reads \`agents/bouncer-${site.role}.md\``));
+      assert.match(text, wrapped(`first reads \`\${BOUNCER_ROOT}/agents/bouncer-${site.role}.md\``));
     }
     for (const field of site.copies || []) {
       assert.doesNotMatch(text, wrapped(field), `${site.rel}: copies owner field ${field}`);
@@ -535,7 +535,7 @@ for (const site of FALLBACK_SITES) {
 test('rule 4 defines the same role brief as the whole role document plus controller input', () => {
   const rule = passage('rules/subagent-model.md', '4. When named agents are unavailable', '\n5. ');
   assert.match(rule, wrapped('same role brief'));
-  assert.match(rule, wrapped('entire body of the role document `agents/bouncer-<role>.md`'));
+  assert.match(rule, wrapped('entire body of the role document `${BOUNCER_ROOT}/agents/bouncer-<role>.md`'));
   assert.match(rule, /Authority\s+through\s+Output\s+contract/);
   assert.match(rule, wrapped("calling workflow's controller input"));
   // 역할 이름·요약만 싣는 payload는 fallback이 아니다.

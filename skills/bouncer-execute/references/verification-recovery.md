@@ -1,7 +1,7 @@
 On verify failure, when recovering through debugger then implementer, read this reference.
-Apply [`rules/subagent-model.md`](../../../rules/subagent-model.md).
+Apply [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
 
-Dispatch named `bouncer-debugger` (plugin `agents/bouncer-debugger.md`) with
+Dispatch named `bouncer-debugger` (plugin `${BOUNCER_ROOT}/agents/bouncer-debugger.md`) with
 the failing verify evidence, only the pointer task brief's Goal & intent,
 Interface, Touch, Do not touch, Constraints, and Checklist, the shared
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, the debugger's
@@ -11,14 +11,14 @@ and the assigned read-only cwd. Do not pass the
 full Explain body or another role's report. The `debugging` skill remains its
 behavioral brief. When named agents are unavailable, use a fresh generic
 read-only subagent whose payload carries the entire body of
-`agents/bouncer-debugger.md` — every section from Authority through Output
+`${BOUNCER_ROOT}/agents/bouncer-debugger.md` — every section from Authority through Output
 contract, verbatim — plus the failing verify evidence, the task brief's Goal & intent,
 Interface, Touch, Do not touch, Constraints, and Checklist, the same
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and
 `intent_sections` from
 `bouncer intent sections --task <current.task.path> --role debugger`,
 and the assigned read-only cwd; or run `debugging` inline,
-where the inline pass first reads `agents/bouncer-debugger.md` and follows
+where the inline pass first reads `${BOUNCER_ROOT}/agents/bouncer-debugger.md` and follows
 every section with those same inputs before it diagnoses. Even on the light
 path, debugger dispatch remains named.
 

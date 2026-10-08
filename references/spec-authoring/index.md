@@ -9,7 +9,7 @@ Author the **body** of planning documents (epic, blueprint, tasks).
 Epic/blueprint scaffolding already wrote
 the frontmatter and protocol block for plan docs. BP `explain.md` body, quiz,
 and comprehension recording belong to `explain-diff`
-(`references/explain-diff/index.md`) — do not author those here.
+(`${BOUNCER_ROOT}/references/explain-diff/index.md`) — do not author those here.
 Your job is the prose under plan docs. Canonical Bouncer documents live only under
 `.bouncer/context/`; never read, author, or migrate a root `context/` tree.
 
@@ -21,9 +21,9 @@ body content only; never edits harness-owned frontmatter fields. Used from
 
 ## Steps
 
-1. Read the plugin master rules (`AGENTS.md`) and the pinned
+1. Read the plugin master rules (`${BOUNCER_ROOT}/AGENTS.md`) and the pinned
    materials for the document kind you are writing. Product rules live in the
-   plugin (`rules/planning.md`, `rules/document-schema.md`), not under
+   plugin (`${BOUNCER_ROOT}/rules/planning.md`, `${BOUNCER_ROOT}/rules/document-schema.md`), not under
    the project's `.bouncer/`.
 2. Fill the skeleton with concrete, specific content. 종류별 완성 예시는
    필요할 때 `epic.md`, `blueprint.md`,
@@ -97,7 +97,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        credential 변경을 명시하면 해당 enum을 빠짐없이 기록하고, 그 위험이
        없으면 `[]`를 명시한다(신규 작성에서 필드를 생략하지 않는다). legacy
        문서의 부재는 dispatch가 `[]`로 읽고, malformed 값만 `S30`으로 거절한다
-       (`rules/document-schema.md`). `review_risk`는 Execute reviewer 수를 늘리는 입력일
+       (`${BOUNCER_ROOT}/rules/document-schema.md`). `review_risk`는 Execute reviewer 수를 늘리는 입력일
        뿐이며 does not auto-approve `affected_paths`, status, or a gate.
      - **Checklist** (paths vs procedure): `## Checklist`는 `## Touch`의 경로를
        다시 열거하지 않고 절차만 담는다.
@@ -187,7 +187,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
        rules into Goal & intent — a path you must protect has nowhere to live in a
        light task, and G12 can only judge a Do not touch section that exists.
        The whole light plan set is budgeted at 100 lines
-       (`rules/planning.md` `## Lightweight cycle`).
+       (`${BOUNCER_ROOT}/rules/planning.md` `## Lightweight cycle`).
    - **verification / review**: only author these when a command sends you
      here. When touching verification during plan or execute, set its `title`
      as a second `~함` commit body line if it will be published.
@@ -221,7 +221,7 @@ body content only; never edits harness-owned frontmatter fields. Used from
   document's own kind tag, then add 2–5 domain tags (for
   example `worktree`, `intent`, `graph-suggest`).
 - **Stop slop.** After drafting Korean plan/explain bodies, apply the
-  `stop-slop` skill (`references/stop-slop/index.md`) — advisory, not a gate. Strip
+  `stop-slop` skill (`${BOUNCER_ROOT}/references/stop-slop/index.md`) — advisory, not a gate. Strip
   filler, formulaic contrast, empty passives, and section-restating closers.
   It applies to reader-facing prose only, not search metadata.
 

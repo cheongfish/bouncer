@@ -1,12 +1,12 @@
 When authoring or refreshing explain and running the quiz, read this reference.
 
-**Plugin-root shell contract.** See `rules/plugin-root.md`; the explain-scaffold shell below remains independent.
+**Plugin-root shell contract.** See `${BOUNCER_ROOT}/rules/plugin-root.md`; the explain-scaffold shell below remains independent.
 
 Create a missing BP `explain.md` with:
 ```bash
 bouncer scaffold explain --blueprint <pointer.blueprint>
 ```
-Then use `explain-diff` (`references/explain-diff/index.md`) to author or refresh four Korean sections with `stop-slop`, quiz the digest `range.base..range.head` span, and write one `bouncer.comprehension` blueprint entry (prefer digest `range.diff_sha` for `diff_sha`).
+Then use `explain-diff` (`${BOUNCER_ROOT}/references/explain-diff/index.md`) to author or refresh four Korean sections with `stop-slop`, quiz the digest `range.base..range.head` span, and write one `bouncer.comprehension` blueprint entry (prefer digest `range.diff_sha` for `diff_sha`).
 
 Explain holds repository knowledge only. Do not write drive execution records (DAG change, scope revision, worker branch·sha, integration head). Do not re-read the coordinator ledger, task documents, or verification logs.
 
@@ -18,4 +18,4 @@ Canonical context remains the only repository-knowledge source at finalize.
 
 ## Quiz question count
 
-`references/explain-diff/index.md` owns question count sizing (1–10 ordinarily, exactly one question on `scale: light`).
+`${BOUNCER_ROOT}/references/explain-diff/index.md` owns question count sizing (1–10 ordinarily, exactly one question on `scale: light`).

@@ -584,7 +584,7 @@ test('subagent model contract is centralized and named dispatch consumers cite i
   const item7 = model.slice(model.indexOf('7. On Cursor'), model.indexOf('\nNo workflow may add'));
   assert.match(model, /Only the item 7 opt-in replaces it/);
   assert.match(item7, /`subagents\.dispatch: "print"`[\s\S]{0,60}explicit opt-in/);
-  assert.match(item7, /read `rules\/cursor-print-dispatch\.md` before the first\s+dispatch and follow it in place of items 2-4 for every dispatch, including\s+named ones\. Otherwise ignore this item/);
+  assert.match(item7, /read `\$\{BOUNCER_ROOT\}\/rules\/cursor-print-dispatch\.md` before the first\s+dispatch and follow it in place of items 2-4 for every dispatch, including\s+named ones\. Otherwise ignore this item/);
   assert.ok(item7.split('\n').length <= 6, 'item 7 stays a short pointer');
   // 규칙을 분리한 뒤 root가 설정을 확인하지 않고 named Task로 리뷰어를 띄운 회귀(1790665728914).
   assert.match(model, /\*\*Check first\.\*\* Before every dispatch, read `subagents\.provider` and\s+`subagents\.dispatch`/);
@@ -802,7 +802,7 @@ test('commit-scope defines coordinator dynamic scope, audit and commit ownership
   const planningFlat = read('rules/planning.md').replace(/\s+/g, ' ');
   assert.match(
     planningFlat,
-    /Coordinator-owned revision of approved `affected_paths` after plan time is owned by `rules\/commit-scope\.md` `## Approved and ledger scope`/,
+    /Coordinator-owned revision of approved `affected_paths` after plan time is owned by `\$\{BOUNCER_ROOT\}\/rules\/commit-scope\.md` `## Approved and ledger scope`/,
   );
   assert.doesNotMatch(
     planningFlat,

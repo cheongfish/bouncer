@@ -3,11 +3,11 @@
 Contract card for the `coordinate next` action `implement`. Rules are copied
 from the coordinator Worker dispatch and the execute agent-dispatch reference.
 
-- Dispatch named `bouncer-implementer` through `rules/subagent-model.md`.
+- Dispatch named `bouncer-implementer` through `${BOUNCER_ROOT}/rules/subagent-model.md`.
   Never play that role yourself and never let one worker judge another's
   report.
 - Before a `bouncer-implementer` edits a commit task, require it to read
-  `references/implementation/index.md`. This is mandatory, not a suggested
+  `${BOUNCER_ROOT}/references/implementation/index.md`. This is mandatory, not a suggested
   reference: its Korean docstring contract requires Summary, one Args entry per
   parameter, and Returns on every non-trivial function or method the task
   changes.
@@ -72,7 +72,7 @@ from the coordinator Worker dispatch and the execute agent-dispatch reference.
 - If the TOML is missing, has a mismatch, is user-owned (no generated marker),
   or named agents are unavailable, do not compact. Use a fresh generic
   subagent whose payload carries the entire body of
-  `agents/bouncer-implementer.md` — every section from Authority through
+  `${BOUNCER_ROOT}/agents/bouncer-implementer.md` — every section from Authority through
   Output contract, verbatim — plus the actual worktree cwd and the eight
   current-task sections, with the same `task_brief_hash`, `intent_bundle_id`,
   `intent_bundle_revision`, and `intent_sections` as the named path, and under
@@ -85,7 +85,7 @@ from the coordinator Worker dispatch and the execute agent-dispatch reference.
 When `.bouncer/config.json` has `subagents.provider: "cursor"` and
 `subagents.dispatch: "print"`, write only a `--input` text file. Pass cwd
 as `--cwd`. `bouncer dispatch print` prepends identity and the role body.
-Do not read `agents/*.md`.
+Do not read `${BOUNCER_ROOT}/agents/*.md`.
 
 `--input` file, in this order:
 

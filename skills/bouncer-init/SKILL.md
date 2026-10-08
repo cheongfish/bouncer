@@ -28,7 +28,7 @@ Bootstrap this project for Bouncer.
    never write config or `.gitignore` without agreement, and never pass
    `--pre-commit-hook` until `init.pre_commit_hook` is answered with install.
    Render the bootstrap outcome and next `/bouncer-plan` action through
-   `rules/output.md`.
+   `${BOUNCER_ROOT}/rules/output.md`.
 3. **Bootstrap commit.** Tell the user to commit the bootstrap now, as its own commit, before `/bouncer-plan`:
    ```bash
    git add .bouncer/config.json .bouncer/context && git commit -m "chore: bootstrap bouncer"
@@ -51,12 +51,12 @@ Do not author any epic or blueprint here — `/bouncer-init` only scaffolds
 `.bouncer/` and, when a Codex signal or `--seed-codex-agents` is present,
 named-agent TOML under `.codex/agents/`.
 Document skeletons, product rules, and master rules live in the plugin
-(`scripts/lib/templates.js`, `rules/document-schema.md`,
-`AGENTS.md`); init does not install them into the project.
+(`scripts/lib/templates.js`, `${BOUNCER_ROOT}/rules/document-schema.md`,
+`${BOUNCER_ROOT}/AGENTS.md`); init does not install them into the project.
 
 ## ACQ (AskUserQuestion) gates
 
-Use `rules/acq.md` for the shared ACQ display and chat fallback.
+Use `${BOUNCER_ROOT}/rules/acq.md` for the shared ACQ display and chat fallback.
 
 **Index:**
 - Step 2 — `init.graphify_promotion` Promotion · `init.gitignore` Gitignore · `init.base_branch` Branch · `init.pre_commit_hook` Pre-commit hook

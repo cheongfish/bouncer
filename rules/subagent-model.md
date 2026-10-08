@@ -24,7 +24,7 @@ limits.
 4. When named agents are unavailable, use the fallback explicitly selected by
    the calling workflow (inline skill/pass or a fresh generic subagent) with
    the same role brief. The same role brief is the entire body of the role
-   document `agents/bouncer-<role>.md` — every section from Authority through
+   document `${BOUNCER_ROOT}/agents/bouncer-<role>.md` — every section from Authority through
    Output contract, verbatim — plus the calling workflow's controller input
    for that call, including its actual cwd. A generic fallback carries both in
    its payload; an inline pass first reads that role document and follows
@@ -41,7 +41,7 @@ limits.
    other named agent, and its `subagents.<provider>` slot carries the same
    `inherit` meaning. The unsupported-host fallback for that dispatch is one
    generic subagent carrying the whole coordinator role — the entire body of
-   `agents/bouncer-coordinator.md`, every section from Authority through Output
+   `${BOUNCER_ROOT}/agents/bouncer-coordinator.md`, every section from Authority through Output
    contract, with its authority, hard guards, worker dispatch, and the
    worktree write boundary — plus the `/bouncer-run` dispatch payload exactly as
    `skills/bouncer-run/SKILL.md` step 4 defines it; this rule does not restate
@@ -54,7 +54,7 @@ limits.
    the dispatcher must not end its turn while a dispatched subagent still runs.
 7. On Cursor, `subagents.dispatch: "print"` in `.bouncer/config.json` is an
    explicit opt-in. Only when `subagents.provider` is `cursor` and that value is
-   exactly `print`, read `rules/cursor-print-dispatch.md` before the first
+   exactly `print`, read `${BOUNCER_ROOT}/rules/cursor-print-dispatch.md` before the first
    dispatch and follow it in place of items 2-4 for every dispatch, including
    named ones. Otherwise ignore this item.
 

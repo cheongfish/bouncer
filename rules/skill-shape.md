@@ -2,7 +2,7 @@
 
 Authoritative section order for plugin skill and agent bodies. Skills that
 consume this plugin follow these shapes; session runtime agents do not load this
-file as a hard rule (it is not linked from `AGENTS.md`).
+file as a hard rule (it is not linked from `${BOUNCER_ROOT}/AGENTS.md`).
 
 Body H2 headings in skills and agents are English.
 
@@ -16,14 +16,18 @@ Body H2 headings in skills and agents are English.
 Do not treat `references/` as something to copy into a deliverable, and do not
 park read-only notes under `assets/`.
 
-### Explicit reference bases (workflow skills)
+### Explicit reference bases
 
-Inside `skills/bouncer-*/SKILL.md`, never write a bare `references/...` path.
-Classify every helper cite:
+Across `skills/**`, `${BOUNCER_ROOT}/rules/*.md`, and `references/**`, never write a bare
+`rules/...`, `references/...`, `agents/...`, or `${BOUNCER_ROOT}/AGENTS.md` path for plugin
+documents. Classify every plugin-doc cite:
 
 | Base | Notation | Resolves to |
 | --- | --- | --- |
+| Plugin root | `${BOUNCER_ROOT}/rules/...` | Plugin rule under `rules/` |
 | Plugin root | `${BOUNCER_ROOT}/references/...` | Plugin-root helper under `references/<name>/` |
+| Plugin root | `${BOUNCER_ROOT}/agents/...` | Agent brief under `agents/` |
+| Plugin root | `${BOUNCER_ROOT}/AGENTS.md` | Plugin master rules |
 | Skill-local | `./references/...` | File under that skill's `references/` directory |
 
 The same bare string must not name two different files (for example root
@@ -40,21 +44,21 @@ Required body order after YAML frontmatter:
 
 1. **No blank line** between the closing `---` and the title.
 2. `# /<name>` — slash-command title matching the skill name.
-3. **Plugin root** and **Master rules** blocks (labels and `AGENTS.md` cite stay).
+3. **Plugin root** and **Master rules** blocks (labels and `${BOUNCER_ROOT}/AGENTS.md` cite stay).
 4. Top-level numbered procedure (`1.` `2.` `3.` …) — the only procedural spine.
    Put each AskUserQuestion description (timing, options, answer consequences)
    inline in the numbered step where the question runs. If the skill never asks,
    state that no-AskUserQuestion contract in the procedure so a reader does not
    need the final index to learn it.
 5. `## ACQ (AskUserQuestion) gates` — **last** H2. Keep it a **step index** only
-   (step number → one-line gate name). Cite `rules/acq.md` for shared display
+   (step number → one-line gate name). Cite `${BOUNCER_ROOT}/rules/acq.md` for shared display
    and chat-fallback behavior. Do not restate Options lists or answer branches
    here — those live in the numbered steps (or in a skill-local reference the
    step points at). If the skill never asks, the index says so in one line.
 
-## Subskills (`references/<name>/index.md`, not host catalog)
+## Subskills (`${BOUNCER_ROOT}/references/<name>/index.md`, not host catalog)
 
-Helper briefs live under plugin-root `references/<name>/index.md`. Hosts scan
+Helper briefs live under plugin-root `${BOUNCER_ROOT}/references/<name>/index.md`. Hosts scan
 only `skills/*/SKILL.md` (workflow six). Do not put
 helper bodies back under `skills/<name>/SKILL.md`.
 
@@ -78,7 +82,7 @@ These two keep their existing procedural H2 instead of `## Steps`:
 | `minimality` | `## Decision ladder` (ladder is the procedure) |
 | `stop-slop` | `## Core rules` (core rules are the procedure) |
 
-## Agents (`agents/*.md`)
+## Agents (`${BOUNCER_ROOT}/agents/*.md`)
 
 Required body order after YAML frontmatter and `# Bouncer <role>` title:
 

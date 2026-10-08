@@ -39,6 +39,11 @@
 
 ### Changed
 
+- **플러그인 문서 인용 접두** — `skills/**`·`rules/*.md`·`references/**`의
+  플러그인 문서 인용(`rules/`·`references/`·`agents/`·`AGENTS.md`)을
+  `${BOUNCER_ROOT}/…`로 통일한다. 스킬 로컬 `./references/…`와 Markdown 링크
+  href는 그대로 두고, `rules/skill-shape.md` 표기 표와
+  `test/plugin-doc-cites.test.js`가 같은 범위를 판정한다.
 - **워크플로 Plugin root 줄** — 여섯 `skills/bouncer-*/SKILL.md`가 세션 시작에
   `BOUNCER_ROOT="$(bouncer-root --auto)"`를 한 번 실행하고 `${BOUNCER_ROOT}/…`
   문서를 그 루트에서 열도록 적는다. `rules/plugin-root.md`는 스킬 줄이 루트

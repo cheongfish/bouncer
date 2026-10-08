@@ -1,9 +1,9 @@
 When deciding context review for a `scale: full` blueprint after `affected_paths` confirmation, read this reference.
 
-**Plugin-root shell contract.** See `rules/plugin-root.md`. Apply the shared
-model and host-fallback order in [`rules/subagent-model.md`](../../../rules/subagent-model.md).
+**Plugin-root shell contract.** See `${BOUNCER_ROOT}/rules/plugin-root.md`. Apply the shared
+model and host-fallback order in [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../../rules/subagent-model.md).
 
-Before approval, judge the plan documents. The `context-review` skill (`references/context-review/index.md`) is the behavioral brief. Dispatch **`bouncer-context-reviewer`** (plugin `agents/bouncer-context-reviewer.md`) with the resolved model. Compose each prompt inline (no `assets/` template — the paths are already known). Ask for a Findings list only.
+Before approval, judge the plan documents. The `context-review` skill (`${BOUNCER_ROOT}/references/context-review/index.md`) is the behavioral brief. Dispatch **`bouncer-context-reviewer`** (plugin `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md`) with the resolved model. Compose each prompt inline (no `assets/` template — the paths are already known). Ask for a Findings list only.
 
 1. **Freeze the snapshot** — After `affected_paths` confirmation, stop editing
    the documents under judgment. Run `bouncer review-dispatch plan --blueprint
@@ -95,12 +95,12 @@ next paragraph applies only after `bouncer dispatch print` fails.
 
 If named agents are unavailable, do **not** skip this step. Per call, use a
 fresh generic read-only subagent whose payload carries the entire body of
-`agents/bouncer-context-reviewer.md` — every section from Authority through
+`${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` — every section from Authority through
 Output contract, verbatim — plus that call's controller input: mode, frozen
 target (the digest and the document list it covers), perspective (discovery),
 previous findings (delta), and the read-only cwd. Or run the
 `context-review` skill inline once per call: the inline pass first reads
-`agents/bouncer-context-reviewer.md` and follows every section with that
+`${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` and follows every section with that
 controller input before it judges. A role name or summary alone is not a
 fallback payload.
 
@@ -108,7 +108,7 @@ As controller, update existing blueprint-root `context-review.md` body `## Findi
 
 When recording finding `note` (and any other author-written frontmatter
 scalar on that document), apply the same YAML leading-character quoting
-rule as `spec-authoring` (`references/spec-authoring/index.md`
+rule as `spec-authoring` (`${BOUNCER_ROOT}/references/spec-authoring/index.md`
 `## Author-written frontmatter scalars`): if the value starts with a YAML
 reserved indicator such as a leading backtick, write it as a single-quoted
 scalar or a block scalar (`>-` / `|`) — never as plain text after `- `. A mid-string

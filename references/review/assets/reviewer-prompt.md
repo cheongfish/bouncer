@@ -2,14 +2,14 @@
 
 This file is **not** the named agent's fixed body. It is the call-prompt slot
 the controller fills and attaches when dispatching `bouncer-reviewer` (or the
-generic / inline fallback). The agent document (`agents/bouncer-reviewer.md`)
+generic / inline fallback). The agent document (`${BOUNCER_ROOT}/agents/bouncer-reviewer.md`)
 owns persona, guards, and the Findings output contract; this slot carries the
 per-run mode, target, and brief.
 
 Named `bouncer-reviewer` receives only this filled call slot; its role file
 already carries the agent document. A generic or inline fallback receives the
-entire body of `agents/bouncer-reviewer.md` (Authority through Output contract,
-verbatim) plus this filled call slot, as `references/review/index.md` step 3
+entire body of `${BOUNCER_ROOT}/agents/bouncer-reviewer.md` (Authority through Output contract,
+verbatim) plus this filled call slot, as `${BOUNCER_ROOT}/references/review/index.md` step 3
 directs. The controller also supplies the actual read-only cwd. This call slot
 never grants a reviewer write, status, pointer, or scope authority.
 
