@@ -1,0 +1,35 @@
+I'll start `/bouncer-plan` by loading the plugin contract and running preflight, then ground the PRD in the repo before any scaffolding.Preflight is clear: no selection, next epic `001`. Resolving the project root and grounding the PRD in the checkout next.Next I'll map how `--file` is parsed today and pull project contribution rules for the discovery framing.Preflight: no blueprint/task selected. Discovery is grounded in `src/args.js` (`parseOptions`), the three commands, `test/args.test.js`, and docs. Intent for `parseOptions` / `main` is unlinked (no provenance). No epics yet; no CONTRIBUTING/AGENTS/CI.
+
+Two behaviors are still unsettled. Please answer both before the Discover confirm.
+
+---
+
+**Open decision 1 — `src/cli.js` USAGE 문자열**
+
+잘못된 명령명일 때 stderr로 나가는 USAGE는 지금 `--file <path>`만 보여 줍니다. PRD는 `README.md` / `docs/commands.md`만 명시했습니다.
+
+- A) USAGE에도 `-f`를 반영 (예: `--file|-f <path>`)
+- B) USAGE는 `--file`만 유지 (문서만 `-f` 반영)
+
+**Open decision 2 — CHANGELOG**
+
+`CHANGELOG.md`에 `## Unreleased`가 있고, 기여 규칙은 없습니다.
+
+- A) Unreleased에 `-f` 항목 추가
+- B) 이번 작업에서 CHANGELOG는 건드리지 않음
+
+---
+
+초안 framing (답변 반영 후 Discover ACQ에서 확정):
+
+| | |
+|---|---|
+| **Goal** | 모든 명령에서 `-f <path>`를 `--file <path>`와 동일하게 쓸 수 있게 한다. |
+| **Scope** | `parseOptions`에 `-f`↔`file` 별칭; list/total/summary 동작; missing/duplicate 오류; `README.md`·`docs/commands.md`; 관련 테스트 |
+| **Non-goals** | 다른 short option; `-fpath` 붙여쓰기; `--file` 동작/출력 변경; 집계·스토리지 변경 |
+| **Success criteria** | `-f`가 `--file`과 동일; 값 없음·`-f`+`--file` 중복 시 stderr+exit 1; 기존 `--file` 회귀 없음; 문서에 `-f` 반영; `npm test` 통과 |
+| **Edge / failure** | 값 없음; `-f`와 `--file` 동시; 옵션 순서 무관; 미지정 시 기존 `missing required option --file` 유지 |
+| **Overlap** | 기존 epic 없음; intent unlinked |
+| **Project rules** | none found (기여 문서/CI 없음). `package.json#scripts` → `npm test`; config.verify도 `npm test` |
+
+답은 예: `1-A, 2-B` 형식으로 주시면 됩니다.
