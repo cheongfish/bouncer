@@ -49,7 +49,9 @@ unresolved. Used from `/bouncer-execute`.
 2. **Contract** — The review body must end with a `## Findings` section. Record
    each finding with:
    - `severity`: one of `blocker | major | minor | nit`;
-   - `status`: `resolved`, `accepted`, or `deferred`;
+   - `status`: `resolved`, `accepted`, `deferred`, or `open` (not yet fixed;
+     it cannot remain once the review is `accepted`, so change it to `resolved`
+     in the delta round first);
    - `fingerprint`: `<category>:<brief_clause>:<file>#<symbol>`. Normalize each
      part with trim; lowercase category and brief_clause; use `/` as the file
      separator; strip a leading `./`. Example:
@@ -61,7 +63,8 @@ unresolved. Used from `/bouncer-execute`.
    ledger: previous finding IDs plus `new` / `resolved` / `regressed` counts,
    how findings were resolved, the revision, and the latest verify result.
    Mark the review accepted only when no actionable finding remains unresolved
-   (every finding `resolved`, `accepted` with a note, or `deferred` with a note).
+   (every finding `resolved`, `accepted` with a note, or `deferred` with a note;
+   none `open`).
 3. **Review** — Freeze base, HEAD, task-brief revision(s), `task_brief_hash`
    or `task_brief_hashes`, `intent_bundle_id` / `intent_bundles`, and latest
    verify before review. Run `bouncer review-dispatch execute --blueprint <dir>

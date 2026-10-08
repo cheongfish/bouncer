@@ -80,3 +80,113 @@ findings, resolution, revision diff) when mode is delta.
   a new design, dependency, public Interface, or scope requirement, is
   `blocked`; under a drive, hand the coordinator the open findings to
   disposition.
+
+## Finding status
+
+Finding `status` (in each `findings[]` entry) is separate from the review
+document `--status` (`review record --status`).
+
+| finding `status` | meaning |
+| --- | --- |
+| `open` | confirmed but not fixed yet; the document cannot be `accepted` while any finding is `open` |
+| `resolved` | fixed in the diff |
+| `accepted` | risk accepted, `note` required |
+| `deferred` | follow-up plan independent of the current task, `note` required |
+
+| document `--status` | meaning |
+| --- | --- |
+| `requested` | the review is open |
+| `addressed` | fixes applied, waiting for re-confirmation |
+| `accepted` | everything resolved; closes the review |
+
+Repair wave order:
+
+1. Discovery round: record a must_fix not yet fixed as `open` and the document
+   `--status requested`.
+2. Fix: on the per-task path open a fix implementer through a new `coordinate dispatch`.
+3. Delta round: send that finding again with every field, `status: resolved`,
+   `last_seen_round` of the new round, and `--status accepted`.
+
+Discovery round (`--status requested`):
+
+```json
+{
+  "round": {
+    "round": 1,
+    "mode": "discovery",
+    "target": {
+      "base": "aaa",
+      "head": "bbb"
+    },
+    "perspectives": [
+      {
+        "name": "combined",
+        "target_head": "bbb"
+      }
+    ],
+    "task_brief_hash": "<hash>",
+    "intent_bundle_id": "<id>",
+    "intent_bundle_revision": 1,
+    "previous_finding_ids": [],
+    "new": 1,
+    "resolved": 0,
+    "regressed": 0
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "status": "open",
+      "category": "correctness",
+      "brief_clause": "tasks/001 Interface",
+      "file": "scripts/lib/x.js",
+      "symbol": "f",
+      "fingerprint": "correctness:tasks/001 interface:scripts/lib/x.js#f",
+      "actionability": "must_fix",
+      "origin": "discovery",
+      "first_seen_round": 1,
+      "last_seen_round": 1
+    }
+  ]
+}
+```
+
+Delta round (`--status accepted`):
+
+```json
+{
+  "round": {
+    "round": 2,
+    "mode": "delta",
+    "target": {
+      "base": "aaa",
+      "head": "ccc"
+    },
+    "task_brief_hash": "<hash>",
+    "intent_bundle_id": "<id>",
+    "intent_bundle_revision": 1,
+    "previous_finding_ids": [
+      "F1"
+    ],
+    "new": 0,
+    "resolved": 1,
+    "regressed": 0
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "status": "resolved",
+      "category": "correctness",
+      "brief_clause": "tasks/001 Interface",
+      "file": "scripts/lib/x.js",
+      "symbol": "f",
+      "fingerprint": "correctness:tasks/001 interface:scripts/lib/x.js#f",
+      "actionability": "must_fix",
+      "origin": "discovery",
+      "first_seen_round": 1,
+      "last_seen_round": 2
+    }
+  ]
+}
+```

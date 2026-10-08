@@ -16,6 +16,13 @@
 
 ### Changed
 
+- **finding status `open`** — execute 리뷰 finding에 해결 전을 뜻하는 `open`을
+  더한다. 리뷰 문서가 `accepted`이면 `open`이 하나라도 있을 때
+  `finding <id> open in accepted review`로 `review record`·G14·G21이 거절하고,
+  context review(G18)는 지금처럼 `status invalid`다. review·final_review 카드에
+  `## Finding status` 절(status 의미, discovery → fix → delta 순서, round JSON
+  예시 둘)을 싣고 `review record --help` Enums를 맞춰, coordinator가 해결 전
+  must_fix를 기록할 status를 찾으려고 리뷰 기록 소스를 읽던 경로를 끊는다.
 - **`review-dispatch --help`** — G18을 통과하는 `bouncer.context_review` round
   예시와 enum(검증기 상수에서 생성), fingerprint 공식을 도움말에 싣는다. plan
   reference는 digest를 손으로 계산하지 않고 `review-dispatch plan` 출력의

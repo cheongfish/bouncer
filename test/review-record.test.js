@@ -335,3 +335,71 @@ test('review record --help example round records on a fresh blueprint', () => {
   assert.deepEqual(recorded.task_brief_hashes, hashes);
   assert.deepEqual(recorded.intent_bundles, bundles);
 });
+
+// ---- finding status `open`과 카드 repair wave 예시 ----
+
+const CARD_DIR = path.join(__dirname, '..', 'references', 'coordinator-cards');
+
+/** task 리뷰 모드 픽스처: review_scope를 지우고 task 001을 scaffold한다. */
+function makeTaskRepo() {
+  const fixture = makeBlueprintRepo();
+  const indexPath = path.join(fixture.repo, BP_REL, 'index.md');
+  const parsed = parseFrontmatter(fs.readFileSync(indexPath, 'utf8'));
+  delete parsed.data.bouncer.review_scope;
+  fs.writeFileSync(indexPath, renderDoc(parsed.data, parsed.body));
+  // blueprint scaffold가 task 001을 만들지만 review_scope 때문에 task review.md는 없다.
+  // 루트 review.md를 복사해 task 리뷰 대상 파일로 쓴다.
+  const taskReview = path.join(fixture.repo, BP_REL, 'tasks', '001', 'review.md');
+  fs.mkdirSync(path.dirname(taskReview), { recursive: true });
+  fs.copyFileSync(fixture.reviewPath, taskReview);
+  return { ...fixture, reviewPath: taskReview };
+}
+
+for (const [cardName, taskMode] of [['review.md', true], ['final_review.md', false]]) {
+  test(`${cardName} card repair wave fences record discovery then delta`, () => {
+    const card = fs.readFileSync(path.join(CARD_DIR, cardName), 'utf8');
+    const fences = [...card.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => JSON.parse(m[1]));
+    assert.equal(fences.length, 2);
+    const { repo, reviewPath } = taskMode ? makeTaskRepo() : makeBlueprintRepo();
+    const task = taskMode ? '001' : undefined;
+    const first = recordCli(repo, { round: writeJson(repo, 'r1.json', fences[0]), status: 'requested', task });
+    assert.equal(first.code, 0, first.err + first.out);
+    const second = recordCli(repo, { round: writeJson(repo, 'r2.json', fences[1]), status: 'accepted', task });
+    assert.equal(second.code, 0, second.err + second.out);
+    const { data } = parseFrontmatter(fs.readFileSync(reviewPath, 'utf8'));
+    assert.equal(data.bouncer.status, 'accepted');
+    assert.equal(data.bouncer.review.findings.find((f) => f.id === 'F1').status, 'resolved');
+  });
+
+  test(`${cardName} card has a Finding status section`, () => {
+    const card = fs.readFileSync(path.join(CARD_DIR, cardName), 'utf8');
+    const m = card.match(/## Finding status\n([\s\S]*?)(?=\n## |$)/);
+    assert.ok(m, 'missing ## Finding status');
+    for (const word of ['open', 'resolved', 'accepted', 'deferred', '--status', 'requested', 'addressed']) {
+      assert.ok(m[1].includes(word), `section lacks ${word}`);
+    }
+  });
+}
+
+test('open must_fix with --status requested records, with --status accepted is rejected untouched', () => {
+  const { repo, reviewPath } = makeBlueprintRepo();
+  const finding = { ...EXAMPLE_FINDING, status: 'open' };
+  const roundFile = writeJson(repo, 'round.json', roundPayload(EXAMPLE_ROUND, [finding]));
+  const before = fs.readFileSync(reviewPath);
+  const rejected = recordCli(repo, { round: roundFile, status: 'accepted' });
+  assert.notEqual(rejected.code, 0);
+  assert.match(rejected.out + rejected.err, /review-ledger-invalid/);
+  assert.match(rejected.out + rejected.err, /open in accepted review/);
+  assert.deepEqual(fs.readFileSync(reviewPath), before);
+  const ok = recordCli(repo, { round: roundFile, status: 'requested' });
+  assert.equal(ok.code, 0, ok.err + ok.out);
+  const { data } = parseFrontmatter(fs.readFileSync(reviewPath, 'utf8'));
+  assert.equal(data.bouncer.status, 'requested');
+});
+
+test('review record --help lists open and shows an open example', () => {
+  const help = capture(['review', 'record', '--help']);
+  assert.match(help.out, /finding status: resolved\|accepted\|deferred\|open/);
+  const example = JSON.parse(help.out.match(/```json\n([\s\S]*?)\n```/)[1]);
+  assert.equal(example.findings[0].status, 'open');
+});

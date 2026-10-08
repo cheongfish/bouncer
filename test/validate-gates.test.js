@@ -3090,3 +3090,29 @@ test('execute and commit G24 detect changed parts, unreadable snapshots, and ski
   assert.ok(!commitSkipCoord.some((f) => f.code === 'G24'));
 });
 
+
+test('execute gate G14 rejects an open advisory finding in an accepted review', () => {
+  const failures = executeReviewFailures({
+    findings: [{ id: 'F1', severity: 'minor', status: 'open', actionability: 'advisory' }],
+  });
+  assert.ok(failures.some((f) => /finding F1 open in accepted review/.test(f.message)), JSON.stringify(failures));
+});
+
+test('finalize G21 rejects an open finding in an accepted blueprint review', () => {
+  const failures = finalizeG21({
+    review: g21ReviewDoc('accepted', {
+      findings: [{ id: 'F1', severity: 'minor', status: 'open', actionability: 'advisory' }],
+    }),
+  });
+  assert.ok(failures.some((f) => f.code === 'G21' && /finding F1 open in accepted review/.test(f.message)), JSON.stringify(failures));
+});
+
+test('plan gate G18 keeps rejecting open as an invalid status', () => {
+  const docs = planDocs(READY_BODY);
+  docs.contextReview = contextReviewDoc('accepted', [
+    { id: 'CR-4', severity: 'minor', status: 'open' },
+  ]);
+  const failures = [];
+  checkGate('plan', docs, rels, failures);
+  assert.ok(failures.some((f) => f.code === 'G18' && /finding CR-4 status invalid: open/.test(f.message)));
+});

@@ -126,8 +126,10 @@ The only complete mode sequences are `discovery`, `discovery → delta`, and the
 drive-only recovery sequence `discovery → delta → critical_recovery → delta`.
 An `advisory` is recorded once as `accepted` or `deferred` with a note; it never
 opens another implementer dispatch. Do not classify a current-task accuracy
-finding as `deferred` or `advisory`; an unresolved finding is never recorded as
-done.
+finding as `deferred` or `advisory`. An unresolved finding is never recorded as
+done: record it as `open` while the review is `requested`, then change it to
+`resolved` in the delta round before the review becomes `accepted` — an `open`
+finding cannot remain in an `accepted` review.
 
 After certification, a new blocker or major with an allowed origin uses one
 **critical recovery** only in a drive: one fix, verify, and final delta each.

@@ -624,7 +624,11 @@ test('bouncer-execute records scope drift with coordinate revise, not prose', ()
   // 라운드 상한을 넘긴 실패는 계획 후퇴가 아니라 coordinator 판정으로 간다.
   assert.match(exec, /not a return to `\/bouncer-plan`/);
   assert.match(exec, /hand the coordinator the open findings to\s*\n?\s*disposition/);
-  assert.match(round, /unresolved finding is never recorded as\s*\n?\s*done/);
+  // 해결 전 finding은 done이 아니라 open으로 기록하고 accepted 전에 resolved로 바꾼다.
+  assert.ok(
+    round.split(/\n\s*\n/).some((para) => /`open`/.test(para) && /accepted/.test(para)),
+    'review-round.md must mention open and accepted in one paragraph',
+  );
   assert.doesNotMatch(exec, /escalate to architecture/);
 });
 
