@@ -39,5 +39,6 @@ workflow. Each master or product rule a workflow opens loads once per session.
 A new workflow session loads its needed rules before that rule's use; do not
 re-read them when they are already loaded in the same session. The workflow
 skill keeps its `Plugin root` and `Master rules` labels so this loading point is
-visible, but does not restate this contract. `bouncer init` does not install
+visible; its `Plugin root` line carries only the `bouncer-root --auto` command
+and does not restate the selection rules above. `bouncer init` does not install
 these plugin-owned rules into the consuming project.

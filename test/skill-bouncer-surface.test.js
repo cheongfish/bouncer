@@ -106,15 +106,38 @@ function readWorkflow(name) {
   return fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
 }
 
+/**
+ * 플러그인 루트 기준 상대 경로의 원문을 읽는다.
+ * Plugin root 문단·규칙 문장 단언이 SKILL.md와 rules/를 같은 방식으로
+ * 비교해야 해서 readWorkflow와 별도 헬퍼로 둔다.
+ *
+ * @param {string} rel - 플러그인 루트 기준 상대 경로
+ * @returns {string} 파일 원문
+ */
+function read(rel) {
+  return fs.readFileSync(path.join(root, rel), 'utf8');
+}
+
+// Success criteria 28: 세션이 루트를 먼저 얻고 plugin-root 계약을 루트 기준으로
+// 연다. 여섯 문단이 바이트까지 같고, 규칙 문장이 스킬 줄이 명령만 싣는다고 말한다.
+test('workflow Plugin root paragraphs run bouncer-root --auto and cite the contract from that root', () => {
+  const PLUGIN_ROOT_LINE = '**Plugin root.** Run `BOUNCER_ROOT="$(bouncer-root --auto)"` once at session start and open every plugin document cited as `${BOUNCER_ROOT}/…` from that root; `${BOUNCER_ROOT}/rules/plugin-root.md` holds the shared root-selection and rule-loading contract.';
+  for (const name of WORKFLOW) assert.ok(readWorkflow(name).includes(`\n${PLUGIN_ROOT_LINE}\n`), name);
+  const RULE_SENTENCE = 'its `Plugin root` line carries only the `bouncer-root --auto` command and does not restate the selection rules above.';
+  assert.ok(read('rules/plugin-root.md').replace(/\s+/g, ' ').includes(RULE_SENTENCE));
+});
+
 // BP001 착수 시점 단어 수. 합계가 이 값보다 작다는 기존 판정만 유지하고,
 // 스킬별 숫자는 이후 성장이 어디서 났는지 보는 영수증이다.
+// TASKS-002: Plugin root 줄이 루트 명령을 직접 실어 스킬당 +17 단어 → 합계 상한도
+// 같은 폭으로 올려 의도된 성장이 회귀 판정에 걸리지 않게 한다.
 const ENTRY_WORD_BASELINE = {
-  'bouncer-init': 411,
-  'bouncer-plan': 2331,
-  'bouncer-execute': 2001,
-  'bouncer-commit': 926,
-  'bouncer-run': 1141,
-  'bouncer-finalize': 985,
+  'bouncer-init': 428,
+  'bouncer-plan': 2348,
+  'bouncer-execute': 2018,
+  'bouncer-commit': 943,
+  'bouncer-run': 1158,
+  'bouncer-finalize': 1002,
 };
 
 test('entry-skill word count stays below the BP001 baseline', () => {

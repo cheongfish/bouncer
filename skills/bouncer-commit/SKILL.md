@@ -4,7 +4,7 @@ description: "Use only when the user explicitly asks /bouncer-commit; it commits
 ---
 # /bouncer-commit
 
-**Plugin root.** See `rules/plugin-root.md` for the shared root-selection and rule-loading contract.
+**Plugin root.** Run `BOUNCER_ROOT="$(bouncer-root --auto)"` once at session start and open every plugin document cited as `${BOUNCER_ROOT}/…` from that root; `${BOUNCER_ROOT}/rules/plugin-root.md` holds the shared root-selection and rule-loading contract.
 
 **Master rules.** Before the numbered steps, Read `${BOUNCER_ROOT}/AGENTS.md`.
 
