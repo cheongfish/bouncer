@@ -71,6 +71,16 @@ type VerificationDeps = {
   nodeVersion?: string;
 };
 
+/** verify 한 번의 결과. 새로 실행했든 원장에서 재사용했든 같은 모양이다. */
+type VerifyFinishResult = {
+  ok: boolean;
+  command: string;
+  exitCode: number;
+  evidenceId: string;
+  reused: boolean;
+  reusedFrom?: string;
+};
+
 type VerifyLedgerRecordV2 = {
   rel: string;
   command: string;
@@ -1296,17 +1306,10 @@ function runVerification({
   /**
    * 증적 기록이 끝난 뒤에만 상태를 쓴다. 다음 dirty_digest는 달라져 재사용을 놓친다.
    *
-   * @param {{ ok: boolean, command: string, exitCode: number, evidenceId: string, reused: boolean, reusedFrom?: string }} result - 이번 실행 또는 재사용 결과
-   * @returns {{ ok: boolean, command: string, exitCode: number, evidenceId: string, reused: boolean, reusedFrom?: string }} 호출자에게 그대로 돌려줄 결과
+   * @param {VerifyFinishResult} result - 이번 실행 또는 재사용 결과
+   * @returns {VerifyFinishResult} 호출자에게 그대로 돌려줄 결과
    */
-  const finish = (result: {
-    ok: boolean;
-    command: string;
-    exitCode: number;
-    evidenceId: string;
-    reused: boolean;
-    reusedFrom?: string;
-  }) => {
+  const finish = (result: VerifyFinishResult) => {
     if (markTaskVerified && result.ok && selected && selected.rel) {
       maybeMarkCommitTaskVerified({
         repoRoot,

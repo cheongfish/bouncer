@@ -112,7 +112,7 @@ test('execute gate promotes a ready pointer commit task and passes once', () => 
   const tasksPath = path.join(repo, `${BP_REL}/tasks/001/tasks.md`);
   fs.writeFileSync(
     tasksPath,
-    fs.readFileSync(tasksPath, 'utf8').replace("status: verified", 'status: ready'),
+    fs.readFileSync(tasksPath, 'utf8').replace('status: verified', 'status: ready'),
   );
   writeCurrent({
     repoRoot: repo,

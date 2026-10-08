@@ -273,7 +273,8 @@ const LEGACY_SCAFFOLD_COMMENT_BODIES: readonly string[] = Object.freeze([
   'verification task는 source를 바꾸지 않는다. 이 절에 백틱 토큰이나 경로를\n적으면 G20이 source 변경 선언으로 보고 거절하므로 아래 문구를 그대로 둔다.',
   'finding: id, severity, status. mode를 쓰는 rounds[]면 category, brief_clause, file,\n' +
     'symbol, fingerprint, actionability, origin, first_seen_round, last_seen_round도 필수.\n' +
-    'severity: blocker | major | minor | nit\nstatus: resolved | accepted | deferred | open (open은 해결 전 finding이며 accepted 리뷰에는 남을 수 없음)\n' +
+    'severity: blocker | major | minor | nit\n' +
+    'status: resolved | accepted | deferred | open (open은 해결 전 finding이며 accepted 리뷰에는 남을 수 없음)\n' +
     'actionability: must_fix | advisory\norigin: discovery | introduced_by_revision | missed_critical\n' +
     'fingerprint: <category>:<brief_clause>:<file>#<symbol> (앞뒤 공백 제거, category·brief_clause 소문자, file의 ./ 제거)\n' +
     'accepted note: 권한 있는 위험 수용 근거\ndeferred note: 현재 task와 독립인 후속 planning 항목 근거\n' +

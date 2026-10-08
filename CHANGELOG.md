@@ -9,6 +9,9 @@
 
 ### Fixed
 
+- **lint 오류 네 곳** — `templates.ts`·`verification.ts`의 120자 초과 줄과
+  `test/cli-verify.test.js`의 큰따옴표 문자열을 동작 변경 없이 고쳐
+  `npm run ci`의 lint 단계가 통과한다.
 - **ledger run의 finalize 멈춤** — 평가자 정책 v3가 `finalize.remainder`를 A
   (`finalize --yes` 커밋과 worktree 제거)로 답하고 `finalize.next_blueprint`
   항목을 지운다. 하네스는 worktree 제거 뒤에도 integration 브랜치 ref에서
