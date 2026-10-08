@@ -9,6 +9,11 @@
 
 ### Added
 
+- **`coordinate status --write-input <file>`** — integration worktree에서
+  coordinator print dispatch 입력 텍스트(write cwd, base SHA, checkpoint,
+  autonomy, read-only provenance)를 파일로 쓰고 `input_file`을 보고한다.
+  `/bouncer-run` 4단계와 print dispatch 규칙이 이 명령을 가리켜 세션이
+  형식을 찾으려 플러그인 소스를 읽지 않게 한다.
 - **print dispatch `context-reviewer` role** — `bouncer dispatch print`가
   `--role context-reviewer`를 받고, plan context-review 지침이 호출별
   (`r1-combined`·`r1-local-<cluster id>`·`r1-global`·`r2-delta`) print 명령과

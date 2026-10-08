@@ -417,3 +417,9 @@ test('review-dispatch keeps rejecting invalid calls and treats a flag value -h a
     assert.strictEqual(r.out, '', `${argv.join(' ')} stdout`);
   }
 });
+
+test('coordinate status --help lists --write-input', () => {
+  const r = capture(['coordinate', 'status', '--help']);
+  assert.strictEqual(r.code, 0);
+  assert.match(r.out, /\[--write-input <file>\]/);
+});

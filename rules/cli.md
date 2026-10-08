@@ -51,6 +51,7 @@ Do not scaffold tasks into a closed blueprint.
 bouncer current [--set <dir> [--base <branch>] [--task <NNN|TASKS-NNN>] [--replace]] [--clear]
 bouncer seed-worktree --blueprint <dir> --to <worktree>
 bouncer coordinate <bootstrap|prepare|ready|dispatch|report|record|rerecord|revoke|integrate|status|revise|repair|partial-close|critical-recovery> --blueprint <dir> ...
+bouncer coordinate status --blueprint <dir> --write-input <file>
 bouncer coordinate repair --blueprint <dir> --task <ddd> --failure-command <cmd> \
   --summary <text> --paths <p> --decision <reason>
 bouncer coordinate repair --blueprint <dir> [--task <ddd>] --review-finding <id> \

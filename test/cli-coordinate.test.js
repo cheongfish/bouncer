@@ -814,3 +814,78 @@ test('coordinate next rejects a valueless --task', () => {
   }
   assert.doesNotMatch(missingValue.buf.out, /"action":"drive_tasks"/);
 });
+
+/** 정규식 메타문자를 이스케이프한다. 경로를 패턴에 그대로 넣기 위한 테스트 helper. */
+function escape(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+test('coordinate status --write-input writes the coordinator dispatch input file', () => {
+  const drive = preparedDrive();
+  const plain = coordinateCli(drive.integration, 'status', ['--repo', drive.repo]);
+  assert.strictEqual(plain.code, 0);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(JSON.parse(plain.buf.out), 'input_file'), false);
+
+  const { code, buf } = coordinateCli(drive.integration, 'status', ['--write-input', 'out/coordinator.input.md']);
+  assert.strictEqual(code, 0);
+  const out = JSON.parse(buf.out);
+  assert.strictEqual(out.input_file, path.join(fs.realpathSync(drive.integration), 'out', 'coordinator.input.md'));
+  const text = fs.readFileSync(out.input_file, 'utf8');
+  assert.match(text, /^Coordinator dispatch input\n/);
+  assert.match(text, new RegExp(`write cwd: ${escape(drive.integration)}`));
+  assert.match(text, /base SHA: [0-9a-f]{40}/);
+  assert.match(text, /checkpoint\.ledger\.sha256: [0-9a-f]{64}/);
+  assert.match(text, /autonomy: (auto|interactive) \(reporting cadence only/);
+  assert.match(text, /read-only provenance: .+ \(base SHA provenance only; never a write cwd\)/);
+  assert.match(text, new RegExp(`blueprint: ${escape(BP_REL)}`));
+  assert.match(text, /checkpoint: \{.*\}\n/);
+
+  // 값 없는 플래그와 status 외 서브커맨드(ready 별칭 포함)는 usage(2)이고 파일을 만들지 않는다.
+  const missing = path.join(drive.integration, 'never-missing.md');
+  const noValue = coordinateCli(drive.integration, 'status', ['--write-input']);
+  assert.strictEqual(noValue.code, 2);
+  const ready = coordinateCli(drive.integration, 'ready', ['--write-input', missing]);
+  assert.strictEqual(ready.code, 2);
+  const next = coordinateCli(drive.integration, 'next', ['--write-input', missing]);
+  assert.strictEqual(next.code, 2);
+  assert.strictEqual(fs.existsSync(missing), false);
+
+  // main checkout cwd에서는 status 자체가 거절되어 exit 1이고 파일이 없다.
+  const mainFile = path.join(drive.repo, 'main-out', 'x.md');
+  const fromMain = coordinateCli(drive.repo, 'status', ['--write-input', mainFile]);
+  assert.strictEqual(fromMain.code, 1);
+  assert.match(fromMain.buf.err, /^coordinate: /);
+  assert.strictEqual(fs.existsSync(mainFile), false);
+
+  // 생성 파일은 dispatch print가 그대로 coordinator prompt 끝에 붙인다.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-print-link-'));
+  try {
+    fs.mkdirSync(path.join(root, '.bouncer'));
+    fs.writeFileSync(path.join(root, '.bouncer', 'config.json'), JSON.stringify({
+      subagents: { provider: 'cursor', dispatch: 'print', cursor: { 'bouncer-coordinator': 'slug-x' } },
+    }));
+    const agentsDir = path.join(root, 'agents');
+    fs.mkdirSync(agentsDir);
+    fs.writeFileSync(path.join(agentsDir, 'bouncer-coordinator.md'),
+      '---\nname: bouncer-coordinator\ndescription: fixture\n---\n\n# coord\nbody\n');
+    const agentBin = path.join(root, 'agent');
+    fs.writeFileSync(agentBin, `#!${process.execPath}
+if (process.argv[2] === 'status') process.exit(0);
+process.stdout.write('{"type":"result","result":"REPORT","is_error":false}\\n');
+`);
+    fs.chmodSync(agentBin, 0o755);
+    const cwd = path.join(root, 'cwd');
+    fs.mkdirSync(cwd);
+    const outDir = path.join(root, 'out');
+    fs.mkdirSync(outDir);
+    const result = require('../scripts/lib/print-dispatch').runPrintDispatch({
+      repoRoot: root, role: 'coordinator', cwd, inputFile: out.input_file, outDir,
+      deps: { agentBin, agentsDir },
+    });
+    assert.strictEqual(result.ok, true);
+    const prompt = fs.readFileSync(path.join(outDir, 'bouncer-coordinator.prompt.md'), 'utf8');
+    assert.ok(prompt.endsWith(text));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

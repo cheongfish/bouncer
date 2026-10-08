@@ -375,3 +375,27 @@ test('context-reviewer prompt uses the worker identity line, role body, and mode
     fs.rmSync(tree.root, { recursive: true, force: true });
   }
 });
+
+test('coordinator prompt carries a buildCoordinatorInput file verbatim at the end', () => {
+  const { buildCoordinatorInput } = require('../scripts/lib/coordinator-input');
+  const tree = makeTree();
+  try {
+    const text = buildCoordinatorInput({
+      integrationPath: '/w/integration',
+      blueprint: '.bouncer/context/epics/001-a/blueprints/001-b',
+      base: 'a'.repeat(40),
+      checkpoint: { ready: [], ledger: { path: '.bouncer/runtime/coordinator.json', sha256: 'b'.repeat(64), revision: null } },
+      autonomy: 'auto',
+      projectRoot: '/w/main',
+    });
+    const inputFile = path.join(tree.root, 'coordinator.input.md');
+    fs.writeFileSync(inputFile, text);
+    const result = runPrint(tree, { role: 'coordinator', inputFile });
+    assert.equal(result.ok, true);
+    const prompt = fs.readFileSync(path.join(tree.outDir, 'bouncer-coordinator.prompt.md'), 'utf8');
+    assert.ok(prompt.startsWith(COORDINATOR_IDENTITY));
+    assert.ok(prompt.endsWith(text));
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});

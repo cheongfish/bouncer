@@ -401,8 +401,10 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   },
   status: {
     help: `usage: bouncer coordinate status
-  --blueprint <dir> [--repo <dir>]
+  --blueprint <dir> [--repo <dir>] [--write-input <file>]
   Print the checkpoint (including checkpoint.ledger). Not ledger-fenced.
+  --write-input writes the coordinator print-dispatch input text to <file>
+  (status only; reports input_file) for \`dispatch print --role coordinator --input\`.
 `,
   },
   revise: {
@@ -545,6 +547,47 @@ function failCoordinateUsage(io: CliIo, message: string, command?: string): 2 {
 }
 
 /**
+ * status 성공 뒤 coordinator print 입력 파일을 쓴다. 값은 원장(`base`)과
+ * main worktree 설정(autonomy)에서 모은다 — lib status는 읽기 전용으로 두려고
+ * 파일 쓰기를 CLI 계층에 둔다. 부모 디렉터리가 없으면 만든다.
+ *
+ * @param {object} args - 쓰기 입력
+ * @param {string} args.file - 출력 경로. 상대 경로는 cwd 기준
+ * @param {string} args.repoRoot - status에 쓴 저장소 루트
+ * @param {string} args.blueprint - blueprint 디렉터리
+ * @param {Record<string, unknown>} args.checkpoint - status가 돌려준 checkpoint
+ * @returns {string} 쓴 파일의 절대 경로
+ */
+function writeCoordinatorInput(args: {
+  file: string; repoRoot: string; blueprint: string; checkpoint: Record<string, unknown>;
+}): string {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const nodePath = require('node:path') as typeof import('node:path');
+  const { coordinatorPathsFor, runtimePaths } = require('./runtime-state');
+  const { loadLedgerBytes } = require('./coordinator');
+  const { readAutonomy } = require('./run-preflight');
+  const { buildCoordinatorInput } = require('./coordinator-input');
+  const paths = coordinatorPathsFor({ repoRoot: args.repoRoot, blueprint: args.blueprint });
+  const loaded = loadLedgerBytes(paths.ledgerFile);
+  if (!loaded) throw new Error('ledger missing while writing coordinator input');
+  // autonomy 설정은 gitignore라 main checkout에만 있다. integration cwd가 아니라
+  // git common dir 부모(projectRoot)에서 읽는다.
+  const { projectRoot } = runtimePaths({ repoRoot: args.repoRoot });
+  const text = buildCoordinatorInput({
+    integrationPath: paths.integrationPath,
+    blueprint: args.blueprint,
+    base: loaded.ledger.base,
+    checkpoint: args.checkpoint,
+    autonomy: readAutonomy(projectRoot).value,
+    projectRoot,
+  });
+  const target = nodePath.resolve(process.cwd(), args.file);
+  fs.mkdirSync(nodePath.dirname(target), { recursive: true });
+  fs.writeFileSync(target, text);
+  return target;
+}
+
+/**
  * coordinate 서브커맨드를 CLI 경계에서 해석한다.
  * `--help`/`-h`는 인자·fence·core보다 먼저 stdout으로 끝내고, 허용 목록 밖
  * 이름은 core에 넘기지 않고 usage(2)로 끝낸다 — JSON 거절은 알려진 명령의
@@ -584,6 +627,15 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
     return failCoordinateUsage(io, 'coordinate: --blueprint is required\n', command);
+  }
+  // --write-input은 status 전용이다. 값 없는 플래그(true)와 다른 서브커맨드(ready 별칭
+  // 포함)는 파일을 쓰기 전에 usage(2)로 거절해 조용히 무시되지 않게 한다.
+  const hasWriteInput = Object.prototype.hasOwnProperty.call(f, 'write-input');
+  if (hasWriteInput && (command !== 'status' || typeof f['write-input'] !== 'string'
+    || f['write-input'] === '')) {
+    return failCoordinateUsage(
+      io, 'coordinate: --write-input <file> is accepted by status only and needs a value\n', command,
+    );
   }
   const ledgerPath = typeof f['ledger-path'] === 'string' ? f['ledger-path'] : undefined;
   const ledgerHash = typeof f['ledger-hash'] === 'string' ? f['ledger-hash'] : undefined;
@@ -734,7 +786,18 @@ function cmdCoordinate(rest: string[], io: CliIo) {
       ledgerHash,
       userConfirmed: f['user-confirmed'] === true,
     }) as { ok: boolean };
-    io.out(`${JSON.stringify(compactCoordinateOutput(command, result as Record<string, unknown>))}\n`);
+    const compact = compactCoordinateOutput(command, result as Record<string, unknown>) as Record<string, unknown>;
+    if (result.ok && hasWriteInput) {
+      // status가 모든 검사를 통과한 뒤에만 쓴다. 쓰기 오류는 아래 catch가
+      // `coordinate: <msg>` exit 1로 옮기고, 이 시점에는 stdout이 비어 있다.
+      compact.input_file = writeCoordinatorInput({
+        file: f['write-input'] as string,
+        repoRoot: (f.repo || process.cwd()) as string,
+        blueprint: f.blueprint,
+        checkpoint: (result as unknown as { checkpoint: Record<string, unknown> }).checkpoint,
+      });
+    }
+    io.out(`${JSON.stringify(compact)}\n`);
     return result.ok ? 0 : 1;
   } catch (error) { io.err(`coordinate: ${catchMessage(error)}\n`); return 1; }
 }
