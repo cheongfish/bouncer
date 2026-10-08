@@ -245,7 +245,7 @@ test('usage lists dispatch print form', () => {
   const out = capture([]).out;
   assert.match(
     out,
-    /dispatch print --role <implementer\|reviewer\|debugger\|coordinator> --cwd <dir> --input <file> --out <dir>/,
+    /dispatch print --role <implementer\|reviewer\|debugger\|context-reviewer\|coordinator> --cwd <dir> --input <file> --out <dir>/,
   );
 });
 

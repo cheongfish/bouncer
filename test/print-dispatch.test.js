@@ -315,3 +315,63 @@ test('dispatch rejects non-print verbs and missing flags with exit 2', () => {
   ]);
   assert.equal(dup.code, 2);
 });
+
+test('CLI accepts --role context-reviewer and reaches the opt-in check', () => {
+  const tree = makeTree();
+  try {
+    // opt-in이 없는 설정이면 role 검증을 통과한 뒤 print-dispatch-disabled로 끝나야 한다.
+    fs.writeFileSync(
+      path.join(tree.root, '.bouncer', 'config.json'),
+      JSON.stringify({ subagents: { provider: 'cursor' } }),
+    );
+    const { code, out } = capture([
+      'dispatch', 'print',
+      '--role', 'context-reviewer',
+      '--cwd', tree.cwd,
+      '--input', tree.inputFile,
+      '--out', tree.outDir,
+      '--repo', tree.root,
+    ]);
+    assert.notEqual(code, 2);
+    assert.equal(JSON.parse(out).reason, 'print-dispatch-disabled');
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});
+
+test('CLI rejects misspelled context-reviewer roles and lists five roles', () => {
+  for (const role of ['context_reviewer', 'bouncer-context-reviewer']) {
+    const r = capture([
+      'dispatch', 'print', '--role', role,
+      '--cwd', '/tmp', '--input', '/tmp/x', '--out', '/tmp/y',
+    ]);
+    assert.equal(r.code, 2);
+    assert.match(r.err, /context-reviewer/);
+  }
+});
+
+test('context-reviewer prompt uses the worker identity line, role body, and model slug', () => {
+  const tree = makeTree();
+  try {
+    writeRole(tree.agentsDir, 'context-reviewer', '# Bouncer context-reviewer\n<context-reviewer role body marker>\n');
+    fs.writeFileSync(
+      path.join(tree.root, '.bouncer', 'config.json'),
+      JSON.stringify({
+        subagents: {
+          provider: 'cursor',
+          dispatch: 'print',
+          cursor: { 'bouncer-context-reviewer': 'slug-cr' },
+        },
+      }),
+    );
+    const result = runPrint(tree, { role: 'context-reviewer' });
+    assert.equal(result.ok, true);
+    const prompt = fs.readFileSync(path.join(tree.outDir, 'bouncer-context-reviewer.prompt.md'), 'utf8');
+    assert.ok(prompt.startsWith("You are the dispatched bouncer-context-reviewer itself. Do this role's work directly and never dispatch any Bouncer agent.\n\n"));
+    assert.match(prompt, /<context-reviewer role body marker>/);
+    const argv = JSON.parse(fs.readFileSync(path.join(tree.cwd, 'argv.json'), 'utf8'));
+    assert.deepEqual(argv.slice(argv.indexOf('--model'), argv.indexOf('--model') + 2), ['--model', 'slug-cr']);
+  } finally {
+    fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});

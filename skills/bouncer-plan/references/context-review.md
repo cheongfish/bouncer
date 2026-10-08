@@ -71,6 +71,28 @@ When the plan gate reports `context review is stale`, the recovery is not a
 third round: replace `rounds[]` and `findings[]` with a new round 1 discovery
 on the current digest (restart from step 1), then re-approve.
 
+When Cursor print dispatch is opted in, run each step 2 call and the step 5
+delta call as a print dispatch from `PROJECT_ROOT`. Per call, the controller
+first writes that call's controller input allowlist (and nothing else) to
+`<out>/input.md`, then runs:
+
+```bash
+# Run from PROJECT_ROOT. <call> is r1-combined | r1-local-<cluster id> | r1-global | r2-delta
+bouncer dispatch print --role context-reviewer --cwd "$PROJECT_ROOT" \
+  --input .bouncer/runtime/print/context-review/<call>/input.md \
+  --out .bouncer/runtime/print/context-review/<call>
+```
+
+Use `r1-combined` for discovery `combined`, `r1-local-<cluster id>` (for
+example `r1-local-c1`) for each `local`, `r1-global` for `global`, and
+`r2-delta` for the delta; relative `--out` and `--input` resolve from
+`PROJECT_ROOT`. The result `report` is that call's Findings. Only when the
+result is `ok: false`, review that one call inline and record
+`- inline context review: dispatch print failed (<reason>)` in
+`## Findings`, where `<reason>` is the result `reason`. An inline review
+without a `dispatch print` attempt is not allowed under print opt-in, and the
+next paragraph applies only after `bouncer dispatch print` fails.
+
 If named agents are unavailable, do **not** skip this step. Per call, use a
 fresh generic read-only subagent whose payload carries the entire body of
 `agents/bouncer-context-reviewer.md` — every section from Authority through

@@ -18,7 +18,7 @@ rule's items 2-4 unchanged, and this document does not apply.
    item 4 fallback payload. Write only the controller input file. Then run
    `bouncer dispatch print`, which writes the prompt file whose first line is
    the identity line below, before the role body:
-   - worker or reviewer: `You are the dispatched bouncer-<role> itself. Do
+   - worker, reviewer, or context-reviewer: `You are the dispatched bouncer-<role> itself. Do
      this role's work directly and never dispatch any Bouncer agent.`
    - coordinator: `You are the dispatched bouncer-coordinator itself. Dispatch
      only your workers, each under rules/cursor-print-dispatch.md.`

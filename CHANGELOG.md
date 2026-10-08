@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- **print dispatch `context-reviewer` role** — `bouncer dispatch print`가
+  `--role context-reviewer`를 받고, plan context-review 지침이 호출별
+  (`r1-combined`·`r1-local-<cluster id>`·`r1-global`·`r2-delta`) print 명령과
+  `dispatch print` 실패 뒤에만 inline 검토를 허용하는 조건을 적는다.
+
 ### Fixed
 
 - **lint 오류 네 곳** — `templates.ts`·`verification.ts`의 120자 초과 줄과

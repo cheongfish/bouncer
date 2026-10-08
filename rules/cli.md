@@ -83,7 +83,7 @@ bouncer subagent-model --agent <name> [--provider <name>]
 bouncer codex-agents check --agent <name>
 bouncer review-dispatch plan --blueprint <dir>
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
-bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 
@@ -142,7 +142,7 @@ duplicate options, `--task` not three digits, `--status` outside
 `requested|addressed|accepted` including `pending`) is exit 2.
 
 ```sh
-bouncer dispatch print --role <implementer|reviewer|debugger|coordinator> \
+bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
 ```
 

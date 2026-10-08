@@ -592,3 +592,17 @@ test('bouncer-plan dispatches read-only task evidence for full commit tasks', ()
   const step3 = body.slice(body.indexOf('3. **Author.**'), body.indexOf('4. **Scope confirm.**'));
   assert.match(step3, /`scale: full`[\s\S]{0,240}\[evidence-dispatch\.md\]\(\.\/references\/evidence-dispatch\.md\)/);
 });
+
+// print opt-in에서는 호출별 print 명령이 fallback 문단보다 앞서고, inline은 print 실패 뒤에만 허용된다.
+test('bouncer-plan context-review documents per-call print dispatch before the fallback', () => {
+  const body = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/context-review.md'),
+    'utf8',
+  );
+  assert.match(body, /--role context-reviewer/);
+  assert.match(body, /r1-local-<cluster id>/);
+  assert.match(body, /r2-delta/);
+  assert.match(body, /inline context review: dispatch print failed/);
+  assert.match(body, /only after `bouncer dispatch print` fails/);
+  assert.ok(body.indexOf('--role context-reviewer') < body.indexOf('If named agents are unavailable'));
+});
