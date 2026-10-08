@@ -44,7 +44,10 @@ On a light plan, approved scope rests on the user's confirmation of
    `fingerprint` (`context:<category>:<brief_clause>:<file>#<symbol>`).
    Normalize each part with trim; lowercase category and brief_clause; use `/`
    as the file separator; strip a leading `./`. Example:
-   `fingerprint: correctness_tests:tasks/001 interface:scripts/lib/example.js#runExample`.
+   `fingerprint: context:scope:tasks/001 touch:.bouncer/context/epics/014-auth/blueprints/001-signup/tasks/001/tasks.md#touch`.
+   A complete `bouncer.context_review` record that passes G18 is printed by
+   `bouncer review-dispatch --help`; copy the digest from the `target.digest` of
+   `review-dispatch plan` instead of computing it.
    Also record
    `actionability` (`must_fix | advisory`), `origin` (`discovery |
    introduced_by_revision | missed_critical`), `first_seen_round`, and

@@ -34,8 +34,10 @@ const REVIEW_SECTION_DEFS: SectionDef[] = [
 const REVIEW_SEVERITY = ['blocker', 'major', 'minor', 'nit'];
 // context review는 기존 두 값만 유지한다. execute만 deferred를 추가한다 —
 // 한 배열을 공유하면 G18이 후속 이연을 계획 문서에 허용하게 된다.
+// `open`(해결 전)도 execute 전용이다. repair wave에서 coordinator가 해결 전 must_fix를
+// 기록할 값이며 note를 요구하지 않는다(NOTE_REQUIRED_STATUS에 넣지 않는다).
 const CONTEXT_REVIEW_STATUS = ['resolved', 'accepted'];
-const EXECUTE_REVIEW_STATUS = ['resolved', 'accepted', 'deferred'];
+const EXECUTE_REVIEW_STATUS = ['resolved', 'accepted', 'deferred', 'open'];
 const REVIEW_STATUS = CONTEXT_REVIEW_STATUS;
 const NOTE_REQUIRED_STATUS = ['accepted', 'deferred'];
 const FINDING_ACTIONABILITY = ['must_fix', 'advisory'];
@@ -283,6 +285,12 @@ function collectFindingFailures({
     ) {
       messages.push(`${findingLabel} finding ${id} ${String(rec.status)} without note`);
     }
+    // open은 accepted 문서에 남을 수 없다. actionability·mode 유무와 무관해야 하므로
+    // modeContract 블록 밖에서 본다(mode 없는 구문서와 advisory도 같은 답을 낸다).
+    // G18은 reviewStatus를 넘기지 않고 open을 status invalid로 먼저 거절한다.
+    if (reviewStatus === 'accepted' && rec && rec.status === 'open') {
+      messages.push(`${findingLabel} finding ${id} open in accepted review`);
+    }
     if (modeContract && rec) {
       for (const field of [
         'category', 'brief_clause', 'file', 'symbol', 'fingerprint', 'actionability',
@@ -432,6 +440,7 @@ export = {
   REVIEW_SEVERITY,
   REVIEW_STATUS,
   CONTEXT_REVIEW_STATUS,
+  CONTEXT_REVIEW_PERSPECTIVE,
   EXECUTE_REVIEW_STATUS,
   EXPLAIN_SECTION_HEADINGS,
   TODO_RE,

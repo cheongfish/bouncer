@@ -1,9 +1,9 @@
 {
-  "policy_version": 2,
+  "policy_version": 3,
   "task_id": "fastify-001",
   "approval_state": "proposed",
   "approved_by": null,
-  "approval_record": "2026-10-06 초안: ledger-004 정책 형식을 따르고 fastify 과제 사실만 바꿈. 사용자 승인 전에는 실행기가 거절한다.",
+  "approval_record": "2026-10-06 초안: ledger-004 정책 형식을 따르고 fastify 과제 사실만 바꿈. 사용자 승인 전에는 실행기가 거절한다.; 2026-10-08 conversation: 사용자 승인 — finalize.remainder는 A(finalize --yes 커밋과 worktree 제거)로 응답하고 finalize.next_blueprint 항목을 지움, policy_version 3",
   "base_commit": "42fe25fd2a151def098ef6b59dee18ec8ccac632",
   "request_file": "benchmarks/tasks/fastify-001.prd.md",
   "purpose": "Answer benchmark user questions only when they are actually asked, so the Bouncer run can reach local finalize.",
@@ -150,18 +150,13 @@
     },
     {
       "gate": "finalize.remainder",
-      "answer": "commit_and_keep_worktree",
-      "when": "Only after a successful finalize prepare, clean dry-run, and complete verified integration; keep worktrees for benchmark evidence."
+      "answer": "finalize_yes_and_remove_worktrees",
+      "when": "Only after a successful finalize prepare, clean dry-run, and complete verified integration; the harness collects evidence from the integration branch ref."
     },
     {
       "gate": "finalize.pr",
       "answer": "local_only",
       "when": "If a PR question is asked, refuse push and PR creation. A missing remote may skip this gate."
-    },
-    {
-      "gate": "finalize.next_blueprint",
-      "answer": "leave_pointer_cleared",
-      "when": "If another blueprint exists, do not advance to it; the fastify-001 experiment ends with this blueprint."
     }
   ],
   "vanilla_questions": {

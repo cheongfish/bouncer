@@ -2,9 +2,9 @@
 'use strict';
 // finalize.remainder에서 멈춘 bouncer-full 실행을 작업 공간 아카이브에서 채점한다.
 //
-// 1.5.4 finalize는 remainder 단계에서 worktree 유지 선택지를 없앴다(f79ea8e2). 승인 정책은
-// `commit_and_keep_worktree`라 응답기가 멈추고, 실행기는 finalize 이후의 patch 수집·verifier에 닿지
-// 못한다. remainder는 컨텍스트 문서만 커밋하므로 제품 변경은 이미 integration HEAD에 있다.
+// 1.5.4 finalize는 remainder 단계에서 worktree 유지 선택지를 없앴다(f79ea8e2). evaluator policy v3
+// 이전의 승인 정책은 `commit_and_keep_worktree`라 응답기가 멈추고, 실행기는 finalize 이후의
+// patch 수집·verifier에 닿지 못한다. 이 스크립트는 policy v3 이전 run 채점용이다. remainder는 컨텍스트 문서만 커밋하므로 제품 변경은 이미 integration HEAD에 있다.
 // 이 스크립트는 아카이브를 풀어 base..integration HEAD diff를 만들고, 실행기와 같은 verifier
 // 컨테이너로 채점해 run.json에 `scored_from_archive`로 기록한다.
 //

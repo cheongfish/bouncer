@@ -43,7 +43,7 @@ const HELP_ROUND_EXAMPLE = `{
     {
       "id": "F1",
       "severity": "major",
-      "status": "resolved",
+      "status": "open",
       "category": "correctness",
       "brief_clause": "tasks/001 Interface",
       "file": "scripts/lib/x.js",
@@ -72,7 +72,8 @@ ${HELP_ROUND_EXAMPLE}
 
 Enums:
   severity: blocker|major|minor|nit
-  finding status: resolved|accepted|deferred (accepted and deferred require note)
+  finding status: resolved|accepted|deferred|open (accepted and deferred require note;\
+ open is rejected when --status accepted)
   actionability: must_fix|advisory
   origin: discovery|introduced_by_revision|missed_critical
   round mode: discovery|delta|critical_recovery
@@ -81,6 +82,8 @@ Enums:
 
 fingerprint formula: lower(category):lower(brief_clause):posix(file)#symbol
 
+Repair wave example (open in discovery, resolved in delta): see the review and
+final_review coordinator cards, section "Finding status".
 Full ledger example: references/spec-authoring/review-rounds.md
 `;
 

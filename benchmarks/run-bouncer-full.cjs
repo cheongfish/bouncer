@@ -209,11 +209,33 @@ function checkIntegration(workspace, integration) {
     tasks: tasks.map((task) => ({ id: task.id, status: task.status, sha: task.sha })) };
 }
 
-function closedBlueprint(integration) {
-  const file = blueprintFile(integration);
-  const body = readFileSync(file, 'utf8');
-  if (!/^\s*status:\s*closed\s*$/m.test(body)) throw new Error('blueprint is not closed');
-  return file;
+/**
+ * finalize가 integration worktree를 지운 뒤에도 채점 증거를 모은다.
+ * cleanup은 브랜치를 지우지 않으므로 workspace 메인 저장소의 브랜치 ref만 읽는다(worktree 존재·dirty 검사 없음).
+ *
+ * @param {object} args - 수집 입력
+ * @param {string} args.workspace - 메인 저장소 경로
+ * @param {string} args.baseCommit - patch 기준 커밋
+ * @param {string} args.branch - integration 브랜치 이름
+ * @param {string} args.blueprint - workspace 기준 blueprint 상대 디렉터리
+ * @param {{git?: (args: string[], cwd: string) => {status: number, stdout: Buffer|string}}} [args.deps] - git 실행 주입(없으면 spawnSync)
+ * @returns {{blueprint: string, integration_head: string, patch: Buffer}} 상대 blueprint, 브랜치 HEAD, 바이너리 patch
+ * @throws {Error} 브랜치 ref가 없거나(`integration branch missing`) blueprint가 closed가 아닐 때(`blueprint not closed`)
+ */
+function collectFinalEvidence({ workspace, baseCommit, branch, blueprint, deps = {} }) {
+  const git = deps.git ?? ((args, cwd) => spawnSync('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 }));
+  const run = (args) => git(args, workspace);
+  // 1. ref가 없을 때 rev-parse 실패는 "브랜치 없음"으로만 해석한다. 다른 git 실패는 patch 단계에서 따로 드러난다.
+  const head = run(['rev-parse', '--verify', `refs/heads/${branch}`]);
+  if (head.status !== 0) throw new Error(`integration branch missing: ${branch}`);
+  // 2. closed 여부는 ref에 커밋된 index.md로 본다. 파일이 없어도 닫히지 않은 것으로 취급한다.
+  const index = run(['show', `${branch}:${blueprint}/index.md`]);
+  if (index.status !== 0 || !/^\s*status:\s*closed\s*$/m.test(index.stdout.toString())) {
+    throw new Error(`blueprint not closed on ${branch}`);
+  }
+  const patch = run(['diff', '--binary', '--no-ext-diff', baseCommit, branch, '--']);
+  if (patch.status !== 0) throw new Error(`could not collect integration patch: ${patch.stderr ?? ''}`);
+  return { blueprint, integration_head: head.stdout.toString().trim(), patch: Buffer.from(patch.stdout) };
 }
 
 function verifyPatch(config, task, workspace, runDir, record) {
@@ -295,16 +317,11 @@ function main() {
       if (name === '03-run') record.integration = checkIntegration(workspace, integrationWorktree(workspace));
       save(path.join(runDir, 'run.json'), record);
     }
-    const integration = integrationWorktree(workspace);
-    const gitEnv = integrationGitEnv(workspace, integration);
-    record.blueprint = closedBlueprint(integration);
-    if (command('git', ['status', '--porcelain'], integration, gitEnv)) throw new Error('integration worktree is dirty');
-    record.integration_head = command('git', ['rev-parse', 'HEAD'], integration, gitEnv);
-    const patch = spawnSync('git', ['diff', '--binary', '--no-ext-diff', baseCommit, 'HEAD', '--'], {
-      cwd: integration, env: gitEnv, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
-    });
-    if (patch.status !== 0 || patch.error) throw new Error(`could not collect integration patch: ${patch.stderr}`);
-    writeFileSync(path.join(runDir, 'diff.patch'), patch.stdout);
+    // finalize --yes cleanup이 worktree를 지우므로 브랜치 ref에서 증거를 모은다.
+    const evidence = collectFinalEvidence({ workspace, baseCommit, branch: record.integration.branch, blueprint: record.blueprint });
+    record.blueprint = evidence.blueprint;
+    record.integration_head = evidence.integration_head;
+    writeFileSync(path.join(runDir, 'diff.patch'), evidence.patch);
     verifyPatch(config, task, workspace, runDir, record);
     record.status = 'finalized';
   } catch (error) {
@@ -331,4 +348,6 @@ function main() {
   if (record.status !== 'finalized') process.exitCode = 1;
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { collectFinalEvidence };

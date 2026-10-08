@@ -391,3 +391,29 @@ test('coordinator procedure points at subcommand --help instead of plugin source
   const md = fs.readFileSync('agents/bouncer-coordinator.md', 'utf8');
   assert.match(md, /--help`; do not read plugin sources for them/);
 });
+
+test('review-dispatch prints --help/-h on stdout with the context review example', () => {
+  for (const argv of [
+    ['review-dispatch', '--help'],
+    ['review-dispatch', 'plan', '--help'],
+    ['review-dispatch', 'plan', '-h'],
+    ['review-dispatch', 'plan', '--blueprint', 'x', '--help'],
+    ['review-dispatch', 'execute', '--help'],
+  ]) {
+    const r = capture(argv);
+    assert.strictEqual(r.code, 0, `${argv.join(' ')} exit`);
+    assert.strictEqual(r.err, '', `${argv.join(' ')} stderr`);
+    assert.match(r.out, /target\.digest/, `${argv.join(' ')} digest guidance`);
+    assert.match(r.out, /```yaml/, `${argv.join(' ')} example`);
+  }
+});
+
+test('review-dispatch keeps rejecting invalid calls and treats a flag value -h as a value', () => {
+  const valueH = capture(['review-dispatch', 'plan', '--blueprint', '-h']);
+  assert.doesNotMatch(valueH.out, /```yaml/);
+  for (const argv of [['review-dispatch'], ['review-dispatch', 'plan']]) {
+    const r = capture(argv);
+    assert.strictEqual(r.code, 2, `${argv.join(' ')} exit`);
+    assert.strictEqual(r.out, '', `${argv.join(' ')} stdout`);
+  }
+});

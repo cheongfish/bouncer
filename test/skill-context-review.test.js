@@ -83,11 +83,10 @@ test('context-review dispatches adaptive combined or local+global perspectives a
 test('plan context-review controller freezes a digest, revises once, and certifies the delta', () => {
   const md = fs.readFileSync(planContextReviewPath, 'utf8');
   assert.match(md, /snapshot/i);
-  assert.match(md, /sha256/);
-  assert.match(md, /frontmatter/);
-  // digest 입력 순서: epic → blueprint → tasks 번호 오름차순.
-  assert.match(md, /epic `index\.md`[\s\S]{0,80}blueprint `index\.md`[\s\S]{0,80}tasks\/<NNN>\/tasks\.md/);
-  assert.match(md, /ascending/i);
+  // digest는 손으로 계산하지 않고 review-dispatch plan 출력의 target.digest를 옮긴다.
+  assert.doesNotMatch(md, /sha256/);
+  assert.match(md, /review-dispatch plan[\s\S]{0,200}target\.digest/);
+  assert.match(md, /review-dispatch --help/);
   assert.match(md, /review-dispatch plan/);
   assert.match(md, /`single`/);
   assert.match(md, /`clustered`/);
@@ -158,4 +157,29 @@ test('plan context-review routes draft validation failure to Author and stale re
   assert.match(plan, /context review is stale[\s\S]{0,240}round 1/);
   const md = readSkill('context-review');
   assert.match(md, /G18[\s\S]{0,200}target\.digest/);
+});
+
+// 형식 예시는 `review-dispatch --help`에 있고, 문서의 fingerprint 예시는 G18이 받는 값이어야 한다.
+test('context review docs defer to review-dispatch --help and carry a G18-valid fingerprint example', () => {
+  const docs = [
+    planContextReviewPath,
+    path.join(root, 'references', 'context-review', 'index.md'),
+    path.join(root, 'agents', 'bouncer-context-reviewer.md'),
+  ];
+  for (const file of docs) {
+    const md = fs.readFileSync(file, 'utf8');
+    const rel = path.relative(root, file);
+    if (!rel.startsWith('agents')) {
+      assert.match(md, /review-dispatch --help/, `${rel} points at --help`);
+      assert.doesNotMatch(md, /sha256/, `${rel} has no hand-computed digest`);
+    }
+    const line = md.split('\n').find((l) => /^\s*`?fingerprint: /.test(l));
+    assert.ok(line, `${rel} has a fingerprint example`);
+    assert.match(
+      line,
+      /^\s*`?fingerprint: context:(combined|local|global|cross_document|scope|korean_quality|success_criteria):/,
+      `${rel} example`,
+    );
+    assert.doesNotMatch(md, /correctness_tests:/, `${rel} drops the execute perspective example`);
+  }
 });

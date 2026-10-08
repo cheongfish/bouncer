@@ -9,6 +9,10 @@
 
 ### Fixed
 
+- **ledger run의 finalize 멈춤** — 평가자 정책 v3가 `finalize.remainder`를 A
+  (`finalize --yes` 커밋과 worktree 제거)로 답하고 `finalize.next_blueprint`
+  항목을 지운다. 하네스는 worktree 제거 뒤에도 integration 브랜치 ref에서
+  닫힌 blueprint·HEAD·`diff.patch`를 모아 `verifier.json`까지 만든다.
 - **`commit_intent` YAML 리스트** — commit task scaffold가 `commit_intent`·
   `commit_summary`를 빈 YAML 리스트로 두고, 스칼라 문자열은 plan 구조 검사
   S32가 거절한다. `bouncer commit`이 스테이징 직전에야 같은 형태를 막던
@@ -16,6 +20,18 @@
 
 ### Changed
 
+- **finding status `open`** — execute 리뷰 finding에 해결 전을 뜻하는 `open`을
+  더한다. 리뷰 문서가 `accepted`이면 `open`이 하나라도 있을 때
+  `finding <id> open in accepted review`로 `review record`·G14·G21이 거절하고,
+  context review(G18)는 지금처럼 `status invalid`다. review·final_review 카드에
+  `## Finding status` 절(status 의미, discovery → fix → delta 순서, round JSON
+  예시 둘)을 싣고 `review record --help` Enums를 맞춰, coordinator가 해결 전
+  must_fix를 기록할 status를 찾으려고 리뷰 기록 소스를 읽던 경로를 끊는다.
+- **`review-dispatch --help`** — G18을 통과하는 `bouncer.context_review` round
+  예시와 enum(검증기 상수에서 생성), fingerprint 공식을 도움말에 싣는다. plan
+  reference는 digest를 손으로 계산하지 않고 `review-dispatch plan` 출력의
+  `target.digest`를 옮기며, 틀린 `correctness_tests:` fingerprint 예시를
+  `context:` 접두 예시로 바꾼다. plan 에이전트가 검증기 소스를 열던 경로를 끊는다.
 - **print dispatch 입력 템플릿** — `implement`·`review`·`final_review` 계약
   카드에 Cursor print `--input` 항목 순서를 적고, `review record --help`
   예시에 blueprint 모드 `task_brief_hashes`·`intent_bundles`를 보여 coordinator가

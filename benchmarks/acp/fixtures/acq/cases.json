@@ -42,5 +42,7 @@
   { "file": "plan-id-light-grouped.md", "source": "1790665446581-bouncer-full/02-plan", "phase": "bouncer-plan",
     "workdir": { "epics": [] }, "reply": "A / A", "gates": ["plan.id_allocation", "plan.light_scope"] },
   { "file": "plan-approval-heading-activate-reground.md", "source": "1790665728914-bouncer-full/02-plan", "phase": "bouncer-plan",
-    "workdir": { "epics": [] }, "reply": "A", "gates": ["plan.approval"] }
+    "workdir": { "epics": [] }, "reply": "A", "gates": ["plan.approval"] },
+  { "file": "finalize-remainder-en.md", "source": "v088004-ledger-004-bouncer-full-1 04-finalize", "phase": "bouncer-finalize",
+    "workdir": {}, "finalizeEvidence": true, "reply": "A", "gates": ["finalize.remainder"] }
 ]

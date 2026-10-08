@@ -6,10 +6,10 @@ model and host-fallback order in [`rules/subagent-model.md`](../../../rules/suba
 Before approval, judge the plan documents. The `context-review` skill (`references/context-review/index.md`) is the behavioral brief. Dispatch **`bouncer-context-reviewer`** (plugin `agents/bouncer-context-reviewer.md`) with the resolved model. Compose each prompt inline (no `assets/` template — the paths are already known). Ask for a Findings list only.
 
 1. **Freeze the snapshot** — After `affected_paths` confirmation, stop editing
-   the documents under judgment. Compute the target digest as the sha256 of
-   their bodies with frontmatter removed, concatenated in this order: the
-   epic `index.md`, the blueprint `index.md`, then every
-   `tasks/<NNN>/tasks.md` under the blueprint in ascending task number.
+   the documents under judgment. Run `bouncer review-dispatch plan --blueprint
+   <dir>` and record its `target.digest` as the frozen snapshot digest; never
+   compute it by hand. The record format (rounds, findings, enums) is printed
+   by `bouncer review-dispatch --help`.
 2. **Discovery** — Run `bouncer review-dispatch plan --blueprint <dir>` on the
    frozen blueprint. That CLI result is the only dispatch authority: do not
    merge, split, combine, or divide its clusters, and do not add an extra
@@ -37,7 +37,9 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    the frozen digest.
 3. **Merge** — Verify each finding's evidence. Record `category`,
    `brief_clause`, `file`, `symbol`, and the fingerprint
-   `context:<category>:<brief_clause>:<file>#<symbol>`; merge findings with the
+   `context:<category>:<brief_clause>:<file>#<symbol>` (for example
+   `fingerprint: context:scope:blueprint success criteria:.bouncer/context/epics/014-auth/blueprints/001-signup/index.md#success-criteria`);
+   merge findings with the
    same fingerprint into one; record `severity_changes`; set `origin:
    discovery`; and decide `actionability` (`must_fix` or `advisory`) from the
    plan and the evidence.
@@ -46,7 +48,8 @@ Before approval, judge the plan documents. The `context-review` skill (`referenc
    `accepted` with a note instead of editing for it. When no `must_fix`
    exists, skip the revision and the delta; the round sequence stays
    `discovery`.
-5. **Certify the delta** — Recompute the digest over the revised snapshot.
+5. **Certify the delta** — After the revision, rerun `bouncer review-dispatch
+   plan --blueprint <dir>` and copy the new `target.digest`.
    Dispatch one `bouncer-context-reviewer` call in mode `delta` with
    `fork_turns: "none"` (exclude full conversation history) and only this
    controller input allowlist: the new digest, previous findings, the actual
