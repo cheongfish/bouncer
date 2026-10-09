@@ -321,14 +321,17 @@ function classifyPlanReview({ repoRoot, blueprintDir, previous }: {
 /**
  * frozen base/head의 numstat과 승인된 review_risk로 Execute 리뷰 전략을 고른다.
  * 경로명·diff 본문 키워드로 위험을 추측하지 않는다.
- * `taskId`가 없으면 같은 numstat을 blueprint 전체로 보고, commit task의
- * `review_risk` 합집합을 쓴다 — 최종 리뷰가 한 task 문서에 묶이면 빠진 위험을
- * 보안 관점에서 닫아버리기 때문이다.
+ * blueprint `bouncer.scale`이 `light`이면 diff 크기와 관계없이 `single`/
+ * `combined`다 — light run의 단일 reviewer 계약이 임계값에 갈리지 않게 하기
+ * 위함이다. `taskId`가 없으면 같은 numstat을 blueprint 전체로 보고, commit
+ * task의 `review_risk` 합집합을 쓴다 — 최종 리뷰가 한 task 문서에 묶이면
+ * 빠진 위험을 보안 관점에서 닫아버리기 때문이다.
  *
  * @param {{
  *   repoRoot: string, blueprintDir: string, taskId?: string,
  *   base: string, head: string, exec?: ExecFileSyncFn
- * }} opts
+ * }} opts - repoRoot는 저장소 루트, blueprintDir는 canonical blueprint 상대 경로,
+ *   taskId는 선택적 commit task 번호, base/head는 frozen git ref, exec는 git 호출기
  * @returns {ExecuteDispatchResult} 성공 시 strategy·통계·위험, 실패 시 ok:false.
  *   blueprint 범위 성공의 `target.task`는 null. S30 위반이면 perspectives 없음.
  */
@@ -359,6 +362,21 @@ function classifyExecuteReview({
   }
 
   const bp = toPosix(blueprintDir);
+  // light 분기는 선언된 `bouncer.scale`만 본다. diff 크기·경로 수로 light를
+  // 추론하면 full 대규모 변경이 축소 리뷰로 빠지고, light 큰 diff는 parallel로
+  // 갈라져 단일 reviewer 계약이 깨진다.
+  let scale = 'full';
+  try {
+    const bpDoc = readDoc(path.join(repoRoot, bp, 'index.md'));
+    const bouncer = (bpDoc.data as { bouncer?: { scale?: string } } | null)?.bouncer;
+    if (bouncer && typeof bouncer.scale === 'string') scale = bouncer.scale;
+  } catch (error) {
+    // index 부재·파싱 실패를 기본 full로 접으면 light 선언을 놓친 채 parallel을
+    // 고른다. Plan 분류기와 같이 읽기 실패를 그대로 드러낸다.
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: `blueprint index unreadable: ${message}` };
+  }
+
   let targetTask: string | null = null;
   let risk: { ok: true; flags: string[] } | DispatchFail;
 
@@ -423,17 +441,22 @@ function classifyExecuteReview({
 
   const small = stats.changed_files <= EXECUTE_SMALL_MAX_FILES
     && stats.changed_lines <= EXECUTE_SMALL_MAX_LINES;
-  const strategy = small ? 'single' : 'parallel';
-  const perspectives = small
+  const lightScale = scale === 'light';
+  // light는 크기 임계를 건너뛴다. full만 EXECUTE_SMALL_*로 single/parallel을 고른다.
+  const single = lightScale || small;
+  const strategy = single ? 'single' : 'parallel';
+  const perspectives = single
     ? ['combined']
     : ['spec_scope', 'correctness_tests', 'minimality_maintainability'];
   if (risk.flags.length > 0) perspectives.push('security');
 
   const reasons = [
-    small
-      ? `changed_files ${stats.changed_files} <= ${EXECUTE_SMALL_MAX_FILES}`
-        + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
-      : `diff exceeds small thresholds (files=${stats.changed_files}, lines=${stats.changed_lines})`,
+    lightScale
+      ? 'blueprint scale is light — single combined reviewer regardless of diff size'
+      : small
+        ? `changed_files ${stats.changed_files} <= ${EXECUTE_SMALL_MAX_FILES}`
+          + ` and changed_lines ${stats.changed_lines} <= ${EXECUTE_SMALL_MAX_LINES}`
+        : `diff exceeds small thresholds (files=${stats.changed_files}, lines=${stats.changed_lines})`,
   ];
   if (risk.flags.length > 0) {
     reasons.push(`review_risk ${risk.flags.join(',')} adds security reviewer`);

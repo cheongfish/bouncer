@@ -43,6 +43,8 @@ type Ledger = {
   status?: string; base?: string; integrationHead?: string; fanin?: unknown;
   terminalFailure?: { task?: string }; tasks: LedgerTask[];
   revision?: string | null;
+  // 부재는 full. light일 때만 implement payload.inline을 켠다.
+  mode?: 'light';
 };
 type LedgerRef = { path: string; sha256: string; revision: string | null };
 type Judge = { kind: string; fields: string[]; allowed?: string[] };
@@ -502,6 +504,13 @@ function blueprintNext(ctx: {
       scope: 'blueprint', action: 'blocked', reason: 'partial-closed', cwd: integrationCwd,
     });
   }
+  // light 승격 정지는 repair 한도와 별개다. prepare/drive로 내려가기 전에 막아
+  // 정지 뒤 inline implement가 다시 열리지 않게 한다. hint는 COORDINATE_FAILURE_HINTS.
+  if (ledger.status === 'promotion_stopped') {
+    return ok({
+      scope: 'blueprint', action: 'blocked', reason: 'promotion-stopped', cwd: integrationCwd,
+    });
+  }
   if (ledger.status === 'awaiting_confirmation') {
     return ok({
       scope: 'blueprint', action: 'blocked', reason: 'repair-wave-limit', cwd: integrationCwd,
@@ -705,13 +714,15 @@ function taskNext(ctx: {
   if (workerHead === item.dispatch.base_head
     && porcelainText === item.dispatch.initial_worktree_state) {
     // dispatch metadata만 싣는다. 직전 보고는 attachJudgeContext가 payload.report로 붙인다
-    // (옛 previous_outcome 키는 쓰지 않는다).
+    // (옛 previous_outcome 키는 쓰지 않는다). light는 run 세션이 같은
+    // integration cwd에서 직접 구현하도록 inline을 켠다 — worker 위임이 아니다.
     const payload: Record<string, unknown> = {
       attempt: item.dispatch.attempt,
       task_brief_hash: item.dispatch.task_brief_hash,
       base_head: item.dispatch.base_head,
       initial_worktree_state: item.dispatch.initial_worktree_state,
     };
+    if (ledger.mode === 'light') payload.inline = true;
     return ok({ scope: 'task', action: 'implement', cwd, payload });
   }
 

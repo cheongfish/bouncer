@@ -27,9 +27,12 @@ When `bouncer.scale` is `light` (from pointer `scale`), run the implementer
 do not replace it with the light branch. Reviewer and `bouncer-debugger`
 stay named.
 
-During a `/bouncer-run` drive the loop keeps named dispatch for implement too
-even on `light`: the loop is an orchestrator that reads subagent reports, so it
-must not become the implementer.
+Outside `/bouncer-run`, that light inline implement branch applies. During a
+`/bouncer-run` drive on a **full** ledger the loop keeps named dispatch for
+implement — the loop is an orchestrator that reads subagent reports, so it
+must not become the implementer. A light ledger drive instead follows
+`${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md` (run session
+implements; one named reviewer).
 
 Limit of implement inline: the writing session still authored the change a
 named reviewer will score against **its own diff** (self-review pressure on
@@ -90,7 +93,7 @@ the same cwd and sections. Either path retains `affected_paths`, status, and
 commit prohibitions. The inline fallback still receives G6–G8 judgment after
 verify and review.
 
-For the verify-recovery implementer re-dispatch, use the same named-dispatch order. Only outside `/bouncer-run`, the light path may use the step-3 inline implementation branch; `/bouncer-run` always retains the named orchestration boundary.
+For the verify-recovery implementer re-dispatch, use the same named-dispatch order. Only outside `/bouncer-run`, or on a light ledger drive that follows `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`, the light path may use the step-3 inline implementation branch; a **full** `/bouncer-run` always retains the named orchestration boundary.
 
 For review, freeze the target first (base, HEAD, task-brief revision,
 `task_brief_hash`, `intent_bundle_id`, `intent_bundle_revision`, and latest

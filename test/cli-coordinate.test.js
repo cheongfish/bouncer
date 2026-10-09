@@ -472,12 +472,12 @@ test('coordinate release is no longer a command', () => {
   const drive = preparedDrive();   // 기존 :472 테스트의 fixture
   const { code, buf } = coordinateCli(drive.repo, 'release', ['--repo', drive.repo]);
   assert.strictEqual(code, 2);
-  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, or advance/);
+  assert.match(buf.err, /partial-close, critical-recovery, revoke, next, advance, or promote-stop/);
   const help = capture(); runCli(['help'], help.io);
   assert.doesNotMatch(help.buf.out, /coordinate release/);
   const refused = capture();
   assert.strictEqual(runCli(['coordinate', 'nope', '--blueprint', BP_REL], refused.io), 2);
-  assert.match(refused.buf.err, /critical-recovery, revoke, next, or advance/);
+  assert.match(refused.buf.err, /critical-recovery, revoke, next, advance, or promote-stop/);
 });
 
 
@@ -706,6 +706,20 @@ test('CLI review-dispatch execute without --task exits 0', () => {
     '--blueprint', BP_REL, '--base', base, '--head', head, '--repo', drive.repo,
   ], io);
   assert.strictEqual(code, 0, buf.err + buf.out);
+});
+
+// CT-003: whitespace-only --summary는 core summary-required(1)로 가지 않고
+// Interface empty-summary와 같이 usage(2)여야 한다. fence는 검사 순서상 앞이므로 붙인다.
+test('coordinate promote-stop whitespace-only --summary is usage exit 2', () => {
+  const drive = preparedDrive();
+  const { code, buf } = coordinateCli(drive.integration, 'promote-stop', [
+    ...ledgerFlagArgs(drive.repo),
+    '--repo', drive.repo,
+    '--reason', 'security-risk',
+    '--summary', '   ',
+  ], { fence: false });
+  assert.strictEqual(code, 2, buf.err + buf.out);
+  assert.match(buf.err, /--summary is required/);
 });
 
 test('coordinate CLI stdout is one-line JSON without ledger copies', () => {

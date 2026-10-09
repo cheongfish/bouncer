@@ -768,6 +768,80 @@ test('execute over file threshold returns parallel', () => {
   ]);
 });
 
+// light scale은 diff 크기와 무관하게 단일 combined. full(또는 scale 미선언)은
+// 기존 임계값을 유지한다 — 경로 수·줄 수로 light를 추론하지 않는다.
+test('execute light scale large diff returns single combined via --blueprint', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  for (const name of ['a', 'b', 'c', 'd']) {
+    fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
+  }
+  git(repo, ['add', 'src']);
+  git(repo, ['commit', '-qm', 'many files light']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const out = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
+  });
+  assert.strictEqual(out.ok, true);
+  assert.ok(out.changed_files > EXECUTE_SMALL_MAX_FILES);
+  assert.strictEqual(out.strategy, 'single');
+  assert.deepStrictEqual(out.perspectives, ['combined']);
+
+  const cli = capture([
+    'review-dispatch', 'execute',
+    '--blueprint', BP_REL, '--task', '001', '--base', base, '--head', head,
+    '--repo', repo,
+  ]);
+  assert.strictEqual(cli.code, 0, cli.err);
+  const cliJson = JSON.parse(cli.out);
+  assert.strictEqual(cliJson.strategy, 'single');
+  assert.deepStrictEqual(cliJson.perspectives, ['combined']);
+});
+
+test('execute full scale large diff stays parallel even with --blueprint', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  for (const name of ['a', 'b', 'c', 'd']) {
+    fs.writeFileSync(path.join(repo, `src/${name}.ts`), `export const ${name} = 1;\n`);
+  }
+  git(repo, ['add', 'src']);
+  git(repo, ['commit', '-qm', 'many files full']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const out = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'parallel');
+  assert.deepStrictEqual(out.perspectives, [
+    'spec_scope', 'correctness_tests', 'minimality_maintainability',
+  ]);
+});
+
+// CT-002: light는 combined만 쓰지만 non-empty review_risk는 security를 붙인다.
+// light large-diff 케이스만 있으면 risk append 분기가 light 경로에서 빠질 수 있다.
+test('execute light scale with review_risk yields combined and security', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
+  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  git(repo, ['add', 'src/a.ts']);
+  git(repo, ['commit', '-qm', 'light risk']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const out = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'single');
+  assert.deepStrictEqual(out.risk_flags, ['public_interface']);
+  assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
+});
+
 test('execute risk flags append security on single and parallel', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });

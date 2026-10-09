@@ -301,6 +301,7 @@ function cmdExecute(rest: string[], io: CliIo) {
 const COORDINATE_COMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
+  'promote-stop',
 ] as const;
 
 type CoordinateCommand = (typeof COORDINATE_COMMANDS)[number];
@@ -501,12 +502,23 @@ const COORDINATE_USAGE_BLOCKS: Record<CoordinateCommand, CoordinateUsageBlock> =
   Response fields: executed, stop.next (success) or reason, cause, next, executed (failure)
 `,
   },
+  'promote-stop': {
+    registry: '  coordinate promote-stop --blueprint <dir> --reason <enum> --summary <text>\n'
+      + '             --ledger-path <path> --ledger-hash <sha256>\n'
+      + '             Stop a light ledger for promotion; records reason and state (no resume).\n',
+    help: `usage: bouncer coordinate promote-stop
+  --blueprint <dir> --reason <security-risk|out-of-scope|task-split|interface-semantics|reviewer-wider-scope>
+  --summary <text> ${COORDINATE_FENCE_NOTE} [--repo <dir>]
+  Record promotion_stopped on a light ledger with the open task's diff and evidence ids.
+  Same reason+summary is idempotent; other mutations then fail with promotion-stopped.
+`,
+  },
 };
 
 // 전역 help 조립 순서. 키를 빼거나 재정렬하면 전역 usage 바이트가 바뀐다.
 const COORDINATE_REGISTRY_ORDER: CoordinateCommand[] = [
   'integrate', 'dispatch', 'report', 'revoke', 'rerecord', 'repair',
-  'partial-close', 'critical-recovery', 'revise', 'next', 'advance',
+  'partial-close', 'critical-recovery', 'revise', 'next', 'advance', 'promote-stop',
 ];
 
 /**
@@ -629,13 +641,14 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   // 있어야 stale checkpoint로 원장·Git이 갈라지는 쓰기를 막는다.
   const fencedCommands = new Set([
     'prepare', 'dispatch', 'report', 'record', 'rerecord', 'integrate', 'revise',
-    'repair', 'partial-close', 'critical-recovery', 'revoke',
+    'repair', 'partial-close', 'critical-recovery', 'revoke', 'promote-stop',
   ]);
   if (!commands.includes(command)) {
     return failCoordinateUsage(
       io,
       'coordinate: command must be bootstrap, prepare, ready, dispatch, report, record, rerecord, '
-      + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, or advance\n',
+      + 'integrate, status, revise, repair, partial-close, critical-recovery, revoke, next, '
+      + 'advance, or promote-stop\n',
     );
   }
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
@@ -693,6 +706,17 @@ function cmdCoordinate(rest: string[], io: CliIo) {
     }
     if (typeof f.reason !== 'string' || f.reason === '') {
       return failCoordinateUsage(io, 'coordinate revoke: --reason is required\n', command);
+    }
+  }
+  if (command === 'promote-stop') {
+    // 빈 summary·reason은 usage(2). enum 밖 reason은 core가 promote-reason-invalid(1).
+    // CT-003: whitespace-only는 core summary-required(1)로 가지 않게 trim 후 검사 —
+    // Interface empty-summary와 CLI usage 채널을 맞춘다.
+    if (typeof f.reason !== 'string' || f.reason === '') {
+      return failCoordinateUsage(io, 'coordinate promote-stop: --reason is required\n', command);
+    }
+    if (typeof f.summary !== 'string' || f.summary.trim() === '') {
+      return failCoordinateUsage(io, 'coordinate promote-stop: --summary is required\n', command);
     }
   }
   if (command === 'revise') {

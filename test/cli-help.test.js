@@ -280,6 +280,7 @@ test('usage lists coordinate repair review-finding and required-task CI forms', 
 const COORDINATE_SUBCOMMANDS = [
   'bootstrap', 'prepare', 'ready', 'dispatch', 'report', 'record', 'rerecord', 'integrate',
   'status', 'revise', 'repair', 'partial-close', 'critical-recovery', 'revoke', 'next', 'advance',
+  'promote-stop',
 ];
 
 test('coordinate <sub> --help and -h print that subcommand usage on stdout', () => {

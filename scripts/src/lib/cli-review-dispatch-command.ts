@@ -42,6 +42,8 @@ const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
              Classify plan context-review strategy (read-only JSON).
   review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
              Classify execute review strategy from frozen diff (read-only JSON).
+             When that blueprint's scale is light, returns single/combined
+             regardless of diff size.
 `;
 
 // 예시 finding의 구성 요소. fingerprint는 아래에서 검증기와 같은 함수로 계산해
@@ -296,5 +298,7 @@ export = {
              Classify plan context-review strategy (read-only JSON).
   review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
              Classify execute review strategy from frozen diff (read-only JSON).
+             When that blueprint's scale is light, returns single/combined
+             regardless of diff size.
 `,
 };

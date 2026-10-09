@@ -112,10 +112,11 @@ Skill flow (recommended): `implementation` (`${BOUNCER_ROOT}/references/implemen
    limit. The SSOT for `scale` is blueprint `index.md`, but this judgment uses
    only the step-1 pointer response; do not reopen `index.md`.
 
-   **Drive exception.** During a `/bouncer-run` drive, even when light was
-   declared, do not use this inline branch — use named dispatch. If the loop
-   session became the implementer, the orchestration boundary breaks and review
-   would judge its own diff.
+   **Drive exception (full only).** During a `/bouncer-run` drive on a **full**
+   ledger, do not use this inline branch — use named dispatch so the loop
+   session does not become the implementer. A light ledger drive follows
+   `/bouncer-run`'s light-run procedure instead (run-session implement + one
+   named reviewer).
 
    When dispatching a named agent or applying its fallback, apply
    [`${BOUNCER_ROOT}/rules/subagent-model.md`](../../rules/subagent-model.md) and read this

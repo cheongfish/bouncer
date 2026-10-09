@@ -7,8 +7,31 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **light run 경로** — light 원장(`mode: light`)이면 `/bouncer-run`이
+  coordinator 대신 `skills/bouncer-run/references/light-run.md`를 따른다.
+  run 세션이 `payload.inline`으로 구현하고 named `bouncer-reviewer` 한 세션이
+  사양·범위·정확성·회귀·테스트·위험 변경을 함께 본다. `review-dispatch
+  execute`는 blueprint `scale: light`이면 diff 크기와 무관하게
+  `single`/`combined`를 낸다. full 경로는 coordinator와 named orchestration
+  예외를 유지한다.
+
 ### Added
 
+- **`coordinate promote-stop`** — light 원장에서 위험 신호 시
+  `status: promotion_stopped`와 `promotion` 스냅샷(reason·summary·task·
+  `diff_sha`·증적 id)을 기록한다. reason은 `security-risk`·`out-of-scope`·
+  `task-split`·`interface-semantics`·`reviewer-wider-scope`다. 이후
+  prepare/dispatch/report/record/integrate와 `run preflight` 위임은
+  `promotion-stopped`로 거부되며, 해제는 없고 full 재계획은 새 bootstrap·
+  `current --set`이다.
+- **`coordinate` light 원장 모드** — `bouncer.scale: light`이고 의존 없는 commit
+  task가 정확히 하나일 때만 `mode: light` 원장을 만든다. prepare는 worker
+  worktree 없이 `workerPath`를 integration으로 두고, `coordinate next`
+  implement는 `payload.inline: true`를 내며, integrate는 cherry-pick 없이
+  fan-in verified를 기록한다. 거부는 `light-requires-single-task`·
+  `ledger-mode-mismatch`·`light-review-required`다.
 - **`review-dispatch plan` 문서별 digest·`follow_up`** — `single`/`clustered`
   payload에 `parts`·`scope_parts`·`follow_up`·`changed_documents`를 넣고,
   `--previous <file>`로 이전 payload와 비교해 `full`(문서 집합·에픽/blueprint

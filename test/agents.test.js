@@ -193,9 +193,9 @@ test('bouncer-reviewer separates discovery perspectives from delta certification
   assert.strictEqual(fs.readFileSync(tomlPath, 'utf8'), mdToCodexToml(md));
 });
 
-// adaptive execute: combined는 세 비보안 rubric을 한 pass에서 판단하고 category에
-// 하위 rubric 이름을 쓴다. security는 위험 flag가 있을 때만 별도 call이며
-// combined에 섞지 않는다. delta·critical recovery 순서는 그대로다.
+// adaptive execute: combined는 사양·범위·정확성·회귀·테스트·위험 변경 네 관점을
+// 한 pass에서 보고, 기존 비보안 rubric 이름도 유지한다. security는 위험 flag가
+// 있을 때만 별도 call이며 combined에 섞지 않는다.
 test('bouncer-reviewer judges combined and separate security without mixing rubrics', () => {
   const md = fs.readFileSync(path.join(agentsDir, 'bouncer-reviewer.md'), 'utf8');
   const prompt = fs.readFileSync(
@@ -204,6 +204,11 @@ test('bouncer-reviewer judges combined and separate security without mixing rubr
   );
   const { mdToCodexToml } = require('../scripts/lib/codex-agents');
 
+  // light 단일 reviewer가 묶는 네 관점 문구.
+  assert.match(
+    md,
+    /`combined`[\s\S]{0,500}사양.?범위[\s\S]{0,200}정확성[\s\S]{0,200}회귀.?테스트[\s\S]{0,200}위험 변경/,
+  );
   assert.match(
     md,
     /`combined`[\s\S]{0,400}spec_scope[\s\S]{0,200}correctness_tests[\s\S]{0,200}minimality_maintainability/i,

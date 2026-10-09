@@ -66,7 +66,9 @@ What shrinks (five things only):
    create it once with normal numbering, then keep stacking blueprints under it.
    Never close that epic.
 4. **Agent round-trips** — light implement routing (inline vs named) is owned
-   by `skills/bouncer-execute/references/agent-dispatch.md`.
+   by `skills/bouncer-execute/references/agent-dispatch.md`. A light ledger
+   `/bouncer-run` drive follows
+   `${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`.
 5. **Quiz size** — light quiz sizing is owned by
    `${BOUNCER_ROOT}/references/explain-diff/index.md`.
 
@@ -85,7 +87,9 @@ means authoring the missing sections and running
 If the separation between writer and named reviewer feels too thin, set
 `scale` back to `full` and return to the named-agent path for implement too —
 inline implement limits stay in
-`skills/bouncer-execute/references/agent-dispatch.md`.
+`skills/bouncer-execute/references/agent-dispatch.md`, and a light ledger
+`/bouncer-run` path stays in
+`${BOUNCER_ROOT}/skills/bouncer-run/references/light-run.md`.
 
 ## Task DAG and approved scope
 
