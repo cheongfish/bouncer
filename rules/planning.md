@@ -37,6 +37,7 @@ and the plan changes blueprint `index.md` `bouncer.scale` from the scaffold
 default `full` to `light`. There is no automatic sizing from diff size, path
 count, or file count. Without that declaration (`scale` absent or not
 `light`), the default path applies.
+선언은 작성 전, 최종 승인은 작성 뒤이며 선언은 승인이 아니다.
 
 The same declaration is the only way to reach the shrunken document set:
 `bouncer scaffold blueprint --scale light`. Omitting `--scale`, or passing

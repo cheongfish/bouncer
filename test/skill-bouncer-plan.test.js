@@ -206,6 +206,40 @@ test('bouncer-plan asks open decisions before the Discover ACQ and carries proje
   assert.match(body, /plan\.verify_command[\s\S]{0,260}recommend that command/);
 });
 
+// plan 왕복: 독립 질문 묶음·선언≠승인·단계 간 전달은 roundtrip reference가 정본이다.
+test('bouncer-plan roundtrip reference batches questions, separates declaration from approval, and limits step handoff', () => {
+  const roundtrip = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/roundtrip.md'),
+    'utf8',
+  );
+  const skill = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/SKILL.md'),
+    'utf8',
+  );
+  const discovery = fs.readFileSync(
+    path.join(root, 'references/discovery/index.md'),
+    'utf8',
+  );
+  const planning = fs.readFileSync(
+    path.join(root, 'rules/planning.md'),
+    'utf8',
+  );
+  const step1 = skill.slice(skill.indexOf('1. **Discover.**'), skill.indexOf('2. **Scaffold.**'));
+
+  assert.match(roundtrip, /## Questions to batch/i);
+  assert.match(roundtrip, /## Declaration and approval/i);
+  assert.match(roundtrip, /## Step handoff/i);
+  assert.match(roundtrip, /declaration is not approval/i);
+  assert.match(roundtrip, /Do not combine[\s\S]{0,80}ACQ/i);
+  assert.match(roundtrip, /`config\.autonomy`[\s\S]{0,80}never skips/i);
+  assert.match(roundtrip, /current plan[\s\S]{0,80}open decisions[\s\S]{0,80}change summary/i);
+
+  assert.match(step1, /references\/roundtrip\.md/);
+  assert.match(skill, /references\/roundtrip\.md/);
+  assert.match(discovery, /references\/roundtrip\.md/);
+  assert.match(planning, /선언은 작성 전[\s\S]{0,40}최종 승인은 작성 뒤[\s\S]{0,40}선언은 승인이 아니다/);
+});
+
 test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /Korean/);

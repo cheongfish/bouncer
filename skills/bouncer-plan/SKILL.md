@@ -67,12 +67,13 @@ Skill flow (recommended): code search + `bouncer intent` → `discovery` (`${BOU
    Then clarify the request.
    Expect these named handoff outputs: `Goal`, `Scope`,
    `Non-goals`, `Success criteria`, `Edge cases & failure modes`,
-   `Overlap`, `Open decisions`, and `Project rules`. An open decision is a
+   `Overlap`, `Open decisions`, and `Project rules`.    An open decision is a
    behavior neither the request nor the code settles; ask the user every open
    decision in one chat message and wait for the answers before the Discover
    ACQ. These are discovery's clarifying questions, not an ACQ gate, and
    `config.autonomy` never skips them. Do not write an assumed answer into the
-   framing. When discovery surfaces ordering or fan-in among units of work,
+   framing. For batching independent questions, light declaration versus
+   approval, and step handoff, read [roundtrip.md](./references/roundtrip.md). When discovery surfaces ordering or fan-in among units of work,
    capture them as candidate task dependencies (`depends_on`) and parallel
    readiness (`parallel_safe`) — task numbers alone do not decide execution
    order. **ACQ — Discover (`plan.discovery`):** confirm Goal / Scope / Non-goals / Success

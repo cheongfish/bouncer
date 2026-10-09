@@ -43,6 +43,11 @@
 
 ### Changed
 
+- **plan 왕복 규칙** — `/bouncer-plan`이 독립 질문을 한 메시지에 묻고, light
+  선언은 scaffold 전에 받되 `plan.approval`을 대신하지 않으며, 단계 사이에는
+  현재 계획·미결 결정·변경 요약만 넘기도록
+  `skills/bouncer-plan/references/roundtrip.md`에 두고 SKILL·discovery가
+  가리킨다.
 - **판단 응답 문맥 제한** — `coordinate next`가 판단·worker 행동의
   `payload.report`(`{ outcome, summary, attempt }`)와 `payload.evidence`
   포인터만 싣고, 옛 `previous_outcome` 키는 쓰지 않는다. coordinator Procedure는
