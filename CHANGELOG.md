@@ -9,6 +9,15 @@
 
 ### Added
 
+- **`review-dispatch plan` 문서별 digest·`follow_up`** — `single`/`clustered`
+  payload에 `parts`·`scope_parts`·`follow_up`·`changed_documents`를 넣고,
+  `--previous <file>`로 이전 payload와 비교해 `full`(문서 집합·에픽/blueprint
+  본문·범위 digest 변화) 또는 `partial`(tasks.md 본문만)을 판정한다. stale
+  복구와 delta 입력이 이 신호를 따른다.
+- **`plan inspect --blueprint`** — 초안 task의 수·의존·접촉 모듈·위험 경로로
+  advisory `routing`(`light-candidate`/`full-candidate`와 reasons)을 낸다.
+  신호는 추천 근거만이며 light 선택·승인을 하지 않는다. 플래그 없으면
+  `routing: null`이다.
 - **`coordinate advance`** — `coordinate next`가 준 결정적 argv(`prepare`·
   `integrate`·`verification_node`·`verify`·`commit`)를 CLI가 연쇄 실행하고,
   `judge`·`worker`·`blocked`·`done`·`none`·`max-steps` 또는
@@ -43,6 +52,11 @@
 
 ### Changed
 
+- **plan 왕복 규칙** — `/bouncer-plan`이 독립 질문을 한 메시지에 묻고, light
+  선언은 scaffold 전에 받되 `plan.approval`을 대신하지 않으며, 단계 사이에는
+  현재 계획·미결 결정·변경 요약만 넘기도록
+  `skills/bouncer-plan/references/roundtrip.md`에 두고 SKILL·discovery가
+  가리킨다.
 - **판단 응답 문맥 제한** — `coordinate next`가 판단·worker 행동의
   `payload.report`(`{ outcome, summary, attempt }`)와 `payload.evidence`
   포인터만 싣고, 옛 `previous_outcome` 키는 쓰지 않는다. coordinator Procedure는

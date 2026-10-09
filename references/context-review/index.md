@@ -77,9 +77,13 @@ On a light plan, approved scope rests on the user's confirmation of
    the digest/document set drifts from the freeze, do not judge and do not
    accept. In `delta`, one call certifies whether the previous findings are
    resolved and whether the revision introduced a problem — once, regardless
-   of strategy or cluster count. The scope bodies, the delta origin rule,
-   what each scope excludes, and the severity mapping are canonical in the
-   named agent `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` (`## Review modes`,
+   of strategy or cluster count. When plan dispatch reports
+   `follow_up: partial`, delta inputs are only the new digest, previous
+   findings, `changed_documents`, and the read-only cwd. When
+   `follow_up: full`, restart round 1 discovery instead of opening a delta.
+   The scope bodies, the delta origin rule, what each scope excludes, and the
+   severity mapping are canonical in the named agent
+   `${BOUNCER_ROOT}/agents/bouncer-context-reviewer.md` (`## Review modes`,
    `## Rubric — four scopes`, `## Calibration (severity)`). Read them there;
    this skill does not carry a second copy.
 

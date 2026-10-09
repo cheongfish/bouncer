@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('node:fs');
+
 import cliFlags = require('./cli-flags');
 const { parseFlags } = cliFlags;
 // validate-sections는 ./paths 계열만 정적으로 끌어오므로(intent 모듈 없음) help 문자열을
@@ -18,6 +20,7 @@ type ParsedPlan = {
   mode: 'plan';
   error?: string;
   blueprint: string | null;
+  previous: string | null;
   repo?: string;
 };
 
@@ -35,7 +38,7 @@ type ParsedArgs = ParsedPlan | ParsedExecute | { mode: 'usage'; error: string };
 
 const USAGE = `usage: bouncer review-dispatch <plan|execute> [options]
 
-  review-dispatch plan --blueprint <dir>
+  review-dispatch plan --blueprint <dir> [--previous <file>]
              Classify plan context-review strategy (read-only JSON).
   review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
              Classify execute review strategy from frozen diff (read-only JSON).
@@ -102,6 +105,18 @@ fingerprint formula: context:lower(category):lower(brief_clause):posix(file)#sym
 Do not compute the digest. Copy \`target.digest\` from the JSON that
 \`review-dispatch plan --blueprint <dir>\` prints into both <target.digest>
 places. When it prints \`ok: false\` there is no digest: do not call a reviewer.
+
+Plan fields (\`single\` / \`clustered\` only; absent on \`skip\` and failures):
+  parts            per-document body sha256 (epic index, blueprint index, each tasks.md)
+  scope_parts      per-tasks.md scope sha256 (sorted affected_paths + depends_on +
+                   Interface body + Touch body)
+  follow_up        \`full\` | \`partial\` — compare with \`--previous <file>\` (a prior
+                   plan JSON). Omit \`--previous\` → \`full\` and empty changed_documents.
+  changed_documents tasks.md paths whose body alone changed (\`partial\` only)
+
+\`full\` when the document set, epic/blueprint index body, or any scope_parts
+differs; otherwise \`partial\`. Invalid \`--previous\` (missing file, non-JSON, or
+no \`parts\`) prints \`{ ok: false, reason: "previous-payload-invalid" }\` (exit 1).
 `;
 
 /**
@@ -140,7 +155,8 @@ function parseReviewDispatchArgs(rest: string[]): ParsedArgs {
 }
 
 /**
- * plan 하위 명령 인자. --blueprint만 필수이고 분류기는 문서를 읽기만 한다.
+ * plan 하위 명령 인자. --blueprint는 필수, --previous는 이전 payload 경로다.
+ * 분류기는 문서를 읽기만 한다.
  *
  * @param {string[]} rest - `plan` 뒤 argv
  * @returns {ParsedPlan} 성공 필드 또는 error
@@ -151,9 +167,16 @@ function parsePlanArgs(rest: string[]): ParsedPlan {
     mode: 'plan',
     error: `review-dispatch plan: ${message}\n`,
     blueprint: null,
+    previous: null,
   });
   if (typeof f.blueprint !== 'string' || f.blueprint === '') {
     return fail('--blueprint is required');
+  }
+  // --previous만 있고 경로가 없으면 boolean true가 된다. 파일 부재(exit 1)와
+  // 구분하기 위해 사용법 거절(exit 2)로 돌린다.
+  if (Object.prototype.hasOwnProperty.call(f, 'previous')
+    && (typeof f.previous !== 'string' || f.previous === '')) {
+    return fail('--previous requires a file');
   }
   if (f.repo !== undefined && (typeof f.repo !== 'string' || f.repo === '')) {
     return fail('--repo requires a directory');
@@ -161,6 +184,7 @@ function parsePlanArgs(rest: string[]): ParsedPlan {
   return {
     mode: 'plan',
     blueprint: f.blueprint,
+    previous: typeof f.previous === 'string' ? f.previous : null,
     repo: typeof f.repo === 'string' ? f.repo : undefined,
   };
 }
@@ -233,9 +257,24 @@ function cmdReviewDispatch(rest: string[], io: CliIo): number {
   const reviewDispatch = require('./review-dispatch') as typeof import('./review-dispatch');
   const repoRoot = (parsed.repo ? parsed.repo : process.cwd()) as string;
   if (parsed.mode === 'plan') {
+    let previous: unknown;
+    if (parsed.previous) {
+      // 파일 부재·비JSON은 분류기 전에 거절한다. parts 부재는 분류기가
+      // previous-payload-invalid로 돌린다 — 읽기 실패와 같은 reason으로 맞춘다.
+      try {
+        const raw = fs.readFileSync(parsed.previous, 'utf8');
+        previous = JSON.parse(raw);
+      } catch {
+        // ENOENT·SyntaxError·권한 오류를 모두 같은 reason으로 접는다. 운영자가
+        // 경로/형식을 고치면 되고, 세부 errno를 strategy 실패와 섞지 않기 위함.
+        io.out(`${JSON.stringify({ ok: false, reason: 'previous-payload-invalid' }, null, 2)}\n`);
+        return 1;
+      }
+    }
     const result = reviewDispatch.classifyPlanReview({
       repoRoot,
       blueprintDir: parsed.blueprint as string,
+      ...(previous !== undefined ? { previous } : {}),
     });
     io.out(`${JSON.stringify(result, null, 2)}\n`);
     return result.ok ? 0 : 1;
@@ -253,7 +292,7 @@ function cmdReviewDispatch(rest: string[], io: CliIo): number {
 
 export = {
   run: cmdReviewDispatch,
-  usage: `  review-dispatch plan --blueprint <dir>
+  usage: `  review-dispatch plan --blueprint <dir> [--previous <file>]
              Classify plan context-review strategy (read-only JSON).
   review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
              Classify execute review strategy from frozen diff (read-only JSON).

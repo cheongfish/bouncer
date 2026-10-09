@@ -10,7 +10,7 @@ actual write cwd.
 
 ```sh
 bouncer init [--upgrade-graphify]
-bouncer plan inspect [--epic-dir <dir>]
+bouncer plan inspect [--epic-dir <dir>] [--blueprint <dir>]
 bouncer validate --blueprint <dir> --gate <plan|execute|commit|finalize>
 bouncer verify --blueprint <dir>
 bouncer execute prepare --blueprint <dir>
@@ -20,6 +20,10 @@ bouncer finalize release-main --blueprint <dir>
 bouncer run preflight --blueprint <dir>
 ```
 
+`plan inspect` prints next ids, verify signals, and pointer state as JSON.
+With `--blueprint <dir>` it also fills advisory `routing` (task/dependency/
+module/risk signals and a light/full recommendation); without that flag
+`routing` is `null`. The signal does not select or approve light.
 `validate` decides gate success. `verify` writes the evidence used by G13.
 `execute prepare` creates or reuses the correct standalone worktree; in a
 coordinator drive it reports the assigned worker instead. `commit --yes` is
@@ -89,7 +93,7 @@ bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
 bouncer subagent-model --agent <name> [--provider <name>]
 bouncer config --help
 bouncer codex-agents check --agent <name>
-bouncer review-dispatch plan --blueprint <dir>
+bouncer review-dispatch plan --blueprint <dir> [--previous <file>]
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
@@ -118,9 +122,16 @@ other than `check` is exit 2.
 
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
 clustered`) or Execute (`single | parallel`, with `security` when
-`review_risk` is non-empty). Omit `--task` on execute to classify the whole
-`base..head` diff and the union of commit-task `review_risk` (`target.task`
-is then `null`). On structural or input failure it prints
+`review_risk` is non-empty). Plan `single` / `clustered` also include
+`parts` (per-document body sha256), `scope_parts` (per-`tasks.md` scope
+sha256), `follow_up` (`full` | `partial`), and `changed_documents`. Pass
+`--previous <file>` (a prior plan JSON with `parts`) to compare; omit it for
+`follow_up: full` and an empty `changed_documents`. Those fields are absent
+on `skip` and on failures. Invalid `--previous` (missing file, non-JSON, or
+no `parts`) is `{ ok: false, reason: "previous-payload-invalid" }` (exit 1);
+`--previous` without a path is exit 2. Omit `--task` on execute to classify
+the whole `base..head` diff and the union of commit-task `review_risk`
+(`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
 `failures` (G5, G10–G12, G19, G20) when the draft fails. Invalid argv is exit 2.

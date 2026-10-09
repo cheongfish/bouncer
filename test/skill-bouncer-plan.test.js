@@ -206,6 +206,40 @@ test('bouncer-plan asks open decisions before the Discover ACQ and carries proje
   assert.match(body, /plan\.verify_command[\s\S]{0,260}recommend that command/);
 });
 
+// plan 왕복: 독립 질문 묶음·선언≠승인·단계 간 전달은 roundtrip reference가 정본이다.
+test('bouncer-plan roundtrip reference batches questions, separates declaration from approval, and limits step handoff', () => {
+  const roundtrip = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/roundtrip.md'),
+    'utf8',
+  );
+  const skill = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/SKILL.md'),
+    'utf8',
+  );
+  const discovery = fs.readFileSync(
+    path.join(root, 'references/discovery/index.md'),
+    'utf8',
+  );
+  const planning = fs.readFileSync(
+    path.join(root, 'rules/planning.md'),
+    'utf8',
+  );
+  const step1 = skill.slice(skill.indexOf('1. **Discover.**'), skill.indexOf('2. **Scaffold.**'));
+
+  assert.match(roundtrip, /## Questions to batch/i);
+  assert.match(roundtrip, /## Declaration and approval/i);
+  assert.match(roundtrip, /## Step handoff/i);
+  assert.match(roundtrip, /declaration is not approval/i);
+  assert.match(roundtrip, /Do not combine[\s\S]{0,80}ACQ/i);
+  assert.match(roundtrip, /`config\.autonomy`[\s\S]{0,80}never skips/i);
+  assert.match(roundtrip, /current plan[\s\S]{0,80}open decisions[\s\S]{0,80}change summary/i);
+
+  assert.match(step1, /references\/roundtrip\.md/);
+  assert.match(skill, /references\/roundtrip\.md/);
+  assert.match(discovery, /references\/roundtrip\.md/);
+  assert.match(planning, /선언은 작성 전[\s\S]{0,40}최종 승인은 작성 뒤[\s\S]{0,40}선언은 승인이 아니다/);
+});
+
 test('bouncer-plan requires Korean bodies and stop-slop after authoring', () => {
   const { body } = parseFrontmatter(md);
   assert.match(body, /Korean/);
@@ -299,11 +333,15 @@ test('bouncer-plan named context-reviewer uses fork_turns none and mode input al
     /(?:do not|never|without|exclude|배제)[\s\S]{0,100}(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)|(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)[\s\S]{0,80}(?:do not|never|exclude|배제)|판단 대상 밖/i,
   );
 
-  // delta allowlist: 새 digest, previous findings, 실제 수정 문서 목록, read-only cwd.
+  // delta allowlist: 새 digest, previous findings, changed_documents, read-only cwd.
   assert.match(delta, /digest/);
   assert.match(delta, /previous findings/i);
-  assert.match(delta, /modified document|실제 수정|revised documents? only|documents? (?:actually )?modified/i);
+  assert.match(delta, /changed_documents|modified document|실제 수정|revised documents? only|documents? (?:actually )?modified/i);
   assert.match(delta, /read-only\s+cwd/i);
+  // follow_up partial만 delta; full이면 discovery 재시작.
+  assert.match(delta, /follow_up/);
+  assert.match(delta, /partial/);
+  assert.match(delta, /full/);
   // delta 거절: 극성 결합 — 허용(pass/include) 문구는 실패해야 한다.
   assert.match(
     delta,
@@ -566,6 +604,22 @@ test('bouncer-plan Gate step routes a stale context review back to step 5', () =
   const { body } = parseFrontmatter(mainMd);
   const gate = body.slice(body.indexOf('8. **Gate.**'));
   assert.match(gate, /context review is stale[\s\S]{0,240}step 5/);
+});
+
+// stale 복구는 follow_up으로 분기한다 — full이면 round 1, partial이면 delta.
+test('bouncer-plan context-review stale recovery branches on follow_up', () => {
+  const dispatch = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/context-review.md'),
+    'utf8',
+  );
+  const staleAt = dispatch.indexOf('context review is stale');
+  assert.ok(staleAt >= 0, 'stale recovery paragraph present');
+  const stale = dispatch.slice(staleAt, staleAt + 800);
+  assert.match(stale, /follow_up/);
+  assert.match(stale, /--previous/);
+  assert.match(stale, /\bfull\b[\s\S]{0,200}round 1|round 1[\s\S]{0,200}\bfull\b/i);
+  assert.match(stale, /\bpartial\b[\s\S]{0,200}delta|delta[\s\S]{0,200}\bpartial\b/i);
+  assert.match(stale, /changed_documents/);
 });
 
 test('bouncer-plan dispatches read-only task evidence for full commit tasks', () => {

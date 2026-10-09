@@ -63,6 +63,11 @@ test('planning light path flips full to light instead of omitting the key', () =
   assert.match(planning, /back to `full`/);
   // 키 자체를 빼는 방식으로 되돌아가지 않는다 — 값만 뒤집는다.
   assert.doesNotMatch(planning, /omit(ting)? the key|키를 쓰지 않/i);
+  // plan inspect routing은 추천 근거만 — 자동 선택·승인으로 쓰지 않는다.
+  assert.match(
+    planning,
+    /추천 신호|advisory|recommendation[\s\S]{0,80}(근거|signal)|자동 선택 없음/i,
+  );
 });
 
 test('bouncer-execute inlines implementer on scale light and keeps host fallback wording', () => {
