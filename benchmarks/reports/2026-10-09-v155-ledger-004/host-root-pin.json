@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-09T11:00:35.011049+00:00",
+  "file": "/tmp/bouncer-benchmark-34058106-20261009/scripts/lib/plugin-root.js",
+  "before_sha256": "a2cbc946b1a1d52a267529965e68689b88b4894d3182245977c65d804a26fbff",
+  "after_sha256": "963f80eacb525385a72cb2aad9934e311fe38f5f87828241cb23a1aae9eed58c",
+  "reason": "Host launcher auto-discovered unbuilt installed plugin instead of measured checkout. Pin BOUNCER_HOME in host generated module only. Docker npm build re-emits the normal module.",
+  "affected_samples": [
+    "bouncer-full-1",
+    "bouncer-full-3"
+  ],
+  "failed_sample": "bouncer-full-2",
+  "tracked_source_modified": false,
+  "container_module_sha256": "a2cbc946b1a1d52a267529965e68689b88b4894d3182245977c65d804a26fbff",
+  "container_matches_unmodified_host_module": true
+}

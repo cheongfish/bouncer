@@ -1,0 +1,47 @@
+{
+  "archives": [
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-2",
+      "original_path": "<measured-checkout>/.benchmarks/archive/baseline-20261009-34058106-ledger004-vanilla-2.tar.gz",
+      "mirrored_path": "<project-root>/.benchmarks/archive/baseline-20261009-34058106-ledger004-vanilla-2.tar.gz",
+      "sha256": "9b95792b7131b4d8972aaf978074883de0dd0883ba4d095db8548b5b927c7738",
+      "bytes": 29482
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-3",
+      "original_path": "<measured-checkout>/.benchmarks/archive/baseline-20261009-34058106-ledger004-vanilla-3.tar.gz",
+      "mirrored_path": "<project-root>/.benchmarks/archive/baseline-20261009-34058106-ledger004-vanilla-3.tar.gz",
+      "sha256": "c90422bd1eebaf663c34e0ebb54e8f1147562a899d3cb8e9fb7c2e3280af1c75",
+      "bytes": 29456
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-1",
+      "original_path": "<measured-checkout>/.benchmarks/archive/baseline-20261009-34058106-ledger004-vanilla-1.tar.gz",
+      "mirrored_path": "<project-root>/.benchmarks/archive/baseline-20261009-34058106-ledger004-vanilla-1.tar.gz",
+      "sha256": "30511c98a4ebf0fcfd8841517f7934388c067b7d653d42206a9b56011e273884",
+      "bytes": 29409
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-2",
+      "original_path": "<measured-checkout>/.benchmarks/archive/baseline-20261009-34058106-ledger004-bouncer-full-2.tar.gz",
+      "mirrored_path": "<project-root>/.benchmarks/archive/baseline-20261009-34058106-ledger004-bouncer-full-2.tar.gz",
+      "sha256": "96a8a0f345933d069c60abaa6459d4398329848ba207f3d561b16b82ebb8ffc2",
+      "bytes": 108650
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-3",
+      "original_path": "<measured-checkout>/.benchmarks/archive/baseline-20261009-34058106-ledger004-bouncer-full-3.tar.gz",
+      "mirrored_path": "<project-root>/.benchmarks/archive/baseline-20261009-34058106-ledger004-bouncer-full-3.tar.gz",
+      "sha256": "2e51dd521e604a664717a0374fe79e093f21f952b12df701b943b327aec3992c",
+      "bytes": 106356
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-1",
+      "original_path": "<measured-checkout>/.benchmarks/archive/baseline-20261009-34058106-ledger004-bouncer-full-1.tar.gz",
+      "mirrored_path": "<project-root>/.benchmarks/archive/baseline-20261009-34058106-ledger004-bouncer-full-1.tar.gz",
+      "sha256": "091be61a5ad038dbf175ff846b06bd1f30c2b413b7e4e9c438a3d886ede0c8b1",
+      "bytes": 162844
+    }
+  ],
+  "copied_at": "2026-10-09T11:29:20.454179+00:00"
+}

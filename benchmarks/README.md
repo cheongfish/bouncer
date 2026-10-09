@@ -2,7 +2,9 @@
 
 [실험 계획](../benchmark-plan.md)의 첫 비교는 `vanilla`와 `bouncer-full`이다.
 이 디렉터리는 과제 정의와 실행 증거를 분리한다. 현재는 첫 과제의 기준
-프로젝트·PRD·채점 루브릭과 Cursor CLI용 파일럿 실행기가 있다. 실험 결과는 없다.
+프로젝트·PRD·채점 루브릭과 Cursor CLI용 파일럿 실행기가 있다.
+실험 결과는 [`reports/`](reports/)에 보존한다. 최신 기준선은
+[2026-10-09 ledger-004 vanilla/full 비교](reports/2026-10-09-v155-ledger-004.md)다.
 
 ```text
 benchmarks/

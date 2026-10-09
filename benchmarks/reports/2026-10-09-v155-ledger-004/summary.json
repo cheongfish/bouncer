@@ -1,0 +1,298 @@
+{
+  "batch_status": "completed",
+  "runs": [
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-2",
+      "condition": "vanilla",
+      "status": "completed",
+      "score": 100,
+      "eligible": true,
+      "exclusion_reasons": [],
+      "agent_phase_seconds": 49.851,
+      "driver_record_seconds": 49.851,
+      "processed_input_tokens": 83710,
+      "tokens": {
+        "inputTokens": 15358,
+        "outputTokens": 4530,
+        "cacheReadTokens": 68352,
+        "cacheWriteTokens": 0
+      },
+      "usage_status": "reported",
+      "stages": {},
+      "error": null,
+      "supervisor_timeout": false
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-3",
+      "condition": "vanilla",
+      "status": "completed",
+      "score": 100,
+      "eligible": true,
+      "exclusion_reasons": [],
+      "agent_phase_seconds": 99.964,
+      "driver_record_seconds": 99.964,
+      "processed_input_tokens": 125296,
+      "tokens": {
+        "inputTokens": 20720,
+        "outputTokens": 5945,
+        "cacheReadTokens": 104576,
+        "cacheWriteTokens": 0
+      },
+      "usage_status": "reported",
+      "stages": {},
+      "error": null,
+      "supervisor_timeout": false
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-1",
+      "condition": "vanilla",
+      "status": "completed",
+      "score": 100,
+      "eligible": true,
+      "exclusion_reasons": [],
+      "agent_phase_seconds": 77.322,
+      "driver_record_seconds": 77.322,
+      "processed_input_tokens": 88319,
+      "tokens": {
+        "inputTokens": 20351,
+        "outputTokens": 5948,
+        "cacheReadTokens": 67968,
+        "cacheWriteTokens": 0
+      },
+      "usage_status": "reported",
+      "stages": {},
+      "error": null,
+      "supervisor_timeout": false
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-2",
+      "condition": "bouncer-full",
+      "status": "stopped",
+      "score": null,
+      "eligible": false,
+      "exclusion_reasons": [
+        "not_graded"
+      ],
+      "agent_phase_seconds": 892.741,
+      "driver_record_seconds": 901.107,
+      "processed_input_tokens": 2475087,
+      "tokens": {
+        "inputTokens": 177807,
+        "outputTokens": 33240,
+        "cacheReadTokens": 2297280,
+        "cacheWriteTokens": 0
+      },
+      "usage_status": "reported",
+      "stages": {
+        "01-init": {
+          "seconds": 94.216,
+          "status": "stage_returned",
+          "turns": 2,
+          "tokens": {
+            "inputTokens": 38201,
+            "outputTokens": 2698,
+            "cacheReadTokens": 120320,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 1
+        },
+        "02-plan": {
+          "seconds": 798.525,
+          "status": "stage_returned",
+          "turns": 7,
+          "tokens": {
+            "inputTokens": 139606,
+            "outputTokens": 30542,
+            "cacheReadTokens": 2176960,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 6
+        }
+      },
+      "error": "/home/<user>/.nvm/versions/node/v24.21.0/bin/node /tmp/bouncer-benchmark-34058106-20261009/scripts/bouncer validate --blueprint .bouncer/context/epics/001-file-short-option/blueprints/001-add-f-alias --gate plan: bouncer: scripts/lib is missing; run `npm run build` in /home/<user>/.codex/plugins/cache/chunjae-tools/bouncer/1.5.5\n",
+      "supervisor_timeout": false
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-3",
+      "condition": "bouncer-full",
+      "status": "finalized",
+      "score": 100,
+      "eligible": true,
+      "exclusion_reasons": [],
+      "agent_phase_seconds": 1628.391,
+      "driver_record_seconds": 1650.199,
+      "processed_input_tokens": 5042371,
+      "tokens": {
+        "inputTokens": 899779,
+        "outputTokens": 67019,
+        "cacheReadTokens": 4142592,
+        "cacheWriteTokens": 0
+      },
+      "usage_status": "reported",
+      "stages": {
+        "01-init": {
+          "seconds": 91.927,
+          "status": "stage_returned",
+          "turns": 2,
+          "tokens": {
+            "inputTokens": 28196,
+            "outputTokens": 1933,
+            "cacheReadTokens": 89472,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 1
+        },
+        "02-plan": {
+          "seconds": 432.286,
+          "status": "stage_returned",
+          "turns": 6,
+          "tokens": {
+            "inputTokens": 549222,
+            "outputTokens": 20301,
+            "cacheReadTokens": 736192,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 5
+        },
+        "03-run": {
+          "seconds": 915.577,
+          "status": "stage_returned",
+          "turns": 2,
+          "tokens": {
+            "inputTokens": 287104,
+            "outputTokens": 39897,
+            "cacheReadTokens": 2932800,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 1
+        },
+        "04-finalize": {
+          "seconds": 188.601,
+          "status": "stage_returned",
+          "turns": 3,
+          "tokens": {
+            "inputTokens": 35257,
+            "outputTokens": 4888,
+            "cacheReadTokens": 384128,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 2
+        }
+      },
+      "error": null,
+      "supervisor_timeout": false
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-1",
+      "condition": "bouncer-full",
+      "status": "finalized",
+      "score": 100,
+      "eligible": true,
+      "exclusion_reasons": [],
+      "agent_phase_seconds": 1875.534,
+      "driver_record_seconds": 1889.152,
+      "processed_input_tokens": 6478036,
+      "tokens": {
+        "inputTokens": 1353236,
+        "outputTokens": 92757,
+        "cacheReadTokens": 5124800,
+        "cacheWriteTokens": 0
+      },
+      "usage_status": "reported",
+      "stages": {
+        "01-init": {
+          "seconds": 83.466,
+          "status": "stage_returned",
+          "turns": 2,
+          "tokens": {
+            "inputTokens": 37266,
+            "outputTokens": 2143,
+            "cacheReadTokens": 81792,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 1
+        },
+        "02-plan": {
+          "seconds": 736.022,
+          "status": "stage_returned",
+          "turns": 7,
+          "tokens": {
+            "inputTokens": 268861,
+            "outputTokens": 37817,
+            "cacheReadTokens": 2207488,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 6
+        },
+        "03-run": {
+          "seconds": 840.035,
+          "status": "stage_returned",
+          "turns": 2,
+          "tokens": {
+            "inputTokens": 1000436,
+            "outputTokens": 44452,
+            "cacheReadTokens": 2227008,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 1
+        },
+        "04-finalize": {
+          "seconds": 216.011,
+          "status": "stage_returned",
+          "turns": 3,
+          "tokens": {
+            "inputTokens": 46673,
+            "outputTokens": 8345,
+            "cacheReadTokens": 608512,
+            "cacheWriteTokens": 0
+          },
+          "unanswered": 0,
+          "decisions": 2
+        }
+      },
+      "error": null,
+      "supervisor_timeout": false
+    }
+  ],
+  "eligible_aggregates": {
+    "vanilla": {
+      "eligible_count": 3,
+      "completed_count": 3,
+      "median_agent_phase_seconds": 77.322,
+      "median_processed_input_tokens": 88319,
+      "scores": [
+        100,
+        100,
+        100
+      ]
+    },
+    "bouncer-full": {
+      "eligible_count": 2,
+      "completed_count": 3,
+      "median_agent_phase_seconds": 1751.9625,
+      "median_processed_input_tokens": 5760203.5,
+      "scores": [
+        100,
+        100
+      ]
+    }
+  },
+  "measurement_notes": [
+    "Agent phase seconds: vanilla duration_ms; full sum of stage run.json started_at/ended_at. Image builds and external grading excluded from this metric.",
+    "Full driver_record_seconds additionally includes checkout/setup, cached stage builds, bootstrap and grading; vanilla driver_record_seconds ends before grading. These are not directly comparable.",
+    "Processed input tokens = inputTokens + cacheReadTokens; this is not a price estimate.",
+    "Fresh workspace and conversation per run; provider-side cache hits are reported, cache behavior was not forcibly equalized.",
+    "Three attempts per condition; one small task and one model; this experiment does not establish rare-defect rates or validate the proposed light path.",
+    "Full-2 stopped after plan because host auto-discovery selected an unbuilt installed plugin; excluded from valid samples. The remaining full attempts use a recorded host-only generated-module root pin (host-root-pin.json).",
+    "At user request, full-1/full-3 run concurrently; full-2 overlaps their initial phases. Full latency may include resource/service contention."
+  ]
+}

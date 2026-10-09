@@ -1,0 +1,43 @@
+{
+  "runs": [
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-2",
+      "source_commit_verified": true,
+      "stage_usage_sum_verified": false,
+      "external_grade_verified": true
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-3",
+      "source_commit_verified": true,
+      "stage_usage_sum_verified": false,
+      "external_grade_verified": true
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-1",
+      "source_commit_verified": true,
+      "stage_usage_sum_verified": false,
+      "external_grade_verified": true
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-2",
+      "source_commit_verified": true,
+      "stage_usage_sum_verified": true,
+      "external_grade_verified": false
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-3",
+      "source_commit_verified": true,
+      "stage_usage_sum_verified": true,
+      "external_grade_verified": true
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-1",
+      "source_commit_verified": true,
+      "stage_usage_sum_verified": true,
+      "external_grade_verified": true
+    }
+  ],
+  "eligible_count": 5,
+  "excluded_count": 1,
+  "six_workspace_archive_hashes_verified": true
+}

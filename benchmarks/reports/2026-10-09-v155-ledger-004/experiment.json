@@ -1,0 +1,39 @@
+{
+  "commit": "340581066b201048862aa98609046ec4cb9f359d",
+  "task": "ledger-004",
+  "model": "cursor-grok-4.5-medium",
+  "seed": 20261009,
+  "timeout_minutes": 45,
+  "source_checkout": "/tmp/bouncer-benchmark-34058106-20261009",
+  "cursor_version": "2026.10.01-e373342",
+  "execution": "vanilla sequential; full-2 initially sequential, then full-1/full-3 launched concurrently at user request",
+  "order": [
+    [
+      "vanilla",
+      2
+    ],
+    [
+      "vanilla",
+      3
+    ],
+    [
+      "vanilla",
+      1
+    ],
+    [
+      "bouncer-full",
+      2
+    ],
+    [
+      "bouncer-full",
+      1
+    ],
+    [
+      "bouncer-full",
+      3
+    ]
+  ],
+  "started_at": "2026-10-09T10:37:36.161178+00:00",
+  "parallel_switch_at": "2026-10-09T10:56:29.433330+00:00",
+  "parallel_timing_caveat": "Full samples overlap; latency comparisons include possible resource/service contention."
+}

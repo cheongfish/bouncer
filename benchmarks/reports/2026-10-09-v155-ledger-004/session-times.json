@@ -1,0 +1,704 @@
+{
+  "notes": [
+    "Session spans use debug-session header and last line timestamp; these are approximations of process lifetime.",
+    "Remaining wall time subtracts the union of nested session intervals; it includes LLM inference, CLI/tool work and other waits. It is not measured LLM-only latency.",
+    "Roles are recognized only from an explicit initial dispatched-role sentence; unrecognized nested roles remain unresolved."
+  ],
+  "runs": [
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-2",
+      "phases": [
+        {
+          "stage": "vanilla",
+          "sessions": [
+            {
+              "conversation_id": "7714556b-b168-4a7e-acf6-98f6497607c1",
+              "role": "main",
+              "start_epoch": 1791542265.163,
+              "end_epoch": 1791542313.145,
+              "wall_seconds": 47.98199987411499,
+              "tokens": {
+                "inputTokens": 15358,
+                "outputTokens": 4530,
+                "cacheReadTokens": 68352,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-37-45-161Z-7-1.log"
+              ],
+              "nested_session_union_seconds": 0,
+              "remaining_wall_seconds": 47.98199987411499
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-3",
+      "phases": [
+        {
+          "stage": "vanilla",
+          "sessions": [
+            {
+              "conversation_id": "b0fcabc9-cd40-46f2-b0d8-a62d04a0e3ce",
+              "role": "main",
+              "start_epoch": 1791542416.027,
+              "end_epoch": 1791542514.654,
+              "wall_seconds": 98.62700009346008,
+              "tokens": {
+                "inputTokens": 20720,
+                "outputTokens": 5945,
+                "cacheReadTokens": 104576,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-40-16-025Z-7-1.log"
+              ],
+              "nested_session_union_seconds": 0,
+              "remaining_wall_seconds": 98.62700009346008
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-vanilla-1",
+      "phases": [
+        {
+          "stage": "vanilla",
+          "sessions": [
+            {
+              "conversation_id": "688a6bd4-5fe4-44da-b40d-8f14c8f840bd",
+              "role": "main",
+              "start_epoch": 1791542520.845,
+              "end_epoch": 1791542596.522,
+              "wall_seconds": 75.67700004577637,
+              "tokens": {
+                "inputTokens": 20351,
+                "outputTokens": 5948,
+                "cacheReadTokens": 67968,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-42-00-844Z-7-1.log"
+              ],
+              "nested_session_union_seconds": 0,
+              "remaining_wall_seconds": 75.67700004577637
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-2",
+      "phases": [
+        {
+          "stage": "01-init",
+          "sessions": [
+            {
+              "conversation_id": "148f3214-451f-4416-81e6-867e0739a4d4",
+              "role": "main",
+              "start_epoch": 1791542606.691,
+              "end_epoch": 1791542699.228,
+              "wall_seconds": 92.53699994087219,
+              "tokens": {
+                "inputTokens": 38201,
+                "outputTokens": 2698,
+                "cacheReadTokens": 120320,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-43-26-690Z-8-1.log",
+                "session-2026-10-09T10-44-39-751Z-955-1.log"
+              ],
+              "nested_session_union_seconds": 0,
+              "remaining_wall_seconds": 92.53699994087219
+            }
+          ]
+        },
+        {
+          "stage": "02-plan",
+          "sessions": [
+            {
+              "conversation_id": "51bd13ec-8acd-4e2d-9a51-450a32264fce",
+              "role": "main",
+              "start_epoch": 1791542702.588,
+              "end_epoch": 1791543499.398,
+              "wall_seconds": 796.8099999427795,
+              "tokens": {
+                "inputTokens": 87525,
+                "outputTokens": 20898,
+                "cacheReadTokens": 2042240,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-45-02-587Z-8-1.log",
+                "session-2026-10-09T10-46-52-774Z-1110-1.log",
+                "session-2026-10-09T10-47-19-712Z-1228-1.log",
+                "session-2026-10-09T10-47-49-221Z-1346-1.log",
+                "session-2026-10-09T10-50-15-025Z-2470-1.log",
+                "session-2026-10-09T10-50-57-068Z-2609-1.log",
+                "session-2026-10-09T10-57-12-115Z-4211-1.log"
+              ],
+              "nested_session_union_seconds": 244.12000012397766,
+              "remaining_wall_seconds": 552.6899998188019
+            },
+            {
+              "conversation_id": "d55f4701-8a98-43ec-bf4a-a16c9dde1da1",
+              "role": "bouncer-context-reviewer",
+              "start_epoch": 1791543113.239,
+              "end_epoch": 1791543314.025,
+              "wall_seconds": 200.78600001335144,
+              "tokens": {
+                "inputTokens": 30491,
+                "outputTokens": 7697,
+                "cacheReadTokens": 82944,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-51-53-238Z-3336-1.log"
+              ]
+            },
+            {
+              "conversation_id": "5ca2dd66-e45a-40bc-9aa1-93366699aa7c",
+              "role": "bouncer-context-reviewer",
+              "start_epoch": 1791543362.135,
+              "end_epoch": 1791543405.469,
+              "wall_seconds": 43.33400011062622,
+              "tokens": {
+                "inputTokens": 21590,
+                "outputTokens": 1947,
+                "cacheReadTokens": 51776,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-56-02-134Z-4050-1.log"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-3",
+      "phases": [
+        {
+          "stage": "01-init",
+          "sessions": [
+            {
+              "conversation_id": "13c8bd7a-7339-4c2a-96fc-43e028482ec3",
+              "role": "main",
+              "start_epoch": 1791543395.856,
+              "end_epoch": 1791543486.031,
+              "wall_seconds": 90.17499995231628,
+              "tokens": {
+                "inputTokens": 28196,
+                "outputTokens": 1933,
+                "cacheReadTokens": 89472,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-56-35-854Z-8-1.log",
+                "session-2026-10-09T10-57-49-546Z-605-1.log"
+              ],
+              "nested_session_union_seconds": 0,
+              "remaining_wall_seconds": 90.17499995231628
+            }
+          ]
+        },
+        {
+          "stage": "02-plan",
+          "sessions": [
+            {
+              "conversation_id": "38c37df0-668f-4fea-aca0-22b395e70963",
+              "role": "main",
+              "start_epoch": 1791543489.049,
+              "end_epoch": 1791543919.576,
+              "wall_seconds": 430.52699995040894,
+              "tokens": {
+                "inputTokens": 520580,
+                "outputTokens": 14270,
+                "cacheReadTokens": 681728,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-58-09-047Z-8-1.log",
+                "session-2026-10-09T10-59-21-794Z-922-1.log",
+                "session-2026-10-09T10-59-38-375Z-1040-1.log",
+                "session-2026-10-09T11-00-59-716Z-1834-1.log",
+                "session-2026-10-09T11-01-33-914Z-2532-1.log",
+                "session-2026-10-09T11-04-35-216Z-3455-1.log"
+              ],
+              "nested_session_union_seconds": 126.68499994277954,
+              "remaining_wall_seconds": 303.8420000076294
+            },
+            {
+              "conversation_id": "28ac894b-7434-42ab-afa7-59adb4f46b09",
+              "role": "bouncer-context-reviewer",
+              "start_epoch": 1791543727.559,
+              "end_epoch": 1791543854.244,
+              "wall_seconds": 126.68499994277954,
+              "tokens": {
+                "inputTokens": 28642,
+                "outputTokens": 6031,
+                "cacheReadTokens": 54464,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-02-07-557Z-3100-1.log"
+              ]
+            }
+          ]
+        },
+        {
+          "stage": "03-run",
+          "sessions": [
+            {
+              "conversation_id": "4842c689-93e3-4f16-94a0-e75977d5e1d8",
+              "role": "main",
+              "start_epoch": 1791543931.149,
+              "end_epoch": 1791544844.763,
+              "wall_seconds": 913.614000082016,
+              "tokens": {
+                "inputTokens": 50132,
+                "outputTokens": 2973,
+                "cacheReadTokens": 182656,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-05-31-148Z-8-1.log",
+                "session-2026-10-09T11-06-13-233Z-870-1.log"
+              ],
+              "nested_session_union_seconds": 822.8699998855591,
+              "remaining_wall_seconds": 90.74400019645691
+            },
+            {
+              "conversation_id": "3cb66891-c4d4-4f2a-9c3e-e849977d7518",
+              "role": "bouncer-coordinator",
+              "start_epoch": 1791544004.153,
+              "end_epoch": 1791544827.023,
+              "wall_seconds": 822.8699998855591,
+              "tokens": {
+                "inputTokens": 80174,
+                "outputTokens": 18497,
+                "cacheReadTokens": 2367872,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-06-44-151Z-1761-1.log"
+              ],
+              "nested_session_union_seconds": 445.73400020599365,
+              "remaining_wall_seconds": 377.13599967956543
+            },
+            {
+              "conversation_id": "3845bca5-c7bf-484f-ad11-82818e484186",
+              "role": "bouncer-implementer",
+              "start_epoch": 1791544077.042,
+              "end_epoch": 1791544159.44,
+              "wall_seconds": 82.39800000190735,
+              "tokens": {
+                "inputTokens": 25833,
+                "outputTokens": 4214,
+                "cacheReadTokens": 164352,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-07-57-041Z-3707-1.log"
+              ]
+            },
+            {
+              "conversation_id": "a9683d64-0f40-4d24-a140-039e8bababf0",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544230.867,
+              "end_epoch": 1791544495.706,
+              "wall_seconds": 264.83899998664856,
+              "tokens": {
+                "inputTokens": 31135,
+                "outputTokens": 1753,
+                "cacheReadTokens": 19968,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-10-30-865Z-8031-1.log"
+              ]
+            },
+            {
+              "conversation_id": "9991b50c-76e7-4766-9cf4-753f37021ea5",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544230.878,
+              "end_epoch": 1791544260.098,
+              "wall_seconds": 29.22000002861023,
+              "tokens": {
+                "inputTokens": 21565,
+                "outputTokens": 1446,
+                "cacheReadTokens": 32704,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-10-30-876Z-8033-1.log"
+              ]
+            },
+            {
+              "conversation_id": "4fb8cfc3-8ba6-47dc-95d1-04a417657c71",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544230.909,
+              "end_epoch": 1791544322.985,
+              "wall_seconds": 92.07599997520447,
+              "tokens": {
+                "inputTokens": 22782,
+                "outputTokens": 6603,
+                "cacheReadTokens": 59136,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-10-30-908Z-8051-1.log"
+              ]
+            },
+            {
+              "conversation_id": "07eb42d7-5e75-465f-bb3e-ac438c66db91",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544514.646,
+              "end_epoch": 1791544551.622,
+              "wall_seconds": 36.9760000705719,
+              "tokens": {
+                "inputTokens": 19783,
+                "outputTokens": 2095,
+                "cacheReadTokens": 31360,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-15-14-644Z-10241-1.log"
+              ]
+            },
+            {
+              "conversation_id": "005df3c3-9f54-465b-9c4a-7defae465df4",
+              "role": "bouncer-implementer",
+              "start_epoch": 1791544640.638,
+              "end_epoch": 1791544685.022,
+              "wall_seconds": 44.384000062942505,
+              "tokens": {
+                "inputTokens": 17668,
+                "outputTokens": 1270,
+                "cacheReadTokens": 61824,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-17-20-636Z-12280-1.log"
+              ]
+            },
+            {
+              "conversation_id": "02ebf07e-e0e1-4e60-8681-d916318c654e",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544782.761,
+              "end_epoch": 1791544799.898,
+              "wall_seconds": 17.13700008392334,
+              "tokens": {
+                "inputTokens": 18032,
+                "outputTokens": 1046,
+                "cacheReadTokens": 12928,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-19-42-759Z-15564-1.log"
+              ]
+            }
+          ]
+        },
+        {
+          "stage": "04-finalize",
+          "sessions": [
+            {
+              "conversation_id": "69bfa7c7-783d-41b6-8867-ccef24ece24f",
+              "role": "main",
+              "start_epoch": 1791544848.801,
+              "end_epoch": 1791545035.775,
+              "wall_seconds": 186.97399997711182,
+              "tokens": {
+                "inputTokens": 35257,
+                "outputTokens": 4888,
+                "cacheReadTokens": 384128,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-20-48-799Z-8-1.log",
+                "session-2026-10-09T11-22-28-793Z-754-1.log",
+                "session-2026-10-09T11-23-07-040Z-1262-1.log"
+              ],
+              "nested_session_union_seconds": 0,
+              "remaining_wall_seconds": 186.97399997711182
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run_id": "baseline-20261009-34058106-ledger004-bouncer-full-1",
+      "phases": [
+        {
+          "stage": "01-init",
+          "sessions": [
+            {
+              "conversation_id": "f06f7a14-0799-4f7c-bc74-8fe4aeb77cdb",
+              "role": "main",
+              "start_epoch": 1791543395.875,
+              "end_epoch": 1791543477.572,
+              "wall_seconds": 81.69700002670288,
+              "tokens": {
+                "inputTokens": 37266,
+                "outputTokens": 2143,
+                "cacheReadTokens": 81792,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-56-35-873Z-8-1.log",
+                "session-2026-10-09T10-57-39-330Z-901-1.log"
+              ],
+              "nested_session_union_seconds": 0,
+              "remaining_wall_seconds": 81.69700002670288
+            }
+          ]
+        },
+        {
+          "stage": "02-plan",
+          "sessions": [
+            {
+              "conversation_id": "38c8d064-960f-48bf-b8ba-ce3ab7e4e30e",
+              "role": "main",
+              "start_epoch": 1791543480.913,
+              "end_epoch": 1791544215.155,
+              "wall_seconds": 734.2419998645782,
+              "tokens": {
+                "inputTokens": 76390,
+                "outputTokens": 20132,
+                "cacheReadTokens": 1986112,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T10-58-00-911Z-8-1.log",
+                "session-2026-10-09T10-59-22-700Z-964-1.log",
+                "session-2026-10-09T10-59-57-317Z-1082-1.log",
+                "session-2026-10-09T11-00-17-145Z-1200-1.log",
+                "session-2026-10-09T11-02-07-976Z-2305-1.log",
+                "session-2026-10-09T11-02-41-003Z-2986-1.log",
+                "session-2026-10-09T11-08-47-342Z-4938-1.log"
+              ],
+              "nested_session_union_seconds": 274.69599962234497,
+              "remaining_wall_seconds": 459.5460002422333
+            },
+            {
+              "conversation_id": "d2483554-67a1-4f39-b18b-92a3afda30b5",
+              "role": "bouncer-context-reviewer",
+              "start_epoch": 1791543805.104,
+              "end_epoch": 1791544014.909,
+              "wall_seconds": 209.80499982833862,
+              "tokens": {
+                "inputTokens": 169407,
+                "outputTokens": 13498,
+                "cacheReadTokens": 147200,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-03-25-102Z-3670-1.log"
+              ]
+            },
+            {
+              "conversation_id": "97c1c309-15be-49c2-81a2-c00fcfd56174",
+              "role": "bouncer-context-reviewer",
+              "start_epoch": 1791544040.354,
+              "end_epoch": 1791544105.245,
+              "wall_seconds": 64.89099979400635,
+              "tokens": {
+                "inputTokens": 23064,
+                "outputTokens": 4187,
+                "cacheReadTokens": 74176,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-07-20-352Z-4580-1.log"
+              ]
+            }
+          ]
+        },
+        {
+          "stage": "03-run",
+          "sessions": [
+            {
+              "conversation_id": "294ebc0e-d989-4a94-a613-02dea355a98f",
+              "role": "main",
+              "start_epoch": 1791544218.848,
+              "end_epoch": 1791545056.879,
+              "wall_seconds": 838.0309998989105,
+              "tokens": {
+                "inputTokens": 49748,
+                "outputTokens": 3446,
+                "cacheReadTokens": 212096,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-10-18-847Z-8-1.log",
+                "session-2026-10-09T11-10-52-688Z-596-1.log"
+              ],
+              "nested_session_union_seconds": 748.8889999389648,
+              "remaining_wall_seconds": 89.14199995994568
+            },
+            {
+              "conversation_id": "768b42c5-1cf5-4ac9-b104-953db2742bb9",
+              "role": "bouncer-coordinator",
+              "start_epoch": 1791544288.072,
+              "end_epoch": 1791545036.961,
+              "wall_seconds": 748.8889999389648,
+              "tokens": {
+                "inputTokens": 738450,
+                "outputTokens": 16462,
+                "cacheReadTokens": 1700608,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-11-28-070Z-1298-1.log"
+              ],
+              "nested_session_union_seconds": 289.22100019454956,
+              "remaining_wall_seconds": 459.6679997444153
+            },
+            {
+              "conversation_id": "9461fd53-b05b-428e-8385-729b5785c17a",
+              "role": "bouncer-implementer",
+              "start_epoch": 1791544413.059,
+              "end_epoch": 1791544504.834,
+              "wall_seconds": 91.77500009536743,
+              "tokens": {
+                "inputTokens": 84573,
+                "outputTokens": 5008,
+                "cacheReadTokens": 80128,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-13-33-058Z-3784-1.log"
+              ]
+            },
+            {
+              "conversation_id": "ac43f3df-653c-4e97-979b-3cbc8d691800",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544636.58,
+              "end_epoch": 1791544689.276,
+              "wall_seconds": 52.69600009918213,
+              "tokens": {
+                "inputTokens": 19708,
+                "outputTokens": 2457,
+                "cacheReadTokens": 30592,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-17-16-579Z-7955-1.log"
+              ]
+            },
+            {
+              "conversation_id": "7a7a39a3-5ad5-4ced-982a-6c0eccc56151",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544636.605,
+              "end_epoch": 1791544714.407,
+              "wall_seconds": 77.80200004577637,
+              "tokens": {
+                "inputTokens": 19927,
+                "outputTokens": 2691,
+                "cacheReadTokens": 30656,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-17-16-603Z-7971-1.log"
+              ]
+            },
+            {
+              "conversation_id": "af4d2eec-4319-4623-8f2f-1e9f4bfb3eb3",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544636.608,
+              "end_epoch": 1791544740.804,
+              "wall_seconds": 104.19599986076355,
+              "tokens": {
+                "inputTokens": 22909,
+                "outputTokens": 4161,
+                "cacheReadTokens": 32256,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-17-16-607Z-7965-1.log"
+              ]
+            },
+            {
+              "conversation_id": "eb48abe9-4176-40dc-b468-ffb01ac291e7",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544636.632,
+              "end_epoch": 1791544734.859,
+              "wall_seconds": 98.22699999809265,
+              "tokens": {
+                "inputTokens": 25235,
+                "outputTokens": 5969,
+                "cacheReadTokens": 52352,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-17-16-631Z-7987-1.log"
+              ]
+            },
+            {
+              "conversation_id": "14104df4-f8f7-48db-8c24-a8bcc4727a7c",
+              "role": "bouncer-implementer",
+              "start_epoch": 1791544822.379,
+              "end_epoch": 1791544859.696,
+              "wall_seconds": 37.31700015068054,
+              "tokens": {
+                "inputTokens": 20518,
+                "outputTokens": 1319,
+                "cacheReadTokens": 58752,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-20-22-378Z-11894-1.log"
+              ]
+            },
+            {
+              "conversation_id": "c6bc9fbb-b763-4284-b880-e8b2454af1e9",
+              "role": "bouncer-reviewer",
+              "start_epoch": 1791544940.73,
+              "end_epoch": 1791544996.635,
+              "wall_seconds": 55.90499997138977,
+              "tokens": {
+                "inputTokens": 19368,
+                "outputTokens": 2939,
+                "cacheReadTokens": 29568,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-22-20-729Z-15317-1.log"
+              ]
+            }
+          ]
+        },
+        {
+          "stage": "04-finalize",
+          "sessions": [
+            {
+              "conversation_id": "cde28875-1b58-425f-9385-3f32d9fc8330",
+              "role": "main",
+              "start_epoch": 1791545060.19,
+              "end_epoch": 1791545274.604,
+              "wall_seconds": 214.41400003433228,
+              "tokens": {
+                "inputTokens": 46673,
+                "outputTokens": 8345,
+                "cacheReadTokens": 608512,
+                "cacheWriteTokens": 0
+              },
+              "logs": [
+                "session-2026-10-09T11-24-20-188Z-8-1.log",
+                "session-2026-10-09T11-25-50-781Z-894-1.log",
+                "session-2026-10-09T11-27-03-720Z-1600-1.log"
+              ],
+              "nested_session_union_seconds": 0,
+              "remaining_wall_seconds": 214.41400003433228
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

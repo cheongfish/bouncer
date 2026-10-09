@@ -1,0 +1,7 @@
+run_id,condition,status,score,eligible,agent_phase_seconds,driver_record_seconds,processed_input_tokens,usage_status
+baseline-20261009-34058106-ledger004-vanilla-2,vanilla,completed,100,True,49.851,49.851,83710,reported
+baseline-20261009-34058106-ledger004-vanilla-3,vanilla,completed,100,True,99.964,99.964,125296,reported
+baseline-20261009-34058106-ledger004-vanilla-1,vanilla,completed,100,True,77.322,77.322,88319,reported
+baseline-20261009-34058106-ledger004-bouncer-full-2,bouncer-full,stopped,,False,892.741,901.107,2475087,reported
+baseline-20261009-34058106-ledger004-bouncer-full-3,bouncer-full,finalized,100,True,1628.391,1650.199,5042371,reported
+baseline-20261009-34058106-ledger004-bouncer-full-1,bouncer-full,finalized,100,True,1875.534,1889.152,6478036,reported
