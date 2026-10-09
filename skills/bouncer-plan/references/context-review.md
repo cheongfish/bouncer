@@ -49,17 +49,20 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    exists, skip the revision and the delta; the round sequence stays
    `discovery`.
 5. **Certify the delta** — After the revision, rerun `bouncer review-dispatch
-   plan --blueprint <dir>` and copy the new `target.digest`.
-   Dispatch one `bouncer-context-reviewer` call in mode `delta` with
-   `fork_turns: "none"` (exclude full conversation history) and only this
-   controller input allowlist: the new digest, previous findings, the actual
-   modified document list from the revision (revised documents only — never
-   the full ledger or documents out of judgment), and the read-only cwd — not
-   another discovery pass and not a second strategy-shaped fan-out. Delta
-   runs once regardless of `single` or `clustered` and of cluster count.
-   Record round 2 as `mode: delta` with the new digest. Accept a new delta
-   finding only when it is `introduced_by_revision` with a revised passage as
-   evidence, or `missed_critical` with `blocker` or `major` severity; its
+   plan --blueprint <dir> [--previous <prior-payload.json>]` and copy the new
+   `target.digest`. When `follow_up` is `partial`, dispatch one
+   `bouncer-context-reviewer` call in mode `delta` with `fork_turns: "none"`
+   (exclude full conversation history) and only this controller input
+   allowlist: the new digest, previous findings, `changed_documents` (the
+   actual modified document list from the revision — revised documents only,
+   never the full ledger or documents out of judgment), and the read-only
+   cwd — not another discovery pass and not a second strategy-shaped fan-out.
+   When `follow_up` is `full`, do not run delta; restart from step 1
+   discovery on the current digest instead. Delta runs once regardless of
+   `single` or `clustered` and of cluster count. Record round 2 as
+   `mode: delta` with the new digest. Accept a new delta finding only when it
+   is `introduced_by_revision` with a revised passage as evidence, or
+   `missed_critical` with `blocker` or `major` severity; its
    `first_seen_round` is 2. Update `last_seen_round` on returning findings.
 6. **Close** — Delta runs once; context review has no third round and no
    critical recovery. Mark findings the delta certified as `resolved`. When a
@@ -67,9 +70,14 @@ Before approval, judge the plan documents. The `context-review` skill (`${BOUNCE
    unaccepted and bring the open finding to the user; only the user's
    accepted-risk note may record it `accepted`.
 
-When the plan gate reports `context review is stale`, the recovery is not a
-third round: replace `rounds[]` and `findings[]` with a new round 1 discovery
-on the current digest (restart from step 1), then re-approve.
+When the plan gate reports `context review is stale`, rerun
+`bouncer review-dispatch plan --blueprint <dir> --previous <prior-payload.json>`
+and branch on `follow_up`. On `full`, the recovery is not a third round:
+replace `rounds[]` and `findings[]` with a new round 1 discovery on the
+current digest (restart from step 1), then re-approve. On `partial`, keep the
+existing discovery round and run one delta with the usual allowlist (new
+digest, previous findings, `changed_documents`, read-only cwd) — do not
+restart discovery.
 
 When Cursor print dispatch is opted in, run each step 2 call and the step 5
 delta call as a print dispatch from `PROJECT_ROOT`. Per call, the controller

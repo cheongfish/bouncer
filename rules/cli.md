@@ -93,7 +93,7 @@ bouncer graph-suggest --query <text> [--seed <value>]... [--debug]
 bouncer subagent-model --agent <name> [--provider <name>]
 bouncer config --help
 bouncer codex-agents check --agent <name>
-bouncer review-dispatch plan --blueprint <dir>
+bouncer review-dispatch plan --blueprint <dir> [--previous <file>]
 bouncer review-dispatch execute --blueprint <dir> [--task <ddd>] --base <sha> --head <sha>
 bouncer dispatch print --role <implementer|reviewer|debugger|context-reviewer|coordinator> \
   --cwd <dir> --input <file> --out <dir> [--repo <dir>]
@@ -122,9 +122,16 @@ other than `check` is exit 2.
 
 `review-dispatch` is read-only. It returns JSON for Plan (`skip | single |
 clustered`) or Execute (`single | parallel`, with `security` when
-`review_risk` is non-empty). Omit `--task` on execute to classify the whole
-`base..head` diff and the union of commit-task `review_risk` (`target.task`
-is then `null`). On structural or input failure it prints
+`review_risk` is non-empty). Plan `single` / `clustered` also include
+`parts` (per-document body sha256), `scope_parts` (per-`tasks.md` scope
+sha256), `follow_up` (`full` | `partial`), and `changed_documents`. Pass
+`--previous <file>` (a prior plan JSON with `parts`) to compare; omit it for
+`follow_up: full` and an empty `changed_documents`. Those fields are absent
+on `skip` and on failures. Invalid `--previous` (missing file, non-JSON, or
+no `parts`) is `{ ok: false, reason: "previous-payload-invalid" }` (exit 1);
+`--previous` without a path is exit 2. Omit `--task` on execute to classify
+the whole `base..head` diff and the union of commit-task `review_risk`
+(`target.task` is then `null`). On structural or input failure it prints
 `{ ok: false }` without a reviewer list (exit 1). Plan dispatch also returns
 `{ ok: false }` with `plan draft validation failed` and the plan-gate
 `failures` (G5, G10–G12, G19, G20) when the draft fails. Invalid argv is exit 2.

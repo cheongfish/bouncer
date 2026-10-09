@@ -294,6 +294,11 @@ test('plan light scale returns skip without perspectives', () => {
   assert.strictEqual(result.strategy, 'skip');
   assert.deepStrictEqual(result.perspectives, []);
   assert.strictEqual(result.task_count, 1);
+  // skip 응답에는 문서별 digest·follow_up 필드가 없다.
+  assert.strictEqual(result.parts, undefined);
+  assert.strictEqual(result.scope_parts, undefined);
+  assert.strictEqual(result.follow_up, undefined);
+  assert.strictEqual(result.changed_documents, undefined);
   assert.strictEqual(git(repo, ['status', '--porcelain']), before);
 });
 
@@ -310,6 +315,205 @@ test('plan single commit task returns combined', () => {
   assert.strictEqual(result.target.digest, expected.digest);
   assert.deepStrictEqual(result.target.documents, expected.documents);
   assert.ok(Array.isArray(result.reasons) && result.reasons.length > 0);
+});
+
+function rewriteTasksGoal(repo, number, goalLine) {
+  const abs = path.join(repo, BP_REL, 'tasks', number, 'tasks.md');
+  const raw = fs.readFileSync(abs, 'utf8');
+  const updated = raw.replace(
+    /## Goal & intent\n[\s\S]*?\n## Current behavior/,
+    `## Goal & intent\n${goalLine}\n\n## Current behavior`,
+  );
+  fs.writeFileSync(abs, updated);
+}
+
+function previousPayload(result) {
+  return {
+    ok: true,
+    parts: result.parts,
+    scope_parts: result.scope_parts,
+    target: result.target,
+  };
+}
+
+// follow_up·parts·scope_parts 계약. 일곱 판정 + skip 필드 부재 + previous 거절.
+test('plan follow_up without previous is full with empty changed_documents', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const out = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'single');
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, []);
+  assert.ok(out.parts && typeof out.parts === 'object');
+  assert.ok(out.scope_parts && typeof out.scope_parts === 'object');
+  const expected = expectedDigest(repo);
+  assert.strictEqual(out.target.digest, expected.digest);
+  assert.deepStrictEqual(Object.keys(out.parts).sort(), [...expected.documents].sort());
+  assert.ok(out.parts[`${BP_REL}/tasks/001/tasks.md`]);
+  assert.ok(out.scope_parts[`${BP_REL}/tasks/001/tasks.md`]);
+});
+
+test('plan follow_up Goal-only body change is partial with that tasks.md', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(before.ok, true);
+  const digestBefore = before.target.digest;
+  rewriteTasksGoal(repo, '001', 'Ship a different goal wording.');
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'partial');
+  assert.deepStrictEqual(out.changed_documents, [`${BP_REL}/tasks/001/tasks.md`]);
+  // 본문만 바뀌어도 집계 digest는 새 본문 기준이며, 회귀로 계산 순서가 깨지지 않았는지 확인.
+  const expected = expectedDigest(repo);
+  assert.strictEqual(out.target.digest, expected.digest);
+  assert.notStrictEqual(out.target.digest, digestBefore);
+});
+
+test('plan follow_up unchanged documents is partial with empty list', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'partial');
+  assert.deepStrictEqual(out.changed_documents, []);
+  assert.strictEqual(out.target.digest, before.target.digest);
+});
+
+test('plan follow_up epic index body change is full', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  const abs = path.join(repo, `${EPIC_REL}/index.md`);
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('# Auth epic\n', '# Auth epic revised\n'));
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, []);
+});
+
+test('plan follow_up blueprint index body change is full', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  const abs = path.join(repo, `${BP_REL}/index.md`);
+  fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace('# Login blueprint\n', '# Login blueprint revised\n'));
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, []);
+});
+
+test('plan follow_up scope_parts change (affected_paths / Interface / Touch) is full', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  // Touch·affected_paths를 같이 바꿔 G11을 유지한 채 scope digest만 바꾼다.
+  writeCommitTask(repo, '001', {
+    interfaceText: '- `sharedFn`\n- `newExport`\n',
+    touchText: '- `src/shared.ts`\n- `src/a.ts`\n- `src/extra.ts`\n',
+    affectedPaths: ['src/shared.ts', 'src/a.ts', 'src/extra.ts'],
+  });
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, []);
+  assert.notStrictEqual(
+    out.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
+    before.scope_parts[`${BP_REL}/tasks/001/tasks.md`],
+  );
+});
+
+test('plan follow_up added task is full', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const before = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  writeCommitTask(repo, '002', {
+    dependsOn: ['TASKS-001'],
+    interfaceText: '- `sharedFn`\n- `classifyPlanReview`\n',
+    touchText: '- `src/shared.ts`\n- `src/b.ts`\n',
+  });
+  const out = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: previousPayload(before),
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'clustered');
+  assert.strictEqual(out.follow_up, 'full');
+  assert.deepStrictEqual(out.changed_documents, []);
+});
+
+test('plan previous payload invalid rejects with previous-payload-invalid', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001'] });
+  const missingParts = classifyPlanReview({
+    repoRoot: repo,
+    blueprintDir: BP_REL,
+    previous: { ok: true, target: { digest: 'x', documents: [] } },
+  });
+  assert.strictEqual(missingParts.ok, false);
+  assert.strictEqual(missingParts.reason, 'previous-payload-invalid');
+
+  const prevPath = path.join(repo, 'previous.json');
+  fs.writeFileSync(prevPath, '{ not json');
+  const badJson = capture([
+    'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo,
+    '--previous', prevPath,
+  ]);
+  assert.strictEqual(badJson.code, 1);
+  const badPayload = JSON.parse(badJson.out);
+  assert.strictEqual(badPayload.ok, false);
+  assert.strictEqual(badPayload.reason, 'previous-payload-invalid');
+
+  const missingFile = capture([
+    'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo,
+    '--previous', path.join(repo, 'no-such-previous.json'),
+  ]);
+  assert.strictEqual(missingFile.code, 1);
+  assert.strictEqual(JSON.parse(missingFile.out).reason, 'previous-payload-invalid');
+
+  const bareFlag = capture([
+    'review-dispatch', 'plan', '--blueprint', BP_REL, '--repo', repo, '--previous',
+  ]);
+  assert.strictEqual(bareFlag.code, 2);
+});
+
+test('plan aggregate digest stays invariant with parts present', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'full', tasks: ['001', '002'] });
+  const out = classifyPlanReview({ repoRoot: repo, blueprintDir: BP_REL });
+  assert.strictEqual(out.ok, true);
+  const expected = expectedDigest(repo);
+  assert.strictEqual(out.target.digest, expected.digest);
+  assert.deepStrictEqual(out.target.documents, expected.documents);
+  // 문서별 parts의 본문 sha256을 이어 붙인 값이 집계 digest가 아니다 — 집계는
+  // 기존처럼 본문을 한 해시로 이어 붙인 결과여야 한다.
+  const joinedParts = crypto.createHash('sha256');
+  for (const rel of expected.documents) joinedParts.update(Buffer.from(out.parts[rel], 'hex'));
+  assert.notStrictEqual(joinedParts.digest('hex'), out.target.digest);
 });
 
 test('plan two overlapping tasks returns clustered local+global', () => {

@@ -333,11 +333,15 @@ test('bouncer-plan named context-reviewer uses fork_turns none and mode input al
     /(?:do not|never|without|exclude|배제)[\s\S]{0,100}(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)|(?:out of (?:scope|judgment)|outside (?:that |the )?(?:judged|revised)|documents? outside)[\s\S]{0,80}(?:do not|never|exclude|배제)|판단 대상 밖/i,
   );
 
-  // delta allowlist: 새 digest, previous findings, 실제 수정 문서 목록, read-only cwd.
+  // delta allowlist: 새 digest, previous findings, changed_documents, read-only cwd.
   assert.match(delta, /digest/);
   assert.match(delta, /previous findings/i);
-  assert.match(delta, /modified document|실제 수정|revised documents? only|documents? (?:actually )?modified/i);
+  assert.match(delta, /changed_documents|modified document|실제 수정|revised documents? only|documents? (?:actually )?modified/i);
   assert.match(delta, /read-only\s+cwd/i);
+  // follow_up partial만 delta; full이면 discovery 재시작.
+  assert.match(delta, /follow_up/);
+  assert.match(delta, /partial/);
+  assert.match(delta, /full/);
   // delta 거절: 극성 결합 — 허용(pass/include) 문구는 실패해야 한다.
   assert.match(
     delta,
@@ -600,6 +604,22 @@ test('bouncer-plan Gate step routes a stale context review back to step 5', () =
   const { body } = parseFrontmatter(mainMd);
   const gate = body.slice(body.indexOf('8. **Gate.**'));
   assert.match(gate, /context review is stale[\s\S]{0,240}step 5/);
+});
+
+// stale 복구는 follow_up으로 분기한다 — full이면 round 1, partial이면 delta.
+test('bouncer-plan context-review stale recovery branches on follow_up', () => {
+  const dispatch = fs.readFileSync(
+    path.join(root, 'skills/bouncer-plan/references/context-review.md'),
+    'utf8',
+  );
+  const staleAt = dispatch.indexOf('context review is stale');
+  assert.ok(staleAt >= 0, 'stale recovery paragraph present');
+  const stale = dispatch.slice(staleAt, staleAt + 800);
+  assert.match(stale, /follow_up/);
+  assert.match(stale, /--previous/);
+  assert.match(stale, /\bfull\b[\s\S]{0,200}round 1|round 1[\s\S]{0,200}\bfull\b/i);
+  assert.match(stale, /\bpartial\b[\s\S]{0,200}delta|delta[\s\S]{0,200}\bpartial\b/i);
+  assert.match(stale, /changed_documents/);
 });
 
 test('bouncer-plan dispatches read-only task evidence for full commit tasks', () => {

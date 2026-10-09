@@ -9,6 +9,11 @@
 
 ### Added
 
+- **`review-dispatch plan` 문서별 digest·`follow_up`** — `single`/`clustered`
+  payload에 `parts`·`scope_parts`·`follow_up`·`changed_documents`를 넣고,
+  `--previous <file>`로 이전 payload와 비교해 `full`(문서 집합·에픽/blueprint
+  본문·범위 digest 변화) 또는 `partial`(tasks.md 본문만)을 판정한다. stale
+  복구와 delta 입력이 이 신호를 따른다.
 - **`plan inspect --blueprint`** — 초안 task의 수·의존·접촉 모듈·위험 경로로
   advisory `routing`(`light-candidate`/`full-candidate`와 reasons)을 낸다.
   신호는 추천 근거만이며 light 선택·승인을 하지 않는다. 플래그 없으면
