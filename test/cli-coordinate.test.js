@@ -708,6 +708,20 @@ test('CLI review-dispatch execute without --task exits 0', () => {
   assert.strictEqual(code, 0, buf.err + buf.out);
 });
 
+// CT-003: whitespace-only --summary는 core summary-required(1)로 가지 않고
+// Interface empty-summary와 같이 usage(2)여야 한다. fence는 검사 순서상 앞이므로 붙인다.
+test('coordinate promote-stop whitespace-only --summary is usage exit 2', () => {
+  const drive = preparedDrive();
+  const { code, buf } = coordinateCli(drive.integration, 'promote-stop', [
+    ...ledgerFlagArgs(drive.repo),
+    '--repo', drive.repo,
+    '--reason', 'security-risk',
+    '--summary', '   ',
+  ], { fence: false });
+  assert.strictEqual(code, 2, buf.err + buf.out);
+  assert.match(buf.err, /--summary is required/);
+});
+
 test('coordinate CLI stdout is one-line JSON without ledger copies', () => {
   const repo = planCommittedRepo();
   const bootCli = coordinateCli(repo, 'bootstrap', ['--repo', repo]);

@@ -1051,11 +1051,9 @@ test('light single-task drive: prepare through done on integration without worke
 
   const done = coordinateNext({ repoRoot: repo, blueprint, cwd: integrationPath });
   assert.strictEqual(done.ok, true, JSON.stringify(done));
-  assert.ok(
-    done.action === 'done' || done.action === 'none' || done.ready?.length === 0
-      || (done.scope === 'blueprint' && (done.action === 'done' || done.action === 'final_review')),
-    JSON.stringify(done),
-  );
+  // CT-001: light 종료는 action===done 만 허용. none·빈 ready·final_review soft
+  // 수락은 다른 터미널 상태로도 통과시켜 회귀를 숨긴다.
+  assert.strictEqual(done.action, 'done', JSON.stringify(done));
 
   assert.deepStrictEqual(trackedSourceSnapshot(repo), before);
   assert.strictEqual(sourceStatus(repo), '');

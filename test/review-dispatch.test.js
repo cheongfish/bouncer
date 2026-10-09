@@ -821,6 +821,27 @@ test('execute full scale large diff stays parallel even with --blueprint', () =>
   ]);
 });
 
+// CT-002: light는 combined만 쓰지만 non-empty review_risk는 security를 붙인다.
+// light large-diff 케이스만 있으면 risk append 분기가 light 경로에서 빠질 수 있다.
+test('execute light scale with review_risk yields combined and security', () => {
+  const repo = makeRepo();
+  writePlanTree(repo, { scale: 'light', tasks: ['001'] });
+  writeCommitTask(repo, '001', { reviewRisk: ['public_interface'] });
+  const base = git(repo, ['rev-parse', 'HEAD']).trim();
+  fs.mkdirSync(path.join(repo, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src/a.ts'), 'export const a = 1;\n');
+  git(repo, ['add', 'src/a.ts']);
+  git(repo, ['commit', '-qm', 'light risk']);
+  const head = git(repo, ['rev-parse', 'HEAD']).trim();
+  const out = classifyExecuteReview({
+    repoRoot: repo, blueprintDir: BP_REL, taskId: '001', base, head,
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(out.strategy, 'single');
+  assert.deepStrictEqual(out.risk_flags, ['public_interface']);
+  assert.deepStrictEqual(out.perspectives, ['combined', 'security']);
+});
+
 test('execute risk flags append security on single and parallel', () => {
   const repo = makeRepo();
   writePlanTree(repo, { tasks: ['001'] });

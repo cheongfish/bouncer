@@ -710,10 +710,12 @@ function cmdCoordinate(rest: string[], io: CliIo) {
   }
   if (command === 'promote-stop') {
     // 빈 summary·reason은 usage(2). enum 밖 reason은 core가 promote-reason-invalid(1).
+    // CT-003: whitespace-only는 core summary-required(1)로 가지 않게 trim 후 검사 —
+    // Interface empty-summary와 CLI usage 채널을 맞춘다.
     if (typeof f.reason !== 'string' || f.reason === '') {
       return failCoordinateUsage(io, 'coordinate promote-stop: --reason is required\n', command);
     }
-    if (typeof f.summary !== 'string' || f.summary === '') {
+    if (typeof f.summary !== 'string' || f.summary.trim() === '') {
       return failCoordinateUsage(io, 'coordinate promote-stop: --summary is required\n', command);
     }
   }
