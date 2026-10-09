@@ -69,6 +69,16 @@ pointer moves, scope revisions, result recording, fan-in, and repair.
 `coordinate` stdout is one-line JSON; a success response carries `checkpoint`
 (and prepare also `opened[]`) instead of ledger copies of `tasks` or
 `decisions`.
+`coordinate bootstrap` sets ledger `mode: light` only when blueprint
+`bouncer.scale` is `light` and the blueprint has exactly one commit task with
+an empty `depends_on`; otherwise a light scale is refused with
+`light-requires-single-task`. Light prepare assigns `workerPath` to the
+integration worktree (no worker worktree), `coordinate next` implement carries
+`payload.inline: true`, and integrate records fan-in verified without
+cherry-pick. Light `report --outcome accepted` requires blueprint-root
+`review.md` rounds from `bouncer review record` and document status `accepted`
+(`light-review-required` otherwise). A resume bootstrap against the opposite
+mode fails with `ledger-mode-mismatch`. Ledgers without `mode` read as full.
 `coordinate advance` runs deterministic `next` argv actions (`prepare`,
 `integrate`, `verification_node`, `verify`, `commit`) and stops at `judge`,
 `worker`, `blocked`, `done`, `none`, `max-steps`, or a failure

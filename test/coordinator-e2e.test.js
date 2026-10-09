@@ -936,3 +936,127 @@ test('parallel drive: standalone checkout without a ledger keeps pointer effecti
   assert.strictEqual(eff.source, 'pointer');
   assert.strictEqual(eff.id, 'TASKS-002');
 });
+
+test('light single-task drive: prepare through done on integration without worker worktree', () => {
+  const { recordReview } = require('../scripts/lib/review-record');
+  const { coordinateNext } = require('../scripts/lib/coordinate-next');
+  const epic = '.bouncer/context/epics/089-e2e';
+  const blueprint = `${epic}/blueprints/001-light`;
+  const repo = makeRepo({ 'README.md': 'fixture\n', 'src/alpha.js': 'alpha base\n' });
+  writePlanDoc(repo, `${epic}/index.md`, 'bouncer.epic', { id: '089', epic_id: '089', status: 'approved' }, '# Epic\n');
+  ensureEpicIndexEntry({ repoRoot: repo, epicId: '089', name: 'e2e-light', description: 'd' });
+  writePlanDoc(repo, `${blueprint}/index.md`, 'bouncer.blueprint', {
+    id: '001', epic_id: '089', blueprint_id: '001', status: 'approved',
+    commit_type: 'feat', scale: 'light', review_scope: 'blueprint',
+  }, '# Blueprint\n\n## Intent\n- light inline drive\n');
+  writePlanDoc(repo, `${blueprint}/review.md`, 'bouncer.review', {
+    id: 'REVIEW-001', epic_id: '089', blueprint_id: '001', status: 'pending',
+    review: { required: true },
+  }, '# Review\n\n## Findings\n- <finding>\n');
+  writePlanDoc(repo, `${blueprint}/tasks/001/tasks.md`, 'bouncer.tasks', {
+    id: 'TASKS-001', epic_id: '089', blueprint_id: '001', status: 'ready',
+    depends_on: [], parallel_safe: false, dependency_gate: 'integrated',
+    affected_paths: ['src/alpha.js'],
+  }, '# Tasks\n\n## Goal & intent\nalpha\n\n## Touch\n- Modify `src/alpha.js`\n\n## Checklist\n- [ ] alpha\n');
+  writePlanDoc(repo, `${blueprint}/tasks/001/verification.md`, 'bouncer.verification', {
+    id: 'VERIFY-001', epic_id: '089', blueprint_id: '001', status: 'pending',
+  }, '# Verification\n');
+  git(repo, ['add', '-A']);
+  git(repo, ['commit', '-m', 'plan']);
+  const before = trackedSourceSnapshot(repo);
+
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.strictEqual(boot.mode, 'light');
+  const integrationPath = boot.integrationPath;
+
+  const prepared = coordinate({ command: 'prepare', repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.strictEqual(prepared.tasks[0].workerPath, integrationPath);
+  assert.strictEqual(fs.existsSync(path.join(integrationPath, '..', 'workers')), false);
+
+  const implement = coordinateNext({
+    repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+  });
+  assert.strictEqual(implement.ok, true, JSON.stringify(implement));
+  // dispatch 전이면 dispatch가 먼저다 — dispatch 후 implement inline을 본다.
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const inline = coordinateNext({
+    repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+  });
+  assert.strictEqual(inline.action, 'implement');
+  assert.strictEqual(inline.payload.inline, true);
+  assert.strictEqual(inline.cwd, integrationPath);
+
+  const sha = commitInWorker(integrationPath, 'src/alpha.js', 'changed by light\n', 'feat: light 001');
+  writeTerminalEvidence(integrationPath, blueprint, '001', sha);
+  // blueprint review_scope: task review.md는 fan-in에서 빠지지만 writeTerminalEvidence가 만든다.
+
+  const roundFile = path.join(integrationPath, 'round.json');
+  fs.writeFileSync(roundFile, `${JSON.stringify({
+    round: {
+      round: 1,
+      mode: 'discovery',
+      target: { base: boot.checkpoint?.ledger ? 'aaa' : 'aaa', head: sha.slice(0, 8) },
+      perspectives: [{ name: 'combined', target_head: sha.slice(0, 8) }],
+      previous_finding_ids: [],
+      new: 0,
+      resolved: 0,
+      regressed: 0,
+    },
+    findings: [],
+  })}\n`);
+  const recordedReview = recordReview({
+    repoRoot: integrationPath,
+    blueprintDir: blueprint,
+    roundFile,
+    status: 'accepted',
+  });
+  assert.strictEqual(recordedReview.ok, true, JSON.stringify(recordedReview));
+
+  const reported = coordinate({
+    command: 'report', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    attempt: dispatched.metadata.attempt,
+    taskBriefHash: dispatched.metadata.task_brief_hash,
+    outcome: 'accepted',
+    summary: 'light accepted',
+  });
+  assert.strictEqual(reported.ok, true, JSON.stringify(reported));
+  const recorded = coordinate({
+    command: 'record', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+  });
+  assert.strictEqual(recorded.ok, true, JSON.stringify(recorded));
+
+  const integrated = coordinate({
+    command: 'integrate', repoRoot: repo, blueprint, cwd: integrationPath, task: '001',
+    deps: {
+      runVerification: () => ({
+        ok: true, command: 'npm test', exitCode: 0, evidenceId: 'e'.repeat(64),
+      }),
+    },
+  });
+  assert.strictEqual(integrated.ok, true, JSON.stringify(integrated));
+  assert.strictEqual(
+    loadLedger(path.join(integrationPath, '.bouncer/runtime/coordinator.json')).tasks[0].status,
+    'integrated',
+  );
+  assert.strictEqual(
+    fs.readFileSync(path.join(integrationPath, 'src/alpha.js'), 'utf8'),
+    'changed by light\n',
+  );
+  assert.strictEqual(fs.existsSync(path.join(integrationPath, '..', 'fanin')), false);
+
+  const done = coordinateNext({ repoRoot: repo, blueprint, cwd: integrationPath });
+  assert.strictEqual(done.ok, true, JSON.stringify(done));
+  assert.ok(
+    done.action === 'done' || done.action === 'none' || done.ready?.length === 0
+      || (done.scope === 'blueprint' && (done.action === 'done' || done.action === 'final_review')),
+    JSON.stringify(done),
+  );
+
+  assert.deepStrictEqual(trackedSourceSnapshot(repo), before);
+  assert.strictEqual(sourceStatus(repo), '');
+});

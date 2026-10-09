@@ -94,6 +94,8 @@ type Ledger = {
   decisions: unknown[]; repairWaves?: RepairDecision[]; terminalFailure?: FailureEvidence;
   status?: 'active' | 'awaiting_confirmation' | 'partial_closed'; userConfirmed?: boolean; revision?: string;
   leaseSeq?: number;
+  // light만 기록한다. 부재·undefined는 full(legacy 호환). 응답 mode는 항상 light|full.
+  mode?: 'light';
   // candidate fan-in 진행 상태. null/부재는 진행 없음. building→verified→null.
   fanin?: FaninState | null;
 };
@@ -937,6 +939,78 @@ function isBlueprintReviewModeAt(root: string, blueprint: string): boolean {
   }
 }
 
+/**
+ * blueprint index의 `bouncer.scale`을 읽는다. light 원장 여부의 유일한 입력이다.
+ *
+ * @param {string} root - 문서를 읽을 checkout (대개 integration)
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {string | undefined} 선언된 scale. 없거나 비문자면 undefined
+ */
+function blueprintScaleAt(root: string, blueprint: string): string | undefined {
+  const bouncer = readBouncerBlock(path.join(root, blueprint, 'index.md'));
+  return bouncer && typeof bouncer.scale === 'string' ? bouncer.scale : undefined;
+}
+
+/**
+ * light 원장 자격: commit task 정확히 1개이고 depends_on이 비어 있어야 한다.
+ * verification·두 번째 task·비어 있지 않은 depends_on은 모두 자격 없음이다.
+ *
+ * @param {Task[]} tasks - 원장에 올릴 task 목록
+ * @returns {boolean} light 자격이 있으면 true
+ */
+function isLightEligible(tasks: Task[]): boolean {
+  if (tasks.length !== 1) return false;
+  const only = tasks[0];
+  if ((only.execution_kind || 'commit') === 'verification') return false;
+  if (Array.isArray(only.depends_on) && only.depends_on.length > 0) return false;
+  return true;
+}
+
+/**
+ * 원장 mode를 응답·비교용 light|full로 읽는다. 부재는 full(legacy).
+ *
+ * @param {Ledger} ledger - 원장
+ * @returns {'light' | 'full'} 해석된 모드
+ */
+function ledgerModeOf(ledger: Ledger): 'light' | 'full' {
+  return ledger.mode === 'light' ? 'light' : 'full';
+}
+
+/**
+ * light 원장에서 task cwd가 integration인지 본다. full의 registeredWorker와
+ * 달리 integration 자체 배정만 허용하고 workers/ 경로는 거절한다.
+ *
+ * @param {Task} item - 원장 task
+ * @param {string} integrationPath - integration checkout 절대 경로
+ * @returns {boolean} workerPath가 integration과 같으면 true
+ */
+function lightWorkerAssigned(item: Task, integrationPath: string): boolean {
+  if (typeof item.workerPath !== 'string' || item.workerPath === '') return false;
+  try {
+    return fs.realpathSync(item.workerPath) === fs.realpathSync(integrationPath);
+  } catch (_error) {
+    // 경로 부재·권한 오류는 배정 실패로만 접는다. throw하면 dispatch가 사용법 오류가 된다.
+    return false;
+  }
+}
+
+/**
+ * light 원장의 `report accepted`가 요구하는 루트 review.md 라운드·status를 본다.
+ * 라운드는 `bouncer review record`만 쓰므로 여기서는 존재와 status만 판정한다.
+ *
+ * @param {string} integrationPath - integration checkout
+ * @param {string} blueprint - blueprint 상대 경로
+ * @returns {boolean} rounds가 비어 있지 않고 status가 accepted이면 true
+ */
+function lightReviewAccepted(integrationPath: string, blueprint: string): boolean {
+  const bouncer = readBouncerBlock(path.join(integrationPath, blueprint, 'review.md'));
+  if (!bouncer || bouncer.status !== 'accepted') return false;
+  const review = bouncer.review;
+  if (!review || typeof review !== 'object' || Array.isArray(review)) return false;
+  const rounds = (review as Record<string, unknown>).rounds;
+  return Array.isArray(rounds) && rounds.length > 0;
+}
+
 // frontmatter.ts의 FRONTMATTER_RE에서 뒤쪽 `\n?([\s\S]*)$`(항상 맞는 부분)를 뺀
 // 앞부분과 같다. 이 검사를 통과한 문서는 parseFrontmatter가 블록 부재로 throw할 수
 // 없으므로, 블록 부재를 오류 문구 비교 없이 구조로 판정한다.
@@ -1361,6 +1435,19 @@ function prepareCoordinator({
       const checked = checkVerificationNode(integration.integrationPath, blueprint, id);
       if (!checked.ok) return checked;
     }
+    // light는 worker worktree를 만들지 않는다. integration 경로를 workerPath로
+    // 쓰므로 branch·worktree 계획 단계 전체를 건너뛴다.
+    if (ledgerModeOf(ledger) === 'light') {
+      return {
+        ok: true as const,
+        ledger,
+        ready,
+        plannedWorkers: new Map<string, PlannedWorker>(),
+        phase1Hash: ledgerBytesHash(ledgerBytes),
+        light: true as const,
+        integrationBranch: names.integration,
+      };
+    }
     const plannedWorkers = new Map<string, PlannedWorker>();
     try {
       // revoke된 배정은 등록 worktree·branch를 지운 뒤 새로 만든다. reuse하면
@@ -1416,6 +1503,8 @@ function prepareCoordinator({
       ready,
       plannedWorkers,
       phase1Hash: ledgerBytesHash(ledgerBytes),
+      light: false as const,
+      integrationBranch: names.integration,
     };
   });
 
@@ -1428,51 +1517,57 @@ function prepareCoordinator({
     ready: string[];
     plannedWorkers: Map<string, PlannedWorker>;
     phase1Hash: string;
+    light: boolean;
+    integrationBranch: string;
   };
-  const { ledger, ready, plannedWorkers, phase1Hash } = planned;
+  const { ledger, ready, plannedWorkers, phase1Hash, light, integrationBranch } = planned;
   const created: CreatedWorker[] = [];
 
-  // 2. 잠금 밖: worktree add와 seed. 원장 .lock 파일이 없어야 다른 prepare가 기다리지 않는다.
-  try {
-    for (const id of ready) {
-      const item = ledger.tasks.find((x) => x.id === id) as Task;
-      if (item.execution_kind === 'verification') continue;
-      const entry = plannedWorkers.get(id) as PlannedWorker;
-      if (entry.action === 'create') {
-        fs.mkdirSync(path.dirname(entry.worker), { recursive: true });
-        git(exec, integration.integrationPath,
-          ['worktree', 'add', '-b', entry.branch, entry.worker, 'HEAD']);
-        created.push({ worker: entry.worker, branch: entry.branch });
+  // 2. 잠금 밖: worktree add와 seed. light는 worker를 만들지 않아 이 단계를 건너뛴다.
+  // 원장 .lock 파일이 없어야 다른 prepare가 기다리지 않는다.
+  if (!light) {
+    try {
+      for (const id of ready) {
+        const item = ledger.tasks.find((x) => x.id === id) as Task;
+        if (item.execution_kind === 'verification') continue;
+        const entry = plannedWorkers.get(id) as PlannedWorker;
+        if (entry.action === 'create') {
+          fs.mkdirSync(path.dirname(entry.worker), { recursive: true });
+          git(exec, integration.integrationPath,
+            ['worktree', 'add', '-b', entry.branch, entry.worker, 'HEAD']);
+          created.push({ worker: entry.worker, branch: entry.branch });
+        }
+        if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
+          cleanupCreatedWorkersUnderNewLock(
+            integration.ledgerFile, exec, integration.integrationPath, created,
+          );
+          return { ok: false, reason: 'unassigned-worker-worktree', workerPath: entry.worker };
+        }
+        // 모든 worker는 integration 사본을 받는다. bootstrap 뒤 계획 문서의 정본은
+        // integration이고(동적 repair 문서는 그곳에만 있다), main은 drive 동안 base SHA
+        // 출처로만 남으므로 main 계획이 사라져도 준비가 이어진다. cpSync는 worker마다
+        // 독립 사본을 쓰므로 병렬 worker끼리 문서를 공유하지 않는다.
+        const seeded = seedCoordinatorWorker({
+          repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: entry.worker,
+          deps: { execFileSync: exec },
+        });
+        if (!seeded.ok) {
+          cleanupCreatedWorkersUnderNewLock(
+            integration.ledgerFile, exec, integration.integrationPath, created,
+          );
+          return seeded;
+        }
       }
-      if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
-        cleanupCreatedWorkersUnderNewLock(
-          integration.ledgerFile, exec, integration.integrationPath, created,
-        );
-        return { ok: false, reason: 'unassigned-worker-worktree', workerPath: entry.worker };
-      }
-      // 모든 worker는 integration 사본을 받는다. bootstrap 뒤 계획 문서의 정본은
-      // integration이고(동적 repair 문서는 그곳에만 있다), main은 drive 동안 base SHA
-      // 출처로만 남으므로 main 계획이 사라져도 준비가 이어진다. cpSync는 worker마다
-      // 독립 사본을 쓰므로 병렬 worker끼리 문서를 공유하지 않는다.
-      const seeded = seedCoordinatorWorker({
-        repoRoot: integration.integrationPath, blueprintDir: blueprint, worktreePath: entry.worker,
-        deps: { execFileSync: exec },
-      });
-      if (!seeded.ok) {
-        cleanupCreatedWorkersUnderNewLock(
-          integration.ledgerFile, exec, integration.integrationPath, created,
-        );
-        return seeded;
-      }
+    } catch (error) {
+      cleanupCreatedWorkersUnderNewLock(
+        integration.ledgerFile, exec, integration.integrationPath, created,
+      );
+      throw error;
     }
-  } catch (error) {
-    cleanupCreatedWorkersUnderNewLock(
-      integration.ledgerFile, exec, integration.integrationPath, created,
-    );
-    throw error;
   }
 
   // 3. 잠금 재획득: ① bytes와 같고 계획 worker가 등록돼 있을 때만 메모리 전이를 쓴다.
+  // light는 workerPath=integration으로 lease만 발급한다.
   const phase3 = withLedgerLock(integration.ledgerFile, (owns) => {
     const loaded = loadLedgerBytes(integration.ledgerFile);
     if (!loaded) return { ok: false as const, reason: 'missing-ledger' };
@@ -1481,13 +1576,15 @@ function prepareCoordinator({
       removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created);
       return { ok: false as const, reason: 'stale-ledger-checkpoint' };
     }
-    for (const id of ready) {
-      const item = ledger.tasks.find((x) => x.id === id) as Task;
-      if (item.execution_kind === 'verification') continue;
-      const entry = plannedWorkers.get(id) as PlannedWorker;
-      if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
-        removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created);
-        return { ok: false as const, reason: 'unassigned-worker-worktree', workerPath: entry.worker };
+    if (!light) {
+      for (const id of ready) {
+        const item = ledger.tasks.find((x) => x.id === id) as Task;
+        if (item.execution_kind === 'verification') continue;
+        const entry = plannedWorkers.get(id) as PlannedWorker;
+        if (!registeredWorker(exec, integration.integrationPath, entry.worker)) {
+          removeUnreferencedCreatedWorkers(exec, integration.integrationPath, live, created);
+          return { ok: false as const, reason: 'unassigned-worker-worktree', workerPath: entry.worker };
+        }
       }
     }
     // 잠금을 빼앗긴 뒤에는 원장도 Git도 건드리지 않는다. 정리는 이 잠금이 끝난 뒤
@@ -1499,11 +1596,16 @@ function prepareCoordinator({
         item.status = transition(item.status || 'pending', 'ready', 'verification');
         continue;
       }
-      const entry = plannedWorkers.get(id) as PlannedWorker;
       item.status = transition(item.status || 'pending', 'ready');
       item.status = transition(item.status, 'prepared');
-      item.workerPath = entry.worker;
-      item.branch = entry.branch;
+      if (light) {
+        item.workerPath = integration.integrationPath;
+        item.branch = ledger.integrationBranch || integrationBranch;
+      } else {
+        const entry = plannedWorkers.get(id) as PlannedWorker;
+        item.workerPath = entry.worker;
+        item.branch = entry.branch;
+      }
       issueLease(ledger, item, makeLeaseId);
     }
     const lost = writeOwnedLedger(owns, writeLedger, integration.ledgerFile, ledger);
@@ -1839,7 +1941,117 @@ function isCherryPickConflict(error: unknown, exec: Exec, faninPath: string): bo
 }
 
 /**
+ * light commit wave: cherry-pick 없이 integration HEAD를 fanin verified로 기록한다.
+ * 커밋은 이미 integration에서 이뤄졌으므로 HEAD≠integrationHead여도 stale로
+ * 보지 않고, 기록된 sha 소유와 증적만 확인한 뒤 integrated로 올린다.
+ *
+ * @param {object} opts - integrateCommitWave와 동일 인자(deps.runVerification 미사용)
+ * @returns {unknown} 성공 시 integrate checkpoint, 실패 시 ok:false
+ */
+function integrateLightCommitWave({
+  // repoRoot는 공개 시그니처 호환용 — light commit wave는 integration 경로만 쓴다.
+  blueprint, task, leaseId, generation,
+  ledgerPath, ledgerHash, exec, writeLedger, integration,
+}: {
+  repoRoot: string; blueprint: string; task?: string;
+  leaseId?: string; generation?: number;
+  ledgerPath?: string; ledgerHash?: string;
+  exec: Exec; writeLedger: (file: string, data: unknown) => void;
+  integration: ReturnType<typeof coordinatorPathsFor>;
+}): unknown {
+  return withLedgerLock(integration.ledgerFile, (owns) => {
+    const loaded = loadLedgerBytes(integration.ledgerFile);
+    if (!loaded) return { ok: false, reason: 'missing-ledger' };
+    const { ledger, bytes: ledgerBytes } = loaded;
+    const leaseShape = assertLeaseShape(ledger);
+    if (!leaseShape.ok) return leaseShape;
+    const faninChecked = runtime.validateCoordinatorLedger(ledger);
+    if (!faninChecked.ok) return { ok: false, reason: faninChecked.reason };
+    const fenced = assertLedgerFence({ ledgerPath, ledgerHash, ledgerBytes });
+    if (!fenced.ok) return fenced;
+    if (ledgerModeOf(ledger) !== 'light') {
+      return { ok: false, reason: 'ledger-mode-mismatch' };
+    }
+
+    if (task) {
+      const item = ledger.tasks.find((x) => x.id === task);
+      if (!item) return { ok: false, reason: 'task-outside-blueprint' };
+      if ((item.execution_kind || 'commit') === 'verification') {
+        return { ok: false, reason: 'task-outside-blueprint' };
+      }
+      const leaseChecked = checkLease(item, {
+        ...(leaseId !== undefined ? { lease_id: leaseId } : {}),
+        ...(generation !== undefined ? { generation } : {}),
+      });
+      if (!leaseChecked.ok) {
+        const rejected = rejectLeaseMismatch(ledger, item, task, leaseChecked);
+        if (leaseChecked.reason === 'stale-lease') {
+          if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+          writeLedger(integration.ledgerFile, ledger);
+        }
+        return rejected;
+      }
+    }
+
+    const selected = selectRecordedCommitIds(ledger, task);
+    if (selected.length === 0) return { ok: false, reason: 'nothing-to-integrate' };
+    const ordered = sortFaninTasks(ledger.tasks, selected);
+    const head = git(exec, integration.integrationPath, ['rev-parse', 'HEAD']);
+    const baseHead = typeof ledger.integrationHead === 'string' ? ledger.integrationHead : head;
+
+    for (const id of ordered) {
+      const item = ledger.tasks.find((x) => x.id === id) as Task;
+      if (!lightWorkerAssigned(item, integration.integrationPath)
+        || !workerOwnsSha(exec, integration.integrationPath, item.sha as string)) {
+        return { ok: false, reason: 'sha-not-owned-by-worker' };
+      }
+      const evidence = checkWorkerEvidence(
+        integration.integrationPath, integration.integrationPath, blueprint, id, item.sha as string,
+      );
+      if (!evidence.ok) return evidence;
+    }
+
+    // fanin verified를 남긴 뒤 바로 비운다. candidate worktree·ff는 없다 —
+    // HEAD가 이미 기록된 커밋이다. copyEvidenceBundle는 동일 경로라 건너뛴다.
+    ledger.fanin = {
+      base_head: baseHead,
+      candidate_head: head,
+      tasks: ordered,
+      status: 'verified',
+    };
+    for (const id of ordered) {
+      const item = ledger.tasks.find((x) => x.id === id);
+      if (!item) continue;
+      item.status = transition('recorded', 'integrated');
+    }
+    ledger.integrationHead = head;
+    const decision: FaninDecision = {
+      kind: 'fanin',
+      tasks: [...ordered],
+      base_head: baseHead,
+      candidate_head: head,
+      evidence_id: null,
+    };
+    ledger.decisions.push(decision);
+    ledger.fanin = null;
+    if (!owns()) return { ok: false, reason: 'ledger-lock-lost' };
+    writeLedger(integration.ledgerFile, ledger);
+    return withCheckpoint({
+      ok: true as const,
+      command: 'integrate',
+      integrated: [...ordered],
+      integrationHead: head,
+      verification: { ok: true, command: '', exitCode: 0 },
+      ready: readyWave(ledger.tasks, {
+        maxParallel: maxParallelForRead(integration.integrationPath),
+      }),
+    }, ledger, integration.ledgerFile);
+  });
+}
+
+/**
  * commit wave fan-in: candidate에서 cherry-pick·검증 후 CAS ff만 canonical에 쓴다.
+ * light 원장은 cherry-pick 없이 `integrateLightCommitWave`로 보낸다.
  */
 function integrateCommitWave({
   repoRoot, blueprint, task, leaseId, generation,
@@ -1852,6 +2064,15 @@ function integrateCommitWave({
   deps: { runVerification?: VerificationRunner };
   integration: ReturnType<typeof coordinatorPathsFor>;
 }): unknown {
+  // light는 full fan-in 복구·candidate 경로와 섞지 않는다. 원장 mode만 본다.
+  const peek = loadLedger(integration.ledgerFile);
+  if (peek && ledgerModeOf(peek) === 'light') {
+    return integrateLightCommitWave({
+      repoRoot, blueprint, task, leaseId, generation,
+      ledgerPath, ledgerHash, exec, writeLedger, integration,
+    });
+  }
+
   const faninPath = integration.faninPath;
   const runner = deps.runVerification
     || (require('./verification').runVerification as VerificationRunner);
@@ -2329,22 +2550,39 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     if (!ledger) {
       const seeded = seedIntegration({ repoRoot, blueprintDir: blueprint, integrationPath: paths.integrationPath });
       if (!seeded.ok) return seeded;
+      const tasks = taskList(paths.integrationPath, blueprint);
+      // scale:light 이고 단일 commit·빈 depends_on일 때만 mode:light. 그 밖 light는
+      // 거부해 full worktree 경로로 조용히 떨어지지 않게 한다. scale이 light가 아니면
+      // 기존처럼 mode 없는 full 원장이다.
+      const scale = blueprintScaleAt(paths.integrationPath, blueprint);
+      if (scale === 'light' && !isLightEligible(tasks)) {
+        return { ok: false, reason: 'light-requires-single-task' };
+      }
       ledger = {
         version: 1 as const, blueprint, base,
         integrationHead: git(exec, paths.integrationPath, ['rev-parse', 'HEAD']),
-        tasks: taskList(paths.integrationPath, blueprint), decisions: [], status: 'active' as const, repairWaves: [],
+        tasks, decisions: [], status: 'active' as const, repairWaves: [],
         seedManifest: seeded.manifest,
+        ...(scale === 'light' ? { mode: 'light' as const } : {}),
       };
     } else {
       // 기존 원장을 재개할 때도 lease shape를 본다. fenced mutation과 같이
       // 손상 lease가 bootstrap 응답·이후 명령의 기준이 되지 않게 한다.
       const leaseShape = assertLeaseShape(ledger);
       if (!leaseShape.ok) return leaseShape;
+      // 이미 mode가 있는(또는 legacy full로 읽는) 원장에 반대 scale로 재개하면
+      // light/full 계약이 갈라지므로 여기서 끊는다. 자격 검사는 신규 seed만.
+      const scale = blueprintScaleAt(paths.integrationPath, blueprint);
+      const wantMode: 'light' | 'full' = scale === 'light' ? 'light' : 'full';
+      if (ledgerModeOf(ledger) !== wantMode) {
+        return { ok: false, reason: 'ledger-mode-mismatch' };
+      }
     }
     ledger.integrationBranch = integrationBranch;
     writeLedger(paths.ledgerFile, ledger);
     return withCheckpoint({
       ok: true as const, command, integrationPath: paths.integrationPath,
+      mode: ledgerModeOf(ledger),
       ready: readyWave(ledger.tasks, { maxParallel: maxParallelForRead(paths.integrationPath) }),
       tasks: ledger.tasks, decisions: ledger.decisions, integrationBranch,
     }, ledger, paths.ledgerFile);
@@ -2655,11 +2893,22 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     if (command === 'dispatch' || command === 'report') {
     // dispatch/report는 implementer 경계다. record와 같이 할당 worker에서만 열리며,
     // task 상태(prepared)는 유지하고 attempt 상태(active|reported)만 바꾼다.
-      const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
-      if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
-        return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+    // light는 workerPath===integration만 허용하고 cwd도 integration이다(별도 workers/ 없음).
+      if (ledgerModeOf(ledger) === 'light') {
+        if (!lightWorkerAssigned(item, integration.integrationPath)) {
+          return {
+            ok: false, reason: 'unassigned-worker-worktree',
+            workerPath: item.workerPath || integration.integrationPath,
+          };
+        }
+        ensureIntegrationCwd(repoRoot, blueprint, cwd);
+      } else {
+        const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
+        if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
+          return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+        }
+        ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
       }
-      ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
       if (item.execution_kind === 'verification') {
         return { ok: false, reason: 'dispatch-commit-task-required' };
       }
@@ -2725,6 +2974,12 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
       if (typeof summary !== 'string' || summary.trim() === '') {
         return { ok: false, reason: 'summary-required' };
       }
+      // light는 루트 review.md에 review record 라운드와 accepted status가 있을 때만
+      // accepted를 받는다. 독립 reviewer 여부는 CLI가 아니라 run 절차 몫이다.
+      if (ledgerModeOf(ledger) === 'light' && outcome === 'accepted'
+        && !lightReviewAccepted(integration.integrationPath, blueprint)) {
+        return { ok: false, reason: 'light-review-required' };
+      }
       const expected = {
         attempt: item.dispatch.attempt, task_brief_hash: item.dispatch.task_brief_hash,
       };
@@ -2759,13 +3014,25 @@ function coordinate({ command, repoRoot, blueprint, cwd = repoRoot, task, sha, d
     if (command === 'record') {
     // record는 worker가 만든 SHA와 provenance를 ledger로 올리는 경계다. integration
     // checkout에서 다시 worker 경계를 요구하면 어떤 정상 worker도 기록할 수 없다.
-      const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
-      // prepare 뒤에도 경로 치환은 가능하다. ledger에 저장한 문자열과 Git 등록을 둘 다
-      // 다시 확인해야 symlink가 외부 checkout의 HEAD를 provenance로 기록할 수 없다.
-      if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
-        return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+    // light는 integration 자체가 workerPath이므로 등록 workers/ 검사가 아니라
+    // integration 일치만 본다.
+      if (ledgerModeOf(ledger) === 'light') {
+        if (!lightWorkerAssigned(item, integration.integrationPath)) {
+          return {
+            ok: false, reason: 'unassigned-worker-worktree',
+            workerPath: item.workerPath || integration.integrationPath,
+          };
+        }
+        ensureIntegrationCwd(repoRoot, blueprint, cwd);
+      } else {
+        const worker = coordinatorPathsFor({ repoRoot, blueprint, task }).workerPath as string;
+        // prepare 뒤에도 경로 치환은 가능하다. ledger에 저장한 문자열과 Git 등록을 둘 다
+        // 다시 확인해야 symlink가 외부 checkout의 HEAD를 provenance로 기록할 수 없다.
+        if (item.workerPath !== worker || !registeredWorker(exec, integration.integrationPath, worker)) {
+          return { ok: false, reason: 'unassigned-worker-worktree', workerPath: worker };
+        }
+        ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
       }
-      ensureIntegrationCwd(repoRoot, blueprint, cwd, task);
       if ((item.status || 'pending') !== 'prepared') return { ok: false, reason: 'illegal-transition' };
       // accepted report가 없는 HEAD는 어느 brief·attempt의 결과인지 알 수 없다.
       // dispatch 없이 record하던 경로를 여기서 끊는다.
@@ -2936,6 +3203,20 @@ const COORDINATE_FAILURE_HINTS: Record<string, { cause: string; next: string }> 
     cause: 'The process lost the ledger lock before it could write.',
     next: 'Run `bouncer coordinate status` and retry the same command from that '
       + 'checkpoint; do not write the ledger by hand.',
+  },
+  'ledger-mode-mismatch': {
+    cause: 'The existing ledger mode does not match the blueprint scale for this bootstrap.',
+    next: 'Use a matching scale (light ledger with scale light, full with non-light), or start a new blueprint drive.',
+  },
+  'light-requires-single-task': {
+    cause: 'Scale light requires exactly one commit task with an empty depends_on and no verification task.',
+    next: 'Fix the blueprint to a single independent commit task, or set scale to full and bootstrap again.',
+  },
+  'light-review-required': {
+    cause: 'Light-mode accepted report requires blueprint-root review.md rounds and status accepted.',
+    next:
+      'Record a review round with `bouncer review record` on the root review.md, '
+      + 'set status accepted, then retry report.',
   },
   'main-source-mutated': {
     cause: 'Bootstrap changed tracked files in the main checkout, which is forbidden.',

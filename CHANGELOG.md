@@ -9,6 +9,12 @@
 
 ### Added
 
+- **`coordinate` light 원장 모드** — `bouncer.scale: light`이고 의존 없는 commit
+  task가 정확히 하나일 때만 `mode: light` 원장을 만든다. prepare는 worker
+  worktree 없이 `workerPath`를 integration으로 두고, `coordinate next`
+  implement는 `payload.inline: true`를 내며, integrate는 cherry-pick 없이
+  fan-in verified를 기록한다. 거부는 `light-requires-single-task`·
+  `ledger-mode-mismatch`·`light-review-required`다.
 - **`review-dispatch plan` 문서별 digest·`follow_up`** — `single`/`clustered`
   payload에 `parts`·`scope_parts`·`follow_up`·`changed_documents`를 넣고,
   `--previous <file>`로 이전 payload와 비교해 `full`(문서 집합·에픽/blueprint

@@ -1278,3 +1278,63 @@ test('card: concatenated cards satisfy the coordinator document rule regexes', (
   );
   assert.match(md, /risk_flags|perspectives/);
 });
+
+test('light ledger implement carries payload.inline and cwd is integration', () => {
+  const blueprint = '.bouncer/context/epics/089-n/blueprints/001-inline';
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'bouncer-next-inline-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: repo });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo });
+  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'README.md'), 'fixture\n');
+  execFileSync('git', ['add', 'README.md'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'fixture'], { cwd: repo });
+  fs.mkdirSync(path.join(repo, blueprint, 'tasks/001'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'index.md'),
+    '---\nbouncer:\n  status: approved\n  scale: light\n  review_scope: blueprint\n---\n# Blueprint\n',
+  );
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'review.md'),
+    '---\nbouncer:\n  id: REVIEW-BP\n  status: pending\n  review:\n    required: true\n---\n# Review\n',
+  );
+  fs.writeFileSync(
+    path.join(repo, blueprint, 'tasks/001/tasks.md'),
+    '---\nbouncer:\n  status: ready\n  depends_on: []\n  parallel_safe: false\n  dependency_gate: integrated\n---\nbrief\n',
+  );
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'plan'], { cwd: repo });
+  const boot = coordinate({ command: 'bootstrap', repoRoot: repo, blueprint });
+  assert.strictEqual(boot.ok, true, JSON.stringify(boot));
+  assert.strictEqual(boot.mode, 'light');
+  const prepared = coordinate({
+    command: 'prepare', repoRoot: repo, blueprint, cwd: boot.integrationPath,
+  });
+  assert.strictEqual(prepared.ok, true, JSON.stringify(prepared));
+  assert.strictEqual(prepared.tasks[0].workerPath, boot.integrationPath);
+  const drive = {
+    repo, blueprint, worker: boot.integrationPath,
+    integrationPath: boot.integrationPath,
+    ledgerFile: path.join(boot.integrationPath, '.bouncer/runtime/coordinator.json'),
+  };
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: repo, blueprint, cwd: boot.integrationPath, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true, JSON.stringify(dispatched));
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'implement');
+  assert.strictEqual(r.cwd, boot.integrationPath);
+  assert.strictEqual(r.payload.inline, true);
+  assert.strictEqual(r.payload.attempt, 1);
+});
+
+test('full ledger implement omits payload.inline', () => {
+  const blueprint = '.bouncer/context/epics/089-n/blueprints/002-full-inline';
+  const drive = preparedCommitDrive('bouncer-next-full-inline-', blueprint);
+  const dispatched = coordinate({
+    command: 'dispatch', repoRoot: drive.repo, blueprint, cwd: drive.worker, task: '001',
+  });
+  assert.strictEqual(dispatched.ok, true);
+  const r = assertNoWrite(drive, () => nextOf(drive, { task: '001' }));
+  assert.strictEqual(r.action, 'implement');
+  assert.strictEqual('inline' in (r.payload || {}), false);
+});
